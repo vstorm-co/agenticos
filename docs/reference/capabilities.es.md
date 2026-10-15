@@ -1,5 +1,5 @@
 ---
-source_sha: "95a205d6812d"
+source_sha: "7901da764013"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -754,7 +754,14 @@ idioma declara el navegador, sea cual sea el modo.
 
 Un proxy (`proxy_url`) envía el tráfico de ese navegador por una dirección `http://`,
 `https://` o `socks5://` - residencial o regional - y se autentica con el secreto del
-binding como `username:password` cuando lo tiene. Un navegador alojado (`hosted_url`)
+binding como `username:password` cuando lo tiene.
+
+Un proxy `http://` o
+`socks5://` llega al navegador en la dirección que se comprobó, así que un nombre
+que cambie entre la comprobación y la conexión no lo dirige al interior de la red;
+un proxy `https://` conserva su nombre, para el que se emitió su certificado.
+
+Un navegador alojado (`hosted_url`)
 se conecta en cambio por `wss://` a un servicio de navegador - Browserbase, Steel o
 uno propio - con el secreto del binding como clave, añadida a la query de la
 dirección bajo `hosted_key_param` (`apiKey` por defecto).

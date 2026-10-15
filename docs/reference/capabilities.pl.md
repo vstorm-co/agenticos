@@ -1,5 +1,5 @@
 ---
-source_sha: "95a205d6812d"
+source_sha: "7901da764013"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -744,7 +744,14 @@ podaje, niezależnie od trybu.
 
 Proxy (`proxy_url`) puszcza ruch tej przeglądarki przez adres `http://`, `https://`
 albo `socks5://` - domowy albo z wybranego kraju - i loguje się sekretem bindingu jako
-`username:password`, jeśli binding go ma. Przeglądarka hostowana (`hosted_url`)
+`username:password`, jeśli binding go ma.
+
+Proxy `http://` albo `socks5://`
+przeglądarka dostaje pod adresem, który sprawdzono, więc nazwa zmieniona między
+sprawdzeniem a połączeniem nie skieruje jej do wnętrza sieci; proxy `https://`
+zachowuje nazwę, na którą wystawiono jego certyfikat.
+
+Przeglądarka hostowana (`hosted_url`)
 zamiast tego podłącza się przez `wss://` do usługi przeglądarki - Browserbase, Steel
 albo własnej - z sekretem bindingu jako kluczem, dopisywanym do zapytania w adresie
 pod `hosted_key_param` (domyślnie `apiKey`).

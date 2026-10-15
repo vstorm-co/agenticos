@@ -703,7 +703,14 @@ reports whichever it is.
 
 A proxy (`proxy_url`) sends that browser's traffic through an `http://`, `https://`
 or `socks5://` address - a residential or regional one - and signs in with the
-binding's secret as `username:password` when it has one. A hosted browser
+binding's secret as `username:password` when it has one.
+
+An `http://` or
+`socks5://` proxy is handed to the browser at the address it was checked at, so a
+name that changes between the check and the connection cannot point it inside the
+network; an `https://` one keeps its name, which its certificate is issued for.
+
+A hosted browser
 (`hosted_url`) attaches to a browser service over `wss://` instead - Browserbase,
 Steel or one of your own - with the binding's secret as its key, added to the
 address's query under `hosted_key_param` (`apiKey` by default).

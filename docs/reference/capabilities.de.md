@@ -1,5 +1,5 @@
 ---
-source_sha: "95a205d6812d"
+source_sha: "7901da764013"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -786,7 +786,14 @@ Zeitzone und Sprache der Browser meldet, gleich in welchem Modus.
 
 Ein Proxy (`proxy_url`) schickt den Verkehr dieses Browsers über eine `http://`-,
 `https://`- oder `socks5://`-Adresse - eine private oder regionale - und meldet sich
-mit dem Secret des Bindings als `username:password` an, wenn es eines hat. Ein
+mit dem Secret des Bindings als `username:password` an, wenn es eines hat.
+
+Einen
+`http://`- oder `socks5://`-Proxy bekommt der Browser unter der geprüften Adresse,
+sodass ein Name, der sich zwischen Prüfung und Verbindung ändert, ihn nicht ins Netz
+lenkt; ein `https://`-Proxy behält seinen Namen, auf den sein Zertifikat lautet.
+
+Ein
 gehosteter Browser (`hosted_url`) verbindet sich stattdessen über `wss://` mit einem
 Browser-Dienst - Browserbase, Steel oder einem eigenen - mit dem Secret des Bindings
 als Schlüssel, an die Query der Adresse unter `hosted_key_param` angehängt

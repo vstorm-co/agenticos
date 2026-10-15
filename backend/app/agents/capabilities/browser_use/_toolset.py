@@ -472,9 +472,10 @@ def build_toolset(
             if person is None or hosted
             else await browser_sign_in.load_for(person.organization_id, person.user_id)
         )
+        pinned_route = route
         if route is not None:
             try:
-                await recheck(route)
+                pinned_route = await recheck(route)
             except UrlRefusedError as exc:
                 return f"This agent's browser connection cannot be used: {exc}"
         try:
@@ -484,7 +485,7 @@ def build_toolset(
                 start_url=url,
                 policy=page_policy,
                 sign_ins=sign_ins,
-                route=route,
+                route=pinned_route,
             )
         except (httpx.HTTPError, OSError) as exc:
             # Only while opening: the browser was never reached - a name that does

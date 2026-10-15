@@ -117,6 +117,48 @@ class TestAnAddressIsChecked:
         with pytest.raises(SSRFBlockedError):
             await recheck(proxy)
 
+    @pytest.mark.security
+    async def test_a_proxy_is_handed_on_at_the_address_it_was_checked_at(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Codex on #2062: the browser resolved the proxy's name again, and a name
+        that answered a public address here could answer an internal one there."""
+        from app.core.sanitize import PinnedAddress
+
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", [])
+        monkeypatch.setattr(
+            module,
+            "resolve_pinned_url",
+            lambda url, allowed_schemes: PinnedAddress(
+                hostname="proxy.example.com", port=8080, ips=("203.0.113.9", "2001:db8::1")
+            ),
+        )
+
+        plain = await recheck(BrowserRoute(proxy_server="http://proxy.example.com:8080"))
+        socks = await recheck(BrowserRoute(proxy_server="socks5://proxy.example.com:8080"))
+        tls = BrowserRoute(proxy_server="https://proxy.example.com:8080")
+
+        assert plain.proxy_server == "http://203.0.113.9:8080"
+        assert socks.proxy_server == "socks5://203.0.113.9:8080"
+        # Its certificate is issued for the name, so the name stays.
+        assert (await recheck(tls)) == tls
+
+    async def test_an_ipv6_proxy_address_is_bracketed(self, monkeypatch: pytest.MonkeyPatch):
+        from app.core.sanitize import PinnedAddress
+
+        monkeypatch.setattr(settings, "BROWSER_CDP_ALLOWED_HOSTS", [])
+        monkeypatch.setattr(
+            module,
+            "resolve_pinned_url",
+            lambda url, allowed_schemes: PinnedAddress(
+                hostname="proxy.example.com", port=3128, ips=("2001:db8::1",)
+            ),
+        )
+
+        pinned = await recheck(BrowserRoute(proxy_server="http://proxy.example.com:3128"))
+
+        assert pinned.proxy_server == "http://[2001:db8::1]:3128"
+
     async def test_the_hosted_key_is_not_what_gets_checked(self, public: list[str]):
         route = _route(connection="hosted", hosted_url="wss://h.example.com", credential="k")
         assert route is not None

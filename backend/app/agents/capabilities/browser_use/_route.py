@@ -17,7 +17,7 @@ stops a name that has been pointed somewhere private since.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 from zoneinfo import available_timezones
@@ -26,7 +26,7 @@ import anyio
 from pydantic import SecretStr
 
 from app.core.config import settings
-from app.core.sanitize import UrlRefusedError, resolve_pinned_url
+from app.core.sanitize import PinnedAddress, UrlRefusedError, resolve_pinned_url
 
 Connection = Literal["built_in", "proxy", "hosted"]
 
@@ -90,8 +90,11 @@ def address_problem(url: str, *, kind: AddressKind) -> str | None:
     return None
 
 
-async def check_address(url: str, *, kind: AddressKind) -> None:
+async def check_address(url: str, *, kind: AddressKind) -> PinnedAddress | None:
     """Refuse an address that is malformed or points inside the deployment's network.
+
+    Returns the addresses it was checked at, or `None` for a host the operator
+    vetted, which is not resolved here.
 
     Raises:
         UrlRefusedError: With the reason in a sentence that names no URL - a
@@ -102,24 +105,36 @@ async def check_address(url: str, *, kind: AddressKind) -> None:
         raise UrlRefusedError(problem)
     parts = urlsplit(url)
     if _vetted(parts.hostname or ""):
-        return
+        return None
     # Resolved off the event loop: it blocks on DNS. The scheme is the address's
     # own, because the check is about where it points rather than what it speaks.
-    await anyio.to_thread.run_sync(
+    return await anyio.to_thread.run_sync(
         lambda: resolve_pinned_url(url, allowed_schemes=frozenset({parts.scheme}))
     )
 
 
-async def recheck(route: BrowserRoute) -> None:
-    """Check the route's addresses again as a browse starts.
+async def recheck(route: BrowserRoute) -> BrowserRoute:
+    """Check the route's addresses again as a browse starts, and pin its proxy.
+
+    The proxy is handed to the browser at the address it was checked at, not by
+    name: the browser would resolve the name again, and one that answered a
+    public address here could answer an internal one there. An `https://` proxy
+    keeps its name, which its certificate is issued for.
 
     Raises:
         UrlRefusedError: A name that pointed outside at publish points inside now.
     """
-    if route.proxy_server is not None:
-        await check_address(route.proxy_server, kind="proxy")
     if route.remote_address is not None:
         await check_address(route.remote_address, kind="hosted")
+    if route.proxy_server is None:
+        return route
+    pinned = await check_address(route.proxy_server, kind="proxy")
+    parts = urlsplit(route.proxy_server)
+    if pinned is None or parts.scheme == "https":
+        return route
+    ip = pinned.ips[0]
+    host = f"[{ip}]" if ":" in ip else ip
+    return replace(route, proxy_server=f"{parts.scheme}://{host}:{pinned.port}")
 
 
 def timezone_problem(timezone: str | None) -> str | None:
