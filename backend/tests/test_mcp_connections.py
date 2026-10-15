@@ -1302,6 +1302,30 @@ class TestEachPersonsOwnAccount:
         assert [spec.account for spec in seen[0]] == ["work", "side"]
 
     @pytest.mark.anyio
+    async def test_two_labels_that_read_alike_still_get_a_prefix_each(self, monkeypatch):
+        """Codex on #2062: `Sales US` and `Sales-US` shared a prefix and one was dropped."""
+        seen = self._capture(monkeypatch)
+        twin = _connection(name="b", url="https://b/mcp", catalog_key="notion", label="Sales-US")
+        self._owns(
+            monkeypatch,
+            [
+                _connection(name="main", url="https://main/mcp", catalog_key="notion"),
+                _connection(name="a", url="https://a/mcp", catalog_key="notion", label="Sales US"),
+                twin,
+            ],
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(), organization_id=uuid4(), refs=[self._personal()], sender_user_id=uuid4()
+        )
+
+        assert [spec.name for spec in seen[0]] == [
+            "notion",
+            "notion-sales-us",
+            f"notion-sales-us-{twin.id.hex[:8]}",
+        ]
+
+    @pytest.mark.anyio
     async def test_an_account_that_no_longer_authorizes_leaves_the_others_answering(
         self, monkeypatch
     ):

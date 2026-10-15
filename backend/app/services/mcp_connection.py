@@ -2346,6 +2346,7 @@ async def _own_specs(
         return "not_connected"
     primary = next((account for account in owned if account.is_default), owned[0])
     accounts: list[_OwnAccount] = []
+    taken: set[str] = set()
     for account in [primary, *(other for other in owned if other is not primary)]:
         headers = await _resolve_auth_headers(db, account)
         if headers is None:
@@ -2356,6 +2357,11 @@ async def _own_specs(
             )
             continue
         name = ref.catalog_key if account is primary else _extra_prefix(ref.catalog_key, account)
+        if name in taken:
+            # Two labels that read the same as a tool name (`Sales US`, `Sales-US`)
+            # would share one prefix, and the resolver keeps only the first.
+            name = f"{name[:55]}-{account.id.hex[:8]}"
+        taken.add(name)
         spec = McpServerSpec(
             name=name,
             url=account.url,

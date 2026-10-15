@@ -243,7 +243,9 @@ One agent can read the company mailbox and `info@` at once. A person holding
 several of their own accounts on a service is reached through **every one of
 them**: the one they mark as their main account in MCP servers → You (else the
 one they connected first) keeps the plain prefix, `outlook_send`, and each
-other account adds its label, `outlook_info_send`. Which accounts those are is
+other account adds its label, `outlook_info_send` (two labels that read alike
+as a tool name, `Sales US` and `Sales-US`, are told apart by the account's short
+id on the second). Which accounts those are is
 the person's choice, made by what they connect - the binding does not narrow
 it.
 
