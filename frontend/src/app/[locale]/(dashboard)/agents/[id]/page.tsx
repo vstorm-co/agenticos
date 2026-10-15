@@ -59,6 +59,7 @@ import { hereForMcpOAuthReturn } from "@/lib/mcp-oauth";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
 import type { ToolPickerState } from "@/components/mcp/mcp-server-list-types";
 import { bindingKey, McpServerPicker } from "@/components/agents/mcp-server-picker";
+import { McpToolLoadNotice } from "@/components/agents/mcp-tool-load-notice";
 import { StaleReferences } from "@/components/agents/stale-references";
 import { McpServerList } from "@/components/mcp/mcp-server-list";
 import { MetadataEditor } from "@/components/agents/metadata-editor";
@@ -1496,6 +1497,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 </div>
               </CardHeader>
               <CardContent>
+                <McpToolLoadNotice
+                  className="mb-4"
+                  spec={spec}
+                  connections={mcpConnections}
+                  personalConnections={myMcpConnections}
+                  onEnableToolSearch={() =>
+                    update({ capabilities: withCapability(spec.capabilities, "tool_search", true) })
+                  }
+                  disabled={!canEdit}
+                />
                 <McpServerPicker
                   connections={mcpConnections}
                   catalog={mcpCatalog}

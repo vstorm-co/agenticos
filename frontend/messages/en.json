@@ -4139,7 +4139,9 @@
       "firstPublishNext": "It is live in chat and over the API. Next, choose where else people reach it - a website widget, a hosted page, Slack or Telegram.",
       "openAvailability": "Open Availability",
       "inCategoryUse": "Categories already in use",
-      "inTagUse": "Tags already in use"
+      "inTagUse": "Tags already in use",
+      "mcpToolLoad": "These MCP servers give the model {count} tools on every request - roughly {tokens, number} tokens before anyone types, and more tools than a model chooses between well. Tool search keeps them out of the way until the agent looks one up.",
+      "mcpToolLoadEnable": "Turn on Tool search"
     },
     "auth": {
       "backSign": "Back to sign in",

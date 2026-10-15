@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **The Builder says when an agent's MCP servers carry too many tools.** Above
+  30 tools - each binding's own allowlist, or else what its server listed at its
+  last check - the MCP tab shows a notice with a rough token estimate and a
+  button that turns Tool search on. It never turns it on by itself.
 - **An agent chooses how its browses reach the web** (#2130). In the web
   browser's own settings: through a proxy - a residential or regional address,
   its `username:password` in the vault - or in a hosted browser such as

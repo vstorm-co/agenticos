@@ -8,10 +8,12 @@ import {
   connectionState,
   freePrefix,
   matchingCustomRows,
+  mcpToolCount,
   mergeServers,
   narrowedSelection,
   slugForPrefix,
 } from "./mcp-servers";
+import type { McpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 const GITHUB: McpCatalogEntry = {
@@ -467,5 +469,39 @@ describe("freePrefix", () => {
   it("stays within the prefix's 32 characters", () => {
     const base = "a".repeat(32);
     expect(freePrefix(base, new Set([base]))).toBe(`${"a".repeat(30)}-2`);
+  });
+});
+
+describe("mcpToolCount", () => {
+  const tools = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ name: `tool_${i}`, description: "", read_only: true }));
+
+  it("counts a binding's allowlist over everything its server listed", () => {
+    const refs: McpServerRef[] = [
+      { account: "organization", connection_id: "o1", allowed_tools: ["a", "b"] },
+    ];
+
+    expect(mcpToolCount(refs, [organization({ last_tools: tools(40) })], [])).toBe(2);
+  });
+
+  it("counts what each binding's own connection listed at its last check", () => {
+    const refs: McpServerRef[] = [
+      { account: "organization", connection_id: "o1", allowed_tools: null },
+      { account: "personal", catalog_key: "notion", allowed_tools: null },
+    ];
+    const notion = personal({ catalog_key: "notion", last_tools: tools(12) });
+
+    expect(mcpToolCount(refs, [organization({ last_tools: tools(25) })], [notion])).toBe(37);
+  });
+
+  it("counts nothing it cannot know", () => {
+    // The platform's own server, a connection nobody checked, a reader with no account.
+    const refs: McpServerRef[] = [
+      { account: "platform" },
+      { account: "organization", connection_id: "o1", allowed_tools: null },
+      { account: "personal", catalog_key: "notion", allowed_tools: null },
+    ];
+
+    expect(mcpToolCount(refs, [organization()], [])).toBe(0);
   });
 });

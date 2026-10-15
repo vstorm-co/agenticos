@@ -1700,6 +1700,12 @@ toolsets for deferred loading — the registry's own tools stay visible, being f
 and chosen per agent. An agent that does not bind it pays nothing and sees every
 tool as before.
 
+**The Builder says when it is worth it.** Once an agent's MCP bindings add up to
+more than 30 tools - each binding's own allowlist, or else what its server listed
+at its last check - the MCP tab shows a notice with a rough token estimate and a
+button that binds Tool search. It never binds it by itself: deferral changes what
+the model sees, so it stays the editor's decision.
+
 **Deferral changes what the model sees, never a tool's identity.** A discovered
 MCP tool arrives under its real prefixed name, so the [approval gate](#what-a-binding-may-change)
 still pairs on it and a binding's rename still reaches it; `ToolSearch` sits

@@ -26,6 +26,7 @@
 
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
+import type { McpServerRef } from "@/types/agents";
 import type { PersonalServiceGapKind } from "@/types/chat";
 import type { McpAuthKind, McpCatalogEntry, McpConnectionState } from "@/types/mcp";
 
@@ -399,4 +400,35 @@ export function freePrefix(base: string, taken: ReadonlySet<string>): string {
     const candidate = `${base.slice(0, 32 - suffix.length)}${suffix}`;
     if (!taken.has(candidate)) return candidate;
   }
+}
+
+/** How many MCP tools an agent's bindings lay before its model before Tool search narrows them. */
+export const MCP_TOOL_SEARCH_THRESHOLD = 30;
+
+/**
+ * How many MCP tools an agent's bindings put in front of its model on every request.
+ *
+ * A binding's own allowlist where it has one, otherwise the tools the server
+ * listed at its last check - the organization's connection for an organization
+ * binding, the reader's own account for a personal one. The platform's own
+ * server and a server nobody has checked count nothing: a number is only shown
+ * for what is known.
+ */
+export function mcpToolCount(
+  refs: McpServerRef[],
+  connections: OrgMcpConnectionRecord[],
+  personal: McpConnectionRecord[],
+): number {
+  return refs.reduce((total, ref) => {
+    if (ref.allowed_tools) return total + ref.allowed_tools.length;
+    if (ref.account === "organization") {
+      return total + (connections.find((c) => c.id === ref.connection_id)?.last_tools?.length ?? 0);
+    }
+    if (ref.account === "personal") {
+      return (
+        total + (personal.find((c) => c.catalog_key === ref.catalog_key)?.last_tools?.length ?? 0)
+      );
+    }
+    return total;
+  }, 0);
 }

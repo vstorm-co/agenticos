@@ -1,5 +1,5 @@
 ---
-source_sha: "9bccf6f989bf"
+source_sha: "148788537e60"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1820,6 +1820,13 @@ herramienta que el modelo no puede llamar nunca. Así que vincular `tool_search`
 que marca los toolsets de los servidores conectados para carga diferida; las
 herramientas propias del registro siguen visibles, por ser pocas y elegidas por agent.
 Un agent que no la vincule no paga nada y ve todas las herramientas como antes.
+
+**El Builder avisa cuando merece la pena.** En cuanto las vinculaciones MCP de un
+agent suman más de 30 herramientas - según la lista permitida de cada vinculación o,
+si no la tiene, según lo que su servidor listó en la última comprobación -, la
+pestaña MCP muestra un aviso con una estimación aproximada de tokens y un botón que
+vincula la búsqueda de herramientas. Nunca la vincula por sí solo: el diferido cambia
+lo que ve el modelo, así que la decisión es de quien edita.
 
 **El diferido cambia lo que ve el modelo, nunca la identidad de una herramienta.** Una
 herramienta MCP descubierta llega con su nombre real con prefijo, así que la

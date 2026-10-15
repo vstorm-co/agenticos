@@ -1,5 +1,5 @@
 ---
-source_sha: "9bccf6f989bf"
+source_sha: "148788537e60"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1921,6 +1921,13 @@ ohne eine Suche, die es findet, ist ein Tool, das das Modell nie aufrufen kann.
 zurückgestellten Laden markiert — die Tools der Registry selbst bleiben sichtbar,
 da sie wenige und pro Agent gewählt sind. Ein Agent, der es nicht bindet, zahlt
 nichts und sieht jedes Tool wie zuvor.
+
+**Der Builder sagt, wann es sich lohnt.** Sobald die MCP-Bindungen eines Agenten
+zusammen mehr als 30 Tools ergeben - nach der eigenen Positivliste jeder Bindung,
+sonst nach dem, was ihr Server bei der letzten Prüfung gelistet hat -, zeigt der
+MCP-Tab einen Hinweis mit einer groben Token-Schätzung und eine Schaltfläche, die
+die Tool-Suche bindet. Von selbst bindet er sie nie: Die Zurückstellung ändert,
+was das Modell sieht, also bleibt es die Entscheidung der bearbeitenden Person.
 
 **Die Zurückstellung ändert, was das Modell sieht, nie die Identität eines Tools.**
 Ein gefundenes MCP-Tool kommt unter seinem echten, präfigierten Namen an, sodass

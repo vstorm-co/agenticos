@@ -1,5 +1,5 @@
 ---
-source_sha: "9bccf6f989bf"
+source_sha: "148788537e60"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1785,6 +1785,12 @@ narzędzie, którego model nigdy nie wywoła. Związanie `tool_search` jest wię
 oznacza zestawy narzędzi podłączonych serwerów do odroczonego ładowania — własne
 narzędzia rejestru zostają widoczne, będąc nieliczne i wybrane per agent. Agent,
 który tego nie wiąże, nie płaci nic i widzi wszystkie narzędzia jak wcześniej.
+
+**Builder mówi, kiedy warto.** Gdy powiązania MCP agenta dają razem więcej niż 30
+narzędzi - według listy dozwolonych narzędzi powiązania, a bez niej według tego, co
+serwer wymienił przy ostatnim sprawdzeniu - zakładka MCP pokazuje ostrzeżenie z
+przybliżoną liczbą tokenów i przycisk, który wiąże wyszukiwanie narzędzi. Nigdy nie
+wiąże go sam: odraczanie zmienia to, co widzi model, więc decyzja należy do edytora.
 
 **Odraczanie zmienia to, co widzi model, nigdy tożsamość narzędzia.** Odnalezione
 narzędzie MCP przychodzi pod swoją prawdziwą, prefiksowaną nazwą, więc

@@ -3909,7 +3909,9 @@
       "firstPublishNext": "Działa już w czacie i przez API. Teraz wybierz, gdzie jeszcze ludzie mają do niego trafiać - widget na stronie, hostowana strona, Slack albo Telegram.",
       "openAvailability": "Otwórz Availability",
       "inCategoryUse": "Kategorie już w użyciu",
-      "inTagUse": "Tagi już w użyciu"
+      "inTagUse": "Tagi już w użyciu",
+      "mcpToolLoad": "Te serwery MCP dają modelowi {count} narzędzi przy każdym zapytaniu - to około {tokens, number} tokenów, zanim ktokolwiek coś napisze, i więcej narzędzi, niż model dobrze rozróżnia. Wyszukiwanie narzędzi chowa je, dopóki agent nie poszuka konkretnego.",
+      "mcpToolLoadEnable": "Włącz wyszukiwanie narzędzi"
     },
     "auth": {
       "backSign": "Wróć do logowania",

@@ -4021,7 +4021,9 @@
       "firstPublishNext": "Er ist im Chat und über die API live. Wählen Sie als Nächstes, wo ihn die Leute sonst erreichen - ein Website-Widget, eine gehostete Seite, Slack oder Telegram.",
       "openAvailability": "Availability öffnen",
       "inCategoryUse": "Bereits verwendete Kategorien",
-      "inTagUse": "Bereits verwendete Tags"
+      "inTagUse": "Bereits verwendete Tags",
+      "mcpToolLoad": "Diese MCP-Server geben dem Modell bei jeder Anfrage {count} Werkzeuge - etwa {tokens, number} Tokens, bevor jemand etwas schreibt, und mehr Werkzeuge, als ein Modell gut auseinanderhält. Die Tool-Suche hält sie zurück, bis der Agent eines nachschlägt.",
+      "mcpToolLoadEnable": "Tool-Suche einschalten"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
