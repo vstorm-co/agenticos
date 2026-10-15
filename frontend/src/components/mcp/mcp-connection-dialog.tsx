@@ -416,7 +416,7 @@ function ConnectionForm({
               className="mt-0.5"
             />
             <div className="min-w-0">
-              <Label htmlFor="mcp-instructions" className="font-normal">
+              <Label htmlFor="mcp-instructions" className="leading-snug font-normal">
                 {t("includeServerInstructions")}
               </Label>
               <p className="text-muted-foreground mt-0.5 text-xs">
