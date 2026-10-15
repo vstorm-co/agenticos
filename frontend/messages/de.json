@@ -5998,6 +5998,11 @@
       "against": "{candidate} vs. {baseline}",
       "agent": "{agent} · {title}",
       "rate": "{model} {rate}"
+    },
+    "dataset": {
+      "emptyTitle": "Auf diesem Dataset wurde noch kein Agent getestet",
+      "emptyBody": "Lass einen Agenten diese Fälle beantworten, um zu sehen, welche er besteht, wie er im Vergleich zu früheren Versionen abschneidet und was es kostet.",
+      "unnamedAgent": "Ein Agent, den du nicht sehen kannst"
     }
   }
 }

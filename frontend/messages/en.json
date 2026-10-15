@@ -6140,6 +6140,11 @@
       "against": "{candidate} vs {baseline}",
       "agent": "{agent} · {title}",
       "rate": "{model} {rate}"
+    },
+    "dataset": {
+      "emptyTitle": "No agent has been tested on this dataset yet",
+      "emptyBody": "Run an agent over these cases to see which it passes, how it compares with its earlier versions, and what it costs.",
+      "unnamedAgent": "An agent you cannot see"
     }
   }
 }
