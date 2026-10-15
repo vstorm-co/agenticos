@@ -259,6 +259,23 @@ describe("EvalRunView", () => {
     expect(screen.getByText(/The judge graded on gpt-4.1, the model that answered/)).toBeVisible();
   });
 
+  it("says when it could not send its answers to review, beside the way to send them", () => {
+    review.canEdit = true;
+    state.run = {
+      ...state.run,
+      run: evalRun({
+        routing_error: { code: "REVIEW_CLOSED", message: "The review queue is closed." },
+      }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(
+      screen.getByText(
+        "This run couldn't send its answers to review itself, so send the failed ones by hand. Why: The review queue is closed.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Send the failed case to review" })).toBeVisible();
+  });
+
   it("says no change held when nothing reproduced", () => {
     state.comparison = comparison({
       verdict: "no_difference",

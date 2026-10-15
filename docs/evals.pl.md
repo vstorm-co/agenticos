@@ -1,5 +1,5 @@
 ---
-source_sha: "9a73f90e05b2"
+source_sha: "0aeaa21bc6b9"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -69,7 +69,8 @@ Gdy są już powtórki, run wysyła do [kolejki przeglądu](datasets.md#review)
 datasetu to, za czym może się opowiedzieć - każdą potwierdzoną regresję i każdą
 odpowiedź, przy której ocenie jego sędzia zawiódł, po jednej na przypadek - i
 podaje, ile ich jest (`routed_to_review`). Pominięty sędzia nie wysyła nic: jego
-odpowiedzi czekają na stronie runu na **Grade again**. **Send failed to review** wysyła
+odpowiedzi czekają na stronie runu na **Grade again**. Gdy wysyłka zostanie
+odrzucona, run i tak się kończy, a jego strona mówi dlaczego (`routing_error`). **Send failed to review** wysyła
 resztę niezaliczonych odpowiedzi jednej strony, dla każdego, kto może edytować
 dataset, a przypadek, którego ocenę osoba uchyliła, jest oznaczany jako
 poprawiony.

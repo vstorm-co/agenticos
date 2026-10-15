@@ -6404,7 +6404,8 @@
     "review": {
       "send": "{count, plural, =1 {Send the failed case to review} other {Send # failed cases to review}}",
       "sent": "{queued, plural, =0 {Nothing new sent to review} =1 {1 case sent to review} other {# cases sent to review}}{already, plural, =0 {} other {; # already there or decided}}.",
-      "routed": "This run sent {count, plural, =1 {1 answer} other {# answers}} to review itself: the regressions it confirmed and the answers the judge failed to grade."
+      "routed": "This run sent {count, plural, =1 {1 answer} other {# answers}} to review itself: the regressions it confirmed and the answers the judge failed to grade.",
+      "routingFailed": "This run couldn't send its answers to review itself, so send the failed ones by hand. Why: {reason}"
     },
     "draftChanged": "The draft changed after this run.",
     "ungraded": {

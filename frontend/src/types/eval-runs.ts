@@ -149,6 +149,8 @@ export interface EvalRun {
   routed_to_review: number;
   /** The model the judge graded this run on; null when none did. */
   judge_model_profile_id: string | null;
+  /** Why the run could not send its scores to review itself; null when it could. */
+  routing_error: { code: string; message: string } | null;
   /** This run's scores no scorer reached a verdict on and no person decided. */
   ungraded_score_ids: string[];
   /** On the single-run read of a run of the draft: whether the draft changed since. */

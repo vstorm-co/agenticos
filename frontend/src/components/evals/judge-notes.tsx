@@ -6,8 +6,9 @@ import type { EvalRun } from "@/types/eval-runs";
 
 /**
  * What the run did with its grading on its own: how many answers it sent to
- * review - the regressions it confirmed and the ones the judge could not
- * grade - and a warning when the judge graded the model it runs on.
+ * review - the regressions it confirmed and the ones the judge failed to
+ * grade - or why it could not, and a warning when the judge graded the model
+ * it runs on.
  */
 export function JudgeNotes({ run }: { run: EvalRun }) {
   const t = useTranslations("evals.review");
@@ -18,6 +19,11 @@ export function JudgeNotes({ run }: { run: EvalRun }) {
   );
   return (
     <>
+      {run.routing_error && (
+        <p className="text-warning text-sm">
+          {t("routingFailed", { reason: run.routing_error.message })}
+        </p>
+      )}
       {run.routed_to_review > 0 && (
         <p className="text-muted-foreground text-sm">
           {t("routed", { count: run.routed_to_review })}
