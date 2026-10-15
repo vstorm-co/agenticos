@@ -50,6 +50,13 @@ each opening onto what the case expects and every side's answers, calls and
 scorer reasons. Picking a tag reads the sides, the changes and the cases under
 it; the verdict stays over every case.
 
+A run's scores never reach the dataset's [review queue](datasets.md#review) on
+their own: **Send failed to review** on the run's page sends one side's failed
+answers there, for whoever may edit the dataset, and a case whose grade a person
+overturned is marked as corrected. A dataset's own **Evals** tab lists every
+agent measured on it, each with its trend and runs, and its header's **Run
+evals** opens the start dialog on the dataset, asking which agent to test.
+
 The dashboard's **Eval runs** card lists the organization's latest runs with
 their agent and verdict. An eval's cases and the judge's grading are kept out
 of every other dashboard figure, and Activity hides them unless its surface

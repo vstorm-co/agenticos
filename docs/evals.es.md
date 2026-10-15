@@ -1,5 +1,5 @@
 ---
-source_sha: "ea851b196b65"
+source_sha: "c86c5d8c490f"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -55,6 +55,14 @@ resultado o etiqueta, cada uno abriendo lo que espera el caso y las respuestas,
 llamadas y motivos de los evaluadores de cada lado. Al elegir una etiqueta, los
 lados, los cambios y los casos se leen dentro de ella; el veredicto sigue
 abarcando todos los casos.
+
+Las puntuaciones de un run nunca llegan por sí solas a la [cola de
+revisión](datasets.md#review) del dataset: **Send failed to review**, en la
+página del run, envía allí las respuestas fallidas de un lado, para quien pueda
+editar el dataset, y un caso cuya calificación anuló una persona queda marcado
+como corregido. La propia pestaña **Evals** de un dataset lista cada agent
+medido en él, cada uno con su tendencia y sus runs, y **Run evals** en su
+encabezado abre el diálogo de inicio en el dataset y pregunta qué agent probar.
 
 La tarjeta **Eval runs** del dashboard lista los runs más recientes de la
 organización con su agent y su veredicto. Los casos de un eval y la

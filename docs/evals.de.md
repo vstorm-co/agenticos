@@ -1,5 +1,5 @@
 ---
-source_sha: "ea851b196b65"
+source_sha: "c86c5d8c490f"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -57,6 +57,15 @@ pro Seite, gefiltert nach Ergebnis oder Tag, jeder Fall mit dem, was er
 erwartet, und den Antworten, Aufrufen und Bewerterbegründungen jeder Seite. Ein
 gewählter Tag beschränkt die Seiten, die Änderungen und die Fälle auf ihn; das
 Urteil gilt weiter für alle Fälle.
+
+Die Bewertungen eines Runs gelangen nie von selbst in die
+[Review-Warteschlange](datasets.md#review) des Datasets: **Send failed to
+review** auf der Seite des Runs schickt die nicht bestandenen Antworten einer
+Seite dorthin, für jeden, der das Dataset bearbeiten darf, und ein Fall, dessen
+Bewertung eine Person überstimmt hat, wird als korrigiert markiert. Der eigene
+Tab **Evals** eines Datasets listet jeden darauf gemessenen Agent, jeden mit
+seinem Verlauf und seinen Runs, und **Run evals** in seinem Kopfbereich öffnet
+den Startdialog auf dem Dataset und fragt, welcher Agent getestet werden soll.
 
 Die Karte **Eval runs** im Dashboard listet die neuesten Runs der Organisation
 mit ihrem Agent und ihrem Urteil. Die Fälle eines Evals und die Bewertung durch
