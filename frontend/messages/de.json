@@ -5690,7 +5690,7 @@
       },
       "reviewCard": {
         "title": "Prüfung durch eine Person",
-        "description": "Welche von Hand bewerteten Antworten aus Activity auf eine Entscheidung warten. Ein Eval-Run sendet seine eigenen: die Regressionen, die er bestätigt hat, und die Antworten, die der Bewerter nicht bewerten konnte, eine pro Fall."
+        "description": "Welche von Hand bewerteten Antworten aus Activity auf eine Entscheidung warten. Ein Eval-Run sendet seine eigenen: die Regressionen, die er bestätigt hat, und die Antworten, an denen sein Bewerter gescheitert ist, eine pro Fall."
       },
       "suggestReference": "{count, plural, =1 {1 Fall hat eine Referenzantwort, und noch vergleicht nichts Antworten damit.} other {# Fälle haben eine Referenzantwort, und noch vergleicht nichts Antworten damit.}}",
       "suggestReferenceAction": "Mit der Referenz vergleichen",
@@ -5712,7 +5712,7 @@
       "reviewFilter": "Anzeigen",
       "filterPending": "Wartet auf Entscheidung ({count})",
       "filterAll": "Alle Ergebnisse ({count})",
-      "nothingAwaitingReviewBody": "Ein Eval-Run schickt die Regressionen hierher, die er bestätigt hat, und die Antworten, die sein Bewerter nicht bewerten konnte, und seine Seite weitere, die Sie auswählen. Von Hand bewertete Antworten folgen der Prüfeinstellung im Tab Bewertung.",
+      "nothingAwaitingReviewBody": "Ein Eval-Run schickt die Regressionen hierher, die er bestätigt hat, und die Antworten, an denen sein Bewerter gescheitert ist, und seine Seite weitere, die Sie auswählen. Von Hand bewertete Antworten folgen der Prüfeinstellung im Tab Bewertung.",
       "groupByHand": "Von Hand bewertet",
       "groupEvalRun": "Eval-Run · {when}",
       "agentGone": "Ein Agent, den es nicht mehr gibt",

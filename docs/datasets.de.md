@@ -1,5 +1,5 @@
 ---
-source_sha: "62f0091cbf2b"
+source_sha: "13ea9ffe01ba"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -371,10 +371,11 @@ vergleichen lassen.
 Ein Score wartet in der **Warteschlange zur Prüfung**, wenn jemand ihn dorthin
 schickt oder ein Eval-Run es tut. Hat er erneut ausgeführt, was gekippt ist,
 schickt ein Eval-Run die Regressionen, die er bestätigt hat, und die Antworten,
-die der Bewerter nicht bewerten konnte - ein Score pro Fall und keiner für einen
-Fall, der bereits wartet. Seine Seite schickt weitere Scores, die Sie
-auswählen, alle auf einmal über `POST /datasets/{id}/scores/review` mit bis zu
-500 Score-IDs - alle oder keine.
+an denen der Bewerter mit einem Fehler scheiterte - nicht die, die er
+übersprungen hat und die auf eine erneute Bewertung warten - ein Score pro Fall
+und keiner für einen Fall, der bereits wartet. Seine Seite schickt weitere
+Scores, die Sie auswählen, alle auf einmal über `POST
+/datasets/{id}/scores/review` mit bis zu 500 Score-IDs - alle oder keine.
 
 Ein Score, der von Hand aus Activity angefordert wurde, folgt der Einstellung
 **Prüfung durch eine Person** des Datasets: nichts, bis jemand einen schickt,

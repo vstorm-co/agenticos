@@ -898,8 +898,8 @@ class ScoringService:
         """Send an eval run's scores a person should see to the review queue; how many went.
 
         For the eval run's own worker, which has already decided what deserves a
-        person - its confirmed regressions and the scores no scorer reached a
-        verdict on - so no permission is checked here. One score per case at
+        person - its confirmed regressions and the scores its judge failed on -
+        so no permission is checked here. One score per case at
         most: a case with a score already waiting gets no second one, nor does a
         score already waiting or decided. Ids of another dataset are ignored.
         """

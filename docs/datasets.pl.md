@@ -1,5 +1,5 @@
 ---
-source_sha: "62f0091cbf2b"
+source_sha: "13ea9ffe01ba"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -345,8 +345,9 @@ wyniki ocenione wcześniej nie będą porównywalne z ocenianymi później.
 
 Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle albo zrobi to run
 ewaluacji. Po ponownym uruchomieniu tego, co się zmieniło, run ewaluacji wysyła
-potwierdzone regresje i odpowiedzi, których sędzia nie ocenił - po jednym wyniku
-na przypadek i żadnego dla przypadku, który już czeka. Jego strona wysyła inne
+potwierdzone regresje i odpowiedzi, przy których sędzia zawiódł z błędem - nie
+te, które pominął i które czekają na ponowną ocenę - po jednym wyniku na
+przypadek i żadnego dla przypadku, który już czeka. Jego strona wysyła inne
 wybrane przez ciebie wyniki, wszystkie naraz przez `POST
 /datasets/{id}/scores/review`, do 500 identyfikatorów wyników - wszystkie albo
 żaden.

@@ -1,5 +1,5 @@
 ---
-source_sha: "62f0091cbf2b"
+source_sha: "13ea9ffe01ba"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -352,9 +352,10 @@ las calificadas después.
 
 Una puntuación espera en la **cola de revisión** cuando alguien la envía allí,
 o lo hace un run de eval. Tras volver a ejecutar lo que cambió, un run de eval
-envía las regresiones que confirmó y las respuestas que el juez no pudo
-calificar: una puntuación por caso, y ninguna para un caso que ya espera. Su
-página envía otras puntuaciones que elijas, todas a la vez mediante `POST
+envía las regresiones que confirmó y las respuestas en las que el juez falló
+con un error (no las que omitió, que esperan a volver a puntuarse): una
+puntuación por caso, y ninguna para un caso que ya espera. Su página envía
+otras puntuaciones que elijas, todas a la vez mediante `POST
 /datasets/{id}/scores/review` con hasta 500 identificadores de puntuación:
 todas o ninguna.
 

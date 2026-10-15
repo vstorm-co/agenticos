@@ -5832,7 +5832,7 @@
       },
       "reviewCard": {
         "title": "Review by a person",
-        "description": "Which answers graded by hand, from Activity, wait for somebody to decide. An eval run sends its own: the regressions it confirmed and the answers the judge could not grade, one per case."
+        "description": "Which answers graded by hand, from Activity, wait for somebody to decide. An eval run sends its own: the regressions it confirmed and the answers its judge failed to grade, one per case."
       },
       "suggestReference": "{count, plural, =1 {1 case has a reference answer, and nothing compares answers with it yet.} other {# cases have a reference answer, and nothing compares answers with it yet.}}",
       "suggestReferenceAction": "Compare with the reference",
@@ -5854,7 +5854,7 @@
       "reviewFilter": "Show",
       "filterPending": "Waiting for a decision ({count})",
       "filterAll": "All results ({count})",
-      "nothingAwaitingReviewBody": "An eval run sends here the regressions it confirmed and the answers its judge could not grade, and its page any others you pick. Answers graded by hand follow the Grading tab's review setting.",
+      "nothingAwaitingReviewBody": "An eval run sends here the regressions it confirmed and the answers its judge failed to grade, and its page any others you pick. Answers graded by hand follow the Grading tab's review setting.",
       "groupByHand": "Graded by hand",
       "groupEvalRun": "Eval run · {when}",
       "agentGone": "An agent that is gone",
