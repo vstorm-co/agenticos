@@ -1,5 +1,6 @@
 """Tests for MCP connections: agents/mcp toolset building + the service layer."""
 
+import asyncio
 import contextlib
 import json
 import logging
@@ -17,10 +18,13 @@ from sqlalchemy.exc import IntegrityError
 
 from app.agents import mcp_oauth
 from app.agents.mcp import (
+    ANSWERED_FOR,
+    AnsweredRecently,
     McpProbeError,
     McpServerSpec,
     McpToolInfo,
     ToolOrigins,
+    _answered,
     _make_toolset,
     _mcp_transport,
     build_mcp_toolsets,
@@ -431,6 +435,128 @@ class TestBuildMcpToolsets:
         toolsets = await build_mcp_toolsets(specs)
         assert len(toolsets) == 1
         assert probed == ["https://workspace.example/mcp"]
+
+
+class TestRecentAnswers:
+    """A server that answered a probe a moment ago is not probed again every turn."""
+
+    @staticmethod
+    def _counting_probe(calls: list[str]):
+        async def probe(url, headers=None, timeout=None):
+            calls.append(url)
+            return [McpToolInfo(name="t", description="")]
+
+        return probe
+
+    @pytest.mark.anyio
+    async def test_a_second_turn_skips_the_probe(self, monkeypatch):
+        calls: list[str] = []
+        monkeypatch.setattr("app.agents.mcp.probe_mcp_server", self._counting_probe(calls))
+        spec = McpServerSpec(name="live", url="https://example.com/mcp")
+
+        await build_mcp_toolsets([spec])
+        toolsets = await build_mcp_toolsets([spec])
+
+        assert calls == ["https://example.com/mcp"]
+        assert isinstance(toolsets[0], AnsweredRecently)
+
+    @pytest.mark.anyio
+    async def test_the_answer_goes_stale(self, monkeypatch):
+        calls: list[str] = []
+        monkeypatch.setattr("app.agents.mcp.probe_mcp_server", self._counting_probe(calls))
+        clock = [1000.0]
+        monkeypatch.setattr("app.agents.mcp.time.monotonic", lambda: clock[0])
+        spec = McpServerSpec(name="live", url="https://example.com/mcp")
+
+        await build_mcp_toolsets([spec])
+        clock[0] += ANSWERED_FOR
+        await build_mcp_toolsets([spec])
+
+        assert len(calls) == 2
+
+    @pytest.mark.anyio
+    async def test_another_credential_is_another_answer(self, monkeypatch):
+        """Two people's accounts on one server: one person's answer says nothing of the other's token."""
+        calls: list[str] = []
+        monkeypatch.setattr("app.agents.mcp.probe_mcp_server", self._counting_probe(calls))
+        url = "https://example.com/mcp"
+
+        await build_mcp_toolsets(
+            [McpServerSpec(name="a", url=url, headers={"Authorization": "Bearer one"})]
+        )
+        await build_mcp_toolsets(
+            [McpServerSpec(name="a", url=url, headers={"Authorization": "Bearer two"})]
+        )
+
+        assert len(calls) == 2
+        assert all("Bearer" not in key for key in _answered)
+
+    @pytest.mark.anyio
+    async def test_a_server_down_since_its_answer_leaves_the_turn(self, monkeypatch):
+        calls: list[str] = []
+        monkeypatch.setattr("app.agents.mcp.probe_mcp_server", self._counting_probe(calls))
+        spec = McpServerSpec(name="flaky", url="https://example.com/mcp")
+        await build_mcp_toolsets([spec])
+        (toolset,) = await build_mcp_toolsets([spec])
+
+        async def refuse(*_args):
+            raise ConnectionError("connection refused")
+
+        monkeypatch.setattr(toolset.wrapped, "__aenter__", refuse)
+        async with toolset:
+            assert await toolset.get_tools(MagicMock()) == {}
+        assert toolset.down
+        # Forgotten, so the next turn asks the server again and can report it down.
+        await build_mcp_toolsets([spec])
+        assert len(calls) == 2
+
+    @pytest.mark.anyio
+    async def test_a_cancelled_connect_is_not_taken_for_an_outage(self, monkeypatch):
+        monkeypatch.setattr("app.agents.mcp.probe_mcp_server", self._counting_probe([]))
+        spec = McpServerSpec(name="live", url="https://example.com/mcp")
+        await build_mcp_toolsets([spec])
+        (toolset,) = await build_mcp_toolsets([spec])
+
+        async def cancelled(*_args):
+            raise asyncio.CancelledError
+
+        monkeypatch.setattr(toolset.wrapped, "__aenter__", cancelled)
+        with pytest.raises(asyncio.CancelledError):
+            await toolset.__aenter__()
+        assert not toolset.down
+
+    @pytest.mark.anyio
+    async def test_an_answering_server_is_entered_and_left(self, monkeypatch):
+        monkeypatch.setattr("app.agents.mcp.probe_mcp_server", self._counting_probe([]))
+        spec = McpServerSpec(name="live", url="https://example.com/mcp")
+        await build_mcp_toolsets([spec])
+        (toolset,) = await build_mcp_toolsets([spec])
+        entered, left = AsyncMock(), AsyncMock(return_value=None)
+        monkeypatch.setattr(toolset.wrapped, "__aenter__", entered)
+        monkeypatch.setattr(toolset.wrapped, "__aexit__", left)
+        monkeypatch.setattr(
+            toolset.wrapped, "get_tools", AsyncMock(return_value={"live_t": "tool"})
+        )
+
+        async with toolset:
+            assert await toolset.get_tools(MagicMock()) == {"live_t": "tool"}
+
+        entered.assert_awaited_once()
+        left.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_server_found_down_is_not_entered_again(self, monkeypatch):
+        monkeypatch.setattr("app.agents.mcp.probe_mcp_server", self._counting_probe([]))
+        spec = McpServerSpec(name="flaky", url="https://example.com/mcp")
+        await build_mcp_toolsets([spec])
+        (toolset,) = await build_mcp_toolsets([spec])
+        refuse = AsyncMock(side_effect=ConnectionError("refused"))
+        monkeypatch.setattr(toolset.wrapped, "__aenter__", refuse)
+
+        await toolset.__aenter__()
+        await toolset.__aenter__()
+
+        refuse.assert_awaited_once()
 
 
 class TestProbeSuccess:

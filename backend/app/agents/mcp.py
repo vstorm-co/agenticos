@@ -7,7 +7,12 @@ the connections an agent's spec names (see
 Each spec is probed with a short `tools/list` round-trip before the turn;
 unreachable servers are skipped (with a warning) instead of failing the chat,
 because pydantic-ai enters every toolset when the run starts and a dead
-server would otherwise abort the whole turn.
+server would otherwise abort the whole turn. A server that answered a probe in
+the last :data:`ANSWERED_FOR` seconds is not probed again: a conversation's
+every turn used to pay a second connection and a second `tools/list` per server
+for an answer it had a minute ago. Such a server is attached through
+:class:`AnsweredRecently`, which leaves it out of the turn if it has gone down
+since, so skipping the probe never turns an outage back into a failed turn.
 
 The transport (streamable HTTP or SSE) is inferred from each server's URL, so
 SSE-only servers such as Atlassian/Jira work alongside streamable-HTTP ones.
@@ -16,9 +21,12 @@ SSE-only servers such as Atlassian/Jira work alongside streamable-HTTP ones.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib
+import json
 import logging
 import re
+import time
 from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
@@ -38,6 +46,35 @@ logger = logging.getLogger(__name__)
 # a setting: the right value is a property of the protocol round-trip, not of a
 # deployment, and no installation ever tuned it.
 CONNECT_TIMEOUT_SECS = 3.0
+
+ANSWERED_FOR = 120.0
+"""How long, in seconds, a server that answered its probe is taken to be up without another.
+
+Long enough to cover a conversation's back-and-forth, short enough that a server
+which went down is re-probed - and so reported as unavailable to the model -
+within a couple of minutes rather than silently left out turn after turn.
+"""
+
+_answered: dict[str, float] = {}
+"""When each server last answered a probe, by :func:`_answer_key`. Process-local."""
+
+
+def _answer_key(spec: McpServerSpec) -> str:
+    """Who answered: the address and the credential, hashed so the memo holds no token."""
+    material = json.dumps([spec.url, sorted(spec.headers.items())])
+    return hashlib.sha256(material.encode()).hexdigest()
+
+
+def _note_answer(key: str) -> None:
+    now = time.monotonic()
+    for stale in [k for k, at in _answered.items() if now - at >= ANSWERED_FOR]:
+        del _answered[stale]
+    _answered[key] = now
+
+
+def _answered_recently(key: str) -> bool:
+    at = _answered.get(key)
+    return at is not None and time.monotonic() - at < ANSWERED_FOR
 
 
 class McpProbeError(Exception):
@@ -311,6 +348,45 @@ class ToolOrigins(WrapperToolset[Any]):
         return tools
 
 
+@dataclass
+class AnsweredRecently(WrapperToolset[Any]):
+    """A server attached on a recent probe's word, left out of the turn if it is down now.
+
+    Entering is where pydantic-ai connects, so a server that stopped answering
+    since its probe fails here; the turn goes on without its tools, as it would
+    have had the probe run, and the memo is dropped so the next turn probes again.
+    """
+
+    name: str = ""
+    key: str = ""
+    down: bool = field(default=False, init=False)
+
+    async def __aenter__(self) -> AnsweredRecently:
+        if self.down:
+            return self
+        try:
+            await self.wrapped.__aenter__()
+        except (Exception, BaseExceptionGroup) as exc:
+            if _carries_base_exception(exc):
+                raise
+            logger.warning(
+                "Skipping MCP server %r for this turn: %s", self.name, probe_error_message(exc)
+            )
+            _answered.pop(self.key, None)
+            self.down = True
+        return self
+
+    async def __aexit__(self, *args: Any) -> bool | None:
+        if self.down:
+            return None
+        return await self.wrapped.__aexit__(*args)
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        if self.down:
+            return {}
+        return await super().get_tools(ctx)
+
+
 PLATFORM_MCP_NAME = "agenticos"
 """What this deployment's own server is called in a run, and so its tools' prefix."""
 
@@ -382,6 +458,9 @@ async def probe_toolsets(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec
         if spec.in_process:
             # This deployment's own server: there is no remote to be down.
             return _make_toolset(spec)
+        key = _answer_key(spec)
+        if _answered_recently(key):
+            return AnsweredRecently(_make_toolset(spec), name=spec.name, key=key)
         try:
             await probe_mcp_server(spec.url, spec.headers)
         except Exception as exc:
@@ -389,6 +468,7 @@ async def probe_toolsets(specs: list[McpServerSpec]) -> list[tuple[McpServerSpec
                 "Skipping MCP server %r for this turn: %s", spec.name, probe_error_message(exc)
             )
             return None
+        _note_answer(key)
         return _make_toolset(spec)
 
     results = await asyncio.gather(*(_try(spec) for spec in specs))

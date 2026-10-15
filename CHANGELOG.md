@@ -813,6 +813,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A conversation stops paying a second MCP handshake every turn.** A server that
+  answered its probe in the last two minutes is attached without another; if it
+  has gone down since, the turn goes on without its tools and the next turn
+  probes it again, so an outage is still reported to the model.
+
 - **Delegation is called Subagents.** The capability that lets an agent hand
   work to another agent reads "Subagents" in the console and the docs; its id,
   `subagents`, and its configuration are unchanged.
