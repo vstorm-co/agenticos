@@ -3635,6 +3635,7 @@
     "editCase": "Edytuj",
     "evals": "Ewaluacje",
     "noEvals": "Nie ma jeszcze runów ewaluacji",
-    "noEvalsBody": "Ewaluacja przepuszcza agenta - wersję albo draft - przez przypadki tego datasetu i mówi, czy jest lepiej, czy gorzej niż poprzednio."
+    "noEvalsBody": "Ewaluacja przepuszcza agenta - wersję albo draft - przez przypadki tego datasetu i mówi, czy jest lepiej, czy gorzej niż poprzednio.",
+    "linkedCaseGone": "Przypadku z tego linku nie ma w najnowszej wersji datasetu."
   }
 }

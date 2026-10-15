@@ -6015,6 +6015,7 @@
     "editCase": "Edit",
     "evals": "Evals",
     "noEvals": "No eval run yet",
-    "noEvalsBody": "An eval runs an agent - a version or its draft - through this dataset's cases and says whether it got better or worse than before."
+    "noEvalsBody": "An eval runs an agent - a version or its draft - through this dataset's cases and says whether it got better or worse than before.",
+    "linkedCaseGone": "The case this link names is not in the newest version of the dataset."
   }
 }

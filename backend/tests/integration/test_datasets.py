@@ -1124,3 +1124,22 @@ async def test_a_new_dataset_is_the_organization_s_unless_it_starts_private(db) 
 
     assert shared.visibility == "org"
     assert (shared.id in listed, kept.id in listed) == (True, False)
+
+
+async def test_a_link_opens_one_case_as_its_version_holds_it(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="refunds"))
+    first = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="Return window?", reference_answer="yes")
+    )
+    await service.update_case(
+        ctx, dataset.id, first.case_id, DatasetCaseUpdate(input="How long?", reference_answer="30")
+    )
+
+    newest = await service.read_case(ctx, dataset.id, first.case_id)
+    older = await service.read_case(ctx, dataset.id, first.case_id, version=1)
+
+    assert (newest.input, older.input) == ("How long?", "Return window?")
+    with pytest.raises(NotFoundError):
+        await service.read_case(ctx, dataset.id, uuid.uuid4())

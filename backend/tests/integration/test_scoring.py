@@ -927,6 +927,91 @@ class TestVerdicts:
         )
         assert [check.type for check in scored.checks] == ["json_schema"]
 
+    async def test_scores_come_out_of_the_queue_undecided_and_a_decision_stays(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(
+            db, tenant, scoring=DatasetScoring(review=ReviewScorer(select="all"))
+        )
+        run = await _scored_run(db, tenant)
+        service = ScoringService(db)
+        waiting = await service.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        decided = await service.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        await service.set_verdict(tenant.ctx, dataset.id, decided.id, CaseVerdict(passed=False))
+
+        taken = await service.withdraw_reviews(
+            tenant.ctx, dataset.id, ReviewRequest(score_ids=[waiting.id, decided.id])
+        )
+
+        assert (taken.removed, taken.kept) == (1, 1)
+        states = {
+            item.id: (item.review_state, item.human_passed)
+            for item in (await service.list_scores(tenant.ctx, dataset.id)).items
+        }
+        assert states == {waiting.id: ("none", None), decided.id: ("done", False)}
+
+    async def test_scores_narrow_by_outcome_agent_eval_run_and_tag(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(
+            db,
+            tenant,
+            scoring=DatasetScoring(
+                checks=ChecksScorer(defaults=[{"type": "contains", "value": "ninety"}])
+            ),
+        )
+        mine = await _scored_run(db, tenant)
+        other = await _scored_run(db, tenant)
+        eval_run_id = uuid.uuid4()
+        service = ScoringService(db)
+        failed = await _score_for_an_eval(db, tenant, dataset, case, mine, eval_run_id)
+        overruled = await _score_for_an_eval(db, tenant, dataset, case, other, None)
+        await service.set_verdict(tenant.ctx, dataset.id, overruled.id, CaseVerdict(passed=True))
+
+        async def ids(**filters) -> set[uuid.UUID]:
+            listed = await service.list_scores(tenant.ctx, dataset.id, **filters)
+            return {item.id for item in listed.items}
+
+        assert await ids(outcome="failed") == {failed.id}
+        assert await ids(outcome="passed") == {overruled.id}
+        assert await ids(outcome="not_graded") == set()
+        assert await ids(agent_id=mine.agent_id) == {failed.id}
+        assert await ids(eval_run_id=eval_run_id) == {failed.id}
+        assert await ids(tag="none-of-these") == set()
+
+    async def test_scores_narrow_to_a_tag_of_the_scored_case(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        datasets = DatasetService(db)
+        dataset = await datasets.create(tenant.ctx, DatasetCreate(name="tagged"))
+        tagged = await datasets.add_case(
+            tenant.ctx,
+            dataset.id,
+            DatasetCaseCreate(
+                input="q",
+                reference_answer="a",
+                checks=[{"type": "contains", "value": "a"}],
+                tags=["billing"],
+            ),
+        )
+        plain = await datasets.add_case(
+            tenant.ctx,
+            dataset.id,
+            DatasetCaseCreate(
+                input="r", reference_answer="b", checks=[{"type": "contains", "value": "b"}]
+            ),
+        )
+        run = await _scored_run(db, tenant)
+        on_tagged = await _score_for_an_eval(db, tenant, dataset, tagged, run, None)
+        await _score_for_an_eval(db, tenant, dataset, plain, run, None)
+
+        listed = await ScoringService(db).list_scores(tenant.ctx, dataset.id, tag="billing")
+
+        assert [(item.id, item.case_tags) for item in listed.items] == [(on_tagged.id, ["billing"])]
+
     async def test_the_queue_and_the_listing_show_what_waits(self, db, judge) -> None:
         tenant = await _tenant(db)
         dataset, case = await _dataset(
@@ -1126,6 +1211,28 @@ class TestRefusals:
 
         assert (await scoring.list_scores(tenant.ctx, dataset.id)).total == 0
         assert judge.calls == 0
+
+    async def test_a_viewer_cannot_take_scores_out_of_the_queue(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(
+            db,
+            tenant,
+            scoring=DatasetScoring(review=ReviewScorer(select="all")),
+            visibility="org",
+        )
+        run = await _scored_run(db, tenant)
+        service = ScoringService(db)
+        waiting = await service.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        viewer = await _join(db, tenant, OrgRoleName.VIEWER)
+
+        with pytest.raises(NotFoundError):
+            await service.withdraw_reviews(
+                viewer, dataset.id, ReviewRequest(score_ids=[waiting.id])
+            )
+
+        assert (await service.list_scores(tenant.ctx, dataset.id, pending=True)).total == 1
 
     async def test_a_review_request_naming_another_dataset_s_score_changes_nothing(
         self, db, judge

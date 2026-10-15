@@ -27,6 +27,7 @@ from app.schemas.scoring import (
     CaseScoreRead,
     ReviewQueue,
     ReviewRequested,
+    ReviewWithdrawn,
     ScorerResult,
 )
 
@@ -70,6 +71,7 @@ def service() -> MagicMock:
     stub.request_review = AsyncMock(return_value=_SCORE)
     stub.create_judge = AsyncMock(return_value=_DATASET)
     stub.request_reviews = AsyncMock(return_value=ReviewRequested(queued=2, already=1))
+    stub.withdraw_reviews = AsyncMock(return_value=ReviewWithdrawn(removed=1, kept=0))
     return stub
 
 
@@ -116,6 +118,10 @@ async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
             _url(f"{dataset}/scores/review"), json={"score_ids": [str(uuid.uuid4())]}
         )
         assert sent.json() == {"queued": 2, "already": 1}
+        taken = await http.post(
+            _url(f"{dataset}/scores/review/withdraw"), json={"score_ids": [str(uuid.uuid4())]}
+        )
+        assert taken.json() == {"removed": 1, "kept": 0}
 
 
 async def test_a_score_carries_its_outcome_beside_the_judge_s_opinion(client: OpenClient) -> None:
@@ -136,7 +142,39 @@ async def test_the_listing_filters_reach_the_service(
         )
 
     _, kwargs = service.list_scores.call_args
-    assert kwargs == {"case_id": case_id, "pending": True, "skip": 5, "limit": 10}
+    assert kwargs == {
+        "case_id": case_id,
+        "pending": True,
+        "outcome": None,
+        "agent_id": None,
+        "eval_run_id": None,
+        "tag": None,
+        "skip": 5,
+        "limit": 10,
+    }
+
+
+async def test_the_outcome_agent_eval_run_and_tag_filters_reach_the_service(
+    client: OpenClient, service: MagicMock
+) -> None:
+    agent_id, eval_run_id = uuid.uuid4(), uuid.uuid4()
+    async with client() as http:
+        await http.get(
+            _url(
+                f"/{_DATASET.id}/scores?outcome=failed&agent_id={agent_id}"
+                f"&eval_run_id={eval_run_id}&tag=billing"
+            )
+        )
+        refused = await http.get(_url(f"/{_DATASET.id}/scores?outcome=maybe"))
+
+    _, kwargs = service.list_scores.call_args
+    assert (kwargs["outcome"], kwargs["agent_id"], kwargs["eval_run_id"], kwargs["tag"]) == (
+        "failed",
+        agent_id,
+        eval_run_id,
+        "billing",
+    )
+    assert refused.status_code == 422
 
 
 async def test_a_scoring_configuration_the_schema_refuses_is_a_422(client: OpenClient) -> None:
