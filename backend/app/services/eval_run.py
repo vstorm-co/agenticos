@@ -39,8 +39,10 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.budget import price_request
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
 from app.core.background import spawn_after_commit
@@ -72,6 +74,7 @@ from app.repositories import (
     eval_run_repo,
     organization_repo,
 )
+from app.schemas.dataset import StoredCaseContent
 from app.schemas.eval_run import (
     ArmEstimate,
     ArmSummaryRead,
@@ -80,6 +83,7 @@ from app.schemas.eval_run import (
     EfficiencyRead,
     EvalAttemptRead,
     EvalCallRead,
+    EvalCaseLinkRead,
     EvalCaseList,
     EvalCaseRead,
     EvalComparisonRead,
@@ -574,8 +578,15 @@ class EvalRunService:
         return await self._estimate(ctx, plan)
 
     async def _per_case(
-        self, ctx: AuthContext, agent_id: UUID, model_label: str | None
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        model_label: str | None,
+        profile_id: UUID | None = None,
     ) -> tuple[Decimal, bool]:
+        """What one case costs: this agent's recent runs on the model, or - with
+        no history - a typical case at the model's own price, or a flat guess
+        for a model nothing prices. The flag says whether it was history."""
         average = await agent_run_repo.average_cost(
             self.db,
             organization_id=ctx.organization_id,
@@ -583,9 +594,18 @@ class EvalRunService:
             model_label=model_label,
             sample=settings.EVAL_ESTIMATE_SAMPLE,
         )
-        if average is None:
-            return settings.EVAL_FALLBACK_CASE_COST_USD, False
-        return average.quantize(_CENT), True
+        if average is not None:
+            return average.quantize(_CENT), True
+        if profile_id is not None:
+            model = await self.models.resolve(ctx, profile_id=profile_id)
+            typical = RunUsage(
+                input_tokens=settings.EVAL_FALLBACK_INPUT_TOKENS,
+                output_tokens=settings.EVAL_FALLBACK_OUTPUT_TOKENS,
+            )
+            priced = price_request(typical, model.model, model.provider)
+            if priced is not None:
+                return Decimal(priced).quantize(_CENT), False
+        return settings.EVAL_FALLBACK_CASE_COST_USD, False
 
     async def _estimate(self, ctx: AuthContext, plan: RunPlan) -> EvalRunEstimate:
         cases = len(plan.cases)
@@ -609,7 +629,9 @@ class EvalRunService:
                     )
                 )
                 continue
-            per_case, known = await self._per_case(ctx, plan.agent.id, arm.model_label)
+            per_case, known = await self._per_case(
+                ctx, plan.agent.id, arm.model_label, arm.model_profile_id
+            )
             cost = per_case * cases
             arms_usd += cost
             rerun_per_case += per_case
@@ -725,6 +747,7 @@ class EvalRunService:
             scoring=plan.scoring.model_dump(mode="json", by_alias=True),
             scoring_hash=plan.scoring_hash,
             estimate_usd=estimate.total_usd,
+            rerun_ceiling_usd=estimate.rerun_ceiling_usd,
         )
         arms = [
             EvalRunArm(
@@ -908,6 +931,36 @@ class EvalRunService:
         )
         return EvalRunList(items=await self._reads(ctx, runs), total=len(runs))
 
+    async def case_link(self, ctx: AuthContext, agent_run_id: UUID) -> EvalCaseLinkRead | None:
+        """The eval run and case an agent run answered, for a caller who may see its dataset.
+
+        None for a run no eval started - the judge's grading, say - and for one
+        over a dataset the caller cannot read, whose name and question are not
+        theirs to learn from a run history.
+        """
+        org = ctx.organization_id
+        attempt = await eval_run_repo.case_of_agent_run(self.db, agent_run_id, organization_id=org)
+        if attempt is None:
+            return None
+        run = await eval_run_repo.get(self.db, attempt.eval_run_id, organization_id=org)
+        # An attempt never outlives its run.
+        assert run is not None
+        try:
+            dataset = await self.datasets.get(ctx, run.dataset_id)
+        except NotFoundError:
+            return None
+        revisions = await eval_run_repo.revisions(
+            self.db, [attempt.case_revision_id], organization_id=org
+        )
+        revision = revisions.get(attempt.case_revision_id)
+        return EvalCaseLinkRead(
+            eval_run_id=run.id,
+            agent_id=run.agent_id,
+            case_id=attempt.case_id,
+            dataset_name=dataset.name,
+            case_input=revision.input if revision else "",
+        )
+
     async def _readable_datasets(self, ctx: AuthContext, dataset_ids: set[UUID]) -> set[UUID]:
         rows = await eval_run_repo.datasets(
             self.db, sorted(dataset_ids), organization_id=ctx.organization_id
@@ -981,6 +1034,7 @@ class EvalRunService:
                     live_reads=run.live_reads,
                     reruns=run.reruns,
                     estimate_usd=run.estimate_usd,
+                    rerun_ceiling_usd=run.rerun_ceiling_usd,
                     cost_usd=attempt_cost + judge_cost,
                     cost_is_partial=judge_partial or any(a.cost_is_partial for a in attempts),
                     attempts_done=sum(1 for a in attempts if a.status in finished),
@@ -1084,6 +1138,7 @@ class EvalRunService:
                     position=pairs[0][1].position,
                     input=revision.input if revision else "",
                     tags=tags,
+                    expectation=(StoredCaseContent.model_validate(revision) if revision else None),
                     attempts=[
                         self._attempt_read(shown_arm, a, scores.get(a.case_score_id))
                         for shown_arm, a in pairs

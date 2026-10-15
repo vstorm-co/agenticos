@@ -1259,10 +1259,15 @@ class TestStatsScopeIsDecidedInTheService:
             (
                 "window_aggregates",
                 WindowAggregates(
-                    total=0, cost_usd=Decimal(0), distinct_users=0, p50_ms=None, p95_ms=None
+                    total=0,
+                    cost_usd=Decimal(0),
+                    distinct_users=0,
+                    p50_ms=None,
+                    p95_ms=None,
+                    eval_cost_usd=Decimal(0),
                 ),
             ),
-            ("window_totals", (0, Decimal(0))),
+            ("window_totals", (0, Decimal(0), Decimal(0))),
             (
                 "window_breakdown",
                 WindowBreakdown(

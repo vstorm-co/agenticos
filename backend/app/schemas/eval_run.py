@@ -17,6 +17,7 @@ from app.db.models.eval_run import (
     EvalRunStatus,
 )
 from app.schemas.base import BaseSchema
+from app.schemas.dataset import StoredCaseContent
 from app.schemas.scoring import CaseScoreRead
 
 CallOutcomeLiteral = Literal["executed", "blocked", "replayed", "divergent"]
@@ -187,6 +188,9 @@ class EvalRunRead(BaseSchema):
     live_reads: bool
     reruns: int
     estimate_usd: Decimal
+    rerun_ceiling_usd: Decimal = Field(
+        description="What confirming reruns may add on top of the estimate"
+    )
     cost_usd: Decimal
     cost_is_partial: bool
     attempts_done: int
@@ -247,7 +251,23 @@ class EvalCaseRead(BaseSchema):
     position: int
     input: str
     tags: list[str]
+    expectation: StoredCaseContent | None = Field(
+        description=(
+            "What the case expects, as the revision the run answered holds it - "
+            "the reference, the counter-example, the calls and the checks"
+        )
+    )
     attempts: list[EvalAttemptRead]
+
+
+class EvalCaseLinkRead(BaseSchema):
+    """Which eval run and case one agent run answered - where its answer is read."""
+
+    eval_run_id: UUID
+    agent_id: UUID
+    case_id: UUID
+    dataset_name: str
+    case_input: str
 
 
 class EvalCaseList(BaseSchema):

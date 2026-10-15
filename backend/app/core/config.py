@@ -307,7 +307,10 @@ class Settings(BaseSettings):
     EVAL_SIGNIFICANCE: float = 0.05
     # A relative change in cost, tokens or latency within this is "unchanged".
     EVAL_EFFICIENCY_TOLERANCE: float = 0.05
-    # The per-case estimate on a model this agent has no history on.
+    # With no history on a model, a case is priced as this many tokens at the
+    # model's own price; one with no known price falls back to a flat guess.
+    EVAL_FALLBACK_INPUT_TOKENS: int = 2000
+    EVAL_FALLBACK_OUTPUT_TOKENS: int = 400
     EVAL_FALLBACK_CASE_COST_USD: Decimal = Decimal("0.05")
     EVAL_ESTIMATE_SAMPLE: int = 50
     # A live eval run with nothing started or finished for this long lost its worker.

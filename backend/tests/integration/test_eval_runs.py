@@ -264,7 +264,9 @@ def _environment():
         patch.object(
             ModelProfileService,
             "resolve",
-            new=AsyncMock(return_value=SimpleNamespace(label="gpt-test")),
+            new=AsyncMock(
+                return_value=SimpleNamespace(label="gpt-test", model="gpt-test", provider="openai")
+            ),
         ),
         patch.object(AgentRegistryService, "validate_spec", new=AsyncMock()),
         patch("app.services.eval_run.spawn_after_commit", side_effect=dropped),
@@ -972,6 +974,25 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     assert estimate.rerun_ceiling_usd == Decimal("0.80")
 
 
+async def test_a_model_with_no_history_is_priced_at_its_own_price(db) -> None:
+    """A typical case at the model's price, not a flat guess eighty times too high."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=10)
+    nano = await _profile(db, ctx, "gpt-4.1-nano")
+    priced = SimpleNamespace(label="nano", model="gpt-4.1-nano", provider="openai")
+
+    with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
+        estimate = await EvalRunService(db).estimate(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, model_profile_ids=[nano.id])
+        )
+
+    [arm] = estimate.arms
+    # 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
+    assert (arm.basis, arm.cost_per_case_usd) == ("fallback", Decimal("0.00036"))
+    assert arm.cost_usd == Decimal("0.0036")
+
+
 async def _assist(db: AsyncSession, ctx: AuthContext, *, on: bool) -> None:
     org = await db.get(Organization, ctx.organization_id)
     assert org is not None
@@ -1186,6 +1207,8 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     assert (outcome.candidate_pass_rate, outcome.baseline_pass_rate) == (0.75, 1.0)
     read = await service.get(ctx, v7.id)
     assert (read.cases, read.first_done, read.first_total, read.attempts_total) == (4, 4, 4, 6)
+    # What the reruns may add is kept, so spending past the estimate is explained.
+    assert read.rerun_ceiling_usd == Decimal("0.08")
 
     # Read again, the verdict is the one kept rather than compared anew.
     stored = await db.get(EvalRun, v7.id)
@@ -1296,3 +1319,30 @@ async def test_cases_narrow_to_the_ones_named(db) -> None:
 
     assert [case.case_id for case in named.items] == [everything.items[1].case_id]
     assert named.total == 1
+    # What the case expects rides beside its answers.
+    expectation = named.items[0].expectation
+    assert expectation is not None
+    assert [check.model_dump()["value"] for check in expectation.checks] == ["30 days"]
+
+
+@pytest.mark.security
+async def test_an_eval_run_names_its_case_to_who_may_see_the_dataset(db) -> None:
+    owner = await _owner(db)
+    agent, _ = await _agent(db, owner)
+    dataset = await _dataset(db, owner, cases=1)
+    service = EvalRunService(db)
+    run = await service.start(owner, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), run.id, owner)
+    attempt = await db.scalar(select(EvalRunCase).where(EvalRunCase.eval_run_id == run.id))
+    assert attempt is not None and attempt.agent_run_id is not None
+
+    link = await service.case_link(owner, attempt.agent_run_id)
+
+    assert link is not None
+    assert (link.eval_run_id, link.agent_id, link.case_id) == (run.id, agent.id, attempt.case_id)
+    assert (link.dataset_name, link.case_input) == (dataset.name, "Question 0")
+    # The dataset is its owner's: a colleague reading the run history learns
+    # neither its name nor its question from it.
+    member = await _member(db, owner, OrgRoleName.MEMBER)
+    assert await service.case_link(member, attempt.agent_run_id) is None
+    assert await service.case_link(owner, uuid.uuid4()) is None
