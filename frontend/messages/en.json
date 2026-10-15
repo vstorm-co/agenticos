@@ -6256,7 +6256,7 @@
         "counterExample": "Not like this:",
         "calls": "Expected calls, {order}:",
         "checks": "Checks:",
-        "openDataset": "Open the case's dataset"
+        "openDataset": "Open this case in its dataset"
       }
     },
     "estimating": "Estimating…",

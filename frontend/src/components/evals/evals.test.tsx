@@ -439,6 +439,7 @@ describe("CaseDetail", () => {
         ]}
         expectation={null}
         datasetId="ds-1"
+        caseId="case-1"
       />,
     );
     expect(screen.getByText("v7 · gpt-4.1")).toBeInTheDocument();
@@ -461,6 +462,7 @@ describe("CaseDetail", () => {
         arms={[arm()]}
         attempts={[attempt()]}
         datasetId="ds-1"
+        caseId="case-1"
         expectation={{
           input: "How long do I have?",
           history: [],
@@ -480,9 +482,9 @@ describe("CaseDetail", () => {
     expect(screen.getByText("Expected calls, In this order:")).toBeInTheDocument();
     expect(screen.getByText('lookup_policy({"topic":"returns"})')).toBeInTheDocument();
     expect(screen.getByText('contains {"value":"30 days"}')).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open the case's dataset" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Open this case in its dataset" })).toHaveAttribute(
       "href",
-      "/datasets/ds-1",
+      "/datasets/ds-1?tab=cases&case=case-1",
     );
   });
 
@@ -492,6 +494,7 @@ describe("CaseDetail", () => {
         arms={[arm()]}
         attempts={[attempt()]}
         datasetId="ds-1"
+        caseId="case-1"
         expectation={{
           input: "Hi",
           history: [],

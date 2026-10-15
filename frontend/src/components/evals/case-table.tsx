@@ -218,6 +218,7 @@ export function CaseTable({
                         arms={run.arms}
                         expectation={item.expectation}
                         datasetId={run.dataset_id}
+                        caseId={item.case_id}
                       />
                     </div>
                   )}

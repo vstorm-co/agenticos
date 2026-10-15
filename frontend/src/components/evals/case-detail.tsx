@@ -70,9 +70,11 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
 function Expectation({
   expectation,
   datasetId,
+  caseId,
 }: {
   expectation: DatasetCaseContent;
   datasetId: string;
+  caseId: string;
 }) {
   const t = useTranslations("evals.case.expect");
   const tDatasets = useTranslations("datasets");
@@ -123,7 +125,7 @@ function Expectation({
         </div>
       )}
       <Link
-        href={`${ROUTES.DATASETS}/${datasetId}`}
+        href={`${ROUTES.DATASET_DETAIL(datasetId)}?tab=cases&case=${caseId}`}
         className="text-muted-foreground block text-xs underline underline-offset-4"
       >
         {t("openDataset")}
@@ -142,16 +144,20 @@ export function CaseDetail({
   arms,
   expectation,
   datasetId,
+  caseId,
 }: {
   attempts: EvalAttempt[];
   arms: EvalRunArm[];
   expectation: DatasetCaseContent | null;
   datasetId: string;
+  caseId: string;
 }) {
   const t = useTranslations("evals");
   return (
     <div className="space-y-3">
-      {expectation && <Expectation expectation={expectation} datasetId={datasetId} />}
+      {expectation && (
+        <Expectation expectation={expectation} datasetId={datasetId} caseId={caseId} />
+      )}
       <div className="grid gap-3 md:grid-cols-2">
         {arms.map((arm) => {
           const own = attempts.filter((attempt) => attempt.arm_id === arm.id);

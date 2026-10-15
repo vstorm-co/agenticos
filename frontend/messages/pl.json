@@ -3877,7 +3877,7 @@
         "counterExample": "Nie tak:",
         "calls": "Oczekiwane wywołania, {order}:",
         "checks": "Checki:",
-        "openDataset": "Otwórz dataset tego case'a"
+        "openDataset": "Otwórz ten case w datasecie"
       }
     },
     "estimating": "Wyceniam…",

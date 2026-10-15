@@ -6114,7 +6114,7 @@
         "counterExample": "Nicht so:",
         "calls": "Erwartete Aufrufe, {order}:",
         "checks": "Checks:",
-        "openDataset": "Das Dataset des Falls öffnen"
+        "openDataset": "Diesen Fall im Dataset öffnen"
       }
     },
     "estimating": "Wird geschätzt…",
