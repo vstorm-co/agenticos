@@ -1,4 +1,4 @@
-import type { CaseCheck } from "@/types/datasets";
+import type { CaseCheck, DatasetStats } from "@/types/datasets";
 import type { CaseScore, DatasetScoring, ScorerResult } from "@/types/scoring";
 
 /** What a dataset is scored with before anybody configures it - the server's defaults. */
@@ -107,4 +107,28 @@ export function groupScores(scores: CaseScore[]): ScoreGroup[] {
     group.scores.sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
   return groups;
+}
+
+/**
+ * How many of a dataset's cases a configuration would grade nothing on.
+ *
+ * A case is graded when the judge has criteria - it reads every case - or when a
+ * scorer that is on finds what it reads on the case: checks (the case's own, or
+ * a default every case gets), expected tool calls, a reference answer.
+ */
+export function ungradedCases(
+  scoring: DatasetScoring,
+  stats: DatasetStats,
+  defaultChecks: number,
+): number {
+  const { checks, trajectory, judge, reference } = scoring;
+  if (judge.enabled && judge.criteria.length > 0) return 0;
+  return stats.expectation_mix
+    .filter(
+      (mix) =>
+        !(checks.enabled && (mix.checks || defaultChecks > 0)) &&
+        !(trajectory.enabled && mix.tool_calls) &&
+        !(reference.enabled && mix.reference),
+    )
+    .reduce((total, mix) => total + mix.cases, 0);
 }

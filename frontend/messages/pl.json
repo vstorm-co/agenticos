@@ -3496,7 +3496,16 @@
       "withdrawn": "{count, plural, one {# wynik zdjęty z kolejki} few {# wyniki zdjęte z kolejki} many {# wyników zdjętych z kolejki} other {# wyniku zdjęte z kolejki}}",
       "undo": "Cofnij",
       "showPassed": "{count, plural, one {+# zaliczony} few {+# zaliczone} many {+# zaliczonych} other {+# zaliczonego}}",
-      "hidePassed": "Ukryj zaliczone"
+      "hidePassed": "Ukryj zaliczone",
+      "coverage": "{count} z {total} przypadków",
+      "unsaved": "Niezapisane",
+      "ungraded": "{count, plural, one {# przypadek nie ma niczego, co by go oceniło. Włącz porównanie z wzorcem, daj sędziemu kryteria albo dodaj reguły.} few {# przypadki nie mają niczego, co by je oceniło. Włącz porównanie z wzorcem, daj sędziemu kryteria albo dodaj reguły.} many {# przypadków nie ma niczego, co by je oceniło. Włącz porównanie z wzorcem, daj sędziemu kryteria albo dodaj reguły.} other {# przypadku nie ma niczego, co by je oceniło. Włącz porównanie z wzorcem, daj sędziemu kryteria albo dodaj reguły.}}",
+      "mustPassRule": "Przypadek przechodzi, gdy przejdzie wszystko, co oznaczono jako Musi przejść.",
+      "switchJudgeTitle": "Oceniać innym sędzią?",
+      "switchJudgeBody": "Wyniki ocenione przez obecnego sędziego nie będą porównywalne z ocenianymi od teraz. Nic, co już ocenione, się nie zmienia.",
+      "switchJudge": "Zmień sędziego",
+      "scaleSentence": "Każde kryterium jest oceniane od 1 do <top></top> i przechodzi od <mark></mark> wzwyż.",
+      "judgeUnpublished": "Nieopublikowany"
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",

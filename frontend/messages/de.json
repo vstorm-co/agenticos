@@ -5734,7 +5734,16 @@
       "withdrawn": "{count, plural, =1 {1 Ergebnis aus der Warteschlange genommen} other {# Ergebnisse aus der Warteschlange genommen}}",
       "undo": "Rückgängig",
       "showPassed": "{count, plural, =1 {+1 bestanden} other {+# bestanden}}",
-      "hidePassed": "Bestandene ausblenden"
+      "hidePassed": "Bestandene ausblenden",
+      "coverage": "{count} von {total} Fällen",
+      "unsaved": "Nicht gespeichert",
+      "ungraded": "{count, plural, =1 {1 Fall hat nichts, was ihn bewertet. Schalten Sie den Referenzvergleich ein, geben Sie dem Bewerter Kriterien oder fügen Sie Regeln hinzu.} other {# Fälle haben nichts, was sie bewertet. Schalten Sie den Referenzvergleich ein, geben Sie dem Bewerter Kriterien oder fügen Sie Regeln hinzu.}}",
+      "mustPassRule": "Ein Fall besteht, wenn alles besteht, was mit Muss bestehen markiert ist.",
+      "switchJudgeTitle": "Mit einem anderen Bewerter bewerten?",
+      "switchJudgeBody": "Ergebnisse des aktuellen Bewerters sind nicht mit den ab jetzt benoteten vergleichbar. Bereits Bewertetes ändert sich nicht.",
+      "switchJudge": "Bewerter wechseln",
+      "scaleSentence": "Jedes Kriterium wird von 1 bis <top></top> benotet und besteht ab <mark></mark>.",
+      "judgeUnpublished": "Nicht veröffentlicht"
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",

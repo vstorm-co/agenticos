@@ -69,6 +69,7 @@ export default function DatasetPage({ params }: PageProps) {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Editing>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [gradingUnsaved, setGradingUnsaved] = useState(false);
   const { dataset, error: datasetError, update, remove } = useDataset(id);
   const { versions } = useDatasetVersions(id);
   const linkedCase = useDatasetCase(id, linked);
@@ -118,6 +119,13 @@ export default function DatasetPage({ params }: PageProps) {
           <TabsTrigger value="cases">{t("cases")}</TabsTrigger>
           <TabsTrigger value="grading" data-tour="datasets-grading-tab">
             {t("scoring.title")}
+            {gradingUnsaved && (
+              <span
+                className="bg-primary ml-1.5 size-1.5 rounded-full"
+                role="img"
+                aria-label={t("scoring.unsaved")}
+              />
+            )}
           </TabsTrigger>
           <TabsTrigger value="evals" data-tour="datasets-evals-tab">
             {t("evals")}
@@ -194,8 +202,10 @@ export default function DatasetPage({ params }: PageProps) {
             )}
           </ListCard>
         </TabsContent>
-        <TabsContent value="grading">
-          <GradingPanel dataset={dataset} />
+        {/* Kept mounted while another tab is open, so a card's unsaved change
+            survives looking at the cases it is about. */}
+        <TabsContent value="grading" forceMount className="data-[state=inactive]:hidden">
+          <GradingPanel dataset={dataset} onDirtyChange={setGradingUnsaved} />
         </TabsContent>
         <TabsContent value="evals">
           <EvalsTab />

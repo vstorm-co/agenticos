@@ -5876,7 +5876,16 @@
       "withdrawn": "{count, plural, =1 {1 result taken out of the queue} other {# results taken out of the queue}}",
       "undo": "Undo",
       "showPassed": "{count, plural, =1 {+1 passed} other {+# passed}}",
-      "hidePassed": "Hide what passed"
+      "hidePassed": "Hide what passed",
+      "coverage": "{count} of {total} cases",
+      "unsaved": "Unsaved",
+      "ungraded": "{count, plural, =1 {1 case has nothing that grades it. Turn on the reference comparison, give the judge criteria, or add rules.} other {# cases have nothing that grades them. Turn on the reference comparison, give the judge criteria, or add rules.}}",
+      "mustPassRule": "A case passes when everything marked Must pass passes.",
+      "switchJudgeTitle": "Grade with another judge?",
+      "switchJudgeBody": "Scores graded by the current judge will not compare with the ones graded from now on. Nothing already graded changes.",
+      "switchJudge": "Switch judge",
+      "scaleSentence": "Each criterion is graded from 1 to <top></top>, and passes at <mark></mark> or above.",
+      "judgeUnpublished": "Not published"
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

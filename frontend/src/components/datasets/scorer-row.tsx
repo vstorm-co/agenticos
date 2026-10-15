@@ -11,6 +11,8 @@ interface ScorerRowProps {
   enabled: boolean;
   /** Whether a case must pass it; absent for a scorer whose criteria say so each. */
   mustPass?: boolean;
+  /** How many of the dataset's cases hold what it reads, as a sentence. */
+  coverage?: string;
   onChange: (next: { enabled: boolean; required?: boolean }) => void;
   disabled: boolean;
   children?: ReactNode;
@@ -22,6 +24,7 @@ export function ScorerRow({
   hint,
   enabled,
   mustPass,
+  coverage,
   onChange,
   disabled,
   children,
@@ -39,6 +42,7 @@ export function ScorerRow({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{label}</p>
           <p className="text-muted-foreground text-xs">{hint}</p>
+          {coverage && <p className="text-muted-foreground mt-0.5 text-xs">{coverage}</p>}
         </div>
         {mustPass !== undefined && enabled && (
           <label className="flex items-center gap-2 text-xs">

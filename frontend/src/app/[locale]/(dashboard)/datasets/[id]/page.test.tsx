@@ -61,7 +61,13 @@ vi.mock("@/hooks/use-datasets", () => ({
 }));
 vi.mock("@/components/sharing/sharing-panel", () => ({ SharingPanel: () => null }));
 vi.mock("@/hooks/use-agents", () => ({ useCapabilityCatalog: () => ({ capabilities: [] }) }));
-vi.mock("@/components/datasets/grading-panel", () => ({ GradingPanel: () => <p>grading</p> }));
+vi.mock("@/components/datasets/grading-panel", () => ({
+  GradingPanel: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => (
+    <button type="button" onClick={() => onDirtyChange(true)}>
+      grading
+    </button>
+  ),
+}));
 vi.mock("@/components/datasets/review-panel", () => ({ ReviewPanel: () => <p>review</p> }));
 
 const CASE = {
@@ -191,6 +197,16 @@ describe("the dataset page", () => {
     await mount();
 
     expect(screen.getByRole("alert")).toHaveTextContent("not in the newest version");
+  });
+
+  it("marks the Grading tab while a change there is unsaved", async () => {
+    state.tab = "grading";
+    await mount();
+    expect(screen.queryByRole("img", { name: "Unsaved" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "grading" }));
+
+    expect(screen.getByRole("img", { name: "Unsaved" })).toBeInTheDocument();
   });
 
   it("holds a place for the dataset's eval runs", async () => {

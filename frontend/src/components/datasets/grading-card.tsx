@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import { SettingsSection } from "@/components/settings/settings-section";
-import { Button } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 
 interface GradingCardProps {
   title: string;
@@ -35,9 +35,14 @@ export function GradingCard({
       description={description}
       action={
         dirty ? (
-          <Button size="sm" disabled={!canSave} onClick={onSave}>
-            {t("save")}
-          </Button>
+          <span className="flex items-center gap-2">
+            <Badge variant="outline" className="font-normal">
+              {t("unsaved")}
+            </Badge>
+            <Button size="sm" disabled={!canSave} onClick={onSave}>
+              {t("save")}
+            </Button>
+          </span>
         ) : undefined
       }
     >
