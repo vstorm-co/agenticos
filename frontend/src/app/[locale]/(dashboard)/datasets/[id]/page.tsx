@@ -247,6 +247,11 @@ export default function DatasetPage({ params }: PageProps) {
           initial={editing.draft}
           viewing={editing.item ?? undefined}
           title={editing.item === null ? t("addCase") : t("case")}
+          nextVersion={dataset.latest_version + 1}
+          scoring={dataset.scoring}
+          knownTools={[
+            ...new Set(cases.cases.flatMap((item) => item.expected_tool_calls.map((c) => c.tool))),
+          ]}
           onSave={editable ? save : undefined}
         />
       )}

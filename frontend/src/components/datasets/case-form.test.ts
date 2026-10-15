@@ -8,7 +8,7 @@ const CASE = {
   reference_answer: "30 days",
   counter_example: null,
   expected_tool_calls: [
-    { tool: "search", args: { q: "refund" } },
+    { tool: "search", args: { q: "refund", limit: 5, exact: true, id: "42", tags: ["a"] } },
     { tool: "lookup_order", args: {} },
   ],
   order_mode: "in_order" as const,
@@ -39,8 +39,17 @@ describe("the case draft", () => {
     const draft = draftOf(CASE);
     expect(draft.tags).toBe("returns, billing");
     expect(draft.expected_tool_calls).toEqual([
-      { tool: "search", args: '{"q":"refund"}' },
-      { tool: "lookup_order", args: "" },
+      {
+        tool: "search",
+        args: [
+          { key: "q", value: "refund" },
+          { key: "limit", value: "5" },
+          { key: "exact", value: "true" },
+          { key: "id", value: '"42"' },
+          { key: "tags", value: '["a"]' },
+        ],
+      },
+      { tool: "lookup_order", args: [] },
     ]);
     expect(draft.checks.map((check) => [check.type, check.value])).toEqual([
       ["contains", "30 days"],
@@ -64,8 +73,8 @@ describe("the case draft", () => {
       tags: " a, ,b ",
       history: [{ role: "user", content: "  " }],
       expected_tool_calls: [
-        { tool: " search ", args: " " },
-        { tool: "", args: "{}" },
+        { tool: " search ", args: [{ key: " ", value: "x" }] },
+        { tool: "", args: [] },
       ],
     });
     expect(read.content).toMatchObject({
@@ -81,16 +90,18 @@ describe("the case draft", () => {
     const read = contentOf({
       ...EMPTY_DRAFT,
       input: "q",
-      expected_tool_calls: [{ tool: "search", args: "[1]" }],
       checks: [
         { type: "json_schema", value: "{", rest: {} },
+        { type: "json_schema", value: "[1]", rest: {} },
+        { type: "json_schema", value: "null", rest: {} },
         { type: "max_latency_ms", value: "soon", rest: {} },
         { type: "contains", value: " ", rest: {} },
       ],
     });
     expect(read.content).toBeNull();
     expect(read.problems).toEqual([
-      { field: "expected_tool_calls", key: "argsNotObject" },
+      { field: "checks", key: "schemaNotObject" },
+      { field: "checks", key: "schemaNotObject" },
       { field: "checks", key: "schemaNotObject" },
       { field: "checks", key: "notNumber" },
       { field: "checks", key: "checkEmpty" },
@@ -100,12 +111,12 @@ describe("the case draft", () => {
   it("expects something once any one of the four says what the answer is tested against", () => {
     const only = { ...EMPTY_DRAFT, input: "q", note: "why", tags: "a" };
     expect(expectsSomething(only)).toBe(false);
-    expect(expectsSomething({ ...only, expected_tool_calls: [{ tool: " ", args: "" }] })).toBe(
+    expect(expectsSomething({ ...only, expected_tool_calls: [{ tool: " ", args: [] }] })).toBe(
       false,
     );
     expect(expectsSomething({ ...only, reference_answer: "yes" })).toBe(true);
     expect(expectsSomething({ ...only, counter_example: "no" })).toBe(true);
-    expect(expectsSomething({ ...only, expected_tool_calls: [{ tool: "search", args: "" }] })).toBe(
+    expect(expectsSomething({ ...only, expected_tool_calls: [{ tool: "search", args: [] }] })).toBe(
       true,
     );
     expect(expectsSomething({ ...only, checks: [{ type: "contains", value: "", rest: {} }] })).toBe(

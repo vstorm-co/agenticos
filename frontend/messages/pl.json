@@ -3506,7 +3506,10 @@
       "switchJudgeBody": "Wyniki ocenione przez obecnego sędziego nie będą porównywalne z ocenianymi od teraz. Nic, co już ocenione, się nie zmienia.",
       "switchJudge": "Zmień sędziego",
       "scaleSentence": "Każde kryterium jest oceniane od 1 do <top></top> i przechodzi od <mark></mark> wzwyż.",
-      "judgeUnpublished": "Nieopublikowany"
+      "judgeUnpublished": "Nieopublikowany",
+      "gradedBy": "Tu ocenia: {graders}.",
+      "gradedByJudge": "sędzia ({criteria})",
+      "gradedByNothing": "Nic z zakładki Ocenianie nie oceni tego przypadku w tej postaci."
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",
@@ -3582,7 +3585,7 @@
       "counter_example": "Odpowiedź znana jako błędna, żeby sędzia miał z czym porównać.",
       "note": "Po co ten przypadek - co poszło źle albo czego pilnuje.",
       "history": "Wcześniejsze tury, od najstarszej. Zostaw puste dla jednej wiadomości.",
-      "expected_tool_calls": "Narzędzia, które agent powinien wywołać, każde z argumentami, które muszą się zgadzać, jako obiekt JSON. Niewymienione argumenty są pomijane.",
+      "expected_tool_calls": "Narzędzia, które agent powinien wywołać, każde z argumentami, które muszą się zgadzać. Wartość to tekst albo liczba, true, false lub lista, gdy zapisano je jako JSON. Niewymienione argumenty są pomijane.",
       "checks": "Reguły, według których sprawdzana jest odpowiedź - że zawiera frazę, pasuje do wzorca, nie przekracza kosztu.",
       "tags": "Oddzielone przecinkami, do grupowania wyników."
     },
@@ -3626,7 +3629,6 @@
     "removeTurn": "Usuń turę {number}",
     "addTurn": "Dodaj turę",
     "callTool": "Wywołanie {number}: narzędzie",
-    "callArgs": "Wywołanie {number}: argumenty",
     "removeCall": "Usuń wywołanie {number}",
     "addCall": "Dodaj wywołanie narzędzia",
     "checkTypeOf": "Sprawdzenie {number}: typ",
@@ -3649,7 +3651,6 @@
       "equals": "Tak",
       "judge": "Odmawia, nie ujawniając adresu klienta"
     },
-    "argsNotObject": "Argumenty zapisuje się jako obiekt JSON, na przykład {\"query\": \"refund\"}.",
     "schemaNotObject": "Schemat zapisuje się jako obiekt JSON.",
     "notNumber": "To sprawdzenie przyjmuje liczbę.",
     "checkEmpty": "Powiedz, co sprawdza każde sprawdzenie, albo je usuń.",
@@ -3658,6 +3659,16 @@
     "evals": "Ewaluacje",
     "noEvals": "Nie ma jeszcze runów ewaluacji",
     "noEvalsBody": "Ewaluacja przepuszcza agenta - wersję albo draft - przez przypadki tego datasetu i mówi, czy jest lepiej, czy gorzej niż poprzednio.",
-    "linkedCaseGone": "Przypadku z tego linku nie ma w najnowszej wersji datasetu."
+    "linkedCaseGone": "Przypadku z tego linku nie ma w najnowszej wersji datasetu.",
+    "argKey": "Wywołanie {number}, argument {arg}: nazwa",
+    "argValue": "Wywołanie {number}, argument {arg}: wartość",
+    "removeArg": "Usuń argument {arg} wywołania {number}",
+    "addArg": "Dodaj argument",
+    "caseSavesVersionN": "Zapis utworzy wersję v{number}. Wersja przed nią zachowa ten przypadek takim, jaki był.",
+    "caseJson": "Przypadek jako JSON",
+    "caseJsonHint": "Te same pola, które zawiera import i eksport. Wróć do formularza, żeby sprawdzić, czy się poprawnie czyta.",
+    "caseJsonInvalid": "To nie jest poprawny JSON.",
+    "editAsJson": "Edytuj jako JSON",
+    "editAsForm": "Wróć do formularza"
   }
 }

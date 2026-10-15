@@ -25,11 +25,14 @@ import { submitFailure } from "@/lib/api-error";
 import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { DatasetCaseContent, ToolOrderMode } from "@/types/datasets";
+import type { DatasetScoring } from "@/types/scoring";
 import { CaseCallsEditor } from "./case-calls-editor";
 import { CaseChecksEditor } from "./case-checks-editor";
+import { CaseGradedBy } from "./case-graded-by";
 import {
   CASE_FIELDS,
   contentOf,
+  draftOf,
   expectsSomething,
   type CaseDraft,
   type CaseField,
@@ -47,9 +50,28 @@ interface CaseEditorDialogProps {
   /** A stored case, opened to be read first; absent for a new case, opened to be written. */
   viewing?: DatasetCaseContent;
   title: string;
+  /** The version a save makes. */
+  nextVersion?: number;
+  /** The dataset's Grading, to say what would grade the case as written. */
+  scoring?: DatasetScoring;
+  /** Tool names the dataset's cases already expect. */
+  knownTools?: string[];
 }
 
 const ORDER_MODES: ToolOrderMode[] = ["any", "in_order", "exact"];
+
+/** What a case written as JSON holds when it leaves a field out. */
+const EMPTY_CONTENT: DatasetCaseContent = {
+  input: "",
+  history: [],
+  reference_answer: null,
+  counter_example: null,
+  expected_tool_calls: [],
+  order_mode: "any",
+  checks: [],
+  tags: [],
+  note: null,
+};
 
 type TextField = "input" | "reference_answer" | "counter_example" | "note";
 type Slot =
@@ -117,6 +139,9 @@ export function CaseEditorDialog({
   onSave,
   viewing,
   title,
+  nextVersion,
+  scoring,
+  knownTools,
 }: CaseEditorDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
@@ -124,9 +149,43 @@ export function CaseEditorDialog({
   const [errors, setErrors] = useState<Partial<Record<CaseField, string>>>({});
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(viewing === undefined);
+  // The whole case as JSON, while it is edited that way; null in the form.
+  const [json, setJson] = useState<string | null>(null);
+  const [jsonProblem, setJsonProblem] = useState(false);
   const readOnly = onSave === undefined || !editing;
   const missing =
-    draft.input.trim() === "" ? "needsInput" : expectsSomething(draft) ? null : "needsExpectation";
+    json !== null
+      ? null
+      : draft.input.trim() === ""
+        ? "needsInput"
+        : expectsSomething(draft)
+          ? null
+          : "needsExpectation";
+
+  function parsed(): DatasetCaseContent | null {
+    try {
+      return JSON.parse(json ?? "") as DatasetCaseContent;
+    } catch {
+      setJsonProblem(true);
+      return null;
+    }
+  }
+
+  function toggleJson() {
+    if (json !== null) {
+      const content = parsed();
+      if (content === null) return;
+      setDraft(draftOf({ ...EMPTY_CONTENT, ...content }));
+      setJson(null);
+      return;
+    }
+    const read = contentOf(draft);
+    if (read.content === null) {
+      setErrors(Object.fromEntries(read.problems.map((p) => [p.field, t(p.key)])));
+      return;
+    }
+    setJson(JSON.stringify(read.content, null, 2));
+  }
 
   function edit<K extends keyof CaseDraft>(field: K, value: CaseDraft[K]) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -134,14 +193,20 @@ export function CaseEditorDialog({
   }
 
   async function save(onSave: (content: DatasetCaseContent) => Promise<unknown>) {
-    const read = contentOf(draft);
-    if (read.content === null) {
-      setErrors(Object.fromEntries(read.problems.map((p) => [p.field, t(p.key)])));
-      return;
+    let content: DatasetCaseContent | null;
+    if (json !== null) {
+      content = parsed();
+    } else {
+      const read = contentOf(draft);
+      if (read.content === null) {
+        setErrors(Object.fromEntries(read.problems.map((p) => [p.field, t(p.key)])));
+      }
+      content = read.content;
     }
+    if (content === null) return;
     setSaving(true);
     try {
-      await onSave(read.content);
+      await onSave(content);
       onOpenChange(false);
     } catch (error) {
       const failure = submitFailure(error, { fields: [...CASE_FIELDS] }, tErrors);
@@ -158,12 +223,37 @@ export function CaseEditorDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            {t(onSave === undefined ? "caseReadOnly" : editing ? "caseSavesVersion" : "caseOpened")}
+            {onSave === undefined
+              ? t("caseReadOnly")
+              : !editing
+                ? t("caseOpened")
+                : nextVersion === undefined
+                  ? t("caseSavesVersion")
+                  : t("caseSavesVersionN", { number: nextVersion })}
           </DialogDescription>
         </DialogHeader>
         <div className="-mx-1.5 min-h-0 flex-1 space-y-4 overflow-y-auto px-1.5 py-1">
           {!editing && viewing !== undefined && <CaseView content={viewing} />}
+          {editing && json !== null && (
+            <FormField
+              htmlFor="case-json"
+              label={t("caseJson")}
+              description={t("caseJsonHint")}
+              error={jsonProblem ? t("caseJsonInvalid") : undefined}
+            >
+              <Textarea
+                rows={18}
+                className="font-mono text-xs"
+                value={json}
+                onChange={(event) => {
+                  setJson(event.target.value);
+                  setJsonProblem(false);
+                }}
+              />
+            </FormField>
+          )}
           {editing &&
+            json === null &&
             GROUPS.map(({ group, slots }) => (
               <div key={group} data-tour={`case-group-${group}`} className="space-y-4">
                 {slots.map((slot) => {
@@ -200,6 +290,7 @@ export function CaseEditorDialog({
                         <CaseCallsEditor
                           calls={draft.expected_tool_calls}
                           onChange={(calls) => edit("expected_tool_calls", calls)}
+                          knownTools={knownTools}
                         />
                       </ListField>
                     );
@@ -263,9 +354,17 @@ export function CaseEditorDialog({
               </div>
             ))}
         </div>
+        {editing && json === null && scoring !== undefined && (
+          <CaseGradedBy scoring={scoring} draft={draft} />
+        )}
         <DialogFooter className="items-center">
+          {!readOnly && (
+            <Button variant="link" size="sm" className="mr-auto px-0" onClick={toggleJson}>
+              {json === null ? t("editAsJson") : t("editAsForm")}
+            </Button>
+          )}
           {!readOnly && missing !== null && (
-            <p className="text-muted-foreground mr-auto text-xs" role="status">
+            <p className="text-muted-foreground text-xs" role="status">
               {t(missing)}
             </p>
           )}

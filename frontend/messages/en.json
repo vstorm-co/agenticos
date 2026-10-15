@@ -5886,7 +5886,10 @@
       "switchJudgeBody": "Scores graded by the current judge will not compare with the ones graded from now on. Nothing already graded changes.",
       "switchJudge": "Switch judge",
       "scaleSentence": "Each criterion is graded from 1 to <top></top>, and passes at <mark></mark> or above.",
-      "judgeUnpublished": "Not published"
+      "judgeUnpublished": "Not published",
+      "gradedBy": "Graded here by {graders}.",
+      "gradedByJudge": "the judge ({criteria})",
+      "gradedByNothing": "Nothing on the dataset's Grading tab would grade this case as written."
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
@@ -5962,7 +5965,7 @@
       "counter_example": "An answer known to be wrong, so a judge has something to compare against.",
       "note": "Why the case exists - what went wrong, or what it guards.",
       "history": "Earlier turns, oldest first. Leave empty for a single message.",
-      "expected_tool_calls": "Tools the agent should call, each with the arguments that must match, as a JSON object. Arguments not listed are ignored.",
+      "expected_tool_calls": "Tools the agent should call, each with the arguments that must match. A value is text, or a number, true, false or a list when written as JSON. Arguments not listed are ignored.",
       "checks": "Rules the answer is checked against - that it contains a phrase, matches a pattern, stays under a cost.",
       "tags": "Comma-separated, for grouping results."
     },
@@ -6006,7 +6009,6 @@
     "removeTurn": "Remove turn {number}",
     "addTurn": "Add a turn",
     "callTool": "Call {number}: tool",
-    "callArgs": "Call {number}: arguments",
     "removeCall": "Remove call {number}",
     "addCall": "Add a tool call",
     "checkTypeOf": "Check {number}: type",
@@ -6029,7 +6031,6 @@
       "equals": "Yes",
       "judge": "Refuses without revealing the customer's address"
     },
-    "argsNotObject": "Arguments are written as a JSON object, such as {\"query\": \"refund\"}.",
     "schemaNotObject": "A schema is written as a JSON object.",
     "notNumber": "This check takes a number.",
     "checkEmpty": "Say what each check checks, or remove it.",
@@ -6038,6 +6039,16 @@
     "evals": "Evals",
     "noEvals": "No eval run yet",
     "noEvalsBody": "An eval runs an agent - a version or its draft - through this dataset's cases and says whether it got better or worse than before.",
-    "linkedCaseGone": "The case this link names is not in the newest version of the dataset."
+    "linkedCaseGone": "The case this link names is not in the newest version of the dataset.",
+    "argKey": "Call {number}, argument {arg}: name",
+    "argValue": "Call {number}, argument {arg}: value",
+    "removeArg": "Remove argument {arg} of call {number}",
+    "addArg": "Add an argument",
+    "caseSavesVersionN": "Saving makes version v{number}. The version before it keeps this case as it was.",
+    "caseJson": "The case as JSON",
+    "caseJsonHint": "The same fields an import or an export holds. Back to the form to check it reads right.",
+    "caseJsonInvalid": "This is not valid JSON.",
+    "editAsJson": "Edit as JSON",
+    "editAsForm": "Back to the form"
   }
 }

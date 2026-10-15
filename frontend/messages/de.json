@@ -5744,7 +5744,10 @@
       "switchJudgeBody": "Ergebnisse des aktuellen Bewerters sind nicht mit den ab jetzt benoteten vergleichbar. Bereits Bewertetes ändert sich nicht.",
       "switchJudge": "Bewerter wechseln",
       "scaleSentence": "Jedes Kriterium wird von 1 bis <top></top> benotet und besteht ab <mark></mark>.",
-      "judgeUnpublished": "Nicht veröffentlicht"
+      "judgeUnpublished": "Nicht veröffentlicht",
+      "gradedBy": "Hier bewertet von: {graders}.",
+      "gradedByJudge": "dem Bewerter ({criteria})",
+      "gradedByNothing": "Nichts im Tab Bewertung des Datasets würde diesen Fall so bewerten."
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
@@ -5820,7 +5823,7 @@
       "counter_example": "Eine Antwort, die bekanntermaßen falsch ist, damit ein Judge einen Vergleich hat.",
       "note": "Warum es den Fall gibt - was schiefging oder was er absichert.",
       "history": "Frühere Züge, älteste zuerst. Für eine einzelne Nachricht leer lassen.",
-      "expected_tool_calls": "Tools, die der Agent aufrufen soll, jeweils mit den Argumenten, die passen müssen, als JSON-Objekt. Nicht genannte Argumente werden ignoriert.",
+      "expected_tool_calls": "Tools, die der Agent aufrufen soll, jeweils mit den Argumenten, die passen müssen. Ein Wert ist Text, oder eine Zahl, true, false oder eine Liste, wenn als JSON geschrieben. Nicht genannte Argumente werden ignoriert.",
       "checks": "Regeln, gegen die die Antwort geprüft wird - dass sie eine Phrase enthält, einem Muster entspricht, unter einem Kostenrahmen bleibt.",
       "tags": "Durch Kommas getrennt, zum Gruppieren von Ergebnissen."
     },
@@ -5864,7 +5867,6 @@
     "removeTurn": "Zug {number} entfernen",
     "addTurn": "Zug hinzufügen",
     "callTool": "Aufruf {number}: Tool",
-    "callArgs": "Aufruf {number}: Argumente",
     "removeCall": "Aufruf {number} entfernen",
     "addCall": "Tool-Aufruf hinzufügen",
     "checkTypeOf": "Prüfung {number}: Typ",
@@ -5887,7 +5889,6 @@
       "equals": "Ja",
       "judge": "Lehnt ab, ohne die Adresse des Kunden preiszugeben"
     },
-    "argsNotObject": "Argumente werden als JSON-Objekt geschrieben, etwa {\"query\": \"refund\"}.",
     "schemaNotObject": "Ein Schema wird als JSON-Objekt geschrieben.",
     "notNumber": "Diese Prüfung nimmt eine Zahl.",
     "checkEmpty": "Sagen Sie, was jede Prüfung prüft, oder entfernen Sie sie.",
@@ -5896,6 +5897,16 @@
     "evals": "Evals",
     "noEvals": "Noch kein Eval-Run",
     "noEvalsBody": "Ein Eval lässt einen Agent - eine Version oder seinen Entwurf - durch die Fälle dieses Datasets laufen und sagt, ob er besser oder schlechter ist als zuvor.",
-    "linkedCaseGone": "Der Fall aus diesem Link ist nicht in der neuesten Version des Datasets."
+    "linkedCaseGone": "Der Fall aus diesem Link ist nicht in der neuesten Version des Datasets.",
+    "argKey": "Aufruf {number}, Argument {arg}: Name",
+    "argValue": "Aufruf {number}, Argument {arg}: Wert",
+    "removeArg": "Argument {arg} von Aufruf {number} entfernen",
+    "addArg": "Argument hinzufügen",
+    "caseSavesVersionN": "Speichern erzeugt Version v{number}. Die Version davor behält diesen Fall, wie er war.",
+    "caseJson": "Der Fall als JSON",
+    "caseJsonHint": "Dieselben Felder, die ein Import oder Export enthält. Zurück zum Formular, um zu prüfen, dass er richtig gelesen wird.",
+    "caseJsonInvalid": "Das ist kein gültiges JSON.",
+    "editAsJson": "Als JSON bearbeiten",
+    "editAsForm": "Zurück zum Formular"
   }
 }

@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_SCORING } from "@/lib/scoring";
 import DatasetPage from "./page";
 
 const state = vi.hoisted(() => ({
@@ -36,7 +37,7 @@ vi.mock("@/hooks/use-datasets", () => ({
       latest_version: 3,
       case_count: 1,
       can_edit: state.canEdit,
-      scoring: {},
+      scoring: DEFAULT_SCORING,
     },
     error: null,
     update: { mutateAsync: vi.fn(), isPending: false },
