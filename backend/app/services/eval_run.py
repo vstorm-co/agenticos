@@ -652,6 +652,12 @@ class EvalRunService:
         arms_usd = Decimal(0)
         rerun_per_case = Decimal(0)
         for arm in plan.arms:
+            per_case, known = await self._per_case(
+                ctx, plan.agent.id, arm.model_label, arm.model_profile_id
+            )
+            # A reused arm's first answers are free, but a case that flips is
+            # asked of it again in this run.
+            rerun_per_case += per_case
             if arm.cached is not None:
                 arms.append(
                     ArmEstimate(
@@ -668,12 +674,8 @@ class EvalRunService:
                     )
                 )
                 continue
-            per_case, known = await self._per_case(
-                ctx, plan.agent.id, arm.model_label, arm.model_profile_id
-            )
             cost = per_case * cases
             arms_usd += cost
-            rerun_per_case += per_case
             arms.append(
                 ArmEstimate(
                     role=arm.role,
@@ -701,7 +703,7 @@ class EvalRunService:
         fresh_arms = sum(1 for arm in plan.arms if arm.cached is None)
         judge_usd = judge_per_case * cases * fresh_arms
         total = arms_usd + judge_usd
-        rerun_ceiling = (rerun_per_case + judge_per_case * fresh_arms) * cases * plan.reruns
+        rerun_ceiling = (rerun_per_case + judge_per_case * len(plan.arms)) * cases * plan.reruns
 
         agent_left = await self._agent_left(ctx, plan)
         org_left = await self._org_left(ctx)

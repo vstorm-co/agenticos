@@ -458,6 +458,9 @@ async def test_a_baseline_in_the_same_run_is_reused_when_everything_matches(db) 
     estimate = await service.estimate(ctx, agent.id, request)
     baseline = next(arm for arm in estimate.arms if arm.role == "baseline")
     assert (baseline.basis, baseline.cached_from_run_id) == ("cached", first.id)
+    # Its first answers are free, but a case that flips is asked of it again.
+    candidate = next(arm for arm in estimate.arms if arm.role == "candidate")
+    assert estimate.rerun_ceiling_usd == candidate.cost_per_case_usd * 2 * 3 * 2
 
     second = await service.start(ctx, agent.id, request)
     again = Model(db)
