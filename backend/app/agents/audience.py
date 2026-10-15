@@ -9,14 +9,15 @@ server-side, and handed to the run on `AgentDeps`.
 
 An audience has at most one person and at most one room:
 
-- **private** - one person, no room. Web chat, the HTTP API, and a direct message
-  on a chat platform. The person is the only listener.
+- **private** - one person, no room. Web chat and a direct message on a chat
+  platform. The person is the only listener.
 - **room** - a group chat. The speaker is known, but so is everyone else in the
   channel; the answer is read by all of them.
 - **anonymous** - neither. A public widget or an embed, where the run is carried
   by the publisher rather than by whoever is typing (see
   `AuthContext.subject_is_publisher_fallback`), and there is no person to
-  attribute anything to.
+  attribute anything to. A run started with an API key is the same: the key
+  carries its issuer for audit and budget, but a script holding it is not them.
 
 Nothing here is taken from the model. Both fields are derived in
 :func:`derive_audience` from the identity the request arrived with, which is what
@@ -109,8 +110,8 @@ def derive_audience(
     """The audience of a run, from the identity the request arrived with.
 
     The person is resolved **account first**: a real subject keys on their app
-    user, whatever surface they arrived on, so web chat, the HTTP API and a linked
-    chat account all reach one store. That is not a lookup - on a channel, a linked
+    user, whatever surface they arrived on, so web chat and a linked chat account
+    reach one store. That is not a lookup - on a channel, a linked
     sender already runs as themselves (`_membership_context` builds the
     `AuthContext` from `ChannelIdentity.user_id`), so the join is in `user_id`
     before this is called. Keying on the chat identity first would have split the
@@ -132,16 +133,14 @@ def derive_audience(
     A direct message passes `room_key=None` and stays private, which is what makes
     a DM and web chat the same audience for the same person.
     """
-    person = None if subject_is_publisher_fallback else user_id
+    # A key run has no person either: the key holds its issuer's identity for
+    # audit, budget and ownership, but whoever holds the key is not that person,
+    # and their memory, conversations and signed-in sites are not the key's.
+    person = None if subject_is_publisher_fallback or via_api_key else user_id
     return RunAudience(
         user_id=person,
         room_key=room_key,
         writes_memory=fired_as_creator != "event",
         searches_conversations=fired_as_creator is None,
-        browses_signed_in=(
-            person is not None
-            and room_key is None
-            and not via_api_key
-            and fired_as_creator != "event"
-        ),
+        browses_signed_in=(person is not None and room_key is None and fired_as_creator != "event"),
     )

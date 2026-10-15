@@ -1,5 +1,5 @@
 ---
-source_sha: "b430564e26d6"
+source_sha: "8122fd41c206"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -50,6 +50,15 @@ Eintrag, der während einer mit einem Schlüssel authentifizierten Anfrage
 geschrieben wird, trägt `via_api_key` in seinen Details. Ein Schlüssel kann ein
 Ablaufdatum haben, und sein Widerruf (`DELETE /api/v1/api-keys/{id}`) wirkt ab
 seiner nächsten Anfrage.
+
+**Ein Schlüssel ist nicht die Person, die ihn ausgestellt hat.** Ein Run, den er
+startet, gehört der ausstellenden Person, läuft über ihr Budget und ihr Audit,
+erreicht aber nichts Persönliches von ihr: kein
+[Gedächtnis](reference/capabilities.md#whose-notes-and-who-may-hear-them), keine
+Suche in ihren früheren Unterhaltungen, keine Seiten, auf denen der Browser ihre
+Anmeldungen hält, und keinen benutzerbezogenen Sandbox-Arbeitsbereich. Wer den
+Schlüssel hält, ist ein Skript, nicht diese Person, also antwortet der Run wie
+auf einem öffentlichen Widget.
 
 ```bash
 curl "$BASE/api/v1/me/permissions" \

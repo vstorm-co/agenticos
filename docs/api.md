@@ -42,6 +42,13 @@ the key that acted — every entry recorded during a key-authenticated request
 carries `via_api_key` in its details. A key can have an expiry, and revoking it
 (`DELETE /api/v1/api-keys/{id}`) takes effect on its next request.
 
+**A key is not its issuer's person.** A run it starts is owned, budgeted and
+audited as the issuer, but it reaches none of their personal state: no
+[memory](reference/capabilities.md#whose-notes-and-who-may-hear-them), no search
+of their past conversations, no sites they kept signed in for the browser, and
+no user-scoped sandbox workspace. Whoever holds the key is a script, not the
+person, so the run answers as it would on a public widget.
+
 ```bash
 curl "$BASE/api/v1/me/permissions" \
   -H "Authorization: Bearer $AGENTICOS_KEY"

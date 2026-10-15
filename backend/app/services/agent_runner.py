@@ -2827,9 +2827,12 @@ class AgentRunnerService:
                 # `user`-scoped workspace opened the publisher's own for every
                 # stranger on their widget, and the creator's own for every fire
                 # that may not read their notes (#2027).
+                # And a key, which is not the person it was issued by.
                 user_id=(
                     None
-                    if ctx.user_id is None or subject_is_publisher_fallback
+                    if ctx.user_id is None
+                    or subject_is_publisher_fallback
+                    or ctx.api_key_id is not None
                     else str(ctx.user_id)
                 ),
                 channel_key=channel_key,

@@ -270,15 +270,17 @@ exactly one store: the conversation's own.** Which one is derived server-side fr
 who will hear the answer, never from the model — so no tool takes a scope and
 there is nothing for the agent to get wrong.
 
-- One to one — web chat, the HTTP API, a direct message — the notes are that
-  person's, and nobody else ever reads them. The same person reaches one store
-  from all three: a linked chat account resolves to their account rather than to
-  the surface they arrived on.
+- One to one — web chat, a direct message — the notes are that person's, and
+  nobody else ever reads them. The same person reaches one store from both: a
+  linked chat account resolves to their account rather than to the surface they
+  arrived on.
 - In a group chat the notes are the chat's, and everyone in the chat reads them.
   The speaker's own notes are **not** reachable there: something written down
   alone with somebody is not read back aloud where a whole channel sees it.
 - On a public widget or an embed there is nobody to attribute anything to, so
-  there is no store, and the tools say so rather than saving somewhere.
+  there is no store, and the tools say so rather than saving somewhere. A run
+  started with an [API key](../api.md#organization-api-keys) has none either:
+  the key acts for its issuer, but whoever holds it is not that person.
 - On a schedule or an event trigger there is no store either, even though the
   run executes as the trigger's creator. The creator lends the run their
   authority, not their identity, so nobody is listening and the tools refuse.

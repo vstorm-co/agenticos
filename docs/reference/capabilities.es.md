@@ -1,5 +1,5 @@
 ---
-source_sha: "7901da764013"
+source_sha: "e63a2a127bff"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -293,15 +293,16 @@ exactamente un almacén: el de la propia conversación.** Cuál es se deriva en 
 servidor a partir de quién va a oír la respuesta, nunca del modelo, así que ninguna
 herramienta recibe un ámbito y no hay nada que el agent pueda confundir.
 
-- Uno a uno (chat web, la API HTTP, un mensaje directo): las notas son de esa
-  persona y nadie más las lee jamás. La misma persona alcanza un único almacén
-  desde las tres vías: una cuenta de chat vinculada se resuelve a su cuenta y no a
+- Uno a uno (chat web, un mensaje directo): las notas son de esa persona y nadie
+  más las lee jamás. La misma persona alcanza un único almacén desde ambas vías: una cuenta de chat vinculada se resuelve a su cuenta y no a
   la superficie por la que llegó.
 - En un chat de grupo las notas son del chat, y todos los del chat las leen. Las
   notas propias de quien habla **no** son alcanzables ahí: algo anotado a solas
   con alguien no se lee en voz alta donde lo ve un canal entero.
 - En un widget público o en un embed no hay a quién atribuir nada, así que no hay
-  almacén, y las herramientas lo dicen en vez de guardar en algún sitio.
+  almacén, y las herramientas lo dicen en vez de guardar en algún sitio. Un run
+  iniciado con una [clave API](../api.md#organization-api-keys) tampoco lo tiene:
+  la clave actúa por quien la emitió, pero quien la tiene no es esa persona.
 - En una programación o en un trigger de evento tampoco hay almacén, aunque el
   run se ejecuta como el creador del trigger. El creador presta al run su
   autoridad, no su identidad, así que nadie escucha y las herramientas se

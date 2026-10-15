@@ -1,5 +1,5 @@
 ---
-source_sha: "b430564e26d6"
+source_sha: "8122fd41c206"
 ---
 
 # API HTTP { #the-http-api }
@@ -46,6 +46,15 @@ nazywa klucz, który zadziałał: każdy wpis zapisany w trakcie żądania
 uwierzytelnionego kluczem niesie w szczegółach `via_api_key`. Klucz może mieć datę
 wygaśnięcia, a jego unieważnienie (`DELETE /api/v1/api-keys/{id}`) działa od
 następnego żądania.
+
+**Klucz nie jest osobą, która go wystawiła.** Run, który uruchamia, należy do
+wystawcy, jest liczony w jego budżecie i audycie, ale nie sięga do niczego
+osobistego: ani do
+[pamięci](reference/capabilities.md#whose-notes-and-who-may-hear-them), ani do
+wyszukiwania jego dawnych rozmów, ani do stron, na których przeglądarka trzyma
+jego logowania, ani do przestrzeni roboczej sandboxa przypisanej do użytkownika.
+Ten, kto trzyma klucz, jest skryptem, nie tą osobą, więc run odpowiada tak jak
+na publicznym widgecie.
 
 ```bash
 curl "$BASE/api/v1/me/permissions" \

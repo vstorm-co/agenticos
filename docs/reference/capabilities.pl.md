@@ -1,5 +1,5 @@
 ---
-source_sha: "7901da764013"
+source_sha: "e63a2a127bff"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -292,16 +292,18 @@ dotyka dokładnie jednego magazynu: tego, który należy do rozmowy.** Który to
 wynika po stronie serwera z tego, kto usłyszy odpowiedź, a nigdy z modelu — więc
 żadne narzędzie nie przyjmuje zakresu i agent nie ma tu czego pomylić.
 
-- Jeden na jeden — czat webowy, HTTP API, wiadomość prywatna — notatki należą do
-  tej osoby i nikt inny ich nie czyta. Ta sama osoba sięga z wszystkich trzech
-  miejsc do jednego magazynu: powiązane konto czatu rozwiązuje się na jej konto,
+- Jeden na jeden — czat webowy, wiadomość prywatna — notatki należą do tej osoby
+  i nikt inny ich nie czyta. Ta sama osoba sięga z obu miejsc do jednego
+  magazynu: powiązane konto czatu rozwiązuje się na jej konto,
   a nie na powierzchnię, przez którą przyszła.
 - Na czacie grupowym notatki należą do czatu i czytają je wszyscy jego
   uczestnicy. Własne notatki mówiącego **nie** są tam osiągalne: tego, co
   zapisano w rozmowie w cztery oczy, nie odczytuje się na głos tam, gdzie widzi
   to cały kanał.
 - Na publicznym widgecie albo w embedzie nie ma komu niczego przypisać, więc nie
-  ma magazynu, a narzędzia mówią to wprost, zamiast zapisywać gdziekolwiek.
+  ma magazynu, a narzędzia mówią to wprost, zamiast zapisywać gdziekolwiek. Run
+  uruchomiony [kluczem API](../api.md#organization-api-keys) też go nie ma: klucz
+  działa w imieniu wystawcy, ale ten, kto go trzyma, nie jest tą osobą.
 - W harmonogramie albo przy triggerze zdarzenia też nie ma magazynu, chociaż run
   wykonuje się jako twórca triggera. Twórca pożycza runowi swoje uprawnienia, a
   nie tożsamość, więc nikt nie słucha i narzędzia odmawiają. Fakt potrzebny

@@ -1,5 +1,5 @@
 ---
-source_sha: "b430564e26d6"
+source_sha: "8122fd41c206"
 ---
 
 # La API HTTP { #the-http-api }
@@ -47,6 +47,15 @@ también como una entrada de auditoría nombra la clave que actuó: cada entrada
 registrada durante una petición autenticada con clave lleva `via_api_key` en sus
 detalles. Una clave puede caducar, y revocarla (`DELETE /api/v1/api-keys/{id}`)
 surte efecto en su siguiente petición.
+
+**Una clave no es la persona que la emitió.** Un run que inicia pertenece a quien
+la emitió, cuenta en su presupuesto y en su auditoría, pero no alcanza nada
+personal suyo: ni la
+[memoria](reference/capabilities.md#whose-notes-and-who-may-hear-them), ni la
+búsqueda en sus conversaciones anteriores, ni los sitios en los que el navegador
+guarda sus inicios de sesión, ni el espacio de trabajo del sandbox ligado al
+usuario. Quien tiene la clave es un script, no esa persona, así que el run
+responde como en un widget público.
 
 ```bash
 curl "$BASE/api/v1/me/permissions" \

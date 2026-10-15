@@ -1,5 +1,5 @@
 ---
-source_sha: "7901da764013"
+source_sha: "e63a2a127bff"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -302,9 +302,9 @@ wird serverseitig daraus abgeleitet, wer die Antwort hören wird, niemals aus de
 Modell — deshalb nimmt kein Tool einen Scope entgegen und es gibt nichts, was der
 Agent falsch machen könnte.
 
-- Eins zu eins — Webchat, die HTTP-API, eine Direktnachricht — gehören die Notizen
-  dieser Person, und niemand sonst liest sie jemals. Dieselbe Person erreicht aus
-  allen dreien denselben Speicher: Ein verknüpftes Chat-Konto löst auf ihr Konto
+- Eins zu eins — Webchat, eine Direktnachricht — gehören die Notizen dieser
+  Person, und niemand sonst liest sie jemals. Dieselbe Person erreicht aus beiden
+  denselben Speicher: Ein verknüpftes Chat-Konto löst auf ihr Konto
   auf und nicht auf die Oberfläche, über die sie gekommen ist.
 - In einem Gruppenchat gehören die Notizen dem Chat, und alle im Chat lesen sie.
   Die eigenen Notizen der sprechenden Person sind dort **nicht** erreichbar: Was
@@ -312,7 +312,10 @@ Agent falsch machen könnte.
   Kanal zusieht.
 - Auf einem öffentlichen Widget oder in einem Embed gibt es niemanden, dem sich
   etwas zuordnen ließe, also gibt es keinen Speicher, und die Tools sagen das,
-  statt irgendwohin zu speichern.
+  statt irgendwohin zu speichern. Ein mit einem
+  [API-Schlüssel](../api.md#organization-api-keys) gestarteter Run hat auch
+  keinen: Der Schlüssel handelt für die ausstellende Person, aber wer ihn hält,
+  ist nicht diese Person.
 - Bei einem Zeitplan oder einem Ereignis-Trigger gibt es ebenfalls keinen
   Speicher, obwohl der Run als Ersteller des Triggers ausgeführt wird. Der
   Ersteller leiht dem Run seine Befugnisse, nicht seine Identität, also hört

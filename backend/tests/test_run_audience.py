@@ -51,6 +51,17 @@ class TestDeriving:
 
         assert audience == RunAudience(user_id=None, room_key=ROOM)
 
+    @pytest.mark.security
+    def test_a_key_is_not_the_person_who_issued_it(self):
+        """A key run carries its issuer's id for audit and budget. Treating that as
+        the asker would hand whoever holds the key the issuer's memory, past
+        conversations and kept sign-ins."""
+        audience = derive_audience(
+            user_id=PERSON, subject_is_publisher_fallback=False, room_key=None, via_api_key=True
+        )
+
+        assert audience == RunAudience(user_id=None, room_key=None)
+
     def test_no_subject_at_all_is_nobody(self):
         assert (
             derive_audience(

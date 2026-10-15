@@ -513,6 +513,44 @@ class TestPrepare:
         assert create_run.call_args.kwargs["initiated_by_publisher_fallback"] is True
 
     @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_key_run_reaches_none_of_its_issuers_personal_state(self):
+        """Codex on #2062: a key acts for its issuer, but whoever holds it is not
+        them - so no memory, conversation search, kept sign-in or `user`-scoped
+        workspace of theirs."""
+        ctx = replace(_ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset(Perm))
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Script"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)) as opened,
+        ):
+            await service.prepare(ctx, agent.id)
+
+        assert build.call_args.kwargs["audience"] == RunAudience(user_id=None)
+        assert opened.await_args.kwargs["identity"].user_id is None
+
+    @pytest.mark.anyio
     async def test_a_fire_acting_as_its_creator_is_the_creator_on_their_terms(self):
         """Their own connections speak for it and the audience is them - but an
         event's audience writes no memory and no fire searches conversations, and
