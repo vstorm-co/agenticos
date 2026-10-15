@@ -36,6 +36,7 @@ describe("reasonKey", () => {
     expect(reasonKey(result("judge_budget"))).toBe("reason.judgeBudget");
     expect(reasonKey(result("judge_no_model"))).toBe("reason.judgeNoModel");
     expect(reasonKey(result("judge_missing"))).toBe("reason.judgeMissing");
+    expect(reasonKey(result("judge_counter_unsupported"))).toBe("reason.judgeCounterUnsupported");
   });
 
   it("leaves a code this build does not know, and no code, to the server's sentence", () => {

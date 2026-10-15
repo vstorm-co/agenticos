@@ -448,6 +448,7 @@ class JudgeVerdict(BaseModel):
 # from one prompt is never compared as like for like with one graded from another.
 JUDGE_PROMPT_VERSION = 3
 
+COUNTER_ID = "counter"
 COUNTER_CRITERION = (
     "The answer does not repeat the mistake of the counter-example, a known bad answer "
     "to this question."
@@ -496,7 +497,7 @@ def judge_criteria(
     if case.counter_example and (scoring.judge.enabled or scoring.reference.enabled):
         criteria.append(
             JudgeCriterion(
-                id="counter",
+                id=COUNTER_ID,
                 scorer="reference",
                 name="counter-example",
                 description=COUNTER_CRITERION,
@@ -611,6 +612,12 @@ def restates(reason: str, criterion: str) -> bool:
     return sum(word in asked for word in said) / len(said) >= _RESTATED_SHARE
 
 
+def _differs(quotes: Sequence[str], answer: str, counter_example: str) -> bool:
+    """Whether a quote the answer holds is something the counter-example does not say."""
+    bad = counter_example.casefold()
+    return any(quote in answer and quote.casefold() not in bad for quote in quotes)
+
+
 def graded(
     criteria: Sequence[JudgeCriterion],
     verdict: JudgeVerdict,
@@ -619,14 +626,18 @@ def graded(
     scale_max: int,
     pass_at: int,
     run_id: UUID,
+    counter_example: str | None = None,
 ) -> list[ScorerResult]:
     """The judge's grades as results; a criterion it skipped or misgraded is an error.
 
     A quote is checked against the part of `answer` the judge was shown; one it
     does not hold is kept beside the grade rather than in its reason. A grade
     whose reason is mostly the criterion's own words, with no quote the answer
-    holds, is an error: nothing shows the judge read the answer. A grade at the
-    top of the scale with no such quote stands, marked `unverified`.
+    holds, is an error: nothing shows the judge read the answer; its words are
+    kept as `judge_said`. A grade at the top of the scale with no such quote
+    stands, marked `unverified`. Passing the answer on not repeating
+    `counter_example` needs a quote the counter-example does not also hold - a
+    passage it shares with the bad answer is the mistake, not evidence against it.
     """
     grades = {grade.id: grade for grade in verdict.grades}
     shown = answer[:MAX_MATCH_TEXT]
@@ -657,6 +668,26 @@ def graded(
                     reason="The judge restated the criterion instead of pointing at what in the "
                     "answer meets it",
                     reason_code="judge_reason_echo",
+                    judge_said=grade.reason[:MAX_REASON],
+                    judge_run_id=run_id,
+                )
+            )
+            continue
+        if (
+            criterion.id == COUNTER_ID
+            and grade.score >= pass_at
+            and not _differs(grade.quotes, shown, counter_example or "")
+        ):
+            results.append(
+                ScorerResult(
+                    scorer=criterion.scorer,
+                    name=criterion.name,
+                    required=criterion.required,
+                    status="error",
+                    reason="The judge passed the answer as unlike the counter-example without "
+                    "quoting anything in it the counter-example does not also say",
+                    reason_code="judge_counter_unsupported",
+                    judge_said=grade.reason[:MAX_REASON],
                     judge_run_id=run_id,
                 )
             )

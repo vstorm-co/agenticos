@@ -3415,7 +3415,8 @@
         "judgeRunFailed": "Run sędziego się nie zakończył.",
         "judgeOutputInvalid": "Sędzia odpowiedział w formie, której nie da się odczytać.",
         "judgeUngraded": "Sędzia nie dał oceny na skali za to kryterium.",
-        "judgeReasonEcho": "Sędzia powtórzył kryterium, zamiast napisać, dlaczego odpowiedź je spełnia."
+        "judgeReasonEcho": "Sędzia powtórzył kryterium, zamiast napisać, dlaczego odpowiedź je spełnia.",
+        "judgeCounterUnsupported": "Sędzia uznał, że odpowiedź różni się od kontrprzykładu, nie cytując z niej niczego, czego kontrprzykład też by nie mówił."
       },
       "scoreRun": "Oceń względem przypadku",
       "scoreRunBody": "Uruchom na odpowiedzi tego runu wszystkie oceniacze skonfigurowane w datasecie. Wynik zostanie zapisany w datasecie.",

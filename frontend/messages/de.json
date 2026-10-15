@@ -5653,7 +5653,8 @@
         "judgeRunFailed": "Der Run des Bewerters wurde nicht beendet.",
         "judgeOutputInvalid": "Der Bewerter hat in einer Form geantwortet, die sich nicht lesen ließ.",
         "judgeUngraded": "Der Bewerter hat für dieses Kriterium keine Note auf der Skala vergeben.",
-        "judgeReasonEcho": "Der Bewerter hat das Kriterium wiederholt, statt zu sagen, warum die Antwort es erfüllt."
+        "judgeReasonEcho": "Der Bewerter hat das Kriterium wiederholt, statt zu sagen, warum die Antwort es erfüllt.",
+        "judgeCounterUnsupported": "Der Bewerter hat die Antwort als anders als das Gegenbeispiel bestanden, ohne etwas daraus zu zitieren, das das Gegenbeispiel nicht auch sagt."
       },
       "scoreRun": "Gegen einen Fall bewerten",
       "scoreRunBody": "Alle im Dataset konfigurierten Bewertungen auf die Antwort dieses Runs anwenden. Das Ergebnis wird im Dataset gespeichert.",

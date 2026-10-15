@@ -5795,7 +5795,8 @@
         "judgeRunFailed": "The judge's run did not finish.",
         "judgeOutputInvalid": "The judge answered in a form that could not be read.",
         "judgeUngraded": "The judge gave no grade on the scale for this criterion.",
-        "judgeReasonEcho": "The judge restated the criterion instead of saying why the answer meets it."
+        "judgeReasonEcho": "The judge restated the criterion instead of saying why the answer meets it.",
+        "judgeCounterUnsupported": "The judge passed the answer as unlike the counter-example without quoting anything in it the counter-example does not also say."
       },
       "scoreRun": "Score against a case",
       "scoreRunBody": "Run every scorer the dataset configures on this run's answer. The result is kept on the dataset.",

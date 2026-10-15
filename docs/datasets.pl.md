@@ -1,5 +1,5 @@
 ---
-source_sha: "82fbb0ddb3d7"
+source_sha: "45b95a1b750d"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -288,7 +288,10 @@ jego wcześniejsze tury i pytanie, odpowiedź wzorcową, gdy jest oceniana,
 kontrprzykład, każde wywołanie narzędzia wykonane przez agenta - z argumentami i
 informacją, czy izolowany run je zablokował - oraz odpowiedź. Przypadek z
 kontrprzykładem jest zawsze oceniany także według wymaganego kryterium
-**counter-example**: odpowiedź nie może powtarzać znanej złej odpowiedzi.
+**counter-example**: odpowiedź nie może powtarzać znanej złej odpowiedzi, a
+zaliczenie go wymaga cytatu z odpowiedzi, którego kontrprzykład też nie
+zawiera.
+
 Sędziowie startują z temperaturą 0, więc ta sama odpowiedź jest oceniana dwa
 razy tak samo; model, który nie przyjmuje temperatury, na przykład model
 rozumujący, ocenia bez niej.

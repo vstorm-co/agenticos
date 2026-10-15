@@ -69,6 +69,7 @@ const REASON_KEYS = {
   judge_output_invalid: "reason.judgeOutputInvalid",
   judge_ungraded: "reason.judgeUngraded",
   judge_reason_echo: "reason.judgeReasonEcho",
+  judge_counter_unsupported: "reason.judgeCounterUnsupported",
 } as const;
 
 export function reasonKey(result: ScorerResult): string | null {

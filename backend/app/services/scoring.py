@@ -139,7 +139,11 @@ def _kept_answer(text: str) -> str | None:
 # fit any dataset, so a person replaces it rather than keeps it.
 STARTING_CRITERION = RubricCriterion(
     name="answers the question",
-    description="The answer is correct and complete for what the question asks.",
+    description=(
+        "Quote what in the answer settles the question, then say whether it is right by "
+        "the reference answer or what you were told, and what the question asked that "
+        "the answer leaves out."
+    ),
 )
 
 
@@ -652,6 +656,7 @@ class ScoringService:
             scale_max=scoring.judge.scale_max,
             pass_at=scoring.judge.pass_at,
             run_id=result.run.id,
+            counter_example=case.counter_example,
         )
         return Evaluation(grades, await self._pin(ctx, result.run, criteria, scoring))
 

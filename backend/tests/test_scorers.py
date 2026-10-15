@@ -605,6 +605,54 @@ class TestGrades:
             False,
         )
 
+    def test_passing_on_the_counter_example_needs_a_quote_it_does_not_also_say(self) -> None:
+        case = _case(counter_example="You have 30 days to return it.")
+        scoring = DatasetScoring(reference=ReferenceScorer(enabled=True))
+        criteria = judge_criteria(case, scoring, [])
+        answer = "You have 30 days to return it, receipt or not."
+
+        def grade(**given) -> ScorerResult:
+            [result] = graded(
+                criteria,
+                JudgeVerdict(grades=[JudgeGrade(id="counter", reason="Differs", **given)]),
+                answer=answer,
+                scale_max=5,
+                pass_at=4,
+                run_id=uuid.uuid4(),
+                counter_example=case.counter_example,
+            )
+            return result
+
+        echoed = grade(score=5, quotes=["30 days to return it"])
+        backed = grade(score=5, quotes=["receipt or not"])
+        failed = grade(score=1, quotes=["30 days to return it"])
+
+        assert (echoed.status, echoed.reason_code, echoed.judge_said) == (
+            "error",
+            "judge_counter_unsupported",
+            "Differs",
+        )
+        assert backed.status == "pass"
+        assert failed.status == "fail"
+
+    def test_a_restated_reason_keeps_what_the_judge_wrote(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
+
+        [result] = graded(
+            criteria,
+            JudgeVerdict(grades=[JudgeGrade(id="r1", score=2, reason="Facts are not right")]),
+            answer="",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+        )
+
+        assert (result.status, result.reason_code, result.judge_said) == (
+            "error",
+            "judge_reason_echo",
+            "Facts are not right",
+        )
+
     def test_a_top_grade_with_nothing_quoted_from_the_answer_is_unverified(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])
         verdict = JudgeVerdict(
