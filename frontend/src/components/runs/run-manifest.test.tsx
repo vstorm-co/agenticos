@@ -120,11 +120,20 @@ describe("what the model was told", () => {
   });
 
   it("says a run sent no instructions rather than leaving the panel blank", () => {
-    serve({ manifest: record({ instructions: null }) });
+    serve({ manifest: record({ instructions: null, system_prompts: [] }) });
 
     renderManifest();
 
     expect(screen.getByText("No instructions were sent with this run.")).toBeVisible();
+  });
+
+  it("does not claim no instructions for a run that sent them as system parts", () => {
+    serve({ manifest: record({ instructions: null, system_prompts: ["Grade the answer."] }) });
+
+    renderManifest();
+
+    expect(screen.queryByText("No instructions were sent with this run.")).toBeNull();
+    expect(screen.getByText("Grade the answer.")).toBeVisible();
   });
 });
 
