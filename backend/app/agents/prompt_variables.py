@@ -27,6 +27,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.agents.spec import AgentSpec
+from app.core.config import settings
 
 VARIABLE = re.compile(r"\{\{\s*([a-z][a-z0-9_]*)\s*\}\}")
 """A variable as written in instructions. Lower case, digits and underscores."""
@@ -111,12 +112,13 @@ def time_zone(setting: str, person_zone: str | None) -> ZoneInfo:
     """The zone `{{current_time}}` is told in.
 
     `user` is the person's own zone when the surface reported one, and the
-    deployment's otherwise; an unknown zone name falls back the same way rather
-    than failing a run over a clock.
+    deployment's otherwise; `system` is the deployment's `TIMEZONE`; an unknown
+    zone name falls back the same way rather than failing a run over a clock.
     """
+    deployment = settings.TIMEZONE if is_time_zone(settings.TIMEZONE) else "UTC"
     name = person_zone if setting == PERSON_TIME_ZONE else setting
     if name is None or name == SYSTEM_TIME_ZONE or not is_time_zone(name):
-        return ZoneInfo("UTC")
+        return ZoneInfo(deployment)
     return ZoneInfo(name)
 
 

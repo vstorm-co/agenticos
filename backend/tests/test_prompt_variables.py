@@ -91,11 +91,28 @@ class TestTimeZones:
         ],
     )
     def test_the_time_is_told_in_the_zone_the_agent_chose(
-        self, setting: str, person: str | None, expected: str
+        self,
+        setting: str,
+        person: str | None,
+        expected: str,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        monkeypatch.setattr(settings, "TIMEZONE", "UTC")
         spec = _spec("{{current_time}}", time_zone=setting)
 
         assert render(spec, FACTS, person_zone=person).instructions == expected
+
+    @pytest.mark.parametrize(
+        ("deployment", "expected"),
+        [("Europe/Warsaw", "14:30 (Europe/Warsaw)"), ("Mars/Olympus", "12:30 (UTC)")],
+    )
+    def test_system_is_the_deployment_s_zone(
+        self, deployment: str, expected: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "TIMEZONE", deployment)
+        spec = _spec("{{current_time}}", time_zone="system")
+
+        assert render(spec, FACTS).instructions == expected
 
     def test_a_zone_name_is_checked(self) -> None:
         assert prompt_variables.is_time_zone("Europe/Warsaw")
