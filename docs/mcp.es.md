@@ -1,5 +1,5 @@
 ---
-source_sha: "8687744b5a75"
+source_sha: "3409285bde3b"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -174,7 +174,10 @@ todas las llamadas. La marca de solo lectura la declara el propio servidor, así
 que no controlas.
 
 La propia plantilla del Architect pide `writes` para el servidor
-de la plataforma, así que no crea nada sin la persona en cuyo nombre actúa.
+de la plataforma, así que no crea nada sin la persona en cuyo nombre actúa. La
+vinculación de cualquier agent a ese servidor queda en al menos `writes`, también
+con `none`: sus herramientas actúan con la autoridad de quien pregunta, la de un
+Admin incluida.
 
 En el Builder, los ajustes de un servidor lo dicen por
 grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin

@@ -804,10 +804,11 @@ class PlatformMcpServerRef(BaseModel):
         description="Which of the platform's tools this agent may call. Null is all of them.",
     )
     approval: McpApproval = Field(
-        default="none",
+        default="writes",
         description=(
             "Which of the platform's tools wait for a person to approve the call: "
-            "`writes` (every tool that changes something), `all`, or `none`"
+            "`writes` (every tool that changes something) or `all`. `none` is held "
+            "to `writes`: these tools act with the authority of whoever is asking"
         ),
     )
 

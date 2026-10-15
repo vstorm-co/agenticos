@@ -160,7 +160,9 @@ read-only hint is the server's own claim, so `writes` is only as strict as the
 server is honest — choose `all` for a server you do not control.
 
 The Architect's own template asks `writes` of the platform's server, so it drafts nothing without
-the person it acts for.
+the person it acts for. Any agent's binding to that server is held to at least
+`writes`, `none` included: its tools act with the authority of whoever is asking,
+an Admin's too.
 
 In the Builder, a server's settings say this
 per group: its **Reads** and the tools that **Change things** each run freely

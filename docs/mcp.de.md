@@ -1,5 +1,5 @@
 ---
-source_sha: "8687744b5a75"
+source_sha: "3409285bde3b"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -176,7 +176,9 @@ Behauptung des Servers selbst, also ist `writes` nur so streng, wie der Server
 ehrlich ist — wählen Sie `all` für einen Server, den Sie nicht kontrollieren.
 
 Die eigene Vorlage des Architect verlangt `writes` für den Server der Plattform, damit
-er nichts ohne die Person entwirft, für die er handelt.
+er nichts ohne die Person entwirft, für die er handelt. Das Binding jedes Agents an
+diesen Server gilt mindestens als `writes`, auch bei `none`: Seine Tools handeln mit
+der Berechtigung dessen, der fragt, auch eines Admins.
 
 Im Builder sagen die Einstellungen eines Servers das je
 Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.

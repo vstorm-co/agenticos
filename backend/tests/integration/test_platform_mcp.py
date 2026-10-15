@@ -189,6 +189,31 @@ async def test_an_agent_bound_to_the_platform_reaches_it_in_process_as_the_asker
     assert tools["agenticos_create_agent_draft"].tool_def.metadata[NEEDS_APPROVAL] is True
 
 
+@pytest.mark.security
+async def test_a_platform_binding_asking_no_approval_still_holds_its_writes(
+    db: AsyncSession, served: None
+) -> None:
+    """Review on #2062: a Builder's agent with `approval: none` ran an Admin's
+    invite_member with no card - the credential is the asker's own authority."""
+    from app.agents.mcp import NEEDS_APPROVAL
+    from app.agents.spec import PlatformMcpServerRef
+    from app.services.mcp_connection import build_toolsets_for_agent
+
+    key, organization = await _owner_key(db, Perm.AGENTS_VIEW, Perm.MEMBERS_MANAGE)
+    resolved = await build_toolsets_for_agent(
+        db,
+        organization_id=organization.id,
+        refs=[PlatformMcpServerRef(account="platform", approval="none")],
+        platform_credential=key,
+    )
+    [toolset] = resolved.toolsets
+    async with toolset:
+        tools = await toolset.get_tools(MagicMock())
+
+    assert tools["agenticos_invite_member"].tool_def.metadata[NEEDS_APPROVAL] is True
+    assert tools["agenticos_whoami"].tool_def.metadata[NEEDS_APPROVAL] is False
+
+
 async def test_nobody_to_act_as_leaves_the_platform_out(db: AsyncSession) -> None:
     from app.agents.spec import PlatformMcpServerRef
     from app.services.mcp_connection import build_toolsets_for_agent

@@ -1,5 +1,5 @@
 ---
-source_sha: "8687744b5a75"
+source_sha: "3409285bde3b"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -173,7 +173,9 @@ serwera, którego nie kontrolujesz, wybierz `all`.
 
 Własny szablon Architekta prosi
 o `writes` dla serwera platformy, więc nie tworzy niczego bez osoby, w której
-imieniu działa.
+imieniu działa. Powiązanie każdego agenta z tym serwerem trzyma co najmniej
+`writes`, także przy `none`: jego narzędzia działają z uprawnieniami osoby, która
+pyta, również administratora.
 
 W Builderze
 ustawienia serwera mówią to osobno dla grup: **Odczyt** i **Zmiany** działają bez
