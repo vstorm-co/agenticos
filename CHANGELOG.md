@@ -624,7 +624,13 @@ Two things are versioned separately from this file and worth knowing about:
   API keys and OAuth consents, never a hash; the console offers every question a
   parked run asked at once and offers it again after a failed read; and a channel
   question that takes free text is answered by the person's next message
-  (migration `0134_channel_prompt_free_text`).
+  (migration `0134_channel_prompt_free_text`). A fourth round: compose sends the
+  browser through `browser-egress` by default; a key changes roles only with
+  `roles:manage`, and the organization PATCH checks each field against the key;
+  the department spend export refuses above the export row cap; a Mattermost
+  press is accepted only from the user its server-signed trigger id names;
+  knowledge base documents and sources must belong to the knowledge base's
+  organization; and the MCP `get_run` tool says it needs `runs:view`.
 
 - **New chat starts a new conversation.** The console sends `conversation_id: null`
   for a new chat, and the session read it as "no id given" and carried on in the
