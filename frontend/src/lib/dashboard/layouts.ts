@@ -327,10 +327,10 @@ const ME_SECTIONS: SectionDef[] = [
       { widget: "conversations", span: "s6", rows: "r3" },
       { widget: "my-agents", span: "s6", rows: "r3" },
       { widget: "my-top-agents", span: "s6", rows: "r3" },
-      // Short: both are often still empty, and an empty card a third of a
-      // screen tall is a third of a screen that says nothing.
-      { widget: "my-quality", span: "s6", rows: "r2" },
-      { widget: "shared-with-you", span: "s6", rows: "r2" },
+      // Three rows like the pair above: two left the quality chart a sliver
+      // under its figure and legend, which said nothing either.
+      { widget: "my-quality", span: "s6", rows: "r3" },
+      { widget: "shared-with-you", span: "s6", rows: "r3" },
     ],
   },
   {
