@@ -29,7 +29,7 @@ import contextlib
 import logging
 import tempfile
 import weakref
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from pathlib import Path
 from shutil import rmtree
@@ -226,7 +226,7 @@ def _admission() -> asyncio.Semaphore:
 
 
 @contextlib.asynccontextmanager
-async def admitted(filename: str) -> AsyncIterator[None]:
+async def admitted(filename: str) -> AsyncGenerator[None, None]:
     """Hold one of this worker's parsing slots, or refuse straight away.
 
     The rate limit counts *starts* per minute and cannot see what is still

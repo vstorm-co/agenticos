@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -254,7 +254,7 @@ class RecordingModel(WrapperModel):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
         run_context: RunContext[Any] | None = None,
-    ) -> AsyncIterator[StreamedResponse]:
+    ) -> AsyncGenerator[StreamedResponse, None]:
         self.recorder.observe_request(messages, model_settings, model_request_parameters)
         started, clock = datetime.now(UTC), time.perf_counter()
         # Both halves inside the guard, because both can raise and each leaves the

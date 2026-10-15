@@ -69,12 +69,12 @@ names no author is in the evidence column below.
 | amplitude-analytics | 1.2.3 | MIT | https://github.com/amplitude/Amplitude-Python | License field |
 | annotated-doc | 0.0.5 | MIT | https://github.com/fastapi/annotated-doc | License-Expression |
 | annotated-types | 0.8.0 | MIT | https://github.com/annotated-types/annotated-types | License-Expression |
-| anthropic | 1.11.0 | MIT | https://github.com/anthropics/anthropic-sdk-python | License field |
+| anthropic | 1.13.0 | MIT | https://github.com/anthropics/anthropic-sdk-python | License field |
 | anyio | 4.15.1 | MIT | https://github.com/agronholm/anyio | License-Expression |
 | apprise | 1.13.1 | BSD-2-Clause | https://github.com/caronc/apprise | License field |
 | asgi-lifespan | 2.1.0 | MIT | https://github.com/florimondmanca/asgi-lifespan | License field |
 | asgiref | 3.12.1 | BSD-3-Clause | https://asgi.readthedocs.io/ | License field |
-| asyncpg | 0.31.0 | Apache-2.0 | https://github.com/MagicStack/asyncpg | License-Expression |
+| asyncpg | 0.32.0 | Apache-2.0 | https://github.com/MagicStack/asyncpg | License-Expression |
 | attrs | 26.1.0 | MIT | https://github.com/python-attrs/attrs | License-Expression |
 | authlib | 1.8.0 | BSD-3-Clause | https://github.com/authlib/authlib | License field |
 | backoff | 2.2.1 | MIT | https://github.com/litl/backoff | License field |
@@ -82,8 +82,8 @@ names no author is in the evidence column below.
 | beartype | 0.22.9 | MIT | https://github.com/beartype/beartype | License field |
 | beautifulsoup4 | 4.15.0 | MIT | https://www.crummy.com/software/BeautifulSoup/bs4/ | License field |
 | bidict | 0.24.1 | MPL-2.0 | https://github.com/jab/bidict | License-Expression; review accepted |
-| boto3 | 1.43.110 | Apache-2.0 | https://github.com/boto/boto3 | License field |
-| botocore | 1.43.110 | Apache-2.0 | https://github.com/boto/botocore | License field |
+| boto3 | 1.43.111 | Apache-2.0 | https://github.com/boto/boto3 | License field |
+| botocore | 1.43.112 | Apache-2.0 | https://github.com/boto/botocore | License field |
 | bracex | 3.0.1 | MIT | https://github.com/facelessuser/bracex | License-Expression |
 | burner-redis | 0.1.7 | MIT | https://github.com/PrefectHQ/burner-redis | License field |
 | cachetools | 7.1.8 | MIT | https://github.com/tkem/cachetools/ | License-Expression |
@@ -175,7 +175,7 @@ names no author is in the evidence column below.
 | keyring | 25.7.0 | MIT | https://github.com/jaraco/keyring | License-Expression |
 | ldap3 | 2.9.1 | LGPL-3.0-only | https://github.com/cannatag/ldap3 | classifier; review accepted |
 | liteparse | 2.15.1 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
-| llama-cloud | 2.16.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
+| llama-cloud | 2.18.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
 | logfire | 5.1.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
 | logfire-api | 5.1.0 | MIT | https://pypi.org/project/logfire-api/5.1.0/ | License-Expression; no licence file, attributed to Pydantic Team, Samuel Colvin, Hasan Ramezani, Adrian Garcia Badaracco, David Montague, Marcelo Trylesinski, David Hewitt, Alex Hall |
 | lxml | 6.1.3 | BSD-3-Clause | https://github.com/lxml/lxml | License field |
@@ -197,7 +197,7 @@ names no author is in the evidence column below.
 | obstore | 0.11.1 | MIT | https://developmentseed.org/obstore | classifier; no licence file, attributed to Development Seed |
 | odfpy | 1.4.1 | LGPL-2.1-or-later | https://github.com/eea/odfpy | override: odfpy-1.4.1 ships no licence file and its License field is empty; its trove classifiers name Apache, GPL and LGPL, but every library source under odf/ (e.g. odf/namespaces.py, odf/office.py) carries the same header - 'This library is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License ... version 2.1 ... or (at your option) any later version', Copyright (C) 2006-2013 Søren Roug, European Environment Agency. The imported library is therefore taken under LGPL-2.1-or-later.; review accepted; no licence file, attributed to Soren Roug |
 | olefile | 0.47 | BSD-2-Clause | https://www.decalage.info/python/olefileio | licence file text |
-| openai | 3.24.0 | Apache-2.0 | https://github.com/openai/openai-python | License-Expression |
+| openai | 3.29.0 | Apache-2.0 | https://github.com/openai/openai-python | License-Expression |
 | openpyxl | 3.1.5 | MIT | https://foss.heptapod.net/openpyxl/openpyxl | License field |
 | opentelemetry-api | 1.44.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
 | opentelemetry-exporter-otlp-proto-common | 1.44.0 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python | License-Expression |
@@ -217,7 +217,7 @@ names no author is in the evidence column below.
 | packaging | 25.0 | Apache-2.0 | https://github.com/pypa/packaging | licence file text |
 | pathspec | 1.1.1 | MPL-2.0 | https://github.com/cpburnz/python-pathspec | classifier; review accepted |
 | pendulum | 3.2.0 | MIT | https://github.com/sdispater/pendulum | License field |
-| phonenumberslite | 9.0.40 | Apache-2.0 | https://github.com/daviddrysdale/python-phonenumbers | License-Expression |
+| phonenumberslite | 9.0.41 | Apache-2.0 | https://github.com/daviddrysdale/python-phonenumbers | License-Expression |
 | pillow | 12.3.0 | MIT-CMU | https://github.com/python-pillow/Pillow | License-Expression |
 | platformdirs | 4.11.8 | MIT | https://github.com/tox-dev/platformdirs | License-Expression |
 | pluggy | 1.6.0 | MIT | https://pypi.org/project/pluggy/1.6.0/ | License field |
@@ -235,13 +235,13 @@ names no author is in the evidence column below.
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.0 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
 | pydantic | 2.13.5 | MIT | https://github.com/pydantic/pydantic | License-Expression |
-| pydantic-ai-backend | 0.2.32 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
-| pydantic-ai-harness | 0.54.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-ai-backend | 0.2.33 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
+| pydantic-ai-harness | 0.55.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-ai-skills | 2.0.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
-| pydantic-ai-slim | 2.54.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
+| pydantic-ai-slim | 2.55.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
 | pydantic-core | 2.46.5 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-extra-types | 2.11.1 | MIT | https://github.com/pydantic/pydantic-extra-types | License-Expression |
-| pydantic-graph | 2.54.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
+| pydantic-graph | 2.55.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-monty | 1.1.0 | MIT | https://github.com/pydantic/monty | License-Expression; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-client | 1.1.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
 | pydantic-monty-runtime | 1.1.0 | MIT | https://github.com/pydantic/monty | License field; no licence file, attributed to Pydantic Services Inc. |
@@ -290,7 +290,7 @@ names no author is in the evidence column below.
 | starlette | 1.6.0 | BSD-3-Clause | https://github.com/Kludex/starlette | License-Expression |
 | subagents-pydantic-ai | 0.2.25 | MIT | https://github.com/vstorm-co/subagents-pydantic-ai | License field |
 | tabulate | 0.10.0 | MIT | https://github.com/astanin/python-tabulate | License-Expression |
-| tavily-python | 0.8.4 | MIT | https://github.com/tavily-ai/tavily-python | classifier |
+| tavily-python | 0.8.5 | MIT | https://github.com/tavily-ai/tavily-python | classifier |
 | tenacity | 9.1.4 | Apache-2.0 | https://github.com/jd/tenacity | License field |
 | text-unidecode | 1.3 | Artistic-1.0-Perl OR GPL-2.0-or-later | https://github.com/kmike/text-unidecode/ | override: text_unidecode-1.3.dist-info/LICENSE.txt: 'redistribute it and/or modify it under the terms of either: GPL or GPLv2+, or Artistic License'; the metadata's License field says only 'Artistic License'; review accepted |
 | tiktoken | 0.14.0 | MIT | https://github.com/openai/tiktoken | License field |

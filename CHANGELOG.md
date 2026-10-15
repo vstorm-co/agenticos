@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Backend dependencies move up.** asyncpg 0.32.0, the Anthropic SDK 1.13.0,
+  the OpenAI SDK 3.29.0, pydantic-ai-harness 0.55.0 (with pydantic-ai-slim
+  2.55.0), pydantic-ai-backend 0.2.33, llama-cloud 2.18.0, boto3 1.43.111,
+  tavily-python 0.8.5, phonenumberslite 9.0.41, ruff 0.17.0 and ty 0.0.86;
+  the floors in `pyproject.toml` follow. ty 0.0.86 deprecates annotating a
+  context manager's generator as an `Iterator`, so the nineteen that did now
+  return a `Generator` or `AsyncGenerator`.
+
 ## [0.0.535] - 2026-10-09
 
 ### Fixed
