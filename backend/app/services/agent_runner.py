@@ -2560,7 +2560,16 @@ class AgentRunnerService:
         organization = await self.organizations.get_by_id(ctx.organization_id)
 
         render_variables = await self._variable_renderer(
-            ctx,
+            # Who the run is about: on a resume `ctx` is the approver's, and the
+            # agent was told the person who started it - their name and address,
+            # or "a visitor" - before it parked.
+            ctx
+            if existing_run is None
+            else replace(
+                ctx,
+                user_id=existing_run.user_id,
+                subject_is_publisher_fallback=existing_run.initiated_by_publisher_fallback,
+            ),
             organization_name=organization.name if organization is not None else None,
             surface=surface,
             user_name=user_name,
@@ -3437,7 +3446,9 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             refs=runnable.mcp_servers,
             sender_user_id=delegation.personal_mcp_user_id,
-            platform_credential=await self._platform_credential(runnable, ctx),
+            # The run's own person, as for the parent: on a resume `ctx` is the
+            # approver's, and a delegate must not carry their authority either.
+            platform_credential=await self._platform_credential(runnable, ctx, delegation.run),
         )
         toolsets = resolved.toolsets
         # Briefed like the parent: a delegate may bind a service the parent does

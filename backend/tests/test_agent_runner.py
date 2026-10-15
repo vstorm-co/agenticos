@@ -2864,6 +2864,23 @@ class TestResume:
         assert toolsets.await_args.kwargs["sender_user_id"] == self.resumed_run.user_id
 
     @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_the_variables_name_the_runs_own_person_not_the_approver(self):
+        """Review on #2062: after an approval every request was told the
+        approver's name, email and departments - a visitor's agent the admin's."""
+        with patch.object(AgentRunnerService, "_variable_renderer", autospec=True) as renderer:
+            renderer.return_value = lambda spec: spec
+            await self._resumed(paused_state={"messages": [], "tool_call_ids": {}})
+
+        told_about = renderer.call_args.args[1]
+        assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
+        assert told_about.user_id == self.resumed_run.user_id
+        assert (
+            told_about.subject_is_publisher_fallback
+            == self.resumed_run.initiated_by_publisher_fallback
+        )
+
+    @pytest.mark.anyio
     async def test_the_audience_is_the_runs_own_not_the_approvers(self):
         """Resuming used to re-derive the memory identity off the approver, so an
         admin releasing a member's parked chat injected their own memory and wrote

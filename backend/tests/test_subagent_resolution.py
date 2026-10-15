@@ -763,6 +763,38 @@ class TestAPublishedDelegate:
         ]
         assert built["extra_toolsets"] == ["linear-toolset"]
 
+    @pytest.mark.security
+    async def test_a_delegates_platform_credential_is_the_runs_own_persons(self):
+        """Review on #2062: a delegate bound to the platform minted a key from
+        `ctx` alone - on a resume, the approver's role."""
+        from app.agents.spec import PlatformMcpServerRef
+
+        delegate_id = uuid.uuid4()
+        pinned = _version(
+            delegate_id,
+            AgentSpec(name="Admin Bot", mcp_servers=[PlatformMcpServerRef(account="platform")]),
+        )
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+
+        with (
+            patch(
+                f"{RUNNER}.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch(
+                f"{RUNNER}.AgentRunnerService._platform_credential",
+                new=AsyncMock(return_value=None),
+            ) as credential,
+        ):
+            prepared = await _prepare(spec, versions={pinned.id: pinned})
+            prepared.built("admin-bot")
+
+        delegate_call = credential.await_args_list[-1]
+        # Resolved against the run, which is how a resume reaches its owner.
+        assert len(delegate_call.args) == 3 and delegate_call.args[2] is not None
+
     async def test_a_delegate_with_no_description_is_still_describable(self):
         """The description is what the parent's model reads before deciding to
         delegate, and an empty string is not something it can act on."""
