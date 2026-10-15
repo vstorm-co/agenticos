@@ -160,11 +160,8 @@ export function CaseEditorDialog({
   const [errors, setErrors] = useState<Partial<Record<CaseField, string>>>({});
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(viewing === undefined);
-  // The whole case as JSON, while it is edited that way; null in the form.
   const [json, setJson] = useState<string | null>(null);
   const [jsonProblem, setJsonProblem] = useState(false);
-  // A case already asking the question, and what to do about it; `repeat` once the
-  // person chose to add the new one anyway.
   const [twin, setTwin] = useState<{
     found: DatasetCase;
     open: () => void;
