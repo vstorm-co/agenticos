@@ -985,7 +985,7 @@ class TestVerdicts:
 
         listed = await ScoringService(db).list_scores(tenant.ctx, dataset.id, tag="billing")
 
-        assert [item.id for item in listed.items] == [on_tagged.id]
+        assert [(item.id, item.case_tags) for item in listed.items] == [(on_tagged.id, ["billing"])]
 
     async def test_the_queue_and_the_listing_show_what_waits(self, db, judge) -> None:
         tenant = await _tenant(db)
