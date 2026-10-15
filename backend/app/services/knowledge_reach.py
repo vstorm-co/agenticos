@@ -50,7 +50,7 @@ class _Reach:
 
     everyone: bool
     group_ids: frozenset[UUID]
-    has_people: bool
+    user_ids: frozenset[UUID]
 
     def wider_than(self, other: _Reach) -> bool:
         """Whether this reaches somebody `other` does not."""
@@ -58,9 +58,11 @@ class _Reach:
             return False
         if self.everyone:
             return True
-        # A person shared on one side is somebody the other side may not reach;
-        # without resolving group membership that is the honest answer.
-        return bool(self.group_ids - other.group_ids) or (self.has_people and not other.has_people)
+        # Compared by identity: an agent shared with Alice and a source shared with
+        # Bob reach different people. A person the other side reaches only through
+        # a group still counts as missing - resolving membership is not done here,
+        # and erring towards the warning is the honest side.
+        return bool(self.group_ids - other.group_ids) or bool(self.user_ids - other.user_ids)
 
 
 class KnowledgeReachService:
@@ -71,7 +73,7 @@ class KnowledgeReachService:
 
     async def _reach(self, ctx: AuthContext, resource: OwnedResource, kind: ResourceType) -> _Reach:
         if resource.visibility == Visibility.ORG.value:
-            return _Reach(everyone=True, group_ids=frozenset(), has_people=False)
+            return _Reach(everyone=True, group_ids=frozenset(), user_ids=frozenset())
         grants = await resource_grant_repo.list_for_resource(
             self.db,
             organization_id=ctx.organization_id,
@@ -81,7 +83,7 @@ class KnowledgeReachService:
         return _Reach(
             everyone=False,
             group_ids=frozenset(g.subject_group_id for g in grants if g.subject_group_id),
-            has_people=any(g.subject_user_id is not None for g in grants),
+            user_ids=frozenset(g.subject_user_id for g in grants if g.subject_user_id),
         )
 
     async def for_agent(self, ctx: AuthContext, agent_id: UUID) -> AgentKnowledgeReach:
