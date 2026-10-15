@@ -94,6 +94,7 @@ from app.schemas.eval_run import (
     EvalRunList,
     EvalRunRead,
     EvalRunRequest,
+    EvalUngradedCaseRead,
     RoutingErrorRead,
 )
 from app.schemas.scoring import CaseScoreRead, DatasetScoring
@@ -1149,10 +1150,17 @@ class EvalRunService:
         for run in runs:
             attempts = await eval_run_repo.list_cases(self.db, run.id, organization_id=org)
             arm_reads = []
+            # A reused baseline's first answers were scored in the run it came from.
+            borrowed: set[UUID] = set()
             for arm in arms_by_run[run.id]:
                 summary = summarize(
                     [c.attempt for c in await self._first_attempts(ctx, arm, attempts)]
                 )
+                firsts = [a for a in await self._arm_attempts(ctx, arm, attempts) if a.attempt == 0]
+                first_scores = await self._scores(ctx, firsts)
+                not_graded = [a for a in firsts if _not_graded(first_scores.get(a.case_score_id))]
+                inputs = await self._inputs(ctx, not_graded)
+                borrowed |= {a.case_score_id for a in not_graded if a.case_score_id is not None}
                 arm_reads.append(
                     EvalRunArmRead(
                         id=arm.id,
@@ -1167,6 +1175,21 @@ class EvalRunService:
                         spec_hash=arm.spec_hash,
                         summary=_summary_read(summary),
                         by_tag={tag: _summary_read(s) for tag, s in summary.by_tag.items()},
+                        ungraded_cases=[
+                            EvalUngradedCaseRead(case_id=a.case_id, input=inputs[a.case_id])
+                            for a in sorted(not_graded, key=lambda a: a.position)
+                        ],
+                        unsent_failed=sum(
+                            1
+                            for score in first_scores.values()
+                            if score.review_state == "none"
+                            and (
+                                score.human_passed
+                                if score.human_passed is not None
+                                else score.passed
+                            )
+                            is False
+                        ),
                     )
                 )
             scores = await self._scores(ctx, attempts)
@@ -1222,9 +1245,7 @@ class EvalRunService:
                         None,
                     ),
                     ungraded_score_ids=sorted(
-                        score.id
-                        for score in scores.values()
-                        if score.human_passed is None and ungraded(score)
+                        borrowed | {score.id for score in scores.values() if _not_graded(score)}
                     ),
                     error=run.error,
                     created_by_user_id=run.created_by_user_id,
@@ -1808,6 +1829,17 @@ class EvalRunService:
 class _CaseAttempt:
     case_id: UUID
     attempt: Attempt
+
+
+def _not_graded(score: CaseScore | None) -> bool:
+    """Whether a score counts as neither passed nor failed because a scorer reached no
+    verdict - one a person has not decided, and grading again could settle."""
+    return (
+        score is not None
+        and score.passed is None
+        and score.human_passed is None
+        and ungraded(score)
+    )
 
 
 def _judge_failed(score: CaseScore) -> bool:

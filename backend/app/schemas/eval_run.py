@@ -138,6 +138,13 @@ class ArmSummaryRead(BaseSchema):
     p95_ms: float | None
 
 
+class EvalUngradedCaseRead(BaseSchema):
+    """A case one side's first answer to was not graded."""
+
+    case_id: UUID
+    input: str
+
+
 class EvalRunArmRead(BaseSchema):
     id: UUID
     role: ArmRole
@@ -151,6 +158,17 @@ class EvalRunArmRead(BaseSchema):
     spec_hash: str = Field(description="A fingerprint of the spec that answered")
     summary: ArmSummaryRead
     by_tag: dict[str, ArmSummaryRead]
+    ungraded_cases: list[EvalUngradedCaseRead] = Field(
+        default_factory=list,
+        description=(
+            "The cases this side's first answer counts as neither passed nor failed "
+            "because a scorer reached no verdict and no person decided"
+        ),
+    )
+    unsent_failed: int = Field(
+        default=0,
+        description="This side's failed first answers not yet in the review queue",
+    )
 
 
 class ComparisonSide(BaseSchema):
@@ -246,8 +264,9 @@ class EvalRunRead(BaseSchema):
     ungraded_score_ids: list[UUID] = Field(
         default_factory=list,
         description=(
-            "This run's scores a scorer reached no verdict on - the judge errored or "
-            "was skipped - and no person has decided: what grading again can settle"
+            "This run's scores that count as neither passed nor failed because a "
+            "scorer reached no verdict - the judge errored or was skipped - and no "
+            "person decided: what grading again can settle"
         ),
     )
     draft_changed: bool | None = Field(
