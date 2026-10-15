@@ -303,10 +303,14 @@ budget is spent, its run failed, or its answer could not be read, whose first
 
 Once the cause is fixed, **Score again** on a result that was not graded - or on
 every one in an eval run's group on the Review tab - grades the same answer
-anew, with the configuration it was first graded with
-(`POST /datasets/{id}/scores/rescore`, up to ten scores a request). The agent
-does not run again, and the score keeps its eval run and any decision a person
-made on it; one every scorer reached a verdict on is left as it is.
+anew, with the configuration it was first graded with (`POST
+/datasets/{id}/scores/rescore`, up to ten scores a request). The agent does not
+run again, and the score keeps its eval run and any decision a person made on
+it; one every scorer reached a verdict on is left as it is.
+
+A cause still there - AI assistance off, the judge unpublished - is refused as it
+stands, and so is a judge published anew since it failed, whose grade would not
+compare with the rest of the run; nothing is graded then.
 
 A grade may quote the answer, up to 12 passages; a quote the answer does not
 contain word for word is kept beside the grade as unverified, shown on its own

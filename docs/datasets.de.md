@@ -1,5 +1,5 @@
 ---
-source_sha: "003c8708f7a3"
+source_sha: "62f0091cbf2b"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -346,6 +346,11 @@ dieselbe Antwort neu, mit der Konfiguration, mit der sie zuerst bewertet wurde
 Agent läuft nicht erneut, und der Score behält seinen Eval-Run und jede
 Entscheidung, die eine Person darüber getroffen hat; einer, bei dem jeder
 Scorer zu einem Urteil kam, bleibt, wie er ist.
+
+Eine Ursache, die noch besteht - KI-Unterstützung aus, Bewerter nicht
+veröffentlicht -, wird so abgelehnt, wie sie ist, ebenso ein Bewerter, der seit
+seinem Fehlschlag neu veröffentlicht wurde, dessen Bewertung sich nicht mit dem
+Rest des Runs vergleichen ließe; dann wird nichts bewertet.
 
 Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
 Antwort nicht wörtlich enthält, wird neben der Bewertung als nicht verifiziert

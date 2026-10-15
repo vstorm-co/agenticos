@@ -1,5 +1,5 @@
 ---
-source_sha: "003c8708f7a3"
+source_sha: "62f0091cbf2b"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -329,6 +329,11 @@ misma respuesta, con la configuración con la que se calificó la primera vez
 El agent no se vuelve a ejecutar, y la puntuación conserva su eval run y
 cualquier decisión que una persona tomara sobre ella; una en la que cada
 evaluador llegó a un veredicto se queda como está.
+
+Una causa que sigue ahí (la asistencia de IA desactivada, el juez sin publicar)
+se rechaza tal cual, igual que un juez publicado de nuevo desde que falló, cuya
+calificación no sería comparable con el resto del run; entonces no se califica
+nada.
 
 Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la
 respuesta no contiene palabra por palabra se guarda junto a la calificación como

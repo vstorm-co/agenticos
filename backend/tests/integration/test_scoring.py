@@ -24,6 +24,7 @@ from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
 from app.core.exceptions import (
+    AiAssistanceDisabledError,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
@@ -1079,6 +1080,40 @@ class TestGradingAgain:
                 tenant.ctx, dataset.id, RescoreRequest(score_ids=[readable.id, lost.id])
             )
 
+        assert len(await _eval_runs(db, tenant)) == before
+
+    async def test_a_cause_still_there_or_a_judge_changed_since_is_refused(
+        self, db, monkeypatch
+    ) -> None:
+        async def prose(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            return ModelResponse(parts=[TextPart("It is fine.")])
+
+        monkeypatch.setattr(ModelRequestSpec, "build", lambda self: FunctionModel(prose))
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+        failed = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        before = len(await _eval_runs(db, tenant))
+        tenant.organization.ai_assistance_enabled = False
+        await db.flush()
+
+        with pytest.raises(AiAssistanceDisabledError):
+            await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id]))
+
+        tenant.organization.ai_assistance_enabled = True
+        await db.flush()
+        judge_agent = await agent_repo.get_system(
+            db, organization_id=tenant.organization.id, key=JUDGE.key
+        )
+        assert judge_agent is not None
+        await AgentRegistryService(db).publish(tenant.ctx, judge_agent.id, note="Stricter")
+
+        with pytest.raises(BadRequestError, match="published anew"):
+            await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id]))
         assert len(await _eval_runs(db, tenant)) == before
 
     async def test_a_score_of_another_dataset_refuses_the_request(self, db, judge) -> None:

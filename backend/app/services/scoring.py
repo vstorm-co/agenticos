@@ -47,6 +47,7 @@ from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.intercepted_tool_call import InterceptionOutcome
 from app.repositories import (
     agent_repo,
+    agent_run_repo,
     case_score_repo,
     conversation_repo,
     credential_repo,
@@ -464,15 +465,18 @@ class ScoringService:
         run again: each score is graded anew on the same answer, the same case
         revision and the configuration it was graded with, and keeps its id, its
         eval run and any person's verdict. A score every scorer reached a verdict
-        on is kept as it is. Every answer is read before the judge is called, so a
-        refusal leaves every score as it was.
+        on is kept as it is. Every answer is read, and the judge checked, before
+        any is graded, so a refusal leaves every score as it was.
 
         Raises:
             NotFoundError: The dataset is not one the caller may run, or it has
                 no score with one of the ids.
             AuthorizationError: An answer is read from its run, and the caller
                 may not read runs.
-            BadRequestError: A score's answer can no longer be read.
+            AiAssistanceDisabledError: AI assistance is still off.
+            SystemAgentUnavailableError: The judge still cannot run, and why.
+            BadRequestError: A score's answer can no longer be read, or its judge
+                has been published anew since it failed.
         """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_RUN)
         wanted = list(dict.fromkeys(data.score_ids))
@@ -487,6 +491,8 @@ class ScoringService:
             )
         stale = [scores[score_id] for score_id in wanted if _ungraded(scores[score_id])]
         kept = [score_id for score_id in wanted if not _ungraded(scores[score_id])]
+        for score in stale:
+            await self._judge_unchanged(ctx, score)
         answers = [await self.answer_for(ctx, score) for score in stale]
         rescored = [
             await self._rescore(ctx, score, answer)
@@ -502,6 +508,39 @@ class ScoringService:
             details={"score_ids": [str(score.id) for score in rescored]},
         )
         return Rescored(rescored=await self._reads(ctx, rescored), kept=kept)
+
+    async def _judge_unchanged(self, ctx: AuthContext, score: CaseScore) -> None:
+        """Refuse to grade a score again when its judge cannot run, or is not the same judge.
+
+        The cause a judge was skipped for - AI assistance off, the judge gone or
+        unpublished - is refused as it stands rather than recorded again. A judge
+        published anew since its run failed would grade with other instructions,
+        and the score would no longer compare with the rest of its eval run.
+
+        Raises:
+            AiAssistanceDisabledError: AI assistance is off.
+            SystemAgentUnavailableError: The judge cannot run, and why.
+            BadRequestError: The judge has a newer version than the one that failed.
+        """
+        judged = [r for r in score.results if r.get("scorer") in ("judge", "reference")]
+        if not judged:
+            return
+        config = DatasetScoring.model_validate(score.scoring)
+        judge = await self.judge.require_runnable(
+            ctx, key=JUDGE.key, agent_id=config.judge.agent_id
+        )
+        for run_id in {r["judge_run_id"] for r in judged if r.get("judge_run_id")}:
+            run = await agent_run_repo.get_run(
+                self.db, UUID(run_id), organization_id=ctx.organization_id
+            )
+            if run is not None and run.agent_version_id not in (None, judge.current_version_id):
+                raise BadRequestError(
+                    message=(
+                        f"'{judge.name}' has been published anew since it failed on this answer, "
+                        "so a new grade would not compare with the rest. Run the eval again."
+                    ),
+                    details={"score_id": score.id, "judge_version_id": run.agent_version_id},
+                )
 
     async def answer_for(self, ctx: AuthContext, score: CaseScore) -> ScoredAnswer:
         """The answer a score graded, read again in full from where it is kept.

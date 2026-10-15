@@ -1,5 +1,5 @@
 ---
-source_sha: "003c8708f7a3"
+source_sha: "62f0091cbf2b"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -324,6 +324,11 @@ odpowiedź od nowa, z konfiguracją, z którą była oceniona za pierwszym razem
 nie uruchamia się ponownie, a wynik zachowuje swój run ewaluacji i decyzję,
 którą ktoś na nim podjął; wynik, na którym każdy oceniacz wydał werdykt,
 zostaje bez zmian.
+
+Przyczyna, która nadal trwa - wyłączone wsparcie AI, nieopublikowany sędzia -
+jest odrzucana tak, jak jest, podobnie jak sędzia opublikowany na nowo od
+czasu, gdy zawiódł, bo jego ocena nie byłaby porównywalna z resztą runu; wtedy
+nic nie jest oceniane.
 
 Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
 zawiera słowo w słowo, jest zachowywany obok oceny jako niezweryfikowany,

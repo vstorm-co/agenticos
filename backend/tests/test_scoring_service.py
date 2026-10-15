@@ -147,3 +147,13 @@ async def test_a_role_that_may_not_create_agents_cannot_create_a_judge() -> None
         await service.create_judge(
             viewer, uuid.uuid4(), JudgeCreate(name="Refunds judge", instructions="Be strict.")
         )
+
+
+async def test_a_score_no_judge_graded_is_scored_again_without_asking_the_judge() -> None:
+    service = ScoringService(AsyncMock())
+    service.judge = MagicMock(require_runnable=AsyncMock())
+    score = MagicMock(results=[{"scorer": "check", "status": "error"}])
+
+    await service._judge_unchanged(_ctx(), score)
+
+    service.judge.require_runnable.assert_not_awaited()
