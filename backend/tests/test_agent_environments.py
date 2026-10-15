@@ -33,6 +33,16 @@ _AGENTS = "app.services.agent_environment.agent_repo"
 _AUDIT = "app.services.agent_environment.record_audit"
 
 
+@pytest.fixture(autouse=True)
+def _consent(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """No trigger runs as its creator unless a test says so."""
+    withdraw = AsyncMock(return_value=0)
+    monkeypatch.setattr(
+        "app.services.agent_registry.agent_trigger_repo.withdraw_creator_consent", withdraw
+    )
+    return withdraw
+
+
 def _ctx(role: str = OrgRoleName.OWNER) -> AuthContext:
     return AuthContext(user_id=_CALLER, organization_id=_ORG, role=role)
 
@@ -211,6 +221,34 @@ class TestPromoteAndRename:
         assert agents.await_args.kwargs["update_data"] == {
             "current_version_id": environment.version_id
         }
+
+    async def test_a_promotion_withdraws_other_peoples_run_as_me(self, _consent: AsyncMock):
+        """Codex on #2062: a creator agreed to what the agent did then, not to a
+        version somebody else put in front of their trigger."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id)
+        version = _version(agent_id=agent.id, number=3)
+        service = _service(agent)
+        ctx = _ctx()
+        _consent.return_value = 2
+
+        with (
+            patch(_REPO) as environments,
+            patch(f"{_AGENTS}.get_version", new=AsyncMock(return_value=version)),
+            patch(f"{_AGENTS}.update", new=AsyncMock()),
+            patch(_AUDIT, new=AsyncMock()) as audit,
+            patch("app.services.agent_registry.record_audit", new=AsyncMock()) as withdrawn,
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.update = AsyncMock(return_value=environment)
+            await service.update(
+                ctx, agent.id, environment.id, EnvironmentUpdate(version_id=version.id)
+            )
+
+        assert _consent.await_args.kwargs == {"agent_id": agent.id, "kept_for": ctx.user_id}
+        assert withdrawn.await_args.kwargs["action"] == "agent_trigger.creator_consent_withdrawn"
+        assert withdrawn.await_args.kwargs["details"] == {"triggers": 2}
+        audit.assert_awaited()
 
     async def test_switching_to_follows_latest_adopts_the_newest_version_now(self):
         """A mode that claims to follow and does not until something else happens is

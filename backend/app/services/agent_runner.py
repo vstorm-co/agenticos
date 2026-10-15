@@ -3960,10 +3960,16 @@ class AgentRunnerService:
 
         None for a run nobody in the organization started - a trigger, a
         channel stranger: a department's month is what its members ran, and
-        that run is nobody's. Each lookup on a session of its own, for the same
-        reason as the two above it.
+        that run is nobody's. Such a run still names somebody - the trigger's
+        creator, the publisher a visitor stands in for - as its authority, so it
+        is told apart by those flags rather than by a missing user. Each lookup
+        on a session of its own, for the same reason as the two above it.
         """
-        if ctx.user_id is None:
+        if (
+            ctx.user_id is None
+            or ctx.subject_is_publisher_fallback
+            or ctx.fired_as_creator is not None
+        ):
             return []
         groups = await group_repo.capped_groups_for_member(
             self.db, organization_id=ctx.organization_id, user_id=ctx.user_id

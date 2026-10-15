@@ -902,6 +902,25 @@ class TestPrepare:
             == []
         )
 
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "stand_in",
+        [{"subject_is_publisher_fallback": True}, {"fired_as_creator": "schedule"}],
+    )
+    async def test_a_stand_in_authority_answers_to_no_department(self, monkeypatch, stand_in):
+        """Codex on #2062: a trigger's creator or a widget's publisher is named on the
+        run as its authority, and their department's cap refused the automation."""
+        lookup = AsyncMock(return_value=[CappedGroup(uuid.uuid4(), "Finance", Decimal("25"))])
+        monkeypatch.setattr("app.services.agent_runner.group_repo.capped_groups_for_member", lookup)
+        named = AuthContext(
+            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member", **stand_in
+        )
+
+        assert (
+            await AgentRunnerService(_db())._group_limits(named, exclude_run_id=uuid.uuid4()) == []
+        )
+        lookup.assert_not_awaited()
+
 
 class TestSpendReporting:
     @pytest.mark.anyio

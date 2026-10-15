@@ -377,3 +377,23 @@ async def claim_due(db: AsyncSession, *, now: datetime, limit: int = 100) -> lis
         .with_for_update(skip_locked=True, of=AgentTrigger)
     )
     return list(result.scalars().all())
+
+
+async def withdraw_creator_consent(
+    db: AsyncSession, *, agent_id: UUID, kept_for: UUID | None
+) -> int:
+    """Switch "run as me" off on an agent's triggers, except those `kept_for` made.
+
+    Returns how many triggers lost it.
+    """
+    result = await db.execute(
+        sql_update(AgentTrigger)
+        .where(
+            AgentTrigger.agent_id == agent_id,
+            AgentTrigger.runs_as_creator.is_(True),
+            AgentTrigger.created_by_user_id.is_distinct_from(kept_for),
+        )
+        .values(runs_as_creator=False)
+    )
+    await db.flush()
+    return int(getattr(result, "rowcount", 0) or 0)

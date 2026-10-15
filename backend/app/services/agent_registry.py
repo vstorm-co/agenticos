@@ -76,6 +76,7 @@ from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
     agent_repo,
+    agent_trigger_repo,
     context_repo,
     credential_repo,
     knowledge_base_repo,
@@ -2018,6 +2019,7 @@ class AgentRegistryService:
         # `current_version_id` is the default environment's pointer, so the step
         # that moves environments is the step that moves it - see below.
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
+        await self.withdraw_creator_consent(ctx, agent)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -2058,6 +2060,29 @@ class AgentRegistryService:
                 "backend": config.backend,
             },
         )
+
+    async def withdraw_creator_consent(self, ctx: AuthContext, agent: Agent) -> None:
+        """Switch "run as me" off on the triggers somebody else made, as the code they run changes.
+
+        A creator who let a trigger act as them agreed to what the agent did then.
+        A new version put in front of their trigger by somebody else - a publish
+        an environment follows, a promotion, a rollback - could read their mailbox
+        with their connections, so their consent does not carry over to it; their
+        own publishes keep it (#2027).
+        """
+        withdrawn = await agent_trigger_repo.withdraw_creator_consent(
+            self.db, agent_id=agent.id, kept_for=ctx.user_id
+        )
+        if withdrawn:
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="agent_trigger.creator_consent_withdrawn",
+                target_type="agent",
+                target_id=str(agent.id),
+                details={"triggers": withdrawn},
+            )
 
     async def _move_environments_that_follow(
         self, ctx: AuthContext, *, agent: Agent, version: AgentVersion
@@ -2154,6 +2179,7 @@ class AgentRegistryService:
         # version back in front of people directly is one click on the history
         # row - promote - rather than two here.
         await self._move_environments_that_follow(ctx, agent=agent, version=version)
+        await self.withdraw_creator_consent(ctx, agent)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
