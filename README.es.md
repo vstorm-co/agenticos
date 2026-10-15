@@ -1,4 +1,4 @@
-<!-- source_sha: 5aed1d921f05 -->
+<!-- source_sha: 55afa0e70b04 -->
 
 <div align="center">
 
@@ -64,11 +64,11 @@ Un agente principal reparte partes de una tarea entre compañeros y redacta lo q
 
 <a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="El informe de un agente Chief of Staff para una reunión del consejo, escrito con lo que respondieron Support Desk y Sales Researcher, con los dos agentes nombrados debajo" width="100%"></a>
 
-### Un navegador real, junto al chat
+### Un navegador real, dentro del chat
 
 Míralo hacer clic por los sitios, toma el control cuando un inicio de sesión te necesita, señala un punto para comentarlo.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Un Sales Researcher lee la página de la misión Artemis III de la NASA en un navegador en vivo junto al chat y responde a partir de ella, con la fuente enlazada" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="El navegador en vivo de un Sales Researcher bajo su mensaje en el chat, abierto en la página de la misión Artemis III de la NASA, con debajo la respuesta que escribió a partir de la página" width="100%"></a>
 
 ### Construye, equipa y prueba en una ventana
 

@@ -62,11 +62,11 @@ A lead agent hands parts of a task to colleagues and writes up what they found -
 
 <a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="A Chief of Staff agent's brief for a board call, written from what Support Desk and Sales Researcher answered, with the two agents named under it" width="100%"></a>
 
-### A real browser, beside the chat
+### A real browser, right in the chat
 
 Watch it click through sites, take over when a sign-in needs you, point at a spot to comment.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="A Sales Researcher reading NASA's Artemis III mission page in a live browser beside the chat, and answering from it with the source linked" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="A Sales Researcher's live browser under its message in the chat, open on NASA's Artemis III mission page, with the answer it wrote from the page below" width="100%"></a>
 
 ### Build, equip and test in one window
 

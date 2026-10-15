@@ -1,4 +1,4 @@
-<!-- source_sha: 5aed1d921f05 -->
+<!-- source_sha: 55afa0e70b04 -->
 
 <div align="center">
 
@@ -64,11 +64,11 @@ Agent prowadzący przekazuje części zadania kolegom i spisuje, co znaleźli - 
 
 <a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="Brief agenta Chief of Staff przed posiedzeniem zarządu, napisany z odpowiedzi Support Desk i Sales Researcher, z oboma agentami podpisanymi pod spodem" width="100%"></a>
 
-### Prawdziwa przeglądarka obok czatu
+### Prawdziwa przeglądarka, prosto w czacie
 
 Patrz, jak klika po stronach, przejmij ją, gdy logowanie wymaga Ciebie, wskaż miejsce, żeby je skomentować.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Sales Researcher czyta stronę misji Artemis III na nasa.gov w przeglądarce obok czatu i odpowiada na jej podstawie, z linkiem do źródła" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Przeglądarka Sales Researchera na żywo pod jego wiadomością w czacie, otwarta na stronie misji Artemis III na nasa.gov, a pod nią odpowiedź napisana na podstawie strony" width="100%"></a>
 
 ### Buduj, wyposażaj i testuj w jednym oknie
 

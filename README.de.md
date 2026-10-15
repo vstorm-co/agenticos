@@ -1,4 +1,4 @@
-<!-- source_sha: 5aed1d921f05 -->
+<!-- source_sha: 55afa0e70b04 -->
 
 <div align="center">
 
@@ -64,11 +64,11 @@ Ein führender Agent gibt Teile einer Aufgabe an Kollegen weiter und fasst zusam
 
 <a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="Das Briefing eines Chief-of-Staff-Agents für eine Vorstandssitzung, aus den Antworten von Support Desk und Sales Researcher, mit beiden Agents darunter genannt" width="100%"></a>
 
-### Ein echter Browser, neben dem Chat
+### Ein echter Browser, direkt im Chat
 
 Sieh zu, wie er sich durch Seiten klickt, übernimm, wenn eine Anmeldung dich braucht, zeig auf eine Stelle, um sie zu kommentieren.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Ein Sales Researcher liest die Artemis-III-Missionsseite der NASA in einem Live-Browser neben dem Chat und antwortet daraus, mit verlinkter Quelle" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Der Live-Browser eines Sales Researchers unter seiner Nachricht im Chat, geöffnet auf der Artemis-III-Missionsseite der NASA, darunter die Antwort, die er aus der Seite geschrieben hat" width="100%"></a>
 
 ### Bauen, ausstatten und testen in einem Fenster
 
