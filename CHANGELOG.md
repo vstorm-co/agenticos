@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.539] - 2026-10-15
+
 ### Fixed
 
 - **The walkthrough's light can be found, and follows a path the eye can
