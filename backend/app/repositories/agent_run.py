@@ -332,6 +332,8 @@ class RunFilters:
             together is the "show me the problems" query, and they are separate
             statuses on purpose.
         surface: Where the run came from.
+        exclude_surface: Where it did not come from - the eval traffic,
+            which outnumbers people by a hundred cases a run.
         user_id: Who it ran as, which is not always who asked - a widget's runs
             carry the widget owner's id, because the visitor is anonymous.
         started_from: Inclusive lower bound on `started_at`.
@@ -363,6 +365,7 @@ class RunFilters:
 
     statuses: Sequence[str] | None = None
     surface: str | None = None
+    exclude_surface: str | None = None
     user_id: UUID | None = None
     conversation_id: UUID | None = None
     model_label: str | None = None
@@ -384,6 +387,8 @@ class RunFilters:
             clauses.append(AgentRun.status.in_(list(self.statuses)))
         if self.surface is not None:
             clauses.append(AgentRun.surface == self.surface)
+        if self.exclude_surface is not None:
+            clauses.append(AgentRun.surface != self.exclude_surface)
         if self.user_id is not None:
             clauses.append(AgentRun.user_id == self.user_id)
         if self.conversation_id is not None:
@@ -1021,6 +1026,9 @@ class RunFilter:
     agent_id: UUID | None = None
 
 
+_EVAL = AgentRun.surface == RunSurface.EVAL.value
+
+
 def _window_conditions(
     *,
     organization_id: UUID,
@@ -1028,20 +1036,15 @@ def _window_conditions(
     end: datetime,
     where: RunFilter | None,
     include_delegations: bool = False,
+    split_evals: bool = False,
 ) -> list[ColumnElement[bool]]:
-    """The window every dashboard aggregate shares, delegations out by default.
+    """The window every dashboard aggregate shares, delegations and evals out by default.
 
-    `include_delegations` is the switch :func:`sum_cost_since` established, and
-    the default is `False` for the reason that made it the default there: a
-    delegation's tokens are already inside its parent's row, so counting both
-    bills the same run twice. Beyond cost, a delegated row copies its parent's
-    `user_id` and `surface`, so including it would also inflate a person's run
-    count and invent arrivals on a channel nobody used twice.
-
-    The two aggregates that pass `True` are the two asking about **an agent**
-    rather than about the organization - see :func:`runs_by_agent` and
-    :func:`usage_by_version`, where a delegate's rows are the only record of
-    what the delegate itself did.
+    Eval traffic - an eval run answering a dataset's cases, and the judge
+    grading them - is measurement, not use: counted in, one eval of a hundred
+    cases outweighs a week of people. So every aggregate here reads production
+    alone. `split_evals` keeps the eval traffic in, for an aggregate that
+    separates the two itself in the same scan to report its cost beside the rest.
     """
     filters = where or RunFilter()
     conditions: list[ColumnElement[bool]] = [
@@ -1055,6 +1058,8 @@ def _window_conditions(
         conditions.append(AgentRun.agent_id == filters.agent_id)
     if not include_delegations:
         conditions.append(AgentRun.parent_run_id.is_(None))
+    if not split_evals:
+        conditions.append(~_EVAL)
     return conditions
 
 
@@ -1139,6 +1144,7 @@ class WindowAggregates:
     distinct_users: int
     p50_ms: float | None
     p95_ms: float | None
+    eval_cost_usd: Decimal
 
 
 async def window_aggregates(
@@ -1158,27 +1164,32 @@ async def window_aggregates(
     `ended_at IS NOT NULL` of their own, because an unfinished run's duration is
     null and `percentile_cont` ignores a null the way the standalone function's
     explicit filter did - the same distribution, one query.
+
+    Every figure is production traffic; `eval_cost_usd` is the eval traffic's
+    cost from the same scan, so the bill can name it beside the rest.
     """
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, where=where
+        organization_id=organization_id, start=start, end=end, where=where, split_evals=True
     )
     duration_ms = func.extract("epoch", AgentRun.ended_at - AgentRun.started_at) * 1000
     result = await db.execute(
         select(
-            func.count(AgentRun.id),
-            func.coalesce(func.sum(AgentRun.cost_usd), 0),
-            func.count(func.distinct(AgentRun.user_id)),
-            func.percentile_cont(0.5).within_group(duration_ms),
-            func.percentile_cont(0.95).within_group(duration_ms),
+            func.count(AgentRun.id).filter(~_EVAL),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(~_EVAL), 0),
+            func.count(func.distinct(AgentRun.user_id)).filter(~_EVAL),
+            func.percentile_cont(0.5).within_group(duration_ms).filter(~_EVAL),
+            func.percentile_cont(0.95).within_group(duration_ms).filter(~_EVAL),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(_EVAL), 0),
         ).where(*conditions)
     )
-    total, cost, distinct_users, p50, p95 = result.one()
+    total, cost, distinct_users, p50, p95, eval_cost = result.one()
     return WindowAggregates(
         total=int(total or 0),
         cost_usd=Decimal(cost or 0),
         distinct_users=int(distinct_users or 0),
         p50_ms=float(p50) if p50 is not None else None,
         p95_ms=float(p95) if p95 is not None else None,
+        eval_cost_usd=Decimal(eval_cost or 0),
     )
 
 
@@ -1189,8 +1200,9 @@ async def window_totals(
     start: datetime,
     end: datetime,
     where: RunFilter | None = None,
-) -> tuple[int, Decimal]:
-    """The count and cost of a window, in one SELECT and nothing more.
+) -> tuple[int, Decimal, Decimal]:
+    """The count and cost of a window's production traffic, and its eval traffic's
+    cost, in one SELECT and nothing more.
 
     The previous window is a delta against the current one - it reports only how
     many runs and how much they cost - so it does not pay for
@@ -1198,15 +1210,17 @@ async def window_totals(
     which make PostgreSQL sort the window's durations for numbers nobody reads.
     """
     conditions = _window_conditions(
-        organization_id=organization_id, start=start, end=end, where=where
+        organization_id=organization_id, start=start, end=end, where=where, split_evals=True
     )
     result = await db.execute(
-        select(func.count(AgentRun.id), func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
-            *conditions
-        )
+        select(
+            func.count(AgentRun.id).filter(~_EVAL),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(~_EVAL), 0),
+            func.coalesce(func.sum(AgentRun.cost_usd).filter(_EVAL), 0),
+        ).where(*conditions)
     )
-    total, cost = result.one()
-    return int(total or 0), Decimal(cost or 0)
+    total, cost, eval_cost = result.one()
+    return int(total or 0), Decimal(cost or 0), Decimal(eval_cost or 0)
 
 
 @dataclass(frozen=True)
@@ -1460,9 +1474,7 @@ async def usage_by_version(
             func.avg(AgentRun.cost_usd),
         )
         .join(AgentVersion, AgentVersion.id == AgentRun.agent_version_id, isouter=True)
-        .where(
-            *conditions, AgentRun.agent_id == agent_id, AgentRun.surface != RunSurface.EVAL.value
-        )
+        .where(*conditions, AgentRun.agent_id == agent_id)
         .group_by(AgentRun.agent_version_id, AgentVersion.version)
         .order_by(AgentVersion.version.asc().nullsfirst())
     )

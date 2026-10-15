@@ -80,6 +80,7 @@ from app.schemas.eval_run import (
     EfficiencyRead,
     EvalAttemptRead,
     EvalCallRead,
+    EvalCaseLinkRead,
     EvalCaseList,
     EvalCaseRead,
     EvalComparisonRead,
@@ -907,6 +908,36 @@ class EvalRunService:
             limit=limit,
         )
         return EvalRunList(items=await self._reads(ctx, runs), total=len(runs))
+
+    async def case_link(self, ctx: AuthContext, agent_run_id: UUID) -> EvalCaseLinkRead | None:
+        """The eval run and case an agent run answered, for a caller who may see its dataset.
+
+        None for a run no eval started - the judge's grading, say - and for one
+        over a dataset the caller cannot read, whose name and question are not
+        theirs to learn from a run history.
+        """
+        org = ctx.organization_id
+        attempt = await eval_run_repo.case_of_agent_run(self.db, agent_run_id, organization_id=org)
+        if attempt is None:
+            return None
+        run = await eval_run_repo.get(self.db, attempt.eval_run_id, organization_id=org)
+        # An attempt never outlives its run.
+        assert run is not None
+        try:
+            dataset = await self.datasets.get(ctx, run.dataset_id)
+        except NotFoundError:
+            return None
+        revisions = await eval_run_repo.revisions(
+            self.db, [attempt.case_revision_id], organization_id=org
+        )
+        revision = revisions.get(attempt.case_revision_id)
+        return EvalCaseLinkRead(
+            eval_run_id=run.id,
+            agent_id=run.agent_id,
+            case_id=attempt.case_id,
+            dataset_name=dataset.name,
+            case_input=revision.input if revision else "",
+        )
 
     async def _readable_datasets(self, ctx: AuthContext, dataset_ids: set[UUID]) -> set[UUID]:
         rows = await eval_run_repo.datasets(

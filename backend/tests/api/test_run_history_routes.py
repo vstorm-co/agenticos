@@ -28,6 +28,7 @@ from app.api import deps
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import AgentRun
 from app.main import app
+from app.schemas.eval_run import EvalCaseLinkRead
 
 pytestmark = pytest.mark.anyio
 
@@ -105,12 +106,18 @@ class TestTheFiltersReachTheService:
         )
 
         assert filters.surface == "slack"
+        assert filters.exclude_surface is None
         assert filters.user_id == user_id
         assert filters.environment_id == environment_id
         assert filters.exposure_id == exposure_id
         assert filters.agent_version_id == version_id
         assert filters.started_from.isoformat() == "2026-08-01T00:00:00+00:00"
         assert filters.started_to.isoformat() == "2026-08-06T23:59:59+00:00"
+
+    async def test_the_eval_traffic_can_be_left_out(self):
+        filters = await _filters_for("?exclude_surface=eval")
+
+        assert filters.exclude_surface == "eval"
 
 
 class TestSortingIsChosenFromTwoOrdersAndNotFromAColumnName:
@@ -279,3 +286,38 @@ class TestTheDetailReadCarriesItsNeighbours:
         body = response.json()
         assert body["prev_run_id"] == str(prev_id)
         assert body["next_run_id"] == str(next_id)
+
+    async def test_an_eval_run_names_the_case_it_answered(self):
+        run = AgentRun(
+            id=uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            agent_id=uuid4(),
+            surface="eval",
+            status="completed",
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+        )
+        link = EvalCaseLinkRead(
+            eval_run_id=uuid4(),
+            agent_id=run.agent_id,
+            case_id=uuid4(),
+            dataset_name="refunds",
+            case_input="Can I return it?",
+        )
+        service = _service()
+        service.get_run = AsyncMock(return_value=run)
+        service.down_rated_run_ids = AsyncMock(return_value=set())
+        service.trace_url = AsyncMock(return_value=None)
+        service.neighbor_run_ids = AsyncMock(return_value=(None, None))
+        evals = MagicMock()
+        evals.case_link = AsyncMock(return_value=link)
+        app.dependency_overrides[deps.get_eval_run_service] = lambda: evals
+
+        async with _client(service) as client:
+            response = await client.get(f"/api/v1/runs/{run.id}")
+
+        assert response.status_code == 200, response.text
+        assert response.json()["eval_case"]["dataset_name"] == "refunds"
+        evals.case_link.assert_awaited_once()

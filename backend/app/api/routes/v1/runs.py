@@ -14,6 +14,7 @@ from app.api.deps import (
     AgentRunnerSvc,
     ApprovalSvc,
     Auth,
+    EvalRunSvc,
     RunExportSvc,
     require,
 )
@@ -62,6 +63,9 @@ async def list_runs(
         False, description="Include delegated runs - what one agent itself did"
     ),
     surface: RunSurface | None = Query(None, description="Where the run came from"),
+    exclude_surface: RunSurface | None = Query(
+        None, description="Leave out runs from this surface - the eval traffic, say"
+    ),
     user_id: UUID | None = Query(None, description="Who the run ran as"),
     conversation_id: UUID | None = Query(
         None,
@@ -133,6 +137,7 @@ async def list_runs(
         filters=RunFilters(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
+            exclude_surface=None if exclude_surface is None else exclude_surface.value,
             user_id=user_id,
             conversation_id=conversation_id,
             model_label=model_label,
@@ -175,6 +180,7 @@ async def export_runs(
     parent_run_id: UUID | None = Query(None),
     include_delegations: bool = Query(False),
     surface: RunSurface | None = Query(None),
+    exclude_surface: RunSurface | None = Query(None),
     user_id: UUID | None = Query(None),
     model_label: str | None = Query(None, max_length=255),
     environment_id: UUID | None = Query(None),
@@ -199,6 +205,7 @@ async def export_runs(
         filters=RunFilters(
             statuses=RunStatus.parse_csv(status),
             surface=None if surface is None else surface.value,
+            exclude_surface=None if exclude_surface is None else exclude_surface.value,
             user_id=user_id,
             model_label=model_label,
             started_from=started_from,
@@ -215,16 +222,19 @@ async def export_runs(
 @router.get(
     "/runs/{run_id}", response_model=AgentRunRead, dependencies=[Depends(require(Perm.RUNS_VIEW))]
 )
-async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
+async def get_run(run_id: UUID, service: AgentRunnerSvc, evals: EvalRunSvc, ctx: Auth) -> Any:
     """One run, its trace link, and its neighbours in its conversation.
 
     `logfire_url` is on this read and not on the list: resolving it needs the
     version's stored spec, because an agent may redirect its traces to a client's
     own Logfire project, and fifty rows have no use for fifty trace links.
     `prev_run_id`/`next_run_id` ride here for the same reason - a detail view
-    walks to its neighbours, a list already is the neighbours.
+    walks to its neighbours, a list already is the neighbours. `eval_case` names
+    the eval run and the case an eval run's answer belongs to, which is where its
+    answer and grade are read - such a run keeps no conversation.
     """
     run = await service.get_run(ctx, run_id)
+    eval_case = await evals.case_link(ctx, run.id) if run.surface == RunSurface.EVAL.value else None
     down_rated = await service.down_rated_run_ids(ctx, [run.id])
     prev_run_id, next_run_id = await service.neighbor_run_ids(ctx, run)
     return AgentRunRead.model_validate(run).model_copy(
@@ -233,6 +243,7 @@ async def get_run(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
             "down_rated": run.id in down_rated,
             "prev_run_id": prev_run_id,
             "next_run_id": next_run_id,
+            "eval_case": eval_case,
         }
     )
 

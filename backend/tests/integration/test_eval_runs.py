@@ -1296,3 +1296,26 @@ async def test_cases_narrow_to_the_ones_named(db) -> None:
 
     assert [case.case_id for case in named.items] == [everything.items[1].case_id]
     assert named.total == 1
+
+
+@pytest.mark.security
+async def test_an_eval_run_names_its_case_to_who_may_see_the_dataset(db) -> None:
+    owner = await _owner(db)
+    agent, _ = await _agent(db, owner)
+    dataset = await _dataset(db, owner, cases=1)
+    service = EvalRunService(db)
+    run = await service.start(owner, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), run.id, owner)
+    attempt = await db.scalar(select(EvalRunCase).where(EvalRunCase.eval_run_id == run.id))
+    assert attempt is not None and attempt.agent_run_id is not None
+
+    link = await service.case_link(owner, attempt.agent_run_id)
+
+    assert link is not None
+    assert (link.eval_run_id, link.agent_id, link.case_id) == (run.id, agent.id, attempt.case_id)
+    assert (link.dataset_name, link.case_input) == (dataset.name, "Question 0")
+    # The dataset is its owner's: a colleague reading the run history learns
+    # neither its name nor its question from it.
+    member = await _member(db, owner, OrgRoleName.MEMBER)
+    assert await service.case_link(member, attempt.agent_run_id) is None
+    assert await service.case_link(owner, uuid.uuid4()) is None

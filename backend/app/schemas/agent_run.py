@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.conversation import MessageRead
+from app.schemas.eval_run import EvalCaseLinkRead
 
 
 class AgentRunRead(BaseSchema):
@@ -70,6 +71,14 @@ class AgentRunRead(BaseSchema):
     next_run_id: UUID | None = Field(
         default=None,
         description="The run after this one in its own conversation. See `prev_run_id`",
+    )
+    eval_case: EvalCaseLinkRead | None = Field(
+        default=None,
+        description=(
+            "The eval run and case this run answered. Sent on the single-run read "
+            "of an eval run whose dataset the caller may see; such a run keeps no "
+            "conversation, and its answer and grade are read on the eval run"
+        ),
     )
     error: str | None = None
     conversation_id: UUID | None = Field(

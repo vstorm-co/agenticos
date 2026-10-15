@@ -250,6 +250,16 @@ class EvalCaseRead(BaseSchema):
     attempts: list[EvalAttemptRead]
 
 
+class EvalCaseLinkRead(BaseSchema):
+    """Which eval run and case one agent run answered - where its answer is read."""
+
+    eval_run_id: UUID
+    agent_id: UUID
+    case_id: UUID
+    dataset_name: str
+    case_input: str
+
+
 class EvalCaseList(BaseSchema):
     items: list[EvalCaseRead]
     total: int

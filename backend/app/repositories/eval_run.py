@@ -258,6 +258,19 @@ async def list_cases(
     return list(result.scalars().all())
 
 
+async def case_of_agent_run(
+    db: AsyncSession, agent_run_id: UUID, *, organization_id: UUID
+) -> EvalRunCase | None:
+    """The attempt an agent run answered, when an eval run started it."""
+    result = await db.execute(
+        select(EvalRunCase).where(
+            EvalRunCase.agent_run_id == agent_run_id,
+            EvalRunCase.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_arm_cases(
     db: AsyncSession, arm_id: UUID, *, organization_id: UUID
 ) -> list[EvalRunCase]:
