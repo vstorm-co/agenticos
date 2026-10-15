@@ -90,8 +90,10 @@ export interface ScoreGroup {
 /**
  * A page of scores cut where the eval run or the answering agent changes.
  *
- * The page keeps the server's order, so a group is a run of neighbours; the same
- * eval run split by another between them is shown twice rather than reordered.
+ * The groups keep the server's order, newest first, so a group is a run of
+ * neighbours; the same eval run split by another between them is shown twice
+ * rather than reordered. Inside a group the scores read in the order they were
+ * graded, which for an eval run is the order of the dataset's cases.
  */
 export function groupScores(scores: CaseScore[]): ScoreGroup[] {
   const groups: ScoreGroup[] = [];
@@ -100,6 +102,9 @@ export function groupScores(scores: CaseScore[]): ScoreGroup[] {
     const last = groups.at(-1);
     if (last?.key === key) last.scores.push(score);
     else groups.push({ key, evalRunId: score.eval_run_id, scores: [score] });
+  }
+  for (const group of groups) {
+    group.scores.sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
   return groups;
 }

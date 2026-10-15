@@ -10,6 +10,8 @@ export type ScorerKind = "check" | "trajectory" | "judge" | "reference";
 export type ScorerStatus = "pass" | "fail" | "skipped" | "error";
 export type ReviewState = "none" | "pending" | "done";
 export type ReviewSelect = "none" | "failed" | "all";
+/** What counts for a score: a person's decision where there is one, the scorers' otherwise. */
+export type ScoreOutcome = "failed" | "not_graded" | "passed";
 
 export interface RubricCriterion {
   name: string;
@@ -75,6 +77,7 @@ export interface CaseScore {
   expected_tool_calls: ExpectedToolCall[];
   order_mode: ToolOrderMode;
   checks: CaseCheck[];
+  case_tags: string[];
   /** The answer as scored, capped and with secrets redacted; null once its owner was erased. */
   answer: string | null;
   run_id: string | null;

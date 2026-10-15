@@ -111,6 +111,14 @@ describe("describeCheck", () => {
 });
 
 describe("groupScores", () => {
+  it("reads each group in the order it was graded", () => {
+    const [group] = groupScores([
+      caseScore({ id: "late", eval_run_id: "e1", created_at: "2026-10-13T09:05:00Z" }),
+      caseScore({ id: "early", eval_run_id: "e1", created_at: "2026-10-13T09:00:00Z" }),
+    ]);
+    expect(group!.scores.map((score) => score.id)).toEqual(["early", "late"]);
+  });
+
   it("cuts the page where the eval run or the answering agent changes", () => {
     const scores = [
       caseScore({ id: "a", eval_run_id: "e1", agent_id: "x" }),

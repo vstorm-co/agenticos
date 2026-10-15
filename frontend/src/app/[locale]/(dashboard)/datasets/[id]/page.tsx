@@ -201,7 +201,7 @@ export default function DatasetPage({ params }: PageProps) {
           <EvalsTab />
         </TabsContent>
         <TabsContent value="review">
-          <ReviewPanel datasetId={id} canDecide={dataset.can_edit} />
+          <ReviewPanel dataset={dataset} />
         </TabsContent>
       </Tabs>
 

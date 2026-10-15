@@ -18,6 +18,7 @@ export function caseScore(overrides: Partial<CaseScore> = {}): CaseScore {
     expected_tool_calls: [],
     order_mode: "any",
     checks: [],
+    case_tags: [],
     answer: null,
     run_id: null,
     run_model: null,
