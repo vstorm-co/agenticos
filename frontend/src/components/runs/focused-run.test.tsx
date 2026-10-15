@@ -243,6 +243,31 @@ describe("the row being held while the next one loads", () => {
 });
 
 describe("an eval run", () => {
+  it("names the case it answered and opens the eval run, not an empty transcript", () => {
+    serve({
+      run: run({
+        surface: "eval",
+        eval_case: {
+          eval_run_id: "eval-1",
+          agent_id: "agent-9",
+          case_id: "case-1",
+          dataset_name: "refunds",
+          case_input: "Can I return it?",
+        },
+      }),
+    });
+    renderRun();
+    expect(
+      screen.getByRole("link", { name: "Eval case: refunds · Can I return it?" }),
+    ).toHaveAttribute("href", "/agents/agent-9/evals/eval-1");
+    expect(screen.getByText("A case from an eval run")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the eval run" })).toHaveAttribute(
+      "href",
+      "/agents/agent-9/evals/eval-1",
+    );
+    expect(screen.queryByTestId("timeline")).toBeNull();
+  });
+
   it("points at the agent's evals, where its case and comparison are", () => {
     serve({ run: run({ surface: "eval" }) });
     renderRun();

@@ -36,6 +36,14 @@ const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded"];
 const PAGE_SIZE = 50;
 
 /**
+ * The eval traffic - an eval run answering a dataset, and the judge grading it -
+ * is left out unless asked for: one run of a hundred cases buries every person.
+ * `all` is everything else, `every` puts it back, and `eval` is it alone.
+ */
+const EVAL_SURFACE = "eval";
+const WIDE_SURFACES = new Set(["all", "every"]);
+
+/**
  * Run history, and whichever sentence says what it has been narrowed to.
  *
  * `agentId` and `focusedRunId` come in as props rather than being read here: they
@@ -155,7 +163,8 @@ export function RunHistoryTab({
         : filters.status === "problems"
           ? PROBLEM_STATUSES
           : [filters.status],
-    surface: filters.surface === "all" ? undefined : filters.surface,
+    surface: WIDE_SURFACES.has(filters.surface) ? undefined : filters.surface,
+    excludeSurface: filters.surface === "all" ? EVAL_SURFACE : undefined,
     modelLabel: filters.model === "all" ? undefined : filters.model,
     userId: filters.userId === "all" ? undefined : filters.userId,
     agentVersionId: filters.versionId === "all" ? undefined : filters.versionId,
@@ -178,7 +187,8 @@ export function RunHistoryTab({
     exportParams.status =
       filters.status === "problems" ? PROBLEM_STATUSES.join(",") : filters.status;
   }
-  if (filters.surface !== "all") exportParams.surface = filters.surface;
+  if (!WIDE_SURFACES.has(filters.surface)) exportParams.surface = filters.surface;
+  if (filters.surface === "all") exportParams.exclude_surface = EVAL_SURFACE;
   if (filters.model !== "all") exportParams.model_label = filters.model;
   if (filters.rated !== "all") exportParams.rated = filters.rated;
   if (filters.userId !== "all") exportParams.user_id = filters.userId;

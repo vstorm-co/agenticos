@@ -5,6 +5,7 @@
  * Mirrors `app/schemas/eval_run.py`. Money arrives as decimal strings.
  */
 
+import type { DatasetCaseContent } from "./datasets";
 import type { CaseScore } from "./scoring";
 
 export type EvalRunStatus =
@@ -119,6 +120,8 @@ export interface EvalRun {
   live_reads: boolean;
   reruns: number;
   estimate_usd: string;
+  /** What confirming reruns may add on top of the estimate. */
+  rerun_ceiling_usd: string;
   cost_usd: string;
   cost_is_partial: boolean;
   attempts_done: number;
@@ -174,6 +177,8 @@ export interface EvalCase {
   position: number;
   input: string;
   tags: string[];
+  /** What the case expects, as the revision the run answered holds it. */
+  expectation: DatasetCaseContent | null;
   attempts: EvalAttempt[];
 }
 

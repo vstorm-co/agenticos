@@ -1741,7 +1741,7 @@
         "title": "Ausgaben",
         "unit": "in diesem Zeitraum",
         "description": "Was der Zeitraum gekostet hat und was dieser Kalendermonat bisher. Die Monatszahl stimmt mit der Rechnung überein und ignoriert den Zeitraumfilter deshalb absichtlich.",
-        "split": "{models} auf Modelle · {ingestion} auf Indexierung",
+        "split": "{models} auf Modelle{evals, select, none {} other { · {evals} auf Evals}}{ingestion, select, none {} other { · {ingestion} auf Indexierung}}",
         "spentLabel": "{amount} ausgegeben"
       },
       "surfaces": {
@@ -1934,7 +1934,6 @@
       "eval-runs": {
         "title": "Eval-Runs",
         "description": "Die neuesten Runs von Agents über ihre Datasets, mit Bestehensquoten.",
-        "run": "{dataset} v{version}",
         "empty": {
           "title": "Noch keine Eval-Runs",
           "description": "Runs, die im Evals-Tab eines Agents gestartet wurden, erscheinen hier."
@@ -1944,7 +1943,8 @@
           "completed": "{count} abgeschlossen",
           "failed": "{count} fehlgeschlagen",
           "budget_exceeded": "{count} ohne Budget"
-        }
+        },
+        "seeAll": "Eval-Verkehr in Activity ansehen"
       }
     },
     "edit": {
@@ -4036,7 +4036,7 @@
       "anyPerson": "Alle",
       "anyRating": "Beliebige Bewertung",
       "anyStatus": "Beliebiger Status",
-      "anySurface": "Beliebige Oberfläche",
+      "anySurface": "Jede Oberfläche außer Evals",
       "anyVersion": "Beliebige Version",
       "approvalCount": "{count, plural, =1 {1 Anfrage} other {# Anfragen}}",
       "approvals": "Freigaben",
@@ -4210,7 +4210,12 @@
       "whereTheMoneyWent": "Wohin das Geld geflossen ist",
       "whoIsSpendingCouldNotBeRead": "Wer ausgibt, konnte nicht gelesen werden.",
       "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus.",
-      "openEvals": "Teil eines Eval-Runs · Evals des Agents öffnen"
+      "openEvals": "Teil eines Eval-Runs · Evals des Agents öffnen",
+      "everySurface": "Jede Oberfläche, Evals eingeschlossen",
+      "evalCase": "Eval-Fall: {dataset} · {input}",
+      "evalCaseTitle": "Ein Fall aus einem Eval-Run",
+      "evalCaseBody": "Dieser Run hat einen Fall eines Eval-Runs beantwortet, der kein Gespräch speichert. Die Antwort und ihre Bewertung stehen im Eval-Run.",
+      "evalCaseOpen": "Eval-Run öffnen"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -5815,7 +5820,7 @@
     },
     "runFor": "Für {amount} starten",
     "runTitle": "{dataset} v{version} · {candidate}",
-    "runMeta": "{date} · {cost} von geschätzten {estimate} ausgegeben",
+    "runMeta": "{date} · {cost} von geschätzten {estimate} ausgegeben{ceiling, select, none {} other {, dazu bis zu {ceiling} für bestätigende Wiederholungen}}",
     "back": "Zurück zu den Evals des Agents",
     "cancelRun": "Stoppen",
     "progress": "Beantwortete Fälle",

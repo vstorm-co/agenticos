@@ -1755,7 +1755,7 @@
         "title": "Spend",
         "unit": "in this period",
         "description": "What the period cost, and this calendar month to date. The month figure reconciles with the invoice, so it deliberately ignores the period filter.",
-        "split": "{models} on models · {ingestion} on indexing",
+        "split": "{models} on models{evals, select, none {} other { · {evals} on evals}}{ingestion, select, none {} other { · {ingestion} on indexing}}",
         "spentLabel": "{amount} spent"
       },
       "surfaces": {
@@ -1948,7 +1948,6 @@
       "eval-runs": {
         "title": "Eval runs",
         "description": "The latest runs of agents over their datasets, with pass rates.",
-        "run": "{dataset} v{version}",
         "empty": {
           "title": "No eval runs yet",
           "description": "Runs started from an agent's Evals tab appear here."
@@ -1958,7 +1957,8 @@
           "completed": "{count} completed",
           "failed": "{count} failed",
           "budget_exceeded": "{count} out of budget"
-        }
+        },
+        "seeAll": "See the eval traffic in Activity"
       }
     },
     "edit": {
@@ -4177,7 +4177,7 @@
       "anyPerson": "Anyone",
       "anyRating": "Any rating",
       "anyStatus": "Any status",
-      "anySurface": "Any surface",
+      "anySurface": "Any surface but evals",
       "anyVersion": "Any version",
       "approvalCount": "{count, plural, =1 {1 request} other {# requests}}",
       "approvals": "Approvals",
@@ -4351,7 +4351,12 @@
       "whereTheMoneyWent": "Where the money went",
       "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
       "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent.",
-      "openEvals": "Part of an eval run · open the agent's evals"
+      "openEvals": "Part of an eval run · open the agent's evals",
+      "everySurface": "Every surface, evals included",
+      "evalCase": "Eval case: {dataset} · {input}",
+      "evalCaseTitle": "A case from an eval run",
+      "evalCaseBody": "This run answered one case of an eval run, which keeps no conversation. Its answer and how it was graded are on the eval run.",
+      "evalCaseOpen": "Open the eval run"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -5957,7 +5962,7 @@
     },
     "runFor": "Run for {amount}",
     "runTitle": "{dataset} v{version} · {candidate}",
-    "runMeta": "{date} · spent {cost} of an estimated {estimate}",
+    "runMeta": "{date} · spent {cost} of an estimated {estimate}{ceiling, select, none {} other {, plus up to {ceiling} for confirming reruns}}",
     "back": "Back to the agent's evals",
     "cancelRun": "Stop",
     "progress": "Cases answered",

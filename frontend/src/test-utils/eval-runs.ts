@@ -57,6 +57,7 @@ export function evalRun(overrides: Partial<EvalRun> = {}): EvalRun {
     live_reads: false,
     reruns: 2,
     estimate_usd: "0.050000",
+    rerun_ceiling_usd: "0.020000",
     cost_usd: "0.040000",
     cost_is_partial: false,
     attempts_done: 4,
@@ -105,6 +106,7 @@ export function evalCase(overrides: Partial<EvalCase> = {}): EvalCase {
     // i18n-exempt: a dataset case's question in a fixture, not console copy
     input: "How long do I have to return it?",
     tags: ["refunds"],
+    expectation: null,
     attempts: [attempt()],
     ...overrides,
   };

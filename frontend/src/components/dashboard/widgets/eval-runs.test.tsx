@@ -9,6 +9,15 @@ import { EvalRunsWidget } from "./eval-runs";
 
 const recent = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 vi.mock("@/hooks/use-eval-runs", () => ({ useRecentEvalRuns: () => recent.value }));
+const access = vi.hoisted(() => ({ agents: true }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => access.agents }),
+}));
+vi.mock("@/hooks", () => ({
+  useAgents: ({ enabled }: { enabled: boolean }) => ({
+    agents: enabled ? [{ id: "agent-1", name: "Refund desk" }] : [],
+  }),
+}));
 
 const PERIOD: Period = { preset: "30d", from: "2026-09-14", to: "2026-10-14" };
 
@@ -21,15 +30,26 @@ function widget() {
 }
 
 beforeEach(() => {
+  access.agents = true;
   recent.value = { runs: [], isLoading: false, error: null, refetch: vi.fn() };
 });
 
 describe("EvalRunsWidget", () => {
-  it("counts the runs by status and lists each with its pass rate", () => {
+  it("counts the runs by status and lists each with its agent, verdict and pass rate", () => {
     recent.value = {
       ...recent.value,
       runs: [
-        evalRun(),
+        evalRun({
+          outcome: {
+            candidate_arm_id: "arm-1",
+            verdict: "worse",
+            baseline: null,
+            regressions_confirmed: 2,
+            fixed_confirmed: 0,
+            candidate_pass_rate: 0.75,
+            baseline_pass_rate: 1,
+          },
+        }),
         evalRun({ id: "run-2", status: "running", arms: [arm({ role: "baseline" })] }),
       ],
     };
@@ -37,11 +57,22 @@ describe("EvalRunsWidget", () => {
     expect(screen.getByText("1 running")).toBeInTheDocument();
     expect(screen.getByText("1 completed")).toBeInTheDocument();
     expect(screen.queryByText(/failed/)).not.toBeInTheDocument();
-    const links = screen.getAllByRole("link", { name: /refunds v3/ });
+    const links = screen.getAllByRole("link", { name: /^Refund desk · v7/ });
     expect(links[0]).toHaveAttribute("href", "/agents/agent-1/evals/run-1");
-    expect(screen.getByText("75%")).toBeInTheDocument();
-    // A run with no candidate arm has no pass rate to show.
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("Worse · 2 broke")).toBeInTheDocument();
+    expect(screen.getByText("gpt-4.1 75%")).toBeInTheDocument();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "See the eval traffic in Activity" })).toHaveAttribute(
+      "href",
+      "/runs?surface=eval",
+    );
+  });
+
+  it("starts a row at what was tested for who may not see agents", () => {
+    access.agents = false;
+    recent.value = { ...recent.value, runs: [evalRun()] };
+    widget();
+    expect(screen.getByRole("link", { name: /^v7/ })).toBeInTheDocument();
   });
 
   it("says when there is nothing yet", () => {

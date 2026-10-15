@@ -158,6 +158,8 @@ describe("run history controls", () => {
       rated: undefined,
       statuses: undefined,
       surface: undefined,
+      // The eval traffic is left out until asked for.
+      excludeSurface: "eval",
       userId: undefined,
       agentVersionId: undefined,
       skip: 0,
@@ -247,6 +249,18 @@ describe("run history controls", () => {
     await userEvent.click(screen.getByRole("option", { name: "Problems" }));
 
     expect(lastOptions()).toMatchObject({ statuses: ["failed", "budget_exceeded"] });
+  });
+
+  it("puts the eval traffic back, or shows it alone, when asked", async () => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
+    await userEvent.click(screen.getByRole("option", { name: "Every surface, evals included" }));
+    expect(lastOptions()).toMatchObject({ surface: undefined, excludeSurface: undefined });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
+    await userEvent.click(screen.getByRole("option", { name: "Eval" }));
+    expect(lastOptions()).toMatchObject({ surface: "eval", excludeSurface: undefined });
   });
 
   it("narrows to one surface", async () => {

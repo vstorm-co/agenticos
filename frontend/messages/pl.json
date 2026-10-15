@@ -575,7 +575,13 @@
     },
     "runs": {
       "decidedByStandingConsent": "pominięte z góry dla konwersacji",
-      "openEvals": "Część eval runa · otwórz evale agenta"
+      "openEvals": "Część eval runa · otwórz evale agenta",
+      "anySurface": "Każde źródło poza evalami",
+      "everySurface": "Każde źródło, z evalami",
+      "evalCase": "Case evala: {dataset} · {input}",
+      "evalCaseTitle": "Case z eval runu",
+      "evalCaseBody": "Ten run odpowiadał na jeden case eval runu, który nie zapisuje rozmowy. Odpowiedź i jej ocena są w eval runie.",
+      "evalCaseOpen": "Otwórz eval run"
     },
     "agents": {
       "evals": "Evale"
@@ -833,7 +839,7 @@
           "description": "Koszt modeli ląduje tutaj uruchomienie po uruchomieniu."
         },
         "description": "Ile kosztował okres i ile miesiąc kalendarzowy do dziś. Kwota miesięczna zgadza się z fakturą, więc celowo nie reaguje na filtr okresu.",
-        "split": "{models} na modele · {ingestion} na indeksowanie",
+        "split": "{models} na modele{evals, select, none {} other { · {evals} na evale}}{ingestion, select, none {} other { · {ingestion} na indeksowanie}}",
         "spentLabel": "wydano {amount}"
       },
       "model-mix": {
@@ -1201,7 +1207,6 @@
       "eval-runs": {
         "title": "Eval runy",
         "description": "Ostatnie runy agentów na ich datasetach, z odsetkiem zaliczeń.",
-        "run": "{dataset} v{version}",
         "empty": {
           "title": "Brak eval runów",
           "description": "Tu pojawiają się runy uruchomione z zakładki Evale agenta."
@@ -1211,7 +1216,8 @@
           "completed": "{count} zakończonych",
           "failed": "{count} z błędem",
           "budget_exceeded": "{count} bez budżetu"
-        }
+        },
+        "seeAll": "Zobacz ruch evali w Activity"
       }
     },
     "activeSessions": "Aktywne sesje",
@@ -3577,7 +3583,7 @@
     },
     "runFor": "Uruchom za {amount}",
     "runTitle": "{dataset} v{version} · {candidate}",
-    "runMeta": "{date} · wydano {cost} z szacowanych {estimate}",
+    "runMeta": "{date} · wydano {cost} z szacowanych {estimate}{ceiling, select, none {} other {, plus do {ceiling} na powtórki potwierdzające}}",
     "back": "Wróć do evali agenta",
     "cancelRun": "Zatrzymaj",
     "progress": "Odpowiedziane przypadki",

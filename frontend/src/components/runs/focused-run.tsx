@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   ArrowRight,
   ExternalLink,
+  FlaskConical,
   MessageSquare,
   Play,
   X,
@@ -191,13 +192,26 @@ export function FocusedRun({
               <SurfaceIcon surface={run.surface} />
               {surfaceLabel(run.surface, t)}
             </span>
-            {run.surface === "eval" && can(Perm.agentsView) && (
+            {run.eval_case ? (
               <Link
-                href={`${ROUTES.AGENTS}/${run.agent_id}?tab=evals`}
-                className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+                href={`${ROUTES.AGENTS}/${run.eval_case.agent_id}/evals/${run.eval_case.eval_run_id}`}
+                className="text-muted-foreground hover:text-foreground max-w-md truncate text-sm underline-offset-4 hover:underline"
               >
-                {t("openEvals")}
+                {t("evalCase", {
+                  dataset: run.eval_case.dataset_name,
+                  input: run.eval_case.case_input,
+                })}
               </Link>
+            ) : (
+              run.surface === "eval" &&
+              can(Perm.agentsView) && (
+                <Link
+                  href={`${ROUTES.AGENTS}/${run.agent_id}?tab=evals`}
+                  className="text-muted-foreground hover:text-foreground text-sm underline-offset-4 hover:underline"
+                >
+                  {t("openEvals")}
+                </Link>
+              )
             )}
             <span className="flex items-center gap-1.5 font-mono text-xs">
               {run.provider !== null && (
@@ -336,7 +350,22 @@ export function FocusedRun({
           push the header off a flex parent that has no room to give. */}
       <div className="min-h-0 flex-1 scrollbar-thin space-y-6 overflow-y-auto px-4 py-4">
         <TabsContent value="timeline">
-          <RunTimeline runId={runId} />
+          {/* An eval case keeps no conversation: its answer and grade live on
+              the eval run, so the timeline says where rather than that nothing
+              was recorded. */}
+          {run.eval_case ? (
+            <EmptyState
+              icon={FlaskConical}
+              title={t("evalCaseTitle")}
+              description={t("evalCaseBody")}
+              cta={{
+                label: t("evalCaseOpen"),
+                href: `${ROUTES.AGENTS}/${run.eval_case.agent_id}/evals/${run.eval_case.eval_run_id}`,
+              }}
+            />
+          ) : (
+            <RunTimeline runId={runId} />
+          )}
         </TabsContent>
         <TabsContent value="input">
           <RunManifest runId={runId} />

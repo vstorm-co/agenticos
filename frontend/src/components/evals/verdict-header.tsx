@@ -148,6 +148,8 @@ export function VerdictHeader({
             date: formatDateTime(run.created_at, locale),
             cost: usd(run.cost_usd, locale),
             estimate: usd(run.estimate_usd, locale),
+            ceiling:
+              Number(run.rerun_ceiling_usd) > 0 ? usd(run.rerun_ceiling_usd, locale) : "none",
           })}
         </p>
         {run.error && <p className="text-destructive text-sm">{run.error}</p>}

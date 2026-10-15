@@ -86,7 +86,11 @@ describe("EvalRunView", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("4 cases · 4 answers + no confirming reruns")).toBeInTheDocument();
-    expect(screen.getByText(/spent \$0.04 of an estimated \$0.05/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /spent \$0.04 of an estimated \$0.05, plus up to \$0.02 for confirming reruns/,
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to the agent's evals" })).toHaveAttribute(
       "href",
       "/agents/agent-1?tab=evals",
@@ -155,6 +159,12 @@ describe("EvalRunView", () => {
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("heading")).toBeNull();
     expect(screen.queryByRole("link", { name: "Back to Build" })).toBeNull();
+  });
+
+  it("names no rerun allowance when a run had none", () => {
+    state.run = { ...state.run, run: evalRun({ rerun_ceiling_usd: "0" }) };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText(/of an estimated \$0.05$/)).toBeInTheDocument();
   });
 
   it("offers no publish to who may not publish", () => {

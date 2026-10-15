@@ -163,6 +163,7 @@ export const qk = {
         rated?: string;
         statuses?: string[];
         surface?: string;
+        excludeSurface?: string;
         modelLabel?: string;
         userId?: string;
         conversationId?: string;

@@ -9,6 +9,15 @@ export type RunStatus =
   | "budget_exceeded"
   | "guardrail_blocked";
 
+/** Which eval run and case one agent run answered. */
+export interface EvalCaseLink {
+  eval_run_id: string;
+  agent_id: string;
+  case_id: string;
+  dataset_name: string;
+  case_input: string;
+}
+
 export interface AgentRun {
   id: string;
   agent_id: string;
@@ -46,6 +55,11 @@ export interface AgentRun {
    */
   prev_run_id?: string | null;
   next_run_id?: string | null;
+  /**
+   * The eval run and case this run answered - single-run read only, and only
+   * when the caller may see the dataset. Such a run keeps no conversation.
+   */
+  eval_case?: EvalCaseLink | null;
   error: string | null;
   /**
    * Whether an assistant answer this run produced was rated down by anybody -
