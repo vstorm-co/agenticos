@@ -35,10 +35,10 @@ export function RubricEditor({ criteria, onChange, disabled = false }: RubricEdi
               <Switch
                 checked={criterion.required}
                 onCheckedChange={(required) => change(index, { required })}
-                aria-label={t("required")}
+                aria-label={t("mustPass")}
                 disabled={disabled}
               />
-              {t("required")}
+              {t("mustPass")}
             </label>
             <IconButton
               aria-label={t("removeCriterion")}

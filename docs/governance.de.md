@@ -1,5 +1,5 @@
 ---
-source_sha: "4a4c8a2d19db"
+source_sha: "045d8e4f6e3b"
 ---
 
 # Governance { #governance }
@@ -1331,8 +1331,9 @@ Beide Kanäle werden unabhängig voneinander geschaltet, je Ereignis, unter
 **Settings → Notifications** - eine Person kann die In-App-Zeile für
 Freigaben behalten und ihre E-Mail abschalten, oder umgekehrt. Dieselbe Seite
 trägt auch jedes andere Ereignis, das das Postfach zustellt: einen Run, der
-unbeaufsichtigt fertig wird oder scheitert, die Ingestion eines Dokuments, die
-**scheitert**, die eigene Gesamtzahl eines Konnektor-Laufs, und die eigene
+unbeaufsichtigt fertig wird oder scheitert - ein `eval`-Run, einer der vielen,
+die ein Eval startet, sendet keines von beiden -, die Ingestion eines
+Dokuments, die **scheitert**, die eigene Gesamtzahl eines Konnektor-Laufs, und die eigene
 Ankündigung eines App-Admins - `POST /admin/announcements`, noch keine
 Console-Seite - adressiert nach Organisation und, optional, nach Rolle, und
 beschränkt auf einen oder beide Kanäle.
@@ -1563,12 +1564,17 @@ Abgleich der Tool-Aufrufe aus, hält die Kriterien des Judge mit der Begründung
 als übersprungen fest und lässt einen Fall, dessen Judge erforderlich war,
 unbewertet statt bestanden. Urteile von Menschen bleiben verfügbar.
 
-Diese Funktionen laufen als [System-Agents](concepts.md#system-agents). Jeder
-Run ist ein gewöhnlicher Run: Er wird vor jedem Modellaufruf gegen das eigene
-Monatsbudget des Agents und das der Organisation geprüft, seine Kosten werden
+Diese Funktionen laufen als [Bewerter](concepts.md#system-agents). Jeder Run
+ist ein gewöhnlicher Run: Er wird vor jedem Modellaufruf gegen das eigene
+Monatsbudget des Bewerters und das der Organisation geprüft, seine Kosten werden
 aufgezeichnet, und er wird in Activity unter der Oberfläche `eval` aufgeführt.
-Ein System-Agent startet mit einem eigenen Budget - das des Judge beträgt 5 $
-im Monat -, das sich wie das jedes Agents ändern lässt.
+Ein Bewerter startet mit einem eigenen Budget - 5 $ im Monat -, das sich wie das
+jedes Agents ändern lässt.
+
+Ein Bewerter wird nie bereitgestellt: Kein Kanal, kein Embed, keine
+öffentliche Seite und kein Zeitplan lassen sich an ihn hängen, kein Agent kann
+an ihn delegieren, und ein Run auf einer anderen Oberfläche als `eval` wird
+abgelehnt. Seine Ausgaben entstehen daher nur durch die Funktionen oben.
 
 ## Audit { #audit }
 

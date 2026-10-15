@@ -1,24 +1,23 @@
 "use client";
 
 import { use, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { FlaskConical, Pencil, Plus } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FlaskConical } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { PageHeader } from "@/components/dashboard/page-header";
 import { CaseEditorDialog } from "@/components/datasets/case-editor-dialog";
 import { draftOf, EMPTY_DRAFT, type CaseDraft } from "@/components/datasets/case-form";
 import { CaseRow } from "@/components/datasets/case-row";
-import { DatasetFileActions } from "@/components/datasets/dataset-file-actions";
+import { DatasetHeader } from "@/components/datasets/dataset-header";
+import { DatasetShareDialog } from "@/components/datasets/dataset-share-dialog";
 import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
-import { ScoresPanel } from "@/components/datasets/scores-panel";
-import { ScoringPanel } from "@/components/datasets/scoring-panel";
+import { EvalsTab } from "@/components/datasets/evals-tab";
+import { ReviewPanel } from "@/components/datasets/review-panel";
+import { GradingPanel } from "@/components/datasets/grading-panel";
 import { VersionSelect } from "@/components/datasets/version-select";
-import { SharingPanel } from "@/components/sharing/sharing-panel";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
-  Badge,
-  Button,
+  ConfirmDialog,
   ListCard,
   ListCardEmpty,
   PAGE_SIZE,
@@ -37,10 +36,14 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-const TABS = ["cases", "scoring", "scores"];
+/** The tabs `?tab=` may open, in the order they are drawn. */
+const TABS = ["cases", "grading", "evals", "review"];
 
 /** What the case dialog is showing: a new case, or one from the list. */
 type Editing = { draft: CaseDraft; item: DatasetCase | null } | null;
+
+/** Which of the header menu's dialogs is open. */
+type Dialog = "details" | "share" | "delete" | null;
 
 /**
  * One dataset: its cases at a version, and every way to change them.
@@ -53,12 +56,13 @@ export default function DatasetPage({ params }: PageProps) {
   const t = useTranslations("datasets");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
+  const router = useRouter();
   const asked = useSearchParams().get("tab");
   const [version, setVersion] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Editing>(null);
-  const [editingDetails, setEditingDetails] = useState(false);
-  const { dataset, error: datasetError, update } = useDataset(id);
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const { dataset, error: datasetError, update, remove } = useDataset(id);
   const { versions } = useDatasetVersions(id);
   const cases = useDatasetCases(id, { version, skip: page * PAGE_SIZE, limit: PAGE_SIZE });
   const pageCount = Math.max(1, Math.ceil(cases.total / PAGE_SIZE));
@@ -81,36 +85,14 @@ export default function DatasetPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={dataset.name}
-        description={dataset.description ?? undefined}
-        breadcrumbs={[{ label: t("title"), href: ROUTES.DATASETS }, { label: dataset.name }]}
-        badges={
-          dataset.latest_version > 0 ? (
-            <Badge variant="outline">
-              {t("versionNumber", { number: dataset.latest_version })}
-            </Badge>
-          ) : undefined
-        }
-        actions={
-          dataset.can_edit ? (
-            <>
-              <Button variant="outline" onClick={() => setEditingDetails(true)}>
-                <Pencil className="h-4 w-4" />
-                {t("editDetails")}
-              </Button>
-              {editable && (
-                <Button
-                  data-tour="datasets-add-case"
-                  onClick={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
-                >
-                  <Plus className="h-4 w-4" />
-                  {t("addCase")}
-                </Button>
-              )}
-            </>
-          ) : undefined
-        }
+      <DatasetHeader
+        dataset={dataset}
+        version={version}
+        onAddCase={editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined}
+        onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
+        onEditDetails={() => setDialog("details")}
+        onShare={() => setDialog("share")}
+        onDelete={() => setDialog("delete")}
       />
 
       <Tabs
@@ -119,10 +101,13 @@ export default function DatasetPage({ params }: PageProps) {
       >
         <TabsList>
           <TabsTrigger value="cases">{t("cases")}</TabsTrigger>
-          <TabsTrigger value="scoring" data-tour="datasets-scoring-tab">
+          <TabsTrigger value="grading" data-tour="datasets-grading-tab">
             {t("scoring.title")}
           </TabsTrigger>
-          <TabsTrigger value="scores" data-tour="datasets-scores-tab">
+          <TabsTrigger value="evals" data-tour="datasets-evals-tab">
+            {t("evals")}
+          </TabsTrigger>
+          <TabsTrigger value="review" data-tour="datasets-review-tab">
             {t("scoring.scores")}
           </TabsTrigger>
         </TabsList>
@@ -131,24 +116,17 @@ export default function DatasetPage({ params }: PageProps) {
             title={t("cases")}
             counted={t("caseCount", { count: cases.total })}
             controls={
-              <div className="flex flex-wrap items-center gap-2">
-                {versions.length > 0 && (
-                  <VersionSelect
-                    versions={versions}
-                    latest={dataset.latest_version}
-                    value={version}
-                    onChange={(next) => {
-                      setVersion(next);
-                      setPage(0);
-                    }}
-                  />
-                )}
-                <DatasetFileActions
-                  datasetId={id}
-                  version={version}
-                  onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
+              versions.length > 0 && (
+                <VersionSelect
+                  versions={versions}
+                  latest={dataset.latest_version}
+                  value={version}
+                  onChange={(next) => {
+                    setVersion(next);
+                    setPage(0);
+                  }}
                 />
-              </div>
+              )
             }
           >
             {cases.isLoading ? (
@@ -163,6 +141,14 @@ export default function DatasetPage({ params }: PageProps) {
                 icon={FlaskConical}
                 title={t("noCases")}
                 description={t("noCasesBody")}
+                cta={
+                  editable
+                    ? {
+                        label: t("addCase"),
+                        onClick: () => setEditing({ draft: EMPTY_DRAFT, item: null }),
+                      }
+                    : undefined
+                }
               />
             ) : (
               <div className="space-y-4">
@@ -188,23 +174,37 @@ export default function DatasetPage({ params }: PageProps) {
             )}
           </ListCard>
         </TabsContent>
-        <TabsContent value="scoring">
-          <ScoringPanel
-            key={JSON.stringify(dataset.scoring)}
-            datasetId={id}
-            scoring={dataset.scoring}
-            canEdit={dataset.can_edit}
-          />
+        <TabsContent value="grading">
+          <GradingPanel dataset={dataset} />
         </TabsContent>
-        <TabsContent value="scores">
-          <ScoresPanel datasetId={id} canDecide={dataset.can_edit} />
+        <TabsContent value="evals">
+          <EvalsTab />
+        </TabsContent>
+        <TabsContent value="review">
+          <ReviewPanel datasetId={id} canDecide={dataset.can_edit} />
         </TabsContent>
       </Tabs>
 
-      <SharingPanel resourceType="dataset" resourceId={id} canManage={dataset.can_edit} />
-
-      {editingDetails && (
-        <EditDatasetDialog dataset={dataset} onOpenChange={setEditingDetails} update={update} />
+      {dialog === "details" && (
+        <EditDatasetDialog dataset={dataset} onOpenChange={() => setDialog(null)} update={update} />
+      )}
+      {dialog === "share" && (
+        <DatasetShareDialog dataset={dataset} onOpenChange={() => setDialog(null)} />
+      )}
+      {dialog === "delete" && (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setDialog(null)}
+          title={tc("deleteNamedConfirm", { name: dataset.name })}
+          description={t("deleteBody")}
+          confirmLabel={tc("delete")}
+          destructive
+          loading={remove.isPending}
+          onConfirm={async () => {
+            await remove.mutateAsync();
+            router.push(ROUTES.DATASETS);
+          }}
+        />
       )}
 
       {editing !== null && (
@@ -215,6 +215,7 @@ export default function DatasetPage({ params }: PageProps) {
             if (!open) setEditing(null);
           }}
           initial={editing.draft}
+          viewing={editing.item ?? undefined}
           title={editing.item === null ? t("addCase") : t("case")}
           onSave={editable ? save : undefined}
         />

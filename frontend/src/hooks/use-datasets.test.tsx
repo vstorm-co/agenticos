@@ -72,6 +72,12 @@ describe("useDatasets", () => {
     expect(result.current.total).toBe(40);
   });
 
+  it("narrows to the datasets one judge grades", async () => {
+    renderHook(() => useDatasets({ judge: "j1", limit: 3 }), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    expect(apiClient.get).toHaveBeenCalledWith("/datasets?judge=j1&sort=name&skip=0&limit=3");
+  });
+
   it("leaves the search out when there is none, and reads an empty answer as nothing", async () => {
     vi.mocked(apiClient.get).mockResolvedValue(undefined);
     const { result } = renderHook(() => useDatasets(), { wrapper });
@@ -113,6 +119,20 @@ describe("useDataset and its versions", () => {
     await waitFor(() => expect(result.current.dataset?.name).toBe("refunds"));
     await result.current.update.mutateAsync({ name: "returns" });
     expect(apiClient.patch).toHaveBeenCalledWith("/datasets/d1", { name: "returns" });
+  });
+
+  it("deletes the dataset it reads, and says why when the server refuses", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "d1", name: "refunds" });
+    const { result } = renderHook(() => useDataset("d1"), { wrapper });
+    await waitFor(() => expect(result.current.dataset?.name).toBe("refunds"));
+    vi.mocked(apiClient.delete).mockResolvedValueOnce(undefined);
+    await result.current.remove.mutateAsync();
+    expect(apiClient.delete).toHaveBeenCalledWith("/datasets/d1");
+    expect(toastSuccess).toHaveBeenCalledWith("Dataset deleted");
+
+    vi.mocked(apiClient.delete).mockRejectedValueOnce(new Error("nope"));
+    await expect(result.current.remove.mutateAsync()).rejects.toThrow();
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
   });
 
   it("lists the versions newest first, as the server ordered them", async () => {

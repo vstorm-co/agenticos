@@ -1,5 +1,5 @@
 ---
-source_sha: "4a4c8a2d19db"
+source_sha: "045d8e4f6e3b"
 ---
 
 # Governance { #governance }
@@ -1247,7 +1247,8 @@ Oba kanały przełącza się niezależnie, dla każdego zdarzenia osobno, w
 **Settings → Notifications** — dana osoba może zostawić wiersz w aplikacji dla
 zatwierdzeń, a wyłączyć jego e-mail, albo odwrotnie. Ta sama strona niesie też
 każde inne zdarzenie, które dostarcza skrzynka: nienadzorowane zakończenie albo
-błąd runa, **błąd** ingestii dokumentu, własną zbiorczą liczbę z przebiegu
+błąd runa - run `eval`, jeden z wielu, które uruchamia eval, nie wysyła żadnego
+z nich - **błąd** ingestii dokumentu, własną zbiorczą liczbę z przebiegu
 konektora oraz własne ogłoszenie administratora aplikacji -
 `POST /admin/announcements`, jeszcze bez strony w konsoli - adresowane do
 organizacji i, opcjonalnie, do roli, oraz ograniczone do jednego albo obu
@@ -1473,12 +1474,17 @@ narzędzi, zapisuje kryteria sędziego jako pominięte z podaniem przyczyny i
 zostawia przypadek, którego sędzia był wymagany, jako nieoceniony, a nie
 zaliczony. Werdykty ludzi pozostają dostępne.
 
-Te funkcje działają jako [agenci systemowi](concepts.md#system-agents). Każdy
-run jest zwykłym runem: przed każdym wywołaniem modelu jest sprawdzany względem
-własnego miesięcznego budżetu agenta i budżetu organizacji, jego koszt jest
-zapisywany, a on sam jest widoczny w Activity pod powierzchnią `eval`. Agent
-systemowy startuje z własnym budżetem - budżet sędziego to $5 miesięcznie -
-który można zmienić jak budżet każdego agenta.
+Te funkcje działają jako [sędziowie](concepts.md#system-agents). Każdy run jest
+zwykłym runem: przed każdym wywołaniem modelu jest sprawdzany względem własnego
+miesięcznego budżetu sędziego i budżetu organizacji, jego koszt jest zapisywany,
+a on sam jest widoczny w Activity pod powierzchnią `eval`. Sędzia startuje z
+własnym budżetem - $5 miesięcznie - który można zmienić jak budżet każdego
+agenta.
+
+Sędzia nigdy nie jest wystawiany: nie da się podpiąć do niego kanału,
+embedu, publicznej strony ani harmonogramu, żaden agent nie może do niego
+delegować, a run na jakiejkolwiek powierzchni poza `eval` jest odrzucany. Jego
+wydatki pochodzą więc tylko z funkcji opisanych wyżej.
 
 ## Audyt { #audit }
 

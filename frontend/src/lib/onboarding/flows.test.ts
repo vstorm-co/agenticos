@@ -252,7 +252,7 @@ describe("create-dataset", () => {
       signal: { kind: "created", resource: "case" },
     });
     expect(save?.blockSubmit).toBeUndefined();
-    expect(sources?.target).toBe("dataset-file-actions");
+    expect(sources?.target).toBe("datasets-menu");
     expect(sources?.signal).toBeUndefined();
   });
 });

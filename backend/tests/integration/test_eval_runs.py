@@ -517,6 +517,8 @@ async def test_a_grant_on_the_dataset_lets_a_member_run_it(db) -> None:
     owner = await _owner(db)
     agent, _ = await _agent(db, owner)
     dataset = await _dataset(db, owner, cases=2)
+    dataset.visibility = "private"
+    await db.flush()
     member = await _member(db, owner, OrgRoleName.MEMBER)
     service = EvalRunService(db)
     request = EvalRunRequest(dataset_id=dataset.id)
@@ -1257,6 +1259,8 @@ async def test_a_datasets_runs_are_read_over_the_agents_and_dataset_the_reader_m
     private, _ = await _agent(db, owner)
     private.visibility = "private"
     dataset = await _dataset(db, owner, cases=1)
+    dataset.visibility = "private"
+    await db.flush()
     service = EvalRunService(db)
     seen = await service.start(owner, shared.id, EvalRunRequest(dataset_id=dataset.id))
     unseen = await service.start(owner, private.id, EvalRunRequest(dataset_id=dataset.id))
@@ -1338,8 +1342,28 @@ async def test_an_eval_run_names_its_case_to_who_may_see_the_dataset(db) -> None
     assert link is not None
     assert (link.eval_run_id, link.agent_id, link.case_id) == (run.id, agent.id, attempt.case_id)
     assert (link.dataset_name, link.case_input) == (dataset.name, "Question 0")
-    # The dataset is its owner's: a colleague reading the run history learns
-    # neither its name nor its question from it.
+    # A private dataset is its owner's: a colleague reading the run history
+    # learns neither its name nor its question from it.
+    dataset.visibility = "private"
+    await db.flush()
     member = await _member(db, owner, OrgRoleName.MEMBER)
     assert await service.case_link(member, attempt.agent_run_id) is None
     assert await service.case_link(owner, uuid.uuid4()) is None
+
+
+async def test_an_eval_run_puts_nothing_in_the_review_queue_itself(db) -> None:
+    """A run's failures go to review only when a person sends them there."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    dataset.scoring = {**dataset.scoring, "review": {"select": "all"}}
+    await db.flush()
+    service = EvalRunService(db)
+    run = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db, answer=lambda prompt, call: _FAIL), run.id, ctx)
+
+    states = (
+        await db.scalars(select(CaseScore.review_state).where(CaseScore.eval_run_id == run.id))
+    ).all()
+
+    assert states and set(states) == {"none"}

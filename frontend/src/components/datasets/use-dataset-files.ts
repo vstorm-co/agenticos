@@ -1,29 +1,12 @@
 "use client";
 
-import { useRef } from "react";
-import { Download, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui";
 import { exportDataset } from "@/hooks/use-datasets";
 import { fieldProblems, getErrorMessage } from "@/lib/api-error";
 import type { DatasetFileFormat } from "@/types/datasets";
 
-interface DatasetFileActionsProps {
-  datasetId: string;
-  /** The version on screen, which is the one exported; null is the newest. */
-  version: number | null;
-  /** Absent for somebody who may read the dataset but not change it. */
-  onImport?: (file: File) => Promise<unknown>;
-}
-
-/**
- * Import a CSV or JSONL file as a new version, and export the version on screen.
- *
- * An import is all or nothing, and a refused one says which rows - that sentence
- * comes from the server and is shown as it is.
- */
 /** How many refused rows a toast lists; the server names at most twenty. */
 const SHOWN_ROWS = 5;
 
@@ -48,10 +31,15 @@ export function refusedRows(
   return lines.length === 0 ? undefined : lines.slice(0, SHOWN_ROWS).join("\n");
 }
 
-export function DatasetFileActions({ datasetId, version, onImport }: DatasetFileActionsProps) {
+/**
+ * Export the version on screen, and import a CSV or JSONL file as a new version.
+ *
+ * Failures are toasts. An import is all or nothing, and a refused one says which
+ * rows - that sentence comes from the server and is shown as it is.
+ */
+export function useDatasetFiles(datasetId: string, version: number | null) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
-  const picker = useRef<HTMLInputElement>(null);
 
   async function download(format: DatasetFileFormat) {
     try {
@@ -73,37 +61,5 @@ export function DatasetFileActions({ datasetId, version, onImport }: DatasetFile
     }
   }
 
-  return (
-    <div className="flex flex-wrap items-center gap-2" data-tour="dataset-file-actions">
-      {onImport !== undefined && (
-        <>
-          <input
-            ref={picker}
-            type="file"
-            accept=".csv,.jsonl,.ndjson"
-            className="hidden"
-            aria-label={t("importFile")}
-            onChange={(event) => void upload(event.currentTarget, onImport)}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            data-tour="datasets-import"
-            onClick={() => picker.current?.click()}
-          >
-            <Upload className="h-3.5 w-3.5" aria-hidden />
-            {t("import")}
-          </Button>
-        </>
-      )}
-      <Button variant="outline" size="sm" onClick={() => void download("csv")}>
-        <Download className="h-3.5 w-3.5" aria-hidden />
-        {t("exportCsv")}
-      </Button>
-      <Button variant="outline" size="sm" onClick={() => void download("jsonl")}>
-        <Download className="h-3.5 w-3.5" aria-hidden />
-        {t("exportJsonl")}
-      </Button>
-    </div>
-  );
+  return { download, upload };
 }

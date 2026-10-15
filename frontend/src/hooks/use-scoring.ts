@@ -19,6 +19,29 @@ export function useSetScoring(datasetId: string) {
   });
 }
 
+/** What a dataset's own judge starts from; `model_profile_id` null is the oldest model. */
+export interface NewJudge {
+  name: string;
+  instructions: string;
+  model_profile_id?: string | null;
+}
+
+/**
+ * Create a judge of the dataset's own and make it the one grading the dataset.
+ *
+ * The dataset comes back with the judge picked, and the judges listing gains one.
+ */
+export function useCreateJudge(datasetId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (judge: NewJudge) => apiClient.post<Dataset>(`/datasets/${datasetId}/judge`, judge),
+    onSuccess: async (dataset) => {
+      queryClient.setQueryData(qk.datasets.detail(datasetId), dataset);
+      await queryClient.invalidateQueries({ queryKey: qk.agents.judges() });
+    },
+  });
+}
+
 /** Score a recorded run's answer against one case. The judge, if configured, runs now. */
 export function useScoreRun() {
   const queryClient = useQueryClient();

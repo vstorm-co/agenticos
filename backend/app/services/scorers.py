@@ -491,18 +491,13 @@ def rubric_hash(criteria: Sequence[JudgeCriterion], *, scale_max: int) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def _unverified(quotes: Sequence[str], answer: str) -> str:
-    missing = [quote for quote in quotes if quote not in answer]
-    if not missing:
-        return ""
-    shown = ", ".join(
-        json.dumps(
-            quote if len(quote) <= _QUOTE_SHOWN else f"{quote[:_QUOTE_SHOWN]}…",
-            ensure_ascii=False,
-        )
-        for quote in missing
-    )
-    return f" [not in the answer, unverified: {shown}]"
+def _unverified(quotes: Sequence[str], answer: str) -> list[str]:
+    """The quotes the answer does not hold, each cut to what a reader needs to spot it."""
+    return [
+        quote if len(quote) <= _QUOTE_SHOWN else f"{quote[:_QUOTE_SHOWN]}…"
+        for quote in quotes
+        if quote not in answer
+    ]
 
 
 def graded(
@@ -516,7 +511,8 @@ def graded(
 ) -> list[ScorerResult]:
     """The judge's grades as results; a criterion it skipped or misgraded is an error.
 
-    A quote is checked against the part of `answer` the judge was shown.
+    A quote is checked against the part of `answer` the judge was shown, and one
+    it does not hold is kept beside the grade rather than in its reason.
     """
     grades = {grade.id: grade for grade in verdict.grades}
     shown = answer[:MAX_MATCH_TEXT]
@@ -536,7 +532,6 @@ def graded(
                 )
             )
             continue
-        flag = _unverified(grade.quotes, shown)[: MAX_REASON // 2]
         results.append(
             ScorerResult(
                 scorer=criterion.scorer,
@@ -544,8 +539,8 @@ def graded(
                 required=criterion.required,
                 status="pass" if grade.score >= pass_at else "fail",
                 score=grade.score / scale_max,
-                reason=f"{grade.score}/{scale_max}: {grade.reason}"[: MAX_REASON - len(flag)]
-                + flag,
+                reason=f"{grade.score}/{scale_max}: {grade.reason}"[:MAX_REASON],
+                unverified_quotes=_unverified(grade.quotes, shown),
                 judge_run_id=run_id,
             )
         )

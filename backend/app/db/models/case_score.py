@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.db.models.agent_run import AgentRun
 from app.db.models.dataset import DatasetCase
 
 
@@ -61,13 +62,17 @@ class CaseScore(Base):
         nullable=True,
         index=True,
     )
-    # The eval run that answered and scored this case; a score taken by hand has none.
+    run: Mapped[AgentRun | None] = relationship(lazy="selectin")
+    # The eval run that scored the answer; null for a score asked for by hand.
     eval_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("eval_runs.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
+    # The answer as scored, capped and with secrets redacted: a reviewer reads it
+    # beside the case, and the score outlives the run it came from.
+    answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     scoring: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     results: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
     # Null when no judge graded the answer.

@@ -128,6 +128,19 @@ async def verdicts_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
     return list(result.scalars().all())
 
 
+async def scored_answers_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
+    """Eval scores of runs they started, each holding a copy of the answer it scored."""
+    result = await db.execute(
+        select(CaseScore)
+        .where(
+            CaseScore.answer.is_not(None),
+            CaseScore.run_id.in_(select(AgentRun.id).where(AgentRun.user_id == user_id)),
+        )
+        .order_by(CaseScore.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
 async def sessions_of(db: AsyncSession, user_id: UUID) -> list[Session]:
     """Where and when they signed in. Never the credential - the row holds a hash."""
     result = await db.execute(
@@ -293,6 +306,28 @@ async def unlink_dataset_cases_of(db: AsyncSession, user_id: UUID) -> int:
             )
         )
         .values(**_NO_SOURCE)
+    )
+    await db.flush()
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def purge_scored_answers_of(db: AsyncSession, user_id: UUID) -> int:
+    """Clear the answer copied into every eval score of a run this person started.
+
+    Unscoped by organization, as every erasure is. The score stays - what the
+    scorers and a reviewer concluded is the organization's - and its run link
+    already goes when the run does; the copy of the answer goes now.
+
+    Returns:
+        How many scores lost their answer.
+    """
+    result = await db.execute(
+        update(CaseScore)
+        .where(
+            CaseScore.answer.is_not(None),
+            CaseScore.run_id.in_(select(AgentRun.id).where(AgentRun.user_id == user_id)),
+        )
+        .values(answer=None)
     )
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]

@@ -360,6 +360,7 @@ class EvalRunService:
                 arm=baseline,
                 scoring_hash=hashed,
                 judged=ai_enabled and (config.judge.enabled or config.reference.enabled),
+                judge_id=config.judge.agent_id,
             )
             arms.append(baseline if cached is None else replace(baseline, cached=cached))
         return RunPlan(
@@ -508,6 +509,14 @@ class EvalRunService:
             model_label=model.label,
         )
 
+    async def _judge_agent(self, ctx: AuthContext, judge_id: UUID | None) -> Agent | None:
+        """The agent that grades a dataset: the judge it names, or the default one."""
+        if judge_id is not None:
+            return await agent_repo.get(self.db, judge_id, organization_id=ctx.organization_id)
+        return await agent_repo.get_system(
+            self.db, organization_id=ctx.organization_id, key=JUDGE.key
+        )
+
     async def _cached(
         self,
         ctx: AuthContext,
@@ -518,6 +527,7 @@ class EvalRunService:
         arm: ArmPlan,
         scoring_hash: str,
         judged: bool,
+        judge_id: UUID | None,
     ) -> tuple[EvalRunArm, EvalRun] | None:
         """A completed baseline arm that may stand in for running this one.
 
@@ -541,9 +551,7 @@ class EvalRunService:
         )
         if found is None:
             return None
-        judge = await agent_repo.get_system(
-            self.db, organization_id=ctx.organization_id, key=JUDGE.key
-        )
+        judge = await self._judge_agent(ctx, judge_id)
         attempts = await eval_run_repo.list_arm_cases(
             self.db, found[0].id, organization_id=ctx.organization_id
         )
@@ -649,9 +657,7 @@ class EvalRunService:
             )
         judge_per_case = Decimal(0)
         if plan.judged:
-            judge = await agent_repo.get_system(
-                self.db, organization_id=ctx.organization_id, key=JUDGE.key
-            )
+            judge = await self._judge_agent(ctx, plan.scoring.judge.agent_id)
             judge_per_case = (
                 (await self._per_case(ctx, judge.id, None))[0]
                 if judge is not None

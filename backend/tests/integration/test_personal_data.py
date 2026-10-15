@@ -26,6 +26,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.memory_keys import person_owner_key
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.channel_identity import ChannelIdentity
@@ -88,6 +89,39 @@ async def _org_and_agent(db) -> tuple[Organization, Agent]:
     db.add(agent)
     await db.flush()
     return organization, agent
+
+
+async def _scored_answer(db, organization: Organization, agent: Agent, *, run_by: UUID | None):
+    """A score of a run `run_by` started, keeping the answer it graded."""
+    owner = AuthContext(
+        user_id=organization.created_by_user_id,
+        organization_id=organization.id,
+        role=OrgRoleName.OWNER,
+    )
+    datasets = DatasetService(db)
+    dataset = await datasets.create(owner, DatasetCreate(name=f"refunds-{uuid4().hex[:8]}"))
+    case = await datasets.add_case(
+        owner, dataset.id, DatasetCaseCreate(input="Where is my refund?", reference_answer="a")
+    )
+    run = AgentRun(id=uuid4(), organization_id=organization.id, agent_id=agent.id, user_id=run_by)
+    db.add(run)
+    await db.flush()
+    return await case_score_repo.create(
+        db,
+        organization_id=organization.id,
+        dataset_id=dataset.id,
+        case_revision_id=case.id,
+        case_id=case.case_id,
+        run_id=run.id,
+        eval_run_id=None,
+        answer="Your refund is on its way.",
+        scoring={},
+        results=[],
+        judge=None,
+        passed=False,
+        review_state="none",
+        created_by_user_id=None,
+    )
 
 
 async def _note_about(db, user_id: UUID, *, organization_id: UUID, agent_id: UUID) -> None:
@@ -295,6 +329,8 @@ class TestTheExport:
                 case_revision_id=case.id,
                 case_id=case.case_id,
                 run_id=None,
+                eval_run_id=None,
+                answer=None,
                 scoring={},
                 results=[],
                 judge=None,
@@ -325,6 +361,26 @@ class TestTheExport:
             "human_passed",
             "human_note",
             "reviewed_at",
+        }
+
+    async def test_it_carries_the_answers_to_their_runs_a_score_kept(self, db):
+        """A score copies the answer it graded, so it outlives the run and the thread."""
+        user = await _person(db, "export-answers@example.com")
+        organization, agent = await _org_and_agent(db)
+        score = await _scored_answer(db, organization, agent, run_by=user.id)
+
+        export = await PersonalDataService(db).export(user.id, actor_user_id=user.id)
+
+        assert [(row["id"], row["answer"]) for row in export.scored_answers] == [
+            (score.id, "Your refund is on its way.")
+        ]
+        assert set(export.scored_answers[0]) == {
+            "id",
+            "dataset_id",
+            "case_id",
+            "run_id",
+            "answer",
+            "created_at",
         }
 
     async def test_it_carries_the_notifications_addressed_to_them(self, db):
@@ -562,6 +618,21 @@ class TestWhatDeletionRemoves:
             )
         ).scalar_one()
         assert identities == 1
+
+    async def test_a_score_of_their_run_loses_the_answer_and_keeps_the_verdict(self, db):
+        """The score is the organization's; the copy of what their run answered is not."""
+        user = await _person(db, "purge-answers@example.com")
+        organization, agent = await _org_and_agent(db)
+        theirs = await _scored_answer(db, organization, agent, run_by=user.id)
+        others = await _scored_answer(db, organization, agent, run_by=None)
+
+        purged = await PersonalDataService(db).purge(user.id)
+
+        assert purged.scored_answers == 1
+        await db.refresh(theirs)
+        await db.refresh(others)
+        assert (theirs.answer, theirs.passed) == (None, False)
+        assert others.answer == "Your refund is on its way."
 
     async def test_an_identity_that_was_never_linked_is_left_where_it_is(self, db):
         """An unlinked identity is not this person's residue - it is a platform

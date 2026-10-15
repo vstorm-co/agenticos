@@ -10,6 +10,11 @@ A seeded agent publishes straight away when the organization already has a model
 profile, on the oldest one, so the choice is the same whichever request seeds it.
 Without a profile it stays a draft, as any agent without a model does: a person
 picks the model and publishes it, and until then the features that use it say so.
+
+An organization may also create more agents of a definition's kind - a judge of
+a dataset's own (:meth:`SystemAgentService.create_judge`). Each starts from the
+definition's budget, publishes the same way, and is isolated like the seeded one;
+only the seeded one carries the key.
 """
 
 from __future__ import annotations
@@ -21,10 +26,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec, BudgetSpec
-from app.agents.system_agents import SYSTEM_AGENTS, SystemAgentDef, system_agent
-from app.core.exceptions import AlreadyExistsError, BadRequestError, SystemAgentUnavailableError
+from app.agents.system_agents import JUDGE, SYSTEM_AGENTS, SystemAgentDef, system_agent
+from app.core.exceptions import (
+    AlreadyExistsError,
+    BadRequestError,
+    NotFoundError,
+    SystemAgentUnavailableError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentKind
 from app.db.models.resource_grant import Visibility
 from app.repositories import agent_repo, credential_repo, member_repo
 from app.services.agent_registry import AgentRegistryService
@@ -109,7 +119,7 @@ class SystemAgentService:
             budget=BudgetSpec(monthly_usd=definition.monthly_usd),
         )
         try:
-            agent = await self._insert(ctx, spec, key=definition.key)
+            agent = await self._insert(ctx, spec, definition=definition)
         except IntegrityError:
             winner = await agent_repo.get_system(
                 self.db, organization_id=organization_id, key=definition.key
@@ -117,27 +127,91 @@ class SystemAgentService:
             if winner is None:
                 raise
             return winner
-        if profile is not None:
+        return await self._publish(ctx, agent, published=profile is not None, note="Seeded")
+
+    async def create_judge(
+        self,
+        ctx: AuthContext,
+        *,
+        name: str,
+        description: str,
+        instructions: str,
+        model_profile_id: UUID | None = None,
+    ) -> Agent:
+        """A judge of the organization's own, created by the caller from the judge definition.
+
+        It runs on `model_profile_id`, or on the organization's oldest model, and
+        publishes straight away when it has one - a draft otherwise, like the
+        seeded judge. The caller has already been allowed to create agents.
+
+        Raises:
+            AlreadyExistsError: Another agent of the organization holds the name.
+            NotFoundError: `model_profile_id` is not one of the organization's models.
+        """
+        if model_profile_id is None:
+            oldest = await credential_repo.oldest_profile(
+                self.db, organization_id=ctx.organization_id
+            )
+            model_profile_id = None if oldest is None else oldest.id
+        elif (
+            await credential_repo.get_profile(
+                self.db, model_profile_id, organization_id=ctx.organization_id
+            )
+            is None
+        ):
+            raise NotFoundError(
+                message="This organization has no such model",
+                details={"model_profile_id": model_profile_id},
+            )
+        spec = AgentSpec(
+            name=name,
+            description=description,
+            instructions=instructions,
+            model_profile_id=model_profile_id,
+            budget=BudgetSpec(monthly_usd=JUDGE.monthly_usd),
+        )
+        agent = await self.registry.create(ctx, spec, visibility=Visibility.ORG)
+        agent = await agent_repo.update(
+            self.db, agent=agent, update_data={"kind": AgentKind.JUDGE.value}
+        )
+        return await self._publish(
+            ctx, agent, published=model_profile_id is not None, note="Created"
+        )
+
+    async def _publish(
+        self, ctx: AuthContext, agent: Agent, *, published: bool, note: str
+    ) -> Agent:
+        """Publish an agent created with a model; one that cannot publish stays a draft."""
+        if published:
             try:
-                await self.registry.publish(ctx, agent.id, note="Seeded")
+                await self.registry.publish(ctx, agent.id, note=note)
             except BadRequestError:
                 logger.warning(
-                    "System agent %r stays a draft in organization %s",
-                    definition.key,
-                    organization_id,
+                    "Agent %s of kind %r stays a draft in organization %s",
+                    agent.id,
+                    agent.kind,
+                    ctx.organization_id,
                     exc_info=True,
                 )
             await self.db.refresh(agent)
         return agent
 
-    async def _insert(self, ctx: AuthContext, spec: AgentSpec, *, key: str) -> Agent:
+    async def _insert(
+        self, ctx: AuthContext, spec: AgentSpec, *, definition: SystemAgentDef
+    ) -> Agent:
         try:
-            return await self._insert_as(ctx, spec, key=key)
+            return await self._insert_as(ctx, spec, definition=definition)
         except AlreadyExistsError:
             renamed = spec.model_copy(update={"name": f"{spec.name} (system)"})
-            return await self._insert_as(ctx, renamed, key=key)
+            return await self._insert_as(ctx, renamed, definition=definition)
 
-    async def _insert_as(self, ctx: AuthContext, spec: AgentSpec, *, key: str) -> Agent:
+    async def _insert_as(
+        self, ctx: AuthContext, spec: AgentSpec, *, definition: SystemAgentDef
+    ) -> Agent:
         async with self.db.begin_nested():
             agent = await self.registry.create(ctx, spec, visibility=Visibility.ORG)
-            return await agent_repo.update(self.db, agent=agent, update_data={"system_key": key})
+            return await agent_repo.update(
+                self.db,
+                agent=agent,
+                update_data={"system_key": definition.key, "kind": definition.kind.value},
+            )

@@ -3,7 +3,13 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useReviewQueue, useScoreRun, useScores, useSetScoring } from "./use-scoring";
+import {
+  useCreateJudge,
+  useReviewQueue,
+  useScoreRun,
+  useScores,
+  useSetScoring,
+} from "./use-scoring";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { DEFAULT_SCORING } from "@/lib/scoring";
@@ -20,6 +26,24 @@ function wrapper({ children }: { children: ReactNode }) {
 beforeEach(() => {
   vi.clearAllMocks();
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+});
+
+describe("useCreateJudge", () => {
+  it("creates the dataset's judge, keeps the dataset and refreshes the judges", async () => {
+    const dataset = { id: "d1", scoring: DEFAULT_SCORING };
+    vi.mocked(apiClient.post).mockResolvedValue(dataset);
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useCreateJudge("d1"), { wrapper });
+
+    await result.current.mutateAsync({ name: "Refunds judge", instructions: "Be strict." });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/datasets/d1/judge", {
+      name: "Refunds judge",
+      instructions: "Be strict.",
+    });
+    expect(client.getQueryData(qk.datasets.detail("d1"))).toEqual(dataset);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents.judges() });
+  });
 });
 
 describe("useSetScoring", () => {

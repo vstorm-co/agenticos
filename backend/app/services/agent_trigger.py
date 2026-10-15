@@ -47,6 +47,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.system_agents import refuse_system_agent
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
@@ -534,6 +535,7 @@ class AgentTriggerService:
                 rule every per-resource agent route follows.
         """
         agent = await self.agents.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
+        refuse_system_agent(agent, action="a schedule or a trigger")
         # A trigger on a never-published agent is guaranteed to disable itself:
         # its first fire reaches for the runnable spec, finds no version, and
         # turns the trigger off. Refusing here turns that silent self-disable

@@ -197,6 +197,7 @@ describe("stepsForPage", () => {
       "agents-templates",
       "agents-new",
       "agents-filters",
+      "agents-judges",
       ...BUILDER_STEPS,
     ]);
   });
@@ -229,16 +230,18 @@ describe("stepsForPage", () => {
   });
 
   it("is permission-filtered the same way the tour is", () => {
-    // agents-new is edit-gated, agents-filters is not, and the builder walk is
-    // agents:view — a caller who can do nothing still gets the one ungated stop.
+    // agents-new is edit-gated, agents-filters and agents-judges are not, and the
+    // builder walk is agents:view — a caller who can do nothing still gets the
+    // ungated stops.
     expect(stepsForPage(ROUTES.AGENTS, () => false).map((step) => step.id)).toEqual([
       "agents-filters",
+      "agents-judges",
     ]);
     expect(
       stepsForPage(ROUTES.AGENTS, (permission) => permission === Perm.agentsEdit).map(
         (step) => step.id,
       ),
-    ).toEqual(["agents-templates", "agents-new", "agents-filters"]);
+    ).toEqual(["agents-templates", "agents-new", "agents-filters", "agents-judges"]);
   });
 
   it("hands the builder walk to anyone who may view an agent", () => {

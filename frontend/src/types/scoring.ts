@@ -4,7 +4,7 @@
  * Mirrors `app/schemas/scoring.py`.
  */
 
-import type { CaseCheck } from "./datasets";
+import type { CaseCheck, ExpectedToolCall, ToolOrderMode } from "./datasets";
 
 export type ScorerKind = "check" | "trajectory" | "judge" | "reference";
 export type ScorerStatus = "pass" | "fail" | "skipped" | "error";
@@ -22,6 +22,8 @@ export interface DatasetScoring {
   trajectory: { enabled: boolean; required: boolean };
   judge: {
     enabled: boolean;
+    /** The dataset's own judge; null is the default eval judge. */
+    agent_id: string | null;
     model_profile_id: string | null;
     scale_max: number;
     pass_at: number;
@@ -43,6 +45,8 @@ export interface ScorerResult {
   score: number | null;
   reason: string;
   reason_code: string | null;
+  /** What the judge quoted from the answer that the answer does not hold. */
+  unverified_quotes: string[];
   judge_run_id: string | null;
 }
 
@@ -53,6 +57,7 @@ export interface ScorerResult {
  */
 /** Which judge graded a score; two scores compare only when every field matches. */
 export interface JudgePin {
+  agent_id: string | null;
   model_profile_id: string | null;
   agent_version_id: string | null;
   spec_version: number | null;
@@ -64,10 +69,24 @@ export interface CaseScore {
   dataset_id: string;
   case_id: string;
   case_revision_id: string;
-  /** The scored revision's question and reference answer, which a later edit does not change. */
+  /** What the scored revision expected, which a later edit of the case does not change. */
   question: string;
   reference_answer: string | null;
+  expected_tool_calls: ExpectedToolCall[];
+  order_mode: ToolOrderMode;
+  checks: CaseCheck[];
+  /** The answer as scored, capped and with secrets redacted; null once its owner was erased. */
+  answer: string | null;
   run_id: string | null;
+  /** The model the scored run answered on, while the run is kept. */
+  run_model: string | null;
+  /** The agent that answered, and which of its versions; the name and number while they exist. */
+  agent_id: string | null;
+  agent_version_id: string | null;
+  agent_name: string | null;
+  agent_version: number | null;
+  /** The eval run that scored it; null for a score asked for by hand. */
+  eval_run_id: string | null;
   results: ScorerResult[];
   judge: JudgePin | null;
   passed: boolean | null;

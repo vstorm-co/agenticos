@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_SCORING, callsJudge, reasonKey, scoringProblem } from "./scoring";
+import {
+  DEFAULT_SCORING,
+  callsJudge,
+  describeCheck,
+  groupScores,
+  reasonKey,
+  scoringProblem,
+} from "./scoring";
+import { caseScore } from "@/test-utils/scores";
 import type { ScorerResult } from "@/types/scoring";
 
 function result(reason_code: string | null): ScorerResult {
@@ -12,6 +20,7 @@ function result(reason_code: string | null): ScorerResult {
     score: null,
     reason: "from the server",
     reason_code,
+    unverified_quotes: [],
     judge_run_id: null,
   };
 }
@@ -21,6 +30,7 @@ describe("reasonKey", () => {
     expect(reasonKey(result("ai_assistance_off"))).toBe("reason.aiAssistanceOff");
     expect(reasonKey(result("judge_budget"))).toBe("reason.judgeBudget");
     expect(reasonKey(result("judge_no_model"))).toBe("reason.judgeNoModel");
+    expect(reasonKey(result("judge_missing"))).toBe("reason.judgeMissing");
   });
 
   it("leaves a code this build does not know, and no code, to the server's sentence", () => {
@@ -80,5 +90,43 @@ describe("callsJudge", () => {
     expect(callsJudge(DEFAULT_SCORING, plain)).toBe(false);
     expect(callsJudge(reference, plain)).toBe(false);
     expect(callsJudge(checksOff, { ...plain, checks: [{ type: "judge" }] })).toBe(false);
+  });
+});
+
+describe("describeCheck", () => {
+  it("reads a check with one plain value as its type and that value", () => {
+    expect(describeCheck({ type: "contains", value: "30 days" })).toBe("contains 30 days");
+    expect(describeCheck({ type: "max_cost_usd", value: 0.05 })).toBe("max_cost_usd 0.05");
+  });
+
+  it("writes anything richer as JSON, and a bare type alone", () => {
+    expect(describeCheck({ type: "json_schema", schema: { type: "object" } })).toBe(
+      'json_schema {"schema":{"type":"object"}}',
+    );
+    expect(describeCheck({ type: "regex", pattern: "\\d+", flags: "i" })).toBe(
+      'regex {"pattern":"\\\\d+","flags":"i"}',
+    );
+    expect(describeCheck({ type: "valid_json" })).toBe("valid_json");
+  });
+});
+
+describe("groupScores", () => {
+  it("cuts the page where the eval run or the answering agent changes", () => {
+    const scores = [
+      caseScore({ id: "a", eval_run_id: "e1", agent_id: "x" }),
+      caseScore({ id: "b", eval_run_id: "e1", agent_id: "x" }),
+      caseScore({ id: "c", eval_run_id: "e1", agent_id: "y" }),
+      caseScore({ id: "d", eval_run_id: null, agent_id: null }),
+      caseScore({ id: "e", eval_run_id: "e1", agent_id: "x" }),
+    ];
+
+    expect(
+      groupScores(scores).map((group) => [group.evalRunId, group.scores.map((s) => s.id)]),
+    ).toEqual([
+      ["e1", ["a", "b"]],
+      ["e1", ["c"]],
+      [null, ["d"]],
+      ["e1", ["e"]],
+    ]);
   });
 });

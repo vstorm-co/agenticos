@@ -18,6 +18,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 from pydantic import (
     AliasPath,
+    ConfigDict,
     Field,
     JsonValue,
     TypeAdapter,
@@ -36,6 +37,7 @@ ScorerKind = Literal["check", "trajectory", "judge", "reference"]
 ScorerStatus = Literal["pass", "fail", "skipped", "error"]
 ReviewState = Literal["none", "pending", "done"]
 ReviewSelect = Literal["none", "failed", "all"]
+ToolOrderModeLiteral = Literal["any", "in_order", "exact"]
 
 
 class TextCheck(BaseSchema):
@@ -181,14 +183,16 @@ class RubricCriterion(BaseSchema):
 
 
 class JudgeScorer(BaseSchema):
-    """The eval judge grading every case on a rubric.
+    """The judge grading every case on a rubric.
 
-    Each criterion is graded from 1 to `scale_max` and passes at `pass_at` or
-    above. `model_profile_id` runs the judge on another model than the one it
-    publishes on.
+    `agent_id` is the dataset's own judge, one of the organization's judges;
+    null is the platform's default eval judge. Each criterion is graded from 1
+    to `scale_max` and passes at `pass_at` or above. `model_profile_id` runs the
+    judge on another model than the one it publishes on.
     """
 
     enabled: bool = False
+    agent_id: UUID | None = None
     model_profile_id: UUID | None = None
     scale_max: int = Field(default=5, ge=2, le=10)
     pass_at: int = Field(default=4, ge=1, le=10)
@@ -232,7 +236,8 @@ class ScorerResult(BaseSchema):
 
     `score` is normalized to 0..1. `reason_code` names why a scorer was skipped or
     failed to run - `ai_assistance_off`, `judge_unpublished`, `judge_budget` - so
-    each can be shown, and fixed, on its own.
+    each can be shown, and fixed, on its own. `unverified_quotes` are the parts of
+    the answer the judge quoted that the answer does not hold.
     """
 
     scorer: ScorerKind
@@ -242,7 +247,37 @@ class ScorerResult(BaseSchema):
     score: float | None = None
     reason: str
     reason_code: str | None = None
+    unverified_quotes: list[str] = Field(default_factory=list)
     judge_run_id: UUID | None = None
+
+
+class ExpectedToolCall(BaseSchema):
+    """A tool the agent should call, and the arguments that must match.
+
+    `args` is a subset: a call passes when every key given here is present with
+    this value, whatever else the agent also sent. Empty means only the tool name
+    is checked.
+    """
+
+    tool: str = Field(min_length=1, max_length=200)
+    args: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class CaseCheck(BaseSchema):
+    """One rule a case's answer is scored against, named by `type`.
+
+    Only the shape is fixed here: an object with a `type`, and that rule's own
+    parameters beside it. Which types exist and what each requires belongs to
+    scoring (`app.schemas.scoring.Check`), checked when a case is written - and a
+    stored check it no longer accepts is still read, and scored as an error.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, populate_by_name=True, str_strip_whitespace=True, extra="allow"
+    )
+    __pydantic_extra__: dict[str, JsonValue] = Field(init=False)
+
+    type: str = Field(min_length=1, max_length=64)
 
 
 class CaseScoreCreate(BaseSchema):
@@ -266,12 +301,13 @@ class CaseVerdict(BaseSchema):
 class JudgePin(BaseSchema):
     """Which judge graded a score.
 
-    Two scores are graded alike only when every field matches. `rubric_hash`
-    fingerprints what the judge was asked: each criterion it graded and the
-    scale. `model_profile_id` is the model it ran on - the dataset's choice, or
-    the one its version publishes on.
+    Two scores are graded alike only when every field matches. `agent_id` is the
+    judge agent, `rubric_hash` fingerprints what it was asked: each criterion it
+    graded and the scale. `model_profile_id` is the model it ran on - the
+    dataset's choice, or the one its version publishes on.
     """
 
+    agent_id: UUID | None = None
     model_profile_id: UUID | None = None
     agent_version_id: UUID | None = None
     spec_version: int | None = None
@@ -284,8 +320,15 @@ class CaseScoreRead(BaseSchema):
     `passed` is what the scorers concluded; null means a required scorer could not
     run, so the case is unscored rather than passed. `human_passed` is a person's
     verdict, kept beside it. `outcome` is the one that counts: the person's when
-    there is one, the scorers' otherwise. `question` and `reference_answer` are
-    the scored revision's, which a later edit of the case does not change.
+    there is one, the scorers' otherwise.
+
+    What the case expected - `question`, `reference_answer`,
+    `expected_tool_calls`, `checks` - is the scored revision's, which a later
+    edit of the case does not change. `answer` is what the run answered, kept
+    with the score so it reads without the run. `agent_id`, `agent_version_id`
+    and `run_model` are the scored run's; `agent_name` and `agent_version` are
+    filled where scores are listed. `eval_run_id` is the eval run that scored
+    it, null for a score asked for by hand.
     """
 
     id: UUID
@@ -296,7 +339,25 @@ class CaseScoreRead(BaseSchema):
     reference_answer: str | None = Field(
         default=None, validation_alias=AliasPath("case_revision", "reference_answer")
     )
+    expected_tool_calls: list[ExpectedToolCall] = Field(
+        default_factory=list, validation_alias=AliasPath("case_revision", "expected_tool_calls")
+    )
+    order_mode: ToolOrderModeLiteral = Field(
+        default="any", validation_alias=AliasPath("case_revision", "order_mode")
+    )
+    checks: list[CaseCheck] = Field(
+        default_factory=list, validation_alias=AliasPath("case_revision", "checks")
+    )
+    answer: str | None = None
     run_id: UUID | None = None
+    run_model: str | None = Field(default=None, validation_alias=AliasPath("run", "model_label"))
+    agent_id: UUID | None = Field(default=None, validation_alias=AliasPath("run", "agent_id"))
+    agent_version_id: UUID | None = Field(
+        default=None, validation_alias=AliasPath("run", "agent_version_id")
+    )
+    agent_name: str | None = None
+    agent_version: int | None = None
+    eval_run_id: UUID | None = None
     results: list[ScorerResult]
     judge: JudgePin | None = None
     passed: bool | None = None
@@ -323,6 +384,29 @@ class PendingScore(CaseScoreRead):
     """A score in the review queue, with the dataset it belongs to."""
 
     dataset_name: str
+
+
+class JudgeCreate(BaseSchema):
+    """A judge of a dataset's own, made from the default judge's definition."""
+
+    name: str = Field(min_length=1, max_length=128)
+    instructions: str = Field(min_length=1, max_length=20_000)
+    model_profile_id: UUID | None = Field(
+        default=None, description="The model it runs on; the organization's oldest if omitted"
+    )
+
+
+class ReviewRequest(BaseSchema):
+    """Scores of one dataset to put in the review queue."""
+
+    score_ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
+class ReviewRequested(BaseSchema):
+    """What a review request changed: `queued` newly waiting, `already` waiting or decided."""
+
+    queued: int
+    already: int
 
 
 class PendingDataset(BaseSchema):

@@ -11,13 +11,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.case_score import CaseScore
 from app.repositories import agent_repo, organization_repo
 from app.schemas.scoring import (
     ChecksScorer,
     DatasetScoring,
+    JudgeCreate,
     JudgeScorer,
     RubricCriterion,
     TrajectoryScorer,
@@ -97,7 +98,7 @@ class TestJudgePin:
             update={"judge": self.SCORING.judge.model_copy(update={"model_profile_id": profile})}
         )
 
-        pin = await self._pin(MagicMock(agent_version_id=None), scoring)
+        pin = await self._pin(MagicMock(agent_id=None, agent_version_id=None), scoring)
 
         assert (pin.model_profile_id, pin.agent_version_id, pin.spec_version) == (
             profile,
@@ -110,7 +111,7 @@ class TestJudgePin:
         monkeypatch.setattr(agent_repo, "get_version", AsyncMock(return_value=None))
         version_id = uuid.uuid4()
 
-        pin = await self._pin(MagicMock(agent_version_id=version_id))
+        pin = await self._pin(MagicMock(agent_id=None, agent_version_id=version_id))
 
         assert (pin.model_profile_id, pin.agent_version_id, pin.spec_version) == (
             None,
@@ -134,3 +135,17 @@ async def test_a_long_run_is_scored_on_its_last_answer(monkeypatch) -> None:
     answer = await service.answer_of(_ctx(), run.id)
 
     assert answer.text == "answer 149"
+
+
+async def test_a_role_that_may_not_create_agents_cannot_create_a_judge() -> None:
+    """A dataset shared for editing does not make a Viewer someone who creates agents."""
+    service = ScoringService(AsyncMock())
+    service.datasets.get = AsyncMock(return_value=MagicMock(name="refunds"))
+    viewer = AuthContext(
+        user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.VIEWER
+    )
+
+    with pytest.raises(AuthorizationError):
+        await service.create_judge(
+            viewer, uuid.uuid4(), JudgeCreate(name="Refunds judge", instructions="Be strict.")
+        )

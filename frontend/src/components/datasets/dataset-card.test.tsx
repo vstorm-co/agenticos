@@ -16,6 +16,7 @@ const DATASET: Dataset = {
   case_count: 12,
   can_edit: true,
   scoring: DEFAULT_SCORING,
+  judge_name: "Eval judge",
   stats: {
     with_reference: 0,
     with_counter_example: 0,

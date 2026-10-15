@@ -1,5 +1,5 @@
 ---
-source_sha: "1bd22ff5edac"
+source_sha: "896c26eb77f1"
 ---
 
 # Begriffe { #concepts }
@@ -598,28 +598,39 @@ wer an was delegieren darf.
 
 ---
 
-## System-Agents { #system-agents }
+## Bewerter { #system-agents }
 
 Manche Agents werden von der Plattform gestartet und nicht von einem Menschen:
-Der **Eval judge** bewertet Antworten für das
-[Scoring von Datasets](datasets.md#judge). Das sind **System-Agents**. Jede
-Organisation erhält sie bei ihrer Erstellung, und eine früher erstellte
-Organisation erhält einen, sobald etwas ihn zum ersten Mal braucht.
+**Bewerter**, die Antworten für die [Bewertung von Datasets](datasets.md#judge)
+benoten. Die Art eines Agents sagt, welcher er ist - `agent` für die, die
+Menschen benutzen, `judge` für diese. Jede Organisation erhält bei ihrer
+Erstellung den Standard-Bewerter **Eval judge**, eine früher erstellte
+Organisation erhält ihn, sobald etwas ihn zum ersten Mal braucht, und ein
+Dataset kann einen eigenen Bewerter bekommen.
 
-Ein System-Agent ist ein gewöhnlicher Agent. Er steht in Agents mit einem
-**System**-Badge, seine Instruktionen und sein Modell lassen sich bearbeiten, er
-kann geteilt werden, und seine Runs werden wie alle anderen gegen das Budget
-geprüft und aufgezeichnet. Er startet mit einem eigenen kleinen Monatsbudget,
-damit eine neue Organisation nicht versehentlich ihr ganzes Budget für
-Evaluierung ausgibt.
+Ein Bewerter wird von der Plattform ausgeführt und ist kein Agent, den Menschen
+benutzen. Agents führt Bewerter getrennt, in einem eingeklappten Band
+**Bewerter** unter **Agents**: Jede Karte sagt, welche Datasets er bewertet, und
+der von der Plattform angelegte ist als **Standard-Bewerter** markiert;
+Agent-Auswahlen lassen sie weg. Wer `agents:edit` hat, öffnet einen, um
+Instruktionen, Modell und Budget zu ändern - seine Seite enthält diese, seine
+Limits, seinen Verlauf und die Datasets, die er bewertet, und sonst nichts.
+Seine Runs werden wie alle anderen gegen das Budget geprüft und aufgezeichnet
+und senden keine Run-Benachrichtigung. Ein Bewerter startet mit einem eigenen
+kleinen Monatsbudget, damit eine neue Organisation nicht versehentlich ihr
+ganzes Budget für Evaluierung ausgibt.
 
-Hat die Organisation bereits ein Model-Profil, wird der Agent auf dem ältesten
-veröffentlicht. Ohne eines wird er als Draft angelegt, und ein Mensch wählt sein
-Modell und veröffentlicht ihn. Bis dahin sagen das die Funktionen, die ihn
-verwenden.
+Nur die Plattform führt ihn aus. Chat, API, ein Embed oder eine öffentliche
+Seite, ein Kanal, ein Zeitplan und die Delegation durch einen anderen Agent
+lehnen ihn ab, im Service, der den Run starten würde, nicht nur in der Konsole.
+
+Hat die Organisation bereits ein Model-Profil, wird ein Bewerter auf dem
+ältesten veröffentlicht oder auf dem, das bei seiner Erstellung gewählt wurde.
+Ohne eines wird er als Draft angelegt, und ein Mensch wählt sein Modell und
+veröffentlicht ihn. Bis dahin sagen das die Funktionen, die ihn verwenden.
 
 Der [Schalter für KI-Unterstützung](governance.md#ai-assistance) der
-Organisation entscheidet, ob System-Agents überhaupt laufen.
+Organisation entscheidet, ob Bewerter überhaupt laufen.
 
 ## Model-Profile { #model-profiles }
 

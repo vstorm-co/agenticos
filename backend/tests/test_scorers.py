@@ -454,15 +454,12 @@ class TestGrades:
             run_id=uuid.uuid4(),
         )
 
-        assert [(r.status, r.reason) for r in results] == [
-            ("pass", "4/5: Right"),
-            (
-                "pass",
-                f'5/5: Warm [not in the answer, unverified: "Happy to help", "{"x" * 80}…"]',
-            ),
+        assert [(r.status, r.reason, r.unverified_quotes) for r in results] == [
+            ("pass", "4/5: Right", []),
+            ("pass", "5/5: Warm", ["Happy to help", f"{'x' * 80}…"]),
         ]
 
-    def test_a_flag_survives_a_reason_at_the_length_limit(self) -> None:
+    def test_an_unverified_quote_stays_out_of_a_reason_at_the_length_limit(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
         verdict = JudgeVerdict(
             grades=[JudgeGrade(id="r1", score=4, reason="r" * 3000, quotes=["absent"])]
@@ -471,18 +468,8 @@ class TestGrades:
         [result] = graded(criteria, verdict, answer="", scale_max=5, pass_at=4, run_id=uuid.uuid4())
 
         assert len(result.reason) == MAX_REASON
-        assert result.reason.endswith('[not in the answer, unverified: "absent"]')
-
-    def test_a_flag_however_long_leaves_the_grade_and_the_limit(self) -> None:
-        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
-        escaped = ["\x01" * MAX_QUOTE] * MAX_QUOTES
-        verdict = JudgeVerdict(grades=[JudgeGrade(id="r1", score=4, reason="r", quotes=escaped)])
-
-        [result] = graded(criteria, verdict, answer="", scale_max=5, pass_at=4, run_id=uuid.uuid4())
-
-        assert len(result.reason) <= MAX_REASON
-        assert result.reason.startswith("4/5: r [not in the answer, unverified: ")
-        assert result.status == "pass"
+        assert set(result.reason[5:]) == {"r"}
+        assert (result.unverified_quotes, result.status) == (["absent"], "pass")
 
     @pytest.mark.parametrize("quotes", [["q"] * (MAX_QUOTES + 1), ["q" * (MAX_QUOTE + 1)], [""]])
     def test_quotes_past_the_limits_are_not_a_valid_verdict(self, quotes) -> None:

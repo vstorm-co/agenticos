@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { caseScore } from "@/test-utils/scores";
+
 import type { CaseScore, ScorerResult } from "@/types/scoring";
 import { ScoreCard } from "./score-card";
 
@@ -14,6 +16,7 @@ function result(overrides: Partial<ScorerResult> = {}): ScorerResult {
     score: 0.4,
     reason: "2/5: curt",
     reason_code: null,
+    unverified_quotes: [],
     judge_run_id: null,
     ...overrides,
   };
@@ -21,6 +24,7 @@ function result(overrides: Partial<ScorerResult> = {}): ScorerResult {
 
 function score(overrides: Partial<CaseScore> = {}): CaseScore {
   return {
+    ...caseScore(),
     id: "s1",
     dataset_id: "d1",
     case_id: "c1",
@@ -28,6 +32,7 @@ function score(overrides: Partial<CaseScore> = {}): CaseScore {
     question: "How long is the refund window?",
     reference_answer: null,
     run_id: "run-1",
+    run_model: null,
     judge: null,
     results: [result()],
     passed: false,
@@ -48,6 +53,74 @@ function score(overrides: Partial<CaseScore> = {}): CaseScore {
  * them - so the judge's opinion stays readable after it is overruled.
  */
 describe("ScoreCard", () => {
+  it("says which agent answered, at which version, on which model, and when", () => {
+    const { rerender } = render(
+      <ScoreCard
+        score={score({ run_model: "gpt-4.1", agent_name: "Support", agent_version: 3 })}
+      />,
+    );
+
+    expect(screen.getByText("Support v3")).toBeInTheDocument();
+    expect(screen.getByText("gpt-4.1")).toBeInTheDocument();
+    expect(screen.getByText(/2026/)).toHaveAttribute("datetime", "2026-10-13T00:00:00Z");
+
+    rerender(<ScoreCard score={score({ agent_name: "Support", agent_version: null })} />);
+    expect(screen.getByText("Support")).toBeInTheDocument();
+  });
+
+  it("shows what the case expected: the tool calls in their order, and the checks", () => {
+    render(
+      <ScoreCard
+        score={score({
+          expected_tool_calls: [
+            { tool: "search_kb", args: { query: "refunds" } },
+            { tool: "lookup_order", args: {} },
+          ],
+          order_mode: "in_order",
+          checks: [{ type: "contains", value: "days" }],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Expected tool calls, in this order")).toBeInTheDocument();
+    expect(screen.getByText('search_kb {"query":"refunds"}')).toBeInTheDocument();
+    expect(screen.getByText("lookup_order")).toBeInTheDocument();
+    expect(screen.getByText("contains days")).toBeInTheDocument();
+  });
+
+  it("folds a long answer and opens it on request, and says when none is kept", async () => {
+    const long = `${"word ".repeat(100)}end`;
+    const { rerender } = render(<ScoreCard score={score({ answer: long })} />);
+
+    const toggle = screen.getByRole("button", { name: "Show all" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Show less" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+
+    rerender(<ScoreCard score={score({ answer: "Thirty days." })} />);
+    expect(screen.getByText("Thirty days.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show all" })).toBeNull();
+
+    rerender(<ScoreCard score={score({ answer: null })} />);
+    expect(screen.getByText("The answer is not kept.")).toBeInTheDocument();
+  });
+
+  it("marks the judge's quotes the answer does not hold apart from its reason", () => {
+    render(
+      <ScoreCard
+        score={score({ results: [result({ unverified_quotes: ["ninety days", "a refund"] })] })}
+      />,
+    );
+
+    expect(screen.getByText("2/5: curt")).toBeInTheDocument();
+    expect(
+      screen.getByText("Quoted, but not in the answer: ninety days · a refund"),
+    ).toBeInTheDocument();
+  });
+
   it("shows what the scored revision asked, and its reference answer", () => {
     render(<ScoreCard score={score({ reference_answer: "Thirty days." })} />);
 
@@ -100,7 +173,7 @@ describe("ScoreCard", () => {
       />,
     );
 
-    expect(screen.getByText("Unscored")).toBeInTheDocument();
+    expect(screen.getAllByText("Not graded")).toHaveLength(2);
     expect(
       screen.getByText(
         "AI assistance is switched off for this organization, so the judge did not run.",
@@ -123,7 +196,7 @@ describe("ScoreCard", () => {
     );
 
     expect(screen.getByText("Passed")).toBeInTheDocument();
-    expect(screen.getByText("Decided by a person")).toBeInTheDocument();
+    expect(screen.getByText("Decided in review")).toBeInTheDocument();
     expect(screen.getByText("Policy changed")).toBeInTheDocument();
     expect(screen.getByText("Fail")).toBeInTheDocument();
   });
@@ -146,12 +219,19 @@ describe("ScoreCard", () => {
       <ScoreCard score={score({ human_passed: false, human_note: "x" })} onVerdict={onVerdict} />,
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Withdraw verdict" }));
+    await userEvent.click(screen.getByRole("button", { name: "Withdraw decision" }));
     await userEvent.clear(screen.getByRole("textbox", { name: "Note" }));
     await userEvent.click(screen.getByRole("button", { name: "Mark failed" }));
 
     expect(onVerdict).toHaveBeenNthCalledWith(1, { passed: null, note: null });
     expect(onVerdict).toHaveBeenNthCalledWith(2, { passed: false, note: null });
+  });
+
+  it("holds the decision while one is being saved", () => {
+    render(<ScoreCard score={score()} onVerdict={vi.fn()} busy />);
+
+    expect(screen.getByRole("button", { name: "Mark passed" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Mark failed" })).toBeDisabled();
   });
 
   it("offers review only for a score not already waiting", async () => {
@@ -162,7 +242,7 @@ describe("ScoreCard", () => {
     expect(onReview).toHaveBeenCalled();
 
     rerender(<ScoreCard score={score({ review_state: "pending" })} onReview={onReview} busy />);
-    expect(screen.getByText("Awaiting review")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for a decision")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Send to review" })).toBeNull();
   });
 });
