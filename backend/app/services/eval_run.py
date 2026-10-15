@@ -688,10 +688,12 @@ class EvalRunService:
                 )
             )
         judge_per_case = Decimal(0)
+        judge_model: UUID | None = None
         if plan.judged:
             judge = await self._judge_agent(ctx, plan.scoring.judge.agent_id)
+            judge_model = await self._judge_model(ctx, judge) if judge is not None else None
             judge_per_case = (
-                (await self._per_case(ctx, judge.id, None, await self._judge_model(ctx, judge)))[0]
+                (await self._per_case(ctx, judge.id, None, judge_model))[0]
                 if judge is not None
                 else settings.EVAL_FALLBACK_CASE_COST_USD
             )
@@ -706,6 +708,7 @@ class EvalRunService:
             cases=cases,
             arms=arms,
             judge_usd=judge_usd,
+            judge_model_profile_id=judge_model,
             total_usd=total,
             rerun_ceiling_usd=rerun_ceiling,
             agent_remaining_usd=agent_left,
@@ -1204,6 +1207,14 @@ class EvalRunService:
                     first_total=len(first),
                     outcome=await self._outcome(ctx, run),
                     routed_to_review=run.routed_to_review,
+                    judge_model_profile_id=next(
+                        (
+                            UUID(str(score.judge["model_profile_id"]))
+                            for score in scores.values()
+                            if score.judge and score.judge.get("model_profile_id")
+                        ),
+                        None,
+                    ),
                     ungraded_score_ids=sorted(
                         score.id
                         for score in scores.values()

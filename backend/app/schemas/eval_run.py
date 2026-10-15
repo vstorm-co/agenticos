@@ -104,6 +104,10 @@ class EvalRunEstimate(BaseSchema):
     cases: int
     arms: list[ArmEstimate]
     judge_usd: Decimal
+    judge_model_profile_id: UUID | None = Field(
+        default=None,
+        description="The model the judge would grade on; null when no judge grades the run",
+    )
     total_usd: Decimal
     rerun_ceiling_usd: Decimal
     agent_remaining_usd: Decimal | None
@@ -220,6 +224,10 @@ class EvalRunRead(BaseSchema):
             "How many of its scores the run sent to review itself: its confirmed "
             "regressions and the answers no scorer reached a verdict on"
         )
+    )
+    judge_model_profile_id: UUID | None = Field(
+        default=None,
+        description="The model the judge graded this run's answers on; null when none did",
     )
     ungraded_score_ids: list[UUID] = Field(
         default_factory=list,

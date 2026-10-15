@@ -920,6 +920,11 @@ async def test_a_baseline_graded_by_the_judge_s_older_prompt_says_so(db) -> None
     comparison = await service.compare(ctx, v7.id)
     assert comparison.verdict == "invalid"
     assert "instructions changed" in (comparison.invalid_reason or "")
+    # A run names the model its judge graded on, for a reader to set beside its own.
+    assert (await service.get(ctx, v7.id)).judge_model_profile_id is None
+    profile = uuid.uuid4()
+    await _pin(db, v6.id, {**pin, "model_profile_id": str(profile)})
+    assert (await service.get(ctx, v6.id)).judge_model_profile_id == profile
 
 
 async def test_cases_with_their_own_judge_checks_still_compare(db) -> None:
@@ -1578,6 +1583,7 @@ async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None
 
     # Ten cases, each 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
     assert estimate.judge_usd == Decimal("0.0036")
+    assert estimate.judge_model_profile_id == nano.id
 
 
 async def test_a_reused_baseline_is_asked_the_flipped_cases_again_in_this_run(db) -> None:
