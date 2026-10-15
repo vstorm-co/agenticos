@@ -4407,7 +4407,10 @@
       "evalCaseTitle": "A case from an eval run",
       "evalCaseBody": "This run answered one case of an eval run, which keeps no conversation. Its answer and how it was graded are on the eval run.",
       "evalCaseOpen": "Open the eval run",
-      "moreRunActions": "More actions for this run"
+      "moreRunActions": "More actions for this run",
+      "evalCaseGraded": "Grading an eval case: {dataset} · {input}",
+      "evalCaseGradedTitle": "The judge grading a case of an eval run",
+      "evalCaseGradedBody": "This run is the judge grading one answer of an eval run, which keeps no conversation. The answer, the grade and the judge's reasons are on the eval run."
     },
     "sandboxes": {
       "addConnection": "Add connection",

@@ -16,6 +16,8 @@ export interface EvalCaseLink {
   case_id: string;
   dataset_name: string;
   case_input: string;
+  /** The run is the judge grading the case, not the agent answering it. */
+  graded: boolean;
 }
 
 export interface AgentRun {

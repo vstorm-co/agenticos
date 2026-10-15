@@ -582,7 +582,10 @@
       "evalCaseTitle": "Case z eval runu",
       "evalCaseBody": "Ten run odpowiadał na jeden case eval runu, który nie zapisuje rozmowy. Odpowiedź i jej ocena są w eval runie.",
       "evalCaseOpen": "Otwórz eval run",
-      "moreRunActions": "Więcej akcji dla tego runa"
+      "moreRunActions": "Więcej akcji dla tego runa",
+      "evalCaseGraded": "Ocena case'a evala: {dataset} · {input}",
+      "evalCaseGradedTitle": "Sędzia ocenia case eval runu",
+      "evalCaseGradedBody": "Ten run to sędzia oceniający jedną odpowiedź eval runu, który nie zapisuje rozmowy. Odpowiedź, ocena i uzasadnienie sędziego są w eval runie."
     },
     "agents": {
       "evals": "Evale",

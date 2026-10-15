@@ -4266,7 +4266,10 @@
       "evalCaseTitle": "Ein Fall aus einem Eval-Run",
       "evalCaseBody": "Dieser Run hat einen Fall eines Eval-Runs beantwortet, der kein Gespräch speichert. Die Antwort und ihre Bewertung stehen im Eval-Run.",
       "evalCaseOpen": "Eval-Run öffnen",
-      "moreRunActions": "Weitere Aktionen für diesen Run"
+      "moreRunActions": "Weitere Aktionen für diesen Run",
+      "evalCaseGraded": "Bewertung eines Eval-Falls: {dataset} · {input}",
+      "evalCaseGradedTitle": "Der Judge bewertet einen Fall eines Eval-Runs",
+      "evalCaseGradedBody": "Dieser Run ist der Judge, der eine Antwort eines Eval-Runs bewertet, der kein Gespräch speichert. Antwort, Bewertung und Begründung des Judges stehen im Eval-Run."
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",

@@ -253,6 +253,7 @@ describe("an eval run", () => {
           case_id: "case-1",
           dataset_name: "refunds",
           case_input: "Can I return it?",
+          graded: false,
         },
       }),
     });
@@ -266,6 +267,27 @@ describe("an eval run", () => {
       "/agents/agent-9/evals/eval-1",
     );
     expect(screen.queryByTestId("timeline")).toBeNull();
+  });
+
+  it("says a judge's run graded an eval case, and opens the eval run", () => {
+    serve({
+      run: run({
+        surface: "eval",
+        eval_case: {
+          eval_run_id: "eval-1",
+          agent_id: "agent-9",
+          case_id: "case-1",
+          dataset_name: "refunds",
+          case_input: "Can I return it?",
+          graded: true,
+        },
+      }),
+    });
+    renderRun();
+    expect(
+      screen.getByRole("link", { name: "Grading an eval case: refunds · Can I return it?" }),
+    ).toHaveAttribute("href", "/agents/agent-9/evals/eval-1");
+    expect(screen.getByText("The judge grading a case of an eval run")).toBeInTheDocument();
   });
 
   it("points at the agent's evals, where its case and comparison are", () => {

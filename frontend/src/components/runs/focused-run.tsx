@@ -197,7 +197,7 @@ export function FocusedRun({
                 href={`${ROUTES.AGENTS}/${run.eval_case.agent_id}/evals/${run.eval_case.eval_run_id}`}
                 className="text-muted-foreground hover:text-foreground max-w-md truncate text-sm underline-offset-4 hover:underline"
               >
-                {t("evalCase", {
+                {t(run.eval_case.graded ? "evalCaseGraded" : "evalCase", {
                   dataset: run.eval_case.dataset_name,
                   input: run.eval_case.case_input,
                 })}
@@ -356,8 +356,8 @@ export function FocusedRun({
           {run.eval_case ? (
             <EmptyState
               icon={FlaskConical}
-              title={t("evalCaseTitle")}
-              description={t("evalCaseBody")}
+              title={t(run.eval_case.graded ? "evalCaseGradedTitle" : "evalCaseTitle")}
+              description={t(run.eval_case.graded ? "evalCaseGradedBody" : "evalCaseBody")}
               cta={{
                 label: t("evalCaseOpen"),
                 href: `${ROUTES.AGENTS}/${run.eval_case.agent_id}/evals/${run.eval_case.eval_run_id}`,
