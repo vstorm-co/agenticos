@@ -587,6 +587,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A browse signed in to a person's sites is theirs alone, and a key is held to its
+  scopes on the live view** (Codex review of #2062). A browse carrying someone's kept
+  sign-ins is no longer watched or driven by run viewers or agent editors; an
+  organization key may watch a live browse with `runs:view` and never drive one.
+  A key continues only conversations opened over the API - one of its issuer's
+  console or channel chats answers `400` instead of reaching the model.
+
 - **A long MCP tool name no longer takes the whole conversation down.** A prefixed
   name past 64 characters, or with a character providers refuse, reaches the
   model fitted (cut, with a short hash) and the server is still called by its

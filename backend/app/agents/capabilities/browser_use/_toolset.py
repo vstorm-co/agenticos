@@ -155,6 +155,7 @@ async def _live(
     if not live_browse.available() or deps.run_id is None or deps.organization_id is None:
         return chat, None, None
     run = str(deps.run_id)
+    signed_in = _signed_in_as(deps) is not None
     await live_browse.open_view(
         run,
         call_id,
@@ -162,7 +163,11 @@ async def _live(
             organization_id=deps.organization_id,
             agent_id=deps.agent_id,
             user_id=deps.user_id,
-            remembers=_signed_in_as(deps) is not None,
+            remembers=signed_in,
+            # A browse carrying its person's kept sign-ins is theirs to watch and
+            # drive alone: the pages are their accounts, whoever else may see runs
+            # or edit the agent.
+            personal=signed_in,
             task=task,
             started_at=datetime.now(UTC),
         ),

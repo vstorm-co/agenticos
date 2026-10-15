@@ -1,5 +1,5 @@
 ---
-source_sha: "398e54a8f2d7"
+source_sha: "e9feb5f368e2"
 ---
 
 # La API HTTP { #the-http-api }
@@ -152,7 +152,9 @@ conversación nueva para quien emitió la clave y devuelve su id como
 antes - los últimos turnos, o el resumen de los anteriores y lo que vino
 después. Un workspace compartido por conversación, el valor por defecto, es el de
 esa conversación. Un id desconocido, o la conversación de otra persona, responde
-`404`. La conversación se guarda en la lista de chats de quien emitió la clave con
+`404`; una conversación propia de quien emitió la clave desde la consola o un canal
+responde `400` - una clave que puede ejecutar agents no recibió los chats de esa
+persona. La conversación se guarda en la lista de chats de quien emitió la clave con
 la etiqueta **API** y queda oculta hasta que las muestre allí con un interruptor.
 
 `GET /api/v1/conversations/{id}/transcript` lee una de las conversaciones de

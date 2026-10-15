@@ -1,5 +1,5 @@
 ---
-source_sha: "398e54a8f2d7"
+source_sha: "e9feb5f368e2"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -160,7 +160,9 @@ als `conversation_id` zurück; senden Sie sie mit dem nächsten Aufruf, und der
 Agent liest, was zuvor gesagt wurde - die letzten Züge oder die Zusammenfassung
 älterer und was danach kam. Ein pro Unterhaltung geteilter Workspace, der
 Standard, ist der dieser Unterhaltung. Eine unbekannte Id oder die Unterhaltung
-eines anderen antwortet `404`. Die Unterhaltung landet in der Chatliste des
+eines anderen antwortet `404`; eine eigene Unterhaltung des Ausstellers aus der
+Konsole oder einem Kanal antwortet `400` - ein Schlüssel, der Agenten ausführen
+darf, hat die Chats der Person nicht erhalten. Die Unterhaltung landet in der Chatliste des
 Ausstellers mit dem Label **API** und bleibt ausgeblendet, bis er solche
 Unterhaltungen dort per Schalter einblendet.
 

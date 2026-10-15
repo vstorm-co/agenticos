@@ -1672,6 +1672,8 @@ class TestABrowseActingAsThePerson:
         assert kept["loaded_for"] == (self.ORG, self.PERSON)
         assert opener.opened[0]["sign_ins"] == [self.SAVED]
         assert published["meta"][2].remembers is True
+        # The pages are the person's own accounts: nobody else watches or drives.
+        assert published["meta"][2].personal is True
 
     @pytest.mark.security
     @pytest.mark.parametrize(
@@ -1688,6 +1690,7 @@ class TestABrowseActingAsThePerson:
         assert "loaded_for" not in kept
         assert opener.opened[0]["sign_ins"] == []
         assert published["meta"][2].remembers is False
+        assert published["meta"][2].personal is False
 
     async def test_a_sign_in_is_kept_only_for_the_person_the_run_acts_for(
         self, kept: dict[str, Any]

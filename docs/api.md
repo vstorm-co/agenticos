@@ -142,7 +142,9 @@ conversation for the key's issuer and returns its id as `conversation_id`; send
 it with the next call and the agent reads what was said before - the recent
 turns, or the summary of older ones and what came after. A workspace shared per
 conversation, the default, is that conversation's. An unknown id, or somebody
-else's, answers `404`. The conversation is filed in the issuer's chat list,
+else's, answers `404`; one of the issuer's own conversations from the console or a
+channel answers `400` - a key that may run agents was not given the person's chats.
+The conversation is filed in the issuer's chat list,
 labelled **API** and hidden until they switch such conversations on there.
 
 `GET /api/v1/conversations/{id}/transcript` reads one of the issuer's

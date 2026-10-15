@@ -21,6 +21,7 @@ from app.agents.ask_user import parked_status
 from app.agents.capabilities.media import prefix_for, restore_stored_media
 from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.updates import writable
@@ -714,12 +715,18 @@ class ConversationService:
         A run that names none opens one for the key's issuer, labelled as opened
         over the API, so the next call can continue it and a workspace scoped to
         the conversation has one to be scoped to (#2122). A run that names one
-        must name the caller's own, and the model reads its history the way a
-        channel thread's is read - the recent window, or the summary and what
-        came after it.
+        must name the caller's own, opened over the API, and the model reads its
+        history the way a channel thread's is read - the recent window, or the
+        summary and what came after it.
+
+        Over the API only: a key that may run agents was never given the person's
+        chats, and continuing one would hand their history to the model - and so
+        to whoever holds the key - and write the key's run into a thread they
+        were having in the console or a channel.
 
         Raises:
             NotFoundError: If the named conversation is unknown or not the caller's.
+            BadRequestError: If it was not opened over the API.
         """
         if conversation_id is None:
             opened = await conversation_repo.create_conversation(
@@ -730,13 +737,18 @@ class ConversationService:
                 origin="api",
             )
             return opened.id, None
-        await self.get_conversation(
+        conversation = await self.get_conversation(
             conversation_id,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
             for_write=True,
             include_favourite=False,
         )
+        if conversation.origin != "api":
+            raise refused_field(
+                "conversation_id",
+                "Only a conversation opened over the API can be continued over the API",
+            )
         return conversation_id, await self.model_history(
             conversation_id, limit=API_HISTORY_MESSAGES
         )

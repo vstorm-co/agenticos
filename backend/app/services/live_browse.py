@@ -43,7 +43,7 @@ from app.db.session import get_db_context
 from app.repositories import agent as agent_repo
 from app.repositories import member as member_repo
 from app.services.access import AGENT, resolve_access
-from app.services.ws_auth import authenticate_socket_token
+from app.services.ws_auth import authenticate_socket_key, authenticate_socket_token
 
 logger = logging.getLogger(__name__)
 
@@ -201,9 +201,29 @@ async def access_for(meta: BrowseMeta, auth_token: str) -> _Access | None:
     Watching takes being the person the run acts for, editing the agent, or viewing
     runs; driving takes one of the first two, because what is done in the browser
     is done as the agent.
+
+    An organization key is held to its own scopes rather than its issuer's role:
+    it may watch with `runs:view`, never a person's own browse, and never drive -
+    a browse can be signed in to its person's sites, and a read-only key driving
+    one would be operating those accounts.
     """
     async with get_db_context() as db:
         try:
+            caller = await authenticate_socket_key(db, auth_token)
+            if caller is not None:
+                key = caller.context
+                if (
+                    meta.personal
+                    or key.organization_id != meta.organization_id
+                    or not key.has(Perm.RUNS_VIEW)
+                ):
+                    return None
+                return _Access(
+                    control=False,
+                    own=False,
+                    name=caller.user.full_name or caller.user.email,
+                    user_id=str(caller.user.id),
+                )
             user = await authenticate_socket_token(db, auth_token, allow_expired=False)
         except AuthenticationError:
             return None

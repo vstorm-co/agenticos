@@ -4940,7 +4940,9 @@ class TestCallingWithAnOrganizationKey:
 
     async def test_a_run_files_under_a_conversation_of_the_issuers_own(self, db) -> None:
         tenant, agent, key = await self._capped_agent_and_key(db, "KeyThread")
-        thread = Conversation(organization_id=tenant.organization.id, user_id=tenant.user.id)
+        thread = Conversation(
+            organization_id=tenant.organization.id, user_id=tenant.user.id, origin="api"
+        )
         db.add(thread)
         await db.flush()
 
@@ -4950,6 +4952,22 @@ class TestCallingWithAnOrganizationKey:
         run = await db.get(AgentRun, uuid.UUID(answer.json()["run_id"]))
         assert run is not None
         assert run.conversation_id == thread.id
+
+    @pytest.mark.security
+    async def test_a_key_cannot_continue_the_issuers_console_chat(self, db) -> None:
+        """A key that may run agents was never given the person's chats: continuing
+        one would hand its history to the model and write the run into it."""
+        tenant, agent, key = await self._capped_agent_and_key(db, "KeyConsole")
+        chat = Conversation(organization_id=tenant.organization.id, user_id=tenant.user.id)
+        db.add(chat)
+        await db.flush()
+
+        answer = await self._run(db, agent, key, conversation_id=str(chat.id))
+
+        assert answer.status_code == 400, answer.text
+        assert answer.json()["error"]["details"]["fields"][0]["field"] == "conversation_id"
+        runs = await db.execute(select(AgentRun).where(AgentRun.conversation_id == chat.id))
+        assert runs.scalars().first() is None
 
     async def test_a_run_the_model_provider_refused_names_the_run_it_recorded(
         self, db, monkeypatch

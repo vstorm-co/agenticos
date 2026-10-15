@@ -441,3 +441,86 @@ class TestRoute:
 
         socket.accept.assert_awaited_once_with(subprotocol="browse")
         stream.assert_awaited_once_with(socket, auth_token="token", run_id=RUN, call_id=CALL)
+
+
+class TestAKeyOnTheLiveView:
+    """An organization key is held to its own scopes, not its issuer's role (Codex review of #2062)."""
+
+    ORG = uuid.uuid4()
+
+    @pytest.fixture
+    def key(self, monkeypatch: pytest.MonkeyPatch) -> Iterator[dict[str, Any]]:
+        from contextlib import asynccontextmanager
+
+        from app.core.permissions import AuthContext, Perm
+
+        held: dict[str, Any] = {"scopes": frozenset({Perm.RUNS_VIEW}), "org": self.ORG}
+
+        @asynccontextmanager
+        async def db() -> AsyncIterator[MagicMock]:
+            yield MagicMock()
+
+        async def authenticate(_db: Any, _token: str) -> Any:
+            context = AuthContext(
+                user_id=uuid.uuid4(),
+                organization_id=held["org"],
+                role="owner",
+                api_key_id=uuid.uuid4(),
+                key_scopes=held["scopes"],
+            )
+            user = MagicMock(id=context.user_id, full_name="Ops bot", email="ops@example.com")
+            return MagicMock(context=context, user=user)
+
+        monkeypatch.setattr(live_browse, "get_db_context", db)
+        monkeypatch.setattr(live_browse, "authenticate_socket_key", authenticate)
+        yield held
+
+    def _meta(self, *, personal: bool = False) -> BrowseMeta:
+        return BrowseMeta(
+            organization_id=self.ORG,
+            agent_id=uuid.uuid4(),
+            user_id=str(uuid.uuid4()),
+            personal=personal,
+            task="Read the releases",
+            started_at=datetime.now(UTC),
+        )
+
+    @pytest.mark.security
+    async def test_a_key_that_may_view_runs_watches_and_never_drives(
+        self, key: dict[str, Any]
+    ) -> None:
+        access = await live_browse.access_for(self._meta(), "aos_key")
+
+        assert access is not None
+        assert (access.control, access.own, access.name) == (False, False, "Ops bot")
+
+    @pytest.mark.security
+    async def test_a_key_without_run_viewing_sees_nothing(self, key: dict[str, Any]) -> None:
+        from app.core.permissions import Perm
+
+        key["scopes"] = frozenset({Perm.COLLECTIONS_VIEW})
+
+        assert await live_browse.access_for(self._meta(), "aos_key") is None
+
+    @pytest.mark.security
+    async def test_a_key_never_sees_a_person_s_own_browse(self, key: dict[str, Any]) -> None:
+        assert await live_browse.access_for(self._meta(personal=True), "aos_key") is None
+
+    @pytest.mark.security
+    async def test_another_organization_s_key_sees_nothing(self, key: dict[str, Any]) -> None:
+        key["org"] = uuid.uuid4()
+
+        assert await live_browse.access_for(self._meta(), "aos_key") is None
+
+    async def test_a_key_no_longer_valid_sees_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, key: dict[str, Any]
+    ) -> None:
+        from app.core.exceptions import AuthenticationError
+
+        monkeypatch.setattr(
+            live_browse,
+            "authenticate_socket_key",
+            AsyncMock(side_effect=AuthenticationError(message="revoked")),
+        )
+
+        assert await live_browse.access_for(self._meta(), "aos_key") is None

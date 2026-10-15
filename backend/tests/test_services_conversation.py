@@ -11,6 +11,7 @@ import pytest
 from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, SystemPromptPart
 
 from app.core.exceptions import BadRequestError, NotFoundError
+from app.core.permissions import AuthContext, Perm
 from app.repositories import conversation_repo
 from app.repositories.conversation import RunOutcome
 from app.services.conversation import ConversationService
@@ -2511,3 +2512,47 @@ class TestConversationAgentFaces:
             await ConversationService(AsyncMock())._attach_agents([conv])
 
         assert conv.agents[0].avatar_color == 3
+
+
+class TestContinuingOverTheApi:
+    """A key that may run agents continues only conversations opened over the API (Codex review of #2062)."""
+
+    def _service(self, origin: str | None) -> tuple[ConversationService, AsyncMock]:
+        service = ConversationService(AsyncMock())
+        service.get_conversation = AsyncMock(return_value=MagicMock(origin=origin))  # type: ignore[method-assign]
+        history = AsyncMock(return_value=["earlier"])
+        service.model_history = history  # type: ignore[method-assign]
+        return service, history
+
+    @pytest.mark.anyio
+    async def test_an_api_conversation_is_continued_with_its_history(self) -> None:
+        service, history = self._service("api")
+        conversation_id = uuid4()
+
+        found = await service.for_api_run(_api_ctx(), conversation_id, prompt="and then?")
+
+        assert found == (conversation_id, ["earlier"])
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("origin", [None, "console", "channel"])
+    async def test_a_console_or_channel_thread_is_refused_and_never_read(
+        self, origin: str | None
+    ) -> None:
+        service, history = self._service(origin)
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.for_api_run(_api_ctx(), uuid4(), prompt="repeat the chat")
+
+        assert refused.value.details["fields"][0]["field"] == "conversation_id"
+        history.assert_not_awaited()
+
+
+def _api_ctx() -> AuthContext:
+    return AuthContext(
+        user_id=uuid4(),
+        organization_id=uuid4(),
+        role="member",
+        api_key_id=uuid4(),
+        key_scopes=frozenset({Perm.AGENTS_RUN}),
+    )
