@@ -2,17 +2,26 @@
 
 The integration suite proves what a seed writes. These are the refusals no real
 database produces on demand: the deployment's agent ceiling, a publish refused
-after the agent was created, and two requests seeding the same agent at once.
+after the agent was created, and two requests seeding the same agent at once -
+and what a judge's settings become on the wire for a model that takes them and
+one that does not.
 """
 
 from __future__ import annotations
 
 import uuid
+import warnings
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from openai.types.chat import ChatCompletion
+from pydantic_ai import Agent as PydanticAgent
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
 from sqlalchemy.exc import IntegrityError
 
+from app.agents.spec import ModelSettingsSpec
 from app.agents.system_agents import JUDGE, SYSTEM_AGENTS, system_agent
 from app.core.exceptions import BadRequestError, SystemAgentUnavailableError
 from app.repositories import agent_repo, credential_repo, member_repo
@@ -97,3 +106,40 @@ async def test_an_integrity_error_with_no_winner_is_not_swallowed(monkeypatch) -
 
     with pytest.raises(IntegrityError):
         await service.ensure(organization_id=uuid.uuid4(), key=JUDGE.key)
+
+
+def _completion() -> ChatCompletion:
+    return ChatCompletion.model_validate(
+        {
+            "id": "c",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "m",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "stop",
+                    "message": {"role": "assistant", "content": "{}"},
+                }
+            ],
+        }
+    )
+
+
+@pytest.mark.parametrize(("model", "sent"), [("gpt-4.1", True), ("o3", False)])
+async def test_a_judge_s_temperature_reaches_only_a_model_that_takes_one(model, sent) -> None:
+    """A reasoning model refuses a temperature, so a judge's runs on one without it, not fail."""
+    client = MagicMock()
+    client.base_url = "https://api.openai.com/v1"
+    client.chat.completions.create = AsyncMock(return_value=_completion())
+    settings = ModelSettingsSpec(temperature=JUDGE.temperature).model_dump()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        await PydanticAgent(
+            OpenAIChatModel(model, provider=OpenAIProvider(openai_client=client)),
+            model_settings=ModelSettings(**settings),
+        ).run("Grade it.")
+
+    temperature = client.chat.completions.create.call_args.kwargs.get("temperature")
+    assert (temperature == 0.0) is sent

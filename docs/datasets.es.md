@@ -1,5 +1,5 @@
 ---
-source_sha: "93c168eefee1"
+source_sha: "003c8708f7a3"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -295,8 +295,8 @@ argumentos, y si un run aislado la bloqueó) y la respuesta. Un caso con
 contraejemplo se califica siempre también con un criterio obligatorio
 **counter-example**: la respuesta no debe repetir la respuesta mala conocida.
 Los jueces empiezan con temperatura 0, para que la misma respuesta se califique
-igual dos veces; con un modelo de razonamiento que rechaza el ajuste, hay que
-quitarlo en la página del juez.
+igual dos veces; un modelo que no acepta temperatura, como un modelo de
+razonamiento, califica sin ella.
 
 El juez solo se ejecuta donde la [asistencia de IA](governance.md#ai-assistance)
 está activada, y está desactivada hasta que un administrador la activa para la

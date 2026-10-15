@@ -277,8 +277,8 @@ every tool call the agent made - its arguments, and whether an isolated run
 blocked it - and the answer. A case with a counter-example is always graded on a
 required **counter-example** criterion as well: the answer must not repeat the
 known bad answer. Judges start at temperature 0, so one answer is graded the
-same way twice; a reasoning model that refuses the setting needs it cleared on
-the judge's page.
+same way twice; a model that takes no temperature, such as a reasoning model,
+grades without one.
 
 The judge runs only where [AI assistance](governance.md#ai-assistance) is on,
 and it is off until an admin turns it on for the organization. Until then the

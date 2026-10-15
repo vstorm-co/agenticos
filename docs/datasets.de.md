@@ -1,5 +1,5 @@
 ---
-source_sha: "93c168eefee1"
+source_sha: "003c8708f7a3"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -310,8 +310,8 @@ ein isolierter Run ihn blockiert hat - und die Antwort. Ein Fall mit
 Gegenbeispiel wird immer auch nach dem erforderlichen Kriterium
 **counter-example** bewertet: Die Antwort darf die bekannte schlechte Antwort
 nicht wiederholen. Bewerter starten mit Temperatur 0, damit dieselbe Antwort
-zweimal gleich bewertet wird; bei einem Reasoning-Modell, das die Einstellung
-ablehnt, muss sie auf der Seite des Bewerters entfernt werden.
+zweimal gleich bewertet wird; ein Modell, das keine Temperatur annimmt, etwa
+ein Reasoning-Modell, bewertet ohne sie.
 
 Der Bewerter läuft nur, wo die [KI-Unterstützung](governance.md#ai-assistance)
 eingeschaltet ist, und sie ist aus, bis ein Administrator sie für die

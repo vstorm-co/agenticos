@@ -1,5 +1,5 @@
 ---
-source_sha: "93c168eefee1"
+source_sha: "003c8708f7a3"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -290,8 +290,8 @@ informacją, czy izolowany run je zablokował - oraz odpowiedź. Przypadek z
 kontrprzykładem jest zawsze oceniany także według wymaganego kryterium
 **counter-example**: odpowiedź nie może powtarzać znanej złej odpowiedzi.
 Sędziowie startują z temperaturą 0, więc ta sama odpowiedź jest oceniana dwa
-razy tak samo; model rozumujący, który odrzuca to ustawienie, wymaga
-wyczyszczenia go na stronie sędziego.
+razy tak samo; model, który nie przyjmuje temperatury, na przykład model
+rozumujący, ocenia bez niej.
 
 Sędzia działa tylko tam, gdzie włączone jest [wsparcie AI](governance.md#ai-assistance),
 a jest ono wyłączone, dopóki administrator nie włączy go dla organizacji. Do
