@@ -53,7 +53,9 @@ import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
+import { DraftEvalNote } from "@/components/evals/draft-eval-note";
 import { EvalsPanel } from "@/components/evals/evals-panel";
+import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
 import { VersionHistory } from "@/components/agents/version-history";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
@@ -267,6 +269,9 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
   const canViewRuns = can(Perm.runsView);
+  // Testing the draft runs it - the editors' work in progress - on a dataset.
+  const canTestDraft = canViewRuns && canEdit && !!agent?.can_run && can(Perm.datasetsRun);
+  const [testingDraft, setTestingDraft] = useState(false);
 
   // The stale-reference check reads a reference as dead when its id is absent
   // from a list, so it must not run until every list it consults has *succeeded*:
@@ -776,6 +781,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               agentId={id}
               currentVersionId={agent.current_version_id}
               draftSpec={agent.draft_spec}
+              onTest={canTestDraft ? () => setTestingDraft(true) : undefined}
             />
             {/* And this one: is my edit stored. The draft saves itself; this
                 says where that stands. Quiet when everything is stored -
@@ -1010,7 +1016,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
             // the retry is one click rather than a re-run of validation.
           }
         }}
-      />
+      >
+        {canViewRuns && (
+          <DraftEvalNote
+            agentId={id}
+            onTest={() => {
+              setPublishOpen(false);
+              setTestingDraft(true);
+            }}
+          />
+        )}
+      </PublishDialog>
+      {testingDraft && (
+        <StartEvalDialog agentId={id} target="compare" onOpenChange={setTestingDraft} />
+      )}
 
       {confirming === "archive" && (
         <ConfirmDialog

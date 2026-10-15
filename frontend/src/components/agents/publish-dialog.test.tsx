@@ -39,16 +39,13 @@ function environment(
 describe("the publish dialog", () => {
   it("says the first publish creates production and goes live at once", () => {
     render(
-      <PublishDialog
-        open
-        onOpenChange={vi.fn()}
-        version={1}
-        environments={[]}
-        onConfirm={vi.fn()}
-      />,
+      <PublishDialog open onOpenChange={vi.fn()} version={1} environments={[]} onConfirm={vi.fn()}>
+        <p>what the evals said</p>
+      </PublishDialog>,
     );
 
     expect(screen.getByRole("heading", { name: "Publish v1?" })).toBeInTheDocument();
+    expect(screen.getByText("what the evals said")).toBeInTheDocument();
     expect(
       screen.getByText(
         "This is the first publish, so it creates production on v1 - the agent has to have somewhere to run.",

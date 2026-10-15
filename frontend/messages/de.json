@@ -669,7 +669,8 @@
     "bindingOffHere": "In diesem Environment aus",
     "testSideUnusable": "Hier aus: Die Testverbindung ist deaktiviert oder nicht angemeldet",
     "testConnectionsSaved": "Testverbindungen gespeichert",
-    "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden"
+    "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden",
+    "testDraft": "Entwurf testen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -6003,6 +6004,12 @@
       "emptyTitle": "Auf diesem Dataset wurde noch kein Agent getestet",
       "emptyBody": "Lass einen Agenten diese Fälle beantworten, um zu sehen, welche er besteht, wie er im Vergleich zu früheren Versionen abschneidet und was es kostet.",
       "unnamedAgent": "Ein Agent, den du nicht sehen kannst"
+    },
+    "draftNote": {
+      "untested": "Dieser Entwurf wurde seit seiner letzten Änderung nicht getestet.",
+      "test": "Testen",
+      "running": "Dieser Entwurf wird gerade getestet.",
+      "result": "{verdict, select, worse {Letzter Test des Entwurfs: schlechter als {baseline}, {broke} kaputt.} better {Letzter Test des Entwurfs: besser als {baseline}, {fixed} behoben.} no_difference {Letzter Test des Entwurfs: kein Unterschied zu {baseline}.} inconclusive {Letzter Test des Entwurfs: noch unklar gegenüber {baseline}.} invalid {Der letzte Test des Entwurfs ließ sich nicht mit {baseline} vergleichen.} other {Letzter Test des Entwurfs: das erste Ergebnis, ohne Vergleich.}}"
     }
   }
 }

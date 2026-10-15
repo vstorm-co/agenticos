@@ -673,7 +673,8 @@
     "bindingOffHere": "Off in this environment",
     "testSideUnusable": "Off here: the test connection is disabled or not signed in",
     "testConnectionsSaved": "Test connections saved",
-    "failedTestConnections": "The test connections could not be saved"
+    "failedTestConnections": "The test connections could not be saved",
+    "testDraft": "Test draft"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -6145,6 +6146,12 @@
       "emptyTitle": "No agent has been tested on this dataset yet",
       "emptyBody": "Run an agent over these cases to see which it passes, how it compares with its earlier versions, and what it costs.",
       "unnamedAgent": "An agent you cannot see"
+    },
+    "draftNote": {
+      "untested": "This draft was not tested since it last changed.",
+      "test": "Test it",
+      "running": "This draft is being tested now.",
+      "result": "{verdict, select, worse {Last test of this draft: worse than {baseline}, {broke} broke.} better {Last test of this draft: better than {baseline}, {fixed} fixed.} no_difference {Last test of this draft: no different from {baseline}.} inconclusive {Last test of this draft: not sure yet against {baseline}.} invalid {The last test of this draft could not be compared with {baseline}.} other {Last test of this draft: the first result, with nothing to compare it with.}}"
     }
   }
 }

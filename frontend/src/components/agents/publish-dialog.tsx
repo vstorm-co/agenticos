@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -23,6 +24,8 @@ interface PublishDialogProps {
   environments: AgentEnvironment[];
   publishing?: boolean;
   onConfirm: () => void | Promise<void>;
+  /** What the evals said about this draft, said before it goes live. */
+  children?: ReactNode;
 }
 
 /**
@@ -44,6 +47,7 @@ export function PublishDialog({
   environments,
   publishing,
   onConfirm,
+  children,
 }: PublishDialogProps) {
   const t = useTranslations("agents");
   const tUi = useTranslations("ui");
@@ -55,6 +59,7 @@ export function PublishDialog({
           <DialogTitle>{t("publishDialogTitle", { version })}</DialogTitle>
           <DialogDescription>{t("publishFreezesDraft", { version })}</DialogDescription>
         </DialogHeader>
+        {children}
         <div className="text-muted-foreground space-y-1.5 text-sm">
           {/* Where this version lands, environment by environment. Publishing
               mints a version and moves only what asked to be moved, so the one
