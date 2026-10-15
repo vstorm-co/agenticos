@@ -1,5 +1,5 @@
 ---
-source_sha: "6cd3215a642b"
+source_sha: "e24ca365e149"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -537,6 +537,12 @@ a odmowa dociera do modelu jako błąd do ponowienia, a nie jako pusta strona �
 odmowa w kształcie wyniku to taka, którą model obchodzi w odpowiedzi, nie mówiąc,
 że musiał. Bibliotece można kazać dopuszczać adresy lokalne; nic tutaj tego nie
 wystawia.
+
+Każda z tych porażek, jak każda inna (403, przekroczony czas), jest ponowieniem
+tylko dopóki narzędziu zostało podejście. Pydantic AI liczy ponowienia per
+narzędzie, a nie per URL, więc druga strona, która odmówiła agentowi, kończyłaby
+cały run; przy ostatnim podejściu ta sama wiadomość wraca więc jako wynik
+narzędzia, a model przechodzi do innego źródła albo odpowiada bez niego.
 
 !!! warning "Filtry domen nie są granicą bezpieczeństwa — jest nią `safe_download`"
 

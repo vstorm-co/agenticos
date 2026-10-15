@@ -30,7 +30,7 @@ import contextlib
 import contextvars
 import logging
 from binascii import Error as BinasciiError
-from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
+from collections.abc import AsyncGenerator, Callable, Coroutine, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
@@ -1624,7 +1624,7 @@ class SandboxWorkspaceService:
     @asynccontextmanager
     async def _archive(
         self, ctx: AuthContext, row: AgentWorkspace, *, timeout: float = DEFAULT_TIMEOUT_SECONDS
-    ) -> AsyncIterator[Any | None]:
+    ) -> AsyncGenerator[Any | None, None]:
         """A reader for the host volume behind a container-backed workspace.
 
         `None` when the workspace has no connection left to ask - the host was

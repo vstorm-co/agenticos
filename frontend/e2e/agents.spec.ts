@@ -265,7 +265,9 @@ test.describe("Agents", () => {
     // Builder that renders its shell while the agent fails to load shows the
     // same headings and none of this.
     await expect(pageStatus(page)).toContainText("published");
-    await expect(page.getByText("Explains what this platform does")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Description" })).toHaveValue(
+      /Explains what this platform does/,
+    );
 
     await expect(page.getByRole("textbox", { name: "Instructions" })).toHaveValue(
       /You are the Getting Started agent on AgenticOS/,

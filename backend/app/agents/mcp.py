@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Any
@@ -80,7 +80,7 @@ class McpServerSpec:
 @asynccontextmanager
 async def _mcp_transport(
     url: str, headers: dict[str, str] | None
-) -> AsyncIterator[tuple[Any, Any]]:
+) -> AsyncGenerator[tuple[Any, Any], None]:
     """Open the right client transport for *url*, yielding `(read, write)`.
 
     The transport is inferred from the URL exactly as the toolset layer does it

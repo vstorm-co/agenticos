@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
@@ -744,7 +744,7 @@ class CdpPage:
 @asynccontextmanager
 async def open_page(  # pragma: no cover - needs a live browser
     *, cdp_url: str, start_url: str, policy: PagePolicy
-) -> AsyncIterator[CdpPage]:
+) -> AsyncGenerator[CdpPage, None]:
     """Attach to a browser, open one tab on `start_url`, and close it again.
 
     The tab is created and closed by this context manager, so a browse leaves the

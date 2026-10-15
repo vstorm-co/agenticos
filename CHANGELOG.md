@@ -35,6 +35,40 @@ Two things are versioned separately from this file and worth knowing about:
   password manager's prompt could not be closed until the tour ended. The page
   itself is still held under the tour.
 
+## [0.0.538] - 2026-10-15
+
+### Changed
+
+- **Backend dependencies move up.** Pydantic AI 2.55.0 with pydantic-ai-harness
+  0.55.0 and pydantic-ai-skills 2.1.0, FastAPI 0.143.1, Logfire 5.2.0,
+  genai-prices 0.1.13, asyncpg 0.32.0, the Anthropic SDK 1.13.0, the OpenAI SDK
+  3.29.0, pydantic-ai-backend 0.2.33, llama-cloud 2.18.0, boto3 1.43.111,
+  tavily-python 0.8.5, phonenumberslite 9.0.41, ruff 0.17.0 and ty 0.0.86; the
+  floors in `pyproject.toml` follow. ty 0.0.86 deprecates annotating a context
+  manager's generator as an `Iterator`, so the nineteen that did now return a
+  `Generator` or `AsyncGenerator`. Folds in Dependabot's #2132.
+
+## [0.0.537] - 2026-10-15
+
+### Fixed
+
+- **An agent can be renamed in the Builder.** The name and description are
+  spec fields, and the API stored them with the draft, but no Builder control
+  edited them. A duplicate therefore kept the name "<name> (copy)". The Build
+  tab now opens on a name and description card that autosaves with the rest
+  of the draft. A blank name is flagged and not sent. The handle (`@slug`)
+  stays the same, so delegations and mentions wired to it keep working.
+
+## [0.0.536] - 2026-10-15
+
+### Fixed
+
+- **A second page that refuses `web_fetch` no longer ends the run.** Pydantic AI
+  counts retries per tool, not per URL, so two sites answering 403 (or any two
+  failed fetches) in one run failed it with `UnexpectedModelBehavior: Tool
+  'web_fetch' exceeded max retries count of 1`. A failed fetch is now a retry
+  while the tool has one left and the same message as its result once it has not.
+
 ## [0.0.535] - 2026-10-09
 
 ### Fixed

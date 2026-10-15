@@ -1,5 +1,5 @@
 ---
-source_sha: "6cd3215a642b"
+source_sha: "e24ca365e149"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -569,6 +569,13 @@ die Ablehnung erreicht das Modell als wiederholbarer Fehler statt als leere Seit
 eine Ablehnung in der Form eines Ergebnisses ist eine, um die das Modell
 herumantwortet, ohne zu sagen, dass es das musste. Der Bibliothek lässt sich sagen,
 dass sie lokale Adressen zulassen soll; hier legt nichts das offen.
+
+Jeder dieser Fehlschläge ist, wie jeder andere (ein 403, eine Zeitüberschreitung),
+nur so lange eine Wiederholung, wie das Tool noch einen Versuch hat. Pydantic AI
+zählt Wiederholungen pro Tool, nicht pro URL, sodass die zweite Seite, die den
+Agenten abweist, sonst den ganzen Run beenden würde; beim letzten Versuch kommt
+dieselbe Meldung stattdessen als Ergebnis des Tools zurück, und das Modell
+wechselt zu einer anderen Quelle oder antwortet ohne sie.
 
 !!! warning "Die Domain-Filter sind nicht die Sicherheitsgrenze — `safe_download` ist es"
 

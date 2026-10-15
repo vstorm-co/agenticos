@@ -7,7 +7,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -92,7 +92,7 @@ class _ChatLocks:
         return len(self._held)
 
     @asynccontextmanager
-    async def hold(self, bot_id: str, chat_id: str) -> AsyncIterator[None]:
+    async def hold(self, bot_id: str, chat_id: str) -> AsyncGenerator[None, None]:
         key = f"{bot_id}:{chat_id}"
         lock, waiting = self._held.get(key) or (asyncio.Lock(), 0)
         self._held[key] = (lock, waiting + 1)
