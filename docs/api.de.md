@@ -1,5 +1,5 @@
 ---
-source_sha: "386702662fed"
+source_sha: "b430564e26d6"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -361,8 +361,11 @@ hinweg antwortet mit `404`, nicht mit `403`, aus dem oben genannten Grund.
 **Ein Run, der begann und dann scheiterte, nennt sich selbst.**
 `POST /agents/{id}/run` antwortet `502` mit `MODEL_CALL_FAILED`, wenn der
 Modellanbieter die Anfrage abgelehnt oder nicht abgeschlossen hat, und `500` mit
-`RUN_FAILED` bei jedem anderen Fehler, nachdem der Run begonnen hatte. Beide
-tragen `details.run_id` und `details.status`, und `message` sagt den Grund in
+`RUN_FAILED` bei jedem anderen Fehler, nachdem der Run begonnen hatte - ein
+Fallback, dessen Modelle alle scheiterten, zählt als Fehler des Modells. Beide
+tragen `details.run_id` und `details.status`, dazu `details.conversation_id`, wenn
+der Run in eine Unterhaltung schrieb, damit ein erneuter Versuch diesen Thread
+fortsetzt statt einen neuen zu öffnen, und `message` sagt den Grund in
 den Worten der Plattform statt in der rohen Antwort des Anbieters. Der Run ist
 als fehlgeschlagen erfasst, mit dem, was er verbraucht hat, sodass
 `GET /api/v1/runs/{run_id}` ihn liest; die Anfrage erneut zu senden startet einen

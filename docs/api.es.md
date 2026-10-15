@@ -1,5 +1,5 @@
 ---
-source_sha: "386702662fed"
+source_sha: "b430564e26d6"
 ---
 
 # La API HTTP { #the-http-api }
@@ -346,8 +346,11 @@ Un `401` lleva `WWW-Authenticate: Bearer`. Una lectura entre inquilinos responde
 
 **Un run que empezó y luego falló se nombra a sí mismo.** `POST /agents/{id}/run`
 responde `502` con `MODEL_CALL_FAILED` cuando el proveedor del modelo rechazó la
-solicitud o no la completó, y `500` con `RUN_FAILED` ante cualquier otro fallo
-una vez empezado el run. Ambas llevan `details.run_id` y `details.status`, y
+solicitud o no la completó - también cada modelo de una cadena de fallback - y
+`500` con `RUN_FAILED` ante cualquier otro fallo una vez empezado el run. Ambas
+llevan `details.run_id` y `details.status`, y `details.conversation_id` cuando el
+run escribió en una conversación, para que un reintento continúe ese hilo en vez
+de abrir otro; y
 `message` dice el porqué con las palabras de la plataforma, no con la respuesta
 cruda del proveedor. El run queda registrado como fallido con lo que gastó, así
 que `GET /api/v1/runs/{run_id}` lo lee; enviar la solicitud de nuevo inicia un

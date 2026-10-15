@@ -1,5 +1,5 @@
 ---
-source_sha: "386702662fed"
+source_sha: "b430564e26d6"
 ---
 
 # API HTTP { #the-http-api }
@@ -337,8 +337,10 @@ odpowiada `404`, a nie `403`, z podanego wyżej powodu.
 
 **Run, który się zaczął i nie powiódł, podaje swoje id.** `POST /agents/{id}/run`
 odpowiada `502` z `MODEL_CALL_FAILED`, gdy dostawca modelu odrzucił żądanie albo
-go nie dokończył, oraz `500` z `RUN_FAILED` przy każdej innej awarii po starcie
-runu. Obie odpowiedzi niosą `details.run_id` i `details.status`, a `message` mówi
+go nie dokończył - także każdy model łańcucha fallbacku - oraz `500` z
+`RUN_FAILED` przy każdej innej awarii po starcie runu. Obie odpowiedzi niosą
+`details.run_id` i `details.status`, a `details.conversation_id`, gdy run pisał do
+rozmowy, więc ponowna próba kontynuuje ten wątek zamiast otwierać nowy; a `message` mówi
 dlaczego słowami platformy, a nie surową odpowiedzią dostawcy. Run jest zapisany
 jako nieudany razem z tym, co zużył, więc `GET /api/v1/runs/{run_id}` go odczyta;
 ponowne wysłanie żądania zaczyna nowy run.

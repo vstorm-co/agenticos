@@ -330,8 +330,10 @@ not `403`, for the reason above.
 
 **A run that started and then failed names itself.** `POST /agents/{id}/run`
 answers `502` with `MODEL_CALL_FAILED` when the model provider refused or failed
-the request, and `500` with `RUN_FAILED` for any other failure once the run had
-begun. Both carry `details.run_id` and `details.status`, and `message` says why
+the request - every model of a fallback chain included - and `500` with
+`RUN_FAILED` for any other failure once the run had begun. Both carry
+`details.run_id` and `details.status`, and `details.conversation_id` when the run
+wrote to one, so a retry continues that thread instead of opening another; and `message` says why
 in the platform's words rather than in the provider's raw response. The run is
 recorded as failed with what it spent, so `GET /api/v1/runs/{run_id}` reads it;
 sending the request again starts a new run.

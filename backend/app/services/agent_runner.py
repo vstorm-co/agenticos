@@ -2092,13 +2092,27 @@ def failed_run_error(run: AgentRun, exc: Exception) -> RunFailedError:
     """The refusal naming a run that failed once it started (#2121).
 
     `run.error` is our own sentence, written by `_run` from the exception; the
-    exception itself is not put on the wire.
+    exception itself is not put on the wire. A fallback chain whose every model
+    failed arrives as a group of model errors, and is the model's failure too.
+    The conversation is named where there is one: a key's run opened it, and
+    without the id a retry could only open another.
     """
-    kind = ModelCallFailedError if isinstance(exc, ModelAPIError) else RunFailedError
+    kind = ModelCallFailedError if _only_model_errors(exc) else RunFailedError
+    details: dict[str, str] = {"run_id": str(run.id), "status": run.status}
+    if run.conversation_id is not None:
+        details["conversation_id"] = str(run.conversation_id)
     return kind(
         message=f"{kind.message}: {run.error}" if run.error else kind.message,
-        details={"run_id": str(run.id), "status": run.status},
+        details=details,
     )
+
+
+def _only_model_errors(exc: BaseException) -> bool:
+    """Whether `exc` is a model call's failure - on its own, or every one of a group."""
+    if isinstance(exc, BaseExceptionGroup):
+        failed, rest = exc.split(ModelAPIError)
+        return failed is not None and rest is None
+    return isinstance(exc, ModelAPIError)
 
 
 def _browser_step_profile(spec: AgentSpec) -> UUID | None:

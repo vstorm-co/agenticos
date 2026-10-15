@@ -5252,6 +5252,37 @@ class TestAFailedRunOverTheApi:
         assert "key=k" not in raised.value.message
 
     @pytest.mark.anyio
+    async def test_a_fallback_chain_that_all_failed_is_the_models_failure(self):
+        """Review on #2062: every provider failing arrives as a group, and was 500."""
+        from pydantic_ai.exceptions import FallbackExceptionGroup, ModelHTTPError
+
+        chain = FallbackExceptionGroup(
+            "all failed", [ModelHTTPError(503, "a"), ModelHTTPError(429, "b")]
+        )
+        service, run = self._service(chain)
+        run.conversation_id = uuid.uuid4()
+
+        with pytest.raises(ModelCallFailedError) as raised:
+            await service.execute(_ctx(), uuid.uuid4(), "hi", reports_failure=True)
+
+        assert raised.value.status_code == 502
+        # Named, so a key's caller continues the thread rather than opening another.
+        assert raised.value.details["conversation_id"] == str(run.conversation_id)
+
+    @pytest.mark.anyio
+    async def test_a_group_with_anything_but_model_errors_is_ours(self):
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        service, _run = self._service(
+            ExceptionGroup("mixed", [ModelHTTPError(503, "a"), RuntimeError("boom")])
+        )
+
+        with pytest.raises(RunFailedError) as raised:
+            await service.execute(_ctx(), uuid.uuid4(), "hi", reports_failure=True)
+
+        assert raised.value.status_code == 500
+
+    @pytest.mark.anyio
     async def test_any_other_failure_names_the_run_too(self):
         service, run = self._service(RuntimeError("boom"), error=None)
 
