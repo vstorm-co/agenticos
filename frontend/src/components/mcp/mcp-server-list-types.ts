@@ -43,6 +43,12 @@ export interface DraftState {
    * so the form's first submit was a guaranteed conflict.
    */
   suggestedName?: string;
+  /**
+   * The scope already holds an account on this server, so this one must be
+   * named: two accounts of one service otherwise read as the same name in every
+   * picker and approval, and the backend refuses the second without a label.
+   */
+  needsLabel?: boolean;
 }
 
 /**

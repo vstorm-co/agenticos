@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A second account on one service is named before it connects.** Two accounts
+  of Outlook read as "Outlook" twice in every picker and approval, so the form
+  asks for a label when the person or the organization already holds one on that
+  server - and Connect opens that form instead of going straight to consent - and
+  the API refuses an unnamed second account. A label typed before an OAuth sign-in
+  is no longer dropped on the way to the provider.
+
 - **A connection can bring its MCP server's own instructions.** Some servers
   explain how their tools are meant to be used; switching it on in the
   connection's Edit dialog adds that text to the agent's instructions. Off for

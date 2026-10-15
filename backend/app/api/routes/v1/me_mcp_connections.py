@@ -100,6 +100,7 @@ async def start_mcp_oauth(
             name=data.name,
             url=data.url,
             catalog_key=data.catalog_key,
+            label=data.label,
             client_id=data.client_id,
             client_secret=data.client_secret,
         )

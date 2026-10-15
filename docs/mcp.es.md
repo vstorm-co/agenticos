@@ -1,5 +1,5 @@
 ---
-source_sha: "22745f48d5bc"
+source_sha: "0e5ab86763a9"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -273,6 +273,10 @@ listan sus cuentas vinculadas con **Add another account**. Cuando un run alcanza
 un servicio a través de más de una cuenta, una línea de sus instrucciones nombra
 cada cuenta junto a su prefijo y le pide al modelo que pregunte cuando no esté
 claro a cuál se refiere la persona.
+
+Una segunda cuenta en un servicio tiene que llevar nombre: su etiqueta es lo que
+distingue las dos en cada selector y cada aprobación, así que el formulario lo pide
+antes de conectar, y la API rechaza una segunda cuenta sin nombre en `label`.
 
 ## Autenticación { #authentication }
 

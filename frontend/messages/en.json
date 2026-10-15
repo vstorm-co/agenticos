@@ -2999,6 +2999,7 @@
     "disconnectWarning": "Disconnect \"{name}\"?",
     "displayName": "Name",
     "displayNameHint": "What this connection is called on screen. Optional - without one it is shown under its tool prefix.",
+    "secondAccountNeedsLabel": "You already have an account on this service. Name this one so you can tell them apart.",
     "displayNamePlaceholder": "Company wiki",
     "documentation": "Documentation",
     "edit": "Edit",

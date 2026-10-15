@@ -17,12 +17,13 @@ import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 const create = vi.fn();
+const held = vi.hoisted(() => ({ own: [] as { name: string; catalog_key: string | null }[] }));
 vi.mock("@/hooks/use-org-mcp-connections", () => ({
-  useOrgMcpConnections: () => ({ create }),
+  useOrgMcpConnections: () => ({ create, connections: [] }),
 }));
 const createOwn = vi.fn();
 vi.mock("@/hooks/use-mcp-connections", () => ({
-  useMcpConnections: () => ({ create: createOwn }),
+  useMcpConnections: () => ({ create: createOwn, connections: held.own }),
 }));
 vi.mock("@/lib/mcp-connections-api", () => ({ startMcpOAuth: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
@@ -516,10 +517,14 @@ describe("useConnectEntry with names already taken", () => {
     vi.clearAllMocks();
     vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent.example" });
     function Harness() {
+      // Taken by other services' accounts: the names are the prefixes to avoid.
       const connect = useConnectEntry("personal", {
         openForm: vi.fn(),
         returnTo: "/agents/a1",
-        taken: ["notion", "notion-2"],
+        held: [
+          { name: "notion", catalog_key: null },
+          { name: "notion-2", catalog_key: "notion-clone" },
+        ],
       });
       return (
         <button type="button" onClick={() => connect(OAUTH_ENTRY)}>
@@ -537,6 +542,55 @@ describe("useConnectEntry with names already taken", () => {
         "personal",
       ),
     );
+  });
+});
+
+describe("a second account on one service", () => {
+  it("goes through the form, where it is named, rather than straight to consent", async () => {
+    vi.clearAllMocks();
+    const openForm = vi.fn();
+    function Harness() {
+      const connect = useConnectEntry("personal", {
+        openForm,
+        returnTo: "/agents/a1",
+        held: [{ name: "notion", catalog_key: "notion" }],
+      });
+      return (
+        <button type="button" onClick={() => connect(OAUTH_ENTRY)}>
+          go
+        </button>
+      );
+    }
+    render(<Harness />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", { name: "go" }));
+
+    expect(openForm).toHaveBeenCalledWith(OAUTH_ENTRY);
+    expect(startMcpOAuth).not.toHaveBeenCalled();
+  });
+
+  it("asks for a name before consent, then carries it under a free prefix", async () => {
+    vi.clearAllMocks();
+    held.own = [{ name: "notion", catalog_key: "notion" }];
+    vi.mocked(startMcpOAuth).mockResolvedValue({ authorization_url: "https://consent.example" });
+    render(<ConnectOwnServerDialog entry={OAUTH_ENTRY} onClose={vi.fn()} returnTo="/agents/a1" />, {
+      wrapper,
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Connect/ }));
+    expect(startMcpOAuth).not.toHaveBeenCalled();
+    expect(screen.getByText(/already have an account on this service/)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Work");
+    await userEvent.click(screen.getByRole("button", { name: /Connect/ }));
+
+    await waitFor(() =>
+      expect(startMcpOAuth).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "notion-2", label: "Work", catalog_key: "notion" }),
+        "personal",
+      ),
+    );
+    held.own = [];
   });
 });
 

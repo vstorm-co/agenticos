@@ -254,6 +254,10 @@ another account**. Wherever a run reaches one service through more than one
 account, one line of its instructions names each account beside its prefix
 and tells the model to ask when it is unclear which one the person means.
 
+A second account on a service has to be named: its label is what tells the two
+apart in every picker and approval, so the form asks for one before it connects,
+and the API refuses an unnamed second account on `label`.
+
 ## Authentication
 
 Three modes, which is the only thing that really varies between servers.

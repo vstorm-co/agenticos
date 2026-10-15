@@ -677,6 +677,14 @@ class McpConnectionService:
                 message="MCP connection with this name already exists",
                 details={"name": data.name},
             )
+        if data.catalog_key is not None:
+            _refuse_an_unnamed_second_account(
+                await mcp_connection_repo.list_user_scoped_by_catalog_key(
+                    self.db, user_id=user_id, catalog_key=data.catalog_key
+                ),
+                name=data.name,
+                label=data.label,
+            )
         token = data.auth_token.strip() if data.auth_token else None
         if token:
             refuse_binding_while_impersonating("Adding an integration token")
@@ -858,6 +866,15 @@ class McpConnectionService:
             sign_in=True, registers_clients=server.registration_endpoint is not None
         )
 
+    async def _refuse_an_unnamed_second_org_account(
+        self, ctx: AuthContext, *, catalog_key: str, name: str, label: str | None
+    ) -> None:
+        """`_refuse_an_unnamed_second_account`, for the organization's own accounts."""
+        first = await mcp_connection_repo.get_org_scoped_by_catalog_key(
+            self.db, organization_id=ctx.organization_id, catalog_key=catalog_key
+        )
+        _refuse_an_unnamed_second_account([first] if first else [], name=name, label=label)
+
     async def oauth_start_for_org(
         self,
         ctx: AuthContext,
@@ -865,6 +882,7 @@ class McpConnectionService:
         name: str,
         url: str,
         catalog_key: str | None = None,
+        label: str | None = None,
         client_id: str | None = None,
         client_secret: SecretStr | None = None,
         audience: AudienceChoice | None = None,
@@ -894,6 +912,14 @@ class McpConnectionService:
         """
         refuse_binding_while_impersonating("Connecting an integration")
         chosen = audience or AudienceChoice()
+        existing = await mcp_connection_repo.get_org_scoped_by_name(
+            self.db, organization_id=ctx.organization_id, name=name
+        )
+        # Only a new row: authorizing an existing account again is not a second one.
+        if existing is None and catalog_key is not None:
+            await self._refuse_an_unnamed_second_org_account(
+                ctx, catalog_key=catalog_key, name=name, label=label
+            )
 
         async def create(**kwargs: Any) -> McpConnection:
             connection = await mcp_connection_repo.create_org_scoped(
@@ -904,6 +930,7 @@ class McpConnectionService:
                 catalog_key=catalog_key,
                 sealed_token=None,
                 visibility=chosen.visibility.value,
+                label=_stored_label(label),
                 **kwargs,
             )
             if chosen.group_ids or chosen.user_ids:
@@ -921,9 +948,7 @@ class McpConnectionService:
             url=url,
             client_id=client_id,
             client_secret=client_secret,
-            existing=await mcp_connection_repo.get_org_scoped_by_name(
-                self.db, organization_id=ctx.organization_id, name=name
-            ),
+            existing=existing,
             vault_scope=VaultScope.organization(ctx.organization_id),
             create=create,
         )
@@ -935,6 +960,7 @@ class McpConnectionService:
         name: str,
         url: str,
         catalog_key: str | None = None,
+        label: str | None = None,
         client_id: str | None = None,
         client_secret: SecretStr | None = None,
     ) -> str:
@@ -957,12 +983,22 @@ class McpConnectionService:
                 message=f"Unknown catalog server: {catalog_key}",
                 details={"catalog_key": catalog_key},
             )
+        existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=name)
+        # Only a new row: authorizing an existing account again is not a second one.
+        if existing is None and catalog_key is not None:
+            _refuse_an_unnamed_second_account(
+                await mcp_connection_repo.list_user_scoped_by_catalog_key(
+                    self.db, user_id=user_id, catalog_key=catalog_key
+                ),
+                name=name,
+                label=label,
+            )
         return await self._oauth_start(
             name=name,
             url=url,
             client_id=client_id,
             client_secret=client_secret,
-            existing=await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=name),
+            existing=existing,
             vault_scope=VaultScope.user(user_id),
             create=lambda **kwargs: mcp_connection_repo.create(
                 self.db,
@@ -970,6 +1006,7 @@ class McpConnectionService:
                 auth_token=None,
                 allowed_tools=None,
                 catalog_key=catalog_key,
+                label=_stored_label(label),
                 **kwargs,
             ),
         )
@@ -1684,6 +1721,10 @@ class McpConnectionService:
                 message="This organization already has an MCP server with that name",
                 details={"name": data.name},
             )
+        if data.catalog_key is not None:
+            await self._refuse_an_unnamed_second_org_account(
+                ctx, catalog_key=data.catalog_key, name=data.name, label=data.label
+            )
         token = data.auth_token.strip() if data.auth_token else None
         if token:
             refuse_binding_while_impersonating("Adding an integration token")
@@ -1959,6 +2000,30 @@ class McpConnectionService:
                 details={"connection_id": str(connection_id)},
             )
         return db_connection
+
+
+def _refuse_an_unnamed_second_account(
+    others: Sequence[McpConnection], *, name: str, label: str | None
+) -> None:
+    """Refuse a second account on one service that says nothing about which one it is.
+
+    Two accounts of one server show as the same service name everywhere a person
+    picks or approves one, and each answers under a prefix of its own (#2125); the
+    label is what tells "Outlook" from "Outlook - info@". The first account needs
+    none, and connecting the same one again under its own name is a
+    re-authorization, not a second account.
+
+    Raises:
+        BadRequestError: Naming `label`, when another account on the service exists
+            and this one has no label.
+    """
+    if _stored_label(label) is not None:
+        return
+    if any(other.name != name for other in others):
+        raise refused_field(
+            "label",
+            "You already have an account on this service. Name this one so you can tell them apart.",
+        )
 
 
 def _stored_label(label: str | None) -> str | None:

@@ -182,3 +182,21 @@ describe("the server's own instructions", () => {
     expect(screen.queryByRole("switch", { name: /server's own instructions/ })).toBeNull();
   });
 });
+
+describe("a second account on one service", () => {
+  it("asks for its name up front and will not submit without one", async () => {
+    const onSubmit = open({ ...custom(), needsLabel: true } as DraftState);
+
+    expect(screen.getByText(/already have an account on this service/)).toBeInTheDocument();
+    await typeAddress("https://mcp.example.com/mcp");
+    await userEvent.click(screen.getByRole("button", { name: /Connect/ }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveAttribute("aria-invalid", "true");
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "Work");
+    await userEvent.click(screen.getByRole("button", { name: /Connect/ }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ label: "Work" }));
+  });
+});

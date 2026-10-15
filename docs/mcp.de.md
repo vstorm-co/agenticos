@@ -1,5 +1,5 @@
 ---
-source_sha: "22745f48d5bc"
+source_sha: "0e5ab86763a9"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -277,6 +277,10 @@ gebundenen Konten mit **Add another account**. Wo ein Run einen Dienst über meh
 als ein Konto erreicht, nennt eine Zeile seiner Anweisungen jedes Konto neben
 seinem Präfix und weist das Modell an nachzufragen, wenn unklar ist, welches die
 Person meint.
+
+Ein zweites Konto bei einem Dienst braucht einen Namen: Sein Label unterscheidet
+die beiden in jeder Auswahl und jeder Freigabe, deshalb fragt das Formular vor dem
+Verbinden danach, und die API lehnt ein unbenanntes zweites Konto bei `label` ab.
 
 ## Authentifizierung { #authentication }
 

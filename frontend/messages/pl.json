@@ -2768,6 +2768,7 @@
     "disconnectWarning": "Odłączyć „{name}”?",
     "displayName": "Nazwa",
     "displayNameHint": "Jak to połączenie nazywa się na ekranie. Opcjonalne - bez niej jest pokazywane pod swoim prefiksem narzędzi.",
+    "secondAccountNeedsLabel": "Masz już konto w tym serwisie. Nazwij to, żeby je od siebie odróżnić.",
     "displayNamePlaceholder": "Firmowa wiki",
     "documentation": "Dokumentacja",
     "edit": "Edytuj",

@@ -2881,6 +2881,7 @@
     "disconnectWarning": "„{name}“ trennen?",
     "displayName": "Name",
     "displayNameHint": "Wie diese Verbindung auf dem Bildschirm heißt. Optional - ohne Namen wird sie unter ihrem Tool-Präfix angezeigt.",
+    "secondAccountNeedsLabel": "Sie haben bereits ein Konto bei diesem Dienst. Benennen Sie dieses, damit Sie sie auseinanderhalten können.",
     "displayNamePlaceholder": "Firmen-Wiki",
     "documentation": "Dokumentation",
     "edit": "Bearbeiten",

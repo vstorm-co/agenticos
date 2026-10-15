@@ -95,8 +95,8 @@ export function ConnectServerDialog({
 function OrgConnectForm(
   props: ConnectDialogProps<OrgMcpConnectionRecord> & { entry: McpCatalogEntry },
 ) {
-  const { create } = useOrgMcpConnections();
-  return <ConnectForm {...props} scope="organization" create={create} />;
+  const { create, connections } = useOrgMcpConnections();
+  return <ConnectForm {...props} scope="organization" create={create} held={connections} />;
 }
 
 /**
@@ -127,14 +127,15 @@ export function ConnectOwnServerDialog({
 }
 
 function OwnConnectForm(props: ConnectDialogProps & { entry: McpCatalogEntry }) {
-  const { create } = useMcpConnections();
-  return <ConnectForm {...props} scope="personal" create={create} />;
+  const { create, connections } = useMcpConnections();
+  return <ConnectForm {...props} scope="personal" create={create} held={connections} />;
 }
 
 function ConnectForm<T extends McpConnectionRecord>({
   entry,
   scope,
   create,
+  held,
   onClose,
   onConnected,
   returnTo,
@@ -143,6 +144,8 @@ function ConnectForm<T extends McpConnectionRecord>({
   entry: McpCatalogEntry;
   scope: Scope;
   create: CreateConnection<T>;
+  /** This scope's connections: a second account on `entry` is named, under a free prefix. */
+  held: readonly Held[];
   onClose: () => void;
   onConnected?: (connection: T) => void;
 } & ConsentOptions) {
@@ -154,7 +157,21 @@ function ConnectForm<T extends McpConnectionRecord>({
   // The dialog speaks `DraftState`, and `rowForEntry` is what turns a catalog
   // entry into one - shared with the servers page, so a row here and a row
   // there cannot drift into two shapes.
-  const draft: DraftState = { scope, row: rowForEntry(entry), existing: null };
+  const another = heldOn(held, entry);
+  const draft: DraftState = {
+    scope,
+    row: rowForEntry(entry),
+    existing: null,
+    ...(another
+      ? {
+          needsLabel: true,
+          suggestedName: freePrefix(
+            slugForPrefix(entry.key),
+            new Set(held.map((connection) => connection.name)),
+          ),
+        }
+      : {}),
+  };
 
   const handleSubmit = async (values: ConnectionFormValues) => {
     const name = values.name.trim().toLowerCase();
@@ -174,10 +191,12 @@ function ConnectForm<T extends McpConnectionRecord>({
         return;
       }
       setSubmitting(true);
+      const label = values.label.trim();
       const started = await consent({
         name,
         url,
         catalog_key: entry.key,
+        ...(label ? { label } : {}),
         ...mcpOAuthClient(values.clientId, values.clientSecret),
         ...(scope === "organization" ? values.audience : {}),
       });
@@ -191,6 +210,7 @@ function ConnectForm<T extends McpConnectionRecord>({
       const created = await create({
         name,
         url,
+        ...(values.label.trim() ? { label: values.label.trim() } : {}),
         auth_token: values.auth === "token" ? values.token.trim() : undefined,
         // Provenance, so the picker groups it under the entry it came from
         // rather than guessing from a URL somebody may later edit - and, for a
@@ -227,6 +247,13 @@ function ConnectForm<T extends McpConnectionRecord>({
       onSubmit={handleSubmit}
     />
   );
+}
+
+/** What deciding on a second account reads of a connection. */
+type Held = Pick<McpConnectionRecord, "name" | "catalog_key">;
+
+function heldOn(held: readonly Held[], entry: McpCatalogEntry): boolean {
+  return held.some((connection) => connection.catalog_key === entry.key);
 }
 
 interface ConsentOptions {
@@ -291,22 +318,29 @@ export function useConnectEntry(
   scope: Scope,
   {
     openForm,
-    taken = [],
+    held = [],
     ...options
   }: ConsentOptions & {
     openForm: (entry: McpCatalogEntry) => void;
-    /** The names this scope's connections already hold, which a new one cannot take. */
-    taken?: string[];
+    /**
+     * This scope's connections. Their names are taken for a new one's prefix, and
+     * one already on `entry` sends the person to the form, where a second account
+     * is named.
+     */
+    held?: readonly Held[];
   },
 ) {
   const consent = useConsent(scope, options);
   return (entry: McpCatalogEntry) => {
-    if (entry.auth !== "oauth" || entry.url === null) {
+    if (entry.auth !== "oauth" || entry.url === null || heldOn(held, entry)) {
       openForm(entry);
       return;
     }
     void consent({
-      name: freePrefix(slugForPrefix(entry.key), new Set(taken)),
+      name: freePrefix(
+        slugForPrefix(entry.key),
+        new Set(held.map((connection) => connection.name)),
+      ),
       url: entry.url,
       catalog_key: entry.key,
       ...(scope === "organization" ? audiencePayload(EVERYONE) : {}),

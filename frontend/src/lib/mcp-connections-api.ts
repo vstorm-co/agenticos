@@ -163,6 +163,8 @@ export async function startMcpOAuth(
     name: string;
     url: string;
     catalog_key?: string;
+    /** What the person reads; required for a second account on one service. */
+    label?: string;
     client_id?: string;
     client_secret?: string;
   } & Partial<AudiencePayload>,

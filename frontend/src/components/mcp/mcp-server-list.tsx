@@ -117,6 +117,11 @@ interface McpServerListProps {
  * access and lose it the day their account closed. There is no endpoint for it,
  * so the row says why rather than showing a button that cannot work.
  */
+/** Whether `scope` already holds an account on this server. */
+function hasAccount(scope: Scope, row: McpServerRow): boolean {
+  return (scope === "organization" ? row.organizations : row.personals).length > 0;
+}
+
 export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
@@ -231,6 +236,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       row,
       existing,
       suggestedName: existing ? undefined : freeName(row, takenNames(scope)),
+      needsLabel: existing === null && hasAccount(scope, row),
     });
   };
 
@@ -242,7 +248,13 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
    */
   const connect = (scope: Scope, row: McpServerRow) => {
     const name = freeName(row, takenNames(scope));
-    if (row.auth === "oauth" && row.entry !== null && name !== undefined) {
+    // A second account goes through the form, where it is named.
+    if (
+      row.auth === "oauth" &&
+      row.entry !== null &&
+      name !== undefined &&
+      !hasAccount(scope, row)
+    ) {
       void handleOAuth(row, name, scope);
       return;
     }
@@ -299,11 +311,19 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     scope: Scope = "personal",
     client?: McpOAuthClient,
     audience?: AudiencePayload,
+    label?: string,
   ) => {
     setBusyId(row.key);
     try {
       const { authorization_url } = await startMcpOAuth(
-        { name, url: row.url ?? "", catalog_key: row.entry?.key, ...client, ...audience },
+        {
+          name,
+          url: row.url ?? "",
+          catalog_key: row.entry?.key,
+          ...(label ? { label } : {}),
+          ...client,
+          ...audience,
+        },
         scope,
       );
       // `assign`, not a write to `href`: the React compiler reads a property
@@ -344,6 +364,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           row: requestedRow,
           existing: null,
           suggestedName: freeName(requestedRow, takenNames("personal")),
+          needsLabel: hasAccount("personal", requestedRow),
         }
       : null;
   const activeDraft = draft ?? requestedDraft;
@@ -412,6 +433,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         scope,
         mcpOAuthClient(values.clientId, values.clientSecret),
         scope === "organization" ? values.audience : undefined,
+        label,
       );
       return;
     }

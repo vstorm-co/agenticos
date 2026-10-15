@@ -262,13 +262,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [connectingOwnServer, setConnectingOwnServer] = useState<McpCatalogEntry | null>(null);
   const connectServer = useConnectEntry("organization", {
     openForm: setConnectingServer,
-    taken: mcpConnections.map((connection) => connection.name),
+    held: mcpConnections,
   });
   const signInOwnServer = useSignInOwn({ returnTo: hereForMcpOAuthReturn() });
   const connectOwnServer = useConnectEntry("personal", {
     returnTo: hereForMcpOAuthReturn(),
     openForm: setConnectingOwnServer,
-    taken: myMcpConnections.map((connection) => connection.name),
+    held: myMcpConnections,
   });
   const [toolPicker, setToolPicker] = useState<ToolPickerState | null>(null);
   // Which binding the open tool picker narrows, by `bindingKey`. Kept beside the

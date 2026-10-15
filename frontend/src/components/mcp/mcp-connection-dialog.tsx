@@ -121,6 +121,12 @@ function ConnectionForm({
 }) {
   const t = useTranslations("mcp");
   const [label, setLabel] = useState(draft.existing?.label ?? "");
+  // Shown only after a submit that left it empty, so the field is not red before
+  // anybody has typed.
+  const [labelMissing, setLabelMissing] = useState(false);
+  // A second account is named up front, not under More options: it is the one
+  // thing the form cannot go without.
+  const needsLabel = draft.needsLabel === true;
   const [name, setName] = useState(
     draft.existing?.name ?? draft.suggestedName ?? slugForPrefix(draft.row.entry?.key ?? ""),
   );
@@ -176,13 +182,26 @@ function ConnectionForm({
           value={label}
           onChange={(event) => {
             setLabel(event.target.value);
+            if (event.target.value.trim()) setLabelMissing(false);
             if (custom && !prefixEdited) setName(slugForPrefix(event.target.value));
           }}
           placeholder={t("displayNamePlaceholder")}
           maxLength={64}
+          required={needsLabel}
+          aria-required={needsLabel}
+          aria-invalid={labelMissing}
+          aria-describedby="mcp-label-hint"
           className="mt-1.5"
         />
-        <p className="text-muted-foreground mt-1 text-xs">{t("displayNameHint")}</p>
+        <p
+          id="mcp-label-hint"
+          className={cn(
+            "mt-1 text-xs",
+            labelMissing ? "text-destructive" : "text-muted-foreground",
+          )}
+        >
+          {needsLabel ? t("secondAccountNeedsLabel") : t("displayNameHint")}
+        </p>
       </div>
       <div>
         <Label htmlFor="mcp-name">{t("name")}</Label>
@@ -296,6 +315,7 @@ function ConnectionForm({
             {urlField}
           </>
         )}
+        {known && needsLabel && identity}
         {/* Only where there is a choice: a dialog that can connect one kind of
             account says whose in its title, and one card restating it is a
             question with a single answer. */}
@@ -440,7 +460,7 @@ function ConnectionForm({
               <>
                 {urlField}
                 {authField}
-                {identity}
+                {!needsLabel && identity}
               </>
             )}
             {/* Only for a connection being made: editing saves fields, it does
@@ -461,7 +481,11 @@ function ConnectionForm({
           {t("cancel")}
         </Button>
         <Button
-          onClick={() =>
+          onClick={() => {
+            if (needsLabel && !label.trim()) {
+              setLabelMissing(true);
+              return;
+            }
             onSubmit({
               label,
               name,
@@ -474,8 +498,8 @@ function ConnectionForm({
               clientId,
               clientSecret,
               audience: audiencePayload(audience),
-            })
-          }
+            });
+          }}
           disabled={submitting}
           data-tour="mcp-dialog-connect"
         >

@@ -321,6 +321,14 @@ class McpOAuthStart(BaseSchema):
     # payload with the rest of the flow state and never read back over the API.
     client_id: str | None = Field(default=None, min_length=1, max_length=512)
     client_secret: CredentialStr | None = Field(default=None, max_length=4096)
+    label: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "What a person reads, as on a connection made with a token. Required "
+            "for a second account on the same service in the same scope."
+        ),
+    )
     catalog_key: str | None = Field(
         default=None,
         max_length=255,

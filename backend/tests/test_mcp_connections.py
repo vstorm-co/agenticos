@@ -2106,6 +2106,7 @@ class TestMcpConnectionService:
         # test can stage the row once, whichever path the service takes.
         mock_repo.get_by_id_for_update = mock_repo.get_by_id
         mock_repo.get_by_name = AsyncMock(return_value=None)
+        mock_repo.list_user_scoped_by_catalog_key = AsyncMock(return_value=[])
         mock_repo.list_for_user = AsyncMock(return_value=([], 0))
         mock_repo.create = AsyncMock()
         mock_repo.update = AsyncMock()
@@ -2764,6 +2765,69 @@ class TestMcpConnectionService:
                 data=McpConnectionUpdate(auth_token=""),
             )
         assert repo.update.call_args.kwargs["update_data"]["auth_token"] is None
+
+    @pytest.mark.anyio
+    async def test_oauth_start_asks_a_second_account_for_its_label_and_keeps_it(
+        self, service, repo, monkeypatch
+    ):
+        """The label typed in the dialog used to be dropped on the way to consent."""
+        _allow_any_url(monkeypatch)
+        monkeypatch.setattr(service, "_known_catalog_key", AsyncMock(return_value=True))
+        repo.list_user_scoped_by_catalog_key = AsyncMock(
+            return_value=[_connection(name="linear", catalog_key="linear")]
+        )
+        monkeypatch.setattr(
+            mcp_oauth,
+            "discover",
+            AsyncMock(
+                return_value=mcp_oauth.DiscoveredServer(
+                    authorization_endpoint="https://srv/authorize",
+                    token_endpoint="https://srv/token",
+                    registration_endpoint="https://srv/register",
+                    resource="https://srv/mcp",
+                    scope=None,
+                    metadata=MagicMock(),
+                )
+            ),
+        )
+        monkeypatch.setattr(mcp_oauth, "register_client", AsyncMock(return_value=("cid", None)))
+
+        with pytest.raises(BadRequestError):
+            await service.oauth_start(
+                user_id=uuid4(), name="linear-2", url="https://srv/mcp", catalog_key="linear"
+            )
+        await service.oauth_start(
+            user_id=uuid4(),
+            name="linear-2",
+            url="https://srv/mcp",
+            catalog_key="linear",
+            label="Ops",
+        )
+
+        assert repo.create.call_args.kwargs["label"] == "Ops"
+
+    @pytest.mark.anyio
+    async def test_authorizing_an_existing_second_account_again_needs_no_label(
+        self, service, repo, monkeypatch
+    ):
+        _allow_any_url(monkeypatch)
+        monkeypatch.setattr(service, "_known_catalog_key", AsyncMock(return_value=True))
+        existing = _connection(name="linear-2", catalog_key="linear", auth_type="oauth")
+        repo.get_by_name = AsyncMock(return_value=existing)
+        repo.list_user_scoped_by_catalog_key = AsyncMock(
+            return_value=[_connection(name="linear", catalog_key="linear"), existing]
+        )
+        monkeypatch.setattr(
+            service, "_oauth_start", AsyncMock(return_value="https://srv/authorize?x")
+        )
+
+        assert (
+            await service.oauth_start(
+                user_id=uuid4(), name="linear-2", url="https://srv/mcp", catalog_key="linear"
+            )
+            == "https://srv/authorize?x"
+        )
+        repo.list_user_scoped_by_catalog_key.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_oauth_start_registers_and_persists_pending(self, service, repo, monkeypatch):
@@ -3476,6 +3540,8 @@ class TestOrganizationConnections:
         mock_repo.get_org_scoped_by_name = AsyncMock(return_value=None)
         mock_repo.get_by_id = AsyncMock()
         mock_repo.get_by_name = AsyncMock(return_value=None)
+        mock_repo.get_org_scoped_by_catalog_key = AsyncMock(return_value=None)
+        mock_repo.list_user_scoped_by_catalog_key = AsyncMock(return_value=[])
         mock_repo.create = AsyncMock()
         mock_repo.create_org_scoped = AsyncMock()
         mock_repo.update = AsyncMock()
@@ -3616,6 +3682,83 @@ class TestOrganizationConnections:
         )
 
         assert repo.create.call_args.kwargs["catalog_key"] == "notion"
+
+    @pytest.mark.anyio
+    async def test_a_second_account_on_a_service_needs_a_label(self, service, ctx, repo, mirror):
+        """Two Outlook accounts read as "Outlook" twice in every picker and approval
+        without one."""
+        repo.list_user_scoped_by_catalog_key = AsyncMock(
+            return_value=[_connection(name="notion", catalog_key="notion")]
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.create(
+                user_id=ctx.user_id,
+                data=McpConnectionCreate(
+                    name="notion-2", url="https://example.com/mcp", catalog_key="notion"
+                ),
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "label"
+        repo.create.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_labelled_second_account_or_a_first_one_is_stored(
+        self, service, ctx, repo, mirror
+    ):
+        await service.create(
+            user_id=ctx.user_id,
+            data=McpConnectionCreate(
+                name="notion", url="https://example.com/mcp", catalog_key="notion"
+            ),
+        )
+        repo.list_user_scoped_by_catalog_key = AsyncMock(
+            return_value=[_connection(name="notion", catalog_key="notion")]
+        )
+        await service.create(
+            user_id=ctx.user_id,
+            data=McpConnectionCreate(
+                name="notion-2", url="https://example.com/mcp", catalog_key="notion", label="Work"
+            ),
+        )
+
+        assert repo.create.await_count == 2
+        assert repo.create.await_args.kwargs["label"] == "Work"
+
+    @pytest.mark.anyio
+    async def test_authorizing_the_organizations_second_account_again_needs_no_label(
+        self, service, ctx, repo, monkeypatch
+    ):
+        existing = _connection(name="github-oss", catalog_key="github", scope="org")
+        repo.get_org_scoped_by_name = AsyncMock(return_value=existing)
+        repo.get_org_scoped_by_catalog_key = AsyncMock(
+            return_value=_connection(name="github", catalog_key="github", scope="org")
+        )
+        monkeypatch.setattr(
+            service, "_oauth_start", AsyncMock(return_value="https://srv/authorize?x")
+        )
+
+        await service.oauth_start_for_org(
+            ctx, name="github-oss", url="https://srv/mcp", catalog_key="github"
+        )
+
+        repo.get_org_scoped_by_catalog_key.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_second_organization_account_needs_a_label(self, service, ctx, repo, mirror):
+        repo.get_org_scoped_by_catalog_key = AsyncMock(
+            return_value=_connection(name="github", catalog_key="github", scope="org")
+        )
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.create_for_org(
+                ctx,
+                OrgMcpConnectionCreate(
+                    name="github-oss", url="https://example.com/mcp", catalog_key="github"
+                ),
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "label"
 
     @pytest.mark.anyio
     async def test_a_personal_connection_with_an_unknown_key_is_refused(
@@ -4040,10 +4183,11 @@ class TestOrganizationConnections:
         monkeypatch.setattr(mcp_oauth, "register_client", AsyncMock(return_value=("cid", None)))
 
         url = await service.oauth_start_for_org(
-            ctx, name="linear", url="https://srv/mcp", catalog_key="linear"
+            ctx, name="linear", url="https://srv/mcp", catalog_key="linear", label="Product"
         )
 
         assert url.startswith("https://srv/authorize?")
+        assert repo.create_org_scoped.await_args.kwargs["label"] == "Product"
         assert repo.get_org_scoped_by_name.await_args.kwargs == {
             "organization_id": ctx.organization_id,
             "name": "linear",

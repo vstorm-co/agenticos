@@ -1,5 +1,5 @@
 ---
-source_sha: "22745f48d5bc"
+source_sha: "0e5ab86763a9"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -267,6 +267,10 @@ ustawienia serwera wypisują powiązane konta z przyciskiem **Add another
 account**. Gdy run sięga do jednej usługi przez więcej niż jedno konto, jeden
 wiersz jego instrukcji wymienia każde konto obok jego prefiksu i każe modelowi
 dopytać, gdy nie wiadomo, o które konto chodzi.
+
+Drugie konto w serwisie musi mieć nazwę: jego etykieta odróżnia oba konta w każdym
+wyborze i zatwierdzeniu, więc formularz prosi o nią przed połączeniem, a API
+odrzuca nienazwane drugie konto na polu `label`.
 
 ## Uwierzytelnianie { #authentication }
 
