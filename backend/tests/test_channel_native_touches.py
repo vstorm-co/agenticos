@@ -433,7 +433,7 @@ class TestWhatWasWrong:
 
         method, url, body = http.calls[0]
         assert url == "https://mm.acme.com/api/v4/actions/dialogs/open"
-        assert body["dialog"]["state"] == f"run-1:{sign_press('bot-1', 'run-1')}"
+        assert body["dialog"]["state"] == f"run-1:u:{sign_press('bot-1', 'run-1:u')}"
         assert len(http.calls) == 1
 
     def test_only_a_signed_mattermost_dialog_is_a_comment(self) -> None:
@@ -448,10 +448,22 @@ class TestWhatWasWrong:
                 **extra,
             }
 
-        signed = f"run-1:{sign_press('bot-1', 'run-1')}"
+        signed = f"run-1:u1:{sign_press('bot-1', 'run-1:u1')}"
         comment = MattermostAdapter.parse_feedback_comment(submitted(signed), "bot-1")
         assert comment is not None and comment.run_id == "run-1"
-        assert MattermostAdapter.parse_feedback_comment(submitted("run-1:forged"), "bot-1") is None
+        assert comment.platform_user_id == "u1"
+        assert (
+            MattermostAdapter.parse_feedback_comment(submitted("run-1:u1:forged"), "bot-1") is None
+        )
+        # Codex on #2062: a replayed state submitted as somebody else rates nobody.
+        as_other = submitted(signed, user_id="u2")
+        assert MattermostAdapter.parse_feedback_comment(as_other, "bot-1") is None
+        renamed = f"run-1:u2:{sign_press('bot-1', 'run-1:u1').split(':')[-1]}"
+        assert (
+            MattermostAdapter.parse_feedback_comment(submitted(renamed, user_id="u2"), "bot-1")
+            is None
+        )
+        assert MattermostAdapter.parse_feedback_comment(submitted("run-1"), "bot-1") is None
         assert MattermostAdapter.parse_feedback_comment(submitted(signed, " "), "bot-1") is None
         assert (
             MattermostAdapter.parse_feedback_comment(submitted(signed, cancelled=True), "bot-1")
@@ -477,7 +489,7 @@ class TestTheMattermostDialogRoute:
         bot_id = str(uuid.UUID(int=1))
         return {
             "callback_id": FEEDBACK_DIALOG,
-            "state": f"run-1:{sign_press(bot_id, 'run-1')}",
+            "state": f"run-1:u1:{sign_press(bot_id, 'run-1:u1')}",
             "user_id": "u1",
             "submission": {"comment": text},
         }

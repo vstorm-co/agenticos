@@ -423,7 +423,13 @@ class MattermostAdapter(ChannelAdapter):
                     "max_length": 2000,
                 }
             ],
-            "state": f"{run_id}:{sign_press(bot_id, run_id)}",
+            # Bound to the person whose proven press opened it: the submission's
+            # `user_id` is unsigned, and a replayed state must not rate as
+            # somebody else.
+            "state": (
+                f"{run_id}:{press.platform_user_id}:"
+                f"{sign_press(bot_id, f'{run_id}:{press.platform_user_id}')}"
+            ),
         }
         async with self._client() as client:
             response = await client.post(
@@ -543,11 +549,18 @@ class MattermostAdapter(ChannelAdapter):
 
     @staticmethod
     def parse_feedback_comment(payload: dict[str, Any], bot_id: str) -> FeedbackComment | None:
-        """A submitted "what was wrong?" dialog, if its state carries our signature."""
+        """A submitted "what was wrong?" dialog, if its state carries our signature.
+
+        The state names the run and the person who opened the dialog, both under
+        the signature, and the submission must come from that person.
+        """
         if payload.get("cancelled") or payload.get("callback_id") != FEEDBACK_DIALOG:
             return None
-        run_id, _, signature = str(payload.get("state") or "").partition(":")
-        if not run_id or not secrets.compare_digest(signature, sign_press(bot_id, run_id)):
+        run_id, _, rest = str(payload.get("state") or "").partition(":")
+        user_id, _, signature = rest.partition(":")
+        if not run_id or not user_id or str(payload.get("user_id", "")) != user_id:
+            return None
+        if not secrets.compare_digest(signature, sign_press(bot_id, f"{run_id}:{user_id}")):
             return None
         text = str((payload.get("submission") or {}).get("comment") or "").strip()
         if not text:
@@ -555,7 +568,7 @@ class MattermostAdapter(ChannelAdapter):
         return FeedbackComment(
             platform="mattermost",
             bot_id=bot_id,
-            platform_user_id=str(payload.get("user_id", "")),
+            platform_user_id=user_id,
             run_id=run_id,
             text=text,
         )
