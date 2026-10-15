@@ -429,7 +429,11 @@ async def visible(db: AsyncSession, ctx: AuthContext, event: ChangeEvent) -> boo
         return True
     if ctx.scope_for(resource_type.view) is PermScope.ALL:
         return True
-    if event.id is None or event.action == "deleted":
+    if event.action == "deleted":
+        # The row is gone, so who could read it cannot be asked. The person who
+        # deleted it could, and their other tabs still show it.
+        return event.actor_user_id is not None and event.actor_user_id == ctx.user_id
+    if event.id is None:
         return False
     row = await _row(db, event, event.id)
     return row is not None and await resolve_access(

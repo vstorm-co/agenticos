@@ -359,6 +359,22 @@ class TestVisibility:
             db, _ctx(organization, viewer, OrgRoleName.VIEWER), unnamed
         )
 
+    async def test_a_deletion_reaches_the_other_tabs_of_whoever_deleted_it(
+        self, db: AsyncSession
+    ) -> None:
+        """Codex on #2062: a member deleting their own agent was not told in their
+        other tabs, whose view scope is not the whole organization's."""
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        member = await _join(db, organization, OrgRoleName.MEMBER)
+        viewer = await _join(db, organization, OrgRoleName.VIEWER)
+        theirs = _event(organization, member, id=uuid.uuid4(), action="deleted")
+
+        assert await change_feed.visible(db, _ctx(organization, member, OrgRoleName.MEMBER), theirs)
+        assert not await change_feed.visible(
+            db, _ctx(organization, viewer, OrgRoleName.VIEWER), theirs
+        )
+
     async def test_a_row_that_no_longer_exists_is_not_announced(self, db: AsyncSession) -> None:
         owner = await _person(db)
         organization = await _organization(db, owner)
