@@ -666,6 +666,11 @@ Two things are versioned separately from this file and worth knowing about:
   address; the assistant's settings reach other open tabs; a department's agent
   ranking leaves out runs its cap does not hold; and a deletion reaches the
   deleting person's other tabs.
+  An eleventh: a run started with an API key reaches none of its issuer's
+  memory, conversations, kept sign-ins or personal workspace; a mid-turn
+  correction is read back into the next turn; a channel message with a file is
+  answered as a turn; the live browser view bounds its command queue; and a long
+  create answer still names the row it made.
 
 - **New chat starts a new conversation.** The console sends `conversation_id: null`
   for a new chat, and the session read it as "no id given" and carried on in the
