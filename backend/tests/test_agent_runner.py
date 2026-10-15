@@ -198,6 +198,7 @@ def _parked_run(**overrides):
         test_spec=None,
         # Started from a session; a run a key started records the key's scopes.
         key_scopes=None,
+        trigger_id=None,
         surface=RunSurface.API.value,
         status=RunStatus.AWAITING_APPROVAL.value,
         paused_state={"messages": [], "tool_call_ids": {}},
@@ -924,6 +925,31 @@ class TestPrepare:
             await AgentRunnerService(_db())._group_limits(keyless, exclude_run_id=uuid.uuid4())
             == []
         )
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_resumed_run_answers_to_its_starters_departments(self):
+        """Codex on #2062: a resume ran under the approver's departments, so the
+        starter's cap stopped holding the spend recorded against it."""
+        approver = _ctx()
+        starter = uuid.uuid4()
+        run = _parked_run(user_id=starter, initiated_by_publisher_fallback=False)
+
+        departments = AgentRunnerService._department_context(approver, run)
+
+        assert departments is not None and departments.user_id == starter
+        assert AgentRunnerService._department_context(approver, None) is approver
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "fields", [{"user_id": None}, {"trigger_id": uuid.uuid4()}], ids=["nobody", "routine"]
+    )
+    async def test_a_resumed_run_nobody_started_answers_to_no_department(self, fields):
+        service = AgentRunnerService(_db())
+        run = _parked_run(**{"user_id": uuid.uuid4(), **fields})
+
+        assert service._department_context(_ctx(), run) is None
+        assert await service._group_limits(None, exclude_run_id=run.id) == []
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(

@@ -2768,7 +2768,9 @@ class AgentRunnerService:
                     db, ctx.organization_id, exclude_run_id=run.id
                 )
 
-        group_limits = await self._group_limits(ctx, exclude_run_id=run.id)
+        group_limits = await self._group_limits(
+            self._department_context(ctx, existing_run), exclude_run_id=run.id
+        )
 
         # Opened after the run row, because a run-scoped workspace keys on it,
         # and before the agent, because the capability reads the backend out of
@@ -3999,7 +4001,31 @@ class AgentRunnerService:
             }
         )
 
-    async def _group_limits(self, ctx: AuthContext, *, exclude_run_id: UUID) -> list[SpendLimit]:
+    @staticmethod
+    def _department_context(ctx: AuthContext, existing_run: AgentRun | None) -> AuthContext | None:
+        """Whose departments cap this run: the person who started it, resumed or not.
+
+        A resume runs under whoever decided the approval, and their departments
+        are not the run's - its spend is the starter's, and the starter's caps
+        hold it. Departments are a person's, not a role's, so the run's own
+        person and flags are enough. `None` where no member started the run:
+        nobody's to begin with, or fired by a routine, which a fresh run tells
+        apart by its flags.
+        """
+        if existing_run is None:
+            return ctx
+        if existing_run.user_id is None or existing_run.trigger_id is not None:
+            return None
+        return replace(
+            ctx,
+            user_id=existing_run.user_id,
+            subject_is_publisher_fallback=existing_run.initiated_by_publisher_fallback,
+            fired_as_creator=None,
+        )
+
+    async def _group_limits(
+        self, ctx: AuthContext | None, *, exclude_run_id: UUID
+    ) -> list[SpendLimit]:
         """The monthly caps of every department the person running this is in (#2072).
 
         None for a run nobody in the organization started - a trigger, a
@@ -4010,7 +4036,8 @@ class AgentRunnerService:
         on a session of its own, for the same reason as the two above it.
         """
         if (
-            ctx.user_id is None
+            ctx is None
+            or ctx.user_id is None
             or ctx.subject_is_publisher_fallback
             or ctx.fired_as_creator is not None
         ):
