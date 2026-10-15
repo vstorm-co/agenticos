@@ -238,7 +238,11 @@ class DatasetTagCount(BaseSchema):
 
 
 class ExpectationMix(BaseSchema):
-    """How many cases hold this combination of what a scorer reads."""
+    """How many cases hold this combination of what a scorer reads.
+
+    `reference` is a reference answer or a counter-example: the reference
+    comparison's judge grades either.
+    """
 
     checks: bool
     tool_calls: bool

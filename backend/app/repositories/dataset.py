@@ -314,6 +314,8 @@ async def case_stats(
     )
     sources: tuple[CaseSourceLiteral, ...] = get_args(CaseSourceLiteral)
     has_reference = func.nullif(held.c.reference_answer, "").is_not(None)
+    has_counter = func.nullif(held.c.counter_example, "").is_not(None)
+    compared = has_reference | has_counter
     has_calls = func.jsonb_array_length(held.c.expected_tool_calls) > 0
     has_checks = func.jsonb_array_length(held.c.checks) > 0
     mixes = [
@@ -326,13 +328,13 @@ async def case_stats(
         select(
             held.c.dataset_id,
             func.count().filter(has_reference),
-            func.count().filter(func.nullif(held.c.counter_example, "").is_not(None)),
+            func.count().filter(has_counter),
             func.count().filter(has_calls),
             func.count().filter(has_checks),
             *(func.count().filter(held.c.source == source) for source in sources),
             *(
                 func.count().filter(
-                    has_checks.is_(checks), has_calls.is_(calls), has_reference.is_(reference)
+                    has_checks.is_(checks), has_calls.is_(calls), compared.is_(reference)
                 )
                 for checks, calls, reference in mixes
             ),

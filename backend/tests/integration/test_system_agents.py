@@ -147,6 +147,7 @@ class TestSeeding:
         version = await db.get(AgentVersion, judge.current_version_id)
         assert version is not None
         assert version.spec["model_profile_id"] == str(oldest.id)
+        assert version.spec["model_settings"] == {"temperature": 0.0}
 
     async def test_a_name_a_person_already_uses_is_left_to_them(self, db) -> None:
         organization, owner = await _organization(db)

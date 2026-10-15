@@ -25,7 +25,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.spec import AgentSpec, BudgetSpec
+from app.agents.spec import AgentSpec, BudgetSpec, ModelSettingsSpec
 from app.agents.system_agents import JUDGE, SYSTEM_AGENTS, SystemAgentDef, system_agent
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -116,6 +116,7 @@ class SystemAgentService:
             description=definition.description,
             instructions=definition.instructions,
             model_profile_id=profile.id if profile is not None else None,
+            model_settings=ModelSettingsSpec(temperature=definition.temperature),
             budget=BudgetSpec(monthly_usd=definition.monthly_usd),
         )
         try:
@@ -140,9 +141,10 @@ class SystemAgentService:
     ) -> Agent:
         """A judge of the organization's own, created by the caller from the judge definition.
 
-        It runs on `model_profile_id`, or on the organization's oldest model, and
-        publishes straight away when it has one - a draft otherwise, like the
-        seeded judge. The caller has already been allowed to create agents.
+        It runs on `model_profile_id`, or on the organization's oldest model, at
+        the definition's temperature, and publishes straight away when it has a
+        model - a draft otherwise, like the seeded judge. The caller has already
+        been allowed to create agents.
 
         Raises:
             AlreadyExistsError: Another agent of the organization holds the name.
@@ -168,6 +170,7 @@ class SystemAgentService:
             description=description,
             instructions=instructions,
             model_profile_id=model_profile_id,
+            model_settings=ModelSettingsSpec(temperature=JUDGE.temperature),
             budget=BudgetSpec(monthly_usd=JUDGE.monthly_usd),
         )
         agent = await self.registry.create(ctx, spec, visibility=Visibility.ORG)

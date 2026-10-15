@@ -35,7 +35,7 @@ describe("reasonKey", () => {
   });
 
   it("leaves a code this build does not know, and no code, to the server's sentence", () => {
-    expect(reasonKey(result("judge_output_invalid"))).toBeNull();
+    expect(reasonKey(result("judge_from_the_future"))).toBeNull();
     expect(reasonKey(result(null))).toBeNull();
   });
 });

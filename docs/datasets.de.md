@@ -1,5 +1,5 @@
 ---
-source_sha: "6f0439dba3ed"
+source_sha: "f36f06065ad4"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -186,12 +186,12 @@ Werte selbst.
 ## Bewertung { #scoring }
 
 Ein Dataset legt auf seinem Tab **Bewertung** fest, wie seine Fälle bewertet
-werden, in drei Karten, die jede für sich gespeichert werden: **Wann ein Fall
+werden, in drei Karten, die zusammen gespeichert werden: **Wann ein Fall
 besteht** enthält die Prüfungen und die erwarteten Tool-Aufrufe, **Bewerter**
 sagt, welcher Bewerter bewertet und worauf, und **Prüfung durch eine Person**
-sagt, was auf die Entscheidung von jemandem wartet. Vier Scorer können auf einen
-Fall angewendet werden, und jeder wird ein- oder ausgeschaltet und als **Muss
-bestehen** markiert oder nicht:
+sagt, was auf die Entscheidung von jemandem wartet. Vier Scorer können auf
+einen Fall angewendet werden, und jeder wird ein- oder ausgeschaltet und als
+**Muss bestehen** markiert oder nicht:
 
 | Scorer | Was er vergleicht | Kosten |
 |---|---|---|
@@ -200,19 +200,22 @@ bestehen** markiert oder nicht:
 | Bewerter | Die Antwort anhand einer Rubrik benannter Kriterien, bewertet vom Bewerter des Datasets | Ein Run des Bewerters |
 | Referenzantwort | Die Antwort mit der Referenzantwort des Falls, bewertet vom Bewerter des Datasets | Derselbe Run des Bewerters |
 
-Jeder Scorer liefert bestanden oder nicht bestanden, einen Score von 0 bis 1 und
-eine Begründung. Ein Fall **besteht**, wenn jeder mit „Muss bestehen“ markierte
-Scorer besteht. Konnte einer von ihnen nicht laufen - der Bewerter war
-ausgeschaltet, sein Budget war aufgebraucht -, ist der Fall **nicht bewertet**,
-nicht bestanden: Ein Ergebnis, das niemand geprüft hat, zählt nicht als
-bestanden.
+Jeder Scorer liefert bestanden oder nicht bestanden, einen Score von 0 bis 1
+und eine Begründung. Ein Fall **besteht**, wenn jeder mit „Muss bestehen“
+markierte Scorer besteht, und **besteht nicht**, wenn einer von ihnen nicht
+besteht. Kam einer von ihnen zu keinem Urteil - der Bewerter war ausgeschaltet,
+sein Budget war aufgebraucht, sein Run schlug fehl oder seine Antwort ließ sich
+nicht lesen -, ist der Fall **nicht bewertet**: weder bestanden noch nicht
+bestanden, weil niemand die Antwort geprüft hat. Der Score sagt, warum, und
+lässt sich [erneut bewerten](#judge), sobald die Ursache behoben ist.
 
 Jeder Scorer sagt, wie viele Fälle enthalten, was er liest, und der Tab warnt,
-wenn die angezeigte Konfiguration einige Fälle anhand von nichts bewerten würde.
-Einem Dataset, dessen Fälle Referenzantworten haben, mit denen nichts die
-Antworten vergleicht, wird der Vergleich mit der Referenzantwort angeboten. Eine
-Karte mit einer noch nicht gespeicherten Änderung sagt das, und die Seite fragt
-nach, bevor man sie verlässt.
+wenn die angezeigte Konfiguration einige Fälle anhand von nichts bewerten
+würde. Einem Dataset, dessen Fälle Referenzantworten haben, mit denen nichts
+die Antworten vergleicht, wird der Vergleich mit der Referenzantwort angeboten.
+Eine Karte mit einer noch nicht gespeicherten Änderung sagt das, eine Leiste
+unten am Bildschirm speichert oder verwirft alle Änderungen auf einmal, und die
+Seite fragt nach, bevor man sie verlässt.
 
 Die Konfiguration wird nicht mit den Fällen versioniert, weil die Art, wie ein
 Team bewertet, nicht das ist, was es fragt. Jeder Score bewahrt eine Kopie der
@@ -274,17 +277,33 @@ Ein Bewerter ist ein Agent der Art `judge` (siehe
 [Bewerter](concepts.md#system-agents)). Ein Dataset bewertet mit dem **Eval
 judge**, den die Plattform jeder Organisation hinzufügt, oder mit einem eigenen
 Bewerter: **Bewerter für dieses Dataset anlegen** auf der Karte Bewerter legt
-einen an, dessen Prompt mit dem Namen und der Beschreibung des Datasets beginnt,
-auf dem ersten Modell der Organisation oder einem, das Sie wählen. Dafür braucht
-es `agents:edit` und `datasets:edit`. Die Kriterien, die Skala und die
-Bestehensgrenze bleiben am Dataset; Prompt, Modell und Budget des Bewerters
-werden auf seiner eigenen Seite bearbeitet, und ein Dataset kann weiterhin ein
-anderes Modell für ihn festlegen.
+einen an, dessen Prompt mit dem Namen und der Beschreibung des Datasets beginnt
+und mit dem, was der Bewerter laut Ihnen zum Bewerten wissen muss - einer
+Richtlinie, einer Preisliste -, auf dem ersten Modell der Organisation oder
+einem, das Sie wählen. Dafür braucht es `agents:edit` und `datasets:edit`.
+
+Wo die KI-Unterstützung eingeschaltet ist, schaltet das Anlegen die Bewertung
+gleich mit ein: den Bewerter, mit einem Startkriterium zum Ersetzen, wenn das
+Dataset keines hat, und den Vergleich mit der Referenzantwort, wenn ein Fall
+eine hat. Die Kriterien, die Skala und die Bestehensgrenze bleiben am Dataset;
+Prompt, Modell und Budget des Bewerters werden auf seiner eigenen Seite
+bearbeitet, und ein Dataset kann weiterhin ein anderes Modell für ihn
+festlegen.
 
 Ein Bewerter läuft als die Person, die den Score angefordert hat: Ihr Zugriff
 auf ihn wird geprüft, er wird vor dem Modellaufruf gegen sein eigenes Budget und
 das der Organisation geprüft, und sein Run erscheint in Activity unter der
 Oberfläche `eval`.
+
+Der Bewerter erhält die Notiz des Falls als Grund, warum es den Fall gibt,
+seine früheren Züge und die Frage, die Referenzantwort, wenn sie bewertet wird,
+das Gegenbeispiel, jeden Tool-Aufruf des Agenten - mit seinen Argumenten und ob
+ein isolierter Run ihn blockiert hat - und die Antwort. Ein Fall mit
+Gegenbeispiel wird immer auch nach dem erforderlichen Kriterium
+**counter-example** bewertet: Die Antwort darf die bekannte schlechte Antwort
+nicht wiederholen. Bewerter starten mit Temperatur 0, damit dieselbe Antwort
+zweimal gleich bewertet wird; bei einem Reasoning-Modell, das die Einstellung
+ablehnt, muss sie auf der Seite des Bewerters entfernt werden.
 
 Der Bewerter läuft nur, wo die [KI-Unterstützung](governance.md#ai-assistance)
 eingeschaltet ist, und sie ist aus, bis ein Administrator sie für die
@@ -296,24 +315,39 @@ lassen sich in dieser Zeit nicht einschalten; ein bereits eingeschalteter bleibt
 an und wird übersprungen.
 
 Jedes Kriterium wird von 1 bis zum oberen Ende der Skala bewertet und besteht ab
-der Bestehensgrenze. Kann der Bewerter nicht bewerten, werden seine Kriterien als
-übersprungen oder als Fehler festgehalten, mit einer Begründung, die die
-Ursache nennt: KI-Unterstützung ist ausgeschaltet, der vom Dataset gewählte
-Bewerter existiert nicht mehr, er hat keine veröffentlichte Version, er ist
-archiviert, sein Modell ist entfernt oder hat keinen Schlüssel, die Person darf
-ihn nicht ausführen, oder sein Budget ist aufgebraucht. Die regelbasierten
-Scorer bewerten trotzdem.
+der Bestehensgrenze. Eine Bewertung, deren Begründung nur das Kriterium
+wiederholt, ist ein Fehler: Sie zeigt nicht, dass der Bewerter die Antwort
+gelesen hat.
+
+Kann der Bewerter nicht bewerten, werden seine Kriterien als übersprungen oder
+als Fehler festgehalten, mit einer Begründung, die die Ursache nennt:
+KI-Unterstützung ist ausgeschaltet, der vom Dataset gewählte Bewerter existiert
+nicht mehr, er hat keine veröffentlichte Version, er ist archiviert, sein
+Modell ist entfernt oder hat keinen Schlüssel, die Person darf ihn nicht
+ausführen, sein Budget ist aufgebraucht, sein Run schlug fehl oder seine
+Antwort ließ sich nicht lesen. Die regelbasierten Scorer bewerten trotzdem.
+
+Ist die Ursache behoben, bewertet **Erneut bewerten** an einem nicht bewerteten
+Ergebnis - oder an allen in der Gruppe eines Eval-Runs auf dem Tab Prüfung -
+dieselbe Antwort neu, mit der Konfiguration, mit der sie zuerst bewertet wurde
+(`POST /datasets/{id}/scores/rescore`, bis zu zehn Scores pro Anfrage). Der
+Agent läuft nicht erneut, und der Score behält seinen Eval-Run und jede
+Entscheidung, die eine Person darüber getroffen hat; einer, bei dem jeder
+Scorer zu einem Urteil kam, bleibt, wie er ist.
 
 Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
 Antwort nicht wörtlich enthält, wird neben der Bewertung als nicht verifiziert
 aufbewahrt und in einer eigenen Zeile unter der Begründung angezeigt, und die
-Bewertung bleibt bestehen. Jedes Ergebnis hält den Bewerter fest, der es
-bewertet hat - den Bewerter-Agent, sein Modellprofil, die Version seines Specs
-und einen Hash der Rubrik -, damit Ergebnisse verschiedener Bewerter nicht als
-gleichwertig verglichen werden. Den Bewerter oder sein Modell zu wechseln ist
-erlaubt; vor dem Wechsel des Bewerters fragt die Konsole zuerst nach, und die
-Karte Bewerter sagt, dass sich die vorher bewerteten Scores nicht mit den danach
-bewerteten vergleichen lassen.
+Bewertung bleibt bestehen.
+
+Jedes Ergebnis hält den Bewerter fest, der es bewertet hat - den Bewerter-Agent,
+sein Modellprofil, die Version seines Specs, einen Hash der Rubrik und die
+Version der Aufgabe, die die Plattform jedem Bewerter übergibt -, damit
+Ergebnisse verschiedener Bewerter nicht als gleichwertig verglichen werden. Den
+Bewerter oder sein Modell zu wechseln ist erlaubt; vor dem Wechsel des
+Bewerters fragt die Konsole zuerst nach, und die Karte Bewerter sagt, dass sich
+die vorher bewerteten Scores nicht mit den danach bewerteten vergleichen
+lassen.
 
 ### Prüfung { #review }
 

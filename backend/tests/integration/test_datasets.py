@@ -252,11 +252,12 @@ async def test_stats_count_what_the_newest_version_tests_against(db) -> None:
         stats.with_checks,
     ) == (1, 3, 1, 0)
     assert stats.by_source == {"manual": 2, "import": 2, "conversation": 0, "synthetic": 0}
-    # q1 kept only its reference, q2 expects a call, and the two imported carry
-    # nothing a scorer reads - only a counter-example.
+    # q1 kept only its reference; q2 expects a call and has a counter-example,
+    # and the two imported have only a counter-example, which the reference
+    # comparison grades as it grades a reference answer.
     assert {
         (mix.checks, mix.tool_calls, mix.reference): mix.cases for mix in stats.expectation_mix
-    } == {(False, False, True): 1, (False, True, False): 1, (False, False, False): 2}
+    } == {(False, False, True): 3, (False, True, True): 1}
     assert [(tag.tag, tag.cases) for tag in stats.top_tags] == [
         ("returns", 2),
         ("billing", 1),
