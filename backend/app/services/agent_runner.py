@@ -1709,11 +1709,14 @@ def _answer_only(spec: AgentSpec) -> AgentSpec:
     the middle of changing - a second set of tool calls against the same
     workspace or mailbox, racing the first, is exactly what "without derailing
     it" rules out. What stays is what shapes the answer's voice: the
-    instructions, the context files and the model.
+    instructions, the context files and the model - and the guardrails, which
+    have no tools and screen what the question carries in and the answer out.
     """
     return spec.model_copy(
         update={
-            "capabilities": [],
+            "capabilities": [
+                binding for binding in spec.capabilities if binding.id == "guardrails"
+            ],
             "mcp_servers": [],
             "subagents": [],
             "skill_ids": [],

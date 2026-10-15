@@ -5191,6 +5191,17 @@ class TestAddingToARunAndAskingAside:
         assert answered.instructions == "Be terse."
         assert answered.context_ids == spec.context_ids
 
+    @pytest.mark.security
+    def test_an_aside_keeps_its_guardrails(self):
+        """Review on #2062: `/btw` dropped them, so its question and its answer -
+        built from the thread - skipped redaction and keyword blocks."""
+        guardrails = CapabilityBindingSpec(id="guardrails", config={"redact_secrets_in": True})
+        spec = AgentSpec(
+            name="Ops", capabilities=[CapabilityBindingSpec(id="web_search"), guardrails]
+        )
+
+        assert _answer_only(spec).capabilities == [guardrails]
+
     @pytest.mark.anyio
     async def test_prepare_answers_aside_on_the_stripped_spec(self):
         service = AgentRunnerService(_db())
