@@ -70,10 +70,12 @@ async def groups_sharing(
 ) -> dict[UUID, list[str]]:
     """For each resource, the names of the groups it is shared with, sorted.
 
-    Group names are no secret inside an organization - any member lists them -
-    so this needs no narrowing beyond the organization. Every requested id is a
-    key, an unshared one with an empty list.
+    Group names are the member directory - any member lists them, a key only
+    when issued `members:view` - so a caller without it is told of no group.
+    Every requested id is a key, an unshared one with an empty list.
     """
+    if not ctx.has(Perm.MEMBERS_VIEW):
+        return {resource_id: [] for resource_id in resource_ids}
     pairs = await resource_grant_repo.group_grants_for_resources(
         db,
         organization_id=ctx.organization_id,

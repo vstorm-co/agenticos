@@ -208,3 +208,14 @@ async def test_a_card_names_the_departments_a_resource_belongs_to(db: AsyncSessi
     assert shared == {both.id: sorted([finance.name, sales.name]), open_to_all.id: []}
     by_name = {item.name: item.shared_groups for item in listing.items}
     assert by_name["pricing"] == sorted([finance.name, sales.name])
+
+    # Codex on #2062: group names are the member directory, so a key without
+    # `members:view` is told of none.
+    from dataclasses import replace
+
+    from app.core.permissions import Perm
+
+    narrow = replace(owner, api_key_id=uuid.uuid4(), key_scopes=frozenset({Perm.SKILLS_VIEW}))
+    assert await groups_sharing(db, narrow, resource_type=SKILL, resource_ids=[both.id]) == {
+        both.id: []
+    }
