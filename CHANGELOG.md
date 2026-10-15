@@ -587,6 +587,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **New chat starts a new conversation.** The console sends `conversation_id: null`
+  for a new chat, and the session read it as "no id given" and carried on in the
+  conversation the socket had open: the next message was written into the old
+  thread - with its browser panel still open - or refused with *Conversation not
+  found* once that thread had been deleted. A frame without the key still
+  continues the session's conversation.
+
 - **A browse signed in to a person's sites is theirs alone, and a key is held to its
   scopes on the live view** (Codex review of #2062). A browse carrying someone's kept
   sign-ins is no longer watched or driven by run viewers or agent editors; an

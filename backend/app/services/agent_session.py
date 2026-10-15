@@ -423,6 +423,14 @@ class AgentSession:
         if agent_id is None:
             await send_event(self.websocket, "error", {"message": _PICK_AN_AGENT})
             return
+        # `conversation_id: null` is the console's new chat, and it starts one. The
+        # session used to read it as "no id given" and carry on in the conversation
+        # this socket had open, so after New chat - or after deleting the open
+        # conversation - the next message was written into the old thread, or
+        # refused because that thread no longer existed. A frame without the key
+        # still continues the session's conversation.
+        if "conversation_id" in data and data["conversation_id"] is None:
+            self.current_conversation_id = None
         try:
             prompt = await persist_user_turn(
                 self.user,

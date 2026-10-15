@@ -1,5 +1,5 @@
 ---
-source_sha: "e9feb5f368e2"
+source_sha: "aa1f13d0da94"
 ---
 
 # API HTTP { #the-http-api }
@@ -282,7 +282,9 @@ Dwa endpointy WebSocket, dla dwóch odbiorców.
 
 - **`/api/v1/ws/agent`** — uwierzytelniony, którego używa konsola. Ramka niosąca
   `agent_id` uruchamia tego opublikowanego agenta; ramka bez niego trafia do
-  ogólnego asystenta. Uwierzytelnij się subprotokołem `access_token.<token>`, gdzie
+  ogólnego asystenta. `conversation_id` w ramce kontynuuje tę rozmowę; `null`
+  zaczyna nową, a brak tego klucza kontynuuje rozmowę, do której to gniazdo pisało
+  ostatnio. Uwierzytelnij się subprotokołem `access_token.<token>`, gdzie
   token to JWT sesji. Klucz API organizacji jest tu odrzucany: tura na tym gnieździe
   to osoba przy klawiaturze, z jej osobistymi połączeniami. Integracje uruchamiają
   agentów przez `POST /api/v1/agents/{id}/run`.

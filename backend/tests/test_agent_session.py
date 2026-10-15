@@ -628,6 +628,28 @@ class TestATurnThatFinished:
     arrive while the turn is still on screen.
     """
 
+    async def test_new_chat_starts_a_conversation_instead_of_continuing_the_open_one(self):
+        """The console sends `conversation_id: null` for a new chat. The session read
+        it as "no id given" and wrote the message into the conversation the socket
+        had open - or failed with "Conversation not found" once that one had been
+        deleted."""
+        session = _session()
+        session.current_conversation_id = "the-one-left-behind"
+
+        with _chat(AsyncMock(return_value=_finished_turn()), newly_created=True) as chat:
+            await session.process_message(_message(conversation_id=None))
+
+        assert chat.prompt.await_args.kwargs["current_conversation_id"] is None
+
+    async def test_a_frame_without_the_key_continues_the_session_s_conversation(self):
+        session = _session()
+        session.current_conversation_id = _CONVERSATION
+
+        with _chat(AsyncMock(return_value=_finished_turn())) as chat:
+            await session.process_message(_message())
+
+        assert chat.prompt.await_args.kwargs["current_conversation_id"] == _CONVERSATION
+
     async def test_a_turn_that_started_a_conversation_announces_it_first(self):
         session = _session()
 

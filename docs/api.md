@@ -277,7 +277,9 @@ Two WebSocket endpoints, for two audiences.
 
 - **`/api/v1/ws/agent`** — the authenticated one the console uses. A frame
   carrying `agent_id` runs that published agent; a frame without one gets the
-  general assistant. Authenticate with the subprotocol `access_token.<token>`,
+  general assistant. A frame's `conversation_id` continues that conversation;
+  `null` starts a new one, and leaving the key out continues the one this socket
+  last wrote to. Authenticate with the subprotocol `access_token.<token>`,
   where the token is a session JWT. An organization API key is refused here: a
   turn on this socket is a person at the keyboard, with their personal
   connections. Integrations run agents with `POST /api/v1/agents/{id}/run`.

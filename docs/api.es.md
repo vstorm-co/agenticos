@@ -1,5 +1,5 @@
 ---
-source_sha: "e9feb5f368e2"
+source_sha: "aa1f13d0da94"
 ---
 
 # La API HTTP { #the-http-api }
@@ -291,7 +291,9 @@ Dos endpoints WebSocket, para dos públicos.
 
 - **`/api/v1/ws/agent`**: el autenticado que usa la consola. Un frame con
   `agent_id` ejecuta ese agent publicado; un frame sin él llega al asistente
-  general. Autentícate con el subprotocolo `access_token.<token>`, donde el token
+  general. El `conversation_id` de un frame continúa esa conversación; `null`
+  empieza una nueva, y omitir la clave continúa aquella en la que este socket
+  escribió por última vez. Autentícate con el subprotocolo `access_token.<token>`, donde el token
   es un JWT de sesión. Una clave de API de la organización se rechaza aquí: un
   turno en este socket es una persona al teclado, con sus conexiones personales.
   Las integraciones ejecutan agents con `POST /api/v1/agents/{id}/run`.
