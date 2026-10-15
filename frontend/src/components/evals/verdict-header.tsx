@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { GitCompare, ListFilter, Square } from "lucide-react";
+import { GitCompare, ListFilter, RotateCcw, Square } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge, Button, Card, CardContent, Progress } from "@/components/ui";
@@ -75,6 +75,7 @@ export function VerdictHeader({
   comparison,
   onCancel,
   onShowBroken,
+  onTestAgain,
 }: {
   agentId: string;
   run: EvalRun;
@@ -83,6 +84,8 @@ export function VerdictHeader({
   comparison: EvalComparison | undefined;
   onCancel?: () => void;
   onShowBroken: () => void;
+  /** Test the draft as it stands now, for a run of a draft that has moved on. */
+  onTestAgain: () => void;
 }) {
   const t = useTranslations("evals");
   const locale = useLocale();
@@ -162,7 +165,11 @@ export function VerdictHeader({
               candidate.version_number !== baseline.version_number && (
                 <Button size="sm" variant="outline" asChild>
                   <Link
-                    href={`${ROUTES.AGENTS}/${agentId}?tab=history&from=${baseline.version_number}&to=${candidate.version_number ?? "draft"}`}
+                    href={`${ROUTES.AGENTS}/${agentId}?tab=history&from=${baseline.version_number}&${
+                      candidate.version_number === null
+                        ? `run=${run.id}&arm=${candidate.id}`
+                        : `to=${candidate.version_number}`
+                    }`}
                   >
                     <GitCompare className="h-3.5 w-3.5" aria-hidden />
                     {t("actions.whatChanged")}
@@ -179,7 +186,16 @@ export function VerdictHeader({
               <Link href={`${ROUTES.AGENTS}/${agentId}?tab=build`}>{t("actions.backToBuild")}</Link>
             </Button>
             <SendToReviewButton run={run} arm={candidate} />
-            {candidate.source === "draft" && can(Perm.agentsPublish) && (
+            {run.draft_changed && (
+              <span className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted-foreground">{t("draftChanged")}</span>
+                <Button size="sm" onClick={onTestAgain}>
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                  {t("actions.testAgain")}
+                </Button>
+              </span>
+            )}
+            {candidate.source === "draft" && !run.draft_changed && can(Perm.agentsPublish) && (
               <Button
                 size="sm"
                 variant={

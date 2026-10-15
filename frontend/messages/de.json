@@ -3728,7 +3728,8 @@
       "skills": "Skills",
       "evals": "Evals",
       "agentsCount": "{count, plural, =1 {Agents (1)} other {Agents (#)}}",
-      "judgeDatasets": "Datasets"
+      "judgeDatasets": "Datasets",
+      "draftAsTested": "Entwurf, wie der Run ihn getestet hat"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -6174,7 +6175,8 @@
       "whatChanged": "Änderungen ansehen",
       "showBroken": "{count, plural, =1 {Den kaputten Fall zeigen} other {Die # kaputten Fälle zeigen}}",
       "backToBuild": "Zurück zu Build",
-      "publish": "Veröffentlichen"
+      "publish": "Veröffentlichen",
+      "testAgain": "Erneut testen"
     },
     "group": "{name} · {count, plural, =1 {1 Run} other {# Runs}}",
     "trend": {
@@ -6211,6 +6213,7 @@
     "review": {
       "send": "{count, plural, =1 {Den nicht bestandenen Fall zur Prüfung senden} other {# nicht bestandene Fälle zur Prüfung senden}}",
       "sent": "{queued, plural, =0 {Nichts Neues zur Prüfung gesendet} =1 {1 Fall zur Prüfung gesendet} other {# Fälle zur Prüfung gesendet}}{already, plural, =0 {} other {; # waren schon dort oder entschieden}}."
-    }
+    },
+    "draftChanged": "Der Entwurf hat sich nach diesem Run geändert."
   }
 }

@@ -3868,7 +3868,8 @@
       "labelCount": "{used} of {max}",
       "evals": "Evals",
       "agentsCount": "{count, plural, =1 {Agents (1)} other {Agents (#)}}",
-      "judgeDatasets": "Datasets"
+      "judgeDatasets": "Datasets",
+      "draftAsTested": "Draft as the run tested it"
     },
     "auth": {
       "backSign": "Back to sign in",
@@ -6316,7 +6317,8 @@
       "whatChanged": "See what changed",
       "showBroken": "{count, plural, =1 {Show the case that broke} other {Show the # cases that broke}}",
       "backToBuild": "Back to Build",
-      "publish": "Publish"
+      "publish": "Publish",
+      "testAgain": "Test again"
     },
     "group": "{name} · {count, plural, =1 {1 run} other {# runs}}",
     "trend": {
@@ -6353,6 +6355,7 @@
     "review": {
       "send": "{count, plural, =1 {Send the failed case to review} other {Send # failed cases to review}}",
       "sent": "{queued, plural, =0 {Nothing new sent to review} =1 {1 case sent to review} other {# cases sent to review}}{already, plural, =0 {} other {; # already there or decided}}."
-    }
+    },
+    "draftChanged": "The draft changed after this run."
   }
 }

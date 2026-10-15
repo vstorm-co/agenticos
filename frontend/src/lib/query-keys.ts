@@ -324,6 +324,7 @@ export const qk = {
     forDataset: (datasetId: string, limit: number) =>
       ["eval-runs", "dataset", datasetId, limit] as const,
     forDraft: (agentId: string) => ["eval-runs", "draft", agentId] as const,
+    armSpec: (runId: string, armId: string) => ["eval-runs", runId, "arm", armId, "spec"] as const,
     detail: (id: string) => ["eval-runs", id] as const,
     cases: (
       id: string,

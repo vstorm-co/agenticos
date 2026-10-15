@@ -11,6 +11,7 @@ import {
   useEvalComparison,
   useDatasetEvalRuns,
   useDraftEvalRuns,
+  useEvalArmSpec,
   useEvalRun,
   useEvalRuns,
   useRecentEvalRuns,
@@ -248,6 +249,19 @@ describe("useSendToReview", () => {
       await result.current.mutateAsync("arm-1");
     });
     expect(apiClient.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("useEvalArmSpec", () => {
+  it("reads the spec a side ran, and nothing until one is named", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ name: "Support" });
+    const { result } = renderHook(() => useEvalArmSpec("run-1", "arm-1"), { wrapper });
+    await waitFor(() => expect(result.current.spec).toEqual({ name: "Support" }));
+    expect(apiClient.get).toHaveBeenCalledWith("/eval-runs/run-1/arms/arm-1/spec");
+
+    vi.mocked(apiClient.get).mockClear();
+    renderHook(() => useEvalArmSpec(null, null), { wrapper });
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });
 

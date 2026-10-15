@@ -587,7 +587,8 @@
     "agents": {
       "evals": "Evale",
       "agentsCount": "{count, plural, one {Agenci (#)} few {Agenci (#)} many {Agenci (#)} other {Agenci (#)}}",
-      "judgeDatasets": "Datasety"
+      "judgeDatasets": "Datasety",
+      "draftAsTested": "Draft z chwili testu"
     }
   },
   "rag": {
@@ -3937,7 +3938,8 @@
       "whatChanged": "Zobacz, co się zmieniło",
       "showBroken": "{count, plural, one {Pokaż case, który się zepsuł} few {Pokaż # case'y, które się zepsuły} many {Pokaż # case'ów, które się zepsuły} other {Pokaż # case'a, które się zepsuły}}",
       "backToBuild": "Wróć do Build",
-      "publish": "Publish"
+      "publish": "Publish",
+      "testAgain": "Testuj ponownie"
     },
     "group": "{name} · {count, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
     "trend": {
@@ -3974,6 +3976,7 @@
     "review": {
       "send": "{count, plural, one {Wyślij niezaliczony case do Review} few {Wyślij # niezaliczone case'y do Review} many {Wyślij # niezaliczonych case'ów do Review} other {Wyślij # niezaliczonego case'a do Review}}",
       "sent": "{queued, plural, =0 {Nic nowego nie trafiło do Review} one {# case wysłany do Review} few {# case'y wysłane do Review} many {# case'ów wysłanych do Review} other {# case'a wysłanego do Review}}{already, plural, =0 {} other {; # już tam było lub ma decyzję}}."
-    }
+    },
+    "draftChanged": "Draft zmienił się po tym runie."
   }
 }

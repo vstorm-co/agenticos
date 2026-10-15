@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
+import type { AgentSpec } from "@/types/agents";
 import type {
   CaseOutcomeFilter,
   EvalCaseList,
@@ -207,6 +208,17 @@ export function useSendToReview(runId: string, datasetId: string) {
         queryClient.invalidateQueries({ queryKey: qk.datasets.allReviewQueue() }),
       ]),
   });
+}
+
+/** The spec one side of a run answered with - what History compares a version with. */
+export function useEvalArmSpec(runId: string | null, armId: string | null) {
+  const query = useQuery({
+    queryKey: qk.evalRuns.armSpec(runId ?? "", armId ?? ""),
+    queryFn: () => apiClient.get<AgentSpec>(`/eval-runs/${runId}/arms/${armId}/spec`),
+    enabled: runId !== null && armId !== null,
+    staleTime: Infinity,
+  });
+  return { spec: query.data, isLoading: query.isLoading };
 }
 
 /** A dataset's runs over the agents the caller may see, newest first. */

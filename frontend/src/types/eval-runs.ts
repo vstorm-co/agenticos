@@ -87,6 +87,8 @@ export interface EvalRunArm {
   model_profile_id: string | null;
   model_label: string;
   reused_from_arm_id: string | null;
+  /** A fingerprint of the spec this side ran. */
+  spec_hash: string;
   summary: ArmSummary;
   by_tag: Record<string, ArmSummary>;
 }
@@ -133,6 +135,8 @@ export interface EvalRun {
   first_total: number;
   /** The verdict once the run has ended; null while it answers. */
   outcome: EvalOutcome | null;
+  /** On the single-run read of a run of the draft: whether the draft changed since. */
+  draft_changed?: boolean | null;
   error: string | null;
   created_by_user_id: string | null;
   created_at: string;

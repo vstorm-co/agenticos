@@ -51,6 +51,13 @@ vi.mock("@/hooks/use-eval-runs", async (importOriginal) => {
 });
 
 const cancel = { mutate: vi.fn() };
+const testAgain = vi.hoisted(() => ({ props: [] as unknown[] }));
+vi.mock("./start-eval-dialog", () => ({
+  StartEvalDialog: (props: { onOpenChange: (open: boolean) => void }) => {
+    testAgain.props.push(props);
+    return <button onClick={() => props.onOpenChange(false)}>start-dialog</button>;
+  },
+}));
 
 /** A draft measured against v6 in the same run, which it made worse. */
 function worseDraft() {
@@ -142,7 +149,7 @@ describe("EvalRunView", () => {
     expect(screen.getByText(/4 answers \+ 2 confirming reruns/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "See what changed" })).toHaveAttribute(
       "href",
-      "/agents/agent-1?tab=history&from=6&to=draft",
+      "/agents/agent-1?tab=history&from=6&run=run-1&arm=arm-1",
     );
     expect(screen.getByRole("link", { name: "Publish" })).toHaveAttribute(
       "href",
@@ -251,6 +258,22 @@ describe("EvalRunView", () => {
     };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Corrected by a person")).toBeInTheDocument();
+  });
+
+  it("offers to test again, not to publish, once the draft moved on", async () => {
+    worseDraft();
+    state.run = { ...state.run, run: { ...(state.run.run as object), draft_changed: true } };
+    access.allowed = new Set([Perm.agentsPublish]);
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+
+    expect(screen.queryByRole("link", { name: "Publish" })).toBeNull();
+    expect(screen.getByText("The draft changed after this run.")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Test again" }));
+    expect(testAgain.props.at(-1)).toEqual(
+      expect.objectContaining({ agentId: "agent-1", datasetId: "ds-1", target: "compare" }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "start-dialog" }));
+    expect(screen.queryByRole("button", { name: "start-dialog" })).toBeNull();
   });
 
   it("offers no publish to who may not publish", () => {

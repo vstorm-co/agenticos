@@ -15,6 +15,7 @@ import { ArmsTable } from "./arms-table";
 import { ALL, CaseTable, FilterSelect } from "./case-table";
 import { ComparisonCard } from "./comparison-card";
 import { sideName } from "./names";
+import { StartEvalDialog } from "./start-eval-dialog";
 import { VerdictHeader } from "./verdict-header";
 
 /**
@@ -32,6 +33,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const [arm, setArm] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
   const [broken, setBroken] = useState(false);
+  const [testingAgain, setTestingAgain] = useState(false);
   const cases = useRef<HTMLDivElement>(null);
   const focus = arm ?? candidates[0]?.id ?? null;
   const live = run !== undefined && isLive(run.status);
@@ -85,6 +87,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
                 })
             : undefined
         }
+        onTestAgain={() => setTestingAgain(true)}
         onShowBroken={() => {
           setBroken(true);
           cases.current?.scrollIntoView?.({ behavior: "smooth" });
@@ -126,6 +129,14 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
       />
       {!live && comparison && (
         <ComparisonCard agentId={agentId} comparison={comparison} tag={tag} />
+      )}
+      {testingAgain && (
+        <StartEvalDialog
+          agentId={agentId}
+          datasetId={run.dataset_id}
+          target="compare"
+          onOpenChange={setTestingAgain}
+        />
       )}
       <div ref={cases}>
         <CaseTable

@@ -36,6 +36,7 @@ export function arm(overrides: Partial<EvalRunArm> = {}): EvalRunArm {
     model_profile_id: "m1",
     model_label: "gpt-4.1",
     reused_from_arm_id: null,
+    spec_hash: "hash-7",
     summary: SUMMARY,
     by_tag: { refunds: SUMMARY },
     ...overrides,

@@ -328,6 +328,22 @@ describe("the diff", () => {
     expect(screen.getByLabelText("Compare to")).toHaveTextContent("Draft");
   });
 
+  it("compares a version with the spec an eval run tested", () => {
+    mount({
+      compareFrom: 1,
+      compareTo: "tested",
+      testedSpec: { spec: spec({ instructions: "As tested." }), label: "Draft as tested" },
+    });
+    expect(screen.getByLabelText("Compare from")).toHaveTextContent("v1");
+    expect(screen.getByLabelText("Compare to")).toHaveTextContent("Draft as tested");
+    expect(screen.getByText(/As tested\./)).toBeInTheDocument();
+  });
+
+  it("waits for the tested spec before comparing with it", () => {
+    mount({ compareFrom: 1, compareTo: "tested" });
+    expect(screen.getByLabelText("Compare to")).toHaveTextContent("Draft");
+  });
+
   it("keeps the default comparison when the asked-for version is not there", () => {
     mount({ compareFrom: 9 });
     expect(screen.getByLabelText("Compare from")).toHaveTextContent("v2");

@@ -56,6 +56,7 @@ import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
 import { DraftEvalNote } from "@/components/evals/draft-eval-note";
 import { EvalsPanel } from "@/components/evals/evals-panel";
+import { useEvalArmSpec } from "@/hooks/use-eval-runs";
 import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
 import { VersionHistory } from "@/components/agents/version-history";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -178,7 +179,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const searchParams = useSearchParams();
   const openTab = searchParams.get("tab") ?? "build";
   const compareFrom = Number(searchParams.get("from")) || null;
-  const compareTo = Number(searchParams.get("to")) || "draft";
+  const testedRun = searchParams.get("run");
+  const testedArm = searchParams.get("arm");
+  const compareTo = testedRun ? "tested" : Number(searchParams.get("to")) || "draft";
+  const { spec: testedSpec } = useEvalArmSpec(testedRun, testedArm);
   const publishAsked = searchParams.get("publish") === "1";
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor } =
     useAgent(id);
@@ -1492,6 +1496,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 promoting={promote.isPending}
                 compareFrom={compareFrom}
                 compareTo={compareTo}
+                testedSpec={testedSpec ? { spec: testedSpec, label: t("draftAsTested") } : null}
               />
             </CardContent>
           </Card>
