@@ -41,7 +41,8 @@ interface CreateJudgeDialogProps {
  * A judge of the dataset's own, started from its name and what it is about.
  *
  * The judge is an agent: what is written here is its prompt, which its page
- * edits later. The rubric stays on the dataset.
+ * edits later, and what it must know to grade - a policy the cases do not
+ * repeat - is added to that prompt. The rubric stays on the dataset.
  */
 export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJudgeDialogProps) {
   const t = useTranslations("datasets.scoring");
@@ -56,6 +57,7 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
       description: dataset.description ?? "",
     }),
   );
+  const [knowledge, setKnowledge] = useState("");
   const [model, setModel] = useState(OLDEST);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
@@ -64,6 +66,7 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
       const updated = await create.mutateAsync({
         name: name.trim(),
         instructions: instructions.trim(),
+        knowledge: knowledge.trim() === "" ? null : knowledge.trim(),
         model_profile_id: model === OLDEST ? null : model,
       });
       onCreated(updated);
@@ -72,7 +75,10 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
     } catch (error) {
       const failure = submitFailure(
         error,
-        { fields: ["name", "instructions", "model_profile_id"], identifiedBy: "name" },
+        {
+          fields: ["name", "instructions", "knowledge", "model_profile_id"],
+          identifiedBy: "name",
+        },
         tErrors,
       );
       setErrors(failure.fields);
@@ -106,6 +112,21 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
               value={instructions}
               rows={8}
               onChange={(event) => setInstructions(event.target.value)}
+            />
+          </FormField>
+          <FormField
+            htmlFor="judge-knowledge"
+            label={t("judgeKnowledge")}
+            description={t("judgeKnowledgeHint")}
+            error={errors.knowledge}
+          >
+            <Textarea
+              id="judge-knowledge"
+              value={knowledge}
+              rows={4}
+              maxLength={20_000}
+              placeholder={t("judgeKnowledgePlaceholder")}
+              onChange={(event) => setKnowledge(event.target.value)}
             />
           </FormField>
           <FormField htmlFor="judge-model" label={t("judgeModel")} error={errors.model_profile_id}>

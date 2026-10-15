@@ -5648,7 +5648,11 @@
         "judgeNotSeeded": "Der Eval-Bewerter konnte in dieser Organisation nicht eingerichtet werden.",
         "judgeBudget": "Das Budget des Eval-Bewerters ist aufgebraucht, daher lief er nicht.",
         "judgeNoModel": "Das Modell des Eval-Bewerters ist entfernt oder hat keinen Schlüssel. Wählen Sie ein anderes Modell für ihn.",
-        "judgeMissing": "Der für dieses Dataset gewählte Bewerter existiert nicht mehr. Wählen Sie im Tab Bewertung einen anderen."
+        "judgeMissing": "Der für dieses Dataset gewählte Bewerter existiert nicht mehr. Wählen Sie im Tab Bewertung einen anderen.",
+        "judgeRunFailed": "Der Run des Bewerters wurde nicht beendet.",
+        "judgeOutputInvalid": "Der Bewerter hat in einer Form geantwortet, die sich nicht lesen ließ.",
+        "judgeUngraded": "Der Bewerter hat für dieses Kriterium keine Note auf der Skala vergeben.",
+        "judgeReasonEcho": "Der Bewerter hat das Kriterium wiederholt, statt zu sagen, warum die Antwort es erfüllt."
       },
       "scoreRun": "Gegen einen Fall bewerten",
       "scoreRunBody": "Alle im Dataset konfigurierten Bewertungen auf die Antwort dieses Runs anwenden. Das Ergebnis wird im Dataset gespeichert.",
@@ -5747,7 +5751,17 @@
       "judgeUnpublished": "Nicht veröffentlicht",
       "gradedBy": "Hier bewertet von: {graders}.",
       "gradedByJudge": "dem Bewerter ({criteria})",
-      "gradedByNothing": "Nichts im Tab Bewertung des Datasets würde diesen Fall so bewerten."
+      "gradedByNothing": "Nichts im Tab Bewertung des Datasets würde diesen Fall so bewerten.",
+      "openJudgeRun": "Run des Bewerters öffnen",
+      "notGradedCode": "Ein erforderlicher Scorer kam zu keinem Urteil ({code}).",
+      "notGradedWhy": "Diese Antwort ist nicht bewertet und zählt daher weder als bestanden noch als nicht bestanden. Beheben Sie die Ursache und bewerten Sie sie erneut - der Agent läuft nicht noch einmal.",
+      "rescore": "Erneut bewerten",
+      "rescoreGroup": "{count, plural, =1 {1 unbewertete Antwort} other {# unbewertete Antworten}} erneut bewerten",
+      "rescored": "{count, plural, =1 {1 Antwort erneut bewertet} other {# Antworten erneut bewertet}}",
+      "rescoreNothing": "Jeder Scorer war bereits zu einem Urteil gekommen, daher wurde nichts erneut bewertet.",
+      "judgeKnowledge": "Was muss der Bewerter wissen?",
+      "judgeKnowledgeHint": "Alles, woran er bewertet und was die Fälle nicht sagen - eine Richtlinie, eine Preisliste, Hausregeln. Es wird den Anweisungen des Bewerters hinzugefügt.",
+      "judgeKnowledgePlaceholder": "Bestellungen können innerhalb von 30 Tagen nach Lieferung zurückgegeben werden. Geöffnete Software wird nicht erstattet."
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",

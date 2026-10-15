@@ -7,10 +7,12 @@ import { toast } from "sonner";
 
 import { ErrorState, LoadingState } from "@/components/states";
 import { ListCard, ListCardEmpty, PAGE_SIZE, Pager } from "@/components/ui";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useScores } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
 import { groupScores } from "@/lib/scoring";
 import type { Dataset } from "@/types/datasets";
+import { Perm } from "@/types/permissions";
 import type { CaseScore } from "@/types/scoring";
 import { ReviewFilters, type ReviewFilter } from "./review-filters";
 import { ReviewGroupHeading } from "./review-group";
@@ -40,12 +42,18 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
     limit: PAGE_SIZE,
   });
   const other = useScores(dataset.id, { pending: !pending, ...narrowed, limit: 1 });
+  const { can } = usePermissions();
   const canDecide = dataset.can_edit;
+  const canRescore = can(Perm.datasetsRun);
   const pageCount = Math.max(1, Math.ceil(scores.total / PAGE_SIZE));
   // A decision takes the last score off the last page of the queue; step back to
   // the page that still exists, the adjust-state-while-rendering way.
   if (!scores.isLoading && page >= pageCount) setPage(pageCount - 1);
-  const busy = scores.verdict.isPending || scores.review.isPending || scores.withdraw.isPending;
+  const busy =
+    scores.verdict.isPending ||
+    scores.review.isPending ||
+    scores.withdraw.isPending ||
+    scores.rescore.isPending;
 
   const decide = async (score: CaseScore, verdict: Verdict) => {
     try {
@@ -67,6 +75,18 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
     try {
       await scores.review.mutateAsync(scoreId);
       toast.success(t("sentToReview"));
+    } catch (failure) {
+      toast.error(getErrorMessage(failure, tErrors));
+    }
+  };
+  const rescore = async (scoreIds: string[]) => {
+    try {
+      const done = await scores.rescore.mutateAsync(scoreIds);
+      toast.success(
+        done.rescored.length > 0
+          ? t("rescored", { count: done.rescored.length })
+          : t("rescoreNothing"),
+      );
     } catch (failure) {
       toast.error(getErrorMessage(failure, tErrors));
     }
@@ -122,6 +142,7 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
                     ? () => void withdraw(group.scores.map((score) => score.id))
                     : undefined
                 }
+                onRescore={canRescore ? (ids) => void rescore(ids) : undefined}
               />
               {group.scores.map((score) => (
                 <ScoreCard
@@ -130,6 +151,7 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
                   busy={busy}
                   onVerdict={canDecide ? (verdict) => void decide(score, verdict) : undefined}
                   onReview={canDecide ? () => void queue(score.id) : undefined}
+                  onRescore={canRescore ? () => void rescore([score.id]) : undefined}
                 />
               ))}
             </section>

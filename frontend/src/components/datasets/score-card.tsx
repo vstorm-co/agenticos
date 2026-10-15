@@ -7,7 +7,7 @@ import { useFormatter, useTranslations } from "next-intl";
 
 import { Badge, Button } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
-import { reasonKey } from "@/lib/scoring";
+import { reasonKey, reasonKeyOf } from "@/lib/scoring";
 import type { CaseScore, ScorerResult } from "@/types/scoring";
 import { ScoreAnswer } from "./score-answer";
 import { ScoreDecision, type Verdict } from "./score-decision";
@@ -21,6 +21,8 @@ interface ScoreCardProps {
   onVerdict?: (verdict: Verdict) => void;
   /** Put the score in the review queue. Absent when it cannot be sent. */
   onReview?: () => void;
+  /** Score the same answer again. Absent for somebody who may not run the dataset. */
+  onRescore?: () => void;
   busy?: boolean;
 }
 
@@ -63,16 +65,24 @@ function ResultRow({ result }: { result: ScorerResult }) {
           </p>
         )}
       </div>
-      {result.judge_run_id !== null && (
-        <Link
-          href={`${ROUTES.RUNS}?run=${result.judge_run_id}`}
-          className="text-muted-foreground hover:text-foreground shrink-0"
-          aria-label={t("judgeRun")}
-          title={t("judgeRun")}
-        >
-          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-        </Link>
-      )}
+      {result.judge_run_id !== null &&
+        (result.status === "error" ? (
+          <Link
+            href={`${ROUTES.RUNS}?run=${result.judge_run_id}`}
+            className="shrink-0 text-xs underline"
+          >
+            {t("openJudgeRun")}
+          </Link>
+        ) : (
+          <Link
+            href={`${ROUTES.RUNS}?run=${result.judge_run_id}`}
+            className="text-muted-foreground hover:text-foreground shrink-0"
+            aria-label={t("judgeRun")}
+            title={t("judgeRun")}
+          >
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+          </Link>
+        ))}
     </li>
   );
 }
@@ -141,6 +151,32 @@ function Results({ results }: { results: ScorerResult[] }) {
   );
 }
 
+/** Why nobody reached a verdict on the answer, and the way to ask again. */
+function NotGraded({
+  code,
+  onRescore,
+  busy,
+}: {
+  code: string;
+  onRescore?: () => void;
+  busy: boolean;
+}) {
+  const t = useTranslations("datasets.scoring");
+  const known = reasonKeyOf(code);
+  return (
+    <div className="bg-muted/40 flex flex-wrap items-center gap-2 rounded-md px-3 py-2 text-sm">
+      <p className="min-w-0 flex-1">
+        {known ? t(known) : t("notGradedCode", { code })} {t("notGradedWhy")}
+      </p>
+      {onRescore && (
+        <Button size="sm" variant="outline" disabled={busy} onClick={onRescore}>
+          {t("rescore")}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /**
  * One answer graded against one case: what the case asked and expected, what the
  * agent answered, what each scorer found and why, and a person's review decision.
@@ -148,7 +184,7 @@ function Results({ results }: { results: ScorerResult[] }) {
  * The decision settles the outcome but is shown apart from the scorers, never in
  * place of them - the judge's opinion stays readable after it is overruled.
  */
-export function ScoreCard({ score, onVerdict, onReview, busy = false }: ScoreCardProps) {
+export function ScoreCard({ score, onVerdict, onReview, onRescore, busy = false }: ScoreCardProps) {
   const t = useTranslations("datasets.scoring");
   const sendable = onReview !== undefined && score.review_state === "none";
   const decided = score.human_passed !== null;
@@ -165,6 +201,9 @@ export function ScoreCard({ score, onVerdict, onReview, busy = false }: ScoreCar
       <ScoreExpectation score={score} />
       <ScoreAnswer answer={score.answer} />
 
+      {score.passed === null && score.unscored_reason !== null && (
+        <NotGraded code={score.unscored_reason} onRescore={onRescore} busy={busy} />
+      )}
       <Results results={score.results} />
 
       {(onVerdict || sendable || (decided && score.human_note)) && (

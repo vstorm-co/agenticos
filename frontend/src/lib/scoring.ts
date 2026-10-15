@@ -65,10 +65,18 @@ const REASON_KEYS = {
   judge_not_seeded: "reason.judgeNotSeeded",
   judge_missing: "reason.judgeMissing",
   judge_budget: "reason.judgeBudget",
+  judge_run_failed: "reason.judgeRunFailed",
+  judge_output_invalid: "reason.judgeOutputInvalid",
+  judge_ungraded: "reason.judgeUngraded",
+  judge_reason_echo: "reason.judgeReasonEcho",
 } as const;
 
 export function reasonKey(result: ScorerResult): string | null {
-  const code = result.reason_code;
+  return reasonKeyOf(result.reason_code);
+}
+
+/** The catalog key for a reason code, or null for a code this build does not know. */
+export function reasonKeyOf(code: string | null): string | null {
   if (code === null || !(code in REASON_KEYS)) return null;
   return REASON_KEYS[code as keyof typeof REASON_KEYS];
 }

@@ -121,6 +121,53 @@ describe("ScoreCard", () => {
     ).toBeInTheDocument();
   });
 
+  it("says why an answer is not graded, links the judge's run that erred, and offers to score again", async () => {
+    const rescore = vi.fn();
+    const { rerender } = render(
+      <ScoreCard
+        score={score({
+          passed: null,
+          outcome: null,
+          unscored_reason: "judge_reason_echo",
+          results: [
+            result({
+              status: "error",
+              reason_code: "judge_reason_echo",
+              judge_run_id: "judge-1",
+            }),
+          ],
+        })}
+        onRescore={rescore}
+      />,
+    );
+
+    expect(
+      screen.getAllByText(/restated the criterion instead of saying why/).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText(/counts as neither passed nor failed/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the judge's run" })).toHaveAttribute(
+      "href",
+      "/runs?run=judge-1",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Score again" }));
+    expect(rescore).toHaveBeenCalled();
+
+    rerender(
+      <ScoreCard
+        score={score({
+          passed: null,
+          outcome: null,
+          unscored_reason: "pattern_timeout",
+          results: [result({ status: "error", reason_code: "pattern_timeout" })],
+        })}
+      />,
+    );
+    expect(
+      screen.getByText(/A required scorer reached no verdict \(pattern_timeout\)\./),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Score again" })).toBeNull();
+  });
+
   it("shows what the scored revision asked, and its reference answer", () => {
     render(<ScoreCard score={score({ reference_answer: "Thirty days." })} />);
 

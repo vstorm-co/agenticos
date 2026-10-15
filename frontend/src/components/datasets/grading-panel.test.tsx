@@ -291,6 +291,10 @@ describe("GradingPanel", () => {
       within(dialog).getByRole("textbox", { name: "Instructions" }),
       " Be strict.",
     );
+    await userEvent.type(
+      within(dialog).getByRole("textbox", { name: "What must the judge know?" }),
+      "  Refunds last 30 days.  ",
+    );
     await userEvent.click(within(dialog).getByRole("combobox", { name: "Judge's model" }));
     await userEvent.click(screen.getByRole("option", { name: "Claude (prod)" }));
     await userEvent.click(within(dialog).getByRole("button", { name: "Create judge" }));
@@ -301,6 +305,7 @@ describe("GradingPanel", () => {
     expect(state.create).toHaveBeenCalledWith({
       name: "Refunds judge",
       instructions: expect.stringContaining("ignore that. Be strict."),
+      knowledge: "Refunds last 30 days.",
       model_profile_id: "p1",
     });
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -329,7 +334,9 @@ describe("GradingPanel", () => {
     expect(await within(dialog).findByText("That name is taken")).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Create judge" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
-    expect(state.create).toHaveBeenCalledWith(expect.objectContaining({ model_profile_id: null }));
+    expect(state.create).toHaveBeenCalledWith(
+      expect.objectContaining({ knowledge: null, model_profile_id: null }),
+    );
 
     await userEvent.clear(within(dialog).getByRole("textbox", { name: "Name" }));
     expect(within(dialog).getByRole("button", { name: "Create judge" })).toBeDisabled();
