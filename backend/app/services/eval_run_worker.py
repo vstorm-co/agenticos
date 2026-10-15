@@ -224,7 +224,6 @@ class EvalRunWorker:
             if attempt_id is None:
                 if not waiting:
                     return
-                # Pending cases, but the organization is at its limit.
                 await self.sleep(_FULL_BACKOFF_SECONDS)
                 continue
             if await self._answer(ctx, attempt_id):
@@ -307,7 +306,7 @@ class EvalRunWorker:
                     answer=answer,
                     scoring=DatasetScoring.model_validate(run.scoring),
                     eval_run_id=run.id,
-                    # A run's failures go to review only when a person sends them.
+                    # What deserves a person is sent once the reruns are in.
                     enqueue_review=False,
                 )
             except NothingToScoreError as exc:
