@@ -13,7 +13,6 @@ is why every write in this API used to be acknowledged before it was durable
 """
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
-import hashlib
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
@@ -21,7 +20,6 @@ from fastapi import Depends
 from fastapi import Header
 from fastapi import Query
 from fastapi import WebSocket, Cookie, WebSocketException
-from starlette.requests import HTTPConnection
 from fastapi.security import OAuth2PasswordBearer
 
 from app.core.config import settings
@@ -427,46 +425,6 @@ oauth2_scheme_optional = OAuth2PasswordBearer(
 )
 
 
-async def key_attempt_refused(
-    connection: HTTPConnection, token: str
-) -> tuple[rate_limit.Decision, str] | None:
-    """Why a key is turned away before it is looked up, or `None` to look it up.
-
-    Both limits come before the lookup, so neither a key over its allowance nor
-    a flood of made-up ones costs a database query - on a request and on a
-    socket handshake alike. A key is counted by a digest of the whole token,
-    readable without the database - not by its prefix, which listings and audit
-    entries show, so knowing it would let anybody spend a real key's allowance
-    with made-up tokens. Made-up keys are counted per address once refused
-    (:func:`count_refused_key`), and an address over the line is turned away here.
-    """
-    address = f"ip:{rate_limit.caller_ip(connection)}"
-    if await rate_limit.exhausted(
-        surface="api_key_refused", caller=address, limit=rate_limit.auth_limit()
-    ):
-        return (
-            rate_limit.Decision(allowed=False, retry_after_seconds=60),
-            "Too many requests with invalid API keys. Wait and try again.",
-        )
-    decision = await rate_limit.consume(
-        surface="api_key",
-        caller=f"key:{hashlib.sha256(token.encode()).hexdigest()}",
-        limit=rate_limit.api_key_limit(),
-    )
-    if not decision.allowed:
-        return decision, "Too many requests with this API key. Wait and try again."
-    return None
-
-
-async def count_refused_key(connection: HTTPConnection) -> None:
-    """Count a key that failed its lookup against the address that presented it."""
-    await rate_limit.consume(
-        surface="api_key_refused",
-        caller=f"ip:{rate_limit.caller_ip(connection)}",
-        limit=rate_limit.auth_limit(),
-    )
-
-
 async def _authenticate_api_key(request: Request, token: str, api_keys: ApiKeyService) -> User:
     """Resolve an organization key to its issuer, on a public route only (#1794).
 
@@ -481,13 +439,13 @@ async def _authenticate_api_key(request: Request, token: str, api_keys: ApiKeySe
             message="API keys are not accepted on this endpoint",
             details={"path": getattr(route, "path", request.url.path)},
         )
-    refused = await key_attempt_refused(request, token)
+    refused = await rate_limit.key_attempt_refused(request, token)
     if refused is not None:
         _refuse_if_over(*refused)
     try:
         caller = await api_keys.authenticate(token)
     except AuthenticationError:
-        await count_refused_key(request)
+        await rate_limit.count_refused_key(request)
         raise
     request.state.api_key_caller = caller
     set_api_key(caller.api_key_id, caller.prefix)
@@ -1290,7 +1248,7 @@ async def get_current_user_ws(
     # The limits a key meets on a request, met before the handshake opens a
     # database session for it.
     if is_api_key(auth_token):
-        refused = await key_attempt_refused(websocket, auth_token)
+        refused = await rate_limit.key_attempt_refused(websocket, auth_token)
         if refused is not None:
             raise WebSocketException(code=4029, reason=refused[1])
 
@@ -1304,7 +1262,7 @@ async def get_current_user_ws(
             )
         except AuthenticationError as exc:
             if is_api_key(auth_token):
-                await count_refused_key(websocket)
+                await rate_limit.count_refused_key(websocket)
             raise WebSocketException(code=4001, reason=exc.message) from None
         # The organization and the narrowed context travel with the socket, so
         # the organization comes from the key rather than from a query parameter.

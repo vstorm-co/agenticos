@@ -695,6 +695,40 @@ async def test_authorization_requests_are_limited_per_address(served: None) -> N
     assert denied.await_args.kwargs["surface"] == "oauth_authorize"
 
 
+@pytest.mark.security
+async def test_made_up_bearer_keys_are_limited_before_the_lookup(
+    served: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Codex on #2062: every `aos_` bearer cost a database session and a SELECT."""
+    from collections import Counter
+    from unittest.mock import AsyncMock
+
+    from app.core.config import settings
+    from app.repositories import api_key_repo
+    from app.services import rate_limit
+
+    class _Counter:
+        def __init__(self) -> None:
+            self.uses: Counter[str] = Counter()
+
+        async def count_in_window(self, key: str, *, ttl: int) -> int:
+            self.uses[key] += 1
+            return self.uses[key]
+
+        async def get(self, key: str) -> str | None:
+            return str(self.uses[key]) if key in self.uses else None
+
+    monkeypatch.setattr(rate_limit, "_redis", _Counter())
+    monkeypatch.setattr(settings, "RATE_LIMIT_AUTH_PER_MINUTE", 2)
+    lookups = AsyncMock(return_value=None)
+    monkeypatch.setattr(api_key_repo, "get_by_prefix", lookups)
+
+    answers = [(await _whoami(f"aos_{uuid.uuid4().hex}")).status_code for _ in range(4)]
+
+    assert answers == [401, 401, 401, 429]
+    assert lookups.await_count == 3
+
+
 async def test_a_client_nobody_signed_in_with_is_swept_on_the_next_registration(
     db: AsyncSession, served: None
 ) -> None:

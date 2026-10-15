@@ -23,9 +23,10 @@ from fastmcp.server.http import StarletteWithLifespan
 from mcp.types import ToolAnnotations
 from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.services import rate_limit
+from app.services.api_key import is_api_key
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._oauth import PlatformOAuthProvider
 from app.services.platform_mcp._tools import PlatformTool, platform_tools
@@ -149,6 +150,23 @@ class _Forward:
                 )
                 await refused(scope, receive, send)
                 return
+        token = _bearer(scope)
+        if token is not None and is_api_key(token):
+            # The limits a key meets on the API, met before the MCP server opens a
+            # database session to look it up; a token it refuses (401) is counted
+            # against the address that sent it.
+            connection = HTTPConnection(scope)
+            refused = await rate_limit.key_attempt_refused(connection, token)
+            if refused is not None:
+                decision, message = refused
+                response = JSONResponse(
+                    {"error": "temporarily_unavailable", "error_description": message},
+                    status_code=429,
+                    headers={"Retry-After": str(decision.retry_after_seconds)},
+                )
+                await response(scope, receive, send)
+                return
+            send = _counting_refusals(send, connection)
         starlette = getattr(scope["app"].state, "platform_mcp", None)
         if starlette is None:
             response = JSONResponse(
@@ -163,6 +181,26 @@ class _Forward:
             await response(scope, receive, send)
             return
         await starlette(scope, receive, send)
+
+
+def _bearer(scope: Scope) -> str | None:
+    """The bearer token a request carries, if it carries one."""
+    for name, value in scope.get("headers", []):
+        if name == b"authorization":
+            scheme, _, token = value.decode("latin-1").partition(" ")
+            return token.strip() if scheme.lower() == "bearer" else None
+    return None
+
+
+def _counting_refusals(send: Send, connection: HTTPConnection) -> Send:
+    """`send`, counting a refused key against its address when the answer is 401."""
+
+    async def counted(message: Message) -> None:
+        if message["type"] == "http.response.start" and message["status"] == 401:
+            await rate_limit.count_refused_key(connection)
+        await send(message)
+
+    return counted
 
 
 forward = _Forward()
