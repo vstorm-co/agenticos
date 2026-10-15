@@ -160,6 +160,11 @@ class EvalRun(Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The first candidate's comparison once the run ended, so a listing reads its
+    # verdict without comparing every run again. Stale once a person decides one
+    # of its scores after `outcome_at`, and read afresh then.
+    outcome: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    outcome_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         CheckConstraint(

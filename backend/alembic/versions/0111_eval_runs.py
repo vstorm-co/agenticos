@@ -2,7 +2,8 @@
 
 `eval_runs` is one run as a person started it - the agent, the dataset version,
 the environment lending its test connections, the scoring frozen at start and
-the estimate consented to. `eval_run_arms` is each configuration that answers
+the estimate consented to, and - once it ended - its verdict, kept for the
+listings. `eval_run_arms` is each configuration that answers
 the cases: a published version, a frozen draft or a spec a caller handed over,
 on one model, as the candidate or the baseline. An arm reused from an earlier
 run points at it instead of answering again. `eval_run_cases` is one attempt of
@@ -61,6 +62,8 @@ def upgrade() -> None:
         ),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("outcome", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("outcome_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint(
             "purpose IN ('manual', 'gate')", name=op.f("eval_runs_ck_eval_run_purpose_check")
         ),

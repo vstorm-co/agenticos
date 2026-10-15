@@ -54,11 +54,28 @@ async def list_eval_runs(
     agent_id: UUID,
     service: EvalRunSvc,
     ctx: Auth,
+    draft: Literal["current"] | None = Query(
+        None, description="Only the runs that tested the draft as it stands now"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
 ) -> Any:
     """The agent's runs over datasets the caller may read, newest first."""
-    return await service.list_for_agent(ctx, agent_id, skip=skip, limit=limit)
+    return await service.list_for_agent(
+        ctx, agent_id, draft=draft is not None, skip=skip, limit=limit
+    )
+
+
+@router.get("/datasets/{dataset_id}/eval-runs", response_model=EvalRunList)
+async def list_dataset_eval_runs(
+    dataset_id: UUID,
+    service: EvalRunSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """The dataset's runs over agents the caller may see, newest first."""
+    return await service.list_for_dataset(ctx, dataset_id, skip=skip, limit=limit)
 
 
 @router.get(
@@ -86,12 +103,20 @@ async def list_eval_run_cases(
     arm_id: UUID | None = Query(None, description="The arm `outcome` is read on"),
     outcome: Literal["passed", "failed", "undecided"] | None = Query(None),
     tag: str | None = Query(None, max_length=100),
+    case_id: list[UUID] | None = Query(None, max_length=100, description="Only these cases"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """Each case with every attempt every arm made at it."""
     return await service.cases(
-        ctx, eval_run_id, arm_id=arm_id, outcome=outcome, tag=tag, skip=skip, limit=limit
+        ctx,
+        eval_run_id,
+        arm_id=arm_id,
+        outcome=outcome,
+        tag=tag,
+        case_ids=case_id,
+        skip=skip,
+        limit=limit,
     )
 
 

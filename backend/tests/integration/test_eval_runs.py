@@ -37,7 +37,7 @@ from app.core.exceptions import (
     NothingToScoreError,
     PaymentRequiredError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.case_score import CaseScore
@@ -1138,3 +1138,161 @@ async def test_an_attempt_gone_with_its_run_stops_the_drainer(db) -> None:
     worker = EvalRunWorker(uuid.uuid4(), ctx.organization_id, sessions=_sessions(db))
 
     assert await worker._answer(ctx, uuid.uuid4()) is True
+
+
+async def _decide(db: AsyncSession, run_id, prompt: str, *, passed: bool) -> None:
+    """A person's verdict on a case's first answer, given now."""
+    revision = await db.scalar(select(DatasetCase).where(DatasetCase.input == prompt))
+    assert revision is not None
+    attempt = await db.scalar(
+        select(EvalRunCase).where(
+            EvalRunCase.eval_run_id == run_id,
+            EvalRunCase.case_id == revision.case_id,
+            EvalRunCase.attempt == 0,
+        )
+    )
+    assert attempt is not None
+    score = await db.get(CaseScore, attempt.case_score_id)
+    assert score is not None
+    score.human_passed = passed
+    score.review_state = "done"
+    score.reviewed_at = datetime.now(UTC) + timedelta(seconds=1)
+    await db.flush()
+
+
+async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=4)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    # A run still answering has no verdict yet.
+    assert v6.outcome is None
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    await _run_to_end(db, model, v7.id, ctx)
+
+    listed = {run.id: run for run in (await service.list_for_agent(ctx, agent.id)).items}
+    first = listed[v6.id].outcome
+    # Nothing ran before v6 on this dataset, so it is the first result.
+    assert first is not None and first.verdict is None and first.baseline is None
+    assert first.candidate_pass_rate == 1.0
+    outcome = listed[v7.id].outcome
+    assert outcome is not None
+    assert outcome.verdict == "inconclusive"
+    assert outcome.baseline is not None and outcome.baseline.run_id == v6.id
+    assert outcome.regressions_confirmed == 1
+    assert (outcome.candidate_pass_rate, outcome.baseline_pass_rate) == (0.75, 1.0)
+    read = await service.get(ctx, v7.id)
+    assert (read.cases, read.first_done, read.first_total, read.attempts_total) == (4, 4, 4, 6)
+
+    # Read again, the verdict is the one kept rather than compared anew.
+    stored = await db.get(EvalRun, v7.id)
+    assert stored is not None and stored.outcome_at is not None
+    kept_at = stored.outcome_at
+    await service.get(ctx, v7.id)
+    assert stored.outcome_at == kept_at
+
+    # A person passes the case that broke: the regression is gone from the listing.
+    await _decide(db, v7.id, "Question 0", passed=True)
+    decided = await service.get(ctx, v7.id)
+    assert decided.outcome is not None
+    assert decided.outcome.regressions_confirmed == 0
+    assert decided.outcome.candidate_pass_rate == 1.0
+    assert stored.outcome_at > kept_at
+
+
+async def test_runs_of_the_draft_as_it_stands_now(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    version_run = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    draft_run = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, candidate="draft")
+    )
+
+    tested = await service.list_for_agent(ctx, agent.id, draft=True)
+    assert [run.id for run in tested.items] == [draft_run.id]
+    assert version_run.id not in [run.id for run in tested.items]
+
+    # The same draft stored with its keys in another order is the same draft.
+    agent.draft_spec = dict(reversed(list(agent.draft_spec.items())))
+    await db.flush()
+    assert (await service.list_for_agent(ctx, agent.id, draft=True)).total == 1
+
+    agent.draft_spec = {**agent.draft_spec, "instructions": "Edited since"}
+    await db.flush()
+    assert (await service.list_for_agent(ctx, agent.id, draft=True)).items == []
+
+
+@pytest.mark.security
+async def test_a_datasets_runs_are_read_over_the_agents_and_dataset_the_reader_may_see(
+    db,
+) -> None:
+    owner = await _owner(db)
+    shared, _ = await _agent(db, owner)
+    private, _ = await _agent(db, owner)
+    private.visibility = "private"
+    dataset = await _dataset(db, owner, cases=1)
+    service = EvalRunService(db)
+    seen = await service.start(owner, shared.id, EvalRunRequest(dataset_id=dataset.id))
+    unseen = await service.start(owner, private.id, EvalRunRequest(dataset_id=dataset.id))
+
+    listed = await service.list_for_dataset(owner, dataset.id)
+    assert {run.id for run in listed.items} == {seen.id, unseen.id}
+    assert listed.total == 2
+
+    with patch.dict(
+        ROLE_PERMS,
+        {
+            "analyst": {
+                Perm.RUNS_VIEW: Scope.ALL,
+                Perm.AGENTS_VIEW: Scope.SHARED,
+                Perm.DATASETS_VIEW: Scope.SHARED,
+            }
+        },
+    ):
+        user = await _user(db)
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(),
+                organization_id=owner.organization_id,
+                user_id=user.id,
+                role="analyst",
+            )
+        )
+        await db.flush()
+        analyst = AuthContext(
+            user_id=user.id, organization_id=owner.organization_id, role="analyst"
+        )
+        # The dataset is its owner's alone until it is shared.
+        with pytest.raises(NotFoundError):
+            await service.list_for_dataset(analyst, dataset.id)
+        dataset.visibility = "org"
+        await db.flush()
+        visible = await service.list_for_dataset(analyst, dataset.id)
+        assert [run.id for run in visible.items] == [seen.id]
+        assert visible.total == 1
+
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    with pytest.raises(AuthorizationError):
+        await service.list_for_dataset(viewer, dataset.id)
+    stranger = await _owner(db)
+    with pytest.raises(NotFoundError):
+        await service.list_for_dataset(stranger, dataset.id)
+
+
+async def test_cases_narrow_to_the_ones_named(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    service = EvalRunService(db)
+    run = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    everything = await service.cases(ctx, run.id)
+
+    named = await service.cases(ctx, run.id, case_ids=[everything.items[1].case_id])
+
+    assert [case.case_id for case in named.items] == [everything.items[1].case_id]
+    assert named.total == 1

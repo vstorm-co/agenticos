@@ -36,6 +36,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,6 +83,7 @@ from app.schemas.eval_run import (
     EvalCaseList,
     EvalCaseRead,
     EvalComparisonRead,
+    EvalOutcomeRead,
     EvalRunArmRead,
     EvalRunEstimate,
     EvalRunList,
@@ -120,6 +122,11 @@ def scoring_hash(scoring: DatasetScoring) -> str:
     """A fingerprint of the scoring a run used: equal only when every setting is."""
     canonical = json.dumps(scoring.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def spec_fingerprint(spec: dict[str, Any]) -> str:
+    """A spec as one string, equal for equal specs whatever order their keys were written in."""
+    return json.dumps(spec, sort_keys=True, separators=(",", ":"))
 
 
 def attempt_outcome(attempt: EvalRunCase, score: CaseScore | None) -> Outcome:
@@ -789,10 +796,7 @@ class EvalRunService:
 
     async def _readable(self, ctx: AuthContext, run_id: UUID) -> EvalRun:
         """A run the caller may read: their organization's, its agent and dataset visible."""
-        if not ctx.has(Perm.RUNS_VIEW):
-            raise AuthorizationError(
-                message="Reading eval runs needs runs:view", details={"permission": "runs:view"}
-            )
+        self._require_runs_view(ctx)
         run = await eval_run_repo.get(self.db, run_id, organization_id=ctx.organization_id)
         if run is None:
             raise NotFoundError(message="Eval run not found", details={"eval_run_id": run_id})
@@ -809,24 +813,73 @@ class EvalRunService:
         run = await self._readable(ctx, run_id)
         return (await self._reads(ctx, [run]))[0]
 
-    async def list_for_agent(
-        self, ctx: AuthContext, agent_id: UUID, *, skip: int = 0, limit: int = 50
-    ) -> EvalRunList:
-        """An agent's runs over the datasets the caller may read, newest first."""
+    @staticmethod
+    def _require_runs_view(ctx: AuthContext) -> None:
         if not ctx.has(Perm.RUNS_VIEW):
             raise AuthorizationError(
                 message="Reading eval runs needs runs:view", details={"permission": "runs:view"}
             )
+
+    async def list_for_agent(
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        *,
+        draft: bool = False,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> EvalRunList:
+        """An agent's runs over the datasets the caller may read, newest first.
+
+        `draft` keeps only the runs that tested the draft as it stands now - the
+        same spec, whatever order its keys were stored in.
+        """
+        self._require_runs_view(ctx)
         agent = await self.registry.get(ctx, agent_id)
+        org = ctx.organization_id
         _, dataset_ids = await eval_run_repo.referenced_ids(
-            self.db, organization_id=ctx.organization_id, agent_id=agent.id
+            self.db, organization_id=org, agent_id=agent.id
         )
-        readable = await self._readable_datasets(ctx, dataset_ids)
+        readable = sorted(await self._readable_datasets(ctx, dataset_ids))
+        if draft:
+            current = spec_fingerprint(
+                AgentSpec.model_validate(agent.draft_spec).model_dump(mode="json")
+            )
+            tested = [
+                run
+                for run, spec in await eval_run_repo.draft_runs(
+                    self.db, agent.id, organization_id=org, dataset_ids=readable
+                )
+                if spec is not None and spec_fingerprint(spec) == current
+            ]
+            unique = list(dict.fromkeys(tested))
+            return EvalRunList(
+                items=await self._reads(ctx, unique[skip : skip + limit]), total=len(unique)
+            )
         runs, total = await eval_run_repo.list_for_agent(
+            self.db, agent.id, organization_id=org, dataset_ids=readable, skip=skip, limit=limit
+        )
+        return EvalRunList(items=await self._reads(ctx, runs), total=total)
+
+    async def list_for_dataset(
+        self, ctx: AuthContext, dataset_id: UUID, *, skip: int = 0, limit: int = 50
+    ) -> EvalRunList:
+        """A dataset's runs over the agents the caller may see, newest first."""
+        self._require_runs_view(ctx)
+        dataset = await self.datasets.get(ctx, dataset_id)
+        org = ctx.organization_id
+        agent_ids, _ = await eval_run_repo.referenced_ids(
+            self.db, organization_id=org, dataset_id=dataset.id
+        )
+        agents = await agent_repo.get_many(self.db, sorted(agent_ids), organization_id=org)
+        visible = await accessible_ids(
+            self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
+        )
+        runs, total = await eval_run_repo.list_for_dataset(
             self.db,
-            agent.id,
-            organization_id=ctx.organization_id,
-            dataset_ids=sorted(readable),
+            dataset.id,
+            organization_id=org,
+            agent_ids=sorted(visible),
             skip=skip,
             limit=limit,
         )
@@ -911,6 +964,7 @@ class EvalRunService:
             )
             attempt_cost = sum((a.cost_usd for a in attempts if a.cost_usd is not None), Decimal(0))
             finished = (CaseAttemptStatus.DONE.value, CaseAttemptStatus.FAILED.value)
+            first = [a for a in attempts if a.attempt == 0]
             dataset = datasets.get(run.dataset_id)
             reads.append(
                 EvalRunRead(
@@ -931,6 +985,10 @@ class EvalRunService:
                     cost_is_partial=judge_partial or any(a.cost_is_partial for a in attempts),
                     attempts_done=sum(1 for a in attempts if a.status in finished),
                     attempts_total=len(attempts),
+                    cases=len({a.case_id for a in attempts}),
+                    first_done=sum(1 for a in first if a.status in finished),
+                    first_total=len(first),
+                    outcome=await self._outcome(ctx, run),
                     error=run.error,
                     created_by_user_id=run.created_by_user_id,
                     created_at=run.created_at,
@@ -978,13 +1036,15 @@ class EvalRunService:
         arm_id: UUID | None = None,
         outcome: str | None = None,
         tag: str | None = None,
+        case_ids: Sequence[UUID] | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> EvalCaseList:
         """The run's cases, each with every attempt every arm made at it.
 
         `outcome` narrows to cases whose first attempt on `arm_id` (the first
-        candidate when omitted) passed, failed or is undecided. A reused
+        candidate when omitted) passed, failed or is undecided, and `case_ids`
+        to those cases - the ones a comparison says broke, say. A reused
         baseline's attempts are shown under this run's baseline arm.
         """
         run = await self._readable(ctx, run_id)
@@ -1005,6 +1065,8 @@ class EvalRunService:
         wanted: dict[str, Outcome] = {"passed": True, "failed": False, "undecided": None}
         items: list[EvalCaseRead] = []
         for case_id, pairs in sorted(by_case.items(), key=lambda item: item[1][0][1].position):
+            if case_ids is not None and case_id not in case_ids:
+                continue
             first = next(
                 (a for shown_arm, a in pairs if shown_arm == focus and a.attempt == 0), None
             )
@@ -1145,6 +1207,47 @@ class EvalRunService:
         of the default; it must be a run of the same agent and dataset.
         """
         run = await self._readable(ctx, run_id)
+        return await self._comparison(ctx, run, arm_id=arm_id, baseline_run_id=baseline_run_id)
+
+    async def _outcome(self, ctx: AuthContext, run: EvalRun) -> EvalOutcomeRead | None:
+        """A finished run's verdict, as kept - or compared again once a person has
+        decided one of the scores it rests on since it was kept."""
+        if run.status in (EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value):
+            return None
+        if run.outcome is not None and run.outcome_at is not None:
+            kept = EvalOutcomeRead.model_validate(run.outcome)
+            sides = {run.id} | ({kept.baseline.run_id} if kept.baseline else set())
+            if not await eval_run_repo.reviewed_since(
+                self.db, sorted(sides), since=run.outcome_at, organization_id=ctx.organization_id
+            ):
+                return kept
+        comparison = await self._comparison(ctx, run)
+        outcome = EvalOutcomeRead(
+            candidate_arm_id=comparison.candidate.arm_id,
+            verdict=comparison.verdict,
+            baseline=comparison.baseline,
+            regressions_confirmed=comparison.regressions_confirmed,
+            fixed_confirmed=comparison.fixed_confirmed,
+            candidate_pass_rate=comparison.candidate_summary.pass_rate,
+            baseline_pass_rate=(
+                comparison.baseline_summary.pass_rate if comparison.baseline_summary else None
+            ),
+        )
+        await eval_run_repo.update_run(
+            self.db,
+            run=run,
+            values={"outcome": outcome.model_dump(mode="json"), "outcome_at": datetime.now(UTC)},
+        )
+        return outcome
+
+    async def _comparison(
+        self,
+        ctx: AuthContext,
+        run: EvalRun,
+        *,
+        arm_id: UUID | None = None,
+        baseline_run_id: UUID | None = None,
+    ) -> EvalComparisonRead:
         arms = await eval_run_repo.list_arms(self.db, [run.id], organization_id=ctx.organization_id)
         candidates = [a for a in arms if a.role == ArmRole.CANDIDATE.value]
         candidate = (
