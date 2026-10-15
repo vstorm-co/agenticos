@@ -1,5 +1,5 @@
 ---
-source_sha: "71a391e9da98"
+source_sha: "9b3e7c36bd78"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -483,6 +483,13 @@ letzten zwei Minuten mit derselben Anmeldung auf seine Prüfung geantwortet hat,
 nicht erneut geprüft: Der nächste Zug einer Unterhaltung bindet ihn sofort ein. Ist
 er inzwischen ausgefallen, läuft dieser Zug ohne seine Tools weiter, und der nächste
 prüft ihn wieder.
+
+Der Name eines Tools erreicht das Modell als Präfix plus dem eigenen Namen des
+Servers - und Anbieter lehnen einen Namen über 64 Zeichen oder mit anderem als
+Buchstaben, Ziffern, `_` und `-` ab, indem sie die ganze Anfrage ablehnen. Ein
+solcher Name wird angepasst: abgelehnte Zeichen ersetzt, das Ende gekürzt und acht
+Hex-Ziffern eines Hashs angehängt, sodass zwei lange Namen zwei Tools bleiben. Der
+Server wird weiterhin unter seinem echten Namen aufgerufen.
 
 !!! warning "Ein nicht erreichbarer Server wird mit einer Warnung übersprungen, nicht ausgelöst"
 

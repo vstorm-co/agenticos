@@ -440,6 +440,12 @@ the last two minutes, with the same credential, is not probed again: a
 conversation's next turn attaches it straight away. If it has gone down in the
 meantime, that turn goes on without its tools and the next one probes it again.
 
+A tool's name reaches the model as the prefix and the server's own name joined -
+and providers refuse a name over 64 characters, or one with anything but letters,
+digits, `_` and `-`, by refusing the whole request. Such a name is fitted: the
+refused characters replaced, the end cut and eight hex digits of a hash added, so
+two long names stay two tools. The server is still called by its real name.
+
 !!! warning "An unreachable server is skipped with a warning, not raised"
 
     Pydantic AI enters every toolset when a run starts, so a dead server would

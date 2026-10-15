@@ -581,6 +581,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A long MCP tool name no longer takes the whole conversation down.** A prefixed
+  name past 64 characters, or with a character providers refuse, reaches the
+  model fitted (cut, with a short hash) and the server is still called by its
+  real name; before, the provider refused every request of the turn.
+
 - **Stopping a turn that was asking a colleague leaves one quiet step.** The
   step reads "Stopped asking …" instead of spinning "Asking …" beside "Done",
   and the stopped delegation no longer stays under the answer as a panel of its own.

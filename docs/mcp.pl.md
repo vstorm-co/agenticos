@@ -1,5 +1,5 @@
 ---
-source_sha: "71a391e9da98"
+source_sha: "9b3e7c36bd78"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -463,6 +463,13 @@ odpytanie w ciągu ostatnich dwóch minut, z tym samym poświadczeniem, nie jest
 odpytywany ponownie: kolejna tura rozmowy dołącza go od razu. Jeśli w międzyczasie
 przestał odpowiadać, ta tura idzie dalej bez jego narzędzi, a następna odpytuje go
 znowu.
+
+Nazwa narzędzia trafia do modelu jako prefiks połączony z własną nazwą serwera - a
+dostawcy odrzucają nazwę dłuższą niż 64 znaki albo zawierającą coś poza literami,
+cyframi, `_` i `-`, odrzucając całe zapytanie. Taka nazwa jest dopasowywana:
+odrzucane znaki są zamieniane, koniec ucinany i dopisywanych jest osiem cyfr
+szesnastkowych skrótu, więc dwie długie nazwy pozostają dwoma narzędziami. Serwer
+jest nadal wywoływany pod prawdziwą nazwą.
 
 !!! warning "Nieosiągalny serwer zostaje pominięty z ostrzeżeniem, a nie podnosi wyjątku"
 

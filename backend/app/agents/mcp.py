@@ -281,7 +281,62 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
-    return ApprovalMarked(server.prefixed(tool_prefix(spec.name)), policy=spec.approval)
+    return ApprovalMarked(
+        FittedNames(server.prefixed(tool_prefix(spec.name))), policy=spec.approval
+    )
+
+
+TOOL_NAME_LIMIT = 64
+"""The longest tool name the providers accept: OpenAI's limit, and the tightest of them."""
+
+_NAME_REFUSED = re.compile(r"[^a-zA-Z0-9_-]")
+"""What a provider refuses in a tool name: anything beyond letters, digits, `_` and `-`."""
+
+
+def fitted_tool_name(name: str) -> str:
+    """`name` as a provider accepts it: refused characters replaced, cut to the limit.
+
+    A name that had to change ends in eight hex digits of a hash of the original,
+    so two long names sharing their first 55 characters stay two tools.
+    """
+    if len(name) <= TOOL_NAME_LIMIT and not _NAME_REFUSED.search(name):
+        return name
+    digest = hashlib.sha256(name.encode()).hexdigest()[:8]
+    return f"{_NAME_REFUSED.sub('_', name)[: TOOL_NAME_LIMIT - 9]}_{digest}"
+
+
+@dataclass
+class FittedNames(WrapperToolset[Any]):
+    """An MCP server's prefixed tools, under names every provider accepts.
+
+    The prefix and a server's own name add up: a 50-character tool behind a
+    20-character connection name is past the 64 a provider allows, and one such
+    name makes it refuse the whole request - every tool of every server, for the
+    rest of the conversation. The model sees the fitted name; the server is called
+    by the real one.
+    """
+
+    original: dict[str, str] = field(default_factory=dict, init=False)
+
+    async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
+        tools = await super().get_tools(ctx)
+        fitted: dict[str, ToolsetTool[Any]] = {}
+        for name, tool in tools.items():
+            short = fitted_tool_name(name)
+            if short == name:
+                fitted[name] = tool
+                continue
+            self.original[short] = name
+            fitted[short] = replace(tool, toolset=self, tool_def=replace(tool.tool_def, name=short))
+        return fitted
+
+    async def call_tool(
+        self, name: str, tool_args: dict[str, Any], ctx: RunContext[Any], tool: ToolsetTool[Any]
+    ) -> Any:
+        real = self.original.get(name, name)
+        ctx = replace(ctx, tool_name=real)
+        tool = replace(tool, tool_def=replace(tool.tool_def, name=real))
+        return await super().call_tool(real, tool_args, ctx, tool)
 
 
 NEEDS_APPROVAL = "agenticos_needs_approval"

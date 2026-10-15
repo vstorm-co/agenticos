@@ -4,6 +4,8 @@ import asyncio
 import contextlib
 import json
 import logging
+import re
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,12 +16,16 @@ import httpx2
 import pytest
 from mcp.shared.auth import OAuthMetadata, OAuthToken
 from pydantic import AnyUrl, SecretStr, ValidationError
+from pydantic_ai.tools import ToolDefinition
+from pydantic_ai.toolsets.abstract import ToolsetTool
 from sqlalchemy.exc import IntegrityError
 
 from app.agents import mcp_oauth
 from app.agents.mcp import (
     ANSWERED_FOR,
+    TOOL_NAME_LIMIT,
     AnsweredRecently,
+    FittedNames,
     McpProbeError,
     McpServerSpec,
     McpToolInfo,
@@ -28,6 +34,7 @@ from app.agents.mcp import (
     _make_toolset,
     _mcp_transport,
     build_mcp_toolsets,
+    fitted_tool_name,
     prefix_collisions,
     probe_mcp_server,
     tool_prefix,
@@ -283,13 +290,83 @@ class TestTransportSelection:
         assert clients[0].is_closed
 
 
+class TestFittedNames:
+    """A prefixed MCP tool name a provider would refuse takes down the whole request."""
+
+    def test_a_name_within_the_limit_is_left_alone(self):
+        assert fitted_tool_name("github_search_issues") == "github_search_issues"
+        assert fitted_tool_name("a" * TOOL_NAME_LIMIT) == "a" * TOOL_NAME_LIMIT
+
+    def test_a_long_name_is_cut_to_the_limit_and_kept_apart(self):
+        first = fitted_tool_name("work_notion_" + "query_database_with_filters_and_sorts" * 2)
+        second = fitted_tool_name(
+            "work_notion_" + "query_database_with_filters_and_sorts" * 2 + "_v2"
+        )
+
+        assert len(first) == TOOL_NAME_LIMIT
+        assert first.startswith("work_notion_query_database")
+        assert first != second
+
+    def test_a_refused_character_is_replaced(self):
+        fitted = fitted_tool_name("jira_issues.search/advanced")
+
+        assert re.fullmatch(r"[a-zA-Z0-9_-]+", fitted)
+        assert fitted.startswith("jira_issues_search_advanced_")
+
+    @pytest.mark.anyio
+    async def test_the_model_sees_the_fitted_name_and_the_server_gets_the_real_one(self):
+        long_name = "notion_" + "x" * 70
+        inner = MagicMock()
+        inner.get_tools = AsyncMock(
+            return_value={
+                long_name: ToolsetTool(
+                    toolset=inner,
+                    tool_def=ToolDefinition(name=long_name),
+                    max_retries=1,
+                    args_validator=MagicMock(),
+                ),
+                "notion_search": ToolsetTool(
+                    toolset=inner,
+                    tool_def=ToolDefinition(name="notion_search"),
+                    max_retries=1,
+                    args_validator=MagicMock(),
+                ),
+            }
+        )
+        inner.call_tool = AsyncMock(return_value="done")
+        toolset = FittedNames(inner)
+
+        tools = await toolset.get_tools(MagicMock())
+        (short,) = [name for name in tools if name != "notion_search"]
+        assert len(short) == TOOL_NAME_LIMIT
+        assert tools[short].tool_def.name == short
+        assert tools["notion_search"].tool_def.name == "notion_search"
+
+        @dataclass
+        class Ctx:
+            tool_name: str | None = None
+
+        result = await toolset.call_tool(short, {"q": 1}, Ctx(), tools[short])
+
+        assert result == "done"
+        called_name, called_args, ctx, tool = inner.call_tool.await_args.args
+        assert (called_name, called_args, ctx.tool_name, tool.tool_def.name) == (
+            long_name,
+            {"q": 1},
+            long_name,
+            long_name,
+        )
+
+
 class TestMakeToolset:
     def test_without_allowlist_returns_prefixed_server(self):
         from pydantic_ai.mcp import MCPToolset
         from pydantic_ai.toolsets import PrefixedToolset
 
         spec = McpServerSpec(name="github-work", url="https://example.com/mcp")
-        toolset = _make_toolset(spec).wrapped
+        fitted = _make_toolset(spec).wrapped
+        assert isinstance(fitted, FittedNames)
+        toolset = fitted.wrapped
         assert isinstance(toolset, PrefixedToolset)
         assert toolset.prefix == "github_work"
         assert isinstance(toolset.wrapped, MCPToolset)
@@ -301,7 +378,7 @@ class TestMakeToolset:
         refusal as the call's result instead."""
         spec = McpServerSpec(name="notion", url="https://example.com/mcp")
 
-        assert _make_toolset(spec).wrapped.wrapped.tool_error_behavior == "failed"
+        assert _make_toolset(spec).wrapped.wrapped.wrapped.tool_error_behavior == "failed"
 
     def test_with_allowlist_filters_before_prefixing(self):
         from pydantic_ai.toolsets import FilteredToolset, PrefixedToolset
@@ -311,7 +388,7 @@ class TestMakeToolset:
             url="https://example.com/mcp",
             allowed_tools=["search_issues"],
         )
-        toolset = _make_toolset(spec).wrapped
+        toolset = _make_toolset(spec).wrapped.wrapped
         assert isinstance(toolset, PrefixedToolset)
         filtered = toolset.wrapped
         assert isinstance(filtered, FilteredToolset)

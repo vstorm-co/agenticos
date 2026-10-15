@@ -1,5 +1,5 @@
 ---
-source_sha: "71a391e9da98"
+source_sha: "9b3e7c36bd78"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -474,6 +474,13 @@ respondió a su sondeo en los últimos dos minutos, con la misma credencial, no 
 vuelve a sondear: el siguiente turno de la conversación lo conecta directamente. Si
 ha caído entretanto, ese turno sigue sin sus herramientas y el siguiente lo sondea
 de nuevo.
+
+El nombre de una herramienta llega al modelo como el prefijo unido al nombre propio
+del servidor, y los proveedores rechazan un nombre de más de 64 caracteres, o con
+algo que no sean letras, dígitos, `_` y `-`, rechazando la petición entera. Ese
+nombre se ajusta: los caracteres rechazados se sustituyen, el final se recorta y se
+añaden ocho dígitos hexadecimales de un hash, así que dos nombres largos siguen
+siendo dos herramientas. Al servidor se le sigue llamando por su nombre real.
 
 !!! warning "Un servidor inalcanzable se salta con un aviso, no lanza un error"
 
