@@ -716,6 +716,29 @@ describe("creating, renaming and removing a conversation", () => {
     expect(useConversationStore.getState().currentConversationId).toBeNull();
   });
 
+  it("takes a deleted open conversation off the screen and out of the address", async () => {
+    // Left in `?id=`, the next list fetch or reload adopted the deleted id again and
+    // the next message went to a conversation that no longer exists.
+    window.history.replaceState(null, "", "/chat?id=c-1");
+    const result = await hook();
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({
+      id: "m-1",
+      role: "user",
+      content: "hello",
+      timestamp: new Date(),
+    });
+
+    serve({ items: [] });
+    await act(async () => {
+      await result.current.deleteConversation("c-1");
+    });
+
+    expect(new URLSearchParams(window.location.search).get("id")).toBeNull();
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(useConversationStore.getState().currentMessages).toEqual([]);
+  });
+
   it("keeps the selection when a different conversation is deleted", async () => {
     serve({ items: [conversation("c-1"), conversation("c-2")] });
     const result = await hook();

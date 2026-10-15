@@ -580,10 +580,15 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
       try {
         await apiClient.delete(`/conversations/${id}`);
         await invalidateLists();
-        // Mirror the old store behavior: clear the active selection if it was
-        // the conversation we just removed.
+        // The open conversation goes off screen with it - its transcript, its id and
+        // the `?id=` too. Leaving the address made every later list fetch and every
+        // reload adopt the deleted id again, so the next message was sent to a
+        // conversation that no longer exists.
         if (conversationApi.getState().currentConversationId === id) {
+          clearMessages();
+          setCurrentMessages([]);
           setCurrentConversationId(null);
+          if (!scoped) setUrlParam("id", null);
         }
         toast.success(t("conversationDeleted"));
       } catch (err) {
@@ -592,7 +597,17 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
         toast.error(message);
       }
     },
-    [invalidateLists, setCurrentConversationId, setError, t, tErrors, conversationApi],
+    [
+      invalidateLists,
+      setCurrentConversationId,
+      setCurrentMessages,
+      clearMessages,
+      scoped,
+      setError,
+      t,
+      tErrors,
+      conversationApi,
+    ],
   );
 
   const renameConversation = useCallback(
