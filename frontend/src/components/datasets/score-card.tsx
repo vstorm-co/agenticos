@@ -6,6 +6,7 @@ import { ExternalLink, TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge, Button } from "@/components/ui";
+import type { NoteTarget } from "@/hooks/use-scoring";
 import { ROUTES } from "@/lib/constants";
 import { reasonKey, reasonKeyOf } from "@/lib/scoring";
 import { formatDateTime } from "@/lib/utils";
@@ -24,6 +25,8 @@ interface ScoreCardProps {
   onReview?: () => void;
   /** Score the same answer again. Absent for somebody who may not run the dataset. */
   onRescore?: () => void;
+  /** Make the reviewer's note a judge criterion. Absent for somebody who may not edit. */
+  onNoteToCriterion?: (target: NoteTarget) => void;
   busy?: boolean;
 }
 
@@ -183,7 +186,14 @@ function NotGraded({
  * The decision settles the outcome but is shown apart from the scorers, never in
  * place of them - the judge's opinion stays readable after it is overruled.
  */
-export function ScoreCard({ score, onVerdict, onReview, onRescore, busy = false }: ScoreCardProps) {
+export function ScoreCard({
+  score,
+  onVerdict,
+  onReview,
+  onRescore,
+  onNoteToCriterion,
+  busy = false,
+}: ScoreCardProps) {
   const t = useTranslations("datasets.scoring");
   const sendable = onReview !== undefined && score.review_state === "none";
   const decided = score.human_passed !== null;
@@ -217,6 +227,7 @@ export function ScoreCard({ score, onVerdict, onReview, onRescore, busy = false 
           note={score.human_note}
           onVerdict={onVerdict}
           onReview={sendable ? onReview : undefined}
+          onNoteToCriterion={decided ? onNoteToCriterion : undefined}
           busy={busy}
         />
       )}

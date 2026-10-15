@@ -3529,7 +3529,12 @@
       "judgeGradesOn": "Ocenia na <model></model>",
       "judgeModelOnItsPage": "Jego model zmienia się na jego własnej stronie.",
       "judgeNoModelYet": "Organizacja nie ma jeszcze modelu, więc sędzia zostanie utworzony jako szkic. Dodaj model, a potem opublikuj sędziego na jego stronie.",
-      "judgeSameModel": "Sędzia oceniał na {model}, tym samym modelu, który odpowiadał, i może faworyzować odpowiedzi podobne do własnych. Daj sędziemu inny model na jego stronie."
+      "judgeSameModel": "Sędzia oceniał na {model}, tym samym modelu, który odpowiadał, i może faworyzować odpowiedzi podobne do własnych. Daj sędziemu inny model na jego stronie.",
+      "noteToCriterion": "Zamień tę notatkę w kryterium sędziego:",
+      "noteForCase": "dla tego przypadku",
+      "noteForEveryCase": "dla każdego przypadku",
+      "noteAddedToCase": "Notatka jest teraz kryterium sędziego dla tego przypadku, w nowej wersji datasetu.",
+      "noteAddedToRubric": "Notatka jest teraz jednym z kryteriów sędziego dla każdego przypadku, a sędzia jest włączony."
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",

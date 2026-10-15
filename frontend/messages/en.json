@@ -5909,7 +5909,12 @@
       "judgeGradesOn": "Grades on <model></model>",
       "judgeModelOnItsPage": "Its model is changed on its own page.",
       "judgeNoModelYet": "The organization has no model yet, so the judge is created as a draft. Add a model, then publish the judge on its page.",
-      "judgeSameModel": "The judge graded on {model}, the model that answered, and may favour answers like its own. Give the judge another model on its page."
+      "judgeSameModel": "The judge graded on {model}, the model that answered, and may favour answers like its own. Give the judge another model on its page.",
+      "noteToCriterion": "Make this note a judge criterion:",
+      "noteForCase": "for this case",
+      "noteForEveryCase": "for every case",
+      "noteAddedToCase": "The note is now a judge criterion of this case, in a new version of the dataset.",
+      "noteAddedToRubric": "The note is now one of the judge's criteria for every case, and the judge is on."
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

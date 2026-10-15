@@ -18,11 +18,13 @@ const state = vi.hoisted(() => ({
   review: vi.fn(),
   withdraw: vi.fn(),
   rescore: vi.fn(),
+  toCriterion: vi.fn(),
   refetch: vi.fn(),
   canRun: true,
   agents: [] as { id: string; name: string }[],
 }));
 vi.mock("@/hooks/use-scoring", () => ({
+  useNoteToCriterion: () => ({ mutateAsync: state.toCriterion, isPending: false }),
   useScores: (datasetId: string, query: Query) => {
     state.calls.push([datasetId, query]);
     const counting = query.limit === 1;
@@ -338,5 +340,44 @@ describe("ReviewPanel", () => {
 
     expect(screen.getAllByText(/budget is spent/)).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /again/ })).toBeNull();
+  });
+
+  it("makes a decided score's note a criterion of its case or of every case", async () => {
+    const decided = caseScore({ human_passed: false, human_note: "Must cite the policy" });
+    state.answer = { scores: [decided], total: 1 };
+    state.toCriterion
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("AI assistance is off"));
+    render(<ReviewPanel dataset={dataset()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "for this case" }));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "The note is now a judge criterion of this case, in a new version of the dataset.",
+      ),
+    );
+    expect(state.toCriterion).toHaveBeenCalledWith({ score: decided, target: "case" });
+    await userEvent.click(screen.getByRole("button", { name: "for every case" }));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "The note is now one of the judge's criteria for every case, and the judge is on.",
+      ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "for every case" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("AI assistance is off"));
+  });
+
+  it("offers no note to turn into a criterion before a decision, or to a reader", () => {
+    state.answer = {
+      scores: [
+        caseScore({ id: "a", human_passed: null, human_note: null }),
+        caseScore({ id: "b", human_passed: true, human_note: "Fine" }),
+      ],
+      total: 2,
+    };
+    render(<ReviewPanel dataset={dataset({ can_edit: false })} />);
+
+    expect(screen.queryByRole("button", { name: "for this case" })).toBeNull();
   });
 });

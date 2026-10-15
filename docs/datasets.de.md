@@ -1,5 +1,5 @@
 ---
-source_sha: "0a7fd1b14972"
+source_sha: "08c449664201"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -381,6 +381,11 @@ geantwortet hat, da ein Bewerter Antworten wie seine eigenen bevorzugen kann -,
 was jeder Scorer gefunden hat und warum, die nicht bestandenen zuerst, und die
 Prüfentscheidung, die sich in der Meldung, die sie bestätigt, rückgängig machen
 lässt.
+
+Die Notiz zu einer Entscheidung ist oft die Regel, die der Bewerter übersehen
+hat, daher bietet die Karte an, sie zu einem Kriterium des Bewerters zu machen:
+nur für diesen Fall, als Prüfung `judge` in einer neuen Version des Datasets,
+oder für jeden Fall, in der Rubrik, was den Bewerter einschaltet.
 
 Die Dashboard-Karte **Wartet auf Prüfung** zeigt die Warteschlange über alle
 Datasets, die Sie sehen können: wie viele Ergebnisse nicht bestanden haben, nicht

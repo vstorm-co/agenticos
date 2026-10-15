@@ -140,3 +140,17 @@ export function ungradedCases(
     )
     .reduce((total, mix) => total + mix.cases, 0);
 }
+
+/** A judge criterion's text is at most this long, as the server holds it. */
+export const MAX_CRITERION = 1000;
+
+/**
+ * A name for a criterion made from its text: its first words, kept short, and
+ * numbered when the rubric already holds the name.
+ */
+export function criterionNameFrom(text: string, taken: string[]): string {
+  const words = text.trim().split(/\s+/).slice(0, 6).join(" ").slice(0, 60);
+  let name = words;
+  for (let count = 2; taken.includes(name); count += 1) name = `${words} ${count}`;
+  return name;
+}

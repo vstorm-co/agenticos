@@ -1,5 +1,5 @@
 ---
-source_sha: "0a7fd1b14972"
+source_sha: "08c449664201"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -354,6 +354,11 @@ odpowiedziały - z ostrzeżeniem, gdy sędzia oceniał na modelu, który odpowia
 bo sędzia może faworyzować odpowiedzi podobne do własnych - co ustalił każdy
 oceniacz i dlaczego, najpierw niezaliczone, oraz decyzję przeglądu, którą można
 cofnąć z komunikatu, który ją potwierdza.
+
+Notatka zostawiona przy decyzji to często reguła, którą sędzia przeoczył, więc
+karta proponuje zamienić ją w kryterium sędziego: tylko dla tego przypadku,
+jako sprawdzenie `judge` w nowej wersji datasetu, albo dla każdego przypadku, w
+rubryce, co włącza sędziego.
 
 Karta pulpitu **Do przeglądu** pokazuje kolejkę ze wszystkich datasetów, które
 widzisz: ile wyników nie zaliczyło, było bez oceny albo zaliczyło, i w których

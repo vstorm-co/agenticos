@@ -1,5 +1,5 @@
 ---
-source_sha: "0a7fd1b14972"
+source_sha: "08c449664201"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -359,6 +359,11 @@ qué versión respondieron (con un aviso cuando el juez calificó con el modelo
 que respondió, porque un juez puede favorecer respuestas como las suyas), qué
 encontró cada evaluador y por qué, primero los que fallaron, y la decisión de
 revisión, que se puede deshacer desde el mensaje que la confirma.
+
+La nota que acompaña a una decisión suele ser la regla que el juez pasó por
+alto, así que la tarjeta ofrece convertirla en un criterio del juez: solo para
+ese caso, como una comprobación `judge` en una nueva versión del dataset, o
+para todos los casos, en la rúbrica, lo que activa el juez.
 
 La tarjeta del dashboard **Waiting for review** muestra la cola de todos los
 datasets que puedes ver: cuántos resultados no aprobaron, no se calificaron o

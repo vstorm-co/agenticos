@@ -6,7 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import type { Dataset } from "@/types/datasets";
+import { criterionNameFrom, MAX_CRITERION } from "@/lib/scoring";
+import type { Dataset, DatasetCase } from "@/types/datasets";
 import type {
   CaseScore,
   CaseScoreList,
@@ -231,4 +232,45 @@ export function useJudgeAgreement(judgeId: string) {
       ),
   });
   return { agreement: query.data, isLoading: query.isLoading };
+}
+
+/** Where a reviewer's note becomes a judge criterion: this case alone, or every case. */
+export type NoteTarget = "case" | "dataset";
+
+/**
+ * Make a reviewer's note on a score a criterion the judge grades from now on.
+ *
+ * For the case, it joins the newest revision's checks as a `judge` check, which
+ * is a new version of the dataset. For every case, it joins the rubric and the
+ * judge is switched on, which the server refuses while AI assistance is off.
+ */
+export function useNoteToCriterion(dataset: Dataset) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ score, target }: { score: CaseScore; target: NoteTarget }) => {
+      const criterion = (score.human_note ?? "").trim().slice(0, MAX_CRITERION);
+      const path = `/datasets/${dataset.id}`;
+      if (target === "case") {
+        const current = await apiClient.get<DatasetCase>(`${path}/cases/${score.case_id}`);
+        await apiClient.patch<DatasetCase>(`${path}/cases/${score.case_id}`, {
+          checks: [...current.checks, { type: "judge", criterion }],
+        });
+        return;
+      }
+      const { judge } = dataset.scoring;
+      const name = criterionNameFrom(
+        criterion,
+        judge.criteria.map((item) => item.name),
+      );
+      await apiClient.put<Dataset>(`${path}/scoring`, {
+        ...dataset.scoring,
+        judge: {
+          ...judge,
+          enabled: true,
+          criteria: [...judge.criteria, { name, description: criterion, required: true }],
+        },
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.datasets.all() }),
+  });
 }

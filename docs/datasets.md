@@ -336,6 +336,11 @@ judge graded on the model that answered, since a judge may favour answers like
 its own - what each scorer found and why, failing first, and the review
 decision, which can be undone from the message confirming it.
 
+The note left with a decision is often the rule the judge missed, so the card
+offers to make it a judge criterion: for that case alone, as a `judge` check in
+a new version of the dataset, or for every case, in the rubric, which switches
+the judge on.
+
 The **Waiting for review** dashboard card shows the queue across the datasets you
 can see: how many results did not pass, were not graded or passed, and in which
 datasets, each opening on its Review tab. The card is on the dashboard by default.
