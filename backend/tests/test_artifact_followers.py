@@ -241,3 +241,30 @@ def test_a_follower_row_names_the_page_and_the_person() -> None:
     shown = repr(ArtifactFollower(artifact_id=artifact_id, user_id=user_id))
 
     assert str(artifact_id) in shown and str(user_id) in shown
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("change", ["follow", "unfollow"])
+async def test_a_key_changes_nobody_s_follows(change: str) -> None:
+    """A read-only key could otherwise subscribe or unsubscribe its issuer (Codex review of #2062)."""
+    from app.core.exceptions import AuthorizationError
+
+    key = AuthContext(
+        user_id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        role=OrgRoleName.MEMBER,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.ARTIFACTS_VIEW}),
+    )
+    service = artifacts.ArtifactService(MagicMock())
+
+    with (
+        patch.object(artifacts.artifact_repo, "follow", new=AsyncMock()) as follow,
+        patch.object(artifacts.artifact_repo, "unfollow", new=AsyncMock()) as unfollow,
+        pytest.raises(AuthorizationError),
+    ):
+        await getattr(service, change)(key, uuid.uuid4())
+
+    follow.assert_not_awaited()
+    unfollow.assert_not_awaited()

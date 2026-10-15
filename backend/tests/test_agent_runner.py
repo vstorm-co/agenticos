@@ -72,7 +72,7 @@ from app.core.exceptions import (
     RunExecutionError,
     RunFailedError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import ApprovalStatus, RunStatus, RunSurface
 from app.repositories.group import CappedGroup
 from app.services.agent_runner import (
@@ -4862,7 +4862,18 @@ class TestParkedQuestions:
             user_id=_THE_ASKER, organization_id=uuid.uuid4(), role=OrgRoleName.MEMBER
         )
 
-    async def _answer(self, responses: dict[str, list[Any]], **run_fields) -> AsyncMock:
+    def _asker_s_key(self, *scopes: Perm) -> AuthContext:
+        return AuthContext(
+            user_id=_THE_ASKER,
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.MEMBER,
+            api_key_id=uuid.uuid4(),
+            key_scopes=frozenset(scopes),
+        )
+
+    async def _answer(
+        self, responses: dict[str, list[Any]], ctx: AuthContext | None = None, **run_fields
+    ) -> AsyncMock:
         service = AgentRunnerService(_db())
         run = _parked_run(
             **{
@@ -4876,7 +4887,7 @@ class TestParkedQuestions:
             patch.object(service, "get_run", new=AsyncMock(return_value=run)),
             patch.object(service, "resume", new=AsyncMock()) as resume,
         ):
-            await service.answer(self._asker(), run.id, responses)
+            await service.answer(ctx or self._asker(), run.id, responses)
         return resume
 
     @pytest.mark.anyio
@@ -4902,6 +4913,36 @@ class TestParkedQuestions:
     async def test_only_the_person_asked_may_answer(self):
         with pytest.raises(AuthorizationError):
             await self._answer({"ask-1": []}, user_id=uuid.uuid4())
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_the_asker_s_key_without_agents_run_may_not_answer(self):
+        """A key holds its issuer's identity, so the owner check alone let a
+        `collections:view` key answer in their name and resume the run (Codex review of #2062)."""
+        with pytest.raises(AuthorizationError, match="may not run agents"):
+            await self._answer({"ask-1": []}, ctx=self._asker_s_key(Perm.COLLECTIONS_VIEW))
+
+    @pytest.mark.anyio
+    async def test_the_asker_s_key_that_may_run_agents_answers(self):
+        resume = await self._answer({}, ctx=self._asker_s_key(Perm.AGENTS_RUN))
+
+        resume.assert_awaited_once()
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_the_asker_s_key_without_agents_run_is_shown_no_questions(self):
+        service = AgentRunnerService(_db())
+        run = _parked_run(
+            status=RunStatus.AWAITING_ANSWER.value,
+            paused_state=_asked_state(),
+            user_id=_THE_ASKER,
+        )
+
+        unscoped = await service.parked_questions(self._asker_s_key(Perm.COLLECTIONS_VIEW), run)
+        scoped = await service.parked_questions(self._asker_s_key(Perm.AGENTS_RUN), run)
+
+        assert unscoped == []
+        assert [question.tool_call_id for question in scoped] == ["ask-1"]
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(

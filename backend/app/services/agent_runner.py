@@ -2093,6 +2093,16 @@ def _browser_step_profile(spec: AgentSpec) -> UUID | None:
     return None
 
 
+def _key_may_continue(ctx: AuthContext) -> bool:
+    """Whether an organization key may read and answer the questions of its issuer's run.
+
+    An owner check alone lets any of the issuer's keys through - a key holds its
+    issuer's identity - and answering resumes the run, spending the budget and
+    running tools in their name. So a key needs `agents:run`, as starting the run did.
+    """
+    return ctx.api_key_id is None or ctx.has(Perm.AGENTS_RUN)
+
+
 class AgentRunnerService:
     """Prepare, execute and account for agent runs."""
 
@@ -4465,7 +4475,8 @@ class AgentRunnerService:
 
         Raises:
             NotFoundError: If the run is not in this organization.
-            AuthorizationError: If the caller is not the person it asked.
+            AuthorizationError: If the caller is not the person it asked, or is
+                their organization key without `agents:run`.
             BadRequestError: If the run is not waiting for an answer, or an
                 answer names a question it did not ask.
         """
@@ -4477,6 +4488,11 @@ class AgentRunnerService:
             )
         if run.user_id != ctx.user_id:
             raise AuthorizationError(message="Only the person it asked can answer this question")
+        if not _key_may_continue(ctx):
+            raise AuthorizationError(
+                message="Answering a run continues it, and this key may not run agents",
+                details={"scope": Perm.AGENTS_RUN.value},
+            )
         state = PausedRunState.model_validate(run.paused_state)
         unknown = sorted(set(responses) - set(state.questions))
         if unknown:
@@ -4509,6 +4525,7 @@ class AgentRunnerService:
             run.status != RunStatus.AWAITING_ANSWER.value
             or run.paused_state is None
             or run.user_id != ctx.user_id
+            or not _key_may_continue(ctx)
         ):
             return []
         state = PausedRunState.model_validate(run.paused_state)

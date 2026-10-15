@@ -955,6 +955,15 @@ iframe {{ border: 0; width: 100%; height: 100%; display: block; }}
 """.encode()
 
 
+def _refuse_key(ctx: AuthContext) -> None:
+    """Following a page is a person's preference; a key changes none of them."""
+    if ctx.api_key_id is not None:
+        raise AuthorizationError(
+            message="Following an app is a person's choice, made in the console, not by an API key",
+            details={"subject": "api_key"},
+        )
+
+
 class ArtifactService:
     """Open, share and manage the artifacts an organization's agents published."""
 
@@ -987,14 +996,25 @@ class ArtifactService:
         """Be told in the inbox when this page gets a new version (#1977).
 
         Anybody who may open the page may follow it; following twice is
-        following once.
+        following once. A person's own choice, made in the console: an
+        organization key is refused, since a read-only one would otherwise
+        change its issuer's notifications.
+
+        Raises:
+            AuthorizationError: The caller is an organization key.
         """
+        _refuse_key(ctx)
         artifact = await self.get(ctx, artifact_id)
         await artifact_repo.follow(self.db, artifact_id=artifact.id, user_id=ctx.subject_id)
         return await self.read(ctx, artifact.id)
 
     async def unfollow(self, ctx: AuthContext, artifact_id: UUID) -> ArtifactDetail:
-        """Stop being told about new versions. Not following already is not an error."""
+        """Stop being told about new versions. Not following already is not an error.
+
+        Raises:
+            AuthorizationError: The caller is an organization key - see `follow`.
+        """
+        _refuse_key(ctx)
         artifact = await self.get(ctx, artifact_id)
         await artifact_repo.unfollow(self.db, artifact_id=artifact.id, user_id=ctx.subject_id)
         return await self.read(ctx, artifact.id)

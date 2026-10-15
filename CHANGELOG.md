@@ -593,6 +593,8 @@ Two things are versioned separately from this file and worth knowing about:
   organization key may watch a live browse with `runs:view` and never drive one.
   A key continues only conversations opened over the API - one of its issuer's
   console or channel chats answers `400` instead of reaching the model.
+  Reading or answering a run's questions with a key needs `agents:run`, as starting
+  the run did, and a key no longer follows or unfollows an app for its issuer.
 
 - **A long MCP tool name no longer takes the whole conversation down.** A prefixed
   name past 64 characters, or with a character providers refuse, reaches the
