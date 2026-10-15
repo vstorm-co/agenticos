@@ -3138,7 +3138,8 @@
     "judgeUsedBy": "{more, plural, =0 {Używają go: {names}} one {Używają go: {names} i # inny} few {Używają go: {names} i # inne} many {Używają go: {names} i # innych} other {Używają go: {names} i # innych}}",
     "judgeUnused": "Żaden dataset jeszcze nie używa tego sędziego.",
     "judgeDatasets": "Datasety",
-    "judgeDatasetsHint": "Datasety, które ocenia ten sędzia. Dataset wybiera sędziego w zakładce Ocenianie."
+    "judgeDatasetsHint": "Datasety, które ocenia ten sędzia. Dataset wybiera sędziego w zakładce Ocenianie.",
+    "judgeNoModel": "Jeszcze bez modelu"
   },
   "steps": {
     "skills-gallery": {

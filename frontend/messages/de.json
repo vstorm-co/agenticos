@@ -675,7 +675,8 @@
     "judgeUsedBy": "{more, plural, =0 {Genutzt von {names}} other {Genutzt von {names} und # weiteren}}",
     "judgeUnused": "Noch kein Dataset nutzt diesen Bewerter.",
     "judgeDatasets": "Datasets",
-    "judgeDatasetsHint": "Die Datasets, die dieser Bewerter bewertet. Ein Dataset wählt seinen Bewerter im Tab Bewertung."
+    "judgeDatasetsHint": "Die Datasets, die dieser Bewerter bewertet. Ein Dataset wählt seinen Bewerter im Tab Bewertung.",
+    "judgeNoModel": "Noch kein Modell"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

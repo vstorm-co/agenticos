@@ -679,7 +679,8 @@
     "judgeUsedBy": "{more, plural, =0 {Used by {names}} other {Used by {names} and # more}}",
     "judgeUnused": "No dataset uses this judge yet.",
     "judgeDatasets": "Datasets",
-    "judgeDatasetsHint": "The datasets this judge grades. A dataset picks its judge on its Grading tab."
+    "judgeDatasetsHint": "The datasets this judge grades. A dataset picks its judge on its Grading tab.",
+    "judgeNoModel": "No model yet"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
