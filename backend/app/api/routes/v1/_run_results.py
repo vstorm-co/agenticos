@@ -17,6 +17,9 @@ async def run_result(
     run = segment.run
     return AgentRunResult(
         run_id=run.id,
+        # The conversation the continuation wrote to, so an API caller resuming
+        # a run it did not start in a conversation can continue the thread.
+        conversation_id=run.conversation_id,
         output=segment.output,
         status=run.status,
         cost_usd=run.cost_usd,

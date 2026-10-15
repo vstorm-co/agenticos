@@ -1183,6 +1183,7 @@ class TestResumeAnswersWithWhatTheContinuationDid:
     ) -> None:
         run = MagicMock(
             id=uuid4(),
+            conversation_id=uuid4(),
             status="awaiting_approval",
             cost_usd=Decimal("0.02"),
             input_tokens=13,
@@ -1232,6 +1233,7 @@ class TestResumeAnswersWithWhatTheContinuationDid:
         # caller drew that one before the run parked - so it arrives separately and
         # updates it, rather than putting the same command in the turn twice.
         assert response.json()["settled"] == [{"tool_call_id": "call-0", "result": "read 6 sheets"}]
+        assert response.json()["conversation_id"] == str(run.conversation_id)
 
 
 # -- the stats routes, whose gate is the scope parameter ----------------------
@@ -1794,6 +1796,7 @@ class TestAQuestionTheRunParkedOn:
     def _run(self) -> MagicMock:
         return MagicMock(
             id=uuid4(),
+            conversation_id=None,
             status="completed",
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
