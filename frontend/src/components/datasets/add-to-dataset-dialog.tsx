@@ -62,7 +62,6 @@ export function AddToDatasetDialog({
   const add = useAddToDataset();
   const [answerAs, setAnswerAs] = useState<AnswerAs>(initial);
   const [newName, setNewName] = useState(t("newDatasetFromActivity"));
-  // With nothing to add to, somebody who may create a dataset makes one here.
   const making = !isLoading && editable.length === 0 && can(Perm.datasetsEdit);
 
   async function submit() {

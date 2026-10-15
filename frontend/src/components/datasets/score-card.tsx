@@ -67,7 +67,7 @@ function ResultRow({ result }: { result: ScorerResult }) {
           <p className="text-muted-foreground mt-1 text-xs">{t("rule", { rule: result.rule })}</p>
         )}
         {result.judge_said && (
-          <p className="text-muted-foreground mt-1 font-mono text-xs break-words">
+          <p className="text-muted-foreground mt-1 max-h-40 overflow-y-auto font-mono text-xs break-words whitespace-pre-wrap">
             {t("judgeSaid", { said: result.judge_said })}
           </p>
         )}

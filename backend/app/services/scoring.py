@@ -105,8 +105,9 @@ from app.services.system_agents import SystemAgentService
 _MAX_TURNS = 100
 # Enough of an answer to review it; a longer one is read in full from its run.
 _MAX_ANSWER = 8_000
-# Enough of an unreadable judge answer to see what went wrong - prose for JSON.
-_SAID = 200
+# Enough of an unreadable judge answer to see what went wrong. Kept on the score, behind
+# the dataset's access - never on the run, which every reader of runs can open.
+_SAID = 2_000
 
 
 def _redact(text: str | None) -> str | None:
