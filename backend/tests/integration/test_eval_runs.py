@@ -264,7 +264,9 @@ def _environment():
         patch.object(
             ModelProfileService,
             "resolve",
-            new=AsyncMock(return_value=SimpleNamespace(label="gpt-test")),
+            new=AsyncMock(
+                return_value=SimpleNamespace(label="gpt-test", model="gpt-test", provider="openai")
+            ),
         ),
         patch.object(AgentRegistryService, "validate_spec", new=AsyncMock()),
         patch("app.services.eval_run.spawn_after_commit", side_effect=dropped),
@@ -970,6 +972,25 @@ async def test_the_estimate_counts_the_judge_and_the_agents_own_cap(db) -> None:
     # The judge bills to its own agent; the evaluated agent keeps $2 - $0.20.
     assert estimate.agent_after_usd == Decimal("1.80")
     assert estimate.rerun_ceiling_usd == Decimal("0.80")
+
+
+async def test_a_model_with_no_history_is_priced_at_its_own_price(db) -> None:
+    """A typical case at the model's price, not a flat guess eighty times too high."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=10)
+    nano = await _profile(db, ctx, "gpt-4.1-nano")
+    priced = SimpleNamespace(label="nano", model="gpt-4.1-nano", provider="openai")
+
+    with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
+        estimate = await EvalRunService(db).estimate(
+            ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, model_profile_ids=[nano.id])
+        )
+
+    [arm] = estimate.arms
+    # 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
+    assert (arm.basis, arm.cost_per_case_usd) == ("fallback", Decimal("0.00036"))
+    assert arm.cost_usd == Decimal("0.0036")
 
 
 async def _assist(db: AsyncSession, ctx: AuthContext, *, on: bool) -> None:

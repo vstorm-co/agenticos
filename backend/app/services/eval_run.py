@@ -39,8 +39,10 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.budget import price_request
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
 from app.core.background import spawn_after_commit
@@ -576,8 +578,15 @@ class EvalRunService:
         return await self._estimate(ctx, plan)
 
     async def _per_case(
-        self, ctx: AuthContext, agent_id: UUID, model_label: str | None
+        self,
+        ctx: AuthContext,
+        agent_id: UUID,
+        model_label: str | None,
+        profile_id: UUID | None = None,
     ) -> tuple[Decimal, bool]:
+        """What one case costs: this agent's recent runs on the model, or - with
+        no history - a typical case at the model's own price, or a flat guess
+        for a model nothing prices. The flag says whether it was history."""
         average = await agent_run_repo.average_cost(
             self.db,
             organization_id=ctx.organization_id,
@@ -585,9 +594,18 @@ class EvalRunService:
             model_label=model_label,
             sample=settings.EVAL_ESTIMATE_SAMPLE,
         )
-        if average is None:
-            return settings.EVAL_FALLBACK_CASE_COST_USD, False
-        return average.quantize(_CENT), True
+        if average is not None:
+            return average.quantize(_CENT), True
+        if profile_id is not None:
+            model = await self.models.resolve(ctx, profile_id=profile_id)
+            typical = RunUsage(
+                input_tokens=settings.EVAL_FALLBACK_INPUT_TOKENS,
+                output_tokens=settings.EVAL_FALLBACK_OUTPUT_TOKENS,
+            )
+            priced = price_request(typical, model.model, model.provider)
+            if priced is not None:
+                return Decimal(priced).quantize(_CENT), False
+        return settings.EVAL_FALLBACK_CASE_COST_USD, False
 
     async def _estimate(self, ctx: AuthContext, plan: RunPlan) -> EvalRunEstimate:
         cases = len(plan.cases)
@@ -611,7 +629,9 @@ class EvalRunService:
                     )
                 )
                 continue
-            per_case, known = await self._per_case(ctx, plan.agent.id, arm.model_label)
+            per_case, known = await self._per_case(
+                ctx, plan.agent.id, arm.model_label, arm.model_profile_id
+            )
             cost = per_case * cases
             arms_usd += cost
             rerun_per_case += per_case
