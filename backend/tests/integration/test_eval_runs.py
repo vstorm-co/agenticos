@@ -1711,7 +1711,16 @@ async def test_an_eval_score_is_graded_again_on_the_answer_its_attempt_kept(db) 
     started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
     await _run_to_end(db, Model(db), started.id, ctx)
     score = await _errored(db, started.id)
-    assert (await EvalRunService(db).get(ctx, started.id)).ungraded_score_ids == [score.id]
+    read = await EvalRunService(db).get(ctx, started.id)
+    assert read.ungraded_score_ids == [score.id]
+    assert [case.input for case in read.arms[0].ungraded_cases] == ["Question 0"]
+    # One that failed on another criterion was decided all the same.
+    score.passed = False
+    await db.flush()
+    read = await EvalRunService(db).get(ctx, started.id)
+    assert (read.ungraded_score_ids, read.arms[0].ungraded_cases) == ([], [])
+    score.passed = None
+    await db.flush()
 
     rescored = await ScoringService(db).rescore(
         ctx, dataset.id, RescoreRequest(score_ids=[score.id])
@@ -1781,6 +1790,8 @@ async def test_a_run_sends_its_confirmed_regressions_to_review_itself(db) -> Non
 
     read = await service.get(ctx, v7.id)
     assert (read.routed_to_review, (await service.get(ctx, v6.id)).routed_to_review) == (1, 0)
+    # The one that failed is waiting, so none is left for a person to send.
+    assert read.arms[0].unsent_failed == 0
     waiting = (
         await db.scalars(
             select(CaseScore).where(
@@ -1856,6 +1867,7 @@ async def test_a_run_that_cannot_send_to_review_still_completes_and_says_why(db)
     read = await service.get(ctx, v7.id)
     assert read.status == "completed"
     assert read.routed_to_review == 0
+    assert read.arms[0].unsent_failed == 1
     assert read.routing_error is not None
     assert (read.routing_error.code, read.routing_error.message) == (
         "REVIEW_CLOSED",
