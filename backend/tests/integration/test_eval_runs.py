@@ -1527,3 +1527,45 @@ async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None
 
     # Ten cases, each 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
     assert by_spec.judge_usd == by_dataset.judge_usd == Decimal("0.0036")
+
+
+async def test_a_reused_baseline_is_asked_the_flipped_cases_again_in_this_run(db) -> None:
+    """A cached baseline's first answers stand, but a case that flipped is put to
+    both sides again the same day, so the confirmation is two-sided."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    service = EvalRunService(db)
+    request = EvalRunRequest(dataset_id=dataset.id, candidate="draft", paired_baseline=True)
+    first = await service.start(ctx, agent.id, request)
+    await _run_to_end(db, Model(db), first.id, ctx)
+
+    second = await service.start(ctx, agent.id, request)
+    draft_fails = Model(
+        db,
+        answer=lambda prompt, call: (
+            _FAIL
+            if prompt == "Question 0"
+            and isinstance(draft_fails.calls[call]["candidate"], UnpublishedCandidate)
+            else _PASS
+        ),
+    )
+    await _run_to_end(db, draft_fails, second.id, ctx)
+
+    # Three first answers from the draft, then the flipped case twice more on
+    # each side - the reused baseline answers again here.
+    assert len(draft_fails.calls) == 7
+    rerun_by_baseline = [
+        call for call in draft_fails.calls if isinstance(call["candidate"], PublishedCandidate)
+    ]
+    assert len(rerun_by_baseline) == 2
+    comparison = await service.compare(ctx, second.id)
+    assert not comparison.paired
+    assert comparison.baseline is not None and comparison.baseline.run_id == first.id
+    regression = next(case for case in comparison.cases if case.flip == "regression")
+    assert regression.baseline_reruns == [True, True]
+    assert regression.confirmed
+    read = await service.get(ctx, second.id)
+    reused = next(arm for arm in read.arms if arm.role == "baseline")
+    # Its first answers are still the earlier run's.
+    assert reused.summary.cases == 3
