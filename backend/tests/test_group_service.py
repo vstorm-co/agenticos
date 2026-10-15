@@ -83,6 +83,45 @@ class TestGroupServiceRefusals:
         groups.create.assert_not_called()
 
     @pytest.mark.security
+    @pytest.mark.parametrize("sets_cap", ["create", "update"])
+    async def test_a_key_without_budgets_manage_sets_no_department_cap(self, sets_cap):
+        """Codex on #2062: the cap is a budget; a key narrowed to membership work
+        reached it through the issuer's whole role."""
+        from decimal import Decimal
+
+        from app.core.permissions import Perm
+        from app.schemas.group import GroupUpdate
+
+        with (
+            patch(
+                "app.services.group.member_repo.get",
+                new=AsyncMock(return_value=_membership("owner")),
+            ),
+            patch("app.services.group.group_repo") as groups,
+            pytest.raises(AuthorizationError, match="budgets:manage"),
+        ):
+            service = GroupService(_db())
+            membership_key = frozenset({Perm.MEMBERS_MANAGE})
+            if sets_cap == "create":
+                await service.create(
+                    ORG,
+                    CALLER,
+                    GroupCreate(name="Finance", monthly_budget_usd=Decimal("10")),
+                    key_scopes=membership_key,
+                )
+            else:
+                await service.update(
+                    ORG,
+                    uuid.uuid4(),
+                    CALLER,
+                    GroupUpdate(monthly_budget_usd=None),
+                    key_scopes=membership_key,
+                )
+
+        groups.create.assert_not_called()
+        groups.update.assert_not_called()
+
+    @pytest.mark.security
     async def test_a_role_without_members_manage_deletes_no_group(self):
         with (
             patch(
