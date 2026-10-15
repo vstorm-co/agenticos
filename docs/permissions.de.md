@@ -1,5 +1,5 @@
 ---
-source_sha: "5fdd76faaad9"
+source_sha: "cf1f7216bba3"
 ---
 
 # Berechtigungen { #permissions }
@@ -96,7 +96,7 @@ einem Wert aus `OrgRoleName`. Hier fällt die große Mehrheit der Entscheidungen
 
 Zwei Arten von Berechtigung, und sie verhalten sich unterschiedlich.
 
-**Globale** Berechtigungen sind binär und organisationsweit: `members:manage`,
+**Globale** Berechtigungen sind binär und organisationsweit: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
 `approvals:decide`, `connections:view`, `connections:manage`,
 `channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
@@ -172,10 +172,10 @@ benutzerdefinierte Rollen.
 |---|---|---|---|---|
 | `owner` | besitzt die Organisation | alles `ALL` | `ALL` | alles, einschließlich `org:delete` |
 | `admin` | führt sie im Tagesgeschäft | alles `ALL` | `ALL` | alles **außer** `org:delete` |
-| `builder` | baut, und lernt von der ganzen Organisation | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create` |
-| `operator` | hält das laufende System gesund | `view`/`run` `ALL`, kein edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create` |
-| `member` | der alltägliche Nutzer | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create` |
-| `viewer` | liest | `view` `SHARED` | keines | keines |
+| `builder` | baut, und lernt von der ganzen Organisation | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `operator` | hält das laufende System gesund | `view`/`run` `ALL`, kein edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `member` | der alltägliche Nutzer | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
+| `viewer` | liest | `view` `SHARED` | keines | `members:view` |
 
 Der Unterschied zwischen `builder` und `admin` ist der interessante: Ein Builder
 sieht die ganze Organisation, um von ihr zu lernen, bearbeitet aber nur, was ihm

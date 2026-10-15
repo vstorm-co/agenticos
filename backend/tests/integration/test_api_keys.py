@@ -467,6 +467,7 @@ class TestAdministration:
         organization = await _organization(db, owner)
         manager = await _issue(db, organization, owner, Perm.MEMBERS_MANAGE)
         reader = await _issue(db, organization, owner, Perm.AGENTS_VIEW)
+        directory = await _issue(db, organization, owner, Perm.MEMBERS_VIEW)
         body = {"email": "new.hire@example.com", "role": "member"}
 
         async with client() as http:
@@ -477,6 +478,9 @@ class TestAdministration:
                 _url(f"/orgs/{organization.id}/invitations"), headers=_bearer(reader), json=body
             )
             members = await http.get(
+                _url(f"/orgs/{organization.id}/members"), headers=_bearer(directory)
+            )
+            unlisted = await http.get(
                 _url(f"/orgs/{organization.id}/members"), headers=_bearer(reader)
             )
 
@@ -484,6 +488,9 @@ class TestAdministration:
         assert invited.json()["email"] == "new.hire@example.com"
         assert refused.status_code == 403
         assert [row["user_id"] for row in members.json()["items"]] == [str(owner.id)]
+        # Every member may see who is in the organization; a key only when it was
+        # issued for that, not because it holds some other scope.
+        assert unlisted.status_code == 403
 
     @pytest.mark.security
     async def test_a_key_cannot_reach_another_organization_through_the_path(
@@ -492,7 +499,7 @@ class TestAdministration:
         owner = await _person(db)
         acme = await _organization(db, owner)
         globex = await _organization(db, owner)
-        key = await _issue(db, acme, owner, Perm.MEMBERS_MANAGE)
+        key = await _issue(db, acme, owner, Perm.MEMBERS_MANAGE, Perm.MEMBERS_VIEW)
 
         async with client() as http:
             members = await http.get(_url(f"/orgs/{globex.id}/members"), headers=_bearer(key))

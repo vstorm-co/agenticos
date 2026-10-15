@@ -85,7 +85,7 @@ from `OrgRoleName`. This is where the great majority of decisions are made.
 
 Two kinds of permission, and they behave differently.
 
-**Global** permissions are binary and org-wide: `members:manage`, `roles:manage`,
+**Global** permissions are binary and org-wide: `members:view`, `members:manage`, `roles:manage`,
 `org:settings`, `org:delete`, `budgets:manage`, `approvals:decide`,
 `connections:view`, `connections:manage`, `channels:manage`,
 `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
@@ -153,10 +153,10 @@ Ordered `NONE < OWN < SHARED < TEAM < ALL`.
 |---|---|---|---|---|
 | `owner` | owns the organization | all `ALL` | `ALL` | everything, including `org:delete` |
 | `admin` | runs it day to day | all `ALL` | `ALL` | everything **except** `org:delete` |
-| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create` |
-| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create` |
-| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create` |
-| `viewer` | reads | `view` `SHARED` | none | none |
+| `builder` | builds, and learns from the whole org | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `operator` | keeps the running system healthy | `view`/`run` `ALL`, no edit | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `member` | the everyday user | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
+| `viewer` | reads | `view` `SHARED` | none | `members:view` |
 
 The `builder` / `admin` distinction is the interesting one: a builder sees the
 whole organization in order to learn from it, but edits only what is theirs or was

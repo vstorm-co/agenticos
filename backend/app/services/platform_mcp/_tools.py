@@ -191,7 +191,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         return await api.request("GET", "/skills", params={"limit": limit, "skip": skip})
 
     async def list_members(limit: int = 50, skip: int = 0) -> dict[str, Any]:
-        """The members of this connection's organization, with their roles."""
+        """The members of this connection's organization, with their roles. Needs `members:view`."""
         me = await api.request("GET", "/me/permissions")
         if "organization_id" not in me:
             return me

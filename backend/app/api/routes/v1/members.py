@@ -18,7 +18,11 @@ from app.schemas.organization import (
 router = APIRouter(dependencies=[PUBLIC])
 
 
-@router.get("/{org_id}/members", response_model=OrganizationMemberList)
+@router.get(
+    "/{org_id}/members",
+    response_model=OrganizationMemberList,
+    dependencies=[Depends(require_in_path_org(Perm.MEMBERS_VIEW))],
+)
 async def list_members(
     org_id: UUID,
     service: MemberSvc,
@@ -26,7 +30,7 @@ async def list_members(
     skip: int = Query(0, ge=0, description="Items to skip"),
     limit: int = Query(50, ge=1, le=100, description="Max items to return"),
 ) -> Any:
-    """List members of an organization. Any member may call this."""
+    """List members of an organization. Any member may; a key needs `members:view`."""
     rows, total = await service.list_for_org(org_id, ctx.subject_id, skip=skip, limit=limit)
     items = [
         OrganizationMemberRead(

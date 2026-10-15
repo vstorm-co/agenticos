@@ -71,6 +71,11 @@ class Perm(StrEnum):
     CONNECTIONS_MANAGE = "connections:manage"
     MCP_MANAGE = "mcp:manage"
     CHANNELS_MANAGE = "channels:manage"
+    # Who is in the organization: names, emails, roles. Every role holds it - any
+    # member may see who they work with - and it exists so an API key reads the
+    # member list only when it was issued for that, not as a side effect of any
+    # other scope.
+    MEMBERS_VIEW = "members:view"
     MEMBERS_MANAGE = "members:manage"
     ROLES_MANAGE = "roles:manage"
     ORG_SETTINGS = "org:settings"
@@ -264,6 +269,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.RUNS_VIEW: Scope.ALL,
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
+        Perm.MEMBERS_VIEW: Scope.ALL,
     },
     # Operator keeps the running system healthy: approves, watches, reruns -
     # but does not build. `connections:view` without `connections:manage` is
@@ -283,6 +289,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.RUNS_VIEW: Scope.ALL,
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
+        Perm.MEMBERS_VIEW: Scope.ALL,
     },
     # Member is the everyday user: builds their own agents, sees nobody else's
     # unless it was shared.
@@ -302,6 +309,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.ML_INVOKE: Scope.ALL,
         Perm.API_KEYS_CREATE: Scope.ALL,
+        Perm.MEMBERS_VIEW: Scope.ALL,
     },
     OrgRoleName.VIEWER: {
         Perm.AGENTS_VIEW: Scope.SHARED,
@@ -309,6 +317,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_VIEW: Scope.SHARED,
         Perm.CONTEXT_VIEW: Scope.SHARED,
         Perm.ARTIFACTS_VIEW: Scope.SHARED,
+        Perm.MEMBERS_VIEW: Scope.ALL,
     },
 }
 

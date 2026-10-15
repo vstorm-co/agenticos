@@ -68,6 +68,7 @@ _READ_ONLY = frozenset(
         Perm.CONTEXT_VIEW,
         Perm.ARTIFACTS_VIEW,
         Perm.RUNS_VIEW,
+        Perm.MEMBERS_VIEW,
     }
 )
 _KNOWLEDGE_INGEST = frozenset({Perm.COLLECTIONS_VIEW, Perm.COLLECTIONS_EDIT})
