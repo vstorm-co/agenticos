@@ -13,8 +13,10 @@ const SPACE_OWNERS =
 
 /**
  * Whether Space belongs to whatever has focus rather than to push to talk: a
- * field somebody is typing in, or a control Space presses. Hold to talk is the
- * exception - Space on it is what it is for.
+ * field somebody is typing in, or a control Space presses. Hold to talk and the
+ * push-to-talk toggle are the exceptions: Space on the first is what it is for,
+ * and the second keeps focus after the click that turned push to talk on, so
+ * Space there would otherwise turn it off again instead of talking.
  */
 function ownsSpace(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -59,8 +61,11 @@ export function VoiceControls({
   useEffect(() => {
     if (!pushToTalk) return;
     const down = (event: KeyboardEvent) => {
-      if (event.code !== "Space" || event.repeat || ownsSpace(event.target)) return;
+      if (event.code !== "Space" || ownsSpace(event.target)) return;
+      // Cancelled before the repeat check: a held key repeats, and each repeat
+      // left alone scrolls the page.
       event.preventDefault();
+      if (event.repeat) return;
       spaceHeld.current = true;
       onPress(true);
     };
@@ -68,6 +73,8 @@ export function VoiceControls({
     // still close the microphone.
     const up = (event: KeyboardEvent) => {
       if (event.code !== "Space" || !spaceHeld.current) return;
+      // A button is pressed on Space's keyup; this one was talking, not pressing.
+      event.preventDefault();
       spaceHeld.current = false;
       onPress(false);
     };
@@ -99,6 +106,7 @@ export function VoiceControls({
         variant="ghost"
         size="icon"
         aria-pressed={pushToTalk}
+        data-voice-hold
         aria-label={t("pushToTalk")}
         title={t("pushToTalk")}
         onClick={() => onPushToTalkChange(!pushToTalk)}

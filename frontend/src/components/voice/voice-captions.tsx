@@ -118,8 +118,13 @@ export function VoiceCaptions({
   const t = useTranslations("chat.voice.captions");
   const user = useAuthStore((state) => state.user);
   const lastFinal = captions.findLast((line) => line.final);
+  // `relative` holds the `sr-only` region below, which is absolutely positioned.
+  // Without it the region's containing block is the chat column outside the
+  // transcript's scroller: it sat a transcript's height down that column, made
+  // the page scrollable by as much, and the chat's own scrolling then scrolled
+  // the page.
   return (
-    <div>
+    <div className="relative">
       <div data-testid="voice-captions-visible" aria-hidden="true">
         {turns(captions, hidden, speaking).map((turn) =>
           turn.role === "user" ? (

@@ -516,7 +516,6 @@
           "ended": "Rozmowa głosowa zakończona · {duration}",
           "timeLimit": "{minutes, plural, one {Rozmowa zakończona po osiągnięciu limitu # minuty} few {Rozmowa zakończona po osiągnięciu limitu # minut} many {Rozmowa zakończona po osiągnięciu limitu # minut} other {Rozmowa zakończona po osiągnięciu limitu # minuty}}",
           "turns": "{count, plural, =0 {Nie zapisano żadnej wypowiedzi. Pisz dalej albo zadzwoń ponownie.} one {Zapisano # wypowiedź jako wiadomość. Pisz dalej albo zadzwoń ponownie.} few {Zapisano # wypowiedzi jako wiadomości. Pisz dalej albo zadzwoń ponownie.} many {Zapisano # wypowiedzi jako wiadomości. Pisz dalej albo zadzwoń ponownie.} other {Zapisano # wypowiedzi jako wiadomości. Pisz dalej albo zadzwoń ponownie.}}",
-          "limitBody": "Agent {agent} powiedział o tym przed rozłączeniem. Każda wypowiedź jest zapisana powyżej.",
           "minutesLeft": "{minutes, plural, one {Twojej organizacji została w tym miesiącu # minuta rozmów.} few {Twojej organizacji zostały w tym miesiącu # minuty rozmów.} many {Twojej organizacji zostało w tym miesiącu # minut rozmów.} other {Twojej organizacji zostało w tym miesiącu # minuty rozmów.}}",
           "newCall": "Zacznij nową rozmowę"
         },

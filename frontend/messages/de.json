@@ -1523,7 +1523,6 @@
           "ended": "Sprachanruf beendet · {duration}",
           "timeLimit": "{minutes, plural, one {Anruf beim Limit von # Minute beendet} other {Anruf beim Limit von # Minuten beendet}}",
           "turns": "{count, plural, =0 {Keine Beiträge gespeichert. Schreiben Sie weiter oder rufen Sie erneut an.} one {# Beitrag als Nachricht gespeichert. Schreiben Sie weiter oder rufen Sie erneut an.} other {# Beiträge als Nachrichten gespeichert. Schreiben Sie weiter oder rufen Sie erneut an.}}",
-          "limitBody": "{agent} hat vor dem Auflegen darauf hingewiesen. Jeder Beitrag ist oben gespeichert.",
           "minutesLeft": "{minutes, plural, one {Ihre Organisation hat diesen Monat noch # Sprachminute.} other {Ihre Organisation hat diesen Monat noch # Sprachminuten.}}",
           "newCall": "Neuen Anruf starten"
         },

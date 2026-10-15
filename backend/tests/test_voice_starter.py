@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.schemas.voice import StartFrame
+from app.schemas.voice import AnswerFrame, StartFrame
 from app.services.voice.exceptions import VoiceRefused
 from app.services.voice.starter import VoiceCaller, VoiceCallStarter
 
@@ -394,6 +394,15 @@ async def test_an_agent_without_a_voice_section_is_not_set_up_for_calls(world, m
         f"{_M}.VoiceSettingsService.published_spec", AsyncMock(return_value=AgentSpec(name="a"))
     )
     assert await _refusal(world) == "not_configured"
+
+
+def test_an_offer_keeps_its_closing_line_break():
+    """Every SDP line ends in CRLF, the last one too; OpenAI refuses a trimmed offer
+    with "failed to unmarshal SDP: EOF", so the schemas' whitespace stripping must
+    leave the offer and the answer alone."""
+    sdp = "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\n"
+    assert StartFrame(type="start", sdp_offer=sdp).sdp_offer == sdp
+    assert AnswerFrame(type="answer", sdp=sdp).sdp == sdp
 
 
 async def test_a_webrtc_call_needs_an_offer(world):

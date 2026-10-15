@@ -4,9 +4,14 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, StringConstraints
 
 from app.schemas.base import BaseSchema
+
+# An SDP description, kept byte for byte. `BaseSchema` strips whitespace from every
+# string, and that takes the CRLF closing the last line, which OpenAI refuses as
+# "failed to unmarshal SDP: EOF".
+Sdp = Annotated[str, StringConstraints(strip_whitespace=False)]
 
 
 class VoiceReadinessRead(BaseSchema):
@@ -31,7 +36,7 @@ class StartFrame(BaseSchema):
     type: Literal["start"]
     agent_id: UUID | None = None
     conversation_id: UUID | None = None
-    sdp_offer: str | None = Field(default=None, max_length=20_000)
+    sdp_offer: Sdp | None = Field(default=None, max_length=20_000)
     resume_of: UUID | None = Field(
         default=None, description="The call this connection continues after a drop, within 10 s"
     )
@@ -91,7 +96,7 @@ class AnswerFrame(BaseSchema):
     """The provider's SDP answer, for the browser's peer connection (WebRTC)."""
 
     type: Literal["answer"]
-    sdp: str
+    sdp: Sdp
 
 
 class ReadyFrame(BaseSchema):

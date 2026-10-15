@@ -77,6 +77,16 @@ describe("VoiceControls", () => {
     editor.remove();
   });
 
+  it("keeps a held Space from scrolling the page", () => {
+    const { props } = setup(true);
+    // The browser repeats keydown while a key is held, and an unhandled Space
+    // scrolls the page - once per repeat, into the empty space below the chat.
+    expect(fireEvent.keyDown(window, { key: " ", code: "Space" })).toBe(false);
+    expect(fireEvent.keyDown(window, { key: " ", code: "Space", repeat: true })).toBe(false);
+    fireEvent.keyUp(window, { key: " ", code: "Space" });
+    expect(props.onPress.mock.calls).toEqual([[true], [false]]);
+  });
+
   it("stops listening for Space once push-to-talk is off", () => {
     const { props, view } = setup(true);
     view.rerender(<VoiceControls {...props} pushToTalk={false} />);
@@ -122,6 +132,19 @@ describe("VoiceControls", () => {
     fireEvent.keyUp(hold, { key: " ", code: "Space" });
     expect(props.onPress.mock.calls).toEqual([[true], [false]]);
     link.remove();
+  });
+
+  it("talks on Space with focus left on the push-to-talk toggle, never pressing it", () => {
+    const { props } = setup(true);
+    const toggle = screen.getByRole("button", { name: "Push to talk" });
+    toggle.focus();
+    // A cancelled keydown and keyup are what stop the browser pressing the
+    // focused toggle, which turned push to talk off and on instead of talking.
+    expect(fireEvent.keyDown(toggle, { key: " ", code: "Space" })).toBe(false);
+    expect(props.onPress).toHaveBeenLastCalledWith(true);
+    expect(fireEvent.keyUp(toggle, { key: " ", code: "Space" })).toBe(false);
+    expect(props.onPress).toHaveBeenLastCalledWith(false);
+    expect(props.onPushToTalkChange).not.toHaveBeenCalled();
   });
 
   it("lets go of a held microphone when push to talk is turned off, or the call ends", () => {

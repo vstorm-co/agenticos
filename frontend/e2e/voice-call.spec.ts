@@ -157,6 +157,28 @@ test("a call shows captions, an approval with the exact arguments, a warning and
   await expect(captions).toContainText("Send an invoice for 120 euros to Acme");
   await expect(captions.getByText("Live")).toHaveCount(0);
 
+  // A call longer than the screen scrolls the transcript, never the page column
+  // around it: the captions' screen-reader region once sat a transcript's height
+  // down that column, and the chat's own scrolling carried the whole chat up and out.
+  for (let turn = 2; turn <= 9; turn++) {
+    send({
+      type: "caption",
+      role: "assistant",
+      turn_id: `c1:${turn}:assistant`,
+      part: 0,
+      final: `Answer ${turn}. `.repeat(60),
+    });
+  }
+  await expect(captions).toContainText("Answer 9.");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const column = document.querySelector("main") as HTMLElement;
+        return { overflow: column.scrollHeight - column.clientHeight, top: column.scrollTop };
+      }),
+    )
+    .toEqual({ overflow: 0, top: 0 });
+
   // The exact arguments - "Ahmad", not what was said - with a countdown from the frame.
   send({ type: "state", state: "awaiting_approval" });
   send({

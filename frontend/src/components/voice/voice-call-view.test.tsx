@@ -393,7 +393,7 @@ describe("the call view", () => {
     render(
       <View session={fake((STATES.limitend as () => CallState)())} onCallAgain={onCallAgain} />,
     );
-    expect(screen.getByText(/Support said so before hanging up/)).toHaveTextContent(
+    expect(screen.getByText(/No turns were saved/)).toHaveTextContent(
       "Your organization has 530 voice minutes left this month.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Start a new call" }));

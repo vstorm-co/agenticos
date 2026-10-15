@@ -1537,7 +1537,6 @@
           "ended": "Voice call ended · {duration}",
           "timeLimit": "{minutes, plural, =1 {Call ended at the 1-minute limit} other {Call ended at the #-minute limit}}",
           "turns": "{count, plural, =0 {No turns were saved. Keep going by typing, or call again.} =1 {1 turn saved as a message. Keep going by typing, or call again.} other {# turns saved as messages. Keep going by typing, or call again.}}",
-          "limitBody": "{agent} said so before hanging up. Every turn is saved above.",
           "minutesLeft": "{minutes, plural, =1 {Your organization has 1 voice minute left this month.} other {Your organization has # voice minutes left this month.}}",
           "newCall": "Start a new call"
         },

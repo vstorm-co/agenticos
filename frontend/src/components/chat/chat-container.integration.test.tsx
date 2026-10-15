@@ -264,6 +264,34 @@ beforeEach(() => {
   voiceCall.call = initialCall;
 });
 
+describe("the chat container - following the transcript", () => {
+  it("scrolls the transcript's own scroller to a new message, never the page around it", async () => {
+    const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+    mount();
+    await screen.findByRole("button", { name: "Voice input" });
+    scrollTo.mockClear();
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "m-1",
+        role: "user",
+        content: "Send the invoice",
+        timestamp: new Date(),
+      }),
+    );
+    // `scrollIntoView` scrolls every scrollable ancestor, and the page column
+    // around the chat is one: during a call it scrolled the whole chat up and out.
+    await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+    const scroller = scrollTo.mock.contexts.at(-1) as HTMLElement;
+    expect(scroller).toHaveClass("overflow-y-auto");
+    expect(scroller).toContainElement(await screen.findByText("Send the invoice"));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: scroller.scrollHeight, behavior: "smooth" });
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    scrollTo.mockRestore();
+    scrollIntoView.mockRestore();
+  });
+});
+
 describe("the chat container - delegation panels across a conversation switch", () => {
   it("leaves one conversation's specialists behind when another is opened", async () => {
     // The report: finish a delegated turn in one conversation, then pick another from

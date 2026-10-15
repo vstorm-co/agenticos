@@ -81,10 +81,12 @@ end: a reason of its own would need the `voice_calls` CHECK constraint widened."
 NOTICE_WAIT_SECONDS = 8.0
 """How long a spoken limit notice may take before the call is ended anyway."""
 
+# The reason is stated in words a visitor may hear: on a public page "budget"
+# would say more about the organization than the visitor needs to know.
 NOTICES: dict[VoiceEndReason, str] = {
-    VoiceEndReason.TIME_LIMIT: "The call has reached its time limit. In one short sentence, tell the person the call is ending now.",
-    VoiceEndReason.BUDGET: "The budget for this agent has run out. In one short sentence, tell the person the call is ending now.",
-    VoiceEndReason.MINUTES: "This organization's call minutes for the month are used up. In one short sentence, tell the person the call is ending now.",
+    VoiceEndReason.TIME_LIMIT: "In one short sentence, tell the person the call is ending now and why: it has reached its time limit.",
+    VoiceEndReason.BUDGET: "In one short sentence, tell the person the call is ending now and why: calls with you are not available right now.",
+    VoiceEndReason.MINUTES: "In one short sentence, tell the person the call is ending now and why: this month's call minutes are used up.",
 }
 
 _STATUS = {

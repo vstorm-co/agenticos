@@ -89,8 +89,10 @@ VOICE_JS = r"""(function () {
     resume_refused: COPY.dropped
   };
   var ENDED_FALLBACK = "The call ended unexpectedly. Please try again.";
-  var CALL_ICON = ["M2 10v3", "M6 6v11", "M10 3v18", "M14 8v7", "M18 5v13", "M22 10v3"];
+  var CALL_ICON = ["M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384"];
   var MIC_ICON = ["M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19v3"];
+  var MIC_OFF_ICON = ["M12 19v3", "M15 9.34V5a3 3 0 0 0-5.68-1.33", "M16.95 16.95A7 7 0 0 1 5 12v-2",
+    "M18.89 13.23A7 7 0 0 0 19 12v-2", "m2 2 20 20", "M9 9v3a3 3 0 0 0 5.12 2.12"];
 
   // A server-sent name looked up in one of the tables above, and only there: a
   // kind called `constructor` must not print the Object prototype's.
@@ -330,6 +332,10 @@ VOICE_JS = r"""(function () {
       mute.setAttribute("aria-label", c && c.muted ? "Unmute microphone" : "Mute microphone");
       mute.setAttribute("title", c && c.muted ? "Unmute" : "Mute");
       mute.style.color = c && c.muted ? "#b91c1c" : "#475569";
+      // Crossed out while muted, as the console's Mute is: colour alone says nothing to some eyes.
+      var drawn = mute.children[0];
+      if (drawn) drawn.remove();
+      mute.appendChild(icon(c && c.muted ? MIC_OFF_ICON : MIC_ICON));
     }
 
     // Captions, one bubble a turn: the parts of the agent's answer are joined,

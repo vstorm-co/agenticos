@@ -20,7 +20,7 @@ from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.agent_run import RunStatus
 from app.db.models.voice_call import VoiceEndReason
-from app.services.voice.session import VoiceCallSession
+from app.services.voice.session import NOTICES, VoiceCallSession
 from app.services.voice.starter import VoiceCaller
 
 pytestmark = pytest.mark.anyio
@@ -531,7 +531,7 @@ async def test_a_response_the_budget_cannot_follow_ends_the_call_with_a_notice()
     _, repo = await _run(socket, started)
 
     assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.BUDGET
-    assert realtime.sent and "budget" in realtime.sent[0].lower()
+    assert realtime.sent and "not available right now" in realtime.sent[0]
     assert started.runner.finish.await_args.kwargs["status"] is RunStatus.BUDGET_EXCEEDED
 
 
@@ -916,3 +916,18 @@ async def test_a_visitors_call_ends_when_the_publishers_role_no_longer_runs_the_
 
     _allowed_world(monkeypatch, "grant")
     assert await still_allowed(MagicMock(), _visitor(), agent_id=uuid4()) is None
+
+
+@pytest.mark.parametrize(
+    ("reason", "why"),
+    [
+        (VoiceEndReason.TIME_LIMIT, "time limit"),
+        (VoiceEndReason.BUDGET, "not available right now"),
+        (VoiceEndReason.MINUTES, "minutes"),
+    ],
+)
+def test_a_limit_notice_asks_the_agent_to_say_why_the_call_ends(reason, why):
+    """The caller heard "the call is ending now" and nothing about why."""
+    notice = NOTICES[reason]
+    assert "why" in notice
+    assert why in notice

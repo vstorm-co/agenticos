@@ -313,7 +313,6 @@ export function ChatContainer() {
     setAvailableFiles(attachments);
   }, [attachments, setAvailableFiles]);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   // true = user deliberately scrolled up; suppress auto-scroll until they return to bottom
@@ -383,7 +382,10 @@ export function ChatContainer() {
   // Auto-scroll on every messages update unless user has scrolled up
   useEffect(() => {
     if (userScrolledUpRef.current) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // The scroller itself, never `scrollIntoView`: that scrolls every scrollable
+    // ancestor too, and the page column around the chat is one.
+    const container = scrollContainerRef.current;
+    container?.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }, [messages]);
   // And on growth the messages do not announce: an answer's last words are
   // revealed over frames after its message has stopped changing.
@@ -471,7 +473,6 @@ export function ChatContainer() {
       slashCommands={slashCommands}
       queuedMessages={queuedMessages}
       onCancelQueued={cancelQueued}
-      messagesEndRef={messagesEndRef}
       transcriptRef={transcriptRef}
       scrollContainerRef={scrollContainerRef}
       pendingApproval={pendingApproval}
@@ -546,7 +547,6 @@ interface ChatUIProps {
   slashCommands?: import("./slash-commands").SlashCommand[];
   queuedMessages?: import("@/hooks/use-chat").QueuedMessage[];
   onCancelQueued?: (id: string) => void;
-  messagesEndRef: React.RefObject<HTMLDivElement | null>;
   /** The transcript's content, whose growth the scroller follows. */
   transcriptRef: React.RefObject<HTMLDivElement | null>;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -593,7 +593,6 @@ function ChatUI({
   slashCommands,
   queuedMessages,
   onCancelQueued,
-  messagesEndRef,
   transcriptRef,
   scrollContainerRef,
   pendingApproval,
@@ -813,7 +812,11 @@ function ChatUI({
           content is centred inside it - so the scrollbar sits at the edge of the
           pane where a scrollbar belongs, rather than a hundred pixels to the
           right of the text with white on both sides of it. */}
-      <div className="relative flex h-full min-w-0 flex-1 flex-col">
+      {/* `@container/chat`: the turn rail sits in the column's left margin, so it
+          shows only while the column is wide enough to have one beside the
+          centred transcript - not at a window width, which says nothing about
+          a column narrowed by the sidebar and the conversation list. */}
+      <div className="@container/chat relative flex h-full min-w-0 flex-1 flex-col">
         <TurnRail entries={railEntries} />
         <div
           ref={scrollContainerRef}
@@ -849,7 +852,6 @@ function ChatUI({
               onCallAgain={startCall}
               onContinueInText={endForText}
             />
-            <div ref={messagesEndRef} />
           </div>
         </div>
         {/* The floating dock: banners, the composer, the caption. Over the
@@ -863,6 +865,14 @@ function ChatUI({
             between a message sliding under the dock and one drawn on top of
             it. */}
         <div ref={dockRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
+          {/* What scrolls under the dock is blurred out, fading in from above so
+              there is no hard edge. A layer of its own with nothing inside it:
+              `backdrop-filter` on the dock would become the containing block of
+              every fixed overlay in the composer (see `FileDropOverlay`). */}
+          <div
+            aria-hidden
+            className="bg-background/60 absolute inset-0 -z-10 [mask-image:linear-gradient(to_bottom,transparent,black_1.5rem)] backdrop-blur-md"
+          />
           {personalGaps.length > 0 && (
             <div className="pointer-events-auto mx-auto w-full max-w-5xl px-2 pb-2 sm:px-4 sm:pb-2">
               <ConnectServicesCard gaps={personalGaps} />

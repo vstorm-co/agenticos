@@ -1,6 +1,6 @@
 "use client";
 
-import { AudioLines, PhoneOff } from "lucide-react";
+import { Phone, PhoneOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useId, useRef, useState } from "react";
 
@@ -77,7 +77,7 @@ export function VoiceCallButton({
         title={t("start")}
         className={BUTTON}
       >
-        <AudioLines className="text-muted-foreground h-4 w-4" />
+        <Phone className="text-muted-foreground h-4 w-4" />
       </Button>
     );
   }

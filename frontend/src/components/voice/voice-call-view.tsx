@@ -155,12 +155,7 @@ export function VoiceCallFeed({
       )}
       {/* There from the call's start, so the summary landing in it is announced. */}
       <div role="status" aria-live="polite" data-testid="voice-call-end">
-        <VoiceCallSummary
-          call={call}
-          agentName={agentName}
-          onCallAgain={onCallAgain}
-          endingCopy={endingCopy}
-        />
+        <VoiceCallSummary call={call} onCallAgain={onCallAgain} endingCopy={endingCopy} />
       </div>
     </div>
   );

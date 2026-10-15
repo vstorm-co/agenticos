@@ -135,6 +135,7 @@ const scenarios = {
     let socket = await call();
     ready(socket, "c1");
     bar.children[3].onclick();
+    const muteIcon = bar.children[3].children.flatMap((svg) => svg.children.map((path) => path.attrs.d));
     socket.onclose({ code: 1006 });
     const label = bar.children[1].textContent;
     timers.shift()();
@@ -145,7 +146,7 @@ const scenarios = {
     ready(socket, "c2");
     const resumedFrames = frames(socket);
     socket.onclose({ code: 1006 });
-    return state({ label, resumedFrames });
+    return state({ label, resumedFrames, muteIcon });
   },
   async refused() {
     const socket = await call();

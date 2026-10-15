@@ -1,6 +1,6 @@
 "use client";
 
-import { AudioLines, Clock, PhoneOff, WifiOff } from "lucide-react";
+import { Clock, Phone, PhoneOff, WifiOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -18,12 +18,10 @@ import { ENDED_KEYS, type VoiceEndingCopy } from "./voice-call-strip";
  */
 export function VoiceCallSummary({
   call,
-  agentName,
   onCallAgain,
   endingCopy,
 }: {
   call: CallState;
-  agentName: string;
   onCallAgain: () => void;
   /** Which reason ended it, when not in the console's `chat.voice` words. */
   endingCopy?: VoiceEndingCopy;
@@ -70,13 +68,11 @@ export function VoiceCallSummary({
         <p className="text-muted-foreground mt-0.5 text-[12.5px]">
           {view === "dropped"
             ? t("failure.dropped")
-            : limit
-              ? t("view.summary.limitBody", { agent: agentName })
-              : t("view.summary.turns", { count: call.savedTurns })}
+            : t("view.summary.turns", { count: call.savedTurns })}
           {minutesLeft !== null && <> {t("view.summary.minutesLeft", { minutes: minutesLeft })}</>}
         </p>
         <Button type="button" variant="outline" size="sm" className="mt-2.5" onClick={onCallAgain}>
-          <AudioLines aria-hidden />
+          <Phone aria-hidden />
           {limit ? t("view.summary.newCall") : t("callAgain")}
         </Button>
       </div>

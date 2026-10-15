@@ -21,6 +21,7 @@ from app.agents.factory import BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, SubagentRef
 from app.agents.voice import (
+    CALL_BRIEFING,
     SPOKEN_STYLE,
     VoiceOptions,
     WithoutApprovalTools,
@@ -32,6 +33,7 @@ from app.agents.voice import (
     without_voice_unavailable,
 )
 from app.core.secret_kinds import ApiKeySecret
+from app.services.embed_session import SUPPLIED_HEADER
 
 _REALTIME = OpenAIRealtimeModel("gpt-realtime", provider=OpenAIProvider(api_key="sk-dummy"))
 
@@ -217,6 +219,25 @@ def test_an_embeds_briefing_reaches_the_call_before_the_agents_note():
 
     assert "[Context for this placement: pricing page]" in instructions
     assert instructions.index("pricing page") < instructions.index("Be brief.")
+
+
+def test_a_call_is_told_the_briefing_is_about_the_caller_and_answered_from():
+    """Regression: a hosted page's `order: 123` was in the call's instructions, and
+    gpt-realtime still told the caller it had no access to their order number.
+
+    In text the block sits beside the visitor's own words; in a call it is a
+    detached paragraph about "the visitor", which the model did not connect with
+    the person speaking. The call has to say who the notes are about, that a
+    value in them is the answer, and still that they are not instructions.
+    """
+    briefing = f"{SUPPLIED_HEADER}\norder: 123"
+    instructions = voice_instructions("Help.", VoiceOptions(on_deferred=_deny, briefing=briefing))
+
+    lead = instructions[: instructions.index(briefing)]
+    assert "the person you are speaking with" in lead
+    assert "answer from these notes" in lead
+    assert "not instructions" in lead
+    assert lead.endswith(CALL_BRIEFING + "\n")
 
 
 def _stored_skill() -> SimpleNamespace:

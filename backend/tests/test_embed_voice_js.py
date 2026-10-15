@@ -233,6 +233,9 @@ class TestACallInThePage:
         assert result["label"] == "Reconnecting…"
         assert result["starts"] == [None, "c1"]
         assert {"type": "mute", "muted": True} in result["resumedFrames"]
+        # Muted reads as a crossed-out microphone, one icon, not a red one.
+        assert "m2 2 20 20" in result["muteIcon"]
+        assert len([d for d in result["muteIcon"] if d == "M12 19v3"]) == 1
         # The resumed connection dropped too: no second retry.
         assert result["sockets"] == 2
         assert result["pendingTimers"] == 0
