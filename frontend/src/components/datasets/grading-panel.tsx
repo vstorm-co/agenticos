@@ -67,6 +67,7 @@ export function GradingPanel({
   const [defaults, setDefaults] = useState<CheckDraft[]>(stored.checks.defaults.map(checkDraft));
   const [defaultsProblem, setDefaultsProblem] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [focusRubric, setFocusRubric] = useState(0);
   const canEdit = dataset.can_edit;
   const disabled = !canEdit || save.isPending;
   // The judge and the reference comparison are model runs, so they stay as stored
@@ -202,6 +203,7 @@ export function GradingPanel({
           onReference={(reference) => set("reference", reference)}
           disabled={modelBacked}
           onCreate={canEdit && can(Perm.agentsEdit) ? () => setCreating(true) : undefined}
+          focusRubric={focusRubric}
         />
       </GradingCard>
 
@@ -236,9 +238,20 @@ export function GradingPanel({
         <CreateJudgeDialog
           dataset={dataset}
           onOpenChange={setCreating}
-          onCreated={(updated) =>
-            set("judge", { ...draft.judge, agent_id: updated.scoring.judge.agent_id })
-          }
+          onCreated={(updated) => {
+            // The server switched grading on as it stored it; criteria typed here
+            // and not saved yet stay in the draft rather than being replaced.
+            const { judge, reference } = updated.scoring;
+            setDraft((current) => ({
+              ...current,
+              reference,
+              judge:
+                current.judge.criteria.length > 0
+                  ? { ...judge, criteria: current.judge.criteria }
+                  : judge,
+            }));
+            if (judge.enabled) setFocusRubric((count) => count + 1);
+          }}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 ---
-source_sha: "165c6a3ccc33"
+source_sha: "462d16cbc3c5"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -269,9 +269,12 @@ para calificar (una política, una lista de precios), sobre el primer modelo de
 la organización o uno que elijas. Crearlo requiere `agents:edit` además de
 `datasets:edit`.
 
-Los criterios, la escala y la nota de aprobado se quedan en el dataset; el
-prompt, el modelo y el budget del juez se editan en su propia página, y un
-dataset puede seguir indicando otro modelo para él.
+Donde la asistencia de IA está activada, crearlo también activa la
+calificación: el juez, con un criterio inicial para sustituir cuando el dataset
+no tiene ninguno, y la comparación con la respuesta de referencia cuando algún
+caso la tiene. Los criterios, la escala y la nota de aprobado se quedan en el
+dataset; el prompt, el modelo y el budget del juez se editan en su propia
+página, y un dataset puede seguir indicando otro modelo para él.
 
 Un juez se ejecuta como la persona que pidió la puntuación: se comprueba su
 acceso a él, se comprueba contra su propio budget y el de la organización antes

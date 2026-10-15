@@ -344,6 +344,73 @@ describe("GradingPanel", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("switches grading on as the new judge was stored, with the cursor in its criterion", async () => {
+    const starting = {
+      name: "answers the question",
+      description: "The answer is correct and complete for what the question asks.",
+      required: true,
+    };
+    const created = dataset({
+      ...DEFAULT_SCORING,
+      judge: { ...DEFAULT_SCORING.judge, enabled: true, agent_id: "j2", criteria: [starting] },
+      reference: { ...DEFAULT_SCORING.reference, enabled: true },
+    });
+    state.create.mockResolvedValue(created);
+    const { rerender } = panel();
+
+    await userEvent.click(screen.getByRole("button", { name: "Create a judge for this dataset" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Create judge" }),
+    );
+
+    const description = await screen.findByRole("textbox", { name: "What the criterion asks" });
+    await waitFor(() => expect(description).toHaveFocus());
+    expect(description).toHaveValue(starting.description);
+    rerender(<GradingPanel dataset={created} />);
+    expect(within(card("Judge")).queryByText("Unsaved")).toBeNull();
+  });
+
+  it("keeps criteria typed and not saved when a judge is created", async () => {
+    state.create.mockResolvedValue(
+      dataset({
+        ...JUDGED,
+        judge: {
+          ...JUDGED.judge,
+          agent_id: "j2",
+          criteria: [{ name: "stored", description: "From the server", required: true }],
+        },
+      }),
+    );
+    panel(JUDGED);
+    await userEvent.type(screen.getByRole("textbox", { name: "What the criterion asks" }), "!");
+
+    await userEvent.click(screen.getByRole("button", { name: "Create a judge for this dataset" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Create judge" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "What the criterion asks" })).toHaveValue(
+        "Polite!",
+      ),
+    );
+  });
+
+  it("leaves the rubric alone when the judge was created with grading off", async () => {
+    state.create.mockResolvedValue(
+      dataset({ ...DEFAULT_SCORING, judge: { ...DEFAULT_SCORING.judge, agent_id: "j2" } }),
+    );
+    panel();
+
+    await userEvent.click(screen.getByRole("button", { name: "Create a judge for this dataset" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Create judge" }),
+    );
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.queryByRole("textbox", { name: "What the criterion asks" })).toBeNull();
+  });
+
   it("offers no judge creation to somebody who may not create agents", () => {
     state.perms = new Set();
     panel(JUDGED);

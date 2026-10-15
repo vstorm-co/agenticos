@@ -1,5 +1,5 @@
 ---
-source_sha: "165c6a3ccc33"
+source_sha: "462d16cbc3c5"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -281,9 +281,13 @@ und mit dem, was der Bewerter laut Ihnen zum Bewerten wissen muss - einer
 Richtlinie, einer Preisliste -, auf dem ersten Modell der Organisation oder
 einem, das Sie wählen. Dafür braucht es `agents:edit` und `datasets:edit`.
 
-Die Kriterien, die Skala und die Bestehensgrenze bleiben am Dataset; Prompt,
-Modell und Budget des Bewerters werden auf seiner eigenen Seite bearbeitet, und
-ein Dataset kann weiterhin ein anderes Modell für ihn festlegen.
+Wo die KI-Unterstützung eingeschaltet ist, schaltet das Anlegen die Bewertung
+gleich mit ein: den Bewerter, mit einem Startkriterium zum Ersetzen, wenn das
+Dataset keines hat, und den Vergleich mit der Referenzantwort, wenn ein Fall
+eine hat. Die Kriterien, die Skala und die Bestehensgrenze bleiben am Dataset;
+Prompt, Modell und Budget des Bewerters werden auf seiner eigenen Seite
+bearbeitet, und ein Dataset kann weiterhin ein anderes Modell für ihn
+festlegen.
 
 Ein Bewerter läuft als die Person, die den Score angefordert hat: Ihr Zugriff
 auf ihn wird geprüft, er wird vor dem Modellaufruf gegen sein eigenes Budget und

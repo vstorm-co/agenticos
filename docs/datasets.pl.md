@@ -1,5 +1,5 @@
 ---
-source_sha: "165c6a3ccc33"
+source_sha: "462d16cbc3c5"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -266,9 +266,12 @@ tego, co według ciebie sędzia musi wiedzieć, żeby oceniać - polityki, cenni
 na pierwszym modelu organizacji albo na wybranym przez ciebie. Utworzenie go
 wymaga `agents:edit` oraz `datasets:edit`.
 
-Kryteria, skala i próg zaliczenia zostają na datasecie; prompt, model i budżet
-sędziego edytuje się na jego własnej stronie, a dataset nadal może wskazać dla
-niego inny model.
+Gdy wsparcie AI jest włączone, utworzenie go od razu włącza też ocenianie:
+sędziego, z kryterium startowym do zastąpienia, gdy dataset nie ma żadnego,
+oraz porównanie z odpowiedzią wzorcową, gdy któryś przypadek ją ma. Kryteria,
+skala i próg zaliczenia zostają na datasecie; prompt, model i budżet sędziego
+edytuje się na jego własnej stronie, a dataset nadal może wskazać dla niego
+inny model.
 
 Sędzia działa jako osoba, która poprosiła o ocenę: sprawdzany jest jej dostęp do
 niego, przed wywołaniem modelu sprawdzany jest jego własny budżet i budżet

@@ -70,7 +70,7 @@ from app.schemas.scoring import (
 from app.services.agent_registry import AgentRegistryService
 from app.services.dataset import DatasetService
 from app.services.scorers import JUDGE_PROMPT_VERSION
-from app.services.scoring import ScoringService
+from app.services.scoring import STARTING_CRITERION, ScoringService
 from app.services.system_agents import SystemAgentService
 
 pytestmark = pytest.mark.anyio
@@ -606,6 +606,53 @@ class TestADatasetsOwnJudge:
         [judged] = await _eval_runs(db, tenant)
         assert judged.agent_id == own
         assert score.judge is not None and score.judge.agent_id == own
+
+    async def test_creating_it_switches_grading_on_with_a_criterion_and_the_reference(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
+        empty = await DatasetService(db).create(tenant.ctx, DatasetCreate(name="Tone"))
+        await ScoringService(db).set_scoring(tenant.ctx, empty.id, DatasetScoring())
+
+        made = await ScoringService(db).create_judge(
+            tenant.ctx, dataset.id, JudgeCreate(name="Refunds judge", instructions="Be strict.")
+        )
+        bare = await ScoringService(db).create_judge(
+            tenant.ctx, empty.id, JudgeCreate(name="Tone judge", instructions="Be fair.")
+        )
+
+        assert made.scoring.judge.enabled is True
+        assert [c.name for c in made.scoring.judge.criteria] == [STARTING_CRITERION.name]
+        assert made.scoring.reference.enabled is True
+        assert (bare.scoring.judge.enabled, bare.scoring.reference.enabled) == (True, False)
+
+    async def test_creating_it_keeps_the_rubric_the_dataset_already_has(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, _ = await _dataset(db, tenant, scoring=_rubric())
+
+        made = await ScoringService(db).create_judge(
+            tenant.ctx, dataset.id, JudgeCreate(name="Refunds judge", instructions="Be strict.")
+        )
+
+        assert [c.name for c in made.scoring.judge.criteria] == ["correctness", "tone"]
+
+    async def test_with_ai_assistance_off_creating_it_only_picks_it(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
+        tenant.organization.ai_assistance_enabled = False
+        await db.flush()
+
+        made = await ScoringService(db).create_judge(
+            tenant.ctx, dataset.id, JudgeCreate(name="Refunds judge", instructions="Be strict.")
+        )
+
+        assert made.scoring.judge.agent_id is not None
+        assert (made.scoring.judge.enabled, made.scoring.judge.criteria) == (False, [])
+        assert made.scoring.reference.enabled is False
 
     async def test_it_knows_what_it_was_told_and_grades_at_temperature_zero(
         self, db, judge

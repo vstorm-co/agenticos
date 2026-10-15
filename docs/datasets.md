@@ -253,9 +253,11 @@ the dataset's name and description and from what you say the judge must know to
 grade - a policy, a price list - on the organization's first model or one you
 pick. Creating it needs `agents:edit` as well as `datasets:edit`.
 
-The criteria, the scale and the pass mark stay on the dataset; the judge's
-prompt, model and budget are edited on its own page, and a dataset can still
-name another model for it.
+Where AI assistance is on, creating it switches grading on as well: the judge,
+on a starting criterion to replace when the dataset has none, and the reference
+comparison when a case has a reference answer. The criteria, the scale and the
+pass mark stay on the dataset; the judge's prompt, model and budget are edited
+on its own page, and a dataset can still name another model for it.
 
 A judge runs as the person who asked for the score: their access to it is
 checked, it is checked against its own budget and the organization's before the

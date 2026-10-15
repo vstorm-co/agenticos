@@ -259,7 +259,10 @@ async def create_dataset_judge(
     """Create a judge of the dataset's own and make it the one grading the dataset.
 
     The judge is an agent of the `judge` kind, so it needs `agents:edit` as well
-    as `datasets:edit` on the dataset. The rubric stays on the dataset.
+    as `datasets:edit` on the dataset. The rubric stays on the dataset. Where AI
+    assistance is on, grading is switched on in the same write: the judge, on a
+    starting criterion when the rubric is empty, and the reference comparison
+    when a case has a reference answer.
     """
     return await service.create_judge(ctx, dataset_id, data)
 

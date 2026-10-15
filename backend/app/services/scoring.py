@@ -70,6 +70,7 @@ from app.schemas.scoring import (
     ReviewRequest,
     ReviewRequested,
     ReviewWithdrawn,
+    RubricCriterion,
     ScoreOutcome,
     ScorerResult,
 )
@@ -126,6 +127,14 @@ def _ungraded(score: CaseScore) -> bool:
 def _kept_answer(text: str) -> str | None:
     clipped = text if len(text) <= _MAX_ANSWER else f"{text[:_MAX_ANSWER]}…"
     return _redact(clipped)
+
+
+# What a new judge grades until the dataset says otherwise - general enough to
+# fit any dataset, so a person replaces it rather than keeps it.
+STARTING_CRITERION = RubricCriterion(
+    name="answers the question",
+    description="The answer is correct and complete for what the question asks.",
+)
 
 
 def _with_knowledge(instructions: str, knowledge: str | None) -> str:
@@ -253,6 +262,11 @@ class ScoringService:
         so scores graded before keep the judge they were graded by. What the
         judge must know is added to its instructions under its own heading.
 
+        Where AI assistance is on, the judge is switched on in the same write, so
+        the dataset grades from the next score: on its rubric, or on one starting
+        criterion when it has none, and on the reference answer as well once a
+        case has one. Where it is off, only the judge picked changes.
+
         Raises:
             NotFoundError: The dataset is not one the caller may edit, or the
                 model is not one of the organization's.
@@ -273,6 +287,15 @@ class ScoringService:
         )
         scoring = DatasetScoring.model_validate(dataset.scoring)
         scoring.judge.agent_id = judge.id
+        if await AiAssistanceService(self.db).is_enabled(organization_id=ctx.organization_id):
+            scoring.judge.enabled = True
+            if not scoring.judge.criteria:
+                scoring.judge.criteria = [STARTING_CRITERION]
+            stats = await dataset_repo.case_stats(
+                self.db, [dataset.id], organization_id=ctx.organization_id
+            )
+            if dataset.id in stats and stats[dataset.id].with_reference > 0:
+                scoring.reference.enabled = True
         await dataset_repo.update(
             self.db,
             dataset=dataset,
