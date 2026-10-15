@@ -23,11 +23,11 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { CaseFlip, CaseOutcomeFilter, EvalRun } from "@/types/eval-runs";
 import { CaseDetail } from "./case-detail";
 
-const ALL = "all";
+export const ALL = "all";
 const PAGE = 25;
 const OUTCOMES: CaseOutcomeFilter[] = ["passed", "failed", "undecided"];
 
-function FilterSelect({
+export function FilterSelect({
   label,
   value,
   options,
@@ -55,55 +55,52 @@ function FilterSelect({
 }
 
 /**
- * The run's cases, narrowed by outcome and tag, each with how it moved against
- * the baseline; opening one shows every arm's answers side by side.
+ * The run's cases, narrowed by outcome and by the tag the run view is read
+ * under, each with how it moved against the baseline; opening one shows every
+ * arm's answers side by side.
  */
-export function CaseTable({ run, flips }: { run: EvalRun; flips: CaseFlip[] }) {
+export function CaseTable({
+  run,
+  flips,
+  tag,
+}: {
+  run: EvalRun;
+  flips: CaseFlip[];
+  tag: string | null;
+}) {
   const t = useTranslations("evals.cases");
   const tErrors = useTranslations("errors");
   const [outcome, setOutcome] = useState<string>(ALL);
-  const [tag, setTag] = useState<string>(ALL);
   const [skip, setSkip] = useState(0);
   const [open, setOpen] = useState<string | null>(null);
+  // Page three of one tag's cases is not page three of another's.
+  const [seenTag, setSeenTag] = useState(tag);
+  if (seenTag !== tag) {
+    setSeenTag(tag);
+    setSkip(0);
+  }
   const { cases, total, isLoading, error } = useEvalCases(run.id, {
     outcome: outcome === ALL ? null : (outcome as CaseOutcomeFilter),
-    tag: tag === ALL ? null : tag,
+    tag,
     skip,
     limit: PAGE,
     live: run.status === "queued" || run.status === "running",
   });
-  const tags = [...new Set(run.arms.flatMap((arm) => Object.keys(arm.by_tag)))].sort();
   const flipOf = new Map(flips.map((flip) => [flip.case_id, flip]));
 
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
         <CardTitle>{t("title", { count: total })}</CardTitle>
-        <div className="flex flex-wrap gap-2">
-          <FilterSelect
-            label={t("outcomeFilter")}
-            value={outcome}
-            onChange={(value) => {
-              setOutcome(value);
-              setSkip(0);
-            }}
-            options={[ALL, ...OUTCOMES].map((value) => ({ value, label: t(`outcome.${value}`) }))}
-          />
-          {tags.length > 0 && (
-            <FilterSelect
-              label={t("tagFilter")}
-              value={tag}
-              onChange={(value) => {
-                setTag(value);
-                setSkip(0);
-              }}
-              options={[
-                { value: ALL, label: t("allTags") },
-                ...tags.map((value) => ({ value, label: `#${value}` })),
-              ]}
-            />
-          )}
-        </div>
+        <FilterSelect
+          label={t("outcomeFilter")}
+          value={outcome}
+          onChange={(value) => {
+            setOutcome(value);
+            setSkip(0);
+          }}
+          options={[ALL, ...OUTCOMES].map((value) => ({ value, label: t(`outcome.${value}`) }))}
+        />
       </CardHeader>
       <CardContent>
         {isLoading ? (

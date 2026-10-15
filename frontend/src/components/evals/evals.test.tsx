@@ -163,7 +163,7 @@ describe("EstimateSummary", () => {
 
 describe("ComparisonCard", () => {
   it("shows the verdict, both sides, the flips and the efficiency axis", () => {
-    render(<ComparisonCard agentId="agent-1" comparison={comparison()} />);
+    render(<ComparisonCard agentId="agent-1" comparison={comparison()} tag={null} />);
     expect(screen.getByText("Sample too small")).toBeInTheDocument();
     expect(screen.getByText(/too few to tell the two apart/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /v7 · gpt-4.1 · dataset v3/ })).toHaveAttribute(
@@ -180,6 +180,7 @@ describe("ComparisonCard", () => {
   it("names a baseline in the same run, and why a comparison is refused", () => {
     render(
       <ComparisonCard
+        tag={null}
         agentId="agent-1"
         comparison={comparison({
           paired: true,
@@ -198,6 +199,7 @@ describe("ComparisonCard", () => {
   it("says there is nothing to compare with yet", () => {
     render(
       <ComparisonCard
+        tag={null}
         agentId="agent-1"
         comparison={comparison({ baseline: null, verdict: null })}
       />,
@@ -207,7 +209,9 @@ describe("ComparisonCard", () => {
   });
 
   it("explains a verdict that carries no reason of its own", () => {
-    render(<ComparisonCard agentId="agent-1" comparison={comparison({ verdict: null })} />);
+    render(
+      <ComparisonCard agentId="agent-1" comparison={comparison({ verdict: null })} tag={null} />,
+    );
     expect(screen.getByText(/No case flipped and held/)).toBeInTheDocument();
   });
 });
@@ -216,6 +220,7 @@ describe("ArmsTable", () => {
   it("puts every arm's axes side by side and marks a reused baseline", () => {
     render(
       <ArmsTable
+        tag={null}
         arms={[
           arm(),
           arm({

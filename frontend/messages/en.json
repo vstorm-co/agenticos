@@ -6025,6 +6025,7 @@
       "fixedConfirmed": "Confirmed fixes",
       "fixedUnconfirmed": "Unconfirmed fixes",
       "compared": "{compared, plural, =1 {1 case} other {# cases}} compared, {skipped} answered on one side only",
+      "comparedTag": "{compared, plural, =1 {1 case} other {# cases}} tagged #{tag} compared. The verdict and the efficiency are over every case.",
       "metric": {
         "cost_per_pass": "Cost per passed case",
         "avg_tokens": "Tokens",
@@ -6040,6 +6041,7 @@
     },
     "arms": {
       "title": "Results",
+      "titleTag": "Results for #{tag}",
       "arm": "Arm",
       "passRate": "Pass rate",
       "undecided": "Undecided",

@@ -3,20 +3,21 @@
 import { useLocale, useTranslations } from "next-intl";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
-import type { EvalRunArm } from "@/types/eval-runs";
+import type { ArmSummary, EvalRunArm } from "@/types/eval-runs";
 import { percent, seconds, usd } from "./format";
 
 /**
  * Every arm of a run side by side - the model comparison when the candidate ran
- * on several, and the baseline beside it when one ran here.
+ * on several, and the baseline beside it when one ran here - over every case, or
+ * over the cases carrying `tag`.
  */
-export function ArmsTable({ arms }: { arms: EvalRunArm[] }) {
+export function ArmsTable({ arms, tag }: { arms: EvalRunArm[]; tag: string | null }) {
   const t = useTranslations("evals.arms");
   const locale = useLocale();
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("title")}</CardTitle>
+        <CardTitle>{tag === null ? t("title") : t("titleTag", { tag })}</CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -31,28 +32,34 @@ export function ArmsTable({ arms }: { arms: EvalRunArm[] }) {
             </tr>
           </thead>
           <tbody className="tabular-nums">
-            {arms.map((arm) => (
-              <tr key={arm.id} className="border-t">
-                <td className="py-2 pr-3">
-                  {t(`role.${arm.role}`, { model: arm.model_label })}
-                  {arm.reused_from_arm_id && (
-                    <span className="text-muted-foreground"> · {t("reused")}</span>
-                  )}
-                </td>
-                <td className="py-2 pr-3">{percent(arm.summary.pass_rate, locale)}</td>
-                <td className="py-2 pr-3">{arm.summary.incomplete}</td>
-                <td className="py-2 pr-3">{usd(arm.summary.cost_per_pass_usd, locale)}</td>
-                <td className="py-2 pr-3">
-                  {arm.summary.avg_tokens === null ? "—" : Math.round(arm.summary.avg_tokens)}
-                </td>
-                <td className="py-2 pr-3">
-                  {t("p50p95", {
-                    p50: seconds(arm.summary.p50_ms, locale),
-                    p95: seconds(arm.summary.p95_ms, locale),
-                  })}
-                </td>
-              </tr>
-            ))}
+            {arms.map((arm) => {
+              // An arm with no case under the tag has no entry for it.
+              const summary: ArmSummary | undefined = tag === null ? arm.summary : arm.by_tag[tag];
+              return (
+                <tr key={arm.id} className="border-t">
+                  <td className="py-2 pr-3">
+                    {t(`role.${arm.role}`, { model: arm.model_label })}
+                    {arm.reused_from_arm_id && (
+                      <span className="text-muted-foreground"> · {t("reused")}</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3">{percent(summary?.pass_rate ?? null, locale)}</td>
+                  <td className="py-2 pr-3">{summary?.incomplete ?? "—"}</td>
+                  <td className="py-2 pr-3">{usd(summary?.cost_per_pass_usd ?? null, locale)}</td>
+                  <td className="py-2 pr-3">
+                    {summary === undefined || summary.avg_tokens === null
+                      ? "—"
+                      : Math.round(summary.avg_tokens)}
+                  </td>
+                  <td className="py-2 pr-3">
+                    {t("p50p95", {
+                      p50: seconds(summary?.p50_ms ?? null, locale),
+                      p95: seconds(summary?.p95_ms ?? null, locale),
+                    })}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </CardContent>

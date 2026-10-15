@@ -24,7 +24,7 @@ import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
 import type { EvalRun } from "@/types/eval-runs";
 import { ArmsTable } from "./arms-table";
-import { CaseTable } from "./case-table";
+import { ALL, CaseTable, FilterSelect } from "./case-table";
 import { ComparisonCard } from "./comparison-card";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { candidateLabel } from "./evals-panel";
@@ -74,14 +74,19 @@ function RunHeader({ run, onCancel }: { run: EvalRun; onCancel?: () => void }) {
   );
 }
 
-/** One eval run: where it is, how each arm did, how it compares, and every case. */
+/**
+ * One eval run: where it is, how each arm did, how it compares, and every case -
+ * over the whole dataset, or over the cases carrying one tag.
+ */
 export function EvalRunView({ agentId, runId }: { agentId: string; runId: string }) {
   const t = useTranslations("evals");
   const tErrors = useTranslations("errors");
+  const tCases = useTranslations("evals.cases");
   const tc = useTranslations("common");
   const { run, isLoading, error, refetch, cancel } = useEvalRun(runId);
   const candidates = run?.arms.filter((arm) => arm.role === "candidate") ?? [];
   const [arm, setArm] = useState<string | null>(null);
+  const [tag, setTag] = useState<string | null>(null);
   const focus = arm ?? candidates[0]?.id ?? null;
   const live = run !== undefined && isLive(run.status);
   const { comparison, refetch: refetchComparison } = useEvalComparison(runId, {
@@ -106,6 +111,8 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
     );
   }
 
+  const tags = [...new Set(run.arms.flatMap((item) => Object.keys(item.by_tag)))].sort();
+
   return (
     <div className="space-y-6">
       <Link
@@ -126,7 +133,18 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
             : undefined
         }
       />
-      <ArmsTable arms={run.arms} />
+      {tags.length > 0 && (
+        <FilterSelect
+          label={tCases("tagFilter")}
+          value={tag ?? ALL}
+          onChange={(value) => setTag(value === ALL ? null : value)}
+          options={[
+            { value: ALL, label: tCases("allTags") },
+            ...tags.map((value) => ({ value, label: `#${value}` })),
+          ]}
+        />
+      )}
+      <ArmsTable arms={run.arms} tag={tag} />
       {candidates.length > 1 && (
         <Select value={focus ?? ""} onValueChange={setArm}>
           <SelectTrigger aria-label={t("compareArm")} className="w-64">
@@ -141,8 +159,8 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
           </SelectContent>
         </Select>
       )}
-      {comparison && <ComparisonCard agentId={agentId} comparison={comparison} />}
-      <CaseTable run={run} flips={comparison?.cases ?? []} />
+      {comparison && <ComparisonCard agentId={agentId} comparison={comparison} tag={tag} />}
+      <CaseTable run={run} flips={comparison?.cases ?? []} tag={tag} />
     </div>
   );
 }

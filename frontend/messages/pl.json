@@ -3645,6 +3645,7 @@
       "fixedConfirmed": "Potwierdzone naprawy",
       "fixedUnconfirmed": "Niepotwierdzone naprawy",
       "compared": "Porównano {compared, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}, {skipped} z odpowiedzią tylko po jednej stronie",
+      "comparedTag": "Porównano {compared, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} z tagiem #{tag}. Werdykt i wydajność dotyczą wszystkich przypadków.",
       "metric": {
         "cost_per_pass": "Koszt na zaliczony przypadek",
         "avg_tokens": "Tokeny",
@@ -3660,6 +3661,7 @@
     },
     "arms": {
       "title": "Wyniki",
+      "titleTag": "Wyniki dla #{tag}",
       "arm": "Ramię",
       "passRate": "Zaliczone",
       "undecided": "Nierozstrzygnięte",

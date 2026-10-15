@@ -6,7 +6,14 @@ import { useLocale, useTranslations } from "next-intl";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
-import type { ComparisonSide, EvalComparison, Trend, Verdict } from "@/types/eval-runs";
+import type {
+  CaseFlip,
+  ComparisonSide,
+  EvalComparison,
+  Flip,
+  Trend,
+  Verdict,
+} from "@/types/eval-runs";
 
 const VERDICT_TONE: Record<Verdict, "success" | "destructive" | "secondary" | "warning"> = {
   better: "success",
@@ -45,19 +52,44 @@ function Side({ side, agentId }: { side: ComparisonSide; agentId: string }) {
   );
 }
 
+function counted(cases: CaseFlip[], flip: Flip, confirmed: boolean) {
+  return cases.filter((item) => item.flip === flip && item.confirmed === confirmed).length;
+}
+
 /**
  * The candidate against its baseline, quality first: the verdict, the flips it
- * rests on - confirmed apart from unconfirmed - and efficiency beside it.
+ * rests on - confirmed apart from unconfirmed - and efficiency beside it. With a
+ * `tag` the flips are that tag's cases; the verdict is still over every case.
  */
 export function ComparisonCard({
   agentId,
   comparison,
+  tag,
 }: {
   agentId: string;
   comparison: EvalComparison;
+  tag: string | null;
 }) {
   const t = useTranslations("evals.comparison");
   const { baseline, verdict, efficiency } = comparison;
+  const scope =
+    tag === null
+      ? null
+      : { tag, cases: comparison.cases.filter((item) => item.tags.includes(tag)) };
+  const flips =
+    scope === null
+      ? ([
+          ["regressionsConfirmed", comparison.regressions_confirmed],
+          ["regressionsUnconfirmed", comparison.regressions_unconfirmed],
+          ["fixedConfirmed", comparison.fixed_confirmed],
+          ["fixedUnconfirmed", comparison.fixed_unconfirmed],
+        ] as const)
+      : ([
+          ["regressionsConfirmed", counted(scope.cases, "regression", true)],
+          ["regressionsUnconfirmed", counted(scope.cases, "regression", false)],
+          ["fixedConfirmed", counted(scope.cases, "fixed", true)],
+          ["fixedUnconfirmed", counted(scope.cases, "fixed", false)],
+        ] as const);
   return (
     <Card>
       <CardHeader className="space-y-1.5">
@@ -88,14 +120,7 @@ export function ComparisonCard({
             </div>
           </div>
           <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {(
-              [
-                ["regressionsConfirmed", comparison.regressions_confirmed],
-                ["regressionsUnconfirmed", comparison.regressions_unconfirmed],
-                ["fixedConfirmed", comparison.fixed_confirmed],
-                ["fixedUnconfirmed", comparison.fixed_unconfirmed],
-              ] as const
-            ).map(([key, count]) => (
+            {flips.map(([key, count]) => (
               <div key={key} className="rounded-md border px-3 py-2">
                 <dt className="text-muted-foreground text-xs">{t(key)}</dt>
                 <dd className="text-lg font-semibold tabular-nums">{count}</dd>
@@ -103,7 +128,9 @@ export function ComparisonCard({
             ))}
           </dl>
           <p className="text-muted-foreground text-xs">
-            {t("compared", { compared: comparison.compared, skipped: comparison.not_compared })}
+            {scope === null
+              ? t("compared", { compared: comparison.compared, skipped: comparison.not_compared })
+              : t("comparedTag", { compared: scope.cases.length, tag: scope.tag })}
           </p>
           {efficiency && (
             <div className="flex flex-wrap gap-2">

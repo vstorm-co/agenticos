@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { FLIP, arm, attempt, comparison, evalCase, evalRun } from "@/test-utils/eval-runs";
+import { FLIP, SUMMARY, arm, attempt, comparison, evalCase, evalRun } from "@/test-utils/eval-runs";
 import { EvalRunView } from "./eval-run-view";
 
 const toastError = vi.fn();
@@ -153,6 +153,49 @@ describe("EvalRunView", () => {
       "run-1",
       expect.objectContaining({ outcome: null, tag: null }),
     ]);
+  });
+
+  it("reads the arms, the flips and the cases under the tag a reader picks", async () => {
+    state.run = {
+      ...state.run,
+      run: evalRun({
+        arms: [
+          arm({ by_tag: { refunds: { ...SUMMARY, pass_rate: 0.5 } } }),
+          arm({ id: "arm-0", role: "baseline", by_tag: {} }),
+        ],
+      }),
+    };
+    state.comparison = comparison({
+      regressions_confirmed: 1,
+      fixed_confirmed: 1,
+      fixed_unconfirmed: 0,
+      cases: [FLIP, { ...FLIP, case_id: "case-2", flip: "fixed", tags: ["shipping"] }],
+    });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const count = (label: string) => screen.getByText(label).nextSibling?.textContent;
+    expect(count("Confirmed fixes")).toBe("1");
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Tag" }));
+    await userEvent.click(screen.getByRole("option", { name: "#refunds" }));
+
+    expect(screen.getByText("Results for #refunds")).toBeInTheDocument();
+    const candidate = screen.getByRole("row", { name: /Candidate on/ });
+    const baseline = screen.getByRole("row", { name: /Baseline on/ });
+    expect(within(candidate).getByText("50%")).toBeInTheDocument();
+    // The baseline answered no case under the tag, so it has nothing to show.
+    expect(within(baseline).getAllByText("—").length).toBeGreaterThan(0);
+    expect(count("Confirmed regressions")).toBe("1");
+    expect(count("Confirmed fixes")).toBe("0");
+    expect(screen.getByText(/1 case tagged #refunds compared/)).toBeInTheDocument();
+    expect(state.casesArgs.at(-1)).toEqual([
+      "run-1",
+      expect.objectContaining({ tag: "refunds", skip: 0 }),
+    ]);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Tag" }));
+    await userEvent.click(screen.getByRole("option", { name: "All tags" }));
+    expect(screen.getByText("Results")).toBeInTheDocument();
+    expect(count("Confirmed fixes")).toBe("1");
   });
 
   it("holds placeholders while the cases load, and says when they could not be read", () => {

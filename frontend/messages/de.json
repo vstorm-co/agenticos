@@ -5883,6 +5883,7 @@
       "fixedConfirmed": "Bestätigte Behebungen",
       "fixedUnconfirmed": "Unbestätigte Behebungen",
       "compared": "{compared, plural, =1 {1 Fall} other {# Fälle}} verglichen, {skipped} nur auf einer Seite beantwortet",
+      "comparedTag": "{compared, plural, =1 {1 Fall} other {# Fälle}} mit #{tag} verglichen. Urteil und Effizienz gelten für alle Fälle.",
       "metric": {
         "cost_per_pass": "Kosten pro bestandenem Fall",
         "avg_tokens": "Tokens",
@@ -5898,6 +5899,7 @@
     },
     "arms": {
       "title": "Ergebnisse",
+      "titleTag": "Ergebnisse für #{tag}",
       "arm": "Arm",
       "passRate": "Bestehensquote",
       "undecided": "Unentschieden",
