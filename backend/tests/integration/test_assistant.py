@@ -196,6 +196,19 @@ async def test_an_organization_at_its_agent_ceiling_hears_it_is_unavailable(
         state = await AssistantService(db).state(ctx)
 
     assert (state.status, state.agent_id) == ("unavailable", None)
+    # Nothing it set up on the way is left behind: not the gallery skills it
+    # installed for the agent, not a half-made assistant row.
+    from app.db.models.organization_assistant import OrganizationAssistant
+    from app.db.models.skill import Skill
+
+    left = await db.execute(select(Skill).where(Skill.organization_id == organization.id))
+    assert left.scalars().all() == []
+    assistants = await db.execute(
+        select(OrganizationAssistant).where(
+            OrganizationAssistant.organization_id == organization.id
+        )
+    )
+    assert assistants.scalars().all() == []
 
 
 async def test_settings_that_name_no_model_are_saved_without_publishing(

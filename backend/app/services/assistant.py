@@ -62,7 +62,12 @@ class AssistantService:
         can_configure = ctx.has(Perm.ORG_SETTINGS)
         can_use = ctx.has(Perm.AGENTS_RUN)
         try:
-            row, agent = await self._installed(ctx.organization_id)
+            # A savepoint, so a failed first install leaves nothing behind: the
+            # gallery skills and the sandbox connection it set up before the agent
+            # was refused would otherwise commit with the request that reports
+            # the assistant unavailable.
+            async with self.db.begin_nested():
+                row, agent = await self._installed(ctx.organization_id)
         except AppException:
             logger.exception("Could not install the assistant in %s", ctx.organization_id)
             return AssistantRead(
