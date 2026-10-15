@@ -55,6 +55,11 @@ TTL_SECONDS = 3600
 HISTORY_LIMIT = 500
 """How many of a browse's frames a late viewer is shown - the trace, not the pictures."""
 
+COMMAND_LIMIT = 100
+"""How many commands wait for a held browser at most. A person types and clicks far
+slower than this drains; past it the oldest go, so a flood cannot grow Redis or bury
+the newest `give_back` behind it."""
+
 _NOT_FOUND_CLOSE_CODE = 4404
 _FORBIDDEN_CLOSE_CODE = 4403
 
@@ -184,6 +189,7 @@ async def send(run_id: str, call_id: str, command: BrowserCommand) -> None:
     queue = _key(run_id, call_id, "control")
     pipe = _redis.raw.pipeline()
     pipe.rpush(queue, command.model_dump_json())
+    pipe.ltrim(queue, -COMMAND_LIMIT, -1)
     pipe.expire(queue, TTL_SECONDS)
     await pipe.execute()
 

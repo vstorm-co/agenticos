@@ -72,6 +72,20 @@ class _Pipe:
                 self.store.expiries.append(args[0])
 
 
+async def test_a_flood_of_commands_keeps_only_the_newest(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Codex on #2062: the queue grew without bound and buried a later give-back."""
+    store = _Store()
+    monkeypatch.setattr(live_browse, "_redis", MagicMock(raw=store))
+    monkeypatch.setattr(live_browse, "COMMAND_LIMIT", 3)
+
+    for index in range(5):
+        await live_browse.send(RUN, CALL, BrowserCommand(type="type", text=str(index)))
+    await live_browse.send(RUN, CALL, BrowserCommand(type="give_back"))
+
+    queued = [BrowserCommand.model_validate_json(raw) for raw in store.lists[_key("control")]]
+    assert [command.type for command in queued] == ["type", "type", "give_back"]
+
+
 class _Store:
     """Redis, in memory: values, lists, what was published and what a viewer will hear."""
 
