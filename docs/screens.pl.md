@@ -1,5 +1,5 @@
 ---
-source_sha: "760ca1f20862"
+source_sha: "8f6d065f4a25"
 ---
 
 # Każdy ekran w konsoli { #every-screen-in-the-console }
@@ -25,6 +25,12 @@ Układalne widgety, najpierw całe wdrożenie, a potem ta organizacja. Runy, wyd
 Agent w trakcie myślenia, a potem komendy powłoki, które faktycznie wykonał w sandboksie, każda do rozwinięcia. Przejrzystość jest tu produktem: to, co zrobiło narzędzie, jest na ekranie, a nie w logu, który może przeczytać ktoś inny.
 
 > **Miejsce na zrzut — Chat, w trakcie runa.**
+
+### Rozmowa głosowa { #a-voice-call }
+
+Pole wiadomości zamienione w pasek rozmowy: co się teraz dzieje w rozmowie, jej czas na tle limitu, wykres fali dźwiękowej obu głosów, wyciszenie, „naciśnij, aby mówić” i Zakończ. Nad nim toczy się dalej konwersacja - napisy w wypowiadanej właśnie wiadomości, uruchomienia narzędzi i karta zatwierdzenia z dokładnymi argumentami i tym, co według transkrypcji powiedziałeś.
+
+> **Miejsce na zrzut — Rozmowa głosowa.**
 
 ## Budowanie agenta { #building-an-agent }
 

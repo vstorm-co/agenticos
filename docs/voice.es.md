@@ -1,5 +1,5 @@
 ---
-source_sha: "1c871ba742e1"
+source_sha: "285bab48c7ff"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y minutos, redes de seguridad y transcripciones."
@@ -19,12 +19,14 @@ página alojada cuando el interruptor propio del embed está activado. Cada llam
 es un [run](concepts.md), con el nombre del modelo realtime, así que Activity, la
 pantalla de coste y el registro de auditoría la ven como cualquier otro run.
 
-!!! note "La vista de llamada llega por separado"
-
-    La parte del servidor, los ajustes, la comprobación de disponibilidad y la API
-    descritos aquí ya están en su sitio. La vista de llamada en sí - en `/chat`,
-    en el widget y en la página alojada - todavía se está diseñando, y hasta que
-    llegue ninguna superficie muestra un botón de llamada.
+En `/chat`, mientras dura la llamada, el composer se convierte en una barra de
+llamada - estado, tiempo, una forma de onda, silenciar, push-to-talk y End - y la
+llamada transcurre en la propia conversación: subtítulos dentro del mensaje que se
+está diciendo, las herramientas que se ejecutan y las tarjetas de aprobación. Una
+página alojada usa la misma barra sin los controles de aprobación, y el widget
+carga una barra de llamada propia, más pequeña. Ver
+[Consola](console.md#voice-calls) y
+[Canales](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 ## Activarlo { #turn-it-on }
 

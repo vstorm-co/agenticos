@@ -1,5 +1,5 @@
 ---
-source_sha: "ff771900ffbf"
+source_sha: "2943c67ea645"
 ---
 
 # Die Konsole { #the-console }
@@ -313,32 +313,53 @@ Organisation oder im Chat ausgeschaltet, keine Stimme für den Agent eingerichte
 das Modell wird nicht mehr angeboten, kein Schlüssel oder keine Minuten mehr in
 diesem Monat.
 
-Ein Anruf durchläuft Zustände, die die Konsole benennt: Verbindungsaufbau,
+Die **Anruftaste** sitzt im Eingabefeld des Chats, neben dem Mikrofon. Sind
+Anrufe für die Organisation oder im Chat ausgeschaltet, wird sie gar nicht
+angezeigt. Kann dieser Agent keinen Anruf annehmen, ist sie durchgestrichen, und
+beim Darüberfahren, Fokussieren oder Drücken erfahren Sie, warum - und, wenn Sie
+Anrufe einrichten dürfen, wo.
+
+Während eines Anrufs wird das Eingabefeld zur **Anrufleiste**: was der Anruf
+gerade tut, seine Zeit gemessen am Limit des Anrufs und die verbleibenden
+Minuten des Monats, eine Wellenform beider Stimmen, Push-to-Talk, Stummschalten
+und **Beenden (End)**. Nur Beenden beendet einen Anruf; wenn Sie eine andere
+Unterhaltung oder einen neuen Chat öffnen, wird aufgelegt. Gesprochen wird
+standardmäßig freihändig; **Push-to-Talk** (die Taste oder die Leertaste halten)
+ist eine Wahl, die sich Ihr Browser merkt. Bei reduzierter Bewegung ersetzt eine
+gestufte Pegelanzeige die Wellenform.
+
+Ein Anruf durchläuft Zustände, die die Leiste benennt: Verbindungsaufbau,
 Zuhören, Sie sprechen, Nachdenken, der Agent spricht, unterbrochen, Arbeit an
 einem Tool, Warten auf Ihre Freigabe, eine Freigabe, die Sie nicht erteilen
 können, die Zeit ist fast um, und beendet - durch Sie, durch ein Limit, eine
-abgebrochene Verbindung oder einen Fehler. Untertitel erscheinen Wort für Wort in
-einer Live-Region, die ein Screenreader ansagt, und jede abgeschlossene Runde
-ersetzt ihren Untertitel durch die in der Unterhaltung gespeicherte Nachricht,
-sodass der Anruf danach in Ihrem Verlauf steht und Sie tippend weitermachen
-können.
+abgebrochene Verbindung oder einen Fehler.
 
-**Freigaben** werden im Anruf entschieden: Eine Karte zeigt das Tool, seine
-exakten Argumente und was von Ihnen verstanden wurde, mit 60 Sekunden zum
-Entscheiden. Ohne `approvals:decide` wird Ihnen gesagt, dass das Tool eine
-Freigabe braucht, die Sie per Stimme nicht erteilen können. **Limits** werden
+Der Anruf findet in der Unterhaltung statt: Untertitel erscheinen Wort für Wort
+in der Nachricht, die gerade gesprochen wird, ein Screenreader liest jede Zeile
+vor, sobald sie feststeht, und jede abgeschlossene Runde macht der in der
+Unterhaltung gespeicherten Nachricht Platz, sodass der Anruf danach in Ihrem
+Verlauf steht und Sie tippend weitermachen können. Während der Agent nachdenkt
+oder ein Tool ausführt, zeigt die Unterhaltung das an der Stelle an, an der
+seine Antwort erscheinen wird.
+
+**Freigaben** werden im Anruf entschieden: Eine Karte in der Unterhaltung zeigt
+das Tool, seine exakten Argumente und was von Ihnen verstanden wurde, mit einem
+60-Sekunden-Countdown. Entschieden wird nur über ihre Schaltflächen; ein
+gesprochenes „Ja“ genügt nicht. Ohne `approvals:decide` sagt die Karte, dass das
+Tool eine Freigabe braucht, die Sie per Stimme nicht erteilen können, und bietet
+an, den Anruf zu beenden und schriftlich fortzufahren. **Limits** werden
 ausgesprochen: Eine Minute vor dem Ende des längsten Anrufs werden Sie gewarnt,
 und wenn die Zeit, das Budget oder die Minuten des Monats aufgebraucht sind,
-sagt der Agent einen Satz, und der Anruf endet. Gesprochen wird standardmäßig
-freihändig; **Push-to-Talk** (die Taste oder die Leertaste halten) ist eine
-Wahl, die sich Ihr Browser merkt, neben Stummschalten und **Anruf beenden (End
-call)**.
+sagt der Agent einen Satz, und der Anruf endet.
 
-!!! note "Die Anrufansicht wird noch entworfen"
-
-    Alles oben ist gebaut, außer der Anrufansicht selbst und ihrer Taste im
-    Eingabefeld des Chats, deren Layout noch entschieden wird. Bis sie kommt,
-    bietet keine Seite einen Anruf an.
+Ein **Hinweisstreifen unter der Leiste** zeigt, was gerade Ihre Aufmerksamkeit
+braucht: die Mikrofonabfrage, eine Freigabe, die weiter oben wartet (mit
+**Karte zeigen (Show card)**), die letzte Minute, ein Limit, das den Anruf
+beendet, das Wiederherstellen der Verbindung oder wie Push-to-Talk funktioniert.
+Endet der Anruf, nennt eine Karte in der Unterhaltung seine Dauer und die Zahl der
+gespeicherten Runden oder das Limit, das ihn beendet hat, mit einer Schaltfläche
+zum erneuten Anrufen. Ist ein Anruf gar nicht erst zustande gekommen, steht der
+Grund unter dem Eingabefeld, mit **Erneut versuchen (Try again)**.
 
 In **Aktivität (Activity)** ist ein Anruf eine Zeile mit einem Mikrofon-Abzeichen,
 und der Filter nach Art (**Text** oder **Sprachanrufe (Voice calls)**) grenzt auf

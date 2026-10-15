@@ -1,5 +1,5 @@
 ---
-source_sha: "1c871ba742e1"
+source_sha: "285bab48c7ff"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i minut, bezpieczne rozłączanie i transkrypcje."
@@ -19,12 +19,13 @@ gdy włączony jest własny przełącznik embeda. Każda rozmowa to jeden
 [run](concepts.md) z nazwą modelu realtime, więc Aktywność (Activity), ekran
 kosztów i ślad audytowy widzą ją jak każdy inny run.
 
-!!! note "Widok rozmowy pojawi się osobno"
-
-    Strona serwerowa, ustawienia, sprawdzenie gotowości i opisane tu API są
-    gotowe. Sam widok rozmowy - w `/chat`, w widgecie i na hostowanej stronie -
-    jest jeszcze projektowany i dopóki się nie pojawi, żadna powierzchnia nie
-    pokazuje przycisku rozmowy.
+W `/chat` pole wiadomości na czas rozmowy zamienia się w pasek rozmowy - stan,
+czas, wykres fali dźwiękowej, wyciszenie, „naciśnij, aby mówić” i Zakończ - a sama
+rozmowa toczy się w konwersacji: napisy pojawiają się w wypowiadanej właśnie
+wiadomości, obok uruchomień narzędzi i kart zatwierdzeń. Hostowana strona
+korzysta z tego samego paska, tylko bez obsługi zatwierdzeń, a widget wczytuje
+własny, mniejszy pasek. Zobacz [Konsola](console.md#voice-calls) i
+[Kanały](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 ## Włączanie { #turn-it-on }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "ff771900ffbf"
+source_sha: "2943c67ea645"
 ---
 
 # Konsola { #the-console }
@@ -284,29 +284,50 @@ po to, by zostać odrzuconym. Odpowiedź mówi, czego brakuje: rozmowy wyłączo
 w organizacji albo w czacie, brak głosu skonfigurowanego u agenta, model, który
 nie jest już oferowany, brak klucza albo brak minut w tym miesiącu.
 
-Rozmowa przechodzi przez stany, które konsola nazywa: łączenie, słuchanie, ty
+**Przycisk rozmowy** jest w kompozytorze czatu, obok mikrofonu. Gdy rozmowy są
+wyłączone w organizacji albo w czacie, w ogóle go nie ma. Gdy ten agent nie może
+odebrać rozmowy, przycisk jest przekreślony, a po najechaniu na niego, ustawieniu
+na nim fokusu albo kliknięciu wyjaśnia dlaczego - a jeśli możesz skonfigurować
+rozmowy, także gdzie to zrobić.
+
+W trakcie rozmowy kompozytor zamienia się w **pasek rozmowy**: co się teraz
+dzieje w rozmowie, jej czas na tle limitu rozmowy i minut, które zostały w tym
+miesiącu, wykres fali dźwiękowej obu głosów, „naciśnij, aby mówić”, wyciszenie
+i **Zakończ (End)**. Z przycisków paska rozmowę kończy tylko Zakończ; rozłącza ją
+też otwarcie innej konwersacji albo nowego czatu. Domyślnie mówi się bez użycia
+rąk; **naciśnij, aby mówić (push-to-talk)** (przytrzymaj przycisk albo spację)
+to wybór zapamiętywany w twojej przeglądarce. Przy ograniczonym ruchu (reduced
+motion) zamiast wykresu fali pojawia się schodkowy wskaźnik poziomu.
+
+Rozmowa przechodzi przez stany, które pasek nazywa: łączenie, słuchanie, ty
 mówisz, myślenie, agent mówi, przerwano, praca nad narzędziem, oczekiwanie na
 twoje zatwierdzenie, zatwierdzenie, którego nie możesz udzielić, czas prawie się
 skończył i zakończona — przez ciebie, przez limit, zerwane połączenie albo błąd.
-Napisy pojawiają się słowo po słowie w regionie na żywo, który ogłasza czytnik
-ekranu, a każda zakończona tura zastępuje swój napis wiadomością zapisaną
-w konwersacji, więc rozmowa zostaje potem w twojej historii i możesz dalej pisać.
 
-**Zatwierdzenia** są rozstrzygane w rozmowie: karta pokazuje narzędzie, jego
-dokładne argumenty i to, co według transkrypcji powiedziałeś, z 60 sekundami na
-decyzję. Bez `approvals:decide` słyszysz, że narzędzie wymaga zatwierdzenia,
-którego nie możesz udzielić głosem. **Limity** są wypowiadane: minutę przed
-końcem najdłuższej rozmowy dostajesz ostrzeżenie, a gdy skończy się czas,
-budżet albo minuty miesiąca, agent mówi jedno zdanie i rozmowa się kończy.
-Domyślnie mówi się bez użycia rąk; **naciśnij, aby mówić (push-to-talk)**
-(przytrzymaj przycisk albo spację) to wybór zapamiętywany w twojej przeglądarce,
-obok wyciszenia i **Zakończ rozmowę (End call)**.
+Rozmowa toczy się w konwersacji: napisy pojawiają się słowo po słowie
+w wypowiadanej właśnie wiadomości, czytnik ekranu odczytuje każdą linię, gdy
+jest już ostateczna, a każda zakończona tura ustępuje miejsca wiadomości
+zapisanej w konwersacji, więc rozmowa zostaje potem w twojej historii i możesz
+dalej pisać. Gdy agent myśli albo uruchamia narzędzie, konwersacja pokazuje to
+tam, gdzie pojawi się jego odpowiedź.
 
-!!! note "Widok rozmowy wciąż jest projektowany"
+**Zatwierdzenia** są rozstrzygane w rozmowie: karta w konwersacji pokazuje
+narzędzie, jego dokładne argumenty i to, co według transkrypcji powiedziałeś,
+z 60-sekundowym odliczaniem. Decydują tylko jej przyciski; powiedzenie „tak”
+niczego nie zatwierdza. Bez `approvals:decide` karta informuje, że narzędzie
+wymaga zatwierdzenia, którego nie możesz udzielić głosem, i proponuje zakończyć
+rozmowę i pisać dalej. **Limity** są wypowiadane: minutę przed końcem
+najdłuższej rozmowy dostajesz ostrzeżenie, a gdy skończy się czas, budżet albo
+minuty miesiąca, agent mówi jedno zdanie i rozmowa się kończy.
 
-    Wszystko powyżej jest zbudowane poza samym widokiem rozmowy i jego
-    przyciskiem w polu wiadomości czatu, którego układ wciąż jest ustalany.
-    Dopóki się nie pojawi, żadna strona nie oferuje rozmowy.
+Pod paskiem rozmowy **wiersz z komunikatem** wskazuje to, co wymaga twojej
+uwagi: prośbę przeglądarki o dostęp do mikrofonu, zatwierdzenie czekające wyżej
+(z przyciskiem **Pokaż kartę (Show card)**), ostatnią minutę, limit kończący
+rozmowę, ponowne łączenie albo to, jak działa „naciśnij, aby mówić”. Po
+zakończeniu rozmowy karta w konwersacji podaje, jak długo trwała i ile tur
+zapisano, albo który limit ją zakończył, i ma przycisk **Zadzwoń ponownie (Call
+again)**. Gdy rozmowa w ogóle się nie rozpoczęła, pod kompozytorem pojawia się
+powód i przycisk **Spróbuj ponownie (Try again)**.
 
 W **Aktywności (Activity)** rozmowa to jeden wiersz z plakietką mikrofonu, a
 filtr rodzaju (**Tekst (Text)** albo **Rozmowy głosowe (Voice calls)**) zawęża

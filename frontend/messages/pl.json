@@ -340,26 +340,26 @@
         "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może go używać inna aplikacja albo system blokuje przeglądarkę. Zamknij tę aplikację lub sprawdź ustawienia mikrofonu w systemie i spróbuj ponownie.",
         "nearLimit": "<strong>Zostało {remaining}.</strong> Po {limit} nagranie zatrzyma się i zostanie przepisane.",
         "nearLimitSpoken": "<strong>Nagranie zaraz się zatrzyma.</strong> Po {limit} zatrzyma się i zostanie przepisane.",
-        "stoppedAtLimit": "<strong>Nagranie zatrzymało się na limicie {limit}.</strong> Przepisywane jest wszystko do tego miejsca.",
+        "stoppedAtLimit": "<strong>Nagranie osiągnęło limit {limit}.</strong> Całe dotychczasowe nagranie zostanie przepisane.",
         "silent": "<strong>Nie słychać Cię — czy mikrofon jest wyciszony?</strong> Nagrywanie trwa dalej.",
         "tooShort": "<strong>To trwało krócej niż sekundę,</strong> więc nic nie zostało wysłane. Naciśnij mikrofon, powiedz coś, a potem naciśnij Zatrzymaj.",
-        "empty": "<strong>W nagraniu nie ma mowy.</strong> Sprawdź, czy mikrofon nie jest wyciszony, i nagraj ponownie.",
+        "empty": "<strong>W nagraniu nie wykryto mowy.</strong> Sprawdź, czy mikrofon nie jest wyciszony, i nagraj ponownie.",
         "tooLarge": "<strong>Nagranie jest za duże do przepisania.</strong> Dyktuj krócej, a długie nagrania dołączaj jako plik.",
         "signedOut": "<strong>Twoja sesja wygasła.</strong> Zaloguj się ponownie i nagraj jeszcze raz.",
-        "forbidden": "<strong>Nie możesz dyktować do tego agenta.</strong> Poproś administratora o dostęp do niego.",
+        "forbidden": "<strong>Nie masz uprawnień, by dyktować temu agentowi.</strong> Poproś administratora o dostęp.",
         "unsupported": "<strong>Nagranie z tej przeglądarki nie jest w formacie, który przyjmuje serwer.</strong> Zaktualizuj przeglądarkę albo użyj Chrome lub Firefoksa.",
         "failedTitle": "Transkrypcja się nie zakończyła.",
-        "providerErrorBody": "Provider mowy na tekst odpowiedział błędem.",
-        "timeoutBody": "Provider mowy na tekst nie odpowiedział na czas.",
+        "providerErrorBody": "Provider zamiany mowy na tekst zwrócił błąd.",
+        "timeoutBody": "Provider zamiany mowy na tekst nie odpowiedział na czas.",
         "offlineBody": "Nie udało się połączyć z serwerem.",
-        "rateLimitedBody": "Za dużo dyktowań w ciągu minuty.",
-        "keptBody": "Twoje nagranie ({duration}) zostaje zachowane, dopóki nie ponowisz próby albo go nie odrzucisz.",
+        "rateLimitedBody": "Za dużo nagrań w ciągu minuty.",
+        "keptBody": "Twoje nagranie ({duration}) poczeka, aż ponowisz próbę albo je odrzucisz.",
         "notSetUpTitle": "Dyktowanie nie jest jeszcze skonfigurowane.",
-        "notSetUpBody": "Ta organizacja przepisuje mowę na własnym serwerze, a nie wybrano modelu mowy na tekst ani dla niej, ani dla tego agenta.",
+        "notSetUpBody": "Ta organizacja przepisuje mowę na własnym serwerze, ale ani dla niej, ani dla tego agenta nie wybrano modelu zamiany mowy na tekst.",
         "noAgentTitle": "Najpierw wybierz agenta.",
-        "noAgentBody": "Dyktowanie jest przepisywane dla agenta, z którym toczy się ta rozmowa.",
+        "noAgentBody": "Dyktowanie jest przepisywane na potrzeby agenta, z którym prowadzisz tę rozmowę.",
         "noKeyTitle": "Dyktowanie wymaga klucza.",
-        "noKeyBody": "Model zamiany mowy na tekst jest wybrany, ale brakuje klucza dla jego providera."
+        "noKeyBody": "Wybrano model zamiany mowy na tekst, ale jego provider nie ma klucza."
       }
     },
     "input": {
@@ -374,7 +374,7 @@
       "unavailable": {
         "noVoice": {
           "title": "Ten agent nie ma skonfigurowanego głosu",
-          "body": "Jego karta Głos nie ma modelu do rozmów głosowych."
+          "body": "Na jego karcie Głos nie wybrano modelu do rozmów głosowych."
         },
         "notOffered": {
           "title": "Model głosowy tego agenta nie jest już oferowany",
@@ -385,7 +385,7 @@
           "body": "Wybierz klucz na jego karcie Głos."
         },
         "minutesExhausted": {
-          "title": "W tym miesiącu nie zostały żadne minuty rozmów",
+          "title": "Wykorzystano już wszystkie minuty rozmów w tym miesiącu",
           "body": "Administrator może zwiększyć miesięczny limit minut."
         },
         "unchecked": {
@@ -399,11 +399,11 @@
         "countdown": "Czas na decyzję",
         "approve": "Zatwierdź",
         "deny": "Odrzuć",
-        "notByVoice": "Decydują tylko te przyciski. Powiedzenie agentowi „tak” niczego nie zatwierdza.",
-        "unavailable": "{tool} wymaga zatwierdzenia, którego nie możesz udzielić głosem. Zapytaj w czacie tekstowym, gdzie prośba może poczekać na kogoś, kto może ją zatwierdzić.",
+        "notByVoice": "Decydują tylko te przyciski. Odpowiedź „tak” w rozmowie z agentem niczego nie zatwierdza.",
+        "unavailable": "{tool} wymaga zatwierdzenia, którego nie możesz udzielić głosem. Poproś o to w czacie tekstowym – tam prośba zaczeka na kogoś, kto może ją zatwierdzić.",
         "needed": "Wymagane zatwierdzenie",
-        "autoDeny": "Automatyczna odmowa za {time}",
-        "misheard": "Mowa może zostać źle usłyszana. Sprawdź każde imię i każdą liczbę, zanim zatwierdzisz.",
+        "autoDeny": "Automatyczne odrzucenie za {time}",
+        "misheard": "Mowa może zostać źle rozpoznana. Przed zatwierdzeniem sprawdź wszystkie nazwy i liczby.",
         "exactJson": "Dokładny JSON przekazany narzędziu",
         "outcome": {
           "approved": "Zatwierdzone przez Ciebie",
@@ -412,7 +412,7 @@
         },
         "unavailableTitle": "Wymaga zatwierdzenia, którego nie możesz tu udzielić",
         "keepTalking": "Rozmawiaj dalej",
-        "continueInText": "Zakończ rozmowę, kontynuuj tekstem"
+        "continueInText": "Zakończ rozmowę i pisz dalej"
       },
       "captions": {
         "you": "Ty: {text}",
@@ -449,7 +449,7 @@
       "notice": {
         "limitWarning": "{seconds, plural, =60 {Została 1 minuta rozmowy} one {Została # sekunda rozmowy} few {Zostały # sekundy rozmowy} many {Zostało # sekund rozmowy} other {Zostało # sekundy rozmowy}}",
         "guardrail": "Guardrail przerwał agentowi.",
-        "providerError": "Dostawca głosu zgłosił błąd.",
+        "providerError": "Provider głosu zgłosił błąd.",
         "timeLimit": "Rozmowa osiągnęła limit czasu i się kończy.",
         "budget": "Budżet się wyczerpał. Rozmowa się kończy.",
         "minutes": "Minuty rozmów na ten miesiąc się wyczerpały. Rozmowa się kończy."
@@ -463,7 +463,7 @@
         "shutdown": "Rozmowa zakończona: serwer został uruchomiony ponownie",
         "voiceOff": "Rozmowy głosowe są tu wyłączone",
         "busy": "Już prowadzisz rozmowę",
-        "lineBusy": "Za dużo rozmów jest teraz otwartych. Spróbuj ponownie za kilka minut.",
+        "lineBusy": "Trwa teraz zbyt wiele rozmów. Spróbuj ponownie za kilka minut.",
         "forbidden": "Ten agent nie może odebrać Twojej rozmowy",
         "notConfigured": "Ten agent nie jest skonfigurowany do rozmów",
         "notPriced": "Cena tego modelu jest nieznana, więc rozmowy są wyłączone",
@@ -471,7 +471,7 @@
         "generic": "Rozmowa została zakończona"
       },
       "failure": {
-        "micInsecure": "<strong>Ta strona nie może używać mikrofonu.</strong> Przeglądarki otwierają mikrofon tylko przez HTTPS albo na localhost. Poproś administratora, aby udostępnił konsolę przez HTTPS.",
+        "micInsecure": "<strong>Ta strona nie może używać mikrofonu.</strong> Przeglądarki udostępniają mikrofon tylko przez HTTPS albo na localhost. Poproś administratora, aby udostępnił konsolę przez HTTPS.",
         "micDenied": "<strong>Mikrofon jest zablokowany dla tej strony.</strong> Kliknij ikonę po lewej stronie paska adresu, ustaw Mikrofon na Zezwalaj i spróbuj ponownie. Nic nie zostało nagrane i nie zużyto żadnych minut.",
         "micNotFound": "<strong>Nie znaleziono mikrofonu.</strong> Podłącz go albo sprawdź, czy system pozwala przeglądarce z niego korzystać, a potem spróbuj ponownie.",
         "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może używa go inna aplikacja. Zamknij ją albo sprawdź ustawienia mikrofonu w systemie, a potem spróbuj ponownie.",
@@ -489,25 +489,25 @@
         "muted": "Wyciszono",
         "talking": "Mówisz · puść, aby wysłać",
         "settingUp": "Nawiązywanie bezpiecznego połączenia",
-        "announceApproval": "{seconds, plural, one {Wymagane zatwierdzenie dla {tool}. Zatwierdź albo odrzuć na ekranie. Automatyczna odmowa za # sekundę.} few {Wymagane zatwierdzenie dla {tool}. Zatwierdź albo odrzuć na ekranie. Automatyczna odmowa za # sekundy.} many {Wymagane zatwierdzenie dla {tool}. Zatwierdź albo odrzuć na ekranie. Automatyczna odmowa za # sekund.} other {Wymagane zatwierdzenie dla {tool}. Zatwierdź albo odrzuć na ekranie. Automatyczna odmowa za # sekundy.}}",
+        "announceApproval": "{seconds, plural, one {{tool} wymaga zatwierdzenia. Zatwierdź albo odrzuć na ekranie. Za # sekundę nastąpi automatyczne odrzucenie.} few {{tool} wymaga zatwierdzenia. Zatwierdź albo odrzuć na ekranie. Za # sekundy nastąpi automatyczne odrzucenie.} many {{tool} wymaga zatwierdzenia. Zatwierdź albo odrzuć na ekranie. Za # sekund nastąpi automatyczne odrzucenie.} other {{tool} wymaga zatwierdzenia. Zatwierdź albo odrzuć na ekranie. Za # sekundy nastąpi automatyczne odrzucenie.}}",
         "ending": {
-          "timeLimit": "Kończenie: osiągnięto limit czasu",
-          "budget": "Kończenie: budżet się wyczerpał",
-          "minutes": "Kończenie: minuty na ten miesiąc się skończyły"
+          "timeLimit": "Rozmowa się kończy: osiągnięto limit czasu",
+          "budget": "Rozmowa się kończy: budżet się wyczerpał",
+          "minutes": "Rozmowa się kończy: minuty na ten miesiąc się skończyły"
         },
         "strip": {
           "allowMic": "<strong>Zezwól na mikrofon</strong> w oknie przeglądarki. Rozmowa zacznie się, gdy będzie włączony.",
-          "reconnecting": "<strong>Ponowne łączenie…</strong> Połączenie zostało przerwane; rozmowa wróci tam, gdzie się zatrzymała.",
-          "approval": "<strong>Zatwierdź albo odrzuć prośbę powyżej.</strong> Automatyczna odmowa za {time}.",
+          "reconnecting": "<strong>Ponowne łączenie…</strong> Połączenie zostało przerwane; rozmowa zostanie wznowiona w miejscu, w którym się urwała.",
+          "approval": "<strong>Zatwierdź albo odrzuć prośbę powyżej.</strong> Automatyczne odrzucenie za {time}.",
           "showCard": "Pokaż kartę",
           "noApproval": "<strong>{tool} wymaga zatwierdzenia, którego nie możesz tu udzielić.</strong> Karta powyżej wyjaśnia, co możesz zrobić.",
           "ending": {
-            "timeLimit": "<strong>Osiągnięto limit czasu.</strong> Agent to mówi, a potem rozmowa się kończy.",
-            "budget": "<strong>Budżet się wyczerpał.</strong> Agent to mówi, a potem rozmowa się kończy.",
-            "minutes": "<strong>Minuty rozmów na ten miesiąc się skończyły.</strong> Agent to mówi, a potem rozmowa się kończy."
+            "timeLimit": "<strong>Osiągnięto limit czasu.</strong> Agent zaraz o tym powie i zakończy rozmowę.",
+            "budget": "<strong>Budżet się wyczerpał.</strong> Agent zaraz o tym powie i zakończy rozmowę.",
+            "minutes": "<strong>Minuty rozmów na ten miesiąc się skończyły.</strong> Agent zaraz o tym powie i zakończy rozmowę."
           },
-          "limitWarning": "<strong>Do końca rozmowy zostało {remaining}.</strong> Po {limit} agent to powie i się rozłączy. Potem możesz zacząć nową rozmowę.",
-          "pushToTalk": "<strong>Tryb „naciśnij, aby mówić” jest włączony.</strong> Przytrzymaj <kbd>Space</kbd> albo przycisk, gdy mówisz; puść, aby wysłać."
+          "limitWarning": "<strong>Do końca rozmowy zostało {remaining}.</strong> Po {limit} agent poinformuje o tym i się rozłączy. Potem możesz rozpocząć nową rozmowę.",
+          "pushToTalk": "<strong>Tryb „naciśnij, aby mówić” jest włączony.</strong> Przytrzymaj <kbd>Spacja</kbd> albo przycisk, gdy mówisz; puść, aby wysłać."
         },
         "refused": "<strong>Rozmowa się nie rozpoczęła.</strong> {reason}",
         "tryAgain": "Spróbuj ponownie",
@@ -520,7 +520,7 @@
           "minutesLeft": "{minutes, plural, one {Twojej organizacji została w tym miesiącu # minuta rozmów.} few {Twojej organizacji zostały w tym miesiącu # minuty rozmów.} many {Twojej organizacji zostało w tym miesiącu # minut rozmów.} other {Twojej organizacji zostało w tym miesiącu # minuty rozmów.}}",
           "newCall": "Zacznij nową rozmowę"
         },
-        "mediaFailed": "<strong>Dźwięk rozmowy nie mógł się przedostać,</strong> więc rozmowa została zakończona. Twoja sieć może go blokować. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej."
+        "mediaFailed": "<strong>Nie udało się przesłać dźwięku rozmowy,</strong> więc rozmowa została zakończona. Twoja sieć może go blokować. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej."
       }
     }
   },
@@ -684,14 +684,14 @@
       "title": "Dźwięk dyktowania",
       "hint": "W jakim formacie można przesłać dyktowanie - w polu wiadomości każdej organizacji, na stronach hostowanych i w widżetach.",
       "toggle": "Przyjmuj skompresowane nagrania (WebM, Ogg, MP4)",
-      "toggleHint": "Wyłączone: przeglądarki nagrywają WAV PCM 16 kHz mono. Jego długość wynika z rozmiaru, więc najdłuższe dyktowanie ogranicza koszt jednego nagrania. Włączone: przesyłane pliki są mniej więcej o połowę mniejsze, kosztem ryzyk wymienionych przy włączaniu.",
+      "toggleHint": "Wyłączone: przeglądarki nagrywają WAV PCM 16 kHz mono. Rozmiar takiego pliku wynika wprost z długości, więc maksymalna długość dyktowania ogranicza koszt jednego nagrania. Włączone: przesyłane pliki są mniej więcej o połowę mniejsze, kosztem ryzyk opisanych przy włączaniu.",
       "dialogTitle": "Przyjmować skompresowane nagrania?",
       "dialogIntro": "Surowy PCM to jedyny format, którego długości nie da się sfałszować. Przeczytaj, co się zmieni, zanim to włączysz.",
-      "riskLength": "Długość skompresowanego nagrania jest odczytywana z nagłówka samego pliku. Spreparowany plik może ją zaniżyć, więc jedno dyktowanie może zawierać znacznie więcej dźwięku niż maksymalna długość - do około 40 razy więcej w limicie rozmiaru.",
-      "riskPublic": "W publicznych widżetach i na stronach hostowanych takie pliki może wysłać każdy, kto ma link. Transkrypcja obciąża konto providera organizacji i jest poza budgetami agentów, więc limit zapytań na link nie ogranicza już kosztu do opisanego najgorszego przypadku.",
+      "riskLength": "Długość skompresowanego nagrania jest odczytywana z nagłówka samego pliku. Spreparowany plik może ją zaniżyć, więc jedno dyktowanie może zawierać znacznie więcej dźwięku, niż pozwala maksymalna długość – w ramach limitu rozmiaru nawet około 40 razy więcej.",
+      "riskPublic": "W publicznych widżetach i na stronach hostowanych takie pliki może wysłać każdy, kto ma link. Transkrypcja obciąża konto providera organizacji i jest poza budżetami agentów, więc limit zapytań na link nie ogranicza już kosztu do opisanego najgorszego przypadku.",
       "riskScope": "Dotyczy to każdej organizacji w tym wdrożeniu.",
       "benefit": "Korzyść: przesyłane nagrania są mniej więcej ośmiokrotnie mniejsze. Ponowne wyłączenie nie wymaga potwierdzenia.",
-      "acknowledge": "Rozumiem, że koszt dyktowania nie jest już ograniczony jego maksymalną długością, w żadnej organizacji.",
+      "acknowledge": "Rozumiem, że w żadnej organizacji koszt dyktowania nie będzie już ograniczony jego maksymalną długością.",
       "cancel": "Zostaw tylko PCM",
       "confirm": "Przyjmuj skompresowane nagrania"
     },
@@ -744,7 +744,7 @@
     },
     "channels": {
       "addChannel": "Dodaj kanał",
-      "addChannelDescription": "Zarejestruj bota Slacka, Telegrama albo Mattermosta dla organizacji. Każde podane tu poświadczenie jest szyfrowane w spoczynku i nigdy nie jest odczytywane z powrotem.",
+      "addChannelDescription": "Zarejestruj bota Slacka, Telegrama albo Mattermosta dla organizacji. Każde podane tu poświadczenie jest szyfrowane w spoczynku i nie da się go później odczytać.",
       "addFirstChannel": "Zarejestruj kanał",
       "addOneBecomesBindable": "Zarejestruj kanał, a agentów będzie można na nim udostępnić z ich zakładki Availability.",
       "appLevelToken": "Token aplikacji (app-level)",
@@ -770,19 +770,19 @@
       "credentialUnset": "Nie ustawiono.",
       "editBot": "Edytuj bota {bot}",
       "editChannel": "Edytuj kanał",
-      "editChannelDescription": "Zmień nazwę tego bota albo zastąp jedno z jego poświadczeń. Poświadczenie nigdy nie jest odczytywane z powrotem, więc pole pozostawione puste zachowuje zapisaną już wartość.",
+      "editChannelDescription": "Zmień nazwę tego bota albo zastąp jedno z jego poświadczeń. Poświadczenia nie da się później odczytać, więc puste pole zachowuje zapisaną już wartość.",
       "mattermostServerUrl": "URL serwera",
       "mattermostServerUrlHint": "Adres, pod którym otwierasz Mattermost w przeglądarce, bez ścieżki",
       "mattermostWebhookToken": "Token webhooka (opcjonalny)",
       "mattermostWebhookTokenHint": "Token, który Mattermost pokazuje dla webhooka wychodzącego",
       "name": "Nazwa",
-      "nameHint": "Jak ten bot nazywa się tutaj. Rozmówcy nigdy tej nazwy nie widzą.",
+      "nameHint": "Nazwa tego bota w konsoli. Rozmówcy nigdy jej nie widzą.",
       "needChannelsManage": "Zarządzanie kanałami organizacji wymaga uprawnienia channels:manage.",
-      "noAgentBound": "Brak przypisanego agenta — ten bot nie odpowiada na nic",
+      "noAgentBound": "Brak przypisanego agenta — ten bot na nic nie odpowiada",
       "noAppToken": "Brak tokenu aplikacji",
       "noChannelsYet": "Nie zarejestrowano jeszcze żadnego kanału",
       "noSigningSecret": "Brak sekretu podpisywania",
-      "pageDescription": "Platformy czatu, na których ta organizacja jest osiągalna. Bot obsługuje każdego przypisanego do niego agenta — przypisz go w zakładce Availability agenta.",
+      "pageDescription": "Platformy czatu, na których można skontaktować się z tą organizacją. Bot obsługuje każdego przypisanego do niego agenta — przypisanie ustawisz w zakładce Availability agenta.",
       "pauseBot": "Wstrzymaj bota {bot}",
       "paused": "Wstrzymany",
       "platform": "Platforma",
@@ -805,7 +805,7 @@
       "transcriptionChoose": "Wybierz",
       "transcriptionOff": "Wyłączona",
       "transcriptionOffHint": "Wiadomości głosowe nie są transkrybowane; nadawca dowiaduje się, że ten bot ich nie słucha.",
-      "transcriptionInheritHint": "Używa ustawień agenta, którego obsługuje ten bot, a potem organizacji.",
+      "transcriptionInheritHint": "Używa ustawień agenta obsługiwanego przez tego bota, a jeśli ich nie ma – ustawień organizacji.",
       "transcriptionInheritsNothing": "Nie ma czego dziedziczyć: ani agent, ani organizacja nie mają providera, więc wiadomości głosowe nie są transkrybowane.",
       "transcriptionInheritsFromAgent": "{pair}, od agenta {agent}",
       "transcriptionInheritsFromOrg": "{pair}, od organizacji",
@@ -884,7 +884,7 @@
       "anyModality": "Dowolny rodzaj",
       "modalityText": "Tekst",
       "modalityVoiceCalls": "Rozmowy głosowe",
-      "reconnected": "{count, plural, one {Połączono ponownie raz} few {Połączono ponownie # razy} many {Połączono ponownie # razy} other {Połączono ponownie # razy}}"
+      "reconnected": "{count, plural, one {Połączenie wznowiono raz} few {Połączenie wznowiono # razy} many {Połączenie wznowiono # razy} other {Połączenie wznowiono # razy}}"
     }
   },
   "rag": {
@@ -1471,7 +1471,7 @@
       },
       "voice-minutes": {
         "title": "Minuty rozmów",
-        "description": "Minuty rozmów w okresie i agenci, którzy je prowadzili, oraz minuty w tym miesiącu wobec miesięcznego limitu organizacji.",
+        "description": "Minuty rozmów w wybranym okresie z podziałem na agentów oraz zużycie w tym miesiącu na tle miesięcznego limitu organizacji.",
         "minutes": "{minutes} min",
         "calls": "{count, plural, one {# rozmowa} few {# rozmowy} many {# rozmów} other {# rozmowy}}",
         "month": "Minuty rozmów w tym miesiącu",
@@ -2189,7 +2189,7 @@
       },
       "settings-appearance": {
         "title": "Wygląd",
-        "body": "Wybierz motyw, animację pola czatu podczas dyktowania i to, ile ruchu pokazuje konsola. Każdy wybór działa od razu, w tej przeglądarce."
+        "body": "Wybierz motyw, animację pola czatu podczas dyktowania i natężenie animacji w konsoli. Każda zmiana działa od razu w tej przeglądarce."
       },
       "skills-list": {
         "title": "Twoje umiejętności",
@@ -2225,15 +2225,15 @@
       },
       "org-voice": {
         "title": "Głos",
-        "body": "Wybierz, jak dyktowanie w czacie zamienia mowę na tekst: usługą samej przeglądarki albo przez Twojego providera, za pośrednictwem tego wdrożenia."
+        "body": "Wybierz, jak dyktowanie w czacie zamienia mowę na tekst: za pomocą usługi wbudowanej w przeglądarkę albo przez Twojego providera, za pośrednictwem tego wdrożenia."
       },
       "agent-voice": {
         "title": "Głos",
-        "body": "Wybierz, jak dyktuje się temu agentowi, a w sekcji Rozmowy głosowe – model realtime, klucz i głos, którym odbiera rozmowy."
+        "body": "Wybierz sposób dyktowania temu agentowi, a w sekcji Rozmowy głosowe – model realtime, klucz i głos, z których korzysta w rozmowach."
       },
       "org-voice-conversations": {
         "title": "Rozmowy głosowe",
-        "body": "Włącz rozmowy, ogranicz ich długość i miesięczne minuty organizacji. Rozmowy liczą się też do budżetów."
+        "body": "Włącz rozmowy i ogranicz ich długość oraz miesięczną liczbę minut organizacji. Rozmowy wliczają się też do budżetów."
       }
     }
   },
@@ -2263,50 +2263,50 @@
       "hint": {
         "requesting": "<strong>Zezwól na mikrofon</strong> w okienku przeglądarki, aby zacząć nagrywanie.",
         "micDenied": "<strong>Mikrofon jest zablokowany dla tej strony.</strong> Kliknij ikonę po lewej stronie paska adresu, ustaw Mikrofon na Zezwalaj i spróbuj ponownie.",
-        "micInsecure": "<strong>Ta strona nie może użyć mikrofonu.</strong> Przeglądarki udostępniają mikrofon tylko na bezpiecznych stronach (HTTPS). Napisz wiadomość zamiast tego.",
+        "micInsecure": "<strong>Ta strona nie może użyć mikrofonu.</strong> Przeglądarki udostępniają mikrofon tylko na bezpiecznych stronach (HTTPS). Zamiast tego napisz wiadomość.",
         "micNotFound": "<strong>Nie znaleziono mikrofonu.</strong> Podłącz mikrofon albo sprawdź, czy system pozwala przeglądarce z niego korzystać, i spróbuj ponownie.",
         "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może go używać inna aplikacja. Zamknij ją i spróbuj ponownie.",
         "nearLimit": "<strong>Zostało {remaining}.</strong> Po {limit} nagranie zatrzyma się i zostanie przepisane.",
         "nearLimitSpoken": "<strong>Nagranie zaraz się zatrzyma.</strong> Po {limit} zatrzyma się i zostanie przepisane.",
-        "stoppedAtLimit": "<strong>Nagranie zatrzymało się na limicie {limit}.</strong> Przepisywane jest wszystko do tego miejsca.",
+        "stoppedAtLimit": "<strong>Nagranie osiągnęło limit {limit}.</strong> Całe dotychczasowe nagranie zostanie przepisane.",
         "silent": "<strong>Nie słychać Cię - czy mikrofon jest wyciszony?</strong> Nagrywanie trwa dalej.",
         "tooShort": "<strong>To trwało krócej niż sekundę,</strong> więc nic nie zostało wysłane. Naciśnij mikrofon, powiedz coś, a potem naciśnij Zatrzymaj.",
-        "empty": "<strong>W nagraniu nie ma mowy.</strong> Sprawdź, czy mikrofon nie jest wyciszony, i nagraj ponownie.",
-        "tooLarge": "<strong>To nagranie jest za długie do przepisania.</strong> Spróbuj krótszego.",
+        "empty": "<strong>W nagraniu nie wykryto mowy.</strong> Sprawdź, czy mikrofon nie jest wyciszony, i nagraj ponownie.",
+        "tooLarge": "<strong>To nagranie jest za długie do przepisania.</strong> Nagraj krótszą wiadomość.",
         "signedOut": "<strong>Sesja na tej stronie wygasła.</strong> Odśwież stronę i spróbuj ponownie.",
-        "forbidden": "<strong>Wprowadzanie głosowe nie jest tu dostępne.</strong> Napisz wiadomość zamiast tego.",
-        "unsupported": "<strong>Ta przeglądarka nagrywa dźwięk w formacie, którego nie przyjmujemy.</strong> Spróbuj aktualnego Chrome albo Firefoksa.",
+        "forbidden": "<strong>Wprowadzanie głosowe nie jest tu dostępne.</strong> Zamiast tego napisz wiadomość.",
+        "unsupported": "<strong>Ta przeglądarka nagrywa dźwięk w formacie, którego nie przyjmujemy.</strong> Użyj aktualnej wersji Chrome'a albo Firefoksa.",
         "failedTitle": "Transkrypcja się nie zakończyła.",
         "providerErrorBody": "Usługa transkrypcji odpowiedziała błędem.",
         "timeoutBody": "Usługa transkrypcji nie odpowiedziała na czas.",
         "offlineBody": "Nie udało się połączyć z serwerem.",
         "rateLimitedBody": "Za dużo nagrań w ciągu minuty.",
-        "keptBody": "Twoje nagranie ({duration}) zostaje zachowane, dopóki nie ponowisz próby albo go nie odrzucisz.",
+        "keptBody": "Twoje nagranie ({duration}) poczeka, aż ponowisz próbę albo je odrzucisz.",
         "notSetUpTitle": "Wprowadzanie głosowe jest teraz niedostępne.",
-        "notSetUpBody": "Napisz wiadomość zamiast tego."
+        "notSetUpBody": "Zamiast tego napisz wiadomość."
       }
     },
     "voice": {
       "view": {
-        "mediaFailed": "<strong>Dźwięk rozmowy nie mógł się przedostać,</strong> więc rozmowa została zakończona. Twoja sieć może go blokować. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej.",
+        "mediaFailed": "<strong>Nie udało się przesłać dźwięku rozmowy,</strong> więc rozmowa została zakończona. Twoja sieć może go blokować. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej.",
         "refused": "<strong>Rozmowa się nie rozpoczęła.</strong> {reason}",
         "tryAgain": "Spróbuj ponownie",
         "dismiss": "Zamknij",
         "ending": {
-          "timeLimit": "Kończenie: osiągnięto limit czasu",
-          "budget": "Kończenie: rozmowy są teraz niedostępne",
-          "minutes": "Kończenie: nie zostały żadne minuty rozmów"
+          "timeLimit": "Rozmowa się kończy: osiągnięto limit czasu",
+          "budget": "Rozmowa się kończy: połączenia głosowe są teraz niedostępne",
+          "minutes": "Rozmowa się kończy: minuty na ten miesiąc się skończyły"
         },
         "strip": {
           "ending": {
-            "timeLimit": "<strong>Osiągnięto limit czasu.</strong> Asystent to mówi, a potem rozmowa się kończy.",
-            "budget": "<strong>Rozmowy są teraz niedostępne.</strong> Asystent to mówi, a potem rozmowa się kończy.",
-            "minutes": "<strong>Minuty rozmów na ten miesiąc się wyczerpały.</strong> Asystent to mówi, a potem rozmowa się kończy."
+            "timeLimit": "<strong>Osiągnięto limit czasu.</strong> Asystent zaraz o tym powie i zakończy rozmowę.",
+            "budget": "<strong>Rozmowy są teraz niedostępne.</strong> Asystent zaraz o tym powie i zakończy rozmowę.",
+            "minutes": "<strong>Minuty rozmów na ten miesiąc się wyczerpały.</strong> Asystent zaraz o tym powie i zakończy rozmowę."
           }
         }
       },
       "failure": {
-        "micInsecure": "<strong>Ta strona nie może użyć mikrofonu.</strong> Przeglądarki udostępniają mikrofon tylko na bezpiecznych stronach (HTTPS). Napisz wiadomość zamiast tego.",
+        "micInsecure": "<strong>Ta strona nie może użyć mikrofonu.</strong> Przeglądarki udostępniają mikrofon tylko na bezpiecznych stronach (HTTPS). Zamiast tego napisz wiadomość.",
         "micDenied": "<strong>Mikrofon jest zablokowany dla tej strony.</strong> Kliknij ikonę po lewej stronie paska adresu, ustaw Mikrofon na Zezwalaj i spróbuj ponownie.",
         "micNotFound": "<strong>Nie znaleziono mikrofonu.</strong> Podłącz mikrofon albo sprawdź, czy system pozwala przeglądarce z niego korzystać, i spróbuj ponownie.",
         "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może go używać inna aplikacja. Zamknij ją i spróbuj ponownie.",
@@ -2314,17 +2314,17 @@
       },
       "ended": {
         "timeLimit": "Rozmowa osiągnęła limit czasu.",
-        "budget": "Ten asystent nie może teraz odbierać rozmów. Napisz wiadomość zamiast tego.",
-        "minutes": "Minuty rozmów na ten miesiąc się wyczerpały. Napisz wiadomość zamiast tego.",
+        "budget": "Ten asystent nie może teraz odbierać rozmów. Zamiast tego napisz wiadomość.",
+        "minutes": "Minuty rozmów na ten miesiąc się wyczerpały. Zamiast tego napisz wiadomość.",
         "revoked": "Rozmowy zostały tu wyłączone.",
         "guardrail": "Rozmowę zakończyła reguła dotycząca treści.",
         "shutdown": "Serwer został uruchomiony ponownie. Spróbuj jeszcze raz.",
         "voiceOff": "Rozmowy są tu wyłączone.",
-        "busy": "Rozmowa z tego miejsca jest już otwarta.",
+        "busy": "Z tej strony trwa już rozmowa.",
         "lineBusy": "Wszystkie linie są zajęte. Spróbuj ponownie za kilka minut albo napisz wiadomość.",
-        "forbidden": "Rozmowy są tu teraz niedostępne. Napisz wiadomość zamiast tego.",
-        "notConfigured": "Rozmowy są tu teraz niedostępne. Napisz wiadomość zamiast tego.",
-        "notPriced": "Rozmowy są tu teraz niedostępne. Napisz wiadomość zamiast tego.",
+        "forbidden": "Rozmowy są tu teraz niedostępne. Zamiast tego napisz wiadomość.",
+        "notConfigured": "Rozmowy są tu teraz niedostępne. Zamiast tego napisz wiadomość.",
+        "notPriced": "Rozmowy są tu teraz niedostępne. Zamiast tego napisz wiadomość.",
         "resumeRefused": "Rozmowa została przerwana i nie udało się jej wznowić.",
         "generic": "Rozmowa niespodziewanie się zakończyła. Spróbuj ponownie."
       },
@@ -2672,9 +2672,9 @@
       "label": "Klucz",
       "choose": "Wybierz klucz",
       "option": "{name} (…{hint})",
-      "orgHint": "Klucz API tego providera widoczny dla całej organizacji. Jest wydawany w imieniu wszystkich, więc nie można tu wybrać klucza widocznego tylko dla części osób.",
-      "agentHint": "Klucz API tego providera, który widzisz. Publikacja udostępnia go każdemu, kto może uruchomić tego agenta.",
-      "stale": "Wybrany klucz został usunięty albo nie może już być tu użyty. Wybierz klucz.",
+      "orgHint": "Klucz API tego providera widoczny dla całej organizacji. Korzystają z niego wszyscy, więc nie można tu wybrać klucza widocznego tylko dla części osób.",
+      "agentHint": "Klucz API tego providera, który widzisz. Po publikacji będzie z niego korzystał każdy, kto może uruchomić tego agenta.",
+      "stale": "Wybrany klucz został usunięty albo nie można go już tu użyć. Wybierz klucz.",
       "none": "W vaulcie nie ma jeszcze kluczy {provider}. Dodaj klucz poniżej.",
       "noneOrg": "W vaulcie nie ma jeszcze kluczy {provider} widocznych dla całej organizacji. Dodaj klucz poniżej albo udostępnij istniejący całej organizacji.",
       "cannotList": "Nie możesz wyświetlić kluczy z vaulta, więc nie wybierzesz tu klucza. Poproś osobę, która zarządza połączeniami.",
@@ -3434,7 +3434,7 @@
     "zoom": "Powiększ",
     "zoomOut": "Pomniejsz",
     "voiceTitle": "Głos",
-    "voiceDescription": "Jak dyktowanie w czacie i wiadomości głosowe z kanałów tego agenta zamieniają się w tekst. Działa po opublikowaniu agenta.",
+    "voiceDescription": "Jak dyktowanie w czacie i wiadomości głosowe z kanałów tego agenta są zamieniane na tekst. Zmiana zadziała po opublikowaniu agenta.",
     "voicePair": "Provider i model",
     "voicePairInherit": "Dziedzicz",
     "voicePairChoose": "Wybierz",
@@ -3442,7 +3442,7 @@
     "voiceOrgPair": "{provider} · {model}",
     "voiceOrgNoPair": "Organizacja nie ma ustawionego providera, więc nie ma czego dziedziczyć.",
     "voiceProvider": "Provider",
-    "voiceProviderHint": "Z katalogu zamiany mowy na tekst. Wysyłane z kluczem wybranym poniżej.",
+    "voiceProviderHint": "Z katalogu zamiany mowy na tekst. Korzysta z klucza wybranego poniżej.",
     "voiceModel": "Model",
     "voiceLanguage": "Język",
     "voiceLanguageHint": "Stały język jest dokładniejszy niż automatyczne wykrywanie.",
@@ -3450,27 +3450,27 @@
     "voiceLanguageAuto": "wykrywanie automatyczne",
     "voiceLanguageOption": "{name} ({code})",
     "voiceNoteChannelsOnly": "{engine, select, off {Dyktowanie w czacie jest w tej organizacji wyłączone} other {Dyktowanie w czacie działa w tej organizacji w przeglądarce}}, więc to ustawienie zmienia tylko transkrypcję wiadomości głosowych wysyłanych do botów kanałowych tego agenta.",
-    "voiceNoteNoProvider": "Organizacja nie ma providera speech-to-text, więc dyktowanie do tego agenta jest niedostępne, dopóki nie wybierzesz go tutaj.",
-    "voiceNoteOwnProvider": "Organizacja nie ma własnego providera; dyktowanie do tego agenta korzysta z wybranego tutaj.",
+    "voiceNoteNoProvider": "Organizacja nie ma providera zamiany mowy na tekst, więc dyktowanie temu agentowi jest niedostępne, dopóki nie wybierzesz go tutaj.",
+    "voiceNoteOwnProvider": "Organizacja nie ma własnego providera; dyktowanie temu agentowi korzysta z providera wybranego tutaj.",
     "embedDictation": "Wprowadzanie głosowe",
     "embedDictationOff": "Wyłączone",
     "embedDictationOffHint": "Bez mikrofonu.",
     "embedDictationBrowser": "Przeglądarka",
-    "embedDictationBrowserHint": "Transkrybuje przeglądarka odwiedzającego i wysyła dźwięk swojemu dostawcy - Google, Apple i innym. Nic nie trafia do tego wdrożenia i nie każda przeglądarka to oferuje.",
+    "embedDictationBrowserHint": "Transkrypcję wykonuje przeglądarka odwiedzającego, wysyłając dźwięk do swojego dostawcy (Google, Apple i innych). Nic nie trafia do tego wdrożenia i nie każda przeglądarka to oferuje.",
     "embedDictationServer": "Serwer",
-    "embedDictationServerHint": "Nagrywane na stronie i transkrybowane przez providera mowy na tekst tej organizacji, na jej koszt. Dźwięk nie jest przechowywany.",
-    "embedDictationServerUnavailable": "Serwer wymaga providera mowy na tekst z poświadczeniem, wybranego na karcie Głos organizacji albo tego agenta.",
-    "embedDictationServerDrift": "Dla tego agenta nie odpowiada teraz żaden provider mowy na tekst, więc odwiedzający nie widzą mikrofonu, dopóki któryś nie zacznie.",
-    "embedDictationServerUnchecked": "Nie można teraz sprawdzić opcji Serwer: gotowość mowy na tekst dla tego agenta się nie wczytała. Odśwież stronę, aby spróbować ponownie.",
+    "embedDictationServerHint": "Nagrywane na stronie i transkrybowane przez providera zamiany mowy na tekst tej organizacji, na jej koszt. Dźwięk nie jest przechowywany.",
+    "embedDictationServerUnavailable": "Opcja Serwer wymaga providera zamiany mowy na tekst z poświadczeniem, wybranego na karcie Głos organizacji albo tego agenta.",
+    "embedDictationServerDrift": "Żaden provider zamiany mowy na tekst nie obsługuje teraz tego agenta, więc odwiedzający nie zobaczą mikrofonu, dopóki to się nie zmieni.",
+    "embedDictationServerUnchecked": "Nie można teraz sprawdzić opcji Serwer: nie udało się wczytać gotowości tego agenta do zamiany mowy na tekst. Odśwież stronę, aby spróbować ponownie.",
     "embedVoice": "Rozmowy głosowe",
-    "embedVoiceHint": "Odwiedzający mogą dzwonić do agenta. Nie mogą niczego zatwierdzać, więc narzędzia wymagające zatwierdzenia są pomijane w ich rozmowach. Rozmowy liczą się do minut rozmów organizacji i do budgetów.",
-    "embedVoiceUnavailable": "Rozmowy głosowe wymagają włączenia głosu w organizacji i głosu skonfigurowanego na karcie Głos tego agenta.",
+    "embedVoiceHint": "Odwiedzający mogą dzwonić do agenta. Nie mogą niczego zatwierdzać, więc narzędzia wymagające zatwierdzenia są pomijane w ich rozmowach. Rozmowy wliczają się do minut rozmów organizacji i do budżetów.",
+    "embedVoiceUnavailable": "Rozmowy głosowe wymagają, by organizacja miała je włączone, a agent miał skonfigurowany głos na karcie Głos.",
     "embedVoiceDrift": "Odwiedzający nie widzą przycisku rozmowy, dopóki ten agent znów nie będzie mógł przyjmować rozmów.",
-    "embedVoiceUnchecked": "Nie można teraz sprawdzić rozmów głosowych: gotowość tego agenta do rozmów się nie wczytała. Odśwież stronę, aby spróbować ponownie.",
+    "embedVoiceUnchecked": "Nie można teraz sprawdzić rozmów głosowych: nie udało się wczytać gotowości tego agenta do rozmów. Odśwież stronę, aby spróbować ponownie.",
     "voiceProviderNoKey": "{name} (brak klucza)",
     "voiceConversationTitle": "Rozmowy głosowe",
     "voiceConversationEnabled": "Odbieraj rozmowy głosowe",
-    "voiceConversationEnabledHint": "Można dzwonić do tego agenta i z nim rozmawiać. Działa po opublikowaniu agenta.",
+    "voiceConversationEnabledHint": "Można dzwonić do tego agenta i z nim rozmawiać. Zmiana zadziała po opublikowaniu agenta.",
     "voiceConversationProvider": "Provider rozmów",
     "voiceConversationModel": "Model rozmów",
     "voiceConversationBaseModel": "Model bazowy",
@@ -3482,8 +3482,8 @@
     "voiceConversationVoiceDefault": "{voice} (domyślny)",
     "voiceConversationLanguage": "Język mówiony",
     "voiceConversationLanguageHint": "Język, w którym agent mówi w rozmowach.",
-    "voiceConversationFollowCaller": "Jak osoba dzwoniąca",
-    "voiceConversationMaxLength": "Najdłuższa rozmowa (minuty)",
+    "voiceConversationFollowCaller": "Dopasuj do rozmówcy",
+    "voiceConversationMaxLength": "Maksymalna długość rozmowy (min)",
     "voiceConversationMaxHint": "Puste pole oznacza limit organizacji.",
     "voiceConversationMaxInvalid": "Wpisz od 1 do 50 minut.",
     "voiceConversationMaxOverOrg": "{minutes, plural, one {W tej organizacji najwyżej # minuta.} few {W tej organizacji najwyżej # minuty.} many {W tej organizacji najwyżej # minut.} other {W tej organizacji najwyżej # minuty.}}",
@@ -3761,12 +3761,12 @@
     "voice": {
       "title": "Głos",
       "description": "Jak osoby w tej organizacji rozmawiają z agentami.",
-      "sttTitle": "Mowa na tekst",
-      "sttDescription": "Dyktowanie w polu wiadomości czatu. Tekst trafia do pola, gdzie można go poprawić; nic nie zostaje wysłane, dopóki osoba nie naciśnie Wyślij.",
+      "sttTitle": "Zamiana mowy na tekst",
+      "sttDescription": "Dyktowanie w polu wiadomości czatu. Tekst trafia do pola, gdzie można go poprawić; nic nie zostanie wysłane przed naciśnięciem Wyślij.",
       "usage": {
         "label": "Wykorzystanie transkrypcji",
         "summary": "{days, plural, one {Ostatni dzień} few {Ostatnie # dni} many {Ostatnie # dni} other {Ostatnie # dnia}}: {duration} · {count, plural, one {# nagranie} few {# nagrania} many {# nagrań} other {# nagrania}}",
-        "unknown": "({count, plural, one {# bez długości} few {# bez długości} many {# bez długości} other {# bez długości}})",
+        "unknown": "({count, plural, one {# o nieznanej długości} few {# o nieznanej długości} many {# o nieznanej długości} other {# o nieznanej długości}})",
         "minutes": "{minutes} min",
         "underMinute": "poniżej 1 min",
         "show": "Pokaż podział",
@@ -3774,7 +3774,7 @@
         "byAgent": "Według agenta",
         "byChannel": "Według bota kanału",
         "rowStats": "{duration} · {count, plural, one {# nagranie} few {# nagrania} many {# nagrań} other {# nagrania}}",
-        "unknownNote": "Minuty liczą tylko nagrania o znanej długości. Modele transkrypcji GPT-4o i notatki głosowe z Mattermost jej nie podają."
+        "unknownNote": "Minuty obejmują tylko nagrania o znanej długości. Modele transkrypcji GPT-4o i notatki głosowe z Mattermost jej nie podają."
       },
       "engineLabel": "Silnik dyktowania",
       "engines": {
@@ -3796,16 +3796,16 @@
       "providerNone": "Brak",
       "notReadyTitle": "Dyktowanie jest niedostępne w czacie",
       "agentsOnlyTitle": "Dyktować mogą tylko agenty z własnym providerem",
-      "agentsOnlyBody": "Nie wybrano domyślnego providera, więc dyktowanie w czacie działa tylko dla agentów, które mają własnego providera mowy na tekst w karcie „Głos”. Pozostałe agenty pokazują przekreślony mikrofon. Wybierz tu domyślnego, aby włączyć dyktowanie dla wszystkich agentów.",
+      "agentsOnlyBody": "Nie wybrano domyślnego providera, więc dyktowanie w czacie działa tylko dla agentów, które mają własnego providera zamiany mowy na tekst na karcie Głos. Przy pozostałych agentach widać przekreślony mikrofon. Wybierz tu domyślnego, aby włączyć dyktowanie dla wszystkich agentów.",
       "notReadyWithdrawn": "Wybrany model, {model}, nie jest już oferowany. Członkowie widzą przekreślony mikrofon, dopóki nie wybierzesz innego modelu albo nie zmienisz silnika.",
       "provider": "Provider",
-      "providerHint": "Z katalogu zamiany mowy na tekst. Wysyłane z kluczem wybranym poniżej.",
+      "providerHint": "Z katalogu zamiany mowy na tekst. Korzysta z klucza wybranego poniżej.",
       "model": "Model",
-      "modelHint": "Modele providera {provider} z katalogu mowy na tekst.",
+      "modelHint": "Modele providera {provider} z katalogu zamiany mowy na tekst.",
       "language": "Język",
       "languageAuto": "Wykrywaj automatycznie",
       "languageHint": "Automatyczne wykrywanie sprawdza się w zespołach mówiących różnymi językami. Stały język daje dokładniejszy wynik.",
-      "languageHintMistral": "Mistral transkrybuje mniej języków, niż oferuje ta lista, i nie podaje, jakie formaty nagrań przyjmuje. Zostaw opcję „Wykrywaj automatycznie” i wypróbuj nagranie, zanim zaczniesz na nim polegać.",
+      "languageHintMistral": "Mistral transkrybuje mniej języków, niż oferuje ta lista, i nie podaje, jakie formaty nagrań przyjmuje. Zostaw opcję „Wykrywaj automatycznie” i zrób próbne nagranie, zanim zaczniesz polegać na tym providerze.",
       "languageOption": "{name} ({code})",
       "maxLength": "Maksymalna długość nagrania",
       "maxLengthHint": "Od 10 s do 10 min. Licznik w polu wiadomości odlicza do tej wartości i na niej się zatrzymuje.",
@@ -3815,7 +3815,7 @@
       "minutes": "minuty",
       "pathBrowser": "Przeglądarka",
       "pathDeployment": "To wdrożenie",
-      "pathNote": "Wysyłane z kluczem {provider} organizacji wybranym poniżej. Dźwięk jest usuwany po transkrypcji; zostaje tylko tekst.",
+      "pathNote": "Używa klucza {provider} organizacji wybranego poniżej. Dźwięk jest usuwany po transkrypcji; zostaje tylko tekst.",
       "pathVendor": "Usługa rozpoznawania mowy producenta przeglądarki",
       "browserNote": "Provider organizacji nie jest używany. Firefox nie pokazuje mikrofonu.",
       "cancel": "Anuluj",
@@ -3830,7 +3830,7 @@
         "enabledHint": "Członkowie mogą dzwonić do agentów, którzy mają skonfigurowany głos. Domyślnie wyłączone.",
         "inChat": "Oferuj rozmowy w czacie",
         "inChatHint": "Widżet i stronę hostowaną włącza się osobno dla każdego embeda.",
-        "maxLength": "Najdłuższa rozmowa (minuty)",
+        "maxLength": "Maksymalna długość rozmowy (min)",
         "maxHint": "Od 1 do 50 minut. Agent może ustawić krótszy limit.",
         "maxInvalid": "Wpisz od 1 do 50 minut.",
         "monthly": "Miesięczne minuty rozmów",
@@ -3839,7 +3839,7 @@
         "monthlyNone": "Bez miesięcznego limitu (tylko budżety)",
         "monthlyReadOnly": "{minutes, plural, one {# minuta rozmów miesięcznie} few {# minuty rozmów miesięcznie} many {# minut rozmów miesięcznie} other {# minuty rozmów miesięcznie}}",
         "monthlyUnlimited": "Bez miesięcznego limitu",
-        "budgetsNote": "Rozmowy liczą się też do budżetu organizacji i każdego agenta.",
+        "budgetsNote": "Rozmowy wliczają się też do budżetu organizacji i każdego agenta.",
         "saved": "Zapisano ustawienia rozmów głosowych",
         "used": "Minuty rozmów wykorzystane w tym miesiącu: {used} z {limit}",
         "usedNoLimit": "Minuty rozmów wykorzystane w tym miesiącu: {used}"
@@ -3854,13 +3854,13 @@
     "reducedMotion": "Wyłączona, gdy animacje są ograniczone"
   },
   "appearance": {
-    "description": "Jak konsola wygląda i porusza się dla Ciebie. Zapisywane w tej przeglądarce i stosowane od razu.",
+    "description": "Wygląd i animacje konsoli. Zapisywane w tej przeglądarce i stosowane od razu.",
     "theme": "Motyw",
     "voiceGlowHint": "Jak pole czatu reaguje na Twój głos podczas dyktowania",
     "motion": "Animacje",
     "system": "Systemowe",
     "reduce": "Ograniczone",
     "full": "Pełne",
-    "motionHint": "Systemowe stosuje ustawienie systemu operacyjnego. Ograniczone wyłącza animację dyktowania i animacje przesuwania."
+    "motionHint": "„Systemowe” stosuje ustawienie systemu operacyjnego. „Ograniczone” wyłącza animację dyktowania i animacje przesuwania."
   }
 }

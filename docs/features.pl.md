@@ -1,5 +1,5 @@
 ---
-source_sha: "95fc0ab7ea7e"
+source_sha: "e316c5cbceb6"
 ---
 
 # Funkcje { #features }
@@ -181,8 +181,7 @@ narzędzia, wiedzę, zatwierdzenia i budżety, każda tura jest zapisywana jako
 tekst w konwersacji, a żadne audio nie jest przechowywane. Rozmowy są
 wyłączone, dopóki organizacja ich nie włączy, i mają własne limity czasu
 i miesięcznych minut. Modele realtime OpenAI są przetestowane na żywo; Azure
-OpenAI, Gemini Live i xAI nie zostały jeszcze zweryfikowane na żywo. Widok
-rozmowy trafi osobno i dopóki nie trafi, żadna strona nie oferuje rozmowy.
+OpenAI, Gemini Live i xAI nie zostały jeszcze zweryfikowane na żywo.
 
 [Powierzchnie →](channels.md) · [Rozmowy głosowe →](voice.md)
 

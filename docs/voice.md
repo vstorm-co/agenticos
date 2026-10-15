@@ -17,12 +17,13 @@ when an embed's own switch is on. Each call is one [run](concepts.md), with the
 realtime model's name on it, so Activity, the cost screen and the audit trail
 see it like any other run.
 
-!!! note "The call view lands separately"
-
-    The server side, the settings, the readiness check and the API described
-    here are in place. The call view itself - in `/chat`, on the widget and on
-    the hosted page - is still being designed, and until it lands no surface
-    shows a call button.
+In `/chat` the composer becomes a call bar for as long as the call lasts -
+state, time, a waveform, mute, push-to-talk and End - and the call happens in
+the conversation: captions inside the message being spoken, tool runs and
+approval cards. A hosted page uses the same bar without approval controls, and
+the widget loads a smaller call bar of its own. See
+[Console](console.md#voice-calls) and
+[Channels](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 ## Turn it on
 

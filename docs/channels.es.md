@@ -1,5 +1,5 @@
 ---
-source_sha: "802bf67003f5"
+source_sha: "06c2216f05dc"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -861,13 +861,33 @@ config pública dice `voice_conversation: false` y a los visitantes no se les
 ofrece ninguna llamada; cuando sí pudiera, la config indica además qué
 transporte usa la llamada (`voice_transport`).
 
-!!! note "La vista de llamada del visitante llega con la de la consola"
+**En una página alojada** aparece un botón de llamada en el composer, y la
+llamada usa la propia [barra de llamada](console.md#voice-calls) de la consola:
+el estado, el tiempo frente al límite de la llamada, la forma de onda, silenciar,
+push-to-talk y End, con los subtítulos dentro del mensaje que se está diciendo.
+Está recortada a lo que necesita un visitante: sin controles de aprobación, sin
+el recuento de minutos de la organización, y con los finales y los rechazos
+explicados en palabras de visitante. Cada turno guardado se suma al hilo de la
+página, así que el visitante puede seguir escribiendo; **New chat** cuelga la
+llamada.
 
-    El interruptor, la config pública y el socket de llamada ya están en su
-    sitio. La vista de llamada de la página alojada y el script de llamada
-    propio del widget llegan con la vista de llamada de la consola, que todavía
-    se está diseñando; hasta entonces los visitantes no ven ningún botón de
-    llamada.
+**En el widget**, la llamada es un script aparte, `voice.js`, que se descarga la
+primera vez que un visitante abre el panel y solo si la config pública ofrece
+llamadas, para que el script que descargan todos los visitantes siga siendo
+pequeño. Se sirve en `/api/v1/embed/{public_key}/voice.js` con el mismo contador
+que el script del widget, y su URL lleva un hash del script, así que una copia en
+caché nunca se combina con un widget más nuevo.
+
+La fila de entrada del widget se convierte en una barra de llamada reducida - un
+medidor de nivel en el color de acento del widget, el estado, el tiempo frente al
+límite, Mute y End -, sin push-to-talk ni tarjeta de aprobación. Los subtítulos
+aparecen en la lista de mensajes y dejan paso a los turnos guardados, y un
+rechazo, un límite alcanzado o la línea ocupada se muestran en una sola línea
+bajo la barra. End, cerrar el panel, salir de la página o una conexión que no
+llega a establecerse terminan la llamada y liberan el micrófono, el audio y la
+conexión; si la conexión se cae a mitad de llamada, se reintenta una vez, en un
+plazo de ocho segundos. Los textos de llamada del widget están en inglés, como el
+resto del widget.
 
 **Un visitante no puede aprobar nada.** Las herramientas que necesitan una aprobación
 quedan fuera por completo de la llamada de un visitante, así que el agent nunca

@@ -824,12 +824,28 @@ While a call would not start, the public config says `voice_conversation: false`
 and visitors are offered no call; when it would, the config also says which
 transport the call uses (`voice_transport`).
 
-!!! note "The visitor's call view lands with the console's"
+**On a hosted page**, a call button appears in the composer, and the call
+runs in the console's own [call bar](console.md#voice-calls): the state, the time
+against the call's limit, the waveform, mute, push to talk and End, with captions
+inside the message being spoken. It is cut to what a visitor needs: no approval
+controls, no count of the organization's minutes, and endings and refusals in a
+visitor's words. Each saved turn joins the page's thread, so the visitor can
+carry on typing; **New chat** hangs the call up.
 
-    The switch, the public config and the call socket are in place. The hosted
-    page's call view and the widget's own call script arrive with the console's
-    call view, which is still being designed; until then visitors see no call
-    button.
+**In the widget**, the call is a separate script, `voice.js`, fetched the first
+time a visitor opens the panel and only when the public config offers calls, so
+the script every visitor downloads stays small. It is served at
+`/api/v1/embed/{public_key}/voice.js` on the widget script's counter, and its URL
+carries a hash of the script, so a cached copy never pairs with a newer widget.
+
+The widget's input row becomes a cut-down call bar - a level meter in the widget's
+accent, the state, the time against the limit, Mute and End - with no
+push-to-talk and no approval card. Captions land in the message list and give
+way to the saved turns, and a refusal, a limit or a busy line shows as one line
+under the bar. End, closing the panel, leaving the page or a connection that
+fails to set up ends the call and releases the microphone, the audio and the
+connection; a connection that drops mid-call is retried once, within eight
+seconds. The widget's call copy is English, like the rest of it.
 
 **A visitor cannot approve anything.** Tools that need an approval are left out
 of a visitor's call entirely, so the agent never reaches for one; it says

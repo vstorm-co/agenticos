@@ -48,8 +48,10 @@ Two things are versioned separately from this file and worth knowing about:
   calls, `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` (3) and
   `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` (6), and at most
   `VOICE_MAX_CALLS_PER_EMBED` (3) calls open per embed. The dashboard gains a
-  Voice minutes card and the walkthrough stops for both voice settings. The
-  call view itself lands separately. See [Voice conversations](docs/voice.md).
+  Voice minutes card and the walkthrough stops for both voice settings. Calls
+  run in an inline call bar: in `/chat`, on the hosted page (without approval
+  controls) and in the widget, whose `voice.js` loads only when calls are on.
+  See [Voice conversations](docs/voice.md).
 - **Dictation in `/chat` on the organization's own speech-to-text provider
   (#1797).** With the organization's engine set to Server, the composer records
   in any browser, `POST /api/v1/agents/{agent_id}/dictation` transcribes the

@@ -1,5 +1,5 @@
 ---
-source_sha: "ff771900ffbf"
+source_sha: "2943c67ea645"
 ---
 
 # La consola { #the-console }
@@ -284,30 +284,49 @@ lo rechacen. La respuesta nombra lo que falta: llamadas apagadas en la
 organización o en el chat, ninguna voz configurada en el agent, el modelo ya no
 ofrecido, ninguna clave, o ningún minuto restante este mes.
 
-Una llamada pasa por estados que la consola nombra: conectando, escuchando,
+El **botón de llamada** está en el composer del chat, junto al micrófono. Si las
+llamadas están apagadas en la organización o en el chat, ni siquiera aparece. Si
+este agent no puede atender una llamada, aparece tachado, y al pasar el ratón por
+encima, enfocarlo o pulsarlo te dice por qué y, si puedes configurar las
+llamadas, dónde hacerlo.
+
+Durante una llamada, el composer se convierte en una **barra de llamada**: lo que
+está haciendo la llamada, su tiempo frente al límite de la llamada y los minutos
+que quedan del mes, una forma de onda de las dos voces, push-to-talk, silenciar y
+**End**. Solo End termina una llamada; abrir otra conversación o un chat nuevo la
+cuelga. Hablar es manos libres por defecto; **push-to-talk** (mantén pulsado el
+botón o Espacio) es una opción que recuerda tu navegador. Con el movimiento
+reducido activado, un medidor de nivel escalonado sustituye a la forma de onda.
+
+Una llamada pasa por estados que la barra nombra: conectando, escuchando,
 hablas tú, pensando, habla el agent, interrumpido, trabajando con una
 herramienta, esperando tu aprobación, una aprobación que no puedes dar, casi sin
 tiempo, y terminada - por ti, por un límite, por una conexión caída o por un
-fallo. Los subtítulos aparecen palabra a palabra en una región en vivo que un
-lector de pantalla anuncia, y cada turno terminado sustituye su subtítulo por el
-mensaje guardado en la conversación, así que después la llamada está en tu
-historial y puedes seguir escribiendo.
+fallo.
 
-**Las aprobaciones** se deciden en la llamada: una tarjeta muestra la
-herramienta, sus argumentos exactos y lo que se te oyó decir, con 60 segundos
-para decidir. Sin `approvals:decide` se te dice que la herramienta necesita una
-aprobación que no puedes dar por voz. **Los límites** se dicen en voz alta: un
-minuto antes de que acabe la llamada más larga se te avisa, y cuando se agotan
-el tiempo, el budget o los minutos del mes, el agent dice una frase y la llamada
-termina. Hablar es manos libres por defecto; **push-to-talk** (mantén pulsado el
-botón o Espacio) es una opción que recuerda tu navegador, junto a silenciar y
-**End call**.
+La llamada transcurre en la conversación: los subtítulos van apareciendo palabra
+a palabra dentro del mensaje que se está diciendo, un lector de pantalla anuncia
+cada línea en cuanto es definitiva, y cada turno terminado deja paso al mensaje
+guardado en la conversación, así que después la llamada está en tu historial y
+puedes seguir escribiendo. Mientras el agent piensa o ejecuta una herramienta, la
+conversación lo indica en el sitio donde aparecerá su respuesta.
 
-!!! note "La vista de llamada todavía se está diseñando"
+**Las aprobaciones** se deciden en la llamada: una tarjeta en la conversación
+muestra la herramienta, sus argumentos exactos y lo que se te oyó decir, con una
+cuenta atrás de 60 segundos. Solo deciden sus botones; decir «sí» no basta. Sin
+`approvals:decide` la tarjeta avisa de que la herramienta necesita una aprobación
+que no puedes dar por voz, y te ofrece terminar la llamada y seguir por escrito.
+**Los límites** se dicen en voz alta: un minuto antes de que acabe la llamada más
+larga se te avisa, y cuando se agotan el tiempo, el budget o los minutos del mes,
+el agent dice una frase y la llamada termina.
 
-    Todo lo anterior está construido salvo la propia vista de llamada y su botón
-    en el composer del chat, cuya disposición aún se está decidiendo. Hasta que
-    llegue, ninguna página ofrece una llamada.
+Una **franja bajo la barra** señala lo que requiere tu atención: la petición de
+acceso al micrófono, una aprobación pendiente más arriba (con **Show card**), el
+último minuto, un límite que termina la llamada, una reconexión o cómo funciona
+push-to-talk. Cuando la llamada termina, una tarjeta en la conversación indica
+cuánto duró y cuántos turnos se guardaron, o qué límite la terminó, con un botón
+para volver a llamar. Una llamada que no llegó a empezar explica el motivo bajo
+el composer, con **Try again**.
 
 En **Activity**, una llamada es una fila con una insignia de micrófono, y el
 filtro de tipo (**Text** o **Voice calls**) la reduce a llamadas; una llamada que

@@ -1,5 +1,5 @@
 ---
-source_sha: "802bf67003f5"
+source_sha: "06c2216f05dc"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -853,12 +853,32 @@ publiczna konfiguracja mówi `voice_conversation: false`, a odwiedzającym nie
 jest proponowana żadna rozmowa; gdy by się rozpoczęła, konfiguracja podaje też,
 jakiego transportu rozmowa używa (`voice_transport`).
 
-!!! note "Widok rozmowy dla odwiedzającego przyjdzie razem z widokiem konsoli"
+**Na hostowanej stronie** w polu wiadomości pojawia się przycisk rozmowy,
+a sama rozmowa toczy się w tym samym [pasku rozmowy](console.md#voice-calls) co
+w konsoli: stan, czas na tle limitu rozmowy, wykres fali dźwiękowej, wyciszenie,
+„naciśnij, aby mówić” i Zakończ, a napisy pojawiają się w wypowiadanej właśnie
+wiadomości. Pasek ma tylko to, czego potrzebuje odwiedzający: nie ma obsługi
+zatwierdzeń ani licznika minut organizacji, a zakończenia i odmowy są opisane
+słowami zrozumiałymi dla odwiedzającego. Każda zapisana tura trafia do wątku
+strony, więc odwiedzający może dalej pisać; **Nowy czat (New chat)** rozłącza
+rozmowę.
 
-    Przełącznik, publiczna konfiguracja i socket rozmowy są gotowe. Widok
-    rozmowy na hostowanej stronie i własny skrypt rozmowy widgetu przyjdą razem
-    z widokiem rozmowy w konsoli, który wciąż jest projektowany; do tego czasu
-    odwiedzający nie widzą przycisku rozmowy.
+**W widgecie** rozmowa to osobny skrypt, `voice.js`, pobierany dopiero wtedy,
+gdy odwiedzający pierwszy raz otworzy panel, i tylko wtedy, gdy publiczna
+konfiguracja oferuje rozmowy - dzięki temu skrypt, który pobiera każdy
+odwiedzający, pozostaje mały. Jest serwowany pod
+`/api/v1/embed/{public_key}/voice.js` na liczniku skryptu widgetu, a jego URL zawiera hash skryptu, więc kopia z pamięci podręcznej nigdy
+nie trafi do nowszego widgetu.
+
+Wiersz wpisywania w widgecie zamienia się w okrojony pasek rozmowy - wskaźnik
+poziomu w kolorze akcentu widgetu, stan, czas na tle limitu, Wycisz i Zakończ -
+bez „naciśnij, aby mówić” i bez karty zatwierdzenia. Napisy pojawiają się na
+liście wiadomości i ustępują miejsca zapisanym turom, a odmowa, limit albo zajęta
+linia wyświetla się jako jeden wiersz pod paskiem. Zakończ, zamknięcie panelu,
+opuszczenie strony albo połączenie, którego nie udało się nawiązać, kończy
+rozmowę i zwalnia mikrofon, dźwięk i połączenie; połączenie zerwane w trakcie
+rozmowy jest ponawiane raz, w ciągu ośmiu sekund. Teksty rozmowy w widgecie są
+po angielsku, tak jak reszta widgetu.
 
 **Odwiedzający nie może niczego zatwierdzić.** Narzędzia wymagające
 zatwierdzenia są całkowicie pomijane w rozmowie odwiedzającego, więc agent nigdy

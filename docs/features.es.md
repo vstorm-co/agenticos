@@ -1,5 +1,5 @@
 ---
-source_sha: "95fc0ab7ea7e"
+source_sha: "e316c5cbceb6"
 ---
 
 # Funciones { #features }
@@ -186,8 +186,7 @@ cada turno se guarda como texto en la conversación y no se almacena ningún
 audio. Las llamadas están apagadas hasta que una organización las enciende, y
 tienen sus propios límites de duración y de minutos mensuales. Los modelos en
 tiempo real de OpenAI están probados en vivo; Azure OpenAI, Gemini Live y xAI
-todavía no están verificados en vivo. La vista de llamada llega por separado, y
-hasta que llegue ninguna página ofrece una llamada.
+todavía no están verificados en vivo.
 
 [Superficies →](channels.md) · [Conversaciones de voz →](voice.md)
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "802bf67003f5"
+source_sha: "06c2216f05dc"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -908,12 +908,34 @@ nicht starten würde, sagt die öffentliche Konfiguration
 starten würde, sagt die Konfiguration außerdem, welchen Transport der Anruf
 benutzt (`voice_transport`).
 
-!!! note "Die Anrufansicht des Besuchers kommt mit der der Konsole"
+**Auf einer gehosteten Seite** erscheint im Eingabefeld eine Anruftaste, und der
+Anruf läuft in der [Anrufleiste](console.md#voice-calls) der Konsole selbst: der
+Status, die Zeit gemessen am Limit des Anrufs, die Wellenform, Stummschalten,
+Push-to-Talk und Beenden, mit Untertiteln in der Nachricht, die gerade gesprochen
+wird. Sie ist auf das beschränkt, was ein Besucher braucht: keine
+Freigabe-Bedienelemente, keine Anzeige der Minuten der Organisation, und das
+Ende eines Anrufs sowie Ablehnungen werden in Worten erklärt, die ein Besucher
+versteht. Jede gespeicherte Runde kommt in den Thread der Seite, sodass der
+Besucher tippend weitermachen kann; **Neuer Chat (New chat)** legt auf.
 
-    Der Schalter, die öffentliche Konfiguration und das Anruf-Socket sind
-    vorhanden. Die Anrufansicht der gehosteten Seite und das eigene Anrufskript
-    des Widgets kommen mit der Anrufansicht der Konsole, die noch entworfen
-    wird; bis dahin sehen Besucher keine Anruftaste.
+**Im Widget** ist der Anruf ein eigenes Skript, `voice.js`, das erst geladen
+wird, wenn ein Besucher das Panel zum ersten Mal öffnet, und nur, wenn die
+öffentliche Konfiguration Anrufe anbietet - so bleibt das Skript, das jeder
+Besucher herunterlädt, klein. Es wird unter
+`/api/v1/embed/{public_key}/voice.js` ausgeliefert und auf den Zähler des
+Widget-Skripts angerechnet, und seine URL trägt einen Hash des Skripts, sodass
+eine zwischengespeicherte Kopie nie mit einem neueren Widget zusammentrifft.
+
+Die Eingabezeile des Widgets wird zu einer abgespeckten Anrufleiste - eine
+Pegelanzeige in der Akzentfarbe des Widgets, der Status, die Zeit gemessen am
+Limit, Stummschalten und Beenden - ohne Push-to-Talk und ohne Freigabekarte.
+Untertitel erscheinen in der Nachrichtenliste und machen den gespeicherten
+Runden Platz, und eine Ablehnung, ein Limit oder eine besetzte Leitung erscheint
+als eine Zeile unter der Leiste. Beenden, das Schließen des Panels, das
+Verlassen der Seite oder eine Verbindung, die sich nicht aufbauen lässt, beendet
+den Anruf und gibt Mikrofon, Audio und Verbindung frei; bricht die Verbindung
+mitten im Anruf ab, wird sie innerhalb von acht Sekunden einmal neu aufgebaut.
+Die Texte des Widgets zum Anruf sind auf Englisch, wie der Rest des Widgets.
 
 **Ein Besucher kann nichts freigeben.** Tools, die eine Freigabe brauchen,
 werden aus dem Anruf eines Besuchers ganz weggelassen, sodass der Agent nie zu

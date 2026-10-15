@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Minutenlimits, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "1c871ba742e1"
+source_sha: "285bab48c7ff"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -20,12 +20,14 @@ Anruf ist ein [Run](concepts.md) mit dem Namen des Realtime-Modells darauf, also
 sehen Aktivität (Activity), der Kostenbildschirm und der Audit-Trail ihn wie
 jeden anderen Run.
 
-!!! note "Die Anrufansicht kommt separat"
-
-    Die Serverseite, die Einstellungen, die Bereitschaftsprüfung und die hier
-    beschriebene API sind vorhanden. Die Anrufansicht selbst - in `/chat`, im
-    Widget und auf der gehosteten Seite - wird noch entworfen, und bis sie da
-    ist, zeigt keine Oberfläche eine Anruftaste.
+In `/chat` wird das Eingabefeld für die Dauer des Anrufs zur Anrufleiste -
+Status, Zeit, eine Wellenform, Stummschalten, Push-to-Talk und Beenden -, und
+der Anruf findet in der Unterhaltung statt: Untertitel in der Nachricht, die
+gerade gesprochen wird, Tool-Ausführungen und Freigabekarten. Eine gehostete
+Seite verwendet dieselbe Leiste ohne Freigabe-Bedienelemente, und das Widget
+lädt eine eigene, schlankere Anrufleiste. Siehe
+[Konsole](console.md#voice-calls) und
+[Kanäle](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
 ## Einschalten { #turn-it-on }
 

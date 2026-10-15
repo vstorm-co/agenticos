@@ -268,28 +268,44 @@ The answer names what is missing: calls off in the organization or in chat, no
 voice set up on the agent, the model no longer offered, no key, or no minutes
 left this month.
 
-A call moves through states the console names: connecting, listening, you
+The **call button** sits in the chat composer, beside the microphone. Where
+calls are off for the organization or in chat it is not shown at all. Where
+this agent cannot take a call it is crossed out, and hovering, focusing or
+pressing it says why - and, if you can set calls up, where.
+
+During a call the composer becomes a **call bar**: what the call is doing, its
+time against the call's limit and the month's minutes left, a waveform of both
+voices, push-to-talk, mute and **End**. Only End ends a call; opening another
+conversation or a new chat hangs it up. Talking is hands-free by default;
+**push-to-talk** (hold the button or Space) is a choice remembered in your
+browser. With reduced motion a stepped level meter replaces the waveform.
+
+A call moves through states the bar names: connecting, listening, you
 speaking, thinking, the agent speaking, interrupted, working on a tool, waiting
 for your approval, an approval you cannot give, almost out of time, and ended -
-by you, by a limit, a dropped connection or a failure. Captions appear word by
-word in a live region a screen reader announces, and each finished turn
-replaces its caption with the message saved in the conversation, so the call is
-in your history afterwards and you can carry on typing.
+by you, by a limit, a dropped connection or a failure.
 
-**Approvals** are decided in the call: a card shows the tool, its exact
-arguments and what you were heard to say, with 60 seconds to decide. Without
-`approvals:decide` you are told the tool needs an approval you cannot give by
-voice. **Limits** are spoken: a minute before the longest call ends you are
-warned, and when the time, the budget or the month's minutes run out the agent
-says one sentence and the call ends. Talking is hands-free by default;
-**push-to-talk** (hold the button or Space) is a choice remembered in your
-browser, beside mute and **End call**.
+The call happens in the conversation: captions stream word by word inside the message being spoken, a
+screen reader hears each line once it is final, and each finished turn gives
+way to the message saved in the conversation, so the call is in your history
+afterwards and you can carry on typing. While the agent thinks or runs a tool,
+the conversation says so where its answer will appear.
 
-!!! note "The call view is still being designed"
+**Approvals** are decided in the call: a card in the conversation shows the
+tool, its exact arguments and what you were heard to say, with a 60-second
+countdown. Only its buttons decide; saying "yes" does not. Without
+`approvals:decide` the card says the tool needs an approval you cannot give by
+voice, and offers to end the call and continue in text. **Limits** are spoken:
+a minute before the longest call ends you are warned, and when the time, the
+budget or the month's minutes run out the agent says one sentence and the call
+ends.
 
-    Everything above is built except the call view itself and its button in
-    the chat composer, whose layout is still being decided. Until it lands, no
-    page offers a call.
+A **strip under the bar** points to whatever needs you: the microphone prompt,
+an approval waiting above (with **Show card**), the last minute, a limit ending
+the call, a reconnect, or how push-to-talk works. When the call ends, a card in
+the conversation says how long it ran and how many turns were saved, or which
+limit ended it, with a button to call again. A call that never started says why
+under the composer, with **Try again**.
 
 In **Activity**, a call is one row with a microphone badge, and the kind filter
 (**Text** or **Voice calls**) narrows to calls; a call that reconnected is still

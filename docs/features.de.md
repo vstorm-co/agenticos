@@ -1,5 +1,5 @@
 ---
-source_sha: "95fc0ab7ea7e"
+source_sha: "e316c5cbceb6"
 ---
 
 # Funktionen { #features }
@@ -189,8 +189,7 @@ Agent behält seine Tools, sein Wissen, seine Freigaben und Budgets, jede Runde
 wird als Text in der Unterhaltung gespeichert, und kein Audio wird gespeichert.
 Anrufe sind aus, bis eine Organisation sie einschaltet, und haben eigene Limits
 für Dauer und monatliche Minuten. Die Realtime-Modelle von OpenAI sind live
-getestet; Azure OpenAI, Gemini Live und xAI sind noch nicht live verifiziert. Die
-Anrufansicht kommt separat, und bis dahin bietet keine Seite einen Anruf an.
+getestet; Azure OpenAI, Gemini Live und xAI sind noch nicht live verifiziert.
 
 [Oberflächen →](channels.md) · [Sprachgespräche →](voice.md)
 

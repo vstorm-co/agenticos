@@ -172,8 +172,7 @@ chat, on a hosted page or in the widget. The agent keeps its tools, knowledge,
 approvals and budgets, every turn is saved as text in the conversation, and no
 audio is stored. Calls are off until an organization turns them on, and carry
 their own time and monthly-minute limits. OpenAI's realtime models are tested
-live; Azure OpenAI, Gemini Live and xAI are not verified live yet. The call view
-lands separately, and until it does no page offers a call.
+live; Azure OpenAI, Gemini Live and xAI are not verified live yet.
 
 [Surfaces →](channels.md) · [Voice conversations →](voice.md)
 
