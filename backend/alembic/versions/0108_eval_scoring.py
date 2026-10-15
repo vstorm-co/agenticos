@@ -6,7 +6,8 @@ rather than a reserved slug, because the slug derives from a name the organizati
 may change, and a person's own agent may already hold it. The partial unique index
 gives each organization at most one agent per key; ordinary agents leave it null.
 No existing agent becomes a system agent: one is seeded the first time something
-needs it.
+needs it. `agents.kind` says what an agent is for: `agent` for every existing
+one, `judge` for the seeded judge and each judge a dataset gets of its own.
 
 `organizations.ai_assistance_enabled` is the one switch for every model-backed
 eval and authoring feature. Off by default, for every organization the migration
@@ -55,6 +56,11 @@ def upgrade() -> None:
         ),
     )
     op.add_column("agents", sa.Column("system_key", sa.String(length=64), nullable=True))
+    op.add_column(
+        "agents",
+        sa.Column("kind", sa.String(length=16), server_default="agent", nullable=False),
+    )
+    op.create_check_constraint("ck_agent_kind", "agents", "kind IN ('agent', 'judge')")
     op.create_index(
         "uq_agents_org_system_key",
         "agents",
@@ -165,5 +171,7 @@ def downgrade() -> None:
     op.drop_table("case_scores")
     op.drop_column("datasets", "scoring")
     op.drop_index("uq_agents_org_system_key", table_name="agents")
+    op.drop_constraint("ck_agent_kind", "agents", type_="check")
+    op.drop_column("agents", "kind")
     op.drop_column("agents", "system_key")
     op.drop_column("organizations", "ai_assistance_enabled")

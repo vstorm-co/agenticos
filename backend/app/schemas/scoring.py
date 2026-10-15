@@ -183,14 +183,16 @@ class RubricCriterion(BaseSchema):
 
 
 class JudgeScorer(BaseSchema):
-    """The eval judge grading every case on a rubric.
+    """The judge grading every case on a rubric.
 
-    Each criterion is graded from 1 to `scale_max` and passes at `pass_at` or
-    above. `model_profile_id` runs the judge on another model than the one it
-    publishes on.
+    `agent_id` is the dataset's own judge, one of the organization's judges;
+    null is the platform's default eval judge. Each criterion is graded from 1
+    to `scale_max` and passes at `pass_at` or above. `model_profile_id` runs the
+    judge on another model than the one it publishes on.
     """
 
     enabled: bool = False
+    agent_id: UUID | None = None
     model_profile_id: UUID | None = None
     scale_max: int = Field(default=5, ge=2, le=10)
     pass_at: int = Field(default=4, ge=1, le=10)
@@ -297,12 +299,13 @@ class CaseVerdict(BaseSchema):
 class JudgePin(BaseSchema):
     """Which judge graded a score.
 
-    Two scores are graded alike only when every field matches. `rubric_hash`
-    fingerprints what the judge was asked: each criterion it graded and the
-    scale. `model_profile_id` is the model it ran on - the dataset's choice, or
-    the one its version publishes on.
+    Two scores are graded alike only when every field matches. `agent_id` is the
+    judge agent, `rubric_hash` fingerprints what it was asked: each criterion it
+    graded and the scale. `model_profile_id` is the model it ran on - the
+    dataset's choice, or the one its version publishes on.
     """
 
+    agent_id: UUID | None = None
     model_profile_id: UUID | None = None
     agent_version_id: UUID | None = None
     spec_version: int | None = None
@@ -379,6 +382,16 @@ class PendingScore(CaseScoreRead):
     """A score in the review queue, with the dataset it belongs to."""
 
     dataset_name: str
+
+
+class JudgeCreate(BaseSchema):
+    """A judge of a dataset's own, made from the default judge's definition."""
+
+    name: str = Field(min_length=1, max_length=128)
+    instructions: str = Field(min_length=1, max_length=20_000)
+    model_profile_id: UUID | None = Field(
+        default=None, description="The model it runs on; the organization's oldest if omitted"
+    )
 
 
 class ReviewRequest(BaseSchema):

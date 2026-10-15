@@ -23,6 +23,7 @@ from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.system_agents import JUDGE
 from app.core.audit import record_audit
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
@@ -32,6 +33,7 @@ from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.dataset import CaseSource, Dataset, DatasetCase, DatasetChange, DatasetVersion
 from app.db.updates import writable
 from app.repositories import (
+    agent_repo,
     conversation_repo,
     dataset_repo,
     message_rating_repo,
@@ -174,10 +176,15 @@ def _version_read(version: DatasetVersion) -> DatasetVersionRead:
 
 
 def _dataset_read(
-    dataset: Dataset, *, can_edit: bool, stats: DatasetStats | None = None
+    dataset: Dataset,
+    *,
+    can_edit: bool,
+    judge_name: str | None,
+    stats: DatasetStats | None = None,
 ) -> DatasetRead:
     return DatasetRead(
         stats=stats or DatasetStats(),
+        judge_name=judge_name,
         id=dataset.id,
         name=dataset.name,
         description=dataset.description,
@@ -226,11 +233,42 @@ class DatasetService:
             self.db, [dataset.id for dataset in datasets], organization_id=ctx.organization_id
         )
 
+    async def _judge_names(self, ctx: AuthContext, datasets: list[Dataset]) -> dict[UUID, str]:
+        """Each dataset's judge by name: the one it picked, or the seeded default.
+
+        A read never seeds, so before the default judge exists a dataset that
+        picked none has no name here, as one whose judge was deleted has none.
+        """
+        picked = {
+            dataset.id: DatasetScoring.model_validate(dataset.scoring).judge.agent_id
+            for dataset in datasets
+        }
+        judges = await agent_repo.get_many(
+            self.db,
+            [agent_id for agent_id in set(picked.values()) if agent_id is not None],
+            organization_id=ctx.organization_id,
+        )
+        default = (
+            await agent_repo.get_system(self.db, organization_id=ctx.organization_id, key=JUDGE.key)
+            if None in picked.values()
+            else None
+        )
+        names: dict[UUID, str] = {}
+        for dataset_id, agent_id in picked.items():
+            judge = default if agent_id is None else judges.get(agent_id)
+            if judge is not None:
+                names[dataset_id] = judge.name
+        return names
+
     async def read(self, ctx: AuthContext, dataset_id: UUID) -> DatasetRead:
         dataset = await self.get(ctx, dataset_id)
         stats = await self._stats(ctx, [dataset])
+        judges = await self._judge_names(ctx, [dataset])
         return _dataset_read(
-            dataset, can_edit=await self._can_edit(ctx, dataset), stats=stats.get(dataset.id)
+            dataset,
+            can_edit=await self._can_edit(ctx, dataset),
+            judge_name=judges.get(dataset.id),
+            stats=stats.get(dataset.id),
         )
 
     async def list_readable(
@@ -240,11 +278,15 @@ class DatasetService:
         shared_with_me: bool = False,
         editable: bool = False,
         search: str | None = None,
+        judge_id: UUID | None = None,
         sort: DatasetSort = "name",
         skip: int = 0,
         limit: int = 50,
     ) -> DatasetList:
         """A page of the datasets this caller may see, each saying whether they may edit it.
+
+        `judge_id` narrows to the datasets that judge grades: those that picked
+        it, and for the seeded default judge those that picked none.
 
         Scoped like every shared resource: a role reaching the whole organization
         lists everything, anyone else their own, the org-visible ones and those
@@ -279,6 +321,8 @@ class DatasetService:
             edit_scope=ctx.scope_for(Perm.DATASETS_EDIT) if editable else None,
             edit_ids=edit_ids,
             search=search,
+            judge_id=judge_id,
+            judge_is_default=judge_id is not None and await self._is_default_judge(ctx, judge_id),
             sort=sort,
             skip=skip,
             limit=limit,
@@ -287,13 +331,25 @@ class DatasetService:
             self.db, ctx, items, Perm.DATASETS_EDIT, resource_type=DATASET
         )
         stats = await self._stats(ctx, items)
+        judges = await self._judge_names(ctx, items)
         return DatasetList(
             items=[
-                _dataset_read(item, can_edit=item.id in may_edit, stats=stats.get(item.id))
+                _dataset_read(
+                    item,
+                    can_edit=item.id in may_edit,
+                    judge_name=judges.get(item.id),
+                    stats=stats.get(item.id),
+                )
                 for item in items
             ],
             total=total,
         )
+
+    async def _is_default_judge(self, ctx: AuthContext, agent_id: UUID) -> bool:
+        default = await agent_repo.get_system(
+            self.db, organization_id=ctx.organization_id, key=JUDGE.key
+        )
+        return default is not None and default.id == agent_id
 
     async def _refuse_taken_name(self, ctx: AuthContext, name: str) -> None:
         if await dataset_repo.get_by_name(self.db, name, organization_id=ctx.organization_id):
@@ -325,7 +381,7 @@ class DatasetService:
             target_id=str(dataset.id),
             details={"name": dataset.name},
         )
-        return _dataset_read(dataset, can_edit=True)
+        return await self.read(ctx, dataset.id)
 
     async def update(self, ctx: AuthContext, dataset_id: UUID, data: DatasetUpdate) -> DatasetRead:
         """Rename or redescribe a dataset. Its cases, and so its version, do not change."""
@@ -349,8 +405,7 @@ class DatasetService:
             target_id=str(dataset.id),
             details={"name": updated.name, "fields": sorted(update_data)},
         )
-        stats = await self._stats(ctx, [updated])
-        return _dataset_read(updated, can_edit=True, stats=stats.get(updated.id))
+        return await self.read(ctx, updated.id)
 
     async def delete(self, ctx: AuthContext, dataset_id: UUID) -> None:
         """Delete a dataset with every version and case it held."""

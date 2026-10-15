@@ -145,6 +145,15 @@ async def test_the_listing_narrows_to_what_the_caller_may_edit_when_asked(
     assert plain.kwargs["editable"] is False
 
 
+async def test_the_judge_filter_reaches_the_service(client: OpenClient, service: MagicMock) -> None:
+    judge_id = uuid.uuid4()
+    async with client() as http:
+        await http.get(_url(f"?judge={judge_id}"))
+        await http.get(_url())
+    narrowed, plain = service.list_readable.await_args_list
+    assert (narrowed.kwargs["judge_id"], plain.kwargs["judge_id"]) == (judge_id, None)
+
+
 async def test_a_case_that_expects_nothing_is_refused_naming_the_field(
     client: OpenClient, service: MagicMock
 ) -> None:

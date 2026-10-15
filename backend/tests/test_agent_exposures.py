@@ -49,7 +49,7 @@ def _named(**attributes: object) -> MagicMock:
 
 
 def _agent(*, agent_id: uuid.UUID | None = None, name: str = "Support") -> MagicMock:
-    return _named(id=agent_id or uuid.uuid4(), name=name, system_key=None)
+    return _named(id=agent_id or uuid.uuid4(), name=name, system_key=None, kind="agent")
 
 
 def _bot(*, platform: str = "slack", name: str = "Acme Support", bot_id=None) -> MagicMock:

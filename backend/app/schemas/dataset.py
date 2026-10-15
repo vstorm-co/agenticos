@@ -263,6 +263,13 @@ class DatasetRead(BaseSchema):
     scoring: DatasetScoring = Field(
         default_factory=DatasetScoring, description="How this dataset's cases are scored"
     )
+    judge_name: str | None = Field(
+        default=None,
+        description=(
+            "The judge that grades this dataset: the one picked in its scoring, or the "
+            "default eval judge. Null when the judge it names no longer exists."
+        ),
+    )
     stats: DatasetStats = Field(default_factory=DatasetStats)
     created_at: datetime
     updated_at: datetime | None = None

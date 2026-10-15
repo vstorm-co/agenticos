@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from typing import Any, get_args
 from uuid import UUID
 
-from sqlalchemy import func, insert, literal, select, true
+from sqlalchemy import func, insert, literal, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.permissions import Scope
@@ -66,6 +66,8 @@ async def list_visible(
     edit_scope: Scope | None = None,
     edit_ids: Sequence[UUID] = (),
     search: str | None = None,
+    judge_id: UUID | None = None,
+    judge_is_default: bool = False,
     sort: DatasetSort = "name",
     skip: int = 0,
     limit: int = 50,
@@ -79,6 +81,9 @@ async def list_visible(
         edit_scope: Narrow to the rows the caller may also edit: their role's
             scope for editing, with `edit_ids` granted at edit level. None
             narrows nothing.
+        judge_id: Narrow to the datasets this judge grades - the judge or the
+            reference comparison on, with this judge picked, or with none
+            picked when `judge_is_default`.
     """
     where = [Dataset.organization_id == organization_id]
     if shared_with_me:
@@ -114,6 +119,19 @@ async def list_visible(
         )
     if search:
         where.append(contains_ci(Dataset.name, search) | contains_ci(Dataset.description, search))
+    if judge_id is not None:
+        picked = Dataset.scoring["judge"]["agent_id"].astext
+        where.append(
+            or_(
+                Dataset.scoring["judge"]["enabled"].as_boolean().is_(True),
+                Dataset.scoring["reference"]["enabled"].as_boolean().is_(True),
+            )
+        )
+        where.append(
+            or_(picked == str(judge_id), picked.is_(None))
+            if judge_is_default
+            else picked == str(judge_id)
+        )
 
     order_by = (
         (func.coalesce(Dataset.updated_at, Dataset.created_at).desc(), Dataset.name.asc())

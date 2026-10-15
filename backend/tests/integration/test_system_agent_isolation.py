@@ -15,11 +15,15 @@ from sqlalchemy import select
 
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
-from app.core.exceptions import BadRequestError, SystemAgentRestrictedError
+from app.core.exceptions import (
+    BadRequestError,
+    SystemAgentRestrictedError,
+    SystemAgentUnavailableError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
 from app.core.vault import VaultScope
-from app.db.models.agent import Agent
+from app.db.models.agent import Agent, AgentKind
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
@@ -183,19 +187,56 @@ class TestAttaching:
         with pytest.raises(BadRequestError) as refused:
             await AgentRegistryService(db).validate_spec(ctx, spec)
 
-        assert any("is a system agent" in problem for problem in refused.value.details["problems"])
+        assert any("is a judge" in problem for problem in refused.value.details["problems"])
+
+
+class TestADatasetsOwnJudge:
+    async def test_it_is_refused_everywhere_the_seeded_judge_is(self, db) -> None:
+        ctx = await _owner(db)
+        own = await SystemAgentService(db).create_judge(
+            ctx, name="Refunds judge", description="Grades refunds.", instructions="Be strict."
+        )
+
+        with pytest.raises(SystemAgentRestrictedError):
+            await AgentRunnerService(db).execute(ctx, own.id, "Grade this", surface=RunSurface.WEB)
+        with pytest.raises(SystemAgentRestrictedError, match="a channel"):
+            await AgentExposureService(db).create(
+                ctx, own.id, ExposureCreate(channel_bot_id=uuid.uuid4())
+            )
+        assert await _runs_of(db, own) == []
+
+    async def test_its_own_runner_reaches_it_by_id(self, db) -> None:
+        ctx = await _owner(db)
+        own = await SystemAgentService(db).create_judge(
+            ctx, name="Refunds judge", description="Grades refunds.", instructions="Be strict."
+        )
+
+        agent = await SystemAgentRunner(db).require_runnable(ctx, key=JUDGE.key, agent_id=own.id)
+
+        assert agent.id == own.id
+
+    async def test_an_ordinary_agent_picked_as_the_judge_is_missing(self, db) -> None:
+        ctx = await _owner(db)
+        mine = await AgentRegistryService(db).create(ctx, AgentSpec(name="Support"))
+
+        with pytest.raises(SystemAgentUnavailableError) as refused:
+            await SystemAgentRunner(db).require_runnable(ctx, key=JUDGE.key, agent_id=mine.id)
+
+        assert refused.value.reason == "missing"
 
 
 class TestListing:
-    async def test_it_is_listed_apart_from_the_organization_s_agents(self, db) -> None:
+    async def test_judges_are_listed_apart_from_the_organization_s_agents(self, db) -> None:
         ctx = await _owner(db)
         judge = await _judge(db, ctx)
+        own = await SystemAgentService(db).create_judge(
+            ctx, name="Refunds judge", description="Grades refunds.", instructions="Be strict."
+        )
         registry = AgentRegistryService(db)
         mine = await registry.create(ctx, AgentSpec(name="Support"))
 
         listed, total = await registry.list_agents(ctx)
-        system, system_total = await registry.list_agents(ctx, system=True)
+        judges, judge_total = await registry.list_agents(ctx, kind=AgentKind.JUDGE)
 
         assert ([agent.id for agent in listed], total) == ([mine.id], 1)
-        assert ([agent.id for agent in system], system_total) == ([judge.id], 1)
-        assert system[0].system_key == JUDGE.key
+        assert ({agent.id for agent in judges}, judge_total) == ({judge.id, own.id}, 2)

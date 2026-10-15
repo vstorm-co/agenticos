@@ -27,6 +27,7 @@ from app.agents.system_agents import JUDGE
 from app.core.audit import record_audit
 from app.core.exceptions import (
     AiAssistanceDisabledError,
+    AuthorizationError,
     BadRequestError,
     NotFoundError,
     NothingToScoreError,
@@ -36,6 +37,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.db.models.agent import AgentKind
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase
@@ -55,6 +57,7 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    JudgeCreate,
     JudgePin,
     PendingDataset,
     PendingScore,
@@ -83,6 +86,7 @@ from app.services.scorers import (
     score_trajectory,
 )
 from app.services.system_agent_runner import SystemAgentRunner
+from app.services.system_agents import SystemAgentService
 
 _MAX_TURNS = 100
 # Enough of an answer to review it; a longer one is read in full from its run.
@@ -156,7 +160,8 @@ class ScoringService:
         Raises:
             NotFoundError: The dataset is not one the caller may edit.
             BadRequestError: Every scorer is off, the judge is on with nothing to
-                grade, the judge's model is not one of the organization's, or the
+                grade, the judge picked is not one of the organization's judges,
+                the judge's model is not one of the organization's, or the
                 judge or the reference comparison is turned on while AI
                 assistance is off. One already on stays on, and is skipped.
         """
@@ -183,6 +188,11 @@ class ScoringService:
             raise refused_field("checks.enabled", "Turn on at least one scorer")
         if data.judge.enabled and not data.judge.criteria:
             raise refused_field("judge.criteria", "Give the judge at least one criterion")
+        judge_id = data.judge.agent_id
+        if judge_id is not None and judge_id != stored.judge.agent_id:
+            judge = await agent_repo.get(self.db, judge_id, organization_id=ctx.organization_id)
+            if judge is None or judge.kind != AgentKind.JUDGE.value:
+                raise refused_field("judge.agent_id", "This organization has no such judge")
         profile_id = data.judge.model_profile_id
         if profile_id is not None and (
             await credential_repo.get_profile(
@@ -195,6 +205,42 @@ class ScoringService:
             self.db,
             dataset=dataset,
             update_data={"scoring": data.model_dump(mode="json", by_alias=True)},
+        )
+        return await self.datasets.read(ctx, dataset_id)
+
+    async def create_judge(
+        self, ctx: AuthContext, dataset_id: UUID, data: JudgeCreate
+    ) -> DatasetRead:
+        """Create a judge of the dataset's own and make it the one grading the dataset.
+
+        Needs `datasets:edit` on the dataset and `agents:edit`, since a judge is
+        an agent. The rubric stays the dataset's; only which judge grades changes,
+        so scores graded before keep the judge they were graded by.
+
+        Raises:
+            NotFoundError: The dataset is not one the caller may edit, or the
+                model is not one of the organization's.
+            AuthorizationError: The caller's role may not create agents.
+            AlreadyExistsError: An agent of the organization holds the name.
+        """
+        dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        if not ctx.has(Perm.AGENTS_EDIT):
+            raise AuthorizationError(
+                message="Creating a judge creates an agent, which your role does not allow"
+            )
+        judge = await SystemAgentService(self.db).create_judge(
+            ctx,
+            name=data.name,
+            description=f"Grades the cases of the dataset '{dataset.name}'.",
+            instructions=data.instructions,
+            model_profile_id=data.model_profile_id,
+        )
+        scoring = DatasetScoring.model_validate(dataset.scoring)
+        scoring.judge.agent_id = judge.id
+        await dataset_repo.update(
+            self.db,
+            dataset=dataset,
+            update_data={"scoring": scoring.model_dump(mode="json", by_alias=True)},
         )
         return await self.datasets.read(ctx, dataset_id)
 
@@ -378,6 +424,7 @@ class ScoringService:
                 key=JUDGE.key,
                 prompt=judge_prompt(case, answer, criteria, scale_max=scoring.judge.scale_max),
                 output_type=JudgeVerdict,
+                agent_id=scoring.judge.agent_id,
                 model_profile_id=scoring.judge.model_profile_id,
             )
         except AiAssistanceDisabledError as exc:
@@ -436,6 +483,7 @@ class ScoringService:
         )
         published = None if version is None else version.spec.get("model_profile_id")
         return JudgePin(
+            agent_id=run.agent_id,
             model_profile_id=scoring.judge.model_profile_id or published,
             agent_version_id=run.agent_version_id,
             spec_version=None if version is None else version.version,

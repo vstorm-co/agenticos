@@ -56,6 +56,7 @@ from app.schemas.scoring import (
     CaseVerdict,
     ChecksScorer,
     DatasetScoring,
+    JudgeCreate,
     JudgeScorer,
     ReferenceScorer,
     ReviewRequest,
@@ -574,6 +575,95 @@ class TestScoringARun:
             await ScoringService(db).score_run(
                 tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
             )
+
+
+class TestADatasetsOwnJudge:
+    async def test_it_grades_the_dataset_and_the_score_pins_it(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+
+        made = await scoring.create_judge(
+            tenant.ctx, dataset.id, JudgeCreate(name="Refunds judge", instructions="Be strict.")
+        )
+        score = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+
+        own = made.scoring.judge.agent_id
+        assert own is not None
+        assert (made.scoring.judge.enabled, made.judge_name) == (True, "Refunds judge")
+        [judged] = await _eval_runs(db, tenant)
+        assert judged.agent_id == own
+        assert score.judge is not None and score.judge.agent_id == own
+
+    async def test_a_judge_that_is_gone_skips_the_judge_and_says_so(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+        made = await scoring.create_judge(
+            tenant.ctx, dataset.id, JudgeCreate(name="Refunds judge", instructions="Be strict.")
+        )
+        own = made.scoring.judge.agent_id
+        assert own is not None
+        gone = await agent_repo.get(db, own, organization_id=tenant.organization.id)
+        assert gone is not None
+        await agent_repo.delete(db, gone)
+
+        score = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+
+        codes = {result.reason_code for result in score.results if result.scorer == "judge"}
+        assert codes == {"judge_missing"}
+        assert score.passed is None
+        assert judge.calls == 0
+
+    async def test_an_ordinary_agent_cannot_be_picked_as_the_judge(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
+        mine = await AgentRegistryService(db).create(tenant.ctx, AgentSpec(name="Support"))
+
+        with pytest.raises(BadRequestError) as refused:
+            await ScoringService(db).set_scoring(
+                tenant.ctx,
+                dataset.id,
+                DatasetScoring(judge=JudgeScorer(enabled=True, agent_id=mine.id, criteria=RUBRIC)),
+            )
+
+        assert refused.value.details["fields"][0]["field"] == "judge.agent_id"
+
+    async def test_datasets_list_by_the_judge_that_grades_them(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        default = await SystemAgentService(db).ensure(
+            organization_id=tenant.organization.id, key=JUDGE.key
+        )
+        by_default, _ = await _dataset(db, tenant, scoring=_rubric())
+        ungraded, _ = await _dataset(db, tenant, scoring=DatasetScoring())
+        by_own, _ = await _dataset(db, tenant, scoring=_rubric())
+        made = await ScoringService(db).create_judge(
+            tenant.ctx, by_own.id, JudgeCreate(name="Refunds judge", instructions="Be strict.")
+        )
+        own = made.scoring.judge.agent_id
+        assert own is not None
+        datasets = DatasetService(db)
+
+        graded_by_default = await datasets.list_readable(tenant.ctx, judge_id=default.id)
+        graded_by_own = await datasets.list_readable(tenant.ctx, judge_id=own)
+        everything = await datasets.list_readable(tenant.ctx)
+
+        assert [item.id for item in graded_by_default.items] == [by_default.id]
+        assert [item.id for item in graded_by_own.items] == [by_own.id]
+        names = {item.id: item.judge_name for item in everything.items}
+        assert names == {
+            by_default.id: default.name,
+            ungraded.id: default.name,
+            by_own.id: "Refunds judge",
+        }
 
 
 class TestWhenTheJudgeCannotRun:

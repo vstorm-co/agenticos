@@ -207,11 +207,12 @@ class AiAssistanceDisabledError(AuthorizationError):
 
 
 class SystemAgentUnavailableError(BadRequestError):
-    """A seeded system agent exists but cannot run for this caller (400).
+    """A system agent cannot run for this caller (400).
 
-    `reason` says which it is - `not_seeded`, `unpublished`, `archived`,
-    `no_access` or `no_model` - because each has a different fix, and a person
-    told only "unavailable" cannot tell whether to pick a model or ask for a grant.
+    `reason` says why - `not_seeded`, `missing` (the agent picked for the job is
+    gone), `unpublished`, `archived`, `no_access` or `no_model` - because each has
+    a different fix, and a person told only "unavailable" cannot tell whether to
+    pick a model or ask for a grant.
     """
 
     message = "This system agent cannot run"

@@ -39,6 +39,7 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    JudgeCreate,
     ReviewQueue,
     ReviewRequest,
     ReviewRequested,
@@ -60,6 +61,7 @@ async def list_datasets(
     editable: bool = Query(
         False, description="Only the datasets the caller may change, by role or by a grant"
     ),
+    judge: UUID | None = Query(None, description="Only the datasets this judge grades"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -69,6 +71,7 @@ async def list_datasets(
         shared_with_me=shared_with_me,
         editable=editable,
         search=q,
+        judge_id=judge,
         sort=sort,
         skip=skip,
         limit=limit,
@@ -228,6 +231,18 @@ async def set_dataset_scoring(
 ) -> Any:
     """Replace how the dataset's cases are scored. Scores already kept are unchanged."""
     return await service.set_scoring(ctx, dataset_id, data)
+
+
+@router.post("/{dataset_id}/judge", response_model=DatasetRead, status_code=status.HTTP_201_CREATED)
+async def create_dataset_judge(
+    dataset_id: UUID, data: JudgeCreate, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Create a judge of the dataset's own and make it the one grading the dataset.
+
+    The judge is an agent of the `judge` kind, so it needs `agents:edit` as well
+    as `datasets:edit` on the dataset. The rubric stays on the dataset.
+    """
+    return await service.create_judge(ctx, dataset_id, data)
 
 
 @router.post(

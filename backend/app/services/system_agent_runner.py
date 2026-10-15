@@ -24,6 +24,7 @@ from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.system_agents import system_agent
 from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
@@ -90,6 +91,7 @@ class SystemAgentRunner:
         key: str,
         prompt: str,
         output_type: type[T],
+        agent_id: UUID | None = None,
         model_profile_id: UUID | None = None,
     ) -> SystemAgentResult[T]:
         """Run system agent `key` on `prompt` as the caller, and validate its answer.
@@ -104,12 +106,15 @@ class SystemAgentRunner:
             key: The system agent, as registered in `app.agents.system_agents`.
             prompt: The task. The result type's JSON schema is appended to it.
             output_type: What the answer is validated as.
+            agent_id: Run this agent of the definition's kind - a dataset's own
+                judge - rather than the seeded one.
             model_profile_id: Run on this model rather than the one the agent
                 publishes on.
 
         Raises:
             AiAssistanceDisabledError: The organization switched AI assistance off.
             SystemAgentUnavailableError: The agent cannot run - `not_seeded`,
+                `missing` when `agent_id` names no agent of its kind,
                 `unpublished`, `archived`, `no_access` for this caller, or
                 `no_model` when the model it would run on is gone or has no key.
             SystemAgentRunError: The run was recorded but ended without an answer:
@@ -117,7 +122,9 @@ class SystemAgentRunner:
             SystemAgentOutputError: The agent answered in a shape that does not
                 validate. Not retried.
         """
-        agent = await self.require_runnable(ctx, key=key, model_profile_id=model_profile_id)
+        agent = await self.require_runnable(
+            ctx, key=key, agent_id=agent_id, model_profile_id=model_profile_id
+        )
 
         text, run = await AgentRunnerService(self.db).execute(
             ctx,
@@ -145,7 +152,12 @@ class SystemAgentRunner:
         return SystemAgentResult(output=output, run=run)
 
     async def require_runnable(
-        self, ctx: AuthContext, *, key: str, model_profile_id: UUID | None = None
+        self,
+        ctx: AuthContext,
+        *,
+        key: str,
+        agent_id: UUID | None = None,
+        model_profile_id: UUID | None = None,
     ) -> Agent:
         """The system agent `key`, once it is known the caller could run it now.
 
@@ -155,11 +167,15 @@ class SystemAgentRunner:
 
         Raises:
             AiAssistanceDisabledError: The organization switched AI assistance off.
-            SystemAgentUnavailableError: `not_seeded`, `unpublished`, `archived`,
-                `no_access` for this caller, or `no_model`.
+            SystemAgentUnavailableError: `not_seeded`, `missing`, `unpublished`,
+                `archived`, `no_access` for this caller, or `no_model`.
         """
         await AiAssistanceService(self.db).require_enabled(organization_id=ctx.organization_id)
-        agent = await self.agents.ensure(organization_id=ctx.organization_id, key=key)
+        agent = (
+            await self.agents.ensure(organization_id=ctx.organization_id, key=key)
+            if agent_id is None
+            else await self._picked(ctx, key=key, agent_id=agent_id)
+        )
         if agent.status == AgentStatus.ARCHIVED.value:
             raise SystemAgentUnavailableError(
                 message=f"'{agent.name}' is archived. Restore it to use it again.",
@@ -179,6 +195,17 @@ class SystemAgentRunner:
                 reason="no_access",
             )
         await self._require_model(ctx, agent.name, agent.current_version_id, key, model_profile_id)
+        return agent
+
+    async def _picked(self, ctx: AuthContext, *, key: str, agent_id: UUID) -> Agent:
+        definition = system_agent(key)
+        agent = await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
+        if agent is None or agent.kind != definition.kind.value:
+            raise SystemAgentUnavailableError(
+                message=f"The {definition.kind.value} picked here no longer exists. Pick another.",
+                key=key,
+                reason="missing",
+            )
         return agent
 
     async def _require_model(
