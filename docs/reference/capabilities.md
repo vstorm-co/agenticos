@@ -677,6 +677,12 @@ browser up -d browser`, reached as `http://browser:9222`. The host must be on
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), and an empty allowlist — the
 default — refuses browser automation outright, at publish.
 
+The compose browser sits on a Docker network of its own, which only the API and the
+runner join to reach it: a page it opens, or is redirected to, cannot reach the
+database, Redis, Prefect or MinIO. It still reaches whatever the host's network
+allows, such as a cloud's metadata address, so block that on the host where it
+matters.
+
 **An agent chooses how its browses reach the web** (#2130), in the web browser's own
 settings, under the same `edit` on the agent as the rest of them. `connection` is
 `built_in` - the browser `cdp_url` names, from the deployment's own address - `proxy`

@@ -177,3 +177,19 @@ class TestWaitingForHealthIgnoresAProbeFromBeforeThisStart:
         # harness never reaches its own line.
         assert result.returncode == 1
         assert "app: unhealthy" in result.stderr
+
+
+@pytest.mark.parametrize("file_name", ["docker-compose.yml", "docker-compose-dev.yml"])
+def test_the_browser_shares_a_network_only_with_what_drives_it(file_name: str) -> None:
+    """A page the browser is sent to - or redirected to - must not reach Postgres,
+    Redis, Prefect or MinIO (Codex review of #2062). It sits on a network of its
+    own, which only the API and the runner join to reach its DevTools port."""
+    services = _services(file_name)
+
+    def networks(name: str) -> set[str]:
+        declared = services[name].get("networks", [])
+        return set(declared if isinstance(declared, list) else declared.keys())
+
+    assert networks("browser") == {"browser"}
+    on_it = {name for name in services if "browser" in networks(name)}
+    assert on_it == {"browser", "app", "prefect-runner"}

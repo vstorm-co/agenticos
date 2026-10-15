@@ -1,5 +1,5 @@
 ---
-source_sha: "208d8a127f18"
+source_sha: "9bccf6f989bf"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -726,6 +726,12 @@ Los ficheros de compose traen uno tras el perfil `browser` — `docker compose -
 browser up -d browser`, accesible como `http://browser:9222`. El host tiene que estar en
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), y una lista vacía — la de por defecto
 — rechaza la automatización del navegador al publicar.
+
+El navegador de compose está en una red de Docker propia, a la que solo se unen la
+API y el runner para llegar a él: una página que abre, o a la que lo redirigen, no
+alcanza la base de datos, Redis, Prefect ni MinIO. Sigue alcanzando lo que permita
+la red del host, como la dirección de metadatos de una nube, así que bloquéala en el
+host donde importe.
 
 **Un agent elige cómo sus browses salen a la red** (#2130), en los ajustes del propio
 navegador, con el mismo `edit` sobre el agent que el resto. `connection` es

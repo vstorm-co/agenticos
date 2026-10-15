@@ -1,5 +1,5 @@
 ---
-source_sha: "208d8a127f18"
+source_sha: "9bccf6f989bf"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -717,6 +717,12 @@ compose mają ją za profilem `browser` — `docker compose --profile browser up
 browser`, osiągalną jako `http://browser:9222`. Host musi być na
 [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), a pusta lista — domyślna — odrzuca
 automatyzację przeglądarki całkowicie, przy publikacji.
+
+Przeglądarka z compose działa we własnej sieci Dockera, do której dołączają tylko
+API i runner, żeby się z nią połączyć: strona, którą otwiera albo na którą zostaje
+przekierowana, nie dosięgnie bazy, Redisa, Prefecta ani MinIO. Nadal sięga tam,
+dokąd pozwala sieć hosta, np. do adresu metadanych chmury, więc tam, gdzie to ważne,
+zablokuj go na hoście.
 
 **Agent wybiera, jak jego przeglądanie wychodzi do sieci** (#2130), w ustawieniach
 samej przeglądarki, z tym samym `edit` na agencie co reszta. `connection` to

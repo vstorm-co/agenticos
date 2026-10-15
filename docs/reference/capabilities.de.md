@@ -1,5 +1,5 @@
 ---
-source_sha: "208d8a127f18"
+source_sha: "9bccf6f989bf"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -758,6 +758,12 @@ isoliert. Die Compose-Dateien enthalten einen hinter dem Profil `browser` — `d
 compose --profile browser up -d browser`, erreichbar als `http://browser:9222`. Der Host
 muss auf [`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md) stehen, und eine leere
 Liste — der Standard — lehnt Browser-Automatisierung bei der Veröffentlichung ganz ab.
+
+Der compose-Browser liegt in einem eigenen Docker-Netz, dem nur die API und der
+Runner beitreten, um ihn zu erreichen: Eine Seite, die er öffnet oder auf die er
+umgeleitet wird, erreicht weder die Datenbank noch Redis, Prefect oder MinIO. Er
+erreicht weiterhin, was das Netz des Hosts erlaubt, etwa die Metadaten-Adresse einer
+Cloud - wo das zählt, sperre sie auf dem Host.
 
 **Ein Agent wählt, wie seine Browses ins Netz gehen** (#2130), in den Einstellungen
 des Browsers selbst, mit demselben `edit` auf den Agent wie der Rest. `connection` ist
