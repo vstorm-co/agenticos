@@ -421,13 +421,17 @@ class TestStreaming:
 
         await live_browse.open_view(RUN, CALL, _meta())
         allowed = live_browse._Access(control=False, own=False, name="Ada", user_id="user-ada")
-        monkeypatch.setattr(live_browse, "access_for", AsyncMock(side_effect=[allowed, None]))
+        # Still allowed at the first re-check, gone at the second: the view keeps
+        # asking for as long as it is open, not once.
+        access = AsyncMock(side_effect=[allowed, allowed, None])
+        monkeypatch.setattr(live_browse, "access_for", access)
         monkeypatch.setattr(live_browse, "REVALIDATE_SECONDS", 0)
         socket = _Watching()
 
         with anyio.fail_after(5):
             await live_browse.stream(socket, auth_token="t", run_id=RUN, call_id=CALL)
 
+        assert access.await_count == 3
         assert socket.closed == (4403, "Not allowed to watch")
 
     @pytest.mark.parametrize(
