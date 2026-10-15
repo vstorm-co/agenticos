@@ -28,9 +28,9 @@ if TYPE_CHECKING:
 
     from app.agents.deps import AgentDeps
 
-__all__ = ["Steer", "Steering", "SteeringInbox"]
+__all__ = ["STEER_PREFIX", "Steer", "Steering", "SteeringInbox"]
 
-_PREFIX = "[Added by the person while you were working - take it into account from here]"
+STEER_PREFIX = "[Added by the person while you were working - take it into account from here]"
 
 
 @dataclass
@@ -98,9 +98,10 @@ class Steering(AbstractCapability["AgentDeps"]):
         steers = inbox.take()
         if not steers:
             return request_context
-        added = UserPromptPart(
-            content="\n\n".join([_PREFIX, *(_screened(inbox, steer.text) for steer in steers)])
-        )
+        # Screened once, and the screened words are what the transcript keeps
+        # too: a redacted secret must not come back in the next turn's history.
+        said = [_screened(inbox, steer.text) for steer in steers]
+        added = UserPromptPart(content="\n\n".join([STEER_PREFIX, *said]))
         # The persistent history and this request's own list are separate lists
         # (usually holding the same message), so each takes the words explicitly:
         # the history so later requests and the transcript keep them, the request
@@ -108,8 +109,8 @@ class Steering(AbstractCapability["AgentDeps"]):
         if ctx.messages and isinstance(kept := ctx.messages[-1], ModelRequest):
             ctx.messages[-1] = replace(kept, parts=[*kept.parts, added])
         if inbox.on_applied is not None:
-            for steer in steers:
-                await inbox.on_applied(steer.text)
+            for text in said:
+                await inbox.on_applied(text)
         tail = replace(last, parts=[*last.parts, added])
         return replace(request_context, messages=[*messages[:-1], tail])
 

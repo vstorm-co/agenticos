@@ -71,6 +71,7 @@ class MockMessage:
         # reads a status off it so a stopped turn can say it was stopped.
         self.run_id = run_id
         self.attachment_context = None
+        self.parts: list[dict[str, object]] | None = None
         # Enough of a row for `MessageRead.model_validate`, which the listing runs
         # when it has a reader to attach ratings for.
         self.created_at = datetime(2026, 8, 16, tzinfo=UTC)
@@ -2069,6 +2070,34 @@ class TestTheThreadAModelIsGivenBack:
         history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
 
         assert [part.content for message in history for part in message.parts] == ["hi"]
+
+    async def test_what_the_person_added_mid_turn_is_read_back_before_the_answer(self, monkeypatch):
+        """Codex review of #2062: a steer was stored only as a part of the answer,
+        so the next turn's history no longer held the correction on screen."""
+        from app.agents.steering import STEER_PREFIX
+
+        conversation = MockConversation()
+        answer = self._row("assistant", "Done.")
+        answer.parts = [
+            {"type": "text", "text": "Working on it"},
+            {"type": "steer", "text": "Use account EU-42"},
+        ]
+        monkeypatch.setattr(
+            conversation_repo, "get_conversation_by_id", AsyncMock(return_value=conversation)
+        )
+        monkeypatch.setattr(
+            conversation_repo,
+            "get_recent_messages",
+            AsyncMock(return_value=[self._row("user", "pay the invoice"), answer]),
+        )
+
+        history = await ConversationService(AsyncMock()).model_history(conversation.id, limit=50)
+
+        assert [part.content for message in history for part in message.parts] == [
+            "pay the invoice",
+            f"{STEER_PREFIX}\n\nUse account EU-42",
+            "Done.",
+        ]
 
     async def test_the_turn_being_answered_is_not_read_back_as_history(self, monkeypatch):
         """The prompt is written before the run so a refusal cannot lose it, so it

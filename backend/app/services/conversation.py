@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import parked_status
 from app.agents.capabilities.media import prefix_for, restore_stored_media
+from app.agents.steering import STEER_PREFIX
 from app.core.background import spawn_after_commit
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
@@ -86,18 +87,29 @@ def _as_history(rows: Sequence[Message], exclude_message_id: UUID | None) -> lis
     A prompt that carried files is replayed with what they added for the model,
     so a follow-up about the file reaches a model that knows it is there.
     """
-    return [
-        {
-            "role": row.role,
-            "content": row.content + (row.attachment_context or ""),
-            # The size of the request this answer came out of: the anchor the
-            # compaction estimator measures against, in place of counting
-            # characters - see `agent.build_message_history`.
-            "context_used_tokens": row.context_used_tokens,
-        }
-        for row in rows
-        if row.id != exclude_message_id
-    ]
+    history: list[HistoryMessage] = []
+    for row in rows:
+        if row.id == exclude_message_id:
+            continue
+        # What the person added while the answer was being written, as they added
+        # it: before the answer it changed. Stored only as parts of the answer,
+        # it was in the conversation on screen and missing from the next turn.
+        history.extend(
+            {"role": "user", "content": f"{STEER_PREFIX}\n\n{part['text']}"}
+            for part in row.parts or []
+            if part.get("type") == "steer" and isinstance(part.get("text"), str)
+        )
+        history.append(
+            {
+                "role": row.role,
+                "content": row.content + (row.attachment_context or ""),
+                # The size of the request this answer came out of: the anchor the
+                # compaction estimator measures against, in place of counting
+                # characters - see `agent.build_message_history`.
+                "context_used_tokens": row.context_used_tokens,
+            }
+        )
+    return history
 
 
 class ConversationService:
