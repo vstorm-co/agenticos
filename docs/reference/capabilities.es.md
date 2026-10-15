@@ -1,5 +1,5 @@
 ---
-source_sha: "ee4c6a557a36"
+source_sha: "95a205d6812d"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -762,9 +762,9 @@ dirección bajo `hosted_key_param` (`apiKey` por defecto).
 Un navegador alojado nunca
 empieza con los inicios de sesión guardados de una persona: su dirección la elige
 el autor del agent, no un operador. Allí también cada recorrido recibe un contexto
-de navegador propio; un servicio que lo rechaza lo ejecuta en su contexto
-predeterminado, que no se da por privado, y el recorrido borra al terminar las
-cookies que puso.
+de navegador propio, y un servicio que lo rechaza queda rechazado: su perfil
+predeterminado no se da por privado, y lo que un recorrido escriba ahí - cookies,
+local storage - le sobreviviría.
 
 Una dirección dentro de la red del despliegue se rechaza al publicar y otra vez al
 empezar un browse, salvo que el operador haya puesto el host en

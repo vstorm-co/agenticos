@@ -710,9 +710,9 @@ address's query under `hosted_key_param` (`apiKey` by default).
 
 A hosted browser never
 starts with a person's kept sign-ins: its address is the agent's author's choice,
-not an operator's. Each browse gets a browser context of its own there too; a
-service that refuses one runs it in its default context, which is not assumed
-private, and the browse clears the cookies it set when it ends.
+not an operator's. Each browse gets a browser context of its own there too, and a
+service that refuses one is refused: its default profile is not assumed private,
+and what a browse writes there - cookies, local storage - would outlive it.
 
 An address inside the deployment's network is refused at publish and again when a
 browse starts, unless the operator listed the host in `BROWSER_CDP_ALLOWED_HOSTS`.

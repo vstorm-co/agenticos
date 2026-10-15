@@ -1,5 +1,5 @@
 ---
-source_sha: "ee4c6a557a36"
+source_sha: "95a205d6812d"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -751,9 +751,9 @@ pod `hosted_key_param` (domyślnie `apiKey`).
 
 Przeglądarka hostowana nigdy nie
 startuje z zapisanymi logowaniami osoby: jej adres wybiera autor agenta, a nie
-operator. Tam też każde przeglądanie dostaje własny kontekst przeglądarki; usługa,
-która go odmawia, uruchamia je w domyślnym kontekście, którego nie uznajemy za
-prywatny, a przeglądanie na koniec czyści ustawione ciasteczka.
+operator. Tam też każde przeglądanie dostaje własny kontekst przeglądarki, a usługa,
+która go odmawia, jest odrzucana: jej domyślnego profilu nie uznajemy za prywatny,
+a to, co przeglądanie w nim zapisze - ciasteczka, local storage - przetrwałoby je.
 
 Adres wewnątrz sieci wdrożenia jest odrzucany przy publikacji i ponownie przy starcie
 przeglądania, chyba że operator dopisał host do `BROWSER_CDP_ALLOWED_HOSTS`. Chromium

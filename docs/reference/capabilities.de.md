@@ -1,5 +1,5 @@
 ---
-source_sha: "ee4c6a557a36"
+source_sha: "95a205d6812d"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -794,9 +794,9 @@ als Schlüssel, an die Query der Adresse unter `hosted_key_param` angehängt
 
 Ein gehosteter Browser startet nie mit den
 gespeicherten Anmeldungen einer Person: Seine Adresse wählt der Autor des Agents,
-nicht ein Operator. Auch dort bekommt jeder Durchlauf einen eigenen Browser-Kontext;
-ein Dienst, der ihn verweigert, führt ihn im Standardkontext aus, der nicht als
-privat gilt, und der Durchlauf löscht am Ende die gesetzten Cookies.
+nicht ein Operator. Auch dort bekommt jeder Durchlauf einen eigenen Browser-Kontext, und
+ein Dienst, der ihn verweigert, wird abgelehnt: Sein Standardprofil gilt nicht als
+privat, und was ein Durchlauf dort schreibt - Cookies, Local Storage - überdauerte ihn.
 
 Eine Adresse im Netz des Deployments wird beim Veröffentlichen und erneut beim Start
 eines Browses abgelehnt, es sei denn, der Operator hat den Host in

@@ -1290,22 +1290,14 @@ async def open_page(  # pragma: no cover - needs a live browser
         # tenant reading another's authenticated pages. Closing the tab does not
         # clear that; disposing the context does.
         #
-        # No fallback if the browser refuses one: falling back to the default
-        # context is exactly the leak this exists to prevent.
-        #
-        # The one exception is a hosted browser, some of which refuse a second
-        # context. Its default one is not assumed private - a provider may pool
-        # browsers, an operator may point at a long-lived one - so a browse in it
-        # starts signed out and leaves no cookie behind: see below.
-        try:
-            context = await client.send.Target.createBrowserContext(
-                params=context_params(route, hosted=remote is not None)
-            )
-            context_id = context["browserContextId"]
-        except RuntimeError:
-            if remote is None:
-                raise
-            context_id = None
+        # No fallback if the browser refuses one, a hosted browser's included:
+        # falling back to the default context is exactly the leak this exists to
+        # prevent. A pooled or long-lived default profile keeps what a takeover
+        # wrote - cookies, local storage, IndexedDB - for whoever attaches next.
+        context = await client.send.Target.createBrowserContext(
+            params=context_params(route, hosted=remote is not None)
+        )
+        context_id = context["browserContextId"]
         # The tab is created empty and navigated afterwards, which is not a
         # detail: `createTarget` with a URL starts navigating before there is a
         # session to attach, so the first command lands in an execution context
@@ -1369,11 +1361,6 @@ async def open_page(  # pragma: no cover - needs a live browser
             },
             session_id=session,
         )
-        # A kept sign-in is restored only into a context this browse owns: in a
-        # hosted browser's default context it could outlive the browse for
-        # whoever attaches to that endpoint next.
-        if context_id is None:
-            sign_ins = ()
         cookies = cookie_params([cookie for sign_in in sign_ins for cookie in sign_in.cookies])
         if cookies:
             await client.send.Storage.setCookies(
@@ -1394,9 +1381,6 @@ async def open_page(  # pragma: no cover - needs a live browser
         yield page
     finally:
         if target is not None:
-            if context_id is None:
-                # Nothing to dispose, so whatever the pages set is cleared instead.
-                await client.send.Storage.clearCookies(params={})
             await client.send.Target.closeTarget(params={"targetId": target})
         if context_id is not None:
             await client.send.Target.disposeBrowserContext(params={"browserContextId": context_id})
