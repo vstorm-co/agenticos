@@ -642,6 +642,21 @@ class TestADatasetsOwnJudge:
 
         assert refused.value.details["fields"][0]["field"] == "judge.agent_id"
 
+    async def test_one_of_the_organization_s_judges_can_be_picked(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
+        other = await SystemAgentService(db).create_judge(
+            tenant.ctx, name="Tone judge", description="Grades tone.", instructions="Be fair."
+        )
+
+        saved = await ScoringService(db).set_scoring(
+            tenant.ctx,
+            dataset.id,
+            DatasetScoring(judge=JudgeScorer(enabled=True, agent_id=other.id, criteria=RUBRIC)),
+        )
+
+        assert (saved.scoring.judge.agent_id, saved.judge_name) == (other.id, "Tone judge")
+
     async def test_datasets_list_by_the_judge_that_grades_them(self, db, judge) -> None:
         tenant = await _tenant(db)
         default = await SystemAgentService(db).ensure(
