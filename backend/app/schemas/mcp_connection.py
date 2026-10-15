@@ -69,6 +69,13 @@ class McpConnectionUpdate(BaseSchema):
     # in a PATCH body is indistinguishable from "not provided").
     clear_allowed_tools: bool = False
     is_enabled: bool | None = None
+    include_instructions: bool | None = Field(
+        default=None,
+        description=(
+            "Add the server's own `initialize` instructions to the agent's. Off by "
+            "default: they are the server operator's text, read as the agent's own."
+        ),
+    )
     label: str | None = Field(
         default=None,
         max_length=64,
@@ -97,6 +104,7 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
     has_auth_token: bool
     allowed_tools: list[str] | None
     is_enabled: bool
+    include_instructions: bool = False
     # "bearer" or "oauth".
     auth_type: str
     # OAuth connection that has completed the consent flow (has usable tokens).
@@ -152,6 +160,7 @@ class McpConnectionRead(TimestampSchema, BaseSchema):
             has_auth_token=connection.auth_token is not None,
             allowed_tools=connection.allowed_tools,
             is_enabled=connection.is_enabled,
+            include_instructions=connection.include_instructions,
             auth_type=connection.auth_type,
             oauth_authorized=oauth_authorized,
             # An expired grant reads as one to authorize again, on the list and in
@@ -220,6 +229,13 @@ class OrgMcpConnectionUpdate(BaseSchema):
     allowed_tools: list[str] | None = Field(default=None, max_length=MAX_ALLOWED_TOOLS)
     clear_allowed_tools: bool = False
     is_enabled: bool | None = None
+    include_instructions: bool | None = Field(
+        default=None,
+        description=(
+            "Add the server's own `initialize` instructions to the agent's. Off by "
+            "default: they are the server operator's text, read as the agent's own."
+        ),
+    )
     label: str | None = Field(
         default=None,
         max_length=64,

@@ -451,6 +451,9 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           ...(label !== (existing.label ?? "") ? { label } : {}),
           ...(url !== existing.url ? { url } : {}),
           ...(token ? { auth_token: token } : values.clearToken ? { auth_token: "" } : {}),
+          ...(values.includeInstructions !== existing.include_instructions
+            ? { include_instructions: values.includeInstructions }
+            : {}),
         });
         toast.success(t("serverUpdated", { name }));
         closeDraft();

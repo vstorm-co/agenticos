@@ -19,6 +19,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A connection can bring its MCP server's own instructions.** Some servers
+  explain how their tools are meant to be used; switching it on in the
+  connection's Edit dialog adds that text to the agent's instructions. Off for
+  every connection unless someone opts in, since it is the server operator's
+  text; migration `0131_mcp_include_instructions`.
+
 - **The Builder says when an agent's MCP servers carry too many tools.** Above
   30 tools - each binding's own allowlist, or else what its server listed at its
   last check - the MCP tab shows a notice with a rough token estimate and a

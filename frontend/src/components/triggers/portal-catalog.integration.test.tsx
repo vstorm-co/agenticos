@@ -237,6 +237,7 @@ function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpC
     has_auth_token: false,
     allowed_tools: null,
     is_enabled: true,
+    include_instructions: false,
     auth_type: "oauth",
     oauth_authorized: true,
     authorized: true,

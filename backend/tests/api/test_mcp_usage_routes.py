@@ -50,6 +50,7 @@ async def test_each_server_names_the_agents_using_it(service: MagicMock) -> None
         url="https://mcp.example.com/mcp",
         secret_key_version=1,
         is_enabled=True,
+        include_instructions=False,
         auth_type="bearer",
         visibility="org",
         is_default=False,

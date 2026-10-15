@@ -1,5 +1,5 @@
 ---
-source_sha: "9b3e7c36bd78"
+source_sha: "22745f48d5bc"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -38,6 +38,7 @@ konfigurieren wäre.
 | `auth_token` | Im [Vault](secrets.md) versiegelt, von keinem Endpunkt je zurückgegeben |
 | `allowed_tools` | Eine Allowlist, oder null für „alles, was der Server anbietet“. Ein Binding grenzt darin weiter ein — siehe unten |
 | `is_enabled` | Aus, ohne die Zugangsdaten zu verlieren |
+| `include_instructions` | Fügt die eigenen `initialize`-Anweisungen des Servers zu denen des Agenten hinzu. Standardmäßig aus - es ist der Text des Serverbetreibers, gelesen als Anweisungen des Agenten - und im Edit-Dialog der Verbindung eingeschaltet |
 | `last_status` | Was die letzte Prüfung ergeben hat, und wann |
 
 !!! warning "Eine Adresse, die dieses Deployment nicht erreichen darf, wird abgelehnt, und die Ablehnung sagt es"

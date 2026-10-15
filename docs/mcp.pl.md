@@ -1,5 +1,5 @@
 ---
-source_sha: "9b3e7c36bd78"
+source_sha: "22745f48d5bc"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -38,6 +38,7 @@ niczego do konfigurowania.
 | `auth_token` | Zapieczętowany w [vaulcie](secrets.md), nigdy nie zwracany przez żaden endpoint |
 | `allowed_tools` | Lista dozwolonych albo null, czyli „wszystko, co serwer oferuje”. Powiązanie zawęża ją dalej — zobacz niżej |
 | `is_enabled` | Wyłączenie bez utraty poświadczenia |
+| `include_instructions` | Dodaje własne instrukcje serwera z `initialize` do instrukcji agenta. Domyślnie wyłączone - to tekst operatora serwera, czytany jak instrukcje agenta - włączane w oknie Edit połączenia |
 | `last_status` | Co pokazało ostatnie odpytanie i kiedy |
 
 !!! warning "Adres, do którego ten deployment nie może sięgać, zostaje odrzucony — i odmowa to mówi"

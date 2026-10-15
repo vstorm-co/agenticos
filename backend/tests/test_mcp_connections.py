@@ -154,6 +154,7 @@ def _connection(**overrides) -> McpConnection:
         "secret_key_version": 1,
         "allowed_tools": None,
         "is_enabled": True,
+        "include_instructions": False,
         "auth_type": "bearer",
         "oauth_state": None,
         "oauth_payload": None,
@@ -370,6 +371,14 @@ class TestMakeToolset:
         assert isinstance(toolset, PrefixedToolset)
         assert toolset.prefix == "github_work"
         assert isinstance(toolset.wrapped, MCPToolset)
+
+    @pytest.mark.parametrize("include", [True, False])
+    def test_the_server_instructions_join_only_when_the_connection_opted_in(self, include):
+        spec = McpServerSpec(
+            name="notion", url="https://example.com/mcp", include_instructions=include
+        )
+
+        assert _make_toolset(spec).wrapped.wrapped.wrapped.include_instructions is include
 
     def test_a_tool_error_is_shown_to_the_model_not_spent_as_a_retry(self):
         """A retry spends the tool's single attempt, and the error after it ends
@@ -737,6 +746,23 @@ class TestToolsetsForAgent:
 
         assert _attached(toolsets) == ["linear"]
         assert [spec.name for spec in seen[0]] == ["linear"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("include", [True, False])
+    async def test_the_connection_decides_whether_the_server_instructions_join(
+        self, monkeypatch, include
+    ):
+        seen = self._capture(monkeypatch)
+        bound = _connection(name="linear", include_instructions=include)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo, "get_org_scoped_by_ids", _batch(bound)
+        )
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(), organization_id=uuid4(), refs=[OrgMcpServerRef(connection_id=bound.id)]
+        )
+
+        assert [spec.include_instructions for spec in seen[0]] == [include]
 
     @pytest.mark.anyio
     async def test_a_prefix_collision_drops_the_loser_and_reports_it(self, monkeypatch):
@@ -1454,6 +1480,20 @@ class TestConnectingOneMidRun:
         lookup.assert_awaited_once_with(db, user_id=person, catalog_key="notion")
 
     @pytest.mark.anyio
+    async def test_a_persons_own_account_brings_its_instructions_when_it_opted_in(
+        self, monkeypatch
+    ):
+        self._session(monkeypatch)
+        self._owns(monkeypatch, [_connection(catalog_key="notion", include_instructions=True)])
+        seen = self._probe(monkeypatch, answers=True)
+
+        await mcp_connection_service.connect_personal_toolset(
+            PersonalMcpServerRef(account="personal", catalog_key="notion"), user_id=uuid4()
+        )
+
+        assert [spec.include_instructions for spec in seen] == [True]
+
+    @pytest.mark.anyio
     @pytest.mark.parametrize(
         ("connections", "gap"),
         [
@@ -1648,6 +1688,11 @@ class TestAccountAuthorized:
         assert McpConnectionRead.from_model(expired).authorized is False
         assert down.authorization_expired is False
         assert McpConnectionRead.from_model(down).authorized is True
+
+    def test_the_read_says_whether_the_server_instructions_join(self):
+        assert McpConnectionRead.from_model(
+            _connection(include_instructions=True)
+        ).include_instructions
 
 
 def _oauth_connection(payload: McpOAuthPayload, **overrides) -> McpConnection:

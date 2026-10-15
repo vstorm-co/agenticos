@@ -18,6 +18,8 @@ export interface McpConnectionRecord {
   /** null = every tool the server offers is exposed to the agent. */
   allowed_tools: string[] | null;
   is_enabled: boolean;
+  /** Whether the server's own instructions join the agent's. Off unless someone opted in. */
+  include_instructions: boolean;
   /** "bearer" (static token) or "oauth" (authorization-code flow). */
   auth_type: "bearer" | "oauth";
   /** OAuth connection that finished consent and has usable tokens. */
@@ -128,6 +130,7 @@ export async function updateMcpConnection(
     allowed_tools?: string[];
     clear_allowed_tools?: boolean;
     is_enabled?: boolean;
+    include_instructions?: boolean;
     /** Speak as this one where an agent asked for the member's own account. */
     is_default?: boolean;
     /** `""` clears it, back to showing the slug. */

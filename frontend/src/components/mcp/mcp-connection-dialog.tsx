@@ -128,6 +128,9 @@ function ConnectionForm({
   const [token, setToken] = useState("");
   const [auth, setAuth] = useState<DraftAuth>(() => initialAuth(draft));
   const [clearToken, setClearToken] = useState(false);
+  const [includeInstructions, setIncludeInstructions] = useState(
+    draft.existing?.include_instructions ?? false,
+  );
   const [scope, setScope] = useState<Scope>(draft.scope);
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -401,6 +404,28 @@ function ConnectionForm({
           )}
         </div>
 
+        {/* Editing only: a new connection has not answered yet, so there is
+            nothing of the server's to read, and the choice is easier made
+            once its tools are on screen. */}
+        {draft.existing && (
+          <div className="flex items-start gap-2">
+            <Switch
+              id="mcp-instructions"
+              checked={includeInstructions}
+              onCheckedChange={setIncludeInstructions}
+              className="mt-0.5"
+            />
+            <div className="min-w-0">
+              <Label htmlFor="mcp-instructions" className="font-normal">
+                {t("includeServerInstructions")}
+              </Label>
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                {t("includeServerInstructionsHint")}
+              </p>
+            </div>
+          </div>
+        )}
+
         {(known || ownClient) && (
           <MoreOptions
             key={needsClient ? "needs-client" : "optional"}
@@ -444,6 +469,7 @@ function ConnectionForm({
               token,
               auth,
               clearToken,
+              includeInstructions,
               scope,
               clientId,
               clientSecret,

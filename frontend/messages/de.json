@@ -2919,6 +2919,8 @@
     "pasteHere": "Hier einfügen",
     "redirecting": "Weiterleitung …",
     "removeStoredCredential": "Gespeichertes Credential entfernen",
+    "includeServerInstructions": "Die eigenen Anweisungen des Servers zu denen des Agenten hinzufügen",
+    "includeServerInstructionsHint": "Manche Server erklären, wie ihre Tools gedacht sind. Standardmäßig aus: Es ist der Text des Serverbetreibers, und der Agent liest ihn als seine eigenen Anweisungen.",
     "save": "Speichern",
     "saveSelection": "Auswahl speichern",
     "saving": "Wird gespeichert …",

@@ -3037,6 +3037,8 @@
     "pasteHere": "Paste it here",
     "redirecting": "Redirecting…",
     "removeStoredCredential": "Remove the stored credential",
+    "includeServerInstructions": "Add the server's own instructions to the agent's",
+    "includeServerInstructionsHint": "Some servers explain how their tools are meant to be used. Off by default: it is the server operator's text, and the agent reads it as its own instructions.",
     "save": "Save",
     "saveSelection": "Save selection",
     "saving": "Saving…",

@@ -60,6 +60,8 @@ export interface ConnectionFormValues {
   token: string;
   auth: DraftAuth;
   clearToken: boolean;
+  /** Whether the server's own instructions join the agent's. Read only when editing. */
+  includeInstructions: boolean;
   scope: Scope;
   /**
    * A client registered at the provider by hand, read only when `auth` is

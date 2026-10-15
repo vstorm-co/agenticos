@@ -149,3 +149,36 @@ describe("a server added by its address", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 });
+
+describe("the server's own instructions", () => {
+  function editing(includeInstructions: boolean): DraftState {
+    return {
+      ...custom(),
+      existing: {
+        id: "c1",
+        name: "notion",
+        url: "https://mcp.notion.com/mcp",
+        label: null,
+        has_auth_token: false,
+        include_instructions: includeInstructions,
+      },
+    } as unknown as DraftState;
+  }
+
+  it("is offered only on a connection that exists, off unless it was opted in", async () => {
+    const onSubmit = open(editing(false));
+
+    const toggle = screen.getByRole("switch", { name: /server's own instructions/ });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    await userEvent.click(toggle);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ includeInstructions: true }));
+  });
+
+  it("is not offered while connecting a new server", () => {
+    open(custom());
+
+    expect(screen.queryByRole("switch", { name: /server's own instructions/ })).toBeNull();
+  });
+});

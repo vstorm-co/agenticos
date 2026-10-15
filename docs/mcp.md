@@ -31,6 +31,7 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
 | `auth_token` | Sealed in the [vault](secrets.md), never returned by any endpoint |
 | `allowed_tools` | An allowlist, or null for "everything the server offers". A binding narrows within it — see below |
 | `is_enabled` | Off without losing the credential |
+| `include_instructions` | Add the server's own `initialize` instructions to the agent's. Off by default - they are the server operator's text, read as the agent's own - and switched on in the connection's Edit dialog |
 | `last_status` | What the last probe found, and when |
 
 !!! warning "An address this deployment must not reach is refused, and the refusal says so"

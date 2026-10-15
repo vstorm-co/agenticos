@@ -2806,6 +2806,8 @@
     "pasteHere": "Wklej go tutaj",
     "redirecting": "Przekierowywanie…",
     "removeStoredCredential": "Usuń zapisane dane uwierzytelniające",
+    "includeServerInstructions": "Dodaj instrukcje serwera do instrukcji agenta",
+    "includeServerInstructionsHint": "Niektóre serwery opisują, jak używać ich narzędzi. Domyślnie wyłączone: to tekst operatora serwera, a agent czyta go jak własne instrukcje.",
     "save": "Zapisz",
     "saveSelection": "Zapisz wybór",
     "saving": "Zapisywanie…",

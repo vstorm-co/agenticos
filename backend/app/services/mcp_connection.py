@@ -2164,6 +2164,7 @@ async def build_toolsets_for_agent(
             headers=headers,
             allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
             approval=ref.approval,
+            include_instructions=connection.include_instructions,
             connection_id=connection.id,
         )
         specs.append(spec)
@@ -2293,6 +2294,7 @@ async def _own_specs(
             headers=headers,
             allowed_tools=_narrowed_tools(ref.allowed_tools, account.allowed_tools),
             approval=ref.approval,
+            include_instructions=account.include_instructions,
         )
         accounts.append(_OwnAccount(spec=spec, label=_account_name(account)))
     return accounts or "unauthorized"

@@ -124,6 +124,9 @@ class McpServerSpec:
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = None
     approval: McpApproval = "none"
+    # Whether the server's `initialize` instructions join the agent's (the
+    # connection's own opt-in; Pydantic AI leaves them out by default).
+    include_instructions: bool = False
     # This deployment's own server (`/mcp`), reached through the application in
     # this process rather than over the network - never probed, never dialled out.
     in_process: bool = False
@@ -277,6 +280,7 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         id=f"mcp:{spec.name}",
         init_timeout=CONNECT_TIMEOUT_SECS,
         tool_error_behavior="failed",
+        include_instructions=spec.include_instructions,
     )
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)

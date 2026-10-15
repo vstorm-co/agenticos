@@ -249,6 +249,12 @@ class McpConnection(Base, TimestampMixin):
     # at it, so an ordinary MCP connect is untouched.
     granted_scopes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Whether the server's own `initialize` instructions join the agent's. Off by
+    # default: it is text the server's operator wrote, read with the authority of
+    # the agent's own instructions, so someone who manages the connection opts in.
+    include_instructions: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     auth_type: Mapped[str] = mapped_column(String(16), nullable=False, default="bearer")
     # CSRF token for an in-flight OAuth authorization redirect; NULL once done.

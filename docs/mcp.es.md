@@ -1,5 +1,5 @@
 ---
-source_sha: "9b3e7c36bd78"
+source_sha: "22745f48d5bc"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -37,6 +37,7 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
 | `auth_token` | Sellado en el [vault](secrets.md), nunca devuelto por ningún endpoint |
 | `allowed_tools` | Una lista de permitidos, o null para «todo lo que ofrezca el servidor». Una vinculación estrecha dentro de ella — ver más abajo |
 | `is_enabled` | Apagarla sin perder la credencial |
+| `include_instructions` | Añade las instrucciones propias del servidor en `initialize` a las del agent. Apagado por defecto - es texto del operador del servidor, leído como instrucciones del agent - y se enciende en el diálogo Edit de la conexión |
 | `last_status` | Qué encontró el último sondeo, y cuándo |
 
 !!! warning "Una dirección que este despliegue no debe alcanzar se rechaza, y el rechazo lo dice"

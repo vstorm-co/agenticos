@@ -66,6 +66,7 @@ export interface OrgMcpConnectionPatch {
   allowed_tools?: string[];
   clear_allowed_tools?: boolean;
   is_enabled?: boolean;
+  include_instructions?: boolean;
   /** `""` clears it, back to showing the slug. */
   label?: string;
 }
