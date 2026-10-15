@@ -19,10 +19,11 @@ from app.agents.system_agents import JUDGE
 from app.core.exceptions import (
     AiAssistanceDisabledError,
     AuthorizationError,
+    NotFoundError,
     SystemAgentUnavailableError,
 )
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
@@ -194,14 +195,63 @@ class TestSeeding:
 
         assert await agent_repo.get_system(db, organization_id=theirs.id, key=JUDGE.key) is None
 
-    async def test_the_agents_listing_marks_the_judge_as_a_system_agent(self, db) -> None:
+    async def test_the_judges_listing_marks_the_seeded_judge(self, db) -> None:
         organization, owner = await _organization(db)
         await SystemAgentService(db).ensure(organization_id=organization.id, key=JUDGE.key)
         ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
 
-        listed, _ = await AgentRegistryService(db).list_agents(ctx)
+        listed, _ = await AgentRegistryService(db).list_agents(ctx, kind=AgentKind.JUDGE)
 
-        assert [agent.system_key for agent in listed] == [JUDGE.key]
+        assert [(agent.system_key, agent.kind) for agent in listed] == [
+            (JUDGE.key, AgentKind.JUDGE)
+        ]
+
+
+class TestADatasetsOwnJudge:
+    async def test_it_is_a_judge_without_the_key_published_on_the_oldest_model(self, db) -> None:
+        organization, owner = await _organization(db)
+        oldest = await _profile(db, organization, label="Only", created_at=datetime.now(UTC))
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+
+        judge = await SystemAgentService(db).create_judge(
+            ctx, name="Refunds judge", description="Grades refunds.", instructions="Be strict."
+        )
+
+        assert (judge.kind, judge.system_key, judge.status) == (
+            AgentKind.JUDGE.value,
+            None,
+            AgentStatus.PUBLISHED.value,
+        )
+        version = await db.get(AgentVersion, judge.current_version_id)
+        assert version is not None
+        assert version.spec["model_profile_id"] == str(oldest.id)
+        assert version.spec["instructions"] == "Be strict."
+        assert version.spec["budget"]["monthly_usd"] == JUDGE.monthly_usd
+
+    async def test_without_a_model_it_stays_a_draft(self, db) -> None:
+        organization, owner = await _organization(db)
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+
+        judge = await SystemAgentService(db).create_judge(
+            ctx, name="Refunds judge", description="Grades refunds.", instructions="Be strict."
+        )
+
+        assert judge.status == AgentStatus.DRAFT.value
+
+    async def test_a_model_of_another_organization_is_refused(self, db) -> None:
+        organization, owner = await _organization(db)
+        other, _ = await _organization(db)
+        theirs = await _profile(db, other, label="Theirs", created_at=datetime.now(UTC))
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+
+        with pytest.raises(NotFoundError):
+            await SystemAgentService(db).create_judge(
+                ctx,
+                name="Refunds judge",
+                description="Grades refunds.",
+                instructions="Be strict.",
+                model_profile_id=theirs.id,
+            )
 
 
 class TestTheSwitch:

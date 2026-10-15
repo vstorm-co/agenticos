@@ -207,11 +207,12 @@ class AiAssistanceDisabledError(AuthorizationError):
 
 
 class SystemAgentUnavailableError(BadRequestError):
-    """A seeded system agent exists but cannot run for this caller (400).
+    """A system agent cannot run for this caller (400).
 
-    `reason` says which it is - `not_seeded`, `unpublished`, `archived`,
-    `no_access` or `no_model` - because each has a different fix, and a person
-    told only "unavailable" cannot tell whether to pick a model or ask for a grant.
+    `reason` says why - `not_seeded`, `missing` (the agent picked for the job is
+    gone), `unpublished`, `archived`, `no_access` or `no_model` - because each has
+    a different fix, and a person told only "unavailable" cannot tell whether to
+    pick a model or ask for a grant.
     """
 
     message = "This system agent cannot run"
@@ -220,6 +221,28 @@ class SystemAgentUnavailableError(BadRequestError):
     def __init__(self, message: str, *, key: str, reason: str) -> None:
         super().__init__(message=message, details={"key": key, "reason": reason})
         self.reason = reason
+
+
+class SystemAgentRestrictedError(BadRequestError):
+    """A system agent was asked to do what only an ordinary agent does (400).
+
+    A system agent runs for the platform - the eval judge grades scores - and
+    only through the system agent runner. It is never chatted with, exposed on a
+    channel, embedded, scheduled or delegated to. `action` names what was refused.
+    """
+
+    message = "This is a system agent"
+    code = "SYSTEM_AGENT_RESTRICTED"
+
+    def __init__(self, *, name: str, agent_id: UUID, action: str) -> None:
+        super().__init__(
+            message=(
+                f"'{name}' is a system agent: the platform runs it, so it cannot be "
+                f"used for {action}."
+            ),
+            details={"agent_id": agent_id, "action": action},
+        )
+        self.action = action
 
 
 class SystemAgentRunError(BadRequestError):

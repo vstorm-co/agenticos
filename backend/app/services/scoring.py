@@ -27,6 +27,7 @@ from app.agents.system_agents import JUDGE
 from app.core.audit import record_audit
 from app.core.exceptions import (
     AiAssistanceDisabledError,
+    AuthorizationError,
     BadRequestError,
     NotFoundError,
     NothingToScoreError,
@@ -36,6 +37,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.db.models.agent import AgentKind
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase
@@ -55,14 +57,18 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    JudgeCreate,
     JudgePin,
     PendingDataset,
     PendingScore,
     ReviewQueue,
+    ReviewRequest,
+    ReviewRequested,
     ScorerResult,
 )
 from app.services.access import DATASET, visible_resource_ids
 from app.services.agent_runner import AgentRunnerService
+from app.services.ai_assistance import AiAssistanceService
 from app.services.dataset import DatasetService
 from app.services.scorers import (
     CaseView,
@@ -80,8 +86,11 @@ from app.services.scorers import (
     score_trajectory,
 )
 from app.services.system_agent_runner import SystemAgentRunner
+from app.services.system_agents import SystemAgentService
 
 _MAX_TURNS = 100
+# Enough of an answer to review it; a longer one is read in full from its run.
+_MAX_ANSWER = 8_000
 
 
 def _redact(text: str | None) -> str | None:
@@ -101,8 +110,9 @@ class Evaluation:
     judge: JudgePin | None = None
 
 
-def _score_read(score: CaseScore) -> CaseScoreRead:
-    return CaseScoreRead.model_validate(score)
+def _kept_answer(text: str) -> str | None:
+    clipped = text if len(text) <= _MAX_ANSWER else f"{text[:_MAX_ANSWER]}…"
+    return _redact(clipped)
 
 
 def _by_dataset(counts: list[tuple[UUID, str, bool | None, int]]) -> list[PendingDataset]:
@@ -150,14 +160,39 @@ class ScoringService:
         Raises:
             NotFoundError: The dataset is not one the caller may edit.
             BadRequestError: Every scorer is off, the judge is on with nothing to
-                grade, or the judge's model is not one of the organization's.
+                grade, the judge picked is not one of the organization's judges,
+                the judge's model is not one of the organization's, or the
+                judge or the reference comparison is turned on while AI
+                assistance is off. One already on stays on, and is skipped.
         """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        stored = DatasetScoring.model_validate(dataset.scoring)
+        turned_on = [
+            field
+            for field, now, before in (
+                ("judge.enabled", data.judge.enabled, stored.judge.enabled),
+                ("reference.enabled", data.reference.enabled, stored.reference.enabled),
+            )
+            if now and not before
+        ]
+        if turned_on and not await AiAssistanceService(self.db).is_enabled(
+            organization_id=ctx.organization_id
+        ):
+            raise refused_field(
+                turned_on[0],
+                "AI assistance is off in this organization, so the judge cannot be "
+                "turned on. Ask an admin to enable AI assistance.",
+            )
         scorers = (data.checks, data.trajectory, data.judge, data.reference)
         if not any(scorer.enabled for scorer in scorers):
             raise refused_field("checks.enabled", "Turn on at least one scorer")
         if data.judge.enabled and not data.judge.criteria:
             raise refused_field("judge.criteria", "Give the judge at least one criterion")
+        judge_id = data.judge.agent_id
+        if judge_id is not None and judge_id != stored.judge.agent_id:
+            judge = await agent_repo.get(self.db, judge_id, organization_id=ctx.organization_id)
+            if judge is None or judge.kind != AgentKind.JUDGE.value:
+                raise refused_field("judge.agent_id", "This organization has no such judge")
         profile_id = data.judge.model_profile_id
         if profile_id is not None and (
             await credential_repo.get_profile(
@@ -170,6 +205,42 @@ class ScoringService:
             self.db,
             dataset=dataset,
             update_data={"scoring": data.model_dump(mode="json", by_alias=True)},
+        )
+        return await self.datasets.read(ctx, dataset_id)
+
+    async def create_judge(
+        self, ctx: AuthContext, dataset_id: UUID, data: JudgeCreate
+    ) -> DatasetRead:
+        """Create a judge of the dataset's own and make it the one grading the dataset.
+
+        Needs `datasets:edit` on the dataset and `agents:edit`, since a judge is
+        an agent. The rubric stays the dataset's; only which judge grades changes,
+        so scores graded before keep the judge they were graded by.
+
+        Raises:
+            NotFoundError: The dataset is not one the caller may edit, or the
+                model is not one of the organization's.
+            AuthorizationError: The caller's role may not create agents.
+            AlreadyExistsError: An agent of the organization holds the name.
+        """
+        dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        if not ctx.has(Perm.AGENTS_EDIT):
+            raise AuthorizationError(
+                message="Creating a judge creates an agent, which your role does not allow"
+            )
+        judge = await SystemAgentService(self.db).create_judge(
+            ctx,
+            name=data.name,
+            description=f"Grades the cases of the dataset '{dataset.name}'.",
+            instructions=data.instructions,
+            model_profile_id=data.model_profile_id,
+        )
+        scoring = DatasetScoring.model_validate(dataset.scoring)
+        scoring.judge.agent_id = judge.id
+        await dataset_repo.update(
+            self.db,
+            dataset=dataset,
+            update_data={"scoring": scoring.model_dump(mode="json", by_alias=True)},
         )
         return await self.datasets.read(ctx, dataset_id)
 
@@ -191,7 +262,10 @@ class ScoringService:
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_RUN)
         case = await self.datasets.case_at(ctx, dataset, case_id, version=data.version)
         answer = await self.answer_of(ctx, data.run_id)
-        return _score_read(await self.score_case(ctx, dataset=dataset, case=case, answer=answer))
+        score = await self.score_case(
+            ctx, dataset=dataset, case=case, answer=answer, enqueue_review=True
+        )
+        return (await self._reads(ctx, [score]))[0]
 
     async def answer_of(self, ctx: AuthContext, run_id: UUID) -> ScoredAnswer:
         """What a recorded run answered and called, read from its transcript.
@@ -260,15 +334,22 @@ class ScoringService:
         dataset: Dataset,
         case: DatasetCase,
         answer: ScoredAnswer,
+        enqueue_review: bool,
         scoring: DatasetScoring | None = None,
         eval_run_id: UUID | None = None,
     ) -> CaseScore:
         """Run every configured scorer on one answer to one case, and keep the score.
 
         The entry point for an eval run as much as for a single score: `scoring`
-        overrides the dataset's configuration, as a suite may, and `eval_run_id`
-        names the eval run the score belongs to. The caller has already decided
-        the caller may score this dataset.
+        overrides the dataset's configuration, as a suite may. The caller has
+        already decided the caller may score this dataset.
+
+        Args:
+            enqueue_review: Whether the dataset's review setting may put the
+                score in the review queue. A score asked for by hand passes
+                `True`; an eval run passes `False` and sends what a person
+                chooses with :meth:`request_reviews`.
+            eval_run_id: The eval run scoring the answer, if one is.
 
         Raises:
             NothingToScoreError: No configured scorer has anything to check on
@@ -281,7 +362,7 @@ class ScoringService:
             raise NothingToScoreError(case_id=case.case_id)
         passed = case_passed(results)
         select = config.review.select
-        waits = select == "all" or (select == "failed" and passed is not True)
+        waits = enqueue_review and (select == "all" or (select == "failed" and passed is not True))
         return await case_score_repo.create(
             self.db,
             organization_id=ctx.organization_id,
@@ -290,9 +371,17 @@ class ScoringService:
             case_id=case.case_id,
             run_id=answer.run_id,
             eval_run_id=eval_run_id,
+            answer=_kept_answer(answer.text),
             scoring=config.model_dump(mode="json", by_alias=True),
             results=[
-                result.model_copy(update={"reason": _redact(result.reason)}).model_dump(mode="json")
+                result.model_copy(
+                    update={
+                        "reason": _redact(result.reason),
+                        "unverified_quotes": [
+                            _redact(quote) or quote for quote in result.unverified_quotes
+                        ],
+                    }
+                ).model_dump(mode="json")
                 for result in results
             ],
             judge=None if evaluation.judge is None else evaluation.judge.model_dump(mode="json"),
@@ -342,6 +431,7 @@ class ScoringService:
                 key=JUDGE.key,
                 prompt=judge_prompt(case, answer, criteria, scale_max=scoring.judge.scale_max),
                 output_type=JudgeVerdict,
+                agent_id=scoring.judge.agent_id,
                 model_profile_id=scoring.judge.model_profile_id,
             )
         except AiAssistanceDisabledError as exc:
@@ -400,6 +490,7 @@ class ScoringService:
         )
         published = None if version is None else version.spec.get("model_profile_id")
         return JudgePin(
+            agent_id=run.agent_id,
             model_profile_id=scoring.judge.model_profile_id or published,
             agent_version_id=run.agent_version_id,
             spec_version=None if version is None else version.version,
@@ -427,7 +518,7 @@ class ScoringService:
             skip=skip,
             limit=limit,
         )
-        return CaseScoreList(items=[_score_read(item) for item in items], total=total)
+        return CaseScoreList(items=await self._reads(ctx, items), total=total)
 
     async def review_queue(
         self, ctx: AuthContext, *, skip: int = 0, limit: int = 50
@@ -453,14 +544,42 @@ class ScoringService:
             see_all=see_all,
             shared_ids=shared_ids,
         )
+        reads = await self._reads(ctx, [score for score, _ in items])
         return ReviewQueue(
             items=[
-                PendingScore(**_score_read(score).model_dump(), dataset_name=name)
-                for score, name in items
+                PendingScore(**read.model_dump(), dataset_name=name)
+                for read, (_, name) in zip(reads, items, strict=True)
             ],
             total=total,
             datasets=_by_dataset(counts),
         )
+
+    async def _reads(self, ctx: AuthContext, scores: list[CaseScore]) -> list[CaseScoreRead]:
+        """Scores as read, each with the name and version number of the agent that answered."""
+        reads = [CaseScoreRead.model_validate(score) for score in scores]
+        agents = await agent_repo.get_many(
+            self.db,
+            list({read.agent_id for read in reads if read.agent_id is not None}),
+            organization_id=ctx.organization_id,
+        )
+        versions = await agent_repo.get_versions_by_ids(
+            self.db,
+            list({read.agent_version_id for read in reads if read.agent_version_id is not None}),
+            organization_id=ctx.organization_id,
+        )
+        named = []
+        for read in reads:
+            agent = None if read.agent_id is None else agents.get(read.agent_id)
+            version = None if read.agent_version_id is None else versions.get(read.agent_version_id)
+            named.append(
+                read.model_copy(
+                    update={
+                        "agent_name": None if agent is None else agent.name,
+                        "agent_version": None if version is None else version.version,
+                    }
+                )
+            )
+        return named
 
     async def _score(self, ctx: AuthContext, dataset_id: UUID, score_id: UUID) -> CaseScore:
         await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
@@ -504,7 +623,7 @@ class ScoringService:
             target_id=str(score.id),
             details={"dataset_id": str(dataset_id), "passed": data.passed},
         )
-        return _score_read(score)
+        return (await self._reads(ctx, [score]))[0]
 
     async def request_review(
         self, ctx: AuthContext, dataset_id: UUID, score_id: UUID
@@ -515,4 +634,32 @@ class ScoringService:
             score = await case_score_repo.update(
                 self.db, score=score, update_data={"review_state": "pending"}
             )
-        return _score_read(score)
+        return (await self._reads(ctx, [score]))[0]
+
+    async def request_reviews(
+        self, ctx: AuthContext, dataset_id: UUID, data: ReviewRequest
+    ) -> ReviewRequested:
+        """Put several of a dataset's scores in the review queue. Needs `datasets:edit`.
+
+        All of them or none: one that is not a score of this dataset refuses the
+        request. A score already waiting, or already decided, is left as it is.
+
+        Raises:
+            NotFoundError: The dataset is not one the caller may edit, or it has
+                no score with one of the ids.
+        """
+        await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        wanted = list(dict.fromkeys(data.score_ids))
+        found = await case_score_repo.existing_ids(
+            self.db, wanted, organization_id=ctx.organization_id, dataset_id=dataset_id
+        )
+        missing = [score_id for score_id in wanted if score_id not in found]
+        if missing:
+            raise NotFoundError(
+                message="This dataset has no score with some of these ids",
+                details={"dataset_id": dataset_id, "missing": missing},
+            )
+        queued = await case_score_repo.queue_for_review(
+            self.db, wanted, organization_id=ctx.organization_id, dataset_id=dataset_id
+        )
+        return ReviewRequested(queued=queued, already=len(wanted) - queued)

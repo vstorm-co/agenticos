@@ -517,6 +517,8 @@ async def test_a_grant_on_the_dataset_lets_a_member_run_it(db) -> None:
     owner = await _owner(db)
     agent, _ = await _agent(db, owner)
     dataset = await _dataset(db, owner, cases=2)
+    dataset.visibility = "private"
+    await db.flush()
     member = await _member(db, owner, OrgRoleName.MEMBER)
     service = EvalRunService(db)
     request = EvalRunRequest(dataset_id=dataset.id)
@@ -1187,7 +1189,6 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     dataset = await _dataset(db, ctx, cases=4)
     service = EvalRunService(db)
     v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
-    # A run still answering has no verdict yet.
     assert v6.outcome is None
     await _run_to_end(db, Model(db), v6.id, ctx)
     v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
@@ -1207,7 +1208,6 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     assert (outcome.candidate_pass_rate, outcome.baseline_pass_rate) == (0.75, 1.0)
     read = await service.get(ctx, v7.id)
     assert (read.cases, read.first_done, read.first_total, read.attempts_total) == (4, 4, 4, 6)
-    # What the reruns may add is kept, so spending past the estimate is explained.
     assert read.rerun_ceiling_usd == Decimal("0.08")
 
     # Read again, the verdict is the one kept rather than compared anew.
@@ -1259,6 +1259,8 @@ async def test_a_datasets_runs_are_read_over_the_agents_and_dataset_the_reader_m
     private, _ = await _agent(db, owner)
     private.visibility = "private"
     dataset = await _dataset(db, owner, cases=1)
+    dataset.visibility = "private"
+    await db.flush()
     service = EvalRunService(db)
     seen = await service.start(owner, shared.id, EvalRunRequest(dataset_id=dataset.id))
     unseen = await service.start(owner, private.id, EvalRunRequest(dataset_id=dataset.id))
@@ -1319,7 +1321,6 @@ async def test_cases_narrow_to_the_ones_named(db) -> None:
 
     assert [case.case_id for case in named.items] == [everything.items[1].case_id]
     assert named.total == 1
-    # What the case expects rides beside its answers.
     expectation = named.items[0].expectation
     assert expectation is not None
     assert [check.model_dump()["value"] for check in expectation.checks] == ["30 days"]
@@ -1341,8 +1342,28 @@ async def test_an_eval_run_names_its_case_to_who_may_see_the_dataset(db) -> None
     assert link is not None
     assert (link.eval_run_id, link.agent_id, link.case_id) == (run.id, agent.id, attempt.case_id)
     assert (link.dataset_name, link.case_input) == (dataset.name, "Question 0")
-    # The dataset is its owner's: a colleague reading the run history learns
-    # neither its name nor its question from it.
+    # A private dataset is its owner's: a colleague reading the run history
+    # learns neither its name nor its question from it.
+    dataset.visibility = "private"
+    await db.flush()
     member = await _member(db, owner, OrgRoleName.MEMBER)
     assert await service.case_link(member, attempt.agent_run_id) is None
     assert await service.case_link(owner, uuid.uuid4()) is None
+
+
+async def test_an_eval_run_puts_nothing_in_the_review_queue_itself(db) -> None:
+    """A run's failures go to review only when a person sends them there."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    dataset.scoring = {**dataset.scoring, "review": {"select": "all"}}
+    await db.flush()
+    service = EvalRunService(db)
+    run = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db, answer=lambda prompt, call: _FAIL), run.id, ctx)
+
+    states = (
+        await db.scalars(select(CaseScore.review_state).where(CaseScore.eval_run_id == run.id))
+    ).all()
+
+    assert states and set(states) == {"none"}

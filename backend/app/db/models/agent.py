@@ -49,6 +49,19 @@ class AgentStatus(enum.StrEnum):
     ARCHIVED = "archived"
 
 
+class AgentKind(enum.StrEnum):
+    """What an agent is for.
+
+    `AGENT` is one people use: chat, the API, channels, embeds, schedules,
+    delegation. `JUDGE` grades answers for evals; only the platform runs it, and
+    it is listed apart. An organization may hold many judges - the default one
+    the platform seeds, and one per dataset that wants its own.
+    """
+
+    AGENT = "agent"
+    JUDGE = "judge"
+
+
 class Agent(Base, TimestampMixin):
     """A configured agent, owned by an organization."""
 
@@ -127,6 +140,9 @@ class Agent(Base, TimestampMixin):
     # The key, not the slug, identifies a seeded agent: the slug derives from a
     # name people may change, and a person's own agent may already hold it.
     system_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    kind: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=AgentKind.AGENT.value, server_default="agent"
+    )
 
     # Declared here as well as in the migration: a schema built from the models
     # - which is what the integration tests and some dev setups do - would
@@ -136,6 +152,7 @@ class Agent(Base, TimestampMixin):
         UniqueConstraint("organization_id", "slug", name="uq_agent_org_slug"),
         CheckConstraint("status IN ('draft', 'published', 'archived')", name="ck_agent_status"),
         CheckConstraint("visibility IN ('private', 'team', 'org')", name="ck_agent_visibility"),
+        CheckConstraint("kind IN ('agent', 'judge')", name="ck_agent_kind"),
         # GIN so the discovery filter's `categories && ARRAY[...]` overlap is an
         # index scan. Declared here as well as in the migration for the reason the
         # comment above says: a schema built from the models must carry them too.

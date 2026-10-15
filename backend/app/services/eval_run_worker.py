@@ -301,6 +301,8 @@ class EvalRunWorker:
                     answer=answer,
                     scoring=DatasetScoring.model_validate(run.scoring),
                     eval_run_id=run.id,
+                    # A run's failures go to review only when a person sends them.
+                    enqueue_review=False,
                 )
             except NothingToScoreError as exc:
                 # Nothing the scorers check applies to this case: it was answered

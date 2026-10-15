@@ -63,9 +63,9 @@ vi.mock("@/hooks", () => ({
   }),
   useAgents: () => ({
     agents: [
-      { id: "agent-1", name: "Refund desk", can_run: true, system_key: null },
-      { id: "judge", name: "Eval judge", can_run: true, system_key: "eval_judge" },
-      { id: "locked", name: "Payroll", can_run: false, system_key: null },
+      { id: "agent-1", name: "Refund desk", can_run: true, kind: "agent" },
+      { id: "judge", name: "Eval judge", can_run: true, kind: "judge" },
+      { id: "locked", name: "Payroll", can_run: false, kind: "agent" },
     ],
   }),
 }));
@@ -89,7 +89,14 @@ vi.mock("@/hooks/use-agent-environments", () => ({
 const SCORING = {
   checks: { enabled: true, required: false, defaults: [] },
   trajectory: { enabled: false, required: false },
-  judge: { enabled: true, model_profile_id: null, scale_max: 5, pass_at: 4, criteria: [] },
+  judge: {
+    enabled: true,
+    agent_id: null,
+    model_profile_id: null,
+    scale_max: 5,
+    pass_at: 4,
+    criteria: [],
+  },
   reference: { enabled: false, required: false },
   review: { select: "none" },
 };
@@ -99,6 +106,7 @@ const REFUNDS = {
   case_count: 20,
   latest_version: 3,
   scoring: SCORING,
+  judge_name: "Policy judge",
 };
 
 /** The request the dialog asks for by default: the draft against v7, on refunds. */
@@ -268,7 +276,7 @@ describe("StartEvalDialog", () => {
     hooks.start = mutation({ mutateAsync: vi.fn().mockResolvedValue(evalRun()) });
     const onOpenChange = open();
 
-    expect(screen.getByText("Graded by checks and the Eval judge.")).toBeInTheDocument();
+    expect(screen.getByText("Graded by checks and Policy judge.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Run for $0.30" }));
 
     expect((hooks.start as Mutation).mutateAsync).toHaveBeenCalledWith(COMPARE);

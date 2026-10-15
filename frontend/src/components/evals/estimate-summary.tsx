@@ -11,7 +11,8 @@ import { usd } from "./format";
 /** What grades a dataset's answers, by name, in the order the scorers run. */
 export function graders(
   scoring: DatasetScoring,
-  t: (key: string, values?: { criteria: string }) => string,
+  judge: string,
+  t: (key: string, values?: { criteria?: string; name?: string }) => string,
   locale: string,
 ): string {
   const list = new Intl.ListFormat(locale, { type: "conjunction" });
@@ -23,8 +24,8 @@ export function graders(
     const criteria = scoring.judge.criteria.map((criterion) => criterion.name);
     parts.push(
       criteria.length === 0
-        ? t("grader.judge")
-        : t("grader.judgeRubric", { criteria: list.format(criteria) }),
+        ? t("grader.judge", { name: judge })
+        : t("grader.judgeRubric", { name: judge, criteria: list.format(criteria) }),
     );
   }
   return list.format(parts);
@@ -65,14 +66,18 @@ export function EstimateSummary({
   agentId,
   estimate,
   scoring,
+  judgeName,
 }: {
   agentId: string;
   estimate: EvalRunEstimate;
   /** The dataset's scoring, when it is known, to say what grades the answers. */
   scoring: DatasetScoring | null;
+  /** The judge the dataset names, or null to call it the default one. */
+  judgeName: string | null;
 }) {
   const t = useTranslations("evals.estimate");
   const locale = useLocale();
+  const judge = judgeName ?? t("judge");
   return (
     <div className="bg-muted/40 space-y-3 rounded-lg border p-4 text-sm">
       <ul className="space-y-1">
@@ -84,7 +89,7 @@ export function EstimateSummary({
         ))}
         {Number(estimate.judge_usd) > 0 && (
           <li className="flex items-center justify-between gap-3">
-            <span className="text-muted-foreground">{t("judge")}</span>
+            <span className="text-muted-foreground">{judge}</span>
             <span className="tabular-nums">{usd(estimate.judge_usd, locale)}</span>
           </li>
         )}
@@ -95,7 +100,7 @@ export function EstimateSummary({
       </p>
       {scoring && (
         <p className="text-muted-foreground text-xs">
-          {t("gradedBy", { graders: graders(scoring, t, locale) })}
+          {t("gradedBy", { graders: graders(scoring, judge, t, locale) })}
         </p>
       )}
       <p className="text-muted-foreground text-xs">

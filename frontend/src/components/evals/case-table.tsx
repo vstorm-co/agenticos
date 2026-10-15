@@ -80,6 +80,12 @@ function dotState(attempt: EvalAttempt | undefined): DotState {
   return attempt.outcome ? "passed" : "failed";
 }
 
+/** Whether a person's review overturned what the scorers concluded. */
+function corrected(attempt: EvalAttempt): boolean {
+  const score = attempt.score;
+  return score !== null && score.human_passed !== null && score.human_passed !== score.passed;
+}
+
 /** How each side's first answer to a case came out, one dot per side. */
 function SideDots({ attempts, arms }: { attempts: EvalAttempt[]; arms: EvalRunArm[] }) {
   const t = useTranslations("evals");
@@ -196,6 +202,9 @@ export function CaseTable({
                     )}
                     <SideDots attempts={item.attempts} arms={run.arms} />
                     <span className="min-w-0 flex-1 truncate text-sm">{item.input}</span>
+                    {item.attempts.some(corrected) && (
+                      <Badge variant="outline">{t("corrected")}</Badge>
+                    )}
                     {flip && flip.flip !== "unchanged" && (
                       <Badge variant={flip.flip === "regression" ? "destructive" : "secondary"}>
                         {t(`flip.${flip.flip}`, { confirmed: String(flip.confirmed) })}

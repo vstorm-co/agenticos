@@ -164,6 +164,51 @@ export function useEvalComparison(
   };
 }
 
+/** The most score ids one review request takes - the API's own ceiling. */
+const REVIEW_BATCH = 500;
+/** The most cases one page of a run's cases holds. */
+const CASE_PAGE = 100;
+
+/**
+ * Sending one side's failed answers to the dataset's review queue. An eval run
+ * queues nothing itself, so this is a person's choice, made from the run's page:
+ * every failed first answer of `arm`, read page by page, sent in batches.
+ */
+export function useSendToReview(runId: string, datasetId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (arm: string) => {
+      const ids: string[] = [];
+      for (let skip = 0, total = 1; skip < total; skip += CASE_PAGE) {
+        const page = await apiClient.get<EvalCaseList>(
+          `/eval-runs/${runId}/cases?outcome=failed&arm_id=${arm}&skip=${skip}&limit=${CASE_PAGE}`,
+        );
+        total = page.total;
+        for (const item of page.items) {
+          const first = item.attempts.find((a) => a.arm_id === arm && a.attempt === 0);
+          if (first?.score) ids.push(first.score.id);
+        }
+      }
+      let queued = 0;
+      let already = 0;
+      for (let at = 0; at < ids.length; at += REVIEW_BATCH) {
+        const sent = await apiClient.post<{ queued: number; already: number }>(
+          `/datasets/${datasetId}/scores/review`,
+          { score_ids: ids.slice(at, at + REVIEW_BATCH) },
+        );
+        queued += sent.queued;
+        already += sent.already;
+      }
+      return { queued, already };
+    },
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.datasets.allScores(datasetId) }),
+        queryClient.invalidateQueries({ queryKey: qk.datasets.allReviewQueue() }),
+      ]),
+  });
+}
+
 /** A dataset's runs over the agents the caller may see, newest first. */
 export function useDatasetEvalRuns(datasetId: string, { limit = 100 } = {}) {
   const query = useQuery({

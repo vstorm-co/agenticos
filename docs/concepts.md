@@ -547,25 +547,36 @@ delegate to what.
 
 ---
 
-## System agents { #system-agents }
+## Judges { #system-agents }
 
-Some agents are started by the platform rather than by a person: the **Eval
-judge** grades answers for [dataset scoring](datasets.md#judge). These are
-**system agents**. Every organization gets them when it is created, and an
-organization created earlier gets one the first time something needs it.
+Some agents are started by the platform rather than by a person: **judges**,
+which grade answers for [dataset grading](datasets.md#judge). An agent's kind
+says which it is - `agent` for the ones people use, `judge` for these. Every
+organization gets the default **Eval judge** when it is created, an organization
+created earlier gets it the first time something needs it, and a dataset may get
+a judge of its own.
 
-A system agent is an ordinary agent. It is listed in Agents with a **System**
-badge, its instructions and model can be edited, it can be shared, and its runs
-are budget-checked and recorded like any other. It starts with a small monthly
-budget of its own, so a new organization cannot spend its whole budget on
-evaluation by accident.
+A judge is the platform's to run, not an agent people use. Agents lists judges
+apart, in a folded **Judges** band under **Agents**, each card saying which
+datasets it grades and the seeded one marked **Default judge**; agent pickers
+leave them out. Whoever holds `agents:edit` opens one to change its
+instructions, model and budget - its page holds those, its limits, its history
+and the datasets it grades, and nothing else. Its runs are budget-checked and
+recorded like any other, and send no run notification. A judge starts with a
+small monthly budget of its own, so a new organization cannot spend its whole
+budget on evaluation by accident.
 
-When the organization already has a model profile, the agent is published on
-the oldest one. Without one, it is created as a draft, and a person picks its
-model and publishes it. The features that use it say so until then.
+Only the platform runs it. Chat, the API, an embed or a public page, a channel,
+a schedule and delegation from another agent all refuse it, in the service that
+would start the run rather than only in the console.
+
+When the organization already has a model profile, a judge is published on the
+oldest one, or on the one picked when it was created. Without one, it is created
+as a draft, and a person picks its model and publishes it. The features that use
+it say so until then.
 
 The organization's [AI assistance switch](governance.md#ai-assistance) decides
-whether system agents run at all.
+whether judges run at all.
 
 ## Model profiles
 

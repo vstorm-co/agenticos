@@ -67,6 +67,7 @@ def _export() -> PersonalDataExport:
         memberships=[],
         ratings=[],
         case_verdicts=[],
+        scored_answers=[],
         sessions=[],
         runs=[],
         memory=[],

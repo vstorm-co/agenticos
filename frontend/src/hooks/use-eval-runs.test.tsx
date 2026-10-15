@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiClient } from "@/lib/api-client";
-import { ESTIMATE, evalRun } from "@/test-utils/eval-runs";
+import { ESTIMATE, attempt, evalCase, evalRun } from "@/test-utils/eval-runs";
 import {
   isLive,
   useEvalCases,
@@ -14,6 +14,7 @@ import {
   useEvalRun,
   useEvalRuns,
   useRecentEvalRuns,
+  useSendToReview,
 } from "./use-eval-runs";
 
 vi.mock("@/lib/api-client", () => ({
@@ -203,6 +204,50 @@ describe("useEvalComparison while the run is live", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("useSendToReview", () => {
+  it("reads every failed first answer of a side, page by page, and sends their scores", async () => {
+    const failed = (id: string, score: string | null) =>
+      evalCase({
+        case_id: id,
+        attempts: [
+          attempt({ score: score === null ? null : ({ id: score } as never) }),
+          attempt({ id: `${id}-rerun`, attempt: 1, score: { id: `${score}-r` } as never }),
+          attempt({ id: `${id}-other`, arm_id: "arm-2", score: { id: `${score}-o` } as never }),
+        ],
+      });
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [failed("c1", "s1"), failed("c2", null)], total: 101 })
+      .mockResolvedValueOnce({ items: [failed("c3", "s3")], total: 101 });
+    vi.mocked(apiClient.post).mockResolvedValue({ queued: 2, already: 0 });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useSendToReview("run-1", "ds-1"), { wrapper });
+
+    let sent: unknown;
+    await act(async () => {
+      sent = await result.current.mutateAsync("arm-1");
+    });
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      2,
+      "/eval-runs/run-1/cases?outcome=failed&arm_id=arm-1&skip=100&limit=100",
+    );
+    expect(apiClient.post).toHaveBeenCalledWith("/datasets/ds-1/scores/review", {
+      score_ids: ["s1", "s3"],
+    });
+    expect(sent).toEqual({ queued: 2, already: 0 });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["datasets", "review-queue"] });
+  });
+
+  it("sends nothing when no failed answer was scored", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ items: [], total: 0 });
+    const { result } = renderHook(() => useSendToReview("run-1", "ds-1"), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync("arm-1");
+    });
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 });
 

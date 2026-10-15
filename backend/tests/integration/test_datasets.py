@@ -570,7 +570,7 @@ async def test_a_member_the_dataset_was_not_shared_with_cannot_read_or_change_it
     owner = await _owner(db)
     org = Organization(id=owner.organization_id)
     service = DatasetService(db)
-    dataset = await service.create(owner, DatasetCreate(name="private"))
+    dataset = await service.create(owner, DatasetCreate(name="private", visibility="private"))
     await service.add_case(owner, dataset.id, DatasetCaseCreate(input="q", reference_answer="yes"))
 
     for role in (OrgRoleName.MEMBER, OrgRoleName.VIEWER):
@@ -601,8 +601,8 @@ async def test_a_grant_widens_access_to_one_dataset_without_promoting_the_member
     owner = await _owner(db)
     viewer = await _member(db, Organization(id=owner.organization_id), OrgRoleName.VIEWER)
     service = DatasetService(db)
-    shared = await service.create(owner, DatasetCreate(name="shared"))
-    other = await service.create(owner, DatasetCreate(name="other"))
+    shared = await service.create(owner, DatasetCreate(name="shared", visibility="private"))
+    other = await service.create(owner, DatasetCreate(name="other", visibility="private"))
     db.add(
         ResourceGrant(
             organization_id=owner.organization_id,
@@ -700,6 +700,7 @@ async def test_a_version_number_is_unique_within_its_dataset(db) -> None:
         owner_user_id=ctx.user_id,
         name="x",
         description=None,
+        visibility="private",
     )
     for _ in range(2):
         db.add(
@@ -724,6 +725,7 @@ async def test_a_case_source_outside_the_vocabulary_is_refused(db) -> None:
         owner_user_id=ctx.user_id,
         name="x",
         description=None,
+        visibility="private",
     )
     db.add(
         DatasetCase(
@@ -771,15 +773,14 @@ async def test_the_editable_listing_reaches_a_granted_dataset_however_old(db) ->
     member = await _member(db, org, OrgRoleName.MEMBER)
     builder = await _member(db, org, OrgRoleName.BUILDER)
     service = DatasetService(db)
-    granted = await service.create(owner, DatasetCreate(name="granted long ago"))
-    read_only = await service.create(owner, DatasetCreate(name="read only"))
+    granted = await service.create(
+        owner, DatasetCreate(name="granted long ago", visibility="private")
+    )
+    read_only = await service.create(owner, DatasetCreate(name="read only", visibility="private"))
     for number in range(101):
-        await service.create(owner, DatasetCreate(name=f"newer {number:03}"))
-    org_wide = await service.create(owner, DatasetCreate(name="org wide"))
-    shared_row = await db.get(Dataset, org_wide.id)
-    assert shared_row is not None
-    shared_row.visibility = "org"
-    await service.create(member, DatasetCreate(name="the member's own"))
+        await service.create(owner, DatasetCreate(name=f"newer {number:03}", visibility="private"))
+    await service.create(owner, DatasetCreate(name="org wide"))
+    await service.create(member, DatasetCreate(name="the member's own", visibility="private"))
     for dataset_id, level in ((granted.id, GrantLevel.EDIT), (read_only.id, GrantLevel.READ)):
         db.add(
             ResourceGrant(
@@ -914,6 +915,7 @@ async def test_an_order_mode_outside_the_three_is_refused_by_the_table(db) -> No
         owner_user_id=ctx.user_id,
         name="x",
         description=None,
+        visibility="private",
     )
     db.add(
         DatasetCase(
@@ -1079,7 +1081,7 @@ async def test_erasing_the_author_of_a_case_clears_who_wrote_it(db) -> None:
     owner = await _owner(db)
     builder = await _member(db, Organization(id=owner.organization_id), OrgRoleName.BUILDER)
     service = DatasetService(db)
-    dataset = await service.create(owner, DatasetCreate(name="shared"))
+    dataset = await service.create(owner, DatasetCreate(name="shared", visibility="private"))
     db.add(
         ResourceGrant(
             organization_id=owner.organization_id,
@@ -1108,3 +1110,17 @@ async def test_erasing_the_author_of_a_case_clears_who_wrote_it(db) -> None:
         None,
         None,
     )
+
+
+async def test_a_new_dataset_is_the_organization_s_unless_it_starts_private(db) -> None:
+    """Datasets are shared test material: a team member finds one without being sent it."""
+    owner = await _owner(db)
+    member = await _member(db, Organization(id=owner.organization_id), OrgRoleName.MEMBER)
+    service = DatasetService(db)
+    shared = await service.create(owner, DatasetCreate(name="refunds"))
+    kept = await service.create(owner, DatasetCreate(name="drafts", visibility="private"))
+
+    listed = {item.id for item in (await service.list_readable(member)).items}
+
+    assert shared.visibility == "org"
+    assert (shared.id in listed, kept.id in listed) == (True, False)

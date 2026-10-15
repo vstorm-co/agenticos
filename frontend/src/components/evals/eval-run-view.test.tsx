@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,7 +7,18 @@ import { Perm } from "@/types/permissions";
 import { EvalRunView } from "./eval-run-view";
 
 const toastError = vi.fn();
-vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => toastError(...args) } }));
+const toastSuccess = vi.fn();
+vi.mock("sonner", () => ({
+  toast: {
+    error: (...args: unknown[]) => toastError(...args),
+    success: (...args: unknown[]) => toastSuccess(...args),
+  },
+}));
+
+const review = vi.hoisted(() => ({ canEdit: false, mutate: vi.fn() }));
+vi.mock("@/hooks/use-datasets", () => ({
+  useDataset: () => ({ dataset: { can_edit: review.canEdit } }),
+}));
 
 const access = vi.hoisted(() => ({ allowed: new Set<string>() }));
 vi.mock("@/hooks/use-permissions", () => ({
@@ -31,6 +42,7 @@ vi.mock("@/hooks/use-eval-runs", async (importOriginal) => {
       state.casesArgs.push(args);
       return state.cases;
     },
+    useSendToReview: () => ({ mutate: review.mutate, isPending: false }),
     useEvalComparison: (...args: unknown[]) => {
       state.comparisonArgs.push(args);
       return { comparison: state.comparison, refetch: state.refetchComparison };
@@ -67,6 +79,8 @@ function worseDraft() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  review.canEdit = false;
+  review.mutate = vi.fn();
   access.allowed = new Set();
   state.casesArgs = [];
   state.comparisonArgs = [];
@@ -165,6 +179,63 @@ describe("EvalRunView", () => {
     state.run = { ...state.run, run: evalRun({ rerun_ceiling_usd: "0" }) };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText(/of an estimated \$0.05$/)).toBeInTheDocument();
+  });
+
+  it("sends what failed to review, for who may edit the dataset", async () => {
+    review.canEdit = true;
+    review.mutate = vi.fn((_arm: unknown, options: { onSuccess: (sent: unknown) => void }) =>
+      options.onSuccess({ queued: 1, already: 0 }),
+    );
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Send the failed case to review" }));
+
+    expect(review.mutate).toHaveBeenCalledWith("arm-1", expect.anything());
+    expect(toastSuccess).toHaveBeenCalledWith("1 case sent to review.");
+  });
+
+  it("says when sending to review was refused", async () => {
+    review.canEdit = true;
+    review.mutate = vi.fn((_arm: unknown, options: { onError: (e: Error) => void }) =>
+      options.onError(new Error("refused")),
+    );
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByRole("button", { name: /to review/ }));
+    expect(toastError).toHaveBeenCalled();
+  });
+
+  it("offers no review to who may not edit the dataset, or when nothing failed", () => {
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.queryByRole("button", { name: /to review/ })).toBeNull();
+    cleanup();
+
+    review.canEdit = true;
+    state.run = {
+      ...state.run,
+      run: evalRun({ arms: [arm({ summary: { ...SUMMARY, failed: 0 } })] }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.queryByRole("button", { name: /to review/ })).toBeNull();
+  });
+
+  it("marks a case a person's review overturned", () => {
+    state.cases = {
+      cases: [
+        evalCase({
+          attempts: [
+            attempt({
+              outcome: true,
+              score: { id: "s1", passed: false, human_passed: true } as never,
+            }),
+          ],
+        }),
+      ],
+      total: 1,
+      isLoading: false,
+      error: null,
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("Corrected by a person")).toBeInTheDocument();
   });
 
   it("offers no publish to who may not publish", () => {

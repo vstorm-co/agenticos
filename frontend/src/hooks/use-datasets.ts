@@ -31,6 +31,8 @@ export interface DatasetQuery {
   limit?: number;
   /** Only the datasets the caller may change, by role or by a grant. */
   editable?: boolean;
+  /** Only the datasets this judge grades. */
+  judge?: string;
   /** False holds the request until it is needed, as a picker behind a checkbox is. */
   enabled?: boolean;
 }
@@ -52,6 +54,7 @@ export function useDatasets({
   skip = 0,
   limit = PAGE_SIZE,
   editable = false,
+  judge = "",
   enabled = true,
 }: DatasetQuery = {}) {
   const t = useTranslations("datasets");
@@ -59,11 +62,12 @@ export function useDatasets({
   const queryClient = useQueryClient();
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: qk.datasets.list({ search, sort, skip, limit, editable }),
+    queryKey: qk.datasets.list({ search, sort, skip, limit, editable, judge }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       if (editable) params.set("editable", "true");
+      if (judge) params.set("judge", judge);
       params.set("sort", sort);
       params.set("skip", String(skip));
       params.set("limit", String(limit));
@@ -109,8 +113,10 @@ export function useDatasets({
   };
 }
 
-/** One dataset, and renaming or redescribing it - which is not a new version. */
+/** One dataset: renaming or redescribing it - which is not a new version - and deleting it. */
 export function useDataset(datasetId: string) {
+  const t = useTranslations("datasets");
+  const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: qk.datasets.detail(datasetId),
@@ -121,7 +127,18 @@ export function useDataset(datasetId: string) {
       apiClient.patch<Dataset>(`/datasets/${datasetId}`, changes),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.datasets.all() }),
   });
-  return { dataset: query.data, isLoading: query.isLoading, error: query.error, update };
+  // The page leaves on success; its own query is dropped rather than refetched
+  // into a 404 on the way out.
+  const remove = useMutation({
+    mutationFn: () => apiClient.delete<void>(`/datasets/${datasetId}`),
+    onSuccess: async () => {
+      queryClient.removeQueries({ queryKey: qk.datasets.detail(datasetId) });
+      await queryClient.invalidateQueries({ queryKey: qk.datasets.lists() });
+      toast.success(t("deleted"));
+    },
+    onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+  });
+  return { dataset: query.data, isLoading: query.isLoading, error: query.error, update, remove };
 }
 
 /** Every version of a dataset, newest first. */

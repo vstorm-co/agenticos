@@ -39,7 +39,10 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    JudgeCreate,
     ReviewQueue,
+    ReviewRequest,
+    ReviewRequested,
 )
 from app.services.dataset_files import MAX_IMPORT_BYTES
 
@@ -58,6 +61,7 @@ async def list_datasets(
     editable: bool = Query(
         False, description="Only the datasets the caller may change, by role or by a grant"
     ),
+    judge: UUID | None = Query(None, description="Only the datasets this judge grades"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -67,6 +71,7 @@ async def list_datasets(
         shared_with_me=shared_with_me,
         editable=editable,
         search=q,
+        judge_id=judge,
         sort=sort,
         skip=skip,
         limit=limit,
@@ -95,7 +100,10 @@ async def list_review_queue(
     dependencies=[Depends(require(Perm.DATASETS_EDIT))],
 )
 async def create_dataset(data: DatasetCreate, service: DatasetSvc, ctx: Auth) -> Any:
-    """An empty dataset, private to its creator. Its first case makes version 1."""
+    """An empty dataset, visible to the organization unless it asks to start private.
+
+    Its first case makes version 1.
+    """
     return await service.create(ctx, data)
 
 
@@ -228,6 +236,18 @@ async def set_dataset_scoring(
     return await service.set_scoring(ctx, dataset_id, data)
 
 
+@router.post("/{dataset_id}/judge", response_model=DatasetRead, status_code=status.HTTP_201_CREATED)
+async def create_dataset_judge(
+    dataset_id: UUID, data: JudgeCreate, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Create a judge of the dataset's own and make it the one grading the dataset.
+
+    The judge is an agent of the `judge` kind, so it needs `agents:edit` as well
+    as `datasets:edit` on the dataset. The rubric stays on the dataset.
+    """
+    return await service.create_judge(ctx, dataset_id, data)
+
+
 @router.post(
     "/{dataset_id}/cases/{case_id}/scores",
     response_model=CaseScoreRead,
@@ -259,6 +279,17 @@ async def list_dataset_scores(
     return await service.list_scores(
         ctx, dataset_id, case_id=case_id, pending=pending, skip=skip, limit=limit
     )
+
+
+@router.post("/{dataset_id}/scores/review", response_model=ReviewRequested)
+async def request_case_score_reviews(
+    dataset_id: UUID, data: ReviewRequest, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Put several of the dataset's scores in the review queue - all of them or none.
+
+    A score already waiting, or already decided, is left as it is.
+    """
+    return await service.request_reviews(ctx, dataset_id, data)
 
 
 @router.put("/{dataset_id}/scores/{score_id}/verdict", response_model=CaseScoreRead)

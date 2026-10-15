@@ -186,6 +186,9 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "agents-filters", page: ROUTES.AGENTS, target: "agents-filters" },
+  // The band's toggle rather than its cards: it renders only while the
+  // organization holds a judge, and folded it is one bounded line.
+  { id: "agents-judges", page: ROUTES.AGENTS, target: "agents-judges", optional: true },
 
   // The builder, entered from the Agents list. The engine opens an example agent
   // (the seeded "Getting Started", or the first one there is), switches to the
@@ -501,20 +504,27 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.collectionsView,
   },
 
-  // Each tab stop selects its own tab; the scores stop anchors on the review filter
+  // Each tab stop selects its own tab; the review stop anchors on the review filter
   // because the list below it can hold any number of results.
   {
-    id: "dataset-scoring",
+    id: "dataset-grading",
     page: DATASET_DETAIL,
-    target: "datasets-scoring",
-    activate: "datasets-scoring-tab",
+    target: "datasets-grading",
+    activate: "datasets-grading-tab",
     permission: Perm.datasetsView,
   },
   {
-    id: "dataset-scores",
+    id: "dataset-judge",
+    page: DATASET_DETAIL,
+    target: "datasets-grading-judge",
+    activate: "datasets-grading-tab",
+    permission: Perm.datasetsView,
+  },
+  {
+    id: "dataset-review",
     page: DATASET_DETAIL,
     target: "datasets-review-filter",
-    activate: "datasets-scores-tab",
+    activate: "datasets-review-tab",
     permission: Perm.datasetsView,
   },
 

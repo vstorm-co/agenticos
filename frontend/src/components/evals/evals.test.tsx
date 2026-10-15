@@ -237,6 +237,7 @@ describe("EstimateSummary", () => {
     render(
       <EstimateSummary
         agentId="agent-1"
+        judgeName={null}
         estimate={ESTIMATE}
         scoring={{
           checks: { enabled: false, required: false, defaults: [] },
@@ -244,6 +245,7 @@ describe("EstimateSummary", () => {
           reference: { enabled: true, required: false },
           judge: {
             enabled: true,
+            agent_id: null,
             model_profile_id: null,
             scale_max: 5,
             pass_at: 4,
@@ -265,7 +267,7 @@ describe("EstimateSummary", () => {
     expect(screen.getByText("Eval judge")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Graded by expected tool calls, the reference answer, and the Eval judge on Policy and Tone.",
+        "Graded by expected tool calls, the reference answer, and Eval judge on Policy and Tone.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("20 cases in total")).toBeInTheDocument();
@@ -280,6 +282,7 @@ describe("EstimateSummary", () => {
       <EstimateSummary
         agentId="agent-1"
         scoring={null}
+        judgeName="Policy judge"
         estimate={{
           ...ESTIMATE,
           arms: [{ ...CANDIDATE_ESTIMATE, basis: "fallback" }],

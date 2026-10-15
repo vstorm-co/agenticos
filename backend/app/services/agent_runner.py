@@ -157,6 +157,7 @@ from app.agents.subagent_runtime import (
     ResumedDelegation,
     SubagentRuntime,
 )
+from app.agents.system_agents import refuse_system_agent
 from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
@@ -2283,6 +2284,10 @@ class AgentRunnerService:
         that created it - at the run's own agent (agenticos#175) and inside a nested
         delegate (agenticos#254) alike.
         """
+        # A system agent runs only through the system agent runner, on the eval
+        # surface - here, so a resumed run and every fresh surface are held to it.
+        if surface != RunSurface.EVAL:
+            refuse_system_agent(agent, action=f"a {surface.value} run")
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
         # agent's, so this cannot be used to run something the agent is not.
@@ -3071,6 +3076,7 @@ class AgentRunnerService:
                 message=f"A delegate this agent is pinned to, '{delegate.name}', is archived",
                 details={"agent_id": str(ref.agent_id), "slug": delegate.slug},
             )
+        refuse_system_agent(delegate, action="a delegate")
         version = await agent_repo.get_version(
             self.db, ref.agent_version_id, organization_id=ctx.organization_id
         )
@@ -3843,10 +3849,12 @@ class AgentRunnerService:
             )
             pending = [a for a in approvals if a.status == ApprovalStatus.PENDING.value]
             await notifications.approval_requested(run, agent=agent, spec=spec, approvals=pending)
-        elif RunSurface(run.surface) is not RunSurface.WEB:
+        elif RunSurface(run.surface) not in (RunSurface.WEB, RunSurface.EVAL):
             # A chat user watching `WEB` already sees a completion or a
-            # failure on screen; every other surface is exactly the "stops
-            # silently" gap this module's own docstring names.
+            # failure on screen, and an `EVAL` run - a judge grading, an agent
+            # answering a case - is one of many the eval reports on as a whole;
+            # every other surface is exactly the "stops silently" gap this
+            # module's own docstring names.
             if status is RunStatus.COMPLETED:
                 await notifications.run_completed(run, agent=agent)
             elif status is RunStatus.FAILED:

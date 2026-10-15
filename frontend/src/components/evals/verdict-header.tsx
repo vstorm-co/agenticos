@@ -13,6 +13,7 @@ import { Perm } from "@/types/permissions";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { percent, usd } from "./format";
 import { sideName } from "./names";
+import { SendToReviewButton } from "./send-to-review-button";
 
 export const VERDICT_TONE: Record<Verdict, "success" | "destructive" | "secondary" | "warning"> = {
   better: "success",
@@ -177,6 +178,7 @@ export function VerdictHeader({
             <Button size="sm" variant="outline" asChild>
               <Link href={`${ROUTES.AGENTS}/${agentId}?tab=build`}>{t("actions.backToBuild")}</Link>
             </Button>
+            <SendToReviewButton run={run} arm={candidate} />
             {candidate.source === "draft" && can(Perm.agentsPublish) && (
               <Button
                 size="sm"

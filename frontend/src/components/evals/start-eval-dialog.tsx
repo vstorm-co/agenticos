@@ -152,7 +152,7 @@ export function StartEvalDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {agents
-                    .filter((agent) => !agent.system_key && agent.can_run)
+                    .filter((agent) => agent.kind !== "judge" && agent.can_run)
                     .map((agent) => (
                       <SelectItem key={agent.id} value={agent.id}>
                         {agent.name}
@@ -179,7 +179,12 @@ export function StartEvalDialog({
           />
         </div>
         {priced && agentId !== null && (
-          <EstimateSummary agentId={agentId} estimate={priced} scoring={dataset?.scoring ?? null} />
+          <EstimateSummary
+            agentId={agentId}
+            estimate={priced}
+            scoring={dataset?.scoring ?? null}
+            judgeName={dataset?.judge_name ?? null}
+          />
         )}
         {failure && (
           <div role="alert" className="text-destructive space-y-1 text-sm">

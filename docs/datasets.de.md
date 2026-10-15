@@ -1,5 +1,5 @@
 ---
-source_sha: "fabd037360e6"
+source_sha: "4940e62b99c3"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -27,7 +27,7 @@ gestellt hat, und eine Antwort, die ihn wirklich enttäuscht hat.
 | Referenzantwort | Was eine gute Antwort sagt |
 | Gegenbeispiel | Eine Antwort, die bekanntermaßen falsch ist |
 | Erwartete Tool-Aufrufe | Die Tools, die der Agent aufrufen soll, jeweils mit den Argumenten, die passen müssen. Argumente, die ein Fall nicht nennt, werden ignoriert. Ein Fall legt auch fest, wie die Aufrufe abgeglichen werden: `any` in beliebiger Reihenfolge, `in_order` in der angegebenen Reihenfolge mit anderen Aufrufen dazwischen, oder `exact` - genau diese, in dieser Reihenfolge, und keine anderen |
-| Prüfungen | Regeln für die Antwort, jede ein Objekt, dessen `type` die Regel benennt, mit deren Parametern daneben. [Scoring](#checks) listet die Typen auf, und ein Fall mit einem Typ, den es nicht kennt, wird abgelehnt |
+| Prüfungen | Regeln für die Antwort, jede ein Objekt, dessen `type` die Regel benennt, mit deren Parametern daneben. [Bewertung](#checks) listet die Typen auf, und ein Fall mit einem Typ, den es nicht kennt, wird abgelehnt |
 | Tags | Labels zum Gruppieren von Ergebnissen, etwa `billing` oder `refusal` |
 | Notiz | Warum es den Fall gibt - was schiefging oder was er absichert |
 | Quelle | `manual`, `import`, `conversation` oder `synthetic` - von der Plattform gesetzt, nicht eingegeben |
@@ -84,10 +84,13 @@ seine Zeilen frei.
 
 ### In der Konsole { #in-the-console }
 
-Öffnen Sie **Datasets**, legen Sie ein Dataset an und wählen Sie **Fall
-hinzufügen**. Schreiben Sie die Eingabe und mindestens eine der vier Erwartungen oben. Gespräch, erwartete
-Tool-Aufrufe und Prüfungen werden als JSON-Listen geschrieben - derselbe Text,
-in dem ein CSV-Export sie enthält.
+Öffnen Sie **Datasets**, legen Sie ein Dataset an - es öffnet sich, sobald es
+existiert - und wählen Sie **Fall hinzufügen**. Schreiben Sie die Eingabe und
+mindestens eine der vier Erwartungen oben. Das Gespräch wird Zug für Zug
+geschrieben, jeder erwartete Tool-Aufruf als Tool-Name mit seinen Argumenten als
+JSON-Objekt und jede Prüfung als Typ, aus der Liste gewählt, neben dem, was sie
+prüft. Ein Fall in der Liste öffnet sich so, wie er sich liest, mit dem Gespräch
+als Chat-Blasen; **Bearbeiten** macht ihn zum Formular.
 
 ### Aus einer Datei { #import-and-export }
 
@@ -174,24 +177,30 @@ erwarteten Tool-Aufrufs, und für jeden Weg, auf dem ein Fall hinzukommt. Der
 Audit-Eintrag der Änderung hält fest, wie viele Werte geschwärzt wurden, nie die
 Werte selbst.
 
-## Scoring { #scoring }
+## Bewertung { #scoring }
 
-Ein Dataset legt auf seinem Tab **Scoring** fest, wie seine Fälle bewertet
-werden. Vier Scorer können auf einen Fall angewendet werden, und jeder wird ein-
-oder ausgeschaltet und als erforderlich markiert oder nicht:
+Ein Dataset legt auf seinem Tab **Bewertung** fest, wie seine Fälle bewertet
+werden, in drei Karten, die jede für sich gespeichert werden: **Wann ein Fall
+besteht** enthält die Prüfungen und die erwarteten Tool-Aufrufe, **Bewerter**
+sagt, welcher Bewerter bewertet und worauf, und **Prüfung durch eine Person**
+sagt, was auf die Entscheidung von jemandem wartet. Vier Scorer können auf einen
+Fall angewendet werden, und jeder wird ein- oder ausgeschaltet und als **Muss
+bestehen** markiert oder nicht:
 
 | Scorer | Was er vergleicht | Kosten |
 |---|---|---|
 | Prüfungen | Die Antwort mit den Regeln des Falls und mit Standardregeln, die das Dataset jedem Fall mitgibt | Keine |
-| Tool-Aufrufe | Die Tools, die der Agent aufgerufen hat, mit den erwarteten Aufrufen des Falls | Keine |
-| Judge | Die Antwort anhand einer Rubrik benannter Kriterien, bewertet vom Eval-Judge | Ein Run des Judge |
-| Referenzantwort | Die Antwort mit der Referenzantwort des Falls, bewertet vom Eval-Judge | Derselbe Run des Judge |
+| Erwartete Tool-Aufrufe | Die Tools, die der Agent aufgerufen hat, mit den erwarteten Aufrufen des Falls | Keine |
+| Bewerter | Die Antwort anhand einer Rubrik benannter Kriterien, bewertet vom Bewerter des Datasets | Ein Run des Bewerters |
+| Referenzantwort | Die Antwort mit der Referenzantwort des Falls, bewertet vom Bewerter des Datasets | Derselbe Run des Bewerters |
 
 Jeder Scorer liefert bestanden oder nicht bestanden, einen Score von 0 bis 1 und
-eine Begründung. Ein Fall **besteht**, wenn jeder erforderliche Scorer besteht.
-Konnte ein erforderlicher Scorer nicht laufen - der Judge war ausgeschaltet,
-sein Budget war aufgebraucht -, ist der Fall **unbewertet**, nicht bestanden:
-Ein Ergebnis, das niemand geprüft hat, zählt nicht als bestanden.
+eine Begründung. Ein Fall **besteht**, wenn jeder mit „Muss bestehen“ markierte
+Scorer besteht. Konnte einer von ihnen nicht laufen - der Bewerter war
+ausgeschaltet, sein Budget war aufgebraucht -, ist der Fall **nicht bewertet**,
+nicht bestanden: Ein Ergebnis, das niemand geprüft hat, zählt nicht als
+bestanden. Einem Dataset, dessen Fälle Referenzantworten haben, mit denen nichts
+die Antworten vergleicht, wird der Vergleich mit der Referenzantwort angeboten.
 
 Die Konfiguration wird nicht mit den Fällen versioniert, weil die Art, wie ein
 Team bewertet, nicht das ist, was es fragt. Jeder Score bewahrt eine Kopie der
@@ -232,7 +241,7 @@ Eine `judge`-Prüfung ist ein Kriterium nur für einen Fall, bewertet im selben
 Judge-Run wie die Rubrik des Datasets. Verwenden Sie sie für das, was eine Regel
 nicht ausdrücken kann, etwa „lehnt ab und verrät die Adresse des Kunden nicht“.
 
-### Tool-Aufrufe { #trajectory }
+### Erwartete Tool-Aufrufe { #trajectory }
 
 Die Aufrufe des Agents werden mit den erwarteten Aufrufen des Falls nach
 Tool-Name und nach jedem Argument abgeglichen, das der Fall nennt. Der
@@ -247,67 +256,96 @@ Ein Aufruf wird über den Tool-Namen abgeglichen, den der Run aufgezeichnet hat,
 also den Namen nach einer etwaigen Überschreibung im Spec. Ein Fall, der vor der
 Umbenennung eines Tools geschrieben wurde, erwartet den alten Namen.
 
-### Der Judge { #judge }
+### Der Bewerter { #judge }
 
-Der Judge ist der **Eval judge**, ein Agent, den die Plattform jeder
-Organisation hinzufügt (siehe [System-Agents](concepts.md#system-agents)). Er
-läuft als die Person, die den Score angefordert hat: Ihr Zugriff auf ihn wird
-geprüft, er wird vor dem Modellaufruf gegen sein eigenes Budget und das der
-Organisation geprüft, und sein Run erscheint in Activity unter der Oberfläche
-`eval`. Seine Anweisungen lassen sich wie die jedes Agents bearbeiten, und ein
-Dataset kann ein anderes Modell für ihn festlegen.
+Ein Bewerter ist ein Agent der Art `judge` (siehe
+[Bewerter](concepts.md#system-agents)). Ein Dataset bewertet mit dem **Eval
+judge**, den die Plattform jeder Organisation hinzufügt, oder mit einem eigenen
+Bewerter: **Bewerter für dieses Dataset anlegen** auf der Karte Bewerter legt
+einen an, dessen Prompt mit dem Namen und der Beschreibung des Datasets beginnt,
+auf dem ersten Modell der Organisation oder einem, das Sie wählen. Dafür braucht
+es `agents:edit` und `datasets:edit`. Die Kriterien, die Skala und die
+Bestehensgrenze bleiben am Dataset; Prompt, Modell und Budget des Bewerters
+werden auf seiner eigenen Seite bearbeitet, und ein Dataset kann weiterhin ein
+anderes Modell für ihn festlegen.
 
-Der Judge läuft nur, wo die [KI-Unterstützung](governance.md#ai-assistance)
+Ein Bewerter läuft als die Person, die den Score angefordert hat: Ihr Zugriff
+auf ihn wird geprüft, er wird vor dem Modellaufruf gegen sein eigenes Budget und
+das der Organisation geprüft, und sein Run erscheint in Activity unter der
+Oberfläche `eval`.
+
+Der Bewerter läuft nur, wo die [KI-Unterstützung](governance.md#ai-assistance)
 eingeschaltet ist, und sie ist aus, bis ein Administrator sie für die
-Organisation einschaltet. Bis dahin werden die Kriterien des Judge und der
+Organisation einschaltet. Bis dahin werden die Kriterien des Bewerters und der
 Referenzantwort als übersprungen festgehalten, nur die regelbasierten Scorer
-bewerten, und der Tab Scoring sagt das, mit einem Link zum Schalter für den,
-der ihn ändern darf.
+bewerten, und der Tab Bewertung sagt das, mit einem Link zum Schalter für den,
+der ihn ändern darf. Der Bewerter und der Vergleich mit der Referenzantwort
+lassen sich in dieser Zeit nicht einschalten; ein bereits eingeschalteter bleibt
+an und wird übersprungen.
 
 Jedes Kriterium wird von 1 bis zum oberen Ende der Skala bewertet und besteht ab
-der Bestehensgrenze. Kann der Judge nicht bewerten, werden seine Kriterien als
+der Bestehensgrenze. Kann der Bewerter nicht bewerten, werden seine Kriterien als
 übersprungen oder als Fehler festgehalten, mit einer Begründung, die die
-Ursache nennt: KI-Unterstützung ist ausgeschaltet, der Judge hat keine
-veröffentlichte Version, er ist archiviert, sein Modell ist entfernt oder hat
-keinen Schlüssel, die Person darf ihn nicht ausführen, oder sein Budget ist
-aufgebraucht. Die regelbasierten Scorer bewerten trotzdem.
+Ursache nennt: KI-Unterstützung ist ausgeschaltet, der vom Dataset gewählte
+Bewerter existiert nicht mehr, er hat keine veröffentlichte Version, er ist
+archiviert, sein Modell ist entfernt oder hat keinen Schlüssel, die Person darf
+ihn nicht ausführen, oder sein Budget ist aufgebraucht. Die regelbasierten
+Scorer bewerten trotzdem.
 
 Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
-Antwort nicht wörtlich enthält, wird in der Begründung als nicht verifiziert
-genannt, und die Bewertung bleibt bestehen. Jedes Ergebnis hält den Judge fest,
-der es bewertet hat - sein Modellprofil, die Version seiner Spec und einen Hash
-der Rubrik -, damit Ergebnisse verschiedener Judges nicht als gleichwertig
-verglichen werden.
+Antwort nicht wörtlich enthält, wird neben der Bewertung als nicht verifiziert
+aufbewahrt und in einer eigenen Zeile unter der Begründung angezeigt, und die
+Bewertung bleibt bestehen. Jedes Ergebnis hält den Bewerter fest, der es
+bewertet hat - den Bewerter-Agent, sein Modellprofil, die Version seines Specs
+und einen Hash der Rubrik -, damit Ergebnisse verschiedener Bewerter nicht als
+gleichwertig verglichen werden. Den Bewerter oder sein Modell zu wechseln ist
+erlaubt; die Karte Bewerter sagt, dass sich die vorher bewerteten Scores nicht
+mit den danach bewerteten vergleichen lassen.
 
-### Review und Urteile { #review }
+### Prüfung { #review }
 
-Ein Dataset kann Ergebnisse in eine **Review-Warteschlange** schicken: keine,
-bis jemand eines schickt, jedes Ergebnis, das nicht bestanden hat, oder jedes
-Ergebnis. Der Tab Scores zeigt die Ergebnisse eines Datasets, und die
-Dashboard-Karte **Awaiting review** zeigt die Warteschlange über alle Datasets,
-die Sie sehen können: wie viele Ergebnisse nicht bestanden haben, nicht bewertet
-werden konnten oder bestanden haben, und in welchen Datasets, jedes öffnet sich
-auf seinem Tab Scores. Die Karte ist standardmäßig auf dem Dashboard.
+Ein Score wartet in der **Warteschlange zur Prüfung**, wenn jemand ihn dorthin
+schickt. Ein Eval-Run schickt von sich aus nichts: Seine Seite schickt die
+Scores, die Sie auswählen, alle auf einmal über
+`POST /datasets/{id}/scores/review` mit bis zu 500 Score-IDs - alle oder keine.
+Ein Score, der von Hand aus Activity angefordert wurde, folgt der Einstellung
+**Prüfung durch eine Person** des Datasets: nichts, bis jemand einen schickt,
+jedes Ergebnis, das nicht bestanden hat, oder jedes Ergebnis. Ein bereits
+entschiedener Score bleibt entschieden.
 
-Das Urteil einer Person wird neben den Ergebnissen der Scorer gespeichert und
-entscheidet über das Ergebnis. Es ändert nie, was der Judge gesagt hat: Die
-Bewertungen und Begründungen des Judge bleiben am Score, nachdem er überstimmt
-wurde. Ein Urteil kann zurückgezogen werden, und der Score wartet dann wieder
-auf ein Review.
+Der Tab **Prüfung** öffnet sich mit dem, was auf eine Entscheidung wartet, jedes
+Ergebnis einen Filter entfernt, und fasst die Scores jedes Eval-Runs unter einer
+Überschrift zusammen. Jede Karte zeigt, was der Fall gefragt und erwartet hat -
+die Frage, die Referenzantwort, die erwarteten Tool-Aufrufe und die Prüfungen -,
+die bewertete Antwort, Agent und Version, die geantwortet haben, was jeder
+Scorer gefunden hat und warum, und die Prüfentscheidung. Die Dashboard-Karte **Wartet auf Prüfung** zeigt die
+Warteschlange über alle Datasets, die Sie sehen können: wie viele Ergebnisse
+nicht bestanden haben, nicht bewertet wurden oder bestanden haben, und in
+welchen Datasets, jedes öffnet sich auf seinem Tab Prüfung. Die Karte ist
+standardmäßig auf dem Dashboard.
+
+Die Prüfentscheidung einer Person wird neben den Ergebnissen der Scorer
+gespeichert und entscheidet über das Ergebnis. Sie ändert nie, was der Bewerter
+gesagt hat: Die Bewertungen und Begründungen des Bewerters bleiben am Score,
+nachdem er überstimmt wurde. Eine Prüfentscheidung kann zurückgezogen werden,
+und der Score wartet dann wieder auf eine Prüfung.
 
 ### Einen Run bewerten { #scoring-a-run }
 
-Öffnen Sie in **Activity** einen Run und wählen Sie **Score against a case**.
-Wählen Sie das Dataset und den Fall, und die Antwort und die Tool-Aufrufe des
+Öffnen Sie in **Aktivität** einen Run, öffnen Sie sein Menü **⋯** und wählen Sie
+**Gegen einen Fall bewerten**. Der Fall, der die Frage des Runs selbst stellt,
+wird für Sie ausgewählt; hat das Dataset keinen, bietet der Dialog an, die
+Antwort des Runs als Fall hinzuzufügen. Die Antwort und die Tool-Aufrufe des
 Runs werden mit jedem Scorer bewertet, den das Dataset konfiguriert. Ein Run
 ohne Transkript hat keine Antwort, die sich bewerten ließe.
 
 | Um | Brauchen Sie |
 |---|---|
 | Zu ändern, wie ein Dataset bewertet wird | `datasets:edit` darauf |
+| Einen Bewerter dafür anzulegen | `datasets:edit` darauf und `agents:edit` |
 | Einen Run dagegen zu bewerten | `datasets:run` darauf und `runs:view` |
 | Seine Scores zu lesen | `datasets:view` darauf |
-| Ein Urteil festzuhalten oder zurückzuziehen | `datasets:edit` darauf |
+| Scores zur Prüfung zu schicken, eine Prüfentscheidung festzuhalten oder zurückzuziehen | `datasets:edit` darauf |
 
 Eine Begründung, die der Judge geschrieben hat, durchläuft vor dem Speichern
 dieselbe Schwärzung von Zugangsdaten wie ein Fall.
@@ -320,8 +358,9 @@ starte einen [Eval-Run](evals.md).
 
 Ein Dataset ist eine geteilte Ressource mit Besitzer, Sichtbarkeit und Grants,
 wie ein [Skill](skills.md) oder eine [Context-Datei](context.md). Ein neues
-Dataset ist privat für den Ersteller, bis es auf seiner Seite freigegeben wird.
-Der Katalog hat drei Berechtigungen für Datasets:
+Dataset sieht die ganze Organisation, außer der Ersteller legt es von Anfang
+an als privat an; später ändert man das auf seiner Seite. Der Katalog hat drei
+Berechtigungen für Datasets:
 
 | Berechtigung | Erlaubt einem Mitglied | Grant-Stufe, die sie gibt |
 |---|---|---|
@@ -352,8 +391,11 @@ der weiterhin personenbezogene Daten enthalten kann, die jemand eingegeben hat,
 und erst mit dem Löschen des Falls verschwindet. Siehe
 [Datenschutz](data-protection.md#what-deletion-reaches).
 
-Ein Score wird auf dieselbe Weise aufbewahrt. Wird der Run entfernt, den er
-bewertet hat, bleibt der Score ohne die Verbindung zu ihm, und wird die Person
-gelöscht, die ihn angefordert oder entschieden hat, wird ihr Name aus ihm
-entfernt. Die Begründung eines Judge kann die Antwort zitieren, die er bewertet
-hat.
+Ein Score wird auf dieselbe Weise aufbewahrt. Er enthält eine Kopie der
+bewerteten Antwort, bis zu 8.000 Zeichen mit geschwärzten Zugangsdaten, damit
+ein Prüfer sie neben dem Fall liest. Diese Kopie ist im Export der Person
+enthalten, deren Run es war, und wird entfernt, wenn diese Person gelöscht wird.
+Wird der Run entfernt, den er bewertet hat, bleibt der Score ohne die Verbindung
+zu ihm, und wird die Person gelöscht, die ihn angefordert oder entschieden hat,
+wird ihr Name aus ihm entfernt. Die Begründung eines Bewerters kann die Antwort
+zitieren, die er bewertet hat.

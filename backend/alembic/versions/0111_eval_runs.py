@@ -10,11 +10,13 @@ run points at it instead of answering again. `eval_run_cases` is one attempt of
 one case on one arm, with a copy of the answer and the calls, because a case run
 keeps no transcript.
 
-`case_scores.eval_run_id` ties a score to the eval run that produced it, and
-goes with that run (`CASCADE`); a score taken by hand has none.
+`case_scores.eval_run_id`, which scoring's migration adds without a target,
+gets its foreign key here: a score goes with the eval run that produced it
+(`CASCADE`); a score taken by hand has none.
 
-Every table is new and the column is nullable, so nothing is backfilled. The
-downgrade drops what was added and loses every eval run and its results.
+Every table is new and the column was already nullable, so nothing is
+backfilled. The downgrade drops what was added and loses every eval run and
+its results; the column stays, as scoring's.
 
 Revision ID: 0111_eval_runs
 Revises: 0108_eval_scoring
@@ -293,10 +295,6 @@ def upgrade() -> None:
         ["eval_run_id", "status", "position"],
         unique=False,
     )
-    op.add_column("case_scores", sa.Column("eval_run_id", sa.UUID(), nullable=True))
-    op.create_index(
-        op.f("case_scores_eval_run_id_idx"), "case_scores", ["eval_run_id"], unique=False
-    )
     op.create_foreign_key(
         op.f("case_scores_eval_run_id_fkey"),
         "case_scores",
@@ -309,8 +307,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_constraint(op.f("case_scores_eval_run_id_fkey"), "case_scores", type_="foreignkey")
-    op.drop_index(op.f("case_scores_eval_run_id_idx"), table_name="case_scores")
-    op.drop_column("case_scores", "eval_run_id")
     op.drop_index("ix_eval_run_cases_run_status", table_name="eval_run_cases")
     op.drop_index(
         "ix_eval_run_cases_org_running",

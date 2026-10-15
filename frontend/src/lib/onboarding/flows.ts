@@ -800,7 +800,7 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       {
         id: "flow-dataset-sources",
         page: DATASET_DETAIL,
-        target: "dataset-file-actions",
+        target: "datasets-menu",
         permission: Perm.datasetsEdit,
       },
       {

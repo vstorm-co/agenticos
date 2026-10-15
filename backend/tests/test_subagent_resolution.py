@@ -53,7 +53,7 @@ from app.agents.subagent_runtime import (
     ResolvedSubagent,
     SubagentRuntime,
 )
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, SystemAgentRestrictedError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_environment import AgentEnvironmentConnection
@@ -143,7 +143,7 @@ def _agent_row(
     `name` is assigned rather than passed to the constructor, where `MagicMock`
     would take it as the mock's own name and leave the attribute unset.
     """
-    row = MagicMock(id=agent_id, slug=slug, status=status)
+    row = MagicMock(id=agent_id, slug=slug, status=status, system_key=None, kind="agent")
     row.name = slug
     return row
 
@@ -263,7 +263,9 @@ async def _prepare(
     """
     ctx = ctx or _ctx()
     service = AgentRunnerService(_db())
-    agent = MagicMock(id=agent_id or uuid.uuid4(), current_version_id=uuid.uuid4())
+    agent = MagicMock(
+        id=agent_id or uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+    )
     run = MagicMock(
         id=uuid.uuid4(),
         conversation_id=uuid.uuid4(),
@@ -724,6 +726,19 @@ class TestAPublishedDelegate:
             "agent_id": str(delegate_id),
             "slug": "research-bot",
         }
+
+    async def test_a_delegate_that_became_a_judge_is_refused_at_run_time(self):
+        """A judge is never a delegate, even through a pin published before."""
+        delegate_id = uuid.uuid4()
+        pinned = _version(delegate_id, AgentSpec(name="Eval judge"))
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+        judge = _agent_row(delegate_id, slug="eval-judge")
+        judge.kind = "judge"
+
+        with pytest.raises(SystemAgentRestrictedError, match="a delegate"):
+            await _prepare(spec, versions={pinned.id: pinned}, agents={delegate_id: judge})
 
     async def test_a_pin_naming_another_agents_version_is_refused(self):
         """A version id is only meaningful through the agent that owns it - and
@@ -1802,7 +1817,11 @@ class TestResumingIntoADelegation:
             patch(f"{RUNNER}.agent_run_repo.mark_running", new=AsyncMock()),
             patch(f"{RUNNER}.agent_run_repo.finish_run", new=AsyncMock()),
             patch(f"{RUNNER}.agent_repo.get_version", new=AsyncMock(return_value=version)),
-            patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
+            patch.object(
+                service.registry,
+                "get",
+                new=AsyncMock(return_value=MagicMock(system_key=None, kind="agent")),
+            ),
             patch.object(service.models, "resolve", new=AsyncMock(return_value=MagicMock())),
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
             patch.object(service.secrets, "resolve_for_bindings", new=AsyncMock(return_value={})),

@@ -6,7 +6,8 @@ rather than a reserved slug, because the slug derives from a name the organizati
 may change, and a person's own agent may already hold it. The partial unique index
 gives each organization at most one agent per key; ordinary agents leave it null.
 No existing agent becomes a system agent: one is seeded the first time something
-needs it.
+needs it. `agents.kind` says what an agent is for: `agent` for every existing
+one, `judge` for the seeded judge and each judge a dataset gets of its own.
 
 `organizations.ai_assistance_enabled` is the one switch for every model-backed
 eval and authoring feature. Off by default, for every organization the migration
@@ -17,8 +18,10 @@ organization's decision, so nothing model-backed runs until an admin turns it on
 with the cases - how a team grades is not what it asks - so `case_scores` keeps
 the configuration each score was computed with beside its results, and which
 judge graded it - model profile, spec version, rubric hash. A score
-outlives the run it read (`SET NULL`), and a person's verdict lives in its own
-columns so it never overwrites what the judge said.
+outlives the run it read (`SET NULL`), so it keeps the answer it scored, and a
+person's verdict lives in its own columns so it never overwrites what the judge
+said. `eval_run_id` names the eval run that scored it; eval runs come in a
+later migration, which adds its foreign key.
 
 Nothing existing changes meaning, so the downgrade drops what was added and loses
 which agents were seeded, whether an organization had switched AI assistance
@@ -53,6 +56,11 @@ def upgrade() -> None:
         ),
     )
     op.add_column("agents", sa.Column("system_key", sa.String(length=64), nullable=True))
+    op.add_column(
+        "agents",
+        sa.Column("kind", sa.String(length=16), server_default="agent", nullable=False),
+    )
+    op.create_check_constraint("ck_agent_kind", "agents", "kind IN ('agent', 'judge')")
     op.create_index(
         "uq_agents_org_system_key",
         "agents",
@@ -77,6 +85,8 @@ def upgrade() -> None:
         sa.Column("case_revision_id", sa.UUID(), nullable=False),
         sa.Column("case_id", sa.UUID(), nullable=False),
         sa.Column("run_id", sa.UUID(), nullable=True),
+        sa.Column("eval_run_id", sa.UUID(), nullable=True),
+        sa.Column("answer", sa.Text(), nullable=True),
         sa.Column("scoring", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("results", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("judge", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
@@ -144,6 +154,9 @@ def upgrade() -> None:
     )
     op.create_index(op.f("case_scores_run_id_idx"), "case_scores", ["run_id"], unique=False)
     op.create_index(
+        op.f("case_scores_eval_run_id_idx"), "case_scores", ["eval_run_id"], unique=False
+    )
+    op.create_index(
         "ix_case_scores_dataset_created", "case_scores", ["dataset_id", "created_at"], unique=False
     )
     op.create_index(
@@ -158,5 +171,7 @@ def downgrade() -> None:
     op.drop_table("case_scores")
     op.drop_column("datasets", "scoring")
     op.drop_index("uq_agents_org_system_key", table_name="agents")
+    op.drop_constraint("ck_agent_kind", "agents", type_="check")
+    op.drop_column("agents", "kind")
     op.drop_column("agents", "system_key")
     op.drop_column("organizations", "ai_assistance_enabled")
