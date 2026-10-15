@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.536] - 2026-10-15
+
 ### Fixed
 
 - **A second page that refuses `web_fetch` no longer ends the run.** Pydantic AI
