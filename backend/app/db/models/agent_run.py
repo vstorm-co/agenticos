@@ -195,6 +195,11 @@ class AgentRun(Base, TimestampMixin):
     initiated_by_publisher_fallback: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false"), nullable=False
     )
+    # The scopes of the API key that started the run, null for a session. A run
+    # resumed later - by whoever approved its parked call - is rebuilt on its
+    # owner's current role, and this is the ceiling that keeps it under what the
+    # key could do: without it the continuation acted with the owner's full role.
+    key_scopes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     # The trigger that fired this run, when one did - "trigger X, acting as member
     # Y" with `user_id` (#2027). SET NULL: the run is the record of what happened
     # and outlives the trigger that started it.

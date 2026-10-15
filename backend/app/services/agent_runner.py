@@ -57,7 +57,7 @@ import logging
 from collections import Counter
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from functools import partial
@@ -2175,13 +2175,24 @@ class AgentRunnerService:
         what the person who started it never could. So a run resumed by somebody
         else is rebuilt on its owner's current membership, and on nobody's where
         that membership is gone.
+
+        And under the key it started with, whoever resumes it: a run an
+        `agents:run` key started must not mint, on resume, a credential with the
+        owner's whole role. The key's scopes ride on the run (`key_scopes`) and
+        narrow the rebuilt context as they narrowed the original one.
         """
-        if (
-            existing_run is None
-            or existing_run.user_id is None
-            or existing_run.user_id == ctx.user_id
-        ):
+        if existing_run is None or existing_run.user_id is None:
             return ctx
+        ceiling = (
+            None
+            if existing_run.key_scopes is None
+            else frozenset(Perm(scope) for scope in existing_run.key_scopes if scope in Perm)
+        )
+        if existing_run.user_id == ctx.user_id:
+            if ceiling is None:
+                return ctx
+            narrowed = ceiling if ctx.key_scopes is None else ceiling & ctx.key_scopes
+            return replace(ctx, key_scopes=narrowed)
         membership = await member_repo.get_active(
             self.db, organization_id=ctx.organization_id, user_id=existing_run.user_id
         )
@@ -2192,6 +2203,7 @@ class AgentRunnerService:
             organization_id=ctx.organization_id,
             role=membership.role,
             subject_is_publisher_fallback=existing_run.initiated_by_publisher_fallback,
+            key_scopes=ceiling,
         )
 
     async def _platform_credential(
@@ -2684,6 +2696,11 @@ class AgentRunnerService:
                 ),
                 user_id=ctx.user_id,
                 initiated_by_publisher_fallback=initiated_by_publisher_fallback,
+                key_scopes=(
+                    None
+                    if ctx.key_scopes is None
+                    else sorted(scope.value for scope in ctx.key_scopes)
+                ),
                 conversation_id=conversation_id,
                 environment_id=environment_id,
                 exposure_id=exposure.id if exposure else None,

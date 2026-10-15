@@ -62,8 +62,10 @@ async def create_run(
     initiated_by_publisher_fallback: bool = False,
     is_test: bool = False,
     test_spec: dict[str, Any] | None = None,
+    key_scopes: list[str] | None = None,
 ) -> AgentRun:
     run = AgentRun(
+        key_scopes=key_scopes,
         organization_id=organization_id,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
