@@ -31,10 +31,13 @@ export function useSetScoring(datasetId: string) {
   });
 }
 
-/** What a dataset's own judge starts from; `model_profile_id` null is the oldest model. */
+/**
+ * What a dataset's own judge starts from; `instructions` null takes the dataset's
+ * judge template as it is, and `model_profile_id` null the oldest model.
+ */
 export interface NewJudge {
   name: string;
-  instructions: string;
+  instructions: string | null;
   /** What the judge must know to grade - a policy, a price list - added to its instructions. */
   knowledge?: string | null;
   model_profile_id?: string | null;
@@ -54,6 +57,18 @@ export function useCreateJudge(datasetId: string) {
       await queryClient.invalidateQueries({ queryKey: qk.agents.judges() });
     },
   });
+}
+
+/**
+ * The prompt a judge made for this dataset starts from: the default judge's rules
+ * with the dataset added, for the person creating it to edit.
+ */
+export function useJudgeTemplate(datasetId: string) {
+  const query = useQuery({
+    queryKey: qk.datasets.judgeTemplate(datasetId),
+    queryFn: () => apiClient.get<{ instructions: string }>(`/datasets/${datasetId}/judge-template`),
+  });
+  return { instructions: query.data?.instructions };
 }
 
 /** Score a recorded run's answer against one case. The judge, if configured, runs now. */

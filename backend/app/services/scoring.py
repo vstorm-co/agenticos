@@ -63,6 +63,7 @@ from app.schemas.scoring import (
     JudgeAgreement,
     JudgeCreate,
     JudgePin,
+    JudgeTemplate,
     PendingDataset,
     PendingScore,
     Rescored,
@@ -138,6 +139,15 @@ STARTING_CRITERION = RubricCriterion(
     name="answers the question",
     description="The answer is correct and complete for what the question asks.",
 )
+
+
+def _judge_instructions(dataset: Dataset) -> str:
+    """The default judge's prompt, which holds the rules of grading, and what the dataset is."""
+    about = f" It is about: {dataset.description}" if dataset.description else ""
+    return (
+        f"{JUDGE.instructions}\n\nThe answers you grade are to the test questions of the "
+        f'dataset "{dataset.name}".{about}'
+    )
 
 
 def _with_knowledge(instructions: str, knowledge: str | None) -> str:
@@ -254,9 +264,11 @@ class ScoringService:
         """Create a judge of the dataset's own and make it the one grading the dataset.
 
         Needs `datasets:edit` on the dataset and `agents:edit`, since a judge is
-        an agent. The rubric stays the dataset's; only which judge grades changes,
-        so scores graded before keep the judge they were graded by. What the
-        judge must know is added to its instructions under its own heading.
+        an agent. Its prompt is the one edited from :meth:`judge_template`, or
+        that template when none is sent. The rubric stays the dataset's; only
+        which judge grades changes, so scores graded before keep the judge they
+        were graded by. What the judge must know is added to its instructions
+        under its own heading.
 
         Where AI assistance is on, the judge is switched on in the same write, so
         the dataset grades from the next score: on its rubric, or on one starting
@@ -274,11 +286,12 @@ class ScoringService:
             raise AuthorizationError(
                 message="Creating a judge creates an agent, which your role does not allow"
             )
+        instructions = data.instructions or _judge_instructions(dataset)
         judge = await SystemAgentService(self.db).create_judge(
             ctx,
             name=data.name,
             description=f"Grades the cases of the dataset '{dataset.name}'.",
-            instructions=_with_knowledge(data.instructions, data.knowledge),
+            instructions=_with_knowledge(instructions, data.knowledge),
             model_profile_id=data.model_profile_id,
         )
         scoring = DatasetScoring.model_validate(dataset.scoring)
@@ -298,6 +311,15 @@ class ScoringService:
             update_data={"scoring": scoring.model_dump(mode="json", by_alias=True)},
         )
         return await self.datasets.read(ctx, dataset_id)
+
+    async def judge_template(self, ctx: AuthContext, dataset_id: UUID) -> JudgeTemplate:
+        """The prompt a judge made for this dataset starts from. Needs `datasets:edit` on it.
+
+        Raises:
+            NotFoundError: The dataset is not one the caller may edit.
+        """
+        dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        return JudgeTemplate(instructions=_judge_instructions(dataset))
 
     async def score_run(
         self, ctx: AuthContext, dataset_id: UUID, case_id: UUID, data: CaseScoreCreate

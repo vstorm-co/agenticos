@@ -51,7 +51,12 @@ from app.repositories import (
     dataset_repo,
     intercepted_tool_call_repo,
 )
-from app.schemas.dataset import DatasetCaseCreate, DatasetCreate, ExpectedToolCall
+from app.schemas.dataset import (
+    DatasetCaseCreate,
+    DatasetCreate,
+    DatasetUpdate,
+    ExpectedToolCall,
+)
 from app.schemas.resource_grant import VisibilityLiteral
 from app.schemas.scoring import (
     CaseScoreCreate,
@@ -643,6 +648,39 @@ class TestADatasetsOwnJudge:
         [judged] = await _eval_runs(db, tenant)
         assert judged.agent_id == own
         assert score.judge is not None and score.judge.agent_id == own
+
+    async def test_it_grades_by_the_default_judge_s_rules_with_the_dataset_added(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, _ = await _dataset(db, tenant, scoring=_rubric())
+        await DatasetService(db).update(
+            tenant.ctx, dataset.id, DatasetUpdate(description="Returns and refunds")
+        )
+        scoring = ScoringService(db)
+
+        template = await scoring.judge_template(tenant.ctx, dataset.id)
+        made = await scoring.create_judge(
+            tenant.ctx, dataset.id, JudgeCreate(name="Refunds judge", knowledge="30 days.")
+        )
+
+        assert template.instructions.startswith(JUDGE.instructions)
+        assert (
+            f'dataset "{dataset.name}". It is about: Returns and refunds' in template.instructions
+        )
+        own = made.scoring.judge.agent_id
+        assert own is not None
+        agent = await agent_repo.get(db, own, organization_id=tenant.organization.id)
+        assert agent is not None and agent.current_version_id is not None
+        version = await agent_repo.get_version(
+            db, agent.current_version_id, organization_id=tenant.organization.id
+        )
+        assert version is not None
+        cloned = version.spec["instructions"]
+        assert "a counter-example is given, it is a known bad answer" in cloned
+        assert "Do not reward length, confidence or polish" in cloned
+        assert cloned == f"{template.instructions}\n\nWhat you must know to grade:\n30 days."
 
     async def test_creating_it_switches_grading_on_with_a_criterion_and_the_reference(
         self, db, judge

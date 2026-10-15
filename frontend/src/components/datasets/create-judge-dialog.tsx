@@ -22,7 +22,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { useModelProviders } from "@/hooks/use-model-providers";
-import { useCreateJudge } from "@/hooks/use-scoring";
+import { useCreateJudge, useJudgeTemplate } from "@/hooks/use-scoring";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
@@ -44,7 +44,8 @@ interface CreateJudgeDialogProps {
 }
 
 /**
- * A judge of the dataset's own, started from its name and what it is about.
+ * A judge of the dataset's own, started from the default judge's rules of
+ * grading and what the dataset is about, as the server writes them.
  *
  * The judge is an agent: what is written here is its prompt, which its page
  * edits later, and what it must know to grade - a policy the cases do not
@@ -56,13 +57,11 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
   const create = useCreateJudge(dataset.id);
   const { profiles } = useModelProviders();
   const [name, setName] = useState(t("judgeNameFor", { name: dataset.name }));
-  const [instructions, setInstructions] = useState(
-    t("judgeInstructionsTemplate", {
-      name: dataset.name,
-      described: dataset.description ? "yes" : "no",
-      description: dataset.description ?? "",
-    }),
-  );
+  const template = useJudgeTemplate(dataset.id);
+  // The template arrives after the dialog opens; it fills the field once, and an
+  // edit made before it arrives is kept.
+  const [instructions, setInstructions] = useState<string | null>(null);
+  const shown = instructions ?? template.instructions ?? "";
   const [knowledge, setKnowledge] = useState("");
   const [chosen, setChosen] = useState<string | null>(null);
   const model = chosen ?? oldest(profiles)?.id ?? null;
@@ -72,7 +71,7 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
     try {
       const updated = await create.mutateAsync({
         name: name.trim(),
-        instructions: instructions.trim(),
+        instructions: shown.trim() === "" ? null : shown.trim(),
         knowledge: knowledge.trim() === "" ? null : knowledge.trim(),
         model_profile_id: model,
       });
@@ -116,7 +115,7 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
           >
             <Textarea
               id="judge-instructions"
-              value={instructions}
+              value={shown}
               rows={8}
               onChange={(event) => setInstructions(event.target.value)}
             />
@@ -160,10 +159,7 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button
-            disabled={create.isPending || name.trim() === "" || instructions.trim() === ""}
-            onClick={() => void submit()}
-          >
+          <Button disabled={create.isPending || name.trim() === ""} onClick={() => void submit()}>
             {t("createJudge")}
           </Button>
         </DialogFooter>

@@ -254,10 +254,12 @@ old name.
 A judge is an agent of the `judge` kind (see
 [Judges](concepts.md#system-agents)). A dataset grades with the **Eval judge**
 the platform adds to every organization, or with a judge of its own: **Create a
-judge for this dataset**, on the Judge card, makes one whose prompt starts from
-the dataset's name and description and from what you say the judge must know to
-grade - a policy, a price list - on the organization's first model or one you
-pick. Creating it needs `agents:edit` as well as `datasets:edit`.
+judge for this dataset**, on the Judge card, makes one whose prompt is the Eval
+judge's, with its rules of grading, followed by the dataset's name and
+description and what you say the judge must know to grade - a policy, a price
+list - on the organization's first model or one you pick. The prompt is shown to
+edit before it is created (`GET /datasets/{id}/judge-template`). Creating it
+needs `agents:edit` as well as `datasets:edit`.
 
 Where AI assistance is on, creating it switches grading on as well: the judge,
 on a starting criterion to replace when the dataset has none, and the reference

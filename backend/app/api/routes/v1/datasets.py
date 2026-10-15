@@ -42,6 +42,7 @@ from app.schemas.scoring import (
     DatasetScoring,
     JudgeAgreement,
     JudgeCreate,
+    JudgeTemplate,
     Rescored,
     RescoreRequest,
     ReviewQueue,
@@ -270,6 +271,15 @@ async def set_dataset_scoring(
 ) -> Any:
     """Replace how the dataset's cases are scored. Scores already kept are unchanged."""
     return await service.set_scoring(ctx, dataset_id, data)
+
+
+@router.get("/{dataset_id}/judge-template", response_model=JudgeTemplate)
+async def read_dataset_judge_template(dataset_id: UUID, service: ScoringSvc, ctx: Auth) -> Any:
+    """The prompt a judge made for this dataset starts from, for the person creating it to edit.
+
+    The default judge's prompt - the rules of grading - with what the dataset is about.
+    """
+    return await service.judge_template(ctx, dataset_id)
 
 
 @router.post("/{dataset_id}/judge", response_model=DatasetRead, status_code=status.HTTP_201_CREATED)

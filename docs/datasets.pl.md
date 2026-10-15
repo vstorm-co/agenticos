@@ -1,5 +1,5 @@
 ---
-source_sha: "312c4976d20e"
+source_sha: "93c168eefee1"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -265,10 +265,12 @@ Sędzia to agent rodzaju `judge` (zobacz
 [Sędziowie](concepts.md#system-agents)). Dataset ocenia za pomocą **Eval
 judge**, którego platforma dodaje do każdej organizacji, albo za pomocą
 własnego sędziego: **Utwórz sędziego dla tego datasetu** na karcie Sędzia
-tworzy sędziego, którego prompt zaczyna się od nazwy i opisu datasetu oraz od
-tego, co według ciebie sędzia musi wiedzieć, żeby oceniać - polityki, cennika -
-na pierwszym modelu organizacji albo na wybranym przez ciebie. Utworzenie go
-wymaga `agents:edit` oraz `datasets:edit`.
+tworzy sędziego, którego prompt to prompt Eval judge z jego zasadami oceniania,
+a po nim nazwa i opis datasetu oraz to, co według ciebie sędzia musi wiedzieć,
+żeby oceniać - polityka, cennik - na pierwszym modelu organizacji albo na
+wybranym przez ciebie. Prompt można edytować przed utworzeniem (`GET
+/datasets/{id}/judge-template`). Utworzenie go wymaga `agents:edit` oraz
+`datasets:edit`.
 
 Gdy wsparcie AI jest włączone, utworzenie go od razu włącza też ocenianie:
 sędziego, z kryterium startowym do zastąpienia, gdy dataset nie ma żadnego,

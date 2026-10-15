@@ -1,5 +1,5 @@
 ---
-source_sha: "312c4976d20e"
+source_sha: "93c168eefee1"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -283,10 +283,12 @@ Ein Bewerter ist ein Agent der Art `judge` (siehe
 [Bewerter](concepts.md#system-agents)). Ein Dataset bewertet mit dem **Eval
 judge**, den die Plattform jeder Organisation hinzufügt, oder mit einem eigenen
 Bewerter: **Bewerter für dieses Dataset anlegen** auf der Karte Bewerter legt
-einen an, dessen Prompt mit dem Namen und der Beschreibung des Datasets beginnt
-und mit dem, was der Bewerter laut Ihnen zum Bewerten wissen muss - einer
-Richtlinie, einer Preisliste -, auf dem ersten Modell der Organisation oder
-einem, das Sie wählen. Dafür braucht es `agents:edit` und `datasets:edit`.
+einen an, dessen Prompt der des Eval judge mit seinen Bewertungsregeln ist,
+gefolgt von Namen und Beschreibung des Datasets und dem, was der Bewerter laut
+Ihnen zum Bewerten wissen muss - einer Richtlinie, einer Preisliste -, auf dem
+ersten Modell der Organisation oder einem, das Sie wählen. Der Prompt lässt
+sich vor dem Anlegen bearbeiten (`GET /datasets/{id}/judge-template`). Dafür
+braucht es `agents:edit` und `datasets:edit`.
 
 Wo die KI-Unterstützung eingeschaltet ist, schaltet das Anlegen die Bewertung
 gleich mit ein: den Bewerter, mit einem Startkriterium zum Ersetzen, wenn das

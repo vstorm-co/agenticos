@@ -1,5 +1,5 @@
 ---
-source_sha: "312c4976d20e"
+source_sha: "93c168eefee1"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -269,10 +269,12 @@ que se renombrara una herramienta espera el nombre antiguo.
 Un juez es un agent de tipo `judge` (consulta
 [Jueces](concepts.md#system-agents)). Un dataset califica con el **Eval judge**
 que la plataforma añade a cada organización, o con un juez propio: **Create a
-judge for this dataset**, en la tarjeta Judge, crea uno cuyo prompt parte del
-nombre y la descripción del dataset y de lo que indiques que el juez debe saber
-para calificar (una política, una lista de precios), sobre el primer modelo de
-la organización o uno que elijas. Crearlo requiere `agents:edit` además de
+judge for this dataset**, en la tarjeta Judge, crea uno cuyo prompt es el del
+Eval judge, con sus reglas de calificación, seguido del nombre y la descripción
+del dataset y de lo que indiques que el juez debe saber para calificar (una
+política, una lista de precios), sobre el primer modelo de la organización o
+uno que elijas. El prompt se puede editar antes de crearlo (`GET
+/datasets/{id}/judge-template`). Crearlo requiere `agents:edit` además de
 `datasets:edit`.
 
 Donde la asistencia de IA está activada, crearlo también activa la

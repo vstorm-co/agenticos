@@ -434,12 +434,14 @@ class PendingScore(CaseScoreRead):
 class JudgeCreate(BaseSchema):
     """A judge of a dataset's own, made from the default judge's definition.
 
+    `instructions` are the judge's prompt as edited from the dataset's judge
+    template (`JudgeTemplate`); omitted, the template is used as it is.
     `knowledge` is what the judge must know to grade that the cases do not say -
     a policy, a price list - and is added to its instructions.
     """
 
     name: str = Field(min_length=1, max_length=128)
-    instructions: str = Field(min_length=1, max_length=20_000)
+    instructions: str | None = Field(default=None, min_length=1, max_length=20_000)
     knowledge: str | None = Field(default=None, max_length=20_000)
     model_profile_id: UUID | None = Field(
         default=None, description="The model it runs on; the organization's oldest if omitted"
@@ -450,6 +452,16 @@ class ReviewRequest(BaseSchema):
     """Scores of one dataset to put in the review queue."""
 
     score_ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
+class JudgeTemplate(BaseSchema):
+    """The prompt a dataset's own judge starts from: the default judge's, with the dataset.
+
+    The rules of grading are the default judge's, so a judge made for a dataset
+    grades by the same ones; only what the dataset is about is added.
+    """
+
+    instructions: str
 
 
 class RescoreRequest(BaseSchema):

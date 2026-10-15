@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useCreateJudge,
   useJudgeAgreement,
+  useJudgeTemplate,
   useNoteToCriterion,
   useReviewQueue,
   useScoreRun,
@@ -225,6 +226,16 @@ describe("useNoteToCriterion", () => {
       description: "Must cite the policy",
       required: true,
     });
+  });
+});
+
+describe("useJudgeTemplate", () => {
+  it("reads the prompt a dataset's judge starts from", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ instructions: "Grade by the rules." });
+    const { result } = renderHook(() => useJudgeTemplate("d1"), { wrapper });
+
+    await waitFor(() => expect(result.current.instructions).toBe("Grade by the rules."));
+    expect(apiClient.get).toHaveBeenCalledWith("/datasets/d1/judge-template");
   });
 });
 
