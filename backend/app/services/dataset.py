@@ -651,6 +651,19 @@ class DatasetService:
             )
         return previous, found[0], found[1]
 
+    async def read_case(
+        self, ctx: AuthContext, dataset_id: UUID, case_id: UUID, *, version: int | None = None
+    ) -> DatasetCaseRead:
+        """One case as a version holds it - the newest unless one is named. Needs
+        `datasets:view` on the dataset.
+
+        Raises:
+            NotFoundError: The dataset is not one the caller may read, or the
+                version does not hold the case.
+        """
+        dataset = await self.get(ctx, dataset_id)
+        return _case_read(await self.case_at(ctx, dataset, case_id, version=version))
+
     async def case_at(
         self, ctx: AuthContext, dataset: Dataset, case_id: UUID, *, version: int | None = None
     ) -> DatasetCase:

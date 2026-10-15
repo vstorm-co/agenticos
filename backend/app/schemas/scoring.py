@@ -38,6 +38,7 @@ ScorerStatus = Literal["pass", "fail", "skipped", "error"]
 ReviewState = Literal["none", "pending", "done"]
 ReviewSelect = Literal["none", "failed", "all"]
 ToolOrderModeLiteral = Literal["any", "in_order", "exact"]
+ScoreOutcome = Literal["failed", "not_graded", "passed"]
 
 
 class TextCheck(BaseSchema):
@@ -407,6 +408,13 @@ class ReviewRequested(BaseSchema):
 
     queued: int
     already: int
+
+
+class ReviewWithdrawn(BaseSchema):
+    """What taking scores out of the queue changed: `removed` were waiting, `kept` were not."""
+
+    removed: int
+    kept: int
 
 
 class PendingDataset(BaseSchema):

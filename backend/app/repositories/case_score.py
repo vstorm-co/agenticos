@@ -13,9 +13,11 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.agent_run import AgentRun
 from app.db.models.case_score import CaseScore
-from app.db.models.dataset import Dataset
+from app.db.models.dataset import Dataset, DatasetCase
 from app.repositories._visibility import visible_to_caller
+from app.schemas.scoring import ScoreOutcome
 
 
 async def create(
@@ -105,6 +107,28 @@ async def queue_for_review(
     return result.rowcount or 0
 
 
+async def dequeue(
+    db: AsyncSession, score_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
+) -> int:
+    """Take the waiting scores out of the queue, undecided; how many that was."""
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            sql_update(CaseScore)
+            .where(
+                CaseScore.id.in_(score_ids),
+                CaseScore.organization_id == organization_id,
+                CaseScore.dataset_id == dataset_id,
+                CaseScore.review_state == "pending",
+            )
+            .values(review_state="none")
+            .execution_options(synchronize_session=False)
+        ),
+    )
+    await db.flush()
+    return result.rowcount or 0
+
+
 async def list_for_dataset(
     db: AsyncSession,
     *,
@@ -112,15 +136,38 @@ async def list_for_dataset(
     dataset_id: UUID,
     case_id: UUID | None = None,
     review_state: str | None = None,
+    outcome: ScoreOutcome | None = None,
+    agent_id: UUID | None = None,
+    eval_run_id: UUID | None = None,
+    tag: str | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[CaseScore], int]:
-    """A dataset's scores, newest first, narrowed to one case or one review state."""
+    """A dataset's scores, newest first, narrowed by case, review state, outcome, the
+    agent that answered, the eval run that scored them, or a tag of the scored case.
+
+    `outcome` reads the person's decision where there is one, the scorers' otherwise.
+    """
     where = [CaseScore.organization_id == organization_id, CaseScore.dataset_id == dataset_id]
     if case_id is not None:
         where.append(CaseScore.case_id == case_id)
     if review_state is not None:
         where.append(CaseScore.review_state == review_state)
+    if outcome is not None:
+        settled = func.coalesce(CaseScore.human_passed, CaseScore.passed)
+        where.append(
+            settled.is_(None) if outcome == "not_graded" else settled.is_(outcome == "passed")
+        )
+    if agent_id is not None:
+        where.append(CaseScore.run_id.in_(select(AgentRun.id).where(AgentRun.agent_id == agent_id)))
+    if eval_run_id is not None:
+        where.append(CaseScore.eval_run_id == eval_run_id)
+    if tag is not None:
+        where.append(
+            CaseScore.case_revision_id.in_(
+                select(DatasetCase.id).where(DatasetCase.tags.contains([tag]))
+            )
+        )
     total = await db.scalar(select(func.count(CaseScore.id)).where(*where)) or 0
     result = await db.execute(
         select(CaseScore)

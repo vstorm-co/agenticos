@@ -64,6 +64,8 @@ from app.schemas.scoring import (
     ReviewQueue,
     ReviewRequest,
     ReviewRequested,
+    ReviewWithdrawn,
+    ScoreOutcome,
     ScorerResult,
 )
 from app.services.access import DATASET, visible_resource_ids
@@ -504,10 +506,15 @@ class ScoringService:
         *,
         case_id: UUID | None = None,
         pending: bool = False,
+        outcome: ScoreOutcome | None = None,
+        agent_id: UUID | None = None,
+        eval_run_id: UUID | None = None,
+        tag: str | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> CaseScoreList:
-        """A dataset's scores, newest first. Needs `datasets:view` on it."""
+        """A dataset's scores, newest first, narrowed as the filters say. Needs
+        `datasets:view` on it."""
         await self.datasets.get(ctx, dataset_id)
         items, total = await case_score_repo.list_for_dataset(
             self.db,
@@ -515,6 +522,10 @@ class ScoringService:
             dataset_id=dataset_id,
             case_id=case_id,
             review_state="pending" if pending else None,
+            outcome=outcome,
+            agent_id=agent_id,
+            eval_run_id=eval_run_id,
+            tag=tag,
             skip=skip,
             limit=limit,
         )
@@ -648,6 +659,34 @@ class ScoringService:
             NotFoundError: The dataset is not one the caller may edit, or it has
                 no score with one of the ids.
         """
+        wanted = await self._scores_of(ctx, dataset_id, data)
+        queued = await case_score_repo.queue_for_review(
+            self.db, wanted, organization_id=ctx.organization_id, dataset_id=dataset_id
+        )
+        return ReviewRequested(queued=queued, already=len(wanted) - queued)
+
+    async def withdraw_reviews(
+        self, ctx: AuthContext, dataset_id: UUID, data: ReviewRequest
+    ) -> ReviewWithdrawn:
+        """Take several of a dataset's scores out of the review queue, undecided.
+
+        Needs `datasets:edit`. All of them or none, as when sending them; a score
+        somebody already decided keeps its decision, and one not waiting is left
+        as it is.
+
+        Raises:
+            NotFoundError: The dataset is not one the caller may edit, or it has
+                no score with one of the ids.
+        """
+        wanted = await self._scores_of(ctx, dataset_id, data)
+        removed = await case_score_repo.dequeue(
+            self.db, wanted, organization_id=ctx.organization_id, dataset_id=dataset_id
+        )
+        return ReviewWithdrawn(removed=removed, kept=len(wanted) - removed)
+
+    async def _scores_of(
+        self, ctx: AuthContext, dataset_id: UUID, data: ReviewRequest
+    ) -> list[UUID]:
         await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         wanted = list(dict.fromkeys(data.score_ids))
         found = await case_score_repo.existing_ids(
@@ -659,7 +698,4 @@ class ScoringService:
                 message="This dataset has no score with some of these ids",
                 details={"dataset_id": dataset_id, "missing": missing},
             )
-        queued = await case_score_repo.queue_for_review(
-            self.db, wanted, organization_id=ctx.organization_id, dataset_id=dataset_id
-        )
-        return ReviewRequested(queued=queued, already=len(wanted) - queued)
+        return wanted

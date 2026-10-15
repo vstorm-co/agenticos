@@ -116,6 +116,7 @@ class TestRunning:
             RunSurface.EMBED,
             RunSurface.SLACK,
             RunSurface.TELEGRAM,
+            RunSurface.MATTERMOST,
             RunSurface.SCHEDULE,
         ],
     )
