@@ -82,6 +82,12 @@ export function EstimateSummary({
   const t = useTranslations("evals.estimate");
   const locale = useLocale();
   const judge = judgeName ?? t("judge");
+  // A judge grading on the model it grades favours answers like its own.
+  const judgedOwnModel = estimate.arms.find(
+    (arm) =>
+      estimate.judge_model_profile_id !== null &&
+      arm.model_profile_id === estimate.judge_model_profile_id,
+  );
   return (
     <div className="bg-muted/40 space-y-3 rounded-lg border p-4 text-sm">
       <ul className="space-y-1">
@@ -118,6 +124,11 @@ export function EstimateSummary({
           b: (chunk) => <strong>{chunk}</strong>,
         })}
       </p>
+      {judgedOwnModel && (
+        <p className="text-warning text-xs">
+          {t("judgeSameModel", { model: judgedOwnModel.model_label })}
+        </p>
+      )}
       {!estimate.affordable && <p className="text-destructive text-xs">{t("unaffordable")}</p>}
     </div>
   );

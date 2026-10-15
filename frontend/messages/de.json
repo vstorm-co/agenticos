@@ -6034,7 +6034,8 @@
         "reference": "die Referenzantwort",
         "judge": "{name}",
         "judgeRubric": "{name} nach {criteria}"
-      }
+      },
+      "judgeSameModel": "Der Judge bewertet auf {model}, dem getesteten Modell, und bevorzugt womöglich Antworten wie seine eigenen. Gib dem Judge auf seiner Seite ein anderes Modell."
     },
     "runFor": "Für {amount} starten",
     "runTitle": "{dataset} v{version} · {candidate}",
@@ -6260,7 +6261,8 @@
     },
     "review": {
       "send": "{count, plural, =1 {Den nicht bestandenen Fall zur Prüfung senden} other {# nicht bestandene Fälle zur Prüfung senden}}",
-      "sent": "{queued, plural, =0 {Nichts Neues zur Prüfung gesendet} =1 {1 Fall zur Prüfung gesendet} other {# Fälle zur Prüfung gesendet}}{already, plural, =0 {} other {; # waren schon dort oder entschieden}}."
+      "sent": "{queued, plural, =0 {Nichts Neues zur Prüfung gesendet} =1 {1 Fall zur Prüfung gesendet} other {# Fälle zur Prüfung gesendet}}{already, plural, =0 {} other {; # waren schon dort oder entschieden}}.",
+      "routed": "Dieser Run hat {count, plural, =1 {1 Antwort} other {# Antworten}} selbst zum Review geschickt: die bestätigten Regressionen und die Antworten, die der Judge nicht bewerten konnte."
     },
     "draftChanged": "Der Entwurf hat sich nach diesem Run geändert.",
     "ungraded": {

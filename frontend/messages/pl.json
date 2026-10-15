@@ -3797,7 +3797,8 @@
         "reference": "odpowiedź wzorcowa",
         "judge": "{name}",
         "judgeRubric": "{name} według kryteriów: {criteria}"
-      }
+      },
+      "judgeSameModel": "Sędzia ocenia na {model}, tym samym modelu, który jest testowany, i może faworyzować odpowiedzi podobne do swoich. Daj sędziemu inny model na jego stronie."
     },
     "runFor": "Uruchom za {amount}",
     "runTitle": "{dataset} v{version} · {candidate}",
@@ -4023,7 +4024,8 @@
     },
     "review": {
       "send": "{count, plural, one {Wyślij niezaliczony case do Review} few {Wyślij # niezaliczone case'y do Review} many {Wyślij # niezaliczonych case'ów do Review} other {Wyślij # niezaliczonego case'a do Review}}",
-      "sent": "{queued, plural, =0 {Nic nowego nie trafiło do Review} one {# case wysłany do Review} few {# case'y wysłane do Review} many {# case'ów wysłanych do Review} other {# case'a wysłanego do Review}}{already, plural, =0 {} other {; # już tam było lub ma decyzję}}."
+      "sent": "{queued, plural, =0 {Nic nowego nie trafiło do Review} one {# case wysłany do Review} few {# case'y wysłane do Review} many {# case'ów wysłanych do Review} other {# case'a wysłanego do Review}}{already, plural, =0 {} other {; # już tam było lub ma decyzję}}.",
+      "routed": "Ten run sam wysłał do review {count, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}: potwierdzone regresje i odpowiedzi, których sędzia nie ocenił."
     },
     "draftChanged": "Draft zmienił się po tym runie.",
     "ungraded": {

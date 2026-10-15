@@ -14,6 +14,7 @@ import { EvalStatusBadge } from "./eval-status-badge";
 import { usd } from "./format";
 import { sideName } from "./names";
 import { SendToReviewButton } from "./send-to-review-button";
+import { JudgeNotes } from "./judge-notes";
 import { UngradedNote } from "./ungraded-note";
 import { VerdictBadge, VerdictHeadline } from "./verdict-headline";
 
@@ -110,6 +111,7 @@ export function VerdictHeader({
         </p>
         {run.error && <p className="text-destructive text-sm">{run.error}</p>}
         {!live && <UngradedNote run={run} />}
+        {!live && <JudgeNotes run={run} />}
 
         {!live && candidate && (
           <div className="flex flex-wrap gap-2">

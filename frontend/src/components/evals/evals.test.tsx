@@ -305,6 +305,23 @@ describe("EvalsPanel", () => {
 });
 
 describe("EstimateSummary", () => {
+  it("warns when the judge would grade on the model it grades", () => {
+    const { unmount } = render(
+      <EstimateSummary agentId="agent-1" judgeName={null} estimate={ESTIMATE} scoring={null} />,
+    );
+    expect(screen.queryByText(/the model being tested/)).toBeNull();
+    unmount();
+    render(
+      <EstimateSummary
+        agentId="agent-1"
+        judgeName={null}
+        estimate={{ ...ESTIMATE, judge_model_profile_id: "m1" }}
+        scoring={null}
+      />,
+    );
+    expect(screen.getByText(/The judge grades on gpt-4.1, the model being tested/)).toBeVisible();
+  });
+
   it("shows each arm, the judge, the total and what the budgets keep after it", () => {
     render(
       <EstimateSummary

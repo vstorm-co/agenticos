@@ -245,6 +245,20 @@ describe("EvalRunView", () => {
     expect(screen.getByText("Better overall").className).not.toContain("success");
   });
 
+  it("says what it sent to review itself, and when its judge graded its own model", () => {
+    state.run = {
+      ...state.run,
+      run: evalRun({ routed_to_review: 3, judge_model_profile_id: "m1" }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(
+      screen.getByText(
+        "This run sent 3 answers to review itself: the regressions it confirmed and the answers the judge could not grade.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText(/The judge graded on gpt-4.1, the model that answered/)).toBeVisible();
+  });
+
   it("says no change held when nothing reproduced", () => {
     state.comparison = comparison({
       verdict: "no_difference",

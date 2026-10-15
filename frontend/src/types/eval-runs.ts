@@ -56,6 +56,8 @@ export interface EvalRunEstimate {
   cases: number;
   arms: ArmEstimate[];
   judge_usd: string;
+  /** The model the judge would grade on; null when no judge grades the run. */
+  judge_model_profile_id: string | null;
   total_usd: string;
   rerun_ceiling_usd: string;
   agent_remaining_usd: string | null;
@@ -143,6 +145,10 @@ export interface EvalRun {
   first_total: number;
   /** The verdict once the run has ended; null while it answers. */
   outcome: EvalOutcome | null;
+  /** How many of its scores the run sent to review itself - confirmed regressions and ungraded answers. */
+  routed_to_review: number;
+  /** The model the judge graded this run on; null when none did. */
+  judge_model_profile_id: string | null;
   /** This run's scores no scorer reached a verdict on and no person decided. */
   ungraded_score_ids: string[];
   /** On the single-run read of a run of the draft: whether the draft changed since. */
