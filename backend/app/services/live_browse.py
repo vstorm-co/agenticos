@@ -225,8 +225,13 @@ class _Access(BaseModel):
     user_id: str
 
 
-async def access_for(meta: BrowseMeta, auth_token: str) -> _Access | None:
+async def access_for(meta: BrowseMeta, auth_token: str, *, recheck: bool = False) -> _Access | None:
     """What the holder of `auth_token` may do with this browse, or `None` for nothing.
+
+    `recheck` is the re-evaluation on an already-open socket: the session token
+    may have aged past its lifetime meanwhile (see `authenticate_socket_token`),
+    while a revoked session or key, a removed membership or a withdrawn grant
+    still refuses.
 
     Watching takes being the person the run acts for, editing the agent, or viewing
     runs; driving takes one of the first two, because what is done in the browser
@@ -254,7 +259,7 @@ async def access_for(meta: BrowseMeta, auth_token: str) -> _Access | None:
                     name=caller.user.full_name or caller.user.email,
                     user_id=str(caller.user.id),
                 )
-            user = await authenticate_socket_token(db, auth_token, allow_expired=False)
+            user = await authenticate_socket_token(db, auth_token, allow_expired=recheck)
         except AuthenticationError:
             return None
         membership = await member_repo.get(
@@ -328,6 +333,10 @@ async def watch(run_id: str, call_id: str) -> AsyncGenerator[BrowserEvent]:
                 yield event
 
 
+REVALIDATE_SECONDS = 30.0
+"""How often an open live view asks again whether its viewer may still watch."""
+
+
 async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id: str) -> None:
     """Serve one viewer of one browse until either side is done.
 
@@ -362,11 +371,29 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
         )
     )
 
+    # What the viewer may do now, not what they could at the handshake: a key
+    # revoked, a membership removed or an edit grant withdrawn while the socket is
+    # open ends what it may do. Asked again before every command and every
+    # `REVALIDATE_SECONDS` while only frames flow.
+    current = access
+    lost = False
+
+    async def still_allowed() -> bool:
+        nonlocal current, lost
+        fresh = await access_for(meta, auth_token, recheck=True)
+        if fresh is None:
+            lost = True
+            return False
+        current = fresh
+        return True
+
     async def commands() -> None:
         try:
             while True:
                 raw = await websocket.receive_text()
-                if not access.control:
+                if not await still_allowed():
+                    return
+                if not current.control:
                     continue
                 try:
                     command = BrowserCommand.model_validate_json(raw)
@@ -375,7 +402,7 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
                 await send(
                     run_id,
                     call_id,
-                    command.model_copy(update={"by": access.name, "by_user_id": access.user_id}),
+                    command.model_copy(update={"by": current.name, "by_user_id": current.user_id}),
                 )
         except WebSocketDisconnect:
             return
@@ -391,5 +418,15 @@ async def stream(websocket: WebSocket, *, auth_token: str, run_id: str, call_id:
             await commands()
             tasks.cancel_scope.cancel()
 
+        async def revalidate() -> None:
+            while True:
+                await anyio.sleep(REVALIDATE_SECONDS)
+                if not await still_allowed():
+                    break
+            tasks.cancel_scope.cancel()
+
         tasks.start_soon(forward)
         tasks.start_soon(reader)
+        tasks.start_soon(revalidate)
+    if lost:
+        await websocket.close(code=_FORBIDDEN_CLOSE_CODE, reason="Not allowed to watch")

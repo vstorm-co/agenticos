@@ -390,6 +390,46 @@ class TestStreaming:
         assert socket.sent[0]["can_control"] is True
         assert socket.sent[0]["frame"] is None
 
+    @pytest.mark.security
+    async def test_access_lost_while_open_stops_commands_and_closes_the_socket(
+        self, store: _Store, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A key revoked or a grant withdrawn mid-browse: the next command is asked
+        about again, refused, and the viewer is let go."""
+        await live_browse.open_view(RUN, CALL, _meta())
+        store.queued_messages = [_step(1).model_dump_json()]
+        allowed = live_browse._Access(control=True, own=False, name="Ada", user_id="user-ada")
+        access = AsyncMock(side_effect=[allowed, None])
+        monkeypatch.setattr(live_browse, "access_for", access)
+        socket = _Socket(json.dumps({"type": "take_over"}))
+
+        await live_browse.stream(socket, auth_token="t", run_id=RUN, call_id=CALL)
+
+        assert store.lists.get(_key("control"), []) == []
+        assert socket.closed == (4403, "Not allowed to watch")
+        # Asked again as a re-check: an aged session token does not end the view.
+        assert access.await_args_list[1].kwargs == {"recheck": True}
+
+    @pytest.mark.security
+    async def test_a_viewer_who_only_watches_is_asked_again_while_frames_flow(
+        self, store: _Store, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        class _Watching(_Socket):
+            async def receive_text(self) -> str:
+                await anyio.sleep_forever()
+                raise AssertionError  # pragma: no cover - cancelled above
+
+        await live_browse.open_view(RUN, CALL, _meta())
+        allowed = live_browse._Access(control=False, own=False, name="Ada", user_id="user-ada")
+        monkeypatch.setattr(live_browse, "access_for", AsyncMock(side_effect=[allowed, None]))
+        monkeypatch.setattr(live_browse, "REVALIDATE_SECONDS", 0)
+        socket = _Watching()
+
+        with anyio.fail_after(5):
+            await live_browse.stream(socket, auth_token="t", run_id=RUN, call_id=CALL)
+
+        assert socket.closed == (4403, "Not allowed to watch")
+
     @pytest.mark.parametrize(
         ("own", "remembers", "can"),
         [(True, True, True), (True, False, False), (False, True, False)],
