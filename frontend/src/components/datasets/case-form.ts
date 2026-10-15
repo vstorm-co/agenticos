@@ -82,7 +82,7 @@ export const EMPTY_DRAFT: CaseDraft = {
   checks: [],
 };
 
-function checkDraft(check: CaseCheck): CheckDraft {
+export function checkDraft(check: CaseCheck): CheckDraft {
   const { type, ...given } = check;
   if (!isKnownCheck(type)) return { type, value: "", rest: given };
   const { key, as } = CHECK_KINDS[type];
@@ -158,6 +158,21 @@ function checkOf(check: CheckDraft): CaseCheck | DraftProblem["key"] {
   return { type: check.type, ...check.rest, [key]: check.value };
 }
 
+/** Checks as the API takes them, and why any of them cannot be read. */
+export function checksOf(drafts: CheckDraft[]): {
+  checks: CaseCheck[];
+  problems: DraftProblem["key"][];
+} {
+  const checks: CaseCheck[] = [];
+  const problems: DraftProblem["key"][] = [];
+  for (const draft of drafts) {
+    const read = checkOf(draft);
+    if (typeof read === "string") problems.push(read);
+    else checks.push(read);
+  }
+  return { checks, problems };
+}
+
 /**
  * The draft as the content the API takes, or the fields it cannot be read on.
  *
@@ -176,12 +191,8 @@ export function contentOf(
     if (args === null) problems.push({ field: "expected_tool_calls", key: "argsNotObject" });
     else calls.push({ tool: call.tool.trim(), args });
   }
-  const checks: CaseCheck[] = [];
-  for (const check of draft.checks) {
-    const read = checkOf(check);
-    if (typeof read === "string") problems.push({ field: "checks", key: read });
-    else checks.push(read);
-  }
+  const read = checksOf(draft.checks);
+  problems.push(...read.problems.map((key) => ({ field: "checks" as const, key })));
   if (problems.length > 0) return { content: null, problems };
   const optional = (text: string) => (text.trim() === "" ? null : text);
   return {
@@ -198,7 +209,7 @@ export function contentOf(
       history: draft.history.filter((turn) => turn.content.trim() !== ""),
       expected_tool_calls: calls,
       order_mode: draft.order_mode,
-      checks,
+      checks: read.checks,
     },
   };
 }

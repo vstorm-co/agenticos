@@ -327,31 +327,30 @@ describe("GradingPanel", () => {
     expect(saved().review.select).toBe("failed");
   });
 
-  it.each([["not json"], ['{"type": "contains"}']])(
-    "refuses default checks that are not a JSON list: %s",
-    async (written) => {
-      panel();
-      const box = screen.getByRole("textbox", { name: "Checks every case gets" });
-
-      await userEvent.click(box);
-      await userEvent.paste(written);
-      await userEvent.click(saveIn("When a case passes"));
-
-      expect(await screen.findByText("Write the checks as a JSON list")).toBeInTheDocument();
-      expect(state.save).not.toHaveBeenCalled();
-    },
-  );
-
-  it("saves default checks written as a JSON list", async () => {
+  it("refuses a default check that says nothing", async () => {
     panel();
-    const box = screen.getByRole("textbox", { name: "Checks every case gets" });
 
-    await userEvent.click(box);
-    await userEvent.paste('[{"type": "contains", "value": "days"}]');
+    await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
+    await userEvent.click(saveIn("When a case passes"));
+
+    expect(
+      await screen.findByText("Say what each check checks, or remove it."),
+    ).toBeInTheDocument();
+    expect(state.save).not.toHaveBeenCalled();
+  });
+
+  it("saves the default checks built row by row", async () => {
+    panel(JUDGED);
+
+    await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
+    await userEvent.type(screen.getByLabelText("Check 2: what it checks"), "days");
     await userEvent.click(saveIn("When a case passes"));
 
     await waitFor(() => expect(state.save).toHaveBeenCalled());
-    expect(saved().checks.defaults).toEqual([{ type: "contains", value: "days" }]);
+    expect(saved().checks.defaults).toEqual([
+      { type: "max_cost_usd", value: 0.05 },
+      { type: "contains", value: "days" },
+    ]);
   });
 
   it("says why the server refused", async () => {

@@ -3355,7 +3355,6 @@
       },
       "checksHint": "Sprawdzenia każdego przypadku oraz poniższe domyślne dla wszystkich: contains, not_contains, equals, regex, json_schema, max_cost_usd, max_latency_ms i kryteria dla sędziego.",
       "defaults": "Sprawdzenia dla każdego przypadku",
-      "defaultsNotJson": "Zapisz sprawdzenia jako listę JSON",
       "trajectoryHint": "Narzędzia wywołane przez agenta w porównaniu z oczekiwanymi wywołaniami przypadku, w trybie kolejności przypadku.",
       "judgeHint": "Sędzia ocenia każdą odpowiedź według poniższych kryteriów. Każda ocena to run w Activity.",
       "judgeModel": "Model sędziego",

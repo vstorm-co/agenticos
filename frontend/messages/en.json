@@ -5735,7 +5735,6 @@
       },
       "checksHint": "Each case's own checks, plus the defaults below for every case: contains, not_contains, equals, regex, json_schema, max_cost_usd, max_latency_ms and judge criteria.",
       "defaults": "Checks every case gets",
-      "defaultsNotJson": "Write the checks as a JSON list",
       "trajectoryHint": "The tools the agent called against the case's expected calls, in the case's order mode.",
       "judgeHint": "The judge grades every answer on the criteria below. Each grade is a run in Activity.",
       "judgeModel": "Judge's model",

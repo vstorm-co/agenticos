@@ -13,31 +13,27 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Textarea,
 } from "@/components/ui";
 import { useAiAssistance } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSetScoring } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
 import { scoringProblem } from "@/lib/scoring";
-import type { CaseCheck, Dataset } from "@/types/datasets";
+import type { Dataset } from "@/types/datasets";
 import { Perm } from "@/types/permissions";
 import type { DatasetScoring, ReviewSelect } from "@/types/scoring";
 import { AiAssistanceNotice } from "./ai-assistance-notice";
+import { CaseChecksEditor } from "./case-checks-editor";
+import { checkDraft, checksOf, type CheckDraft } from "./case-form";
 import { CreateJudgeDialog } from "./create-judge-dialog";
 import { GradingCard } from "./grading-card";
 import { JudgeSettings } from "./judge-settings";
 import { ScorerRow } from "./scorer-row";
 
-/** The default checks' shape, shown in the empty box. Code, not copy: it is what is typed. */
-const DEFAULTS_EXAMPLE = '[{"type": "max_cost_usd", "value": 0.05}]';
-
 type Part = keyof DatasetScoring;
 const PASSES: Part[] = ["checks", "trajectory"];
 const JUDGING: Part[] = ["judge", "reference"];
 const REVIEW: Part[] = ["review"];
-
-const shown = (checks: CaseCheck[]) => (checks.length ? JSON.stringify(checks, null, 2) : "");
 
 /** The draft's `parts` over what is stored: what saving one card sends. */
 function merged(stored: DatasetScoring, draft: DatasetScoring, parts: Part[]): DatasetScoring {
@@ -54,13 +50,14 @@ function merged(stored: DatasetScoring, draft: DatasetScoring, parts: Part[]): D
  */
 export function GradingPanel({ dataset }: { dataset: Dataset }) {
   const t = useTranslations("datasets.scoring");
+  const tDatasets = useTranslations("datasets");
   const tErrors = useTranslations("errors");
   const save = useSetScoring(dataset.id);
   const { can } = usePermissions();
   const { enabled: aiEnabled } = useAiAssistance();
   const stored = dataset.scoring;
   const [draft, setDraft] = useState<DatasetScoring>(stored);
-  const [defaults, setDefaults] = useState(shown(stored.checks.defaults));
+  const [defaults, setDefaults] = useState<CheckDraft[]>(stored.checks.defaults.map(checkDraft));
   const [defaultsProblem, setDefaultsProblem] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const canEdit = dataset.can_edit;
@@ -72,25 +69,21 @@ export function GradingPanel({ dataset }: { dataset: Dataset }) {
     setDraft((current) => ({ ...current, [key]: value }));
   const dirty = (parts: Part[]) =>
     parts.some((part) => JSON.stringify(draft[part]) !== JSON.stringify(stored[part])) ||
-    (parts.includes("checks") && defaults !== shown(stored.checks.defaults));
+    (parts.includes("checks") &&
+      JSON.stringify(defaults) !== JSON.stringify(stored.checks.defaults.map(checkDraft)));
   const unusable = (parts: Part[]) => scoringProblem(merged(stored, draft, parts));
   const problem = scoringProblem(draft);
 
   async function submit(parts: Part[]) {
     let next = merged(stored, draft, parts);
     if (parts.includes("checks")) {
-      let parsed: unknown;
-      try {
-        parsed = defaults.trim() === "" ? [] : JSON.parse(defaults);
-      } catch {
-        parsed = null;
-      }
-      if (!Array.isArray(parsed)) {
-        setDefaultsProblem(t("defaultsNotJson"));
+      const read = checksOf(defaults);
+      if (read.problems.length > 0) {
+        setDefaultsProblem(tDatasets(read.problems[0]!));
         return;
       }
       setDefaultsProblem(null);
-      next = { ...next, checks: { ...next.checks, defaults: parsed as CaseCheck[] } };
+      next = { ...next, checks: { ...next.checks, defaults: read.checks } };
     }
     try {
       await save.mutateAsync(next);
@@ -146,21 +139,11 @@ export function GradingPanel({ dataset }: { dataset: Dataset }) {
           onChange={(next) => set("checks", { ...draft.checks, ...next })}
           disabled={disabled}
         >
-          <FormField
-            htmlFor="scoring-defaults"
-            label={t("defaults")}
-            error={defaultsProblem ?? undefined}
-          >
-            <Textarea
-              id="scoring-defaults"
-              value={defaults}
-              onChange={(event) => setDefaults(event.target.value)}
-              placeholder={DEFAULTS_EXAMPLE}
-              className="font-mono text-xs"
-              rows={3}
-              disabled={disabled}
-            />
-          </FormField>
+          <fieldset className="space-y-2" disabled={disabled}>
+            <legend className="text-sm font-medium">{t("defaults")}</legend>
+            <CaseChecksEditor checks={defaults} onChange={setDefaults} />
+            {defaultsProblem && <p className="text-destructive text-xs">{defaultsProblem}</p>}
+          </fieldset>
         </ScorerRow>
         <ScorerRow
           label={t("scorer.trajectory")}

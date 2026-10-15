@@ -5593,7 +5593,6 @@
       },
       "checksHint": "Die Prüfungen jedes Falls und die folgenden Standards für alle Fälle: contains, not_contains, equals, regex, json_schema, max_cost_usd, max_latency_ms und Kriterien für den Bewerter.",
       "defaults": "Prüfungen für jeden Fall",
-      "defaultsNotJson": "Schreiben Sie die Prüfungen als JSON-Liste",
       "trajectoryHint": "Die Tools, die der Agent aufgerufen hat, gegen die erwarteten Aufrufe des Falls, im Reihenfolgemodus des Falls.",
       "judgeHint": "Der Bewerter benotet jede Antwort nach den folgenden Kriterien. Jede Benotung ist ein Run in Activity.",
       "judgeModel": "Modell des Bewerters",
