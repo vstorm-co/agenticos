@@ -141,6 +141,16 @@ export function useDataset(datasetId: string) {
   return { dataset: query.data, isLoading: query.isLoading, error: query.error, update, remove };
 }
 
+/** One case as the newest version holds it, for a link that opens it; idle without an id. */
+export function useDatasetCase(datasetId: string, caseId: string | null) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.datasets.case(datasetId, caseId ?? ""),
+    queryFn: () => apiClient.get<DatasetCase>(`/datasets/${datasetId}/cases/${caseId}`),
+    enabled: caseId !== null,
+  });
+  return { kase: data, isLoading: caseId !== null && isLoading, error };
+}
+
 /** Every version of a dataset, newest first. */
 export function useDatasetVersions(datasetId: string) {
   const { data, isLoading } = useQuery({

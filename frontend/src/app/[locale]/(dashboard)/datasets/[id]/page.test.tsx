@@ -11,13 +11,20 @@ const state = vi.hoisted(() => ({
   skips: [] as number[],
   canEdit: true,
   tab: null as string | null,
+  linked: null as string | null,
+  linkedCase: undefined as unknown,
+  linkedError: null as Error | null,
   push: vi.fn(),
   remove: vi.fn(),
 }));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
   useRouter: () => ({ push: state.push }),
-  useSearchParams: () => new URLSearchParams(state.tab === null ? "" : `tab=${state.tab}`),
+  useSearchParams: () =>
+    new URLSearchParams({
+      ...(state.tab === null ? {} : { tab: state.tab }),
+      ...(state.linked === null ? {} : { case: state.linked }),
+    }),
   usePathname: () => "/datasets/d1",
 }));
 vi.mock("@/hooks/use-datasets", () => ({
@@ -36,6 +43,7 @@ vi.mock("@/hooks/use-datasets", () => ({
     remove: { mutateAsync: state.remove, isPending: false },
   }),
   useDatasetVersions: () => ({ versions: [], isLoading: false }),
+  useDatasetCase: () => ({ kase: state.linkedCase, isLoading: false, error: state.linkedError }),
   useDatasetCases: (_id: string, { skip }: { skip: number }) => {
     state.skips.push(skip);
     return {
@@ -101,6 +109,9 @@ describe("the dataset page", () => {
     state.skips = [];
     state.canEdit = true;
     state.tab = null;
+    state.linked = null;
+    state.linkedCase = undefined;
+    state.linkedError = null;
     state.push.mockReset();
     state.remove.mockReset();
   });
@@ -159,6 +170,27 @@ describe("the dataset page", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(state.push).toHaveBeenCalledWith("/datasets"));
     expect(state.remove).toHaveBeenCalled();
+  });
+
+  it("opens the case a link names, once, and edits it from there", async () => {
+    state.linked = "c1";
+    state.linkedCase = CASE;
+    await mount();
+
+    const dialog = screen.getByRole("dialog", { name: "Case" });
+    expect(dialog).toHaveTextContent("How long is the return window?");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("button", { name: "Save case" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("says when the case a link names is gone", async () => {
+    state.linked = "c9";
+    state.linkedError = new Error("Not found");
+    await mount();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("not in the newest version");
   });
 
   it("holds a place for the dataset's eval runs", async () => {

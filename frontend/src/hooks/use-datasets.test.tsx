@@ -7,6 +7,7 @@ import {
   exportDataset,
   useAddToDataset,
   useDataset,
+  useDatasetCase,
   useDatasetCases,
   useDatasets,
   useDatasetVersions,
@@ -133,6 +134,18 @@ describe("useDataset and its versions", () => {
     vi.mocked(apiClient.delete).mockRejectedValueOnce(new Error("nope"));
     await expect(result.current.remove.mutateAsync()).rejects.toThrow();
     await waitFor(() => expect(toastError).toHaveBeenCalled());
+  });
+
+  it("reads one case for a link, and asks nothing without an id", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ case_id: "c1", input: "q" });
+    const { result } = renderHook(() => useDatasetCase("d1", "c1"), { wrapper });
+    await waitFor(() => expect(result.current.kase?.input).toBe("q"));
+    expect(apiClient.get).toHaveBeenCalledWith("/datasets/d1/cases/c1");
+
+    vi.mocked(apiClient.get).mockClear();
+    const idle = renderHook(() => useDatasetCase("d1", null), { wrapper });
+    expect(idle.result.current.isLoading).toBe(false);
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 
   it("lists the versions newest first, as the server ordered them", async () => {

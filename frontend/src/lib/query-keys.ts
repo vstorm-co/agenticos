@@ -297,6 +297,7 @@ export const qk = {
     versions: (id: string) => ["datasets", id, "versions"] as const,
     cases: (id: string, query: { version: number | null; skip: number; limit: number }) =>
       ["datasets", id, "cases", query] as const,
+    case: (id: string, caseId: string) => ["datasets", id, "case", caseId] as const,
     allScores: (id: string) => ["datasets", id, "scores"] as const,
     scores: (
       id: string,
