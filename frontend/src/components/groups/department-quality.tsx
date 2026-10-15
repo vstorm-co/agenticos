@@ -7,11 +7,12 @@ import { useFormatter, useTranslations } from "next-intl";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Figure, ListCard } from "@/components/ui";
-import { useAgents, useGroupQuality } from "@/hooks";
+import { useAgents, useGroupQuality, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { Agent } from "@/types/agents";
 import type { Group, GroupDownRatedAnswer } from "@/types/groups";
+import { Perm } from "@/types/permissions";
 
 /**
  * How well agents answer a department's people over the last 30 days (#2101):
@@ -98,6 +99,9 @@ export function DepartmentQuality({ orgId, group }: { orgId: string; group: Grou
 function DownRated({ answer, agent }: { answer: GroupDownRatedAnswer; agent: Agent | undefined }) {
   const t = useTranslations("groups.quality");
   const format = useFormatter();
+  // A lead reads the department's ratings without `runs:view`, and the run page
+  // asks for it - so the link is offered only to whoever it opens for.
+  const { can } = usePermissions();
   return (
     <li className="flex items-start gap-2.5 py-2.5 first:pt-0 last:pb-0">
       {answer.agent_id ? (
@@ -120,7 +124,7 @@ function DownRated({ answer, agent }: { answer: GroupDownRatedAnswer; agent: Age
           })}
         </p>
       </div>
-      {answer.run_id && (
+      {answer.run_id && can(Perm.runsView) && (
         <Link
           href={`${ROUTES.RUNS}?run=${answer.run_id}`}
           className="text-muted-foreground hover:text-foreground shrink-0 text-xs underline-offset-2 hover:underline"

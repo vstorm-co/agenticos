@@ -8,12 +8,14 @@ const hooks = vi.hoisted(() => ({
   quality: undefined as GroupQualityDetail | undefined,
   isLoading: false,
   error: null as Error | null,
+  seesRuns: true,
 }));
 vi.mock("@/hooks", () => ({
   useGroupQuality: () => hooks,
   useAgents: () => ({
     agents: [{ id: "a-pay", slug: "payables", has_avatar: false, name: "Payables" }],
   }),
+  usePermissions: () => ({ can: () => hooks.seesRuns }),
 }));
 
 const GROUP: Group = {
@@ -59,6 +61,7 @@ beforeEach(() => {
   hooks.quality = undefined;
   hooks.isLoading = false;
   hooks.error = null;
+  hooks.seesRuns = true;
 });
 
 describe("a department's answer quality (#2101)", () => {
@@ -76,6 +79,15 @@ describe("a department's answer quality (#2101)", () => {
     expect(screen.getByText("No comment left")).toBeInTheDocument();
     expect(screen.getByText(/^An agent ·/)).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Run" })).toHaveLength(1);
+  });
+
+  it("offers a lead without runs:view no link the run page would refuse", () => {
+    hooks.quality = detail();
+    hooks.seesRuns = false;
+    render(<DepartmentQuality orgId="o-1" group={GROUP} />);
+
+    expect(screen.getByText("“Wrong VAT rate”")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Run" })).not.toBeInTheDocument();
   });
 
   it("reads agents ran but unrated as no ratings, not as nothing", () => {
