@@ -934,7 +934,7 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `whoami` | — |
 | `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
 | `create_agent_draft` | `agents:edit` |
-| `discard_agent_draft` | `agents:delete`, on a draft you own that was never published |
+| `discard_agent_draft` | `agents:edit`, on a draft you own that was never published |
 | `run_agent` | `agents:run` |
 | `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |

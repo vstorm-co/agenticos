@@ -94,27 +94,15 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
 
         Refused for an agent somebody else owns or one that has a published version -
         undoing is for a draft made by mistake, not for retiring an agent. Needs
-        `agents:delete` on it.
+        `agents:edit` on it.
         """
-        me = await api.request("GET", "/me/permissions")
-        if "user_id" not in me:
-            return me
-        agent = await api.request("GET", f"/agents/{agent_id}")
-        if "id" not in agent:
-            return agent
-        if agent.get("owner_user_id") != me["user_id"]:
-            return api.refuse("Only an agent draft you created yourself can be undone")
-        if agent.get("current_version_id") is not None:
-            return api.refuse(
-                "This agent has been published, so it is not undone from here - "
-                "archive or delete it in the console"
-            )
-        # Checked again by the server on the locked row: a publish in another tab
-        # since the read above must not be deleted.
+        # The server decides on the locked row - whose draft it is and whether it
+        # was published, a publish in another tab included. A read first would
+        # also need `agents:view`, which a key issued only to edit does not have.
         deleted = await api.request("DELETE", f"/agents/{agent_id}", params={"draft_only": "true"})
         if deleted is not None:
             return deleted
-        return {"discarded": str(agent_id), "name": agent.get("name")}
+        return {"discarded": str(agent_id)}
 
     async def get_spend(days: int = 30) -> dict[str, Any]:
         """What the organization's agents cost: month to date, and per agent over `days`.

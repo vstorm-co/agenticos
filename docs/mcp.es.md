@@ -1,5 +1,5 @@
 ---
-source_sha: "3cb72cfc86da"
+source_sha: "f85e8dd4d419"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -995,7 +995,7 @@ permiso que faltaba.
 | `whoami` | — |
 | `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
 | `create_agent_draft` | `agents:edit` |
-| `discard_agent_draft` | `agents:delete`, sobre un borrador tuyo que nunca se publicó |
+| `discard_agent_draft` | `agents:edit`, sobre un borrador tuyo que nunca se publicó |
 | `run_agent` | `agents:run` |
 | `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |

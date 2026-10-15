@@ -1,5 +1,5 @@
 ---
-source_sha: "3cb72cfc86da"
+source_sha: "f85e8dd4d419"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -971,7 +971,7 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `whoami` | — |
 | `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
 | `create_agent_draft` | `agents:edit` |
-| `discard_agent_draft` | `agents:delete`, dla twojego draftu, który nigdy nie był opublikowany |
+| `discard_agent_draft` | `agents:edit`, dla twojego draftu, który nigdy nie był opublikowany |
 | `run_agent` | `agents:run` |
 | `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |

@@ -207,67 +207,26 @@ async def test_each_tool_is_one_public_api_call(
     assert api.request.await_args.kwargs == kwargs
 
 
-ME = {"organization_id": ORG, "user_id": "u-1"}
-
-
-def _draft(**overrides: Any) -> dict[str, Any]:
-    return {
-        "id": str(AGENT),
-        "name": "Bot",
-        "owner_user_id": "u-1",
-        "current_version_id": None,
-    } | overrides
-
-
 class TestUndoingADraft:
-    async def test_a_draft_you_created_and_never_published_is_deleted(
+    async def test_the_server_is_asked_to_delete_only_a_draft(
         self, server: FastMCP, api: MagicMock
     ) -> None:
-        api.request.side_effect = [ME, _draft(), None]
+        api.request.side_effect = [None]
 
         result = await server.call_tool("discard_agent_draft", {"agent_id": str(AGENT)})
 
-        assert api.request.await_args.args == ("DELETE", f"/agents/{AGENT}")
-        # The server checks it again on the locked row.
+        # One call: the server checks ownership and publication on the locked row,
+        # so a key issued only to edit needs no read first.
+        assert [c.args for c in api.request.await_args_list] == [("DELETE", f"/agents/{AGENT}")]
         assert api.request.await_args.kwargs == {"params": {"draft_only": "true"}}
-        assert result.structured_content == {"discarded": str(AGENT), "name": "Bot"}
+        assert result.structured_content == {"discarded": str(AGENT)}
 
-    async def test_a_draft_published_in_between_is_refused_by_the_server(
-        self, api: MagicMock
-    ) -> None:
-        api.request.side_effect = [ME, _draft(), {"refused": "published"}]
+    async def test_a_refusal_is_passed_back_untouched(self, api: MagicMock) -> None:
+        refused = {"refused": "Only a never-published draft you created can be undone"}
+        api.request.side_effect = [refused]
         tool = {t.name: t for t in platform_tools(api)}["discard_agent_draft"]
 
-        assert await tool.function(agent_id=AGENT) == {"refused": "published"}
-
-    @pytest.mark.parametrize(
-        ("agent", "reason"),
-        [
-            (_draft(owner_user_id="u-2"), "you created yourself"),
-            (_draft(current_version_id=str(RUN)), "has been published"),
-        ],
-    )
-    async def test_somebody_else_s_or_a_published_agent_is_refused(
-        self, api: MagicMock, agent: dict[str, Any], reason: str
-    ) -> None:
-        api.request.side_effect = [ME, agent]
-        api.refuse = MagicMock(side_effect=ToolError("refused"))
-        tool = {t.name: t for t in platform_tools(api)}["discard_agent_draft"]
-
-        with pytest.raises(ToolError):
-            await tool.function(agent_id=AGENT)
-
-        assert reason in api.refuse.call_args.args[0]
-        assert ("DELETE", f"/agents/{AGENT}") not in [c.args for c in api.request.await_args_list]
-
-    @pytest.mark.parametrize("answers", [[{"refused": "no"}], [ME, {"refused": "no"}]])
-    async def test_a_refused_lookup_is_passed_back_untouched(
-        self, api: MagicMock, answers: list[dict[str, Any]]
-    ) -> None:
-        api.request.side_effect = answers
-        tool = {t.name: t for t in platform_tools(api)}["discard_agent_draft"]
-
-        assert await tool.function(agent_id=AGENT) == {"refused": "no"}
+        assert await tool.function(agent_id=AGENT) == refused
 
 
 def _token() -> AccessToken:
