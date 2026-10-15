@@ -206,18 +206,14 @@ class TestRun:
         execute.assert_awaited_once()
 
 
-def test_an_unreadable_answer_is_kept_cut_and_redacted_beside_why() -> None:
+def test_an_unreadable_answer_leaves_why_on_its_run_and_never_the_answer() -> None:
     class Shape(BaseModel):
         grades: list[int]
 
-    secret = "ghp_" + "a" * 36
-    text = f'{{"grades": ["x"]}} {secret} ' + "y" * 5_000
     with pytest.raises(ValidationError) as refused:
-        Shape.model_validate_json('{"grades": ["x"]}')
+        Shape.model_validate_json('{"grades": ["the private question"]}')
 
-    kept = _unreadable(text, refused.value)
+    kept = _unreadable(refused.value)
 
     assert kept.startswith("The answer did not match the shape asked for - grades.0: ")
-    assert secret not in kept
-    assert kept.endswith("…")
-    assert len(kept) < 4_200
+    assert "private question" not in kept

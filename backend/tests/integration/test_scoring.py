@@ -944,7 +944,7 @@ class TestWhenTheJudgeCannotRun:
         self, db, monkeypatch
     ) -> None:
         async def prose(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
-            return ModelResponse(parts=[TextPart("It is fine.\n\n" + "Truly " * 60)])
+            return ModelResponse(parts=[TextPart("It is fine.\n\n" + "Truly " * 400)])
 
         monkeypatch.setattr(ModelRequestSpec, "build", lambda self: FunctionModel(prose))
         tenant = await _tenant(db)
@@ -966,10 +966,10 @@ class TestWhenTheJudgeCannotRun:
         assert len(said) == 1
         [shown] = said
         assert shown is not None and shown.startswith("It is fine. Truly Truly")
-        assert (len(shown), shown[-1]) == (201, "…")
+        assert (len(shown), shown[-1]) == (2_001, "…")
         assert recorded.error is not None
         assert recorded.error.startswith("The answer did not match the shape asked for - ")
-        assert "Truly Truly" in recorded.error
+        assert "Truly" not in recorded.error
 
 
 class TestJudgeAgreement:

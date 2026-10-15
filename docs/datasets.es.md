@@ -1,5 +1,5 @@
 ---
-source_sha: "002c3285b6a3"
+source_sha: "98ecf2dd21b2"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -327,7 +327,7 @@ como errores, con un motivo que nombra la causa: la asistencia de IA está
 desactivada, el juez que eligió el dataset ya no existe, no tiene una versión
 publicada, está archivado, su modelo ya no existe o no tiene clave, la persona
 no puede ejecutarlo, su budget se ha agotado, su run falló o su respuesta no se
-pudo leer, de la que se guardan los primeros 200 caracteres junto al motivo.
+pudo leer, de la que se guardan los primeros 2.000 caracteres junto al motivo.
 Los evaluadores basados en reglas siguen puntuando.
 
 Resuelta la causa, **Score again** en un resultado sin calificar (o en todos
@@ -346,12 +346,14 @@ nada.
 Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la
 respuesta no contiene palabra por palabra se guarda junto a la calificación
 como no verificada, se muestra en su propia línea bajo el motivo, y la
-calificación se mantiene. Lo que respalda una calificación nunca la anula: una
-cita vacía o demasiado larga se descarta, las citas más allá de doce y una
-regla de más de 300 caracteres se recortan, y solo la falta de un identificador
-de criterio o de una nota hace ilegible un veredicto. Una respuesta ilegible se
-guarda en el run del juez en Activity, con el motivo por el que no se pudo
-leer.
+calificación se mantiene.
+
+Lo que respalda una calificación nunca la anula: una cita vacía o demasiado
+larga se descarta, las citas más allá de doce y una regla de más de 300
+caracteres se recortan, y solo la falta de un identificador de criterio o de
+una nota hace ilegible un veredicto. El run del juez en Activity indica qué
+campos no se pudieron leer, nunca la respuesta, que puede repetir un caso de un
+dataset que quien lo lee no puede ver.
 
 Cada puntuación registra el juez que la calificó - el agent juez, su perfil de
 modelo, la versión de su spec, un hash de la rúbrica y la versión de la tarea

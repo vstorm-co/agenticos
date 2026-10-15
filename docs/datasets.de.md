@@ -1,5 +1,5 @@
 ---
-source_sha: "002c3285b6a3"
+source_sha: "98ecf2dd21b2"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -343,7 +343,7 @@ KI-Unterstützung ist ausgeschaltet, der vom Dataset gewählte Bewerter existier
 nicht mehr, er hat keine veröffentlichte Version, er ist archiviert, sein
 Modell ist entfernt oder hat keinen Schlüssel, die Person darf ihn nicht
 ausführen, sein Budget ist aufgebraucht, sein Run schlug fehl oder seine
-Antwort ließ sich nicht lesen - deren erste 200 Zeichen bleiben dann neben der
+Antwort ließ sich nicht lesen - deren erste 2.000 Zeichen bleiben dann neben der
 Begründung. Die regelbasierten Scorer bewerten trotzdem.
 
 Ist die Ursache behoben, bewertet **Erneut bewerten** an einem nicht bewerteten
@@ -362,11 +362,14 @@ Rest des Runs vergleichen ließe; dann wird nichts bewertet.
 Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
 Antwort nicht wörtlich enthält, wird neben der Bewertung als nicht verifiziert
 aufbewahrt und in einer eigenen Zeile unter der Begründung angezeigt, und die
-Bewertung bleibt bestehen. Was eine Bewertung stützt, macht sie nie ungültig:
-Ein leeres oder zu langes Zitat wird verworfen, Zitate über zwölf und eine
-Regel über 300 Zeichen werden gekürzt, und nur eine fehlende Kriteriums-ID oder
-Note macht ein Urteil unlesbar. Eine unlesbare Antwort bleibt am Run des
-Bewerters in Activity erhalten, mit dem Grund, warum sie sich nicht lesen ließ.
+Bewertung bleibt bestehen.
+
+Was eine Bewertung stützt, macht sie nie ungültig: Ein leeres oder zu langes
+Zitat wird verworfen, Zitate über zwölf und eine Regel über 300 Zeichen werden
+gekürzt, und nur eine fehlende Kriteriums-ID oder Note macht ein Urteil
+unlesbar. Der Run des Bewerters in Activity nennt die Felder, die sich nicht
+lesen ließen, nie die Antwort selbst, die einen Fall eines Datasets wiederholen
+kann, das sein Leser nicht sehen darf.
 
 Jedes Ergebnis hält den Bewerter fest, der es bewertet hat - den Bewerter-Agent,
 sein Modellprofil, die Version seines Specs, einen Hash der Rubrik und die
