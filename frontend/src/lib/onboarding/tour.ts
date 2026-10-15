@@ -478,7 +478,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "dataset-grading",
     page: DATASET_DETAIL,
-    target: "datasets-scoring",
+    target: "datasets-grading",
+    activate: "datasets-grading-tab",
+    permission: Perm.datasetsView,
+  },
+  {
+    id: "dataset-judge",
+    page: DATASET_DETAIL,
+    target: "datasets-grading-judge",
     activate: "datasets-grading-tab",
     permission: Perm.datasetsView,
   },

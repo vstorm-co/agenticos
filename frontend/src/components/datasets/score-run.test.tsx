@@ -2,6 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { caseScore } from "@/test-utils/scores";
+
 import { DEFAULT_SCORING } from "@/lib/scoring";
 import type { CaseScore, DatasetScoring } from "@/types/scoring";
 import { ScoreRunButton } from "./score-run-button";
@@ -61,6 +63,7 @@ vi.mock("@/hooks/use-scoring", () => ({
 }));
 
 const SCORE: CaseScore = {
+  ...caseScore(),
   id: "s1",
   dataset_id: "d1",
   case_id: "c1",
@@ -144,13 +147,13 @@ describe("Score against a case", () => {
     render(<ScoreRunButton runId="run-1" />);
 
     await open();
-    expect(screen.getByText("Runs Checks and Tool calls.")).toBeInTheDocument();
+    expect(screen.getByText("Runs Checks and Expected tool calls.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
     await userEvent.click(screen.getByRole("option", { name: "returns" }));
 
     expect(
       screen.getByText(
-        "Runs Checks, Tool calls, and Reference answer. The judge's grading is a run of the eval judge, charged to its budget.",
+        "Runs Checks, Expected tool calls, and Reference answer. The judge's grading is a run of the eval judge, charged to its budget.",
       ),
     ).toBeInTheDocument();
   });

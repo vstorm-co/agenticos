@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { caseScore } from "@/test-utils/scores";
+
 import type { CaseScore, ScorerResult } from "@/types/scoring";
 import { ScoreCard } from "./score-card";
 
@@ -21,6 +23,7 @@ function result(overrides: Partial<ScorerResult> = {}): ScorerResult {
 
 function score(overrides: Partial<CaseScore> = {}): CaseScore {
   return {
+    ...caseScore(),
     id: "s1",
     dataset_id: "d1",
     case_id: "c1",

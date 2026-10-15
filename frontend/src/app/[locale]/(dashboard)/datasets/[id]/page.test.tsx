@@ -52,7 +52,7 @@ vi.mock("@/hooks/use-datasets", () => ({
   },
 }));
 vi.mock("@/components/sharing/sharing-panel", () => ({ SharingPanel: () => null }));
-vi.mock("@/components/datasets/scoring-panel", () => ({ ScoringPanel: () => <p>grading</p> }));
+vi.mock("@/components/datasets/grading-panel", () => ({ GradingPanel: () => <p>grading</p> }));
 vi.mock("@/components/datasets/scores-panel", () => ({ ScoresPanel: () => <p>review</p> }));
 
 const CASE = {

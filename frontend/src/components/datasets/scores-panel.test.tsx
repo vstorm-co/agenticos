@@ -2,6 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { caseScore } from "@/test-utils/scores";
+
 import type { CaseScore } from "@/types/scoring";
 import { ScoresPanel } from "./scores-panel";
 
@@ -31,6 +33,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from "sonner";
 
 const SCORE: CaseScore = {
+  ...caseScore(),
   id: "s1",
   dataset_id: "d1",
   case_id: "c1",

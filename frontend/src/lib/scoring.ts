@@ -5,7 +5,14 @@ import type { DatasetScoring, ScorerResult } from "@/types/scoring";
 export const DEFAULT_SCORING: DatasetScoring = {
   checks: { enabled: true, required: true, defaults: [] },
   trajectory: { enabled: true, required: true },
-  judge: { enabled: false, model_profile_id: null, scale_max: 5, pass_at: 4, criteria: [] },
+  judge: {
+    enabled: false,
+    agent_id: null,
+    model_profile_id: null,
+    scale_max: 5,
+    pass_at: 4,
+    criteria: [],
+  },
   reference: { enabled: false, required: true },
   review: { select: "none" },
 };

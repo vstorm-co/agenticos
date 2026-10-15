@@ -89,6 +89,8 @@ export interface Dataset {
   can_edit: boolean;
   /** How this dataset's cases are scored. */
   scoring: DatasetScoring;
+  /** The judge grading it - its own or the default one; null when that judge is gone. */
+  judge_name: string | null;
   stats: DatasetStats;
   created_at: string;
   updated_at: string | null;

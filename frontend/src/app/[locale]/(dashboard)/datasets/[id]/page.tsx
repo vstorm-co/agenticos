@@ -12,7 +12,7 @@ import { DatasetHeader } from "@/components/datasets/dataset-header";
 import { DatasetShareDialog } from "@/components/datasets/dataset-share-dialog";
 import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
 import { ScoresPanel } from "@/components/datasets/scores-panel";
-import { ScoringPanel } from "@/components/datasets/scoring-panel";
+import { GradingPanel } from "@/components/datasets/grading-panel";
 import { VersionSelect } from "@/components/datasets/version-select";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
@@ -163,12 +163,7 @@ export default function DatasetPage({ params }: PageProps) {
           </ListCard>
         </TabsContent>
         <TabsContent value="grading">
-          <ScoringPanel
-            key={JSON.stringify(dataset.scoring)}
-            datasetId={id}
-            scoring={dataset.scoring}
-            canEdit={dataset.can_edit}
-          />
+          <GradingPanel dataset={dataset} />
         </TabsContent>
         <TabsContent value="review">
           <ScoresPanel datasetId={id} canDecide={dataset.can_edit} />
