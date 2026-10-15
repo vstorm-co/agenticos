@@ -195,3 +195,22 @@ def test_the_browser_shares_a_network_only_with_what_drives_it(file_name: str) -
     assert networks("browser-egress") == {"browser"}
     on_it = {name for name in services if "browser" in networks(name)}
     assert on_it == {"browser", "browser-egress", "app", "prefect-runner"}
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("compose_file", ["docker-compose.yml", "docker-compose-dev.yml"])
+def test_the_browser_goes_out_through_the_egress_proxy_by_default(compose_file: str) -> None:
+    """Codex on #2062: the proxy service existed and nothing selected it.
+
+    Whatever drives the shared browser - the API for a live browse, the runner
+    for a scheduled one - starts it behind `browser-egress` unless the root
+    `.env` says otherwise.
+    """
+    services = yaml.safe_load((REPO_ROOT / compose_file).read_text())["services"]
+
+    assert "browser-egress" in services
+    for name in ("app", "prefect-runner"):
+        environment = services[name]["environment"]
+        assert (
+            "BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}" in environment
+        ), name

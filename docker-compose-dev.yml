@@ -50,6 +50,10 @@ services:
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # The browser profile's egress proxy, on by default so starting the browser
+      # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
+      # .env only for a browser outside compose that cannot reach it.
+      - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
       # Empty unless the sandbox profile is up. Note what is absent from
       # this service: the Docker socket.
     # --ws websockets-sansio: uvicorn's `auto` picks the legacy websockets impl,
@@ -174,6 +178,10 @@ services:
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # The browser profile's egress proxy, on by default so starting the browser
+      # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
+      # .env only for a browser outside compose that cannot reach it.
+      - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
       # The runner's own health endpoint, started by app/worker/prefect_app.py.
       # Bound to the loopback because the same webserver serves `/shutdown`; see
       # docker-compose.yml.
@@ -225,9 +233,9 @@ services:
       - browser
     restart: unless-stopped
 
-  # The browser's egress proxy (`docker/browser-egress`): set
-  # BROWSER_EGRESS_PROXY=http://browser-egress:3128 and every browse without an
-  # organization proxy goes out through it. It resolves each host itself, refuses
+  # The browser's egress proxy (`docker/browser-egress`): the app and the runner
+  # default BROWSER_EGRESS_PROXY to it, so every browse without an organization
+  # proxy goes out through it. It resolves each host itself, refuses
   # private, loopback, link-local and metadata addresses, and connects to the
   # address it checked - so neither a redirect nor a name that rebinds between
   # two lookups takes a page inside the deployment's network.

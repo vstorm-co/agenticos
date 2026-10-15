@@ -86,6 +86,10 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-agenticos}
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # The browser profile's egress proxy, on by default so starting the browser
+      # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
+      # .env only for a browser outside compose that cannot reach it.
+      - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
       # Empty outside compose, so a bare `uvicorn` run degrades to "no container
       # workspace available" rather than erroring. Note what is absent here:
       # no docker.sock, which is the whole point of the sandbox service below.
@@ -226,6 +230,10 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-agenticos}
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # The browser profile's egress proxy, on by default so starting the browser
+      # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
+      # .env only for a browser outside compose that cannot reach it.
+      - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
       # The runner's own health endpoint, started by app/worker/prefect_app.py.
       # 127.0.0.1 rather than 0.0.0.0 because the same webserver also serves
       # `/shutdown`, and the only caller that should reach it is the probe below,
@@ -368,9 +376,9 @@ services:
       - browser
     restart: unless-stopped
 
-  # The browser's egress proxy (`docker/browser-egress`): set
-  # BROWSER_EGRESS_PROXY=http://browser-egress:3128 and every browse without an
-  # organization proxy goes out through it. It resolves each host itself, refuses
+  # The browser's egress proxy (`docker/browser-egress`): the app and the runner
+  # default BROWSER_EGRESS_PROXY to it, so every browse without an organization
+  # proxy goes out through it. It resolves each host itself, refuses
   # private, loopback, link-local and metadata addresses, and connects to the
   # address it checked - so neither a redirect nor a name that rebinds between
   # two lookups takes a page inside the deployment's network.
