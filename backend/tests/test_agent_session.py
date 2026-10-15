@@ -1123,6 +1123,21 @@ class TestATurnThatDidNotFinish:
         assert "spending limit" in message
         assert "1901" not in message
 
+    async def test_a_provider_refusal_inside_a_task_group_is_told_in_words(self):
+        """A refusal raised inside a task group arrives wrapped; the words are the
+        wrapped refusal's, not the group's class."""
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        session = _session()
+        refused = ModelHTTPError(429, "anthropic/claude-sonnet-5.5", {"message": "slow down"})
+
+        with _chat(AsyncMock(side_effect=ExceptionGroup("turn", [refused]))):
+            await session.process_message(_message())
+
+        message = _sent_events(session)[-1][1]["message"]
+        assert "429" in message
+        assert "ExceptionGroup" not in message
+
     async def test_a_disconnect_is_not_reported_to_the_socket_that_left(self):
         """A `WebSocketDisconnect` surfacing from inside the turn is re-raised
         rather than turned into an `error` frame: there is nobody to read it, and

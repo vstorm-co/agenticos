@@ -459,7 +459,7 @@ class TestPressingAQuestion:
         assert env.picked == [["Formal", "Casual"]]
         env, answer = await self._press(choice=0, siblings=[prompt])
         assert env.picked == [["Casual"]]
-        env, answer = await self._press(choice=0, siblings=[prompt])
+        await self._press(choice=0, siblings=[prompt])
 
         env, answer = await self._press(choice=len(prompt.choices), siblings=[prompt])
         assert answer.await_args.args[2] == {"ask-1": [{"selected": ["Casual", "Formal"]}]}
@@ -467,8 +467,8 @@ class TestPressingAQuestion:
 
     async def test_done_with_nothing_picked_is_a_skip(self):
         prompt = _prompt(QUESTION, multi_select=True)
-        env, answer = await self._press(choice=0, siblings=[prompt])
-        env, answer = await self._press(choice=0, siblings=[prompt])
+        await self._press(choice=0, siblings=[prompt])
+        env, _ = await self._press(choice=0, siblings=[prompt])
         assert env.said() == ["Nothing picked yet. Choose one or more, then press Done."]
 
         env, answer = await self._press(choice=2, siblings=[prompt])

@@ -183,7 +183,9 @@ async def widget_avatar(public_key: str, service: EmbedSvc) -> Any:
         raise HTTPException(status_code=404, detail="No avatar")
     response = await stored_image_response(stored, headers={"X-Content-Type-Options": "nosniff"})
     if response is None:
-        logger.warning("widget_avatar_not_an_image", extra={"public_key": public_key})
+        # The stored path, not the key from the address: the key reached the log
+        # as typed, and the path is the server's own and names the same file.
+        logger.warning("widget_avatar_not_an_image", extra={"stored": stored})
         raise HTTPException(status_code=404, detail="No avatar")
     return response
 

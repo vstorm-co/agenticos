@@ -22,7 +22,7 @@
  * machine, like the README figures.
  */
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -425,9 +425,16 @@ async function lookUp(page) {
 const inOrg = (path, org) => `${path}${path.includes("?") ? "&" : "?"}org=${org}`;
 
 const areasFile = join(media, "areas.js");
-const areas = existsSync(areasFile)
-  ? JSON.parse(readFileSync(areasFile, "utf8").replace(/^[^{]*/, "").replace(/;\s*$/, ""))
-  : {};
+/** The areas written by an earlier run, or none: read once, so nothing can change between a check and the read. */
+function readAreas() {
+  try {
+    return JSON.parse(readFileSync(areasFile, "utf8").replace(/^[^{]*/, "").replace(/;\s*$/, ""));
+  } catch (error) {
+    if (error.code === "ENOENT") return {};
+    throw error;
+  }
+}
+const areas = readAreas();
 const previews = PREVIEW ? mkdtempSync(join(tmpdir(), "deck-areas-")) : null;
 
 const browser = await chromium.launch();

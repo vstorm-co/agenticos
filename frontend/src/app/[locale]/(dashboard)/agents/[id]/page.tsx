@@ -1083,15 +1083,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
               <DialogTitle>{t("visualMap")}</DialogTitle>
               <DialogDescription>{t("draftAsStandsWhat")}</DialogDescription>
             </DialogHeader>
-            {spec && (
-              <AgentMap
-                agentName={spec.name}
-                instructions={spec.instructions}
-                nodes={mapNodes}
-                delegates={delegateNodes}
-                delegationNotice={delegationNotice}
-              />
-            )}
+            <AgentMap
+              agentName={spec.name}
+              instructions={spec.instructions}
+              nodes={mapNodes}
+              delegates={delegateNodes}
+              delegationNotice={delegationNotice}
+            />
           </DialogContent>
         </Dialog>
 

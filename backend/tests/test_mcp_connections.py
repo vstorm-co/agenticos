@@ -612,6 +612,21 @@ class TestRecentAnswers:
         assert not toolset.down
 
     @pytest.mark.anyio
+    async def test_a_cancellation_inside_a_task_group_is_not_taken_for_an_outage(self, monkeypatch):
+        monkeypatch.setattr("app.agents.mcp.probe_mcp_server", self._counting_probe([]))
+        spec = McpServerSpec(name="live", url="https://example.com/mcp")
+        await build_mcp_toolsets([spec])
+        (toolset,) = await build_mcp_toolsets([spec])
+
+        async def cancelled(*_args):
+            raise BaseExceptionGroup("connect", [asyncio.CancelledError()])
+
+        monkeypatch.setattr(toolset.wrapped, "__aenter__", cancelled)
+        with pytest.raises(BaseExceptionGroup):
+            await toolset.__aenter__()
+        assert not toolset.down
+
+    @pytest.mark.anyio
     async def test_an_answering_server_is_entered_and_left(self, monkeypatch):
         monkeypatch.setattr("app.agents.mcp.probe_mcp_server", self._counting_probe([]))
         spec = McpServerSpec(name="live", url="https://example.com/mcp")
