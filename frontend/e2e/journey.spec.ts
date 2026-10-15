@@ -192,12 +192,14 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
   const toolbox = page.getByRole("tabpanel");
 
   // A switch, labelled "Give this agent <name>" on the capability's card. A new
-  // agent starts with the recommended capabilities on - Calculations among them -
-  // so the one configured here is already granted rather than clicked on.
+  // agent starts with the recommended capabilities on; Calculations is not among
+  // them - the starter does its sums in its workspace - so it is switched on here.
   const capability = toolbox.getByRole("switch", { name: "Give this agent Calculations" });
   if (!(await capability.isVisible())) {
     test.skip(true, "the capability catalog is empty in this environment");
   }
+  await expect(capability).toHaveAttribute("aria-checked", "false");
+  await capability.click();
   await expect(capability).toHaveAttribute("aria-checked", "true");
   await toolbox.getByRole("button", { name: "Calculations settings", exact: true }).click();
   // The settings open in a sheet beside the page, outside the tab panel.
