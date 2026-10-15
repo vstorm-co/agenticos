@@ -72,6 +72,7 @@ from pydantic_ai_harness.guardrails.detectors import (
     redact_secrets,
 )
 
+from app.agents.capabilities.budget import RefusedAfterAnswer
 from app.core.phone import (
     DEFAULT_PHONE_REGIONS,
     MAX_PHONE_REGIONS,
@@ -117,10 +118,10 @@ content that tripped it - the row is read by every member who can see the run, a
 the matched term (an org's own configured keyword) belongs in the log beside it."""
 
 
-class GuardrailBlocked(Exception):
+class GuardrailBlocked(RefusedAfterAnswer):
     """A guardrail refused a run at one of its edges.
 
-    A plain `Exception`, not an `AppException`, for the reason `BudgetExceeded` is:
+    A plain exception, not an `AppException`, for the reason `BudgetExceeded` is:
     the runner catches it and maps it to its own `RunStatus`, and a trip is the
     platform working rather than a malfunction. The message is safe to store on the
     run - it names the edge and the refusal, never the offending text.
@@ -487,10 +488,15 @@ class ScreenedToolArgs(AbstractCapability[object]):
         response: ModelResponse,
     ) -> ModelResponse:
         """The response with every tool call's arguments screened."""
-        parts = [
-            _screened_call(part, self.screen) if isinstance(part, ToolCallPart) else part
-            for part in response.parts
-        ]
+        try:
+            parts = [
+                _screened_call(part, self.screen) if isinstance(part, ToolCallPart) else part
+                for part in response.parts
+            ]
+        except GuardrailBlocked as blocked:
+            # Billed already: the budget guard records it on the way out.
+            blocked.response = response
+            raise
         return response if parts == response.parts else replace(response, parts=parts)
 
     async def wrap_run_event_stream(
@@ -508,8 +514,15 @@ class ScreenedToolArgs(AbstractCapability[object]):
                 case PartDeltaEvent(delta=ToolCallPartDelta()):
                     pass
                 case PartEndEvent(part=ToolCallPart() as part):
-                    screened = _screened_call(part, self.screen)
-                    yield replace(held.pop(event.index), part=screened)
+                    start = held.pop(event.index)
+                    try:
+                        screened = _screened_call(part, self.screen)
+                    except GuardrailBlocked:
+                        # Withheld, not raised: the response is still streaming
+                        # and its cost is not known yet. `after_model_request`
+                        # refuses it once whole, carrying what it cost.
+                        continue
+                    yield replace(start, part=screened)
                     yield replace(event, part=screened)
                 case _:
                     yield event

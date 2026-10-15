@@ -676,6 +676,19 @@ class RunSpendState:
     check: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
+class RefusedAfterAnswer(Exception):
+    """A refusal raised after the model answered, carrying the answer it refused.
+
+    The answer was paid for. A capability that refuses a response as it arrives -
+    a guardrail screening a tool call's arguments - raises inside the request,
+    past :class:`BudgetGuard`'s chance to record it, so the run would be stored
+    as costing nothing for a call the provider billed. The guard records what
+    the refusal carries before letting it go.
+    """
+
+    response: ModelResponse | None = None
+
+
 @dataclass
 class BudgetGuard(AbstractCapability[Any]):
     """Stops a run from issuing a model request it cannot afford.
@@ -802,10 +815,17 @@ class BudgetGuard(AbstractCapability[Any]):
         """Check the budget, make the request, then record what it cost."""
         await self.assert_within_budget()
 
-        response = await handler(request_context)
+        try:
+            response = await handler(request_context)
+        except RefusedAfterAnswer as refused:
+            if refused.response is not None:
+                self._record(refused.response)
+            raise
+        self._record(response)
+        return response
 
+    def _record(self, response: ModelResponse) -> None:
         model_name = getattr(response, "model_name", None) or "unknown"
         usage = getattr(response, "usage", None)
         if usage is not None:
             self.ledger.record(model_name, usage, self.provider)
-        return response

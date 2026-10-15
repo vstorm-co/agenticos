@@ -842,6 +842,48 @@ async def test_a_blocked_keyword_in_a_tools_arguments_ends_the_run_before_the_to
     assert sent == []
 
 
+@pytest.mark.security
+async def test_a_call_refused_for_its_arguments_is_still_paid_for():
+    """Review on #2062: the block was raised inside the request, past the budget
+    guard, so the run recorded no cost for a call the provider billed."""
+    from app.agents.capabilities.budget import BudgetGuard, SpendLedger
+
+    args = '{"body": "Her salary is attached"}'
+    model = _streams([{0: DeltaToolCall(name="send_email", json_args=args, tool_call_id="c1")}])
+    ledger = SpendLedger()
+    guardrails = build_guardrails(GuardrailsConfig(blocked_keywords_args="salary"))
+    assert guardrails is not None
+    agent: Agent = Agent(model=model, capabilities=[BudgetGuard(ledger=ledger), guardrails])
+
+    async def send_email(body: str) -> str:
+        return "ok"  # pragma: no cover - refused before it runs
+
+    agent.tool_plain(send_email)
+
+    with pytest.raises(GuardrailBlocked):
+        await agent.run("go")
+
+    assert len(ledger.entries) == 1
+
+
+async def test_a_refusal_that_carries_no_answer_records_nothing():
+    """Refused before the model answered: nothing was billed, nothing is recorded."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.agents.capabilities.budget import BudgetGuard, SpendLedger
+
+    ledger = SpendLedger()
+    refused = GuardrailBlocked(edge="input", message="blocked")
+    handler = AsyncMock(side_effect=refused)
+
+    with pytest.raises(GuardrailBlocked):
+        await BudgetGuard(ledger=ledger).wrap_model_request(
+            MagicMock(), request_context=MagicMock(), handler=handler
+        )
+
+    assert ledger.entries == []
+
+
 async def test_nested_arguments_are_screened_and_a_clean_call_is_left_alone():
     screen = ScreenedToolArgs(
         screen=_edge_detector(
