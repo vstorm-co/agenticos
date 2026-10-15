@@ -405,18 +405,23 @@ export function runsOf(parts: MessagePart[]): PartRun[] {
  * described in one place and the rail and the card cannot disagree about it.
  */
 /**
- * The calls that open a browse panel in these runs, in the order they were made:
- * every `browse_web`, and the `browser_open` that starts the agent driving the tab
- * itself - its later clicks add their steps to that one panel.
+ * The calls that open a browser window in these runs, in the order they were made:
+ * every `browse_web`, and the first `browser_open` - the one that starts the agent
+ * driving the tab itself. A later `browser_open` in the same turn navigates that
+ * same tab, as its clicks do, so it is drawn in the window already there rather
+ * than as a second one beside it.
  */
-const OPENS_A_BROWSE: ReadonlySet<string> = new Set(["browse_web", "browser_open"]);
-
 export function browseCalls(runs: PartRun[]): ToolCall[] {
+  let driving = false;
   return runs.flatMap((run) =>
     run.kind === "tools"
-      ? run.parts.flatMap((part) =>
-          part.toolCall && OPENS_A_BROWSE.has(part.toolCall.name) ? [part.toolCall] : [],
-        )
+      ? run.parts.flatMap((part) => {
+          const call = part.toolCall;
+          if (call?.name === "browse_web") return [call];
+          if (call?.name !== "browser_open" || driving) return [];
+          driving = true;
+          return [call];
+        })
       : [],
   );
 }

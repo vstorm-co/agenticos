@@ -60,7 +60,9 @@ export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
 /** A browse from an earlier turn: where it went, and the way there. */
 function RecordedBrowse({ call }: { call: ToolCall }) {
   const t = useTranslations("chat");
-  const start = typeof call.args.start_url === "string" ? call.args.start_url : null;
+  // `browse_web` names where it started; `browser_open`, where it opened.
+  const opened = call.args.start_url ?? call.args.url;
+  const start = typeof opened === "string" ? opened : null;
   const host = hostOf(start);
   return (
     <div className="bg-foreground/[0.04] flex w-full min-w-0 items-center gap-3 rounded-2xl px-2.5 py-2">

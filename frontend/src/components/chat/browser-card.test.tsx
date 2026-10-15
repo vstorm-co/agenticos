@@ -136,6 +136,18 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
     );
   });
 
+  it("names the site a browser_open went to, from its url", () => {
+    const opened: ToolCall = {
+      id: "open",
+      name: "browser_open",
+      args: { url: "https://www.bing.com/news/search?q=Poland" },
+      status: "completed",
+    };
+    render(<BrowserCards browses={[]} calls={[opened]} />);
+
+    expect(screen.getByText("Browsed www.bing.com")).toBeVisible();
+  });
+
   it("says the agent browsed the web when the call named no page", () => {
     render(<BrowserCards browses={[]} calls={[call("old")]} />);
 

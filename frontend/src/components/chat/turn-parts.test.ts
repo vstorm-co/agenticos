@@ -27,4 +27,22 @@ describe("which calls open a browse panel", () => {
 
     expect(browseCalls(runs).map((call) => call.id)).toEqual(["a", "c"]);
   });
+
+  it("draws a second browser_open in the window the first one opened", () => {
+    // Two opens in one turn drive the same tab - one window, not a window and
+    // a "Browsed the web" line beside it.
+    const runs: PartRun[] = [
+      {
+        kind: "tools",
+        parts: [
+          tool("google", "browser_open"),
+          tool("scroll", "browser_scroll"),
+          tool("bing", "browser_open"),
+        ],
+        isLast: true,
+      },
+    ];
+
+    expect(browseCalls(runs).map((call) => call.id)).toEqual(["google"]);
+  });
 });
