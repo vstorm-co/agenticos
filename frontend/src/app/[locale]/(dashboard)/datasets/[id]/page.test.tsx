@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +10,15 @@ const state = vi.hoisted(() => ({
   cases: [] as unknown[],
   skips: [] as number[],
   canEdit: true,
+  tab: null as string | null,
+  push: vi.fn(),
+  remove: vi.fn(),
+}));
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: state.push }),
+  useSearchParams: () => new URLSearchParams(state.tab === null ? "" : `tab=${state.tab}`),
+  usePathname: () => "/datasets/d1",
 }));
 vi.mock("@/hooks/use-datasets", () => ({
   useDataset: () => ({
@@ -18,10 +27,13 @@ vi.mock("@/hooks/use-datasets", () => ({
       name: "refunds",
       description: null,
       latest_version: 3,
+      case_count: 1,
       can_edit: state.canEdit,
+      scoring: {},
     },
     error: null,
     update: { mutateAsync: vi.fn(), isPending: false },
+    remove: { mutateAsync: state.remove, isPending: false },
   }),
   useDatasetVersions: () => ({ versions: [], isLoading: false }),
   useDatasetCases: (_id: string, { skip }: { skip: number }) => {
@@ -40,7 +52,8 @@ vi.mock("@/hooks/use-datasets", () => ({
   },
 }));
 vi.mock("@/components/sharing/sharing-panel", () => ({ SharingPanel: () => null }));
-vi.mock("@/components/datasets/dataset-file-actions", () => ({ DatasetFileActions: () => null }));
+vi.mock("@/components/datasets/scoring-panel", () => ({ ScoringPanel: () => <p>grading</p> }));
+vi.mock("@/components/datasets/scores-panel", () => ({ ScoresPanel: () => <p>review</p> }));
 
 const CASE = {
   id: "r1",
@@ -86,6 +99,9 @@ describe("the dataset page", () => {
     state.cases = [];
     state.skips = [];
     state.canEdit = true;
+    state.tab = null;
+    state.push.mockReset();
+    state.remove.mockReset();
   });
 
   it("steps back to the last page that still exists once its cases are gone", async () => {
@@ -102,15 +118,50 @@ describe("the dataset page", () => {
     expect(state.skips.at(-1)).toBe(0);
   });
 
+  async function choose(item: string) {
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+  }
+
   it("offers editing the name and description to somebody who may edit it", async () => {
     await mount();
-    await userEvent.click(screen.getByRole("button", { name: "Edit details" }));
+    await choose("Edit details");
     expect(screen.getByRole("dialog", { name: "Edit details" })).toBeInTheDocument();
   });
 
   it("offers no edit to somebody who may only read it", async () => {
     state.canEdit = false;
     await mount();
-    expect(screen.queryByRole("button", { name: "Edit details" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add case" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(await screen.findByRole("menuitem", { name: "Share" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Edit details" })).toBeNull();
+  });
+
+  it("shares from the menu, in a dialog", async () => {
+    await mount();
+    await choose("Share");
+    expect(screen.getByRole("dialog", { name: "Share refunds" })).toBeInTheDocument();
+  });
+
+  it("deletes after a confirmation and goes back to the datasets", async () => {
+    state.remove.mockResolvedValue(undefined);
+    await mount();
+    await choose("Delete");
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(state.push).toHaveBeenCalledWith("/datasets"));
+    expect(state.remove).toHaveBeenCalled();
+  });
+
+  it("opens the tab the address names: Grading, then Review", async () => {
+    state.tab = "review";
+    await mount();
+    expect(screen.getByText("review")).toBeInTheDocument();
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Cases",
+      "Grading",
+      "Review",
+    ]);
   });
 });

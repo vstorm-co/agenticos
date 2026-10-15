@@ -109,8 +109,10 @@ export function useDatasets({
   };
 }
 
-/** One dataset, and renaming or redescribing it - which is not a new version. */
+/** One dataset: renaming or redescribing it - which is not a new version - and deleting it. */
 export function useDataset(datasetId: string) {
+  const t = useTranslations("datasets");
+  const tErrors = useTranslations("errors");
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: qk.datasets.detail(datasetId),
@@ -121,7 +123,18 @@ export function useDataset(datasetId: string) {
       apiClient.patch<Dataset>(`/datasets/${datasetId}`, changes),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.datasets.all() }),
   });
-  return { dataset: query.data, isLoading: query.isLoading, error: query.error, update };
+  // The page leaves on success; its own query is dropped rather than refetched
+  // into a 404 on the way out.
+  const remove = useMutation({
+    mutationFn: () => apiClient.delete<void>(`/datasets/${datasetId}`),
+    onSuccess: async () => {
+      queryClient.removeQueries({ queryKey: qk.datasets.detail(datasetId) });
+      await queryClient.invalidateQueries({ queryKey: qk.datasets.lists() });
+      toast.success(t("deleted"));
+    },
+    onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
+  });
+  return { dataset: query.data, isLoading: query.isLoading, error: query.error, update, remove };
 }
 
 /** Every version of a dataset, newest first. */

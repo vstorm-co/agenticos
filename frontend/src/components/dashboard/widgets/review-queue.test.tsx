@@ -50,7 +50,7 @@ describe("ReviewQueueWidget", () => {
     expect(screen.getAllByText("2 passed")).toHaveLength(2);
     expect(screen.getByRole("link", { name: /Dataset a/ })).toHaveAttribute(
       "href",
-      "/datasets/a?tab=scores",
+      "/datasets/a?tab=review",
     );
     expect(screen.getByRole("link", { name: /Dataset b/ })).toHaveTextContent(
       "1 did not pass2 passed",

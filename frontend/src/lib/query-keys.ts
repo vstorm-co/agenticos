@@ -284,6 +284,7 @@ export const qk = {
   },
   datasets: {
     all: () => ["datasets"] as const,
+    lists: () => ["datasets", "list"] as const,
     list: (query: {
       search: string;
       sort: string;

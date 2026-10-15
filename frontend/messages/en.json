@@ -3394,14 +3394,6 @@
         "title": "Score this run",
         "body": "Check this run's answer against a case of a dataset: its checks, the tool calls it expected and, if configured, the eval judge. The score is kept on the dataset."
       },
-      "dataset-scoring": {
-        "title": "How cases are scored",
-        "body": "Pick the scorers: rule-based checks, the expected tool calls, and the eval judge with a rubric or the reference answer. Mark which ones a case must pass. The judge needs AI assistance, which an admin turns on for the organization."
-      },
-      "dataset-scores": {
-        "title": "Scores and review",
-        "body": "Every score kept for this dataset, with each scorer's reason. Show only those awaiting review, and overrule the judge when it is wrong - its opinion stays on record."
-      },
       "datasets-list": {
         "title": "Your datasets",
         "body": "Every change to a dataset's cases makes a new version, so an eval run always points at questions that do not move."
@@ -3452,7 +3444,15 @@
       },
       "flow-dataset-sources": {
         "title": "Where the next cases come from",
-        "body": "Write them here, or import a CSV or JSONL file here. In chat, rate an answer up or down and add it - a thumbs-up keeps it as the reference, a thumbs-down as the counter-example. In Activity, add any agent turn of a run."
+        "body": "Write them here, or import a CSV or JSONL file from this menu. In chat, rate an answer up or down and add it - a thumbs-up keeps it as the reference, a thumbs-down as the counter-example. In Activity, add any agent turn of a run."
+      },
+      "dataset-grading": {
+        "title": "How cases are scored",
+        "body": "Pick the scorers: rule-based checks, the expected tool calls, and the eval judge with a rubric or the reference answer. Mark which ones a case must pass. The judge needs AI assistance, which an admin turns on for the organization."
+      },
+      "dataset-review": {
+        "title": "Scores and review",
+        "body": "Every score kept for this dataset, with each scorer's reason. Show only those awaiting review, and overrule the judge when it is wrong - its opinion stays on record."
       }
     }
   },
@@ -5708,7 +5708,7 @@
   },
   "datasets": {
     "scoring": {
-      "title": "Scoring",
+      "title": "Grading",
       "description": "How this dataset's cases are scored. Rule-based checks cost nothing; the eval judge spends from its own budget and is off while AI assistance is switched off.",
       "save": "Save scoring",
       "saved": "Scoring saved",
@@ -5742,7 +5742,7 @@
         "failed": "Results that did not pass",
         "all": "Every result"
       },
-      "scores": "Scores",
+      "scores": "Review",
       "scoreCount": "{count, plural, =1 {1 score} other {# scores}}",
       "onlyAwaitingReview": "Only awaiting review",
       "noScores": "No scores yet",
@@ -5906,6 +5906,11 @@
     "saveDetails": "Save",
     "detailsSaved": "Saved",
     "olderVersion": "Older version #",
-    "findDataset": "Find a dataset"
+    "findDataset": "Find a dataset",
+    "moreActions": "More actions",
+    "share": "Share",
+    "delete": "Delete",
+    "shareTitle": "Share {name}",
+    "shareBody": "Who sees this dataset, and who may change its cases."
   }
 }

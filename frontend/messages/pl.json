@@ -1942,14 +1942,6 @@
         "title": "Oceń ten run",
         "body": "Sprawdź odpowiedź tego runu względem przypadku z datasetu: jego sprawdzenia, oczekiwane wywołania narzędzi i, jeśli skonfigurowano, sędziego ewaluacji. Wynik zostaje zapisany w datasecie."
       },
-      "dataset-scoring": {
-        "title": "Jak oceniane są przypadki",
-        "body": "Wybierz oceniaczy: sprawdzenia oparte na regułach, oczekiwane wywołania narzędzi i sędziego ewaluacji z rubryką lub odpowiedzią wzorcową. Zaznacz, które przypadek musi zaliczyć. Sędzia wymaga wsparcia AI, które włącza administrator organizacji."
-      },
-      "dataset-scores": {
-        "title": "Wyniki i przegląd",
-        "body": "Każdy wynik zapisany dla tego datasetu, z uzasadnieniem każdego oceniacza. Pokaż tylko czekające na przegląd i zmień ocenę sędziego, gdy się myli - jego opinia zostaje zapisana."
-      },
       "datasets-list": {
         "title": "Twoje datasety",
         "body": "Każda zmiana przypadków tworzy nową wersję, więc run eval zawsze wskazuje pytania, które się nie zmieniają."
@@ -2000,7 +1992,15 @@
       },
       "flow-dataset-sources": {
         "title": "Skąd biorą się kolejne przypadki",
-        "body": "Pisz je tutaj albo importuj tu plik CSV lub JSONL. W czacie oceń odpowiedź łapką w górę albo w dół i dodaj ją - łapka w górę zachowuje ją jako wzorcową, łapka w dół jako kontrprzykład. W Aktywności dodaj dowolną turę agenta z runa."
+        "body": "Pisz je tutaj albo importuj plik CSV lub JSONL z tego menu. W czacie oceń odpowiedź łapką w górę albo w dół i dodaj ją - łapka w górę zachowuje ją jako wzorcową, łapka w dół jako kontrprzykład. W Aktywności dodaj dowolną turę agenta z runa."
+      },
+      "dataset-grading": {
+        "title": "Jak oceniane są przypadki",
+        "body": "Wybierz oceniaczy: sprawdzenia oparte na regułach, oczekiwane wywołania narzędzi i sędziego ewaluacji z rubryką lub odpowiedzią wzorcową. Zaznacz, które przypadek musi zaliczyć. Sędzia wymaga wsparcia AI, które włącza administrator organizacji."
+      },
+      "dataset-review": {
+        "title": "Wyniki i przegląd",
+        "body": "Każdy wynik zapisany dla tego datasetu, z uzasadnieniem każdego oceniacza. Pokaż tylko czekające na przegląd i zmień ocenę sędziego, gdy się myli - jego opinia zostaje zapisana."
       }
     }
   },
@@ -3360,7 +3360,7 @@
         "failed": "Wyniki, które nie zaliczyły",
         "all": "Każdy wynik"
       },
-      "scores": "Wyniki",
+      "scores": "Przegląd",
       "scoreCount": "{count, plural, one {# wynik} few {# wyniki} many {# wyników} other {# wyniku}}",
       "onlyAwaitingReview": "Tylko czekające na przegląd",
       "noScores": "Brak wyników",
@@ -3524,6 +3524,11 @@
     "saveDetails": "Zapisz",
     "detailsSaved": "Zapisano",
     "olderVersion": "Starsza wersja nr",
-    "findDataset": "Znajdź dataset"
+    "findDataset": "Znajdź dataset",
+    "moreActions": "Więcej akcji",
+    "share": "Udostępnij",
+    "delete": "Usuń",
+    "shareTitle": "Udostępnij {name}",
+    "shareBody": "Kto widzi ten dataset i kto może zmieniać jego przypadki."
   }
 }

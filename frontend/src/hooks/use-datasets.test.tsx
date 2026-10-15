@@ -115,6 +115,20 @@ describe("useDataset and its versions", () => {
     expect(apiClient.patch).toHaveBeenCalledWith("/datasets/d1", { name: "returns" });
   });
 
+  it("deletes the dataset it reads, and says why when the server refuses", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "d1", name: "refunds" });
+    const { result } = renderHook(() => useDataset("d1"), { wrapper });
+    await waitFor(() => expect(result.current.dataset?.name).toBe("refunds"));
+    vi.mocked(apiClient.delete).mockResolvedValueOnce(undefined);
+    await result.current.remove.mutateAsync();
+    expect(apiClient.delete).toHaveBeenCalledWith("/datasets/d1");
+    expect(toastSuccess).toHaveBeenCalledWith("Dataset deleted");
+
+    vi.mocked(apiClient.delete).mockRejectedValueOnce(new Error("nope"));
+    await expect(result.current.remove.mutateAsync()).rejects.toThrow();
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+  });
+
   it("lists the versions newest first, as the server ordered them", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [{ number: 2 }, { number: 1 }], total: 2 });
     const { result } = renderHook(() => useDatasetVersions("d1"), { wrapper });

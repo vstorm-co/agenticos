@@ -3257,14 +3257,6 @@
         "title": "Diesen Run bewerten",
         "body": "Prüfen Sie die Antwort dieses Runs gegen einen Fall eines Datasets: seine Prüfungen, die erwarteten Tool-Aufrufe und, falls eingerichtet, den Eval-Bewerter. Das Ergebnis wird im Dataset gespeichert."
       },
-      "dataset-scoring": {
-        "title": "Wie Fälle bewertet werden",
-        "body": "Wählen Sie die Bewertungen: regelbasierte Prüfungen, die erwarteten Tool-Aufrufe und den Eval-Bewerter mit einer Rubrik oder der Referenzantwort. Legen Sie fest, welche ein Fall bestehen muss. Der Eval-Bewerter braucht die KI-Unterstützung, die ein Administrator für die Organisation einschaltet."
-      },
-      "dataset-scores": {
-        "title": "Ergebnisse und Prüfung",
-        "body": "Jedes für dieses Dataset gespeicherte Ergebnis, mit der Begründung jeder Bewertung. Zeigen Sie nur wartende Prüfungen und überstimmen Sie den Bewerter, wenn er falsch liegt - seine Einschätzung bleibt erhalten."
-      },
       "datasets-list": {
         "title": "Ihre Datasets",
         "body": "Jede Änderung an den Fällen erzeugt eine neue Version, sodass ein Eval-Run immer auf Fragen zeigt, die sich nicht ändern."
@@ -3315,7 +3307,15 @@
       },
       "flow-dataset-sources": {
         "title": "Woher die nächsten Fälle kommen",
-        "body": "Schreiben Sie sie hier, oder importieren Sie hier eine CSV- oder JSONL-Datei. Bewerten Sie im Chat eine Antwort positiv oder negativ und fügen Sie sie hinzu - ein Daumen nach oben behält sie als Referenz, einer nach unten als Gegenbeispiel. In der Aktivität fügen Sie einen beliebigen Agent-Zug eines Runs hinzu."
+        "body": "Schreiben Sie sie hier, oder importieren Sie über dieses Menü eine CSV- oder JSONL-Datei. Bewerten Sie im Chat eine Antwort positiv oder negativ und fügen Sie sie hinzu - ein Daumen nach oben behält sie als Referenz, einer nach unten als Gegenbeispiel. In der Aktivität fügen Sie einen beliebigen Agent-Zug eines Runs hinzu."
+      },
+      "dataset-grading": {
+        "title": "Wie Fälle bewertet werden",
+        "body": "Wählen Sie die Bewertungen: regelbasierte Prüfungen, die erwarteten Tool-Aufrufe und den Eval-Bewerter mit einer Rubrik oder der Referenzantwort. Legen Sie fest, welche ein Fall bestehen muss. Der Eval-Bewerter braucht die KI-Unterstützung, die ein Administrator für die Organisation einschaltet."
+      },
+      "dataset-review": {
+        "title": "Ergebnisse und Prüfung",
+        "body": "Jedes für dieses Dataset gespeicherte Ergebnis, mit der Begründung jeder Bewertung. Zeigen Sie nur wartende Prüfungen und überstimmen Sie den Bewerter, wenn er falsch liegt - seine Einschätzung bleibt erhalten."
       }
     }
   },
@@ -5600,7 +5600,7 @@
         "failed": "Ergebnisse, die nicht bestanden haben",
         "all": "Jedes Ergebnis"
       },
-      "scores": "Ergebnisse",
+      "scores": "Prüfung",
       "scoreCount": "{count, plural, =1 {1 Ergebnis} other {# Ergebnisse}}",
       "onlyAwaitingReview": "Nur wartende Prüfungen",
       "noScores": "Noch keine Ergebnisse",
@@ -5764,6 +5764,11 @@
     "saveDetails": "Speichern",
     "detailsSaved": "Gespeichert",
     "olderVersion": "Ältere Version Nr.",
-    "findDataset": "Dataset suchen"
+    "findDataset": "Dataset suchen",
+    "moreActions": "Weitere Aktionen",
+    "share": "Teilen",
+    "delete": "Löschen",
+    "shareTitle": "{name} teilen",
+    "shareBody": "Wer dieses Dataset sieht und wer seine Cases ändern darf."
   }
 }
