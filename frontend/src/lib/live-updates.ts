@@ -25,7 +25,8 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   invitation: (orgId) => [qk.invitations.list(orgId)],
   // A group's members and shares are who reaches what it was shared.
   group: (orgId) => [qk.organizations.groups(orgId), qk.sharing.all()],
-  organization: () => [qk.organizations.all()],
+  // The organization's settings, the AI Architect's among them.
+  organization: (orgId) => [qk.organizations.all(), qk.assistant(orgId)],
   trigger: () => [qk.triggers.all()],
   // A bot is also the surface an agent is exposed on.
   channel: () => [qk.channelBots.list(), qk.exposures.all()],

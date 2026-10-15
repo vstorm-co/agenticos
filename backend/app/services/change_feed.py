@@ -166,6 +166,8 @@ _FEEDS = (
     _Feed("/orgs/{org_id}/invitations", "invitation", "invitation_id"),
     _Feed("/orgs/{org_id}/groups", "group", "group_id"),
     _Feed("/orgs/{org_id}", "organization", "org_id"),
+    # The assistant is the organization's own setting, heard by everyone in it.
+    _Feed("/assistant", "organization", creates=False),
 )
 
 _OWNED: dict[ChangeResource, ResourceType] = {

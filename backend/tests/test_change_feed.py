@@ -103,6 +103,13 @@ class TestWhatIsAChange:
             "updated",
         )
 
+    def test_the_assistant_s_settings_are_a_change_to_the_organization(self) -> None:
+        """Codex on #2062: other tabs kept the old greeting, model or switch."""
+        changed = _change("PATCH", "/assistant", {})
+
+        assert changed is not None
+        assert (changed.resource, changed.action) == ("organization", "updated")
+
     def test_a_member_and_the_organization_are_told_apart(self) -> None:
         org_id, user_id = str(uuid.uuid4()), str(uuid.uuid4())
 

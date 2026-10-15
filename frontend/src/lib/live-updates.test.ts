@@ -21,7 +21,10 @@ function change(resource: ChangeResource): ChangeEvent {
 
 describe("staleQueries", () => {
   it("marks a resource's whole family stale, not only the row", () => {
-    expect(staleQueries(change("organization"))).toEqual([qk.organizations.all()]);
+    expect(staleQueries(change("organization"))).toEqual([
+      qk.organizations.all(),
+      qk.assistant(change("organization").organization_id),
+    ]);
     expect(staleQueries(change("trigger"))).toEqual([qk.triggers.all()]);
     expect(staleQueries(change("notification"))).toEqual([qk.notifications.all()]);
     expect(staleQueries(change("run"))).toEqual([qk.runs.all(), qk.conversations.list()]);
