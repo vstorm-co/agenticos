@@ -71,6 +71,7 @@ parent's check.
 | Store | Holds | Personal data in it | Purpose |
 |---|---|---|---|
 | `users`, `sessions`, `organization_members` | Accounts and sign-ins | Email, name, avatar, hashed password or the Google account id, refresh-token hash, IP address and user agent per session | Authentication and authorization |
+| `browser_sign_ins` | A person's kept sign-ins to sites, for the web browser | The site, the organization, when it was last used, and the session itself (cookies and the site's `localStorage`) sealed through the vault under the person's own scope | Starting a later browse that acts for them already signed in. The personal-data export lists the sites, never the session |
 | `conversations`, `messages`, `tool_calls` | Every chat on every surface | The text people wrote, the model's answers and reasoning, tool arguments and results, a rolling summary of long threads | The product's core function; history the person returns to |
 | `chat_files` | Attachments to a message | Filename, type, size, the extracted text (`parsed_content`) and the path of the bytes on disk | Answering about a file |
 | `context_files` | Standing knowledge a builder wrote for agents | Whatever the author put there - and it reaches the prompt verbatim. See [Context files](context.md) | Instructions and facts an agent should always know |

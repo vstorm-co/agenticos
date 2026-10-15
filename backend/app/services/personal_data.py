@@ -49,6 +49,9 @@ _MEMORY_FIELDS = ("id", "agent_id", "name", "content", "updated_at")
 _IDENTITY_FIELDS = ("id", "platform", "platform_user_id", "platform_username")
 _COMMAND_FIELDS = ("id", "name", "prompt", "created_at")
 _LAYOUT_FIELDS = ("id", "organization_id", "entries", "updated_at")
+# Which site, where and when - never `sealed_state`, which is their live session
+# on that site and would make the export a key to it.
+_SIGN_IN_FIELDS = ("id", "organization_id", "site", "created_at", "last_used_at")
 _NOTIFICATION_FIELDS = (
     "id",
     "event_type",
@@ -161,6 +164,9 @@ class PersonalDataService:
             notification_preferences=personal_data_repo.as_rows(
                 await personal_data_repo.notification_preferences_of(self.db, user_id),
                 _NOTIFICATION_PREFERENCE_FIELDS,
+            ),
+            browser_sign_ins=personal_data_repo.as_rows(
+                await personal_data_repo.browser_sign_ins_of(self.db, user_id), _SIGN_IN_FIELDS
             ),
         )
 

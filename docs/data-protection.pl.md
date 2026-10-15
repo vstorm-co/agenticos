@@ -1,5 +1,5 @@
 ---
-source_sha: "55662d778f21"
+source_sha: "4e9bf91114a6"
 ---
 
 # Ochrona danych { #data-protection }
@@ -75,6 +75,7 @@ przez sprawdzenie rodzica.
 | Magazyn | Trzyma | Dane osobowe w nim | Cel |
 |---|---|---|---|
 | `users`, `sessions`, `organization_members` | Konta i logowania | E-mail, imię, awatar, zahaszowane hasło albo id konta Google, hash refresh tokenu, adres IP i user agent na sesję | Uwierzytelnianie i autoryzacja |
+| `browser_sign_ins` | Zapisane logowania osoby do stron, dla przeglądarki | Strona, organizacja, kiedy ostatnio użyte, i sama sesja (ciasteczka i `localStorage` strony) zapieczętowana w vaulcie w zakresie tej osoby | Kolejne przeglądanie w jej imieniu zaczyna się już zalogowane. Eksport danych osobowych podaje strony, nigdy sesji |
 | `conversations`, `messages`, `tool_calls` | Każdy czat na każdej powierzchni | Tekst, który ludzie napisali, odpowiedzi i rozumowanie modelu, argumenty i wyniki narzędzi, kroczące podsumowanie długich wątków | Podstawowa funkcja produktu; historia, do której człowiek wraca |
 | `chat_files` | Załączniki do wiadomości | Nazwa pliku, typ, rozmiar, wyciągnięty tekst (`parsed_content`) i ścieżka bajtów na dysku | Odpowiadanie o pliku |
 | `context_files` | Stała wiedza, którą builder napisał dla agentów | Cokolwiek autor tam umieścił — i trafia to do promptu dosłownie. Zobacz [Pliki kontekstu](context.md) | Instrukcje i fakty, które agent zawsze ma znać |

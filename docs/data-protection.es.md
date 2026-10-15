@@ -1,5 +1,5 @@
 ---
-source_sha: "55662d778f21"
+source_sha: "4e9bf91114a6"
 ---
 
 # Protección de datos { #data-protection }
@@ -78,6 +78,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | Almacén | Guarda | Datos personales que contiene | Finalidad |
 |---|---|---|---|
 | `users`, `sessions`, `organization_members` | Cuentas e inicios de sesión | Correo, nombre, avatar, contraseña con hash o el id de la cuenta de Google, hash del refresh token, dirección IP y user agent por sesión | Autenticación y autorización |
+| `browser_sign_ins` | Los inicios de sesión que una persona guardó en sitios, para el navegador web | El sitio, la organización, cuándo se usó por última vez y la propia sesión (cookies y el `localStorage` del sitio), sellada en el vault en el ámbito de la persona | Un recorrido posterior en su nombre empieza ya con la sesión iniciada. La exportación de datos personales lista los sitios, nunca la sesión |
 | `conversations`, `messages`, `tool_calls` | Todos los chats en todas las superficies | El texto que la gente escribió, las respuestas y el razonamiento del modelo, argumentos y resultados de herramientas, un resumen continuo de los hilos largos | La función central del producto; el historial al que vuelve la persona |
 | `chat_files` | Adjuntos de un mensaje | Nombre de archivo, tipo, tamaño, el texto extraído (`parsed_content`) y la ruta de los bytes en disco | Responder sobre un archivo |
 | `context_files` | Conocimiento permanente que un builder escribió para los agents | Lo que el autor pusiera ahí — y llega al prompt literalmente. Consulta [Archivos de contexto](context.md) | Instrucciones y hechos que un agent debe saber siempre |

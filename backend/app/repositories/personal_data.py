@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -155,6 +156,12 @@ async def slash_commands_of(db: AsyncSession, user_id: UUID) -> list[UserSlashCo
 
 async def dashboard_layouts_of(db: AsyncSession, user_id: UUID) -> list[DashboardLayout]:
     result = await db.execute(select(DashboardLayout).where(DashboardLayout.user_id == user_id))
+    return list(result.scalars().all())
+
+
+async def browser_sign_ins_of(db: AsyncSession, user_id: UUID) -> list[BrowserSignIn]:
+    """The sites they kept a browser sign-in to, in every organization."""
+    result = await db.execute(select(BrowserSignIn).where(BrowserSignIn.user_id == user_id))
     return list(result.scalars().all())
 
 

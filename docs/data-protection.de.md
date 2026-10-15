@@ -1,5 +1,5 @@
 ---
-source_sha: "55662d778f21"
+source_sha: "4e9bf91114a6"
 ---
 
 # Datenschutz { #data-protection }
@@ -80,6 +80,7 @@ des Elternteils.
 | Speicher | Hält | Personenbezogene Daten darin | Zweck |
 |---|---|---|---|
 | `users`, `sessions`, `organization_members` | Konten und Anmeldungen | E-Mail, Name, Avatar, gehashtes Passwort oder die Google-Konto-Id, Refresh-Token-Hash, IP-Adresse und User-Agent je Session | Authentifizierung und Autorisierung |
+| `browser_sign_ins` | Gespeicherte Anmeldungen einer Person bei Websites, für den Webbrowser | Die Website, die Organisation, wann sie zuletzt genutzt wurde, und die Sitzung selbst (Cookies und der `localStorage` der Website), über den Vault im eigenen Bereich der Person versiegelt | Ein späterer Durchlauf in ihrem Namen beginnt bereits angemeldet. Der Export personenbezogener Daten nennt die Websites, nie die Sitzung |
 | `conversations`, `messages`, `tool_calls` | Jeder Chat auf jeder Oberfläche | Der Text, den Menschen geschrieben haben, die Antworten und das Reasoning des Models, Tool-Argumente und -Ergebnisse, eine fortlaufende Zusammenfassung langer Threads | Die Kernfunktion des Produkts; die Historie, zu der ein Mensch zurückkehrt |
 | `chat_files` | Anhänge an einer Nachricht | Dateiname, Typ, Größe, der extrahierte Text (`parsed_content`) und der Pfad der Bytes auf der Platte | Antworten über eine Datei |
 | `context_files` | Dauerhaftes Wissen, das ein Builder für Agents geschrieben hat | Was der Autor dort hineingeschrieben hat — und es erreicht den Prompt wörtlich. Siehe [Kontextdateien](context.md) | Anweisungen und Fakten, die ein Agent immer kennen soll |

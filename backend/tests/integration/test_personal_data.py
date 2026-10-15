@@ -27,6 +27,7 @@ from app.core.memory_keys import person_owner_key
 from app.db.models.agent import Agent
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message, ToolCall
@@ -299,6 +300,25 @@ class TestTheExport:
         assert [row["summary"] for row in export.notifications] == ["jarvis's run finished."]
         assert export.notifications[0]["in_app_visible"] is False
         assert [row["channel"] for row in export.notification_preferences] == ["email"]
+
+    async def test_it_names_the_sites_they_kept_a_sign_in_to_never_the_sign_in(self, db):
+        user = await _person(db, "export-sign-ins@example.com")
+        organization, _ = await _org_and_agent(db)
+        db.add(
+            BrowserSignIn(
+                organization_id=organization.id,
+                user_id=user.id,
+                site="portal.example.test",
+                sealed_state="sealed-cookies",
+            )
+        )
+        await db.flush()
+
+        export = await PersonalDataService(db).export(user.id, actor_user_id=user.id)
+
+        assert [row["site"] for row in export.browser_sign_ins] == ["portal.example.test"]
+        assert "sealed_state" not in export.browser_sign_ins[0]
+        assert "sealed-cookies" not in export.model_dump_json()
 
     async def test_it_carries_no_credential_anywhere(self, db):
         """A session row holds a hash of a refresh token, and an export is a file
