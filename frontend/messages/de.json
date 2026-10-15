@@ -6186,11 +6186,11 @@
     "sideModel": "{name} · {model}",
     "headline": {
       "first": "Das ist das erste Ergebnis von {candidate} auf {dataset}: {rate} der Fälle bestehen. Spätere Versionen werden damit verglichen.",
-      "worse": "{candidate} macht {broke, plural, =1 {1 Fall} other {# Fälle}} kaputt, die auf {baseline} bestanden, bei jeder Frage ({held} von {tries}): „{question}“{others, plural, =0 {} other { und # weitere}}.",
-      "better": "{candidate} behebt {fixed, plural, =1 {1 Fall} other {# Fälle}}, die auf {baseline} durchfielen, bei jeder Frage ({held} von {tries}): „{question}“{others, plural, =0 {} other { und # weitere}}.",
+      "worse": "{candidate} macht {broke, plural, =1 {1 Fall} other {# Fälle}} kaputt, die auf {baseline} bestanden, bei jeder Frage: „{question}“ ({held} von {tries}){others, plural, =0 {} other { und # weitere}}.",
+      "better": "{candidate} behebt {fixed, plural, =1 {1 Fall} other {# Fälle}}, die auf {baseline} durchfielen, bei jeder Frage: „{question}“ ({held} von {tries}){others, plural, =0 {} other { und # weitere}}.",
       "no_difference": "Keine Änderung hielt: {candidate} schneidet auf {dataset} so gut ab wie {baseline}.{changes, plural, =0 {} =1 { 1 Fall änderte sich einmal, aber nicht bei erneuter Frage.} other { # Fälle änderten sich einmal, aber nicht bei erneuter Frage.}}",
       "invalid": "{candidate} und {baseline} lassen sich nicht vergleichen: Die Seiten wurden von einem anderen Judge oder nach einer anderen Rubrik bewertet.",
-      "mixed": "Gemischt: {candidate} macht gegenüber {baseline} {broke, plural, =1 {1 Fall} other {# Fälle}} kaputt und behebt {fixed}, bei jeder Frage. Kaputt ({held} von {tries}): „{question}“{others, plural, =0 {} other { und # weitere}}.",
+      "mixed": "Gemischt: {candidate} macht gegenüber {baseline} {broke, plural, =1 {1 Fall} other {# Fälle}} kaputt und behebt {fixed}, bei jeder Frage. Kaputt: „{question}“ ({held} von {tries}){others, plural, =0 {} other { und # weitere}}.",
       "overall": "{overall, select, worse {Insgesamt schlechter: Über alle bestätigten Änderungen schneidet {candidate} schlechter ab als {baseline}.} other {Insgesamt besser: Über alle bestätigten Änderungen schneidet {candidate} besser ab als {baseline}.}}",
       "passRate": "Bestehensquote {from} → {to}, jeder Fall so, wie die meisten seiner Versuche ausfielen",
       "firstPassRate": "Nur die ersten Antworten: {from} → {to}"

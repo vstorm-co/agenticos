@@ -3949,11 +3949,11 @@
     "sideModel": "{name} · {model}",
     "headline": {
       "first": "To pierwszy wynik {candidate} na datasecie {dataset}: zalicza {rate} case'ów. Kolejne wersje będą z nim porównywane.",
-      "worse": "{candidate} psuje {broke, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}}, które przechodziły na {baseline}, za każdym razem ({held} z {tries}): „{question}”{others, plural, =0 {} other { i jeszcze #}}.",
-      "better": "{candidate} naprawia {fixed, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}}, które nie przechodziły na {baseline}, za każdym razem ({held} z {tries}): „{question}”{others, plural, =0 {} other { i jeszcze #}}.",
+      "worse": "{candidate} psuje {broke, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}}, które przechodziły na {baseline}, za każdym razem: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
+      "better": "{candidate} naprawia {fixed, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}}, które nie przechodziły na {baseline}, za każdym razem: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
       "no_difference": "Brak powtarzalnej zmiany: {candidate} radzi sobie tak samo jak {baseline} na datasecie {dataset}.{changes, plural, =0 {} one { # case zmienił się raz, ale nie przy ponownym pytaniu.} few { # case'y zmieniły się raz, ale nie przy ponownym pytaniu.} many { # case'ów zmieniło się raz, ale nie przy ponownym pytaniu.} other { # case'a zmieniło się raz, ale nie przy ponownym pytaniu.}}",
       "invalid": "{candidate} i {baseline} nie da się porównać: strony oceniał inny sędzia albo inna rubryka.",
-      "mixed": "Mieszany: {candidate} psuje {broke, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}} i naprawia {fixed} względem {baseline}, za każdym razem. Psuje ({held} z {tries}): „{question}”{others, plural, =0 {} other { i jeszcze #}}.",
+      "mixed": "Mieszany: {candidate} psuje {broke, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}} i naprawia {fixed} względem {baseline}, za każdym razem. Psuje: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
       "overall": "{overall, select, worse {Gorszy ogólnie: po wszystkich potwierdzonych zmianach {candidate} wypada gorzej niż {baseline}.} other {Lepszy ogólnie: po wszystkich potwierdzonych zmianach {candidate} wypada lepiej niż {baseline}.}}",
       "passRate": "Zaliczone {from} → {to}, każdy case tak, jak wypadła większość jego prób",
       "firstPassRate": "Same pierwsze odpowiedzi: {from} → {to}"

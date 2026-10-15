@@ -109,7 +109,7 @@ describe("EvalRunView", () => {
     expect(screen.getByText("refunds v3 · v7")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: /v7 breaks 1 case that passed on Draft, every time it was asked \(3 of 3\): “How long do I have to return it\?”\./,
+        name: /v7 breaks 1 case that passed on Draft, every time it was asked: “How long do I have to return it\?” \(3 of 3\)\./,
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("Breaks cases")).toBeInTheDocument();
@@ -154,7 +154,7 @@ describe("EvalRunView", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: /Draft breaks 4 cases that passed on v6, every time it was asked \(3 of 3\): “How long do I have to return it\?” and 3 more\..*Pass rate 67% → 22%/,
+        name: /Draft breaks 4 cases that passed on v6, every time it was asked: “How long do I have to return it\?” \(3 of 3\) and 3 more\..*Pass rate 67% → 22%/,
       }),
     ).toBeInTheDocument();
     expect(screen.getByText(/4 answers \+ 2 confirming reruns/)).toBeInTheDocument();
@@ -192,7 +192,7 @@ describe("EvalRunView", () => {
     const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
       screen.getByRole("heading", {
-        name: /Draft fixes 1 case that failed on v6, every time it was asked \(2 of 2\)/,
+        name: /Draft fixes 1 case that failed on v6, every time it was asked: “How long do I have to return it\?” \(2 of 2\)/,
       }),
     ).toBeVisible();
     expect(screen.getByRole("link", { name: "Publish" }).className).toContain("bg-primary");
