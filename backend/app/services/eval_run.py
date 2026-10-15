@@ -36,7 +36,6 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
 from pydantic import ValidationError
@@ -129,9 +128,10 @@ def scoring_hash(scoring: DatasetScoring) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def spec_fingerprint(spec: dict[str, Any]) -> str:
-    """A spec as one string, equal for equal specs whatever order their keys were written in."""
-    return json.dumps(spec, sort_keys=True, separators=(",", ":"))
+def spec_hash(spec: AgentSpec) -> str:
+    """A fingerprint of a spec, equal for equal specs whatever order their keys were written in."""
+    canonical = json.dumps(spec.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def attempt_outcome(attempt: EvalRunCase, score: CaseScore | None) -> Outcome:
@@ -764,6 +764,7 @@ class EvalRunService:
                 agent_version_id=arm.version.id if arm.version else None,
                 version_number=arm.version.version if arm.version else None,
                 spec=None if arm.version else arm.spec.model_dump(mode="json"),
+                spec_hash=spec_hash(arm.spec),
                 model_profile_id=arm.model_profile_id,
                 model_label=arm.model_label,
                 reused_from_arm_id=arm.cached[0].id if arm.cached else None,
@@ -840,8 +841,59 @@ class EvalRunService:
         return run
 
     async def get(self, ctx: AuthContext, run_id: UUID) -> EvalRunRead:
+        """One run, and - for a run of the draft - whether the draft changed since."""
         run = await self._readable(ctx, run_id)
-        return (await self._reads(ctx, [run]))[0]
+        read = (await self._reads(ctx, [run]))[0]
+        tested = next(
+            (
+                arm
+                for arm in read.arms
+                if arm.role == ArmRole.CANDIDATE and arm.source == ArmSource.DRAFT
+            ),
+            None,
+        )
+        if tested is None:
+            return read
+        agent = await self.registry.get(ctx, run.agent_id)
+        current = spec_hash(AgentSpec.model_validate(agent.draft_spec))
+        return read.model_copy(update={"draft_changed": current != tested.spec_hash})
+
+    async def arm_spec(self, ctx: AuthContext, run_id: UUID, arm_id: UUID) -> AgentSpec:
+        """The spec one side of a run answered with - what History compares a version with.
+
+        A draft is the editors' work in progress, so reading it takes edit access
+        to the agent, as running it did.
+        """
+        run = await self._readable(ctx, run_id)
+        org = ctx.organization_id
+        arm = next(
+            (
+                item
+                for item in await eval_run_repo.list_arms(self.db, [run.id], organization_id=org)
+                if item.id == arm_id
+            ),
+            None,
+        )
+        if arm is None:
+            raise NotFoundError(message="Arm not found", details={"arm_id": arm_id})
+        agent = await self.registry.get(ctx, run.agent_id)
+        if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT):
+            raise AuthorizationError(
+                message="Reading what a run tested needs edit access to the agent",
+                details={"agent_id": agent.id},
+            )
+        if arm.spec is not None:
+            return AgentSpec.model_validate(arm.spec)
+        version = (
+            await agent_repo.get_version(self.db, arm.agent_version_id, organization_id=org)
+            if arm.agent_version_id is not None
+            else None
+        )
+        if version is None:
+            raise NotFoundError(
+                message="The version this side ran is gone", details={"arm_id": arm_id}
+            )
+        return AgentSpec.model_validate(version.spec)
 
     @staticmethod
     def _require_runs_view(ctx: AuthContext) -> None:
@@ -862,7 +914,7 @@ class EvalRunService:
         """An agent's runs over the datasets the caller may read, newest first.
 
         `draft` keeps only the runs that tested the draft as it stands now - the
-        same spec, whatever order its keys were stored in.
+        same spec hash, whatever order its keys were stored in.
         """
         self._require_runs_view(ctx)
         agent = await self.registry.get(ctx, agent_id)
@@ -872,19 +924,15 @@ class EvalRunService:
         )
         readable = sorted(await self._readable_datasets(ctx, dataset_ids))
         if draft:
-            current = spec_fingerprint(
-                AgentSpec.model_validate(agent.draft_spec).model_dump(mode="json")
+            tested = await eval_run_repo.draft_runs(
+                self.db,
+                agent.id,
+                organization_id=org,
+                dataset_ids=readable,
+                spec_hash=spec_hash(AgentSpec.model_validate(agent.draft_spec)),
             )
-            tested = [
-                run
-                for run, spec in await eval_run_repo.draft_runs(
-                    self.db, agent.id, organization_id=org, dataset_ids=readable
-                )
-                if spec is not None and spec_fingerprint(spec) == current
-            ]
-            unique = list(dict.fromkeys(tested))
             return EvalRunList(
-                items=await self._reads(ctx, unique[skip : skip + limit]), total=len(unique)
+                items=await self._reads(ctx, tested[skip : skip + limit]), total=len(tested)
             )
         runs, total = await eval_run_repo.list_for_agent(
             self.db, agent.id, organization_id=org, dataset_ids=readable, skip=skip, limit=limit
@@ -1008,6 +1056,7 @@ class EvalRunService:
                         model_profile_id=arm.model_profile_id,
                         model_label=arm.model_label,
                         reused_from_arm_id=arm.reused_from_arm_id,
+                        spec_hash=arm.spec_hash,
                         summary=_summary_read(summary),
                         by_tag={tag: _summary_read(s) for tag, s in summary.by_tag.items()},
                     )

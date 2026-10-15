@@ -141,6 +141,7 @@ async def _run(
         version_number=version.version,
         model_profile_id=model_profile_id,
         model_label="gpt-4.1",
+        spec_hash="v",
     )
     run = await eval_run_repo.create(db, organization_id=ctx.organization_id, run=run, arms=[arm])
     await eval_run_repo.add_cases(

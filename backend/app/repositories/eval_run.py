@@ -180,26 +180,31 @@ async def list_for_dataset(
 
 
 async def draft_runs(
-    db: AsyncSession, agent_id: UUID, *, organization_id: UUID, dataset_ids: Sequence[UUID]
-) -> list[tuple[EvalRun, dict[str, Any] | None]]:
-    """An agent's runs that tested a draft, newest first, each with the draft it froze.
-
-    A run comparing several models has one draft arm per model, so a run can
-    appear more than once.
-    """
+    db: AsyncSession,
+    agent_id: UUID,
+    *,
+    organization_id: UUID,
+    dataset_ids: Sequence[UUID],
+    spec_hash: str,
+) -> list[EvalRun]:
+    """An agent's runs that tested one draft, by the hash of its spec, newest first."""
+    tested = select(EvalRunArm.eval_run_id).where(
+        EvalRunArm.organization_id == organization_id,
+        EvalRunArm.source == ArmSource.DRAFT.value,
+        EvalRunArm.role == ArmRole.CANDIDATE.value,
+        EvalRunArm.spec_hash == spec_hash,
+    )
     result = await db.execute(
-        select(EvalRun, EvalRunArm.spec)
-        .join(EvalRunArm, EvalRunArm.eval_run_id == EvalRun.id)
+        select(EvalRun)
         .where(
             EvalRun.organization_id == organization_id,
             EvalRun.agent_id == agent_id,
             EvalRun.dataset_id.in_(dataset_ids),
-            EvalRunArm.source == ArmSource.DRAFT.value,
-            EvalRunArm.role == ArmRole.CANDIDATE.value,
+            EvalRun.id.in_(tested),
         )
         .order_by(EvalRun.created_at.desc(), EvalRun.id)
     )
-    return [(run, spec) for run, spec in result.all()]
+    return list(result.scalars().all())
 
 
 async def reviewed_since(
