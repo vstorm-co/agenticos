@@ -180,6 +180,37 @@ class TestARunThatMeetsRefusals:
         assert returned
         assert all("403" in str(part.content) for part in returned)
 
+    async def test_forbidden_pages_fetched_in_parallel_do_not_end_the_run(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Calls in one response all see the same attempt, and spend one retry between them.
+
+        So two refusals in the first response are both retries, and the two in the
+        next are both results, not a budget the first pair already exhausted.
+        """
+        _forbidden(monkeypatch)
+        batches = [
+            ["https://a.example.com/", "https://b.example.com/"],
+            ["https://c.example.com/", "https://d.example.com/"],
+        ]
+
+        def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            step = sum(isinstance(message, ModelResponse) for message in messages)
+            if step < len(batches):
+                return ModelResponse(
+                    parts=[ToolCallPart("web_fetch", {"url": url}) for url in batches[step]]
+                )
+            return ModelResponse(parts=[TextPart("None of them would let me in.")])
+
+        agent = Agent(FunctionModel(model), capabilities=[_built()])
+
+        result = await agent.run("Read these pages.")
+
+        assert result.output == "None of them would let me in."
+        parts = [part for message in result.all_messages() for part in message.parts]
+        assert sum(isinstance(part, RetryPromptPart) for part in parts) == 2
+        assert sum(isinstance(part, ToolReturnPart) for part in parts) == 2
+
 
 class TestWhoFetches:
     """`method` is the whole decision, and all three answers are checked.
