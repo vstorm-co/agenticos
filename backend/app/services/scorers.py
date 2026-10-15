@@ -37,6 +37,7 @@ from app.schemas.scoring import (
 
 MAX_QUOTES = 12
 MAX_QUOTE = 600
+MAX_RULE = 300
 MAX_REASON = 2000
 _QUOTE_SHOWN = 80
 
@@ -397,13 +398,15 @@ class JudgeGrade(BaseModel):
     """One criterion's grade.
 
     `quotes` are the passages of the answer the grade rests on, word for word.
-    Each is looked for in the answer; one that is not there is named in the
-    result's reason, and the grade stands.
+    Each is looked for in the answer; one that is not there is kept beside the
+    grade, and the grade stands. `rule` is the rule the grade follows from - a
+    line of a policy the judge was given, or the part of the criterion it turns on.
     """
 
     id: str
     score: int
     reason: str
+    rule: str = Field(default="", max_length=MAX_RULE)
     quotes: list[Annotated[str, Field(min_length=1, max_length=MAX_QUOTE)]] = Field(
         default_factory=list, max_length=MAX_QUOTES
     )
@@ -417,7 +420,7 @@ class JudgeVerdict(BaseModel):
 
 # Bumped whenever what `judge_prompt` hands the judge changes, so a score graded
 # from one prompt is never compared as like for like with one graded from another.
-JUDGE_PROMPT_VERSION = 2
+JUDGE_PROMPT_VERSION = 3
 
 COUNTER_CRITERION = (
     "The answer does not repeat the mistake of the counter-example, a known bad answer "
@@ -425,8 +428,8 @@ COUNTER_CRITERION = (
 )
 _MAX_CALLS_SHOWN = 50
 _MAX_ARGS_SHOWN = 1_000
-# A reason this close to the criterion's own wording says nothing about the answer.
-_ECHO_MIN = 20
+# A reason this much made of the criterion's own words says nothing about the answer.
+_RESTATED_SHARE = 0.8
 
 REFERENCE_CRITERION = (
     "The answer agrees with the reference answer on every fact the question turns on. "
@@ -533,9 +536,12 @@ def judge_prompt(
         f"Grade the answer on each criterion below, from 1 (does not meet it at all) to "
         f"{scale_max} (fully meets it). Give exactly one grade per criterion id. The tool "
         f"calls are what the agent did before answering; grade them only where a criterion "
-        f"asks about them. A reason says what in this answer decided the grade - do not "
-        f"restate the criterion. Where a grade rests on something the answer says, copy "
-        f"that passage word for word into the grade's quotes.\n{listed}"
+        f"asks about them. For every criterion, copy word for word into the grade's quotes "
+        f"the short passage of the answer the grade rests on, name in its rule the rule the "
+        f"grade follows from - a line of the policy you were given, or the part of the "
+        f"criterion it turns on - and say in its reason what in this answer decided it. Do "
+        f"not restate the criterion. A top grade with nothing quoted from the answer is "
+        f"treated as unverified.\n{listed}"
     )
     return "\n\n".join(parts)
 
@@ -559,22 +565,24 @@ def _unverified(quotes: Sequence[str], answer: str) -> list[str]:
     ]
 
 
-def _plain(text: str) -> str:
-    return " ".join(re.sub(r"[^\w]+", " ", text.casefold()).split())
+def _words(text: str) -> list[str]:
+    """The words of a text that carry meaning: longer than three letters, case aside."""
+    return [word for word in re.findall(r"\w+", text.casefold()) if len(word) > 3]
 
 
-def echoes(reason: str, criterion: str) -> bool:
-    """Whether a reason only restates its criterion rather than saying why.
+def restates(reason: str, criterion: str) -> bool:
+    """Whether a reason is mostly the criterion's own words rather than the answer's.
 
-    The reason is the criterion word for word, a long piece of it, or the
-    criterion with a few words around it; case, punctuation and spacing aside.
+    Measured by the share of the reason's words the criterion also holds, so a
+    criterion copied with one word swapped - "(approve, deny or need more info)"
+    for "(deny)" - counts as copied. A reason with no word long enough to count
+    says nothing either way and is left to stand.
     """
-    said, asked = _plain(reason), _plain(criterion)
-    if said == asked:
-        return True
-    if len(said) >= _ECHO_MIN and said in asked:
-        return True
-    return len(asked) >= _ECHO_MIN and asked in said and len(said) - len(asked) < _ECHO_MIN
+    said = _words(reason)
+    if not said:
+        return False
+    asked = set(_words(criterion))
+    return sum(word in asked for word in said) / len(said) >= _RESTATED_SHARE
 
 
 def graded(
@@ -588,10 +596,11 @@ def graded(
 ) -> list[ScorerResult]:
     """The judge's grades as results; a criterion it skipped or misgraded is an error.
 
-    A grade whose reason only restates the criterion is an error too: it is no
-    evidence the judge read the answer. A quote is checked against the part of
-    `answer` the judge was shown, and one it does not hold is kept beside the
-    grade rather than in its reason.
+    A quote is checked against the part of `answer` the judge was shown; one it
+    does not hold is kept beside the grade rather than in its reason. A grade
+    whose reason is mostly the criterion's own words, with no quote the answer
+    holds, is an error: nothing shows the judge read the answer. A grade at the
+    top of the scale with no such quote stands, marked `unverified`.
     """
     grades = {grade.id: grade for grade in verdict.grades}
     shown = answer[:MAX_MATCH_TEXT]
@@ -611,15 +620,16 @@ def graded(
                 )
             )
             continue
-        if echoes(grade.reason, criterion.description):
+        quoted = any(quote in shown for quote in grade.quotes)
+        if not quoted and restates(grade.reason, criterion.description):
             results.append(
                 ScorerResult(
                     scorer=criterion.scorer,
                     name=criterion.name,
                     required=criterion.required,
                     status="error",
-                    reason="The judge restated the criterion instead of saying why the answer "
-                    "meets it",
+                    reason="The judge restated the criterion instead of pointing at what in the "
+                    "answer meets it",
                     reason_code="judge_reason_echo",
                     judge_run_id=run_id,
                 )
@@ -633,6 +643,8 @@ def graded(
                 status="pass" if grade.score >= pass_at else "fail",
                 score=grade.score / scale_max,
                 reason=f"{grade.score}/{scale_max}: {grade.reason}"[:MAX_REASON],
+                rule=grade.rule.strip() or None,
+                unverified=grade.score == scale_max and not quoted,
                 unverified_quotes=_unverified(grade.quotes, shown),
                 judge_run_id=run_id,
             )
@@ -647,8 +659,9 @@ def not_graded(
     code: str,
     reason: str,
     run_id: UUID | None = None,
+    said: str | None = None,
 ) -> list[ScorerResult]:
-    """Every criterion the judge could not grade, with why."""
+    """Every criterion the judge could not grade, with why, and what it said if it answered."""
     return [
         ScorerResult(
             scorer=criterion.scorer,
@@ -657,6 +670,7 @@ def not_graded(
             status="skipped" if skipped else "error",
             reason=reason,
             reason_code=code,
+            judge_said=said,
             judge_run_id=run_id,
         )
         for criterion in criteria

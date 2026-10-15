@@ -23,6 +23,9 @@ function result(reason_code: string | null): ScorerResult {
     reason: "from the server",
     reason_code,
     unverified_quotes: [],
+    rule: null,
+    unverified: false,
+    judge_said: null,
     judge_run_id: null,
   };
 }

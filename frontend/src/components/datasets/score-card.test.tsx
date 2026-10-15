@@ -18,6 +18,9 @@ function result(overrides: Partial<ScorerResult> = {}): ScorerResult {
     reason: "2/5: curt",
     reason_code: null,
     unverified_quotes: [],
+    rule: null,
+    unverified: false,
+    judge_said: null,
     judge_run_id: null,
     ...overrides,
   };
@@ -181,6 +184,28 @@ describe("ScoreCard", () => {
     expect(screen.queryByText(/the model that answered/)).toBeNull();
     rerender(<ScoreCard score={score({ judge_model: null, run_model: null })} />);
     expect(screen.queryByText(/the model that answered/)).toBeNull();
+  });
+
+  it("shows the rule a grade follows from, a top grade nothing backs, and what an unreadable judge said", () => {
+    render(
+      <ScoreCard
+        score={score({
+          results: [
+            result({ rule: "Refunds over $500 need a manager", unverified: true }),
+            result({
+              name: "policy",
+              status: "error",
+              reason_code: "judge_output_invalid",
+              judge_said: "It is fine.",
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Rule: Refunds over $500 need a manager")).toBeInTheDocument();
+    expect(screen.getByText(/Unverified: a top grade with nothing quoted/)).toBeInTheDocument();
+    expect(screen.getByText("The judge answered: “It is fine.”")).toBeInTheDocument();
   });
 
   it("says when it was graded in the reader's own time zone", () => {

@@ -3534,7 +3534,10 @@
       "noteForCase": "dla tego przypadku",
       "noteForEveryCase": "dla każdego przypadku",
       "noteAddedToCase": "Notatka jest teraz kryterium sędziego dla tego przypadku, w nowej wersji datasetu.",
-      "noteAddedToRubric": "Notatka jest teraz jednym z kryteriów sędziego dla każdego przypadku, a sędzia jest włączony."
+      "noteAddedToRubric": "Notatka jest teraz jednym z kryteriów sędziego dla każdego przypadku, a sędzia jest włączony.",
+      "rule": "Reguła: {rule}",
+      "judgeSaid": "Sędzia odpowiedział: „{said}”",
+      "unverifiedTop": "Niezweryfikowane: najwyższa ocena bez żadnego cytatu z odpowiedzi na jej poparcie."
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",

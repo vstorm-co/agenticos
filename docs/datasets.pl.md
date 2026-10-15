@@ -1,5 +1,5 @@
 ---
-source_sha: "62216b59e91c"
+source_sha: "312c4976d20e"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -300,16 +300,20 @@ się włączyć sędziego ani porównania z odpowiedzią wzorcową; już włącz
 włączony i jest pomijany.
 
 Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
-zaliczenia lub wyżej. Ocena, której uzasadnienie tylko powtarza kryterium, jest
-błędem: nie dowodzi, że sędzia przeczytał odpowiedź.
+zaliczenia lub wyżej. Przy każdym kryterium sędzia cytuje fragment odpowiedzi,
+na którym opiera ocenę, i podaje regułę, z której ocena wynika. Ocena, której
+uzasadnienie składa się głównie ze słów samego kryterium, bez cytatu, który
+odpowiedź zawiera, jest błędem: nic nie pokazuje, że sędzia przeczytał
+odpowiedź. Najwyższa ocena bez cytatu z odpowiedzi zostaje, oznaczona jako
+niezweryfikowana.
 
 Gdy sędzia nie może ocenić, jego kryteria są zapisywane jako pominięte albo
 jako błędy, z uzasadnieniem podającym przyczynę: wsparcie AI jest wyłączone,
 sędzia wybrany przez dataset już nie istnieje, nie ma opublikowanej wersji,
 jest zarchiwizowany, jego model został usunięty albo nie ma klucza, osoba nie
 może go uruchomić, jego budżet się wyczerpał, jego run się nie powiódł albo
-jego odpowiedzi nie dało się odczytać. Oceniacze oparte na regułach nadal
-oceniają.
+jego odpowiedzi nie dało się odczytać - wtedy jej pierwsze 200 znaków zostaje
+obok uzasadnienia. Oceniacze oparte na regułach nadal oceniają.
 
 Po usunięciu przyczyny **Oceń ponownie** na wyniku bez oceny - albo na
 wszystkich w grupie runu ewaluacji na zakładce Przegląd - ocenia tę samą

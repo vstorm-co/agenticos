@@ -5914,7 +5914,10 @@
       "noteForCase": "for this case",
       "noteForEveryCase": "for every case",
       "noteAddedToCase": "The note is now a judge criterion of this case, in a new version of the dataset.",
-      "noteAddedToRubric": "The note is now one of the judge's criteria for every case, and the judge is on."
+      "noteAddedToRubric": "The note is now one of the judge's criteria for every case, and the judge is on.",
+      "rule": "Rule: {rule}",
+      "judgeSaid": "The judge answered: “{said}”",
+      "unverifiedTop": "Unverified: a top grade with nothing quoted from the answer to show for it."
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

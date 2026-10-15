@@ -1,5 +1,5 @@
 ---
-source_sha: "62216b59e91c"
+source_sha: "312c4976d20e"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -305,15 +305,20 @@ pueda cambiarlo. Mientras tanto no se pueden activar el juez ni la comparación
 con la respuesta de referencia; uno ya activado sigue activado y se omite.
 
 Cada criterio se califica de 1 al máximo de la escala y aprueba en la nota de
-aprobado o por encima. Una calificación cuyo motivo solo repite el criterio es
-un error: no demuestra que el juez leyera la respuesta.
+aprobado o por encima. En cada criterio el juez cita el fragmento de la
+respuesta en que se basa su calificación y nombra la regla de la que se sigue.
+Una calificación cuyo motivo está hecho sobre todo de las palabras del propio
+criterio, sin una cita que la respuesta contenga, es un error: nada muestra que
+el juez leyera la respuesta. Una calificación máxima sin cita de la respuesta
+se mantiene, marcada como no verificada.
 
 Cuando el juez no puede calificar, sus criterios se registran como omitidos o
 como errores, con un motivo que nombra la causa: la asistencia de IA está
 desactivada, el juez que eligió el dataset ya no existe, no tiene una versión
 publicada, está archivado, su modelo ya no existe o no tiene clave, la persona
 no puede ejecutarlo, su budget se ha agotado, su run falló o su respuesta no se
-pudo leer. Los evaluadores basados en reglas siguen puntuando.
+pudo leer, de la que se guardan los primeros 200 caracteres junto al motivo.
+Los evaluadores basados en reglas siguen puntuando.
 
 Resuelta la causa, **Score again** en un resultado sin calificar (o en todos
 los de un grupo de un eval run en la pestaña Review) vuelve a calificar la

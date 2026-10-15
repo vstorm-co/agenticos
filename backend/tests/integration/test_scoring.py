@@ -890,7 +890,7 @@ class TestWhenTheJudgeCannotRun:
         self, db, monkeypatch
     ) -> None:
         async def prose(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
-            return ModelResponse(parts=[TextPart("It is fine.")])
+            return ModelResponse(parts=[TextPart("It is fine.\n\n" + "Truly " * 60)])
 
         monkeypatch.setattr(ModelRequestSpec, "build", lambda self: FunctionModel(prose))
         tenant = await _tenant(db)
@@ -908,6 +908,11 @@ class TestWhenTheJudgeCannotRun:
             ("error", "judge_output_invalid", recorded.id)
         }
         assert (score.passed, score.unscored_reason) == (None, "judge_output_invalid")
+        said = {r.judge_said for r in judged}
+        assert len(said) == 1
+        [shown] = said
+        assert shown is not None and shown.startswith("It is fine. Truly Truly")
+        assert (len(shown), shown[-1]) == (201, "…")
 
 
 class TestJudgeAgreement:

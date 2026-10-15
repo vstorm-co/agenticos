@@ -286,15 +286,18 @@ for whoever may change it. The judge and the reference comparison cannot be
 turned on meanwhile; one already on stays on, and is skipped.
 
 Each criterion is graded from 1 to the top of the scale and passes at the pass
-mark or above. A grade whose reason only restates the criterion is an error: it
-is no sign the judge read the answer.
+mark or above. For every criterion the judge quotes the passage of the answer
+its grade rests on and names the rule the grade follows from. A grade whose
+reason is mostly the criterion's own words, with no quote the answer holds, is
+an error: nothing shows the judge read the answer. A top grade with nothing
+quoted from the answer stands, marked unverified.
 
 When the judge cannot grade, its criteria are recorded as skipped or as errors,
 with a reason that names the cause: AI assistance is switched off, the judge
 the dataset picked no longer exists, it has no published version, it is
 archived, its model is gone or has no key, the person may not run it, its
-budget is spent, its run failed, or its answer could not be read. The
-rule-based scorers still score.
+budget is spent, its run failed, or its answer could not be read, whose first
+200 characters are kept beside the reason. The rule-based scorers still score.
 
 Once the cause is fixed, **Score again** on a result that was not graded - or on
 every one in an eval run's group on the Review tab - grades the same answer

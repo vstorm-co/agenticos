@@ -266,15 +266,18 @@ class SystemAgentOutputError(BadRequestError):
     """A system agent answered, but not in the shape its caller asked for (400).
 
     Not retried: a second call costs as much as the first and an edited prompt
-    that broke the format breaks it again. `run_id` names the recorded run.
+    that broke the format breaks it again. `run_id` names the recorded run;
+    `answer` is what the agent answered, for the caller to show, never placed in
+    `details`.
     """
 
     message = "The system agent's answer could not be read"
     code = "SYSTEM_AGENT_OUTPUT_INVALID"
 
-    def __init__(self, message: str, *, run_id: UUID) -> None:
+    def __init__(self, message: str, *, run_id: UUID, answer: str = "") -> None:
         super().__init__(message=message, details={"run_id": run_id})
         self.run_id = run_id
+        self.answer = answer
 
 
 class NothingToScoreError(BadRequestError):

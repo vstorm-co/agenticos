@@ -5772,7 +5772,10 @@
       "noteForCase": "für diesen Fall",
       "noteForEveryCase": "für jeden Fall",
       "noteAddedToCase": "Die Notiz ist jetzt ein Kriterium des Bewerters für diesen Fall, in einer neuen Version des Datasets.",
-      "noteAddedToRubric": "Die Notiz ist jetzt eines der Kriterien des Bewerters für jeden Fall, und der Bewerter ist eingeschaltet."
+      "noteAddedToRubric": "Die Notiz ist jetzt eines der Kriterien des Bewerters für jeden Fall, und der Bewerter ist eingeschaltet.",
+      "rule": "Regel: {rule}",
+      "judgeSaid": "Der Bewerter antwortete: „{said}“",
+      "unverifiedTop": "Nicht belegt: eine Höchstnote ohne ein Zitat aus der Antwort, das sie stützt."
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",

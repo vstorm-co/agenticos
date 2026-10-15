@@ -101,6 +101,8 @@ from app.services.system_agents import SystemAgentService
 _MAX_TURNS = 100
 # Enough of an answer to review it; a longer one is read in full from its run.
 _MAX_ANSWER = 8_000
+# Enough of an unreadable judge answer to see what went wrong - prose for JSON.
+_SAID = 200
 
 
 def _redact(text: str | None) -> str | None:
@@ -178,6 +180,8 @@ def _kept_results(results: list[ScorerResult]) -> list[dict[str, Any]]:
         result.model_copy(
             update={
                 "reason": _redact(result.reason),
+                "rule": _redact(result.rule),
+                "judge_said": _redact(result.judge_said),
                 "unverified_quotes": [
                     _redact(quote) or quote for quote in result.unverified_quotes
                 ],
@@ -569,12 +573,14 @@ class ScoringService:
             )
             return Evaluation(failed)
         except SystemAgentOutputError as exc:
+            said = " ".join(exc.answer.split())
             failed = not_graded(
                 criteria,
                 skipped=False,
                 code="judge_output_invalid",
                 reason=exc.message,
                 run_id=exc.run_id,
+                said=said if len(said) <= _SAID else f"{said[:_SAID]}…",
             )
             return Evaluation(failed)
         grades = graded(

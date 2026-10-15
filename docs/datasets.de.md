@@ -1,5 +1,5 @@
 ---
-source_sha: "62216b59e91c"
+source_sha: "312c4976d20e"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -320,10 +320,13 @@ der ihn ändern darf. Der Bewerter und der Vergleich mit der Referenzantwort
 lassen sich in dieser Zeit nicht einschalten; ein bereits eingeschalteter bleibt
 an und wird übersprungen.
 
-Jedes Kriterium wird von 1 bis zum oberen Ende der Skala bewertet und besteht ab
-der Bestehensgrenze. Eine Bewertung, deren Begründung nur das Kriterium
-wiederholt, ist ein Fehler: Sie zeigt nicht, dass der Bewerter die Antwort
-gelesen hat.
+Jedes Kriterium wird von 1 bis zum oberen Ende der Skala bewertet und besteht
+ab der Bestehensgrenze. Für jedes Kriterium zitiert der Bewerter die Stelle der
+Antwort, auf der seine Bewertung beruht, und nennt die Regel, aus der sie
+folgt. Eine Bewertung, deren Begründung überwiegend aus den Worten des
+Kriteriums besteht, ohne ein Zitat, das die Antwort enthält, ist ein Fehler:
+Nichts zeigt, dass der Bewerter die Antwort gelesen hat. Eine Höchstnote ohne
+Zitat aus der Antwort bleibt bestehen und wird als nicht belegt markiert.
 
 Kann der Bewerter nicht bewerten, werden seine Kriterien als übersprungen oder
 als Fehler festgehalten, mit einer Begründung, die die Ursache nennt:
@@ -331,7 +334,8 @@ KI-Unterstützung ist ausgeschaltet, der vom Dataset gewählte Bewerter existier
 nicht mehr, er hat keine veröffentlichte Version, er ist archiviert, sein
 Modell ist entfernt oder hat keinen Schlüssel, die Person darf ihn nicht
 ausführen, sein Budget ist aufgebraucht, sein Run schlug fehl oder seine
-Antwort ließ sich nicht lesen. Die regelbasierten Scorer bewerten trotzdem.
+Antwort ließ sich nicht lesen - deren erste 200 Zeichen bleiben dann neben der
+Begründung. Die regelbasierten Scorer bewerten trotzdem.
 
 Ist die Ursache behoben, bewertet **Erneut bewerten** an einem nicht bewerteten
 Ergebnis - oder an allen in der Gruppe eines Eval-Runs auf dem Tab Prüfung -

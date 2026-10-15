@@ -50,6 +50,12 @@ export interface ScorerResult {
   reason_code: string | null;
   /** What the judge quoted from the answer that the answer does not hold. */
   unverified_quotes: string[];
+  /** The rule the judge says its grade follows from. */
+  rule: string | null;
+  /** A top grade with nothing quoted from the answer to show for it. */
+  unverified: boolean;
+  /** The start of an answer the judge gave that could not be read. */
+  judge_said: string | null;
   judge_run_id: string | null;
 }
 

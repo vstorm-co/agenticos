@@ -148,6 +148,7 @@ class SystemAgentRunner:
                     "is in Activity."
                 ),
                 run_id=run.id,
+                answer=text,
             ) from exc
         return SystemAgentResult(output=output, run=run)
 
