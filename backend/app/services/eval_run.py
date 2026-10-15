@@ -1032,6 +1032,42 @@ class EvalRunService:
             ctx, score.eval_run_id, score.case_id, score.case_revision_id, graded=True
         )
 
+    async def case_links(
+        self, ctx: AuthContext, agent_run_ids: Sequence[UUID]
+    ) -> dict[UUID, EvalCaseLinkRead]:
+        """The eval case each of these agent runs answered, read for a page of run
+        history at once - only over datasets the caller may see."""
+        if not agent_run_ids:
+            return {}
+        org = ctx.organization_id
+        attempts = await eval_run_repo.cases_of_agent_runs(
+            self.db, agent_run_ids, organization_id=org
+        )
+        runs = await eval_run_repo.get_many(
+            self.db, sorted({a.eval_run_id for a in attempts}), organization_id=org
+        )
+        readable = await self._readable_datasets(ctx, {run.dataset_id for run in runs.values()})
+        names = await eval_run_repo.datasets(self.db, sorted(readable), organization_id=org)
+        revisions = await eval_run_repo.revisions(
+            self.db, sorted({a.case_revision_id for a in attempts}), organization_id=org
+        )
+        links: dict[UUID, EvalCaseLinkRead] = {}
+        for attempt in attempts:
+            run = runs[attempt.eval_run_id]
+            dataset = names.get(run.dataset_id)
+            # Read by the agent runs they name, so each attempt names one.
+            if dataset is None or attempt.agent_run_id is None:
+                continue
+            revision = revisions[attempt.case_revision_id]
+            links[attempt.agent_run_id] = EvalCaseLinkRead(
+                eval_run_id=run.id,
+                agent_id=run.agent_id,
+                case_id=attempt.case_id,
+                dataset_name=dataset.name,
+                case_input=revision.input,
+            )
+        return links
+
     async def _link(
         self,
         ctx: AuthContext,

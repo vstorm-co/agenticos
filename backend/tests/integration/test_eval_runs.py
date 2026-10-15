@@ -1592,3 +1592,29 @@ async def test_the_judges_run_names_the_eval_case_it_graded(db) -> None:
     score.eval_run_id = None
     await db.flush()
     assert await service.case_link(ctx, judge_run) is None
+
+
+@pytest.mark.security
+async def test_run_history_names_each_eval_runs_case_for_who_may_see_it(db) -> None:
+    owner = await _owner(db)
+    agent, _ = await _agent(db, owner)
+    dataset = await _dataset(db, owner, cases=2)
+    service = EvalRunService(db)
+    run = await service.start(owner, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), run.id, owner)
+    answered = [
+        attempt.agent_run_id
+        for attempt in (
+            await db.scalars(select(EvalRunCase).where(EvalRunCase.eval_run_id == run.id))
+        ).all()
+    ]
+
+    links = await service.case_links(owner, [*answered, uuid.uuid4()])
+
+    assert {link.case_input for link in links.values()} == {"Question 0", "Question 1"}
+    assert set(links) == set(answered)
+    assert await service.case_links(owner, []) == {}
+    dataset.visibility = "private"
+    await db.flush()
+    member = await _member(db, owner, OrgRoleName.MEMBER)
+    assert await service.case_links(member, answered) == {}

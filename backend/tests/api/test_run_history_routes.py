@@ -243,6 +243,51 @@ class TestTheDownRatedMarkerReachesTheRow:
             str(_CONVERSATION_ID)
         }
 
+    async def test_an_eval_run_in_the_list_names_its_case(self):
+        run = AgentRun(
+            id=uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            agent_id=uuid4(),
+            surface="eval",
+            status="completed",
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+        )
+        web = AgentRun(
+            id=uuid4(),
+            organization_id=_ORGANIZATION_ID,
+            agent_id=uuid4(),
+            surface="web",
+            status="completed",
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=Decimal("0.01"),
+            cost_is_partial=False,
+        )
+        link = EvalCaseLinkRead(
+            eval_run_id=uuid4(),
+            agent_id=run.agent_id,
+            case_id=uuid4(),
+            dataset_name="refunds",
+            case_input="Can I return it?",
+        )
+        service = _service()
+        service.list_runs = AsyncMock(return_value=([run, web], 2))
+        service.down_rated_run_ids = AsyncMock(return_value=set())
+        evals = MagicMock()
+        evals.case_links = AsyncMock(return_value={run.id: link})
+        app.dependency_overrides[deps.get_eval_run_service] = lambda: evals
+
+        async with _client(service) as client:
+            response = await client.get("/api/v1/runs")
+
+        rows = response.json()["items"]
+        assert rows[0]["eval_case"]["case_input"] == "Can I return it?"
+        assert rows[1]["eval_case"] is None
+        assert evals.case_links.await_args.args[1] == [run.id]
+
     async def test_an_empty_page_asks_for_no_marker_at_all(self):
         """Nothing to mark, so the marker query is skipped rather than asked with
         an empty set - one fewer round trip on the common empty case."""

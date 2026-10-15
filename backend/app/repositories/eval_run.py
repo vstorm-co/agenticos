@@ -292,6 +292,30 @@ async def score_graded_by(
     return result.scalar_one_or_none()
 
 
+async def cases_of_agent_runs(
+    db: AsyncSession, agent_run_ids: Sequence[UUID], *, organization_id: UUID
+) -> list[EvalRunCase]:
+    """The attempts these agent runs answered, for the ones an eval run started."""
+    result = await db.execute(
+        select(EvalRunCase).where(
+            EvalRunCase.agent_run_id.in_(agent_run_ids),
+            EvalRunCase.organization_id == organization_id,
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def get_many(
+    db: AsyncSession, eval_run_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, EvalRun]:
+    result = await db.execute(
+        select(EvalRun).where(
+            EvalRun.id.in_(eval_run_ids), EvalRun.organization_id == organization_id
+        )
+    )
+    return {run.id: run for run in result.scalars().all()}
+
+
 async def list_arm_cases(
     db: AsyncSession, arm_id: UUID, *, organization_id: UUID
 ) -> list[EvalRunCase]:

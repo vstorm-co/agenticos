@@ -51,6 +51,7 @@ router = APIRouter()
 @router.get("/runs", response_model=AgentRunList, dependencies=[Depends(require(Perm.RUNS_VIEW))])
 async def list_runs(
     service: AgentRunnerSvc,
+    evals: EvalRunSvc,
     ctx: Auth,
     agent_id: UUID | None = Query(None),
     status: str | None = Query(
@@ -156,9 +157,15 @@ async def list_runs(
     down_rated = (
         await service.down_rated_run_ids(ctx, [run.id for run in items]) if items else set()
     )
+    # An eval run's answer keeps no conversation to preview; its case's question is it.
+    links = await evals.case_links(
+        ctx, [run.id for run in items if run.surface == RunSurface.EVAL.value]
+    )
     return AgentRunList(
         items=[
-            AgentRunRead.model_validate(run).model_copy(update={"down_rated": run.id in down_rated})
+            AgentRunRead.model_validate(run).model_copy(
+                update={"down_rated": run.id in down_rated, "eval_case": links.get(run.id)}
+            )
             for run in items
         ],
         total=total,
