@@ -1,15 +1,76 @@
 "use client";
 
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
-import type { EvalRunEstimate } from "@/types/eval-runs";
+import { ROUTES } from "@/lib/constants";
+import type { ArmEstimate, EvalRunEstimate } from "@/types/eval-runs";
+import type { DatasetScoring } from "@/types/scoring";
 import { usd } from "./format";
 
+/** What grades a dataset's answers, by name, in the order the scorers run. */
+export function graders(
+  scoring: DatasetScoring,
+  t: (key: string, values?: { criteria: string }) => string,
+  locale: string,
+): string {
+  const list = new Intl.ListFormat(locale, { type: "conjunction" });
+  const parts: string[] = [];
+  if (scoring.checks.enabled) parts.push(t("grader.checks"));
+  if (scoring.trajectory.enabled) parts.push(t("grader.trajectory"));
+  if (scoring.reference.enabled) parts.push(t("grader.reference"));
+  if (scoring.judge.enabled) {
+    const criteria = scoring.judge.criteria.map((criterion) => criterion.name);
+    parts.push(
+      criteria.length === 0
+        ? t("grader.judge")
+        : t("grader.judgeRubric", { criteria: list.format(criteria) }),
+    );
+  }
+  return list.format(parts);
+}
+
+function ArmLine({ arm, agentId }: { arm: ArmEstimate; agentId: string }) {
+  const t = useTranslations("evals.estimate");
+  const tEvals = useTranslations("evals");
+  const name =
+    arm.version_number === null
+      ? tEvals("draft")
+      : tEvals("version", { version: arm.version_number });
+  return (
+    <span className="text-muted-foreground">
+      {t("side", { name, model: arm.model_label })}
+      {arm.basis === "fallback" && ` · ${t("basis.fallback")}`}
+      {arm.basis === "cached" && arm.cached_from_run_id !== null && (
+        <>
+          {" · "}
+          <Link
+            href={`${ROUTES.AGENTS}/${agentId}/evals/${arm.cached_from_run_id}`}
+            className="underline underline-offset-4"
+          >
+            {t("basis.cached")}
+          </Link>
+        </>
+      )}
+    </span>
+  );
+}
+
 /**
- * What a run is expected to cost, and what each budget keeps for live traffic
- * once it has spent it - the number a person consents to before anything runs.
+ * What a run is expected to cost, what grades it, and what each budget keeps
+ * for live traffic once it has spent it - the number a person consents to
+ * before anything runs.
  */
-export function EstimateSummary({ estimate }: { estimate: EvalRunEstimate }) {
+export function EstimateSummary({
+  agentId,
+  estimate,
+  scoring,
+}: {
+  agentId: string;
+  estimate: EvalRunEstimate;
+  /** The dataset's scoring, when it is known, to say what grades the answers. */
+  scoring: DatasetScoring | null;
+}) {
   const t = useTranslations("evals.estimate");
   const locale = useLocale();
   return (
@@ -17,10 +78,7 @@ export function EstimateSummary({ estimate }: { estimate: EvalRunEstimate }) {
       <ul className="space-y-1">
         {estimate.arms.map((arm, index) => (
           <li key={index} className="flex items-center justify-between gap-3">
-            <span className="text-muted-foreground">
-              {t(`arm.${arm.role}`, { model: arm.model_label, version: arm.version_number ?? 0 })}
-              {arm.basis !== "history" && ` · ${t(`basis.${arm.basis}`)}`}
-            </span>
+            <ArmLine arm={arm} agentId={agentId} />
             <span className="tabular-nums">{usd(arm.cost_usd, locale)}</span>
           </li>
         ))}
@@ -35,6 +93,11 @@ export function EstimateSummary({ estimate }: { estimate: EvalRunEstimate }) {
         <span>{t("total", { count: estimate.cases })}</span>
         <span className="tabular-nums">{usd(estimate.total_usd, locale)}</span>
       </p>
+      {scoring && (
+        <p className="text-muted-foreground text-xs">
+          {t("gradedBy", { graders: graders(scoring, t, locale) })}
+        </p>
+      )}
       <p className="text-muted-foreground text-xs">
         {t("reruns", { amount: usd(estimate.rerun_ceiling_usd, locale) })}
       </p>

@@ -1,9 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api-error";
 import { ESTIMATE, evalRun } from "@/test-utils/eval-runs";
+import type { EvalRunRequest } from "@/types/eval-runs";
+import { Perm, type Permission } from "@/types/permissions";
 import { StartEvalDialog } from "./start-eval-dialog";
 
 const push = vi.fn();
@@ -11,6 +13,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 interface Mutation {
   data?: unknown;
+  variables?: unknown;
   error: unknown;
   isPending: boolean;
   mutate: ReturnType<typeof vi.fn>;
@@ -21,6 +24,7 @@ interface Mutation {
 function mutation(overrides: Partial<Mutation> = {}): Mutation {
   return {
     data: undefined,
+    variables: undefined,
     error: null,
     isPending: false,
     mutate: vi.fn(),
@@ -30,53 +34,86 @@ function mutation(overrides: Partial<Mutation> = {}): Mutation {
   };
 }
 
-const access = vi.hoisted(() => ({ settings: false, org: "org-1" as string | null }));
+const access = vi.hoisted(() => ({
+  allowed: new Set<string>(),
+  org: "org-1" as string | null,
+}));
 vi.mock("@/hooks/use-permissions", () => ({
-  usePermissions: () => ({ can: () => access.settings }),
+  usePermissions: () => ({ can: (permission: Permission) => access.allowed.has(permission) }),
 }));
 vi.mock("@/stores/org-store", () => ({
   useOrgStore: (select: (state: { activeOrgId: string | null }) => unknown) =>
     select({ activeOrgId: access.org }),
 }));
 
-const hooks = vi.hoisted(() => ({
-  estimate: undefined as unknown,
-  start: undefined as unknown,
+const DRAFT = { instructions: "Answer refunds kindly." };
+const agentState = vi.hoisted(() => ({
+  currentVersionId: "v7" as string | null,
+  liveSpec: {} as Record<string, unknown>,
 }));
-vi.mock("@/hooks/use-eval-runs", () => ({
-  useEvalRuns: () => ({ estimate: hooks.estimate, start: hooks.start }),
-}));
-vi.mock("@/hooks/use-datasets", () => ({
-  useDatasets: () => ({
-    datasets: [
-      { id: "ds-1", name: "refunds", case_count: 20, latest_version: 3 },
-      { id: "ds-2", name: "empty", case_count: 0, latest_version: 0 },
-    ],
+vi.mock("@/hooks", () => ({
+  useAgent: (id: string | null) => ({
+    agent:
+      id === null
+        ? undefined
+        : { id, current_version_id: agentState.currentVersionId, draft_spec: DRAFT },
   }),
-}));
-vi.mock("@/hooks/use-agent-environments", () => ({
-  useAgentEnvironments: () => ({ environments: [{ id: "env-1", name: "staging" }] }),
-}));
-vi.mock("@/hooks/use-model-providers", () => ({
-  useModelProviders: () => ({
-    profiles: [
-      { id: "m1", label: "GPT" },
-      { id: "m2", label: "Claude" },
+  useAgentVersion: (_: string | null, versionId: string | null) => ({
+    version: versionId === null ? undefined : { version: 7, spec: agentState.liveSpec },
+  }),
+  useAgents: () => ({
+    agents: [
+      { id: "agent-1", name: "Refund desk", can_run: true, system_key: null },
+      { id: "judge", name: "Eval judge", can_run: true, system_key: "eval_judge" },
+      { id: "locked", name: "Payroll", can_run: false, system_key: null },
     ],
   }),
 }));
 
+const hooks = vi.hoisted(() => ({
+  estimate: undefined as unknown,
+  start: undefined as unknown,
+  runs: [] as unknown[],
+}));
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useEvalRuns: () => ({ runs: hooks.runs, estimate: hooks.estimate, start: hooks.start }),
+}));
+const datasets = vi.hoisted(() => ({ items: [] as unknown[] }));
+vi.mock("@/hooks/use-datasets", () => ({
+  useDatasets: () => ({ datasets: datasets.items }),
+}));
+vi.mock("@/hooks/use-agent-environments", () => ({
+  useAgentEnvironments: () => ({ environments: [{ id: "env-1", name: "staging" }] }),
+}));
+
+const SCORING = {
+  checks: { enabled: true, required: false, defaults: [] },
+  trajectory: { enabled: false, required: false },
+  judge: { enabled: true, model_profile_id: null, scale_max: 5, pass_at: 4, criteria: [] },
+  reference: { enabled: false, required: false },
+  review: { select: "none" },
+};
+const REFUNDS = {
+  id: "ds-1",
+  name: "refunds",
+  case_count: 20,
+  latest_version: 3,
+  scoring: SCORING,
+};
+
+/** The request the dialog asks for by default: the draft against v7, on refunds. */
+const COMPARE: EvalRunRequest = {
+  dataset_id: "ds-1",
+  candidate: "draft",
+  model_profile_ids: [],
+  paired_baseline: true,
+  from_recordings: false,
+  live_reads: false,
+};
+
 function open(props: Partial<Parameters<typeof StartEvalDialog>[0]> = {}) {
   const onOpenChange = vi.fn();
-  render(
-    <StartEvalDialog
-      agentId="agent-1"
-      canRunDraft
-      currentVersion={7}
-      onOpenChange={onOpenChange}
-      {...props}
-    />,
-  );
+  render(<StartEvalDialog agentId="agent-1" onOpenChange={onOpenChange} {...props} />);
   return onOpenChange;
 }
 
@@ -85,60 +122,168 @@ async function choose(combobox: string, option: string) {
   await userEvent.click(screen.getByRole("option", { name: option }));
 }
 
+const estimated = () => (hooks.estimate as Mutation).mutate;
+
 beforeEach(() => {
   vi.clearAllMocks();
-  access.settings = false;
+  access.allowed = new Set([Perm.agentsEdit]);
   access.org = "org-1";
+  agentState.currentVersionId = "v7";
+  agentState.liveSpec = { instructions: "Answer refunds." };
+  datasets.items = [REFUNDS, { id: "ds-2", name: "empty", case_count: 0, latest_version: 0 }];
+  hooks.runs = [];
   hooks.estimate = mutation();
   hooks.start = mutation();
 });
 
 describe("StartEvalDialog", () => {
-  it("estimates exactly what was chosen, and nothing before a dataset is", async () => {
+  it("tests a changed draft against what is live, on the only dataset, priced as it settles", async () => {
     open();
-    const button = screen.getByRole("button", { name: "Estimate cost" });
-    expect(button).toBeDisabled();
 
-    await choose("Dataset", "refunds · 20 cases · v3");
-    expect(screen.queryByRole("option", { name: /empty/ })).not.toBeInTheDocument();
-    await choose("What runs", "The draft as it stands");
-    await choose("Environment", "staging");
-    await userEvent.click(screen.getByLabelText("GPT"));
-    await userEvent.click(screen.getByLabelText("Claude"));
-    await userEvent.click(screen.getByLabelText("GPT"));
-    await userEvent.click(screen.getByLabelText("Run the previous version in the same run"));
-    await userEvent.click(screen.getByLabelText("Answer tools from recordings"));
-    await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
-
-    const estimate = hooks.estimate as Mutation;
-    expect(estimate.mutate).toHaveBeenCalledWith({
-      dataset_id: "ds-1",
-      candidate: "draft",
-      environment_id: "env-1",
-      model_profile_ids: ["m2"],
-      paired_baseline: true,
-      from_recordings: true,
-      live_reads: false,
-    });
-    // Every change asks for a new estimate, so nothing stale is consented to.
-    expect(estimate.reset).toHaveBeenCalled();
+    expect(screen.getByRole("radio", { name: /The draft against v7/ })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toHaveTextContent(
+      "refunds · 20 cases · v3",
+    );
+    expect(screen.getByRole("button", { name: "Estimating…" })).toBeDisabled();
+    await waitFor(() => expect(estimated()).toHaveBeenCalledWith(COMPARE));
   });
 
-  it("runs what was estimated and opens the run", async () => {
-    hooks.estimate = mutation({ data: ESTIMATE });
+  it("measures what is live when the draft has not changed", async () => {
+    agentState.liveSpec = DRAFT;
+    open();
+
+    expect(screen.getByRole("radio", { name: /v7 alone/ })).toBeChecked();
+    await waitFor(() =>
+      expect(estimated()).toHaveBeenCalledWith({
+        ...COMPARE,
+        candidate: "version",
+        paired_baseline: false,
+      }),
+    );
+  });
+
+  it("asks again for what was chosen, the advanced fields included", async () => {
+    open();
+    await userEvent.click(screen.getByRole("radio", { name: /v7 alone/ }));
+    await userEvent.click(screen.getByText("Advanced"));
+    await choose("Environment", "staging");
+    await userEvent.click(screen.getByLabelText(/Replay tool results/));
+    await choose("Confirming reruns", "1 rerun");
+
+    await waitFor(() =>
+      expect(estimated()).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          candidate: "version",
+          paired_baseline: false,
+          environment_id: "env-1",
+          from_recordings: true,
+          reruns: 1,
+        }),
+      ),
+    );
+    // Every change clears the price on screen, so nothing stale is agreed to.
+    expect((hooks.estimate as Mutation).reset).toHaveBeenCalled();
+
+    await choose("Confirming reruns", "Default");
+    await choose("Environment", "None");
+    await waitFor(() =>
+      expect(estimated()).toHaveBeenLastCalledWith(
+        expect.objectContaining({ environment_id: null, reruns: null }),
+      ),
+    );
+  });
+
+  it("tests the draft alone for an agent nobody published", async () => {
+    agentState.currentVersionId = null;
+    open();
+
+    expect(screen.getAllByRole("radio")).toHaveLength(1);
+    expect(screen.getByRole("radio", { name: /The draft/ })).toBeChecked();
+    expect(screen.getByText(/this is the first result/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(estimated()).toHaveBeenCalledWith({ ...COMPARE, paired_baseline: false }),
+    );
+  });
+
+  it("offers only what is live to a caller who may not edit the draft", () => {
+    access.allowed = new Set();
+    open();
+    expect(screen.getAllByRole("radio")).toHaveLength(1);
+    expect(screen.getByRole("radio", { name: /v7 alone/ })).toBeChecked();
+  });
+
+  it("says when there is nothing the caller may test, and prices nothing", async () => {
+    access.allowed = new Set();
+    agentState.currentVersionId = null;
+    open();
+
+    expect(screen.getByText(/no published version/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run evals" })).toBeDisabled();
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    expect(estimated()).not.toHaveBeenCalled();
+  });
+
+  it("offers the dataset this agent was last measured on", async () => {
+    datasets.items = [
+      REFUNDS,
+      { ...REFUNDS, id: "ds-3", name: "shipping", case_count: 4, latest_version: 1 },
+    ];
+    hooks.runs = [evalRun({ dataset_id: "ds-3" })];
+    open();
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toHaveTextContent("shipping");
+
+    hooks.runs = [];
+    await choose("Dataset", "refunds · 20 cases · v3");
+    await waitFor(() => expect(estimated()).toHaveBeenLastCalledWith(COMPARE));
+  });
+
+  it("offers nothing to run when there is more than one dataset and no history", () => {
+    datasets.items = [REFUNDS, { ...REFUNDS, id: "ds-3", name: "shipping" }];
+    open();
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toHaveTextContent("Choose a dataset");
+    expect(screen.getByRole("button", { name: "Run evals" })).toBeDisabled();
+  });
+
+  it("chooses the agent when the run starts from a dataset", async () => {
+    open({ agentId: null, datasetId: "ds-1" });
+    expect(screen.queryByRole("radio")).toBeNull();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Agent" }));
+    expect(screen.queryByRole("option", { name: "Eval judge" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Payroll" })).toBeNull();
+    await userEvent.click(screen.getByRole("option", { name: "Refund desk" }));
+
+    expect(screen.getByRole("radio", { name: /The draft against v7/ })).toBeChecked();
+    await waitFor(() => expect(estimated()).toHaveBeenCalledWith(COMPARE));
+  });
+
+  it("opens on what the caller asked to test", () => {
+    agentState.liveSpec = DRAFT;
+    open({ target: "compare" });
+    expect(screen.getByRole("radio", { name: /The draft against v7/ })).toBeChecked();
+  });
+
+  it("runs what was priced, says what grades it, and opens the run", async () => {
+    hooks.estimate = mutation({ data: ESTIMATE, variables: COMPARE });
     hooks.start = mutation({ mutateAsync: vi.fn().mockResolvedValue(evalRun()) });
     const onOpenChange = open();
 
-    await choose("Environment", "None");
+    expect(screen.getByText("Graded by checks and the Eval judge.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Run for $0.30" }));
 
-    expect((hooks.start as Mutation).mutateAsync).toHaveBeenCalled();
+    expect((hooks.start as Mutation).mutateAsync).toHaveBeenCalledWith(COMPARE);
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(push).toHaveBeenCalledWith("/agents/agent-1/evals/run-1");
   });
 
+  it("shows no price that was asked for other fields", () => {
+    hooks.estimate = mutation({ data: ESTIMATE, variables: { ...COMPARE, reruns: 3 } });
+    open();
+    expect(screen.queryByRole("button", { name: "Run for $0.30" })).toBeNull();
+  });
+
   it("refuses to run what the budget cannot hold, and says why the server refused", async () => {
-    hooks.estimate = mutation({ data: { ...ESTIMATE, affordable: false } });
+    hooks.estimate = mutation({ data: { ...ESTIMATE, affordable: false }, variables: COMPARE });
     hooks.start = mutation({
       error: new Error("This eval would cost more than is left"),
       mutateAsync: vi.fn().mockRejectedValue(new Error("refused")),
@@ -152,7 +297,7 @@ describe("StartEvalDialog", () => {
   });
 
   it("stays open when the server refuses the start", async () => {
-    hooks.estimate = mutation({ data: ESTIMATE });
+    hooks.estimate = mutation({ data: ESTIMATE, variables: COMPARE });
     hooks.start = mutation({ mutateAsync: vi.fn().mockRejectedValue(new Error("402")) });
     const onOpenChange = open();
 
@@ -171,12 +316,13 @@ describe("StartEvalDialog", () => {
       },
     });
     hooks.estimate = mutation({ error: off });
-    access.settings = true;
+    access.allowed = new Set([Perm.agentsEdit, Perm.orgSettings]);
     open();
     expect(screen.getByRole("link", { name: "Open the organization's settings" })).toHaveAttribute(
       "href",
       "/orgs/org-1/members",
     );
+    expect(screen.getByRole("button", { name: "Run evals" })).toBeDisabled();
   });
 
   it("shows no settings link to who cannot change them, or for another refusal", () => {
@@ -186,31 +332,5 @@ describe("StartEvalDialog", () => {
     hooks.estimate = mutation({ error: off });
     open();
     expect(screen.queryByRole("link", { name: /organization's settings/ })).toBeNull();
-  });
-
-  it("offers only what the caller may run", async () => {
-    open({ canRunDraft: false, currentVersion: 7 });
-    await userEvent.click(screen.getByRole("combobox", { name: "What runs" }));
-    expect(screen.getByRole("option", { name: "Published version v7" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "The draft as it stands" })).toBeNull();
-  });
-
-  it("starts on the draft for an agent nobody published", async () => {
-    open({ currentVersion: null });
-    await choose("Dataset", "refunds · 20 cases · v3");
-    await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
-    expect((hooks.estimate as Mutation).mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ candidate: "draft" }),
-    );
-  });
-
-  it("runs the published version when it is chosen", async () => {
-    open({ currentVersion: 7 });
-    await choose("What runs", "Published version v7");
-    await choose("Dataset", "refunds · 20 cases · v3");
-    await userEvent.click(screen.getByRole("button", { name: "Estimate cost" }));
-    expect((hooks.estimate as Mutation).mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ candidate: "version" }),
-    );
   });
 });

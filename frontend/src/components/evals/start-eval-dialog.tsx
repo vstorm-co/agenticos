@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -13,7 +13,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui";
+import { useAgents } from "@/hooks";
+import { useDatasets } from "@/hooks/use-datasets";
 import { useEvalRuns } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
@@ -23,51 +31,88 @@ import { useOrgStore } from "@/stores/org-store";
 import type { EvalRunRequest } from "@/types/eval-runs";
 import { Perm } from "@/types/permissions";
 import { EstimateSummary } from "./estimate-summary";
+import { type EvalTarget, TARGET_REQUEST, useEvalTarget } from "./eval-target";
 import { usd } from "./format";
-import { StartEvalFields } from "./start-eval-fields";
+import { StartEvalFields, TargetChoice } from "./start-eval-fields";
+
+/** How long the fields sit still before the estimate is asked for again. */
+const ESTIMATE_DEBOUNCE_MS = 400;
 
 interface StartEvalDialogProps {
-  agentId: string;
-  canRunDraft: boolean;
-  currentVersion: number | null;
+  /** The agent to test, or null to choose one here - a run started from a dataset. */
+  agentId: string | null;
+  /** The dataset to run, when the run starts from one. */
+  datasetId?: string;
+  /** What to test, when the caller already knows - the draft's own Test button. */
+  target?: EvalTarget;
   onOpenChange: (open: boolean) => void;
 }
 
+const BLANK: EvalRunRequest = {
+  dataset_id: "",
+  candidate: "draft",
+  model_profile_ids: [],
+  paired_baseline: false,
+  from_recordings: false,
+  live_reads: false,
+};
+
 /**
- * Starting a run, in the only order that spends nothing by surprise: choose
- * what runs, see what it costs and what the budgets keep, then run it.
- * Changing anything after the estimate asks for a new one.
+ * Starting a run in the order that spends nothing by surprise: what to test and
+ * on which dataset, already chosen where there is an obvious answer, then the
+ * cost and what the budgets keep - priced as the fields settle - then run it.
  */
 export function StartEvalDialog({
-  agentId,
-  canRunDraft,
-  currentVersion,
+  agentId: givenAgent,
+  datasetId: givenDataset,
+  target: givenTarget,
   onOpenChange,
 }: StartEvalDialogProps) {
   const t = useTranslations("evals");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const router = useRouter();
-  const { estimate, start } = useEvalRuns(agentId);
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
+  const [agentId, setAgentId] = useState(givenAgent);
+  const [chosenTarget, setChosenTarget] = useState<EvalTarget | null>(givenTarget ?? null);
   const [request, setRequest] = useState<EvalRunRequest>({
-    dataset_id: "",
-    candidate: currentVersion === null ? "draft" : "version",
-    model_profile_ids: [],
-    paired_baseline: false,
-    from_recordings: false,
-    live_reads: false,
+    ...BLANK,
+    dataset_id: givenDataset ?? "",
   });
+  const { agents } = useAgents({ enabled: givenAgent === null });
+  const { runs, estimate, start } = useEvalRuns(agentId);
+  const { datasets } = useDatasets({ sort: "name", limit: 100 });
+  const { currentVersion, targets, preferred } = useEvalTarget(agentId);
 
-  function change(next: EvalRunRequest) {
-    setRequest(next);
-    estimate.reset();
-    start.reset();
-  }
+  const runnable = datasets.filter((dataset) => dataset.case_count > 0);
+  // The dataset this agent was last measured on, else the only one there is.
+  const offered =
+    runs.find((run) => runnable.some((dataset) => dataset.id === run.dataset_id))?.dataset_id ??
+    (runnable.length === 1 ? runnable[0]?.id : undefined) ??
+    "";
+  const datasetId = request.dataset_id || offered;
+  const target = chosenTarget !== null && targets.includes(chosenTarget) ? chosenTarget : preferred;
+  const full: EvalRunRequest | null =
+    agentId === null || target === null || datasetId === ""
+      ? null
+      : { ...request, dataset_id: datasetId, ...TARGET_REQUEST[target] };
+  // The fields as a value: a new object every render is not a new request.
+  const asked = full === null ? null : JSON.stringify(full);
 
-  async function run() {
-    const created = await start.mutateAsync(request);
+  const { mutate: quote, reset: clearQuote } = estimate;
+  useEffect(() => {
+    clearQuote();
+    if (asked === null) return;
+    const timer = setTimeout(
+      () => quote(JSON.parse(asked) as EvalRunRequest),
+      ESTIMATE_DEBOUNCE_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [asked, quote, clearQuote]);
+
+  async function run(chosen: EvalRunRequest) {
+    const created = await start.mutateAsync(chosen);
     onOpenChange(false);
     router.push(`${ROUTES.AGENTS}/${agentId}/evals/${created.id}`);
   }
@@ -80,7 +125,11 @@ export function StartEvalDialog({
     failure.details?.reason === "ai_assistance_off" &&
     can(Perm.orgSettings) &&
     activeOrgId !== null;
-  const quote = estimate.data;
+  // A quote is for the fields it was asked with; one still on screen while the
+  // next is debounced must not be the price a click agrees to.
+  const priced =
+    asked !== null && JSON.stringify(estimate.variables) === asked ? estimate.data : undefined;
+  const dataset = runnable.find((item) => item.id === datasetId);
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className={`${DIALOG_FORM} ${DIALOG_SCROLL}`}>
@@ -88,14 +137,51 @@ export function StartEvalDialog({
           <DialogTitle>{t("startTitle")}</DialogTitle>
           <DialogDescription>{t("startBody")}</DialogDescription>
         </DialogHeader>
-        <StartEvalFields
-          agentId={agentId}
-          request={request}
-          onChange={change}
-          canRunDraft={canRunDraft}
-          currentVersion={currentVersion}
-        />
-        {quote && <EstimateSummary estimate={quote} />}
+        <div className="space-y-4">
+          {givenAgent === null && (
+            <div className="space-y-1.5">
+              <Label>{t("fields.agent")}</Label>
+              <Select
+                value={agentId ?? ""}
+                onValueChange={(id) => {
+                  setAgentId(id);
+                  setChosenTarget(null);
+                }}
+              >
+                <SelectTrigger aria-label={t("fields.agent")}>
+                  <SelectValue placeholder={t("fields.agentPlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {agents
+                    .filter((agent) => !agent.system_key && agent.can_run)
+                    .map((agent) => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {agentId !== null && (
+            <TargetChoice
+              targets={targets}
+              value={target}
+              currentVersion={currentVersion}
+              onChange={setChosenTarget}
+            />
+          )}
+          <StartEvalFields
+            agentId={agentId}
+            datasets={runnable}
+            datasetId={datasetId}
+            request={request}
+            onChange={setRequest}
+          />
+        </div>
+        {priced && agentId !== null && (
+          <EstimateSummary agentId={agentId} estimate={priced} scoring={dataset?.scoring ?? null} />
+        )}
         {failure && (
           <div role="alert" className="text-destructive space-y-1 text-sm">
             <p>{getErrorMessage(failure, tErrors)}</p>
@@ -113,21 +199,16 @@ export function StartEvalDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          {quote ? (
-            <Button
-              disabled={!quote.affordable || start.isPending}
-              onClick={() => void run().catch(() => undefined)}
-            >
-              {t("runFor", { amount: usd(quote.total_usd, locale) })}
-            </Button>
-          ) : (
-            <Button
-              disabled={request.dataset_id === "" || estimate.isPending}
-              onClick={() => estimate.mutate(request)}
-            >
-              {t("estimateCost")}
-            </Button>
-          )}
+          <Button
+            disabled={!priced || !priced.affordable || start.isPending}
+            onClick={() => full && void run(full).catch(() => undefined)}
+          >
+            {priced
+              ? t("runFor", { amount: usd(priced.total_usd, locale) })
+              : full !== null && !failure
+                ? t("estimating")
+                : t("start")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

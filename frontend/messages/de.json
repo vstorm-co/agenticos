@@ -5788,25 +5788,29 @@
     "description": "Jeder Run dieses Agents über ein Dataset: wie jeder Fall beantwortet und bewertet wurde und wie er im Vergleich zu einer früheren Version abschneidet.",
     "start": "Evals starten",
     "startTitle": "Evals starten",
-    "startBody": "Wähle aus, was läuft und auf welchem Dataset. Du siehst die Kosten, bevor etwas läuft.",
+    "startBody": "Wähle, was du testest und auf welchem Dataset. Die Kosten siehst du, bevor etwas läuft.",
     "cancel": "Abbrechen",
-    "estimateCost": "Kosten schätzen",
     "aiSettings": "Einstellungen der Organisation öffnen",
     "estimate": {
-      "arm": {
-        "candidate": "Kandidat auf {model}",
-        "baseline": "Baseline v{version} auf {model}"
-      },
       "basis": {
         "fallback": "keine Historie auf diesem Modell, grobe Schätzung",
         "cached": "aus einem aktuellen Run übernommen"
       },
-      "judge": "Judge",
+      "judge": "Eval judge",
       "total": "Insgesamt {count, plural, =1 {1 Fall} other {# Fälle}}",
       "reruns": "Gekippte Fälle werden zur Bestätigung wiederholt, was bis zu {amount} hinzufügen kann.",
       "after": "Nach diesem Run behält der Agent <b>{agent}</b> und die Organisation <b>{org}</b> vom Budget dieses Monats.",
       "noCap": "kein Limit",
-      "unaffordable": "Das ist mehr, als einem Budget bleibt. Lass weniger Fälle oder Modelle laufen oder erhöhe das Budget."
+      "unaffordable": "Das ist mehr, als einem Budget bleibt. Lass weniger Fälle oder Modelle laufen oder erhöhe das Budget.",
+      "side": "{name} · {model}",
+      "gradedBy": "Bewertet durch: {graders}.",
+      "grader": {
+        "checks": "Checks",
+        "trajectory": "erwartete Tool-Aufrufe",
+        "reference": "die Referenzantwort",
+        "judge": "der Eval judge",
+        "judgeRubric": "der Eval judge nach {criteria}"
+      }
     },
     "runFor": "Für {amount} starten",
     "runTitle": "{dataset} v{version} · {candidate}",
@@ -5838,18 +5842,30 @@
       "dataset": "Dataset",
       "datasetPlaceholder": "Dataset wählen",
       "datasetOption": "{name} · {count, plural, =1 {1 Fall} other {# Fälle}} · v{version}",
-      "candidate": "Was läuft",
-      "published": "Veröffentlichte Version v{version}",
-      "draft": "Der Draft im aktuellen Stand",
       "environment": "Umgebung",
       "noEnvironment": "Keine",
-      "environmentHint": "Die Fälle nutzen die Testverbindungen dieser Umgebung. Ein Tool, das ohne eine solche schreibt, wird zurückgehalten, nicht ausgeführt.",
-      "models": "Modelle",
-      "modelsHint": "Lass alles leer, um das eigene Modell des Agents zu nutzen. Wähle mehrere, um sie nebeneinander zu vergleichen.",
-      "pairedBaseline": "Vorherige Version im selben Run laufen lassen",
-      "pairedBaselineHint": "Beide treffen am selben Tag auf denselben Provider, sodass eine Regression am Agent liegt, nicht am Provider. Es kostet einen zweiten Lauf jedes Falls.",
-      "fromRecordings": "Tools aus Aufzeichnungen beantworten",
-      "fromRecordingsHint": "Fälle aus Conversations bekommen die Tool-Ergebnisse, die der ursprüngliche Run bekommen hat."
+      "environmentHint": "Tools nutzen die Testverbindungen dieser Umgebung. Ein Tool, das ohne sie Daten schreiben würde, wird nicht ausgeführt.",
+      "fromRecordings": "Tool-Ergebnisse aus dem ursprünglichen Gespräch wiederverwenden",
+      "fromRecordingsHint": "Ein Fall aus einem Gespräch bekommt die Tool-Ergebnisse dieses Gesprächs, statt die Tools erneut aufzurufen.",
+      "agent": "Agent",
+      "agentPlaceholder": "Agent wählen",
+      "target": "Was testest du",
+      "targetOption": {
+        "compare": "Der Entwurf gegen v{version}",
+        "version": "Nur v{version}",
+        "draft": "Der Entwurf"
+      },
+      "targetHint": {
+        "compare": "Beide beantworten jetzt dieselben Fälle, also geht jede Änderung auf den Entwurf zurück, nicht auf den Provider.",
+        "version": "Wie die Version, mit der die Leute sprechen, auf dem Dataset abschneidet.",
+        "draft": "Noch ist nichts veröffentlicht, also ist das das erste Ergebnis. Spätere Versionen werden damit verglichen."
+      },
+      "noTarget": "Dieser Agent hat keine veröffentlichte Version, und den Entwurf auszuführen erfordert das Recht, ihn zu bearbeiten.",
+      "advanced": "Erweitert",
+      "reruns": "Bestätigende Wiederholungen",
+      "rerunsDefault": "Standard",
+      "rerunsCount": "{count, plural, =0 {Keine} =1 {1 Wiederholung} other {# Wiederholungen}}",
+      "rerunsHint": "Ein Fall, dessen Ergebnis sich ändert, wird so oft erneut beantwortet, und die Änderung gilt nur als bestätigt, wenn sie jedes Mal hält. „Keine“ überspringt die Prüfung."
     },
     "comparison": {
       "title": "Gegen die Baseline",
@@ -5950,6 +5966,7 @@
         "skipped": "übersprungen",
         "error": "Fehler"
       }
-    }
+    },
+    "estimating": "Wird geschätzt…"
   }
 }

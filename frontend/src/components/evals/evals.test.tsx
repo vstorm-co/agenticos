@@ -128,12 +128,40 @@ describe("EvalsPanel", () => {
 
 describe("EstimateSummary", () => {
   it("shows each arm, the judge, the total and what the budgets keep after it", () => {
-    render(<EstimateSummary estimate={ESTIMATE} />);
-    expect(screen.getByText("Candidate on gpt-4.1")).toBeInTheDocument();
+    render(
+      <EstimateSummary
+        agentId="agent-1"
+        estimate={ESTIMATE}
+        scoring={{
+          checks: { enabled: false, required: false, defaults: [] },
+          trajectory: { enabled: true, required: false },
+          reference: { enabled: true, required: false },
+          judge: {
+            enabled: true,
+            model_profile_id: null,
+            scale_max: 5,
+            pass_at: 4,
+            criteria: [
+              { name: "Policy", description: "", required: true },
+              { name: "Tone", description: "", required: false },
+            ],
+          },
+          review: { select: "none" },
+        }}
+      />,
+    );
+    expect(screen.getByText("Draft · gpt-4.1")).toBeInTheDocument();
+    expect(screen.getByText(/v6 · gpt-4.1/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "reused from a recent run" })).toHaveAttribute(
+      "href",
+      "/agents/agent-1/evals/run-0",
+    );
+    expect(screen.getByText("Eval judge")).toBeInTheDocument();
     expect(
-      screen.getByText(/Baseline v6 on gpt-4.1 · reused from a recent run/),
+      screen.getByText(
+        "Graded by expected tool calls, the reference answer, and the Eval judge on Policy and Tone.",
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByText("Judge")).toBeInTheDocument();
     expect(screen.getByText("20 cases in total")).toBeInTheDocument();
     expect(screen.getByText(/can add up to \$0.60/)).toBeInTheDocument();
     expect(screen.getByText("$9.80")).toBeInTheDocument();
@@ -144,6 +172,8 @@ describe("EstimateSummary", () => {
   it("says when there is no cap, and when the run does not fit", () => {
     render(
       <EstimateSummary
+        agentId="agent-1"
+        scoring={null}
         estimate={{
           ...ESTIMATE,
           arms: [{ ...CANDIDATE_ESTIMATE, basis: "fallback" }],
@@ -155,7 +185,8 @@ describe("EstimateSummary", () => {
       />,
     );
     expect(screen.getByText(/no history on this model/)).toBeInTheDocument();
-    expect(screen.queryByText("Judge")).not.toBeInTheDocument();
+    expect(screen.queryByText("Eval judge")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Graded by/)).not.toBeInTheDocument();
     expect(screen.getAllByText("no cap")).toHaveLength(2);
     expect(screen.getByText(/more than a budget has left/)).toBeInTheDocument();
   });

@@ -25,13 +25,17 @@ export function isLive(status: EvalRunStatus): boolean {
   return LIVE.includes(status);
 }
 
-/** One agent's eval runs, newest first, and starting one. */
-export function useEvalRuns(agentId: string, { skip = 0, limit = 20 } = {}) {
+/**
+ * One agent's eval runs, newest first, and starting one. `null` while the agent
+ * is still to be chosen - a run started from a dataset picks it in the dialog.
+ */
+export function useEvalRuns(agentId: string | null, { skip = 0, limit = 20 } = {}) {
   const queryClient = useQueryClient();
   const query = useQuery({
-    queryKey: qk.evalRuns.forAgent(agentId, { skip, limit }),
+    queryKey: qk.evalRuns.forAgent(agentId ?? "", { skip, limit }),
     queryFn: () =>
       apiClient.get<EvalRunList>(`/agents/${agentId}/eval-runs?skip=${skip}&limit=${limit}`),
+    enabled: agentId !== null,
     refetchInterval: (current) =>
       current.state.data?.items.some((run) => isLive(run.status)) ? LIVE_POLL_MS : false,
   });

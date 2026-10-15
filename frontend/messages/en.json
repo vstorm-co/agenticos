@@ -5930,25 +5930,29 @@
     "description": "Every run of this agent over a dataset: how each case was answered and scored, and how it compares with an earlier version.",
     "start": "Run evals",
     "startTitle": "Run evals",
-    "startBody": "Choose what runs and on which dataset. You see what it costs before anything runs.",
+    "startBody": "Pick what to test and on which dataset. The cost shows before anything runs.",
     "cancel": "Cancel",
-    "estimateCost": "Estimate cost",
     "aiSettings": "Open the organization's settings",
     "estimate": {
-      "arm": {
-        "candidate": "Candidate on {model}",
-        "baseline": "Baseline v{version} on {model}"
-      },
       "basis": {
         "fallback": "no history on this model, a rough guess",
         "cached": "reused from a recent run"
       },
-      "judge": "Judge",
+      "judge": "Eval judge",
       "total": "{count, plural, =1 {1 case} other {# cases}} in total",
       "reruns": "Cases that flip are rerun to confirm, which can add up to {amount}.",
       "after": "After this run the agent keeps <b>{agent}</b> and the organization <b>{org}</b> of this month's budget.",
       "noCap": "no cap",
-      "unaffordable": "This is more than a budget has left. Run fewer cases or models, or raise the budget."
+      "unaffordable": "This is more than a budget has left. Run fewer cases or models, or raise the budget.",
+      "side": "{name} · {model}",
+      "gradedBy": "Graded by {graders}.",
+      "grader": {
+        "checks": "checks",
+        "trajectory": "expected tool calls",
+        "reference": "the reference answer",
+        "judge": "the Eval judge",
+        "judgeRubric": "the Eval judge on {criteria}"
+      }
     },
     "runFor": "Run for {amount}",
     "runTitle": "{dataset} v{version} · {candidate}",
@@ -5980,18 +5984,30 @@
       "dataset": "Dataset",
       "datasetPlaceholder": "Choose a dataset",
       "datasetOption": "{name} · {count, plural, =1 {1 case} other {# cases}} · v{version}",
-      "candidate": "What runs",
-      "published": "Published version v{version}",
-      "draft": "The draft as it stands",
       "environment": "Environment",
       "noEnvironment": "None",
-      "environmentHint": "Cases use this environment's test connections. A tool that writes without one is held, not run.",
-      "models": "Models",
-      "modelsHint": "Leave all unchecked to run the agent's own model. Check several to compare them side by side.",
-      "pairedBaseline": "Run the previous version in the same run",
-      "pairedBaselineHint": "Both meet the same provider on the same day, so a regression is the agent's, not the provider's. It costs a second run of every case.",
-      "fromRecordings": "Answer tools from recordings",
-      "fromRecordingsHint": "Cases taken from conversations get the tool results the original run got."
+      "environmentHint": "Tools reach this environment's test connections. A tool that would write data without one is not executed.",
+      "fromRecordings": "Replay tool results from the original conversation",
+      "fromRecordingsHint": "A case taken from a conversation gets the tool results that conversation got, instead of calling the tools again.",
+      "agent": "Agent",
+      "agentPlaceholder": "Choose an agent",
+      "target": "What are you testing",
+      "targetOption": {
+        "compare": "The draft against v{version}",
+        "version": "v{version} alone",
+        "draft": "The draft"
+      },
+      "targetHint": {
+        "compare": "Both answer the same cases now, so whatever changed is the draft's doing, not the provider's.",
+        "version": "How the version people are talking to does on the dataset.",
+        "draft": "Nothing is published yet, so this is the first result. Later versions are compared with it."
+      },
+      "noTarget": "This agent has no published version, and running its draft takes the right to edit it.",
+      "advanced": "Advanced",
+      "reruns": "Confirming reruns",
+      "rerunsDefault": "Default",
+      "rerunsCount": "{count, plural, =0 {None} =1 {1 rerun} other {# reruns}}",
+      "rerunsHint": "A case whose result changes is answered again this many times, and the change counts as confirmed only if it holds every time. None skips the check."
     },
     "comparison": {
       "title": "Against the baseline",
@@ -6092,6 +6108,7 @@
         "skipped": "skipped",
         "error": "error"
       }
-    }
+    },
+    "estimating": "Estimating…"
   }
 }

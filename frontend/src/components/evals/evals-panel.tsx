@@ -137,14 +137,7 @@ export function EvalsPanel({ agentId, canStart, canRunDraft, currentVersion }: E
           </ul>
         )}
       </CardContent>
-      {starting && (
-        <StartEvalDialog
-          agentId={agentId}
-          canRunDraft={canRunDraft}
-          currentVersion={currentVersion}
-          onOpenChange={setStarting}
-        />
-      )}
+      {starting && <StartEvalDialog agentId={agentId} onOpenChange={setStarting} />}
     </Card>
   );
 }
