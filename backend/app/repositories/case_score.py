@@ -159,13 +159,19 @@ async def list_for_dataset(
             settled.is_(None) if outcome == "not_graded" else settled.is_(outcome == "passed")
         )
     if agent_id is not None:
-        where.append(CaseScore.run_id.in_(select(AgentRun.id).where(AgentRun.agent_id == agent_id)))
+        runs = select(AgentRun.id).where(
+            AgentRun.organization_id == organization_id, AgentRun.agent_id == agent_id
+        )
+        where.append(CaseScore.run_id.in_(runs))
     if eval_run_id is not None:
         where.append(CaseScore.eval_run_id == eval_run_id)
     if tag is not None:
         where.append(
             CaseScore.case_revision_id.in_(
-                select(DatasetCase.id).where(DatasetCase.tags.contains([tag]))
+                select(DatasetCase.id).where(
+                    DatasetCase.organization_id == organization_id,
+                    DatasetCase.tags.contains([tag]),
+                )
             )
         )
     total = await db.scalar(select(func.count(CaseScore.id)).where(*where)) or 0
