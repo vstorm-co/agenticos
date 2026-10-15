@@ -5608,7 +5608,7 @@
       "addCriterion": "Kriterium hinzufügen",
       "removeCriterion": "Kriterium entfernen",
       "referenceHint": "Der Bewerter vergleicht die Antwort mit der Referenzantwort des Falls, sofern es eine gibt.",
-      "reviewSelect": "In die Prüfwarteschlange senden",
+      "reviewSelect": "Von Hand bewertete Antworten in die Prüfwarteschlange senden",
       "review": {
         "none": "Nichts, bis jemand etwas sendet",
         "failed": "Ergebnisse, die nicht bestanden haben",
@@ -5690,7 +5690,7 @@
       },
       "reviewCard": {
         "title": "Prüfung durch eine Person",
-        "description": "Welche benoteten Antworten auf eine Entscheidung warten. Ein Eval-Run sendet von sich aus keine; seine Seite sendet die, die Sie auswählen."
+        "description": "Welche von Hand bewerteten Antworten aus Activity auf eine Entscheidung warten. Ein Eval-Run sendet seine eigenen: die Regressionen, die er bestätigt hat, und die Antworten, die der Bewerter nicht bewerten konnte, eine pro Fall."
       },
       "suggestReference": "{count, plural, =1 {1 Fall hat eine Referenzantwort, und noch vergleicht nichts Antworten damit.} other {# Fälle haben eine Referenzantwort, und noch vergleicht nichts Antworten damit.}}",
       "suggestReferenceAction": "Mit der Referenz vergleichen",
@@ -5713,7 +5713,7 @@
       "reviewFilter": "Anzeigen",
       "filterPending": "Wartet auf Entscheidung ({count})",
       "filterAll": "Alle Ergebnisse ({count})",
-      "nothingAwaitingReviewBody": "Die Seite eines Eval-Runs sendet hierher die Antworten, die Sie auswählen, und die Bewertung das, was ihre Prüfeinstellung sagt.",
+      "nothingAwaitingReviewBody": "Ein Eval-Run schickt die Regressionen hierher, die er bestätigt hat, und die Antworten, die sein Bewerter nicht bewerten konnte, und seine Seite weitere, die Sie auswählen. Von Hand bewertete Antworten folgen der Prüfeinstellung im Tab Bewertung.",
       "groupByHand": "Von Hand bewertet",
       "groupEvalRun": "Eval-Run · {when}",
       "agentGone": "Ein Agent, den es nicht mehr gibt",

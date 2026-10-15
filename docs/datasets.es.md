@@ -1,5 +1,5 @@
 ---
-source_sha: "08c449664201"
+source_sha: "62216b59e91c"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -338,13 +338,17 @@ las calificadas después.
 
 ### Revisión { #review }
 
-Una puntuación espera en la **cola de revisión** cuando alguien la envía allí.
-Un run de eval no envía nada por sí mismo: su página envía las puntuaciones que
-elijas, todas a la vez mediante `POST /datasets/{id}/scores/review` con hasta
-500 identificadores de puntuación: todas o ninguna. Una puntuación pedida a mano
-desde Activity sigue el ajuste **Review by a person** del dataset: nada hasta
-que alguien envíe una, cada resultado que no aprobó, o cada resultado. Una
-puntuación ya decidida sigue decidida.
+Una puntuación espera en la **cola de revisión** cuando alguien la envía allí,
+o lo hace un run de eval. Tras volver a ejecutar lo que cambió, un run de eval
+envía las regresiones que confirmó y las respuestas que el juez no pudo
+calificar: una puntuación por caso, y ninguna para un caso que ya espera. Su
+página envía otras puntuaciones que elijas, todas a la vez mediante `POST
+/datasets/{id}/scores/review` con hasta 500 identificadores de puntuación:
+todas o ninguna.
+
+Una puntuación pedida a mano desde Activity sigue el ajuste **Review by a
+person** del dataset: nada hasta que alguien envíe una, cada resultado que no
+aprobó, o cada resultado. Una puntuación ya decidida sigue decidida.
 
 La pestaña **Review** se abre en lo que espera una decisión, con cada resultado
 a un clic de distancia, cada uno con su recuento, y se filtra por resultado, por

@@ -1135,6 +1135,31 @@ class TestVerdicts:
         [waiting] = (await service.list_scores(tenant.ctx, dataset.id, pending=True)).items
         assert (waiting.id, waiting.eval_run_id) == (score.id, eval_run_id)
 
+    async def test_an_eval_run_routes_one_score_per_case_and_never_twice(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        other, other_case = await _dataset(db, tenant, scoring=DatasetScoring())
+        run = await _scored_run(db, tenant)
+        eval_run_id = uuid.uuid4()
+        service = ScoringService(db)
+        first = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
+        second = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
+        elsewhere = await _score_for_an_eval(db, tenant, other, other_case, run, eval_run_id)
+
+        routed = await service.route_to_review(
+            tenant.ctx,
+            dataset_id=dataset.id,
+            score_ids=[first.id, second.id, elsewhere.id, uuid.uuid4()],
+        )
+        again = await service.route_to_review(
+            tenant.ctx, dataset_id=dataset.id, score_ids=[second.id]
+        )
+
+        assert (routed, again) == (1, 0)
+        waiting = (await service.list_scores(tenant.ctx, dataset.id, pending=True)).items
+        assert [score.id for score in waiting] == [first.id]
+        assert (await service.list_scores(tenant.ctx, other.id, pending=True)).total == 0
+
     async def test_a_score_keeps_the_answer_it_graded_and_who_gave_it(self, db, judge) -> None:
         tenant = await _tenant(db)
         dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())

@@ -5750,7 +5750,7 @@
       "addCriterion": "Add criterion",
       "removeCriterion": "Remove criterion",
       "referenceHint": "The judge compares the answer with the case's reference answer, where the case has one.",
-      "reviewSelect": "Send to the review queue",
+      "reviewSelect": "Send answers graded by hand to the review queue",
       "review": {
         "none": "Nothing, until somebody sends one",
         "failed": "Results that did not pass",
@@ -5832,7 +5832,7 @@
       },
       "reviewCard": {
         "title": "Review by a person",
-        "description": "Which graded answers wait for somebody to decide. An eval run sends none by itself; its page sends the ones you pick."
+        "description": "Which answers graded by hand, from Activity, wait for somebody to decide. An eval run sends its own: the regressions it confirmed and the answers the judge could not grade, one per case."
       },
       "suggestReference": "{count, plural, =1 {1 case has a reference answer, and nothing compares answers with it yet.} other {# cases have a reference answer, and nothing compares answers with it yet.}}",
       "suggestReferenceAction": "Compare with the reference",
@@ -5855,7 +5855,7 @@
       "reviewFilter": "Show",
       "filterPending": "Waiting for a decision ({count})",
       "filterAll": "All results ({count})",
-      "nothingAwaitingReviewBody": "An eval run's page sends here the answers you pick, and grading sends what its review setting says.",
+      "nothingAwaitingReviewBody": "An eval run sends here the regressions it confirmed and the answers its judge could not grade, and its page any others you pick. Answers graded by hand follow the Grading tab's review setting.",
       "groupByHand": "Graded by hand",
       "groupEvalRun": "Eval run · {when}",
       "agentGone": "An agent that is gone",

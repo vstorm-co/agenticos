@@ -1,5 +1,5 @@
 ---
-source_sha: "08c449664201"
+source_sha: "62216b59e91c"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -332,13 +332,18 @@ wyniki ocenione wcześniej nie będą porównywalne z ocenianymi później.
 
 ### Przegląd { #review }
 
-Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle. Run ewaluacji sam
-niczego nie wysyła: jego strona wysyła wybrane przez ciebie wyniki, wszystkie
-naraz przez `POST /datasets/{id}/scores/review`, do 500 identyfikatorów
-wyników - wszystkie albo żaden. Wynik, o który poproszono ręcznie z Activity, podlega
-ustawieniu **Przegląd przez człowieka** datasetu: nic, dopóki ktoś czegoś nie
-wyśle, każdy wynik, który nie zaliczył, albo każdy wynik. Wynik już
-rozstrzygnięty pozostaje rozstrzygnięty.
+Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle albo zrobi to run
+ewaluacji. Po ponownym uruchomieniu tego, co się zmieniło, run ewaluacji wysyła
+potwierdzone regresje i odpowiedzi, których sędzia nie ocenił - po jednym wyniku
+na przypadek i żadnego dla przypadku, który już czeka. Jego strona wysyła inne
+wybrane przez ciebie wyniki, wszystkie naraz przez `POST
+/datasets/{id}/scores/review`, do 500 identyfikatorów wyników - wszystkie albo
+żaden.
+
+Wynik, o który poproszono ręcznie z Activity, podlega ustawieniu **Przegląd
+przez człowieka** datasetu: nic, dopóki ktoś czegoś nie wyśle, każdy wynik,
+który nie zaliczył, albo każdy wynik. Wynik już rozstrzygnięty pozostaje
+rozstrzygnięty.
 
 Zakładka **Przegląd** otwiera się na tym, co czeka na decyzję, a wszystkie
 wyniki są o jedno kliknięcie dalej, każdy filtr ze swoją liczbą; widok zawęża

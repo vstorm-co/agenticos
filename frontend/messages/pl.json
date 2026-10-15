@@ -3370,7 +3370,7 @@
       "addCriterion": "Dodaj kryterium",
       "removeCriterion": "Usuń kryterium",
       "referenceHint": "Sędzia porównuje odpowiedź z odpowiedzią wzorcową przypadku, jeśli przypadek ją ma.",
-      "reviewSelect": "Wysyłaj do kolejki przeglądu",
+      "reviewSelect": "Wysyłaj odpowiedzi ocenione ręcznie do kolejki przeglądu",
       "review": {
         "none": "Nic, dopóki ktoś nie wyśle",
         "failed": "Wyniki, które nie zaliczyły",
@@ -3452,7 +3452,7 @@
       },
       "reviewCard": {
         "title": "Przegląd przez człowieka",
-        "description": "Które ocenione odpowiedzi czekają na decyzję człowieka. Run ewaluacji sam niczego nie wysyła; jego strona wysyła to, co wybierzesz."
+        "description": "Które odpowiedzi ocenione ręcznie, z Activity, czekają na decyzję człowieka. Run ewaluacji wysyła swoje sam: potwierdzone regresje i odpowiedzi, których sędzia nie ocenił, po jednej na przypadek."
       },
       "suggestReference": "{count, plural, one {# przypadek ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} few {# przypadki mają odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} many {# przypadków ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.} other {# przypadku ma odpowiedź wzorcową, ale nic jeszcze nie porównuje z nią odpowiedzi.}}",
       "suggestReferenceAction": "Porównuj z wzorcem",
@@ -3475,7 +3475,7 @@
       "reviewFilter": "Pokaż",
       "filterPending": "Czeka na decyzję ({count})",
       "filterAll": "Wszystkie wyniki ({count})",
-      "nothingAwaitingReviewBody": "Strona runu ewaluacji wysyła tu wybrane odpowiedzi, a ocenianie - to, co mówi jego ustawienie przeglądu.",
+      "nothingAwaitingReviewBody": "Run ewaluacji wysyła tu potwierdzone regresje i odpowiedzi, których jego sędzia nie ocenił, a jego strona inne, które wybierzesz. Odpowiedzi ocenione ręcznie podlegają ustawieniu przeglądu w zakładce Ocenianie.",
       "groupByHand": "Oceniane ręcznie",
       "groupEvalRun": "Run ewaluacji · {when}",
       "agentGone": "Agent, którego już nie ma",

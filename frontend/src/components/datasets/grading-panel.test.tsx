@@ -513,7 +513,9 @@ describe("GradingPanel", () => {
   it("sends results to review as the review card says", async () => {
     panel();
 
-    await userEvent.click(screen.getByRole("combobox", { name: "Send to the review queue" }));
+    await userEvent.click(
+      screen.getByRole("combobox", { name: "Send answers graded by hand to the review queue" }),
+    );
     await userEvent.click(screen.getByRole("option", { name: "Results that did not pass" }));
     await userEvent.click(saveAll());
 

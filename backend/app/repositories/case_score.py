@@ -99,6 +99,23 @@ async def existing_ids(
     return set(result.scalars().all())
 
 
+async def cases_waiting(
+    db: AsyncSession, case_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
+) -> set[UUID]:
+    """Which of `case_ids` already have a score of this dataset waiting for a person."""
+    result = await db.execute(
+        select(CaseScore.case_id)
+        .where(
+            CaseScore.case_id.in_(case_ids),
+            CaseScore.organization_id == organization_id,
+            CaseScore.dataset_id == dataset_id,
+            CaseScore.review_state == "pending",
+        )
+        .distinct()
+    )
+    return set(result.scalars().all())
+
+
 async def queue_for_review(
     db: AsyncSession, score_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
 ) -> int:

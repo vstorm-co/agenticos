@@ -815,6 +815,39 @@ class ScoringService:
         )
         return ReviewRequested(queued=queued, already=len(wanted) - queued)
 
+    async def route_to_review(
+        self, ctx: AuthContext, *, dataset_id: UUID, score_ids: list[UUID]
+    ) -> int:
+        """Send an eval run's scores a person should see to the review queue; how many went.
+
+        For the eval run's own worker, which has already decided what deserves a
+        person - its confirmed regressions and the scores no scorer reached a
+        verdict on - so no permission is checked here. One score per case at
+        most: a case with a score already waiting gets no second one, nor does a
+        score already waiting or decided. Ids of another dataset are ignored.
+        """
+        scores = await case_score_repo.get_many(
+            self.db, score_ids, organization_id=ctx.organization_id, dataset_id=dataset_id
+        )
+        waiting = await case_score_repo.cases_waiting(
+            self.db,
+            list({score.case_id for score in scores.values()}),
+            organization_id=ctx.organization_id,
+            dataset_id=dataset_id,
+        )
+        chosen: dict[UUID, UUID] = {}
+        for score_id in score_ids:
+            score = scores.get(score_id)
+            if score is None or score.review_state != "none" or score.case_id in waiting:
+                continue
+            chosen.setdefault(score.case_id, score.id)
+        return await case_score_repo.queue_for_review(
+            self.db,
+            list(chosen.values()),
+            organization_id=ctx.organization_id,
+            dataset_id=dataset_id,
+        )
+
     async def withdraw_reviews(
         self, ctx: AuthContext, dataset_id: UUID, data: ReviewRequest
     ) -> ReviewWithdrawn:
