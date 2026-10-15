@@ -197,6 +197,20 @@ describe("renaming an agent in the Builder", () => {
     expect(saveDraft.mutateAsync).not.toHaveBeenCalled();
   });
 
+  it("holds Publish back while the name is blank", async () => {
+    allowed = new Set([Perm.agentsEdit, Perm.agentsPublish]);
+    await mount();
+    const name = await screen.findByRole("textbox", { name: "Name" });
+    const publish = screen.getByRole("button", { name: "Publish" });
+    expect(publish).toBeEnabled();
+
+    fireEvent.change(name, { target: { value: "   " } });
+
+    expect(publish).toBeDisabled();
+    fireEvent.click(publish);
+    expect(saveDraft.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it("shows the name read-only to a caller who may not edit", async () => {
     allowed = new Set([Perm.agentsView]);
     await mount();

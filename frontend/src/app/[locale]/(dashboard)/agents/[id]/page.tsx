@@ -662,7 +662,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
    * verdict on the one on screen. `saveDraft` has already said what went wrong.
    */
   async function persist(): Promise<boolean> {
-    if (!spec) return false;
+    // The same refusal the autosave holds back from: the name field says why.
+    if (!spec || !spec.name.trim()) return false;
     try {
       await saveDraft.mutateAsync(spec);
       return true;
@@ -807,7 +808,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             {canPublish && (
               <Button
                 onClick={handlePublish}
-                disabled={publish.isPending}
+                disabled={publish.isPending || !spec?.name.trim()}
                 data-tour="agent-publish"
               >
                 <Upload className="h-4 w-4" />
