@@ -1,5 +1,5 @@
 ---
-source_sha: "b2797c187f2f"
+source_sha: "60c5c193c13f"
 ---
 
 # Conceptos { #concepts }
@@ -582,12 +582,15 @@ una organización creada antes lo recibe la primera vez que algo lo necesita, y
 un dataset puede tener un juez propio.
 
 Un juez lo ejecuta la plataforma; no es un agent que usen las personas. Agents
-muestra los jueces aparte, en una banda plegada **Judges** bajo **Agents**; cada
-tarjeta dice qué datasets califica, el sembrado lleva **Default judge**, y los
-selectores de agents los dejan fuera. Quien tiene `agents:edit` abre uno para
-cambiar sus instrucciones, su modelo y su budget: su página contiene eso, sus
-límites, su historial y los datasets que califica, y nada más. Sus runs se
-comprueban contra el budget y se registran como cualquier otro, sin
+muestra los jueces aparte, en una banda plegada **Judges** bajo **Agents**;
+cada tarjeta dice qué datasets califica, el sembrado lleva **Default judge**, y
+los selectores de agents los dejan fuera. Quien tiene `agents:edit` abre uno
+para cambiar sus instrucciones, su modelo y su budget: su página contiene eso,
+sus límites, su historial y los datasets que califica, con cuántas veces las
+personas coincidieron con él en los resultados que calificó y ellas decidieron,
+y nada más.
+
+Sus runs se comprueban contra el budget y se registran como cualquier otro, sin
 notificación de run. Un juez empieza con un budget mensual pequeño propio, para
 que una organización nueva no gaste por accidente todo su budget en evaluación.
 

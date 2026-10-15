@@ -3139,7 +3139,9 @@
     "judgeUnused": "Żaden dataset jeszcze nie używa tego sędziego.",
     "judgeDatasets": "Datasety",
     "judgeDatasetsHint": "Datasety, które ocenia ten sędzia. Dataset wybiera sędziego w zakładce Ocenianie.",
-    "judgeNoModel": "Jeszcze bez modelu"
+    "judgeNoModel": "Jeszcze bez modelu",
+    "judgeAgreement": "Ludzie zgodzili się z tym sędzią w {agreed} z {decided, plural, one {# rozstrzygniętego wyniku} few {# rozstrzygniętych wyników} many {# rozstrzygniętych wyników} other {# rozstrzygniętego wyniku}}.",
+    "judgeAgreementNone": "Nikt jeszcze nie rozstrzygnął wyniku ocenionego przez tego sędziego, więc nie ma zgodności do pokazania."
   },
   "steps": {
     "skills-gallery": {

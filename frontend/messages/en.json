@@ -680,7 +680,9 @@
     "judgeUnused": "No dataset uses this judge yet.",
     "judgeDatasets": "Datasets",
     "judgeDatasetsHint": "The datasets this judge grades. A dataset picks its judge on its Grading tab.",
-    "judgeNoModel": "No model yet"
+    "judgeNoModel": "No model yet",
+    "judgeAgreement": "People agreed with this judge on {agreed} of {decided, plural, =1 {1 result} other {# results}} they decided.",
+    "judgeAgreementNone": "Nobody has decided a result this judge graded yet, so there is no agreement to show."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

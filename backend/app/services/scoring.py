@@ -60,6 +60,7 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    JudgeAgreement,
     JudgeCreate,
     JudgePin,
     PendingDataset,
@@ -676,6 +677,25 @@ class ScoringService:
             total=total,
             datasets=_by_dataset(counts),
         )
+
+    async def judge_agreement(self, ctx: AuthContext, judge_id: UUID) -> JudgeAgreement:
+        """How often a person's decision agreed with what a judge's grading concluded.
+
+        Only scores the judge graded to a verdict count, once somebody decided
+        them, and only in the datasets the caller may see.
+        """
+        shared = await visible_resource_ids(
+            self.db, ctx, resource_type=DATASET, perm=Perm.DATASETS_VIEW
+        )
+        agreed, decided = await case_score_repo.judge_agreement(
+            self.db,
+            organization_id=ctx.organization_id,
+            judge_id=judge_id,
+            user_id=ctx.subject_id,
+            see_all=shared is None,
+            shared_ids=[] if shared is None else shared,
+        )
+        return JudgeAgreement(agreed=agreed, decided=decided)
 
     async def _reads(self, ctx: AuthContext, scores: list[CaseScore]) -> list[CaseScoreRead]:
         """Scores as read, each with the name and version number of the agent that

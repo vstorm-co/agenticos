@@ -676,7 +676,9 @@
     "judgeUnused": "Noch kein Dataset nutzt diesen Bewerter.",
     "judgeDatasets": "Datasets",
     "judgeDatasetsHint": "Die Datasets, die dieser Bewerter bewertet. Ein Dataset wählt seinen Bewerter im Tab Bewertung.",
-    "judgeNoModel": "Noch kein Modell"
+    "judgeNoModel": "Noch kein Modell",
+    "judgeAgreement": "Menschen stimmten diesem Bewerter bei {agreed} von {decided, plural, =1 {1 entschiedenen Ergebnis} other {# entschiedenen Ergebnissen}} zu.",
+    "judgeAgreementNone": "Noch niemand hat ein Ergebnis entschieden, das dieser Bewerter bewertet hat, daher gibt es keine Übereinstimmung zu zeigen."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

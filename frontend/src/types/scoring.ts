@@ -110,6 +110,12 @@ export interface CaseScore {
   outcome: boolean | null;
 }
 
+/** How often people agreed with a judge: `agreed` of the `decided` scores it graded. */
+export interface JudgeAgreement {
+  agreed: number;
+  decided: number;
+}
+
 /** What scoring again changed: the scores scored anew, and the ids that needed nothing. */
 export interface Rescored {
   rescored: CaseScore[];

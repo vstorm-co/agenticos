@@ -25,6 +25,7 @@ from app.schemas.dataset import DatasetRead
 from app.schemas.scoring import (
     CaseScoreList,
     CaseScoreRead,
+    JudgeAgreement,
     Rescored,
     ReviewQueue,
     ReviewRequested,
@@ -74,6 +75,7 @@ def service() -> MagicMock:
     stub.request_reviews = AsyncMock(return_value=ReviewRequested(queued=2, already=1))
     stub.withdraw_reviews = AsyncMock(return_value=ReviewWithdrawn(removed=1, kept=0))
     stub.rescore = AsyncMock(return_value=Rescored(rescored=[_SCORE], kept=[]))
+    stub.judge_agreement = AsyncMock(return_value=JudgeAgreement(agreed=7, decided=10))
     return stub
 
 
@@ -114,6 +116,8 @@ async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
         assert scored.status_code == 201
         assert (await http.get(_url(f"{dataset}/scores"))).json()["total"] == 1
         assert (await http.get(_url("/review-queue"))).json()["total"] == 1
+        agreement = await http.get(_url(f"/judge-agreement?judge={uuid.uuid4()}"))
+        assert agreement.json() == {"agreed": 7, "decided": 10}
         assert (await http.put(_url(f"{score}/verdict"), json={"passed": True})).status_code == 200
         assert (await http.post(_url(f"{score}/review"))).status_code == 200
         sent = await http.post(

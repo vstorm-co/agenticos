@@ -327,6 +327,12 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/datasets", Perm.DATASETS_VIEW),
     Call("POST", "/datasets", Perm.DATASETS_EDIT, body={"name": "refund questions"}),
     Call("GET", "/datasets/review-queue", Perm.DATASETS_VIEW),
+    Call(
+        "GET",
+        "/datasets/judge-agreement",
+        Perm.DATASETS_VIEW,
+        query="?judge=00000000-0000-0000-0000-000000000001",
+    ),
     # Which providers exist and what shape of credential each takes is read by
     # the Builder's model picker, so it is gated on seeing agents rather than on
     # managing connections. Knowing Bedrock wants a key pair is not a secret.

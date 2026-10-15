@@ -910,6 +910,40 @@ class TestWhenTheJudgeCannotRun:
         assert (score.passed, score.unscored_reason) == (None, "judge_output_invalid")
 
 
+class TestJudgeAgreement:
+    async def test_people_agreed_with_the_judge_on_some_of_what_they_decided(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric(), visibility="private")
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+        judge.grades = {"r2": 2}
+        scores = [
+            await scoring.score_run(
+                tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+            )
+            for _ in range(3)
+        ]
+        assert {score.passed for score in scores} == {False}
+        await scoring.set_verdict(tenant.ctx, dataset.id, scores[0].id, CaseVerdict(passed=False))
+        await scoring.set_verdict(tenant.ctx, dataset.id, scores[1].id, CaseVerdict(passed=True))
+        judge_agent = await agent_repo.get_system(
+            db, organization_id=tenant.organization.id, key=JUDGE.key
+        )
+        assert judge_agent is not None
+        stranger = await _join(db, tenant, OrgRoleName.MEMBER)
+
+        mine = await scoring.judge_agreement(tenant.ctx, judge_agent.id)
+        theirs = await scoring.judge_agreement(stranger, judge_agent.id)
+        other = await scoring.judge_agreement(tenant.ctx, uuid.uuid4())
+
+        assert (mine.agreed, mine.decided) == (1, 2)
+        assert (theirs.agreed, theirs.decided) == (0, 0)
+        assert (other.agreed, other.decided) == (0, 0)
+
+
 class TestGradingAgain:
     async def test_a_score_the_judge_failed_is_graded_again_on_the_same_answer(
         self, db, monkeypatch

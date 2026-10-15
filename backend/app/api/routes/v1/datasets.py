@@ -40,6 +40,7 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    JudgeAgreement,
     JudgeCreate,
     Rescored,
     RescoreRequest,
@@ -81,6 +82,16 @@ async def list_datasets(
         skip=skip,
         limit=limit,
     )
+
+
+@router.get(
+    "/judge-agreement",
+    response_model=JudgeAgreement,
+    dependencies=[Depends(require(Perm.DATASETS_VIEW))],
+)
+async def read_judge_agreement(service: ScoringSvc, ctx: Auth, judge: UUID = Query(...)) -> Any:
+    """How often people agreed with a judge, over the scores it graded that somebody decided."""
+    return await service.judge_agreement(ctx, judge)
 
 
 @router.get(

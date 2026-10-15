@@ -312,6 +312,7 @@ export const qk = {
       },
     ) => ["datasets", id, "scores", query] as const,
     allReviewQueue: () => ["datasets", "review-queue"] as const,
+    judgeAgreement: (judgeId: string) => ["datasets", "judge-agreement", judgeId] as const,
     reviewQueue: (query: { skip: number; limit: number }) =>
       ["datasets", "review-queue", query] as const,
   },

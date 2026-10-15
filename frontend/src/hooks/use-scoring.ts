@@ -11,6 +11,7 @@ import type {
   CaseScore,
   CaseScoreList,
   DatasetScoring,
+  JudgeAgreement,
   Rescored,
   ReviewQueue,
   ScoreOutcome,
@@ -218,4 +219,16 @@ export function useReviewQueue({
     error: query.error,
     refetch: query.refetch,
   };
+}
+
+/** How often people's decisions agreed with a judge, over the datasets the caller sees. */
+export function useJudgeAgreement(judgeId: string) {
+  const query = useQuery({
+    queryKey: qk.datasets.judgeAgreement(judgeId),
+    queryFn: () =>
+      apiClient.get<JudgeAgreement>(
+        `/datasets/judge-agreement?${new URLSearchParams({ judge: judgeId })}`,
+      ),
+  });
+  return { agreement: query.data, isLoading: query.isLoading };
 }

@@ -248,6 +248,46 @@ async def pending_counts(
     return [(row[0], row[1], row[2], row[3]) for row in result.all()]
 
 
+async def judge_agreement(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    judge_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+) -> tuple[int, int]:
+    """How often a person agreed with one judge: `(agreed, decided)`.
+
+    Counted over the scores that judge graded to a verdict and a person then
+    decided, in the datasets one member may see.
+    """
+    where = [
+        CaseScore.organization_id == organization_id,
+        CaseScore.judge["agent_id"].astext == str(judge_id),
+        CaseScore.passed.is_not(None),
+        CaseScore.human_passed.is_not(None),
+    ]
+    if not see_all:
+        where.append(
+            visible_to_caller(
+                Dataset.owner_user_id,
+                Dataset.visibility,
+                Dataset.id,
+                user_id=user_id,
+                shared_ids=shared_ids,
+            )
+        )
+    row = (
+        await db.execute(
+            select(func.count().filter(CaseScore.human_passed == CaseScore.passed), func.count())
+            .join(Dataset, Dataset.id == CaseScore.dataset_id)
+            .where(*where)
+        )
+    ).one()
+    return row[0], row[1]
+
+
 def _pending(
     organization_id: UUID, *, user_id: UUID, see_all: bool, shared_ids: list[UUID]
 ) -> list[ColumnElement[bool]]:

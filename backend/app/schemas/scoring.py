@@ -463,6 +463,13 @@ class Rescored(BaseSchema):
     kept: list[UUID]
 
 
+class JudgeAgreement(BaseSchema):
+    """How often people agreed with a judge: `agreed` of the `decided` scores it graded."""
+
+    agreed: int
+    decided: int
+
+
 class ReviewRequested(BaseSchema):
     """What a review request changed: `queued` newly waiting, `already` waiting or decided."""
 
