@@ -4260,7 +4260,6 @@
       "whereTheMoneyWent": "Wohin das Geld geflossen ist",
       "whoIsSpendingCouldNotBeRead": "Wer ausgibt, konnte nicht gelesen werden.",
       "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus.",
-      "openEvals": "Teil eines Eval-Runs · Evals des Agents öffnen",
       "everySurface": "Jede Oberfläche, Evals eingeschlossen",
       "evalCase": "Eval-Fall: {dataset} · {input}",
       "evalCaseTitle": "Ein Fall aus einem Eval-Run",
@@ -4269,7 +4268,8 @@
       "moreRunActions": "Weitere Aktionen für diesen Run",
       "evalCaseGraded": "Bewertung eines Eval-Falls: {dataset} · {input}",
       "evalCaseGradedTitle": "Der Judge bewertet einen Fall eines Eval-Runs",
-      "evalCaseGradedBody": "Dieser Run ist der Judge, der eine Antwort eines Eval-Runs bewertet, der kein Gespräch speichert. Antwort, Bewertung und Begründung des Judges stehen im Eval-Run."
+      "evalCaseGradedBody": "Dieser Run ist der Judge, der eine Antwort eines Eval-Runs bewertet, der kein Gespräch speichert. Antwort, Bewertung und Begründung des Judges stehen im Eval-Run.",
+      "grading": "Bewertung: {input}"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -6148,7 +6148,8 @@
       "dot": "{side}: {state, select, passed {bestanden} failed {nicht bestanden} undecided {unentschieden} other {ausstehend}}",
       "brokenOnly": "{count, plural, =1 {Der kaputte Fall wird gezeigt.} other {Die # kaputten Fälle werden gezeigt.}}",
       "showAll": "Alle Fälle zeigen",
-      "corrected": "Von einer Person korrigiert"
+      "corrected": "Von einer Person korrigiert",
+      "askedOnly": "Nur der geöffnete Fall wird gezeigt."
     },
     "case": {
       "firstAnswer": "Antwort",
@@ -6170,7 +6171,6 @@
         "skipped": "übersprungen",
         "error": "Fehler"
       },
-      "openInActivity": "Diese Antwort in Activity öffnen",
       "expect": {
         "title": "Was der Fall erwartet",
         "reference": "Referenz:",
@@ -6179,7 +6179,8 @@
         "checks": "Checks:",
         "openDataset": "Diesen Fall im Dataset öffnen"
       },
-      "notGraded": "nicht bewertet: {reason}"
+      "notGraded": "nicht bewertet: {reason}",
+      "whatTheModelSaw": "Sehen, was das Modell sah"
     },
     "estimating": "Wird geschätzt…",
     "sideModel": "{name} · {model}",

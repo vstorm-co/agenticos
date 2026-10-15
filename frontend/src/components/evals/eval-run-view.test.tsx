@@ -15,6 +15,9 @@ vi.mock("sonner", () => ({
   },
 }));
 
+const navigation = vi.hoisted(() => ({ params: new URLSearchParams() }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => navigation.params }));
+
 const review = vi.hoisted(() => ({ canEdit: false, mutate: vi.fn(), rescore: vi.fn() }));
 vi.mock("@/hooks/use-datasets", () => ({
   useDataset: () => ({ dataset: { can_edit: review.canEdit } }),
@@ -90,6 +93,7 @@ beforeEach(() => {
   review.canEdit = false;
   review.mutate = vi.fn();
   review.rescore = vi.fn();
+  navigation.params = new URLSearchParams();
   access.allowed = new Set();
   state.casesArgs = [];
   state.comparisonArgs = [];
@@ -257,6 +261,19 @@ describe("EvalRunView", () => {
     expect(toastSuccess).toHaveBeenCalledWith("2 answers graded again");
     onError(new Error("judge down"));
     expect(toastError).toHaveBeenCalled();
+  });
+
+  it("opens the case a link names, and every case after", async () => {
+    navigation.params = new URLSearchParams("case=case-1");
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(state.casesArgs.at(-1)).toEqual([
+      "run-1",
+      expect.objectContaining({ caseIds: ["case-1"] }),
+    ]);
+    expect(screen.getByText("Showing the one case you opened.")).toBeInTheDocument();
+    expect(screen.getByText("You have 30 days.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show every case" }));
+    expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ caseIds: null })]);
   });
 
   it("shows no verdict for a run with no candidate to give one about", () => {

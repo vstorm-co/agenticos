@@ -544,9 +544,10 @@ describe("CaseDetail", () => {
     expect(screen.getByText("v7 · gpt-4.1")).toBeInTheDocument();
     expect(screen.getByText("v6 · gpt-4.1")).toBeInTheDocument();
     expect(screen.getByText("not executed (would have written data)")).toBeInTheDocument();
-    expect(
-      screen.getAllByRole("link", { name: "Open this answer in Activity" })[0],
-    ).toHaveAttribute("href", "/runs?run=r1");
+    expect(screen.getAllByRole("link", { name: "See what the model saw" })[0]).toHaveAttribute(
+      "href",
+      "/runs?run=r1&view=input",
+    );
     expect(screen.queryByText("What the case expects")).toBeNull();
     expect(screen.getByText('send_email({"to":"a@b.c"})')).toBeInTheDocument();
     expect(screen.getByText("contains 30 days")).toBeInTheDocument();

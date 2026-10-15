@@ -260,11 +260,11 @@ describe("an eval run", () => {
     renderRun();
     expect(
       screen.getByRole("link", { name: "Eval case: refunds · Can I return it?" }),
-    ).toHaveAttribute("href", "/agents/agent-9/evals/eval-1");
+    ).toHaveAttribute("href", "/agents/agent-9/evals/eval-1?case=case-1");
     expect(screen.getByText("A case from an eval run")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open the eval run" })).toHaveAttribute(
       "href",
-      "/agents/agent-9/evals/eval-1",
+      "/agents/agent-9/evals/eval-1?case=case-1",
     );
     expect(screen.queryByTestId("timeline")).toBeNull();
   });
@@ -286,16 +286,13 @@ describe("an eval run", () => {
     renderRun();
     expect(
       screen.getByRole("link", { name: "Grading an eval case: refunds · Can I return it?" }),
-    ).toHaveAttribute("href", "/agents/agent-9/evals/eval-1");
+    ).toHaveAttribute("href", "/agents/agent-9/evals/eval-1?case=case-1");
     expect(screen.getByText("The judge grading a case of an eval run")).toBeInTheDocument();
   });
 
-  it("points at the agent's evals, where its case and comparison are", () => {
+  it("links no eval run it cannot name - a judge has no evals of its own to point at", () => {
     serve({ run: run({ surface: "eval" }) });
     renderRun();
-    expect(screen.getByRole("link", { name: /open the agent's evals/ })).toHaveAttribute(
-      "href",
-      expect.stringMatching(/\/agents\/.+\?tab=evals$/),
-    );
+    expect(screen.queryByRole("link", { name: /eval/i })).toBeNull();
   });
 });

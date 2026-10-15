@@ -4401,7 +4401,6 @@
       "whereTheMoneyWent": "Where the money went",
       "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
       "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent.",
-      "openEvals": "Part of an eval run · open the agent's evals",
       "everySurface": "Every surface, evals included",
       "evalCase": "Eval case: {dataset} · {input}",
       "evalCaseTitle": "A case from an eval run",
@@ -4410,7 +4409,8 @@
       "moreRunActions": "More actions for this run",
       "evalCaseGraded": "Grading an eval case: {dataset} · {input}",
       "evalCaseGradedTitle": "The judge grading a case of an eval run",
-      "evalCaseGradedBody": "This run is the judge grading one answer of an eval run, which keeps no conversation. The answer, the grade and the judge's reasons are on the eval run."
+      "evalCaseGradedBody": "This run is the judge grading one answer of an eval run, which keeps no conversation. The answer, the grade and the judge's reasons are on the eval run.",
+      "grading": "Grading: {input}"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -6290,7 +6290,8 @@
       "dot": "{side}: {state, select, passed {passed} failed {failed} undecided {undecided} other {pending}}",
       "brokenOnly": "{count, plural, =1 {Showing the case that broke.} other {Showing the # cases that broke.}}",
       "showAll": "Show every case",
-      "corrected": "Corrected by a person"
+      "corrected": "Corrected by a person",
+      "askedOnly": "Showing the one case you opened."
     },
     "case": {
       "firstAnswer": "Answer",
@@ -6312,7 +6313,6 @@
         "skipped": "skipped",
         "error": "error"
       },
-      "openInActivity": "Open this answer in Activity",
       "expect": {
         "title": "What the case expects",
         "reference": "Reference:",
@@ -6321,7 +6321,8 @@
         "checks": "Checks:",
         "openDataset": "Open this case in its dataset"
       },
-      "notGraded": "not graded: {reason}"
+      "notGraded": "not graded: {reason}",
+      "whatTheModelSaw": "See what the model saw"
     },
     "estimating": "Estimating…",
     "sideModel": "{name} · {model}",

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -34,6 +35,9 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const [tag, setTag] = useState<string | null>(null);
   const [broken, setBroken] = useState(false);
   const [testingAgain, setTestingAgain] = useState(false);
+  // `?case=` names one case to open - how Activity hands a case back to its run.
+  const asked = useSearchParams().get("case");
+  const [only, setOnly] = useState<string | null>(asked);
   const cases = useRef<HTMLDivElement>(null);
   const focus = arm ?? candidates[0]?.id ?? null;
   const live = run !== undefined && isLive(run.status);
@@ -48,6 +52,10 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
     if (wasLive.current && !live) void refetchComparison();
     wasLive.current = live;
   }, [live, refetchComparison]);
+  const loaded = run !== undefined;
+  useEffect(() => {
+    if (asked !== null && loaded) cases.current?.scrollIntoView?.({ block: "start" });
+  }, [asked, loaded]);
 
   if (isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
   if (error || !run) {
@@ -89,6 +97,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         }
         onTestAgain={() => setTestingAgain(true)}
         onShowBroken={() => {
+          setOnly(null);
           setBroken(true);
           cases.current?.scrollIntoView?.({ behavior: "smooth" });
         }}
@@ -143,8 +152,12 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
           run={run}
           flips={comparison?.cases ?? []}
           tag={tag}
-          caseIds={broken ? brokenIds : null}
-          onShowAll={() => setBroken(false)}
+          caseIds={only !== null ? [only] : broken ? brokenIds : null}
+          opened={only}
+          onShowAll={() => {
+            setBroken(false);
+            setOnly(null);
+          }}
         />
       </div>
     </div>

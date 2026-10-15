@@ -575,7 +575,6 @@
     },
     "runs": {
       "decidedByStandingConsent": "pominięte z góry dla konwersacji",
-      "openEvals": "Część eval runa · otwórz evale agenta",
       "anySurface": "Każde źródło poza evalami",
       "everySurface": "Każde źródło, z evalami",
       "evalCase": "Case evala: {dataset} · {input}",
@@ -585,7 +584,8 @@
       "moreRunActions": "Więcej akcji dla tego runa",
       "evalCaseGraded": "Ocena case'a evala: {dataset} · {input}",
       "evalCaseGradedTitle": "Sędzia ocenia case eval runu",
-      "evalCaseGradedBody": "Ten run to sędzia oceniający jedną odpowiedź eval runu, który nie zapisuje rozmowy. Odpowiedź, ocena i uzasadnienie sędziego są w eval runie."
+      "evalCaseGradedBody": "Ten run to sędzia oceniający jedną odpowiedź eval runu, który nie zapisuje rozmowy. Odpowiedź, ocena i uzasadnienie sędziego są w eval runie.",
+      "grading": "Ocena: {input}"
     },
     "agents": {
       "evals": "Evale",
@@ -3911,7 +3911,8 @@
       "dot": "{side}: {state, select, passed {zaliczony} failed {niezaliczony} undecided {nierozstrzygnięty} other {oczekuje}}",
       "brokenOnly": "{count, plural, one {Widzisz case, który się zepsuł.} few {Widzisz # case'y, które się zepsuły.} many {Widzisz # case'ów, które się zepsuły.} other {Widzisz # case'a, które się zepsuły.}}",
       "showAll": "Pokaż wszystkie case'y",
-      "corrected": "Poprawione przez człowieka"
+      "corrected": "Poprawione przez człowieka",
+      "askedOnly": "Widać tylko otwarty case."
     },
     "case": {
       "firstAnswer": "Odpowiedź",
@@ -3933,7 +3934,6 @@
         "skipped": "pominięte",
         "error": "błąd"
       },
-      "openInActivity": "Otwórz tę odpowiedź w Activity",
       "expect": {
         "title": "Czego oczekuje case",
         "reference": "Wzorzec:",
@@ -3942,7 +3942,8 @@
         "checks": "Checki:",
         "openDataset": "Otwórz ten case w datasecie"
       },
-      "notGraded": "bez oceny: {reason}"
+      "notGraded": "bez oceny: {reason}",
+      "whatTheModelSaw": "Zobacz, co widział model"
     },
     "estimating": "Wyceniam…",
     "sideModel": "{name} · {model}",

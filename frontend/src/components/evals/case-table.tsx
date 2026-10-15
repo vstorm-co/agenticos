@@ -123,20 +123,23 @@ export function CaseTable({
   flips,
   tag,
   caseIds,
+  opened = null,
   onShowAll,
 }: {
   run: EvalRun;
   flips: CaseFlip[];
   tag: string | null;
-  /** Only these cases - the ones that broke - until `onShowAll`. */
+  /** Only these cases - the ones that broke, or the one asked for - until `onShowAll`. */
   caseIds: string[] | null;
+  /** The case to show open on arrival - one a link from elsewhere names. */
+  opened?: string | null;
   onShowAll: () => void;
 }) {
   const t = useTranslations("evals.cases");
   const tErrors = useTranslations("errors");
   const [outcome, setOutcome] = useState<string>(ALL);
   const [skip, setSkip] = useState(0);
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(opened);
   // Page three of one tag's cases is not page three of another's. Compared as a
   // value: the ids arrive as a new array on every render.
   const scope = JSON.stringify([tag, caseIds]);
@@ -172,7 +175,9 @@ export function CaseTable({
       <CardContent>
         {caseIds !== null && (
           <p className="text-muted-foreground mb-2 flex flex-wrap items-center gap-2 text-sm">
-            {t("brokenOnly", { count: caseIds.length })}
+            {opened !== null && caseIds[0] === opened
+              ? t("askedOnly")
+              : t("brokenOnly", { count: caseIds.length })}
             <Button size="sm" variant="ghost" onClick={onShowAll}>
               {t("showAll")}
             </Button>

@@ -58,10 +58,15 @@ export interface AgentRun {
   prev_run_id?: string | null;
   next_run_id?: string | null;
   /**
-   * The eval run and case this run answered - single-run read only, and only
-   * when the caller may see the dataset. Such a run keeps no conversation.
+   * The eval run and case this run answered, or graded for a judge's run -
+   * only when the caller may see the dataset. Such a run keeps no conversation.
    */
   eval_case?: EvalCaseLink | null;
+  /**
+   * One line of what the run was asked: its first user turn, or the eval
+   * case's question. Sent on the listing; null for a run with no conversation.
+   */
+  preview?: string | null;
   error: string | null;
   /**
    * Whether an assistant answer this run produced was rated down by anybody -

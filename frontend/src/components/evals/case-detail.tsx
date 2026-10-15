@@ -55,10 +55,10 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
       )}
       {attempt.agent_run_id && (
         <Link
-          href={`${ROUTES.RUNS}?run=${attempt.agent_run_id}`}
+          href={`${ROUTES.RUNS}?run=${attempt.agent_run_id}&view=input`}
           className="text-muted-foreground block text-xs underline underline-offset-4"
         >
-          {t("openInActivity")}
+          {t("whatTheModelSaw")}
         </Link>
       )}
       {attempt.score && (
