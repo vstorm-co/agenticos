@@ -630,7 +630,12 @@ Two things are versioned separately from this file and worth knowing about:
   the department spend export refuses above the export row cap; a Mattermost
   press is accepted only from the user its server-signed trigger id names;
   knowledge base documents and sources must belong to the knowledge base's
-  organization; and the MCP `get_run` tool says it needs `runs:view`.
+  organization; and the MCP `get_run` tool says it needs `runs:view`. A fifth
+  round: a socket handshake with an API key meets the same pre-lookup limits as
+  a request; a key continues only a run a key started; a Mattermost feedback
+  dialog is bound to whoever opened it; two accounts whose labels read alike get
+  a tool prefix each; and `discard_agent_draft` works for a key issued only
+  `agents:edit`. CI now lists the lines a red coverage gate is missing.
 
 - **New chat starts a new conversation.** The console sends `conversation_id: null`
   for a new chat, and the session read it as "no id given" and carried on in the
