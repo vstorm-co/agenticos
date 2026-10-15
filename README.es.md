@@ -1,4 +1,4 @@
-<!-- source_sha: f119e869314b -->
+<!-- source_sha: 5aed1d921f05 -->
 
 <div align="center">
 
@@ -80,7 +80,7 @@ Activa herramientas desde tarjetas ilustradas y dale al borrador un trabajo real
 
 Un agente publica un dashboard o un informe como página con enlace estable y versiones.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="El dashboard del tercer trimestre para la junta que un Finance Analyst publicó desde el chat como app: tarjetas de KPI, un gráfico mensual de ingresos frente a costes y una tabla" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="El dashboard del consejo del Q3 2026 que un Finance Analyst publicó desde el chat como app: tarjetas KPI de colores, ingresos frente a costes por mes, la tendencia del margen, ingresos por región y los principales clientes" width="100%"></a>
 
 ### Más de 4.700 servidores MCP
 

@@ -78,7 +78,7 @@ Switch tools on from illustrated cards, then give the draft a real job in the te
 
 An agent publishes a dashboard or a report as a page with a stable link and versions.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="The Q3 board dashboard a Finance Analyst published from chat as an app: KPI cards, a monthly revenue against costs chart and a table" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="The Q3 2026 board dashboard a Finance Analyst published from chat as an app: colourful KPI cards, revenue against costs by month, the margin trend, revenue by region and the top customers" width="100%"></a>
 
 ### 4,700+ MCP servers
 

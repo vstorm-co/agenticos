@@ -1,4 +1,4 @@
-<!-- source_sha: f119e869314b -->
+<!-- source_sha: 5aed1d921f05 -->
 
 <div align="center">
 
@@ -80,7 +80,7 @@ Schalte Tools über illustrierte Karten ein und gib dem Entwurf im Test-Chat dan
 
 Ein Agent veröffentlicht ein Dashboard oder einen Bericht als Seite mit festem Link und Versionen.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Das Q3-Dashboard für den Vorstand, das ein Finance Analyst aus dem Chat als App veröffentlicht hat: KPI-Karten, ein monatliches Diagramm von Umsatz gegen Kosten und eine Tabelle" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Das Vorstands-Dashboard für Q3 2026, das ein Finance Analyst aus dem Chat als App veröffentlicht hat: farbige KPI-Karten, Umsatz gegen Kosten pro Monat, der Margentrend, Umsatz nach Region und die größten Kunden" width="100%"></a>
 
 ### Über 4.700 MCP-Server
 
