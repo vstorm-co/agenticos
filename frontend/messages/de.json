@@ -3259,7 +3259,7 @@
       },
       "runs-score-against-case": {
         "title": "Diesen Run bewerten",
-        "body": "Prüfen Sie die Antwort dieses Runs gegen einen Fall eines Datasets: seine Prüfungen, die erwarteten Tool-Aufrufe und, falls eingerichtet, den Eval-Bewerter. Das Ergebnis wird im Dataset gespeichert."
+        "body": "Über dieses Menü bewerten Sie die Antwort dieses Runs gegen einen Fall eines Datasets: seine Prüfungen, die erwarteten Tool-Aufrufe und, falls eingerichtet, den Bewerter. Der Fall mit derselben Frage ist schon gewählt; das Ergebnis bleibt im Dataset."
       },
       "datasets-list": {
         "title": "Ihre Datasets",
@@ -4204,7 +4204,8 @@
       "whatYourAgentsDid2": "Was Ihre Agents getan haben, was es gekostet hat und was auf einen Menschen wartet.",
       "whereTheMoneyWent": "Wohin das Geld geflossen ist",
       "whoIsSpendingCouldNotBeRead": "Wer ausgibt, konnte nicht gelesen werden.",
-      "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus."
+      "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus.",
+      "moreRunActions": "Weitere Aktionen für diesen Run"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -5719,7 +5720,10 @@
       "showLess": "Weniger anzeigen",
       "expectedCallsIn": "{order, select, in_order {Erwartete Tool-Aufrufe, in dieser Reihenfolge} exact {Erwartete Tool-Aufrufe, genau diese} other {Erwartete Tool-Aufrufe, in beliebiger Reihenfolge}}",
       "unverified": "Zitiert, aber nicht in der Antwort: {quotes}",
-      "decision": "Prüfentscheidung"
+      "decision": "Prüfentscheidung",
+      "noCaseAsks": "Kein Fall dieses Datasets stellt die Frage dieses Runs.",
+      "addAsCase": "Als Fall hinzufügen",
+      "pickCase": "Fall zum Bewerten wählen"
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",

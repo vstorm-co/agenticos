@@ -6,7 +6,7 @@ import { caseScore } from "@/test-utils/scores";
 
 import { DEFAULT_SCORING } from "@/lib/scoring";
 import type { CaseScore, DatasetScoring } from "@/types/scoring";
-import { ScoreRunButton } from "./score-run-button";
+import { RunMoreMenu } from "@/components/runs/run-more-menu";
 
 type Kase = {
   case_id: string;
@@ -30,6 +30,19 @@ const state = vi.hoisted(() => ({
   searches: [] as string[],
   score: vi.fn(),
   pending: false,
+  turns: [] as { id: string; role: string; content: string }[] | null,
+}));
+vi.mock("@/hooks/use-runs", () => ({
+  useRunTranscript: () => ({
+    transcript: state.turns === null ? undefined : { items: state.turns },
+  }),
+}));
+vi.mock("./add-to-dataset-dialog", () => ({
+  AddToDatasetDialog: ({ messageId }: { messageId: string }) => (
+    <div role="dialog" aria-label="Add to dataset">
+      {messageId}
+    </div>
+  ),
 }));
 vi.mock("@/hooks/use-datasets", () => ({
   useDatasets: ({ search }: { search: string }) => {
@@ -97,7 +110,10 @@ const SCORE: CaseScore = {
   outcome: true,
 };
 
-const open = () => userEvent.click(screen.getByRole("button", { name: "Score against a case" }));
+async function open() {
+  await userEvent.click(screen.getByRole("button", { name: "More actions for this run" }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: "Score against a case" }));
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -118,13 +134,17 @@ beforeEach(() => {
     d1: [{ case_id: "c1", input: "How long is the refund window?" }],
     d2: [{ case_id: "c2", input: "x".repeat(100), reference_answer: "Thirty days." }],
   };
+  state.turns = [
+    { id: "m1", role: "user", content: "How long is the refund window? " },
+    { id: "m2", role: "assistant", content: "Thirty days." },
+  ];
 });
 
 /** Scoring a run from Activity: pick the case, see what each scorer said. */
 describe("Score against a case", () => {
-  it("scores the run against the first case and shows each scorer's reason", async () => {
+  it("picks the case asking the run's question, and shows each scorer's reason", async () => {
     state.score.mockResolvedValue(SCORE);
-    render(<ScoreRunButton runId="run-1" />);
+    render(<RunMoreMenu runId="run-1" />);
 
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Score" }));
@@ -145,12 +165,14 @@ describe("Score against a case", () => {
         scoring: { ...DEFAULT_SCORING, reference: { enabled: true, required: true } },
       },
     ];
-    render(<ScoreRunButton runId="run-1" />);
+    render(<RunMoreMenu runId="run-1" />);
 
     await open();
     expect(screen.getByText("Runs Checks and Expected tool calls.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
     await userEvent.click(screen.getByRole("option", { name: "returns" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Case" }));
+    await userEvent.click(screen.getByRole("option", { name: `${"x".repeat(80)}…` }));
 
     expect(
       screen.getByText(
@@ -162,7 +184,8 @@ describe("Score against a case", () => {
   it("warns of the judge's cost when only the case's own judge check calls it", async () => {
     state.datasets = [{ id: "d1", name: "refunds", scoring: DEFAULT_SCORING }];
     state.cases = { d1: [{ case_id: "c1", input: "Polite?", checks: [{ type: "judge" }] }] };
-    render(<ScoreRunButton runId="run-1" />);
+    state.turns = [{ id: "m1", role: "user", content: "Polite?" }];
+    render(<RunMoreMenu runId="run-1" />);
 
     await open();
 
@@ -172,7 +195,7 @@ describe("Score against a case", () => {
   it("offers a retry when the datasets could not be read, rather than saying there are none", async () => {
     state.datasets = [];
     state.datasetsError = new Error("502");
-    render(<ScoreRunButton runId="run-1" />);
+    render(<RunMoreMenu runId="run-1" />);
 
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -183,7 +206,7 @@ describe("Score against a case", () => {
 
   it("searches the datasets once there are more than one listing holds", async () => {
     state.datasetTotal = 250;
-    render(<ScoreRunButton runId="run-1" />);
+    render(<RunMoreMenu runId="run-1" />);
 
     await open();
     await userEvent.type(screen.getByPlaceholderText("Find a dataset"), "ref");
@@ -193,7 +216,7 @@ describe("Score against a case", () => {
 
   it("pages through a dataset with more cases than one listing holds", async () => {
     state.caseTotal = 250;
-    render(<ScoreRunButton runId="run-1" />);
+    render(<RunMoreMenu runId="run-1" />);
 
     await open();
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
@@ -207,7 +230,7 @@ describe("Score against a case", () => {
     [{ cases: { d1: [] } }, "This dataset has no case yet"],
   ])("says what the case picker waits for: %o", async (overrides, shown) => {
     Object.assign(state, overrides);
-    render(<ScoreRunButton runId="run-1" />);
+    render(<RunMoreMenu runId="run-1" />);
 
     await open();
 
@@ -216,7 +239,7 @@ describe("Score against a case", () => {
 
   it("says why the cases could not be read", async () => {
     state.casesError = new Error("Cases unavailable");
-    render(<ScoreRunButton runId="run-1" />);
+    render(<RunMoreMenu runId="run-1" />);
 
     await open();
 
@@ -227,7 +250,7 @@ describe("Score against a case", () => {
 
   it("takes the case from the dataset chosen, shortening a long question", async () => {
     state.score.mockResolvedValue(SCORE);
-    render(<ScoreRunButton runId="run-1" />);
+    render(<RunMoreMenu runId="run-1" />);
 
     await open();
     await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
@@ -243,7 +266,7 @@ describe("Score against a case", () => {
 
   it("says why the score was refused and keeps the choice", async () => {
     state.score.mockRejectedValue(new Error("This run kept no answer to score"));
-    render(<ScoreRunButton runId="run-1" />);
+    render(<RunMoreMenu runId="run-1" />);
 
     await open();
     await userEvent.click(screen.getByRole("button", { name: "Score" }));
@@ -254,7 +277,7 @@ describe("Score against a case", () => {
 
   it("points at Datasets when there is nothing to score against", async () => {
     state.datasets = [];
-    render(<ScoreRunButton runId="run-1" />);
+    render(<RunMoreMenu runId="run-1" />);
 
     await open();
 
@@ -265,10 +288,40 @@ describe("Score against a case", () => {
 
   it("shows that it is scoring while the judge runs", async () => {
     state.pending = true;
-    render(<ScoreRunButton runId="run-1" />);
+    render(<RunMoreMenu runId="run-1" />);
 
     await open();
 
     expect(screen.getByRole("button", { name: "Scoring…" })).toBeDisabled();
   });
+
+  it("offers the run's answer as a case when no case asks its question", async () => {
+    state.cases = { d1: [{ case_id: "c9", input: "Something else" }] };
+    render(<RunMoreMenu runId="run-1" />);
+
+    await open();
+
+    expect(screen.getByRole("combobox", { name: "Case" })).toHaveTextContent(
+      "Pick the case to grade against",
+    );
+    expect(screen.getByRole("button", { name: "Score" })).toBeDisabled();
+    expect(
+      screen.getByText("No case of this dataset asks this run's question."),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Add it as a case" }));
+    expect(screen.getByRole("dialog", { name: "Add to dataset" })).toHaveTextContent("m2");
+  });
+
+  it.each([[[]], [null]])(
+    "offers nothing to add while the run's turns are unknown: %o",
+    async (turns) => {
+      state.turns = turns;
+      render(<RunMoreMenu runId="run-1" />);
+
+      await open();
+
+      expect(screen.queryByText("No case of this dataset asks this run's question.")).toBeNull();
+      expect(screen.getByRole("button", { name: "Score" })).toBeDisabled();
+    },
+  );
 });

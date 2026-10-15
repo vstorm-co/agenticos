@@ -574,7 +574,8 @@
       "description": "Wszystko, co Twoi agenci robią sami — według harmonogramu lub w reakcji na zdarzenie."
     },
     "runs": {
-      "decidedByStandingConsent": "pominięte z góry dla konwersacji"
+      "decidedByStandingConsent": "pominięte z góry dla konwersacji",
+      "moreRunActions": "Więcej akcji dla tego runa"
     },
     "agents": {
       "agentsCount": "{count, plural, one {Agenci (#)} few {Agenci (#)} many {Agenci (#)} other {Agenci (#)}}",
@@ -1944,7 +1945,7 @@
       },
       "runs-score-against-case": {
         "title": "Oceń ten run",
-        "body": "Sprawdź odpowiedź tego runu względem przypadku z datasetu: jego sprawdzenia, oczekiwane wywołania narzędzi i, jeśli skonfigurowano, sędziego ewaluacji. Wynik zostaje zapisany w datasecie."
+        "body": "Z tego menu ocenisz odpowiedź tego runa według przypadku z datasetu: jego sprawdzeń, oczekiwanych wywołań narzędzi i, jeśli skonfigurowano, sędziego. Przypadek z tym samym pytaniem wybiera się sam; wynik zostaje w datasecie."
       },
       "datasets-list": {
         "title": "Twoje datasety",
@@ -3481,7 +3482,10 @@
       "showLess": "Pokaż mniej",
       "expectedCallsIn": "{order, select, in_order {Oczekiwane wywołania narzędzi, w tej kolejności} exact {Oczekiwane wywołania narzędzi, dokładnie te} other {Oczekiwane wywołania narzędzi, w dowolnej kolejności}}",
       "unverified": "Zacytowane, ale nie ma tego w odpowiedzi: {quotes}",
-      "decision": "Decyzja przeglądu"
+      "decision": "Decyzja przeglądu",
+      "noCaseAsks": "Żaden przypadek tego datasetu nie zadaje pytania z tego runa.",
+      "addAsCase": "Dodaj go jako przypadek",
+      "pickCase": "Wybierz przypadek do oceny"
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",

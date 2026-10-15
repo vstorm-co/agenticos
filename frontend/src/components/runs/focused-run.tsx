@@ -13,11 +13,11 @@ import {
   X,
 } from "lucide-react";
 
-import { ScoreRunButton } from "@/components/datasets/score-run-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { RunStatusBadge } from "@/components/agents/status-badge";
 import { SurfaceIcon, surfaceLabel } from "@/components/runs/surface-icon";
 import { RunManifest } from "@/components/runs/run-manifest";
+import { RunMoreMenu } from "@/components/runs/run-more-menu";
 import { RunTimeline } from "@/components/runs/run-timeline";
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -220,7 +220,7 @@ export function FocusedRun({
               </Button>
             )}
             {run.conversation_id !== null && can(Perm.datasetsRun) && (
-              <ScoreRunButton runId={run.id} />
+              <RunMoreMenu runId={run.id} />
             )}
             <Button
               variant="outline"

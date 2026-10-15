@@ -22,6 +22,7 @@ import {
 } from "@/components/ui";
 import { Pager, SearchInput, useDebounced } from "@/components/ui/list-controls";
 import { useDatasetCases, useDatasets } from "@/hooks/use-datasets";
+import { useRunTranscript } from "@/hooks/use-runs";
 import { useScoreRun } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -29,6 +30,7 @@ import { callsJudge } from "@/lib/scoring";
 import { DIALOG_SCROLL, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import type { DatasetCase } from "@/types/datasets";
 import type { CaseScore, DatasetScoring } from "@/types/scoring";
+import { AddToDatasetDialog } from "./add-to-dataset-dialog";
 import { ScoreCard } from "./score-card";
 
 /** As many as the server lists at once; past it the dataset picker searches and the case picker pages. */
@@ -70,11 +72,22 @@ interface ScoreRunDialogProps {
   runId: string;
 }
 
+/** The run's own question and answer, the last of each it recorded. */
+function useRunTurn(runId: string) {
+  const { transcript } = useRunTranscript(runId, "run");
+  const items = transcript?.items ?? [];
+  const question = items.findLast((item) => item.role === "user")?.content.trim() ?? null;
+  const answerId = items.findLast((item) => item.role === "assistant")?.id ?? null;
+  return { question, answerId };
+}
+
 /**
  * Score one run's answer against a case of a dataset, and show what each scorer said.
  *
  * The run is read from Activity, so the answer and the tool calls are what it
- * recorded. Scoring keeps the result on the dataset, where a person can overrule it.
+ * recorded. The case asking the run's own question is picked when the dataset
+ * has one; when it has none, the run's answer is offered as a new case instead.
+ * Scoring keeps the result on the dataset, where a person can overrule it.
  */
 export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProps) {
   const t = useTranslations("datasets.scoring");
@@ -94,7 +107,10 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
   const scoring = datasets.find((dataset) => dataset.id === chosen)?.scoring;
   const listing = useDatasetCases(chosen, { skip: page * SHOWN, limit: SHOWN });
   const { cases } = listing;
-  const target = caseId || cases[0]?.case_id || "";
+  const { question, answerId } = useRunTurn(runId);
+  const [adding, setAdding] = useState(false);
+  const asked = cases.find((item) => question !== null && item.input.trim() === question);
+  const target = caseId || asked?.case_id || "";
   const kase = cases.find((item) => item.case_id === target);
   const score = useScoreRun();
 
@@ -166,7 +182,9 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
                         ? t("pickDatasetFirst")
                         : listing.isLoading
                           ? t("loadingCases")
-                          : t("noCaseToScore")
+                          : cases.length === 0
+                            ? t("noCaseToScore")
+                            : t("pickCase")
                     }
                   />
                 </SelectTrigger>
@@ -179,6 +197,21 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
                 </SelectContent>
               </Select>
             </FormField>
+            {question !== null && asked === undefined && !listing.isLoading && chosen !== "" && (
+              <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+                <span>{t("noCaseAsks")}</span>
+                {answerId !== null && (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto px-0"
+                    onClick={() => setAdding(true)}
+                  >
+                    {t("addAsCase")}
+                  </Button>
+                )}
+              </div>
+            )}
             {listing.error ? (
               <ErrorState
                 description={getErrorMessage(listing.error, tErrors)}
@@ -212,6 +245,15 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
             </Button>
           )}
         </DialogFooter>
+        {adding && answerId !== null && (
+          <AddToDatasetDialog
+            open
+            onOpenChange={setAdding}
+            messageId={answerId}
+            answerAs="reference_answer"
+            askAnswerAs
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

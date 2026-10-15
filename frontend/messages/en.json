@@ -3396,7 +3396,7 @@
       },
       "runs-score-against-case": {
         "title": "Score this run",
-        "body": "Check this run's answer against a case of a dataset: its checks, the tool calls it expected and, if configured, the eval judge. The score is kept on the dataset."
+        "body": "From this menu, grade this run's answer against a case of a dataset: its checks, the tool calls it expected and, if configured, the judge. The case asking the same question is picked for you; the result is kept on the dataset."
       },
       "datasets-list": {
         "title": "Your datasets",
@@ -4345,7 +4345,8 @@
       "whatYourAgentsDid2": "What your agents did, what it cost, and what is waiting on a person.",
       "whereTheMoneyWent": "Where the money went",
       "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
-      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent."
+      "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent.",
+      "moreRunActions": "More actions for this run"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -5861,7 +5862,10 @@
       "showLess": "Show less",
       "expectedCallsIn": "{order, select, in_order {Expected tool calls, in this order} exact {Expected tool calls, exactly these} other {Expected tool calls, in any order}}",
       "unverified": "Quoted, but not in the answer: {quotes}",
-      "decision": "Review decision"
+      "decision": "Review decision",
+      "noCaseAsks": "No case of this dataset asks this run's question.",
+      "addAsCase": "Add it as a case",
+      "pickCase": "Pick the case to grade against"
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
