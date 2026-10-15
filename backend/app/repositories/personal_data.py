@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.api_key import ApiKey
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
@@ -32,6 +33,7 @@ from app.db.models.memory import AgentMemoryFile
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification
 from app.db.models.notification_preference import NotificationChannelPreference
+from app.db.models.oauth import OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.session import Session
 from app.db.models.user_slash_command import UserSlashCommand
@@ -162,6 +164,29 @@ async def dashboard_layouts_of(db: AsyncSession, user_id: UUID) -> list[Dashboar
 async def browser_sign_ins_of(db: AsyncSession, user_id: UUID) -> list[BrowserSignIn]:
     """The sites they kept a browser sign-in to, in every organization."""
     result = await db.execute(select(BrowserSignIn).where(BrowserSignIn.user_id == user_id))
+    return list(result.scalars().all())
+
+
+async def api_keys_of(db: AsyncSession, user_id: UUID) -> list[ApiKey]:
+    """The keys they issued, revoked ones included.
+
+    Not the platform's own short-lived keys for the in-app assistant, nor the
+    access tokens an OAuth client was handed: both are credentials minted per
+    run or per refresh, and the grant behind the second is exported on its own.
+    """
+    result = await db.execute(
+        select(ApiKey).where(
+            ApiKey.user_id == user_id,
+            ApiKey.internal.is_(False),
+            ApiKey.oauth_grant_id.is_(None),
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def oauth_grants_of(db: AsyncSession, user_id: UUID) -> list[OAuthGrant]:
+    """Every consent they gave a client, revoked ones included."""
+    result = await db.execute(select(OAuthGrant).where(OAuthGrant.user_id == user_id))
     return list(result.scalars().all())
 
 

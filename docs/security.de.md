@@ -1,5 +1,5 @@
 ---
-source_sha: "20fb9cdf6c05"
+source_sha: "dff8f802d288"
 ---
 
 # Sicherheit { #security }
@@ -121,6 +121,7 @@ nicht den Agenten löschen, von dem das Team abhängt.
 | `chat_files` | Kaskade; die Bytes werden nach dem Commit gelöst | Nicht aufgeführt | Die Zeile kaskadiert von der Nachricht, die Datei auf der Platte nicht - also werden die Pfade vor dem Löschen eingesammelt und nach dessen Commit gelöst, sonst überleben die Bytes die Anfrage, die sie entfernen sollte: für nichts erreichbar und von niemandem gelöscht. Das Transkript im Export nennt den Anhang; die Bytes sind herunterladbar, solange das Konto besteht, und werden nicht mit eingepackt |
 | `message_ratings` | Kaskade | Ja | Eine geäußerte Meinung |
 | `sessions` | Kaskade | Gerät, Adresse und Zeiten — nie das Credential, das ein Hash ist | Wo sie sich angemeldet haben |
+| `api_keys`, `oauth_grants` | Kaskade, samt den Codes und Tokens, gegen die eine Zustimmung eingetauscht wurde | Schlüssel, die sie ausgestellt haben, und Clients, die sie in ihrem Namen handeln ließen: Name, Präfix, Berechtigungen und Daten — nie ein Schlüssel, ein Hash oder ein Token | Ein Credential, das in ihrem Namen handelt, gehört zu ihren Daten; die eigenen Assistentenschlüssel der Plattform pro Durchlauf werden nicht aufgeführt |
 | `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Kaskade | Layouts und Kurzbefehle | Persönliche Einstellungen, für niemanden sonst bedeutsam |
 | `agent_memory_files` (`owner_key = person:<id>`) | **Ausdrücklich bereinigt**, unter einer Sperre, die ein gleichzeitiger Schreibvorgang ebenfalls nimmt | Ja | Ein String-Schlüssel ohne Fremdschlüssel: nichts kaskadierte, jede Notiz überlebte das Konto — und ein Run, der währenddessen schreibt, hätte sie neu angelegt |
 | `agent_workspaces` (`scope = user`) | **Ausdrücklich bereinigt** | Nein | `owner_ref` ist aus demselben Grund ein String wie `owner_key`, also folgt ihm keine Kaskade, und ein zustandsgestützter Workspace hält die Dateien selbst |

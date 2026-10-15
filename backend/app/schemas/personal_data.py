@@ -69,6 +69,18 @@ class PersonalDataExport(BaseModel):
             "Never the sign-in itself, which is their session on that site."
         )
     )
+    api_keys: list[dict[str, Any]] = Field(
+        description=(
+            "The API keys they issued: name, prefix, permissions and dates. "
+            "Never the key or its hash."
+        )
+    )
+    oauth_grants: list[dict[str, Any]] = Field(
+        description=(
+            "The clients they let act as them, with the permissions and dates. "
+            "Never a code or token the consent was exchanged for."
+        )
+    )
 
 
 class PersonalDataPurge(BaseModel):

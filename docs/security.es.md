@@ -1,5 +1,5 @@
 ---
-source_sha: "20fb9cdf6c05"
+source_sha: "dff8f802d288"
 ---
 
 # Seguridad { #security }
@@ -117,6 +117,7 @@ agent del que depende el equipo.
 | `chat_files` | Cascada; los bytes se desvinculan tras el commit | No se enumera | La fila cascadea desde el mensaje y el fichero en disco no, así que las rutas se recogen antes del borrado y se desvinculan tras su commit; de otro modo los bytes sobreviven a la petición que pedía quitarlos: inalcanzables para nada y borrados por nadie. La transcripción del export nombra el adjunto; los bytes se descargan mientras la cuenta exista, no se empaquetan dentro |
 | `message_ratings` | Cascada | Sí | Una opinión que expresaron |
 | `sessions` | Cascada | Dispositivo, dirección y horas — nunca la credencial, que es un hash | Dónde iniciaron sesión |
+| `api_keys`, `oauth_grants` | Cascada, junto con los códigos y tokens por los que se canjeó un consentimiento | Las claves que emitieron y los clientes a los que dejaron actuar en su nombre: nombre, prefijo, permisos y fechas — nunca una clave, un hash ni un token | Una credencial que actúa en su nombre es suya para verla; las claves propias del asistente que la plataforma emite por ejecución no se listan |
 | `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Cascada | Disposiciones y atajos | Ajustes personales, sin sentido para nadie más |
 | `agent_memory_files` (`owner_key = person:<id>`) | **Purgado explícitamente**, bajo un bloqueo que también toma una escritura concurrente | Sí | Una clave de texto sin clave foránea: nada cascadeaba, así que cada nota sobrevivía a la cuenta — y una ejecución que escribiera durante el borrado la habría recreado |
 | `agent_workspaces` (`scope = user`) | **Purgado explícitamente** | No | `owner_ref` es texto por la misma razón que `owner_key`, así que ninguna cascada lo sigue, y un workspace respaldado por estado guarda los propios ficheros |

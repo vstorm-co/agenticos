@@ -75,6 +75,8 @@ def _export() -> PersonalDataExport:
         notifications=[],
         notification_preferences=[],
         browser_sign_ins=[],
+        api_keys=[],
+        oauth_grants=[],
     )
 
 

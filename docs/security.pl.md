@@ -1,5 +1,5 @@
 ---
-source_sha: "20fb9cdf6c05"
+source_sha: "dff8f802d288"
 ---
 
 # Bezpieczeństwo { #security }
@@ -112,6 +112,7 @@ dalej, bo usunięcie konta kolegi nie może usunąć agenta, od którego zależy
 | `chat_files` | Kaskada; bajty odpinane po commicie | Nie wypisywane | Wiersz kaskaduje od wiadomości, a plik na dysku nie, więc ścieżki są zbierane przed usunięciem i odpinane po jego commicie — inaczej bajty przeżywają żądanie, które kazało im zniknąć: nieosiągalne dla niczego i nieusuwane przez nikogo. Transkrypt w eksporcie nazywa załącznik; bajty są do pobrania dopóki konto istnieje, a nie pakowane do środka |
 | `message_ratings` | Kaskada | Tak | Wyrażona opinia |
 | `sessions` | Kaskada | Urządzenie, adres i czasy — nigdy poświadczenie, bo jest hashem | Gdzie się logowali |
+| `api_keys`, `oauth_grants` | Kaskada, razem z kodami i tokenami, na które wymieniono zgodę | Klucze, które wydali, i klienci, którym pozwolili działać w ich imieniu: nazwa, prefiks, uprawnienia i daty — nigdy klucz, hash ani token | Poświadczenie działające w ich imieniu to ich dane; własne klucze asystenta wydawane przez platformę na jeden przebieg nie są wymieniane |
 | `conversation_favourites`, `dashboard_layouts`, `dashboard_presets`, `user_slash_commands` | Kaskada | Układy i skróty | Ustawienia osobiste, dla nikogo innego bez znaczenia |
 | `agent_memory_files` (`owner_key = person:<id>`) | **Czyszczone jawnie**, pod blokadą, którą bierze też równoległy zapis | Tak | Klucz jako łańcuch znaków bez klucza obcego: nic nie kaskadowało, więc każda notatka przeżywała konto — a run zapisujący notatkę w trakcie usuwania odtworzyłby ją |
 | `agent_workspaces` (`scope = user`) | **Czyszczone jawnie** | Nie | `owner_ref` jest łańcuchem znaków z tego samego powodu co `owner_key`, więc nie podąża za nim żadna kaskada, a workspace oparty o stan trzyma same pliki |
