@@ -53,6 +53,7 @@ def upgrade() -> None:
         sa.Column("scoring", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("scoring_hash", sa.String(length=64), nullable=False),
         sa.Column("estimate_usd", sa.Numeric(precision=12, scale=6), nullable=False),
+        sa.Column("rerun_ceiling_usd", sa.Numeric(precision=12, scale=6), nullable=False),
         sa.Column("error", sa.Text(), nullable=True),
         sa.Column(
             "created_at",

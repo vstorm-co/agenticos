@@ -747,6 +747,7 @@ class EvalRunService:
             scoring=plan.scoring.model_dump(mode="json", by_alias=True),
             scoring_hash=plan.scoring_hash,
             estimate_usd=estimate.total_usd,
+            rerun_ceiling_usd=estimate.rerun_ceiling_usd,
         )
         arms = [
             EvalRunArm(
@@ -1033,6 +1034,7 @@ class EvalRunService:
                     live_reads=run.live_reads,
                     reruns=run.reruns,
                     estimate_usd=run.estimate_usd,
+                    rerun_ceiling_usd=run.rerun_ceiling_usd,
                     cost_usd=attempt_cost + judge_cost,
                     cost_is_partial=judge_partial or any(a.cost_is_partial for a in attempts),
                     attempts_done=sum(1 for a in attempts if a.status in finished),

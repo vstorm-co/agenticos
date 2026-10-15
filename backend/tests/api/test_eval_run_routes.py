@@ -64,6 +64,7 @@ _RUN = EvalRunRead(
     live_reads=False,
     reruns=2,
     estimate_usd=Decimal("0.05"),
+    rerun_ceiling_usd=Decimal("0.10"),
     cost_usd=Decimal(0),
     cost_is_partial=False,
     attempts_done=0,

@@ -188,6 +188,9 @@ class EvalRunRead(BaseSchema):
     live_reads: bool
     reruns: int
     estimate_usd: Decimal
+    rerun_ceiling_usd: Decimal = Field(
+        description="What confirming reruns may add on top of the estimate"
+    )
     cost_usd: Decimal
     cost_is_partial: bool
     attempts_done: int

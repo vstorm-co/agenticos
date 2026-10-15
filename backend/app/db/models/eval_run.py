@@ -154,6 +154,11 @@ class EvalRun(Base):
     scoring: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     scoring_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    # What the confirming reruns may add on top, as the estimate said - so a run
+    # that spent more than `estimate_usd` says why.
+    rerun_ceiling_usd: Mapped[Decimal] = mapped_column(
+        Numeric(12, 6), nullable=False, default=Decimal(0)
+    )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

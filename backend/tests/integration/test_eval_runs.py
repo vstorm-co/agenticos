@@ -1207,6 +1207,8 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     assert (outcome.candidate_pass_rate, outcome.baseline_pass_rate) == (0.75, 1.0)
     read = await service.get(ctx, v7.id)
     assert (read.cases, read.first_done, read.first_total, read.attempts_total) == (4, 4, 4, 6)
+    # What the reruns may add is kept, so spending past the estimate is explained.
+    assert read.rerun_ceiling_usd == Decimal("0.08")
 
     # Read again, the verdict is the one kept rather than compared anew.
     stored = await db.get(EvalRun, v7.id)
