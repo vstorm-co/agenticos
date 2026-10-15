@@ -94,6 +94,11 @@ class AgentDeps:
     # Set when the surface can show a card of multiple-choice questions and wait
     # for the picks (#2064); `None` hides the `ask_user` capability's tool.
     ask_questions: QuestionsCallback | None = None
+    # Whether `ask_questions` parks the run rather than asking live - a channel's,
+    # answered later through buttons. Not handed to a delegate: its park surfaces
+    # as a deferral of the parent's `task` call with nothing to decide, and the run
+    # would wait for ever, so a delegate's question is declined instead.
+    parks_questions: bool = False
 
     # Set when the surface can hold a run for human approval. A tool that needs
     # approval and finds this None must refuse rather than proceed unattended.
@@ -180,7 +185,7 @@ class AgentDeps:
             agent_id=self.agent_id,
             run_id=self.run_id,
             ask_user=self.ask_user,
-            ask_questions=self.ask_questions,
+            ask_questions=None if self.parks_questions else self.ask_questions,
             request_approval=self.request_approval,
             subagent_events=self.subagent_events,
             browser_events=self.browser_events,

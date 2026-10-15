@@ -4256,6 +4256,7 @@ class AgentRunnerService:
             steering.screen = input_screen_for(prepared.spec)
         if parks_questions:
             prepared.built.deps.ask_questions = park_the_question
+            prepared.built.deps.parks_questions = True
         # `str | list[Any]`, not `str`: an attached image is folded in as
         # `BinaryContent` beside the text, and narrowing that back to a string
         # would hand the model a path where it should have been handed a picture.
