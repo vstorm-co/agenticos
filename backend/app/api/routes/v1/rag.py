@@ -428,8 +428,8 @@ async def list_rag_documents(
     not, as it once did, with every document in the deployment - and it pages
     rather than serializing every row across them (#27).
     """
-    collections = await access.readable_names_for(ctx, collection_name)
-    return await rag_doc_svc.list_documents(collections=collections, skip=skip, limit=limit)
+    scopes = await access.readable_scopes_for(ctx, collection_name)
+    return await rag_doc_svc.list_documents(scopes=scopes, skip=skip, limit=limit)
 
 
 @router.get(

@@ -351,6 +351,19 @@ class TestResolvingACollectionName:
         with pytest.raises(NotFoundError):
             await service.readable_names_for(_ctx(), "someone_elses")
 
+    async def test_a_document_listing_carries_each_collection_s_organization(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """The name alone is not a tenant; the listing filters on both."""
+        rows.collections = [_kb("handbook")]
+        rows.accessible = [_kb("handbook"), _kb("shared", scope=KBScope.APP, organization_id=None)]
+
+        assert await service.readable_scopes_for(_ctx(), "handbook") == [("handbook", HOME_ORG)]
+        assert await service.readable_scopes_for(_ctx(), None) == [
+            ("handbook", HOME_ORG),
+            ("shared", None),
+        ]
+
 
 class TestClaimingACollectionName:
     async def test_a_free_name_can_be_claimed(
@@ -424,9 +437,10 @@ class TestClaimingACollectionName:
             await service.claim(_ctx(), name)
 
 
-def _document(collection_name: str) -> RAGDocument:
+def _document(collection_name: str, organization_id: uuid.UUID | None = HOME_ORG) -> RAGDocument:
     return RAGDocument(
         id=uuid.uuid4(),
+        organization_id=organization_id,
         collection_name=collection_name,
         filename="handbook.pdf",
         filesize=1,
@@ -462,6 +476,20 @@ class TestResolvingADocument:
 
         assert reading.value.message == "Document not found"
         assert writing.value.message == "Document not found"
+
+    @pytest.mark.security
+    async def test_another_tenants_document_by_the_same_name_is_a_missing_document(
+        self, service: CollectionAccessService, rows: Rows
+    ) -> None:
+        """Codex on #2062: the caller's own `handbook` admitted every `handbook` document."""
+        doc = _document("handbook", organization_id=OTHER_ORG)
+        rows.collections = [_kb("handbook")]
+        rows.documents = [doc]
+
+        with pytest.raises(NotFoundError):
+            await service.readable_document(_ctx(), str(doc.id))
+        with pytest.raises(NotFoundError):
+            await service.writable_document(_ctx(), str(doc.id))
 
     async def test_a_document_with_no_knowledge_base_left_is_unreachable(
         self, service: CollectionAccessService, rows: Rows

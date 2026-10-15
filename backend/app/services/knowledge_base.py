@@ -1,7 +1,6 @@
 import logging
 import re
 import secrets
-from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -817,27 +816,3 @@ class KnowledgeBaseService:
             raise AuthorizationError(
                 message="App admin required to create app-scoped knowledge base"
             )
-
-
-class _InCollection(Protocol):
-    """A document or a sync source: a row a collection's name points at."""
-
-    @property
-    def collection_name(self) -> str | None: ...
-
-    @property
-    def organization_id(self) -> UUID | None: ...
-
-
-def in_knowledge_base(row: _InCollection, kb: KnowledgeBase) -> bool:
-    """Whether a document or sync source loaded by id is this knowledge base's.
-
-    By organization as well as by collection: a collection's name is not unique
-    across tenants, so a row matched on the name alone could be another
-    organization's - downloaded, or deleted, through a key for this one. A
-    deployment-wide (app) knowledge base has no organization, and its rows carry
-    whichever one added them, so only the collection decides there.
-    """
-    if row.collection_name != kb.collection_name:
-        return False
-    return kb.organization_id is None or row.organization_id == kb.organization_id

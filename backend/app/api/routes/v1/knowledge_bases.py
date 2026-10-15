@@ -44,8 +44,8 @@ from app.schemas.sync_source import (
     SyncSourceList,
     SyncSourceRead,
 )
+from app.services.collection_access import in_knowledge_base
 from app.services.ingestion_config import parse_override
-from app.services.knowledge_base import in_knowledge_base
 
 router = APIRouter(dependencies=[PUBLIC])
 

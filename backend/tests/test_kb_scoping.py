@@ -14,8 +14,9 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.repositories.rag_document import CollectionCounts
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
+from app.services.collection_access import in_knowledge_base
 from app.services.ingestion_config import deployment_defaults
-from app.services.knowledge_base import KnowledgeBaseService, _with_counts, in_knowledge_base
+from app.services.knowledge_base import KnowledgeBaseService, _with_counts
 
 
 @pytest.fixture(autouse=True)
