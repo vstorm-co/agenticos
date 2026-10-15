@@ -658,6 +658,24 @@ class TestAdministration:
         assert changed.json()["role"] == "admin"
 
     @pytest.mark.security
+    async def test_retention_is_read_only_by_a_key_issued_org_settings(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        """Codex on #2062: the read re-checked the issuer's role, not the key."""
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        narrow = await _issue(db, organization, owner, Perm.AGENTS_VIEW)
+        settings_key = await _issue(db, organization, owner, Perm.ORG_SETTINGS)
+        path = _url(f"/orgs/{organization.id}/retention")
+
+        async with client() as http:
+            refused = await http.get(path, headers=_bearer(narrow))
+            read = await http.get(path, headers=_bearer(settings_key))
+
+        assert refused.status_code == 403
+        assert read.status_code == 200
+
+    @pytest.mark.security
     async def test_a_settings_key_cannot_reach_the_budget_or_the_waiver(
         self, db: AsyncSession, client: Client
     ) -> None:

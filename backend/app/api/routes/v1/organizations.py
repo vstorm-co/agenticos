@@ -75,7 +75,7 @@ async def update_organization(
     return await service.read_for_user(org.id, ctx.subject_id)
 
 
-@router.get("/{org_id}/retention", response_model=RetentionRead, dependencies=[PUBLIC])
+@router.get("/{org_id}/retention", response_model=RetentionRead, dependencies=[PUBLIC, _SETTINGS])
 async def get_organization_retention(
     org_id: UUID,
     service: RetentionSvc,
