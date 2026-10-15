@@ -196,32 +196,29 @@ export function useDatasetCases(
     () => queryClient.invalidateQueries({ queryKey: qk.datasets.all() }),
     [queryClient],
   );
+  // The version a change made, once the dataset has been read again; 0 where it
+  // was not, and the toast then names no number.
+  const made = useCallback(async () => {
+    await changed();
+    return queryClient.getQueryData<Dataset>(qk.datasets.detail(datasetId))?.latest_version ?? 0;
+  }, [changed, queryClient, datasetId]);
 
   const add = useMutation({
     mutationFn: (content: DatasetCaseContent) =>
       apiClient.post<DatasetCase>(`/datasets/${datasetId}/cases`, content),
-    onSuccess: async () => {
-      await changed();
-      toast.success(t("caseAdded"));
-    },
+    onSuccess: async () => toast.success(t("caseAdded", { version: await made() })),
   });
 
   const update = useMutation({
     mutationFn: ({ caseId, content }: { caseId: string; content: DatasetCaseContent }) =>
       apiClient.patch<DatasetCase>(`/datasets/${datasetId}/cases/${caseId}`, content),
-    onSuccess: async () => {
-      await changed();
-      toast.success(t("caseSaved"));
-    },
+    onSuccess: async () => toast.success(t("caseSaved", { version: await made() })),
   });
 
   const remove = useMutation({
     mutationFn: (caseId: string) =>
       apiClient.delete<void>(`/datasets/${datasetId}/cases/${caseId}`),
-    onSuccess: async () => {
-      await changed();
-      toast.success(t("caseRemoved"));
-    },
+    onSuccess: async () => toast.success(t("caseRemoved", { version: await made() })),
     onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
   });
 

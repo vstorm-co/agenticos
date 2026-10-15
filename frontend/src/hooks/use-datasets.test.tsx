@@ -13,6 +13,7 @@ import {
   useDatasetVersions,
 } from "./use-datasets";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import { saveBlob } from "@/lib/file-access";
 
 vi.mock("@/lib/api-client", () => ({
@@ -218,10 +219,25 @@ describe("useDatasetCases", () => {
     expect(apiClient.patch).toHaveBeenCalledWith("/datasets/d1/cases/c1", CONTENT);
     expect(apiClient.delete).toHaveBeenCalledWith("/datasets/d1/cases/c1");
     expect(toastSuccess.mock.calls.map(([message]) => message)).toEqual([
-      "Case added as a new version",
-      "Case saved as a new version",
-      "Case removed in a new version",
+      "Case added",
+      "Case saved",
+      "Case removed",
     ]);
+  });
+
+  it("names the version a change made, once the dataset has been read again", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(qk.datasets.detail("d1"), { id: "d1", latest_version: 4 });
+    vi.mocked(apiClient.post).mockResolvedValue({});
+    const { result } = renderHook(() => useDatasetCases("d1"), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    await result.current.add.mutateAsync(CONTENT);
+
+    expect(toastSuccess).toHaveBeenLastCalledWith("Added as v4");
   });
 
   it("says when a removal is refused", async () => {
