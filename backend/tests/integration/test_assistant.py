@@ -176,6 +176,12 @@ async def test_an_administrator_configures_it_and_can_switch_it_off(db: AsyncSes
     # Renamed, it is called what the administrator chose, in every language.
     assert not changed.named_by_default
 
+    # Codex on #2062: clearing the model left the published version running on
+    # the old one while the answer said it had none.
+    with pytest.raises(BadRequestError, match="runs on a model"):
+        await service.update(admin, AssistantUpdate(model_profile_id=None))
+    assert (await service.state(admin)).model_profile_id == second.id
+
     off = await service.update(admin, AssistantUpdate(enabled=False))
     assert off.status == "disabled"
     assert off.agent_id is not None

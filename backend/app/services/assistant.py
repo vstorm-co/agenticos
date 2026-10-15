@@ -21,7 +21,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec, BudgetSpec
-from app.core.exceptions import AppException, NotFoundError
+from app.core.exceptions import AppException, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.organization_assistant import OrganizationAssistant
@@ -88,15 +88,24 @@ class AssistantService:
 
         The agent-shaped settings are written to its draft and published, as the
         administrator making the change, so the version history says who did it.
+
+        Raises:
+            BadRequestError: `model_profile_id` sent as null. The published version
+                would keep running on the old model while this answered with none;
+                switching the assistant off is `enabled: false`.
         """
+        if "model_profile_id" in data.model_fields_set and data.model_profile_id is None:
+            raise BadRequestError(
+                message="The assistant runs on a model: pick another one, or switch it off",
+                details={"field": "model_profile_id"},
+            )
         row, agent = await self._installed(ctx.organization_id)
         own = writable(
             data, over=OrganizationAssistant, exclude={"name", "model_profile_id", "collection_ids"}
         )
         if own:
             row = await organization_assistant_repo.update(self.db, row=row, update_data=own)
-        # The agent's `name` column refuses a null, so `writable` over it drops one;
-        # `model_profile_id: null` is kept - it is how the model is taken away.
+        # The agent's `name` column refuses a null, so `writable` over it drops one.
         spec_changes = writable(data, over=Agent, exclude={"enabled", "greeting"})
         if spec_changes:
             spec = AgentSpec.model_validate(agent.draft_spec).model_copy(update=spec_changes)
