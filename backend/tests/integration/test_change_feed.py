@@ -159,10 +159,16 @@ async def _join(db: AsyncSession, organization: Organization, role: str) -> User
     return person
 
 
-async def _key(db: AsyncSession, organization: Organization, owner: User) -> str:
+async def _key(
+    db: AsyncSession,
+    organization: Organization,
+    owner: User,
+    *scopes: Perm,
+) -> str:
     ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
     created = await ApiKeyService(db).create(
-        ctx, ApiKeyCreate(name="script", scopes=[Perm.AGENTS_VIEW, Perm.AGENTS_EDIT])
+        ctx,
+        ApiKeyCreate(name="script", scopes=list(scopes) or [Perm.AGENTS_VIEW, Perm.AGENTS_EDIT]),
     )
     return created.key
 
@@ -544,17 +550,34 @@ class TestStream:
         owner = await _person(db)
         organization = await _organization(db, owner)
         key = await _key(db, organization, owner)
+        directory = await _key(db, organization, owner, Perm.AGENTS_VIEW, Perm.MEMBERS_VIEW)
         await db.commit()
-        socket = _Socket()
+        heard: dict[str, list[dict[str, Any]]] = {}
 
-        async with anyio.create_task_group() as tasks:
-            tasks.start_soon(_stream, socket, organization, key)
-            await _settled(bus.listening)
-            await change_feed.publish(_event(organization, owner, resource="member", id=owner.id))
-            await _settled(socket.heard)
-            await socket.frame({"type": "websocket.disconnect"})
+        for name, token, frames in (("agents", key, 1), ("directory", directory, 2)):
+            socket = _Socket()
+            async with anyio.create_task_group() as tasks:
+                tasks.start_soon(_stream, socket, organization, token)
+                await _settled(bus.listening)
+                await change_feed.publish(
+                    _event(organization, owner, resource="member", id=owner.id)
+                )
+                await change_feed.publish(_event(organization, owner))
+                with anyio.fail_after(5):
+                    # A count, not one event: the fake socket sets `heard` once.
+                    while len(socket.sent) < frames:  # noqa: ASYNC110
+                        await anyio.sleep(0.01)
+                await socket.frame({"type": "websocket.disconnect"})
+            heard[name] = socket.sent
+            bus.listening = anyio.Event()
 
-        assert [frame["resource"] for frame in socket.sent] == ["member"]
+        # Codex on #2062: who joined or left, and who made a change, is the
+        # member directory - a key hears it only with `members:view`.
+        assert [frame["resource"] for frame in heard["agents"]] == ["agent"]
+        assert heard["agents"][0]["actor_name"] is None
+        assert heard["agents"][0]["actor_user_id"] is None
+        assert [frame["resource"] for frame in heard["directory"]] == ["member", "agent"]
+        assert heard["directory"][1]["actor_name"] == "Ada"
 
     async def test_a_subscription_redis_ends_closes_the_socket_for_a_retry(
         self, db: AsyncSession, bus: _Bus

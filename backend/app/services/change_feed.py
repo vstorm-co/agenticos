@@ -388,6 +388,14 @@ async def _row(db: AsyncSession, event: ChangeEvent, row_id: UUID) -> OwnedResou
     return await knowledge_base_repo.get_by_id(db, row_id)
 
 
+def as_heard(ctx: AuthContext, event: ChangeEvent) -> ChangeEvent:
+    """The frame as this subscriber may read it: who made the change is the member
+    directory, so a key without `members:view` hears the change without its actor."""
+    if ctx.has(Perm.MEMBERS_VIEW):
+        return event
+    return event.model_copy(update={"actor_user_id": None, "actor_name": None})
+
+
 async def visible(db: AsyncSession, ctx: AuthContext, event: ChangeEvent) -> bool:
     """Whether the subscriber `ctx` may hear about this change.
 
@@ -404,6 +412,9 @@ async def visible(db: AsyncSession, ctx: AuthContext, event: ChangeEvent) -> boo
         return False
     if event.resource == "invitation":
         return ctx.has(Perm.MEMBERS_MANAGE)
+    if event.resource in ("member", "group"):
+        # Who joined, left or moved department is the member directory.
+        return ctx.has(Perm.MEMBERS_VIEW)
     if event.resource == "channel":
         return ctx.has(Perm.CHANNELS_MANAGE)
     if event.resource == "notification":
@@ -493,7 +504,7 @@ async def stream_changes(websocket: WebSocket, *, organization_id: UUID, auth_to
                     tasks.cancel_scope.cancel()
                     return
                 if await visible(db, ctx, event):
-                    await websocket.send_text(event.model_dump_json())
+                    await websocket.send_text(as_heard(ctx, event).model_dump_json())
         # Redis ended the subscription. 1011 is one the console retries, and a
         # reconnect subscribes again.
         await websocket.close(code=1011, reason="Live updates were interrupted")
