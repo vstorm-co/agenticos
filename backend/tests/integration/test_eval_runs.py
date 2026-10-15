@@ -1837,3 +1837,29 @@ async def test_what_a_run_sends_to_review_is_what_a_person_should_see(db) -> Non
     await _pin(db, v6.id, {"agent_version_id": None, "rubric_hash": "a"})
     await _pin(db, v7.id, {"agent_version_id": None, "rubric_hash": "b"})
     assert broke[0] not in await service.review_worthy(ctx, run)
+
+
+async def test_a_run_that_cannot_send_to_review_still_completes_and_says_why(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    refused = BadRequestError(message="The review queue is closed", code="REVIEW_CLOSED")
+
+    with patch.object(ScoringService, "route_to_review", new=AsyncMock(side_effect=refused)):
+        await _run_to_end(db, model, v7.id, ctx)
+
+    read = await service.get(ctx, v7.id)
+    assert read.status == "completed"
+    assert read.routed_to_review == 0
+    assert read.routing_error is not None
+    assert (read.routing_error.code, read.routing_error.message) == (
+        "REVIEW_CLOSED",
+        "The review queue is closed",
+    )
+    # The answers and their grades are kept all the same.
+    assert read.arms[0].summary.failed == 1

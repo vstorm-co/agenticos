@@ -172,6 +172,10 @@ class EvalRun(Base):
     outcome_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # How many scores the run sent to review itself once its reruns were in.
     routed_to_review: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Why sending them was refused, `{code, message}`, when it was.
+    routing_error: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
 
     __table_args__ = (
         CheckConstraint(

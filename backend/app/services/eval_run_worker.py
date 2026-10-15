@@ -33,7 +33,12 @@ from app.agents.failures import run_failure_summary
 from app.agents.isolation import RunIsolation, ToolRecording, recorded_args
 from app.agents.spec import AgentSpec
 from app.core.config import settings
-from app.core.exceptions import BadRequestError, NotFoundError, NothingToScoreError
+from app.core.exceptions import (
+    AppException,
+    BadRequestError,
+    NotFoundError,
+    NothingToScoreError,
+)
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.dataset import DatasetCase
@@ -478,8 +483,12 @@ class EvalRunWorker:
         """Send what deserves a person to the dataset's review queue, once the reruns are in.
 
         Only what the run itself can stand behind: the regressions it confirmed
-        and the answers no scorer reached a verdict on. The rest of its failures
-        go when a person sends them.
+        and the answers the judge failed to grade. The rest of its failures go
+        when a person sends them.
+
+        The answers and their scores are kept by then, so a refusal here leaves
+        the run to complete: what was refused is kept on it as `routing_error`,
+        for a person to send the answers by hand.
         """
         async with self.sessions() as db:
             run = await eval_run_repo.get(
@@ -487,10 +496,22 @@ class EvalRunWorker:
             )
             if run is None or run.status != EvalRunStatus.RUNNING.value:
                 return
-            worthy = await EvalRunService(db).review_worthy(ctx, run)
-            routed = await ScoringService(db).route_to_review(
-                ctx, dataset_id=run.dataset_id, score_ids=worthy
-            )
+            try:
+                async with db.begin_nested():
+                    worthy = await EvalRunService(db).review_worthy(ctx, run)
+                    routed = await ScoringService(db).route_to_review(
+                        ctx, dataset_id=run.dataset_id, score_ids=worthy
+                    )
+            except AppException as exc:
+                logger.warning(
+                    "Eval run %s could not send its scores to review: %s", run.id, exc.message
+                )
+                await eval_run_repo.update_run(
+                    db,
+                    run=run,
+                    values={"routing_error": {"code": exc.code, "message": exc.message}},
+                )
+                return
             await eval_run_repo.update_run(db, run=run, values={"routed_to_review": routed})
 
     async def _close(self, status: EvalRunStatus, *, only_from: EvalRunStatus) -> None:
