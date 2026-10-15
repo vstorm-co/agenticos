@@ -5761,7 +5761,9 @@
       "rescoreNothing": "Jeder Scorer war bereits zu einem Urteil gekommen, daher wurde nichts erneut bewertet.",
       "judgeKnowledge": "Was muss der Bewerter wissen?",
       "judgeKnowledgeHint": "Alles, woran er bewertet und was die Fälle nicht sagen - eine Richtlinie, eine Preisliste, Hausregeln. Es wird den Anweisungen des Bewerters hinzugefügt.",
-      "judgeKnowledgePlaceholder": "Bestellungen können innerhalb von 30 Tagen nach Lieferung zurückgegeben werden. Geöffnete Software wird nicht erstattet."
+      "judgeKnowledgePlaceholder": "Bestellungen können innerhalb von 30 Tagen nach Lieferung zurückgegeben werden. Geöffnete Software wird nicht erstattet.",
+      "unsavedChanges": "Nicht gespeicherte Änderungen",
+      "discard": "Verwerfen"
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",

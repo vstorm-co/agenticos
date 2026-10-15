@@ -1,5 +1,5 @@
 ---
-source_sha: "462d16cbc3c5"
+source_sha: "027531ca370c"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -174,12 +174,11 @@ zredagowano, nigdy same wartości.
 ## Ocenianie { #scoring }
 
 Dataset określa, jak oceniane są jego przypadki, w zakładce **Ocenianie**, w
-trzech kartach, z których każda zapisuje się osobno: **Kiedy przypadek
-przechodzi** zawiera sprawdzenia i oczekiwane wywołania narzędzi, **Sędzia**
-mówi, który sędzia ocenia i według czego, a **Przegląd przez człowieka** mówi,
-co czeka na czyjąś decyzję. Do jednego przypadku mogą mieć zastosowanie cztery
-oceniacze, a każdy z nich włącza się albo wyłącza i oznacza jako **Musi
-przejść** albo nie:
+trzech kartach zapisywanych razem: **Kiedy przypadek przechodzi** zawiera
+sprawdzenia i oczekiwane wywołania narzędzi, **Sędzia** mówi, który sędzia
+ocenia i według czego, a **Przegląd przez człowieka** mówi, co czeka na czyjąś
+decyzję. Do jednego przypadku mogą mieć zastosowanie cztery oceniacze, a każdy
+z nich włącza się albo wyłącza i oznacza jako **Musi przejść** albo nie:
 
 | Oceniacz | Co porównuje | Koszt |
 |---|---|---|
@@ -201,8 +200,8 @@ Każdy oceniacz mówi, ile przypadków zawiera to, co on czyta, a zakładka
 ostrzega, gdy ustawienia widoczne na ekranie oceniałyby niektóre przypadki na
 podstawie niczego. Datasetowi, którego przypadki mają odpowiedzi wzorcowe, z
 którymi nic nie porównuje odpowiedzi, proponowane jest porównanie z odpowiedzią
-wzorcową. Karta z niezapisaną zmianą mówi o tym, a strona pyta przed jej
-opuszczeniem.
+wzorcową. Karta z niezapisaną zmianą mówi o tym, pasek na dole ekranu zapisuje
+albo odrzuca wszystkie zmiany naraz, a strona pyta przed jej opuszczeniem.
 
 Konfiguracja nie jest wersjonowana razem z przypadkami, bo to, jak zespół
 ocenia, nie jest tym, o co pyta. Każdy wynik przechowuje kopię konfiguracji, z

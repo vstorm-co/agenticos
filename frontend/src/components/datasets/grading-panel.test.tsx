@@ -78,7 +78,8 @@ function panel(scoring: DatasetScoring = DEFAULT_SCORING, overrides: Partial<Dat
 
 /** The card a heading names, so its own Save button is the one pressed. */
 const card = (title: string) => screen.getByRole("heading", { name: title }).closest("section")!;
-const saveIn = (title: string) => within(card(title)).getByRole("button", { name: "Save" });
+const bar = () => screen.getByRole("region", { name: "Unsaved changes" });
+const saveAll = () => within(bar()).getByRole("button", { name: "Save" });
 const saved = () => state.save.mock.calls.at(-1)?.[0] as DatasetScoring;
 
 beforeEach(() => {
@@ -99,23 +100,43 @@ beforeEach(() => {
 });
 
 /**
- * How a dataset is graded, in three cards each saved on its own. The rules and
- * the expected tool calls are on by default; the judge is a decision somebody makes.
+ * How a dataset is graded, in three cards saved together from one bar. The rules
+ * and the expected tool calls are on by default; the judge is a decision somebody makes.
  */
 describe("GradingPanel", () => {
-  it("saves one card with what is stored for the others", async () => {
-    panel();
+  it("saves every card's changes together from one bar, which then goes", async () => {
+    const { rerender } = panel();
+    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull();
 
     await userEvent.click(screen.getByRole("switch", { name: "Expected tool calls" }));
     await userEvent.click(screen.getByRole("switch", { name: "Checks: must pass" }));
     await userEvent.click(screen.getByRole("switch", { name: "Reference answer" }));
-    expect(within(card("Review by a person")).queryByRole("button", { name: "Save" })).toBeNull();
-    await userEvent.click(saveIn("When a case passes"));
+    expect(within(card("When a case passes")).getByText("Unsaved")).toBeInTheDocument();
+    expect(within(card("Judge")).getByText("Unsaved")).toBeInTheDocument();
+    expect(within(card("Review by a person")).queryByText("Unsaved")).toBeNull();
+    await userEvent.click(saveAll());
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Grading saved"));
     expect(saved().trajectory.enabled).toBe(false);
     expect(saved().checks).toEqual({ enabled: true, required: false, defaults: [] });
-    expect(saved().reference).toEqual(DEFAULT_SCORING.reference);
+    expect(saved().reference.enabled).toBe(true);
+    rerender(<GradingPanel dataset={dataset(saved())} />);
+    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull();
+  });
+
+  it("discards every card's changes at once", async () => {
+    panel(JUDGED);
+
+    await userEvent.click(screen.getByRole("switch", { name: "Expected tool calls" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "What the criterion asks" }), "!");
+    await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
+    await userEvent.click(within(bar()).getByRole("button", { name: "Discard" }));
+
+    expect(screen.queryByRole("region", { name: "Unsaved changes" })).toBeNull();
+    expect(screen.getByRole("switch", { name: "Expected tool calls" })).toBeChecked();
+    expect(screen.getByRole("textbox", { name: "What the criterion asks" })).toHaveValue("Polite");
+    expect(screen.queryByLabelText("Check 2: what it checks")).toBeNull();
+    expect(state.save).not.toHaveBeenCalled();
   });
 
   it("holds the save shut while the configuration could grade nothing", async () => {
@@ -124,8 +145,8 @@ describe("GradingPanel", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Checks" }));
     await userEvent.click(screen.getByRole("switch", { name: "Expected tool calls" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Turn on at least one scorer");
-    expect(saveIn("When a case passes")).toBeDisabled();
+    expect(within(bar()).getByRole("alert")).toHaveTextContent("Turn on at least one scorer");
+    expect(saveAll()).toBeDisabled();
 
     await userEvent.click(screen.getByRole("switch", { name: "Judge" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Give the judge at least one criterion");
@@ -168,7 +189,7 @@ describe("GradingPanel", () => {
     await userEvent.type(screen.getByRole("textbox", { name: "Criterion name" }), "correctness");
     await userEvent.type(screen.getByRole("textbox", { name: "What the criterion asks" }), "Right");
     await userEvent.click(screen.getByRole("switch", { name: "Must pass" }));
-    await userEvent.click(saveIn("Judge"));
+    await userEvent.click(saveAll());
 
     await waitFor(() => expect(state.save).toHaveBeenCalled());
     expect(saved().judge).toEqual({
@@ -210,7 +231,7 @@ describe("GradingPanel", () => {
       "href",
       "/agents/j1",
     );
-    await userEvent.click(saveIn("Judge"));
+    await userEvent.click(saveAll());
     await waitFor(() => expect(state.save).toHaveBeenCalled());
     expect(saved().judge.agent_id).toBe("j1");
 
@@ -447,7 +468,7 @@ describe("GradingPanel", () => {
       " only",
     );
     await userEvent.click(screen.getAllByRole("button", { name: "Remove criterion" })[0]!);
-    await userEvent.click(saveIn("Judge"));
+    await userEvent.click(saveAll());
 
     await waitFor(() => expect(state.save).toHaveBeenCalled());
     expect(saved().judge.model_profile_id).toBeNull();
@@ -460,7 +481,7 @@ describe("GradingPanel", () => {
 
     await userEvent.click(screen.getByRole("combobox", { name: "Send to the review queue" }));
     await userEvent.click(screen.getByRole("option", { name: "Results that did not pass" }));
-    await userEvent.click(saveIn("Review by a person"));
+    await userEvent.click(saveAll());
 
     await waitFor(() => expect(state.save).toHaveBeenCalled());
     expect(saved().review.select).toBe("failed");
@@ -470,7 +491,7 @@ describe("GradingPanel", () => {
     panel();
 
     await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
-    await userEvent.click(saveIn("When a case passes"));
+    await userEvent.click(saveAll());
 
     expect(
       await screen.findByText("Say what each check checks, or remove it."),
@@ -483,7 +504,7 @@ describe("GradingPanel", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
     await userEvent.type(screen.getByLabelText("Check 2: what it checks"), "days");
-    await userEvent.click(saveIn("When a case passes"));
+    await userEvent.click(saveAll());
 
     await waitFor(() => expect(state.save).toHaveBeenCalled());
     expect(saved().checks.defaults).toEqual([
@@ -497,7 +518,7 @@ describe("GradingPanel", () => {
     panel();
 
     await userEvent.click(screen.getByRole("switch", { name: "Expected tool calls" }));
-    await userEvent.click(saveIn("When a case passes"));
+    await userEvent.click(saveAll());
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("No such model"));
   });

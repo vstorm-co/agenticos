@@ -27,6 +27,7 @@ import { CaseChecksEditor } from "./case-checks-editor";
 import { checkDraft, checksOf, type CheckDraft } from "./case-form";
 import { CreateJudgeDialog } from "./create-judge-dialog";
 import { GradingCard } from "./grading-card";
+import { GradingSaveBar } from "./grading-save-bar";
 import { JudgeSettings } from "./judge-settings";
 import { ScorerRow } from "./scorer-row";
 
@@ -35,14 +36,10 @@ const PASSES: Part[] = ["checks", "trajectory"];
 const JUDGING: Part[] = ["judge", "reference"];
 const REVIEW: Part[] = ["review"];
 
-/** The draft's `parts` over what is stored: what saving one card sends. */
-function merged(stored: DatasetScoring, draft: DatasetScoring, parts: Part[]): DatasetScoring {
-  return { ...stored, ...Object.fromEntries(parts.map((part) => [part, draft[part]])) };
-}
-
 /**
- * How a dataset's cases are graded, in three cards each saved on its own: when a
- * case passes, which judge grades it and how, and what waits for a person.
+ * How a dataset's cases are graded, in three cards - when a case passes, which
+ * judge grades it and how, and what waits for a person - saved together from one
+ * bar that holds while any of them has a change.
  *
  * The rules and the expected tool calls cost nothing; the judge and the reference
  * comparison are runs of the judge, refused while AI assistance is off. Scores
@@ -79,7 +76,6 @@ export function GradingPanel({
     parts.some((part) => JSON.stringify(draft[part]) !== JSON.stringify(stored[part])) ||
     (parts.includes("checks") &&
       JSON.stringify(defaults) !== JSON.stringify(stored.checks.defaults.map(checkDraft)));
-  const unusable = (parts: Part[]) => scoringProblem(merged(stored, draft, parts));
   const problem = scoringProblem(draft);
   const unsaved = dirty(PASSES) || dirty(JUDGING) || dirty(REVIEW);
   const ungraded = ungradedCases(draft, dataset.stats, defaults.length);
@@ -94,23 +90,27 @@ export function GradingPanel({
     return () => window.removeEventListener("beforeunload", hold);
   }, [unsaved]);
 
-  async function submit(parts: Part[]) {
-    let next = merged(stored, draft, parts);
-    if (parts.includes("checks")) {
-      const read = checksOf(defaults);
-      if (read.problems.length > 0) {
-        setDefaultsProblem(tDatasets(read.problems[0]!));
-        return;
-      }
-      setDefaultsProblem(null);
-      next = { ...next, checks: { ...next.checks, defaults: read.checks } };
+  async function submit() {
+    const read = checksOf(defaults);
+    if (read.problems.length > 0) {
+      setDefaultsProblem(tDatasets(read.problems[0]!));
+      return;
     }
+    setDefaultsProblem(null);
+    const next = { ...draft, checks: { ...draft.checks, defaults: read.checks } };
     try {
       await save.mutateAsync(next);
+      setDraft(next);
       toast.success(t("saved"));
     } catch (failure) {
       toast.error(getErrorMessage(failure, tErrors));
     }
+  }
+
+  function discard() {
+    setDraft(stored);
+    setDefaults(stored.checks.defaults.map(checkDraft));
+    setDefaultsProblem(null);
   }
 
   const unreferenced =
@@ -123,11 +123,6 @@ export function GradingPanel({
   return (
     <div className="space-y-4" data-tour="datasets-grading">
       <AiAssistanceNotice />
-      {canEdit && problem !== null && (
-        <p role="alert" className="text-destructive text-sm">
-          {t(problem)}
-        </p>
-      )}
       {canEdit && problem === null && ungraded > 0 && (
         <p
           role="status"
@@ -157,8 +152,6 @@ export function GradingPanel({
         title={t("passes.title")}
         description={t("passes.description")}
         dirty={dirty(PASSES)}
-        canSave={!disabled && unusable(PASSES) === null}
-        onSave={() => void submit(PASSES)}
       >
         <ScorerRow
           label={t("scorer.check")}
@@ -190,8 +183,6 @@ export function GradingPanel({
         title={t("judgeCard.title")}
         description={t("judgeCard.description")}
         dirty={dirty(JUDGING)}
-        canSave={!modelBacked && unusable(JUDGING) === null}
-        onSave={() => void submit(JUDGING)}
         tour="datasets-grading-judge"
       >
         <JudgeSettings
@@ -211,8 +202,6 @@ export function GradingPanel({
         title={t("reviewCard.title")}
         description={t("reviewCard.description")}
         dirty={dirty(REVIEW)}
-        canSave={!disabled}
-        onSave={() => void submit(REVIEW)}
       >
         <FormField htmlFor="scoring-review" label={t("reviewSelect")}>
           <Select
@@ -233,6 +222,15 @@ export function GradingPanel({
       </GradingCard>
 
       <p className="text-muted-foreground text-xs">{t("mustPassRule")}</p>
+
+      {canEdit && unsaved && (
+        <GradingSaveBar
+          problem={problem === null ? null : t(problem)}
+          saving={save.isPending}
+          onSave={() => void submit()}
+          onDiscard={discard}
+        />
+      )}
 
       {creating && (
         <CreateJudgeDialog

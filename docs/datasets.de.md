@@ -1,5 +1,5 @@
 ---
-source_sha: "462d16cbc3c5"
+source_sha: "027531ca370c"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -186,12 +186,12 @@ Werte selbst.
 ## Bewertung { #scoring }
 
 Ein Dataset legt auf seinem Tab **Bewertung** fest, wie seine Fälle bewertet
-werden, in drei Karten, die jede für sich gespeichert werden: **Wann ein Fall
+werden, in drei Karten, die zusammen gespeichert werden: **Wann ein Fall
 besteht** enthält die Prüfungen und die erwarteten Tool-Aufrufe, **Bewerter**
 sagt, welcher Bewerter bewertet und worauf, und **Prüfung durch eine Person**
-sagt, was auf die Entscheidung von jemandem wartet. Vier Scorer können auf einen
-Fall angewendet werden, und jeder wird ein- oder ausgeschaltet und als **Muss
-bestehen** markiert oder nicht:
+sagt, was auf die Entscheidung von jemandem wartet. Vier Scorer können auf
+einen Fall angewendet werden, und jeder wird ein- oder ausgeschaltet und als
+**Muss bestehen** markiert oder nicht:
 
 | Scorer | Was er vergleicht | Kosten |
 |---|---|---|
@@ -210,11 +210,12 @@ bestanden, weil niemand die Antwort geprüft hat. Der Score sagt, warum, und
 lässt sich [erneut bewerten](#judge), sobald die Ursache behoben ist.
 
 Jeder Scorer sagt, wie viele Fälle enthalten, was er liest, und der Tab warnt,
-wenn die angezeigte Konfiguration einige Fälle anhand von nichts bewerten würde.
-Einem Dataset, dessen Fälle Referenzantworten haben, mit denen nichts die
-Antworten vergleicht, wird der Vergleich mit der Referenzantwort angeboten. Eine
-Karte mit einer noch nicht gespeicherten Änderung sagt das, und die Seite fragt
-nach, bevor man sie verlässt.
+wenn die angezeigte Konfiguration einige Fälle anhand von nichts bewerten
+würde. Einem Dataset, dessen Fälle Referenzantworten haben, mit denen nichts
+die Antworten vergleicht, wird der Vergleich mit der Referenzantwort angeboten.
+Eine Karte mit einer noch nicht gespeicherten Änderung sagt das, eine Leiste
+unten am Bildschirm speichert oder verwirft alle Änderungen auf einmal, und die
+Seite fragt nach, bevor man sie verlässt.
 
 Die Konfiguration wird nicht mit den Fällen versioniert, weil die Art, wie ein
 Team bewertet, nicht das ist, was es fragt. Jeder Score bewahrt eine Kopie der

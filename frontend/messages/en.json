@@ -5903,7 +5903,9 @@
       "rescoreNothing": "Every scorer had already reached a verdict, so nothing was scored again.",
       "judgeKnowledge": "What must the judge know?",
       "judgeKnowledgeHint": "Anything it grades against that the cases do not say - a policy, a price list, house rules. It is added to the judge's instructions.",
-      "judgeKnowledgePlaceholder": "Orders can be returned within 30 days of delivery. Opened software is not refundable."
+      "judgeKnowledgePlaceholder": "Orders can be returned within 30 days of delivery. Opened software is not refundable.",
+      "unsavedChanges": "Unsaved changes",
+      "discard": "Discard"
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

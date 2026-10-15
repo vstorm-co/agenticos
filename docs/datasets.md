@@ -167,8 +167,8 @@ were redacted, never the values.
 ## Grading { #scoring }
 
 A dataset says how its cases are graded, on its **Grading** tab, in three cards
-each saved on its own: **When a case passes** holds the checks and the expected
-tool calls, **Judge** says which judge grades and on what, and **Review by a
+saved together: **When a case passes** holds the checks and the expected tool
+calls, **Judge** says which judge grades and on what, and **Review by a
 person** says what waits for somebody's decision. Four scorers can apply to one
 case, and each is switched on or off and marked **Must pass** or not:
 
@@ -190,8 +190,9 @@ is fixed.
 Each scorer says how many cases hold what it reads, and the tab warns when the
 setup on screen would grade some cases on nothing. A dataset whose cases have
 reference answers that nothing compares answers with is offered the reference
-comparison. A card with a change not yet saved says so, and the page asks before
-it is left.
+comparison. A card with a change not yet saved says so, a bar at the bottom of
+the screen saves or discards every change at once, and the page asks before it
+is left.
 
 The configuration is not versioned with the cases, because how a team grades is
 not what it asks. Each score keeps a copy of the configuration it was computed

@@ -3523,7 +3523,9 @@
       "rescoreNothing": "Każdy scorer wydał już werdykt, więc nic nie zostało ocenione ponownie.",
       "judgeKnowledge": "Co sędzia musi wiedzieć?",
       "judgeKnowledgeHint": "Wszystko, względem czego ocenia, a czego przypadki nie mówią - polityka, cennik, zasady firmy. Zostanie dodane do instrukcji sędziego.",
-      "judgeKnowledgePlaceholder": "Zamówienie można zwrócić w ciągu 30 dni od dostawy. Otwarte oprogramowanie nie podlega zwrotowi."
+      "judgeKnowledgePlaceholder": "Zamówienie można zwrócić w ciągu 30 dni od dostawy. Otwarte oprogramowanie nie podlega zwrotowi.",
+      "unsavedChanges": "Niezapisane zmiany",
+      "discard": "Odrzuć"
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",

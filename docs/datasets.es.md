@@ -1,5 +1,5 @@
 ---
-source_sha: "462d16cbc3c5"
+source_sha: "027531ca370c"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -177,9 +177,9 @@ del cambio registra cuántos valores se ocultaron, nunca los valores.
 
 ## Calificación { #scoring }
 
-Un dataset indica cómo se califican sus casos en su pestaña **Grading**, en tres
-tarjetas que se guardan cada una por separado: **When a case passes** contiene
-las comprobaciones y las llamadas a herramientas esperadas, **Judge** indica qué
+Un dataset indica cómo se califican sus casos en su pestaña **Grading**, en
+tres tarjetas que se guardan juntas: **When a case passes** contiene las
+comprobaciones y las llamadas a herramientas esperadas, **Judge** indica qué
 juez califica y sobre qué, y **Review by a person** indica qué espera la
 decisión de alguien. Cuatro evaluadores pueden aplicarse a un caso, y cada uno
 se activa o desactiva y se marca como **Must pass** o no:
@@ -203,7 +203,8 @@ Cada evaluador indica cuántos casos contienen lo que lee, y la pestaña avisa
 cuando la configuración en pantalla calificaría algunos casos sin nada que
 comprobar. A un dataset cuyos casos tienen respuestas de referencia con las que
 nada compara las respuestas se le ofrece la comparación con la respuesta de
-referencia. Una tarjeta con un cambio aún no guardado lo indica, y la página
+referencia. Una tarjeta con un cambio aún no guardado lo indica, una barra al
+pie de la pantalla guarda o descarta todos los cambios a la vez, y la página
 pregunta antes de salir de ella.
 
 La configuración no se versiona con los casos, porque cómo califica un equipo no
