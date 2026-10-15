@@ -50,7 +50,9 @@ function find(anchor: string): HTMLElement | null {
  * reader may not hold the permission the control needs - is simply not pointed at.
  */
 export async function pointAt(anchor: string): Promise<boolean> {
-  const tab = TOUR_STEPS.find((step) => step.target === anchor)?.activate;
+  // By the step's id as well: a step may light its card's header while the
+  // Architect names the card, and both sit behind the same tab.
+  const tab = TOUR_STEPS.find((step) => step.target === anchor || step.id === anchor)?.activate;
   let revealed = false;
   for (let waited = 0; waited <= WAIT_MS; waited += POLL_MS) {
     const element = find(anchor);

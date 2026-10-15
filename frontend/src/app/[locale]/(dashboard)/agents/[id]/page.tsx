@@ -1344,7 +1344,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
 
             <Card data-tour="agent-instructions">
-              <CardHeader className="flex-row items-start gap-3 space-y-0">
+              <CardHeader
+                data-tour="agent-instructions-header"
+                className="flex-row items-start gap-3 space-y-0"
+              >
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <CardTitle>{t("instructions")}</CardTitle>
                   <CardDescription>{t("agentAposSBehaviour")}</CardDescription>
@@ -1453,7 +1456,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
           <TabsContent value="toolbox" className="mt-6 space-y-6">
             <Card data-tour="agent-capabilities">
-              <CardHeader>
+              <CardHeader data-tour="agent-capabilities-header">
                 <CardTitle>{t("capabilities")}</CardTitle>
                 <CardDescription>{t("whatAgentCanDo")}</CardDescription>
               </CardHeader>

@@ -140,14 +140,14 @@ test.describe("Onboarding", () => {
     // overlay has a hole there, so only the tour's own shield stands between the
     // click and whatever sits next to the control.
     await page.locator(NEXT).click();
-    await expect(page.locator(TITLE)).toHaveText("Start here");
-    const lit = page.locator('.driver-active-element[data-tour="dashboard-actions"]');
+    await expect(page.locator(TITLE)).toHaveText("Slice the dashboard");
+    const lit = page.locator('.driver-active-element[data-tour="dashboard-filters"]');
     await expect(page.locator(".tour-spotlight-ring.is-visible")).toBeVisible();
     const control = await lit.boundingBox();
     expect(control, "the lit control is on screen").not.toBeNull();
     await page.mouse.click(control!.x - 4, control!.y + control!.height / 2);
     expect(await reachedPage(), "a click in the light's padding reached the page").toEqual([]);
-    await expect(page.locator(TITLE)).toHaveText("Start here");
+    await expect(page.locator(TITLE)).toHaveText("Slice the dashboard");
   });
 
   test("replays the current page's tips from the header ?, without re-onboarding", async ({
