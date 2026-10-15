@@ -22,8 +22,8 @@ the same run, so the two meet the same provider on the same day.
 An agent's **Evals** tab opens on a line chart of its pass rate over time, a
 line per dataset, each point labelled with what ran - a draft drawn hollow.
 Below it are its runs, grouped by dataset, each naming what was tested against
-what, its verdict (Worse · 4 broke, First result, Pending) and each model's
-pass rate.
+what, its verdict (Breaks 2, Worse overall · 4 broke, First result, Pending)
+and each model's pass rate, with the first answers' rate on hover.
 
 **Run evals** opens the start dialog on the obvious answer: the draft against
 the live version when the draft differs from it, the live version alone when it
@@ -37,14 +37,19 @@ carries a **Test draft** button that opens the same dialog, and the publish
 dialog says what the draft's last run found - or that it was not tested since
 it last changed - without holding the publish back.
 
-A run's page opens on its verdict as a sentence - which side did better, by how
-many confirmed cases, and the pass rate before and after - with what to do next:
+A run's page opens on its verdict in a few sentences - the cases the candidate
+breaks or fixes every time it is asked, one quoted with how many tries repeated
+it, whether it is better or worse overall when the confirmed changes can tell,
+and the pass rate before and after - with what to do next:
 see what changed between the two versions (History opens on that comparison,
 against the spec the run tested rather than the draft as it is now), show the
-cases that broke, go back to Build, or publish the draft. Publish is the main
-action only when no regression was confirmed, and a run of a draft that changed
-since offers **Test again** instead. While the run answers it says how many
-first answers are in and the comparison waits for both sides.
+cases that broke, go back to Build, or publish the draft.
+
+Publish is the main action only when no regression was confirmed, and a run of
+a draft that changed since offers **Test again** instead. While the run answers it says how many first answers are in and the comparison
+waits for both sides. Answers the judge failed to grade say why and count as
+neither passed nor failed, and **Grade again** in the header grades them again
+without asking the agent, for whoever may run the dataset.
 
 Below the verdict are the sides next to each other, how the two compare, and the
 cases - each row with a pass or fail dot per side, filtered by outcome or tag,
@@ -62,9 +67,11 @@ evals** opens the start dialog on the dataset, asking which agent to test.
 The dashboard's **Eval runs** card lists the organization's latest runs with
 their agent and verdict. An eval's cases and the judge's grading are kept out
 of every other dashboard figure, and Activity hides them unless its surface
-filter asks for every surface or for evals alone. There an eval run's row says
-which question it answered, and an eval case - or the judge's run that graded
-one - names its eval run and links to it.
+filter asks for every surface or for evals alone. Activity's list shows what
+every run was asked - its first user turn, or the eval case's question, and for
+the judge's run what it graded - so a run can be found again to become a case.
+An eval case there opens its eval run on that case, and a case's **See what the
+model saw** opens what its model was given.
 
 ## Starting a run { #starting-a-run }
 
@@ -108,7 +115,8 @@ estimate shows what each cap keeps once the run has spent its total:
 Starting refuses with `402` before anything is written when the total is more
 than either cap has left. Confirmation reruns (below) are not part of that
 check, because they only happen to cases that flip; the estimate shows the most
-they can add as `rerun_ceiling_usd`, which the run keeps so a run that spent
+they can add - every case flipping, rerun on every side, a reused baseline
+included - as `rerun_ceiling_usd`, which the run keeps so a run that spent
 past its estimate says why. Every case is still checked against both
 caps before each model request, as any run is, and a case that runs into a cap
 stops the whole eval run as `budget_exceeded`.
@@ -185,16 +193,21 @@ Each arm of the run is summarised on two axes, and per tag:
 
 | Axis | Measures |
 |---|---|
-| Quality | Pass rate over the decided cases, and how many could not be decided |
+| Quality | Pass rate over the decided cases, each as most of its tries came out; the first answers' rate beside it; how many could not be decided |
 | Efficiency | Cost per passed case, tokens per case, and latency at p50 and p95 |
 
-A case whose required scorer could not run is **undecided**, never a pass. A
-person's verdict in the [review queue](datasets.md#review) replaces the
-scorers' outcome for that case, and the run's numbers follow it.
+A case whose required scorer could not run is **undecided**, never a pass. One
+the judge failed on or skipped is **not graded**: the run lists those scores as
+`ungraded_score_ids`, and grading them again
+(`POST /api/v1/datasets/{id}/scores/rescore`) reads the answer kept on the
+attempt rather than asking the agent. A person's verdict in the
+[review queue](datasets.md#review) replaces the scorers' outcome for that case,
+and the run's numbers follow it.
 
 A finished run keeps its first candidate's verdict, counts and pass rates as
 `outcome`, so a listing reads them without comparing every run again. It is
-compared again when a person has decided one of the scores it rests on since.
+compared again when a person has decided one of the scores it rests on since,
+or one was graded again.
 
 ```text
 GET /api/v1/agents/{agent_id}/eval-runs      an agent's runs, newest first; ?draft=current
@@ -247,22 +260,31 @@ a flip the same day. A baseline from an earlier run, compared with when nothing
 ran beside the candidate, cannot be rerun, so only the candidate side confirms
 against it.
 
-### Too few flips are not a verdict { #too-few-flips-are-not-a-verdict }
+### What the verdict says { #what-the-verdict-says }
 
-The verdict rests on the confirmed flips only, tested with an exact McNemar
-test. When the test cannot tell the two sides apart at `EVAL_SIGNIFICANCE`, the
-verdict is `inconclusive` - the difference is within noise, or the sample is
-too small - rather than better or worse. There is no minimum number of cases;
-a small dataset simply reports inconclusive more often. With no confirmed flip
-at all the verdict is `no_difference`.
+The verdict rests on the confirmed flips only. One confirmed regression makes
+the candidate `worse` - a case it breaks every time is reason enough not to
+publish - confirmed fixes alone make it `better`, both make it `mixed`, and no
+confirmed flip at all is `no_difference`. Each flip names the case's question.
+
+Separately, an exact McNemar test over the confirmed flips gives `overall`:
+`worse` or `better` when it tells the two sides apart at `EVAL_SIGNIFICANCE`,
+and null when the flips are too few, as they are on most small datasets.
+
+The pass rate counts each case by the majority of its decided tries - its first
+answer alone when it was not rerun, and a person's verdict on that answer over
+both - so it agrees with the confirmed flips. The first answers' own rate is
+kept beside it as `first_pass_rate`.
 
 ### A different judge invalidates the comparison { #a-different-judge-invalidates-the-comparison }
 
 Every score records the [judge that graded it](datasets.md#judge): its model,
-its version and a fingerprint of the rubric. When the two sides were scored
-with different scoring settings, or graded by a different judge, model or
-rubric, the comparison is `invalid` and gives no verdict - a flip there says
-something about the grading, not about the agent.
+its version, a fingerprint of the rubric and the version of the judge's own
+prompt. When the two sides were scored with different scoring settings, or
+graded by a different judge, model, rubric or prompt, the comparison is
+`invalid` and gives no verdict - a flip there says something about the grading,
+not about the agent. A baseline graded under an earlier judge prompt says so,
+and is not reused as a cached baseline.
 
 ### Two axes, quality first { #two-axes-quality-first }
 

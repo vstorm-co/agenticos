@@ -1,5 +1,5 @@
 ---
-source_sha: "f9ec7e031724"
+source_sha: "b05b655f8708"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -26,8 +26,9 @@ Der Tab **Evals** eines Agents öffnet mit einem Liniendiagramm seiner
 Bestehensquote über die Zeit, eine Linie pro Dataset, jeder Punkt beschriftet
 mit dem, was lief - ein Draft hohl gezeichnet. Darunter stehen seine Runs,
 nach Dataset gruppiert, jeder mit dem, was gegen was getestet wurde, seinem
-Urteil (Worse · 4 broke, First result, Pending) und der Bestehensquote jedes
-Modells.
+Urteil (Breaks 2, Worse overall · 4 broke, First result, Pending) und der
+Bestehensquote jedes Modells, mit der Quote der ersten Antworten beim
+Darüberfahren.
 
 **Run evals** öffnet den Startdialog mit der naheliegenden Antwort: der Draft
 gegen die Live-Version, wenn sich der Draft von ihr unterscheidet, die
@@ -43,16 +44,23 @@ Dialog öffnet, und der Veröffentlichungsdialog sagt, was der letzte Run des
 Drafts ergeben hat - oder dass er seit seiner letzten Änderung nicht getestet
 wurde -, ohne die Veröffentlichung aufzuhalten.
 
-Die Seite eines Runs öffnet mit seinem Urteil als Satz - welche Seite besser
-abgeschnitten hat, um wie viele bestätigte Fälle und die Bestehensquote vorher
-und nachher - und mit dem, was als Nächstes zu tun ist: sehen, was sich
-zwischen den beiden Versionen geändert hat (History öffnet auf diesem
-Vergleich, gegen den getesteten Spec statt den jetzigen Draft), die
-kaputtgegangenen Fälle zeigen, zurück zu Build gehen oder den Draft
-veröffentlichen. Publish ist nur dann die Hauptaktion, wenn keine Regression
-bestätigt wurde, und der Run eines seitdem geänderten Drafts bietet stattdessen
-**Test again** an. Solange der Run antwortet, sagt sie, wie viele erste
-Antworten vorliegen, und der Vergleich wartet auf beide Seiten.
+Die Seite eines Runs öffnet mit seinem Urteil in wenigen Sätzen - die Fälle,
+die der Kandidat jedes Mal kaputt macht oder behebt, wenn er sie gestellt
+bekommt, einer davon zitiert mit der Zahl der Versuche, die es wiederholt
+haben, ob er insgesamt besser oder schlechter ist, wenn die bestätigten
+Änderungen das entscheiden können, und die Bestehensquote vorher und nachher -
+und mit dem, was als Nächstes zu tun ist: sehen, was sich zwischen den beiden
+Versionen geändert hat (History öffnet auf diesem Vergleich, gegen den
+getesteten Spec statt den jetzigen Draft), die kaputtgegangenen Fälle zeigen,
+zurück zu Build gehen oder den Draft veröffentlichen.
+
+Publish ist nur dann die Hauptaktion, wenn keine Regression bestätigt wurde,
+und der Run eines seitdem geänderten Drafts bietet stattdessen **Test again**
+an. Solange der Run antwortet, sagt die Seite, wie viele erste Antworten
+vorliegen, und der Vergleich wartet auf beide Seiten. Antworten, die der Judge
+nicht bewerten konnte, sagen, warum, und zählen weder als bestanden noch als
+nicht bestanden, und **Grade again** im Kopfbereich bewertet sie erneut, ohne
+den Agent zu fragen, für jeden, der das Dataset laufen lassen darf.
 
 Unter dem Urteil stehen die Seiten nebeneinander, wie die beiden abschneiden,
 und die Fälle - jede Zeile mit einem Punkt für bestanden oder nicht bestanden
@@ -74,9 +82,11 @@ Die Karte **Eval runs** im Dashboard listet die neuesten Runs der Organisation
 mit ihrem Agent und ihrem Urteil. Die Fälle eines Evals und die Bewertung durch
 den Judge bleiben aus jeder anderen Dashboard-Zahl heraus, und Activity blendet
 sie aus, außer ihr Oberflächenfilter verlangt jede Oberfläche oder nur Evals.
-Dort sagt die Zeile eines Eval-Runs, welche Frage er beantwortet hat, und ein
-Eval-Fall - oder der Run des Judges, der einen bewertet hat - nennt seinen
-Eval-Run und verlinkt darauf.
+Die Liste in Activity zeigt, was jedem Run gestellt wurde - seine erste
+Nutzernachricht oder die Frage des Eval-Falls und beim Run des Judges das, was
+er bewertet hat -, damit sich ein Run wiederfinden und zu einem Fall machen
+lässt. Ein Eval-Fall öffnet dort seinen Eval-Run auf diesem Fall, und **See
+what the model saw** eines Falls öffnet, was sein Modell bekommen hat.
 
 ## Einen Run starten { #starting-a-run }
 
@@ -123,8 +133,9 @@ seine Summe ausgegeben hat: `agent_after_usd` und `org_after_usd`.
 Der Start wird mit `402` abgelehnt, bevor etwas geschrieben wird, wenn die Summe
 höher ist als das, was einem der beiden Limits bleibt. Bestätigungsläufe (unten)
 zählen bei dieser Prüfung nicht, weil sie nur Fälle betreffen, die kippen; die
-Schätzung zeigt, wie viel sie höchstens hinzufügen können, als
-`rerun_ceiling_usd`, den der Run behält, damit ein Run, der mehr als seine
+Schätzung zeigt, wie viel sie höchstens hinzufügen können - jeder Fall kippt
+und wird auf jeder Seite wiederholt, eine wiederverwendete Baseline
+eingeschlossen - als `rerun_ceiling_usd`, den der Run behält, damit ein Run, der mehr als seine
 Schätzung ausgegeben hat, sagt, warum. Jeder Fall wird trotzdem vor jeder
 Modellanfrage gegen beide Limits geprüft, wie jeder Run, und ein Fall, der an
 ein Limit stößt, stoppt den ganzen Eval-Run als `budget_exceeded`.
@@ -210,18 +221,23 @@ Jeder Arm des Runs wird auf zwei Achsen zusammengefasst, und pro Tag:
 
 | Achse | Misst |
 |---|---|
-| Qualität | Bestehensquote unter den entschiedenen Fällen und wie viele nicht entschieden werden konnten |
+| Qualität | Bestehensquote unter den entschiedenen Fällen, jeder so gewertet, wie die meisten seiner Versuche ausgingen; daneben die Quote der ersten Antworten; wie viele nicht entschieden werden konnten |
 | Effizienz | Kosten pro bestandenem Fall, Tokens pro Fall und Latenz bei p50 und p95 |
 
 Ein Fall, dessen erforderlicher Bewerter nicht laufen konnte, ist
-**unentschieden**, nie bestanden. Das Urteil einer Person in der
+**unentschieden**, nie bestanden. Einer, bei dem der Judge gescheitert ist oder
+den er übersprungen hat, ist **nicht bewertet**: Der Run listet diese
+Bewertungen als `ungraded_score_ids`, und sie erneut zu bewerten
+(`POST /api/v1/datasets/{id}/scores/rescore`) liest die im Versuch behaltene
+Antwort, statt den Agent zu fragen. Das Urteil einer Person in der
 [Review-Warteschlange](datasets.md#review) ersetzt für diesen Fall das Ergebnis
 der Bewerter, und die Zahlen des Runs folgen ihm.
 
 Ein abgeschlossener Run behält Urteil, Zählungen und Bestehensquoten seines
 ersten Kandidaten als `outcome`, sodass eine Liste sie liest, ohne jeden Run
 erneut zu vergleichen. Er wird erneut verglichen, wenn eine Person seitdem über
-eine der Bewertungen entschieden hat, auf denen er beruht.
+eine der Bewertungen entschieden hat, auf denen er beruht, oder eine davon
+erneut bewertet wurde.
 
 ```text
 GET /api/v1/agents/{agent_id}/eval-runs      an agent's runs, newest first; ?draft=current
@@ -277,24 +293,35 @@ Seiten ein Kippen am selben Tag bestätigen. Eine Baseline aus einem früheren
 Run, mit der verglichen wird, wenn nichts neben dem Kandidaten lief, lässt sich
 nicht wiederholen, daher bestätigt ihr gegenüber nur die Seite des Kandidaten.
 
-### Zu wenige Kippfälle sind kein Urteil { #too-few-flips-are-not-a-verdict }
+### Was das Urteil sagt { #what-the-verdict-says }
 
-Das Urteil beruht nur auf den bestätigten Kippfällen, geprüft mit einem
-exakten McNemar-Test. Kann der Test die beiden Seiten bei `EVAL_SIGNIFICANCE`
-nicht unterscheiden, lautet das Urteil `inconclusive` - der Unterschied liegt
-im Rauschen oder die Stichprobe ist zu klein - statt besser oder schlechter. Es
-gibt keine Mindestzahl an Fällen; ein kleines Dataset meldet nur häufiger
-`inconclusive`. Ohne jeden bestätigten Kippfall lautet das Urteil
-`no_difference`.
+Das Urteil beruht nur auf den bestätigten Kippfällen. Eine bestätigte
+Regression macht den Kandidaten `worse` - ein Fall, den er jedes Mal kaputt
+macht, ist Grund genug, nicht zu veröffentlichen -, nur bestätigte Behebungen
+machen ihn `better`, beides macht ihn `mixed`, und gar kein bestätigter
+Kippfall ist `no_difference`. Jeder Kippfall nennt die Frage des Falls.
+
+Unabhängig davon ergibt ein exakter McNemar-Test über die bestätigten
+Kippfälle `overall`: `worse` oder `better`, wenn er die beiden Seiten bei
+`EVAL_SIGNIFICANCE` unterscheidet, und null, wenn es zu wenige Kippfälle gibt,
+wie bei den meisten kleinen Datasets.
+
+Die Bestehensquote zählt jeden Fall nach der Mehrheit seiner entschiedenen
+Versuche - nur nach seiner ersten Antwort, wenn er nicht wiederholt wurde, und
+das Urteil einer Person über diese Antwort geht beidem vor -, sodass sie mit
+den bestätigten Kippfällen übereinstimmt. Die eigene Quote der ersten
+Antworten wird daneben als `first_pass_rate` behalten.
 
 ### Ein anderer Judge macht den Vergleich ungültig { #a-different-judge-invalidates-the-comparison }
 
 Jede Bewertung hält den [Judge fest, der sie vergeben hat](datasets.md#judge):
-sein Modell, seine Version und einen Fingerabdruck der Rubrik. Wurden die
-beiden Seiten mit unterschiedlichen Scoring-Einstellungen bewertet oder von
-einem anderen Judge, Modell oder einer anderen Rubrik, ist der Vergleich
-`invalid` und gibt kein Urteil - ein Kippen sagt dann etwas über die Bewertung,
-nicht über den Agent.
+sein Modell, seine Version, einen Fingerabdruck der Rubrik und die Version des
+eigenen Prompts des Judges. Wurden die beiden Seiten mit unterschiedlichen
+Scoring-Einstellungen bewertet oder von einem anderen Judge, Modell, einer
+anderen Rubrik oder einem anderen Prompt, ist der Vergleich `invalid` und gibt
+kein Urteil - ein Kippen sagt dann etwas über die Bewertung, nicht über den
+Agent. Eine Baseline, die unter einem früheren Judge-Prompt bewertet wurde,
+sagt das und wird nicht als zwischengespeicherte Baseline wiederverwendet.
 
 ### Zwei Achsen, Qualität zuerst { #two-axes-quality-first }
 

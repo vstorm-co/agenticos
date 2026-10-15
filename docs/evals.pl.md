@@ -1,5 +1,5 @@
 ---
-source_sha: "f9ec7e031724"
+source_sha: "b05b655f8708"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -25,8 +25,9 @@ Zakładka **Evals** agenta otwiera się wykresem liniowym jego odsetka zaliczeń
 w czasie, z linią na każdy dataset i każdym punktem opisanym tym, co się
 uruchomiło - draft jest rysowany jako pusty punkt. Pod wykresem są jego runy,
 pogrupowane po datasecie, każdy z tym, co testowano względem czego, z
-werdyktem (Worse · 4 broke, First result, Pending) i odsetkiem zaliczeń
-każdego modelu.
+werdyktem (Breaks 2, Worse overall · 4 broke, First result, Pending) i
+odsetkiem zaliczeń każdego modelu, a po najechaniu kursorem - z odsetkiem
+pierwszych odpowiedzi.
 
 **Run evals** otwiera dialog startu od razu na oczywistej odpowiedzi: draft
 względem bieżącej opublikowanej wersji, gdy draft się od niej różni, sama
@@ -40,15 +41,22 @@ na stronie agenta ma przycisk **Test draft**, który otwiera ten sam dialog, a
 dialog publikacji mówi, co znalazł ostatni run draftu - albo że draftu nie
 testowano od jego ostatniej zmiany - nie wstrzymując publikacji.
 
-Strona runa otwiera się jego werdyktem w postaci zdania - która strona
-wypadła lepiej, o ile potwierdzonych przypadków i jaki był odsetek zaliczeń
+Strona runa otwiera się jego werdyktem w kilku zdaniach - przypadki, które
+kandydat psuje albo naprawia za każdym razem, gdy jest o nie pytany, jeden z
+nich zacytowany z liczbą prób, które to powtórzyły, czy ogólnie jest lepszy,
+czy gorszy, gdy potwierdzone zmiany pozwalają to stwierdzić, i odsetek zaliczeń
 przed i po - razem z tym, co zrobić dalej: zobaczyć, co zmieniło się między
 obiema wersjami (History otwiera się na tym porównaniu, względem speca, który
 run testował, a nie draftu w jego obecnym stanie), pokazać przypadki, które się
-zepsuły, wrócić do Build albo opublikować draft. Publish jest główną akcją tylko
-wtedy, gdy nie potwierdzono żadnej regresji, a run draftu, który od tego czasu
-się zmienił, proponuje zamiast tego **Test again**. Gdy run odpowiada, strona
-mówi, ile pierwszych odpowiedzi już jest, a porównanie czeka na obie strony.
+zepsuły, wrócić do Build albo opublikować draft.
+
+Publish jest główną akcją tylko wtedy, gdy nie potwierdzono żadnej regresji, a
+run draftu, który od tego czasu się zmienił, proponuje zamiast tego **Test
+again**. Gdy run odpowiada, strona mówi, ile pierwszych odpowiedzi już jest, a
+porównanie czeka na obie strony. Odpowiedzi, których sędzia nie zdołał ocenić,
+mówią dlaczego i nie liczą się ani jako zaliczone, ani jako niezaliczone, a
+**Grade again** w nagłówku ocenia je ponownie bez pytania agenta, dla każdego,
+kto może uruchamiać dataset.
 
 Pod werdyktem są obie strony obok siebie, to, jak wypadają w porównaniu, i
 przypadki - każdy wiersz z kropką zaliczenia lub niezaliczenia dla każdej
@@ -68,9 +76,12 @@ datasecie i pyta, którego agenta testować.
 Karta **Eval runs** na dashboardzie wymienia ostatnie runy organizacji z ich
 agentem i werdyktem. Przypadki evala i ocenianie sędziego nie wchodzą do żadnej
 innej liczby na dashboardzie, a Activity je ukrywa, chyba że jej filtr
-powierzchni prosi o wszystkie powierzchnie albo tylko o evale. Wiersz eval runa
-mówi tam, na które pytanie odpowiedział, a przypadek evala - albo run sędziego,
-który go ocenił - wskazuje swój eval run i do niego linkuje.
+powierzchni prosi o wszystkie powierzchnie albo tylko o evale. Lista Activity
+pokazuje, o co zapytano każdy run - jego pierwszą wiadomość użytkownika albo
+pytanie przypadku evala, a dla runa sędziego to, co ocenił - żeby run dało się
+znowu znaleźć i zrobić z niego przypadek. Przypadek evala otwiera tam swój eval
+run na tym przypadku, a **See what the model saw** przypadku otwiera to, co
+dostał jego model.
 
 ## Uruchamianie runa { #starting-a-run }
 
@@ -115,8 +126,9 @@ pokazuje, ile każdy limit zachowa po wydaniu sumy przez run:
 Uruchomienie jest odrzucane z `402`, zanim cokolwiek zostanie zapisane, gdy suma
 przekracza to, co zostało w którymkolwiek limicie. Powtórki potwierdzające
 (niżej) nie wchodzą do tego sprawdzenia, bo dotyczą tylko przypadków, które się
-odwróciły; szacunek pokazuje, ile najwyżej mogą dodać, jako `rerun_ceiling_usd`,
-który run zachowuje, żeby run, który wydał więcej, niż szacowano, mówił
+odwróciły; szacunek pokazuje, ile najwyżej mogą dodać - gdy odwróci się każdy
+przypadek, powtórzony po każdej stronie, łącznie z wykorzystanym baseline'em -
+jako `rerun_ceiling_usd`, który run zachowuje, żeby run, który wydał więcej, niż szacowano, mówił
 dlaczego. Każdy przypadek i tak jest sprawdzany względem obu limitów przed
 każdym żądaniem do modelu, jak każdy run, a przypadek, który trafi na limit,
 zatrzymuje cały eval run jako `budget_exceeded`.
@@ -198,18 +210,23 @@ Każde ramię runa jest podsumowane na dwóch osiach i per tag:
 
 | Oś | Mierzy |
 |---|---|
-| Jakość | Odsetek zaliczonych wśród rozstrzygniętych przypadków i ile nie dało się rozstrzygnąć |
+| Jakość | Odsetek zaliczonych wśród rozstrzygniętych przypadków, każdy według tego, jak wypadła większość jego prób; obok odsetek pierwszych odpowiedzi; ile nie dało się rozstrzygnąć |
 | Efektywność | Koszt na zaliczony przypadek, tokeny na przypadek i latencję w p50 i p95 |
 
 Przypadek, którego wymagany oceniający nie mógł zadziałać, jest
-**nierozstrzygnięty**, nigdy zaliczony. Werdykt osoby w
+**nierozstrzygnięty**, nigdy zaliczony. Taki, którego sędzia nie zdołał ocenić
+albo który pominął, jest **nieoceniony**: run wymienia te oceny jako
+`ungraded_score_ids`, a ponowne ocenienie
+(`POST /api/v1/datasets/{id}/scores/rescore`) czyta odpowiedź zachowaną w
+próbie, zamiast pytać agenta. Werdykt osoby w
 [kolejce przeglądu](datasets.md#review) zastępuje wynik oceniających dla tego
 przypadku, a liczby runa idą za nim.
 
 Zakończony run zachowuje werdykt, liczniki i odsetki zaliczeń swojego
 pierwszego kandydata jako `outcome`, więc lista odczytuje je bez ponownego
 porównywania każdego runa. Jest porównywany ponownie, gdy od tego czasu osoba
-rozstrzygnęła którąś z ocen, na których się opiera.
+rozstrzygnęła którąś z ocen, na których się opiera, albo którąś oceniono
+ponownie.
 
 ```text
 GET /api/v1/agents/{agent_id}/eval-runs      an agent's runs, newest first; ?draft=current
@@ -263,22 +280,35 @@ potwierdzają odwrócenie tego samego dnia. Baseline'u z wcześniejszego runa,
 porównywanego, gdy nic nie działało obok kandydata, nie da się powtórzyć, więc
 wobec niego potwierdza tylko strona kandydata.
 
-### Za mało odwróceń to nie werdykt { #too-few-flips-are-not-a-verdict }
+### Co mówi werdykt { #what-the-verdict-says }
 
-Werdykt opiera się tylko na potwierdzonych odwróceniach, testowanych dokładnym
-testem McNemara. Gdy test nie odróżnia obu stron na poziomie
-`EVAL_SIGNIFICANCE`, werdykt to `inconclusive` - różnica mieści się w szumie
-albo próba jest za mała - a nie lepiej czy gorzej. Nie ma minimalnej liczby
-przypadków; mały dataset po prostu częściej zgłasza `inconclusive`. Bez żadnego
-potwierdzonego odwrócenia werdykt to `no_difference`.
+Werdykt opiera się tylko na potwierdzonych odwróceniach. Jedna potwierdzona
+regresja sprawia, że kandydat jest `worse` - przypadek, który psuje za każdym
+razem, to wystarczający powód, żeby nie publikować - same potwierdzone naprawy
+dają `better`, jedne i drugie dają `mixed`, a brak jakiegokolwiek
+potwierdzonego odwrócenia to `no_difference`. Każde odwrócenie podaje pytanie
+przypadku.
+
+Osobno dokładny test McNemara na potwierdzonych odwróceniach daje `overall`:
+`worse` albo `better`, gdy odróżnia obie strony na poziomie
+`EVAL_SIGNIFICANCE`, i null, gdy odwróceń jest za mało, jak w większości
+małych datasetów.
+
+Odsetek zaliczeń liczy każdy przypadek według większości jego rozstrzygniętych
+prób - samej pierwszej odpowiedzi, gdy nie był powtarzany, a werdykt osoby o
+tej odpowiedzi przeważa nad jednym i drugim - więc zgadza się z potwierdzonymi
+odwróceniami. Własny odsetek pierwszych odpowiedzi jest zachowywany obok jako
+`first_pass_rate`.
 
 ### Inny sędzia unieważnia porównanie { #a-different-judge-invalidates-the-comparison }
 
 Każda ocena zapisuje [sędziego, który ją wystawił](datasets.md#judge): jego
-model, jego wersję i odcisk rubryki. Gdy obie strony były oceniane innymi
-ustawieniami oceniania albo przez innego sędziego, model lub rubrykę,
-porównanie jest `invalid` i nie daje werdyktu - odwrócenie mówi wtedy coś o
-ocenianiu, nie o agencie.
+model, jego wersję, odcisk rubryki i wersję własnego promptu sędziego. Gdy obie
+strony były oceniane innymi ustawieniami oceniania albo przez innego sędziego,
+model, rubrykę lub prompt, porównanie jest `invalid` i nie daje werdyktu -
+odwrócenie mówi wtedy coś o ocenianiu, nie o agencie. Baseline oceniony
+wcześniejszym promptem sędziego mówi o tym i nie jest ponownie wykorzystywany
+jako baseline z pamięci podręcznej.
 
 ### Dwie osie, najpierw jakość { #two-axes-quality-first }
 

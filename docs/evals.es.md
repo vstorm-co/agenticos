@@ -1,5 +1,5 @@
 ---
-source_sha: "f9ec7e031724"
+source_sha: "b05b655f8708"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -25,8 +25,9 @@ La pestaña **Evals** de un agent se abre con un gráfico de líneas de su tasa
 de aprobados a lo largo del tiempo, una línea por dataset, cada punto
 etiquetado con lo que se ejecutó - un borrador, dibujado hueco. Debajo están
 sus runs, agrupados por dataset, cada uno indicando qué se probó frente a qué,
-su veredicto (Worse · 4 broke, First result, Pending) y la tasa de aprobados de
-cada modelo.
+su veredicto (Breaks 2, Worse overall · 4 broke, First result, Pending) y la
+tasa de aprobados de cada modelo, con la tasa de las primeras respuestas al
+pasar el ratón.
 
 **Run evals** abre el diálogo de inicio con la respuesta obvia: el borrador
 frente a la versión publicada actual cuando el borrador difiere de ella, la
@@ -41,15 +42,21 @@ que abre el mismo diálogo, y el diálogo de publicación dice lo que encontró 
 último run del borrador - o que no se ha probado desde su último cambio - sin
 frenar la publicación.
 
-La página de un run se abre con su veredicto en forma de frase - qué lado lo
-hizo mejor, por cuántos casos confirmados, y la tasa de aprobados antes y
-después - junto con qué hacer a continuación: ver qué cambió entre las dos
-versiones (History se abre en esa comparación, frente al spec probado, no al
-borrador actual), mostrar los casos rotos, volver a Build o publicar el
-borrador. Publish es la acción principal solo sin ninguna regresión confirmada,
-y el run de un borrador modificado desde entonces ofrece **Test again** en su
-lugar. Mientras el run responde, dice cuántas primeras respuestas hay, y la
-comparación espera a los dos lados.
+La página de un run se abre con su veredicto en unas pocas frases - los casos
+que el candidato rompe o arregla cada vez que se le preguntan, uno citado con
+cuántos intentos lo repitieron, si es mejor o peor en conjunto cuando los
+cambios confirmados permiten decirlo, y la tasa de aprobados antes y después -
+junto con qué hacer a continuación: ver qué cambió entre las dos versiones
+(History se abre en esa comparación, frente al spec probado, no al borrador
+actual), mostrar los casos rotos, volver a Build o publicar el borrador.
+
+Publish es la acción principal solo sin ninguna regresión confirmada, y el run
+de un borrador modificado desde entonces ofrece **Test again** en su lugar.
+Mientras el run responde, la página dice cuántas primeras respuestas hay, y la
+comparación espera a los dos lados. Las respuestas que el juez no logró
+calificar dicen por qué y no cuentan ni como aprobadas ni como fallidas, y
+**Grade again**, en el encabezado, las vuelve a calificar sin preguntar al
+agent, para quien pueda ejecutar el dataset.
 
 Bajo el veredicto están los lados uno junto al otro, cómo se comparan y los
 casos - cada fila con un punto de aprobado o fallido por lado, filtrados por
@@ -70,9 +77,11 @@ La tarjeta **Eval runs** del dashboard lista los runs más recientes de la
 organización con su agent y su veredicto. Los casos de un eval y la
 calificación del juez quedan fuera de cualquier otra cifra del dashboard, y
 Activity los oculta salvo que su filtro de superficie pida todas las
-superficies o solo los evals. Allí la fila de un eval run dice a qué pregunta
-respondió, y un caso de eval - o el run del juez que calificó uno - nombra su
-eval run y enlaza con él.
+superficies o solo los evals. Su lista muestra lo preguntado a cada run - su
+primer mensaje de usuario, la pregunta del caso o, para el run del juez, lo que
+calificó -, para reencontrarlo y convertirlo en caso. Allí un caso de eval abre
+su eval run en ese caso, y su **See what the model saw**, lo que recibió el
+modelo.
 
 ## Iniciar un run { #starting-a-run }
 
@@ -118,7 +127,8 @@ gastado su total: `agent_after_usd` y `org_after_usd`.
 Iniciarlo se rechaza con `402` antes de escribir nada cuando el total supera lo
 que le queda a cualquiera de los dos límites. Las repeticiones de confirmación
 (más abajo) no entran en esa comprobación, porque solo afectan a los casos que
-cambian; la estimación muestra lo máximo que pueden añadir como
+cambian; la estimación muestra lo máximo que pueden añadir - todo caso
+cambiado, repetido en cada lado, baseline reutilizado incluido - como
 `rerun_ceiling_usd`, que el run conserva para que un run que gastó más de lo
 estimado diga por qué. Cada caso se sigue comprobando contra ambos límites antes
 de cada petición al modelo, como cualquier run, y un caso que choca con un
@@ -200,18 +210,22 @@ Cada brazo del run se resume en dos ejes, y por etiqueta:
 
 | Eje | Mide |
 |---|---|
-| Calidad | Tasa de aprobados entre los casos decididos, y cuántos no pudieron decidirse |
+| Calidad | Tasa de aprobados entre los casos decididos, cada uno según cómo salió la mayoría de sus intentos; a su lado, la tasa de las primeras respuestas; cuántos no pudieron decidirse |
 | Eficiencia | Coste por caso aprobado, tokens por caso y latencia en p50 y p95 |
 
 Un caso cuyo evaluador obligatorio no pudo ejecutarse queda **sin decidir**,
-nunca aprobado. El veredicto de una persona en la
-[cola de revisión](datasets.md#review) sustituye el resultado de los
-evaluadores para ese caso, y las cifras del run lo siguen.
+nunca aprobado. Uno en el que el juez falló o que omitió queda **sin
+calificar**: el run lista esas puntuaciones como `ungraded_score_ids`, y
+volver a calificarlas (`POST /api/v1/datasets/{id}/scores/rescore`) lee la
+respuesta guardada en el intento en lugar de preguntar al agent. El veredicto
+de una persona en la [cola de revisión](datasets.md#review) sustituye el
+resultado de los evaluadores para ese caso, y las cifras del run lo siguen.
 
 Un run terminado conserva el veredicto, los recuentos y las tasas de aprobados
 de su primer candidato como `outcome`, para que un listado los lea sin volver a
 comparar cada run. Se vuelve a comparar cuando, desde entonces, una persona ha
-decidido alguna de las puntuaciones en las que se basa.
+decidido alguna de las puntuaciones en las que se basa, o se ha vuelto a
+calificar alguna.
 
 ```text
 GET /api/v1/agents/{agent_id}/eval-runs      an agent's runs, newest first; ?draft=current
@@ -266,22 +280,34 @@ al candidato, así que ambos lados confirman un cambio el mismo día. Un baselin
 de un run anterior, comparado cuando nada se ejecutó junto al candidato, no
 puede repetirse: frente a él solo confirma el lado del candidato.
 
-### Pocos cambios no son un veredicto { #too-few-flips-are-not-a-verdict }
+### Qué dice el veredicto { #what-the-verdict-says }
 
-El veredicto se basa solo en los cambios confirmados, probados con una prueba
-exacta de McNemar. Cuando la prueba no distingue los dos lados al nivel
-`EVAL_SIGNIFICANCE`, el veredicto es `inconclusive` - la diferencia está dentro
-del ruido o la muestra es demasiado pequeña - en lugar de mejor o peor. No hay
-un número mínimo de casos; un dataset pequeño simplemente da `inconclusive` más
-a menudo. Sin ningún cambio confirmado, el veredicto es `no_difference`.
+El veredicto se basa solo en los cambios confirmados. Una regresión confirmada
+hace al candidato `worse` - un caso que rompe cada vez es razón suficiente para
+no publicar -, solo arreglos confirmados lo hacen `better`, ambos lo hacen
+`mixed`, y ningún cambio confirmado en absoluto es `no_difference`. Cada cambio
+nombra la pregunta del caso.
+
+Por separado, una prueba exacta de McNemar sobre los cambios confirmados da
+`overall`: `worse` o `better` cuando distingue los dos lados al nivel
+`EVAL_SIGNIFICANCE`, y null cuando hay demasiado pocos cambios, como ocurre en
+la mayoría de los datasets pequeños.
+
+La tasa de aprobados cuenta cada caso por la mayoría de sus intentos
+decididos - solo su primera respuesta cuando no se repitió, y el veredicto de
+una persona sobre esa respuesta por encima de ambos -, así que coincide con los
+cambios confirmados. La tasa propia de las primeras respuestas se conserva a su lado
+como `first_pass_rate`.
 
 ### Otro juez invalida la comparación { #a-different-judge-invalidates-the-comparison }
 
 Cada puntuación registra el [juez que la puso](datasets.md#judge): su modelo, su
-versión y una huella de la rúbrica. Cuando los dos lados se puntuaron con
-ajustes de puntuación distintos, o los calificó otro juez, modelo o rúbrica, la
-comparación es `invalid` y no da veredicto: ahí un cambio dice algo de la
-calificación, no del agent.
+versión, una huella de la rúbrica y la versión del propio prompt del juez.
+Cuando los dos lados se puntuaron con ajustes de puntuación distintos, o los
+calificó otro juez, modelo, rúbrica o prompt, la comparación es `invalid` y no
+da veredicto: ahí un cambio dice algo de la calificación, no del agent. Un
+baseline calificado con un prompt del juez anterior lo dice, y no se reutiliza
+como baseline en caché.
 
 ### Dos ejes, primero la calidad { #two-axes-quality-first }
 
