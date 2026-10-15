@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -555,6 +556,39 @@ class TestAKeyOnTheLiveView:
         key["org"] = uuid.uuid4()
 
         assert await live_browse.access_for(self._meta(), "aos_key") is None
+
+    @pytest.mark.security
+    async def test_an_impersonating_administrator_is_not_the_browse_s_person(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Review on #2062: impersonating its person read as `own`, which let an
+        administrator watch the person's own accounts and keep a sign-in for them."""
+        person = uuid.uuid4()
+        meta = BrowseMeta(
+            organization_id=self.ORG,
+            agent_id=None,
+            user_id=str(person),
+            personal=True,
+            task="Sign in",
+            started_at=datetime.now(UTC),
+        )
+
+        @asynccontextmanager
+        async def db() -> AsyncIterator[MagicMock]:
+            yield MagicMock()
+
+        user = MagicMock(id=person, full_name="Ada", email="ada@example.com", is_app_admin=False)
+        monkeypatch.setattr(live_browse, "get_db_context", db)
+        monkeypatch.setattr(live_browse, "authenticate_socket_key", AsyncMock(return_value=None))
+        monkeypatch.setattr(live_browse, "authenticate_socket_token", AsyncMock(return_value=user))
+        monkeypatch.setattr(
+            live_browse.member_repo, "get", AsyncMock(return_value=MagicMock(role="member"))
+        )
+
+        monkeypatch.setattr(live_browse, "current_impersonator", lambda: None)
+        assert (await live_browse.access_for(meta, "t")).own is True
+        monkeypatch.setattr(live_browse, "current_impersonator", lambda: uuid.uuid4())
+        assert await live_browse.access_for(meta, "t") is None
 
     async def test_a_key_no_longer_valid_sees_nothing(
         self, monkeypatch: pytest.MonkeyPatch, key: dict[str, Any]

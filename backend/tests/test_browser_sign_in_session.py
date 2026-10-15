@@ -142,6 +142,21 @@ class TestBeginning:
 
         assert deployment["opened"] == []
 
+    @pytest.mark.security
+    async def test_an_impersonating_administrator_keeps_no_sign_in_for_the_member(
+        self, deployment: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Review on #2062: the administrator's own sign-in would be sealed under
+        the member's name, as a chat link would be bound to them."""
+        from app.services import impersonation
+
+        monkeypatch.setattr(impersonation, "current_impersonation", lambda: uuid.uuid4())
+
+        with pytest.raises(AuthorizationError):
+            await session_module.begin(_ctx(), "https://notion.so", holder="Ada")
+
+        assert deployment["opened"] == []
+
     async def test_a_person_holds_a_bounded_number_of_sign_in_browsers(
         self, deployment: dict[str, Any]
     ) -> None:

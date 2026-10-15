@@ -39,6 +39,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.sanitize import SSRFBlockedError, UrlRefusedError, validate_webhook_url
 from app.services import browser_sign_in, live_browse
+from app.services.impersonation import refuse_binding_while_impersonating
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,9 @@ async def begin(ctx: AuthContext, url: str, *, holder: str) -> SignInSession:
             message="Signing in to a site keeps a person's session; an API key has none.",
             details={"subject": "api_key"},
         )
+    # Kept under the account being acted as: an administrator impersonating a member
+    # would seal their own sign-in under the member's name.
+    refuse_binding_while_impersonating("Keeping a browser sign-in")
     if not available():
         raise ConfigurationError(
             message=(

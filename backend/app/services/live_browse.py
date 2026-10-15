@@ -37,6 +37,7 @@ from redis.asyncio.client import PubSub
 
 from app.agents.browser_events import BrowserCommand, BrowserEvent
 from app.clients.redis import RedisClient
+from app.core.audit import current_impersonator
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError
 from app.core.permissions import AuthContext, Perm
@@ -273,7 +274,13 @@ async def access_for(meta: BrowseMeta, auth_token: str, *, recheck: bool = False
             role=membership.role,
             is_app_admin=user.is_app_admin,
         )
-        own = meta.user_id is not None and str(user.id) == meta.user_id
+        # In person: an administrator impersonating the browse's person is not
+        # them, and must not keep a sign-in for them or watch their own accounts.
+        own = (
+            meta.user_id is not None
+            and str(user.id) == meta.user_id
+            and current_impersonator() is None
+        )
         agent = (
             None
             if meta.agent_id is None
