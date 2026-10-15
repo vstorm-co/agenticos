@@ -1,5 +1,5 @@
 ---
-source_sha: "45b95a1b750d"
+source_sha: "1ccb714b7e20"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -160,11 +160,12 @@ W obu przypadkach przypadek powstaje z tej tury:
   dwóch;
 - najnowszy komentarz zostawiony z łapką w dół staje się notatką.
 
-Obie drogi widzą tylko członkowie, którzy mogą edytować jakiś dataset. Wiadomość musi
-należeć do twojej organizacji i musisz móc ją przeczytać: albo masz
-`runs:view`, które czyta każdy run w organizacji tak jak Aktywność, albo możesz
-otworzyć rozmowę. Wiadomość z innej organizacji jest odrzucana tak, jakby nie
-istniała.
+Obie drogi widzą tylko członkowie, którzy mogą edytować jakiś dataset.
+Wiadomość musi należeć do twojej organizacji i musisz móc ją przeczytać: albo
+masz `runs:view`, które czyta każdy run w organizacji tak jak Aktywność, albo
+możesz otworzyć rozmowę. Wiadomość z innej organizacji jest odrzucana tak,
+jakby nie istniała, a odpowiedź, która już jest przypadkiem najnowszej wersji
+datasetu, jest odrzucana, zamiast zostać dodana drugi raz.
 
 ## Poświadczenia są redagowane { #credentials }
 

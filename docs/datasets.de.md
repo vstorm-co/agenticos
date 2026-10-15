@@ -1,5 +1,5 @@
 ---
-source_sha: "45b95a1b750d"
+source_sha: "1ccb714b7e20"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -176,7 +176,9 @@ Beide Wege sehen nur Mitglieder, die ein Dataset bearbeiten dürfen. Die
 Nachricht muss zu Ihrer Organisation gehören, und Sie müssen sie lesen dürfen:
 Entweder Sie haben `runs:view`, womit Sie wie in Aktivität jeden Run der
 Organisation lesen, oder Sie können das Gespräch öffnen. Eine Nachricht aus
-einer anderen Organisation wird abgelehnt, als gäbe es sie nicht.
+einer anderen Organisation wird abgelehnt, als gäbe es sie nicht, und eine
+Antwort, die bereits ein Fall der neuesten Version des Datasets ist, wird
+abgelehnt, statt ein zweites Mal hinzugefügt zu werden.
 
 ## Zugangsdaten werden geschwärzt { #credentials }
 

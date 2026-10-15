@@ -156,8 +156,9 @@ Either way, the case is created from the turn:
 Both are shown only to members who may edit a dataset. The message must belong
 to your organization, and you must be able to read it: either you hold
 `runs:view`, which reads every run in the organization as Activity does, or you
-can open the conversation. A message from another organization is refused as
-if it did not exist.
+can open the conversation. A message from another organization is refused as if
+it did not exist, and an answer already a case of the dataset's newest version
+is refused rather than added twice.
 
 ## Credentials are redacted { #credentials }
 

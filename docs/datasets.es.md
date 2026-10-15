@@ -1,5 +1,5 @@
 ---
-source_sha: "45b95a1b750d"
+source_sha: "1ccb714b7e20"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -165,10 +165,12 @@ En ambos casos, el caso se crea a partir de ese turno:
 - el comentario más reciente dejado con un pulgar abajo se convierte en la
   nota.
 
-Los dos caminos solo los ven los miembros que pueden editar un dataset. El mensaje debe
-pertenecer a tu organización y debes poder leerlo: o tienes `runs:view`, que lee
-cada run de la organización como hace Actividad, o puedes abrir la conversación.
-Un mensaje de otra organización se rechaza como si no existiera.
+Los dos caminos solo los ven los miembros que pueden editar un dataset. El
+mensaje debe pertenecer a tu organización y debes poder leerlo: o tienes
+`runs:view`, que lee cada run de la organización como hace Actividad, o puedes
+abrir la conversación. Un mensaje de otra organización se rechaza como si no
+existiera, y una respuesta que ya es un caso de la versión más reciente del
+dataset se rechaza en lugar de añadirse dos veces.
 
 ## Las credenciales se ocultan { #credentials }
 
