@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
-from pydantic_ai.exceptions import CallDeferred
+from pydantic_ai.exceptions import CallDeferred, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
 
@@ -23,6 +23,7 @@ from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
 from app.agents.connect_on_use import ConnectionRequest
+from app.agents.failures import run_failure_summary
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import AppException, AuthenticationError
@@ -120,6 +121,15 @@ def _turn_failed(exc: Exception) -> str:
     `GuardrailBlocked` are caught above and passed through whole, because their
     messages are written in this repository.
     """
+    # A provider that answered with a status says something the reader can act
+    # on - a key out of credit, a refused credential, a rate limit - and
+    # `run_failure_summary` is where that sentence is written for the run's row,
+    # so the chat says the same thing rather than only the class name.
+    cause: BaseException = exc
+    while isinstance(cause, BaseExceptionGroup):
+        cause = cause.exceptions[0]
+    if isinstance(cause, ModelHTTPError | UsageLimitExceeded):
+        return run_failure_summary(cause)
     return (
         f"The agent could not finish this turn ({type(exc).__name__}). "
         "Try again; the server log has the full error."

@@ -1105,6 +1105,24 @@ class TestATurnThatDidNotFinish:
         )
         assert "503 from https://api.example.com/v1/chat" in caplog.text
 
+    async def test_a_provider_out_of_credit_is_told_in_words(self):
+        """A 402 from the provider's gateway (an OpenRouter key over its limit) was
+        shown as "(ModelHTTPError)"; the reader can act on it, so it says why."""
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        session = _session()
+        refused = ModelHTTPError(
+            402, "anthropic/claude-sonnet-5.5", {"message": "can only afford 1901"}
+        )
+
+        with _chat(AsyncMock(side_effect=refused)):
+            await session.process_message(_message())
+
+        message = _sent_events(session)[-1][1]["message"]
+        assert "for want of credit (HTTP 402)" in message
+        assert "spending limit" in message
+        assert "1901" not in message
+
     async def test_a_disconnect_is_not_reported_to_the_socket_that_left(self):
         """A `WebSocketDisconnect` surfacing from inside the turn is re-raised
         rather than turned into an `error` frame: there is nobody to read it, and
