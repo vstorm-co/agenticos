@@ -53,6 +53,7 @@ async def _client(service: MagicMock) -> AsyncIterator[AsyncClient]:
 def _service() -> MagicMock:
     service = MagicMock()
     service.list_runs = AsyncMock(return_value=([], 0))
+    service.previews = AsyncMock(return_value={})
     return service
 
 
@@ -279,6 +280,9 @@ class TestTheDownRatedMarkerReachesTheRow:
         evals = MagicMock()
         evals.case_links = AsyncMock(return_value={run.id: link})
         app.dependency_overrides[deps.get_eval_run_service] = lambda: evals
+        service.previews = AsyncMock(
+            return_value={run.id: "Can I return it?", web.id: "Where is my order?"}
+        )
 
         async with _client(service) as client:
             response = await client.get("/api/v1/runs")
@@ -287,6 +291,10 @@ class TestTheDownRatedMarkerReachesTheRow:
         assert rows[0]["eval_case"]["case_input"] == "Can I return it?"
         assert rows[1]["eval_case"] is None
         assert evals.case_links.await_args.args[1] == [run.id]
+        # The eval case's question is the preview; the chat run's first turn is read.
+        assert [row["preview"] for row in rows] == ["Can I return it?", "Where is my order?"]
+        assert service.previews.await_args.args[0] == [run.id, web.id]
+        assert service.previews.await_args.kwargs["questions"] == {run.id: "Can I return it?"}
 
     async def test_an_empty_page_asks_for_no_marker_at_all(self):
         """Nothing to mark, so the marker query is skipped rather than asked with

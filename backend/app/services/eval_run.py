@@ -1049,36 +1049,53 @@ class EvalRunService:
     async def case_links(
         self, ctx: AuthContext, agent_run_ids: Sequence[UUID]
     ) -> dict[UUID, EvalCaseLinkRead]:
-        """The eval case each of these agent runs answered, read for a page of run
-        history at once - only over datasets the caller may see."""
+        """The eval case each of these agent runs answered or, for a judge's run,
+        graded - read for a page of run history at once, only over datasets the
+        caller may see."""
         if not agent_run_ids:
             return {}
         org = ctx.organization_id
-        attempts = await eval_run_repo.cases_of_agent_runs(
+        found: dict[UUID, tuple[UUID, UUID, UUID, bool]] = {}
+        for attempt in await eval_run_repo.cases_of_agent_runs(
             self.db, agent_run_ids, organization_id=org
+        ):
+            # Matched by the agent run it names.
+            assert attempt.agent_run_id is not None
+            found[attempt.agent_run_id] = (
+                attempt.eval_run_id,
+                attempt.case_id,
+                attempt.case_revision_id,
+                False,
+            )
+        graded = await eval_run_repo.scores_graded_by(
+            self.db,
+            [run_id for run_id in agent_run_ids if run_id not in found],
+            organization_id=org,
         )
+        for run_id, score in graded.items():
+            assert score.eval_run_id is not None
+            found[run_id] = (score.eval_run_id, score.case_id, score.case_revision_id, True)
         runs = await eval_run_repo.get_many(
-            self.db, sorted({a.eval_run_id for a in attempts}), organization_id=org
+            self.db, sorted({link[0] for link in found.values()}), organization_id=org
         )
         readable = await self._readable_datasets(ctx, {run.dataset_id for run in runs.values()})
         names = await eval_run_repo.datasets(self.db, sorted(readable), organization_id=org)
         revisions = await eval_run_repo.revisions(
-            self.db, sorted({a.case_revision_id for a in attempts}), organization_id=org
+            self.db, sorted({link[2] for link in found.values()}), organization_id=org
         )
         links: dict[UUID, EvalCaseLinkRead] = {}
-        for attempt in attempts:
-            run = runs[attempt.eval_run_id]
+        for agent_run_id, (eval_run_id, case_id, revision_id, by_judge) in found.items():
+            run = runs[eval_run_id]
             dataset = names.get(run.dataset_id)
-            # Read by the agent runs they name, so each attempt names one.
-            if dataset is None or attempt.agent_run_id is None:
+            if dataset is None:
                 continue
-            revision = revisions[attempt.case_revision_id]
-            links[attempt.agent_run_id] = EvalCaseLinkRead(
+            links[agent_run_id] = EvalCaseLinkRead(
                 eval_run_id=run.id,
                 agent_id=run.agent_id,
-                case_id=attempt.case_id,
+                case_id=case_id,
                 dataset_name=dataset.name,
-                case_input=revision.input,
+                case_input=revisions[revision_id].input,
+                graded=by_judge,
             )
         return links
 

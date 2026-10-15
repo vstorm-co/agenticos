@@ -1648,10 +1648,12 @@ async def test_the_judges_run_names_the_eval_case_it_graded(db) -> None:
 
     assert link is not None and link.graded
     assert (link.eval_run_id, link.case_id) == (run.id, score.case_id)
+    assert await service.case_links(ctx, [judge_run]) == {judge_run: link}
     # A score nobody's eval run produced names no eval run.
     score.eval_run_id = None
     await db.flush()
     assert await service.case_link(ctx, judge_run) is None
+    assert await service.case_links(ctx, [judge_run]) == {}
 
 
 @pytest.mark.security

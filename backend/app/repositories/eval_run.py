@@ -7,7 +7,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import exists, func, or_, select, update
+from sqlalchemy import column, exists, func, or_, select, true, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.locks import LockScope, hold_subject
@@ -309,6 +310,28 @@ async def score_graded_by(
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def scores_graded_by(
+    db: AsyncSession, judge_run_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, CaseScore]:
+    """The eval scores these judge runs graded, by the run each result names."""
+    result = (
+        func.jsonb_array_elements(CaseScore.results)
+        .table_valued(column("value", JSONB))
+        .render_derived(name="result")
+    )
+    graded_by = result.c.value["judge_run_id"].astext
+    rows = await db.execute(
+        select(CaseScore, graded_by)
+        .join(result, true())
+        .where(
+            CaseScore.organization_id == organization_id,
+            CaseScore.eval_run_id.is_not(None),
+            graded_by.in_([str(run_id) for run_id in judge_run_ids]),
+        )
+    )
+    return {UUID(run_id): score for score, run_id in rows.all()}
 
 
 async def cases_of_agent_runs(
