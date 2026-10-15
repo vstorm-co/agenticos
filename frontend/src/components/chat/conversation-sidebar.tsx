@@ -522,12 +522,18 @@ function ConversationList({
   // Scrolling to the foot is what asks for the next page, and a list with folded
   // bands, or a short first page, has no foot to scroll to - Yesterday then never
   // arrived, and vanished whenever a new chat refreshed the list to its first page.
-  // Asked here instead, until the column is full or the list has ended.
+  // Asked here instead, until the column is full or the list has ended - or the
+  // last page drew nothing: rows that land in folded bands add no height, and
+  // asking again for every one of them downloaded the whole history.
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const pagedAtHeight = useRef<number | null>(null);
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (scroller === null || isLoading) return;
-    if (scroller.scrollHeight - scroller.clientHeight < 100) onLoadMore?.();
+    const height = scroller.scrollHeight;
+    if (height - scroller.clientHeight >= 100 || pagedAtHeight.current === height) return;
+    pagedAtHeight.current = height;
+    onLoadMore?.();
   }, [conversations.length, foldedKeys, isLoading, onLoadMore]);
 
   // The band the open conversation lands in opens, once per conversation - a new
