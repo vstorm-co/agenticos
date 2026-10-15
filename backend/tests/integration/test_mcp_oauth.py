@@ -350,6 +350,29 @@ class TestTheConsoleHalf:
             await OAuthServerService(db).deny(request_id)
 
     @pytest.mark.security
+    async def test_one_consent_is_answered_once(self, db: AsyncSession, served: None) -> None:
+        """A double submit, or an approve after a deny, finds the request gone and
+        creates no second grant."""
+        from app.db.models.oauth import OAuthGrant
+
+        ctx = await _owner(db)
+        _verifier, challenge = _pkce()
+        async with _http() as http:
+            client = await _register(http)
+            approved = await _authorize(http, client["client_id"], challenge)
+            denied = await _authorize(http, client["client_id"], challenge)
+
+        service = OAuthServerService(db)
+        await service.approve(ctx, approved, [Perm.AGENTS_VIEW])
+        with pytest.raises(NotFoundError):
+            await service.approve(ctx, approved, [Perm.AGENTS_VIEW])
+        await service.deny(denied)
+        with pytest.raises(NotFoundError):
+            await service.approve(ctx, denied, [Perm.AGENTS_VIEW])
+
+        assert len((await db.execute(select(OAuthGrant))).scalars().all()) == 1
+
+    @pytest.mark.security
     async def test_consent_refuses_what_the_member_does_not_hold_and_an_impersonator(
         self, db: AsyncSession, served: None
     ) -> None:

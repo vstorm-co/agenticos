@@ -45,9 +45,25 @@ async def get_request(db: AsyncSession, request_id: UUID) -> OAuthAuthorizationR
     return await db.get(OAuthAuthorizationRequest, request_id)
 
 
-async def delete_request(db: AsyncSession, request: OAuthAuthorizationRequest) -> None:
-    await db.delete(request)
-    await db.flush()
+async def take_request(
+    db: AsyncSession, request_id: UUID, *, now: datetime
+) -> OAuthAuthorizationRequest | None:
+    """Remove an unexpired authorization request and return it - to one caller only.
+
+    One statement, so the row lock decides: a second approval (or a deny racing
+    an approval) waits for the first to commit, then deletes nothing and gets
+    `None`. Reading the request and deleting it later let both pass the read.
+    """
+    result = await db.execute(
+        delete(OAuthAuthorizationRequest)
+        .where(
+            OAuthAuthorizationRequest.id == request_id,
+            OAuthAuthorizationRequest.expires_at > now,
+        )
+        .returning(OAuthAuthorizationRequest)
+        .execution_options(synchronize_session=False)
+    )
+    return result.scalar_one_or_none()
 
 
 async def create_grant(

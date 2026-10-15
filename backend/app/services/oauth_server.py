@@ -145,6 +145,17 @@ class OAuthServerService:
             )
         return request, client
 
+    async def _take(self, request_id: UUID) -> tuple[OAuthAuthorizationRequest, OAuthClient]:
+        """The pending request, consumed: whoever takes it is the only one who answers it."""
+        request = await oauth_repo.take_request(self.db, request_id, now=datetime.now(UTC))
+        client = await oauth_repo.get_client(self.db, request.client_id) if request else None
+        if request is None or client is None:
+            raise NotFoundError(
+                message="This authorization request has expired. Start the connection again.",
+                details={"request_id": request_id},
+            )
+        return request, client
+
     @staticmethod
     def _refuse_impersonation() -> None:
         # Consenting hands an application the person's authority; an administrator
@@ -179,13 +190,15 @@ class OAuthServerService:
             BadRequestError: A permission the caller does not hold, named on the field.
         """
         self._refuse_impersonation()
-        request, client = await self._pending(request_id)
         grantable = set(ApiKeyService(self.db).scope_catalog(ctx).scopes)
         refused = sorted(scope.value for scope in scopes if scope.value not in grantable)
         if refused:
             raise refused_field(
                 "scopes", f"You cannot grant what you do not hold: {', '.join(refused)}"
             )
+        # Consumed before anything is granted: a double submit, or an approve
+        # racing a deny, finds it gone and creates nothing.
+        request, client = await self._take(request_id)
         now = datetime.now(UTC)
         grant = await oauth_repo.create_grant(
             self.db,
@@ -206,7 +219,6 @@ class OAuthServerService:
             resource=params.get("resource"),
             expires_at=now + CODE_LIFETIME,
         )
-        await oauth_repo.delete_request(self.db, request)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -228,9 +240,8 @@ class OAuthServerService:
 
     async def deny(self, request_id: UUID) -> OAuthConsentAnswer:
         """Turn the client away; it is told `access_denied`."""
-        request, _client = await self._pending(request_id)
+        request, _client = await self._take(request_id)
         params = request.params
-        await oauth_repo.delete_request(self.db, request)
         return OAuthConsentAnswer(
             redirect_to=_with_query(
                 str(params["redirect_uri"]), error="access_denied", state=params.get("state")
