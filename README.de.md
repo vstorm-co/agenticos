@@ -1,4 +1,4 @@
-<!-- source_sha: 8ad82ef38905 -->
+<!-- source_sha: 91c0ac7ba3b4 -->
 
 <div align="center">
 
@@ -44,9 +44,7 @@
 
 </div>
 
-<img src="docs/assets/readme/teammates-in-action.webp" alt="AgenticOS bei der Arbeit, in drei Szenen: ein Chief-of-Staff-Agent gibt Fragen vor einer Vorstandssitzung an Support Desk und Sales Researcher weiter und fasst ihre Antworten zusammen; ein Sales Researcher steuert neben dem Chat einen echten Browser und liest ein Release auf GitHub; ein Umsatz-Dashboard, das ein Agent als App veröffentlicht hat, öffnet sich aus dem Chat." width="100%">
-
-<p align="center"><sub><b>Live aufgenommen, beschleunigt, wo die Agents arbeiten.</b> Ein führender Agent fragt zwei Kollegen und fasst ihre Antworten zusammen · ein Agent steuert neben dem Chat einen echten Browser · ein von einem Agent veröffentlichtes Dashboard öffnet sich als App.</sub></p>
+<img src="docs/assets/readme/teammates-in-action.webp" alt="Ein Chief-of-Staff-Agent, live aufgenommen: Er gibt eine Frage vor einer Vorstandssitzung gleichzeitig an Support Desk und Sales Researcher und fasst ihre beiden Antworten als Briefing zusammen." width="100%">
 
 AgenticOS gibt jedem Team KI-Teammates: Agents, die mit Dateien arbeiten, Code ausführen, im Web surfen und die Werkzeuge und das Wissen deines Unternehmens nutzen. Es ist Open Source (Apache-2.0) und selbst gehostet, eine Schicht, die du auf deiner eigenen Infrastruktur betreibst. Baue und veröffentliche Agents im Browser, teile sie mit Kollegen und steuere ihren Zugriff, ihre Kosten und Ergebnisse an einem Ort.
 
@@ -95,8 +93,6 @@ Verbinde Notion, GitHub, Jira oder deinen eigenen Server und wähle, welche Werk
 Agents starten, Runs und Kosten lesen, Wissensdatenbanken befüllen - mit Schlüsseln, die auf das beschränkt sind, was jedes Skript darf.
 
 <a href="docs/assets/readme/highlight-api.webp"><img src="docs/assets/readme/highlight-api.webp" alt="API-Einstellungen mit der Basis-URL, einem Link zu jedem Endpoint und zwei Schlüsseln, beschränkt auf das, was sie dürfen" width="100%"></a>
-
-<p align="center"><sub>Aufgenommen in einer Testinstallation. Die Zahlen sind Testdatensätze, keine Benchmarks.</sub></p>
 
 ## 📸 AgenticOS in Aktion
 

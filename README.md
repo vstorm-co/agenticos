@@ -42,9 +42,7 @@
 
 </div>
 
-<img src="docs/assets/readme/teammates-in-action.webp" alt="AgenticOS at work, in three scenes: a Chief of Staff agent hands a board-call brief to Support Desk and Sales Researcher and writes up their answers; a Sales Researcher drives a real browser beside the chat to read a GitHub release; a revenue dashboard an agent published as an app opens from the chat." width="100%">
-
-<p align="center"><sub><b>Recorded live, sped up where the agents work.</b> A lead agent asks two colleagues and writes up their answers · an agent drives a real browser beside the chat · a dashboard an agent published opens as an app.</sub></p>
+<img src="docs/assets/readme/teammates-in-action.webp" alt="A Chief of Staff agent, recorded live: it hands a board-call question to Support Desk and Sales Researcher at once, and writes up their two answers as a brief." width="100%">
 
 AgenticOS gives every team AI teammates: agents that work with files, run code, browse the web and use your company's tools and knowledge. It is open source (Apache-2.0) and self-hosted, a layer you run on your own infrastructure. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
 
@@ -93,8 +91,6 @@ Connect Notion, GitHub, Jira or your own server, and choose which tools each age
 Run agents, read runs and costs, fill knowledge bases - with keys narrowed to what each script may do.
 
 <a href="docs/assets/readme/highlight-api.webp"><img src="docs/assets/readme/highlight-api.webp" alt="API settings with the base URL, a link to every endpoint and two keys narrowed to what they may do" width="100%"></a>
-
-<p align="center"><sub>Captured from a test deployment. Figures are test records, not benchmarks.</sub></p>
 
 ## 📸 See it in action
 

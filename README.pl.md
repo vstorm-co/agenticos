@@ -1,4 +1,4 @@
-<!-- source_sha: 8ad82ef38905 -->
+<!-- source_sha: 91c0ac7ba3b4 -->
 
 <div align="center">
 
@@ -44,9 +44,7 @@
 
 </div>
 
-<img src="docs/assets/readme/teammates-in-action.webp" alt="AgenticOS przy pracy, w trzech scenach: agent Chief of Staff przekazuje Support Desk i Sales Researcher pytania przed posiedzeniem zarządu i spisuje ich odpowiedzi; Sales Researcher prowadzi prawdziwą przeglądarkę obok czatu i czyta wydanie na GitHubie; dashboard przychodów, który agent opublikował jako aplikację, otwiera się z czatu." width="100%">
-
-<p align="center"><sub><b>Nagrane na żywo, przyspieszone tam, gdzie agenci pracują.</b> Agent prowadzący pyta dwóch kolegów i spisuje ich odpowiedzi · agent prowadzi prawdziwą przeglądarkę obok czatu · dashboard opublikowany przez agenta otwiera się jako aplikacja.</sub></p>
+<img src="docs/assets/readme/teammates-in-action.webp" alt="Agent Chief of Staff, nagrany na żywo: przekazuje pytanie przed posiedzeniem zarządu jednocześnie Support Desk i Sales Researcher, a ich dwie odpowiedzi spisuje w briefie." width="100%">
 
 AgenticOS daje każdemu zespołowi kolegów z AI: agentów, którzy pracują z plikami, wykonują kod, przeglądają internet i korzystają z firmowych narzędzi oraz wiedzy. Jest open source (Apache-2.0) i działa na Twojej infrastrukturze jako warstwa, którą uruchamiasz sam. Twórz i publikuj agentów w przeglądarce, udostępniaj ich współpracownikom oraz zarządzaj ich dostępem, kosztami i wynikami w jednym miejscu.
 
@@ -95,8 +93,6 @@ Podłącz Notion, GitHub, Jirę albo własny serwer i wybierz, których narzędz
 Uruchamiaj agentów, czytaj runy i koszty, zasilaj bazy wiedzy - kluczami zawężonymi do tego, co dany skrypt może robić.
 
 <a href="docs/assets/readme/highlight-api.webp"><img src="docs/assets/readme/highlight-api.webp" alt="Ustawienia API z adresem bazowym, linkiem do każdego endpointu i dwoma kluczami zawężonymi do tego, co mogą robić" width="100%"></a>
-
-<p align="center"><sub>Zrzuty z wdrożenia testowego. Liczby to dane testowe, nie benchmarki.</sub></p>
 
 ## 📸 Zobacz, jak to działa
 

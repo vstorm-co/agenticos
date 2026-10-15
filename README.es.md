@@ -1,4 +1,4 @@
-<!-- source_sha: 8ad82ef38905 -->
+<!-- source_sha: 91c0ac7ba3b4 -->
 
 <div align="center">
 
@@ -44,9 +44,7 @@
 
 </div>
 
-<img src="docs/assets/readme/teammates-in-action.webp" alt="AgenticOS trabajando, en tres escenas: un agente Chief of Staff pasa preguntas antes de una reunión del consejo a Support Desk y Sales Researcher y redacta sus respuestas; un Sales Researcher maneja un navegador real junto al chat y lee una versión en GitHub; un dashboard de ingresos que un agente publicó como app se abre desde el chat." width="100%">
-
-<p align="center"><sub><b>Grabado en directo, acelerado donde trabajan los agentes.</b> Un agente principal pregunta a dos compañeros y redacta sus respuestas · un agente maneja un navegador real junto al chat · un dashboard que publicó un agente se abre como app.</sub></p>
+<img src="docs/assets/readme/teammates-in-action.webp" alt="Un agente Chief of Staff, grabado en directo: pasa una pregunta antes de una reunión del consejo a Support Desk y a Sales Researcher a la vez, y redacta sus dos respuestas como un brief." width="100%">
 
 AgenticOS da a cada equipo compañeros de IA: agentes que trabajan con archivos, ejecutan código, navegan por la web y usan las herramientas y el conocimiento de tu empresa. Es de código abierto (Apache-2.0) y autoalojado, una capa que ejecutas en tu propia infraestructura. Crea y publica agentes en el navegador, compártelos con tus compañeros y gestiona su acceso, coste y resultados en un solo lugar.
 
@@ -95,8 +93,6 @@ Conecta Notion, GitHub, Jira o tu propio servidor y elige qué herramientas pued
 Ejecuta agentes, lee runs y costes, alimenta bases de conocimiento - con claves limitadas a lo que puede hacer cada script.
 
 <a href="docs/assets/readme/highlight-api.webp"><img src="docs/assets/readme/highlight-api.webp" alt="Ajustes de la API con la URL base, un enlace a cada endpoint y dos claves limitadas a lo que pueden hacer" width="100%"></a>
-
-<p align="center"><sub>Capturado en un despliegue de prueba. Las cifras son registros de prueba, no benchmarks.</sub></p>
 
 ## 📸 Míralo en acción
 
