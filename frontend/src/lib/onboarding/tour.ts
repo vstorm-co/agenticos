@@ -255,6 +255,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  // The Evals tab reads the agent's eval runs, which `runs:view` gates.
+  {
+    id: "agent-evals",
+    page: AGENT_BUILDER,
+    target: "agent-evals",
+    activate: "agent-tab-evals",
+    permission: Perm.runsView,
+  },
   {
     id: "agent-history",
     page: AGENT_BUILDER,
@@ -272,14 +280,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "agent-tab-history",
     permission: Perm.agentsPublish,
     optional: true,
-  },
-  // The Evals tab reads the agent's eval runs, which `runs:view` gates.
-  {
-    id: "agent-evals",
-    page: AGENT_BUILDER,
-    target: "agent-evals",
-    activate: "agent-tab-evals",
-    permission: Perm.runsView,
   },
   {
     id: "agent-publish",

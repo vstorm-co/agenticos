@@ -1083,14 +1083,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <TabsTrigger value="availability" data-tour="agent-tab-availability">
             {t("availability")}
           </TabsTrigger>
-          <TabsTrigger value="history" data-tour="agent-tab-history">
-            {t("history")}
-          </TabsTrigger>
           {canViewRuns && (
             <TabsTrigger value="evals" data-tour="agent-tab-evals">
               {t("evals")}
             </TabsTrigger>
           )}
+          <TabsTrigger value="history" data-tour="agent-tab-history">
+            {t("history")}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="build" className="mt-6 space-y-6">
