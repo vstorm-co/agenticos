@@ -67,11 +67,21 @@ export interface DatasetCaseList {
 }
 
 /** What the newest version's cases test against. The four expectations overlap; the sources sum to the case count. */
+/** How many cases hold one combination of what a scorer reads. */
+export interface ExpectationMix {
+  checks: boolean;
+  tool_calls: boolean;
+  reference: boolean;
+  cases: number;
+}
+
 export interface DatasetStats {
   with_reference: number;
   with_counter_example: number;
   with_tool_calls: number;
   with_checks: number;
+  /** Cases counted by whether each has checks, expected calls and a reference at once. */
+  expectation_mix: ExpectationMix[];
   by_source: Record<CaseSource, number>;
   /** The most used tags, most used first. */
   top_tags: { tag: string; cases: number }[];

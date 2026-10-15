@@ -51,6 +51,7 @@ describe("CreateDatasetDialog", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/datasets", {
       name: "refunds",
       description: "returns",
+      visibility: "org",
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -70,6 +71,7 @@ describe("CreateDatasetDialog", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/datasets", {
       name: "refunds",
       description: null,
+      visibility: "org",
     });
     expect(toast.error).not.toHaveBeenCalled();
   });
@@ -86,5 +88,25 @@ describe("CreateDatasetDialog", () => {
     const { onOpenChange } = mount();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("says a new dataset is the organization's, and starts it private on request", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "d2", name: "drafts" });
+    mount();
+    expect(screen.getByText("Visible to the whole organization.")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Make it private" }));
+    expect(screen.getByText("Private to you until you share it.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show it to the organization" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make it private" }));
+    await userEvent.type(screen.getByLabelText(/^Name/), "drafts");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/datasets",
+        expect.objectContaining({ visibility: "private" }),
+      ),
+    );
   });
 });

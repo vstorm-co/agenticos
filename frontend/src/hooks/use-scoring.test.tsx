@@ -90,6 +90,25 @@ describe("useScores", () => {
     expect(result.current.scores).toEqual([{ id: "s1" }]);
   });
 
+  it("narrows by outcome, agent and tag, and takes scores out of the queue", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({ removed: 2, kept: 0 });
+    const { result } = renderHook(
+      () => useScores("d1", { outcome: "failed", agentId: "a1", tag: "billing" }),
+      { wrapper },
+    );
+
+    await waitFor(() =>
+      expect(apiClient.get).toHaveBeenCalledWith(
+        "/datasets/d1/scores?skip=0&limit=50&outcome=failed&agent_id=a1&tag=billing",
+      ),
+    );
+    await result.current.withdraw.mutateAsync(["s1", "s2"]);
+    expect(apiClient.post).toHaveBeenCalledWith("/datasets/d1/scores/review/withdraw", {
+      score_ids: ["s1", "s2"],
+    });
+  });
+
   it("reads every score by default, and answers empty before the first page lands", () => {
     vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
     const { result } = renderHook(() => useScores("d1"), { wrapper });

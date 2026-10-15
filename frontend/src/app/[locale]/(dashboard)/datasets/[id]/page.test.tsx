@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_SCORING } from "@/lib/scoring";
 import DatasetPage from "./page";
 
 const state = vi.hoisted(() => ({
@@ -36,7 +37,7 @@ vi.mock("@/hooks/use-datasets", () => ({
       latest_version: 3,
       case_count: 1,
       can_edit: state.canEdit,
-      scoring: {},
+      scoring: DEFAULT_SCORING,
     },
     error: null,
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -61,7 +62,13 @@ vi.mock("@/hooks/use-datasets", () => ({
 }));
 vi.mock("@/components/sharing/sharing-panel", () => ({ SharingPanel: () => null }));
 vi.mock("@/hooks/use-agents", () => ({ useCapabilityCatalog: () => ({ capabilities: [] }) }));
-vi.mock("@/components/datasets/grading-panel", () => ({ GradingPanel: () => <p>grading</p> }));
+vi.mock("@/components/datasets/grading-panel", () => ({
+  GradingPanel: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => (
+    <button type="button" onClick={() => onDirtyChange(true)}>
+      grading
+    </button>
+  ),
+}));
 vi.mock("@/components/datasets/review-panel", () => ({ ReviewPanel: () => <p>review</p> }));
 
 const CASE = {
@@ -191,6 +198,16 @@ describe("the dataset page", () => {
     await mount();
 
     expect(screen.getByRole("alert")).toHaveTextContent("not in the newest version");
+  });
+
+  it("marks the Grading tab while a change there is unsaved", async () => {
+    state.tab = "grading";
+    await mount();
+    expect(screen.queryByRole("img", { name: "Unsaved" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "grading" }));
+
+    expect(screen.getByRole("img", { name: "Unsaved" })).toBeInTheDocument();
   });
 
   it("holds a place for the dataset's eval runs", async () => {

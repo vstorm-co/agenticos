@@ -36,6 +36,7 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
   const { create } = useDatasets();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [shared, setShared] = useState(true);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   async function handleCreate() {
@@ -43,6 +44,7 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
       const dataset = await create.mutateAsync({
         name: name.trim(),
         description: description.trim() === "" ? null : description.trim(),
+        visibility: shared ? "org" : "private",
       });
       setName("");
       setDescription("");
@@ -75,6 +77,17 @@ export function CreateDatasetDialog({ open, onOpenChange }: CreateDatasetDialogP
           errors={errors}
           nameTour="datasets-dialog-name"
         />
+        <p className="text-muted-foreground flex flex-wrap items-center gap-1 text-sm">
+          {shared ? t("createVisibleToOrg") : t("createPrivate")}
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto px-0"
+            onClick={() => setShared((current) => !current)}
+          >
+            {shared ? t("createMakePrivate") : t("createShareWithOrg")}
+          </Button>
+        </p>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}

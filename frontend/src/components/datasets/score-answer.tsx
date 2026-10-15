@@ -6,8 +6,8 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
-/** Past this many characters the answer opens folded. */
-const FOLDED_PAST = 400;
+/** Past this many characters the answer opens folded, to three lines. */
+const FOLDED_PAST = 240;
 
 /** What the run answered, folded when long; `null` once nothing of it is kept. */
 export function ScoreAnswer({ answer }: { answer: string | null }) {
@@ -25,7 +25,7 @@ export function ScoreAnswer({ answer }: { answer: string | null }) {
           <p
             className={cn(
               "text-sm break-words whitespace-pre-wrap",
-              long && !open && "line-clamp-4",
+              long && !open && "line-clamp-3",
             )}
           >
             {answer}

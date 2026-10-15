@@ -22,7 +22,13 @@ from app.db.models.dataset import (
 )
 from app.repositories._search import contains_ci
 from app.repositories._visibility import reached_by_scope, shared_with_caller, visible_to_caller
-from app.schemas.dataset import CaseSourceLiteral, DatasetSort, DatasetStats, DatasetTagCount
+from app.schemas.dataset import (
+    CaseSourceLiteral,
+    DatasetSort,
+    DatasetStats,
+    DatasetTagCount,
+    ExpectationMix,
+)
 
 
 async def get(db: AsyncSession, dataset_id: UUID, *, organization_id: UUID) -> Dataset | None:
@@ -307,26 +313,46 @@ async def case_stats(
         .subquery()
     )
     sources: tuple[CaseSourceLiteral, ...] = get_args(CaseSourceLiteral)
+    has_reference = func.nullif(held.c.reference_answer, "").is_not(None)
+    has_calls = func.jsonb_array_length(held.c.expected_tool_calls) > 0
+    has_checks = func.jsonb_array_length(held.c.checks) > 0
+    mixes = [
+        (checks, calls, reference)
+        for checks in (False, True)
+        for calls in (False, True)
+        for reference in (False, True)
+    ]
     counts = await db.execute(
         select(
             held.c.dataset_id,
-            func.count().filter(func.nullif(held.c.reference_answer, "").is_not(None)),
+            func.count().filter(has_reference),
             func.count().filter(func.nullif(held.c.counter_example, "").is_not(None)),
-            func.count().filter(func.jsonb_array_length(held.c.expected_tool_calls) > 0),
-            func.count().filter(func.jsonb_array_length(held.c.checks) > 0),
+            func.count().filter(has_calls),
+            func.count().filter(has_checks),
             *(func.count().filter(held.c.source == source) for source in sources),
+            *(
+                func.count().filter(
+                    has_checks.is_(checks), has_calls.is_(calls), has_reference.is_(reference)
+                )
+                for checks, calls, reference in mixes
+            ),
         ).group_by(held.c.dataset_id)
     )
-    stats = {
-        row[0]: DatasetStats(
+    stats = {}
+    for row in counts.all():
+        mixed = row[5 + len(sources) :]
+        stats[row[0]] = DatasetStats(
             with_reference=row[1],
             with_counter_example=row[2],
             with_tool_calls=row[3],
             with_checks=row[4],
-            by_source=dict(zip(sources, row[5:], strict=True)),
+            by_source=dict(zip(sources, row[5 : 5 + len(sources)], strict=True)),
+            expectation_mix=[
+                ExpectationMix(checks=checks, tool_calls=calls, reference=reference, cases=cases)
+                for (checks, calls, reference), cases in zip(mixes, mixed, strict=True)
+                if cases > 0
+            ],
         )
-        for row in counts.all()
-    }
 
     tag = func.jsonb_array_elements_text(held.c.tags).table_valued("value").lateral("tag")
     used = func.count()

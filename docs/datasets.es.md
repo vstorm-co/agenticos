@@ -1,5 +1,5 @@
 ---
-source_sha: "4940e62b99c3"
+source_sha: "6f0439dba3ed"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -83,10 +83,16 @@ indicando cuántas hay ocupadas; borrar un dataset libera sus filas.
 Abre **Datasets**, crea un dataset (se abre en cuanto existe) y elige **Añadir
 caso**. Escribe la entrada y al menos una de las cuatro expectativas de arriba.
 La conversación se escribe turno a turno, cada llamada a herramienta esperada
-como un nombre de herramienta y sus argumentos como un objeto JSON, y cada
-comprobación como un tipo elegido de la lista junto a lo que comprueba. Un caso
-de la lista se abre tal como se lee, con la conversación como burbujas de chat;
-**Edit** lo convierte en el formulario.
+como un nombre de herramienta y sus argumentos como filas de nombre y valor, y
+cada comprobación como un tipo elegido de la lista junto a lo que comprueba.
+**Edit as JSON** muestra el caso entero con la forma que tiene en una
+importación.
+
+Un caso de la lista se abre tal como se lee, con la conversación como burbujas de
+chat; **Edit** lo convierte en el formulario, que indica qué versión crea un
+guardado y cuáles de los evaluadores del dataset calificarían el caso tal como
+está escrito. Un enlace a `?tab=cases&case={case_id}` en la página del dataset
+abre un caso.
 
 ### Desde un archivo { #import-and-export }
 
@@ -189,9 +195,14 @@ Cada evaluador devuelve aprobado o suspendido, una puntuación de 0 a 1 y un
 motivo. Un caso **aprueba** cuando aprueba cada evaluador marcado como Must
 pass. Cuando uno de ellos no pudo ejecutarse (el juez estaba desactivado, su
 budget se había agotado), el caso queda **sin calificar**, no aprobado: un
-resultado que nadie comprobó no cuenta como aprobado. A un dataset cuyos casos
-tienen respuestas de referencia con las que nada compara las respuestas se le
-ofrece la comparación con la respuesta de referencia.
+resultado que nadie comprobó no cuenta como aprobado.
+
+Cada evaluador indica cuántos casos contienen lo que lee, y la pestaña avisa
+cuando la configuración en pantalla calificaría algunos casos sin nada que
+comprobar. A un dataset cuyos casos tienen respuestas de referencia con las que
+nada compara las respuestas se le ofrece la comparación con la respuesta de
+referencia. Una tarjeta con un cambio aún no guardado lo indica, y la página
+pregunta antes de salir de ella.
 
 La configuración no se versiona con los casos, porque cómo califica un equipo no
 es lo que pregunta. Cada puntuación guarda una copia de la configuración con la
@@ -283,9 +294,9 @@ como no verificada, se muestra en su propia línea bajo el motivo, y la
 calificación se mantiene. Cada puntuación registra el juez que la calificó - el
 agent juez, su perfil de modelo, la versión de su spec y un hash de la rúbrica -
 para que las puntuaciones de jueces distintos no se comparen como equivalentes.
-Cambiar el juez o su modelo está permitido; la tarjeta Judge avisa de que las
-puntuaciones calificadas antes no serán comparables con las calificadas
-después.
+Cambiar el juez o su modelo está permitido; cambiar de juez pide confirmación
+antes, y la tarjeta Judge avisa de que las puntuaciones calificadas antes no
+serán comparables con las calificadas después.
 
 ### Revisión { #review }
 
@@ -298,11 +309,16 @@ que alguien envíe una, cada resultado que no aprobó, o cada resultado. Una
 puntuación ya decidida sigue decidida.
 
 La pestaña **Review** se abre en lo que espera una decisión, con cada resultado
-a un filtro de distancia, y agrupa las puntuaciones de cada run de eval bajo un
-encabezado. Cada tarjeta muestra lo que el caso preguntaba y esperaba (la
-pregunta, la respuesta de referencia, las llamadas a herramientas esperadas y
-las comprobaciones), la respuesta tal como se calificó, qué agent y qué versión
-respondieron, qué encontró cada evaluador y por qué, y la decisión de revisión.
+a un clic de distancia, cada uno con su recuento, y se filtra por resultado, por
+el agent que respondió y por una etiqueta del caso. Agrupa las puntuaciones de
+cada run de eval bajo un encabezado que enlaza al run, desde el que se pueden
+sacar de la cola sin decidir (`POST /datasets/{id}/scores/review/withdraw`).
+
+Cada tarjeta muestra lo que el caso preguntaba y esperaba (la pregunta, enlazada
+al caso, la respuesta de referencia, las llamadas a herramientas esperadas y las
+comprobaciones), la respuesta tal como se calificó, qué agent y qué versión
+respondieron, qué encontró cada evaluador y por qué, primero los que fallaron, y
+la decisión de revisión, que se puede deshacer desde el mensaje que la confirma.
 
 La tarjeta del dashboard **Waiting for review** muestra la cola de todos los
 datasets que puedes ver: cuántos resultados no aprobaron, no se calificaron o

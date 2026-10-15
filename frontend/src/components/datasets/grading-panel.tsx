@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Lightbulb } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Lightbulb, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -18,7 +18,7 @@ import { useAiAssistance } from "@/hooks/use-organizations";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSetScoring } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
-import { scoringProblem } from "@/lib/scoring";
+import { scoringProblem, ungradedCases } from "@/lib/scoring";
 import type { Dataset } from "@/types/datasets";
 import { Perm } from "@/types/permissions";
 import type { DatasetScoring, ReviewSelect } from "@/types/scoring";
@@ -48,7 +48,14 @@ function merged(stored: DatasetScoring, draft: DatasetScoring, parts: Part[]): D
  * comparison are runs of the judge, refused while AI assistance is off. Scores
  * already kept keep the configuration they were graded with.
  */
-export function GradingPanel({ dataset }: { dataset: Dataset }) {
+export function GradingPanel({
+  dataset,
+  onDirtyChange,
+}: {
+  dataset: Dataset;
+  /** Told whether any card holds a change not yet saved, so the page can say so. */
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const t = useTranslations("datasets.scoring");
   const tDatasets = useTranslations("datasets");
   const tErrors = useTranslations("errors");
@@ -73,6 +80,18 @@ export function GradingPanel({ dataset }: { dataset: Dataset }) {
       JSON.stringify(defaults) !== JSON.stringify(stored.checks.defaults.map(checkDraft)));
   const unusable = (parts: Part[]) => scoringProblem(merged(stored, draft, parts));
   const problem = scoringProblem(draft);
+  const unsaved = dirty(PASSES) || dirty(JUDGING) || dirty(REVIEW);
+  const ungraded = ungradedCases(draft, dataset.stats, defaults.length);
+  const of = (count: number) => t("coverage", { count, total: dataset.case_count });
+
+  useEffect(() => onDirtyChange?.(unsaved), [onDirtyChange, unsaved]);
+  // A tab closing or a reload would drop the drafts; the browser asks first.
+  useEffect(() => {
+    if (!unsaved) return;
+    const hold = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", hold);
+    return () => window.removeEventListener("beforeunload", hold);
+  }, [unsaved]);
 
   async function submit(parts: Part[]) {
     let next = merged(stored, draft, parts);
@@ -108,6 +127,15 @@ export function GradingPanel({ dataset }: { dataset: Dataset }) {
           {t(problem)}
         </p>
       )}
+      {canEdit && problem === null && ungraded > 0 && (
+        <p
+          role="status"
+          className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400"
+        >
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          {t("ungraded", { count: ungraded })}
+        </p>
+      )}
       {unreferenced && (
         <div className="bg-muted/50 flex flex-wrap items-center gap-3 rounded-xl border p-4 text-sm">
           <Lightbulb className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
@@ -136,6 +164,7 @@ export function GradingPanel({ dataset }: { dataset: Dataset }) {
           hint={t("checksHint")}
           enabled={draft.checks.enabled}
           mustPass={draft.checks.required}
+          coverage={of(dataset.stats.with_checks)}
           onChange={(next) => set("checks", { ...draft.checks, ...next })}
           disabled={disabled}
         >
@@ -150,6 +179,7 @@ export function GradingPanel({ dataset }: { dataset: Dataset }) {
           hint={t("trajectoryHint")}
           enabled={draft.trajectory.enabled}
           mustPass={draft.trajectory.required}
+          coverage={of(dataset.stats.with_tool_calls)}
           onChange={(next) => set("trajectory", { ...draft.trajectory, ...next })}
           disabled={disabled}
         />
@@ -164,6 +194,7 @@ export function GradingPanel({ dataset }: { dataset: Dataset }) {
         tour="datasets-grading-judge"
       >
         <JudgeSettings
+          referenceCoverage={of(dataset.stats.with_reference)}
           judge={draft.judge}
           stored={stored.judge}
           reference={draft.reference}
@@ -198,6 +229,8 @@ export function GradingPanel({ dataset }: { dataset: Dataset }) {
           </Select>
         </FormField>
       </GradingCard>
+
+      <p className="text-muted-foreground text-xs">{t("mustPassRule")}</p>
 
       {creating && (
         <CreateJudgeDialog

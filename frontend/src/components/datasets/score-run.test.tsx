@@ -135,7 +135,7 @@ beforeEach(() => {
     d2: [{ case_id: "c2", input: "x".repeat(100), reference_answer: "Thirty days." }],
   };
   state.turns = [
-    { id: "m1", role: "user", content: "How long is the refund window? " },
+    { id: "m1", role: "user", content: "  how long is  the refund WINDOW? " },
     { id: "m2", role: "assistant", content: "Thirty days." },
   ];
 });

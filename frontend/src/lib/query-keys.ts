@@ -301,7 +301,15 @@ export const qk = {
     allScores: (id: string) => ["datasets", id, "scores"] as const,
     scores: (
       id: string,
-      query: { caseId: string | null; pending: boolean; skip: number; limit: number },
+      query: {
+        caseId: string | null;
+        pending: boolean;
+        outcome: string | null;
+        agentId: string | null;
+        tag: string | null;
+        skip: number;
+        limit: number;
+      },
     ) => ["datasets", id, "scores", query] as const,
     allReviewQueue: () => ["datasets", "review-queue"] as const,
     reviewQueue: (query: { skip: number; limit: number }) =>

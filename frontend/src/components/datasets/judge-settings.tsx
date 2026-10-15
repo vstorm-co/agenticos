@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
+  ConfirmDialog,
   FormField,
   Input,
   Select,
@@ -29,6 +31,8 @@ interface JudgeSettingsProps {
   onReference: (reference: DatasetScoring["reference"]) => void;
   disabled: boolean;
   onCreate?: () => void;
+  /** How many of the dataset's cases have a reference answer, as a sentence. */
+  referenceCoverage: string;
 }
 
 /**
@@ -46,20 +50,34 @@ export function JudgeSettings({
   onReference,
   disabled,
   onCreate,
+  referenceCoverage,
 }: JudgeSettingsProps) {
   const t = useTranslations("datasets.scoring");
   const { profiles } = useModelProviders();
+  const [switching, setSwitching] = useState<string | null | undefined>(undefined);
   const changed =
     judge.agent_id !== stored.agent_id || judge.model_profile_id !== stored.model_profile_id;
+  // Moving away from the judge the scores were graded by is asked once; coming
+  // back to it is not, since the scores compare again.
+  const pick = (agentId: string | null) =>
+    agentId === stored.agent_id ? onJudge({ ...judge, agent_id: agentId }) : setSwitching(agentId);
 
   return (
     <>
-      <JudgePicker
-        value={judge.agent_id}
-        onChange={(agent_id) => onJudge({ ...judge, agent_id })}
-        disabled={disabled}
-        onCreate={onCreate}
-      />
+      <JudgePicker value={judge.agent_id} onChange={pick} disabled={disabled} onCreate={onCreate} />
+      {switching !== undefined && (
+        <ConfirmDialog
+          open
+          onOpenChange={() => setSwitching(undefined)}
+          title={t("switchJudgeTitle")}
+          description={t("switchJudgeBody")}
+          confirmLabel={t("switchJudge")}
+          onConfirm={() => {
+            onJudge({ ...judge, agent_id: switching });
+            setSwitching(undefined);
+          }}
+        />
+      )}
       {changed && (
         <p role="status" className="text-muted-foreground flex items-start gap-2 text-xs">
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -73,7 +91,7 @@ export function JudgeSettings({
         onChange={({ enabled }) => onJudge({ ...judge, enabled })}
         disabled={disabled}
       >
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <FormField htmlFor="scoring-judge-model" label={t("judgeModel")}>
             <Select
               value={judge.model_profile_id ?? OWN_MODEL}
@@ -95,28 +113,34 @@ export function JudgeSettings({
               </SelectContent>
             </Select>
           </FormField>
-          <FormField htmlFor="scoring-scale" label={t("scaleMax")}>
-            <Input
-              id="scoring-scale"
-              type="number"
-              min={2}
-              max={10}
-              value={judge.scale_max}
-              onChange={(event) => onJudge({ ...judge, scale_max: Number(event.target.value) })}
-              disabled={disabled}
-            />
-          </FormField>
-          <FormField htmlFor="scoring-pass-at" label={t("passAt")}>
-            <Input
-              id="scoring-pass-at"
-              type="number"
-              min={1}
-              max={judge.scale_max}
-              value={judge.pass_at}
-              onChange={(event) => onJudge({ ...judge, pass_at: Number(event.target.value) })}
-              disabled={disabled}
-            />
-          </FormField>
+          <p className="flex flex-wrap items-center gap-1.5 self-end pb-2 text-sm">
+            {t.rich("scaleSentence", {
+              top: () => (
+                <Input
+                  type="number"
+                  min={2}
+                  max={10}
+                  aria-label={t("scaleMax")}
+                  className="h-8 w-16"
+                  value={judge.scale_max}
+                  onChange={(event) => onJudge({ ...judge, scale_max: Number(event.target.value) })}
+                  disabled={disabled}
+                />
+              ),
+              mark: () => (
+                <Input
+                  type="number"
+                  min={1}
+                  max={judge.scale_max}
+                  aria-label={t("passAt")}
+                  className="h-8 w-16"
+                  value={judge.pass_at}
+                  onChange={(event) => onJudge({ ...judge, pass_at: Number(event.target.value) })}
+                  disabled={disabled}
+                />
+              ),
+            })}
+          </p>
         </div>
         <RubricEditor
           criteria={judge.criteria}
@@ -129,6 +153,7 @@ export function JudgeSettings({
         hint={t("referenceHint")}
         enabled={reference.enabled}
         mustPass={reference.required}
+        coverage={referenceCoverage}
         onChange={(next) => onReference({ ...reference, ...next })}
         disabled={disabled}
       />

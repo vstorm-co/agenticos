@@ -1,4 +1,4 @@
-import type { CaseCheck } from "@/types/datasets";
+import type { CaseCheck, DatasetStats } from "@/types/datasets";
 import type { CaseScore, DatasetScoring, ScorerResult } from "@/types/scoring";
 
 /** What a dataset is scored with before anybody configures it - the server's defaults. */
@@ -90,8 +90,10 @@ export interface ScoreGroup {
 /**
  * A page of scores cut where the eval run or the answering agent changes.
  *
- * The page keeps the server's order, so a group is a run of neighbours; the same
- * eval run split by another between them is shown twice rather than reordered.
+ * The groups keep the server's order, newest first, so a group is a run of
+ * neighbours; the same eval run split by another between them is shown twice
+ * rather than reordered. Inside a group the scores read in the order they were
+ * graded, which for an eval run is the order of the dataset's cases.
  */
 export function groupScores(scores: CaseScore[]): ScoreGroup[] {
   const groups: ScoreGroup[] = [];
@@ -101,5 +103,32 @@ export function groupScores(scores: CaseScore[]): ScoreGroup[] {
     if (last?.key === key) last.scores.push(score);
     else groups.push({ key, evalRunId: score.eval_run_id, scores: [score] });
   }
+  for (const group of groups) {
+    group.scores.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  }
   return groups;
+}
+
+/**
+ * How many of a dataset's cases a configuration would grade nothing on.
+ *
+ * A case is graded when the judge has criteria - it reads every case - or when a
+ * scorer that is on finds what it reads on the case: checks (the case's own, or
+ * a default every case gets), expected tool calls, a reference answer.
+ */
+export function ungradedCases(
+  scoring: DatasetScoring,
+  stats: DatasetStats,
+  defaultChecks: number,
+): number {
+  const { checks, trajectory, judge, reference } = scoring;
+  if (judge.enabled && judge.criteria.length > 0) return 0;
+  return stats.expectation_mix
+    .filter(
+      (mix) =>
+        !(checks.enabled && (mix.checks || defaultChecks > 0)) &&
+        !(trajectory.enabled && mix.tool_calls) &&
+        !(reference.enabled && mix.reference),
+    )
+    .reduce((total, mix) => total + mix.cases, 0);
 }

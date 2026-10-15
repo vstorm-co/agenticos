@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api-error";
 import { CaseEditorDialog } from "./case-editor-dialog";
+import { DEFAULT_SCORING } from "@/lib/scoring";
 import { draftOf, EMPTY_DRAFT } from "./case-form";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -99,7 +100,14 @@ describe("CaseEditorDialog", () => {
     const tool = screen.getByLabelText("Call 1: tool");
     expect(document.getElementById(tool.getAttribute("list")!)?.children).toHaveLength(2);
     await userEvent.type(tool, "search_kb");
-    await userEvent.type(screen.getByLabelText("Call 1: arguments"), '{{"q": "kettle"}');
+    await userEvent.click(screen.getByRole("button", { name: "Add an argument" }));
+    await userEvent.type(screen.getByLabelText("Call 1, argument 1: name"), "q");
+    await userEvent.type(screen.getByLabelText("Call 1, argument 1: value"), "kettle");
+    await userEvent.click(screen.getByRole("button", { name: "Add an argument" }));
+    await userEvent.type(screen.getByLabelText("Call 1, argument 2: name"), "limit");
+    await userEvent.type(screen.getByLabelText("Call 1, argument 2: value"), "5");
+    await userEvent.click(screen.getByRole("button", { name: "Add an argument" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove argument 3 of call 1" }));
     await userEvent.click(screen.getByRole("button", { name: "Add a tool call" }));
     await userEvent.click(screen.getByRole("button", { name: "Remove call 2" }));
 
@@ -127,7 +135,7 @@ describe("CaseEditorDialog", () => {
           { role: "user", content: "I bought a kettle" },
           { role: "user", content: "Happy to help" },
         ],
-        expected_tool_calls: [{ tool: "search_kb", args: { q: "kettle" } }],
+        expected_tool_calls: [{ tool: "search_kb", args: { q: "kettle", limit: 5 } }],
         checks: [
           { type: "contains", value: "30 days" },
           { type: "max_cost_usd", value: 0.05 },
@@ -173,7 +181,7 @@ describe("CaseEditorDialog", () => {
     expect(screen.queryByRole("button", { name: "Save case" })).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
-    expect(screen.getByLabelText("Call 1: arguments")).toHaveValue('{"q":"refund"}');
+    expect(screen.getByLabelText("Call 1, argument 1: value")).toHaveValue("refund");
     expect(screen.getAllByText("from_the_future").length).toBeGreaterThan(0);
     expect(screen.getByRole("combobox", { name: "Check 2: type" })).toBeDisabled();
     await userEvent.click(save());
@@ -265,5 +273,112 @@ describe("CaseEditorDialog", () => {
       .filter((button) => button.textContent === "Close");
     await userEvent.click(footerClose!);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("says which version a save makes, and what would grade the case as written", async () => {
+    render(
+      <CaseEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        initial={EMPTY_DRAFT}
+        onSave={vi.fn()}
+        title="Add case"
+        nextVersion={4}
+        scoring={{
+          ...DEFAULT_SCORING,
+          judge: {
+            ...DEFAULT_SCORING.judge,
+            enabled: true,
+            criteria: [{ name: "Tone", description: "Polite", required: true }],
+          },
+          reference: { enabled: true, required: true },
+        }}
+        knownTools={["refund_order"]}
+      />,
+    );
+
+    expect(screen.getByText(/Saving makes version v4/)).toBeInTheDocument();
+    expect(screen.getByText("Graded here by the judge (Tone).")).toBeInTheDocument();
+    await userEvent.type(answer(), "30 days");
+    expect(
+      screen.getByText("Graded here by the judge (Tone) and Reference answer."),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Add a tool call" }));
+    const tool = screen.getByLabelText("Call 1: tool");
+    const options = document.getElementById(tool.getAttribute("list")!)!.children;
+    expect([...options].map((option) => option.getAttribute("value"))).toEqual([
+      "refund_order",
+      "search_kb",
+      "fetch_page",
+    ]);
+  });
+
+  it("warns when nothing on the dataset's Grading would grade the case", async () => {
+    render(
+      <CaseEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        initial={EMPTY_DRAFT}
+        onSave={vi.fn()}
+        title="Add case"
+        scoring={DEFAULT_SCORING}
+      />,
+    );
+
+    expect(screen.getByText(/Nothing on the dataset's Grading tab/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
+    expect(screen.getByText("Graded here by Checks.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Add a tool call" }));
+    await userEvent.type(screen.getByLabelText("Call 1: tool"), "search_kb");
+    expect(screen.getByText("Graded here by Checks and Expected tool calls.")).toBeInTheDocument();
+  });
+
+  it("edits the whole case as JSON and back, and saves what the JSON says", async () => {
+    const onSave = vi.fn().mockResolvedValue({});
+    render(
+      <CaseEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        initial={draftOf(STORED)}
+        onSave={onSave}
+        title="Add case"
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
+    const box = screen.getByLabelText("The case as JSON");
+    expect(JSON.parse((box as HTMLTextAreaElement).value)).toMatchObject({
+      input: STORED.input,
+      expected_tool_calls: STORED.expected_tool_calls,
+    });
+
+    await userEvent.clear(box);
+    await userEvent.click(box);
+    await userEvent.paste("{ not json");
+    await userEvent.click(screen.getByRole("button", { name: "Back to the form" }));
+    expect(screen.getByText("This is not valid JSON.")).toBeInTheDocument();
+    await userEvent.click(save());
+    expect(onSave).not.toHaveBeenCalled();
+
+    await userEvent.clear(box);
+    await userEvent.click(box);
+    await userEvent.paste('{"input": "From JSON", "reference_answer": "yes"}');
+    await userEvent.click(screen.getByRole("button", { name: "Back to the form" }));
+    expect(input()).toHaveValue("From JSON");
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
+    await userEvent.click(save());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]![0]).toMatchObject({ input: "From JSON", reference_answer: "yes" });
+  });
+
+  it("refuses to show as JSON a form it cannot read", async () => {
+    mount(vi.fn());
+    await userEvent.type(input(), "q");
+    await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
+
+    expect(screen.getByText("Say what each check checks, or remove it.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("The case as JSON")).toBeNull();
   });
 });
