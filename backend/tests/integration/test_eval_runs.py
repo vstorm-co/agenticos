@@ -1187,7 +1187,6 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     dataset = await _dataset(db, ctx, cases=4)
     service = EvalRunService(db)
     v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
-    # A run still answering has no verdict yet.
     assert v6.outcome is None
     await _run_to_end(db, Model(db), v6.id, ctx)
     v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
@@ -1207,7 +1206,6 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     assert (outcome.candidate_pass_rate, outcome.baseline_pass_rate) == (0.75, 1.0)
     read = await service.get(ctx, v7.id)
     assert (read.cases, read.first_done, read.first_total, read.attempts_total) == (4, 4, 4, 6)
-    # What the reruns may add is kept, so spending past the estimate is explained.
     assert read.rerun_ceiling_usd == Decimal("0.08")
 
     # Read again, the verdict is the one kept rather than compared anew.
@@ -1319,7 +1317,6 @@ async def test_cases_narrow_to_the_ones_named(db) -> None:
 
     assert [case.case_id for case in named.items] == [everything.items[1].case_id]
     assert named.total == 1
-    # What the case expects rides beside its answers.
     expectation = named.items[0].expectation
     assert expectation is not None
     assert [check.model_dump()["value"] for check in expectation.checks] == ["30 days"]
