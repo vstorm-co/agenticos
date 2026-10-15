@@ -458,6 +458,42 @@ class TestLimitsBeforeTheLookup:
         assert [answer.status_code for answer in answers] == [401, 401, 401, 429]
         assert lookups.await_count == 3
 
+    @pytest.mark.security
+    async def test_a_socket_handshake_meets_the_same_limits(
+        self, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex on #2062: a socket opened with made-up keys was never counted."""
+        from fastapi import WebSocket, WebSocketException
+
+        from app.api.deps import get_current_user_ws
+        from app.repositories import api_key_repo
+
+        monkeypatch.setattr(rate_limit, "_redis", _WindowCounter())
+        monkeypatch.setattr(settings, "RATE_LIMIT_AUTH_PER_MINUTE", 2)
+        lookups = AsyncMock(return_value=None)
+        monkeypatch.setattr(api_key_repo, "get_by_prefix", lookups)
+
+        async def handshake() -> int:
+            protocol = f"access_token.aos_{uuid.uuid4().hex}, chat".encode()
+            socket = WebSocket(
+                {
+                    "type": "websocket",
+                    "path": "/api/v1/ws/events",
+                    "headers": [(b"sec-websocket-protocol", protocol)],
+                    "client": ("203.0.113.9", 4000),
+                },
+                receive=AsyncMock(),
+                send=AsyncMock(),
+            )
+            with pytest.raises(WebSocketException) as refused:
+                await get_current_user_ws(socket, access_token=None)
+            return refused.value.code
+
+        codes = [await handshake() for _ in range(4)]
+
+        assert codes == [4001, 4001, 4001, 4029]
+        assert lookups.await_count == 3
+
 
 class TestSecrets:
     @pytest.mark.security
