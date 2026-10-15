@@ -774,7 +774,7 @@ function ChatUI({
                 )}
               </div>
             ) : (
-              <LiveBrowsesProvider value={browses}>
+              <LiveBrowsesProvider value={{ browses, onComment: commentOnPage }}>
                 <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
               </LiveBrowsesProvider>
             )}
@@ -974,10 +974,9 @@ function ChatUI({
       </div>
       <FilePreviewDialog />
       <SourcesPanel contained={compact} />
-      {/* The agent's browser, docked beside the conversation on a wide screen
-          and opened by itself when a browse starts. Draws nothing until then,
-          so a conversation with no browsing costs nothing. */}
-      <BrowserPanel browses={browses} docked={!compact} onComment={commentOnPage} />
+      {/* A browse opened full screen from under its message. Draws nothing
+          until somebody does, so a conversation with no browsing costs nothing. */}
+      <BrowserPanel browses={browses} onComment={commentOnPage} />
       {/* Beside the transcript rather than under it: what the agent is holding is
           something you glance at while reading, and a list that pushed the input
           down would move the box you are typing in. Closed by default - it is a

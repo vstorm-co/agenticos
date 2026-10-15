@@ -1,5 +1,5 @@
 ---
-source_sha: "915b96e9fb24"
+source_sha: "7af7a29084ed"
 ---
 
 # La consola { #the-console }
@@ -273,19 +273,19 @@ campos nunca son tan pequeños como para que iOS haga zoom en ellos.
 
 **Ver un recorrido.** Cuando un agent con el
 [navegador web](reference/capabilities.md#browser-automation) empieza en una página, su
-navegador se abre junto a la conversación, como el de un agente de escritorio: una
-pestaña con el nombre de la página, la dirección y la página tal como la ve el agent, con
-lo que hace ahora en una línea debajo y su cursor moviéndose hacia lo que pulsa o rellena. La transcripción se estrecha para dejar sitio y
-conserva una línea por recorrido - dónde está y si te necesita - que vuelve a abrir el
-navegador cuando lo cierras. La lista completa de pasos, cada uno con su propósito, está
-detrás del botón de pasos. En un teléfono la línea es la entrada, y el navegador ocupa la
-pantalla.
+navegador se dibuja en directo bajo el mensaje del agent: una ventana con la dirección y
+la página tal como la ve el agent, una línea sobre la página con lo que hace ahora y su
+cursor moviéndose hacia lo que pulsa o rellena. La ventana mantiene su forma y crece y
+encoge con la conversación; varios recorridos a la vez se colocan uno junto a otro, dos
+por fila donde hay sitio. El botón de maximizar abre uno a pantalla completa, y restaurar
+lo devuelve bajo el mensaje. La lista completa de pasos, cada uno con su propósito, está
+detrás del botón de pasos.
 
 **Tomar el control de un recorrido.** Mientras un recorrido está en curso, **Take over**
 en la barra del navegador detiene al agent tras su paso actual y te da la página, en la
 misma ventana: clic, escribir, desplazarse, pegar. **Hand it back** y el agent sigue
 desde donde lo dejaste. Cuando el agent no puede pasar solo de una página - un inicio de
-sesión, un captcha -, la línea y el navegador dicen *The agent needs you* y para qué.
+sesión, un captcha -, el navegador dice *The agent needs you* y para qué.
 Quien puede ver runs pero no editar el agent puede mirar, no manejar. La misma ventana
 se abre en una página propia desde el enlace de un canal. Consulta el
 [navegador web](reference/capabilities.md#browser-automation).

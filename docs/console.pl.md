@@ -1,5 +1,5 @@
 ---
-source_sha: "915b96e9fb24"
+source_sha: "7af7a29084ed"
 ---
 
 # Konsola { #the-console }
@@ -265,19 +265,20 @@ Enter zaczyna nową linię, a załącznik i
 dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
 przybliżał.
 
-**Obserwowanie przeglądania.** Gdy agent z
+**Oglądanie przeglądania.** Gdy agent z
 [przeglądarką](reference/capabilities.md#browser-automation) zaczyna na stronie, jego
-przeglądarka otwiera się obok rozmowy, tak jak u agenta na desktopie: karta nazwana od
-strony, adres i strona taka, jak widzi ją agent, a pod nią jedna linijka o tym, co robi
-teraz, i jego kursor, który przesuwa się do tego, co klika albo w co pisze. Transkrypt zwęża się, żeby zrobić miejsce, i zostawia jedną linijkę na każde
-przeglądanie - gdzie jest i czy cię potrzebuje - która po zamknięciu otwiera przeglądarkę
-z powrotem. Pełna lista kroków, każdy z tym, po co był, jest pod przyciskiem kroków. Na
-telefonie wejściem jest ta linijka, a przeglądarka zajmuje ekran.
+przeglądarka rysuje się na żywo pod wiadomością agenta: okno z adresem i stroną taką,
+jak widzi ją agent, jedną linijką nad stroną o tym, co robi teraz, i kursorem, który
+przesuwa się do tego, co klika albo w co pisze. Okno ma stały kształt i rośnie oraz
+maleje razem z rozmową; kilka przeglądań naraz stoi obok siebie, po dwa w rzędzie, gdy
+jest miejsce. Przycisk maksymalizacji otwiera jedno na pełnym ekranie, a przywrócenie
+odkłada je z powrotem pod wiadomość. Pełna lista kroków, każdy z tym, po co był, jest
+pod przyciskiem kroków.
 
 **Przejmowanie przeglądania.** Gdy przeglądanie trwa, **Przejmij** w pasku przeglądarki
 zatrzymuje agenta po bieżącym kroku i oddaje ci stronę, w tym samym oknie: klikaj, pisz,
 przewijaj, wklejaj. **Oddaj** i agent kontynuuje od miejsca, w którym skończyłeś. Gdy
-agent nie przejdzie strony sam - logowanie, captcha - linijka i przeglądarka mówią *Agent
+agent nie przejdzie strony sam - logowanie, captcha - przeglądarka mówi *Agent
 cię potrzebuje* i po co. Ktoś, kto może oglądać runy, ale nie edytować agenta, może
 patrzeć, ale nie sterować. To samo okno otwiera się na osobnej stronie z linku z kanału.
 Zobacz [Przeglądarka](reference/capabilities.md#browser-automation).

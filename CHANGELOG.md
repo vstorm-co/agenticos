@@ -858,6 +858,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **A browse draws under its message, not in a side panel.** The agent's browser
+  is a live window in the transcript, at a reading width that grows and shrinks
+  with the conversation, with the address, what the agent is doing and **Take
+  over**; several browses at once sit side by side. Maximise opens one full
+  screen and restoring puts it back. The docked side panel, its resize handle
+  and its opening by itself are gone.
+
 - **Claude Code like works in its own container, and browses.** The starter agent,
   and so every new agent's defaults, runs in a container on the deployment's
   sandbox service, which bootstrap now registers before anything else, and a

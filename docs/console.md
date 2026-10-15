@@ -255,18 +255,19 @@ Enter starts a new line, and attaching a file or dictating sits behind one
 
 **Watching a browse.** When an agent with the
 [web browser](reference/capabilities.md#browser-automation) starts on a page, its
-browser opens beside the conversation the way a desktop agent's does: a tab named after
-the page, the address, and the page as the agent sees it, with what it is doing now in
-one line underneath and its cursor moving to whatever it clicks or types into. The transcript narrows to make room, and keeps one line per
-browse - where it is and whether it needs you - that reopens the browser after you close
-it. The full list of steps, each with what it was for, is behind the steps button. On a
-phone the line is the way in, and the browser takes the screen.
+browser draws under the agent's message, live: a window with the address and the page
+as the agent sees it, what it is doing now in one line over the page, and its cursor
+moving to whatever it clicks or types into. The window keeps a fixed shape and grows
+and shrinks with the conversation; several browses at once sit side by side, two to a
+row where there is room. The maximise button opens one full screen, and restoring puts
+it back under the message. The full list of steps, each with what it was for, is behind
+the steps button.
 
 **Taking a browse over.** While a browse runs, **Take over** in the browser's toolbar
 pauses the agent after its current step and hands you the page, in the same window:
 click, type, scroll, paste. **Hand it back** and the agent carries on from where you
-left it. When the agent cannot get past a page alone - a sign-in, a captcha - the line
-and the browser say *The agent needs you* and what for. Someone who may view runs but
+left it. When the agent cannot get past a page alone - a sign-in, a captcha - the browser
+says *The agent needs you* and what for. Someone who may view runs but
 not edit the agent can watch, not drive. The same window opens on a page of its own
 from a channel's link. See [Web browser](reference/capabilities.md#browser-automation).
 

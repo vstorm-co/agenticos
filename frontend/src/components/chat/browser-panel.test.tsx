@@ -5,12 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserPanel } from "./browser-panel";
 import type { Browse } from "@/lib/browse";
 import { useAuthStore } from "@/stores";
-import {
-  DEFAULT_PANEL_WIDTH,
-  MAX_PANEL_WIDTH,
-  MIN_PANEL_WIDTH,
-  useBrowserPanelStore,
-} from "@/stores/browser-panel-store";
+import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 
 const live = vi.hoisted(() => ({
   value: {
@@ -47,59 +42,28 @@ function browse(overrides: Partial<Browse> = {}): Browse {
   };
 }
 
-/** Whether the screen is wide enough for the panel to dock. */
-function wide(matches: boolean) {
-  window.matchMedia = vi.fn().mockReturnValue({ matches }) as never;
-}
-
 beforeEach(() => {
   live.value = { browse: null, task: "", canControl: false, status: "connecting", send: vi.fn() };
   live.calls = [];
-  wide(true);
   useAuthStore.setState({ user: { id: "u1", full_name: "Ada", email: "ada@acme.test" } as never });
-  useBrowserPanelStore.setState({ openCallId: null, mode: "panel", width: DEFAULT_PANEL_WIDTH });
+  useBrowserPanelStore.setState({ openCallId: null });
 });
 
-describe("BrowserPanel - the agent's browser beside the conversation", () => {
-  it("draws nothing when nothing has browsed", () => {
-    const { container } = render(<BrowserPanel browses={[]} />);
+describe("BrowserPanel - a browse opened full screen", () => {
+  it("draws nothing when nothing has browsed, or nothing was opened", () => {
+    const { container, rerender } = render(<BrowserPanel browses={[]} />);
     expect(container).toBeEmptyDOMElement();
-  });
 
-  it("opens by itself when a browse starts, on a screen wide enough to dock it", () => {
-    render(<BrowserPanel browses={[browse()]} />);
-
-    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
-    expect(screen.getByRole("heading", { name: "Pricing" })).toBeInTheDocument();
-  });
-
-  it("opens once per browse - closing it is a decision the next frame does not undo", () => {
-    const { rerender } = render(<BrowserPanel browses={[browse()]} />);
-    useBrowserPanelStore.getState().close();
-
-    rerender(<BrowserPanel browses={[browse({ title: "Pricing - step 2" })]} />);
-
+    // A browse starting opens nothing by itself: it draws under its message.
+    rerender(<BrowserPanel browses={[browse()]} />);
+    expect(container).toBeEmptyDOMElement();
     expect(useBrowserPanelStore.getState().openCallId).toBeNull();
   });
 
-  it("leaves a finished browse, a phone and a small scope to the line in the transcript", () => {
-    const { unmount } = render(<BrowserPanel browses={[browse({ outcome: "done" })]} />);
-    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
-    unmount();
-
-    wide(false);
-    render(<BrowserPanel browses={[browse({ callId: "c2" })]} />);
-    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
-
-    wide(true);
-    render(<BrowserPanel browses={[browse({ callId: "c3" })]} docked={false} />);
-    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
-  });
-
-  it("does not take the panel from a browse somebody already has open", () => {
-    useBrowserPanelStore.setState({ openCallId: "c1" });
-    render(<BrowserPanel browses={[browse({ outcome: "done" }), browse({ callId: "c2" })]} />);
-    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  it("shows the browse somebody opened, by id", () => {
+    useBrowserPanelStore.setState({ openCallId: "c2" });
+    render(<BrowserPanel browses={[browse(), browse({ callId: "c2", title: "Docs" })]} />);
+    expect(screen.getByRole("heading", { name: "Docs" })).toBeInTheDocument();
   });
 
   it("closes on Escape, except while a person holds the page", () => {
@@ -152,7 +116,7 @@ describe("BrowserPanel - the agent's browser beside the conversation", () => {
     expect(screen.queryByRole("link", { name: "Open in a new tab" })).toBeNull();
   });
 
-  it("links the browse's own page, and maximises and restores", async () => {
+  it("links the browse's own page, and goes back under the message", async () => {
     useBrowserPanelStore.setState({ openCallId: "c1" });
     render(<BrowserPanel browses={[browse()]} />);
     expect(screen.getByRole("link", { name: "Open in a new tab" })).toHaveAttribute(
@@ -160,42 +124,7 @@ describe("BrowserPanel - the agent's browser beside the conversation", () => {
       "/browse/run-1/c1",
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Maximize" }));
-    expect(useBrowserPanelStore.getState().mode).toBe("full");
-    expect(screen.queryByRole("slider")).toBeNull();
-
-    await userEvent.click(screen.getByRole("button", { name: "Back to the side panel" }));
-    expect(useBrowserPanelStore.getState().mode).toBe("panel");
-  });
-
-  it("takes the screen without a maximise button in a small scope", () => {
-    useBrowserPanelStore.setState({ openCallId: "c1" });
-    render(<BrowserPanel browses={[browse()]} docked={false} />);
-
-    expect(screen.queryByRole("slider")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Maximize" })).toBeNull();
-  });
-
-  it("is resized by dragging its edge or with the arrow keys, within bounds", () => {
-    useBrowserPanelStore.setState({ openCallId: "c1" });
-    render(<BrowserPanel browses={[browse()]} />);
-    const handle = screen.getByRole("slider", { name: "Resize the browser view" });
-
-    fireEvent.keyDown(handle, { key: "ArrowLeft" });
-    expect(useBrowserPanelStore.getState().width).toBe(DEFAULT_PANEL_WIDTH + 40);
-    fireEvent.keyDown(handle, { key: "ArrowRight" });
-    fireEvent.keyDown(handle, { key: "ArrowRight" });
-    expect(useBrowserPanelStore.getState().width).toBe(DEFAULT_PANEL_WIDTH - 40);
-    fireEvent.keyDown(handle, { key: "Enter" });
-    expect(useBrowserPanelStore.getState().width).toBe(DEFAULT_PANEL_WIDTH - 40);
-
-    handle.setPointerCapture = vi.fn();
-    fireEvent.pointerDown(handle, { pointerId: 1 });
-    fireEvent.pointerMove(handle, { buttons: 0, clientX: 0 });
-    expect(useBrowserPanelStore.getState().width).toBe(DEFAULT_PANEL_WIDTH - 40);
-    fireEvent.pointerMove(handle, { buttons: 1, clientX: window.innerWidth - 10_000 });
-    expect(useBrowserPanelStore.getState().width).toBe(MAX_PANEL_WIDTH);
-    fireEvent.pointerMove(handle, { buttons: 1, clientX: window.innerWidth });
-    expect(useBrowserPanelStore.getState().width).toBe(MIN_PANEL_WIDTH);
+    await userEvent.click(screen.getByRole("button", { name: "Back under the message" }));
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
   });
 });

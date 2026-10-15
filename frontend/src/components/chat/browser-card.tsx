@@ -1,45 +1,58 @@
 "use client";
 
-import { ArrowUpRight, Globe } from "lucide-react";
+import { ArrowUpRight, Globe, Maximize2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { createContext, useContext } from "react";
 
+import { useLiveBrowse } from "@/hooks/use-live-browse";
 import { isRunning, type Browse } from "@/lib/browse";
 import { cn } from "@/lib/utils";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import type { ToolCall } from "@/types";
-import { OUTCOME_TONE } from "./browser-view";
-import { hostOf } from "./browser-window";
+import type { PageComment } from "./browser-comment";
+import { BrowserWindow, hostOf } from "./browser-window";
 
-/** The browses running in this chat, by call - what a turn's `browse_web` steps draw live. */
-const LiveBrowses = createContext<Browse[]>([]);
+/** The browses running in this chat, and where a comment on one of their pages goes. */
+const LiveBrowses = createContext<{
+  browses: Browse[];
+  onComment?: (comment: PageComment) => void;
+}>({ browses: [] });
 
 /** Hands the chat's live browses to the turns that made them. */
 export const LiveBrowsesProvider = LiveBrowses.Provider;
 
 /**
- * A turn's browses, one line each, where the turn made them.
+ * A turn's browses, drawn where the turn made them.
  *
- * Part of the turn rather than a strip under the whole transcript: drawn there,
- * a finished browse sat under the answer's footer, misaligned with the message,
- * and vanished with the next message, because the strip only knew the turn in
- * flight. Here each `browse_web` call draws its own line - live while the
- * browse is in this chat's socket, with the way to watch it; as a record once
- * it is not, with the way to the site.
+ * Each browse this chat's socket carries is a browser of its own under the
+ * message - the page live, at the width of the conversation, with the way to
+ * take over - rather than a line that opened a column beside the chat. Several
+ * at once sit side by side, two to a row where there is room, so a turn that
+ * browses three sites shows three windows rather than one that swaps. A browse
+ * from an earlier visit is a record: where it went, and the way there.
  */
 export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
-  const live = useContext(LiveBrowses);
+  const { browses: live, onComment } = useContext(LiveBrowses);
   if (calls.length === 0) return null;
+  const windows = calls.flatMap((call) => {
+    const browse = live.find((entry) => entry.callId === call.id);
+    return browse ? [browse] : [];
+  });
+  const recorded = calls.filter((call) => !live.some((entry) => entry.callId === call.id));
   return (
-    <div className="flex max-w-2xl flex-col gap-2 py-1">
-      {calls.map((call) => {
-        const browse = live.find((entry) => entry.callId === call.id);
-        return browse ? (
-          <BrowserLine key={call.id} browse={browse} />
-        ) : (
-          <RecordedBrowse key={call.id} call={call} />
-        );
-      })}
+    <div className="flex w-full min-w-0 flex-col gap-2 py-1">
+      {windows.length > 0 && (
+        // One browse is a window at a reading width rather than the whole column,
+        // where it towered over the answer; several share the column's width.
+        <div className={cn("grid gap-3", windows.length > 1 ? "md:grid-cols-2" : "max-w-3xl")}>
+          {windows.map((browse) => (
+            <InlineBrowser key={browse.callId} browse={browse} onComment={onComment} />
+          ))}
+        </div>
+      )}
+      {recorded.map((call) => (
+        <RecordedBrowse key={call.id} call={call} />
+      ))}
     </div>
   );
 }
@@ -72,83 +85,58 @@ function RecordedBrowse({ call }: { call: ToolCall }) {
   );
 }
 
-/** One browse in the transcript: a thumbnail, where it is, and the way to watch it. */
-function BrowserLine({ browse }: { browse: Browse }) {
+/**
+ * One browse as a browser under the message: a fixed-ratio window that grows and
+ * shrinks with the conversation, the page laid out at its size.
+ *
+ * The live socket is this window's while it shows the browse, and is let go while
+ * the same browse is open full screen - one view of a tab holds one socket.
+ */
+function InlineBrowser({
+  browse: streamed,
+  onComment,
+}: {
+  browse: Browse;
+  onComment?: (comment: PageComment) => void;
+}) {
   const t = useTranslations("chat");
-  const open = useBrowserPanelStore((state) => state.open);
-  const openCallId = useBrowserPanelStore((state) => state.openCallId);
-  const running = isRunning(browse);
-  const host = hostOf(browse.url);
-  const needs = running ? browse.needs : null;
-  const latest = browse.steps.at(-1);
-  const showing = openCallId === browse.callId;
-
+  const expand = useBrowserPanelStore((state) => state.open);
+  const expanded = useBrowserPanelStore((state) => state.openCallId === streamed.callId);
+  const running = isRunning(streamed);
+  const live = useLiveBrowse(
+    streamed.runId ?? "",
+    streamed.callId,
+    running && Boolean(streamed.runId) && !expanded,
+  );
+  // The live view's copy while the browse runs: it knows who holds the browser
+  // and whether this person may, which the conversation's stream does not say.
+  const mine = running && live.browse?.callId === streamed.callId;
+  const browse = mine && live.browse ? live.browse : streamed;
   return (
-    <button
-      type="button"
-      onClick={() => open(browse.callId, "panel")}
-      aria-label={t("browserOpenPanel")}
-      className={cn(
-        "group flex w-full min-w-0 items-center gap-3 rounded-2xl px-2.5 py-2 text-left transition-colors",
-        needs
-          ? "bg-amber-500/12 hover:bg-amber-500/18"
-          : "bg-foreground/[0.04] hover:bg-foreground/[0.07]",
-      )}
-    >
-      <span className="ring-foreground/10 bg-background relative flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1">
-        {browse.image ? (
-          // eslint-disable-next-line @next/next/no-img-element -- a data: URL from this run's own socket.
-          <img src={browse.image} alt="" className="h-full w-full object-cover object-top" />
-        ) : (
-          <Globe className="text-muted-foreground size-4" aria-hidden />
-        )}
-        {running && (
-          <span className="absolute top-1 right-1 size-1.5 rounded-full bg-emerald-500 ring-2 ring-white" />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="text-foreground block truncate text-sm font-medium">
-          {host
-            ? running
-              ? t("browserLineBrowsing", { host })
-              : t("browserLineBrowsed", { host })
-            : t("browserStarting")}
-        </span>
-        <span
-          className={cn(
-            "block truncate text-xs",
-            needs
-              ? "font-medium text-amber-800 dark:text-amber-300"
-              : browse.outcome
-                ? OUTCOME_TONE[browse.outcome]
-                : "text-muted-foreground",
-          )}
+    <div className="border-border bg-background aspect-[16/11] w-full min-w-0 overflow-hidden rounded-2xl border shadow-sm">
+      {expanded ? (
+        <button
+          type="button"
+          onClick={() => expand(streamed.callId)}
+          className="text-muted-foreground hover:text-foreground flex h-full w-full flex-col items-center justify-center gap-2 text-sm"
         >
-          {needs ? (
-            t("browserLineNeeds", { what: needs })
-          ) : browse.outcome ? (
-            t(`browserOutcome.${browse.outcome}`)
-          ) : latest ? (
-            <>
-              {t("browserAction", { operation: latest.operation })}
-              {/* Page-derived text, rendered as text. */}
-              {latest.target && <span className="opacity-75"> {latest.target}</span>}
-            </>
-          ) : (
-            t("browserStarting")
-          )}
-        </span>
-      </span>
-      <span
-        className={cn(
-          "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium",
-          needs
-            ? "bg-foreground text-background"
-            : "text-muted-foreground group-hover:text-foreground",
-        )}
-      >
-        {needs ? t("browserTakeOver") : showing ? t("browserLineShowing") : t("browserLineOpen")}
-      </span>
-    </button>
+          <Maximize2 className="size-5" aria-hidden />
+          {t("browserShownFullScreen", { host: hostOf(browse.url) ?? t("browserHeading") })}
+        </button>
+      ) : (
+        <BrowserWindow
+          waitForFit
+          browse={browse}
+          control={
+            mine && live.status === "live"
+              ? { canControl: live.canControl, canRemember: live.canRemember, send: live.send }
+              : null
+          }
+          onMaximize={() => expand(streamed.callId)}
+          newTabHref={streamed.runId ? `/browse/${streamed.runId}/${streamed.callId}` : undefined}
+          onComment={onComment}
+        />
+      )}
+    </div>
   );
 }

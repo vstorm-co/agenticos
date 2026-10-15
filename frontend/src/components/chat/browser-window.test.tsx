@@ -263,7 +263,7 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
     );
 
     rerender(<BrowserWindow browse={browse()} control={null} onMaximize={onMaximize} maximized />);
-    expect(screen.getByRole("button", { name: "Back to the side panel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back under the message" })).toBeInTheDocument();
   });
 });
 

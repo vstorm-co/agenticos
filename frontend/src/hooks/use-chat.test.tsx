@@ -2899,7 +2899,7 @@ describe("useChat - watching a browse", () => {
   it("keeps taking frames while the panel somebody opened is closed again", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
     browserFrame("browser_opened", { step: 0, goal: "g" });
-    act(() => useBrowserPanelStore.getState().open("c1", "panel"));
+    act(() => useBrowserPanelStore.getState().open("c1"));
     act(() => useBrowserPanelStore.getState().close());
 
     browserFrame("browser_step", { step: 1, operation: "CLICK" });

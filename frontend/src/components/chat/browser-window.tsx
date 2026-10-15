@@ -282,8 +282,9 @@ function useFitted(image: string | null, asked: number | null, waiting: boolean)
 /**
  * The agent's browser, drawn as a browser: a tab, an address bar, the page.
  *
- * The one view of a browse. The chat docks it beside the conversation and the
- * link a channel posts opens it on a page of its own - so what somebody watches,
+ * The one view of a browse. The chat draws it under the agent's message (and
+ * full screen when somebody maximises it), and the link a channel posts opens it
+ * on a page of its own - so what somebody watches,
  * and where they take over, is the same window wherever they arrived from. The
  * page has the room; what the agent is doing is one line over it, and the full
  * list of steps is folded behind a button, because people watching a browse look
@@ -421,8 +422,6 @@ export function BrowserWindow({
           <ChromeButton
             label={maximized ? t("browserRestore") : t("browserMaximize")}
             onClick={onMaximize}
-            // A phone already gives the window the screen.
-            className="max-lg:hidden"
           >
             {maximized ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
           </ChromeButton>

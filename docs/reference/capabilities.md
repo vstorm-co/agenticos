@@ -604,7 +604,7 @@ page you only need to read, [web fetch](#web-fetch) is faster and has no side ef
 in the agent's own hands: one action a call, chosen by the run's model in its own turn,
 each answered with the page after it - its address, the numbered elements and its
 text. No second request per step, and the agent says what it is doing in the chat
-between actions. The steps draw in one live panel beside the conversation, the one the
+between actions. The steps draw in one live window under the agent's message, the one the
 first `browser_open` opened, and a person can take the tab over between any two of
 them. Measured on Claude through OpenRouter, a step of `browse_web` is 3.5-5 s, almost
 all of it the step's own model request; a two-click task the agent drove itself took

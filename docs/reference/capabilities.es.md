@@ -1,5 +1,5 @@
 ---
-source_sha: "752624a0bddc"
+source_sha: "7a39d9d7a385"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -651,8 +651,8 @@ por varias páginas. Para una página que solo hay que leer, la
 en manos del propio agent: una acción por llamada, elegida por el modelo del run en su
 propio turno, y cada una responde con la página después de la acción - su dirección, los
 elementos numerados y su texto. Sin una segunda petición por paso, y el agent dice en el
-chat lo que hace entre acciones. Los pasos se dibujan en un único panel en vivo junto a la
-conversación, el que abrió el primer `browser_open`, y una persona puede tomar la pestaña
+chat lo que hace entre acciones. Los pasos se dibujan en una única ventana en vivo bajo el
+mensaje del agent, la que abrió el primer `browser_open`, y una persona puede tomar la pestaña
 entre dos pasos cualesquiera. Medido con Claude a través de OpenRouter: un paso de
 `browse_web` dura 3,5-5 s, casi todo la petición al modelo del propio paso; una tarea de
 dos clics que el agent manejó él mismo tardó 13 s, y con `browse_web` unos 20. Las
