@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities import all_capabilities
 from app.core.exceptions import AppException, AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.db.models.agent_run import ApprovalStatus
+from app.db.models.agent_run import AgentRun, ApprovalStatus
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_prompt import APPROVAL, QUESTION, ChannelPrompt
 from app.repositories import (
@@ -37,7 +37,7 @@ from app.repositories import (
     channel_prompt_repo,
     member_repo,
 )
-from app.services.agent_runner import AgentRunnerService, RunSegment
+from app.services.agent_runner import AgentRunnerService, PausedRunState, RunSegment
 from app.services.approvals import ApprovalService
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter
@@ -152,6 +152,11 @@ def approval_text(tool_name: str, args: dict[str, object], account: str | None =
     about = f": “{summary}”" if summary else "."
     acting = f" as *{account}*" if account else ""
     return f"I need your approval to *{call_action(tool_name)}*{acting}{about}"
+
+
+def _parked_calls(run: AgentRun) -> list[str]:
+    """The `ask_user` calls a run is parked on, in the order it asked them."""
+    return PausedRunState.model_validate(run.paused_state).questions
 
 
 def _selected(prompt: ChannelPrompt) -> list[str]:
@@ -408,6 +413,13 @@ class ChannelPrompts:
         try again. A savepoint takes them back. Once the resume has committed its
         own work the savepoint is gone with it, and what it wrote stands.
         """
+        # The run's row, held for the rest of the transaction: two presses on two
+        # questions (or two approvals) of one run each lock only their own prompt,
+        # and both could read the other as unanswered and neither continue the
+        # run. Held, the second waits and then sees the first's answer.
+        await agent_run_repo.claim_parked_run(
+            self.db, prompt.run_id, organization_id=ctx.organization_id
+        )
         savepoint = await self.db.begin_nested()
         try:
             segment = await (
@@ -464,14 +476,23 @@ class ChannelPrompts:
         else:
             picked = {"skipped": True}
         await channel_prompt_repo.answer(self.db, prompt=prompt, value=picked)
-        asked = await channel_prompt_repo.for_call(
-            self.db, run_id=prompt.run_id, tool_call_id=prompt.tool_call_id
+        # Every call the run is parked on, not only this one's: a turn can ask
+        # through several `ask_user` calls, and one left out is answered as
+        # declined - the run went on before the person reached the others.
+        run = await agent_run_repo.get_run(
+            self.db, prompt.run_id, organization_id=ctx.organization_id
         )
-        if any(row.answer is None for row in asked):
-            return None
-        return await self.runner.answer(
-            ctx, prompt.run_id, {prompt.tool_call_id: [row.answer or {} for row in asked]}
-        )
+        parked = [] if run is None or run.paused_state is None else _parked_calls(run)
+        responses: dict[str, list[object]] = {}
+        for tool_call_id in parked:
+            asked = await channel_prompt_repo.for_call(
+                self.db, run_id=prompt.run_id, tool_call_id=tool_call_id
+            )
+            if any(row.answer is None for row in asked):
+                return None
+            if asked:
+                responses[tool_call_id] = [row.answer or {} for row in asked]
+        return await self.runner.answer(ctx, prompt.run_id, responses)
 
     async def _require_asked(self, ctx: AuthContext, prompt: ChannelPrompt) -> None:
         """Refuse anybody but the person the run asked, before anything is written."""

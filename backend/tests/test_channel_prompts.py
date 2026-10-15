@@ -118,11 +118,19 @@ class _Patched:
                 new=AsyncMock(return_value=identity),
             ),
             patch(f"{_MODULE}.member_repo.get_active", new=AsyncMock(return_value=membership)),
-            # The run asked the person pressing, unless a test says otherwise.
+            # The run asked the person pressing, unless a test says otherwise, and
+            # is parked on the one call these prompts belong to.
             patch(
                 f"{_MODULE}.agent_run_repo.get_run",
-                new=AsyncMock(return_value=MagicMock(id=RUN, user_id=USER)),
+                new=AsyncMock(
+                    return_value=MagicMock(
+                        id=RUN,
+                        user_id=USER,
+                        paused_state={"messages": [], "tool_call_ids": {}, "questions": ["ask-1"]},
+                    )
+                ),
             ),
+            patch(f"{_MODULE}.agent_run_repo.claim_parked_run", new=AsyncMock()),
             patch(f"{_MODULE}.channel_prompt_repo.pick", new=self._pick),
         ]
 
@@ -432,6 +440,26 @@ class TestSettlingAPress:
     """The savepoint around a press: kept when the run continues, taken back when
     it refuses, and left alone once the resume committed it away."""
 
+    @pytest.fixture(autouse=True)
+    def _lock(self):
+        with patch(f"{_MODULE}.agent_run_repo.claim_parked_run", new=AsyncMock()) as lock:
+            self.lock = lock
+            yield
+
+    async def test_the_run_is_held_before_anything_is_written(self):
+        """Codex on #2062: two presses on one run's questions each saw the other
+        unanswered, and neither continued the run."""
+        service = ChannelPrompts(_session())
+        prompt = _prompt(QUESTION)
+        ctx = MagicMock()
+
+        with patch.object(service, "_answer", new=AsyncMock(return_value=None)):
+            await service._settle(ctx, prompt, 0)
+
+        self.lock.assert_awaited_once_with(
+            service.db, prompt.run_id, organization_id=ctx.organization_id
+        )
+
     @pytest.mark.parametrize("refused", [False, True])
     async def test_a_resume_that_committed_leaves_what_it_wrote(self, refused: bool):
         session = _session()
@@ -460,16 +488,32 @@ class TestSettlingAPress:
 
 
 class TestPressingAQuestion:
-    async def _press(self, *, choice: int | None, siblings: list[MagicMock], answer_raises=None):
+    async def _press(
+        self,
+        *,
+        choice: int | None,
+        siblings: list[MagicMock],
+        answer_raises=None,
+        parked: list[str] | None = None,
+        others: dict[str, list[MagicMock]] | None = None,
+    ):
         bot = _bot()
         prompt = siblings[0]
         service = ChannelPrompts(_session())
         self.session = service.db
+        calls = {"ask-1": siblings, **(others or {})}
+        run = MagicMock(
+            id=RUN,
+            user_id=USER,
+            paused_state={"messages": [], "tool_call_ids": {}, "questions": parked or ["ask-1"]},
+        )
         with _Patched(bot=bot, prompt=prompt, role="member") as env:
             with (
                 patch(
-                    f"{_MODULE}.channel_prompt_repo.for_call", new=AsyncMock(return_value=siblings)
+                    f"{_MODULE}.channel_prompt_repo.for_call",
+                    new=AsyncMock(side_effect=lambda db, run_id, tool_call_id: calls[tool_call_id]),
                 ),
+                patch(f"{_MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=run)),
                 patch.object(
                     service.runner,
                     "answer",
@@ -533,6 +577,58 @@ class TestPressingAQuestion:
         assert answer.await_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
         assert env.said() == ["Casual it is."]
         assert env.adapter.settle_prompt.await_args.args[2] == "Answered: Casual"
+
+    async def test_the_run_waits_for_every_call_it_asked_through(self):
+        """Codex on #2062: the first call fully answered resumed the run, and the
+        other call's questions, already posted, were answered as declined."""
+        env, answer = await self._press(
+            choice=1,
+            siblings=[_prompt(QUESTION)],
+            parked=["ask-1", "ask-2"],
+            others={"ask-2": [_prompt(QUESTION, tool_call_id="ask-2")]},
+        )
+
+        answer.assert_not_awaited()
+
+    async def test_a_call_the_chat_was_never_shown_is_left_to_the_runner(self):
+        """Its prompts were taken back when they could not be sent; the chat cannot
+        answer it, so it is not waited for - the runner declines it."""
+        env, answer = await self._press(
+            choice=1, siblings=[_prompt(QUESTION)], parked=["ask-1", "ask-2"], others={"ask-2": []}
+        )
+
+        assert answer.await_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
+
+    async def test_a_run_no_longer_parked_is_asked_and_refuses(self):
+        """Nothing to collect: the runner is asked and says the run is not waiting."""
+        bot = _bot()
+        prompt = _prompt(QUESTION)
+        service = ChannelPrompts(_session())
+        gone = MagicMock(id=RUN, user_id=USER, paused_state=None)
+        refusal = BadRequestError(message="This run is not waiting for an answer")
+        with (
+            _Patched(bot=bot, prompt=prompt, role="member") as env,
+            patch(f"{_MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=gone)),
+            patch.object(service.runner, "answer", new=AsyncMock(side_effect=refusal)) as answer,
+        ):
+            await service.press(_press(prompt, 0, bot))
+
+        assert answer.await_args.args[2] == {}
+        assert env.said() == ["This run is not waiting for an answer"]
+
+    async def test_every_call_is_answered_together_once_the_last_one_is(self):
+        other = _prompt(QUESTION, tool_call_id="ask-2", answer={"answer": "Kraków"})
+        env, answer = await self._press(
+            choice=1,
+            siblings=[_prompt(QUESTION)],
+            parked=["ask-1", "ask-2"],
+            others={"ask-2": [other]},
+        )
+
+        assert answer.await_args.args[2] == {
+            "ask-1": [{"selected": ["Casual"]}],
+            "ask-2": [{"answer": "Kraków"}],
+        }
 
     async def test_a_call_waits_for_the_rest_of_its_questions(self):
         env, answer = await self._press(

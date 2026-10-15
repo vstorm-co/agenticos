@@ -1,5 +1,5 @@
 ---
-source_sha: "76621e18ebf6"
+source_sha: "c9e38fd0d2e9"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1186,7 +1186,10 @@ tego samego czatu; naciśnięta wiadomość zachowuje pytanie i pokazuje wybór.
 
 Pytanie, na które można wybrać kilka odpowiedzi, zostaje otwarte: każde
 kliknięcie dodaje albo usuwa opcję, czat dostaje to, co wybrano do tej pory, a
-**Done** je wysyła.
+**Done** je wysyła. Przebieg idzie dalej, gdy wszystko, na czym się zatrzymał,
+jest rozstrzygnięte - każda akceptacja podjęta, każde zadane pytanie z
+odpowiedzią, w ilu wiadomościach by nie były - a ostatnia odpowiedź wysyła
+wszystkie razem.
 
 Pytanie, na które można odpowiedzieć własnymi słowami — i takie bez żadnych
 opcji — mówi to pod sobą: następna wiadomość tej osoby w tym czacie jest

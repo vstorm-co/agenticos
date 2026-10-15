@@ -1,5 +1,5 @@
 ---
-source_sha: "76621e18ebf6"
+source_sha: "c9e38fd0d2e9"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1200,7 +1200,10 @@ publica en el mismo chat; el mensaje pulsado conserva la pregunta y muestra lo
 elegido.
 
 Una pregunta que admite varias respuestas queda abierta: cada pulsación añade o
-quita una opción, el chat recibe lo elegido hasta ahora y **Done** las envía.
+quita una opción, el chat recibe lo elegido hasta ahora y **Done** las envía. La ejecución sigue
+cuando todo aquello por lo que se detuvo está resuelto - cada aprobación decidida,
+cada pregunta que hizo respondida, en cuantos mensajes sea - y la última respuesta
+las envía todas juntas.
 
 Una pregunta que admite una respuesta con palabras propias — y una sin ninguna
 opción — lo dice debajo: el siguiente mensaje de esa persona en ese chat es la

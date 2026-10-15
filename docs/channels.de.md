@@ -1,5 +1,5 @@
 ---
-source_sha: "76621e18ebf6"
+source_sha: "c9e38fd0d2e9"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1268,7 +1268,9 @@ Nachricht behält die Frage und zeigt die Wahl.
 
 Eine Frage mit mehreren Antworten bleibt offen: Jeder Druck fügt eine Option
 hinzu oder nimmt sie weg, der Chat erfährt, was bisher gewählt ist, und **Done**
-schickt sie ab.
+schickt sie ab. Der Durchlauf geht weiter, sobald alles geklärt ist, wofür er
+angehalten hat - jede Freigabe entschieden, jede gestellte Frage beantwortet, in
+wie vielen Nachrichten auch immer - und die letzte Antwort schickt alle zusammen.
 
 Eine Frage, die eine Antwort in eigenen Worten zulässt — und eine ganz ohne
 Optionen — sagt das unter sich: Die nächste Nachricht der Person in diesem Chat

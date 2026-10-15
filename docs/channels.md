@@ -1154,7 +1154,10 @@ the same chat; the pressed message keeps what was asked and shows what was
 chosen.
 
 A question that takes several answers stays open: each press adds or removes an
-option, the chat is told what is picked so far, and **Done** sends them.
+option, the chat is told what is picked so far, and **Done** sends them. The run
+continues once everything it stopped for is settled - every approval decided,
+every question it asked answered, however many messages they took - and the last
+answer sends them all together.
 
 A question that takes an answer in the person's own words — and one with no
 options at all — says so under it: their next message in that chat is the
