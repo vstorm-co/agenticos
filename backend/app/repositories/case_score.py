@@ -71,6 +71,20 @@ async def get(
     return result.scalar_one_or_none()
 
 
+async def get_many(
+    db: AsyncSession, score_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
+) -> dict[UUID, CaseScore]:
+    """The scores of this dataset among `score_ids`, by id."""
+    result = await db.execute(
+        select(CaseScore).where(
+            CaseScore.id.in_(score_ids),
+            CaseScore.organization_id == organization_id,
+            CaseScore.dataset_id == dataset_id,
+        )
+    )
+    return {score.id: score for score in result.scalars().all()}
+
+
 async def existing_ids(
     db: AsyncSession, score_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
 ) -> set[UUID]:

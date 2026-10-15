@@ -40,6 +40,8 @@ from app.schemas.scoring import (
     CaseVerdict,
     DatasetScoring,
     JudgeCreate,
+    Rescored,
+    RescoreRequest,
     ReviewQueue,
     ReviewRequest,
     ReviewRequested,
@@ -330,6 +332,18 @@ async def withdraw_case_score_reviews(
     All of them or none. A decided score keeps its decision.
     """
     return await service.withdraw_reviews(ctx, dataset_id, data)
+
+
+@router.post("/{dataset_id}/scores/rescore", response_model=Rescored)
+async def rescore_case_scores(
+    dataset_id: UUID, data: RescoreRequest, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Grade again, on the same answers, the scores a scorer reached no verdict on.
+
+    The agent is not run again. A score keeps its id, its eval run and any
+    person's verdict; one every scorer reached a verdict on comes back in `kept`.
+    """
+    return await service.rescore(ctx, dataset_id, data)
 
 
 @router.put("/{dataset_id}/scores/{score_id}/verdict", response_model=CaseScoreRead)
