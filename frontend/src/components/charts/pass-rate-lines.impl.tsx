@@ -31,6 +31,8 @@ export interface PassRateLine {
   key: string;
   name: string;
   color: string;
+  /** A line drawn dashed - what the main line was measured against. */
+  dashed?: boolean;
   points: PassRatePoint[];
 }
 
@@ -87,6 +89,7 @@ export function PassRateLinesImpl({ lines, locale }: { lines: PassRateLine[]; lo
             name={line.name}
             stroke={line.color}
             strokeWidth={LINE_WIDTH}
+            strokeDasharray={line.dashed ? "4 4" : undefined}
             isAnimationActive={false}
             dot={(props: { cx?: number; cy?: number; index?: number; payload?: PassRatePoint }) => (
               <circle

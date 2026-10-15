@@ -6184,7 +6184,9 @@
       "label": "Bestehensquote im Zeitverlauf",
       "single": "Bisher ein Run. Starte einen weiteren, um einen Trend zu sehen.",
       "legend": "Jeder Punkt ist ein Run, beschriftet mit dem, was lief; ein hohler Punkt ist ein Entwurf.",
-      "point": "{name} · {model} · {rate} · {verdict, select, better {besser} worse {schlechter} no_difference {kein Unterschied} inconclusive {noch unklar} invalid {nicht vergleichbar} other {erstes Ergebnis}}"
+      "point": "{name} · {model} · {rate} · {verdict, select, better {besser} worse {schlechter} no_difference {kein Unterschied} inconclusive {noch unklar} invalid {nicht vergleichbar} other {erstes Ergebnis}}",
+      "baselineOf": "{name} · verglichen mit",
+      "draftOn": "{name} {date}"
     },
     "chip": {
       "pending": "Läuft",

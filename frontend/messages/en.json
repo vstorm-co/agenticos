@@ -6326,7 +6326,9 @@
       "label": "Pass rate over time",
       "single": "One run so far. Run another to see a trend.",
       "legend": "Each point is a run, labelled with what ran; a hollow point is a draft.",
-      "point": "{name} · {model} · {rate} · {verdict, select, better {better} worse {worse} no_difference {no difference} inconclusive {not sure yet} invalid {not comparable} other {first result}}"
+      "point": "{name} · {model} · {rate} · {verdict, select, better {better} worse {worse} no_difference {no difference} inconclusive {not sure yet} invalid {not comparable} other {first result}}",
+      "baselineOf": "{name} · compared with",
+      "draftOn": "{name} {date}"
     },
     "chip": {
       "pending": "Pending",

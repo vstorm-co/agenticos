@@ -87,14 +87,23 @@ describe("passRateLines", () => {
   const t = (key: string, values?: Record<string, string | number>) =>
     values ? `${key}:${Object.values(values).join("|")}` : key;
 
-  it("draws finished runs over time, a line per group, a draft hollow", () => {
+  it("draws finished runs over time, a line per group, a draft hollow and dated", () => {
     const lines = passRateLines(
       [
         worse({ id: "late", created_at: "2026-10-15T10:00:00Z" }),
         evalRun({
           id: "early",
           created_at: "2026-10-14T10:00:00Z",
-          arms: [arm({ source: "draft", version_number: null })],
+          arms: [
+            arm({ source: "draft", version_number: null }),
+            arm({
+              id: "base",
+              role: "baseline",
+              version_number: 6,
+              summary: { ...SUMMARY, pass_rate: 1 },
+            }),
+            arm({ id: "none", role: "baseline", summary: { ...SUMMARY, pass_rate: null } }),
+          ],
         }),
         evalRun({ id: "other", dataset_id: "ds-2", dataset_name: "shipping" }),
         evalRun({ id: "live", status: "running" }),
@@ -106,17 +115,18 @@ describe("passRateLines", () => {
       "en",
     );
 
-    expect(lines.map((line) => [line.name, line.color])).toEqual([
-      ["refunds", "var(--series-1)"],
-      ["shipping", "var(--series-2)"],
+    expect(lines.map((line) => [line.name, line.color, line.dashed])).toEqual([
+      ["refunds", "var(--series-1)", false],
+      ["trend.baselineOf:refunds", "var(--series-1)", true],
+      ["shipping", "var(--series-2)", false],
     ]);
-    const [refunds] = lines;
+    const [refunds, baseline] = lines;
     expect(refunds?.points.map((point) => [point.label, point.draft])).toEqual([
-      ["draft", true],
+      ["trend.draftOn:draft|Oct 14, 2026", true],
       ["version:7", false],
     ]);
     expect(refunds?.points[1]?.detail).toBe("trend.point:version:7|gpt-4.1|75%|worse");
-    expect(refunds?.points[0]?.detail).toBe("trend.point:draft|gpt-4.1|75%|none");
+    expect(baseline?.points.map((point) => [point.label, point.rate])).toEqual([["version:6", 1]]);
   });
 });
 

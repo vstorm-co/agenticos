@@ -3947,7 +3947,9 @@
       "label": "Odsetek zaliczonych w czasie",
       "single": "Na razie jeden run. Uruchom kolejny, żeby zobaczyć trend.",
       "legend": "Każdy punkt to run podpisany tym, co uruchomiono; pusty punkt to draft.",
-      "point": "{name} · {model} · {rate} · {verdict, select, better {lepiej} worse {gorzej} no_difference {bez różnicy} inconclusive {jeszcze nie wiadomo} invalid {nieporównywalne} other {pierwszy wynik}}"
+      "point": "{name} · {model} · {rate} · {verdict, select, better {lepiej} worse {gorzej} no_difference {bez różnicy} inconclusive {jeszcze nie wiadomo} invalid {nieporównywalne} other {pierwszy wynik}}",
+      "baselineOf": "{name} · odniesienie",
+      "draftOn": "{name} {date}"
     },
     "chip": {
       "pending": "W toku",

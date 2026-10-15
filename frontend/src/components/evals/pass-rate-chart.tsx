@@ -3,10 +3,10 @@
 import dynamic from "next/dynamic";
 import { useLocale, useTranslations } from "next-intl";
 
-import type { PassRateLine } from "@/components/charts/pass-rate-lines.impl";
+import type { PassRateLine, PassRatePoint } from "@/components/charts/pass-rate-lines.impl";
 import { CHART_MIN_HEIGHT } from "@/lib/dashboard/system";
-import { cn } from "@/lib/utils";
-import type { EvalRun } from "@/types/eval-runs";
+import { cn, formatDate } from "@/lib/utils";
+import type { EvalRun, EvalRunArm } from "@/types/eval-runs";
 import { percent } from "./format";
 import { sideName } from "./names";
 
@@ -35,6 +35,12 @@ export function passRateLines(
   locale: string,
 ): PassRateLine[] {
   const lines = new Map<string, PassRateLine>();
+  const lineOf = (key: string, name: string, dashed: boolean, color: string) => {
+    const line = lines.get(key) ?? { key, name, color, dashed, points: [] };
+    lines.set(key, line);
+    return line;
+  };
+  const colors = new Map<string, string>();
   const finished = runs
     .filter((run) => run.status === "completed")
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
@@ -44,28 +50,50 @@ export function passRateLines(
       run.arms.find((item) => item.role === "candidate");
     if (arm === undefined || arm.summary.pass_rate === null) continue;
     const { key, name } = group(run);
-    const line = lines.get(key) ?? {
-      key,
-      name,
-      color: `var(${SERIES[lines.size % SERIES.length]})`,
-      points: [],
-    };
-    lines.set(key, line);
-    const label = sideName(arm, t);
-    line.points.push({
-      at: Date.parse(run.created_at),
-      rate: arm.summary.pass_rate,
-      label,
-      draft: arm.source !== "version",
-      detail: t("trend.point", {
-        name: label,
-        model: arm.model_label,
-        rate: percent(arm.summary.pass_rate, locale),
-        verdict: run.outcome?.verdict ?? "none",
-      }),
-    });
+    const color = colors.get(key) ?? `var(${SERIES[colors.size % SERIES.length]})`;
+    colors.set(key, color);
+    const at = Date.parse(run.created_at);
+    const verdict = run.outcome?.verdict ?? "none";
+    lineOf(key, name, false, color).points.push(
+      point(arm, arm.summary.pass_rate, at, verdict, t, locale),
+    );
+    // What the candidate was measured against, the same run - so a drop on one
+    // line reads beside whether the other moved too.
+    const baseline = run.arms.find((item) => item.role === "baseline");
+    if (baseline !== undefined && baseline.summary.pass_rate !== null) {
+      lineOf(`${key}:baseline`, t("trend.baselineOf", { name }), true, color).points.push(
+        point(baseline, baseline.summary.pass_rate, at, "none", t, locale),
+      );
+    }
   }
   return [...lines.values()];
+}
+
+/** One run's side as a point: labelled with its version, or a draft with its date. */
+function point(
+  arm: EvalRunArm,
+  rate: number,
+  at: number,
+  verdict: string,
+  t: Translate,
+  locale: string,
+): PassRatePoint {
+  const draft = arm.source !== "version";
+  const label = draft
+    ? t("trend.draftOn", { name: sideName(arm, t), date: formatDate(new Date(at), locale) })
+    : sideName(arm, t);
+  return {
+    at,
+    rate,
+    label,
+    draft,
+    detail: t("trend.point", {
+      name: label,
+      model: arm.model_label,
+      rate: percent(rate, locale),
+      verdict,
+    }),
+  };
 }
 
 /** The pass-rate trend, with its key and - with one run - what makes it a trend. */
