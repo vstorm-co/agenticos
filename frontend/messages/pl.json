@@ -3716,7 +3716,7 @@
       "call": {
         "executed": "uruchomione",
         "replayed": "z nagrania",
-        "blocked": "wstrzymane, zapisuje",
+        "blocked": "nie wykonane (zapisałoby dane)",
         "divergent": "brak w nagraniu"
       },
       "scorer": {
@@ -3724,6 +3724,15 @@
         "fail": "niezaliczone",
         "skipped": "pominięte",
         "error": "błąd"
+      },
+      "openInActivity": "Otwórz tę odpowiedź w Activity",
+      "expect": {
+        "title": "Czego oczekuje case",
+        "reference": "Wzorzec:",
+        "counterExample": "Nie tak:",
+        "calls": "Oczekiwane wywołania, {order}:",
+        "checks": "Checki:",
+        "openDataset": "Otwórz dataset tego case'a"
       }
     },
     "estimating": "Wyceniam…",

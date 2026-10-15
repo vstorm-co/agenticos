@@ -204,7 +204,12 @@ export function CaseTable({
                   </button>
                   {expanded && (
                     <div className="mt-3">
-                      <CaseDetail attempts={item.attempts} arms={run.arms} />
+                      <CaseDetail
+                        attempts={item.attempts}
+                        arms={run.arms}
+                        expectation={item.expectation}
+                        datasetId={run.dataset_id}
+                      />
                     </div>
                   )}
                 </li>

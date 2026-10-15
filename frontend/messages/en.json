@@ -6095,7 +6095,7 @@
       "call": {
         "executed": "ran",
         "replayed": "from recording",
-        "blocked": "held, writes",
+        "blocked": "not executed (would have written data)",
         "divergent": "not in recording"
       },
       "scorer": {
@@ -6103,6 +6103,15 @@
         "fail": "fail",
         "skipped": "skipped",
         "error": "error"
+      },
+      "openInActivity": "Open this answer in Activity",
+      "expect": {
+        "title": "What the case expects",
+        "reference": "Reference:",
+        "counterExample": "Not like this:",
+        "calls": "Expected calls, {order}:",
+        "checks": "Checks:",
+        "openDataset": "Open the case's dataset"
       }
     },
     "estimating": "Estimating…",

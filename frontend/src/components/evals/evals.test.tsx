@@ -432,17 +432,80 @@ describe("CaseDetail", () => {
             } as never,
           }),
           attempt({ id: "attempt-2", attempt: 1, outcome: false, answer: null, error: "boom" }),
-          attempt({ id: "attempt-3", arm_id: "arm-2", outcome: null }),
+          attempt({ id: "attempt-3", arm_id: "arm-2", outcome: null, agent_run_id: null }),
         ]}
+        expectation={null}
+        datasetId="ds-1"
       />,
     );
     expect(screen.getByText("v7 · gpt-4.1")).toBeInTheDocument();
     expect(screen.getByText("v6 · gpt-4.1")).toBeInTheDocument();
-    expect(screen.getByText("held, writes")).toBeInTheDocument();
+    expect(screen.getByText("not executed (would have written data)")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("link", { name: "Open this answer in Activity" })[0],
+    ).toHaveAttribute("href", "/runs?run=r1");
+    // Without an expectation there is nothing above the answers.
+    expect(screen.queryByText("What the case expects")).toBeNull();
     expect(screen.getByText('send_email({"to":"a@b.c"})')).toBeInTheDocument();
     expect(screen.getByText("contains 30 days")).toBeInTheDocument();
     expect(screen.getByText("Rerun 1")).toBeInTheDocument();
     expect(screen.getByText("boom")).toBeInTheDocument();
     expect(screen.getByText("undecided")).toBeInTheDocument();
+  });
+
+  it("puts what the case expects above the answers, and the way to its dataset", () => {
+    render(
+      <CaseDetail
+        arms={[arm()]}
+        attempts={[attempt()]}
+        datasetId="ds-1"
+        expectation={{
+          input: "How long do I have?",
+          history: [],
+          reference_answer: "30 days.",
+          counter_example: "90 days.",
+          expected_tool_calls: [{ tool: "lookup_policy", args: { topic: "returns" } }],
+          order_mode: "in_order",
+          checks: [{ type: "contains", value: "30 days" }],
+          tags: [],
+          note: null,
+        }}
+      />,
+    );
+    expect(screen.getByText("What the case expects")).toBeInTheDocument();
+    expect(screen.getByText("30 days.")).toBeInTheDocument();
+    expect(screen.getByText("90 days.")).toBeInTheDocument();
+    expect(screen.getByText("Expected calls, In this order:")).toBeInTheDocument();
+    expect(screen.getByText('lookup_policy({"topic":"returns"})')).toBeInTheDocument();
+    expect(screen.getByText('contains {"value":"30 days"}')).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the case's dataset" })).toHaveAttribute(
+      "href",
+      "/datasets/ds-1",
+    );
+  });
+
+  it("leaves out what a case does not expect", () => {
+    render(
+      <CaseDetail
+        arms={[arm()]}
+        attempts={[attempt()]}
+        datasetId="ds-1"
+        expectation={{
+          input: "Hi",
+          history: [],
+          reference_answer: null,
+          counter_example: null,
+          expected_tool_calls: [],
+          order_mode: "any",
+          checks: [],
+          tags: [],
+          note: null,
+        }}
+      />,
+    );
+    expect(screen.getByText("What the case expects")).toBeInTheDocument();
+    expect(screen.queryByText(/Reference/)).toBeNull();
+    expect(screen.queryByText(/Expected calls/)).toBeNull();
+    expect(screen.queryByText("Checks:")).toBeNull();
   });
 });

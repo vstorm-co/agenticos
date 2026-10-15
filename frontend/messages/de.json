@@ -5953,7 +5953,7 @@
       "call": {
         "executed": "ausgeführt",
         "replayed": "aus Aufzeichnung",
-        "blocked": "zurückgehalten, schreibt",
+        "blocked": "nicht ausgeführt (hätte Daten geschrieben)",
         "divergent": "nicht in der Aufzeichnung"
       },
       "scorer": {
@@ -5961,6 +5961,15 @@
         "fail": "nicht bestanden",
         "skipped": "übersprungen",
         "error": "Fehler"
+      },
+      "openInActivity": "Diese Antwort in Activity öffnen",
+      "expect": {
+        "title": "Was der Fall erwartet",
+        "reference": "Referenz:",
+        "counterExample": "Nicht so:",
+        "calls": "Erwartete Aufrufe, {order}:",
+        "checks": "Checks:",
+        "openDataset": "Das Dataset des Falls öffnen"
       }
     },
     "estimating": "Wird geschätzt…",

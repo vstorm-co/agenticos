@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui";
+import { ROUTES } from "@/lib/constants";
+import type { DatasetCaseContent } from "@/types/datasets";
 import type { CallOutcome, EvalAttempt, EvalRunArm } from "@/types/eval-runs";
 import { seconds, usd } from "./format";
 import { sideName } from "./names";
@@ -41,6 +44,14 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
           ))}
         </ul>
       )}
+      {attempt.agent_run_id && (
+        <Link
+          href={`${ROUTES.RUNS}?run=${attempt.agent_run_id}`}
+          className="text-muted-foreground block text-xs underline underline-offset-4"
+        >
+          {t("openInActivity")}
+        </Link>
+      )}
       {attempt.score && (
         <ul className="space-y-0.5 text-xs">
           {attempt.score.results.map((result, index) => (
@@ -55,28 +66,107 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
   );
 }
 
+/** What the case asks for, read before the answers it is measured against. */
+function Expectation({
+  expectation,
+  datasetId,
+}: {
+  expectation: DatasetCaseContent;
+  datasetId: string;
+}) {
+  const t = useTranslations("evals.case.expect");
+  const tDatasets = useTranslations("datasets");
+  const calls = expectation.expected_tool_calls;
+  return (
+    <div className="bg-muted/40 space-y-2 rounded-md border p-3 text-sm">
+      <p className="text-muted-foreground text-xs font-medium">{t("title")}</p>
+      {expectation.reference_answer && (
+        <p>
+          <span className="text-muted-foreground text-xs">{t("reference")} </span>
+          <span className="whitespace-pre-wrap">{expectation.reference_answer}</span>
+        </p>
+      )}
+      {expectation.counter_example && (
+        <p>
+          <span className="text-muted-foreground text-xs">{t("counterExample")} </span>
+          <span className="whitespace-pre-wrap">{expectation.counter_example}</span>
+        </p>
+      )}
+      {calls.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-muted-foreground text-xs">
+            {t("calls", { order: tDatasets(`orderMode.${expectation.order_mode}`) })}
+          </p>
+          <ul className="space-y-0.5 text-xs">
+            {calls.map((call, index) => (
+              <li key={index}>
+                <code className="break-all">
+                  {call.tool}({JSON.stringify(call.args)})
+                </code>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {expectation.checks.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-muted-foreground text-xs">{t("checks")}</p>
+          <ul className="space-y-0.5 text-xs">
+            {expectation.checks.map(({ type, ...parameters }, index) => (
+              <li key={index}>
+                <code className="break-all">
+                  {type} {JSON.stringify(parameters)}
+                </code>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <Link
+        href={`${ROUTES.DATASETS}/${datasetId}`}
+        className="text-muted-foreground block text-xs underline underline-offset-4"
+      >
+        {t("openDataset")}
+      </Link>
+    </div>
+  );
+}
+
 /**
- * One case answered by every arm of the run, side by side - the candidate
- * beside the baseline when one ran here - with each answer, its calls and
- * what every scorer said.
+ * One case answered by every side of the run, next to each other - the draft
+ * beside what is live when both ran here - under what the case expects, with
+ * each answer, its calls and what every scorer said.
  */
-export function CaseDetail({ attempts, arms }: { attempts: EvalAttempt[]; arms: EvalRunArm[] }) {
+export function CaseDetail({
+  attempts,
+  arms,
+  expectation,
+  datasetId,
+}: {
+  attempts: EvalAttempt[];
+  arms: EvalRunArm[];
+  expectation: DatasetCaseContent | null;
+  datasetId: string;
+}) {
   const t = useTranslations("evals");
   return (
-    <div className="grid gap-3 md:grid-cols-2">
-      {arms.map((arm) => {
-        const own = attempts.filter((attempt) => attempt.arm_id === arm.id);
-        return (
-          <div key={arm.id} className="space-y-2">
-            <p className="text-muted-foreground text-xs font-medium">
-              {t("sideModel", { name: sideName(arm, t), model: arm.model_label })}
-            </p>
-            {own.map((attempt) => (
-              <Attempt key={attempt.id} attempt={attempt} />
-            ))}
-          </div>
-        );
-      })}
+    <div className="space-y-3">
+      {expectation && <Expectation expectation={expectation} datasetId={datasetId} />}
+      <div className="grid gap-3 md:grid-cols-2">
+        {arms.map((arm) => {
+          const own = attempts.filter((attempt) => attempt.arm_id === arm.id);
+          return (
+            <div key={arm.id} className="space-y-2">
+              <p className="text-muted-foreground text-xs font-medium">
+                {t("sideModel", { name: sideName(arm, t), model: arm.model_label })}
+              </p>
+              {own.map((attempt) => (
+                <Attempt key={attempt.id} attempt={attempt} />
+              ))}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
