@@ -188,6 +188,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   {
+    id: "agent-identity",
+    page: AGENT_BUILDER,
+    target: "agent-identity",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+  },
+  {
     id: "agent-model",
     page: AGENT_BUILDER,
     target: "agent-model",

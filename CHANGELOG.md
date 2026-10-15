@@ -28,6 +28,27 @@ Two things are versioned separately from this file and worth knowing about:
   manager's generator as an `Iterator`, so the nineteen that did now return a
   `Generator` or `AsyncGenerator`. Folds in Dependabot's #2132.
 
+## [0.0.537] - 2026-10-15
+
+### Fixed
+
+- **An agent can be renamed in the Builder.** The name and description are
+  spec fields, and the API stored them with the draft, but no Builder control
+  edited them. A duplicate therefore kept the name "<name> (copy)". The Build
+  tab now opens on a name and description card that autosaves with the rest
+  of the draft. A blank name is flagged and not sent. The handle (`@slug`)
+  stays the same, so delegations and mentions wired to it keep working.
+
+## [0.0.536] - 2026-10-15
+
+### Fixed
+
+- **A second page that refuses `web_fetch` no longer ends the run.** Pydantic AI
+  counts retries per tool, not per URL, so two sites answering 403 (or any two
+  failed fetches) in one run failed it with `UnexpectedModelBehavior: Tool
+  'web_fetch' exceeded max retries count of 1`. A failed fetch is now a retry
+  while the tool has one left and the same message as its result once it has not.
+
 ## [0.0.535] - 2026-10-09
 
 ### Fixed

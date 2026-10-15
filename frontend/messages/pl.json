@@ -1482,6 +1482,10 @@
         "title": "Każda wersja zachowana",
         "body": "Każda publikacja zamraża specyfikację jako wersję, którą możesz wypromować do środowiska, cofnąć się do niej albo odczytać względem niej historię uruchomień."
       },
+      "agent-identity": {
+        "title": "Nadaj mu rozpoznawalną nazwę",
+        "body": "Nazwę wybiera się w czacie i znajduje w katalogu. Duplikat zaczyna od nazwy źródła z dopiskiem, więc zmień ją tutaj; handle, przez który inne agenty do niego trafiają, pozostaje ten sam."
+      },
       "agent-instructions": {
         "title": "Instrukcje to zachowanie",
         "body": "Otwórz agenta, a trafisz do kreatora, gdzie składa się go zakładka po zakładce. Build jest pierwsza: instrukcje to jego zachowanie, pisane zwykłym Markdown, nie kodem."

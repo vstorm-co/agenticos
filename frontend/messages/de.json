@@ -2742,6 +2742,10 @@
         "title": "Jede Version, aufbewahrt",
         "body": "Jede Veröffentlichung friert den Spec als Version ein, die Sie in ein Environment heben, auf die Sie zurückrollen oder gegen die Sie die Run-Historie lesen können."
       },
+      "agent-identity": {
+        "title": "Geben Sie ihm einen erkennbaren Namen",
+        "body": "Den Namen wählt man im Chat aus und findet ihn im Katalog. Ein Duplikat beginnt mit dem Namen seiner Vorlage und einem Zusatz, benennen Sie es also hier um; das Handle, über das andere Agents es erreichen, bleibt gleich."
+      },
       "agent-instructions": {
         "title": "Die Instruktionen sind das Verhalten",
         "body": "Öffnen Sie einen Agent, landen Sie im Builder, wo er Tab für Tab zusammengesetzt wird. Bauen kommt zuerst: Die Instruktionen sind sein Verhalten, geschrieben in schlichtem Markdown statt in Code."
@@ -3416,6 +3420,9 @@
       "agentAposSOwn": "Das eigene monatliche Ausgabenlimit dieses Agents. Das Limit der Organisation gilt weiterhin darüber – ein Agent kann es verschärfen, nie lockern. Das Schrittlimit fängt die andere Art von Entgleisung: eine Tool-Schleife, die pro Aufruf billig ist und nie endet.",
       "agentCannotBePublished": "Dieser Agent lässt sich noch nicht veröffentlichen",
       "agentConfigurationNotCode": "Ein Agent ist Konfiguration, kein Code. Bauen Sie ihn hier, veröffentlichen Sie eine Version, und er läuft überall gleich – Chat, API, Slack.",
+      "agentDescriptionLabel": "Beschreibung",
+      "agentNameLabel": "Name",
+      "agentNameRequired": "Ein Agent braucht einen Namen.",
       "agents": "Agents",
       "archive": "Archivieren",
       "archive2": "Archivieren",
@@ -3461,6 +3468,8 @@
       "history": "Historie",
       "howAgentAsksIts": "Wie dieser Agent sein Modell zu verhalten bittet, zusätzlich zu dem, was das Modellprofil ohnehin setzt. Eine Einstellung, die niemand anfasst, wird gar nicht gesendet – das ist Absicht, nicht Ordnungsliebe: Reasoning-Modelle weisen eine Temperatur rundheraus zurück, ein Agent, der nie eine gewählt hat, darf also keine in seinem Namen gesendet bekommen. Ein Provider, der eine Einstellung nicht umsetzt, ignoriert sie. Reasoning selbst ist eine Capability, weiter unten.",
       "howManyModelRequests": "Wie viele Modellanfragen ein Run machen darf. Eine Tool-Schleife erreicht das lange, bevor sie genug kostet, um an ein Budget zu stoßen.",
+      "identity": "Name und Beschreibung",
+      "identityHelp": "Wird mit dem Entwurf gespeichert. Eine Umbenennung behält das Handle @{slug}, Delegationen und Erwähnungen, die darauf zeigen, funktionieren also weiter.",
       "instructions": "Instruktionen",
       "instructions2": "Instruktionen",
       "limits": "Limits",

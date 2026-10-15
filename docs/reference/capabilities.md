@@ -507,6 +507,12 @@ refusal reaches the model as a retryable error rather than as an empty page — 
 refusal shaped like a result is one the model answers around without saying it had
 to. The library can be told to permit local addresses; nothing here exposes that.
 
+Either failure, like any other (a 403, a timeout), is a retry only while the tool
+has an attempt left. Pydantic AI counts retries per tool rather than per URL, so
+the second site that refused the agent would otherwise end the whole run; on the
+last attempt the same message comes back as the tool's result instead, and the
+model moves on to another source or answers without it.
+
 !!! warning "The domain filters are not the security boundary — `safe_download` is"
 
     They match the hostname exactly, with no wildcards and no implicit subdomains,

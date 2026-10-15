@@ -2879,6 +2879,10 @@
         "title": "Every version, kept",
         "body": "Each publish freezes the spec as a version you can promote to an environment, roll back to, or read the run history against."
       },
+      "agent-identity": {
+        "title": "Call it something recognizable",
+        "body": "The name is what people pick in chat and find in the catalog. A duplicate starts as its source with a suffix, so rename it here; the handle other agents reach it by stays the same."
+      },
       "agent-instructions": {
         "title": "Instructions are the behaviour",
         "body": "Open an agent and you land in the Builder, where it's assembled tab by tab. Build comes first: the instructions are its behaviour, written in plain Markdown rather than code."
@@ -3553,6 +3557,9 @@
       "agentAposSOwn": "This agent's own monthly spending limit. The organization's limit still applies on top - an agent can tighten it, never loosen it. The step limit catches the other kind of runaway: a tool loop that is cheap per call and never finishes.",
       "agentCannotBePublished": "This agent cannot be published yet",
       "agentConfigurationNotCode": "An agent is configuration, not code. Build it here, publish a version, and it runs the same way everywhere - chat, API, Slack.",
+      "agentDescriptionLabel": "Description",
+      "agentNameLabel": "Name",
+      "agentNameRequired": "An agent needs a name.",
       "agents": "Agents",
       "archive": "Archive",
       "archive2": "Archive",
@@ -3598,6 +3605,8 @@
       "history": "History",
       "howAgentAsksIts": "How this agent asks its model to behave, on top of whatever the model profile already sets. A setting nobody touches is not sent at all - that is deliberate rather than tidy: reasoning models reject a temperature outright, so an agent that never chose one must not have one sent on its behalf. A provider that does not implement a setting ignores it. Reasoning itself is a capability, below.",
       "howManyModelRequests": "How many model requests one run may make. A tool loop hits this long before it costs enough to hit a budget.",
+      "identity": "Name and description",
+      "identityHelp": "Saved with the draft. Renaming keeps the handle @{slug}, so delegations and mentions wired to it keep working.",
       "instructions": "Instructions",
       "instructions2": "Instructions",
       "limits": "Limits",
