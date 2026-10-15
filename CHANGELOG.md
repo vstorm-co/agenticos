@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.538] - 2026-10-15
+
 ### Changed
 
 - **Backend dependencies move up.** Pydantic AI 2.55.0 with pydantic-ai-harness
