@@ -67,6 +67,7 @@ def upgrade() -> None:
         sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("outcome", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("outcome_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("routed_to_review", sa.Integer(), nullable=False),
         sa.CheckConstraint(
             "purpose IN ('manual', 'gate')", name=op.f("eval_runs_ck_eval_run_purpose_check")
         ),

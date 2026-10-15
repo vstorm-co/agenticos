@@ -1211,6 +1211,7 @@ class EvalRunService:
                     first_done=sum(1 for a in first if a.status in finished),
                     first_total=len(first),
                     outcome=await self._outcome(ctx, run),
+                    routed_to_review=run.routed_to_review,
                     ungraded_score_ids=sorted(
                         score.id
                         for score in scores.values()
@@ -1257,6 +1258,35 @@ class EvalRunService:
             organization_id=ctx.organization_id,
         )
         return {revision.id: tuple(revision.tags or ()) for revision in revisions.values()}
+
+    async def review_worthy(self, ctx: AuthContext, run: EvalRun) -> list[UUID]:
+        """The scores of a run a person should see, a confirmed regression's first.
+
+        Each candidate's first answer to a case its comparison confirmed it broke
+        - unless the two sides cannot be compared - then every answer no scorer
+        reached a verdict on and no person has decided.
+        """
+        org = ctx.organization_id
+        attempts = await eval_run_repo.list_cases(self.db, run.id, organization_id=org)
+        firsts = {(a.arm_id, a.case_id): a.case_score_id for a in attempts if a.attempt == 0}
+        worthy: list[UUID] = []
+        for arm in await eval_run_repo.list_arms(self.db, [run.id], organization_id=org):
+            if arm.role != ArmRole.CANDIDATE.value:
+                continue
+            comparison = await self._comparison(ctx, run, arm_id=arm.id)
+            if comparison.invalid_reason is not None:
+                continue
+            for case in comparison.cases:
+                if case.flip == Flip.REGRESSION.value and case.confirmed:
+                    # A case that failed was decided, so its first answer was scored.
+                    score_id = firsts[(arm.id, case.case_id)]
+                    assert score_id is not None
+                    worthy.append(score_id)
+        scores = await self._scores(ctx, attempts)
+        worthy += sorted(
+            score.id for score in scores.values() if score.human_passed is None and ungraded(score)
+        )
+        return list(dict.fromkeys(worthy))
 
     async def _inputs(self, ctx: AuthContext, attempts: Sequence[EvalRunCase]) -> dict[UUID, str]:
         revisions = await eval_run_repo.revisions(

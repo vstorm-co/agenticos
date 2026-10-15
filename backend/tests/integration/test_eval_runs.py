@@ -1683,11 +1683,13 @@ async def test_run_history_names_each_eval_runs_case_for_who_may_see_it(db) -> N
     assert await service.case_links(member, answered) == {}
 
 
-async def _errored(db: AsyncSession, run_id) -> CaseScore:
-    """One of the run's scores, as a judge that errored would have left it."""
-    score = (
-        await db.execute(select(CaseScore).where(CaseScore.eval_run_id == run_id).limit(1))
-    ).scalar_one()
+async def _errored(db: AsyncSession, run_id, *, answer: str | None = None) -> CaseScore:
+    """One of the run's scores - one that kept `answer`, when given - as a judge
+    that errored would have left it."""
+    query = select(CaseScore).where(CaseScore.eval_run_id == run_id)
+    if answer is not None:
+        query = query.where(CaseScore.answer == answer)
+    score = (await db.execute(query.limit(1))).scalar_one()
     score.results = [
         {**result, "status": "error", "reason_code": "judge_run_failed"} for result in score.results
     ]
@@ -1759,3 +1761,63 @@ async def test_an_eval_score_whose_attempt_kept_no_answer_cannot_be_graded_again
 
     with pytest.raises(BadRequestError):
         await ScoringService(db).rescore(ctx, dataset.id, RescoreRequest(score_ids=[score.id]))
+
+
+async def test_a_run_sends_its_confirmed_regressions_to_review_itself(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    await _run_to_end(db, model, v7.id, ctx)
+
+    read = await service.get(ctx, v7.id)
+    assert (read.routed_to_review, (await service.get(ctx, v6.id)).routed_to_review) == (1, 0)
+    waiting = (
+        await db.scalars(
+            select(CaseScore).where(
+                CaseScore.eval_run_id == v7.id, CaseScore.review_state == "pending"
+            )
+        )
+    ).all()
+    # The first answer that broke, not its reruns.
+    assert [score.answer for score in waiting] == [_FAIL]
+    first = await db.scalar(
+        select(EvalRunCase).where(
+            EvalRunCase.eval_run_id == v7.id,
+            EvalRunCase.case_score_id == waiting[0].id,
+        )
+    )
+    assert first is not None and first.attempt == 0
+
+
+async def test_what_a_run_sends_to_review_is_what_a_person_should_see(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    await _run_to_end(db, model, v7.id, ctx)
+    run = await db.get(EvalRun, v7.id)
+    assert run is not None
+    broke = await service.review_worthy(ctx, run)
+    assert len(broke) == 1
+
+    # An answer the judge could not grade goes too, unless a person decided it.
+    errored = await _errored(db, v7.id, answer=_PASS)
+    worthy = await service.review_worthy(ctx, run)
+    assert errored.id in worthy and worthy[0] == broke[0]
+    errored.human_passed = True
+    await db.flush()
+    assert errored.id not in await service.review_worthy(ctx, run)
+
+    # A regression under another judge is not one to send.
+    await _pin(db, v6.id, {"agent_version_id": None, "rubric_hash": "a"})
+    await _pin(db, v7.id, {"agent_version_id": None, "rubric_hash": "b"})
+    assert broke[0] not in await service.review_worthy(ctx, run)

@@ -215,6 +215,12 @@ class EvalRunRead(BaseSchema):
     outcome: EvalOutcomeRead | None = Field(
         description="The verdict once the run has ended; null while it answers"
     )
+    routed_to_review: int = Field(
+        description=(
+            "How many of its scores the run sent to review itself: its confirmed "
+            "regressions and the answers no scorer reached a verdict on"
+        )
+    )
     ungraded_score_ids: list[UUID] = Field(
         default_factory=list,
         description=(

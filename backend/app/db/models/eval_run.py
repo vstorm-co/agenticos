@@ -170,6 +170,8 @@ class EvalRun(Base):
     # of its scores after `outcome_at`, and read afresh then.
     outcome: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     outcome_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # How many scores the run sent to review itself once its reruns were in.
+    routed_to_review: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     __table_args__ = (
         CheckConstraint(
