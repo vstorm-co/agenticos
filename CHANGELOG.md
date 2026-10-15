@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **An approval says which account is acting.** A call through a labelled MCP
+  connection, or one of several accounts on one service, carries the account's
+  name to the approval - the chat card, Activity, the dashboard widget, the Slack
+  and Telegram message ("as *Work*") and the approval email - so "Send in Gmail"
+  says from which mailbox. Stored on the approval row (migration
+  `0132_tool_approval_account`).
+
 - **A second account on one service is named before it connects.** Two accounts
   of Outlook read as "Outlook" twice in every picker and approval, so the form
   asks for a label when the person or the organization already holds one on that

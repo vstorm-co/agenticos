@@ -5,7 +5,12 @@ import {
   AgentDraftProposal,
   draftArgs,
 } from "@/components/chat/agent-draft-proposal";
-import { ApprovalDetails, ToolMark, useActionPhrase } from "@/components/runs/approval-request";
+import {
+  AccountBadge,
+  ApprovalDetails,
+  ToolMark,
+  useActionPhrase,
+} from "@/components/runs/approval-request";
 import { Button } from "@/components/ui";
 import { usePermissions } from "@/hooks";
 import { callSummary } from "@/lib/approval-view";
@@ -90,6 +95,7 @@ export function ToolApprovalDialog({
                       ? t("draftProposalTitle")
                       : t("approvalAsk", { action: phrase(action.tool_name) })}
                   </p>
+                  <AccountBadge account={action.account} />
                   {/* The one argument that says what the call is about. A command
                     is read by its characters, so it keeps a code face. */}
                   {summary !== null && (

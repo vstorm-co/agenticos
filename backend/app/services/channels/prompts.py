@@ -139,16 +139,18 @@ def call_summary(args: dict[str, object]) -> str | None:
     return line if len(line) <= _SUMMARY_SHOWN else f"{line[: _SUMMARY_SHOWN - 1]}…"
 
 
-def approval_text(tool_name: str, args: dict[str, object]) -> str:
+def approval_text(tool_name: str, args: dict[str, object], account: str | None = None) -> str:
     """The approval message: what the agent wants to do and what about, as the agent says it.
 
     The agent is the one speaking in the chat, so it asks in its own voice. The
     rest of the arguments stay in the console; a chat message with an MCP
-    schema's twenty fields in it was read by nobody.
+    schema's twenty fields in it was read by nobody. Which account it acts as is
+    said where the call names one - two mailboxes make "send mail" a question.
     """
     summary = call_summary(args)
     about = f": “{summary}”" if summary else "."
-    return f"I need your approval to *{call_action(tool_name)}*{about}"
+    acting = f" as *{account}*" if account else ""
+    return f"I need your approval to *{call_action(tool_name)}*{acting}{about}"
 
 
 def _selected(prompt: ChannelPrompt) -> list[str]:
@@ -216,7 +218,7 @@ class ChannelPrompts:
                 self._message(
                     bot,
                     prompt,
-                    approval_text(call.tool_name, call.tool_args),
+                    approval_text(call.tool_name, call.tool_args, call.account),
                     skippable=False,
                 ),
             )

@@ -41,7 +41,7 @@ from app.agents.approval import (
 )
 from app.agents.capabilities._registry import FRAMEWORK_TOOL_NAMES
 from app.agents.deps import AgentDeps
-from app.agents.mcp import NEEDS_APPROVAL
+from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +128,9 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 tool_name=tool_def.name,
                 tool_call_id=call.tool_call_id,
                 tool_args=args,
+                # Only an MCP tool's, for the reason `marked` is: no capability
+                # tool can be given an account by metadata.
+                account=(tool_def.metadata or {}).get(ACCOUNT) if capability_id is None else None,
             )
         )
         if isinstance(decision, ApprovalPending):

@@ -753,6 +753,9 @@ class ParkedApproval:
     subagent: str | None = None
     """Which delegate asked, or `None` for the run's own agent."""
 
+    account: str | None = None
+    """Which account of an MCP service the call acts as, where its binding names one."""
+
     standing: bool = False
     """Whether this was granted by standing consent rather than parked.
 
@@ -863,6 +866,7 @@ class ApprovalChannel:
                 tool_call_id=request.tool_call_id,
                 tool_name=request.tool_name,
                 tool_args=request.tool_args,
+                account=request.account,
                 standing=self.standing_consent_by is not None,
                 subagent=None if delegate is None else delegate.name,
                 # The delegate's own agent, which is *not* `self.agent_id`: that one
@@ -3714,6 +3718,7 @@ class AgentRunnerService:
                 # approver is looking at "send_email", not at "email".
                 tool_id=parked.tool_name,
                 tool_args=parked.tool_args,
+                account=parked.account,
                 subagent_name=parked.subagent,
                 # Null when the delegate's agent was deleted after the call was
                 # parked: the record of what it was authorised to do outlives it.
@@ -4230,6 +4235,7 @@ class AgentRunnerService:
                 tool_call_id=by_approval.get(str(approval.id)),
                 tool_name=approval.tool_id,
                 tool_args=approval.tool_args or {},
+                account=approval.account,
             )
             for approval in approvals
             if approval.status == ApprovalStatus.PENDING.value

@@ -1,5 +1,5 @@
 ---
-source_sha: "0e5ab86763a9"
+source_sha: "91cb1b7dd346"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -271,6 +271,13 @@ dopytać, gdy nie wiadomo, o które konto chodzi.
 Drugie konto w serwisie musi mieć nazwę: jego etykieta odróżnia oba konta w każdym
 wyborze i zatwierdzeniu, więc formularz prosi o nią przed połączeniem, a API
 odrzuca nienazwane drugie konto na polu `label`.
+
+Zatwierdzenie mówi potem, które konto działa. Wywołanie przez połączenie z
+etykietą albo przez jedno z kilku kont w tym samym serwisie niesie nazwę tego
+konta: czat, Activity i dashboard pokazują ją obok akcji, wiadomość w Slacku lub
+Telegramie pyta o zgodę „to *send in Gmail* as *Work*”, a e-mail z prośbą o
+zatwierdzenie podaje ją po nazwie narzędzia. Jedno konto bez etykiety nie ma od
+czego się odróżniać, więc nic nie jest dodawane.
 
 ## Uwierzytelnianie { #authentication }
 

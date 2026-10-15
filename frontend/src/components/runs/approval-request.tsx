@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { Monogram } from "@/components/icons/monogram";
 import { serviceAction, spokenArgs } from "@/lib/approval-view";
+import { Badge } from "@/components/ui/badge";
 import { MCP_LOGOS } from "@/lib/mcp-logos.generated";
 import { STEP_ICONS } from "@/lib/step-icons";
 import { toolEntry, toolLabel } from "@/lib/tool-catalog";
@@ -70,6 +71,20 @@ export function useActionPhrase(): (toolName: string) => string {
       ? toolLabel(toolName, tTools)
       : t("actionInService", { action, service: titleWords(service) });
   };
+}
+
+/**
+ * Which account the call acts as, where its binding names one: with two mailboxes
+ * on one service, "Send in Gmail" is a question until it says from which.
+ */
+export function AccountBadge({ account }: { account: string | null | undefined }) {
+  const t = useTranslations("pages.runs");
+  if (!account) return null;
+  return (
+    <Badge variant="outline" className="max-w-full">
+      <span className="truncate">{t("account", { account })}</span>
+    </Badge>
+  );
 }
 
 /** A value as text a person reads, nested values as lines of their own. */

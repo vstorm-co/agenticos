@@ -285,7 +285,12 @@ class NotificationService:
         # and below `lg` a focused run replaces the list - which would hide
         # them from the reader most likely to be on a phone.
         approvals_path = self._link("/runs?tab=approvals", run.organization_id)
-        tools = [approval.tool_id for approval in approvals]
+        # With the account where the call names one: two mailboxes make "send mail"
+        # a question the email should answer before anybody opens the queue.
+        tools = [
+            f"{approval.tool_id} ({approval.account})" if approval.account else approval.tool_id
+            for approval in approvals
+        ]
         render_context = {
             "agent_name": agent.name,
             "tools": ", ".join(tools) if tools else "a tool call",

@@ -55,6 +55,9 @@ export function ApprovalsWidget({ title, hint, seeAll, options }: DashboardWidge
                     </span>
                     <span className="text-muted-foreground"> · </span>
                     {toolLabel(approval.tool_id, tTools)}
+                    {approval.account ? (
+                      <span className="text-muted-foreground"> · {approval.account}</span>
+                    ) : null}
                   </span>
                   {approval.created_at ? (
                     <span className="text-muted-foreground block truncate text-xs">

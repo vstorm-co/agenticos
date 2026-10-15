@@ -655,6 +655,10 @@ class ParkedCall(BaseSchema):
     )
     tool_name: str
     tool_args: dict[str, Any] = Field(default_factory=dict)
+    account: str | None = Field(
+        default=None,
+        description="Which account of an MCP service the call acts as, where that is a question.",
+    )
 
 
 class ParkedQuestion(BaseSchema):

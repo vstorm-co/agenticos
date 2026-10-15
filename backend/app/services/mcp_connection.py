@@ -2230,6 +2230,9 @@ async def build_toolsets_for_agent(
             allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
             approval=ref.approval,
             include_instructions=connection.include_instructions,
+            # Its label, where it has one: an organization holding two accounts on a
+            # service names the second (#2125), and an approval should say which.
+            account=connection.label,
             connection_id=connection.id,
         )
         specs.append(spec)
@@ -2360,6 +2363,9 @@ async def _own_specs(
             allowed_tools=_narrowed_tools(ref.allowed_tools, account.allowed_tools),
             approval=ref.approval,
             include_instructions=account.include_instructions,
+            # Named on an approval wherever it is a question: one of several accounts
+            # on the service, or one its person labelled.
+            account=_account_name(account) if len(owned) > 1 else account.label,
         )
         accounts.append(_OwnAccount(spec=spec, label=_account_name(account)))
     return accounts or "unauthorized"

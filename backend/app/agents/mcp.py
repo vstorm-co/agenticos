@@ -127,6 +127,10 @@ class McpServerSpec:
     # Whether the server's `initialize` instructions join the agent's (the
     # connection's own opt-in; Pydantic AI leaves them out by default).
     include_instructions: bool = False
+    # Which account this is, as its person reads it, where that is a question:
+    # a labelled connection, or one of several accounts on one service. Shown
+    # beside the call on an approval, so "Send mail" says from which mailbox.
+    account: str | None = None
     # This deployment's own server (`/mcp`), reached through the application in
     # this process rather than over the network - never probed, never dialled out.
     in_process: bool = False
@@ -286,7 +290,9 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
     return ApprovalMarked(
-        FittedNames(server.prefixed(tool_prefix(spec.name))), policy=spec.approval
+        FittedNames(server.prefixed(tool_prefix(spec.name))),
+        policy=spec.approval,
+        account=spec.account,
     )
 
 
@@ -343,6 +349,13 @@ class FittedNames(WrapperToolset[Any]):
         return await super().call_tool(real, tool_args, ctx, tool)
 
 
+ACCOUNT = "agenticos_account"
+"""The key `ApprovalMarked` puts the binding's account under, for an approval to name it.
+
+Top-level in the metadata for the reason `NEEDS_APPROVAL` is: a server cannot write
+there, so it cannot claim to be another account.
+"""
+
 NEEDS_APPROVAL = "agenticos_needs_approval"
 """The key `ApprovalMarked` sets on a tool's metadata, and `ApprovalGate` reads (#2060).
 
@@ -370,9 +383,11 @@ class ApprovalMarked(WrapperToolset[Any]):
     """An MCP server's tools, each marked with whether it waits for approval."""
 
     policy: McpApproval = "none"
+    account: str | None = None
 
     async def get_tools(self, ctx: RunContext[Any]) -> dict[str, ToolsetTool[Any]]:
         tools = await super().get_tools(ctx)
+        named = {} if self.account is None else {ACCOUNT: self.account}
         return {
             name: replace(
                 tool,
@@ -381,6 +396,7 @@ class ApprovalMarked(WrapperToolset[Any]):
                     metadata={
                         **(tool.tool_def.metadata or {}),
                         NEEDS_APPROVAL: needs_approval(tool.tool_def, self.policy),
+                        **named,
                     },
                 ),
             )

@@ -1240,6 +1240,7 @@ export function useChat(options: UseChatOptions = {}) {
             tool_call_id: call.tool_call_id ?? "",
             tool_name: call.tool_name,
             args: call.tool_args,
+            account: call.account,
           })),
           // The same shape the live frame carries: editing a parked call is not
           // offered, because the arguments were recorded on the row being decided.
@@ -1391,6 +1392,7 @@ export function useChat(options: UseChatOptions = {}) {
             tool_call_id: call.tool_call_id ?? "",
             tool_name: call.tool_name,
             args: call.tool_args,
+            account: call.account,
           })),
           reviewConfigs: parkedAgain.map((call) => ({
             tool_name: call.tool_name,

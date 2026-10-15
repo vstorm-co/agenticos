@@ -386,6 +386,8 @@ export interface ActionRequest {
   tool_call_id: string;
   tool_name: string;
   args: Record<string, unknown>;
+  /** Which of a service's accounts the call acts as, where its binding names one. */
+  account?: string | null;
 }
 
 export interface ReviewConfig {

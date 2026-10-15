@@ -271,6 +271,11 @@ export interface ToolApproval {
   /** Shown in full: approving a tool name without its arguments is a rubber stamp. */
   tool_args: Record<string, unknown>;
   /**
+   * Which of a service's accounts the call acts as - a labelled connection, or one of
+   * several accounts on one service. Null where there is nothing to tell apart.
+   */
+  account?: string | null;
+  /**
    * Who started the run this call belongs to.
    *
    * Not on the approval itself - an approval belongs to a run and a run belongs to a
@@ -417,6 +422,7 @@ export interface ParkedCall {
   tool_call_id: string | null;
   tool_name: string;
   tool_args: Record<string, unknown>;
+  account?: string | null;
 }
 
 /** One tool call an execution of a run made, and what came back from it. */

@@ -258,6 +258,13 @@ A second account on a service has to be named: its label is what tells the two
 apart in every picker and approval, so the form asks for one before it connects,
 and the API refuses an unnamed second account on `label`.
 
+The approval then says which account is acting. A call through a labelled
+connection, or through one of several accounts on one service, carries that
+account's name: the chat, Activity and the dashboard show it beside the action,
+a Slack or Telegram message asks "to *send in Gmail* as *Work*", and the
+approval email lists it after the tool. A single unlabelled account has nothing
+to tell apart, so nothing is added.
+
 ## Authentication
 
 Three modes, which is the only thing that really varies between servers.

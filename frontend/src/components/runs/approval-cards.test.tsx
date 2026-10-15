@@ -119,6 +119,18 @@ describe("PendingApproval - a call from an MCP server", () => {
     expect(screen.getByText("For ada@acme.test")).toBeInTheDocument();
   });
 
+  it("says which account the call acts as, where it names one", () => {
+    inIntl(
+      <PendingApproval
+        approval={approval({ tool_id: "gmail_send", account: "Work" })}
+        deciding={false}
+        onDecide={vi.fn()}
+        onOpenRun={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Account: Work")).toBeInTheDocument();
+  });
+
   it("has no telling line for a call with nothing to say", () => {
     inIntl(
       <PendingApproval
@@ -139,5 +151,15 @@ describe("DecidedApproval - a line of the record", () => {
   ] as const)("marks one %s as %s", (status, label) => {
     inIntl(<DecidedApproval approval={approval({ status })} onOpenRun={vi.fn()} />);
     expect(screen.getByText(label)).toBeInTheDocument();
+  });
+
+  it("keeps the account on the record", () => {
+    inIntl(
+      <DecidedApproval
+        approval={approval({ status: "rejected", account: "Work" })}
+        onOpenRun={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Account: Work")).toBeInTheDocument();
   });
 });

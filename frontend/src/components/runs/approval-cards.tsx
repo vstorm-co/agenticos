@@ -5,7 +5,7 @@ import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
 
 import { AgentFace } from "@/components/dashboard/agent-face";
 import { ApprovalDelegate } from "@/components/runs/approval-delegate";
-import { ApprovalDetails, useActionPhrase } from "@/components/runs/approval-request";
+import { AccountBadge, ApprovalDetails, useActionPhrase } from "@/components/runs/approval-request";
 import { Button } from "@/components/ui";
 import { callSummary } from "@/lib/approval-view";
 import { cn, formatDateTime, timeAgo } from "@/lib/utils";
@@ -63,7 +63,8 @@ export function PendingApproval({
                 {summary}
               </p>
             )}
-            <p className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-xs">
+            <p className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+              <AccountBadge account={approval.account} />
               {approval.triggered_by_email && (
                 <span>{t("askedFor", { email: approval.triggered_by_email })}</span>
               )}
@@ -150,7 +151,8 @@ export function DecidedApproval({
           {labelKey ? t(labelKey) : approval.status}
         </span>
       </div>
-      <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 pl-10 text-xs">
+      <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-10 text-xs">
+        <AccountBadge account={approval.account} />
         {approval.triggered_by_email && (
           <span>{t("askedFor", { email: approval.triggered_by_email })}</span>
         )}

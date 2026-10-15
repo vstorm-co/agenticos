@@ -610,6 +610,7 @@ class AgentSession:
                                 "tool_call_id": parked.tool_call_id,
                                 "tool_name": parked.tool_name,
                                 "args": parked.tool_args,
+                                "account": parked.account,
                             }
                             for parked in turn.parked
                         ],

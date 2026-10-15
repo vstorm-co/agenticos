@@ -453,6 +453,30 @@ class TestApprovalMarks:
         # What the server sent is kept beside the mark.
         assert marked["read"].tool_def.metadata["annotations"] == {"readOnlyHint": True}
 
+    @pytest.mark.anyio
+    async def test_a_binding_with_an_account_stamps_it_on_every_tool(self):
+        from pydantic_ai.toolsets.abstract import ToolsetTool
+
+        from app.agents.mcp import ACCOUNT, ApprovalMarked
+
+        inner = MagicMock()
+        inner.get_tools = AsyncMock(
+            return_value={
+                "send": ToolsetTool(
+                    toolset=inner,
+                    tool_def=_mcp_tool("send", False),
+                    max_retries=1,
+                    args_validator=MagicMock(),
+                )
+            }
+        )
+
+        named = await ApprovalMarked(inner, policy="all", account="Work").get_tools(MagicMock())
+        unnamed = await ApprovalMarked(inner, policy="all").get_tools(MagicMock())
+
+        assert named["send"].tool_def.metadata[ACCOUNT] == "Work"
+        assert ACCOUNT not in unnamed["send"].tool_def.metadata
+
 
 class TestToolOrigins:
     @pytest.mark.anyio
@@ -1274,6 +1298,8 @@ class TestEachPersonsOwnAccount:
             ("notion", "https://work/mcp"),
             ("notion-side", "https://side/mcp"),
         ]
+        # Two accounts on one service: an approval says which one is acting.
+        assert [spec.account for spec in seen[0]] == ["work", "side"]
 
     @pytest.mark.anyio
     async def test_an_account_that_no_longer_authorizes_leaves_the_others_answering(
@@ -1305,7 +1331,7 @@ class TestEachPersonsOwnAccount:
     ):
         """The company mailbox and `info@`, both the organization's: two
         connections, two prefixes, and the labels the run is briefed with."""
-        self._capture(monkeypatch)
+        seen = self._capture(monkeypatch)
         main = _connection(name="outlook", label="Company", catalog_key="outlook", scope="org")
         info = _connection(name="outlook-info", catalog_key="outlook", scope="org")
         monkeypatch.setattr(
@@ -1331,6 +1357,8 @@ class TestEachPersonsOwnAccount:
                 whose="organization",
             ),
         ]
+        # An organization's connection is named on an approval by its label alone.
+        assert [spec.account for spec in seen[0]] == ["Company", None]
 
     @pytest.mark.parametrize(
         ("name", "label", "expected"),

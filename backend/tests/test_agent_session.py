@@ -931,6 +931,7 @@ class TestATurnThatFinished:
                         "tool_call_id": "call-1",
                         "tool_name": "send_email",
                         "args": {"to": "ops@example.com"},
+                        "account": None,
                     }
                 ],
                 "review_configs": [{"tool_name": "send_email", "allow_edit": False}],

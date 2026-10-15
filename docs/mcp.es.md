@@ -1,5 +1,5 @@
 ---
-source_sha: "0e5ab86763a9"
+source_sha: "91cb1b7dd346"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -277,6 +277,13 @@ claro a cuál se refiere la persona.
 Una segunda cuenta en un servicio tiene que llevar nombre: su etiqueta es lo que
 distingue las dos en cada selector y cada aprobación, así que el formulario lo pide
 antes de conectar, y la API rechaza una segunda cuenta sin nombre en `label`.
+
+La aprobación dice entonces qué cuenta actúa. Una llamada a través de una
+conexión con etiqueta, o de una de varias cuentas en un mismo servicio, lleva el
+nombre de esa cuenta: el chat, Activity y el dashboard lo muestran junto a la
+acción, un mensaje de Slack o Telegram pregunta «to *send in Gmail* as *Work*», y
+el correo de aprobación lo indica tras la herramienta. Una sola cuenta sin
+etiqueta no tiene de qué distinguirse, así que no se añade nada.
 
 ## Autenticación { #authentication }
 

@@ -251,6 +251,13 @@ class ApprovalRead(BaseSchema):
             "accountability trail and a bare UUID is not one"
         ),
     )
+    account: str | None = Field(
+        default=None,
+        description=(
+            "Which account of an MCP service the call acts as, where its binding "
+            "names one - the mailbox a Send mail would send from"
+        ),
+    )
     subagent_name: str | None = Field(
         default=None,
         description=(

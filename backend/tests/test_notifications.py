@@ -62,6 +62,7 @@ def _approvals(*tool_ids: str) -> list[MagicMock]:
     for tool_id in tool_ids:
         approval = MagicMock()
         approval.id = uuid.uuid4()
+        approval.account = None
         approval.tool_id = tool_id
         approvals.append(approval)
     return approvals
@@ -453,6 +454,20 @@ class TestApprovalRequested:
         assert call["event_type"] is NotificationEventType.APPROVAL_REQUESTED
         assert set(call["recipients"]) == {boss_id, asker_id}
         assert call["render_context"]["tools"] == "send_email"
+
+    @pytest.mark.anyio
+    async def test_a_call_that_names_its_account_lists_it_beside_the_tool(self, written):
+        approvals = _approvals("gmail_send", "notion_search")
+        approvals[0].account = "Work"
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(uuid.uuid4())),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                _run(user_id=uuid.uuid4()), agent=_agent(), spec=_spec(), approvals=approvals
+            )
+
+        assert written.calls[0]["render_context"]["tools"] == "gmail_send (Work), notion_search"
 
     @pytest.mark.anyio
     async def test_an_app_admin_is_part_of_the_admins_audience(self, written):

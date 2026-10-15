@@ -77,7 +77,12 @@ describe("the approvals card", () => {
   it("names the delegate asking, an unnamed run's agent, and a tool nobody catalogued", () => {
     renderWidget({
       approvals: [
-        approval({ id: "ap1", subagent_name: "Researcher", tool_id: "create_issue" }),
+        approval({
+          id: "ap1",
+          subagent_name: "Researcher",
+          tool_id: "create_issue",
+          account: "Work",
+        }),
         approval({ id: "ap2", agent_name: null, triggered_by_email: null }),
         approval({ id: "ap3", created_at: undefined }),
       ],
@@ -85,7 +90,8 @@ describe("the approvals card", () => {
     });
 
     const [delegated, anonymous, undated] = screen.getAllByRole("listitem");
-    expect(delegated).toHaveTextContent("Researcher · Create issue");
+    // With the account the call acts as, where its binding names one.
+    expect(delegated).toHaveTextContent("Researcher · Create issue · Work");
     expect(anonymous).toHaveTextContent("An agent · Save to memory");
     expect(anonymous).toHaveTextContent(/^.*waiting/);
     expect(undated).not.toHaveTextContent("waiting");

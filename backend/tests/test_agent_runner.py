@@ -3223,9 +3223,15 @@ class TestResume:
         run = _parked_run(
             paused_state={"messages": [], "tool_call_ids": {str(approval_id): "tc-2"}}
         )
-        decided = MagicMock(id=uuid.uuid4(), status="approved", tool_id="execute", tool_args={})
+        decided = MagicMock(
+            id=uuid.uuid4(), status="approved", tool_id="execute", tool_args={}, account=None
+        )
         pending = MagicMock(
-            id=approval_id, status="pending", tool_id="execute", tool_args={"command": "ls"}
+            id=approval_id,
+            status="pending",
+            tool_id="execute",
+            tool_args={"command": "ls"},
+            account=None,
         )
         with patch(
             "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
@@ -3255,7 +3261,9 @@ class TestResume:
         """`tool_call_id` is a step a surface cannot mark, not a call it cannot decide."""
         service = AgentRunnerService(_db())
         run = _parked_run(paused_state={"messages": []})
-        pending = MagicMock(id=uuid.uuid4(), status="pending", tool_id="execute", tool_args={})
+        pending = MagicMock(
+            id=uuid.uuid4(), status="pending", tool_id="execute", tool_args={}, account=None
+        )
         with patch(
             "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
             new=AsyncMock(return_value=[pending]),

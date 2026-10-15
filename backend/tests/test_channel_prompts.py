@@ -338,6 +338,11 @@ class TestTheApprovalReadsAsARequest:
         assert approval_text("clock_now", {"zone": ""}) == "I need your approval to *now in Clock*."
         assert call_summary({"size": 3}) is None
 
+    def test_the_account_is_named_when_the_call_has_one(self):
+        assert approval_text("gmail_send", {"to": "ana@example.com"}, "Work") == (
+            "I need your approval to *send in Gmail* as *Work*: “ana@example.com”"
+        )
+
 
 class TestPressingAnApproval:
     async def _press(

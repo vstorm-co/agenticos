@@ -440,6 +440,10 @@ class ToolApproval(Base, TimestampMixin):
     # SET NULL, not CASCADE: deleting the delegate must not delete the record of
     # what somebody authorised it to do.
     subagent_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Which account of an MCP service the call acts as, where its binding names one:
+    # two Outlook accounts make "Send mail" a question of which mailbox. Copied from
+    # the binding when the call is parked, so it reads the same after a rename.
+    account: Mapped[str | None] = mapped_column(String(64), nullable=True)
     subagent_agent_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agents.id", ondelete="SET NULL"),

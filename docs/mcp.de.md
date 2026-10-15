@@ -1,5 +1,5 @@
 ---
-source_sha: "0e5ab86763a9"
+source_sha: "91cb1b7dd346"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -281,6 +281,13 @@ Person meint.
 Ein zweites Konto bei einem Dienst braucht einen Namen: Sein Label unterscheidet
 die beiden in jeder Auswahl und jeder Freigabe, deshalb fragt das Formular vor dem
 Verbinden danach, und die API lehnt ein unbenanntes zweites Konto bei `label` ab.
+
+Die Freigabe sagt dann, welches Konto handelt. Ein Aufruf über eine Verbindung
+mit Label oder über eines von mehreren Konten bei einem Dienst trägt den Namen
+dieses Kontos: Chat, Activity und Dashboard zeigen ihn neben der Aktion, eine
+Slack- oder Telegram-Nachricht fragt „to *send in Gmail* as *Work*“, und die
+Freigabe-E-Mail nennt ihn nach dem Tool. Ein einzelnes Konto ohne Label hat
+nichts zu unterscheiden, also kommt nichts hinzu.
 
 ## Authentifizierung { #authentication }
 

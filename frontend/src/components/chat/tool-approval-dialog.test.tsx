@@ -76,6 +76,17 @@ describe("the tool approval dialog", () => {
     expect(screen.getByText("changelog")).toBeVisible();
   });
 
+  it("names the account a call acts as, and none where there is only one", () => {
+    mount([
+      action("a-1", { tool_name: "gmail_send", account: "Work" }),
+      action("a-2", { tool_name: "notion_notion-search", args: { query: "changelog" } }),
+    ]);
+
+    expect(screen.getAllByText(/^Account: /).map((badge) => badge.textContent)).toEqual([
+      "Account: Work",
+    ]);
+  });
+
   it("leads with a command's first line, and keeps the whole of it a click away", async () => {
     // A gated call is nearly always one string that matters, and
     // `{"command": "python - <<'PY'\nimport …"}` hides it: the newlines that make

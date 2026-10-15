@@ -4712,6 +4712,7 @@
       "toolState": "{status, select, completed {Done} error {Failed} running {Running} pending {Running} unfinished {Did not finish} awaiting_approval {Waiting for approval} awaiting_answer {Waiting for an answer} other {Unknown}}",
       "wantsTo": "<strong>{actor}</strong> wants to <strong>{tool}</strong>",
       "askedFor": "For {email}",
+      "account": "Account: {account}",
       "openTheRun": "Open the run",
       "decidedByWhom": "by {email}",
       "anAgent": "An agent",

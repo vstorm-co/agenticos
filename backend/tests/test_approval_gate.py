@@ -54,7 +54,7 @@ from app.agents.capabilities.approval import (
 )
 from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
-from app.agents.mcp import NEEDS_APPROVAL
+from app.agents.mcp import ACCOUNT, NEEDS_APPROVAL
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, BadRequestError
@@ -247,12 +247,15 @@ class TestMcpToolsMarkedByTheirBinding:
     """#2060: an MCP tool carries its binding's verdict, and the gate honours it."""
 
     @staticmethod
-    def _mcp(marked: bool, capability_id: str | None = None) -> ToolDefinition:
+    def _mcp(
+        marked: bool, capability_id: str | None = None, account: str | None = None
+    ) -> ToolDefinition:
+        named = {} if account is None else {ACCOUNT: account}
         return ToolDefinition(
             name="notion_create_page",
             parameters_json_schema={"type": "object", "properties": {}},
             capability_id=capability_id,
-            metadata={NEEDS_APPROVAL: marked, "annotations": None},
+            metadata={NEEDS_APPROVAL: marked, "annotations": None, **named},
         )
 
     @pytest.mark.anyio
@@ -300,6 +303,36 @@ class TestMcpToolsMarkedByTheirBinding:
         )
 
         assert tool.calls == [{}]
+
+    @pytest.mark.anyio
+    async def test_the_request_names_the_account_the_binding_acts_as(self):
+        ask = _ctx(ApprovalGranted(tool_args={}))
+
+        await ApprovalGate().wrap_tool_execute(
+            ask,
+            call=_call({}),
+            tool_def=self._mcp(marked=True, account="Work"),
+            args={},
+            handler=_Recorder(),
+        )
+
+        assert ask.deps.request_approval.await_args.args[0].account == "Work"
+
+    @pytest.mark.anyio
+    async def test_a_capability_tool_cannot_name_an_account(self):
+        """Gated by the spec, a capability's tool still says nothing about an account
+        its metadata claims: only an MCP binding stamps one."""
+        ask = _ctx(ApprovalGranted(tool_args={}))
+
+        await ApprovalGate(required_tool_names=frozenset({"notion_create_page"})).wrap_tool_execute(
+            ask,
+            call=_call({}),
+            tool_def=self._mcp(marked=True, capability_id="email", account="Work"),
+            args={},
+            handler=_Recorder(),
+        )
+
+        assert ask.deps.request_approval.await_args.args[0].account is None
 
 
 class TestAskingAboutEverything:
@@ -630,6 +663,8 @@ class TestApprovalQueue:
             "agent_id": agent_id,
             "tool_id": "send_email",
             "tool_args": {"to": "customer@example.com"},
+            # A capability's tool is nobody's account: only an MCP binding names one.
+            "account": None,
             # Nobody delegated: the agent whose run this is asked directly. Pinned
             # rather than left out of the comparison, because "null" is what tells
             # a reviewer the run's own agent is acting - and the caller that does

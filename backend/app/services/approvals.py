@@ -61,6 +61,7 @@ class ApprovalService:
         agent_id: UUID,
         tool_id: str,
         tool_args: dict[str, Any],
+        account: str | None = None,
         subagent_name: str | None = None,
         subagent_agent_id: UUID | None = None,
         standing_consent_by: UUID | None = None,
@@ -78,6 +79,8 @@ class ApprovalService:
             approval_id: The row's id, already handed to the surface and stored in
                 the run's `paused_state`, so the write cannot mint a second one.
             agent_id: The agent whose run this is, which is what scopes the row.
+            account: Which account of an MCP service the call acts as, where its
+                binding names one - "Send mail" from which of two mailboxes.
             subagent_name: Which delegate is acting, when the call came from inside
                 a delegation. A delegate's gated tool reaches the run's own approval
                 channel, so without this the queue says `send_email` without saying
@@ -100,6 +103,7 @@ class ApprovalService:
             agent_id=agent_id,
             tool_id=tool_id,
             tool_args=tool_args,
+            account=account,
             subagent_name=subagent_name,
             subagent_agent_id=subagent_agent_id,
             standing_consent_by=standing_consent_by,
