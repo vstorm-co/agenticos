@@ -51,6 +51,7 @@ from app.repositories import (
     intercepted_tool_call_repo,
 )
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate, ExpectedToolCall
+from app.schemas.resource_grant import VisibilityLiteral
 from app.schemas.scoring import (
     CaseScoreCreate,
     CaseVerdict,
@@ -262,10 +263,12 @@ async def _scored_run(db, tenant: Tenant, *, answer: str = '{"days": 30}') -> Ag
     return run
 
 
-async def _dataset(db, tenant: Tenant, *, scoring: DatasetScoring, visibility: str = "private"):
+async def _dataset(
+    db, tenant: Tenant, *, scoring: DatasetScoring, visibility: VisibilityLiteral = "private"
+):
     datasets = DatasetService(db)
     dataset = await datasets.create(
-        tenant.ctx, DatasetCreate(name=f"Refunds {uuid.uuid4().hex[:6]}")
+        tenant.ctx, DatasetCreate(name=f"Refunds {uuid.uuid4().hex[:6]}", visibility=visibility)
     )
     case = await datasets.add_case(
         tenant.ctx,
@@ -282,9 +285,6 @@ async def _dataset(db, tenant: Tenant, *, scoring: DatasetScoring, visibility: s
         ),
     )
     await ScoringService(db).set_scoring(tenant.ctx, dataset.id, scoring)
-    if visibility != "private":
-        row = await dataset_repo.get(db, dataset.id, organization_id=tenant.organization.id)
-        await dataset_repo.update(db, dataset=row, update_data={"visibility": visibility})
     return dataset, case
 
 

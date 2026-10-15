@@ -100,7 +100,10 @@ async def list_review_queue(
     dependencies=[Depends(require(Perm.DATASETS_EDIT))],
 )
 async def create_dataset(data: DatasetCreate, service: DatasetSvc, ctx: Auth) -> Any:
-    """An empty dataset, private to its creator. Its first case makes version 1."""
+    """An empty dataset, visible to the organization unless it asks to start private.
+
+    Its first case makes version 1.
+    """
     return await service.create(ctx, data)
 
 

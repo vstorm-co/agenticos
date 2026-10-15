@@ -1,5 +1,5 @@
 ---
-source_sha: "7543460b5f15"
+source_sha: "88e1ea9ba019"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -307,8 +307,9 @@ un caso antes de guardarse.
 
 Un dataset es un recurso compartido con un propietario, una visibilidad y
 grants, como un [skill](skills.md) o un [archivo de contexto](context.md). Un
-dataset nuevo es privado para quien lo creó hasta que se comparte desde su
-página. El catálogo tiene tres permisos para datasets:
+dataset nuevo lo ve toda la organización, salvo que quien lo crea lo empiece
+como privado; después se cambia desde su página. El catálogo tiene tres
+permisos para datasets:
 
 | Permiso | Permite a un miembro | Nivel de grant que lo da |
 |---|---|---|

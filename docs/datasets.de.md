@@ -1,5 +1,5 @@
 ---
-source_sha: "7543460b5f15"
+source_sha: "88e1ea9ba019"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -318,8 +318,9 @@ dieselbe Schwärzung von Zugangsdaten wie ein Fall.
 
 Ein Dataset ist eine geteilte Ressource mit Besitzer, Sichtbarkeit und Grants,
 wie ein [Skill](skills.md) oder eine [Context-Datei](context.md). Ein neues
-Dataset ist privat für den Ersteller, bis es auf seiner Seite freigegeben wird.
-Der Katalog hat drei Berechtigungen für Datasets:
+Dataset sieht die ganze Organisation, außer der Ersteller legt es von Anfang
+an als privat an; später ändert man das auf seiner Seite. Der Katalog hat drei
+Berechtigungen für Datasets:
 
 | Berechtigung | Erlaubt einem Mitglied | Grant-Stufe, die sie gibt |
 |---|---|---|

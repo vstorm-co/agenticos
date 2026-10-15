@@ -285,9 +285,9 @@ case before it is stored.
 ## Access { #access }
 
 A dataset is a shared resource with an owner, a visibility and grants, like a
-[skill](skills.md) or a [context file](context.md). A new dataset is private to
-its creator until it is shared from its page. The catalog has three
-permissions for datasets:
+[skill](skills.md) or a [context file](context.md). A new dataset is visible to the
+whole organization unless its creator starts it private; its page changes
+that later. The catalog has three permissions for datasets:
 
 | Permission | Lets a member | Grant level that gives it |
 |---|---|---|

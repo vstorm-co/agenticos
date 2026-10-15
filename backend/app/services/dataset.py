@@ -356,7 +356,7 @@ class DatasetService:
             raise _name_taken(name)
 
     async def create(self, ctx: AuthContext, data: DatasetCreate) -> DatasetRead:
-        """An empty dataset, private to its creator until it is shared."""
+        """An empty dataset, visible to the whole organization unless `data` says otherwise."""
         await self._refuse_taken_name(ctx, data.name)
         try:
             # A savepoint, because the check above is a read two requests can both
@@ -369,6 +369,7 @@ class DatasetService:
                     owner_user_id=ctx.subject_id,
                     name=data.name,
                     description=data.description,
+                    visibility=data.visibility,
                 )
         except IntegrityError:
             raise _name_taken(data.name) from None

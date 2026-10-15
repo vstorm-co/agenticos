@@ -216,6 +216,13 @@ class DatasetCaseList(BaseSchema):
 class DatasetCreate(BaseSchema):
     name: str = Field(min_length=1, max_length=120, description="Unique per organization")
     description: str | None = Field(default=None, max_length=500)
+    visibility: VisibilityLiteral = Field(
+        default="org",
+        description=(
+            "Who sees it: the whole organization unless it starts `private` to its "
+            "creator, or `team`"
+        ),
+    )
 
 
 class DatasetUpdate(BaseSchema):

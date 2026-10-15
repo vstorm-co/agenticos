@@ -152,12 +152,14 @@ async def create(
     owner_user_id: UUID | None,
     name: str,
     description: str | None,
+    visibility: str,
 ) -> Dataset:
     dataset = Dataset(
         organization_id=organization_id,
         owner_user_id=owner_user_id,
         name=name,
         description=description,
+        visibility=visibility,
     )
     db.add(dataset)
     await db.flush()

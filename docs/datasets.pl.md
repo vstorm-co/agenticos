@@ -1,5 +1,5 @@
 ---
-source_sha: "7543460b5f15"
+source_sha: "88e1ea9ba019"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -299,8 +299,9 @@ redakcję poświadczeń co przypadek.
 
 Dataset jest współdzielonym zasobem z właścicielem, widocznością i
 grantami, tak jak [skill](skills.md) albo [plik kontekstowy](context.md). Nowy
-dataset jest prywatny dla twórcy, dopóki ktoś nie udostępni go ze strony datasetu.
-Katalog ma trzy uprawnienia dla datasetów:
+dataset widzi cała organizacja, chyba że twórca od początku ustawi go jako
+prywatny; później zmienia się to na stronie datasetu. Katalog ma trzy
+uprawnienia dla datasetów:
 
 | Uprawnienie | Pozwala członkowi | Poziom grantu, który je daje |
 |---|---|---|
