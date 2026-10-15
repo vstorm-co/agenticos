@@ -75,9 +75,9 @@ class AgentRunRead(BaseSchema):
     eval_case: EvalCaseLinkRead | None = Field(
         default=None,
         description=(
-            "The eval run and case this run answered. Sent on the single-run read "
-            "of an eval run whose dataset the caller may see; such a run keeps no "
-            "conversation, and its answer and grade are read on the eval run"
+            "The eval run and case this run answered - or graded, on the judge's "
+            "single-run read - when the caller may see the dataset; such a run keeps "
+            "no conversation, and its answer and grade are read on the eval run"
         ),
     )
     error: str | None = None
