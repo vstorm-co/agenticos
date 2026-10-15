@@ -1023,9 +1023,10 @@ Four things make it a session setting rather than a hole in the model:
 **Ask about everything tightens the session's policy.** Selecting this stricter
 mode needs no special permission. It includes MCP calls handled by the runner, even though those
 tools are not declared by capabilities. Connection and binding allowlists control
-which MCP tools are exposed; they do not themselves request approval. The default
-**Follow the agent** mode applies the agent's capability policy and does not add
-an approval gate to those MCP tools.
+which MCP tools are exposed; what holds them for a person is the binding's own
+`approval` policy - `writes` or `all` - which the default **Follow the agent**
+mode applies like a capability's (see
+[which calls wait for a person](mcp.md#which-calls-wait-for-a-person)).
 
 ### A decision nobody makes
 
@@ -1143,15 +1144,15 @@ is kept even when the delegate's *place* could not be - the library's message hi
 is best-effort telemetry, and a delegation re-run from the start has still spent what
 it spent.
 
-!!! warning "MCP approval depends on the execution mode"
+!!! warning "MCP approval is set on the binding"
 
-    A capability's approval setting does not cover MCP tools. In web chat,
-    **Ask about everything** (`ask_all`) also gates MCP calls handled by the
-    runner; the default **Follow the agent** mode does not. Restrict tools on
-    the connection and its agent binding, and test the intended execution mode.
-    Do not assume a chat session's stricter setting applies to a schedule or
-    another entry point. Tools executed inside a model provider do not pass
-    through the local approval gate.
+    A capability's approval setting does not cover MCP tools; the binding's
+    `approval` policy does, on every surface the agent runs on. `writes` holds
+    the tools the server does not mark read-only - the server's own claim, so
+    choose `all` for one you do not control. In web chat, **Ask about
+    everything** (`ask_all`) also gates the rest; do not assume a chat session's
+    stricter setting applies to a schedule or another entry point. Tools
+    executed inside a model provider do not pass through the local approval gate.
 
 ## Alerts
 

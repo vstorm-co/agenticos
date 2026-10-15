@@ -1,5 +1,5 @@
 ---
-source_sha: "ddf9b881a04f"
+source_sha: "dbde8ae77825"
 ---
 
 # Governance { #governance }
@@ -1100,9 +1100,10 @@ Cztery rzeczy czynią z tego ustawienie sesji, a nie dziurę w modelu:
 **Ask about everything zaostrza politykę sesji.** Wybranie tego surowszego trybu
 nie wymaga specjalnego uprawnienia. Obejmuje on wywołania MCP obsługiwane przez runner, choć
 narzędzia te nie są deklarowane przez capabilities. Listy dozwolonych narzędzi
-na połączeniu i powiązaniu z agentem określają, co jest dostępne; same nie
-wymuszają zatwierdzenia. Domyślny tryb **Follow the agent** stosuje politykę
-capabilities agenta i nie dodaje bramki zatwierdzeń do tych narzędzi MCP.
+na połączeniu i powiązaniu z agentem określają, co jest dostępne; na człowieka
+każe im czekać własna polityka `approval` powiązania - `writes` albo `all` - którą
+domyślny tryb **Follow the agent** stosuje tak jak politykę capability (zobacz
+[które wywołania czekają na człowieka](mcp.md#which-calls-wait-for-a-person)).
 
 ### Decyzja, której nikt nie podejmuje { #a-decision-nobody-makes }
 
@@ -1232,15 +1233,16 @@ agenta. Wydatki są zachowywane nawet wtedy, gdy *miejsca* delegata zachować si
 nie dało — historia wiadomości z biblioteki jest telemetrią w miarę możliwości, a
 delegacja uruchomiona od nowa i tak wydała to, co wydała.
 
-!!! warning "Zatwierdzanie MCP zależy od trybu wykonania"
+!!! warning "Zatwierdzanie MCP ustawia się na powiązaniu"
 
-    Ustawienie zatwierdzeń capability nie obejmuje narzędzi MCP. W czacie
-    internetowym **Ask about everything** (`ask_all`) obejmuje też wywołania MCP
-    obsługiwane przez runner; domyślny **Follow the agent** tego nie robi.
-    Ogranicz narzędzia na połączeniu i jego powiązaniu z agentem oraz przetestuj
-    docelowy tryb wykonania. Nie zakładaj, że surowsze ustawienie sesji czatu
-    obowiązuje też w harmonogramie lub innym punkcie wejścia. Narzędzia wykonywane
-    po stronie dostawcy modelu nie przechodzą przez lokalną bramkę zatwierdzeń.
+    Ustawienie zatwierdzeń capability nie obejmuje narzędzi MCP; obejmuje je
+    polityka `approval` powiązania, na każdej powierzchni, na której działa agent.
+    `writes` zatrzymuje narzędzia, których serwer nie oznacza jako tylko do odczytu
+    - to deklaracja samego serwera, więc dla serwera spoza Twojej kontroli wybierz
+    `all`. W czacie internetowym **Ask about everything** (`ask_all`) obejmuje też
+    resztę; nie zakładaj, że surowsze ustawienie sesji czatu obowiązuje w
+    harmonogramie lub innym punkcie wejścia. Narzędzia wykonywane po stronie
+    dostawcy modelu nie przechodzą przez lokalną bramkę zatwierdzeń.
 
 ## Alerty { #alerts }
 

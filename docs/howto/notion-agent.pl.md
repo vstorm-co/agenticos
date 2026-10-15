@@ -1,5 +1,5 @@
 ---
-source_sha: "d73b776f3671"
+source_sha: "287cc6ab95e1"
 title: "Przeszukuj i aktualizuj Notion z poziomu agenta"
 description: "Podłącz Notion jako serwer MCP, pozwól agentowi odpowiadać na podstawie strony, którą sam znajdzie, i wymagaj przeglądu przez człowieka, zanim cokolwiek dopisze."
 ---
@@ -51,9 +51,9 @@ Model wywołuje narzędzie wyszukiwania, otwiera stronę, która wygląda na wł
 
 ## Przepływ: dopisz notatki ze spotkania, a decyduje człowiek { #workflow-append-meeting-notes-with-a-person-deciding }
 
-Przy tym przepływie warto być precyzyjnym, bo **narzędzia MCP nie mają własnego zatwierdzania per narzędzie**. Builder mówi to wprost: *„MCP tools are outside the approval gate entirely: an approval set on a capability does not cover them, so anything these servers can do, this agent can do without asking.”* Narzędzie zapisu, które można nazwać w specu, jak `execute` albo `send_email`, ma przełącznik `required`/`never`/`default`. Narzędzie zapisu w Notion wykryte przy łączeniu nigdy go nie dostaje, bo nic nie zadeklarowało go w kodzie. Zobacz [czego MCP nie daje](../mcp.md#what-mcp-does-not-get-you).
+Przy tym przepływie warto być precyzyjnym. Narzędzie zapisu w Notion jest wykrywane przy łączeniu, więc żadna capability go nie deklaruje, a na człowieka każe mu czekać własna polityka **approval** powiązania Notion: w zakładce **MCP servers** agenta otwórz **Tools** Notion i ustaw **Changes things** na **Ask first** (polityka `writes`), a każde wywołanie, którego serwer nie oznacza jako tylko do odczytu, poczeka na człowieka, z dokładnymi argumentami na karcie. To wiara serwerowi, które narzędzia tylko czytają; ustaw też **Reads** na **Ask first** (`all`), jeśli wolisz zatwierdzać każde wywołanie. Zobacz [które wywołania czekają na człowieka](../mcp.md#which-calls-wait-for-a-person).
 
-Bramka, która do niego sięga, należy do samej rozmowy. Zanim poprosi agenta o zapis, osoba, która z nim rozmawia, otwiera **Chat controls → Approval mode** i wybiera **Ask about everything**. To ustawienie sesji, które „reaches further than the spec's gate on purpose, to the tools no capability owns” (zobacz [jak często dana rozmowa chce być pytana](../governance.md#how-much-one-conversation-wants-to-be-asked)). Z takim ustawieniem:
+Rozmowa może też sama poprosić o więcej. Zanim poprosi agenta o zapis, osoba, która z nim rozmawia, otwiera **Chat controls → Approval mode** i wybiera **Ask about everything**. To ustawienie sesji, które „reaches further than the spec's gate on purpose, to the tools no capability owns” (zobacz [jak często dana rozmowa chce być pytana](../governance.md#how-much-one-conversation-wants-to-be-asked)). Z takim ustawieniem:
 
 ```text
 Append these notes to the Q3 onboarding checklist page: attendees Ana and Marek, decided to move the kickoff to Monday, action item for Marek to update the calendar invite.

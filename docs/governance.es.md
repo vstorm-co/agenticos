@@ -1,5 +1,5 @@
 ---
-source_sha: "ddf9b881a04f"
+source_sha: "dbde8ae77825"
 ---
 
 # Governance { #governance }
@@ -1078,9 +1078,10 @@ Cuatro cosas hacen de esto un ajuste de sesión y no un agujero en el modelo:
 este modo más estricto no requiere permisos especiales. Incluye las llamadas MCP que ejecuta el
 runner, aunque sus herramientas no estén declaradas por capabilities. Las listas
 de herramientas permitidas de la conexión y del vínculo con el agente controlan
-qué herramientas MCP están disponibles; no solicitan aprobación por sí mismas.
-El modo predeterminado **Follow the agent** aplica la política de capabilities
-del agente y no añade una puerta de aprobación a esas herramientas MCP.
+qué herramientas MCP están disponibles; lo que las retiene para una persona es la
+política `approval` del propio vínculo - `writes` o `all` -, que el modo
+predeterminado **Follow the agent** aplica como la de una capability (ver
+[qué llamadas esperan a una persona](mcp.md#which-calls-wait-for-a-person)).
 
 ### Una decisión que nadie toma { #a-decision-nobody-makes }
 
@@ -1204,16 +1205,17 @@ agent. El gasto se guarda incluso cuando el *sitio* del delegado no se pudo guar
 el historial de mensajes de la librería es telemetría de mejor esfuerzo, y una
 delegación reejecutada desde el principio ha gastado igualmente lo que gastó.
 
-!!! warning "La aprobación de MCP depende del modo de ejecución"
+!!! warning "La aprobación de MCP se configura en el vínculo"
 
-    El ajuste de aprobación de una capability no cubre herramientas MCP. En el
-    chat web, **Ask about everything** (`ask_all`) también controla las llamadas
-    MCP que ejecuta el runner; el modo predeterminado **Follow the agent** no.
-    Restringe las herramientas en la conexión y en su vínculo con el agente y
-    prueba el modo de ejecución previsto. No supongas que el ajuste más estricto
-    de una sesión de chat se aplica a una programación u otro punto de entrada.
-    Las herramientas ejecutadas dentro del proveedor del modelo no pasan por
-    la puerta de aprobación local.
+    El ajuste de aprobación de una capability no cubre herramientas MCP; la
+    política `approval` del vínculo sí, en cada superficie en la que corre el
+    agente. `writes` retiene las herramientas que el servidor no marca como de
+    solo lectura - es la palabra del propio servidor, así que elige `all` para uno
+    que no controlas. En el chat web, **Ask about everything** (`ask_all`) también
+    controla el resto; no supongas que el ajuste más estricto de una sesión de chat
+    se aplica a una programación u otro punto de entrada. Las herramientas
+    ejecutadas dentro del proveedor del modelo no pasan por la puerta de
+    aprobación local.
 
 ## Alertas { #alerts }
 

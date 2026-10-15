@@ -45,8 +45,9 @@ export function readableToolName(name: string, prefix: string | null): string {
  * one narrows to the rest, and ticking the last one back returns to null, so a
  * server that gains a tool later offers it to an agent nobody narrowed.
  *
- * The approval is the binding's one setting, `writes` by default: reads run,
- * changes ask. The two group selects are its three values said per group -
+ * The approval is the binding's one setting, `none` until somebody sets it;
+ * `writes` lets reads run and asks before changes. The two group selects are its
+ * three values said per group -
  * asking before a read means asking before everything, and letting changes
  * run means letting everything run.
  */

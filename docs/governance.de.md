@@ -1,5 +1,5 @@
 ---
-source_sha: "ddf9b881a04f"
+source_sha: "dbde8ae77825"
 ---
 
 # Governance { #governance }
@@ -1172,9 +1172,10 @@ Vier Dinge machen es zu einer Sitzungseinstellung statt zu einem Loch im Modell:
 strengeren Modus ist keine besondere Berechtigung nötig. Der Modus erfasst MCP-Aufrufe,
 die der Runner ausführt, obwohl diese Tools nicht von Capabilities deklariert
 werden. Erlaubnislisten an Verbindung und Agent-Bindung bestimmen, welche
-MCP-Tools verfügbar sind; sie fordern selbst keine Freigabe an. Der Standardmodus
-**Follow the agent** wendet die Capability-Regeln des Agenten an und ergänzt
-für diese MCP-Tools kein Freigabe-Gate.
+MCP-Tools verfügbar sind; was sie für eine Person zurückhält, ist die eigene
+`approval`-Regel der Bindung - `writes` oder `all` -, die der Standardmodus
+**Follow the agent** wie die einer Capability anwendet (siehe
+[welche Aufrufe auf eine Person warten](mcp.md#which-calls-wait-for-a-person)).
 
 ### Eine Entscheidung, die niemand trifft { #a-decision-nobody-makes }
 
@@ -1314,13 +1315,14 @@ des Delegates es nicht konnte — die Message-Historie der Bibliothek ist Teleme
 nach bestem Bemühen, und eine von vorn ausgeführte Delegation hat trotzdem
 ausgegeben, was sie ausgegeben hat.
 
-!!! warning "MCP-Freigaben hängen vom Ausführungsmodus ab"
+!!! warning "MCP-Freigaben werden an der Bindung eingestellt"
 
-    Die Freigabeeinstellung einer Capability deckt MCP-Tools nicht ab. Im
-    Webchat erfasst **Ask about everything** (`ask_all`) auch MCP-Aufrufe,
-    die der Runner ausführt; der Standardmodus **Follow the agent** nicht.
-    Beschränken Sie Tools an der Verbindung und ihrer Agent-Bindung und testen
-    Sie den vorgesehenen Ausführungsmodus. Die strengere Einstellung einer
+    Die Freigabeeinstellung einer Capability deckt MCP-Tools nicht ab; die
+    `approval`-Regel der Bindung tut es, auf jeder Oberfläche, auf der der Agent
+    läuft. `writes` hält die Tools zurück, die der Server nicht als schreibgeschützt
+    markiert - das ist die Angabe des Servers selbst, wählen Sie für einen Server
+    außerhalb Ihrer Kontrolle also `all`. Im Webchat erfasst **Ask about
+    everything** (`ask_all`) auch den Rest; die strengere Einstellung einer
     Chatsitzung gilt nicht automatisch für einen Zeitplan oder einen anderen
     Zugang. Beim Modellanbieter ausgeführte Tools durchlaufen das lokale
     Freigabe-Gate nicht.
