@@ -50,6 +50,7 @@ from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.eval_run import EvalRunRequest
+from app.schemas.scoring import RescoreRequest
 from app.services.agent_registry import (
     AgentRegistryService,
     PublishedCandidate,
@@ -899,6 +900,27 @@ async def test_a_baseline_graded_by_another_judge_is_not_compared(db) -> None:
     assert "different judge" in (comparison.invalid_reason or "")
 
 
+async def test_a_baseline_graded_by_the_judge_s_older_prompt_says_so(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), v7.id, ctx)
+    pin = {"agent_version_id": None, "rubric_hash": "a"}
+    await _pin(db, v6.id, pin)
+    await _pin(db, v7.id, {**pin, "prompt_version": 1})
+    assert (await service.compare(ctx, v7.id)).verdict == "no_difference"
+
+    await _pin(db, v7.id, {**pin, "prompt_version": 2})
+
+    comparison = await service.compare(ctx, v7.id)
+    assert comparison.verdict == "invalid"
+    assert "instructions changed" in (comparison.invalid_reason or "")
+
+
 async def test_cases_with_their_own_judge_checks_still_compare(db) -> None:
     """A rubric fingerprint covers a case's own judge checks, so two cases of one
     side are pinned differently; only the same case on the two sides must match."""
@@ -1062,9 +1084,13 @@ async def test_a_cached_baseline_must_have_been_graded_by_the_judge_that_grades_
         return next(arm.basis for arm in estimate.arms if arm.role == "baseline")
 
     # No judge is published in this organization, so that is the judge now.
-    await _pin(db, first.id, {"agent_version_id": None, "rubric_hash": "a"})
+    now = {"agent_version_id": None, "rubric_hash": "a", "prompt_version": 2}
+    await _pin(db, first.id, now)
     assert await baseline_basis() == "cached"
-    await _pin(db, first.id, {"agent_version_id": str(uuid.uuid4()), "rubric_hash": "a"})
+    # Graded before the judge's prompt changed.
+    await _pin(db, first.id, {"agent_version_id": None, "rubric_hash": "a"})
+    assert await baseline_basis() == "history"
+    await _pin(db, first.id, {**now, "agent_version_id": str(uuid.uuid4())})
     assert await baseline_basis() == "history"
     # Graded by no judge at all, where a judge would grade now.
     await _pin(db, first.id, None)
@@ -1652,3 +1678,81 @@ async def test_run_history_names_each_eval_runs_case_for_who_may_see_it(db) -> N
     await db.flush()
     member = await _member(db, owner, OrgRoleName.MEMBER)
     assert await service.case_links(member, answered) == {}
+
+
+async def _errored(db: AsyncSession, run_id) -> CaseScore:
+    """One of the run's scores, as a judge that errored would have left it."""
+    score = (
+        await db.execute(select(CaseScore).where(CaseScore.eval_run_id == run_id).limit(1))
+    ).scalar_one()
+    score.results = [
+        {**result, "status": "error", "reason_code": "judge_run_failed"} for result in score.results
+    ]
+    score.passed = None
+    await db.flush()
+    return score
+
+
+async def test_an_eval_score_is_graded_again_on_the_answer_its_attempt_kept(db) -> None:
+    """The run that answered wrote no transcript; the attempt holds what it said."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), started.id, ctx)
+    score = await _errored(db, started.id)
+    assert (await EvalRunService(db).get(ctx, started.id)).ungraded_score_ids == [score.id]
+
+    rescored = await ScoringService(db).rescore(
+        ctx, dataset.id, RescoreRequest(score_ids=[score.id])
+    )
+
+    assert [(item.id, item.passed, item.eval_run_id) for item in rescored.rescored] == [
+        (score.id, True, started.id)
+    ]
+    assert (await EvalRunService(db).get(ctx, started.id)).ungraded_score_ids == []
+
+
+async def test_grading_a_baseline_again_drops_the_verdicts_that_rest_on_it(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), v7.id, ctx)
+    await service.get(ctx, v6.id)
+    await service.get(ctx, v7.id)
+    score = await _errored(db, v6.id)
+    score.human_passed = True
+    await db.flush()
+    # A person already decided it, so nothing is left to grade on the run.
+    assert (await service.get(ctx, v6.id)).ungraded_score_ids == []
+
+    await ScoringService(db).rescore(ctx, dataset.id, RescoreRequest(score_ids=[score.id]))
+
+    for run_id in (v6.id, v7.id):
+        stored = await db.get(EvalRun, run_id)
+        assert stored is not None
+        await db.refresh(stored)
+        assert (stored.outcome, stored.outcome_at) == (None, None)
+    outcome = (await service.get(ctx, v7.id)).outcome
+    assert outcome is not None and outcome.baseline_pass_rate == 1.0
+
+
+async def test_an_eval_score_whose_attempt_kept_no_answer_cannot_be_graded_again(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    started = await EvalRunService(db).start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), started.id, ctx)
+    score = await _errored(db, started.id)
+    attempt = (
+        await db.execute(select(EvalRunCase).where(EvalRunCase.case_score_id == score.id))
+    ).scalar_one()
+    attempt.answer = None
+    await db.flush()
+
+    with pytest.raises(BadRequestError):
+        await ScoringService(db).rescore(ctx, dataset.id, RescoreRequest(score_ids=[score.id]))

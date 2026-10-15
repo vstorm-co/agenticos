@@ -116,6 +116,8 @@ from app.services.eval_comparison import (
     summarize,
 )
 from app.services.model_profile import ModelProfileService
+from app.services.scorers import JUDGE_PROMPT_VERSION
+from app.services.scoring import ungraded
 from app.services.spend import month_start, organization_monthly_spend
 
 logger = logging.getLogger(__name__)
@@ -564,8 +566,8 @@ class EvalRunService:
 
         Only one that matches on everything the comparison holds constant: the
         version, the dataset version, the model, the scoring - and the judge,
-        whose published version must be the one that graded every case, or no
-        judge at all when none would grade now.
+        whose published version and prompt must be the ones that graded every
+        case, or no judge at all when none would grade now.
         """
         assert arm.version is not None
         since = datetime.now(UTC) - timedelta(hours=settings.EVAL_BASELINE_CACHE_HOURS)
@@ -592,13 +594,14 @@ class EvalRunService:
             organization_id=ctx.organization_id,
         )
         pinned = {
-            (score.judge or {}).get("agent_version_id")
+            (score.judge.get("agent_version_id"), score.judge.get("prompt_version") or 1)
             for score in scores.values()
             if score.judge is not None
         }
         current = str(judge.current_version_id) if judge and judge.current_version_id else None
         # Graded by the judge that would grade now, or by none when none would.
-        return found if pinned == ({current} if judged else set()) else None
+        now = {(current, JUDGE_PROMPT_VERSION)} if judged else set()
+        return found if pinned == now else None
 
     async def estimate(
         self,
@@ -1191,6 +1194,11 @@ class EvalRunService:
                     first_done=sum(1 for a in first if a.status in finished),
                     first_total=len(first),
                     outcome=await self._outcome(ctx, run),
+                    ungraded_score_ids=sorted(
+                        score.id
+                        for score in scores.values()
+                        if score.human_passed is None and ungraded(score)
+                    ),
                     error=run.error,
                     created_by_user_id=run.created_by_user_id,
                     created_at=run.created_at,
@@ -1706,20 +1714,33 @@ class EvalRunService:
         )
         mine = await self._pins(ctx, await self._arm_attempts(ctx, candidate, attempts))
         theirs = await self._pins(ctx, await self._arm_attempts(ctx, baseline.arm, other_attempts))
-        if any(mine[case_id] != theirs[case_id] for case_id in mine.keys() & theirs.keys()):
-            return "The two sides were graded by a different judge, model or rubric."
-        return None
+        differ = [
+            case_id for case_id in mine.keys() & theirs.keys() if mine[case_id] != theirs[case_id]
+        ]
+        if not differ:
+            return None
+        if all(_unprompted(mine[case_id]) == _unprompted(theirs[case_id]) for case_id in differ):
+            return (
+                "The judge's instructions changed between the two sides, so their grades "
+                "do not compare. Run the baseline again to grade both the same way."
+            )
+        return "The two sides were graded by a different judge, model or rubric."
 
     async def _pins(
         self, ctx: AuthContext, attempts: Sequence[EvalRunCase]
     ) -> dict[UUID, set[str]]:
-        """Each case's judge pins across its attempts, for the cases a judge graded."""
+        """Each case's judge pins across its attempts, for the cases a judge graded.
+
+        A pin kept before the judge's prompt was versioned was graded by its
+        first version.
+        """
         scores = await self._scores(ctx, attempts)
         pins: dict[UUID, set[str]] = defaultdict(set)
         for attempt in attempts:
             score = scores.get(attempt.case_score_id)
             if score is not None and score.judge is not None:
-                pins[attempt.case_id].add(json.dumps(score.judge, sort_keys=True))
+                pin = {**score.judge, "prompt_version": score.judge.get("prompt_version") or 1}
+                pins[attempt.case_id].add(json.dumps(pin, sort_keys=True))
         return pins
 
 
@@ -1727,6 +1748,16 @@ class EvalRunService:
 class _CaseAttempt:
     case_id: UUID
     attempt: Attempt
+
+
+def _unprompted(pins: set[str]) -> set[str]:
+    """Judge pins with the prompt version left out."""
+    return {
+        json.dumps(
+            {k: v for k, v in json.loads(pin).items() if k != "prompt_version"}, sort_keys=True
+        )
+        for pin in pins
+    }
 
 
 def _money(value: Decimal | None) -> str | None:

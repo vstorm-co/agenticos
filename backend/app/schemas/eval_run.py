@@ -215,6 +215,13 @@ class EvalRunRead(BaseSchema):
     outcome: EvalOutcomeRead | None = Field(
         description="The verdict once the run has ended; null while it answers"
     )
+    ungraded_score_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "This run's scores a scorer reached no verdict on - the judge errored or "
+            "was skipped - and no person has decided: what grading again can settle"
+        ),
+    )
     draft_changed: bool | None = Field(
         default=None,
         description=(
