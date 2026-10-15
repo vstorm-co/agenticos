@@ -24,6 +24,7 @@ from pydantic_ai.tools import RunContext
 
 if TYPE_CHECKING:
     from pydantic_ai.models import ModelRequestContext
+    from pydantic_ai_harness.guardrails import GuardrailResult
 
     from app.agents.deps import AgentDeps
 
@@ -49,6 +50,10 @@ class SteeringInbox:
     """
 
     on_applied: Callable[[str], Awaitable[None]] | None = None
+    screen: Callable[[str], GuardrailResult] | None = None
+    """The agent's input guardrail, set by the runner: a steer reaches the model
+    from the second request on, past where the harness's input edge looks, so it
+    is screened here - redacted, or the run refused - before it is appended."""
     _steers: list[Steer] = field(default_factory=list)
 
     def add(self, text: str) -> Steer:
@@ -93,7 +98,9 @@ class Steering(AbstractCapability["AgentDeps"]):
         steers = inbox.take()
         if not steers:
             return request_context
-        added = UserPromptPart(content="\n\n".join([_PREFIX, *(steer.text for steer in steers)]))
+        added = UserPromptPart(
+            content="\n\n".join([_PREFIX, *(_screened(inbox, steer.text) for steer in steers)])
+        )
         # The persistent history and this request's own list are separate lists
         # (usually holding the same message), so each takes the words explicitly:
         # the history so later requests and the transcript keep them, the request
@@ -105,3 +112,11 @@ class Steering(AbstractCapability["AgentDeps"]):
                 await inbox.on_applied(steer.text)
         tail = replace(last, parts=[*last.parts, added])
         return replace(request_context, messages=[*messages[:-1], tail])
+
+
+def _screened(inbox: SteeringInbox, text: str) -> str:
+    """The steer as the input guardrail leaves it; a blocked one raises, ending the run."""
+    if inbox.screen is None:
+        return text
+    verdict = inbox.screen(text)
+    return str(verdict.replacement) if verdict.action == "replace" else text

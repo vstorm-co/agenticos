@@ -81,6 +81,7 @@ from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.workspaces import Workspace
 from pydantic_ai_harness.ask_user import DECLINED, AskUserRequest, ask_user_result
 from pydantic_ai_harness.ask_user import TOOL_NAME as ASK_USER_TOOL
+from pydantic_ai_harness.guardrails import GuardrailResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import prompt_variables
@@ -124,6 +125,7 @@ from app.agents.capabilities.guardrails import (
     GuardrailBlocked,
     GuardrailsConfig,
     ScreenedStream,
+    input_screen,
     output_screen,
 )
 from app.agents.capabilities.media import offloaded_history
@@ -294,6 +296,14 @@ def _delegation_config(spec: AgentSpec) -> SubagentsConfig | None:
     """
     binding = delegation_binding(spec)
     return None if binding is None else SubagentsConfig.model_validate(binding.config)
+
+
+def input_screen_for(spec: AgentSpec) -> Callable[[str], GuardrailResult] | None:
+    """The input guardrail this spec's steers are screened with, or `None` without one."""
+    for binding in spec.capabilities:
+        if binding.id == "guardrails" and binding.enabled:
+            return input_screen(GuardrailsConfig.model_validate(binding.config))
+    return None
 
 
 def _output_screen(spec: AgentSpec) -> ScreenedStream | None:
@@ -4225,6 +4235,8 @@ class AgentRunnerService:
             aside=aside,
         )
         prepared.built.deps.steering = steering
+        if steering is not None:
+            steering.screen = input_screen_for(prepared.spec)
         if parks_questions:
             prepared.built.deps.ask_questions = park_the_question
         # `str | list[Any]`, not `str`: an attached image is folded in as

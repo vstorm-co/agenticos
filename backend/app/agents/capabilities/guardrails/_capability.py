@@ -528,6 +528,23 @@ class ScreenedToolArgs(AbstractCapability[object]):
                     yield event
 
 
+def input_screen(config: GuardrailsConfig) -> TextDetector | None:
+    """The input edge's detector, for words that reach the model past the first message.
+
+    What a person adds while the agent works is appended from the second request
+    on, where the harness's input guardrail no longer looks - so the steer is
+    screened with the same detector before it is appended. `None` without an
+    input edge configured.
+    """
+    return _edge_detector(
+        redact_secrets_on=config.redact_secrets_in,
+        redact_pii_on=config.redact_pii_in,
+        phone_regions=parse_phone_regions(config.phone_regions),
+        keywords=_keywords(config.blocked_keywords_in),
+        edge="input",
+    )
+
+
 def output_screen(config: GuardrailsConfig) -> ScreenedStream | None:
     """The stream screen this configuration's output check runs, or `None` without one.
 
@@ -571,13 +588,7 @@ def build_guardrails(config: GuardrailsConfig) -> CombinedCapability[object] | N
     edges: list[AbstractCapability[object]] = []
     phone_regions = parse_phone_regions(config.phone_regions)
 
-    input_detector = _edge_detector(
-        redact_secrets_on=config.redact_secrets_in,
-        redact_pii_on=config.redact_pii_in,
-        phone_regions=phone_regions,
-        keywords=_keywords(config.blocked_keywords_in),
-        edge="input",
-    )
+    input_detector = input_screen(config)
     if input_detector is not None:
         edges.append(InputGuardrail(guard=input_detector))
 

@@ -62,6 +62,7 @@ from app.services.agent_runner import (
     PreparedRun,
     _classify_output,
     _outcome,
+    input_screen_for,
 )
 from app.services.attachments import AttachmentRouter
 from app.services.usage_report import UsageReport, UsageReportService, context_fill
@@ -476,6 +477,8 @@ class ChatAgentRunner:
         # And what the person adds while it works: the surface fills it, the next
         # model request reads it.
         prepared.deps.steering = steering
+        if steering is not None:
+            steering.screen = input_screen_for(prepared.spec)
         # Before the model answers, not after: the model is about to say it cannot
         # reach the person's Notion, and the card with the button that connects it
         # belongs beside that sentence, not under it once the turn is over.

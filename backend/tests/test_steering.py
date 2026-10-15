@@ -133,3 +133,46 @@ async def test_the_request_carries_it_even_where_the_history_tail_differs():
 
     assert "shorter, please" in _said(sent.messages)[-1]
     assert ctx.messages == [history_tail]
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("blocked", [False, True], ids=["redacted", "blocked"])
+async def test_a_steer_meets_the_agents_input_guardrail(blocked: bool):
+    """Review on #2062: a steer joins from the second request on, past where the
+    harness's input edge looks, and reached the provider as typed."""
+    from app.agents.capabilities.guardrails import (
+        GuardrailBlocked,
+        GuardrailsConfig,
+        input_screen,
+    )
+
+    config = (
+        GuardrailsConfig(blocked_keywords_in="salary")
+        if blocked
+        else GuardrailsConfig(redact_secrets_in=True)
+    )
+    inbox = SteeringInbox(screen=input_screen(config))
+    seen: list[list[str]] = []
+    steer = "her salary is 9000" if blocked else "use key sk-ant-api03-" + "x" * 90
+
+    def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        seen.append(_said(messages))
+        if len(seen) == 1:
+            return ModelResponse(parts=[ToolCallPart(tool_name="look_up", args={})])
+        return ModelResponse(parts=[TextPart(content="done")])
+
+    agent = Agent(FunctionModel(model), deps_type=_Deps, capabilities=[Steering()])
+
+    @agent.tool
+    def look_up(ctx: RunContext[_Deps]) -> str:
+        inbox.add(steer)
+        return "ok"
+
+    if blocked:
+        with pytest.raises(GuardrailBlocked):
+            await agent.run("go", deps=_Deps(steering=inbox))
+        assert len(seen) == 1
+    else:
+        await agent.run("go", deps=_Deps(steering=inbox))
+        assert not any(steer in text for text in seen[1])
+        assert any("Added by the person" in text for text in seen[1])
