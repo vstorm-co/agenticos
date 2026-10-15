@@ -13,6 +13,27 @@ beforeEach(() => {
 });
 
 describe("VoiceCaptions", () => {
+  it("draws the faces a page passes in place of the signed-in person's and the agent's", () => {
+    // The hosted page has no signed-in person, and draws its own saved turns:
+    // a caption must wear the faces its saved turn will.
+    render(
+      <VoiceCaptions
+        agentName="Support"
+        hidden={NONE}
+        callerAvatar={<span data-testid="caller-face" />}
+        agentAvatar={<span data-testid="agent-face" />}
+        captions={[
+          { turnId: "t1", part: 0, role: "user", text: "Weather?", final: true },
+          { turnId: "t2", part: 0, role: "assistant", text: "Sunny", final: true },
+        ]}
+      />,
+    );
+    const visible = screen.getByTestId("voice-captions-visible");
+    expect(within(visible).getByTestId("caller-face")).toBeInTheDocument();
+    expect(within(visible).getByTestId("agent-face")).toBeInTheDocument();
+    expect(visible.querySelector(".lucide-bot")).toBeNull();
+  });
+
   it("shows the words to sighted readers and announces whole sentences to screen readers", () => {
     render(
       <VoiceCaptions

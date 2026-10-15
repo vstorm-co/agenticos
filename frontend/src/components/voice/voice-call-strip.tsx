@@ -15,6 +15,15 @@ import { ENDING_NOTICES } from "./voice-call-status";
 
 type Translate = ReturnType<typeof useTranslations>;
 
+/**
+ * The words for how a call ends, rooted where `chat.voice` is: the summary's
+ * title (`ended.*`), the bar's ending label (`view.ending.*`) and strip
+ * (`view.strip.ending.*`), and the notices it announces (`notice.*`). The
+ * console's own are `chat.voice`; the hosted page passes `hosted.voice`, which
+ * holds those keys in a visitor's words - no budget, no access, no guardrail.
+ */
+export type VoiceEndingCopy = Translate;
+
 const strong = (chunks: ReactNode) => (
   <strong className="text-foreground font-semibold">{chunks}</strong>
 );
@@ -58,6 +67,8 @@ export function voiceCallHint(
     now: number;
     pushToTalk: boolean;
     tTools: Translate;
+    /** How a limit ending the call is put: `chat.voice`, or the page's own ({@link VoiceEndingCopy}). */
+    tEnding: VoiceEndingCopy;
     /** Brings the card into view; null when the person cannot decide it anyway. */
     onShowApproval: (() => void) | null;
   },
@@ -107,7 +118,7 @@ export function voiceCallHint(
       key: "ending",
       tone: "warn",
       icon: Clock,
-      message: t.rich(`strip.ending.${ending}`, { strong }),
+      message: input.tEnding.rich(`view.strip.ending.${ending}`, { strong }),
     };
   }
   if (call.warningSecondsLeft !== null && call.warningAt !== null) {
@@ -166,7 +177,8 @@ export const ENDED_KEYS: Partial<Record<VoiceEndReason, string>> = {
  * Why a call never got going - the microphone, the connection, or the server
  * refusing it - for the strip under the composer once it is back (#54). Null for
  * a call that went live, whose end the conversation's summary card tells, and
- * for one the person hung up on before it started. `t` is `chat.voice`.
+ * for one the person hung up on before it started. `t` is `chat.voice`, or
+ * `hosted.voice` on the hosted page, which holds the same keys in a visitor's words.
  */
 export function voiceFailureHint(
   input: { call: CallState; onRetry: () => void; onDismiss: () => void },

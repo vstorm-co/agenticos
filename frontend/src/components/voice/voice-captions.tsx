@@ -2,6 +2,7 @@
 
 import { Bot, Mic } from "lucide-react";
 import { useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AvatarFace } from "@/components/ui/avatar-face";
@@ -96,6 +97,8 @@ export function VoiceCaptions({
   agent,
   hidden,
   speaking = true,
+  callerAvatar,
+  agentAvatar,
 }: {
   captions: readonly Caption[];
   agentName: string;
@@ -103,6 +106,14 @@ export function VoiceCaptions({
   hidden: ReadonlySet<string>;
   /** Whether the call is still on; once it is over, nothing on screen is live. */
   speaking?: boolean;
+  /**
+   * The caller's face, in place of the signed-in person's - for a page with no
+   * signed-in person, whose saved turn draws its own: the caption it replaces
+   * must not change face when it lands.
+   */
+  callerAvatar?: ReactNode;
+  /** The agent's face, in place of `agent`'s avatar, for the same reason. */
+  agentAvatar?: ReactNode;
 }) {
   const t = useTranslations("chat.voice.captions");
   const user = useAuthStore((state) => state.user);
@@ -114,7 +125,8 @@ export function VoiceCaptions({
           turn.role === "user" ? (
             <div key={turn.turnId} className="flex flex-row-reverse gap-2 py-3 sm:gap-4">
               <div className="bg-foreground text-background flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full sm:h-9 sm:w-9">
-                {user && <AvatarFace seed={user.id} colorSlot={user.avatar_color} />}
+                {callerAvatar ??
+                  (user && <AvatarFace seed={user.id} colorSlot={user.avatar_color} />)}
               </div>
               <div className="flex max-w-[85%] flex-col items-end gap-1.5">
                 <p
@@ -131,18 +143,19 @@ export function VoiceCaptions({
           ) : (
             <div key={turn.turnId} className="flex gap-2 py-3 sm:gap-4">
               <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full sm:h-9 sm:w-9">
-                {agent ? (
-                  <AgentAvatar
-                    agentId={agent.id}
-                    slug={agent.slug}
-                    hasAvatar={agent.has_avatar}
-                    size="md"
-                    thinking={turn.live}
-                    className="h-full w-full border-0"
-                  />
-                ) : (
-                  <Bot className="h-4 w-4" />
-                )}
+                {agentAvatar ??
+                  (agent ? (
+                    <AgentAvatar
+                      agentId={agent.id}
+                      slug={agent.slug}
+                      hasAvatar={agent.has_avatar}
+                      size="md"
+                      thinking={turn.live}
+                      className="h-full w-full border-0"
+                    />
+                  ) : (
+                    <Bot className="h-4 w-4" />
+                  ))}
               </div>
               <div className="flex max-w-[85%] min-w-0 flex-col gap-1.5">
                 <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">

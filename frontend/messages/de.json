@@ -2378,6 +2378,57 @@
         "notSetUpTitle": "Spracheingabe ist gerade nicht verfügbar.",
         "notSetUpBody": "Bitte tippen Sie Ihre Nachricht stattdessen."
       }
+    },
+    "voice": {
+      "view": {
+        "mediaFailed": "<strong>Der Ton des Anrufs kam nicht durch,</strong> daher wurde der Anruf beendet. Ihr Netzwerk blockiert ihn möglicherweise. Alles bis dahin Gesagte ist oben gespeichert.",
+        "refused": "<strong>Der Anruf hat nicht begonnen.</strong> {reason}",
+        "tryAgain": "Erneut versuchen",
+        "dismiss": "Schließen",
+        "ending": {
+          "timeLimit": "Wird beendet: Zeitlimit erreicht",
+          "budget": "Wird beendet: Anrufe sind gerade nicht verfügbar",
+          "minutes": "Wird beendet: keine Anrufminuten mehr übrig"
+        },
+        "strip": {
+          "ending": {
+            "timeLimit": "<strong>Zeitlimit erreicht.</strong> Der Assistent sagt es noch, dann endet der Anruf.",
+            "budget": "<strong>Anrufe sind gerade nicht verfügbar.</strong> Der Assistent sagt es noch, dann endet der Anruf.",
+            "minutes": "<strong>Für diesen Monat sind keine Anrufminuten mehr übrig.</strong> Der Assistent sagt es noch, dann endet der Anruf."
+          }
+        }
+      },
+      "failure": {
+        "micInsecure": "<strong>Diese Seite kann das Mikrofon nicht verwenden.</strong> Browser geben das Mikrofon nur auf sicheren Seiten (HTTPS) frei. Bitte tippen Sie Ihre Nachricht stattdessen.",
+        "micDenied": "<strong>Mikrofon für diese Website blockiert.</strong> Klicken Sie auf das Symbol links neben der Adressleiste, stellen Sie Mikrofon auf Zulassen und versuchen Sie es erneut.",
+        "micNotFound": "<strong>Kein Mikrofon gefunden.</strong> Schließen Sie eines an oder prüfen Sie, ob Ihr System dem Browser den Zugriff erlaubt, und versuchen Sie es erneut.",
+        "micBusy": "<strong>Das Mikrofon ist nicht gestartet.</strong> Möglicherweise verwendet eine andere App es. Schließen Sie sie und versuchen Sie es erneut.",
+        "connectionFailed": "<strong>Der Anruf konnte keine Verbindung herstellen.</strong> Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+      },
+      "ended": {
+        "timeLimit": "Der Anruf hat sein Zeitlimit erreicht.",
+        "budget": "Dieser Assistent kann gerade keine Anrufe annehmen. Bitte tippen Sie Ihre Nachricht stattdessen.",
+        "minutes": "Für diesen Monat sind keine Anrufminuten mehr übrig. Bitte tippen Sie Ihre Nachricht stattdessen.",
+        "revoked": "Anrufe wurden hier ausgeschaltet.",
+        "guardrail": "Der Anruf wurde durch eine Inhaltsregel beendet.",
+        "shutdown": "Der Server wurde neu gestartet. Bitte versuchen Sie es erneut.",
+        "voiceOff": "Anrufe sind hier ausgeschaltet.",
+        "busy": "Von hier ist bereits ein Anruf offen.",
+        "lineBusy": "Alle Leitungen sind belegt. Versuchen Sie es in ein paar Minuten erneut oder tippen Sie Ihre Nachricht.",
+        "forbidden": "Anrufe sind hier gerade nicht verfügbar. Bitte tippen Sie Ihre Nachricht stattdessen.",
+        "notConfigured": "Anrufe sind hier gerade nicht verfügbar. Bitte tippen Sie Ihre Nachricht stattdessen.",
+        "notPriced": "Anrufe sind hier gerade nicht verfügbar. Bitte tippen Sie Ihre Nachricht stattdessen.",
+        "resumeRefused": "Der Anruf ist abgebrochen und konnte nicht fortgesetzt werden.",
+        "generic": "Der Anruf wurde unerwartet beendet. Bitte versuchen Sie es erneut."
+      },
+      "notice": {
+        "limitWarning": "{seconds, plural, =60 {Noch 1 Minute in diesem Anruf} other {Noch # Sekunden in diesem Anruf}}",
+        "guardrail": "Eine Inhaltsregel hat die Antwort unterbrochen.",
+        "providerError": "Beim Anruf ist ein Problem aufgetreten.",
+        "timeLimit": "Der Anruf hat sein Zeitlimit erreicht und wird beendet.",
+        "budget": "Anrufe sind gerade nicht verfügbar. Der Anruf wird beendet.",
+        "minutes": "Für diesen Monat sind keine Anrufminuten mehr übrig. Der Anruf wird beendet."
+      }
     }
   },
   "invitations": {

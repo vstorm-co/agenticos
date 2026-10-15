@@ -853,7 +853,14 @@ describe("useVoiceSession", () => {
       });
       socket.receive({ type: "ended", reason: "user" });
     });
-    expect(onTurnSaved).toHaveBeenCalledOnce();
+    // With the message, so a page that keeps no transcript of its own can draw it.
+    expect(onTurnSaved).toHaveBeenCalledWith({
+      id: "m",
+      role: "user",
+      content: "bye",
+      interrupted: false,
+      turn_id: "t",
+    });
     expect(viewState(result.current.call)).toBe("ended");
   });
 
@@ -1160,6 +1167,38 @@ describe("useVoiceSession", () => {
     expect(socket.url).toBe("wss://x/api/v1/embed/pk/voice/ws?token=t1");
     expect(socket.protocols).toBeUndefined();
     expect(socket.sent[0]).toEqual({ type: "start", sdp_offer: offerSdp });
+  });
+
+  it("briefs an embed's call with the page's supplied variables, on a resume too", async () => {
+    // The `context` a typed message carries, so a call is told what text chat is.
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useVoiceSession(), { wrapper });
+    await act(() =>
+      result.current.start({
+        kind: "embed",
+        publicKey: "pk",
+        visitorKey: "v1",
+        token: null,
+        transport: "webrtc",
+        context: { order: "123" },
+      }),
+    );
+    const first = FakeSocket.last();
+    act(() => first.open());
+    expect(first.sent[0]).toEqual({
+      type: "start",
+      sdp_offer: offerSdp,
+      context: { order: "123" },
+    });
+
+    act(() => {
+      first.receive(READY);
+      first.drop();
+    });
+    await act(() => vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS));
+    const second = FakeSocket.last();
+    act(() => second.open());
+    expect(second.sent[0]).toMatchObject({ resume_of: "c1", context: { order: "123" } });
   });
 });
 

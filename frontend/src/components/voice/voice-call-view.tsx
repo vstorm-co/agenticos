@@ -18,6 +18,7 @@ import {
   VoiceApprovalSettled,
   VoiceApprovalUnavailable,
 } from "./voice-approval-card";
+import type { VoiceEndingCopy } from "./voice-call-strip";
 import { VoiceCallSummary } from "./voice-call-summary";
 import { VoiceCaptions } from "./voice-captions";
 
@@ -60,6 +61,9 @@ export function VoiceCallFeed({
   hidden,
   onCallAgain,
   onContinueInText,
+  callerAvatar,
+  agentAvatar,
+  endingCopy,
 }: {
   session: VoiceSession;
   agentName: string;
@@ -69,6 +73,11 @@ export function VoiceCallFeed({
   onCallAgain: () => void;
   /** End the call to carry on in text; the page decides where focus goes. */
   onContinueInText: () => void;
+  /** The caller's and the agent's faces in a caption, for a page that draws its turns its own way. */
+  callerAvatar?: ReactNode;
+  agentAvatar?: ReactNode;
+  /** How the call's end is put, when not in the console's `chat.voice` words. */
+  endingCopy?: VoiceEndingCopy;
 }) {
   const t = useTranslations("chat");
   const tTools = useTranslations("chat.tools");
@@ -86,6 +95,8 @@ export function VoiceCallFeed({
         agent={agent}
         hidden={hidden}
         speaking={live}
+        callerAvatar={callerAvatar}
+        agentAvatar={agentAvatar}
       />
       {live && view === "thinking" && (
         <AgentRow>
@@ -144,7 +155,12 @@ export function VoiceCallFeed({
       )}
       {/* There from the call's start, so the summary landing in it is announced. */}
       <div role="status" aria-live="polite" data-testid="voice-call-end">
-        <VoiceCallSummary call={call} agentName={agentName} onCallAgain={onCallAgain} />
+        <VoiceCallSummary
+          call={call}
+          agentName={agentName}
+          onCallAgain={onCallAgain}
+          endingCopy={endingCopy}
+        />
       </div>
     </div>
   );

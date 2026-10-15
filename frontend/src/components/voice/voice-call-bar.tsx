@@ -12,7 +12,7 @@ import { viewState } from "@/lib/voice/call-reducer";
 import { waveVisual } from "@/lib/voice/waveform";
 import { useVoiceCallStore, useVoiceGlowStore } from "@/stores";
 
-import { voiceCallHint } from "./voice-call-strip";
+import { voiceCallHint, type VoiceEndingCopy } from "./voice-call-strip";
 import { VoiceCallStatus } from "./voice-call-status";
 import { VoiceControls } from "./voice-controls";
 import { VoiceLevelMeter } from "./voice-level-meter";
@@ -57,13 +57,17 @@ export function VoiceCallBar({
   agentName,
   canDecide,
   onShowApproval,
+  endingCopy,
 }: {
   session: VoiceSession;
   agentName: string;
   /** Whether the person on the call may decide an approval - otherwise nothing points at buttons they lack. */
   canDecide: boolean;
   onShowApproval: () => void;
+  /** How a limit ending the call and its notices are put, when not the console's `chat.voice`. */
+  endingCopy?: VoiceEndingCopy;
 }) {
+  const tVoice = useTranslations("chat.voice");
   const tView = useTranslations("chat.voice.view");
   const tTools = useTranslations("chat.tools");
   const { call, pressToTalk, setMuted, end } = session;
@@ -95,7 +99,14 @@ export function VoiceCallBar({
   const working = visual === "thinking" || visual === "tool" ? visual : undefined;
   const quiet = visual === "quiet" || visual === "connecting" || visual === "approval";
   const hint = voiceCallHint(
-    { call, now, pushToTalk, tTools, onShowApproval: canDecide ? onShowApproval : null },
+    {
+      call,
+      now,
+      pushToTalk,
+      tTools,
+      tEnding: endingCopy ?? tVoice,
+      onShowApproval: canDecide ? onShowApproval : null,
+    },
     tView,
   );
   // Hold to talk replaces Mute, so turning it on unmutes: a held microphone
@@ -144,6 +155,7 @@ export function VoiceCallBar({
               agentName={agentName}
               pushToTalk={pushToTalk}
               holding={holding}
+              endingCopy={endingCopy}
             />
           </div>
           <div className="flex min-w-0 items-center [grid-area:vis]">

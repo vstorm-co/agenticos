@@ -19,7 +19,13 @@ import {
 } from "@/lib/voice/pcm";
 import { audioOnlyOffer, consoleVoiceUrl, embedVoiceUrl } from "@/lib/voice/sdp";
 import { useAuthStore, useOrgStore, useVoiceCallStore } from "@/stores";
-import type { VoiceClientFrame, VoiceServerFrame, VoiceTransport } from "@/types/voice";
+import type {
+  VoiceClientFrame,
+  VoiceSavedTurn,
+  VoiceServerFrame,
+  VoiceStartContext,
+  VoiceTransport,
+} from "@/types/voice";
 
 /**
  * Who to call, and how the call's audio travels - the agent's readiness says
@@ -34,6 +40,12 @@ export type VoiceTarget =
       visitorKey: string | null;
       token: string | null;
       transport: VoiceTransport;
+      /**
+       * What the page says about the visitor - the `context` its typed messages
+       * carry - sent with every `start`, a resumed one included, so a call is
+       * briefed as text chat is. The server keeps only the embed's declared variables.
+       */
+      context?: VoiceStartContext;
     };
 
 /** A relayed call's audio in this page: the capture, the player and its `played` reports. */
@@ -109,7 +121,11 @@ export interface VoiceSession {
  * says it is back `online`), and only then is the call shown as dropped.
  */
 export function useVoiceSession(
-  options: { onTurnSaved?: () => void; onConversation?: (id: string) => void } = {},
+  options: {
+    /** A turn was saved as a message: the message, as the server saved it. */
+    onTurnSaved?: (message: VoiceSavedTurn) => void;
+    onConversation?: (id: string) => void;
+  } = {},
 ): VoiceSession {
   const [call, dispatch] = useReducer(callReducer, initialCall);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -305,6 +321,7 @@ export function useVoiceSession(
           ...(target.kind === "console"
             ? { agent_id: target.agentId, conversation_id: conversationRef.current }
             : {}),
+          ...(target.kind === "embed" && target.context ? { context: target.context } : {}),
           ...(resume ? { resume_of: resume.of } : {}),
         };
         socket.send(JSON.stringify(start));
@@ -346,7 +363,7 @@ export function useVoiceSession(
             optionsRef.current.onConversation?.(frame.conversation_id);
           }
         }
-        if (frame.type === "turn_saved") optionsRef.current.onTurnSaved?.();
+        if (frame.type === "turn_saved") optionsRef.current.onTurnSaved?.(frame.message);
         if (frame.type === "ended") {
           // Over on the server: the media goes now. The socket stays for the
           // turns still being saved, until the server closes it.

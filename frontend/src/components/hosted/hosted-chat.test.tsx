@@ -7,7 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HostedChat } from "./hosted-chat";
 import type { DictationState } from "@/hooks/use-dictation";
 import type { DictationSend } from "@/lib/dictation-api";
+import { initialCall, type CallState } from "@/lib/voice/call-reducer";
 import type { HostedPageConfig } from "@/types/hosted";
+import type { VoiceSavedTurn } from "@/types/voice";
 
 /**
  * The recorder, as a phase each test sets. What is under test here is what the
@@ -47,6 +49,42 @@ vi.mock("@/hooks/use-dictation", async (importOriginal) => ({
         ...dictation.state,
       },
       actions: dictation.actions,
+    };
+  },
+}));
+
+/**
+ * The voice call, as a session each test sets (#54). What is under test is what
+ * the page does with a call - where the bar goes, what the button starts, how a
+ * saved turn reaches the thread - not the socket (`use-voice-session.test.tsx`,
+ * which also hangs the call up on unmount and `pagehide`).
+ */
+const voiceCall = vi.hoisted(() => ({
+  call: null as unknown,
+  start: vi.fn(),
+  end: vi.fn(),
+  dismiss: vi.fn(),
+  decide: vi.fn(),
+  options: {} as {
+    onTurnSaved?: (message: VoiceSavedTurn) => void;
+    onConversation?: (id: string) => void;
+  },
+}));
+vi.mock("@/hooks/use-voice-session", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-voice-session")>()),
+  useVoiceSession: (options: typeof voiceCall.options) => {
+    voiceCall.options = options;
+    return {
+      call: voiceCall.call,
+      localStream: null,
+      remoteStream: null,
+      start: voiceCall.start,
+      end: voiceCall.end,
+      setMuted: vi.fn(),
+      pressToTalk: vi.fn(),
+      decide: voiceCall.decide,
+      dismissUnavailable: vi.fn(),
+      dismiss: voiceCall.dismiss,
     };
   },
 }));
@@ -137,6 +175,11 @@ beforeEach(() => {
   dictation.state = null;
   dictation.options = null;
   for (const action of Object.values(dictation.actions)) action.mockReset();
+  voiceCall.call = initialCall;
+  voiceCall.options = {};
+  for (const action of [voiceCall.start, voiceCall.end, voiceCall.dismiss, voiceCall.decide]) {
+    action.mockReset();
+  }
   FakeSocket.last = null;
   vi.stubGlobal("WebSocket", FakeSocket);
   window.localStorage.clear();
@@ -910,5 +953,492 @@ describe("the chrome around a turn", () => {
     act(() => socket().deliver({ type: "text_delta", data: { content: "Thinking" } }));
 
     expect(screen.queryByText(/^\d{1,2}:\d{2}/)).toBeNull();
+  });
+});
+
+describe("a voice call on the page (#54)", () => {
+  const voice = (overrides: Partial<HostedPageConfig> = {}) =>
+    config({ voice_conversation: true, voice_transport: "webrtc", ...overrides });
+  const LIVE: CallState = {
+    ...initialCall,
+    phase: "live",
+    activity: "listening",
+    callId: "c1",
+    conversationId: "conv-1",
+    transport: "webrtc",
+    startedAt: Date.now(),
+    capSeconds: 600,
+    minutesLeft: 540,
+  };
+  const saved = (overrides: Partial<VoiceSavedTurn> = {}): VoiceSavedTurn => ({
+    id: "m1",
+    role: "user",
+    content: "Where is my refund?",
+    interrupted: false,
+    turn_id: "c1:1:user",
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+  });
+
+  it("offers a call on a page whose config says so, and starts it as the page's visitor", async () => {
+    render(<HostedChat config={voice()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Start a voice call" }));
+
+    // The same visitor the thread belongs to, so the call lands in that thread.
+    const visitor = new URL(socket().url).searchParams.get("visitor");
+    expect(voiceCall.start).toHaveBeenCalledWith({
+      kind: "embed",
+      publicKey: "pk_abc",
+      visitorKey: visitor,
+      token: null,
+      transport: "webrtc",
+      context: {},
+    });
+  });
+
+  it("briefs the call with the page's supplied variables, as a typed message is", async () => {
+    window.history.replaceState({}, "", "/e/pk_abc?var_order=123&var_secret=x");
+    render(<HostedChat config={voice({ variables: ["order"] })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Start a voice call" }));
+
+    expect(voiceCall.start).toHaveBeenCalledWith(
+      expect.objectContaining({ context: { order: "123" } }),
+    );
+  });
+
+  it("starts a relayed call as a relayed one", async () => {
+    render(<HostedChat config={voice({ voice_transport: "relay" })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Start a voice call" }));
+
+    expect(voiceCall.start).toHaveBeenCalledWith(expect.objectContaining({ transport: "relay" }));
+  });
+
+  it("offers no call button when the config does not", () => {
+    render(<HostedChat config={config({ voice_conversation: false, voice_transport: null })} />);
+
+    expect(screen.queryByRole("button", { name: "Start a voice call" })).toBeNull();
+  });
+
+  it("offers no call button when the config names no way to carry it", () => {
+    render(<HostedChat config={voice({ voice_transport: null })} />);
+
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start a voice call" })).toBeNull();
+  });
+
+  it("offers no call while the page's socket is closed", () => {
+    render(<HostedChat config={voice()} />);
+    expect(screen.getByRole("button", { name: "Start a voice call" })).toBeEnabled();
+
+    act(() => socket().onclose?.({ code: 1006 }));
+
+    expect(screen.getByRole("button", { name: "Start a voice call" })).toBeDisabled();
+  });
+
+  it("offers no call while the agent is thinking", () => {
+    render(<HostedChat config={voice()} />);
+
+    act(() => socket().deliver({ type: "model_request_start", data: {} }));
+
+    expect(screen.getByRole("button", { name: "Start a voice call" })).toBeDisabled();
+  });
+
+  it("offers no call while an answer is still being written", () => {
+    // Starting a call reopens the page's socket; mid-answer, that would cut the answer off.
+    render(<HostedChat config={voice()} />);
+    act(() => socket().deliver({ type: "text_delta", data: { content: "Let me look" } }));
+
+    expect(screen.getByRole("button", { name: "Start a voice call" })).toBeDisabled();
+  });
+
+  it("turns the composer into the call bar while the call is on", () => {
+    voiceCall.call = LIVE;
+    render(<HostedChat config={voice({ dictation: "server" })} />);
+
+    expect(screen.getByRole("group", { name: "Voice call" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End call" })).toBeInTheDocument();
+    // Still mounted, so a draft survives the call - but out of reach, and with
+    // it the microphone: a call and a dictation never run at once.
+    expect(screen.getByRole("textbox", { hidden: true })).not.toBeVisible();
+    expect(screen.queryByRole("button", { name: "Dictate" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start a voice call" })).toBeNull();
+  });
+
+  it("ends the call from the bar", async () => {
+    voiceCall.call = LIVE;
+    render(<HostedChat config={voice()} />);
+    await userEvent.click(screen.getByRole("button", { name: "End call" }));
+
+    expect(voiceCall.end).toHaveBeenCalled();
+  });
+
+  it("stops the browser's dictation when a call starts", async () => {
+    const recognition = {
+      continuous: false,
+      interimResults: false,
+      lang: "",
+      onresult: null,
+      onend: null,
+      onerror: null,
+      start: vi.fn(),
+      stop: vi.fn(),
+    };
+    vi.stubGlobal(
+      "SpeechRecognition",
+      vi.fn(function () {
+        return recognition;
+      }),
+    );
+    const view = render(<HostedChat config={voice({ dictation: "browser" })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Dictate" }));
+    await userEvent.click(screen.getByRole("button", { name: "Start a voice call" }));
+    expect(voiceCall.start).toHaveBeenCalled();
+
+    voiceCall.call = { ...initialCall, phase: "connecting" };
+    view.rerender(<HostedChat config={voice({ dictation: "browser" })} />);
+
+    expect(recognition.stop).toHaveBeenCalled();
+  });
+
+  it("puts away a server dictation's leftover before a call starts", async () => {
+    // A failed recording keeps its strip and its audio until retried or
+    // discarded; a call starting over it would leave both behind.
+    dictation.state = { phase: "failed" };
+    render(<HostedChat config={voice({ dictation: "server" })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Start a voice call" }));
+
+    expect(dictation.actions.cancel).toHaveBeenCalled();
+    expect(voiceCall.start).toHaveBeenCalled();
+  });
+
+  it("shows a pending approval without anything a visitor could decide it with", () => {
+    voiceCall.call = {
+      ...LIVE,
+      activity: "awaiting_approval",
+      approval: {
+        id: "a1",
+        tool: "send_invoice",
+        args: { customer: "Acme" },
+        said: null,
+        deadline: Date.now() + 60_000,
+        timeoutSeconds: 60,
+      },
+    };
+    render(<HostedChat config={voice()} />);
+
+    // The card is there, with what the agent asked to run...
+    const card = screen.getByRole("group", { name: /Approve .*\?/ });
+    expect(card).toHaveTextContent("Acme");
+    // ...and nothing to decide it with.
+    expect(screen.queryByRole("button", { name: /Approve/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Deny/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show card" })).toBeNull();
+    expect(voiceCall.decide).not.toHaveBeenCalled();
+  });
+
+  it("shows the live caption while the turn is spoken", () => {
+    voiceCall.call = {
+      ...LIVE,
+      captions: [{ turnId: "c1:1:user", part: 0, role: "user", text: "Where is my", final: false }],
+    };
+    render(<HostedChat config={voice()} />);
+
+    expect(screen.getByTestId("voice-captions-visible")).toHaveTextContent("Where is my");
+  });
+
+  it("puts a saved turn into the thread once, in place of its caption", () => {
+    voiceCall.call = {
+      ...LIVE,
+      captions: [
+        {
+          turnId: "c1:1:user",
+          part: 0,
+          role: "user",
+          text: "Where is my refund?",
+          final: true,
+        },
+      ],
+    };
+    render(<HostedChat config={voice()} />);
+
+    act(() => voiceCall.options.onTurnSaved?.(saved()));
+
+    expect(screen.getAllByText("Where is my refund?")).toHaveLength(1);
+    expect(screen.getByTestId("voice-captions-visible")).not.toHaveTextContent(
+      "Where is my refund?",
+    );
+  });
+
+  it("keeps a saved turn drawn once when the thread is read back afterwards", () => {
+    voiceCall.call = {
+      ...LIVE,
+      captions: [
+        { turnId: "c1:1:user", part: 0, role: "user", text: "Where is my refund?", final: true },
+      ],
+    };
+    render(<HostedChat config={voice()} />);
+    act(() => voiceCall.options.onTurnSaved?.(saved()));
+
+    // A reconnect replays the thread, the call's turns included.
+    act(() =>
+      socket().deliver({
+        type: "history",
+        data: { messages: [{ role: "user", text: "Where is my refund?" }] },
+      }),
+    );
+
+    expect(screen.getAllByText("Where is my refund?")).toHaveLength(1);
+  });
+
+  it("draws the agent's saved answer as the agent's", () => {
+    voiceCall.call = LIVE;
+    render(<HostedChat config={voice({ agent_name: "JARVIS" })} />);
+
+    act(() =>
+      voiceCall.options.onTurnSaved?.(
+        saved({ role: "assistant", content: "It went out today.", turn_id: "c1:2:assistant" }),
+      ),
+    );
+
+    expect(screen.getByText("It went out today.")).toBeInTheDocument();
+    expect(screen.getByText("JARVIS")).toBeInTheDocument();
+  });
+
+  it("adds nothing for a turn saved with no words", () => {
+    // An answer that only ran a tool: the transcript keeps the work, the page has no words to show.
+    voiceCall.call = LIVE;
+    render(<HostedChat config={voice({ welcome: "Ask about a refund." })} />);
+
+    act(() =>
+      voiceCall.options.onTurnSaved?.(saved({ role: "assistant", content: "", turn_id: "t2" })),
+    );
+
+    // The welcome stays: nothing joined the thread.
+    expect(screen.getByText("Ask about a refund.")).toBeInTheDocument();
+  });
+
+  it("reopens the page's socket on the same visitor once the call names its thread", () => {
+    // A first call creates the thread; the page's own socket, opened before it,
+    // would otherwise answer the next typed message in a thread of its own.
+    render(<HostedChat config={voice()} />);
+    const first = socket();
+
+    act(() => voiceCall.options.onConversation?.("conv-1"));
+
+    expect(socket()).not.toBe(first);
+    expect(first.close).toHaveBeenCalled();
+    expect(socket().url).toBe(first.url);
+  });
+
+  it("leaves a thread already on screen alone when a call joins it", () => {
+    // The socket is in the thread already; reopening it would replay the
+    // history over the thread on screen and lose its steps and notices.
+    render(<HostedChat config={voice()} />);
+    const first = socket();
+    act(() =>
+      first.deliver({ type: "history", data: { messages: [{ role: "user", text: "Hi" }] } }),
+    );
+
+    act(() => voiceCall.options.onConversation?.("conv-1"));
+
+    expect(socket()).toBe(first);
+    expect(first.close).not.toHaveBeenCalled();
+  });
+
+  it("leaves the socket alone once the visitor has written in the thread", async () => {
+    render(<HostedChat config={voice()} />);
+    const first = socket();
+    await userEvent.type(screen.getByRole("textbox"), "hello");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    act(() => voiceCall.options.onConversation?.("conv-1"));
+
+    expect(socket()).toBe(first);
+  });
+
+  it("reopens the socket once for a call in a new chat", async () => {
+    const view = render(<HostedChat config={voice()} />);
+    act(() =>
+      socket().deliver({ type: "history", data: { messages: [{ role: "user", text: "Hi" }] } }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+    await userEvent.click(screen.getByRole("button", { name: "Start a voice call" }));
+    voiceCall.call = { ...initialCall, phase: "connecting" };
+    view.rerender(<HostedChat config={voice()} />);
+    const fresh = socket();
+
+    act(() => voiceCall.options.onConversation?.("conv-2"));
+    expect(socket()).not.toBe(fresh);
+    const reopened = socket();
+    act(() => voiceCall.options.onConversation?.("conv-2"));
+    expect(socket()).toBe(reopened);
+  });
+
+  it("keeps the organization's minutes out of the visitor's call bar", () => {
+    // What is left of the month's minutes is the operator's business, like a turn's cost.
+    voiceCall.call = LIVE;
+    render(<HostedChat config={voice()} />);
+
+    expect(screen.queryByText(/left this month/)).toBeNull();
+  });
+
+  it("says why a call did not start in words for a visitor, with a way to try again", async () => {
+    voiceCall.call = { ...initialCall, phase: "ended", failure: "mic_insecure" };
+    render(<HostedChat config={voice()} />);
+
+    expect(
+      screen.getByText(/Browsers allow it only on secure \(HTTPS\) pages/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/administrator/)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(voiceCall.start).toHaveBeenCalled();
+  });
+
+  it("names no setup when the server refuses the call", () => {
+    voiceCall.call = { ...initialCall, phase: "ended", endReason: "not_priced" };
+    render(<HostedChat config={voice()} />);
+
+    expect(screen.getByText(/Calls aren't available here right now/)).toBeInTheDocument();
+    expect(screen.queryByText(/price/)).toBeNull();
+  });
+
+  it("puts the call's summary away once the visitor types on", async () => {
+    voiceCall.call = { ...LIVE, phase: "ended", endReason: "user", endedAt: Date.now() };
+    render(<HostedChat config={voice()} />);
+
+    await userEvent.type(screen.getByRole("textbox"), "one more thing");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(voiceCall.dismiss).toHaveBeenCalled();
+  });
+
+  it("calls again from the summary of a call that ended", async () => {
+    voiceCall.call = { ...LIVE, phase: "ended", endReason: "user", endedAt: Date.now() };
+    render(<HostedChat config={voice({ voice_transport: "relay" })} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Call again" }));
+
+    expect(voiceCall.start).toHaveBeenCalledWith(expect.objectContaining({ transport: "relay" }));
+  });
+
+  it("puts focus back in the box when the call ends, if the bar took it with it", () => {
+    voiceCall.call = LIVE;
+    const view = render(<HostedChat config={voice()} />);
+    expect(screen.getByRole("group", { name: "Voice call" })).toHaveFocus();
+
+    voiceCall.call = { ...LIVE, phase: "ended", endReason: "user", endedAt: Date.now() };
+    view.rerender(<HostedChat config={voice()} />);
+
+    expect(screen.getByRole("textbox")).toHaveFocus();
+  });
+
+  it("leaves focus where the visitor put it during the call", () => {
+    voiceCall.call = LIVE;
+    const view = render(<HostedChat config={voice({ allow_new_conversation: true })} />);
+    const elsewhere = screen.getByRole("button", { name: "New chat" });
+    elsewhere.focus();
+
+    voiceCall.call = { ...LIVE, phase: "ended", endReason: "user", endedAt: Date.now() };
+    view.rerender(<HostedChat config={voice({ allow_new_conversation: true })} />);
+
+    expect(elsewhere).toHaveFocus();
+  });
+
+  it("hangs the call up when the visitor starts a new chat", async () => {
+    voiceCall.call = LIVE;
+    render(<HostedChat config={voice()} />);
+    expect(screen.getByRole("group", { name: "Voice call" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+
+    expect(voiceCall.end).toHaveBeenCalled();
+    expect(voiceCall.dismiss).toHaveBeenCalled();
+  });
+
+  it("keeps a call's late turns out of the new chat the visitor started", async () => {
+    // Ending a call flushes the answer in progress as a saved turn; it belongs
+    // to the thread the visitor left, not the empty one they opened.
+    voiceCall.call = LIVE;
+    const view = render(<HostedChat config={voice({ welcome: "Ask about a refund." })} />);
+    await userEvent.click(screen.getByRole("button", { name: "New chat" }));
+    voiceCall.call = { ...LIVE, phase: "ended", endReason: "user", endedAt: Date.now() };
+    view.rerender(<HostedChat config={voice({ welcome: "Ask about a refund." })} />);
+
+    act(() =>
+      voiceCall.options.onTurnSaved?.(
+        saved({ role: "assistant", content: "It went out to", turn_id: "c1:2:assistant" }),
+      ),
+    );
+    act(() => voiceCall.options.onConversation?.("conv-1"));
+
+    expect(screen.queryByText("It went out to")).toBeNull();
+    expect(screen.getByText("Ask about a refund.")).toBeInTheDocument();
+  });
+
+  it("draws a caption with the faces the page's own turns have", () => {
+    voiceCall.call = {
+      ...LIVE,
+      captions: [
+        { turnId: "c1:1:user", part: 0, role: "user", text: "Where is it", final: true },
+        { turnId: "c1:2:assistant", part: 0, role: "assistant", text: "Let me", final: false },
+      ],
+    };
+    render(<HostedChat config={voice({ agent_name: "JARVIS" })} />);
+
+    const captions = screen.getByTestId("voice-captions-visible");
+    expect(captions.querySelector(".lucide-user")).not.toBeNull();
+    expect(captions.querySelector(".lucide-bot")).toBeNull();
+    expect(captions).toHaveTextContent("J");
+  });
+
+  it("draws the operator's logo on the agent's caption when the page has one", () => {
+    voiceCall.call = {
+      ...LIVE,
+      captions: [
+        { turnId: "c1:2:assistant", part: 0, role: "assistant", text: "Let me", final: false },
+      ],
+    };
+    render(<HostedChat config={voice({ logo_url: "/logo.png" })} />);
+
+    const logo = screen.getByTestId("voice-captions-visible").querySelector("img");
+    expect(logo?.getAttribute("src")).toBe("/api/embed/pk_abc/logo");
+  });
+
+  it.each([
+    ["revoked", "Calls were switched off here.", /your access/],
+    ["budget", "This assistant can't take calls right now.", /budget/i],
+    ["guardrail", "The call was ended by a content rule.", /guardrail/i],
+  ] as const)(
+    "says how a live call that ended as %s ended in a visitor's words",
+    (endReason, said, unsaid) => {
+      voiceCall.call = { ...LIVE, phase: "ended", endReason, endedAt: Date.now() };
+      render(<HostedChat config={voice()} />);
+
+      expect(screen.getByTestId("voice-call-end")).toHaveTextContent(said);
+      expect(document.body).not.toHaveTextContent(unsaid);
+    },
+  );
+
+  it("says a limit is ending the call without naming the budget", () => {
+    voiceCall.call = { ...LIVE, notice: "budget" };
+    render(<HostedChat config={voice()} />);
+
+    expect(screen.getByText("Ending: calls aren't available right now")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Calls aren't available right now. The call is ending.",
+    );
+    expect(document.body).toHaveTextContent("The assistant is saying so, then the call ends.");
+    expect(document.body).not.toHaveTextContent(/budget/i);
+  });
+
+  it("announces a content rule cutting the answer off in a visitor's words", () => {
+    voiceCall.call = { ...LIVE, notice: "guardrail" };
+    render(<HostedChat config={voice()} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("A content rule cut the answer off.");
+    expect(document.body).not.toHaveTextContent(/guardrail/i);
   });
 });

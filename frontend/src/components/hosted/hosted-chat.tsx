@@ -13,12 +13,22 @@ import { TurnParts } from "@/components/chat/turn-parts";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { Button, Input } from "@/components/ui";
 import { useMicrophone, VoiceGlow } from "@/components/ui/voice-glow";
+import { VoiceCallButton } from "@/components/voice/voice-call-button";
+import { voiceFailureHint } from "@/components/voice/voice-call-strip";
+import {
+  callActive,
+  showVoiceApproval,
+  VoiceCallBar,
+  VoiceCallFeed,
+} from "@/components/voice/voice-call-view";
 import { useChanged } from "@/hooks/use-changed";
 import { useDictation } from "@/hooks/use-dictation";
+import { useVoiceSession, type VoiceSession } from "@/hooks/use-voice-session";
 import { dictateOnPage, type DictationSend } from "@/lib/dictation-api";
 import { cn } from "@/lib/utils";
 import type { MessagePart } from "@/types";
 import type { HostedPageConfig } from "@/types/hosted";
+import type { VoiceReadiness, VoiceSavedTurn, VoiceTransport } from "@/types/voice";
 
 /**
  * The browser's voice processing for a recording that is transcribed, as the
@@ -143,6 +153,43 @@ export function fold(said: readonly Turn[], type: string, data: Record<string, n
 /** A refusal, as a turn of its own. */
 function refusal(message: string): Turn {
   return { role: "assistant", at: now(), parts: [{ id: "err", type: "text", content: message }] };
+}
+
+/**
+ * A spoken turn the call saved, as a turn of the thread - or nothing, for one
+ * saved with no words (an answer that only ran a tool).
+ *
+ * Drawn from the frame rather than read back over the page's socket: a reread
+ * is a reconnect, every reconnect counts against the address's admissions,
+ * and a lively call saves a turn every few seconds.
+ */
+function spokenTurn(message: VoiceSavedTurn): Turn | null {
+  if (message.content === "") return null;
+  return {
+    role: message.role === "user" ? "user" : "assistant",
+    at: now(),
+    parts: [{ id: `voice-${message.id}`, type: "text", content: message.content }],
+  };
+}
+
+/**
+ * The call button's readiness, from what the page's config already decided.
+ *
+ * `voice_conversation` arrives true only while a call would start, so there is
+ * nothing to cross out and no reason to give: the button is either offered or
+ * absent, as server dictation's microphone is.
+ */
+function offered(transport: VoiceTransport): VoiceReadiness {
+  return {
+    available: true,
+    unavailable: null,
+    transport,
+    provider: null,
+    model: null,
+    cap_seconds: 0,
+    minutes_left: null,
+    unavailable_capabilities: [],
+  };
 }
 
 /** Now, as the turn records it. Its own function so a test can hold it still. */
@@ -296,6 +343,7 @@ function suppliedFromUrl(allowed: string[]): Record<string, string> {
 export function HostedChat({ config }: { config: HostedPageConfig }) {
   const t = useTranslations("hosted");
   const tDictation = useTranslations("hosted.dictation");
+  const tVoice = useTranslations("hosted.voice");
   const { apiUrl, wsUrl } = usePublicConfig();
   // Same origin, not the address the API gave. `img-src 'self' blob: data: https:`
   // excludes an API on plain `http`, which is every development checkout and any
@@ -337,6 +385,14 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const filePicker = useRef<HTMLInputElement | null>(null);
   const draftRef = useRef<HTMLInputElement | null>(null);
+  // Whether the server's side of the page's socket is in the visitor's thread:
+  // it replayed one, or the visitor wrote in it. Until then a call that creates
+  // the thread has the socket reopened, so the next typed turn lands there too.
+  const threadKnownRef = useRef(false);
+  // Which thread is this page's - bumped by "New chat" - and which one the
+  // call was started in, so a call left behind cannot write into the next.
+  const pageThreadRef = useRef(0);
+  const callThreadRef = useRef(0);
 
   // Server dictation: the console composer's recorder, bar, strip and glow,
   // pointed at this page's own route. `server` arrives only while a provider
@@ -427,6 +483,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
       const frame = JSON.parse(event.data as string);
       if (frame.type === "model_request_start") setThinking(true);
       if (frame.type === "complete" || frame.type === "error") setThinking(false);
+      if (frame.type === "history") threadKnownRef.current = true;
       setTurns((said) => fold(said, frame.type as string, frame.data ?? {}));
     };
     socket.onclose = (event) => {
@@ -465,14 +522,6 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   // over frames after its turn has stopped changing.
   useFollowContent(threadRef, threadContentRef);
 
-  const startFresh = useCallback(() => {
-    mintVisitorKey(config.public_key);
-    setTurns([]);
-    setThinking(false);
-    setClosed(null);
-    setSession((count) => count + 1);
-  }, [config.public_key]);
-
   // Reopen the socket on the *same* visitor key, so a dropped connection is
   // resumed rather than replaced: bumping `session` re-runs the effect and
   // `visitorKeyFor` reads the stored key, keeping the thread. Unlike startFresh,
@@ -482,6 +531,99 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     setClosed(null);
     setSession((count) => count + 1);
   }, []);
+
+  // A voice call (#54), in the console's own call bar and call feed. Offered
+  // only when the config says a call would start, so - as with server
+  // dictation - there is no crossed-out button here and no account of the
+  // operator's setup. Each saved turn joins the thread from its `turn_saved`
+  // frame, and `spokenSaved` keeps its live caption from being drawn beside
+  // it - unless the visitor has since started a new chat, which the call's
+  // late turns do not belong to.
+  const [spokenSaved, setSpokenSaved] = useState<ReadonlySet<string>>(() => new Set());
+  const onTurnSaved = useCallback((message: VoiceSavedTurn) => {
+    if (callThreadRef.current !== pageThreadRef.current) return;
+    const turnId = message.turn_id;
+    if (turnId !== null) setSpokenSaved((held) => new Set(held).add(turnId));
+    const turn = spokenTurn(message);
+    if (turn !== null) setTurns((said) => [...said, turn]);
+  }, []);
+  // When a call names its thread, the page's socket is reopened on the same
+  // key - but only while that socket knows no thread. Its server side learned
+  // the visitor's thread when it connected, so a first call creates one the
+  // socket would not otherwise answer in; a socket already in the thread is
+  // left alone, since reopening it replays the history over the thread on
+  // screen, flattening its steps and dropping the page's own notices.
+  const onConversation = useCallback(() => {
+    if (callThreadRef.current !== pageThreadRef.current || threadKnownRef.current) return;
+    threadKnownRef.current = true;
+    reconnect();
+  }, [reconnect]);
+  const voice = useVoiceSession({ onTurnSaved, onConversation });
+  const { start: startVoice, end: endCall, dismiss: dismissCall } = voice;
+  const onCall = callActive(voice);
+  const callTransport = config.voice_conversation ? config.voice_transport : null;
+  // As in /chat: no call while an answer is still being written.
+  const answering = thinking || turns.at(-1)?.live === true;
+  const cancelServerDictation = dictationActions.cancel;
+  const dictationIdle = dictation.phase === "idle";
+  const startCall = useCallback(
+    (transport: VoiceTransport) => {
+      // One microphone at a time: a call and a dictation never run together.
+      if (!dictationIdle) cancelServerDictation();
+      void startVoice({
+        kind: "embed",
+        publicKey: config.public_key,
+        visitorKey: visitorKeyFor(config.public_key),
+        token: null,
+        transport,
+        // Briefed with what the page's address says, as a typed message is.
+        context: suppliedFromUrl(config.variables),
+      });
+    },
+    [dictationIdle, cancelServerDictation, startVoice, config.public_key, config.variables],
+  );
+  // The call as a visitor sees it. What is left of the organization's month
+  // is the operator's business, like what a turn cost.
+  const visitorCall: VoiceSession = { ...voice, call: { ...voice.call, minutesLeft: null } };
+  // Why a call did not start, in the visitor's words (`hosted.voice` holds the
+  // keys `chat.voice` does): nobody here to ask, and no setup to point at.
+  const voiceHint =
+    callTransport === null
+      ? null
+      : voiceFailureHint(
+          { call: voice.call, onRetry: () => startCall(callTransport), onDismiss: dismissCall },
+          tVoice,
+        );
+  const composerStrip = voiceHint ?? dictationStrip;
+  // Nor the browser's recogniser, which the call button sits beside. And the
+  // call belongs to the thread it started in, whatever the page opens next.
+  useEffect(() => {
+    if (!onCall) return;
+    recognitionRef.current?.stop();
+    callThreadRef.current = pageThreadRef.current;
+  }, [onCall]);
+  // The bar took focus when the call started, and goes with it when it ends:
+  // back to the box, unless the visitor has since put focus somewhere else.
+  const wasOnCall = useRef(false);
+  useEffect(() => {
+    if (wasOnCall.current && !onCall && document.activeElement === document.body) {
+      draftRef.current?.focus();
+    }
+    wasOnCall.current = onCall;
+  }, [onCall]);
+
+  const startFresh = useCallback(() => {
+    // A call belongs to its thread: a new thread hangs it up.
+    endCall();
+    dismissCall();
+    pageThreadRef.current += 1;
+    threadKnownRef.current = false;
+    mintVisitorKey(config.public_key);
+    setTurns([]);
+    setThinking(false);
+    setClosed(null);
+    setSession((count) => count + 1);
+  }, [config.public_key, endCall, dismissCall]);
 
   /**
    * Dictate into the box using the browser's own recogniser - `browser` mode.
@@ -567,6 +709,9 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     ]);
     setDraft("");
     setAttached([]);
+    // Typing on after a call: its summary has said its piece.
+    dismissCall();
+    threadKnownRef.current = true;
     socket.send(
       JSON.stringify({
         type: "message",
@@ -575,7 +720,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
         context: suppliedFromUrl(config.variables),
       }),
     );
-  }, [draft, attached, config.variables]);
+  }, [draft, attached, config.variables, dismissCall]);
 
   return (
     // The operator's accent, applied through a CSS variable rather than a
@@ -618,6 +763,26 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           {turns.map((turn, index) => (
             <HostedTurn key={index} turn={turn} logoSrc={logoSrc} agentName={config.agent_name} />
           ))}
+          {/* The call as it happens: live captions in the turns being spoken, the
+              agent's work, and the summary when it ends. No approval controls -
+              a visitor cannot approve, and the server leaves tools that need one
+              out of their calls. */}
+          {callTransport !== null && (
+            <VoiceCallFeed
+              session={visitorCall}
+              agentName={config.agent_name}
+              canDecide={false}
+              hidden={spokenSaved}
+              onCallAgain={() => startCall(callTransport)}
+              onContinueInText={endCall}
+              // The faces and words the page's own turns use: a caption must
+              // not change face when its saved turn replaces it, and a visitor
+              // has no budget or access for the call's end to name.
+              callerAvatar={<User className="h-4 w-4" />}
+              agentAvatar={<AgentFace logoSrc={logoSrc} agentName={config.agent_name} />}
+              endingCopy={tVoice}
+            />
+          )}
           {thinking && <p className="text-muted-foreground text-sm">{t("thinking")}</p>}
           {closed !== null && (
             <div className="text-muted-foreground flex items-center gap-2 text-sm">
@@ -671,115 +836,158 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
           of the dashboard's: what a turn cost is the operator's business. The glow
           and the strip under the card are server dictation's, lit only while a
           recording is open or on its way. */}
-      <VoiceGlow
-        className="mb-4"
-        stream={mic.stream}
-        active={dictation.phase === "recording" || dictation.phase === "transcribing"}
-        processing={dictation.phase === "transcribing" && dictation.upload === null}
-      >
-        <form
-          className={cn(
-            "bg-card border-border focus-within:border-foreground/30 rounded-2xl border transition-colors",
-            dictationStrip !== null && "rounded-b-none",
-          )}
-          onSubmit={(event) => {
-            event.preventDefault();
-            send();
-          }}
+      {onCall && (
+        <div className="@container mb-4">
+          <VoiceCallBar
+            session={visitorCall}
+            agentName={config.agent_name}
+            canDecide={false}
+            onShowApproval={showVoiceApproval}
+            endingCopy={tVoice}
+          />
+        </div>
+      )}
+      {/* Kept mounted while a call is on, so a draft and its attachments are
+          still there when it ends. */}
+      <div hidden={onCall}>
+        <VoiceGlow
+          className="mb-4"
+          stream={mic.stream}
+          active={dictation.phase === "recording" || dictation.phase === "transcribing"}
+          processing={dictation.phase === "transcribing" && dictation.upload === null}
         >
-          {dictating ? (
-            <div className="px-3 py-1 sm:px-4">
-              <DictationBar state={dictation} actions={dictationActions} />
-            </div>
-          ) : (
-            <div className="flex items-end gap-2 px-3 py-2 sm:px-4">
-              <Input
-                ref={draftRef}
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (dictation.inserted && movesOn(event.key)) dictationActions.dismissInserted();
-                }}
-                placeholder={t("placeholder")}
-                aria-label={t("placeholder")}
-                disabled={closed !== null}
-                className="min-h-[40px] flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
-              />
-              <div className="flex shrink-0 items-center gap-0.5 pb-1">
-                {config.allow_files && (
-                  <>
-                    <input
-                      ref={filePicker}
-                      type="file"
-                      className="hidden"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) void attach(file);
-                        // Cleared so choosing the same file twice fires again, which is
-                        // what somebody does after a refused upload.
-                        event.target.value = "";
-                      }}
+          <form
+            className={cn(
+              "bg-card border-border focus-within:border-foreground/30 rounded-2xl border transition-colors",
+              composerStrip !== null && "rounded-b-none",
+            )}
+            onSubmit={(event) => {
+              event.preventDefault();
+              send();
+            }}
+          >
+            {dictating ? (
+              <div className="px-3 py-1 sm:px-4">
+                <DictationBar state={dictation} actions={dictationActions} />
+              </div>
+            ) : (
+              <div className="flex items-end gap-2 px-3 py-2 sm:px-4">
+                <Input
+                  ref={draftRef}
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (dictation.inserted && movesOn(event.key))
+                      dictationActions.dismissInserted();
+                  }}
+                  placeholder={t("placeholder")}
+                  aria-label={t("placeholder")}
+                  disabled={closed !== null}
+                  className="min-h-[40px] flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
+                />
+                <div className="flex shrink-0 items-center gap-0.5 pb-1">
+                  {config.allow_files && (
+                    <>
+                      <input
+                        ref={filePicker}
+                        type="file"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void attach(file);
+                          // Cleared so choosing the same file twice fires again, which is
+                          // what somebody does after a refused upload.
+                          event.target.value = "";
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9"
+                        disabled={closed !== null || uploading}
+                        onClick={() => filePicker.current?.click()}
+                        aria-label={t("attach")}
+                      >
+                        <Paperclip className="text-muted-foreground h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                  {callTransport !== null && (
+                    <VoiceCallButton
+                      readiness={offered(callTransport)}
+                      failed={false}
+                      disabled={closed !== null || answering}
+                      onStart={() => startCall(callTransport)}
+                      canSetUp={false}
                     />
+                  )}
+                  {server && (
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
                       className="h-9 w-9"
-                      disabled={closed !== null || uploading}
-                      onClick={() => filePicker.current?.click()}
-                      aria-label={t("attach")}
+                      onClick={() => void dictationActions.start()}
+                      disabled={closed !== null}
+                      aria-label={t("startDictation")}
                     >
-                      <Paperclip className="text-muted-foreground h-4 w-4" />
-                    </Button>
-                  </>
-                )}
-                {server && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9"
-                    onClick={() => void dictationActions.start()}
-                    disabled={closed !== null}
-                    aria-label={t("startDictation")}
-                  >
-                    <Mic className="text-muted-foreground h-4 w-4" />
-                  </Button>
-                )}
-                {config.dictation === "browser" && canDictate && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9"
-                    onClick={toggleDictation}
-                    disabled={closed !== null}
-                    aria-label={listening ? t("stopDictation") : t("startDictation")}
-                  >
-                    {listening ? (
-                      <MicOff className="text-destructive h-4 w-4 animate-pulse" />
-                    ) : (
                       <Mic className="text-muted-foreground h-4 w-4" />
-                    )}
+                    </Button>
+                  )}
+                  {config.dictation === "browser" && canDictate && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={toggleDictation}
+                      disabled={closed !== null}
+                      aria-label={listening ? t("stopDictation") : t("startDictation")}
+                    >
+                      {listening ? (
+                        <MicOff className="text-destructive h-4 w-4 animate-pulse" />
+                      ) : (
+                        <Mic className="text-muted-foreground h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
+                  <Button
+                    type="submit"
+                    size="icon"
+                    className="h-9 w-9 rounded-full text-white hover:opacity-90"
+                    style={{ backgroundColor: "var(--hosted-accent)" }}
+                    disabled={closed !== null || (draft.trim() === "" && attached.length === 0)}
+                  >
+                    <Send className="h-4 w-4" />
+                    <span className="sr-only">{t("send")}</span>
                   </Button>
-                )}
-                <Button
-                  type="submit"
-                  size="icon"
-                  className="h-9 w-9 rounded-full text-white hover:opacity-90"
-                  style={{ backgroundColor: "var(--hosted-accent)" }}
-                  disabled={closed !== null || (draft.trim() === "" && attached.length === 0)}
-                >
-                  <Send className="h-4 w-4" />
-                  <span className="sr-only">{t("send")}</span>
-                </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </form>
-        <DictationStrip hint={dictationStrip} />
-      </VoiceGlow>
+            )}
+          </form>
+          <DictationStrip hint={composerStrip} />
+        </VoiceGlow>
+      </div>
     </div>
+  );
+}
+
+/** The agent's face on this page: the operator's logo, or the agent's initial. */
+function AgentFace({ logoSrc, agentName }: { logoSrc: string | null; agentName: string }) {
+  return logoSrc !== null ? (
+    // The page's own picture, which is the closest thing this surface has to an
+    // agent avatar - the authenticated avatar route is not reachable from here,
+    // and the logo is the one image a hosted page may already hand out.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={logoSrc} alt="" className="h-full w-full object-cover" />
+  ) : (
+    // The initial, which is what `AgentAvatar` falls back to in the dashboard.
+    // A generic robot glyph is the one thing on this page that looked like a
+    // different product.
+    <span className="text-foreground text-sm font-medium">
+      {(agentName.trim()[0] ?? "?").toUpperCase()}
+    </span>
   );
 }
 
@@ -818,17 +1026,8 @@ function HostedTurn({
       >
         {isUser ? (
           <User className="h-4 w-4" />
-        ) : logoSrc !== null ? (
-          // The page's own picture, which is the closest thing this surface has to an
-          // agent avatar - the authenticated avatar route is not reachable from here,
-          // and the logo is the one image a hosted page may already hand out.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoSrc} alt="" className="h-full w-full object-cover" />
         ) : (
-          // The initial, which is what `AgentAvatar` falls back to in the dashboard.
-          // A generic robot glyph is the one thing on this page that looked like a
-          // different product.
-          (agentName.trim()[0] ?? "?").toUpperCase()
+          <AgentFace logoSrc={logoSrc} agentName={agentName} />
         )}
       </div>
       <div

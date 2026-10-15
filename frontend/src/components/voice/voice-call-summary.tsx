@@ -8,7 +8,7 @@ import { LIMIT_REASONS, viewState, type CallState } from "@/lib/voice/call-reduc
 import { clock } from "@/lib/voice/clock";
 import { cn } from "@/lib/utils";
 
-import { ENDED_KEYS } from "./voice-call-strip";
+import { ENDED_KEYS, type VoiceEndingCopy } from "./voice-call-strip";
 
 /**
  * How a call that went live ended, as a card in the conversation it happened
@@ -20,12 +20,16 @@ export function VoiceCallSummary({
   call,
   agentName,
   onCallAgain,
+  endingCopy,
 }: {
   call: CallState;
   agentName: string;
   onCallAgain: () => void;
+  /** Which reason ended it, when not in the console's `chat.voice` words. */
+  endingCopy?: VoiceEndingCopy;
 }) {
   const t = useTranslations("chat.voice");
+  const tEnding = endingCopy ?? t;
   if (call.phase !== "ended" || call.startedAt === null || call.failure !== null) return null;
   const view = viewState(call);
   const limit = call.endReason !== null && LIMIT_REASONS.has(call.endReason);
@@ -37,7 +41,7 @@ export function VoiceCallSummary({
     title = t("view.summary.timeLimit", { minutes: Math.round(call.capSeconds / 60) });
   else if (call.endReason === null || call.endReason === "user" || !ENDED_KEYS[call.endReason])
     title = t("view.summary.ended", { duration: clock(seconds) });
-  else title = t(`ended.${ENDED_KEYS[call.endReason]}`);
+  else title = tEnding(`ended.${ENDED_KEYS[call.endReason]}`);
 
   const minutesLeft =
     limit && call.minutesLeft !== null

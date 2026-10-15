@@ -2,6 +2,8 @@
 
 import { useTranslations } from "next-intl";
 
+import type { VoiceEndingCopy } from "./voice-call-strip";
+
 import { toolCaption, toolDisplayName } from "@/lib/agent-step-captions";
 import { viewState, type CallState } from "@/lib/voice/call-reducer";
 import { clock } from "@/lib/voice/clock";
@@ -35,21 +37,25 @@ export function VoiceCallStatus({
   agentName,
   pushToTalk,
   holding,
+  endingCopy,
 }: {
   call: CallState;
   now: number;
   agentName: string;
   pushToTalk: boolean;
   holding: boolean;
+  /** How a call's end and its notices are put, when not the console's `chat.voice`. */
+  endingCopy?: VoiceEndingCopy;
 }) {
   const t = useTranslations("chat.voice");
   const tTools = useTranslations("chat.tools");
+  const tEnding = endingCopy ?? t;
   const view = viewState(call);
   const ending = call.notice === null ? undefined : ENDING_NOTICES[call.notice];
   const noticeKey = call.notice === null ? undefined : NOTICE_KEYS[call.notice];
 
   let label: string;
-  if (ending) label = t(`view.ending.${ending}`);
+  if (ending) label = tEnding(`view.ending.${ending}`);
   else if (view === "listening" || view === "limitwarn") {
     if (holding && !call.muted) label = t("view.talking");
     else if (call.muted) label = t("view.muted");
@@ -109,9 +115,9 @@ export function VoiceCallStatus({
           </p>
         )}
         {call.warningSecondsLeft !== null && (
-          <p>{t("notice.limitWarning", { seconds: call.warningSecondsLeft })}</p>
+          <p>{tEnding("notice.limitWarning", { seconds: call.warningSecondsLeft })}</p>
         )}
-        {noticeKey && <p>{t(`notice.${noticeKey}`)}</p>}
+        {noticeKey && <p>{tEnding(`notice.${noticeKey}`)}</p>}
       </div>
     </div>
   );

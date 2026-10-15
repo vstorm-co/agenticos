@@ -2392,6 +2392,57 @@
         "notSetUpTitle": "Voice input isn't available right now.",
         "notSetUpBody": "Please type your message instead."
       }
+    },
+    "voice": {
+      "view": {
+        "mediaFailed": "<strong>The call's audio couldn't get through,</strong> so the call has ended. Your network may block it. Everything said until then is saved above.",
+        "refused": "<strong>The call didn't start.</strong> {reason}",
+        "tryAgain": "Try again",
+        "dismiss": "Dismiss",
+        "ending": {
+          "timeLimit": "Ending: time limit reached",
+          "budget": "Ending: calls aren't available right now",
+          "minutes": "Ending: no call minutes are left"
+        },
+        "strip": {
+          "ending": {
+            "timeLimit": "<strong>Time limit reached.</strong> The assistant is saying so, then the call ends.",
+            "budget": "<strong>Calls aren't available right now.</strong> The assistant is saying so, then the call ends.",
+            "minutes": "<strong>No call minutes are left this month.</strong> The assistant is saying so, then the call ends."
+          }
+        }
+      },
+      "failure": {
+        "micInsecure": "<strong>This page can't use the microphone.</strong> Browsers allow it only on secure (HTTPS) pages. Please type your message instead.",
+        "micDenied": "<strong>Microphone blocked for this site.</strong> Click the icon left of the address bar, set Microphone to Allow, then try again.",
+        "micNotFound": "<strong>No microphone found.</strong> Connect one, or check that your system lets the browser use it, then try again.",
+        "micBusy": "<strong>The microphone didn't start.</strong> Another app may be using it. Close it, then try again.",
+        "connectionFailed": "<strong>The call couldn't connect.</strong> Check your connection, then try again."
+      },
+      "ended": {
+        "timeLimit": "The call reached its time limit.",
+        "budget": "This assistant can't take calls right now. Please type your message instead.",
+        "minutes": "No call minutes are left this month. Please type your message instead.",
+        "revoked": "Calls were switched off here.",
+        "guardrail": "The call was ended by a content rule.",
+        "shutdown": "The server restarted. Please try again.",
+        "voiceOff": "Calls are switched off here.",
+        "busy": "A call from here is already open.",
+        "lineBusy": "All lines are busy. Try again in a few minutes, or type your message.",
+        "forbidden": "Calls aren't available here right now. Please type your message instead.",
+        "notConfigured": "Calls aren't available here right now. Please type your message instead.",
+        "notPriced": "Calls aren't available here right now. Please type your message instead.",
+        "resumeRefused": "The call dropped and couldn't be picked up again.",
+        "generic": "The call ended unexpectedly. Please try again."
+      },
+      "notice": {
+        "limitWarning": "{seconds, plural, =60 {1 minute left in this call} other {# seconds left in this call}}",
+        "guardrail": "A content rule cut the answer off.",
+        "providerError": "The call ran into a problem.",
+        "timeLimit": "This call has reached its time limit. The call is ending.",
+        "budget": "Calls aren't available right now. The call is ending.",
+        "minutes": "No call minutes are left this month. The call is ending."
+      }
     }
   },
   "invitations": {

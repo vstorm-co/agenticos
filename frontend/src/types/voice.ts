@@ -119,6 +119,9 @@ export type VoiceServerFrame =
   | { type: "ended"; reason: VoiceEndReason; message?: string | null }
   | { type: "clear_playback" };
 
+/** What an embed's page says about its visitor, as a text message's `context` carries it. */
+export type VoiceStartContext = Record<string, string | number | boolean | null>;
+
 /** Every JSON frame this page sends on the voice socket. */
 export type VoiceClientFrame =
   | {
@@ -127,6 +130,8 @@ export type VoiceClientFrame =
       conversation_id?: string | null;
       sdp_offer?: string;
       resume_of?: string;
+      /** An embed's call only: the page's supplied variables (`StartFrame.context`). */
+      context?: VoiceStartContext;
     }
   | { type: "approval"; id: string; decision: "approve" | "deny" }
   | { type: "ptt"; state: "down" | "up" }

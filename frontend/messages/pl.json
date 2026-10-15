@@ -2285,6 +2285,57 @@
         "notSetUpTitle": "Wprowadzanie głosowe jest teraz niedostępne.",
         "notSetUpBody": "Napisz wiadomość zamiast tego."
       }
+    },
+    "voice": {
+      "view": {
+        "mediaFailed": "<strong>Dźwięk rozmowy nie mógł się przedostać,</strong> więc rozmowa została zakończona. Twoja sieć może go blokować. Wszystko, co zostało powiedziane do tej chwili, jest zapisane powyżej.",
+        "refused": "<strong>Rozmowa się nie rozpoczęła.</strong> {reason}",
+        "tryAgain": "Spróbuj ponownie",
+        "dismiss": "Zamknij",
+        "ending": {
+          "timeLimit": "Kończenie: osiągnięto limit czasu",
+          "budget": "Kończenie: rozmowy są teraz niedostępne",
+          "minutes": "Kończenie: nie zostały żadne minuty rozmów"
+        },
+        "strip": {
+          "ending": {
+            "timeLimit": "<strong>Osiągnięto limit czasu.</strong> Asystent to mówi, a potem rozmowa się kończy.",
+            "budget": "<strong>Rozmowy są teraz niedostępne.</strong> Asystent to mówi, a potem rozmowa się kończy.",
+            "minutes": "<strong>Minuty rozmów na ten miesiąc się wyczerpały.</strong> Asystent to mówi, a potem rozmowa się kończy."
+          }
+        }
+      },
+      "failure": {
+        "micInsecure": "<strong>Ta strona nie może użyć mikrofonu.</strong> Przeglądarki udostępniają mikrofon tylko na bezpiecznych stronach (HTTPS). Napisz wiadomość zamiast tego.",
+        "micDenied": "<strong>Mikrofon jest zablokowany dla tej strony.</strong> Kliknij ikonę po lewej stronie paska adresu, ustaw Mikrofon na Zezwalaj i spróbuj ponownie.",
+        "micNotFound": "<strong>Nie znaleziono mikrofonu.</strong> Podłącz mikrofon albo sprawdź, czy system pozwala przeglądarce z niego korzystać, i spróbuj ponownie.",
+        "micBusy": "<strong>Mikrofon się nie uruchomił.</strong> Może go używać inna aplikacja. Zamknij ją i spróbuj ponownie.",
+        "connectionFailed": "<strong>Nie udało się połączyć.</strong> Sprawdź połączenie i spróbuj ponownie."
+      },
+      "ended": {
+        "timeLimit": "Rozmowa osiągnęła limit czasu.",
+        "budget": "Ten asystent nie może teraz odbierać rozmów. Napisz wiadomość zamiast tego.",
+        "minutes": "Minuty rozmów na ten miesiąc się wyczerpały. Napisz wiadomość zamiast tego.",
+        "revoked": "Rozmowy zostały tu wyłączone.",
+        "guardrail": "Rozmowę zakończyła reguła dotycząca treści.",
+        "shutdown": "Serwer został uruchomiony ponownie. Spróbuj jeszcze raz.",
+        "voiceOff": "Rozmowy są tu wyłączone.",
+        "busy": "Rozmowa z tego miejsca jest już otwarta.",
+        "lineBusy": "Wszystkie linie są zajęte. Spróbuj ponownie za kilka minut albo napisz wiadomość.",
+        "forbidden": "Rozmowy są tu teraz niedostępne. Napisz wiadomość zamiast tego.",
+        "notConfigured": "Rozmowy są tu teraz niedostępne. Napisz wiadomość zamiast tego.",
+        "notPriced": "Rozmowy są tu teraz niedostępne. Napisz wiadomość zamiast tego.",
+        "resumeRefused": "Rozmowa została przerwana i nie udało się jej wznowić.",
+        "generic": "Rozmowa niespodziewanie się zakończyła. Spróbuj ponownie."
+      },
+      "notice": {
+        "limitWarning": "{seconds, plural, =60 {Została 1 minuta rozmowy} one {Została # sekunda rozmowy} few {Zostały # sekundy rozmowy} many {Zostało # sekund rozmowy} other {Zostało # sekundy rozmowy}}",
+        "guardrail": "Reguła dotycząca treści przerwała odpowiedź.",
+        "providerError": "W rozmowie wystąpił problem.",
+        "timeLimit": "Rozmowa osiągnęła limit czasu i się kończy.",
+        "budget": "Rozmowy są teraz niedostępne. Rozmowa się kończy.",
+        "minutes": "Minuty rozmów na ten miesiąc się wyczerpały. Rozmowa się kończy."
+      }
     }
   },
   "mcp": {
