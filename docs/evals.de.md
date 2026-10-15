@@ -1,5 +1,5 @@
 ---
-source_sha: "b05b655f8708"
+source_sha: "c5cde9b8d24e"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -69,14 +69,18 @@ erwartet, und den Antworten, Aufrufen und Bewerterbegründungen jeder Seite. Ein
 gewählter Tag beschränkt die Seiten, die Änderungen und die Fälle auf ihn; das
 Urteil gilt weiter für alle Fälle.
 
-Die Bewertungen eines Runs gelangen nie von selbst in die
-[Review-Warteschlange](datasets.md#review) des Datasets: **Send failed to
-review** auf der Seite des Runs schickt die nicht bestandenen Antworten einer
-Seite dorthin, für jeden, der das Dataset bearbeiten darf, und ein Fall, dessen
-Bewertung eine Person überstimmt hat, wird als korrigiert markiert. Der eigene
-Tab **Evals** eines Datasets listet jeden darauf gemessenen Agent, jeden mit
-seinem Verlauf und seinen Runs, und **Run evals** in seinem Kopfbereich öffnet
-den Startdialog auf dem Dataset und fragt, welcher Agent getestet werden soll.
+Sobald seine Wiederholungen vorliegen, schickt ein Run in die
+[Review-Warteschlange](datasets.md#review) des Datasets, wofür er einstehen
+kann - jede bestätigte Regression und jede Antwort, die sein Judge nicht
+bewerten konnte, eine pro Fall - und sagt, wie viele (`routed_to_review`).
+**Send failed to review** schickt die übrigen nicht bestandenen Antworten einer
+Seite, für jeden, der das Dataset bearbeiten darf, und ein Fall, dessen
+Bewertung eine Person überstimmt hat, wird als korrigiert markiert.
+
+Der eigene Tab **Evals** eines Datasets listet jeden darauf gemessenen Agent,
+jeden mit seinem Verlauf und seinen Runs, und **Run evals** in seinem
+Kopfbereich öffnet den Startdialog auf dem Dataset und fragt, welcher Agent
+getestet werden soll.
 
 Die Karte **Eval runs** im Dashboard listet die neuesten Runs der Organisation
 mit ihrem Agent und ihrem Urteil. Die Fälle eines Evals und die Bewertung durch
@@ -117,10 +121,11 @@ Ein Agent ohne Historie auf einem Modell wird als typischer Fall geschätzt -
 eigenen Preis des Modells, oder mit `EVAL_FALLBACK_CASE_COST_USD` bei einem
 Modell ohne bekannten Preis, und die Schätzung sagt, dass es eine grobe Annahme
 ist (`basis: "fallback"`). Ein Judge ohne Historie wird genauso bepreist, auf
-dem Modell, das das Dataset für ihn wählt, oder dem, das sein veröffentlichter
-Spec nennt. Die Kosten der Baseline gehören zur Summe, außer eine aktuelle
-passende Baseline wird wiederverwendet - dann kosten ihre ersten Antworten
-nichts, und die Schätzung nennt den Run, aus dem sie stammen.
+dem Modell, das sein veröffentlichter Spec nennt; die Schätzung warnt, wenn das
+das getestete Modell ist, und die Seite eines Runs, wenn es das war. Die Kosten
+der Baseline gehören zur Summe, außer eine aktuelle passende Baseline wird
+wiederverwendet - dann kosten ihre ersten Antworten nichts, und die Schätzung
+nennt den Run, aus dem sie stammen.
 
 ### Das verbleibende Budget { #the-budget-it-leaves }
 

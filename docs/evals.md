@@ -57,12 +57,16 @@ each opening onto what the case expects and every side's answers, calls and
 scorer reasons. Picking a tag reads the sides, the changes and the cases under
 it; the verdict stays over every case.
 
-A run's scores never reach the dataset's [review queue](datasets.md#review) on
-their own: **Send failed to review** on the run's page sends one side's failed
-answers there, for whoever may edit the dataset, and a case whose grade a person
-overturned is marked as corrected. A dataset's own **Evals** tab lists every
-agent measured on it, each with its trend and runs, and its header's **Run
-evals** opens the start dialog on the dataset, asking which agent to test.
+Once its reruns are in, a run sends to the dataset's
+[review queue](datasets.md#review) what it can stand behind - each regression
+it confirmed and each answer its judge could not grade, one per case - and says
+how many (`routed_to_review`). **Send failed to review** sends the rest of one
+side's failed answers, for whoever may edit the dataset, and a case whose grade
+a person overturned is marked as corrected.
+
+A dataset's own **Evals** tab lists every agent measured on it, each with its
+trend and runs, and its header's **Run evals** opens the start dialog on the
+dataset, asking which agent to test.
 
 The dashboard's **Eval runs** card lists the organization's latest runs with
 their agent and verdict. An eval's cases and the judge's grading are kept out
@@ -99,8 +103,9 @@ An agent with no history on a model is estimated as a typical case -
 `EVAL_FALLBACK_INPUT_TOKENS` in, `EVAL_FALLBACK_OUTPUT_TOKENS` out - at the
 model's own price, or at `EVAL_FALLBACK_CASE_COST_USD` for a model nothing
 prices, and the estimate says it is a rough guess (`basis: "fallback"`). A judge
-with no history is priced the same way, on the model the dataset picks for it or
-the one its published spec names. The baseline's cost is part of the total,
+with no history is priced the same way, on the model its published spec names;
+the estimate warns when that is the model being tested, and a run's page when
+it was. The baseline's cost is part of the total,
 unless a recent matching baseline is reused, in which case its first answers
 cost nothing and the estimate names the run they come from.
 

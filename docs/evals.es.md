@@ -1,5 +1,5 @@
 ---
-source_sha: "b05b655f8708"
+source_sha: "c5cde9b8d24e"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -65,13 +65,17 @@ llamadas y motivos de los evaluadores de cada lado. Al elegir una etiqueta, los
 lados, los cambios y los casos se leen dentro de ella; el veredicto sigue
 abarcando todos los casos.
 
-Las puntuaciones de un run nunca llegan por sí solas a la [cola de
-revisión](datasets.md#review) del dataset: **Send failed to review**, en la
-página del run, envía allí las respuestas fallidas de un lado, para quien pueda
-editar el dataset, y un caso cuya calificación anuló una persona queda marcado
-como corregido. La propia pestaña **Evals** de un dataset lista cada agent
-medido en él, cada uno con su tendencia y sus runs, y **Run evals** en su
-encabezado abre el diálogo de inicio en el dataset y pregunta qué agent probar.
+Una vez que están sus repeticiones, un run envía a la [cola de
+revisión](datasets.md#review) del dataset lo que puede respaldar - cada
+regresión que confirmó y cada respuesta que su juez no pudo calificar, una por
+caso - y dice cuántas son (`routed_to_review`). **Send failed to review** envía
+el resto de las respuestas fallidas de un lado, para quien pueda editar el
+dataset, y un caso cuya calificación anuló una persona queda marcado como
+corregido.
+
+La propia pestaña **Evals** de un dataset lista cada agent medido en él, cada
+uno con su tendencia y sus runs, y **Run evals** en su encabezado abre el
+diálogo de inicio en el dataset y pregunta qué agent probar.
 
 La tarjeta **Eval runs** del dashboard lista los runs más recientes de la
 organización con su agent y su veredicto. Los casos de un eval y la
@@ -108,13 +112,13 @@ juez.
 
 Un agent sin historial en un modelo se estima como un caso típico -
 `EVAL_FALLBACK_INPUT_TOKENS` de entrada, `EVAL_FALLBACK_OUTPUT_TOKENS` de
-salida - al precio propio del modelo, o en `EVAL_FALLBACK_CASE_COST_USD` para
-un modelo sin precio conocido, y la estimación dice que es una suposición
-aproximada (`basis: "fallback"`). Un juez sin historial se calcula de la misma
-manera, en el modelo que el dataset elige para él o en el que nombra su spec
-publicado. El coste del baseline forma parte del total, salvo que se reutilice
-un baseline reciente que coincida; en ese caso sus primeras respuestas no
-cuestan nada y la estimación nombra el run del que provienen.
+salida - al precio propio del modelo, o en `EVAL_FALLBACK_CASE_COST_USD` para un
+modelo sin precio conocido, y la estimación dice que es una suposición aproximada
+(`basis: "fallback"`). Un juez sin historial se calcula igual, en el modelo que
+nombra su spec publicado; la estimación avisa si es el modelo probado, y la
+página de un run si lo fue. El coste del baseline forma parte del total, salvo
+que se reutilice un baseline reciente que coincida; en ese caso sus primeras
+respuestas no cuestan nada y la estimación nombra el run del que provienen.
 
 ### El budget que deja { #the-budget-it-leaves }
 

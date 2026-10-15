@@ -1,5 +1,5 @@
 ---
-source_sha: "b05b655f8708"
+source_sha: "c5cde9b8d24e"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -65,13 +65,17 @@ przypadek oczekuje, oraz na odpowiedzi, wywołania i uzasadnienia oceniających
 każdej strony. Wybrany tag zawęża do siebie strony, zmiany i przypadki; werdykt
 nadal obejmuje wszystkie przypadki.
 
-Oceny runa nigdy same nie trafiają do [kolejki przeglądu](datasets.md#review)
-datasetu: **Send failed to review** na stronie runa wysyła tam niezaliczone
-odpowiedzi jednej strony, dla każdego, kto może edytować dataset, a przypadek,
-którego ocenę osoba uchyliła, jest oznaczany jako poprawiony. Własna zakładka
-**Evals** datasetu wymienia każdego mierzonego na nim agenta, każdego ze swoim
-trendem i runami, a **Run evals** w jego nagłówku otwiera dialog startu na tym
-datasecie i pyta, którego agenta testować.
+Gdy są już powtórki, run wysyła do [kolejki przeglądu](datasets.md#review)
+datasetu to, za czym może się opowiedzieć - każdą potwierdzoną regresję i każdą
+odpowiedź, której jego sędzia nie zdołał ocenić, po jednej na przypadek - i
+podaje, ile ich jest (`routed_to_review`). **Send failed to review** wysyła
+resztę niezaliczonych odpowiedzi jednej strony, dla każdego, kto może edytować
+dataset, a przypadek, którego ocenę osoba uchyliła, jest oznaczany jako
+poprawiony.
+
+Własna zakładka **Evals** datasetu wymienia każdego mierzonego na nim agenta,
+każdego ze swoim trendem i runami, a **Run evals** w jego nagłówku otwiera
+dialog startu na tym datasecie i pyta, którego agenta testować.
 
 Karta **Eval runs** na dashboardzie wymienia ostatnie runy organizacji z ich
 agentem i werdyktem. Przypadki evala i ocenianie sędziego nie wchodzą do żadnej
@@ -110,10 +114,10 @@ Agent bez historii na danym modelu jest szacowany jako typowy przypadek -
 wyjściu - według ceny samego modelu, albo na `EVAL_FALLBACK_CASE_COST_USD` dla
 modelu, którego ceny nic nie zna, a szacunek mówi, że to zgrubne zgadywanie
 (`basis: "fallback"`). Sędzia bez historii jest wyceniany tak samo, na modelu,
-który wybiera dla niego dataset, albo na tym, który wskazuje jego opublikowany
-spec. Koszt baseline'u wchodzi do sumy, chyba że użyty zostanie niedawny
-pasujący baseline - wtedy jego pierwsze odpowiedzi nic nie kosztują, a szacunek
-wskazuje run, z którego pochodzą.
+który wskazuje jego opublikowany spec; szacunek ostrzega, gdy to model, który
+jest testowany, a strona runa - gdy nim był. Koszt baseline'u wchodzi do sumy,
+chyba że użyty zostanie niedawny pasujący baseline - wtedy jego pierwsze
+odpowiedzi nic nie kosztują, a szacunek wskazuje run, z którego pochodzą.
 
 ### Budżet, który zostaje { #the-budget-it-leaves }
 
