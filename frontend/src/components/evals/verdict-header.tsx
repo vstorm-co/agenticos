@@ -47,7 +47,6 @@ export function VerdictHeader({
   const { can } = usePermissions();
   const live = run.status === "queued" || run.status === "running";
   const reruns = run.attempts_total - run.first_total;
-  // Once every first answer is in, what is left is confirming the flips.
   const confirming = run.first_total > 0 && run.first_done === run.first_total && reruns > 0;
   const [doneNow, ofNow] = confirming
     ? [run.attempts_done - run.first_done, reruns]

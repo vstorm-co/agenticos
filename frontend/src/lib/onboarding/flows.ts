@@ -886,10 +886,8 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
   // agent, so a reader with none is asked to build one first and yes hands off to
   // `create-agent`. That fork aside, anyone signed in can chat, so no step past it
   // carries a permission.
-  // Testing a change before it goes live: from the draft's Test button, through
-  // the dialog's choice and price, to the verdict on the run's page. Offered at
-  // the end of the builder's own walk, where the reader is already in an agent -
-  // which is why it, rather than creating another agent, is what that walk ends on.
+  // Offered at the end of the builder's own walk, where the reader is already in
+  // an agent - so testing a change, not creating another agent, is what it ends on.
   "test-change": {
     id: "test-change",
     permission: Perm.runsView,

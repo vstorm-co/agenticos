@@ -20,7 +20,6 @@ export function SendToReviewButton({ run, arm }: { run: EvalRun; arm: EvalRunArm
   const tErrors = useTranslations("errors");
   const { dataset } = useDataset(run.dataset_id);
   const send = useSendToReview(run.id, run.dataset_id);
-  // What the run did not already send itself, nor a person before.
   const failed = arm.unsent_failed;
   if (!dataset?.can_edit || failed === 0) return null;
   return (
