@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { formatDateTime } from "@/lib/utils";
 import { caseScore } from "@/test-utils/scores";
 
 import type { CaseScore, ScorerResult } from "@/types/scoring";
@@ -166,6 +167,15 @@ describe("ScoreCard", () => {
       screen.getByText(/A required scorer reached no verdict \(pattern_timeout\)\./),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Score again" })).toBeNull();
+  });
+
+  it("says when it was graded in the reader's own time zone", () => {
+    render(<ScoreCard score={score({ created_at: "2026-10-13T23:30:00Z" })} />);
+
+    expect(screen.getByText(formatDateTime("2026-10-13T23:30:00Z", "en"))).toHaveAttribute(
+      "datetime",
+      "2026-10-13T23:30:00Z",
+    );
   });
 
   it("shows what the scored revision asked, and its reference answer", () => {

@@ -3,11 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Badge, Button } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { reasonKey, reasonKeyOf } from "@/lib/scoring";
+import { formatDateTime } from "@/lib/utils";
 import type { CaseScore, ScorerResult } from "@/types/scoring";
 import { ScoreAnswer } from "./score-answer";
 import { ScoreDecision, type Verdict } from "./score-decision";
@@ -90,7 +91,7 @@ function ResultRow({ result }: { result: ScorerResult }) {
 /** Which agent answered, at which version, on which model, and when it was graded. */
 function ScoreSource({ score }: { score: CaseScore }) {
   const t = useTranslations("datasets.scoring");
-  const format = useFormatter();
+  const locale = useLocale();
   return (
     <span className="text-muted-foreground ml-auto flex flex-wrap items-center gap-2 text-xs">
       {score.agent_name !== null && (
@@ -101,9 +102,7 @@ function ScoreSource({ score }: { score: CaseScore }) {
         </span>
       )}
       {score.run_model !== null && <span className="font-mono">{score.run_model}</span>}
-      <time dateTime={score.created_at}>
-        {format.dateTime(new Date(score.created_at), { dateStyle: "medium", timeStyle: "short" })}
-      </time>
+      <time dateTime={score.created_at}>{formatDateTime(score.created_at, locale)}</time>
       {score.eval_run_id !== null && score.agent_id !== null ? (
         <Link
           href={`${ROUTES.AGENTS}/${score.agent_id}/evals/${score.eval_run_id}`}
