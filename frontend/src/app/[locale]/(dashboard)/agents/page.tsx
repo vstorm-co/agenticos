@@ -203,7 +203,11 @@ export default function AgentsPage() {
         }
       />
 
-      <CatalogSection title={t("agentsCount", { count: total })} defaultOpen>
+      <CatalogSection
+        title={t("agentsCount", { count: total })}
+        defaultOpen
+        storageKey="agents.catalog.agents"
+      >
         {/* The header and the controls are static, so they stay put while the
             list loads rather than being replaced by a placeholder of themselves.
             The panel below is equally static - loading, empty and populated all
@@ -272,7 +276,7 @@ export default function AgentsPage() {
         )}
       </CatalogSection>
 
-      <JudgesSection />
+      <JudgesSection query={query} agentsMatched={visible.length > 0} />
 
       <AgentTemplateDialog open={templatesOpen} onOpenChange={setTemplatesOpen} />
       <CreateAgentDialog

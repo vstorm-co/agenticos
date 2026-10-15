@@ -237,6 +237,15 @@ class DatasetTagCount(BaseSchema):
     cases: int
 
 
+class ExpectationMix(BaseSchema):
+    """How many cases hold this combination of what a scorer reads."""
+
+    checks: bool
+    tool_calls: bool
+    reference: bool
+    cases: int
+
+
 class DatasetStats(BaseSchema):
     """What the newest version's cases test against, counted.
 
@@ -248,6 +257,13 @@ class DatasetStats(BaseSchema):
     with_counter_example: int = Field(default=0, description="Cases with a counter-example")
     with_tool_calls: int = Field(default=0, description="Cases expecting at least one tool call")
     with_checks: int = Field(default=0, description="Cases with at least one check")
+    expectation_mix: list[ExpectationMix] = Field(
+        default_factory=list,
+        description=(
+            "Cases counted by whether each has checks, expected tool calls and a reference "
+            "answer at once - what tells which cases a grading setup would grade nothing on"
+        ),
+    )
     by_source: dict[CaseSourceLiteral, int] = Field(
         default_factory=lambda: dict.fromkeys(get_args(CaseSourceLiteral), 0)
     )

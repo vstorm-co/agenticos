@@ -1,5 +1,5 @@
 ---
-source_sha: "4940e62b99c3"
+source_sha: "6f0439dba3ed"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -82,10 +82,15 @@ wiersze.
 Otwórz **Datasety**, utwórz dataset - otwiera się, gdy tylko powstanie - i
 wybierz **Dodaj przypadek**. Wpisz wejście i co najmniej jedno z czterech
 oczekiwań opisanych wyżej. Rozmowę wpisuje się tura po turze, każde oczekiwane
-wywołanie narzędzia jako nazwę narzędzia i jego argumenty jako obiekt JSON, a
-każde sprawdzenie jako typ wybrany z listy obok tego, co sprawdza. Przypadek na
-liście otwiera się w postaci do czytania, z rozmową jako dymkami czatu;
-**Edytuj** zamienia go w formularz.
+wywołanie narzędzia jako nazwę narzędzia i jego argumenty jako wiersze nazwy i
+wartości, a każde sprawdzenie jako typ wybrany z listy obok tego, co sprawdza.
+**Edytuj jako JSON** pokazuje cały przypadek w postaci, w jakiej trzyma go
+import.
+
+Przypadek na liście otwiera się w postaci do czytania, z rozmową jako dymkami
+czatu; **Edytuj** zamienia go w formularz, który mówi, jaką wersję utworzy zapis
+i które oceniacze datasetu oceniłyby przypadek w obecnym brzmieniu. Link do
+`?tab=cases&case={case_id}` na stronie datasetu otwiera jeden przypadek.
 
 ### Z pliku { #import-and-export }
 
@@ -187,9 +192,14 @@ Każdy oceniacz zwraca zaliczenie albo niezaliczenie, wynik od 0 do 1 i
 uzasadnienie. Przypadek **zalicza**, gdy zalicza go każdy oceniacz oznaczony
 jako Musi przejść. Gdy któryś z nich nie mógł zadziałać - sędzia był wyłączony,
 jego budżet się wyczerpał - przypadek jest **bez oceny**, a nie zaliczony:
-wynik, którego nikt nie sprawdził, nie liczy się jako zaliczenie. Datasetowi,
-którego przypadki mają odpowiedzi wzorcowe, z którymi nic nie porównuje
-odpowiedzi, proponowane jest porównanie z odpowiedzią wzorcową.
+wynik, którego nikt nie sprawdził, nie liczy się jako zaliczenie.
+
+Każdy oceniacz mówi, ile przypadków zawiera to, co on czyta, a zakładka
+ostrzega, gdy ustawienia widoczne na ekranie oceniałyby niektóre przypadki na
+podstawie niczego. Datasetowi, którego przypadki mają odpowiedzi wzorcowe, z
+którymi nic nie porównuje odpowiedzi, proponowane jest porównanie z odpowiedzią
+wzorcową. Karta z niezapisaną zmianą mówi o tym, a strona pyta przed jej
+opuszczeniem.
 
 Konfiguracja nie jest wersjonowana razem z przypadkami, bo to, jak zespół
 ocenia, nie jest tym, o co pyta. Każdy wynik przechowuje kopię konfiguracji, z
@@ -278,8 +288,9 @@ zawiera słowo w słowo, jest zachowywany obok oceny jako niezweryfikowany,
 pokazywany w osobnej linii pod uzasadnieniem, a ocena pozostaje. Każdy wynik
 zapisuje sędziego, który go ocenił - agenta sędziego, jego profil modelu, wersję
 spec i hash rubryki - więc wyniki od różnych sędziów nie są porównywane jak
-równe z równym. Zmiana sędziego albo jego modelu jest dozwolona; karta Sędzia
-mówi, że wyniki ocenione wcześniej nie będą porównywalne z ocenianymi później.
+równe z równym. Zmiana sędziego albo jego modelu jest dozwolona; przełączenie
+sędziego wymaga najpierw potwierdzenia, a karta Sędzia mówi, że wyniki ocenione
+wcześniej nie będą porównywalne z ocenianymi później.
 
 ### Przegląd { #review }
 
@@ -291,12 +302,20 @@ ustawieniu **Przegląd przez człowieka** datasetu: nic, dopóki ktoś czegoś n
 wyśle, każdy wynik, który nie zaliczył, albo każdy wynik. Wynik już
 rozstrzygnięty pozostaje rozstrzygnięty.
 
-Zakładka **Przegląd** otwiera się na tym, co czeka na decyzję, a każdy wynik
-jest o jeden filtr dalej, i zbiera wyniki każdego runa ewaluacji pod jednym
-nagłówkiem. Każda karta pokazuje, o co pytał i czego oczekiwał przypadek -
-pytanie, odpowiedź wzorcową, oczekiwane wywołania narzędzi i sprawdzenia -
-odpowiedź w postaci, w jakiej została oceniona, który agent i która wersja
-odpowiedziały, co ustalił każdy oceniacz i dlaczego, oraz decyzję przeglądu.
+Zakładka **Przegląd** otwiera się na tym, co czeka na decyzję, a wszystkie
+wyniki są o jedno kliknięcie dalej, każdy filtr ze swoją liczbą; widok zawęża
+się według rezultatu, agenta, który odpowiedział, i tagu przypadku. Wyniki
+każdego runa ewaluacji zbiera pod jednym nagłówkiem z linkiem do runa, skąd
+można je wyjąć z kolejki bez decyzji
+(`POST /datasets/{id}/scores/review/withdraw`).
+
+Każda karta pokazuje, o co pytał i czego oczekiwał przypadek - pytanie z
+linkiem do przypadku, odpowiedź wzorcową, oczekiwane wywołania narzędzi i
+sprawdzenia - odpowiedź w postaci, w jakiej została oceniona, który agent i
+która wersja odpowiedziały, co ustalił każdy oceniacz i dlaczego, najpierw
+niezaliczone, oraz decyzję przeglądu, którą można cofnąć z komunikatu, który ją
+potwierdza.
+
 Karta pulpitu **Do przeglądu** pokazuje kolejkę ze wszystkich datasetów, które
 widzisz: ile wyników nie zaliczyło, było bez oceny albo zaliczyło, i w których
 datasetach, a każdy otwiera się w zakładce Przegląd. Karta jest domyślnie na

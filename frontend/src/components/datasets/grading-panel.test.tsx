@@ -62,6 +62,7 @@ function dataset(scoring: DatasetScoring, overrides: Partial<Dataset> = {}): Dat
       with_counter_example: 0,
       with_tool_calls: 0,
       with_checks: 0,
+      expectation_mix: [],
       by_source: { manual: 2, import: 0, conversation: 0, synthetic: 0 },
       top_tags: [],
     },
@@ -85,7 +86,13 @@ beforeEach(() => {
   ai.enabled = true;
   state.perms = new Set(["agents:edit", "org:settings"]);
   state.judges = [
-    { id: "j0", name: "Eval judge", system_key: "eval_judge", kind: "judge" },
+    {
+      id: "j0",
+      name: "Eval judge",
+      system_key: "eval_judge",
+      kind: "judge",
+      published_model: { profile_id: "p1", provider: "openai", model: "gpt-4.1", label: "GPT-4.1" },
+    },
     { id: "j1", name: "Refunds judge", system_key: null, kind: "judge" },
   ];
   state.save.mockResolvedValue({});
@@ -174,9 +181,10 @@ describe("GradingPanel", () => {
     });
   });
 
-  it("picks the dataset's own judge, links to it, and says older scores will not compare", async () => {
+  it("picks the dataset's own judge once confirmed, and says older scores will not compare", async () => {
     panel(JUDGED);
     expect(screen.queryByText(/will not compare/)).toBeNull();
+    expect(screen.getByText("GPT-4.1")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open the judge" })).toHaveAttribute(
       "href",
       "/agents/j0",
@@ -185,6 +193,17 @@ describe("GradingPanel", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Which judge" }));
     expect(screen.getByRole("option", { name: "Default judge - Eval judge" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("option", { name: "Refunds judge" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("link", { name: "Open the judge" })).toHaveAttribute(
+      "href",
+      "/agents/j0",
+    );
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Which judge" }));
+    await userEvent.click(screen.getByRole("option", { name: "Refunds judge" }));
+    expect(screen.getByRole("dialog", { name: "Grade with another judge?" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Switch judge" }));
+    expect(screen.getByText("Not published")).toBeInTheDocument();
 
     expect(screen.getByText(/will not compare/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open the judge" })).toHaveAttribute(
@@ -198,6 +217,52 @@ describe("GradingPanel", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Which judge" }));
     await userEvent.click(screen.getByRole("option", { name: "Default judge - Eval judge" }));
     expect(screen.queryByText(/will not compare/)).toBeNull();
+  });
+
+  it("counts the cases each scorer reads, and warns of cases nothing grades", async () => {
+    const stats = {
+      ...dataset(DEFAULT_SCORING).stats,
+      with_checks: 1,
+      with_tool_calls: 2,
+      with_reference: 1,
+      expectation_mix: [
+        { checks: true, tool_calls: false, reference: false, cases: 1 },
+        { checks: false, tool_calls: false, reference: true, cases: 1 },
+        { checks: false, tool_calls: false, reference: false, cases: 3 },
+      ],
+    };
+    panel(DEFAULT_SCORING, { stats, case_count: 5 });
+
+    expect(screen.getAllByText("1 of 5 cases")).toHaveLength(2);
+    expect(screen.getByText("2 of 5 cases")).toBeInTheDocument();
+    expect(screen.getByText(/4 cases have nothing that grades them/)).toBeInTheDocument();
+    expect(
+      screen.getByText("A case passes when everything marked Must pass passes."),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("switch", { name: "Judge" }));
+    await userEvent.click(screen.getByRole("button", { name: "Add criterion" }));
+    expect(screen.queryByText(/nothing that grades/)).toBeNull();
+  });
+
+  it("marks a card unsaved, tells the page, and asks the browser before leaving", async () => {
+    const onDirtyChange = vi.fn();
+    render(<GradingPanel dataset={dataset(DEFAULT_SCORING)} onDirtyChange={onDirtyChange} />);
+    expect(screen.queryByText("Unsaved")).toBeNull();
+
+    await userEvent.click(screen.getByRole("switch", { name: "Expected tool calls" }));
+
+    expect(within(card("When a case passes")).getByText("Unsaved")).toBeInTheDocument();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    const leaving = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(leaving);
+    expect(leaving.defaultPrevented).toBe(true);
+
+    await userEvent.click(screen.getByRole("switch", { name: "Expected tool calls" }));
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    const staying = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(staying);
+    expect(staying.defaultPrevented).toBe(false);
   });
 
   it("names a judge that is gone, and the default one before it is seeded", () => {

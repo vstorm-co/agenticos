@@ -6,6 +6,7 @@ import {
   describeCheck,
   groupScores,
   reasonKey,
+  ungradedCases,
   scoringProblem,
 } from "./scoring";
 import { caseScore } from "@/test-utils/scores";
@@ -111,6 +112,14 @@ describe("describeCheck", () => {
 });
 
 describe("groupScores", () => {
+  it("reads each group in the order it was graded", () => {
+    const [group] = groupScores([
+      caseScore({ id: "late", eval_run_id: "e1", created_at: "2026-10-13T09:05:00Z" }),
+      caseScore({ id: "early", eval_run_id: "e1", created_at: "2026-10-13T09:00:00Z" }),
+    ]);
+    expect(group!.scores.map((score) => score.id)).toEqual(["early", "late"]);
+  });
+
   it("cuts the page where the eval run or the answering agent changes", () => {
     const scores = [
       caseScore({ id: "a", eval_run_id: "e1", agent_id: "x" }),
@@ -128,5 +137,40 @@ describe("groupScores", () => {
       [null, ["d"]],
       ["e1", ["e"]],
     ]);
+  });
+});
+
+describe("ungradedCases", () => {
+  const stats = {
+    with_reference: 1,
+    with_counter_example: 0,
+    with_tool_calls: 1,
+    with_checks: 0,
+    by_source: { manual: 4, import: 0, conversation: 0, synthetic: 0 },
+    top_tags: [],
+    expectation_mix: [
+      { checks: false, tool_calls: true, reference: false, cases: 1 },
+      { checks: false, tool_calls: false, reference: true, cases: 1 },
+      { checks: false, tool_calls: false, reference: false, cases: 2 },
+    ],
+  };
+
+  it("counts the cases no scorer that is on reads", () => {
+    expect(ungradedCases(DEFAULT_SCORING, stats, 0)).toBe(3);
+    const referenced = { ...DEFAULT_SCORING, reference: { enabled: true, required: true } };
+    expect(ungradedCases(referenced, stats, 0)).toBe(2);
+  });
+
+  it("counts none once default checks or a judge with criteria read every case", () => {
+    expect(ungradedCases(DEFAULT_SCORING, stats, 1)).toBe(0);
+    const judged = {
+      ...DEFAULT_SCORING,
+      judge: {
+        ...DEFAULT_SCORING.judge,
+        enabled: true,
+        criteria: [{ name: "tone", description: "Polite", required: true }],
+      },
+    };
+    expect(ungradedCases(judged, stats, 0)).toBe(0);
   });
 });

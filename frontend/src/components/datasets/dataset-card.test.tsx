@@ -22,6 +22,7 @@ const DATASET: Dataset = {
     with_counter_example: 0,
     with_tool_calls: 0,
     with_checks: 0,
+    expectation_mix: [],
     by_source: { manual: 0, import: 0, conversation: 0, synthetic: 0 },
     top_tags: [],
   },

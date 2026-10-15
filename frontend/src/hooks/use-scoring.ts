@@ -7,7 +7,13 @@ import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { Dataset } from "@/types/datasets";
-import type { CaseScore, CaseScoreList, DatasetScoring, ReviewQueue } from "@/types/scoring";
+import type {
+  CaseScore,
+  CaseScoreList,
+  DatasetScoring,
+  ReviewQueue,
+  ScoreOutcome,
+} from "@/types/scoring";
 
 /** Replace how a dataset's cases are scored. Scores already kept keep theirs. */
 export function useSetScoring(datasetId: string) {
@@ -66,28 +72,54 @@ export function useScoreRun() {
   });
 }
 
+/** Which of a dataset's scores to read: one case's, the waiting ones, and by outcome, agent or tag. */
+export interface ScoreQuery {
+  caseId?: string | null;
+  pending?: boolean;
+  outcome?: ScoreOutcome | null;
+  agentId?: string | null;
+  tag?: string | null;
+  skip?: number;
+  limit?: number;
+}
+
 /**
- * A page of a dataset's scores, and a person's verdict on one.
+ * A page of a dataset's scores, and a person's decision on one.
  *
- * `pending` narrows to the scores waiting for a verdict. A verdict or a request
- * for review refreshes the dataset's scores and the review queue together.
+ * `pending` narrows to the scores waiting for a decision. A decision, a request
+ * for review or taking scores out of it refreshes the dataset's scores and the
+ * review queue together.
  */
 export function useScores(
   datasetId: string,
   {
     caseId = null,
     pending = false,
+    outcome = null,
+    agentId = null,
+    tag = null,
     skip = 0,
     limit = PAGE_SIZE,
-  }: { caseId?: string | null; pending?: boolean; skip?: number; limit?: number } = {},
+  }: ScoreQuery = {},
 ) {
   const queryClient = useQueryClient();
   const query = useQuery({
-    queryKey: qk.datasets.scores(datasetId, { caseId, pending, skip, limit }),
+    queryKey: qk.datasets.scores(datasetId, {
+      caseId,
+      pending,
+      outcome,
+      agentId,
+      tag,
+      skip,
+      limit,
+    }),
     queryFn: () => {
       const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
       if (caseId !== null) params.set("case_id", caseId);
       if (pending) params.set("pending", "true");
+      if (outcome !== null) params.set("outcome", outcome);
+      if (agentId !== null) params.set("agent_id", agentId);
+      if (tag !== null) params.set("tag", tag);
       return apiClient.get<CaseScoreList>(`/datasets/${datasetId}/scores?${params}`);
     },
     placeholderData: (previous) => previous,
@@ -125,6 +157,15 @@ export function useScores(
     onSuccess: changed,
   });
 
+  const withdraw = useMutation({
+    mutationFn: (scoreIds: string[]) =>
+      apiClient.post<{ removed: number; kept: number }>(
+        `/datasets/${datasetId}/scores/review/withdraw`,
+        { score_ids: scoreIds },
+      ),
+    onSuccess: changed,
+  });
+
   return {
     scores: query.data?.items ?? [],
     total: query.data?.total ?? 0,
@@ -133,6 +174,7 @@ export function useScores(
     refetch: query.refetch,
     verdict,
     review,
+    withdraw,
   };
 }
 

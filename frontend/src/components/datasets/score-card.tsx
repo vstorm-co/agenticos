@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
-import { Badge } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { reasonKey } from "@/lib/scoring";
 import type { CaseScore, ScorerResult } from "@/types/scoring";
@@ -64,9 +66,11 @@ function ResultRow({ result }: { result: ScorerResult }) {
       {result.judge_run_id !== null && (
         <Link
           href={`${ROUTES.RUNS}?run=${result.judge_run_id}`}
-          className="text-muted-foreground shrink-0 text-xs underline"
+          className="text-muted-foreground hover:text-foreground shrink-0"
+          aria-label={t("judgeRun")}
+          title={t("judgeRun")}
         >
-          {t("judgeRun")}
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
         </Link>
       )}
     </li>
@@ -90,12 +94,50 @@ function ScoreSource({ score }: { score: CaseScore }) {
       <time dateTime={score.created_at}>
         {format.dateTime(new Date(score.created_at), { dateStyle: "medium", timeStyle: "short" })}
       </time>
-      {score.run_id !== null && (
-        <Link href={`${ROUTES.RUNS}?run=${score.run_id}`} className="underline">
-          {t("scoredRun")}
+      {score.eval_run_id !== null && score.agent_id !== null ? (
+        <Link
+          href={`${ROUTES.AGENTS}/${score.agent_id}/evals/${score.eval_run_id}`}
+          className="underline"
+        >
+          {t("evalRunLink")}
         </Link>
+      ) : (
+        score.run_id !== null && (
+          <Link href={`${ROUTES.RUNS}?run=${score.run_id}`} className="underline">
+            {t("scoredRun")}
+          </Link>
+        )
       )}
     </span>
+  );
+}
+
+/** What each scorer found: the ones that did not pass first, the passing ones folded. */
+function Results({ results }: { results: ScorerResult[] }) {
+  const t = useTranslations("datasets.scoring");
+  const [open, setOpen] = useState(false);
+  const held = results.filter((result) => result.status !== "pass");
+  const passed = results.filter((result) => result.status === "pass");
+  const shown = open || held.length === 0 ? [...held, ...passed] : held;
+  return (
+    <div>
+      <ul className="divide-y">
+        {shown.map((result, index) => (
+          <ResultRow key={`${result.scorer}:${result.name}:${index}`} result={result} />
+        ))}
+      </ul>
+      {held.length > 0 && passed.length > 0 && (
+        <Button
+          variant="link"
+          size="sm"
+          className="h-auto px-0"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+        >
+          {open ? t("hidePassed") : t("showPassed", { count: passed.length })}
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -123,11 +165,7 @@ export function ScoreCard({ score, onVerdict, onReview, busy = false }: ScoreCar
       <ScoreExpectation score={score} />
       <ScoreAnswer answer={score.answer} />
 
-      <ul className="divide-y">
-        {score.results.map((result, index) => (
-          <ResultRow key={`${result.scorer}:${result.name}:${index}`} result={result} />
-        ))}
-      </ul>
+      <Results results={score.results} />
 
       {(onVerdict || sendable || (decided && score.human_note)) && (
         <ScoreDecision

@@ -7,10 +7,16 @@ import type { Agent } from "@/types/agents";
 import { JudgesSection, JudgeUsedBy } from "./judges-section";
 
 const state = vi.hoisted(() => ({
+  section: null as string | null,
   agents: [] as Partial<Agent>[],
   datasets: { datasets: [] as { name: string }[], total: 0, isLoading: false },
   perms: new Set<string>(),
   asked: [] as unknown[],
+}));
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useSearchParams: () =>
+    new URLSearchParams(state.section === null ? "" : `section=${state.section}`),
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useJudges: () => ({ agents: state.agents, total: state.agents.length }),
@@ -42,6 +48,8 @@ vi.mock("./agent-card", () => ({
 }));
 
 beforeEach(() => {
+  window.localStorage.clear();
+  state.section = null;
   state.agents = [{ id: "j1", name: "Eval judge", system_key: "eval_judge", kind: "judge" }];
   state.datasets = { datasets: [], total: 0, isLoading: false };
   state.perms = new Set(["agents:edit", "datasets:view"]);
@@ -51,7 +59,7 @@ beforeEach(() => {
 /** The organization's judges sit folded under its agents, opened on demand. */
 describe("JudgesSection", () => {
   it("starts folded, and opens onto cards an editor can open", async () => {
-    render(<JudgesSection />);
+    render(<JudgesSection query="" agentsMatched />);
     const toggle = screen.getByRole("button", { name: "Judges (1)" });
 
     expect(toggle).toHaveAttribute("aria-expanded", "false");
@@ -68,16 +76,89 @@ describe("JudgesSection", () => {
 
   it("names no dataset to somebody who may not read datasets", async () => {
     state.perms = new Set();
-    render(<JudgesSection />);
+    render(<JudgesSection query="" agentsMatched />);
     await userEvent.click(screen.getByRole("button", { name: "Judges (1)" }));
 
     expect(screen.getByTestId("card")).toHaveAttribute("data-can-edit", "false");
     expect(state.asked).toEqual([]);
   });
 
+  it("shows each judge's model, and says when it has none", async () => {
+    state.agents = [
+      {
+        id: "j1",
+        name: "Eval judge",
+        kind: "judge",
+        published_model: {
+          profile_id: "p1",
+          provider: "openai",
+          model: "gpt-4.1",
+          label: "GPT-4.1",
+        },
+      },
+      { id: "j2", name: "Draft judge", kind: "judge", published_model: null },
+    ];
+    render(<JudgesSection query="" agentsMatched />);
+    await userEvent.click(screen.getByRole("button", { name: "Judges (2)" }));
+
+    expect(screen.getByText("GPT-4.1")).toBeInTheDocument();
+    expect(screen.getByText("No model yet")).toBeInTheDocument();
+  });
+
+  it("remembers being opened, in this browser", async () => {
+    const { unmount } = render(<JudgesSection query="" agentsMatched />);
+    await userEvent.click(screen.getByRole("button", { name: "Judges (1)" }));
+    unmount();
+
+    const { unmount: again } = render(<JudgesSection query="" agentsMatched />);
+    expect(await screen.findByTestId("card")).toBeInTheDocument();
+    expect(window.localStorage.getItem("agents.catalog.judges")).toBe("open");
+    again();
+
+    window.localStorage.setItem("agents.catalog.judges", "closed");
+    render(<JudgesSection query="" agentsMatched />);
+    expect(screen.getByRole("button", { name: "Judges (1)" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("opens for a link to it, and for a search only judges answer", () => {
+    state.section = "judges";
+    const { unmount } = render(<JudgesSection query="" agentsMatched />);
+    expect(screen.getByRole("button", { name: "Judges (1)" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    unmount();
+
+    state.section = null;
+    const { rerender } = render(<JudgesSection query="eval" agentsMatched={false} />);
+    expect(screen.getByTestId("card")).toHaveTextContent("Eval judge");
+    rerender(<JudgesSection query="eval" agentsMatched />);
+    expect(screen.queryByTestId("card")).toBeNull();
+    rerender(<JudgesSection query="nothing" agentsMatched={false} />);
+    expect(screen.queryByTestId("card")).toBeNull();
+  });
+
+  it("keeps working where the browser refuses storage", async () => {
+    const getItem = vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
+      throw new Error("denied");
+    });
+    const setItem = vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
+      throw new Error("denied");
+    });
+    render(<JudgesSection query="" agentsMatched />);
+    await userEvent.click(screen.getByRole("button", { name: "Judges (1)" }));
+
+    expect(screen.getByTestId("card")).toBeInTheDocument();
+    getItem.mockRestore();
+    setItem.mockRestore();
+  });
+
   it("is absent while the organization has none", () => {
     state.agents = [];
-    const { container } = render(<JudgesSection />);
+    const { container } = render(<JudgesSection query="" agentsMatched />);
 
     expect(container).toBeEmptyDOMElement();
   });

@@ -2,7 +2,6 @@
 
 import { use, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FlaskConical } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { CaseEditorDialog } from "@/components/datasets/case-editor-dialog";
@@ -11,6 +10,7 @@ import { CaseRow } from "@/components/datasets/case-row";
 import { DatasetHeader } from "@/components/datasets/dataset-header";
 import { DatasetShareDialog } from "@/components/datasets/dataset-share-dialog";
 import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
+import { EmptyCases } from "@/components/datasets/empty-cases";
 import { ReviewPanel } from "@/components/datasets/review-panel";
 import { GradingPanel } from "@/components/datasets/grading-panel";
 import { VersionSelect } from "@/components/datasets/version-select";
@@ -19,7 +19,6 @@ import { ErrorState, LoadingState } from "@/components/states";
 import {
   ConfirmDialog,
   ListCard,
-  ListCardEmpty,
   PAGE_SIZE,
   Pager,
   Tabs,
@@ -71,6 +70,7 @@ export default function DatasetPage({ params }: PageProps) {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Editing>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [gradingUnsaved, setGradingUnsaved] = useState(false);
   const { dataset, error: datasetError, update, remove } = useDataset(id);
   // Every read behind the Evals tab and the run it starts takes runs:view.
   const canViewRuns = usePermissions().can(Perm.runsView);
@@ -127,6 +127,13 @@ export default function DatasetPage({ params }: PageProps) {
           <TabsTrigger value="cases">{t("cases")}</TabsTrigger>
           <TabsTrigger value="grading" data-tour="datasets-grading-tab">
             {t("scoring.title")}
+            {gradingUnsaved && (
+              <span
+                className="bg-primary ml-1.5 size-1.5 rounded-full"
+                role="img"
+                aria-label={t("scoring.unsaved")}
+              />
+            )}
           </TabsTrigger>
           {canViewRuns && (
             <TabsTrigger value="evals" data-tour="datasets-evals-tab">
@@ -168,18 +175,12 @@ export default function DatasetPage({ params }: PageProps) {
                 cta={{ label: tc("retry"), onClick: () => void cases.refetch() }}
               />
             ) : cases.cases.length === 0 ? (
-              <ListCardEmpty
-                icon={FlaskConical}
-                title={t("noCases")}
-                description={t("noCasesBody")}
-                cta={
-                  editable
-                    ? {
-                        label: t("addCase"),
-                        onClick: () => setEditing({ draft: EMPTY_DRAFT, item: null }),
-                      }
-                    : undefined
+              <EmptyCases
+                datasetId={id}
+                onAddCase={
+                  editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
                 }
+                onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
               />
             ) : (
               <div className="space-y-4">
@@ -205,8 +206,10 @@ export default function DatasetPage({ params }: PageProps) {
             )}
           </ListCard>
         </TabsContent>
-        <TabsContent value="grading">
-          <GradingPanel dataset={dataset} />
+        {/* Kept mounted while another tab is open, so a card's unsaved change
+            survives looking at the cases it is about. */}
+        <TabsContent value="grading" forceMount className="data-[state=inactive]:hidden">
+          <GradingPanel dataset={dataset} onDirtyChange={setGradingUnsaved} />
         </TabsContent>
         {canViewRuns && (
           <TabsContent value="evals">
@@ -216,7 +219,7 @@ export default function DatasetPage({ params }: PageProps) {
           </TabsContent>
         )}
         <TabsContent value="review">
-          <ReviewPanel datasetId={id} canDecide={dataset.can_edit} />
+          <ReviewPanel dataset={dataset} />
         </TabsContent>
       </Tabs>
 
@@ -252,6 +255,11 @@ export default function DatasetPage({ params }: PageProps) {
           initial={editing.draft}
           viewing={editing.item ?? undefined}
           title={editing.item === null ? t("addCase") : t("case")}
+          nextVersion={dataset.latest_version + 1}
+          scoring={dataset.scoring}
+          knownTools={[
+            ...new Set(cases.cases.flatMap((item) => item.expected_tool_calls.map((c) => c.tool))),
+          ]}
           onSave={editable ? save : undefined}
         />
       )}

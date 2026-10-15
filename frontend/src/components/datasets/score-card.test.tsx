@@ -128,7 +128,7 @@ describe("ScoreCard", () => {
     expect(screen.getByText("Thirty days.")).toBeInTheDocument();
   });
 
-  it("shows each scorer's verdict and reason, and links the scored run", () => {
+  it("shows what did not pass first, folds what passed, and links the scored run", async () => {
     render(
       <ScoreCard
         score={score({
@@ -148,6 +148,8 @@ describe("ScoreCard", () => {
 
     expect(screen.getByText("Failed")).toBeInTheDocument();
     expect(screen.getByText("2/5: curt")).toBeInTheDocument();
+    expect(screen.queryByText("Contains it")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "+1 passed" }));
     expect(screen.getByText("Contains it")).toBeInTheDocument();
     expect(screen.getByText("optional")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Judge's run" })).toHaveAttribute(
@@ -158,7 +160,34 @@ describe("ScoreCard", () => {
       "href",
       "/runs?run=run-1",
     );
-    expect(screen.queryByRole("button")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Hide what passed" }));
+    expect(screen.queryByText("Contains it")).toBeNull();
+  });
+
+  it("links the question to its case with the case's tags, and an eval run's score to the run", () => {
+    render(
+      <ScoreCard
+        score={score({
+          case_tags: ["billing"],
+          eval_run_id: "e1",
+          agent_id: "a1",
+          results: [result({ status: "pass" })],
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "How long is the refund window?" })).toHaveAttribute(
+      "href",
+      "/datasets/d1?tab=cases&case=c1",
+    );
+    expect(screen.getByText("billing")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Eval run ↗" })).toHaveAttribute(
+      "href",
+      "/agents/a1/evals/e1",
+    );
+    expect(screen.queryByRole("link", { name: "Scored run" })).toBeNull();
+    expect(screen.getByText("2/5: curt")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /passed/ })).toBeNull();
   });
 
   it("says why the judge did not run in the reader's words", () => {

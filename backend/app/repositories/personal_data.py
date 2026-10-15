@@ -14,11 +14,12 @@ runs on. `docs/security.md` has the table, with the reason for each.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, or_, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
@@ -321,16 +322,19 @@ async def purge_scored_answers_of(db: AsyncSession, user_id: UUID) -> int:
     Returns:
         How many scores lost their answer.
     """
-    result = await db.execute(
-        update(CaseScore)
-        .where(
-            CaseScore.answer.is_not(None),
-            CaseScore.run_id.in_(select(AgentRun.id).where(AgentRun.user_id == user_id)),
-        )
-        .values(answer=None)
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            update(CaseScore)
+            .where(
+                CaseScore.answer.is_not(None),
+                CaseScore.run_id.in_(select(AgentRun.id).where(AgentRun.user_id == user_id)),
+            )
+            .values(answer=None)
+        ),
     )
     await db.flush()
-    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+    return result.rowcount or 0
 
 
 async def attachment_paths_in(db: AsyncSession, conversation_id: UUID) -> list[str]:

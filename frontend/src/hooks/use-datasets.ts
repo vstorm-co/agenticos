@@ -40,6 +40,8 @@ export interface DatasetQuery {
 export interface NewDataset {
   name: string;
   description: string | null;
+  /** Who sees it; the server makes it the organization's when this is left out. */
+  visibility?: "org" | "private";
 }
 
 /**

@@ -31,8 +31,9 @@ interface JudgePickerProps {
 /**
  * Which judge grades the dataset: the default one, or a judge of the organization's.
  *
- * The picked judge links to its page, where its prompt and model are edited. A
- * judge picked once and deleted since is still shown, so the gap reads as one.
+ * The picked judge shows the model it publishes on and links to its page, where
+ * its prompt and model are edited. A judge picked once and deleted since is still
+ * shown, so the gap reads as one.
  */
 export function JudgePicker({ value, onChange, disabled, onCreate }: JudgePickerProps) {
   const t = useTranslations("datasets.scoring");
@@ -68,9 +69,14 @@ export function JudgePicker({ value, onChange, disabled, onCreate }: JudgePicker
         </Select>
       </FormField>
       {picked && (
-        <Button variant="link" size="sm" asChild>
-          <Link href={ROUTES.AGENT_DETAIL(picked.id)}>{t("judgeOpen")}</Link>
-        </Button>
+        <span className="text-muted-foreground flex items-center gap-1 pb-2 text-xs">
+          <span className="font-mono">
+            {picked.published_model?.label ?? t("judgeUnpublished")}
+          </span>
+          <Button variant="link" size="sm" className="h-auto" asChild>
+            <Link href={ROUTES.AGENT_DETAIL(picked.id)}>{t("judgeOpen")}</Link>
+          </Button>
+        </span>
       )}
       {onCreate && (
         <Button variant="outline" size="sm" onClick={onCreate} disabled={disabled}>

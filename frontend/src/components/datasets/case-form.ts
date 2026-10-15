@@ -6,10 +6,33 @@ export interface TurnDraft {
   content: string;
 }
 
-/** One expected tool call: the tool's name, and the arguments that must match as JSON text. */
+/** One argument a call must carry: its name, and its value as the editor shows it. */
+export interface ArgDraft {
+  key: string;
+  value: string;
+}
+
+/** One expected tool call: the tool's name, and the arguments that must match. */
 export interface CallDraft {
   tool: string;
-  args: string;
+  args: ArgDraft[];
+}
+
+/**
+ * An argument's value as written: plain text stays a string, and anything that
+ * reads as JSON - a number, `true`, a list, a quoted string - is that value.
+ */
+export function argValue(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+/** The text that reads back as `value` through `argValue`. */
+export function argText(value: unknown): string {
+  return typeof value === "string" && argValue(value) === value ? value : JSON.stringify(value);
 }
 
 /**
@@ -101,7 +124,7 @@ export function draftOf(content: DatasetCaseContent): CaseDraft {
     history: content.history.map(({ role, content: text }) => ({ role, content: text })),
     expected_tool_calls: content.expected_tool_calls.map(({ tool, args }) => ({
       tool,
-      args: Object.keys(args).length === 0 ? "" : JSON.stringify(args),
+      args: Object.entries(args).map(([key, value]) => ({ key, value: argText(value) })),
     })),
     order_mode: content.order_mode,
     checks: content.checks.map(checkDraft),
@@ -126,7 +149,7 @@ export function expectsSomething(draft: CaseDraft): boolean {
 /** What went wrong reading a draft: the field, and the catalog key saying how. */
 export type DraftProblem = {
   field: CaseField;
-  key: "argsNotObject" | "schemaNotObject" | "notNumber" | "checkEmpty";
+  key: "schemaNotObject" | "notNumber" | "checkEmpty";
 };
 
 function asObject(text: string): Record<string, unknown> | null {
@@ -187,9 +210,9 @@ export function contentOf(
   const calls: DatasetCaseContent["expected_tool_calls"] = [];
   for (const call of draft.expected_tool_calls) {
     if (call.tool.trim() === "") continue;
-    const args = call.args.trim() === "" ? {} : asObject(call.args);
-    if (args === null) problems.push({ field: "expected_tool_calls", key: "argsNotObject" });
-    else calls.push({ tool: call.tool.trim(), args });
+    const named = call.args.filter((arg) => arg.key.trim() !== "");
+    const args = Object.fromEntries(named.map((arg) => [arg.key.trim(), argValue(arg.value)]));
+    calls.push({ tool: call.tool.trim(), args });
   }
   const read = checksOf(draft.checks);
   problems.push(...read.problems.map((key) => ({ field: "checks" as const, key })));
