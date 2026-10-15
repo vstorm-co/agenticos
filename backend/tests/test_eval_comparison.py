@@ -9,6 +9,7 @@ from app.services.eval_comparison import (
     Attempt,
     Flip,
     PairedCase,
+    QualityVerdict,
     Trend,
     Verdict,
     classify,
@@ -17,6 +18,7 @@ from app.services.eval_comparison import (
     mcnemar_p,
     percentile,
     quality_verdict,
+    settle,
     summarize,
     trend,
 )
@@ -97,40 +99,87 @@ class TestMcNemar:
         assert mcnemar_p(2, 9) == mcnemar_p(9, 2)
 
 
+def _broke():
+    return _case(True, False, candidate_reruns=[False, False])
+
+
+def _fixed():
+    return _case(False, True, candidate_reruns=[True, True])
+
+
 class TestQualityVerdict:
-    def test_one_confirmed_regression_is_too_small_a_sample(self):
-        """SoL-Pi: say the difference is within noise rather than give a verdict."""
-        cases = [_case(True, False, candidate_reruns=[False, False])] + [
-            _case(True, True) for _ in range(19)
-        ]
-        verdict, p = quality_verdict(cases, alpha=0.05)
-        assert verdict is Verdict.INCONCLUSIVE
-        assert p == 1.0
+    def test_one_confirmed_regression_makes_it_worse_without_an_overall(self):
+        """A case that breaks every time is reason enough not to publish, though
+        one flip says nothing about the candidate as a whole."""
+        cases = [_broke()] + [_case(True, True) for _ in range(19)]
+        assert quality_verdict(cases, alpha=0.05) == QualityVerdict(Verdict.WORSE, 1.0, None)
 
-    def test_many_confirmed_regressions_make_it_worse(self):
-        cases = [_case(True, False, candidate_reruns=[False, False]) for _ in range(8)]
-        verdict, p = quality_verdict(cases, alpha=0.05)
-        assert verdict is Verdict.WORSE
-        assert p is not None and p < 0.05
+    def test_many_confirmed_regressions_make_it_worse_overall(self):
+        quality = quality_verdict([_broke() for _ in range(8)], alpha=0.05)
+        assert (quality.verdict, quality.overall) == (Verdict.WORSE, "worse")
+        assert quality.p_value is not None and quality.p_value < 0.05
 
-    def test_many_confirmed_fixes_make_it_better(self):
-        cases = [_case(False, True, candidate_reruns=[True, True]) for _ in range(8)]
-        assert quality_verdict(cases, alpha=0.05)[0] is Verdict.BETTER
+    def test_confirmed_fixes_alone_make_it_better(self):
+        assert quality_verdict([_fixed()], alpha=0.05).verdict is Verdict.BETTER
+        quality = quality_verdict([_fixed() for _ in range(8)], alpha=0.05)
+        assert (quality.verdict, quality.overall) == (Verdict.BETTER, "better")
+
+    def test_a_regression_beside_fixes_is_mixed(self):
+        quality = quality_verdict([_broke()] + [_fixed() for _ in range(9)], alpha=0.05)
+        assert (quality.verdict, quality.overall) == (Verdict.MIXED, "better")
+
+    def test_a_tolerated_regression_does_not_make_it_worse(self):
+        assert quality_verdict([_broke()], alpha=0.05, tolerance=1).verdict is (
+            Verdict.NO_DIFFERENCE
+        )
+        assert quality_verdict([_broke(), _fixed()], alpha=0.05, tolerance=1).verdict is (
+            Verdict.BETTER
+        )
 
     def test_unconfirmed_flips_do_not_count(self):
         cases = [_case(True, False, candidate_reruns=[True]) for _ in range(8)]
-        assert quality_verdict(cases, alpha=0.05) == (Verdict.NO_DIFFERENCE, None)
+        assert quality_verdict(cases, alpha=0.05) == QualityVerdict(Verdict.NO_DIFFERENCE)
 
     def test_a_different_judge_makes_the_comparison_invalid(self):
-        cases = [_case(True, False, candidate_reruns=[False, False]) for _ in range(8)]
-        assert quality_verdict(cases, alpha=0.05, invalid=True) == (Verdict.INVALID, None)
+        assert quality_verdict([_broke() for _ in range(8)], alpha=0.05, invalid=True) == (
+            QualityVerdict(Verdict.INVALID)
+        )
+
+
+class TestSettle:
+    @pytest.mark.parametrize(
+        ("outcomes", "settled"),
+        [
+            ((True,), True),
+            ((False,), False),
+            ((None,), None),
+            ((False, True, True), True),
+            ((True, False, False), False),
+            ((True, None, False), None),
+            ((True, None, None), True),
+        ],
+    )
+    def test_a_case_settles_on_the_majority_of_its_decided_attempts(self, outcomes, settled):
+        assert settle(outcomes) is settled
 
 
 class TestSummarize:
     def test_incomplete_cases_are_kept_out_of_the_pass_rate(self):
         summary = summarize([Attempt(True), Attempt(False), Attempt(None)])
         assert (summary.cases, summary.passed, summary.failed, summary.incomplete) == (3, 1, 1, 1)
-        assert summary.pass_rate == 0.5
+        assert summary.pass_rate == summary.first_pass_rate == 0.5
+
+    def test_a_rerun_case_counts_as_it_settled_and_its_first_answer_aside(self):
+        summary = summarize(
+            [Attempt(False, reruns=(True, True)), Attempt(True), Attempt(None, reruns=())]
+        )
+        assert (summary.passed, summary.failed, summary.incomplete) == (2, 0, 1)
+        assert summary.pass_rate == 1.0
+        assert summary.first_pass_rate == 0.5
+
+    def test_a_person_s_decision_on_the_first_answer_settles_the_case(self):
+        summary = summarize([Attempt(True, reruns=(False, False), by_person=True)])
+        assert summary.pass_rate == 1.0
 
     def test_cost_per_passed_case_and_latency_percentiles(self):
         summary = summarize(

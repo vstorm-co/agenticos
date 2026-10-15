@@ -399,14 +399,44 @@ async def test_a_case_that_passed_on_v6_and_fails_on_v7_is_a_confirmed_regressio
     assert comparison.regressions_confirmed == 1
     regression = next(case for case in comparison.cases if case.flip == "regression")
     assert regression.candidate_reruns == [False, False]
-    # One confirmed flip cannot tell two versions apart.
-    assert comparison.verdict == "inconclusive"
+    assert regression.input == "Question 0"
+    # A case that breaks every time makes it worse; one flip says nothing overall.
+    assert (comparison.verdict, comparison.overall) == ("worse", None)
     assert comparison.compared == 4
     assert comparison.flips_by_tag["refunds"]["regression"] == 1
 
     failed = await service.cases(ctx, v7.id, outcome="failed")
     assert [case.input for case in failed.items] == ["Question 0"]
     assert [attempt.attempt for attempt in failed.items[0].attempts] == [0, 1, 2]
+
+
+async def test_a_flip_its_reruns_undo_counts_as_it_settled(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=4)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    asked: list[str] = []
+
+    def answer(prompt: str, call: int) -> str:
+        asked.append(prompt)
+        return _FAIL if asked.count("Question 0") == 1 and prompt == "Question 0" else _PASS
+
+    await _run_to_end(db, Model(db, answer=answer), v7.id, ctx)
+
+    comparison = await service.compare(ctx, v7.id)
+    assert (comparison.verdict, comparison.regressions_unconfirmed) == ("no_difference", 1)
+    summary = comparison.candidate_summary
+    assert (summary.pass_rate, summary.first_pass_rate) == (1.0, 0.75)
+    read = await service.get(ctx, v7.id)
+    assert read.outcome is not None
+    assert (read.outcome.candidate_pass_rate, read.outcome.candidate_first_pass_rate) == (
+        1.0,
+        0.75,
+    )
+    assert read.arms[0].summary.pass_rate == 1.0
 
 
 async def test_a_baseline_in_the_same_run_is_reused_when_everything_matches(db) -> None:
@@ -1202,10 +1232,11 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     assert first.candidate_pass_rate == 1.0
     outcome = listed[v7.id].outcome
     assert outcome is not None
-    assert outcome.verdict == "inconclusive"
+    assert (outcome.verdict, outcome.overall) == ("worse", None)
     assert outcome.baseline is not None and outcome.baseline.run_id == v6.id
     assert outcome.regressions_confirmed == 1
     assert (outcome.candidate_pass_rate, outcome.baseline_pass_rate) == (0.75, 1.0)
+    assert (outcome.candidate_first_pass_rate, outcome.baseline_first_pass_rate) == (0.75, 1.0)
     read = await service.get(ctx, v7.id)
     assert (read.cases, read.first_done, read.first_total, read.attempts_total) == (4, 4, 4, 6)
     assert read.rerun_ceiling_usd == Decimal("0.08")

@@ -16,7 +16,8 @@ The comparison follows the rules a decision can rest on:
 * a run that backs a decision (`purpose=gate`) runs its baseline in the same run,
   because providers drift between days; a recent matching baseline may stand in;
 * a case that flipped is rerun, so regressions are reported confirmed or not;
-* too few confirmed flips are reported as inconclusive, not as a verdict;
+* the verdict rests on confirmed flips alone, and a pass rate on each case's
+  settled outcome - the majority of its attempts;
 * two sides scored by different scoring or a different judge do not compare;
 * quality and efficiency are separate axes.
 
@@ -245,6 +246,7 @@ def _summary_read(summary: ArmSummary) -> ArmSummaryRead:
         failed=summary.failed,
         incomplete=summary.incomplete,
         pass_rate=summary.pass_rate,
+        first_pass_rate=summary.first_pass_rate,
         cost_usd=summary.cost_usd,
         cost_per_pass_usd=summary.cost_per_pass,
         avg_tokens=summary.avg_tokens,
@@ -253,7 +255,12 @@ def _summary_read(summary: ArmSummary) -> ArmSummaryRead:
     )
 
 
-def _attempt(attempt: EvalRunCase, score: CaseScore | None, tags: Sequence[str]) -> Attempt:
+def _attempt(
+    attempt: EvalRunCase,
+    score: CaseScore | None,
+    tags: Sequence[str],
+    reruns: Sequence[Outcome] = (),
+) -> Attempt:
     tokens = (
         None
         if attempt.input_tokens is None and attempt.output_tokens is None
@@ -265,6 +272,8 @@ def _attempt(attempt: EvalRunCase, score: CaseScore | None, tags: Sequence[str])
         tokens=tokens,
         latency_ms=attempt.latency_ms,
         tags=tuple(tags),
+        reruns=tuple(reruns),
+        by_person=score is not None and score.human_passed is not None,
     )
 
 
@@ -1222,6 +1231,18 @@ class EvalRunService:
         )
         return {revision.id: tuple(revision.tags or ()) for revision in revisions.values()}
 
+    async def _inputs(self, ctx: AuthContext, attempts: Sequence[EvalRunCase]) -> dict[UUID, str]:
+        revisions = await eval_run_repo.revisions(
+            self.db,
+            sorted({a.case_revision_id for a in attempts}),
+            organization_id=ctx.organization_id,
+        )
+        return {
+            a.case_id: revisions[a.case_revision_id].input
+            for a in attempts
+            if a.case_revision_id in revisions
+        }
+
     async def cases(
         self,
         ctx: AuthContext,
@@ -1429,16 +1450,18 @@ class EvalRunService:
             ):
                 return kept
         comparison = await self._comparison(ctx, run)
+        theirs = comparison.baseline_summary
         outcome = EvalOutcomeRead(
             candidate_arm_id=comparison.candidate.arm_id,
             verdict=comparison.verdict,
+            overall=comparison.overall,
             baseline=comparison.baseline,
             regressions_confirmed=comparison.regressions_confirmed,
             fixed_confirmed=comparison.fixed_confirmed,
             candidate_pass_rate=comparison.candidate_summary.pass_rate,
-            baseline_pass_rate=(
-                comparison.baseline_summary.pass_rate if comparison.baseline_summary else None
-            ),
+            baseline_pass_rate=theirs.pass_rate if theirs else None,
+            candidate_first_pass_rate=comparison.candidate_summary.first_pass_rate,
+            baseline_first_pass_rate=theirs.first_pass_rate if theirs else None,
         )
         await eval_run_repo.update_run(
             self.db,
@@ -1479,6 +1502,7 @@ class EvalRunService:
                 baseline=None,
                 paired=False,
                 verdict=None,
+                overall=None,
                 p_value=None,
                 invalid_reason=None,
                 regressions_confirmed=0,
@@ -1522,7 +1546,7 @@ class EvalRunService:
             for case_id in common
         ]
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
-        verdict, p_value = quality_verdict(
+        quality = quality_verdict(
             paired_cases, alpha=settings.EVAL_SIGNIFICANCE, invalid=invalid_reason is not None
         )
         shared = set(common)
@@ -1532,11 +1556,16 @@ class EvalRunService:
         theirs_summary = summarize(
             [
                 c.attempt
-                for c in await self._first_attempts(ctx, baseline.arm, None)
+                for c in (
+                    await self._first_attempts(ctx, baseline.here, attempts)
+                    if baseline.here is not None
+                    else await self._first_attempts(ctx, baseline.arm, None)
+                )
                 if c.case_id in shared
             ],
             with_tags=False,
         )
+        inputs = await self._inputs(ctx, [a for a in attempts if a.arm_id == candidate.id])
 
         def count(flip: Flip, confirmed: bool) -> int:
             return sum(1 for c in paired_cases if c.flip is flip and c.confirmed is confirmed)
@@ -1548,8 +1577,9 @@ class EvalRunService:
             candidate=candidate_side,
             baseline=await self._side(ctx, baseline.run, baseline.arm),
             paired=baseline.paired,
-            verdict=verdict.value,
-            p_value=p_value,
+            verdict=quality.verdict.value,
+            overall=quality.overall,
+            p_value=quality.p_value,
             invalid_reason=invalid_reason,
             regressions_confirmed=count(Flip.REGRESSION, True),
             regressions_unconfirmed=count(Flip.REGRESSION, False),
@@ -1568,6 +1598,7 @@ class EvalRunService:
             cases=[
                 CaseFlipRead(
                     case_id=c.case_id,
+                    input=inputs.get(c.case_id, ""),
                     flip=c.flip.value,
                     confirmed=c.confirmed,
                     baseline=c.baseline,
@@ -1591,13 +1622,23 @@ class EvalRunService:
             attempts = await eval_run_repo.list_cases(
                 self.db, arm.eval_run_id, organization_id=ctx.organization_id
             )
-        own = [a for a in await self._arm_attempts(ctx, arm, attempts) if a.attempt == 0]
-        scores = await self._scores(ctx, own)
+        every = await self._arm_attempts(ctx, arm, attempts)
+        scores = await self._scores(ctx, every)
+        reruns: dict[UUID, list[Outcome]] = defaultdict(list)
+        for a in sorted(every, key=lambda a: a.attempt):
+            if a.attempt > 0:
+                reruns[a.case_id].append(attempt_outcome(a, scores.get(a.case_score_id)))
+        own = [a for a in every if a.attempt == 0]
         tags = await self._tags(ctx, own)
         return [
             _CaseAttempt(
                 case_id=a.case_id,
-                attempt=_attempt(a, scores.get(a.case_score_id), tags.get(a.case_revision_id, ())),
+                attempt=_attempt(
+                    a,
+                    scores.get(a.case_score_id),
+                    tags.get(a.case_revision_id, ()),
+                    reruns[a.case_id],
+                ),
             )
             for a in own
         ]
