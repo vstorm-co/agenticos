@@ -1,4 +1,4 @@
-<!-- source_sha: 91c0ac7ba3b4 -->
+<!-- source_sha: ecc6f6d0416e -->
 
 <div align="center">
 
@@ -88,11 +88,11 @@ Conecta Notion, GitHub, Jira o tu propio servidor y elige qué herramientas pued
 
 <a href="docs/assets/screens/light/mcp-servers.webp"><img src="docs/assets/screens/light/mcp-servers.webp" alt="La galería de servidores MCP con los servidores conectados y su método de inicio de sesión" width="100%"></a>
 
-### Una API para todo
+### Trabaja en AgenticOS desde Claude Code, Codex o Cursor
 
-Ejecuta agentes, lee runs y costes, alimenta bases de conocimiento - con claves limitadas a lo que puede hacer cada script.
+AgenticOS es un servidor MCP. Añádelo con un comando e inicia sesión en el navegador: tu asistente de código puede listar y ejecutar agentes, leer runs y lo que cuestan, y buscar y alimentar bases de conocimiento, dentro de lo que hayas permitido.
 
-<a href="docs/assets/readme/highlight-api.webp"><img src="docs/assets/readme/highlight-api.webp" alt="Ajustes de la API con la URL base, un enlace a cada endpoint y dos claves limitadas a lo que pueden hacer" width="100%"></a>
+<a href="docs/assets/readme/highlight-mcp-server.webp"><img src="docs/assets/readme/highlight-mcp-server.webp" alt="La configuración de clientes MCP: la URL del servidor de AgenticOS, el inicio de sesión por navegador o con una clave de API y el comando de una línea que lo añade a Claude Code, con pestañas para Codex, Claude Desktop, Cursor y VS Code" width="100%"></a>
 
 ## 📸 Míralo en acción
 

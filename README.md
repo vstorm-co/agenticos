@@ -86,11 +86,11 @@ Connect Notion, GitHub, Jira or your own server, and choose which tools each age
 
 <a href="docs/assets/screens/light/mcp-servers.webp"><img src="docs/assets/screens/light/mcp-servers.webp" alt="The MCP server gallery with connected servers and their sign-in method" width="100%"></a>
 
-### An API for everything
+### Work in AgenticOS from Claude Code, Codex or Cursor
 
-Run agents, read runs and costs, fill knowledge bases - with keys narrowed to what each script may do.
+AgenticOS is an MCP server. Add it with one command and sign in through the browser: your coding assistant can list and run agents, read runs and what they cost, and search and fill knowledge bases, within what you allowed.
 
-<a href="docs/assets/readme/highlight-api.webp"><img src="docs/assets/readme/highlight-api.webp" alt="API settings with the base URL, a link to every endpoint and two keys narrowed to what they may do" width="100%"></a>
+<a href="docs/assets/readme/highlight-mcp-server.webp"><img src="docs/assets/readme/highlight-mcp-server.webp" alt="The MCP clients settings: the AgenticOS server URL, sign-in through the browser or with an API key, and the one-line command that adds it to Claude Code, with tabs for Codex, Claude Desktop, Cursor and VS Code" width="100%"></a>
 
 ## 📸 See it in action
 
