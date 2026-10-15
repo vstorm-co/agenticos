@@ -44,9 +44,9 @@ describe("ReviewQueueWidget", () => {
     widget();
 
     expect(useReviewQueueMock).toHaveBeenCalledWith({ limit: 1 });
-    expect(screen.getByText("7 results wait for a verdict")).toBeInTheDocument();
+    expect(screen.getByText("7 results wait for a decision")).toBeInTheDocument();
     expect(screen.getByText("4 did not pass")).toBeInTheDocument();
-    expect(screen.getAllByText("1 unscored")).toHaveLength(2);
+    expect(screen.getAllByText("1 not graded")).toHaveLength(2);
     expect(screen.getAllByText("2 passed")).toHaveLength(2);
     expect(screen.getByRole("link", { name: /Dataset a/ })).toHaveAttribute(
       "href",

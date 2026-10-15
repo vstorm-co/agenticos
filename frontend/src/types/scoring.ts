@@ -45,6 +45,8 @@ export interface ScorerResult {
   score: number | null;
   reason: string;
   reason_code: string | null;
+  /** What the judge quoted from the answer that the answer does not hold. */
+  unverified_quotes: string[];
   judge_run_id: string | null;
 }
 

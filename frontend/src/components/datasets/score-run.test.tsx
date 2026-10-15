@@ -82,6 +82,7 @@ const SCORE: CaseScore = {
       score: 1,
       reason: "Matches the schema",
       reason_code: null,
+      unverified_quotes: [],
       judge_run_id: null,
     },
   ],

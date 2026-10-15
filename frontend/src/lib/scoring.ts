@@ -1,5 +1,5 @@
 import type { CaseCheck } from "@/types/datasets";
-import type { DatasetScoring, ScorerResult } from "@/types/scoring";
+import type { CaseScore, DatasetScoring, ScorerResult } from "@/types/scoring";
 
 /** What a dataset is scored with before anybody configures it - the server's defaults. */
 export const DEFAULT_SCORING: DatasetScoring = {
@@ -63,6 +63,7 @@ const REASON_KEYS = {
   judge_no_access: "reason.judgeNoAccess",
   judge_no_model: "reason.judgeNoModel",
   judge_not_seeded: "reason.judgeNotSeeded",
+  judge_missing: "reason.judgeMissing",
   judge_budget: "reason.judgeBudget",
 } as const;
 
@@ -70,4 +71,35 @@ export function reasonKey(result: ScorerResult): string | null {
   const code = result.reason_code;
   if (code === null || !(code in REASON_KEYS)) return null;
   return REASON_KEYS[code as keyof typeof REASON_KEYS];
+}
+
+/** A check as one line: its type, then what it was given. Code the case holds, not copy. */
+export function describeCheck({ type, ...given }: CaseCheck): string {
+  const values = Object.values(given);
+  if (values.length === 1 && typeof values[0] !== "object") return `${type} ${String(values[0])}`;
+  return values.length === 0 ? type : `${type} ${JSON.stringify(given)}`;
+}
+
+/** Scores in a row that one eval run made of one agent, or that were graded by hand. */
+export interface ScoreGroup {
+  key: string;
+  evalRunId: string | null;
+  scores: CaseScore[];
+}
+
+/**
+ * A page of scores cut where the eval run or the answering agent changes.
+ *
+ * The page keeps the server's order, so a group is a run of neighbours; the same
+ * eval run split by another between them is shown twice rather than reordered.
+ */
+export function groupScores(scores: CaseScore[]): ScoreGroup[] {
+  const groups: ScoreGroup[] = [];
+  for (const score of scores) {
+    const key = `${score.eval_run_id ?? "hand"}:${score.agent_id ?? "gone"}`;
+    const last = groups.at(-1);
+    if (last?.key === key) last.scores.push(score);
+    else groups.push({ key, evalRunId: score.eval_run_id, scores: [score] });
+  }
+  return groups;
 }
