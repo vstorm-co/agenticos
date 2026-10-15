@@ -535,8 +535,10 @@ class TestScoringARun:
             tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
         )
 
-        reasons = {r.reason for r in score.results if r.scorer == "judge"}
-        assert reasons == {'5/5: Looks right [not in the answer, unverified: "ninety days"]'}
+        graded = {
+            (r.reason, tuple(r.unverified_quotes)) for r in score.results if r.scorer == "judge"
+        }
+        assert graded == {("5/5: Looks right", ("ninety days",))}
         assert score.passed is True
 
     @pytest.mark.security
@@ -546,14 +548,17 @@ class TestScoringARun:
         dataset, case = await _dataset(db, tenant, scoring=_rubric())
         run = await _scored_run(db, tenant)
         judge.reason = "It leaked ghp_" + "a1B2" * 9
+        judge.quotes = ["the key ghp_" + "c3D4" * 9]
 
         score = await ScoringService(db).score_run(
             tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
         )
 
-        reasons = [r.reason for r in score.results if r.scorer == "judge"]
-        assert all("[redacted:github_token]" in reason for reason in reasons)
-        assert not any("ghp_" in reason for reason in reasons)
+        judged = [r for r in score.results if r.scorer == "judge"]
+        assert all("[redacted:github_token]" in result.reason for result in judged)
+        quotes = [quote for result in judged for quote in result.unverified_quotes]
+        assert quotes and all("[redacted:github_token]" in quote for quote in quotes)
+        assert not any("ghp_" in text for text in [*quotes, *(r.reason for r in judged)])
 
     async def test_a_run_with_no_answer_cannot_be_scored(self, db, judge) -> None:
         tenant = await _tenant(db)

@@ -236,7 +236,8 @@ class ScorerResult(BaseSchema):
 
     `score` is normalized to 0..1. `reason_code` names why a scorer was skipped or
     failed to run - `ai_assistance_off`, `judge_unpublished`, `judge_budget` - so
-    each can be shown, and fixed, on its own.
+    each can be shown, and fixed, on its own. `unverified_quotes` are the parts of
+    the answer the judge quoted that the answer does not hold.
     """
 
     scorer: ScorerKind
@@ -246,6 +247,7 @@ class ScorerResult(BaseSchema):
     score: float | None = None
     reason: str
     reason_code: str | None = None
+    unverified_quotes: list[str] = Field(default_factory=list)
     judge_run_id: UUID | None = None
 
 

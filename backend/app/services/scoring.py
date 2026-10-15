@@ -374,7 +374,14 @@ class ScoringService:
             answer=_kept_answer(answer.text),
             scoring=config.model_dump(mode="json", by_alias=True),
             results=[
-                result.model_copy(update={"reason": _redact(result.reason)}).model_dump(mode="json")
+                result.model_copy(
+                    update={
+                        "reason": _redact(result.reason),
+                        "unverified_quotes": [
+                            _redact(quote) or quote for quote in result.unverified_quotes
+                        ],
+                    }
+                ).model_dump(mode="json")
                 for result in results
             ],
             judge=None if evaluation.judge is None else evaluation.judge.model_dump(mode="json"),
