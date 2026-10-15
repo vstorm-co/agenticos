@@ -641,7 +641,10 @@ Two things are versioned separately from this file and worth knowing about:
   allowance is counted by a digest of the whole token, not its public prefix;
   clearing the assistant's model is refused; and a channel run continues only
   once every question it asked, across calls, is answered, with the run held so
-  two presses cannot both miss it.
+  two presses cannot both miss it. A seventh round: setting a department's cap
+  needs `budgets:manage`, sending an invitation or invite link needs
+  `roles:manage`, keys presented to `/mcp` meet the same limits as on the API,
+  and a resumed run answers to its starter's department caps.
 
 - **New chat starts a new conversation.** The console sends `conversation_id: null`
   for a new chat, and the session read it as "no id given" and carried on in the
