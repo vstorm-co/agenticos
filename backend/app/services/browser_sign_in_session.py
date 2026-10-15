@@ -197,10 +197,13 @@ async def drive(organization_id: UUID, user_id: UUID, run_id: str, url: str, hol
                     BrowserEvent(kind="browser_finished", call_id=CALL_ID, step=0, outcome="done")
                 )
         except (httpx.HTTPError, OSError, EndpointError, UrlRefusedError, RuntimeError) as exc:
-            # The host only: an endpoint URL can carry a token.
+            # The host only: an endpoint URL can carry a token. A plain
+            # RuntimeError is also what the CDP client raises for a page that went
+            # away, but it can be a defect here too, so it keeps its traceback.
             logger.warning(
                 "browser_sign_in_unavailable",
                 extra={"host": urlsplit(cdp_url).hostname, "error": type(exc).__name__},
+                exc_info=type(exc) is RuntimeError,
             )
             await emit(
                 BrowserEvent(

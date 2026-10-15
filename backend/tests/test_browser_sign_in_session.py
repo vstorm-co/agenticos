@@ -287,6 +287,33 @@ class TestDriving:
 
         remember.assert_not_awaited()
 
+    async def test_an_unexpected_failure_keeps_its_traceback(
+        self,
+        deployment: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Codex on #2062: a defect raised as RuntimeError was logged as a class name
+        and told the person to try again."""
+
+        @asynccontextmanager
+        async def broken(**kwargs: Any) -> AsyncIterator[_Page]:
+            raise RuntimeError("a bug in the hand-over")
+            yield _Page()  # pragma: no cover - never reached
+
+        monkeypatch.setattr(session_module.browser_sign_in, "load_for", AsyncMock(return_value=[]))
+        monkeypatch.setattr(session_module, "open_page", broken)
+        monkeypatch.setattr(session_module.live_browse, "LiveControl", MagicMock())
+
+        with caplog.at_level("WARNING"):
+            await session_module.drive(
+                ORG, PERSON, "sign-in-1", "https://www.notion.so/login", "Ada Lovelace"
+            )
+
+        [record] = [r for r in caplog.records if r.getMessage() == "browser_sign_in_unavailable"]
+        assert record.exc_info is not None
+        assert deployment["published"][-1].outcome == "failed"
+
     async def test_a_browser_that_does_not_answer_ends_the_view_with_the_reason(
         self, deployment: dict[str, Any], monkeypatch: pytest.MonkeyPatch
     ) -> None:
