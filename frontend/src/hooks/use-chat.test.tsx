@@ -3058,6 +3058,78 @@ describe("useChat - a question its person came back to", () => {
     expect(useChatStore.getState().messages.at(-1)?.toolCalls?.[0]?.status).toBe("awaiting_answer");
   });
 
+  it("offers every call the run parked on, and answers each with its own", async () => {
+    get.mockResolvedValue([
+      ...ASKED,
+      {
+        tool_call_id: "ask-2",
+        questions: [
+          { question: "Which day?", header: "Day", options: [{ label: "Mon" }] },
+          { question: "Who signs?", header: "Signer", options: [{ label: "Ann" }] },
+        ],
+      },
+    ]);
+    post.mockResolvedValue({
+      run_id: "r-1",
+      output: "Booked.",
+      status: "completed",
+      settled: [
+        { tool_call_id: "ask-1", result: "formal" },
+        { tool_call_id: "ask-2", result: "mon, ann" },
+      ],
+      cost_usd: "0.01",
+      cost_is_partial: false,
+      input_tokens: 5,
+      output_tokens: 5,
+    });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage({
+      ...askedTurn(),
+      toolCalls: [
+        ...askedTurn().toolCalls,
+        { id: "ask-2", name: "ask_user_question", args: {}, status: "awaiting_answer" as const },
+      ],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+
+    expect(result.current.pendingQuestions?.map((question) => question.header)).toEqual([
+      "Tone",
+      "Day",
+      "Signer",
+    ]);
+    const formal = { answer: "", selected: ["Formal"], skipped: false };
+    const monday = { answer: "", selected: ["Mon"], skipped: false };
+    const ann = { answer: "", selected: ["Ann"], skipped: false };
+    await act(async () => {
+      result.current.sendAskUserResponses([formal, monday, ann]);
+    });
+
+    expect(post).toHaveBeenCalledWith("/runs/r-1/answers", {
+      responses: { "ask-1": [formal], "ask-2": [monday, ann] },
+    });
+    expect(useChatStore.getState().messages[0]?.toolCalls?.map((call) => call.status)).toEqual([
+      "completed",
+      "completed",
+    ]);
+  });
+
+  it("asks again after a read of the questions failed", async () => {
+    get.mockRejectedValueOnce(new Error("Network down")).mockResolvedValue(ASKED);
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    useChatStore.getState().addMessage(askedTurn());
+    const { result } = renderHook(() => useChat(), { wrapper });
+    await act(async () => {});
+    expect(result.current.pendingQuestions).toBeNull();
+
+    // Any later render - a message arriving, the conversation reopened - retries.
+    act(() => useChatStore.getState().addMessage({ ...askedTurn(), id: "m-2", runId: "r-1" }));
+    await act(async () => {});
+
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(result.current.pendingQuestions?.[0]).toMatchObject({ question: "How formal?" });
+  });
+
   it("says why when the answer could not continue the run", async () => {
     get.mockResolvedValue(ASKED);
     post.mockRejectedValue(new Error("nope"));

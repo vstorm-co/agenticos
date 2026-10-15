@@ -211,9 +211,11 @@ export function useChat(options: UseChatOptions = {}) {
   // Set when those questions belong to a run parked on them - asked of somebody
   // who left before answering - so the answer continues the run over HTTP
   // rather than going to a socket whose turn ended long ago (#2064).
+  // A run can park on several `ask_user` calls at once; their questions share
+  // one card, and `calls` says how many of its answers belong to each.
   const [parkedQuestion, setParkedQuestion] = useState<{
     runId: string;
-    toolCallId: string;
+    calls: { toolCallId: string; count: number }[];
     messageId: string | null;
   } | null>(null);
   // Runs this hook has already put a parked question up for, as the approvals
@@ -1188,6 +1190,9 @@ export function useChat(options: UseChatOptions = {}) {
     setCompactionImpossible(null);
     setPersonalGaps([]);
     approvalOfferedForRef.current = new Set();
+    // Both, or a question read for this conversation and dropped because the
+    // person had moved on is never offered when they come back to it.
+    questionOfferedForRef.current = new Set();
   }, [activeConversationId, closeBrowserPanel, sendMessage]);
 
   // The caller's permissions, for the restore effect below: rebuilding the
@@ -1273,9 +1278,19 @@ export function useChat(options: UseChatOptions = {}) {
 
   /** Put an agent's unanswered question back in front of its person (#2064). */
   const offerParkedQuestion = useCallback(
-    (question: ParkedQuestion, runId: string, messageId: string | null) => {
-      setPendingQuestions(toAskUserQuestions(question.questions));
-      setParkedQuestion({ runId, toolCallId: question.tool_call_id, messageId });
+    (asked: ParkedQuestion[], runId: string, messageId: string | null) => {
+      // Every call the run is waiting on, not the first: the backend answers a
+      // call left out as declined, so offering one put words the person never
+      // chose into the others.
+      setPendingQuestions(asked.flatMap((question) => toAskUserQuestions(question.questions)));
+      setParkedQuestion({
+        runId,
+        calls: asked.map((question) => ({
+          toolCallId: question.tool_call_id,
+          count: question.questions.length,
+        })),
+        messageId,
+      });
     },
     [],
   );
@@ -1410,7 +1425,7 @@ export function useChat(options: UseChatOptions = {}) {
       // than its own share - which is exactly why this re-reads the sum instead
       // of adding to it. See `refreshConversationCost`.
       if (askedAgain.length > 0) {
-        offerParkedQuestion(askedAgain[0]!, runId, continuation);
+        offerParkedQuestion(askedAgain, runId, continuation);
       }
       void refreshConversationCost();
     },
@@ -1439,10 +1454,12 @@ export function useChat(options: UseChatOptions = {}) {
       try {
         const asked = await apiClient.get<ParkedQuestion[]>(`/runs/${runId}/questions`);
         if (asked.length === 0 || panelsBelongTo.current !== conversation) return;
-        offerParkedQuestion(asked[0]!, runId, askedMessage.id);
+        offerParkedQuestion(asked, runId, askedMessage.id);
       } catch {
         // Quiet, like the approval restore above: the transcript still says the
-        // step is waiting, and a toast over it buys nothing.
+        // step is waiting, and a toast over it buys nothing. Unmarked so the next
+        // render - or reopening the conversation - tries again.
+        questionOfferedForRef.current.delete(runId);
       }
     })();
   }, [messages, pendingQuestions, isProcessing, activeConversationId, offerParkedQuestion]);
@@ -1539,23 +1556,41 @@ export function useChat(options: UseChatOptions = {}) {
       const asked = pendingQuestions;
       setPendingQuestions(null);
       setParkedQuestion(null);
-      if (parked.messageId !== null) {
-        updateToolCallPart(parked.messageId, parked.toolCallId, { status: "running" });
+      const setStatus = (status: "running" | "awaiting_answer") => {
+        if (parked.messageId === null) return;
+        for (const call of parked.calls) {
+          updateToolCallPart(parked.messageId, call.toolCallId, { status });
+        }
+      };
+      setStatus("running");
+      // The card's answers are in the order of its questions, which is the
+      // order of the calls; each call takes its own slice back.
+      const responses: Record<string, AskUserAnswer[]> = {};
+      let offset = 0;
+      for (const call of parked.calls) {
+        responses[call.toolCallId] = answers.slice(offset, offset + call.count);
+        offset += call.count;
       }
       try {
         const resumed = await apiClient.post<ResumedRun>(`/runs/${parked.runId}/answers`, {
-          responses: { [parked.toolCallId]: answers },
+          responses,
         });
         if (parked.messageId !== null) {
-          const settled = (resumed.settled ?? []).find(
-            (call) => call.tool_call_id === parked.toolCallId,
-          );
-          updateToolCallPart(parked.messageId, parked.toolCallId, {
-            status: "completed",
-            result: settled?.result,
-          });
+          for (const call of parked.calls) {
+            const settled = (resumed.settled ?? []).find(
+              (settledCall) => settledCall.tool_call_id === call.toolCallId,
+            );
+            updateToolCallPart(parked.messageId, call.toolCallId, {
+              status: "completed",
+              result: settled?.result,
+            });
+          }
         }
-        showContinuation(resumed, parked.runId, new Set([parked.toolCallId]));
+        showContinuation(
+          resumed,
+          parked.runId,
+          new Set(parked.calls.map((call) => call.toolCallId)),
+        );
       } catch (error) {
         toast.error(getErrorMessage(error, tErrors));
         // The continuation itself failed and the backend recorded the run
@@ -1566,9 +1601,7 @@ export function useChat(options: UseChatOptions = {}) {
         // back on screen and can be answered again, like an approval does.
         setPendingQuestions(asked);
         setParkedQuestion(parked);
-        if (parked.messageId !== null) {
-          updateToolCallPart(parked.messageId, parked.toolCallId, { status: "awaiting_answer" });
-        }
+        setStatus("awaiting_answer");
       }
     },
     [pendingQuestions, updateToolCallPart, showContinuation, tErrors],
