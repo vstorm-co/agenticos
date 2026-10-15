@@ -617,7 +617,14 @@ Two things are versioned separately from this file and worth knowing about:
   a key with `agents:run` can upload the file it attaches to a run; a refused
   channel resume can be pressed again; a failed assistant install leaves nothing
   behind; and the browser can go out through `browser-egress`, a Squid proxy that
-  pins every address it allows (`BROWSER_EGRESS_PROXY`).
+  pins every address it allows (`BROWSER_EGRESS_PROXY`). A third round: a narrow
+  key's live events no longer carry member and group activity or who acted; a
+  spec's `system` time zone is the deployment's `TIMEZONE`, not UTC; resuming or
+  answering a run returns its `conversation_id`; the personal-data export lists
+  API keys and OAuth consents, never a hash; the console offers every question a
+  parked run asked at once and offers it again after a failed read; and a channel
+  question that takes free text is answered by the person's next message
+  (migration `0134_channel_prompt_free_text`).
 
 - **New chat starts a new conversation.** The console sends `conversation_id: null`
   for a new chat, and the session read it as "no id given" and carried on in the
