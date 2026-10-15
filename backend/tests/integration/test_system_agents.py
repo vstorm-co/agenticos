@@ -228,6 +228,25 @@ class TestADatasetsOwnJudge:
         assert version.spec["instructions"] == "Be strict."
         assert version.spec["budget"]["monthly_usd"] == JUDGE.monthly_usd
 
+    async def test_it_runs_on_the_model_picked_for_it(self, db) -> None:
+        organization, owner = await _organization(db)
+        now = datetime.now(UTC)
+        await _profile(db, organization, label="Oldest", created_at=now - timedelta(1))
+        picked = await _profile(db, organization, label="Picked", created_at=now)
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+
+        judge = await SystemAgentService(db).create_judge(
+            ctx,
+            name="Refunds judge",
+            description="Grades refunds.",
+            instructions="Be strict.",
+            model_profile_id=picked.id,
+        )
+
+        version = await db.get(AgentVersion, judge.current_version_id)
+        assert version is not None
+        assert version.spec["model_profile_id"] == str(picked.id)
+
     async def test_without_a_model_it_stays_a_draft(self, db) -> None:
         organization, owner = await _organization(db)
         ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
