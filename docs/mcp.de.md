@@ -1,5 +1,5 @@
 ---
-source_sha: "c2ba2466bb66"
+source_sha: "8687744b5a75"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1023,7 +1023,7 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `list_members` | `members:view` |
-| `invite_member` | `members:manage` |
+| `invite_member` | `members:manage` und `roles:manage` |
 
 Bewusst fehlt: einen Agent veröffentlichen, Zugangsdaten anfassen und etwas
 löschen außer einem Agent-Entwurf, den der Aufrufer selbst angelegt und nie

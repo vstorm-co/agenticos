@@ -944,7 +944,7 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `list_members` | `members:view` |
-| `invite_member` | `members:manage` |
+| `invite_member` | `members:manage` and `roles:manage` |
 
 Deliberately absent: publishing an agent, touching a credential, and deleting
 anything but an agent draft its caller created and never published - the undo

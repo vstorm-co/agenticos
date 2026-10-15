@@ -45,7 +45,9 @@ token_router = APIRouter()
     "/{org_id}/invitations",
     response_model=InvitationCreated,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_in_path_org(Perm.MEMBERS_MANAGE))],
+    # An invitation assigns a role, so it needs what a role change needs: a key
+    # narrowed to membership work must not invite an Admin.
+    dependencies=[Depends(require_in_path_org(Perm.MEMBERS_MANAGE, Perm.ROLES_MANAGE))],
 )
 async def create_invitation(
     org_id: UUID,
@@ -83,7 +85,9 @@ async def create_invitation(
     "/{org_id}/invitations/link",
     response_model=InvitationCreated,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_in_path_org(Perm.MEMBERS_MANAGE))],
+    # An invitation assigns a role, so it needs what a role change needs: a key
+    # narrowed to membership work must not invite an Admin.
+    dependencies=[Depends(require_in_path_org(Perm.MEMBERS_MANAGE, Perm.ROLES_MANAGE))],
 )
 async def create_invite_link(
     org_id: UUID,

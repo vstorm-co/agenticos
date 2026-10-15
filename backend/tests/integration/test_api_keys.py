@@ -578,7 +578,8 @@ class TestAdministration:
     ) -> None:
         owner = await _person(db)
         organization = await _organization(db, owner)
-        manager = await _issue(db, organization, owner, Perm.MEMBERS_MANAGE)
+        manager = await _issue(db, organization, owner, Perm.MEMBERS_MANAGE, Perm.ROLES_MANAGE)
+        members_only = await _issue(db, organization, owner, Perm.MEMBERS_MANAGE)
         reader = await _issue(db, organization, owner, Perm.AGENTS_VIEW)
         directory = await _issue(db, organization, owner, Perm.MEMBERS_VIEW)
         body = {"email": "new.hire@example.com", "role": "member"}
@@ -590,6 +591,18 @@ class TestAdministration:
             refused = await http.post(
                 _url(f"/orgs/{organization.id}/invitations"), headers=_bearer(reader), json=body
             )
+            # An invitation assigns a role: a key without roles:manage invites nobody,
+            # by email or by link (Codex on #2062).
+            no_role = await http.post(
+                _url(f"/orgs/{organization.id}/invitations"),
+                headers=_bearer(members_only),
+                json={"email": "admin.hire@example.com", "role": "admin"},
+            )
+            no_link = await http.post(
+                _url(f"/orgs/{organization.id}/invitations/link"),
+                headers=_bearer(members_only),
+                json={"role": "admin"},
+            )
             members = await http.get(
                 _url(f"/orgs/{organization.id}/members"), headers=_bearer(directory)
             )
@@ -600,6 +613,7 @@ class TestAdministration:
         assert invited.status_code == 201
         assert invited.json()["email"] == "new.hire@example.com"
         assert refused.status_code == 403
+        assert (no_role.status_code, no_link.status_code) == (403, 403)
         assert [row["user_id"] for row in members.json()["items"]] == [str(owner.id)]
         # Every member may see who is in the organization; a key only when it was
         # issued for that, not because it holds some other scope.

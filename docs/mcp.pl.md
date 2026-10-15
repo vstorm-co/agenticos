@@ -1,5 +1,5 @@
 ---
-source_sha: "c2ba2466bb66"
+source_sha: "8687744b5a75"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -981,7 +981,7 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `list_members` | `members:view` |
-| `invite_member` | `members:manage` |
+| `invite_member` | `members:manage` i `roles:manage` |
 
 Celowo nie ma tu publikowania agenta, dotykania poświadczeń ani usuwania
 czegokolwiek poza draftem agenta, który wywołujący sam utworzył i nigdy nie

@@ -1,5 +1,5 @@
 ---
-source_sha: "c2ba2466bb66"
+source_sha: "8687744b5a75"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1005,7 +1005,7 @@ permiso que faltaba.
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
 | `list_members` | `members:view` |
-| `invite_member` | `members:manage` |
+| `invite_member` | `members:manage` y `roles:manage` |
 
 A propósito no hay: publicar un agent, tocar credenciales ni borrar nada salvo
 un borrador de agent que quien llama creó y nunca publicó: deshacer un borrador

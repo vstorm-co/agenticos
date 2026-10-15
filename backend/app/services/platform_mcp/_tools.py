@@ -213,7 +213,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         )
 
     async def invite_member(email: str, role: InviteRole = "member") -> dict[str, Any]:
-        """Invite somebody to this organization by email. Needs `members:manage`.
+        """Invite somebody to this organization by email. Needs `members:manage` and `roles:manage`.
 
         They receive an email with a link to join. A role above your own is refused.
         """
