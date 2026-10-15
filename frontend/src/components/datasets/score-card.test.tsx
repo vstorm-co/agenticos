@@ -169,6 +169,20 @@ describe("ScoreCard", () => {
     expect(screen.queryByRole("button", { name: "Score again" })).toBeNull();
   });
 
+  it("warns when the judge graded on the model that answered, and only then", () => {
+    const { rerender } = render(
+      <ScoreCard score={score({ judge_model: "GPT-4.1", run_model: "GPT-4.1" })} />,
+    );
+    expect(
+      screen.getByText(/The judge graded on GPT-4.1, the model that answered/),
+    ).toBeInTheDocument();
+
+    rerender(<ScoreCard score={score({ judge_model: "Claude", run_model: "GPT-4.1" })} />);
+    expect(screen.queryByText(/the model that answered/)).toBeNull();
+    rerender(<ScoreCard score={score({ judge_model: null, run_model: null })} />);
+    expect(screen.queryByText(/the model that answered/)).toBeNull();
+  });
+
   it("says when it was graded in the reader's own time zone", () => {
     render(<ScoreCard score={score({ created_at: "2026-10-13T23:30:00Z" })} />);
 

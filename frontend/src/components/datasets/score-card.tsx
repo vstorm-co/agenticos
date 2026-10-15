@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Badge, Button } from "@/components/ui";
@@ -197,6 +197,12 @@ export function ScoreCard({ score, onVerdict, onReview, onRescore, busy = false 
         <ScoreSource score={score} />
       </header>
 
+      {score.judge_model !== null && score.judge_model === score.run_model && (
+        <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {t("judgeSameModel", { model: score.judge_model })}
+        </p>
+      )}
       <ScoreExpectation score={score} />
       <ScoreAnswer answer={score.answer} />
 

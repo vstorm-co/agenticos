@@ -1,5 +1,5 @@
 ---
-source_sha: "9551fca5d50a"
+source_sha: "0a7fd1b14972"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -352,11 +352,13 @@ el agent que respondió y por una etiqueta del caso. Agrupa las puntuaciones de
 cada run de eval bajo un encabezado que enlaza al run, desde el que se pueden
 sacar de la cola sin decidir (`POST /datasets/{id}/scores/review/withdraw`).
 
-Cada tarjeta muestra lo que el caso preguntaba y esperaba (la pregunta, enlazada
-al caso, la respuesta de referencia, las llamadas a herramientas esperadas y las
-comprobaciones), la respuesta tal como se calificó, qué agent y qué versión
-respondieron, qué encontró cada evaluador y por qué, primero los que fallaron, y
-la decisión de revisión, que se puede deshacer desde el mensaje que la confirma.
+Cada tarjeta muestra lo que el caso preguntaba y esperaba (la pregunta,
+enlazada al caso, la respuesta de referencia, las llamadas a herramientas
+esperadas y las comprobaciones), la respuesta tal como se calificó, qué agent y
+qué versión respondieron (con un aviso cuando el juez calificó con el modelo
+que respondió, porque un juez puede favorecer respuestas como las suyas), qué
+encontró cada evaluador y por qué, primero los que fallaron, y la decisión de
+revisión, que se puede deshacer desde el mensaje que la confirma.
 
 La tarjeta del dashboard **Waiting for review** muestra la cola de todos los
 datasets que puedes ver: cuántos resultados no aprobaron, no se calificaron o

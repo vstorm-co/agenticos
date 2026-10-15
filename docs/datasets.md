@@ -329,10 +329,11 @@ by a tag of the case. It puts each eval run's scores under one heading linking t
 run, from which they can be taken out of the queue undecided
 (`POST /datasets/{id}/scores/review/withdraw`).
 
-Each card shows what the case
-asked and expected - the question, linked to the case, the reference answer, the
-expected tool calls and the checks - the answer as it was graded, which agent and
-version answered, what each scorer found and why, failing first, and the review
+Each card shows what the case asked and expected - the question, linked to the
+case, the reference answer, the expected tool calls and the checks - the answer
+as it was graded, which agent and version answered - with a warning when the
+judge graded on the model that answered, since a judge may favour answers like
+its own - what each scorer found and why, failing first, and the review
 decision, which can be undone from the message confirming it.
 
 The **Waiting for review** dashboard card shows the queue across the datasets you

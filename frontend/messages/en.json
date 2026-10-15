@@ -5906,7 +5906,8 @@
       "discard": "Discard",
       "judgeGradesOn": "Grades on <model></model>",
       "judgeModelOnItsPage": "Its model is changed on its own page.",
-      "judgeNoModelYet": "The organization has no model yet, so the judge is created as a draft. Add a model, then publish the judge on its page."
+      "judgeNoModelYet": "The organization has no model yet, so the judge is created as a draft. Add a model, then publish the judge on its page.",
+      "judgeSameModel": "The judge graded on {model}, the model that answered, and may favour answers like its own. Give the judge another model on its page."
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

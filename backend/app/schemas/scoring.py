@@ -347,7 +347,9 @@ class CaseScoreRead(BaseSchema):
     `agent_id`, `agent_version_id` and `run_model` are the scored run's;
     `agent_name` and `agent_version` are filled where scores are listed.
     `eval_run_id` is the eval run that scored it, null for a score asked for
-    by hand.
+    by hand. `judge_model` is the name of the model the judge graded on, while
+    that model exists; beside `run_model` it says when a judge graded the model
+    it runs on.
     """
 
     id: UUID
@@ -379,6 +381,7 @@ class CaseScoreRead(BaseSchema):
     )
     agent_name: str | None = None
     agent_version: int | None = None
+    judge_model: str | None = None
     eval_run_id: UUID | None = None
     results: list[ScorerResult]
     judge: JudgePin | None = None

@@ -386,8 +386,45 @@ class TestScoringARun:
             1,
         )
         assert first.judge.model_profile_id == profile.id
+        assert (first.judge_model, first.run_model) == ("Default", "gpt-4.1")
         assert again.judge == first.judge
         assert narrower.judge.rubric_hash != first.judge.rubric_hash
+
+    async def test_a_judge_model_gone_or_never_pinned_is_named_as_nothing(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+        unpinned = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        row = await case_score_repo.get(
+            db, unpinned.id, organization_id=tenant.organization.id, dataset_id=dataset.id
+        )
+        assert row is not None and row.judge is not None
+        await case_score_repo.update(
+            db, score=row, update_data={"judge": {**row.judge, "model_profile_id": None}}
+        )
+        orphaned = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        row = await case_score_repo.get(
+            db, orphaned.id, organization_id=tenant.organization.id, dataset_id=dataset.id
+        )
+        assert row is not None and row.judge is not None
+        await case_score_repo.update(
+            db,
+            score=row,
+            update_data={"judge": {**row.judge, "model_profile_id": str(uuid.uuid4())}},
+        )
+
+        listed = await scoring.list_scores(tenant.ctx, dataset.id)
+
+        assert {item.id: item.judge_model for item in listed.items} == {
+            unpinned.id: None,
+            orphaned.id: None,
+        }
 
     async def test_the_judge_is_a_recorded_eval_run_in_activity(self, db, judge) -> None:
         tenant = await _tenant(db)
@@ -787,7 +824,7 @@ class TestWhenTheJudgeCannotRun:
         judged = [r for r in score.results if r.scorer == "judge"]
         assert {(r.status, r.reason_code) for r in judged} == {("skipped", "ai_assistance_off")}
         assert score.passed is None
-        assert score.judge is None
+        assert (score.judge, score.judge_model) == (None, None)
         assert judge.calls == 0
         assert await _eval_runs(db, tenant) == []
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "9551fca5d50a"
+source_sha: "0a7fd1b14972"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -347,12 +347,13 @@ każdego runa ewaluacji zbiera pod jednym nagłówkiem z linkiem do runa, skąd
 można je wyjąć z kolejki bez decyzji
 (`POST /datasets/{id}/scores/review/withdraw`).
 
-Każda karta pokazuje, o co pytał i czego oczekiwał przypadek - pytanie z
-linkiem do przypadku, odpowiedź wzorcową, oczekiwane wywołania narzędzi i
-sprawdzenia - odpowiedź w postaci, w jakiej została oceniona, który agent i
-która wersja odpowiedziały, co ustalił każdy oceniacz i dlaczego, najpierw
-niezaliczone, oraz decyzję przeglądu, którą można cofnąć z komunikatu, który ją
-potwierdza.
+Każda karta pokazuje, o co pytał i czego oczekiwał przypadek - pytanie z linkiem
+do przypadku, odpowiedź wzorcową, oczekiwane wywołania narzędzi i sprawdzenia -
+odpowiedź w postaci, w jakiej została oceniona, który agent i która wersja
+odpowiedziały - z ostrzeżeniem, gdy sędzia oceniał na modelu, który odpowiadał,
+bo sędzia może faworyzować odpowiedzi podobne do własnych - co ustalił każdy
+oceniacz i dlaczego, najpierw niezaliczone, oraz decyzję przeglądu, którą można
+cofnąć z komunikatu, który ją potwierdza.
 
 Karta pulpitu **Do przeglądu** pokazuje kolejkę ze wszystkich datasetów, które
 widzisz: ile wyników nie zaliczyło, było bez oceny albo zaliczyło, i w których

@@ -1,5 +1,5 @@
 ---
-source_sha: "9551fca5d50a"
+source_sha: "0a7fd1b14972"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -375,8 +375,10 @@ genommen werden können (`POST /datasets/{id}/scores/review/withdraw`).
 
 Jede Karte zeigt, was der Fall gefragt und erwartet hat - die Frage, mit einem
 Link zum Fall, die Referenzantwort, die erwarteten Tool-Aufrufe und die
-Prüfungen -, die bewertete Antwort, Agent und Version, die geantwortet haben, was
-jeder Scorer gefunden hat und warum, die nicht bestandenen zuerst, und die
+Prüfungen -, die bewertete Antwort, Agent und Version, die geantwortet haben -
+mit einer Warnung, wenn der Bewerter auf dem Modell bewertet hat, das
+geantwortet hat, da ein Bewerter Antworten wie seine eigenen bevorzugen kann -,
+was jeder Scorer gefunden hat und warum, die nicht bestandenen zuerst, und die
 Prüfentscheidung, die sich in der Meldung, die sie bestätigt, rückgängig machen
 lässt.
 

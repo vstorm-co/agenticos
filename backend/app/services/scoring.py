@@ -49,6 +49,7 @@ from app.repositories import (
     agent_repo,
     case_score_repo,
     conversation_repo,
+    credential_repo,
     dataset_repo,
     intercepted_tool_call_repo,
 )
@@ -677,8 +678,20 @@ class ScoringService:
         )
 
     async def _reads(self, ctx: AuthContext, scores: list[CaseScore]) -> list[CaseScoreRead]:
-        """Scores as read, each with the name and version number of the agent that answered."""
+        """Scores as read, each with the name and version number of the agent that
+        answered, and the name of the model the judge graded on."""
         reads = [CaseScoreRead.model_validate(score) for score in scores]
+        models = await credential_repo.get_profiles_by_ids(
+            self.db,
+            list(
+                {
+                    read.judge.model_profile_id
+                    for read in reads
+                    if read.judge is not None and read.judge.model_profile_id is not None
+                }
+            ),
+            organization_id=ctx.organization_id,
+        )
         agents = await agent_repo.get_many(
             self.db,
             list({read.agent_id for read in reads if read.agent_id is not None}),
@@ -693,11 +706,17 @@ class ScoringService:
         for read in reads:
             agent = None if read.agent_id is None else agents.get(read.agent_id)
             version = None if read.agent_version_id is None else versions.get(read.agent_version_id)
+            judged_on = (
+                None
+                if read.judge is None or read.judge.model_profile_id is None
+                else models.get(read.judge.model_profile_id)
+            )
             named.append(
                 read.model_copy(
                     update={
                         "agent_name": None if agent is None else agent.name,
                         "agent_version": None if version is None else version.version,
+                        "judge_model": None if judged_on is None else judged_on.label,
                     }
                 )
             )

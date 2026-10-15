@@ -91,6 +91,8 @@ export interface CaseScore {
   agent_version_id: string | null;
   agent_name: string | null;
   agent_version: number | null;
+  /** The name of the model the judge graded on, while it exists. */
+  judge_model: string | null;
   /** The eval run that scored it; null for a score asked for by hand. */
   eval_run_id: string | null;
   results: ScorerResult[];

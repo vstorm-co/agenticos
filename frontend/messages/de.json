@@ -5764,7 +5764,8 @@
       "discard": "Verwerfen",
       "judgeGradesOn": "Bewertet auf <model></model>",
       "judgeModelOnItsPage": "Sein Modell wird auf seiner eigenen Seite geändert.",
-      "judgeNoModelYet": "Die Organisation hat noch kein Modell, daher wird der Bewerter als Entwurf angelegt. Fügen Sie ein Modell hinzu und veröffentlichen Sie den Bewerter dann auf seiner Seite."
+      "judgeNoModelYet": "Die Organisation hat noch kein Modell, daher wird der Bewerter als Entwurf angelegt. Fügen Sie ein Modell hinzu und veröffentlichen Sie den Bewerter dann auf seiner Seite.",
+      "judgeSameModel": "Der Bewerter hat auf {model} bewertet, dem Modell, das geantwortet hat, und bevorzugt womöglich Antworten wie seine eigenen. Geben Sie dem Bewerter auf seiner Seite ein anderes Modell."
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
