@@ -260,10 +260,9 @@ describe("EstimateSummary", () => {
     );
     expect(screen.getByText("Draft · gpt-4.1")).toBeInTheDocument();
     expect(screen.getByText(/v6 · gpt-4.1/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "reused from a recent run" })).toHaveAttribute(
-      "href",
-      "/agents/agent-1/evals/run-0",
-    );
+    expect(
+      screen.getByRole("link", { name: /answers from the run of .*, same model/ }),
+    ).toHaveAttribute("href", "/agents/agent-1/evals/run-0");
     expect(screen.getByText("Eval judge")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -285,7 +284,10 @@ describe("EstimateSummary", () => {
         judgeName="Policy judge"
         estimate={{
           ...ESTIMATE,
-          arms: [{ ...CANDIDATE_ESTIMATE, basis: "fallback" }],
+          arms: [
+            { ...CANDIDATE_ESTIMATE, basis: "fallback" },
+            { ...ESTIMATE.arms[1]!, cached_at: null },
+          ],
           judge_usd: "0",
           agent_after_usd: null,
           org_after_usd: null,
@@ -294,6 +296,7 @@ describe("EstimateSummary", () => {
       />,
     );
     expect(screen.getByText(/no history on this model/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "reused from a recent run" })).toBeInTheDocument();
     expect(screen.queryByText("Eval judge")).not.toBeInTheDocument();
     expect(screen.queryByText(/Graded by/)).not.toBeInTheDocument();
     expect(screen.getAllByText("no cap")).toHaveLength(2);

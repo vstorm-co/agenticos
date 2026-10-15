@@ -5983,7 +5983,8 @@
     "estimate": {
       "basis": {
         "fallback": "keine Historie auf diesem Modell, grobe Schätzung",
-        "cached": "aus einem aktuellen Run übernommen"
+        "cached": "aus einem aktuellen Run übernommen",
+        "cachedAt": "Antworten aus dem Run vom {date}, gleiches Modell - ein Fall, der sich ändert, wird beiden Seiten erneut gestellt"
       },
       "judge": "Eval judge",
       "total": "Insgesamt {count, plural, =1 {1 Fall} other {# Fälle}}",
@@ -6044,7 +6045,7 @@
         "draft": "Der Entwurf"
       },
       "targetHint": {
-        "compare": "Beide beantworten jetzt dieselben Fälle, also geht jede Änderung auf den Entwurf zurück, nicht auf den Provider.",
+        "compare": "Beide Seiten beantworten dieselben Fälle auf demselben Modell. Heutige Antworten von v{version} können wiederverwendet werden; ein Fall, der sich ändert, wird beiden Seiten erneut gestellt, also geht eine Änderung auf den Entwurf zurück, nicht auf den Provider.",
         "version": "Wie die Version, mit der die Leute sprechen, auf dem Dataset abschneidet.",
         "draft": "Noch ist nichts veröffentlicht, also ist das das erste Ergebnis. Spätere Versionen werden damit verglichen."
       },

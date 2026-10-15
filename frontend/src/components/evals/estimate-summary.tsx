@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ROUTES } from "@/lib/constants";
+import { formatDateTime } from "@/lib/utils";
 import type { ArmEstimate, EvalRunEstimate } from "@/types/eval-runs";
 import type { DatasetScoring } from "@/types/scoring";
 import { usd } from "./format";
@@ -33,6 +34,7 @@ export function graders(
 
 function ArmLine({ arm, agentId }: { arm: ArmEstimate; agentId: string }) {
   const t = useTranslations("evals.estimate");
+  const locale = useLocale();
   const tEvals = useTranslations("evals");
   const name =
     arm.version_number === null
@@ -49,7 +51,9 @@ function ArmLine({ arm, agentId }: { arm: ArmEstimate; agentId: string }) {
             href={`${ROUTES.AGENTS}/${agentId}/evals/${arm.cached_from_run_id}`}
             className="underline underline-offset-4"
           >
-            {t("basis.cached")}
+            {arm.cached_at
+              ? t("basis.cachedAt", { date: formatDateTime(arm.cached_at, locale) })
+              : t("basis.cached")}
           </Link>
         </>
       )}

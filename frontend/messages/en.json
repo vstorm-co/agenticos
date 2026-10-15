@@ -6125,7 +6125,8 @@
     "estimate": {
       "basis": {
         "fallback": "no history on this model, a rough guess",
-        "cached": "reused from a recent run"
+        "cached": "reused from a recent run",
+        "cachedAt": "answers from the run of {date}, same model - a case that changes is asked of both sides again"
       },
       "judge": "Eval judge",
       "total": "{count, plural, =1 {1 case} other {# cases}} in total",
@@ -6186,7 +6187,7 @@
         "draft": "The draft"
       },
       "targetHint": {
-        "compare": "Both answer the same cases now, so whatever changed is the draft's doing, not the provider's.",
+        "compare": "Both sides answer the same cases on the same model. Answers v{version} gave today may be reused; a case that changes is asked of both sides again, so a change is the draft's doing, not the provider's.",
         "version": "How the version people are talking to does on the dataset.",
         "draft": "Nothing is published yet, so this is the first result. Later versions are compared with it."
       },

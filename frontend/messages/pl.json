@@ -3746,7 +3746,8 @@
     "estimate": {
       "basis": {
         "fallback": "brak historii na tym modelu, zgrubny szacunek",
-        "cached": "wzięty z niedawnego runa"
+        "cached": "wzięty z niedawnego runa",
+        "cachedAt": "odpowiedzi z runu z {date}, ten sam model - case, który się zmieni, zadamy ponownie obu stronom"
       },
       "judge": "Eval judge",
       "total": "Razem {count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
@@ -3807,7 +3808,7 @@
         "draft": "Draft"
       },
       "targetHint": {
-        "compare": "Obie wersje odpowiadają teraz na te same case'y, więc każda zmiana wynika z draftu, a nie z dostawcy.",
+        "compare": "Obie strony odpowiadają na te same case'y na tym samym modelu. Dzisiejsze odpowiedzi v{version} mogą zostać użyte ponownie; case, który się zmieni, zadamy ponownie obu stronom, więc zmiana wynika z draftu, a nie z dostawcy.",
         "version": "Jak na datasecie radzi sobie wersja, z którą ludzie teraz rozmawiają.",
         "draft": "Nic nie jest jeszcze opublikowane, więc to pierwszy wynik. Kolejne wersje będą z nim porównywane."
       },
