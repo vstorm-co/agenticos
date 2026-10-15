@@ -180,9 +180,12 @@ case, and each is switched on or off and marked **Must pass** or not:
 | Reference answer | The answer against the case's reference answer, graded by the dataset's judge | The same run of the judge |
 
 Each scorer returns pass or fail, a score from 0 to 1 and a reason. A case
-**passes** when every scorer marked Must pass passes. When one of them could not
-run - the judge was switched off, its budget was spent - the case is **not
-graded**, not passed: a result nobody checked is not counted as a pass.
+**passes** when every scorer marked Must pass passes, and **fails** when one of
+them fails. When one of them reached no verdict - the judge was switched off,
+its budget was spent, its run failed or its answer could not be read - the case
+is **not graded**: neither passed nor failed, because nobody checked the
+answer. The score says why, and it can be [scored again](#judge) once the cause
+is fixed.
 
 Each scorer says how many cases hold what it reads, and the tab warns when the
 setup on screen would grade some cases on nothing. A dataset whose cases have
@@ -242,18 +245,30 @@ old name.
 
 ### The judge { #judge }
 
-A judge is an agent of the `judge` kind (see [Judges](concepts.md#system-agents)).
-A dataset grades with the **Eval judge** the platform adds to every organization,
-or with a judge of its own: **Create a judge for this dataset**, on the Judge
-card, makes one whose prompt starts from the dataset's name and description, on
-the organization's first model or one you pick. Creating it needs `agents:edit`
-as well as `datasets:edit`. The criteria, the scale and the pass mark stay on the
-dataset; the judge's prompt, model and budget are edited on its own page, and a
-dataset can still name another model for it.
+A judge is an agent of the `judge` kind (see
+[Judges](concepts.md#system-agents)). A dataset grades with the **Eval judge**
+the platform adds to every organization, or with a judge of its own: **Create a
+judge for this dataset**, on the Judge card, makes one whose prompt starts from
+the dataset's name and description and from what you say the judge must know to
+grade - a policy, a price list - on the organization's first model or one you
+pick. Creating it needs `agents:edit` as well as `datasets:edit`.
+
+The criteria, the scale and the pass mark stay on the dataset; the judge's
+prompt, model and budget are edited on its own page, and a dataset can still
+name another model for it.
 
 A judge runs as the person who asked for the score: their access to it is
 checked, it is checked against its own budget and the organization's before the
 model is called, and its run appears in Activity under the `eval` surface.
+
+The judge is handed the case's note, as why the case exists, its earlier turns
+and question, the reference answer when it is graded, the counter-example,
+every tool call the agent made - its arguments, and whether an isolated run
+blocked it - and the answer. A case with a counter-example is always graded on a
+required **counter-example** criterion as well: the answer must not repeat the
+known bad answer. Judges start at temperature 0, so one answer is graded the
+same way twice; a reasoning model that refuses the setting needs it cleared on
+the judge's page.
 
 The judge runs only where [AI assistance](governance.md#ai-assistance) is on,
 and it is off until an admin turns it on for the organization. Until then the
@@ -263,20 +278,33 @@ for whoever may change it. The judge and the reference comparison cannot be
 turned on meanwhile; one already on stays on, and is skipped.
 
 Each criterion is graded from 1 to the top of the scale and passes at the pass
-mark or above. When the judge cannot grade, its criteria are recorded as
-skipped or as errors, with a reason that names the cause: AI assistance is
-switched off, the judge the dataset picked no longer exists, it has no published
-version, it is archived, its model is gone or has no key, the person may not run
-it, or its budget is spent. The rule-based scorers still score.
+mark or above. A grade whose reason only restates the criterion is an error: it
+is no sign the judge read the answer.
+
+When the judge cannot grade, its criteria are recorded as skipped or as errors,
+with a reason that names the cause: AI assistance is switched off, the judge
+the dataset picked no longer exists, it has no published version, it is
+archived, its model is gone or has no key, the person may not run it, its
+budget is spent, its run failed, or its answer could not be read. The
+rule-based scorers still score.
+
+Once the cause is fixed, **Score again** on a result that was not graded - or on
+every one in an eval run's group on the Review tab - grades the same answer
+anew, with the configuration it was first graded with
+(`POST /datasets/{id}/scores/rescore`, up to ten scores a request). The agent
+does not run again, and the score keeps its eval run and any decision a person
+made on it; one every scorer reached a verdict on is left as it is.
 
 A grade may quote the answer, up to 12 passages; a quote the answer does not
 contain word for word is kept beside the grade as unverified, shown on its own
-line under the reason, and the grade stands. Each score records the judge that
-graded it - the judge agent, its model profile, its spec version and a hash of
-the rubric - so scores from different judges are not compared as like for like.
-Changing the judge or its model is allowed; switching the judge asks first, and
-the Judge card says that the scores graded before will not compare with the ones
-graded after.
+line under the reason, and the grade stands.
+
+Each score records the judge that graded it - the judge agent, its model
+profile, its spec version, a hash of the rubric and the version of the task the
+platform hands every judge - so scores from different judges are not compared as
+like for like. Changing the judge or its model is allowed; switching the judge
+asks first, and the Judge card says that the scores graded before will not
+compare with the ones graded after.
 
 ### Review { #review }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "2fa0a57d133d"
+source_sha: "165c6a3ccc33"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -193,9 +193,11 @@ se activa o desactiva y se marca como **Must pass** o no:
 
 Cada evaluador devuelve aprobado o suspendido, una puntuación de 0 a 1 y un
 motivo. Un caso **aprueba** cuando aprueba cada evaluador marcado como Must
-pass. Cuando uno de ellos no pudo ejecutarse (el juez estaba desactivado, su
-budget se había agotado), el caso queda **sin calificar**, no aprobado: un
-resultado que nadie comprobó no cuenta como aprobado.
+pass, y **suspende** cuando uno de ellos suspende. Cuando uno de ellos no llegó
+a un veredicto (el juez estaba desactivado, su budget se había agotado, su run
+falló o su respuesta no se pudo leer), el caso queda **sin calificar**: ni
+aprobado ni suspendido, porque nadie comprobó la respuesta. La puntuación dice
+por qué, y se puede [volver a puntuar](#judge) una vez resuelta la causa.
 
 Cada evaluador indica cuántos casos contienen lo que lee, y la pestaña avisa
 cuando la configuración en pantalla calificaría algunos casos sin nada que
@@ -258,19 +260,32 @@ que se renombrara una herramienta espera el nombre antiguo.
 
 ### El juez { #judge }
 
-Un juez es un agent de tipo `judge` (consulta [Jueces](concepts.md#system-agents)).
-Un dataset califica con el **Eval judge** que la plataforma añade a cada
-organización, o con un juez propio: **Create a judge for this dataset**, en la
-tarjeta Judge, crea uno cuyo prompt parte del nombre y la descripción del
-dataset, sobre el primer modelo de la organización o uno que elijas. Crearlo
-requiere `agents:edit` además de `datasets:edit`. Los criterios, la escala y la
-nota de aprobado se quedan en el dataset; el prompt, el modelo y el budget del
-juez se editan en su propia página, y un dataset puede seguir indicando otro
-modelo para él.
+Un juez es un agent de tipo `judge` (consulta
+[Jueces](concepts.md#system-agents)). Un dataset califica con el **Eval judge**
+que la plataforma añade a cada organización, o con un juez propio: **Create a
+judge for this dataset**, en la tarjeta Judge, crea uno cuyo prompt parte del
+nombre y la descripción del dataset y de lo que indiques que el juez debe saber
+para calificar (una política, una lista de precios), sobre el primer modelo de
+la organización o uno que elijas. Crearlo requiere `agents:edit` además de
+`datasets:edit`.
+
+Los criterios, la escala y la nota de aprobado se quedan en el dataset; el
+prompt, el modelo y el budget del juez se editan en su propia página, y un
+dataset puede seguir indicando otro modelo para él.
 
 Un juez se ejecuta como la persona que pidió la puntuación: se comprueba su
 acceso a él, se comprueba contra su propio budget y el de la organización antes
 de llamar al modelo, y su run aparece en Activity bajo la superficie `eval`.
+
+El juez recibe la nota del caso, como el motivo por el que existe, sus turnos
+anteriores y la pregunta, la respuesta de referencia cuando se califica, el
+contraejemplo, cada llamada a herramienta que hizo el agent (con sus
+argumentos, y si un run aislado la bloqueó) y la respuesta. Un caso con
+contraejemplo se califica siempre también con un criterio obligatorio
+**counter-example**: la respuesta no debe repetir la respuesta mala conocida.
+Los jueces empiezan con temperatura 0, para que la misma respuesta se califique
+igual dos veces; con un modelo de razonamiento que rechaza el ajuste, hay que
+quitarlo en la página del juez.
 
 El juez solo se ejecuta donde la [asistencia de IA](governance.md#ai-assistance)
 está activada, y está desactivada hasta que un administrador la activa para la
@@ -281,22 +296,36 @@ pueda cambiarlo. Mientras tanto no se pueden activar el juez ni la comparación
 con la respuesta de referencia; uno ya activado sigue activado y se omite.
 
 Cada criterio se califica de 1 al máximo de la escala y aprueba en la nota de
-aprobado o por encima. Cuando el juez no puede calificar, sus criterios se
-registran como omitidos o como errores, con un motivo que nombra la causa: la
-asistencia de IA está desactivada, el juez que eligió el dataset ya no existe,
-no tiene una versión publicada, está archivado, su modelo ya no existe o no
-tiene clave, la persona no puede ejecutarlo o su budget se ha agotado. Los
-evaluadores basados en reglas siguen puntuando.
+aprobado o por encima. Una calificación cuyo motivo solo repite el criterio es
+un error: no demuestra que el juez leyera la respuesta.
+
+Cuando el juez no puede calificar, sus criterios se registran como omitidos o
+como errores, con un motivo que nombra la causa: la asistencia de IA está
+desactivada, el juez que eligió el dataset ya no existe, no tiene una versión
+publicada, está archivado, su modelo ya no existe o no tiene clave, la persona
+no puede ejecutarlo, su budget se ha agotado, su run falló o su respuesta no se
+pudo leer. Los evaluadores basados en reglas siguen puntuando.
+
+Resuelta la causa, **Score again** en un resultado sin calificar (o en todos
+los de un grupo de un eval run en la pestaña Review) vuelve a calificar la
+misma respuesta, con la configuración con la que se calificó la primera vez
+(`POST /datasets/{id}/scores/rescore`, hasta diez puntuaciones por petición).
+El agent no se vuelve a ejecutar, y la puntuación conserva su eval run y
+cualquier decisión que una persona tomara sobre ella; una en la que cada
+evaluador llegó a un veredicto se queda como está.
 
 Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la
-respuesta no contiene palabra por palabra se guarda junto a la calificación
-como no verificada, se muestra en su propia línea bajo el motivo, y la
-calificación se mantiene. Cada puntuación registra el juez que la calificó - el
-agent juez, su perfil de modelo, la versión de su spec y un hash de la rúbrica -
-para que las puntuaciones de jueces distintos no se comparen como equivalentes.
-Cambiar el juez o su modelo está permitido; cambiar de juez pide confirmación
-antes, y la tarjeta Judge avisa de que las puntuaciones calificadas antes no
-serán comparables con las calificadas después.
+respuesta no contiene palabra por palabra se guarda junto a la calificación como
+no verificada, se muestra en su propia línea bajo el motivo, y la calificación
+se mantiene.
+
+Cada puntuación registra el juez que la calificó - el agent juez, su perfil de
+modelo, la versión de su spec, un hash de la rúbrica y la versión de la tarea
+que la plataforma entrega a cada juez - para que las puntuaciones de jueces
+distintos no se comparen como equivalentes. Cambiar el juez o su modelo está
+permitido; cambiar de juez pide confirmación antes, y la tarjeta Judge avisa de
+que las puntuaciones calificadas antes no serán comparables con las calificadas
+después.
 
 ### Revisión { #review }
 

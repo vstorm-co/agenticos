@@ -1,5 +1,5 @@
 ---
-source_sha: "2fa0a57d133d"
+source_sha: "165c6a3ccc33"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -190,9 +190,12 @@ przejść** albo nie:
 
 Każdy oceniacz zwraca zaliczenie albo niezaliczenie, wynik od 0 do 1 i
 uzasadnienie. Przypadek **zalicza**, gdy zalicza go każdy oceniacz oznaczony
-jako Musi przejść. Gdy któryś z nich nie mógł zadziałać - sędzia był wyłączony,
-jego budżet się wyczerpał - przypadek jest **bez oceny**, a nie zaliczony:
-wynik, którego nikt nie sprawdził, nie liczy się jako zaliczenie.
+jako Musi przejść, a **nie zalicza**, gdy któryś z nich nie zalicza. Gdy któryś
+z nich nie wydał werdyktu - sędzia był wyłączony, jego budżet się wyczerpał,
+jego run się nie powiódł albo jego odpowiedzi nie dało się odczytać - przypadek
+jest **bez oceny**: ani zaliczony, ani niezaliczony, bo nikt nie sprawdził
+odpowiedzi. Wynik mówi dlaczego i po usunięciu przyczyny można go [ocenić
+ponownie](#judge).
 
 Każdy oceniacz mówi, ile przypadków zawiera to, co on czyta, a zakładka
 ostrzega, gdy ustawienia widoczne na ekranie oceniałyby niektóre przypadki na
@@ -254,18 +257,32 @@ narzędzia oczekuje starej nazwy.
 
 ### Sędzia { #judge }
 
-Sędzia to agent rodzaju `judge` (zobacz [Sędziowie](concepts.md#system-agents)).
-Dataset ocenia za pomocą **Eval judge**, którego platforma dodaje do każdej
-organizacji, albo za pomocą własnego sędziego: **Utwórz sędziego dla tego
-datasetu** na karcie Sędzia tworzy sędziego, którego prompt zaczyna się od nazwy
-i opisu datasetu, na pierwszym modelu organizacji albo na wybranym przez ciebie.
-Utworzenie go wymaga `agents:edit` oraz `datasets:edit`. Kryteria, skala i próg
-zaliczenia zostają na datasecie; prompt, model i budżet sędziego edytuje się na
-jego własnej stronie, a dataset nadal może wskazać dla niego inny model.
+Sędzia to agent rodzaju `judge` (zobacz
+[Sędziowie](concepts.md#system-agents)). Dataset ocenia za pomocą **Eval
+judge**, którego platforma dodaje do każdej organizacji, albo za pomocą
+własnego sędziego: **Utwórz sędziego dla tego datasetu** na karcie Sędzia
+tworzy sędziego, którego prompt zaczyna się od nazwy i opisu datasetu oraz od
+tego, co według ciebie sędzia musi wiedzieć, żeby oceniać - polityki, cennika -
+na pierwszym modelu organizacji albo na wybranym przez ciebie. Utworzenie go
+wymaga `agents:edit` oraz `datasets:edit`.
+
+Kryteria, skala i próg zaliczenia zostają na datasecie; prompt, model i budżet
+sędziego edytuje się na jego własnej stronie, a dataset nadal może wskazać dla
+niego inny model.
 
 Sędzia działa jako osoba, która poprosiła o ocenę: sprawdzany jest jej dostęp do
 niego, przed wywołaniem modelu sprawdzany jest jego własny budżet i budżet
 organizacji, a jego run pojawia się w Activity pod powierzchnią `eval`.
+
+Sędzia dostaje notatkę przypadku jako powód, dla którego przypadek istnieje,
+jego wcześniejsze tury i pytanie, odpowiedź wzorcową, gdy jest oceniana,
+kontrprzykład, każde wywołanie narzędzia wykonane przez agenta - z argumentami i
+informacją, czy izolowany run je zablokował - oraz odpowiedź. Przypadek z
+kontrprzykładem jest zawsze oceniany także według wymaganego kryterium
+**counter-example**: odpowiedź nie może powtarzać znanej złej odpowiedzi.
+Sędziowie startują z temperaturą 0, więc ta sama odpowiedź jest oceniana dwa
+razy tak samo; model rozumujący, który odrzuca to ustawienie, wymaga
+wyczyszczenia go na stronie sędziego.
 
 Sędzia działa tylko tam, gdzie włączone jest [wsparcie AI](governance.md#ai-assistance),
 a jest ono wyłączone, dopóki administrator nie włączy go dla organizacji. Do
@@ -276,20 +293,34 @@ się włączyć sędziego ani porównania z odpowiedzią wzorcową; już włącz
 włączony i jest pomijany.
 
 Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
-zaliczenia lub wyżej. Gdy sędzia nie może ocenić, jego kryteria są zapisywane
-jako pominięte albo jako błędy, z uzasadnieniem podającym przyczynę: wsparcie
-AI jest wyłączone, sędzia wybrany przez dataset już nie istnieje, nie ma
-opublikowanej wersji, jest zarchiwizowany, jego model został usunięty albo nie
-ma klucza, osoba nie może go uruchomić albo jego budżet się wyczerpał.
-Oceniacze oparte na regułach nadal oceniają.
+zaliczenia lub wyżej. Ocena, której uzasadnienie tylko powtarza kryterium, jest
+błędem: nie dowodzi, że sędzia przeczytał odpowiedź.
+
+Gdy sędzia nie może ocenić, jego kryteria są zapisywane jako pominięte albo
+jako błędy, z uzasadnieniem podającym przyczynę: wsparcie AI jest wyłączone,
+sędzia wybrany przez dataset już nie istnieje, nie ma opublikowanej wersji,
+jest zarchiwizowany, jego model został usunięty albo nie ma klucza, osoba nie
+może go uruchomić, jego budżet się wyczerpał, jego run się nie powiódł albo
+jego odpowiedzi nie dało się odczytać. Oceniacze oparte na regułach nadal
+oceniają.
+
+Po usunięciu przyczyny **Oceń ponownie** na wyniku bez oceny - albo na
+wszystkich w grupie runu ewaluacji na zakładce Przegląd - ocenia tę samą
+odpowiedź od nowa, z konfiguracją, z którą była oceniona za pierwszym razem
+(`POST /datasets/{id}/scores/rescore`, do dziesięciu wyników na żądanie). Agent
+nie uruchamia się ponownie, a wynik zachowuje swój run ewaluacji i decyzję,
+którą ktoś na nim podjął; wynik, na którym każdy oceniacz wydał werdykt,
+zostaje bez zmian.
 
 Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
 zawiera słowo w słowo, jest zachowywany obok oceny jako niezweryfikowany,
-pokazywany w osobnej linii pod uzasadnieniem, a ocena pozostaje. Każdy wynik
-zapisuje sędziego, który go ocenił - agenta sędziego, jego profil modelu, wersję
-spec i hash rubryki - więc wyniki od różnych sędziów nie są porównywane jak
-równe z równym. Zmiana sędziego albo jego modelu jest dozwolona; przełączenie
-sędziego wymaga najpierw potwierdzenia, a karta Sędzia mówi, że wyniki ocenione
+pokazywany w osobnej linii pod uzasadnieniem, a ocena pozostaje.
+
+Każdy wynik zapisuje sędziego, który go ocenił - agenta sędziego, jego profil
+modelu, wersję spec, hash rubryki i wersję zadania, które platforma przekazuje
+każdemu sędziemu - więc wyniki od różnych sędziów nie są porównywane jak równe z
+równym. Zmiana sędziego albo jego modelu jest dozwolona; przełączenie sędziego
+wymaga najpierw potwierdzenia, a karta Sędzia mówi, że wyniki ocenione
 wcześniej nie będą porównywalne z ocenianymi później.
 
 ### Przegląd { #review }
