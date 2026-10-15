@@ -2,7 +2,6 @@
 
 import { use, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FlaskConical } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { CaseEditorDialog } from "@/components/datasets/case-editor-dialog";
@@ -11,6 +10,7 @@ import { CaseRow } from "@/components/datasets/case-row";
 import { DatasetHeader } from "@/components/datasets/dataset-header";
 import { DatasetShareDialog } from "@/components/datasets/dataset-share-dialog";
 import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
+import { EmptyCases } from "@/components/datasets/empty-cases";
 import { EvalsTab } from "@/components/datasets/evals-tab";
 import { ReviewPanel } from "@/components/datasets/review-panel";
 import { GradingPanel } from "@/components/datasets/grading-panel";
@@ -19,7 +19,6 @@ import { ErrorState, LoadingState } from "@/components/states";
 import {
   ConfirmDialog,
   ListCard,
-  ListCardEmpty,
   PAGE_SIZE,
   Pager,
   Tabs,
@@ -165,18 +164,12 @@ export default function DatasetPage({ params }: PageProps) {
                 cta={{ label: tc("retry"), onClick: () => void cases.refetch() }}
               />
             ) : cases.cases.length === 0 ? (
-              <ListCardEmpty
-                icon={FlaskConical}
-                title={t("noCases")}
-                description={t("noCasesBody")}
-                cta={
-                  editable
-                    ? {
-                        label: t("addCase"),
-                        onClick: () => setEditing({ draft: EMPTY_DRAFT, item: null }),
-                      }
-                    : undefined
+              <EmptyCases
+                datasetId={id}
+                onAddCase={
+                  editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
                 }
+                onImport={editable ? (file) => cases.importFile.mutateAsync(file) : undefined}
               />
             ) : (
               <div className="space-y-4">

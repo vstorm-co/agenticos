@@ -6049,6 +6049,11 @@
     "caseJsonHint": "The same fields an import or an export holds. Back to the form to check it reads right.",
     "caseJsonInvalid": "This is not valid JSON.",
     "editAsJson": "Edit as JSON",
-    "editAsForm": "Back to the form"
+    "editAsForm": "Back to the form",
+    "addFromActivity": "Add from Activity",
+    "createVisibleToOrg": "Visible to the whole organization.",
+    "createPrivate": "Private to you until you share it.",
+    "createMakePrivate": "Make it private",
+    "createShareWithOrg": "Show it to the organization"
   }
 }

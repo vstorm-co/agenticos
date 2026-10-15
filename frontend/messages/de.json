@@ -5907,6 +5907,11 @@
     "caseJsonHint": "Dieselben Felder, die ein Import oder Export enthält. Zurück zum Formular, um zu prüfen, dass er richtig gelesen wird.",
     "caseJsonInvalid": "Das ist kein gültiges JSON.",
     "editAsJson": "Als JSON bearbeiten",
-    "editAsForm": "Zurück zum Formular"
+    "editAsForm": "Zurück zum Formular",
+    "addFromActivity": "Aus der Aktivität hinzufügen",
+    "createVisibleToOrg": "Für die ganze Organisation sichtbar.",
+    "createPrivate": "Privat für Sie, bis Sie es teilen.",
+    "createMakePrivate": "Privat machen",
+    "createShareWithOrg": "Der Organisation zeigen"
   }
 }

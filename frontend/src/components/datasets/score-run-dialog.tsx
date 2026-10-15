@@ -72,11 +72,17 @@ interface ScoreRunDialogProps {
   runId: string;
 }
 
+/** A question as it is compared with a case's input: spacing and capitals aside. */
+function normal(text: string): string {
+  return text.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 /** The run's own question and answer, the last of each it recorded. */
 function useRunTurn(runId: string) {
   const { transcript } = useRunTranscript(runId, "run");
   const items = transcript?.items ?? [];
-  const question = items.findLast((item) => item.role === "user")?.content.trim() ?? null;
+  const asked = items.findLast((item) => item.role === "user");
+  const question = asked === undefined ? null : normal(asked.content);
   const answerId = items.findLast((item) => item.role === "assistant")?.id ?? null;
   return { question, answerId };
 }
@@ -109,7 +115,7 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
   const { cases } = listing;
   const { question, answerId } = useRunTurn(runId);
   const [adding, setAdding] = useState(false);
-  const asked = cases.find((item) => question !== null && item.input.trim() === question);
+  const asked = cases.find((item) => question !== null && normal(item.input) === question);
   const target = caseId || asked?.case_id || "";
   const kase = cases.find((item) => item.case_id === target);
   const score = useScoreRun();

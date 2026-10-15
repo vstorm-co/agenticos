@@ -3669,6 +3669,11 @@
     "caseJsonHint": "Te same pola, które zawiera import i eksport. Wróć do formularza, żeby sprawdzić, czy się poprawnie czyta.",
     "caseJsonInvalid": "To nie jest poprawny JSON.",
     "editAsJson": "Edytuj jako JSON",
-    "editAsForm": "Wróć do formularza"
+    "editAsForm": "Wróć do formularza",
+    "addFromActivity": "Dodaj z Aktywności",
+    "createVisibleToOrg": "Widoczny dla całej organizacji.",
+    "createPrivate": "Prywatny dla ciebie, dopóki go nie udostępnisz.",
+    "createMakePrivate": "Ustaw jako prywatny",
+    "createShareWithOrg": "Pokaż organizacji"
   }
 }
