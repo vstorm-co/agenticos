@@ -256,6 +256,27 @@ class TestTheSpendPage:
         assert export.filename.startswith("Finance-spend-")
         assert export.row_count == 2
 
+    async def test_an_export_over_the_cap_is_refused_not_cut_short(
+        self, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex on #2062: the department export read and built every row."""
+        from app.core.exceptions import ExportTooLargeError
+        from app.services import exporting, group_spend
+
+        org = await _Org(db).build()
+        anna = await org.member("anna@acme.example")
+        bob = await org.member("bob@acme.example")
+        finance = await org.department("Finance", "10", anna, bob)
+        await org.run(anna, "2")
+        await org.run(bob, "1")
+        monkeypatch.setattr(group_spend, "MAX_EXPORT_ROWS", 1)
+        monkeypatch.setattr(exporting, "MAX_EXPORT_ROWS", 1)
+
+        with pytest.raises(ExportTooLargeError) as refused:
+            await GroupSpendService(db).export(org.owner_ctx, finance.id)
+
+        assert refused.value.details == {"row_count": 2, "max_rows": 1}
+
     async def test_a_member_who_neither_sees_spend_nor_leads_is_refused(
         self, db: AsyncSession
     ) -> None:

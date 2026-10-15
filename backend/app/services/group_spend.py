@@ -17,7 +17,7 @@ from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.repositories import agent_run_repo, group_repo
 from app.schemas.group import GroupSpendList, GroupSpendRead, as_group_icon
-from app.services.exporting import ExportResult, csv_document
+from app.services.exporting import MAX_EXPORT_ROWS, ExportResult, csv_document, guard_cap
 from app.services.spend import month_start
 
 _EXPORT_HEADER = ["member", "agent", "runs", "cost_usd"]
@@ -69,9 +69,14 @@ class GroupSpendService:
             raise AuthorizationError(
                 message="Only someone who can see the organization's spend, or the group's lead, can export it"
             )
-        rows = await agent_run_repo.group_spend_rows(
-            self.db, organization_id=ctx.organization_id, group_id=group_id, since=month_start()
+        rows, total = await agent_run_repo.group_spend_rows(
+            self.db,
+            organization_id=ctx.organization_id,
+            group_id=group_id,
+            since=month_start(),
+            limit=MAX_EXPORT_ROWS,
         )
+        guard_cap(total, remedy="Read the department's totals on its page instead.")
         stamp = datetime.now(UTC).strftime("%Y-%m")
         return ExportResult(
             content=csv_document(_EXPORT_HEADER, [list(row) for row in rows]),

@@ -699,16 +699,18 @@ async def spend_by_group(
 
 
 async def group_spend_rows(
-    db: AsyncSession, *, organization_id: UUID, group_id: UUID, since: datetime
-) -> list[tuple[str, str, int, Decimal]]:
+    db: AsyncSession, *, organization_id: UUID, group_id: UUID, since: datetime, limit: int
+) -> tuple[list[tuple[str, str, int, Decimal]], int]:
     """One group's spend since `since`, per member and agent - its export (#2072).
 
-    Returns (email, agent name, run_count, total_cost) rows, costliest first.
+    Returns at most `limit` (email, agent name, run_count, total_cost) rows,
+    costliest first, and how many there are in all - so an export over its cap
+    is refused without the whole match being read.
     """
     members = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
     total = func.coalesce(func.sum(AgentRun.cost_usd), 0)
     result = await db.execute(
-        select(User.email, Agent.name, func.count(AgentRun.id), total)
+        select(User.email, Agent.name, func.count(AgentRun.id), total, func.count().over())
         .join(User, User.id == AgentRun.user_id)
         .join(Agent, Agent.id == AgentRun.agent_id)
         .where(
@@ -719,8 +721,11 @@ async def group_spend_rows(
         )
         .group_by(User.email, Agent.name)
         .order_by(total.desc(), User.email, Agent.name)
+        .limit(limit)
     )
-    return [(email, name, int(runs), Decimal(cost)) for email, name, runs, cost in result.all()]
+    found = result.all()
+    rows = [(email, name, int(runs), Decimal(cost)) for email, name, runs, cost, _ in found]
+    return rows, int(found[0][4]) if found else 0
 
 
 async def group_top_agents(
