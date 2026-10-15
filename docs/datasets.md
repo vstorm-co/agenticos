@@ -77,9 +77,14 @@ past that is refused with how many are held; deleting a dataset frees its rows.
 Open **Datasets**, create a dataset - it opens as soon as it exists - and choose
 **Add case**. Write the input and at least one of the four expectations above.
 The conversation is written turn by turn, each expected tool call as a tool name
-and its arguments as a JSON object, and each check as a type picked from the list
-beside what it checks. A case in the list opens as it reads, with the
-conversation as chat bubbles; **Edit** turns it into the form.
+and its arguments as name and value rows, and each check as a type picked from
+the list beside what it checks. **Edit as JSON** shows the whole case in the shape
+an import holds.
+
+A case in the list opens as it reads, with the conversation as chat bubbles;
+**Edit** turns it into the form, which says which version a save makes and which
+of the dataset's scorers would grade the case as written. A link to
+`?tab=cases&case={case_id}` on the dataset's page opens one case.
 
 ### From a file { #import-and-export }
 
@@ -177,9 +182,13 @@ case, and each is switched on or off and marked **Must pass** or not:
 Each scorer returns pass or fail, a score from 0 to 1 and a reason. A case
 **passes** when every scorer marked Must pass passes. When one of them could not
 run - the judge was switched off, its budget was spent - the case is **not
-graded**, not passed: a result nobody checked is not counted as a pass. A dataset
-whose cases have reference answers that nothing compares answers with is offered
-the reference comparison.
+graded**, not passed: a result nobody checked is not counted as a pass.
+
+Each scorer says how many cases hold what it reads, and the tab warns when the
+setup on screen would grade some cases on nothing. A dataset whose cases have
+reference answers that nothing compares answers with is offered the reference
+comparison. A card with a change not yet saved says so, and the page asks before
+it is left.
 
 The configuration is not versioned with the cases, because how a team grades is
 not what it asks. Each score keeps a copy of the configuration it was computed
@@ -265,8 +274,9 @@ contain word for word is kept beside the grade as unverified, shown on its own
 line under the reason, and the grade stands. Each score records the judge that
 graded it - the judge agent, its model profile, its spec version and a hash of
 the rubric - so scores from different judges are not compared as like for like.
-Changing the judge or its model is allowed; the Judge card says that the scores
-graded before will not compare with the ones graded after.
+Changing the judge or its model is allowed; switching the judge asks first, and
+the Judge card says that the scores graded before will not compare with the ones
+graded after.
 
 ### Review { #review }
 
@@ -277,14 +287,21 @@ none. A score asked for by hand from Activity follows the dataset's **Review by 
 person** setting: nothing until somebody sends one, every result that did not
 pass, or every result. A score already decided stays decided.
 
-The **Review** tab opens on what waits for a decision, with every result a filter
-away, and puts each eval run's scores under one heading. Each card shows what the
-case asked and expected - the question, the reference answer, the expected tool
-calls and the checks - the answer as it was graded, which agent and version
-answered, what each scorer found and why, and the review decision. The **Waiting
-for review** dashboard card shows the queue across the datasets you can see: how
-many results did not pass, were not graded or passed, and in which datasets, each
-opening on its Review tab. The card is on the dashboard by default.
+The **Review** tab opens on what waits for a decision, with every result one click
+away, each with its count, and narrows by outcome, by the agent that answered and
+by a tag of the case. It puts each eval run's scores under one heading linking the
+run, from which they can be taken out of the queue undecided
+(`POST /datasets/{id}/scores/review/withdraw`).
+
+Each card shows what the case
+asked and expected - the question, linked to the case, the reference answer, the
+expected tool calls and the checks - the answer as it was graded, which agent and
+version answered, what each scorer found and why, failing first, and the review
+decision, which can be undone from the message confirming it.
+
+The **Waiting for review** dashboard card shows the queue across the datasets you
+can see: how many results did not pass, were not graded or passed, and in which
+datasets, each opening on its Review tab. The card is on the dashboard by default.
 
 A person's review decision is stored beside the scorers' results and decides the
 outcome. It never changes what the judge said: the judge's grades and reasons

@@ -1,5 +1,5 @@
 ---
-source_sha: "c9aa0b1c45f0"
+source_sha: "2fa0a57d133d"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -88,9 +88,15 @@ seine Zeilen frei.
 existiert - und wählen Sie **Fall hinzufügen**. Schreiben Sie die Eingabe und
 mindestens eine der vier Erwartungen oben. Das Gespräch wird Zug für Zug
 geschrieben, jeder erwartete Tool-Aufruf als Tool-Name mit seinen Argumenten als
-JSON-Objekt und jede Prüfung als Typ, aus der Liste gewählt, neben dem, was sie
-prüft. Ein Fall in der Liste öffnet sich so, wie er sich liest, mit dem Gespräch
-als Chat-Blasen; **Bearbeiten** macht ihn zum Formular.
+Zeilen aus Name und Wert und jede Prüfung als Typ, aus der Liste gewählt, neben
+dem, was sie prüft. **Als JSON bearbeiten** zeigt den ganzen Fall in der Form,
+die ein Import enthält.
+
+Ein Fall in der Liste öffnet sich so, wie er sich liest, mit dem Gespräch als
+Chat-Blasen; **Bearbeiten** macht ihn zum Formular, das sagt, welche Version ein
+Speichern erzeugt und welche Scorer des Datasets den Fall so, wie er geschrieben
+ist, bewerten würden. Ein Link auf `?tab=cases&case={case_id}` auf der Seite des
+Datasets öffnet einen einzelnen Fall.
 
 ### Aus einer Datei { #import-and-export }
 
@@ -199,8 +205,14 @@ eine Begründung. Ein Fall **besteht**, wenn jeder mit „Muss bestehen“ marki
 Scorer besteht. Konnte einer von ihnen nicht laufen - der Bewerter war
 ausgeschaltet, sein Budget war aufgebraucht -, ist der Fall **nicht bewertet**,
 nicht bestanden: Ein Ergebnis, das niemand geprüft hat, zählt nicht als
-bestanden. Einem Dataset, dessen Fälle Referenzantworten haben, mit denen nichts
-die Antworten vergleicht, wird der Vergleich mit der Referenzantwort angeboten.
+bestanden.
+
+Jeder Scorer sagt, wie viele Fälle enthalten, was er liest, und der Tab warnt,
+wenn die angezeigte Konfiguration einige Fälle anhand von nichts bewerten würde.
+Einem Dataset, dessen Fälle Referenzantworten haben, mit denen nichts die
+Antworten vergleicht, wird der Vergleich mit der Referenzantwort angeboten. Eine
+Karte mit einer noch nicht gespeicherten Änderung sagt das, und die Seite fragt
+nach, bevor man sie verlässt.
 
 Die Konfiguration wird nicht mit den Fällen versioniert, weil die Art, wie ein
 Team bewertet, nicht das ist, was es fragt. Jeder Score bewahrt eine Kopie der
@@ -299,8 +311,9 @@ Bewertung bleibt bestehen. Jedes Ergebnis hält den Bewerter fest, der es
 bewertet hat - den Bewerter-Agent, sein Modellprofil, die Version seines Specs
 und einen Hash der Rubrik -, damit Ergebnisse verschiedener Bewerter nicht als
 gleichwertig verglichen werden. Den Bewerter oder sein Modell zu wechseln ist
-erlaubt; die Karte Bewerter sagt, dass sich die vorher bewerteten Scores nicht
-mit den danach bewerteten vergleichen lassen.
+erlaubt; vor dem Wechsel des Bewerters fragt die Konsole zuerst nach, und die
+Karte Bewerter sagt, dass sich die vorher bewerteten Scores nicht mit den danach
+bewerteten vergleichen lassen.
 
 ### Prüfung { #review }
 
@@ -314,15 +327,23 @@ jedes Ergebnis, das nicht bestanden hat, oder jedes Ergebnis. Ein bereits
 entschiedener Score bleibt entschieden.
 
 Der Tab **Prüfung** öffnet sich mit dem, was auf eine Entscheidung wartet, jedes
-Ergebnis einen Filter entfernt, und fasst die Scores jedes Eval-Runs unter einer
-Überschrift zusammen. Jede Karte zeigt, was der Fall gefragt und erwartet hat -
-die Frage, die Referenzantwort, die erwarteten Tool-Aufrufe und die Prüfungen -,
-die bewertete Antwort, Agent und Version, die geantwortet haben, was jeder
-Scorer gefunden hat und warum, und die Prüfentscheidung. Die Dashboard-Karte **Wartet auf Prüfung** zeigt die
-Warteschlange über alle Datasets, die Sie sehen können: wie viele Ergebnisse
-nicht bestanden haben, nicht bewertet wurden oder bestanden haben, und in
-welchen Datasets, jedes öffnet sich auf seinem Tab Prüfung. Die Karte ist
-standardmäßig auf dem Dashboard.
+Ergebnis einen Klick entfernt, jeweils mit seiner Anzahl, und lässt sich nach
+Ausgang, nach dem Agent, der geantwortet hat, und nach einem Tag des Falls
+eingrenzen. Er fasst die Scores jedes Eval-Runs unter einer Überschrift mit einem
+Link zum Run zusammen, von der aus sie unentschieden aus der Warteschlange
+genommen werden können (`POST /datasets/{id}/scores/review/withdraw`).
+
+Jede Karte zeigt, was der Fall gefragt und erwartet hat - die Frage, mit einem
+Link zum Fall, die Referenzantwort, die erwarteten Tool-Aufrufe und die
+Prüfungen -, die bewertete Antwort, Agent und Version, die geantwortet haben, was
+jeder Scorer gefunden hat und warum, die nicht bestandenen zuerst, und die
+Prüfentscheidung, die sich in der Meldung, die sie bestätigt, rückgängig machen
+lässt.
+
+Die Dashboard-Karte **Wartet auf Prüfung** zeigt die Warteschlange über alle
+Datasets, die Sie sehen können: wie viele Ergebnisse nicht bestanden haben, nicht
+bewertet wurden oder bestanden haben, und in welchen Datasets, jedes öffnet sich
+auf seinem Tab Prüfung. Die Karte ist standardmäßig auf dem Dashboard.
 
 Die Prüfentscheidung einer Person wird neben den Ergebnissen der Scorer
 gespeichert und entscheidet über das Ergebnis. Sie ändert nie, was der Bewerter
