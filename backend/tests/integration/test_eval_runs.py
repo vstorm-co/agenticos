@@ -43,7 +43,7 @@ from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.case_score import CaseScore
 from app.db.models.credential import ModelProfile
 from app.db.models.dataset import Dataset, DatasetCase
-from app.db.models.eval_run import EvalRun, EvalRunCase, EvalRunStatus
+from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunStatus
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
@@ -1419,3 +1419,58 @@ async def test_the_estimate_prices_the_judge_the_dataset_names(db) -> None:
 
     # Its own history, not the default judge's guess.
     assert estimate.judge_usd == Decimal("0.08")
+
+
+async def test_a_run_of_the_draft_says_when_the_draft_moved_on(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    draft_run = await service.start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, candidate="draft")
+    )
+    version_run = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    assert (await service.get(ctx, draft_run.id)).draft_changed is False
+    assert (await service.get(ctx, version_run.id)).draft_changed is None
+    agent.draft_spec = {**agent.draft_spec, "instructions": "Edited since"}
+    await db.flush()
+    assert (await service.get(ctx, draft_run.id)).draft_changed is True
+
+
+@pytest.mark.security
+async def test_what_a_run_tested_is_read_by_who_may_edit_the_agent(db) -> None:
+    owner = await _owner(db)
+    agent, _ = await _agent(db, owner)
+    dataset = await _dataset(db, owner, cases=1)
+    service = EvalRunService(db)
+    run = await service.start(
+        owner,
+        agent.id,
+        EvalRunRequest(dataset_id=dataset.id, candidate="draft", paired_baseline=True),
+    )
+    draft, baseline = sorted(run.arms, key=lambda arm: arm.position)
+
+    assert (await service.arm_spec(owner, run.id, draft.id)).instructions == "Being edited"
+    assert (await service.arm_spec(owner, run.id, baseline.id)).instructions == "v7"
+    with pytest.raises(NotFoundError):
+        await service.arm_spec(owner, run.id, uuid.uuid4())
+    operator = await _member(db, owner, OrgRoleName.OPERATOR)
+    with pytest.raises(AuthorizationError):
+        await service.arm_spec(operator, run.id, draft.id)
+
+
+async def test_what_a_run_tested_is_gone_with_its_version(db) -> None:
+    ctx = await _owner(db)
+    agent, versions = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    run = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    [arm] = run.arms
+    stored = await db.get(EvalRunArm, arm.id)
+    assert stored is not None
+    stored.agent_version_id = None
+    await db.flush()
+
+    with pytest.raises(NotFoundError, match="version this side ran is gone"):
+        await service.arm_spec(ctx, run.id, arm.id)

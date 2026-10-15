@@ -11,6 +11,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
+from app.agents.spec import AgentSpec
 from app.api.deps import Auth, EvalRunSvc, require
 from app.core.permissions import Perm
 from app.schemas.eval_run import (
@@ -93,6 +94,14 @@ async def recent_eval_runs(
 @router.get("/eval-runs/{eval_run_id}", response_model=EvalRunRead)
 async def get_eval_run(eval_run_id: UUID, service: EvalRunSvc, ctx: Auth) -> Any:
     return await service.get(ctx, eval_run_id)
+
+
+@router.get("/eval-runs/{eval_run_id}/arms/{arm_id}/spec", response_model=AgentSpec)
+async def get_eval_run_arm_spec(
+    eval_run_id: UUID, arm_id: UUID, service: EvalRunSvc, ctx: Auth
+) -> Any:
+    """The spec one side of the run answered with. Needs edit access to the agent."""
+    return await service.arm_spec(ctx, eval_run_id, arm_id)
 
 
 @router.get("/eval-runs/{eval_run_id}/cases", response_model=EvalCaseList)

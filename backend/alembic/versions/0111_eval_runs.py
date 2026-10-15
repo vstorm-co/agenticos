@@ -138,6 +138,7 @@ def upgrade() -> None:
         sa.Column("agent_version_id", sa.UUID(), nullable=True),
         sa.Column("version_number", sa.Integer(), nullable=True),
         sa.Column("spec", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("spec_hash", sa.String(length=64), nullable=False),
         sa.Column("model_profile_id", sa.UUID(), nullable=True),
         sa.Column("model_label", sa.String(length=255), nullable=False),
         sa.Column("reused_from_arm_id", sa.UUID(), nullable=True),
@@ -197,6 +198,9 @@ def upgrade() -> None:
         "eval_run_arms",
         ["organization_id"],
         unique=False,
+    )
+    op.create_index(
+        op.f("eval_run_arms_spec_hash_idx"), "eval_run_arms", ["spec_hash"], unique=False
     )
     op.create_table(
         "eval_run_cases",
@@ -317,6 +321,7 @@ def downgrade() -> None:
     op.drop_index(op.f("eval_run_cases_case_revision_id_idx"), table_name="eval_run_cases")
     op.drop_index(op.f("eval_run_cases_agent_run_id_idx"), table_name="eval_run_cases")
     op.drop_table("eval_run_cases")
+    op.drop_index(op.f("eval_run_arms_spec_hash_idx"), table_name="eval_run_arms")
     op.drop_index(op.f("eval_run_arms_organization_id_idx"), table_name="eval_run_arms")
     op.drop_index(op.f("eval_run_arms_agent_version_id_idx"), table_name="eval_run_arms")
     op.drop_table("eval_run_arms")

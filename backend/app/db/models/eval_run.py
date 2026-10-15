@@ -215,6 +215,9 @@ class EvalRunArm(Base):
     )
     version_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    # A fingerprint of the spec that answered, a version's as much as a draft's,
+    # so "was this the draft as it stands now" is an equality, not a JSON compare.
+    spec_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     model_profile_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("model_profiles.id", ondelete="SET NULL"),

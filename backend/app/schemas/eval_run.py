@@ -137,6 +137,7 @@ class EvalRunArmRead(BaseSchema):
     model_profile_id: UUID | None
     model_label: str
     reused_from_arm_id: UUID | None
+    spec_hash: str = Field(description="A fingerprint of the spec that answered")
     summary: ArmSummaryRead
     by_tag: dict[str, ArmSummaryRead]
 
@@ -202,6 +203,13 @@ class EvalRunRead(BaseSchema):
     )
     outcome: EvalOutcomeRead | None = Field(
         description="The verdict once the run has ended; null while it answers"
+    )
+    draft_changed: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the agent's draft changed since this run tested it. Sent on the "
+            "single-run read of a run of the draft; null otherwise"
+        ),
     )
     error: str | None
     created_by_user_id: UUID | None

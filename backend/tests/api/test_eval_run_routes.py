@@ -18,6 +18,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.agents.spec import AgentSpec
 from app.api import deps
 from app.core.config import settings
 from app.core.exceptions import PaymentRequiredError
@@ -134,6 +135,7 @@ def service() -> MagicMock:
     stub.get = AsyncMock(return_value=_RUN)
     stub.cases = AsyncMock(return_value=EvalCaseList(items=[], total=0))
     stub.compare = AsyncMock(return_value=_COMPARISON)
+    stub.arm_spec = AsyncMock(return_value=AgentSpec(name="Support", instructions="Draft"))
     stub.cancel = AsyncMock(return_value=_RUN)
     return stub
 
@@ -175,6 +177,7 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
         cases = await http.get(_url(f"{run}/cases?outcome=failed&tag=refunds"))
         named = await http.get(_url(f"{run}/cases?case_id={_RUN.id}&case_id={_RUN.agent_id}"))
         compared = await http.get(_url(f"{run}/comparison"))
+        spec = await http.get(_url(f"{run}/arms/{_RUN.agent_id}/spec"))
         cancelled = await http.post(_url(f"{run}/cancel"))
 
     assert estimated.json()["org_after_usd"] == "9.95"
@@ -197,6 +200,8 @@ async def test_each_route_answers_with_its_status(client: OpenClient, service: M
     assert service.cases.await_args_list[0].kwargs["tag"] == "refunds"
     assert service.cases.await_args_list[0].kwargs["case_ids"] is None
     assert cancelled.json()["status"] == "queued"
+    assert spec.json()["instructions"] == "Draft"
+    assert service.arm_spec.await_args.args[1:] == (_RUN.id, _RUN.agent_id)
 
 
 async def test_the_same_model_twice_is_refused_before_the_service(
