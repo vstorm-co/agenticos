@@ -105,7 +105,12 @@ class _Org:
         return group
 
     async def run(
-        self, who: AuthContext | None, cost: str, *, last_month: bool = False
+        self,
+        who: AuthContext | None,
+        cost: str,
+        *,
+        last_month: bool = False,
+        publisher_fallback: bool = False,
     ) -> AgentRun:
         started = month_start() - timedelta(days=3) if last_month else datetime.now(UTC)
         run = AgentRun(
@@ -116,6 +121,7 @@ class _Org:
             surface="web",
             cost_usd=Decimal(cost),
             started_at=started,
+            initiated_by_publisher_fallback=publisher_fallback,
         )
         self.db.add(run)
         await self.db.flush()
@@ -236,6 +242,29 @@ class TestTheSpendPage:
             (sales.id, Decimal("1"), 1),
             (idle.id, Decimal("0"), 0),
         ]
+
+    async def test_a_run_no_department_cap_held_is_not_counted_against_one(
+        self, db: AsyncSession
+    ) -> None:
+        """Codex on #2062: a run made in a member's name but under no department
+        cap - a widget visitor the publisher stands in for, or a routine - spent
+        the cap anyway, and refused the member's own next run."""
+        org = await _Org(db).build()
+        anna = await org.member("anna@acme.example")
+        finance = await org.department("Finance", "10", anna)
+        await org.run(anna, "2")
+        await org.run(anna, "50", publisher_fallback=True)
+
+        month = await GroupSpendService(db).month(org.owner_ctx)
+        baseline = await agent_run_repo.sum_cost_since(
+            db, organization_id=org.organization.id, since=month_start(), group_id=finance.id
+        )
+        export = await GroupSpendService(db).export(org.owner_ctx, finance.id)
+
+        [item] = [item for item in month.items if item.group_id == finance.id]
+        assert (item.spent_usd, item.run_count) == (Decimal("2"), 1)
+        assert baseline == Decimal("2")
+        assert export.content.splitlines()[1:] == ["anna@acme.example,Payables,1,2.000000"]
 
     async def test_the_export_is_a_row_per_member_and_agent(self, db: AsyncSession) -> None:
         org = await _Org(db).build()

@@ -590,6 +590,16 @@ async def down_rated_run_ids(
     return {run_id for (run_id,) in result.all()}
 
 
+def _counts_for_a_department() -> list[ColumnElement[bool]]:
+    """The runs a department's cap holds: its members' own, not a routine's.
+
+    A routine firing as its creator, and a visitor a widget's publisher stands in
+    for, name that person on the run but run under no department cap - the runner
+    gives them none - so counting them would spend a cap that never held them.
+    """
+    return [AgentRun.trigger_id.is_(None), AgentRun.initiated_by_publisher_fallback.is_(False)]
+
+
 async def sum_cost_since(
     db: AsyncSession,
     *,
@@ -664,7 +674,7 @@ async def sum_cost_since(
         query = query.where(AgentRun.id != exclude_run_id)
     if group_id is not None:
         members = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
-        query = query.where(AgentRun.user_id.in_(members))
+        query = query.where(AgentRun.user_id.in_(members), *_counts_for_a_department())
     result = await db.scalar(query)
     return Decimal(result or 0)
 
@@ -692,6 +702,7 @@ async def spend_by_group(
             AgentRun.organization_id == organization_id,
             AgentRun.started_at >= since,
             AgentRun.parent_run_id.is_(None),
+            *_counts_for_a_department(),
         )
         .group_by(GroupMember.group_id)
     )
@@ -718,6 +729,7 @@ async def group_spend_rows(
             AgentRun.started_at >= since,
             AgentRun.parent_run_id.is_(None),
             AgentRun.user_id.in_(members),
+            *_counts_for_a_department(),
         )
         .group_by(User.email, Agent.name)
         .order_by(total.desc(), User.email, Agent.name)
