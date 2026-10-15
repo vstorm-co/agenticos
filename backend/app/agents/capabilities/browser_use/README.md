@@ -86,7 +86,12 @@ address (`pin_host`); TLS endpoints keep their name for the certificate.
 Each browse gets its own browser context, disposed with the tab, so one person's
 cookies are never the next caller's.
 
-## What is not here yet
+## Where a person comes in, and how a browse reaches the web
 
-Asking a person to take over the live browser (#2128), a saved signed-in session
-per person (#2129), and a stealth browser or a proxy per organization (#2130).
+The model can `ask_person` for a sign-in or a captcha; whoever the run acts for,
+or someone who may edit the agent, takes the tab over from the live view and
+hands it back, and what they type is never recorded (#2128). A sign-in kept on
+hand-back is reused by that person's later browses of the same site (#2129).
+Compose's browser is a full Chromium under Xvfb that sites read as a desktop
+one, and an agent's binding can send its browses through a proxy or run them in a
+hosted browser over CDP (`_route.py`, #2130).
