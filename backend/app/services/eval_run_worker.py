@@ -409,8 +409,10 @@ class EvalRunWorker:
         """Queue the confirmation reruns of every flipped case. True if any were queued.
 
         A case is rerun on each candidate arm it flipped on, and on this run's
-        own baseline arm when one ran here; a past or reused baseline cannot be
-        rerun, so only the candidate side confirms against it.
+        own baseline arm - one that ran here, or one standing in for an earlier
+        run's answers, which is asked the flipped cases again here. A past
+        baseline from another run cannot be rerun, so only the candidate side
+        confirms against it.
         """
         org = self.organization_id
         async with self.sessions() as db:
@@ -421,7 +423,9 @@ class EvalRunWorker:
             attempts = await eval_run_repo.list_cases(db, run.id, organization_id=org)
             firsts = {(a.arm_id, a.case_id): a for a in attempts if a.attempt == 0}
             arms = await eval_run_repo.list_arms(db, [run.id], organization_id=org)
-            queued: set[tuple[UUID, UUID]] = set()
+            # Each rerun with the first attempt it repeats: a reused baseline has
+            # none of its own here, so it repeats the candidate's case revision.
+            queued: dict[tuple[UUID, UUID], EvalRunCase] = {}
             for arm in arms:
                 if arm.role != "candidate":
                     continue
@@ -431,35 +435,39 @@ class EvalRunWorker:
                 mine = await service.outcomes(ctx, arm, attempts)
                 theirs = await service.outcomes(
                     ctx,
-                    baseline.arm,
+                    baseline.here or baseline.arm,
                     attempts
-                    if baseline.run.id == run.id
+                    if baseline.here is not None or baseline.run.id == run.id
                     else await eval_run_repo.list_cases(db, baseline.run.id, organization_id=org),
                 )
-                rerun_baseline = (
-                    baseline.paired
-                    and baseline.arm.eval_run_id == run.id
-                    and baseline.arm.reused_from_arm_id is None
+                rerun_on = (
+                    baseline.here
+                    if baseline.here is not None
+                    else baseline.arm
+                    if baseline.paired
+                    else None
                 )
                 for case_id, (outcome, _, _) in mine.items():
-                    if case_id not in theirs:
+                    first = firsts.get((arm.id, case_id))
+                    if case_id not in theirs or first is None:
                         continue
                     if classify(theirs[case_id][0], outcome) not in (Flip.REGRESSION, Flip.FIXED):
                         continue
-                    queued.add((arm.id, case_id))
-                    if rerun_baseline:
-                        queued.add((baseline.arm.id, case_id))
+                    queued[(arm.id, case_id)] = first
+                    if rerun_on is not None:
+                        queued[(rerun_on.id, case_id)] = first
             new = [
                 EvalRunCase(
                     eval_run_id=run.id,
                     arm_id=arm_id,
                     case_id=case_id,
-                    case_revision_id=firsts[(arm_id, case_id)].case_revision_id,
-                    position=firsts[(arm_id, case_id)].position,
+                    case_revision_id=first.case_revision_id,
+                    position=first.position,
                     attempt=attempt,
                 )
-                for arm_id, case_id in sorted(queued, key=str)
-                if (arm_id, case_id) in firsts
+                for (arm_id, case_id), first in sorted(
+                    queued.items(), key=lambda item: str(item[0])
+                )
                 for attempt in range(1, run.reruns + 1)
             ]
             await eval_run_repo.add_cases(db, organization_id=org, cases=new)

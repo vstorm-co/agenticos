@@ -225,11 +225,17 @@ class RunPlan:
 
 @dataclass(frozen=True)
 class Baseline:
-    """What a candidate arm is compared with, and whether it ran beside it."""
+    """What a candidate arm is compared with, and whether it ran beside it.
+
+    `here` is this run's own arm standing in for a reused one: its first answers
+    are the earlier run's, and the cases that flipped are asked of it again in
+    this run, so both sides confirm a flip the same day.
+    """
 
     arm: EvalRunArm
     run: EvalRun
     paired: bool
+    here: EvalRunArm | None = None
 
 
 def _summary_read(summary: ArmSummary) -> ArmSummaryRead:
@@ -510,6 +516,21 @@ class EvalRunService:
             model_label=model.label,
         )
 
+    async def _judge_model(
+        self, ctx: AuthContext, judge: Agent, scoring: DatasetScoring
+    ) -> UUID | None:
+        """The model the judge grades on: the dataset's choice, else its published spec's."""
+        if scoring.judge.model_profile_id is not None:
+            return scoring.judge.model_profile_id
+        version = (
+            await agent_repo.get_version(
+                self.db, judge.current_version_id, organization_id=ctx.organization_id
+            )
+            if judge.current_version_id is not None
+            else None
+        )
+        return AgentSpec.model_validate(version.spec).model_profile_id if version else None
+
     async def _judge_agent(self, ctx: AuthContext, judge_id: UUID | None) -> Agent | None:
         """The agent that grades a dataset: the judge it names, or the default one."""
         if judge_id is not None:
@@ -660,7 +681,11 @@ class EvalRunService:
         if plan.judged:
             judge = await self._judge_agent(ctx, plan.scoring.judge.agent_id)
             judge_per_case = (
-                (await self._per_case(ctx, judge.id, None))[0]
+                (
+                    await self._per_case(
+                        ctx, judge.id, None, await self._judge_model(ctx, judge, plan.scoring)
+                    )
+                )[0]
                 if judge is not None
                 else settings.EVAL_FALLBACK_CASE_COST_USD
             )
@@ -1112,12 +1137,15 @@ class EvalRunService:
     async def _arm_attempts(
         self, ctx: AuthContext, arm: EvalRunArm, attempts: Sequence[EvalRunCase]
     ) -> list[EvalRunCase]:
-        """An arm's attempts - read from the run it was reused from, when it was."""
+        """An arm's attempts. A reused arm answered first in the run it was reused
+        from, and its confirming reruns are this run's own."""
+        own = [a for a in attempts if a.arm_id == arm.id]
         if arm.reused_from_arm_id is None:
-            return [a for a in attempts if a.arm_id == arm.id]
-        return await eval_run_repo.list_arm_cases(
+            return own
+        original = await eval_run_repo.list_arm_cases(
             self.db, arm.reused_from_arm_id, organization_id=ctx.organization_id
         )
+        return [a for a in original if a.attempt == 0] + own
 
     async def _scores(
         self, ctx: AuthContext, attempts: Sequence[EvalRunCase]
@@ -1274,7 +1302,7 @@ class EvalRunService:
         assert original is not None
         source = await eval_run_repo.get(self.db, original.eval_run_id, organization_id=org)
         assert source is not None
-        return Baseline(arm=original, run=source, paired=False)
+        return Baseline(arm=original, run=source, paired=False, here=arm)
 
     async def outcomes(
         self, ctx: AuthContext, arm: EvalRunArm, attempts: Sequence[EvalRunCase]
@@ -1411,22 +1439,27 @@ class EvalRunService:
                 cases=[],
                 flips_by_tag={},
             )
-        theirs = await self.outcomes(
-            ctx,
-            baseline.arm,
-            attempts
-            if baseline.run.id == run.id
-            else await eval_run_repo.list_cases(
-                self.db, baseline.run.id, organization_id=ctx.organization_id
-            ),
+        theirs = (
+            await self.outcomes(ctx, baseline.here, attempts)
+            if baseline.here is not None
+            else await self.outcomes(
+                ctx,
+                baseline.arm,
+                attempts
+                if baseline.run.id == run.id
+                else await eval_run_repo.list_cases(
+                    self.db, baseline.run.id, organization_id=ctx.organization_id
+                ),
+            )
         )
+        confirmed_here = baseline.paired or baseline.here is not None
         common = [case_id for case_id in mine if case_id in theirs]
         paired_cases = [
             PairedCase(
                 case_id=case_id,
                 baseline=theirs[case_id][0],
                 candidate=mine[case_id][0],
-                baseline_reruns=theirs[case_id][1] if baseline.paired else (),
+                baseline_reruns=theirs[case_id][1] if confirmed_here else (),
                 candidate_reruns=mine[case_id][1],
                 tags=mine[case_id][2],
             )
