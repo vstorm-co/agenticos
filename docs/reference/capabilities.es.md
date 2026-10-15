@@ -1,5 +1,5 @@
 ---
-source_sha: "af0bb1043000"
+source_sha: "815d85e5494b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -758,6 +758,11 @@ binding como `username:password` cuando lo tiene. Un navegador alojado (`hosted_
 se conecta en cambio por `wss://` a un servicio de navegador - Browserbase, Steel o
 uno propio - con el secreto del binding como clave, añadida a la query de la
 dirección bajo `hosted_key_param` (`apiKey` por defecto).
+
+Allí también cada
+recorrido recibe un contexto de navegador propio; un servicio que lo rechaza lo
+ejecuta en su contexto predeterminado, que no se da por privado - ese recorrido
+empieza sin inicios de sesión guardados y borra al terminar las cookies que puso.
 
 Una dirección dentro de la red del despliegue se rechaza al publicar y otra vez al
 empezar un browse, salvo que el operador haya puesto el host en

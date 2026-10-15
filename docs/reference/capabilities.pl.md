@@ -1,5 +1,5 @@
 ---
-source_sha: "af0bb1043000"
+source_sha: "815d85e5494b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -748,6 +748,11 @@ albo `socks5://` - domowy albo z wybranego kraju - i loguje się sekretem bindin
 zamiast tego podłącza się przez `wss://` do usługi przeglądarki - Browserbase, Steel
 albo własnej - z sekretem bindingu jako kluczem, dopisywanym do zapytania w adresie
 pod `hosted_key_param` (domyślnie `apiKey`).
+
+Tam też każde przeglądanie dostaje
+własny kontekst przeglądarki; usługa, która go odmawia, uruchamia je w domyślnym
+kontekście, którego nie uznajemy za prywatny - takie przeglądanie startuje bez
+zapisanych logowań i na koniec czyści ustawione ciasteczka.
 
 Adres wewnątrz sieci wdrożenia jest odrzucany przy publikacji i ponownie przy starcie
 przeglądania, chyba że operator dopisał host do `BROWSER_CDP_ALLOWED_HOSTS`. Chromium

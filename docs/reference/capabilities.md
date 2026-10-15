@@ -708,6 +708,11 @@ binding's secret as `username:password` when it has one. A hosted browser
 Steel or one of your own - with the binding's secret as its key, added to the
 address's query under `hosted_key_param` (`apiKey` by default).
 
+Each browse gets a
+browser context of its own there too; a service that refuses one runs it in its
+default context, which is not assumed private - such a browse starts without kept
+sign-ins and clears the cookies it set when it ends.
+
 An address inside the deployment's network is refused at publish and again when a
 browse starts, unless the operator listed the host in `BROWSER_CDP_ALLOWED_HOSTS`.
 Chromium cannot sign in to a SOCKS proxy, so one that needs a password has to be

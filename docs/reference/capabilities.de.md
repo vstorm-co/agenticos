@@ -1,5 +1,5 @@
 ---
-source_sha: "af0bb1043000"
+source_sha: "815d85e5494b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -791,6 +791,11 @@ gehosteter Browser (`hosted_url`) verbindet sich stattdessen über `wss://` mit 
 Browser-Dienst - Browserbase, Steel oder einem eigenen - mit dem Secret des Bindings
 als Schlüssel, an die Query der Adresse unter `hosted_key_param` angehängt
 (standardmäßig `apiKey`).
+
+Auch dort bekommt jeder Durchlauf einen eigenen
+Browser-Kontext; ein Dienst, der ihn verweigert, führt ihn im Standardkontext aus,
+der nicht als privat gilt - ein solcher Durchlauf startet ohne gespeicherte
+Anmeldungen und löscht am Ende die gesetzten Cookies.
 
 Eine Adresse im Netz des Deployments wird beim Veröffentlichen und erneut beim Start
 eines Browses abgelehnt, es sei denn, der Operator hat den Host in
