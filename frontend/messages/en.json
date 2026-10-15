@@ -6072,7 +6072,8 @@
     "checkEmpty": "Say what each check checks, or remove it.",
     "caseOpened": "Edit it to change it; saving makes a new version.",
     "editCase": "Edit",
-    "evals": "Evals"
+    "evals": "Evals",
+    "linkedCaseGone": "The case this link names is not in the newest version of the dataset."
   },
   "evals": {
     "title": "Evals",

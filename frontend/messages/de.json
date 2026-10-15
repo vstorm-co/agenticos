@@ -5930,7 +5930,8 @@
     "checkEmpty": "Sagen Sie, was jede Prüfung prüft, oder entfernen Sie sie.",
     "caseOpened": "Bearbeiten Sie ihn, um ihn zu ändern; Speichern erzeugt eine neue Version.",
     "editCase": "Bearbeiten",
-    "evals": "Evals"
+    "evals": "Evals",
+    "linkedCaseGone": "Der Fall aus diesem Link ist nicht in der neuesten Version des Datasets."
   },
   "evals": {
     "title": "Evals",

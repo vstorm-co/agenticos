@@ -3693,7 +3693,8 @@
     "checkEmpty": "Powiedz, co sprawdza każde sprawdzenie, albo je usuń.",
     "caseOpened": "Edytuj, żeby go zmienić; zapis tworzy nową wersję.",
     "editCase": "Edytuj",
-    "evals": "Ewaluacje"
+    "evals": "Ewaluacje",
+    "linkedCaseGone": "Przypadku z tego linku nie ma w najnowszej wersji datasetu."
   },
   "evals": {
     "title": "Evale",

@@ -38,6 +38,7 @@ ScorerStatus = Literal["pass", "fail", "skipped", "error"]
 ReviewState = Literal["none", "pending", "done"]
 ReviewSelect = Literal["none", "failed", "all"]
 ToolOrderModeLiteral = Literal["any", "in_order", "exact"]
+ScoreOutcome = Literal["failed", "not_graded", "passed"]
 
 
 class TextCheck(BaseSchema):
@@ -323,12 +324,13 @@ class CaseScoreRead(BaseSchema):
     there is one, the scorers' otherwise.
 
     What the case expected - `question`, `reference_answer`,
-    `expected_tool_calls`, `checks` - is the scored revision's, which a later
-    edit of the case does not change. `answer` is what the run answered, kept
-    with the score so it reads without the run. `agent_id`, `agent_version_id`
-    and `run_model` are the scored run's; `agent_name` and `agent_version` are
-    filled where scores are listed. `eval_run_id` is the eval run that scored
-    it, null for a score asked for by hand.
+    `expected_tool_calls`, `checks` - and its `case_tags` are the scored
+    revision's, which a later edit of the case does not change. `answer` is
+    what the run answered, kept with the score so it reads without the run.
+    `agent_id`, `agent_version_id` and `run_model` are the scored run's;
+    `agent_name` and `agent_version` are filled where scores are listed.
+    `eval_run_id` is the eval run that scored it, null for a score asked for
+    by hand.
     """
 
     id: UUID
@@ -347,6 +349,9 @@ class CaseScoreRead(BaseSchema):
     )
     checks: list[CaseCheck] = Field(
         default_factory=list, validation_alias=AliasPath("case_revision", "checks")
+    )
+    case_tags: list[str] = Field(
+        default_factory=list, validation_alias=AliasPath("case_revision", "tags")
     )
     answer: str | None = None
     run_id: UUID | None = None
@@ -407,6 +412,13 @@ class ReviewRequested(BaseSchema):
 
     queued: int
     already: int
+
+
+class ReviewWithdrawn(BaseSchema):
+    """What taking scores out of the queue changed: `removed` were waiting, `kept` were not."""
+
+    removed: int
+    kept: int
 
 
 class PendingDataset(BaseSchema):

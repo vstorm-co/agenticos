@@ -43,6 +43,8 @@ from app.schemas.scoring import (
     ReviewQueue,
     ReviewRequest,
     ReviewRequested,
+    ReviewWithdrawn,
+    ScoreOutcome,
 )
 from app.services.dataset_files import MAX_IMPORT_BYTES
 
@@ -176,6 +178,18 @@ async def add_dataset_case_from_message(
     return await service.add_from_message(ctx, dataset_id, data)
 
 
+@router.get("/{dataset_id}/cases/{case_id}", response_model=DatasetCaseRead)
+async def get_dataset_case(
+    dataset_id: UUID,
+    case_id: UUID,
+    service: DatasetSvc,
+    ctx: Auth,
+    version: int | None = Query(None, ge=1, description="A version number; the newest if omitted"),
+) -> Any:
+    """One case as a version holds it - what a link to the case opens."""
+    return await service.read_case(ctx, dataset_id, case_id, version=version)
+
+
 @router.patch("/{dataset_id}/cases/{case_id}", response_model=DatasetCaseRead)
 async def update_dataset_case(
     dataset_id: UUID, case_id: UUID, data: DatasetCaseUpdate, service: DatasetSvc, ctx: Auth
@@ -271,13 +285,28 @@ async def list_dataset_scores(
     service: ScoringSvc,
     ctx: Auth,
     case_id: UUID | None = Query(None, description="Only this case's scores"),
-    pending: bool = Query(False, description="Only scores waiting for a person's verdict"),
+    pending: bool = Query(False, description="Only scores waiting for a person's decision"),
+    outcome: ScoreOutcome | None = Query(
+        None, description="Only the scores that failed, were not graded, or passed"
+    ),
+    agent_id: UUID | None = Query(None, description="Only answers this agent gave"),
+    eval_run_id: UUID | None = Query(None, description="Only the scores of this eval run"),
+    tag: str | None = Query(None, max_length=64, description="Only cases carrying this tag"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
     """The dataset's scores, newest first."""
     return await service.list_scores(
-        ctx, dataset_id, case_id=case_id, pending=pending, skip=skip, limit=limit
+        ctx,
+        dataset_id,
+        case_id=case_id,
+        pending=pending,
+        outcome=outcome,
+        agent_id=agent_id,
+        eval_run_id=eval_run_id,
+        tag=tag,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -290,6 +319,17 @@ async def request_case_score_reviews(
     A score already waiting, or already decided, is left as it is.
     """
     return await service.request_reviews(ctx, dataset_id, data)
+
+
+@router.post("/{dataset_id}/scores/review/withdraw", response_model=ReviewWithdrawn)
+async def withdraw_case_score_reviews(
+    dataset_id: UUID, data: ReviewRequest, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Take several of the dataset's scores out of the review queue, undecided.
+
+    All of them or none. A decided score keeps its decision.
+    """
+    return await service.withdraw_reviews(ctx, dataset_id, data)
 
 
 @router.put("/{dataset_id}/scores/{score_id}/verdict", response_model=CaseScoreRead)

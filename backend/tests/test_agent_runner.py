@@ -3604,7 +3604,7 @@ class TestARunThatArrivedThroughABinding:
         ctx = _ctx()
         environment_id = uuid.uuid4()
         service = AgentRunnerService(_db())
-        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4(), kind="agent")
         draft = AgentSpec(name="Support", instructions="Being edited")
         candidate = UnpublishedCandidate(draft)
 

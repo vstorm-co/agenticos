@@ -64,6 +64,7 @@ def service() -> MagicMock:
     stub.list_readable = AsyncMock(return_value=DatasetList(items=[_DATASET], total=1))
     stub.create = AsyncMock(return_value=_DATASET)
     stub.read = AsyncMock(return_value=_DATASET)
+    stub.read_case = AsyncMock(return_value=_CASE)
     stub.update = AsyncMock(return_value=_DATASET)
     stub.delete = AsyncMock(return_value=None)
     stub.list_versions = AsyncMock(return_value=DatasetVersionList(items=[_VERSION], total=1))
@@ -211,3 +212,14 @@ async def test_a_dataset_the_service_will_not_show_is_a_404(
     async with client() as http:
         response = await http.get(_url(f"/{uuid.uuid4()}"))
     assert response.status_code == 404
+
+
+async def test_one_case_is_read_at_the_version_asked(
+    client: OpenClient, service: MagicMock
+) -> None:
+    async with client() as http:
+        read = await http.get(_url(f"/{_DATASET.id}/cases/{_CASE.case_id}?version=2"))
+
+    assert read.json()["case_id"] == str(_CASE.case_id)
+    _, kwargs = service.read_case.call_args
+    assert kwargs == {"version": 2}

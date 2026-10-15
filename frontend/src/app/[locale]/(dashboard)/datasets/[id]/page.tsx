@@ -27,7 +27,12 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui";
-import { useDataset, useDatasetCases, useDatasetVersions } from "@/hooks/use-datasets";
+import {
+  useDataset,
+  useDatasetCase,
+  useDatasetCases,
+  useDatasetVersions,
+} from "@/hooks/use-datasets";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -59,7 +64,9 @@ export default function DatasetPage({ params }: PageProps) {
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const router = useRouter();
-  const asked = useSearchParams().get("tab");
+  const query = useSearchParams();
+  const asked = query.get("tab");
+  const linked = query.get("case");
   const [version, setVersion] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<Editing>(null);
@@ -68,6 +75,14 @@ export default function DatasetPage({ params }: PageProps) {
   // Every read behind the Evals tab and the run it starts takes runs:view.
   const canViewRuns = usePermissions().can(Perm.runsView);
   const { versions } = useDatasetVersions(id);
+  const linkedCase = useDatasetCase(id, linked);
+  // A link to one case opens it once it arrives, as reading it from the list would;
+  // closing it leaves the page on the list rather than reopening it.
+  const [opened, setOpened] = useState<string | null>(null);
+  if (linkedCase.kase !== undefined && opened !== linked) {
+    setOpened(linked);
+    setEditing({ draft: draftOf(linkedCase.kase), item: linkedCase.kase });
+  }
   const cases = useDatasetCases(id, { version, skip: page * PAGE_SIZE, limit: PAGE_SIZE });
   const pageCount = Math.max(1, Math.ceil(cases.total / PAGE_SIZE));
   // Removing the last case of the last page leaves that page empty; step back to
@@ -140,6 +155,11 @@ export default function DatasetPage({ params }: PageProps) {
               )
             }
           >
+            {linkedCase.error && (
+              <p role="alert" className="text-muted-foreground mb-3 text-sm">
+                {t("linkedCaseGone")}
+              </p>
+            )}
             {cases.isLoading ? (
               <LoadingState variant="skeleton-cards" rows={2} />
             ) : cases.error ? (
