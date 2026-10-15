@@ -61,6 +61,7 @@ from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.model_profile import ModelProfileService
+from app.services.scorers import JUDGE_PROMPT_VERSION
 from app.services.scoring import ScoringService
 from app.services.transcript import RecordedToolCall
 
@@ -1084,7 +1085,7 @@ async def test_a_cached_baseline_must_have_been_graded_by_the_judge_that_grades_
         return next(arm.basis for arm in estimate.arms if arm.role == "baseline")
 
     # No judge is published in this organization, so that is the judge now.
-    now = {"agent_version_id": None, "rubric_hash": "a", "prompt_version": 2}
+    now = {"agent_version_id": None, "rubric_hash": "a", "prompt_version": JUDGE_PROMPT_VERSION}
     await _pin(db, first.id, now)
     assert await baseline_basis() == "cached"
     # Graded before the judge's prompt changed.

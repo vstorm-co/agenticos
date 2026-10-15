@@ -1303,7 +1303,7 @@ class TestVerdicts:
         dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
         other, other_case = await _dataset(db, tenant, scoring=DatasetScoring())
         run = await _scored_run(db, tenant)
-        eval_run_id = uuid.uuid4()
+        eval_run_id = await _eval_run(db, tenant, dataset, run)
         service = ScoringService(db)
         first = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
         second = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
