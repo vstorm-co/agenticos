@@ -1,4 +1,4 @@
-<!-- source_sha: 55afa0e70b04 -->
+<!-- source_sha: f993c01306ab -->
 
 <div align="center">
 
@@ -80,7 +80,7 @@ Włączasz narzędzia z ilustrowanych kart, a potem dajesz wersji roboczej prawd
 
 Agent publikuje dashboard albo raport jako stronę ze stałym linkiem i wersjami.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Dashboard zarządu za Q3 2026, który Finance Analyst opublikował z czatu jako aplikację: kolorowe karty KPI, przychody i koszty w miesiącach, trend marży, przychody według regionów i najwięksi klienci" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Dashboard zarządu za Q3 2026, który Finance Analyst opublikował z czatu jako aplikację: karty KPI, przychody i koszty w miesiącach, trend marży, przychody według regionów i najwięksi klienci, w jednym kolorze akcentu" width="100%"></a>
 
 ### Ponad 4700 serwerów MCP
 
