@@ -82,6 +82,9 @@ class TestTheStarterTemplate:
     def test_its_bindings_are_keyed_by_capability(self, tmp_path, monkeypatch):
         """What the Toolbox recommends, and what a new agent starts with."""
         monkeypatch.setattr(agent_templates, "TEMPLATES_ROOT", tmp_path)
+        # A deployment running its own sandbox service, so the binding is kept as
+        # written; without one it falls back - see `TestForThisDeployment`.
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "token")
         folder, name = agent_templates.STARTER_TEMPLATE.split("/")
         _write(
             tmp_path,

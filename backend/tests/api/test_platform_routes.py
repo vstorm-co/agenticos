@@ -1115,6 +1115,7 @@ class TestReadingWhatARunIsParkedOn:
                 "tool_call_id": "call-1",
                 "tool_name": "send_email",
                 "tool_args": {"to": "ada@example.com"},
+                "account": None,
             }
         ]
 
