@@ -276,6 +276,22 @@ async def case_of_agent_run(
     return result.scalar_one_or_none()
 
 
+async def score_graded_by(
+    db: AsyncSession, judge_run_id: UUID, *, organization_id: UUID
+) -> CaseScore | None:
+    """The eval score a judge's run graded, by the run its results name."""
+    result = await db.execute(
+        select(CaseScore)
+        .where(
+            CaseScore.organization_id == organization_id,
+            CaseScore.eval_run_id.is_not(None),
+            CaseScore.results.contains([{"judge_run_id": str(judge_run_id)}]),
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_arm_cases(
     db: AsyncSession, arm_id: UUID, *, organization_id: UUID
 ) -> list[EvalRunCase]:

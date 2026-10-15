@@ -1569,3 +1569,26 @@ async def test_a_reused_baseline_is_asked_the_flipped_cases_again_in_this_run(db
     reused = next(arm for arm in read.arms if arm.role == "baseline")
     # Its first answers are still the earlier run's.
     assert reused.summary.cases == 3
+
+
+async def test_the_judges_run_names_the_eval_case_it_graded(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    service = EvalRunService(db)
+    run = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), run.id, ctx)
+    score = await db.scalar(select(CaseScore).where(CaseScore.eval_run_id == run.id))
+    assert score is not None
+    judge_run = uuid.uuid4()
+    score.results = [*score.results, {"scorer": "judge", "judge_run_id": str(judge_run)}]
+    await db.flush()
+
+    link = await service.case_link(ctx, judge_run)
+
+    assert link is not None and link.graded
+    assert (link.eval_run_id, link.case_id) == (run.id, score.case_id)
+    # A score nobody's eval run produced names no eval run.
+    score.eval_run_id = None
+    await db.flush()
+    assert await service.case_link(ctx, judge_run) is None

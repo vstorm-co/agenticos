@@ -1012,33 +1012,53 @@ class EvalRunService:
         return EvalRunList(items=await self._reads(ctx, runs), total=len(runs))
 
     async def case_link(self, ctx: AuthContext, agent_run_id: UUID) -> EvalCaseLinkRead | None:
-        """The eval run and case an agent run answered, for a caller who may see its dataset.
+        """The eval run and case an agent run answered - or, for the judge's run,
+        graded - for a caller who may see its dataset.
 
-        None for a run no eval started - the judge's grading, say - and for one
-        over a dataset the caller cannot read, whose name and question are not
-        theirs to learn from a run history.
+        None for a run no eval started, and for one over a dataset the caller
+        cannot read, whose name and question are not theirs to learn from a run
+        history.
         """
         org = ctx.organization_id
         attempt = await eval_run_repo.case_of_agent_run(self.db, agent_run_id, organization_id=org)
-        if attempt is None:
+        if attempt is not None:
+            return await self._link(
+                ctx, attempt.eval_run_id, attempt.case_id, attempt.case_revision_id, graded=False
+            )
+        score = await eval_run_repo.score_graded_by(self.db, agent_run_id, organization_id=org)
+        if score is None or score.eval_run_id is None:
             return None
-        run = await eval_run_repo.get(self.db, attempt.eval_run_id, organization_id=org)
-        # An attempt never outlives its run.
+        return await self._link(
+            ctx, score.eval_run_id, score.case_id, score.case_revision_id, graded=True
+        )
+
+    async def _link(
+        self,
+        ctx: AuthContext,
+        eval_run_id: UUID,
+        case_id: UUID,
+        revision_id: UUID,
+        *,
+        graded: bool,
+    ) -> EvalCaseLinkRead | None:
+        org = ctx.organization_id
+        run = await eval_run_repo.get(self.db, eval_run_id, organization_id=org)
+        # An attempt never outlives its run, and a score goes with the run it belongs to.
         assert run is not None
         try:
             dataset = await self.datasets.get(ctx, run.dataset_id)
         except NotFoundError:
             return None
-        revisions = await eval_run_repo.revisions(
-            self.db, [attempt.case_revision_id], organization_id=org
+        revision = (await eval_run_repo.revisions(self.db, [revision_id], organization_id=org)).get(
+            revision_id
         )
-        revision = revisions.get(attempt.case_revision_id)
         return EvalCaseLinkRead(
             eval_run_id=run.id,
             agent_id=run.agent_id,
-            case_id=attempt.case_id,
+            case_id=case_id,
             dataset_name=dataset.name,
             case_input=revision.input if revision else "",
+            graded=graded,
         )
 
     async def _readable_datasets(self, ctx: AuthContext, dataset_ids: set[UUID]) -> set[UUID]:
