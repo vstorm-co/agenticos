@@ -1,5 +1,5 @@
 ---
-source_sha: "896c26eb77f1"
+source_sha: "b2797c187f2f"
 ---
 
 # Koncepcje { #concepts }
@@ -592,8 +592,10 @@ uruchomiłaby run, a nie tylko w konsoli.
 
 Gdy organizacja ma już profil modelu, sędzia jest publikowany na najstarszym z
 nich albo na tym, który wybrano przy jego tworzeniu. Bez profilu jest tworzony
-jako draft, a człowiek wybiera mu model i go
-publikuje. Do tego czasu mówią o tym funkcje, które z niego korzystają.
+jako draft. Seedowany Eval judge jest publikowany na pierwszym modelu
+organizacji, gdy tylko zostanie on dodany; własny sędzia datasetu czeka, aż
+człowiek wybierze mu model i go opublikuje, a do tego czasu mówią o tym
+funkcje, które z niego korzystają.
 
 [Przełącznik wsparcia AI](governance.md#ai-assistance) organizacji decyduje, czy
 sędziowie w ogóle działają.

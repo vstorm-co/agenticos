@@ -1,5 +1,5 @@
 ---
-source_sha: "896c26eb77f1"
+source_sha: "b2797c187f2f"
 ---
 
 # Conceptos { #concepts }
@@ -595,9 +595,11 @@ Solo la plataforma lo ejecuta. El chat, la API, un embed o una página pública,
 un canal, una programación y la delegación desde otro agent lo rechazan, en el
 servicio que iniciaría el run y no solo en la consola.
 
-Cuando la organización ya tiene un perfil de modelo, un juez se publica sobre el
-más antiguo, o sobre el que se eligió al crearlo. Sin ninguno, se crea como
-borrador, y una persona elige su modelo y lo publica. Hasta entonces, las
+Cuando la organización ya tiene un perfil de modelo, un juez se publica sobre
+el más antiguo, o sobre el que se eligió al crearlo. Sin ninguno, se crea como
+borrador. El Eval judge que trae la plataforma se publica sobre el primer
+modelo de la organización en cuanto se añade uno; el juez propio de un dataset
+espera a que una persona elija su modelo y lo publique, y hasta entonces las
 funciones que lo usan lo indican.
 
 El [interruptor de asistencia de IA](governance.md#ai-assistance) de la

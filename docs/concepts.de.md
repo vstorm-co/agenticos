@@ -1,5 +1,5 @@
 ---
-source_sha: "896c26eb77f1"
+source_sha: "b2797c187f2f"
 ---
 
 # Begriffe { #concepts }
@@ -626,8 +626,11 @@ lehnen ihn ab, im Service, der den Run starten würde, nicht nur in der Konsole.
 
 Hat die Organisation bereits ein Model-Profil, wird ein Bewerter auf dem
 ältesten veröffentlicht oder auf dem, das bei seiner Erstellung gewählt wurde.
-Ohne eines wird er als Draft angelegt, und ein Mensch wählt sein Modell und
-veröffentlicht ihn. Bis dahin sagen das die Funktionen, die ihn verwenden.
+Ohne eines wird er als Draft angelegt. Der mitgelieferte Eval judge wird auf
+dem ersten Modell der Organisation veröffentlicht, sobald eines hinzugefügt
+wird; der eigene Bewerter eines Datasets wartet, bis ein Mensch sein Modell
+wählt und ihn veröffentlicht, und bis dahin sagen das die Funktionen, die ihn
+verwenden.
 
 Der [Schalter für KI-Unterstützung](governance.md#ai-assistance) der
 Organisation entscheidet, ob Bewerter überhaupt laufen.

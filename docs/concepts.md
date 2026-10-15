@@ -571,9 +571,11 @@ a schedule and delegation from another agent all refuse it, in the service that
 would start the run rather than only in the console.
 
 When the organization already has a model profile, a judge is published on the
-oldest one, or on the one picked when it was created. Without one, it is created
-as a draft, and a person picks its model and publishes it. The features that use
-it say so until then.
+oldest one, or on the one picked when it was created. Without one, it is
+created as a draft. The seeded Eval judge is published on the organization's
+first model as soon as one is added; a dataset's own judge waits for a person
+to pick its model and publish it, and the features that use it say so until
+then.
 
 The organization's [AI assistance switch](governance.md#ai-assistance) decides
 whether judges run at all.

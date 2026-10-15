@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select, text
@@ -23,16 +24,20 @@ from app.core.exceptions import (
     SystemAgentUnavailableError,
 )
 from app.core.permissions import AuthContext, OrgRoleName
+from app.core.secret_kinds import ApiKeySecret, SecretKind, seal_secret
+from app.core.vault import VaultScope
 from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
+from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.repositories import agent_repo
 from app.schemas.organization import OrganizationCreate, OrganizationUpdate
 from app.services.agent_registry import AgentRegistryService
 from app.services.ai_assistance import AiAssistanceService
+from app.services.model_profile import ModelProfileService
 from app.services.organization import OrganizationService
 from app.services.system_agents import SystemAgentService
 
@@ -92,6 +97,25 @@ async def _profile(db, organization: Organization, *, label: str, created_at: da
     return profile
 
 
+async def _secret(db, organization: Organization) -> OrganizationSecret:
+    sealed = seal_secret(
+        ApiKeySecret(api_key="sk-test-key"), scope=VaultScope.organization(organization.id)
+    )
+    secret = OrganizationSecret(
+        id=uuid.uuid4(),
+        organization_id=organization.id,
+        name="Key",
+        purpose="openai",
+        visibility="org",
+        kind=SecretKind.API_KEY.value,
+        sealed_secret=sealed.ciphertext,
+        hint=sealed.hint,
+    )
+    db.add(secret)
+    await db.flush()
+    return secret
+
+
 class TestSeeding:
     async def test_a_new_organization_starts_with_the_judge_as_a_draft(self, db) -> None:
         """A new organization has no model yet, so the judge cannot be published."""
@@ -112,6 +136,79 @@ class TestSeeding:
         assert spec.instructions == JUDGE.instructions
         assert spec.budget is not None
         assert spec.budget.monthly_usd == JUDGE.monthly_usd
+
+    async def test_the_organization_s_first_model_publishes_the_waiting_judge(
+        self, db, monkeypatch
+    ) -> None:
+        """Seeded before any model exists, the judge works once the first one is added."""
+        monkeypatch.setattr(ModelProfileService, "_context_length", AsyncMock(return_value=None))
+        owner = await _user(db)
+        organization = await OrganizationService(db).create(
+            OrganizationCreate(name="Fresh org"), owner.id
+        )
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+        secret = await _secret(db, organization)
+
+        profile = await ModelProfileService(db).create_profile(
+            ctx, label="Default", provider="openai", model="gpt-4.1", secret_id=secret.id
+        )
+
+        judge = await agent_repo.get_system(db, organization_id=organization.id, key=JUDGE.key)
+        assert judge is not None and judge.current_version_id is not None
+        assert judge.status == AgentStatus.PUBLISHED.value
+        version = await db.get(AgentVersion, judge.current_version_id)
+        assert version is not None
+        assert version.spec["model_profile_id"] == str(profile.id)
+        assert version.spec["model_settings"] == {"temperature": 0.0}
+
+    async def test_a_judge_still_waiting_is_published_when_it_is_next_needed(self, db) -> None:
+        owner = await _user(db)
+        organization = await OrganizationService(db).create(
+            OrganizationCreate(name="Fresh org"), owner.id
+        )
+        oldest = await _profile(db, organization, label="Default", created_at=datetime.now(UTC))
+
+        judge = await SystemAgentService(db).ensure(organization_id=organization.id, key=JUDGE.key)
+
+        assert judge.current_version_id is not None
+        version = await db.get(AgentVersion, judge.current_version_id)
+        assert version is not None and version.spec["model_profile_id"] == str(oldest.id)
+
+    async def test_a_draft_somebody_gave_a_model_is_left_to_them(self, db) -> None:
+        owner = await _user(db)
+        organization = await OrganizationService(db).create(
+            OrganizationCreate(name="Fresh org"), owner.id
+        )
+        picked = await _profile(db, organization, label="Picked", created_at=datetime.now(UTC))
+        judge = await agent_repo.get_system(db, organization_id=organization.id, key=JUDGE.key)
+        assert judge is not None
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+        spec = AgentSpec.model_validate(judge.draft_spec)
+        await AgentRegistryService(db).save_draft(
+            ctx, judge.id, spec.model_copy(update={"model_profile_id": picked.id})
+        )
+
+        await SystemAgentService(db).adopt_model(organization_id=organization.id)
+
+        assert judge.current_version_id is None
+
+    async def test_without_a_model_or_an_owner_the_judge_keeps_waiting(self, db) -> None:
+        organization, _ = await _organization(db, with_owner=False)
+        service = SystemAgentService(db)
+        owner = await _user(db)
+        await _member(db, organization, owner, OrgRoleName.OWNER)
+        judge = await service.ensure(organization_id=organization.id, key=JUDGE.key)
+        await db.execute(
+            text("DELETE FROM organization_members WHERE organization_id = :org"),
+            {"org": organization.id},
+        )
+        await _profile(db, organization, label="Default", created_at=datetime.now(UTC))
+
+        await service.adopt_model(organization_id=organization.id)
+        lonely, _ = await _organization(db)
+        await service.adopt_model(organization_id=lonely.id)
+
+        assert judge.current_version_id is None
 
     async def test_a_personal_organization_is_seeded_too(self, db) -> None:
         user = await _user(db)

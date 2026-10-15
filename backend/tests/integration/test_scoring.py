@@ -815,10 +815,13 @@ class TestWhenTheJudgeCannotRun:
         assert score.passed is None
 
     async def test_an_unpublished_judge_says_so(self, db, judge) -> None:
+        """A dataset's own judge created before any model stays a draft until published."""
         tenant = await _tenant(db)
-        await SystemAgentService(db).ensure(organization_id=tenant.organization.id, key=JUDGE.key)
-        await _model(db, tenant)
         dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        await ScoringService(db).create_judge(
+            tenant.ctx, dataset.id, JudgeCreate(name="Refunds judge", instructions="Be strict.")
+        )
+        await _model(db, tenant)
         run = await _scored_run(db, tenant)
 
         score = await ScoringService(db).score_run(

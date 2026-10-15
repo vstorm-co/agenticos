@@ -80,6 +80,7 @@ class SystemAgentService:
         """
         existing = await agent_repo.get_system(self.db, organization_id=organization_id, key=key)
         if existing is not None:
+            await self._adopt(existing, organization_id=organization_id)
             return existing
         definition = system_agent(key)
         owner_id = await member_repo.first_owner_id(self.db, organization_id=organization_id)
@@ -99,6 +100,41 @@ class SystemAgentService:
                 key=key,
                 reason="not_seeded",
             ) from exc
+
+    async def adopt_model(self, *, organization_id: UUID) -> None:
+        """Publish the system agents still waiting for a model on the organization's first.
+
+        An organization is seeded before it has a model, so its system agents
+        start as drafts with none. Called once it has one, so the judge works
+        without anybody having to find it and publish it first.
+        """
+        for definition in SYSTEM_AGENTS:
+            agent = await agent_repo.get_system(
+                self.db, organization_id=organization_id, key=definition.key
+            )
+            if agent is not None:
+                await self._adopt(agent, organization_id=organization_id)
+
+    async def _adopt(self, agent: Agent, *, organization_id: UUID) -> None:
+        """Give a never-published system agent with no model the oldest one, and publish it.
+
+        A draft somebody gave a model, or one already published, is theirs and is
+        left alone; so is an organization with no model or no owner to act as.
+        """
+        if agent.current_version_id is not None:
+            return
+        spec = AgentSpec.model_validate(agent.draft_spec)
+        if spec.model_profile_id is not None:
+            return
+        profile = await credential_repo.oldest_profile(self.db, organization_id=organization_id)
+        owner_id = await member_repo.first_owner_id(self.db, organization_id=organization_id)
+        if profile is None or owner_id is None:
+            return
+        ctx = AuthContext(user_id=owner_id, organization_id=organization_id, role=OrgRoleName.OWNER)
+        await self.registry.save_draft(
+            ctx, agent.id, spec.model_copy(update={"model_profile_id": profile.id})
+        )
+        await self._publish(ctx, agent, published=True, note="Seeded")
 
     async def _create(
         self, definition: SystemAgentDef, *, organization_id: UUID, owner_id: UUID
