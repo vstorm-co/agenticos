@@ -1,4 +1,4 @@
-<!-- source_sha: af684cc108c4 -->
+<!-- source_sha: 8ad82ef38905 -->
 
 <div align="center">
 
@@ -58,7 +58,7 @@ AgenticOS da a cada equipo compañeros de IA: agentes que trabajan con archivos,
 
 La consola se abre con lo que hicieron tus agents, las decisiones que te esperan y las conversaciones para retomar - con un recorrido por lo que es fácil pasar por alto.
 
-<a href="docs/assets/readme/anim-dashboard.webp"><img src="docs/assets/readme/anim-dashboard.webp" alt="La pestaña Me del dashboard: un saludo, una lista para empezar, un carrusel de funciones con ilustraciones isométricas, los runs, la finalización y el gasto del periodo, las decisiones pendientes y las conversaciones para continuar" width="100%"></a>
+<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="La pestaña Me del dashboard: un saludo, una lista para empezar, un carrusel de funciones con ilustraciones isométricas, los runs, la finalización y el gasto del periodo, las decisiones pendientes y las conversaciones para continuar" width="100%"></a>
 
 ### Agentes que trabajan en equipo
 
@@ -76,13 +76,13 @@ Míralo hacer clic por los sitios, toma el control cuando un inicio de sesión t
 
 Activa herramientas desde tarjetas ilustradas y dale al borrador un trabajo real en el chat de prueba de al lado - aquí dibuja los ingresos de un trimestre frente a los costes y lee el margen, antes de que nadie más vea el agent.
 
-<a href="docs/assets/readme/anim-builder.webp"><img src="docs/assets/readme/anim-builder.webp" alt="El toolbox del Finance Analyst con tarjetas isométricas de capabilities y su chat de prueba dibujando los ingresos del tercer trimestre frente a los costes" width="100%"></a>
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="El toolbox del Finance Analyst con tarjetas isométricas de capabilities y su chat de prueba dibujando los ingresos del tercer trimestre frente a los costes" width="100%"></a>
 
 ### Apps, no solo respuestas
 
 Un agente publica un dashboard o un informe como página con enlace estable y versiones.
 
-<a href="docs/assets/readme/anim-apps.webp"><img src="docs/assets/readme/anim-apps.webp" alt="A un Finance Analyst se le pide en el chat un dashboard del tercer trimestre para la junta, lo publica como app y la app se abre: tarjetas de KPI, un gráfico mensual de ingresos frente a costes y una tabla" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="El dashboard del tercer trimestre para la junta que un Finance Analyst publicó desde el chat como app: tarjetas de KPI, un gráfico mensual de ingresos frente a costes y una tabla" width="100%"></a>
 
 ### Más de 4.700 servidores MCP
 

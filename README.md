@@ -56,7 +56,7 @@ AgenticOS gives every team AI teammates: agents that work with files, run code, 
 
 Open the console to what your agents did, the calls waiting on you and the conversations to pick up again - with a tour of what they can do that is easy to miss.
 
-<a href="docs/assets/readme/anim-dashboard.webp"><img src="docs/assets/readme/anim-dashboard.webp" alt="The Me tab of the dashboard: a greeting, a getting-started checklist, a carousel of features with isometric illustrations, this period's runs, completion and spend, the decisions waiting and conversations to continue" width="100%"></a>
+<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="The Me tab of the dashboard: a greeting, a getting-started checklist, a carousel of features with isometric illustrations, this period's runs, completion and spend, the decisions waiting and conversations to continue" width="100%"></a>
 
 ### Agents that work as a team
 
@@ -74,13 +74,13 @@ Watch it click through sites, take over when a sign-in needs you, point at a spo
 
 Switch tools on from illustrated cards, then give the draft a real job in the test chat beside them - here it charts a quarter's revenue against costs and reads the margin, before anyone else sees the agent.
 
-<a href="docs/assets/readme/anim-builder.webp"><img src="docs/assets/readme/anim-builder.webp" alt="The Finance Analyst's toolbox with isometric capability cards, and its test chat drawing a chart of Q3 revenue against costs" width="100%"></a>
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="The Finance Analyst's toolbox with isometric capability cards, and its test chat drawing a chart of Q3 revenue against costs" width="100%"></a>
 
 ### Apps, not just answers
 
 An agent publishes a dashboard or a report as a page with a stable link and versions.
 
-<a href="docs/assets/readme/anim-apps.webp"><img src="docs/assets/readme/anim-apps.webp" alt="A Finance Analyst is asked in chat for a Q3 board dashboard, publishes it as an app, and the app opens: KPI cards, a monthly revenue against costs chart and a table" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="The Q3 board dashboard a Finance Analyst published from chat as an app: KPI cards, a monthly revenue against costs chart and a table" width="100%"></a>
 
 ### 4,700+ MCP servers
 

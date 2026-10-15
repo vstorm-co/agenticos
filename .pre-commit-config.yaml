@@ -56,7 +56,7 @@ repos:
         args: [--maxkb=1024]
         # The registry mirror, and the README's opening animation: 25 frames a
         # second over three live scenes does not fit in a megabyte.
-        exclude: ^(backend/app/core/catalog/mcp_registry\.json|docs/assets/readme/(teammates-in-action|anim-[a-z]+)\.webp)$
+        exclude: ^(backend/app/core/catalog/mcp_registry\.json|docs/assets/readme/teammates-in-action\.webp)$
       # A vault is not much use if a key reaches the repository beside it.
       - id: detect-private-key
 

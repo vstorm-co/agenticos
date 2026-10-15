@@ -1,4 +1,4 @@
-<!-- source_sha: af684cc108c4 -->
+<!-- source_sha: 8ad82ef38905 -->
 
 <div align="center">
 
@@ -58,7 +58,7 @@ AgenticOS gibt jedem Team KI-Teammates: Agents, die mit Dateien arbeiten, Code a
 
 Die Konsole öffnet mit dem, was deine Agents getan haben, den Entscheidungen, die auf dich warten, und den Unterhaltungen zum Weitermachen - samt einer Tour durch das, was leicht zu übersehen ist.
 
-<a href="docs/assets/readme/anim-dashboard.webp"><img src="docs/assets/readme/anim-dashboard.webp" alt="Der Me-Tab des Dashboards: eine Begrüßung, eine Einstiegs-Checkliste, ein Karussell mit isometrischen Illustrationen, Runs, Abschlussquote und Kosten des Zeitraums, wartende Entscheidungen und Unterhaltungen zum Fortsetzen" width="100%"></a>
+<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="Der Me-Tab des Dashboards: eine Begrüßung, eine Einstiegs-Checkliste, ein Karussell mit isometrischen Illustrationen, Runs, Abschlussquote und Kosten des Zeitraums, wartende Entscheidungen und Unterhaltungen zum Fortsetzen" width="100%"></a>
 
 ### Agents, die als Team arbeiten
 
@@ -76,13 +76,13 @@ Sieh zu, wie er sich durch Seiten klickt, übernimm, wenn eine Anmeldung dich br
 
 Schalte Tools über illustrierte Karten ein und gib dem Entwurf im Test-Chat daneben eine echte Aufgabe - hier zeichnet er den Umsatz eines Quartals gegen die Kosten und liest die Marge ab, bevor jemand anderes den Agent sieht.
 
-<a href="docs/assets/readme/anim-builder.webp"><img src="docs/assets/readme/anim-builder.webp" alt="Die Toolbox des Finance Analyst mit isometrischen Capability-Karten und sein Test-Chat, der Umsatz gegen Kosten im dritten Quartal zeichnet" width="100%"></a>
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Die Toolbox des Finance Analyst mit isometrischen Capability-Karten und sein Test-Chat, der Umsatz gegen Kosten im dritten Quartal zeichnet" width="100%"></a>
 
 ### Apps, nicht nur Antworten
 
 Ein Agent veröffentlicht ein Dashboard oder einen Bericht als Seite mit festem Link und Versionen.
 
-<a href="docs/assets/readme/anim-apps.webp"><img src="docs/assets/readme/anim-apps.webp" alt="Ein Finance Analyst wird im Chat um ein Q3-Dashboard für den Vorstand gebeten, veröffentlicht es als App, und die App öffnet sich: KPI-Karten, ein monatliches Diagramm von Umsatz gegen Kosten und eine Tabelle" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Das Q3-Dashboard für den Vorstand, das ein Finance Analyst aus dem Chat als App veröffentlicht hat: KPI-Karten, ein monatliches Diagramm von Umsatz gegen Kosten und eine Tabelle" width="100%"></a>
 
 ### Über 4.700 MCP-Server
 

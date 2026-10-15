@@ -1,4 +1,4 @@
-<!-- source_sha: af684cc108c4 -->
+<!-- source_sha: 8ad82ef38905 -->
 
 <div align="center">
 
@@ -58,7 +58,7 @@ AgenticOS daje każdemu zespołowi kolegów z AI: agentów, którzy pracują z p
 
 Konsola otwiera się na tym, co zrobiły Twoje agenty, decyzjach czekających na Ciebie i rozmowach do podjęcia - z przeglądem funkcji, które łatwo przeoczyć.
 
-<a href="docs/assets/readme/anim-dashboard.webp"><img src="docs/assets/readme/anim-dashboard.webp" alt="Zakładka Me dashboardu: powitanie, lista pierwszych kroków, karuzela funkcji z izometrycznymi ilustracjami, runy, ukończenie i koszt w tym okresie, decyzje czekające i rozmowy do kontynuacji" width="100%"></a>
+<a href="docs/assets/readme/highlight-dashboard.webp"><img src="docs/assets/readme/highlight-dashboard.webp" alt="Zakładka Me dashboardu: powitanie, lista pierwszych kroków, karuzela funkcji z izometrycznymi ilustracjami, runy, ukończenie i koszt w tym okresie, decyzje czekające i rozmowy do kontynuacji" width="100%"></a>
 
 ### Agenci, którzy pracują jak zespół
 
@@ -76,13 +76,13 @@ Patrz, jak klika po stronach, przejmij ją, gdy logowanie wymaga Ciebie, wskaż 
 
 Włączasz narzędzia z ilustrowanych kart, a potem dajesz wersji roboczej prawdziwe zadanie w czacie testowym obok - tu rysuje przychody kwartału na tle kosztów i ocenia marżę, zanim ktokolwiek inny zobaczy agenta.
 
-<a href="docs/assets/readme/anim-builder.webp"><img src="docs/assets/readme/anim-builder.webp" alt="Toolbox agenta Finance Analyst z izometrycznymi kartami capability i jego czat testowy rysujący wykres przychodów Q3 na tle kosztów" width="100%"></a>
+<a href="docs/assets/readme/highlight-builder-test.webp"><img src="docs/assets/readme/highlight-builder-test.webp" alt="Toolbox agenta Finance Analyst z izometrycznymi kartami capability i jego czat testowy rysujący wykres przychodów Q3 na tle kosztów" width="100%"></a>
 
 ### Aplikacje, nie tylko odpowiedzi
 
 Agent publikuje dashboard albo raport jako stronę ze stałym linkiem i wersjami.
 
-<a href="docs/assets/readme/anim-apps.webp"><img src="docs/assets/readme/anim-apps.webp" alt="Finance Analyst dostaje w czacie prośbę o dashboard Q3 dla zarządu, publikuje go jako aplikację, a aplikacja się otwiera: karty KPI, miesięczny wykres przychodów na tle kosztów i tabela" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Dashboard Q3 dla zarządu, który Finance Analyst opublikował z czatu jako aplikację: karty KPI, miesięczny wykres przychodów na tle kosztów i tabela" width="100%"></a>
 
 ### Ponad 4700 serwerów MCP
 
