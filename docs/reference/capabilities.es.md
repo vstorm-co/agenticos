@@ -1,5 +1,5 @@
 ---
-source_sha: "815d85e5494b"
+source_sha: "ee4c6a557a36"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -759,10 +759,12 @@ se conecta en cambio por `wss://` a un servicio de navegador - Browserbase, Stee
 uno propio - con el secreto del binding como clave, añadida a la query de la
 dirección bajo `hosted_key_param` (`apiKey` por defecto).
 
-Allí también cada
-recorrido recibe un contexto de navegador propio; un servicio que lo rechaza lo
-ejecuta en su contexto predeterminado, que no se da por privado - ese recorrido
-empieza sin inicios de sesión guardados y borra al terminar las cookies que puso.
+Un navegador alojado nunca
+empieza con los inicios de sesión guardados de una persona: su dirección la elige
+el autor del agent, no un operador. Allí también cada recorrido recibe un contexto
+de navegador propio; un servicio que lo rechaza lo ejecuta en su contexto
+predeterminado, que no se da por privado, y el recorrido borra al terminar las
+cookies que puso.
 
 Una dirección dentro de la red del despliegue se rechaza al publicar y otra vez al
 empezar un browse, salvo que el operador haya puesto el host en

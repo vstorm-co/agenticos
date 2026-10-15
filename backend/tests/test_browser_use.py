@@ -1780,6 +1780,33 @@ class TestABrowseActingAsThePerson:
         assert published["meta"][2].remembers is False
         assert published["meta"][2].personal is False
 
+    @pytest.mark.security
+    async def test_a_hosted_browser_is_never_handed_a_kept_sign_in(
+        self, published: dict[str, Any], kept: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ):
+        """Review on #2062: an agent's author picks the hosted address, and every
+        sign-in a colleague kept reached it as soon as they browsed privately."""
+        monkeypatch.setattr(_route_module, "resolve_pinned_url", lambda url, allowed_schemes: None)
+        route = BrowserRoute(
+            remote_url=SecretStr("wss://h.example.com?apiKey=k"),
+            remote_address="wss://h.example.com",
+        )
+        opener = _Opener()
+        audience = RunAudience(user_id=self.PERSON, browses_signed_in=True)
+        async with _routed(opener, route, cdp_url="") as toolset:
+            ctx = RunContext(
+                deps=self._deps(audience),
+                model=_browsing_model(DONE_ARGS),
+                usage=RunUsage(),
+                tool_call_id="call-42",
+            )
+            tools = await toolset.get_tools(ctx)
+            args = {"task": "find the price", "start_url": "https://example.test/"}
+            await toolset.call_tool("browse_web", args, ctx, tools["browse_web"])
+
+        assert "loaded_for" not in kept
+        assert opener.opened[0]["sign_ins"] == []
+
     async def test_a_sign_in_is_kept_only_for_the_person_the_run_acts_for(
         self, kept: dict[str, Any]
     ):

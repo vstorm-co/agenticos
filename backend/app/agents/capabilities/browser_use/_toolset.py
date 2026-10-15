@@ -463,9 +463,13 @@ def build_toolset(
     async def open_tab(ctx: RunContext[AgentDeps], url: str) -> BrowseSession | str:
         """Open the run's tab on `url`, or say in a sentence why the browser is not there."""
         person = _signed_in_as(ctx.deps)
+        # Never into a hosted browser: its address is the agent's author's choice,
+        # not an operator's, and a kept sign-in sent there is a person's session
+        # handed to whoever runs that endpoint.
+        hosted = route is not None and route.remote_url is not None
         sign_ins = (
             []
-            if person is None
+            if person is None or hosted
             else await browser_sign_in.load_for(person.organization_id, person.user_id)
         )
         if route is not None:

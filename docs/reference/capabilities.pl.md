@@ -1,5 +1,5 @@
 ---
-source_sha: "815d85e5494b"
+source_sha: "ee4c6a557a36"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -749,10 +749,11 @@ zamiast tego podłącza się przez `wss://` do usługi przeglądarki - Browserba
 albo własnej - z sekretem bindingu jako kluczem, dopisywanym do zapytania w adresie
 pod `hosted_key_param` (domyślnie `apiKey`).
 
-Tam też każde przeglądanie dostaje
-własny kontekst przeglądarki; usługa, która go odmawia, uruchamia je w domyślnym
-kontekście, którego nie uznajemy za prywatny - takie przeglądanie startuje bez
-zapisanych logowań i na koniec czyści ustawione ciasteczka.
+Przeglądarka hostowana nigdy nie
+startuje z zapisanymi logowaniami osoby: jej adres wybiera autor agenta, a nie
+operator. Tam też każde przeglądanie dostaje własny kontekst przeglądarki; usługa,
+która go odmawia, uruchamia je w domyślnym kontekście, którego nie uznajemy za
+prywatny, a przeglądanie na koniec czyści ustawione ciasteczka.
 
 Adres wewnątrz sieci wdrożenia jest odrzucany przy publikacji i ponownie przy starcie
 przeglądania, chyba że operator dopisał host do `BROWSER_CDP_ALLOWED_HOSTS`. Chromium

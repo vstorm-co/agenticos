@@ -1,5 +1,5 @@
 ---
-source_sha: "815d85e5494b"
+source_sha: "ee4c6a557a36"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -792,10 +792,11 @@ Browser-Dienst - Browserbase, Steel oder einem eigenen - mit dem Secret des Bind
 als Schlüssel, an die Query der Adresse unter `hosted_key_param` angehängt
 (standardmäßig `apiKey`).
 
-Auch dort bekommt jeder Durchlauf einen eigenen
-Browser-Kontext; ein Dienst, der ihn verweigert, führt ihn im Standardkontext aus,
-der nicht als privat gilt - ein solcher Durchlauf startet ohne gespeicherte
-Anmeldungen und löscht am Ende die gesetzten Cookies.
+Ein gehosteter Browser startet nie mit den
+gespeicherten Anmeldungen einer Person: Seine Adresse wählt der Autor des Agents,
+nicht ein Operator. Auch dort bekommt jeder Durchlauf einen eigenen Browser-Kontext;
+ein Dienst, der ihn verweigert, führt ihn im Standardkontext aus, der nicht als
+privat gilt, und der Durchlauf löscht am Ende die gesetzten Cookies.
 
 Eine Adresse im Netz des Deployments wird beim Veröffentlichen und erneut beim Start
 eines Browses abgelehnt, es sei denn, der Operator hat den Host in
