@@ -49,6 +49,28 @@ function row() {
 }
 
 describe("a run history row", () => {
+  it("says which question an eval run answered", () => {
+    render(
+      <RunTable
+        runs={[
+          run({
+            surface: "eval",
+            eval_case: {
+              eval_run_id: "eval-1",
+              agent_id: "agent-1",
+              case_id: "case-1",
+              dataset_name: "refunds",
+              case_input: "Can I return it?",
+              graded: false,
+            },
+          }),
+        ]}
+      />,
+    );
+
+    expect(within(row()).getByText("Can I return it?")).toBeInTheDocument();
+  });
+
   it("says nothing about delegation for a run somebody started", () => {
     render(<RunTable runs={[run()]} />);
 

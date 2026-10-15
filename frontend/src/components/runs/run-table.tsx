@@ -177,10 +177,19 @@ export function RunTable({
       header: t("surface"),
       // The mark and the name together: the mark is what makes a column of
       // fifty rows scannable, the name is what a screen reader hears.
+      // An eval run keeps no conversation to preview, so its row says which
+      // question it answered.
       cell: (run) => (
-        <span className="text-muted-foreground flex items-center gap-1.5 whitespace-nowrap">
-          <SurfaceIcon surface={run.surface} />
-          {surfaceLabel(run.surface, t)}
+        <span className="text-muted-foreground block">
+          <span className="flex items-center gap-1.5 whitespace-nowrap">
+            <SurfaceIcon surface={run.surface} />
+            {surfaceLabel(run.surface, t)}
+          </span>
+          {run.eval_case && (
+            <span className="block max-w-56 truncate text-xs" title={run.eval_case.case_input}>
+              {run.eval_case.case_input}
+            </span>
+          )}
         </span>
       ),
     },
