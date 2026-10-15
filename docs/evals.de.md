@@ -1,5 +1,5 @@
 ---
-source_sha: "c5cde9b8d24e"
+source_sha: "9a73f90e05b2"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -71,8 +71,10 @@ Urteil gilt weiter für alle Fälle.
 
 Sobald seine Wiederholungen vorliegen, schickt ein Run in die
 [Review-Warteschlange](datasets.md#review) des Datasets, wofür er einstehen
-kann - jede bestätigte Regression und jede Antwort, die sein Judge nicht
-bewerten konnte, eine pro Fall - und sagt, wie viele (`routed_to_review`).
+kann - jede bestätigte Regression und jede Antwort, an deren Bewertung sein
+Judge gescheitert ist, eine pro Fall - und sagt, wie viele (`routed_to_review`).
+Ein übersprungener Judge schickt nichts: Seine Antworten warten auf der Seite
+des Runs auf **Grade again**.
 **Send failed to review** schickt die übrigen nicht bestandenen Antworten einer
 Seite, für jeden, der das Dataset bearbeiten darf, und ein Fall, dessen
 Bewertung eine Person überstimmt hat, wird als korrigiert markiert.

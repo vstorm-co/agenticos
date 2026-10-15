@@ -1,5 +1,5 @@
 ---
-source_sha: "c5cde9b8d24e"
+source_sha: "9a73f90e05b2"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -67,8 +67,9 @@ abarcando todos los casos.
 
 Una vez que están sus repeticiones, un run envía a la [cola de
 revisión](datasets.md#review) del dataset lo que puede respaldar - cada
-regresión que confirmó y cada respuesta que su juez no pudo calificar, una por
-caso - y dice cuántas son (`routed_to_review`). **Send failed to review** envía
+regresión que confirmó y cada respuesta en cuya calificación falló su juez, una
+por caso - y dice cuántas son (`routed_to_review`). Un juez omitido no envía
+nada: sus respuestas esperan en la página del run a **Grade again**. **Send failed to review** envía
 el resto de las respuestas fallidas de un lado, para quien pueda editar el
 dataset, y un caso cuya calificación anuló una persona queda marcado como
 corregido.

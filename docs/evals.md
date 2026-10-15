@@ -59,8 +59,9 @@ it; the verdict stays over every case.
 
 Once its reruns are in, a run sends to the dataset's
 [review queue](datasets.md#review) what it can stand behind - each regression
-it confirmed and each answer its judge could not grade, one per case - and says
-how many (`routed_to_review`). **Send failed to review** sends the rest of one
+it confirmed and each answer its judge failed to grade, one per case - and says
+how many (`routed_to_review`). A judge that was skipped sends nothing: its
+answers wait on the run's page for **Grade again**. **Send failed to review** sends the rest of one
 side's failed answers, for whoever may edit the dataset, and a case whose grade
 a person overturned is marked as corrected.
 

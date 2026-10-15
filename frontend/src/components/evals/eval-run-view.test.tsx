@@ -253,7 +253,7 @@ describe("EvalRunView", () => {
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
       screen.getByText(
-        "This run sent 3 answers to review itself: the regressions it confirmed and the answers the judge could not grade.",
+        "This run sent 3 answers to review itself: the regressions it confirmed and the answers the judge failed to grade.",
       ),
     ).toBeVisible();
     expect(screen.getByText(/The judge graded on gpt-4.1, the model that answered/)).toBeVisible();
