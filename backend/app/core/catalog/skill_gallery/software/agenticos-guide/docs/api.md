@@ -61,8 +61,9 @@ Two refusals are worth knowing:
 Each key is also rate limited on its own, `RATE_LIMIT_API_KEY_PER_MINUTE`
 requests a minute (600 by default), and a run or an ML call it makes counts
 against those limits for the key rather than for its issuer. Both checks run
-before the key is looked up: a key is counted by the prefix it presents, and an
-address that sent more than `RATE_LIMIT_AUTH_PER_MINUTE` keys that do not exist is
+before the key is looked up, on a request and on a socket handshake: a key is
+counted by a digest of the whole token - never by its prefix, which listings show -
+and an address that sent more than `RATE_LIMIT_AUTH_PER_MINUTE` keys that do not exist is
 answered `429` without a lookup until its minute is over.
 
 ### Without a browser
@@ -148,6 +149,8 @@ turns, or the summary of older ones and what came after. A workspace shared per
 conversation, the default, is that conversation's. An unknown id, or somebody
 else's, answers `404`; one of the issuer's own conversations from the console or a
 channel answers `400` - a key that may run agents was not given the person's chats.
+So does a parked run: a key resumes or answers only a run a key started, and
+one the person started answers `403`, since continuing it acts as them.
 The conversation is filed in the issuer's chat list,
 labelled **API** and hidden until they switch such conversations on there.
 

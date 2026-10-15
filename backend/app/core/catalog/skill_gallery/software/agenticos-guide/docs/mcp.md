@@ -243,7 +243,9 @@ One agent can read the company mailbox and `info@` at once. A person holding
 several of their own accounts on a service is reached through **every one of
 them**: the one they mark as their main account in MCP servers → You (else the
 one they connected first) keeps the plain prefix, `outlook_send`, and each
-other account adds its label, `outlook_info_send`. Which accounts those are is
+other account adds its label, `outlook_info_send` (two labels that read alike
+as a tool name, `Sales US` and `Sales-US`, are told apart by the account's short
+id on the second). Which accounts those are is
 the person's choice, made by what they connect - the binding does not narrow
 it.
 
@@ -934,7 +936,7 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `whoami` | — |
 | `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
 | `create_agent_draft` | `agents:edit` |
-| `discard_agent_draft` | `agents:delete`, on a draft you own that was never published |
+| `discard_agent_draft` | `agents:edit`, on a draft you own that was never published |
 | `run_agent` | `agents:run` |
 | `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
