@@ -77,6 +77,29 @@ describe("ChatInput paste", () => {
     expect(await file.text()).toBe(LONG);
   });
 
+  it("attaches a pasted picture, which Ctrl+V used to drop", async () => {
+    state.upload.mockResolvedValue(
+      uploaded({ filename: "image.png", mime_type: "image/png", file_type: "image", size: 4 }),
+    );
+    render(<ChatInput onSend={vi.fn()} />);
+    const textarea = screen.getByRole("textbox");
+    const picture = new File([new Uint8Array([137, 80, 78, 71])], "image.png", {
+      type: "image/png",
+    });
+
+    await userEvent.click(textarea);
+    await userEvent.paste({
+      files: [picture],
+      items: [],
+      getData: () => "",
+      types: ["Files"],
+    } as unknown as DataTransfer);
+
+    await waitFor(() => expect(state.upload).toHaveBeenCalledOnce());
+    expect(state.upload.mock.calls[0]![0]).toBe(picture);
+    expect(textarea).toHaveValue("");
+  });
+
   it("leaves a short paste alone - somebody who pastes a paragraph meant to send it", async () => {
     render(<ChatInput onSend={vi.fn()} />);
     const textarea = screen.getByRole("textbox");

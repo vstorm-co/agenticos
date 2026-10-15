@@ -377,7 +377,11 @@ export function ChatInput({
   }
 
   /**
-   * A paste long enough to be a document becomes one.
+   * A pasted file or picture is attached, and a paste long enough to be a
+   * document becomes one.
+   *
+   * A screenshot or a file copied in Finder arrives as clipboard files, which
+   * the textarea ignores - Ctrl+V did nothing. They are attached as if picked.
    *
    * Pasting a wiki page into the textarea pushed the question somebody was
    * writing off the screen and left the transcript one enormous bubble. Past
@@ -386,6 +390,12 @@ export function ChatInput({
    */
   const handlePaste = useCallback(
     (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const pastedFiles = Array.from(e.clipboardData.files);
+      if (pastedFiles.length > 0) {
+        e.preventDefault();
+        void uploadFiles(pastedFiles);
+        return;
+      }
       const text = e.clipboardData.getData("text/plain");
       if (text.length <= PASTE_AS_FILE_CHARS) return;
       e.preventDefault();
