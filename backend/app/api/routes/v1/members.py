@@ -54,7 +54,10 @@ async def list_members(
 @router.patch(
     "/{org_id}/members/{target_user_id}",
     response_model=OrganizationMemberRead,
-    dependencies=[Depends(require_in_path_org(Perm.MEMBERS_MANAGE))],
+    # `roles:manage`, the permission the service checks on the person: a key
+    # narrowed to `members:manage` must not reach role changes through its
+    # issuer's whole role.
+    dependencies=[Depends(require_in_path_org(Perm.ROLES_MANAGE))],
 )
 async def update_member_role(
     org_id: UUID,

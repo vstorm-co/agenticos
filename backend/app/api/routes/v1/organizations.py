@@ -71,7 +71,7 @@ async def update_organization(
     ctx: PathOrgAuth,
 ) -> Any:
     """Update organization name or avatar. Requires Admin or Owner role."""
-    org = await service.update(org_id, data, requester_id=ctx.subject_id)
+    org = await service.update(org_id, data, requester_id=ctx.subject_id, key_scopes=ctx.key_scopes)
     return await service.read_for_user(org.id, ctx.subject_id)
 
 

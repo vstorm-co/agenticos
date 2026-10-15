@@ -568,6 +568,51 @@ class TestAdministration:
         assert refused.status_code == 403
 
     @pytest.mark.security
+    async def test_a_key_changes_roles_only_when_issued_for_roles_manage(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        """Codex on #2062: the service checked the issuer's role, not the key."""
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        colleague = await _join(db, organization, OrgRoleName.MEMBER)
+        members_only = await _issue(db, organization, owner, Perm.MEMBERS_MANAGE)
+        roles = await _issue(db, organization, owner, Perm.ROLES_MANAGE)
+        path = _url(f"/orgs/{organization.id}/members/{colleague.id}")
+
+        async with client() as http:
+            refused = await http.patch(path, headers=_bearer(members_only), json={"role": "admin"})
+            changed = await http.patch(path, headers=_bearer(roles), json={"role": "admin"})
+
+        assert refused.status_code == 403
+        assert changed.status_code == 200
+        assert changed.json()["role"] == "admin"
+
+    @pytest.mark.security
+    async def test_a_settings_key_cannot_reach_the_budget_or_the_waiver(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        """Each field of the PATCH needs its own permission on the key, as on the person."""
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        settings_only = await _issue(db, organization, owner, Perm.ORG_SETTINGS)
+        path = _url(f"/orgs/{organization.id}")
+
+        async with client() as http:
+            renamed = await http.patch(
+                path, headers=_bearer(settings_only), json={"name": "Acme 2"}
+            )
+            budget = await http.patch(
+                path, headers=_bearer(settings_only), json={"monthly_budget_usd": None}
+            )
+            waiver = await http.patch(
+                path, headers=_bearer(settings_only), json={"chat_may_waive_approvals": True}
+            )
+
+        assert renamed.status_code == 200
+        assert budget.status_code == 403
+        assert waiver.status_code == 403
+
+    @pytest.mark.security
     async def test_department_lists_are_the_directory_too(
         self, db: AsyncSession, client: Client
     ) -> None:
