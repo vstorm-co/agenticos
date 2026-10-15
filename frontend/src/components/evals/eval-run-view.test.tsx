@@ -19,6 +19,9 @@ const navigation = vi.hoisted(() => ({ params: new URLSearchParams() }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => navigation.params }));
 
 const review = vi.hoisted(() => ({ canEdit: false, mutate: vi.fn(), rescore: vi.fn() }));
+const loaded = vi.hoisted(() => ({ agent: { can_run: true } as { can_run: boolean } | undefined }));
+vi.mock("@/hooks/use-agents", () => ({ useAgent: () => ({ agent: loaded.agent }) }));
+
 vi.mock("@/hooks/use-datasets", () => ({
   useDataset: () => ({ dataset: { can_edit: review.canEdit } }),
 }));
@@ -93,6 +96,7 @@ beforeEach(() => {
   review.canEdit = false;
   review.mutate = vi.fn();
   review.rescore = vi.fn();
+  loaded.agent = { can_run: true };
   navigation.params = new URLSearchParams();
   access.allowed = new Set();
   state.casesArgs = [];
@@ -217,12 +221,28 @@ describe("EvalRunView", () => {
     worseDraft();
     state.comparison = { ...(state.comparison as object), overall: "worse" };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("Breaks cases").className).toContain("destructive");
     expect(screen.getByText("Worse overall")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
         name: /Worse overall: across every confirmed change, Draft does worse than v6\./,
       }),
     ).toBeVisible();
+  });
+
+  it("keeps a run that breaks a case mixed, however much better it is overall", () => {
+    worseDraft();
+    state.comparison = {
+      ...(state.comparison as object),
+      verdict: "mixed",
+      regressions_confirmed: 1,
+      fixed_confirmed: 10,
+      overall: "better",
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("Mixed").className).toContain("warning");
+    // A qualifier beside the verdict, never a green one in its place.
+    expect(screen.getByText("Better overall").className).not.toContain("success");
   });
 
   it("says no change held when nothing reproduced", () => {
@@ -350,10 +370,21 @@ describe("EvalRunView", () => {
     worseDraft();
     state.run = { ...state.run, run: { ...(state.run.run as object), draft_changed: true } };
     access.allowed = new Set([Perm.agentsPublish]);
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
-
-    expect(screen.queryByRole("link", { name: "Publish" })).toBeNull();
+    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    // Testing again starts a run of the draft, which this reader may not.
     expect(screen.getByText("The draft changed after this run.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Test again" })).toBeNull();
+    unmount();
+
+    access.allowed = new Set([Perm.agentsPublish, Perm.datasetsRun, Perm.agentsEdit]);
+    loaded.agent = undefined;
+    const again = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.queryByRole("button", { name: "Test again" })).toBeNull();
+    again.unmount();
+
+    loaded.agent = { can_run: true };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.queryByRole("link", { name: "Publish" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Test again" }));
     expect(testAgain.props.at(-1)).toEqual(
       expect.objectContaining({ agentId: "agent-1", datasetId: "ds-1", target: "compare" }),

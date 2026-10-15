@@ -9,9 +9,12 @@ import { toast } from "sonner";
 
 import { ErrorState, LoadingState } from "@/components/states";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
+import { useAgent } from "@/hooks/use-agents";
 import { isLive, useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
+import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
+import { Perm } from "@/types/permissions";
 import { ArmsTable } from "./arms-table";
 import { ALL, CaseTable, FilterSelect } from "./case-table";
 import { ComparisonCard } from "./comparison-card";
@@ -30,6 +33,10 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const tCases = useTranslations("evals.cases");
   const tc = useTranslations("common");
   const { run, isLoading, error, refetch, cancel } = useEvalRun(runId);
+  const { can } = usePermissions();
+  const { agent } = useAgent(agentId);
+  // Testing the draft again starts a run of it, which these three decide.
+  const canTestAgain = agent?.can_run === true && can(Perm.datasetsRun) && can(Perm.agentsEdit);
   const candidates = run?.arms.filter((arm) => arm.role === "candidate") ?? [];
   const [arm, setArm] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
@@ -95,7 +102,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
                 })
             : undefined
         }
-        onTestAgain={() => setTestingAgain(true)}
+        onTestAgain={canTestAgain ? () => setTestingAgain(true) : undefined}
         onShowBroken={() => {
           setOnly(null);
           setBroken(true);

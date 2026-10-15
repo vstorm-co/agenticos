@@ -38,8 +38,8 @@ export function VerdictHeader({
   comparison: EvalComparison | undefined;
   onCancel?: () => void;
   onShowBroken: () => void;
-  /** Test the draft as it stands now, for a run of a draft that has moved on. */
-  onTestAgain: () => void;
+  /** Test the draft as it stands now, for a run of a draft that has moved on - for who may. */
+  onTestAgain?: () => void;
 }) {
   const t = useTranslations("evals");
   const locale = useLocale();
@@ -142,10 +142,12 @@ export function VerdictHeader({
             {run.draft_changed && (
               <span className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="text-muted-foreground">{t("draftChanged")}</span>
-                <Button size="sm" onClick={onTestAgain}>
-                  <RotateCcw className="h-3.5 w-3.5" aria-hidden />
-                  {t("actions.testAgain")}
-                </Button>
+                {onTestAgain && (
+                  <Button size="sm" onClick={onTestAgain}>
+                    <RotateCcw className="h-3.5 w-3.5" aria-hidden />
+                    {t("actions.testAgain")}
+                  </Button>
+                )}
               </span>
             )}
             {candidate.source === "draft" && !run.draft_changed && can(Perm.agentsPublish) && (

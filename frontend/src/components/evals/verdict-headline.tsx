@@ -34,19 +34,20 @@ function example(comparison: EvalComparison, flip: "regression" | "fixed") {
   };
 }
 
-/** The verdict as a badge: what the confirmed flips say, or which way it moved overall. */
+/**
+ * The verdict as a badge, toned by what the confirmed flips say, and beside it -
+ * muted, a qualifier and never in its place - which way it moved overall.
+ */
 export function VerdictBadge({ comparison }: { comparison: EvalComparison }) {
   const t = useTranslations("evals.comparison");
   const { verdict, overall } = comparison;
   if (verdict === null) return null;
-  if (overall !== null) {
-    return (
-      <Badge variant={overall === "worse" ? "destructive" : "success"}>
-        {t(`overall.${overall}`)}
-      </Badge>
-    );
-  }
-  return <Badge variant={VERDICT_TONE[verdict]}>{t(`verdict.${verdict}`)}</Badge>;
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <Badge variant={VERDICT_TONE[verdict]}>{t(`verdict.${verdict}`)}</Badge>
+      {overall !== null && <Badge variant="outline">{t(`overall.${overall}`)}</Badge>}
+    </span>
+  );
 }
 
 /**
