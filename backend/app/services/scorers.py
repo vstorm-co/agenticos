@@ -383,6 +383,15 @@ def case_passed(results: Sequence[ScorerResult]) -> bool | None:
     return True
 
 
+def judge_verdict(results: Sequence[ScorerResult]) -> bool | None:
+    """What the judge alone concluded: `case_passed` over its own results.
+
+    The rubric and the reference answer are what a judge's run grades; the
+    checks and the expected tool calls beside them are not its verdict.
+    """
+    return case_passed([result for result in results if result.scorer in ("judge", "reference")])
+
+
 @dataclass(frozen=True)
 class JudgeCriterion:
     """One thing the judge is asked to grade, and where it came from."""

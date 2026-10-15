@@ -232,7 +232,8 @@ export function CaseEditorDialog({
     setSaving(true);
     try {
       if (twins !== undefined && !anyway) {
-        const found = await twins.find(content.input);
+        // The check only warns: when it cannot be made, the case is saved as asked.
+        const found = await twins.find(content.input).catch(() => null);
         if (found !== null) {
           setTwin({
             found,

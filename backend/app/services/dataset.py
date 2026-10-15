@@ -472,7 +472,7 @@ class DatasetService:
         """A page of the cases one version holds - the newest version unless one is named.
 
         `same_input` narrows to the cases asking that question, as a new case is
-        checked for one already there; `total` then counts what matched.
+        checked for one already there; `total` then counts the matches on this page.
         """
         dataset = await self.get(ctx, dataset_id)
         held = await self._version(ctx, dataset, version)

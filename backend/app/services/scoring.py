@@ -92,6 +92,7 @@ from app.services.scorers import (
     graded,
     judge_criteria,
     judge_prompt,
+    judge_verdict,
     not_graded,
     rubric_hash,
     run_checks,
@@ -746,15 +747,17 @@ class ScoringService:
         )
 
     async def judge_agreement(self, ctx: AuthContext, judge_id: UUID) -> JudgeAgreement:
-        """How often a person's decision agreed with what a judge's grading concluded.
+        """How often a person's decision agreed with the judge's own verdict.
 
-        Only scores the judge graded to a verdict count, once somebody decided
-        them, and only in the datasets the caller may see.
+        The judge's verdict is read from its results alone - the rubric and the
+        reference answer - so a check failing beside it is not counted against
+        it. Only scores the judge graded to a verdict count, once somebody
+        decided them, and only in the datasets the caller may see.
         """
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=DATASET, perm=Perm.DATASETS_VIEW
         )
-        agreed, decided = await case_score_repo.judge_agreement(
+        rows = await case_score_repo.decided_for_judge(
             self.db,
             organization_id=ctx.organization_id,
             judge_id=judge_id,
@@ -762,7 +765,14 @@ class ScoringService:
             see_all=shared is None,
             shared_ids=[] if shared is None else shared,
         )
-        return JudgeAgreement(agreed=agreed, decided=decided)
+        pairs = [
+            (judge_verdict([ScorerResult.model_validate(r) for r in results]), human)
+            for results, human in rows
+        ]
+        judged = [(verdict, human) for verdict, human in pairs if verdict is not None]
+        return JudgeAgreement(
+            agreed=sum(verdict == human for verdict, human in judged), decided=len(judged)
+        )
 
     async def _reads(self, ctx: AuthContext, scores: list[CaseScore]) -> list[CaseScoreRead]:
         """Scores as read, each with the name and version number of the agent that

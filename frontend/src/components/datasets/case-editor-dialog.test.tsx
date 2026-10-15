@@ -428,9 +428,12 @@ describe("CaseEditorDialog", () => {
     expect(find).toHaveBeenCalledTimes(2);
   });
 
-  it("saves a new case straight away when no case asks its question", async () => {
+  it.each([
+    ["no case asks its question", () => Promise.resolve(null)],
+    ["the check cannot be made", () => Promise.reject(new Error("URI too long"))],
+  ])("saves a new case straight away when %s", async (_, reply) => {
     const onSave = vi.fn().mockResolvedValue({});
-    const find = vi.fn().mockResolvedValue(null);
+    const find = vi.fn(reply);
     render(
       <CaseEditorDialog
         open

@@ -194,6 +194,9 @@ describe("useDatasetCases", () => {
     );
     vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "r1" }], total: 1, version: 1 });
     expect(await result.current.findTwin("Return window?")).toEqual({ id: "r1" });
+    vi.mocked(apiClient.get).mockClear();
+    expect(await result.current.findTwin("q".repeat(2_001))).toBeNull();
+    expect(apiClient.get).not.toHaveBeenCalledWith(expect.stringContaining("same_input"));
   });
 
   it("reads an empty answer as no cases at version 0", async () => {

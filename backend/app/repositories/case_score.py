@@ -265,7 +265,7 @@ async def pending_counts(
     return [(row[0], row[1], row[2], row[3]) for row in result.all()]
 
 
-async def judge_agreement(
+async def decided_for_judge(
     db: AsyncSession,
     *,
     organization_id: UUID,
@@ -273,16 +273,15 @@ async def judge_agreement(
     user_id: UUID,
     see_all: bool,
     shared_ids: list[UUID],
-) -> tuple[int, int]:
-    """How often a person agreed with one judge: `(agreed, decided)`.
+) -> list[tuple[list[dict[str, Any]], bool]]:
+    """The results and the person's decision of every decided score one judge graded.
 
-    Counted over the scores that judge graded to a verdict and a person then
-    decided, in the datasets one member may see.
+    In the datasets one member may see; whether the judge reached a verdict of
+    its own is the caller's to read from the results.
     """
     where = [
         CaseScore.organization_id == organization_id,
         CaseScore.judge["agent_id"].astext == str(judge_id),
-        CaseScore.passed.is_not(None),
         CaseScore.human_passed.is_not(None),
     ]
     if not see_all:
@@ -295,14 +294,12 @@ async def judge_agreement(
                 shared_ids=shared_ids,
             )
         )
-    row = (
-        await db.execute(
-            select(func.count().filter(CaseScore.human_passed == CaseScore.passed), func.count())
-            .join(Dataset, Dataset.id == CaseScore.dataset_id)
-            .where(*where)
-        )
-    ).one()
-    return row[0], row[1]
+    rows = await db.execute(
+        select(CaseScore.results, CaseScore.human_passed)
+        .join(Dataset, Dataset.id == CaseScore.dataset_id)
+        .where(*where)
+    )
+    return [(results, bool(human)) for results, human in rows.all()]
 
 
 def _pending(

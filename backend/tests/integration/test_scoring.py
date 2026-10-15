@@ -1003,6 +1003,51 @@ class TestJudgeAgreement:
         assert (other.agreed, other.decided) == (0, 0)
 
 
+class TestJudgeAgreementIsTheJudgesOwn:
+    async def test_a_check_failing_beside_the_judge_is_not_counted_against_it(
+        self, db, monkeypatch
+    ) -> None:
+        judging = Judge()
+        answers = iter(["", "", "It is fine."])
+
+        def model(self) -> FunctionModel:
+            async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+                if next(answers, "") == "It is fine.":
+                    return ModelResponse(parts=[TextPart("It is fine.")])
+                return await judging.model().function(messages, info)  # type: ignore[misc]
+
+            return FunctionModel(respond)
+
+        monkeypatch.setattr(ModelRequestSpec, "build", model)
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant, answer="Thirty days, as the policy says.")
+        scoring = ScoringService(db)
+        scores = [
+            await scoring.score_run(
+                tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+            )
+            for _ in range(3)
+        ]
+        # The answer is not JSON, so the required schema check fails every case,
+        # while the judge passes two and cannot read the third.
+        assert [score.passed for score in scores] == [False, False, False]
+        assert {r.reason_code for r in scores[2].results if r.scorer == "judge"} == {
+            "judge_output_invalid"
+        }
+        for score in scores:
+            await scoring.set_verdict(tenant.ctx, dataset.id, score.id, CaseVerdict(passed=True))
+        judge_agent = await agent_repo.get_system(
+            db, organization_id=tenant.organization.id, key=JUDGE.key
+        )
+        assert judge_agent is not None
+
+        agreement = await scoring.judge_agreement(tenant.ctx, judge_agent.id)
+
+        assert (agreement.agreed, agreement.decided) == (2, 2)
+
+
 class TestGradingAgain:
     async def test_a_score_the_judge_failed_is_graded_again_on_the_same_answer(
         self, db, monkeypatch
