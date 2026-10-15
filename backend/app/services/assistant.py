@@ -21,7 +21,8 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec, BudgetSpec
-from app.core.exceptions import AppException, BadRequestError, NotFoundError
+from app.core.exceptions import AppException, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.organization_assistant import OrganizationAssistant
@@ -95,9 +96,9 @@ class AssistantService:
                 switching the assistant off is `enabled: false`.
         """
         if "model_profile_id" in data.model_fields_set and data.model_profile_id is None:
-            raise BadRequestError(
-                message="The assistant runs on a model: pick another one, or switch it off",
-                details={"field": "model_profile_id"},
+            raise refused_field(
+                "model_profile_id",
+                "The assistant runs on a model: pick another one, or switch it off",
             )
         row, agent = await self._installed(ctx.organization_id)
         own = writable(

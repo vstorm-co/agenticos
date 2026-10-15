@@ -178,8 +178,10 @@ async def test_an_administrator_configures_it_and_can_switch_it_off(db: AsyncSes
 
     # Codex on #2062: clearing the model left the published version running on
     # the old one while the answer said it had none.
-    with pytest.raises(BadRequestError, match="runs on a model"):
+    with pytest.raises(BadRequestError, match="runs on a model") as refused:
         await service.update(admin, AssistantUpdate(model_profile_id=None))
+    assert refused.value.details is not None
+    assert [problem["field"] for problem in refused.value.details["fields"]] == ["model_profile_id"]
     assert (await service.state(admin)).model_profile_id == second.id
 
     off = await service.update(admin, AssistantUpdate(enabled=False))
