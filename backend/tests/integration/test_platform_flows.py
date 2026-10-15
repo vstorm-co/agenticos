@@ -541,9 +541,14 @@ async def _kb_row(
     return kb
 
 
-async def _rag_document(db, *, collection_name: str, filename: str) -> RAGDocument:
+async def _rag_document(
+    db, *, collection_name: str, filename: str, tenant: Tenant | None = None
+) -> RAGDocument:
+    # Stamped with the tenant where a test reads by tenant, as an upload and a
+    # sync both stamp it: the name alone is not a tenant.
     doc = RAGDocument(
         id=uuid.uuid4(),
+        organization_id=tenant.organization.id if tenant is not None else None,
         collection_name=collection_name,
         filename=filename,
         filesize=12,
@@ -608,10 +613,13 @@ async def rag_estate(db, estate: TwoTenants) -> RagEstate:
         other_collection=other_collection,
         home_private=home_private,
         home_document=await _rag_document(
-            db, collection_name=home_collection.collection_name, filename="ours.txt"
+            db, tenant=home, collection_name=home_collection.collection_name, filename="ours.txt"
         ),
         other_document=await _rag_document(
-            db, collection_name=other_collection.collection_name, filename="theirs.txt"
+            db,
+            tenant=other,
+            collection_name=other_collection.collection_name,
+            filename="theirs.txt",
         ),
         home_source=await _sync_source_row(
             db, tenant=home, collection_name=home_collection.collection_name
