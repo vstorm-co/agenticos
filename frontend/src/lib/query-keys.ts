@@ -57,7 +57,7 @@ export const qk = {
     // "agents" so the same invalidations that move the list refresh the answer.
     anyRunnable: () => ["agents", "any-runnable"] as const,
     // The platform's own agents, which every other list leaves out.
-    system: () => ["agents", "system"] as const,
+    judges: () => ["agents", "judges"] as const,
     detail: (id: string) => ["agents", id] as const,
     templates: () => ["agents", "templates"] as const,
     // The page is part of the key: a history past its page size is several
@@ -291,6 +291,7 @@ export const qk = {
       skip: number;
       limit: number;
       editable: boolean;
+      judge: string;
     }) => ["datasets", "list", query] as const,
     detail: (id: string) => ["datasets", id] as const,
     versions: (id: string) => ["datasets", id, "versions"] as const,

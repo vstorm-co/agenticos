@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ArchiveRestore,
   Archive,
@@ -75,12 +75,15 @@ export function AgentCard({
   canEdit,
   actions,
   busy,
+  footer,
 }: {
   agent: Agent;
   canEdit: boolean;
   /** The card's menu - duplicate, archive, delete. Absent for an agent the platform owns. */
   actions?: AgentCardActions;
   busy?: boolean;
+  /** A line under the labels, such as the datasets a judge grades. */
+  footer?: ReactNode;
 }) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
@@ -139,8 +142,8 @@ export function AgentCard({
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <AccessChip agent={agent} />
                 {agent.system_key && (
-                  <Badge variant="secondary" className="font-normal" title={t("systemAgentHint")}>
-                    {t("systemAgent")}
+                  <Badge variant="secondary" className="font-normal" title={t("defaultJudgeHint")}>
+                    {t("defaultJudge")}
                   </Badge>
                 )}
                 {(agent.channels ?? []).map((channel) => (
@@ -171,6 +174,7 @@ export function AgentCard({
                   </Badge>
                 ))}
               </div>
+              {footer !== undefined && <div className="mt-2">{footer}</div>}
             </div>
           </div>
 

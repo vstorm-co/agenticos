@@ -575,6 +575,10 @@
     },
     "runs": {
       "decidedByStandingConsent": "pominięte z góry dla konwersacji"
+    },
+    "agents": {
+      "agentsCount": "{count, plural, one {Agenci (#)} few {Agenci (#)} many {Agenci (#)} other {Agenci (#)}}",
+      "judgeDatasets": "Datasety"
     }
   },
   "rag": {
@@ -2001,6 +2005,10 @@
       "dataset-review": {
         "title": "Wyniki i przegląd",
         "body": "Każdy wynik zapisany dla tego datasetu, z uzasadnieniem każdego oceniacza. Pokaż tylko czekające na przegląd i zmień ocenę sędziego, gdy się myli - jego opinia zostaje zapisana."
+      },
+      "agents-judges": {
+        "title": "Sędziowie",
+        "body": "Agenci, którzy oceniają odpowiedzi w ewaluacjach: domyślny sędzia i każdy, którego dataset utworzył dla siebie. Otwórz sędziego, żeby zmienić, jak surowo ocenia, jego model albo budżet; dataset wybiera sędziego w zakładce Ocenianie."
       }
     }
   },
@@ -2816,8 +2824,6 @@
     "newEnvironment": "Nowe środowisko",
     "noCapabilityOrToolMatches": "Żadna capability ani narzędzie nie pasuje do „{query}”.",
     "noDelegatesYet": "Brak delegatów. Tylko opublikowany agent może nim być - jest wtedy wersja do przypięcia.",
-    "systemAgent": "Systemowy",
-    "systemAgentHint": "Uruchamia go platforma, na przykład do oceniania odpowiedzi w ewaluacjach. Nikt z nim nie rozmawia ani nie deleguje do niego zadań; jego instrukcje, model i budżet można edytować.",
     "noDescription": "Brak opisu.",
     "noInstructionsWritten": "Nie napisano instrukcji",
     "noKey": "brak klucza",
@@ -3120,8 +3126,14 @@
     "testSideUnusable": "Wyłączone tutaj: połączenie testowe jest wyłączone albo niezalogowane",
     "testConnectionsSaved": "Połączenia testowe zapisane",
     "failedTestConnections": "Nie udało się zapisać połączeń testowych",
-    "systemAgents": "{count, plural, one {Agent systemowy (#)} few {Agenci systemowi (#)} many {Agenci systemowi (#)} other {Agenci systemowi (#)}}",
-    "systemAgentsHint": "Uruchamia je platforma - sędzia ewaluacji ocenia wyniki. Nie da się z nimi rozmawiać, podpiąć ich do kanału, zaplanować ani zrobić z nich delegata; otwórz agenta, żeby zmienić jego instrukcje, model albo budżet."
+    "judgesCount": "{count, plural, one {Sędziowie (#)} few {Sędziowie (#)} many {Sędziowie (#)} other {Sędziowie (#)}}",
+    "judgesHint": "Sędziowie oceniają odpowiedzi w ewaluacjach: domyślny i każdy własny sędzia datasetu. Uruchamia ich platforma, więc nie da się z nimi rozmawiać, podpiąć ich do kanału, zaplanować ani zrobić z nich delegata; otwórz sędziego, żeby zmienić jego instrukcje, model albo budżet.",
+    "defaultJudge": "Domyślny sędzia",
+    "defaultJudgeHint": "Ocenia każdy dataset, który nie ma własnego sędziego.",
+    "judgeUsedBy": "{more, plural, =0 {Używają go: {names}} one {Używają go: {names} i # inny} few {Używają go: {names} i # inne} many {Używają go: {names} i # innych} other {Używają go: {names} i # innych}}",
+    "judgeUnused": "Żaden dataset jeszcze nie używa tego sędziego.",
+    "judgeDatasets": "Datasety",
+    "judgeDatasetsHint": "Datasety, które ocenia ten sędzia. Dataset wybiera sędziego w zakładce Ocenianie."
   },
   "steps": {
     "skills-gallery": {

@@ -353,8 +353,6 @@
     "newEnvironment": "Neues Environment",
     "noCapabilityOrToolMatches": "Keine Capability und kein Tool passt zu „{query}“.",
     "noDelegatesYet": "Noch keine Delegaten. Nur ein veröffentlichter Agent kann einer sein – dann gibt es eine Version zum Festsetzen.",
-    "systemAgent": "System",
-    "systemAgentHint": "Von der Plattform ausgeführt, etwa um Eval-Antworten zu bewerten. Niemand chattet mit ihm oder delegiert an ihn; Anweisungen, Modell und Budget lassen sich bearbeiten.",
     "noDescription": "Keine Beschreibung.",
     "noInstructionsWritten": "Keine Instruktionen geschrieben",
     "noKey": "kein Schlüssel",
@@ -670,8 +668,14 @@
     "testSideUnusable": "Hier aus: Die Testverbindung ist deaktiviert oder nicht angemeldet",
     "testConnectionsSaved": "Testverbindungen gespeichert",
     "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden",
-    "systemAgents": "{count, plural, =1 {System-Agent (1)} other {System-Agents (#)}}",
-    "systemAgentsHint": "Die Plattform führt sie für Sie aus - der Eval-Bewerter bewertet Ergebnisse. Mit ihnen lässt sich nicht chatten, sie lassen sich keinem Kanal zuweisen, nicht planen und nicht als Delegate nutzen; öffnen Sie einen, um Anweisungen, Modell oder Budget zu ändern."
+    "judgesCount": "{count, plural, =1 {Bewerter (1)} other {Bewerter (#)}}",
+    "judgesHint": "Bewerter bewerten Eval-Antworten: der Standard-Bewerter und der eigene jedes Datasets. Die Plattform führt sie aus, also lässt sich mit ihnen nicht chatten, sie lassen sich keinem Kanal zuweisen, nicht planen und nicht als Delegate nutzen; öffnen Sie einen, um Anweisungen, Modell oder Budget zu ändern.",
+    "defaultJudge": "Standard-Bewerter",
+    "defaultJudgeHint": "Bewertet jedes Dataset ohne eigenen Bewerter.",
+    "judgeUsedBy": "{more, plural, =0 {Genutzt von {names}} other {Genutzt von {names} und # weiteren}}",
+    "judgeUnused": "Noch kein Dataset nutzt diesen Bewerter.",
+    "judgeDatasets": "Datasets",
+    "judgeDatasetsHint": "Die Datasets, die dieser Bewerter bewertet. Ein Dataset wählt seinen Bewerter im Tab Bewertung."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -3316,6 +3320,10 @@
       "dataset-review": {
         "title": "Ergebnisse und Prüfung",
         "body": "Jedes für dieses Dataset gespeicherte Ergebnis, mit der Begründung jeder Bewertung. Zeigen Sie nur wartende Prüfungen und überstimmen Sie den Bewerter, wenn er falsch liegt - seine Einschätzung bleibt erhalten."
+      },
+      "agents-judges": {
+        "title": "Bewerter",
+        "body": "Die Agents, die Eval-Antworten bewerten: der Standard-Bewerter und jeder, den ein Dataset für sich angelegt hat. Öffnen Sie einen, um zu ändern, wie streng er bewertet, sein Modell oder sein Budget; ein Dataset wählt seinen Bewerter im Tab Bewertung."
       }
     }
   },
@@ -3660,7 +3668,9 @@
       "youAreSupportCopilot": "Du bist Support-Copilot. Antworte aus dem Produkt-Wiki und nenne das Dokument, das du verwendet hast. Deckt das Wiki es nicht ab, sage das, statt zu raten.",
       "avatarColour": "Ersatzfarbe",
       "knowledge": "Wissen",
-      "skills": "Skills"
+      "skills": "Skills",
+      "agentsCount": "{count, plural, =1 {Agents (1)} other {Agents (#)}}",
+      "judgeDatasets": "Datasets"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",

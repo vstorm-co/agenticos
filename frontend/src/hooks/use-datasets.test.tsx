@@ -72,6 +72,12 @@ describe("useDatasets", () => {
     expect(result.current.total).toBe(40);
   });
 
+  it("narrows to the datasets one judge grades", async () => {
+    renderHook(() => useDatasets({ judge: "j1", limit: 3 }), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    expect(apiClient.get).toHaveBeenCalledWith("/datasets?judge=j1&sort=name&skip=0&limit=3");
+  });
+
   it("leaves the search out when there is none, and reads an empty answer as nothing", async () => {
     vi.mocked(apiClient.get).mockResolvedValue(undefined);
     const { result } = renderHook(() => useDatasets(), { wrapper });

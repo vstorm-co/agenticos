@@ -179,6 +179,9 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "agents-filters", page: ROUTES.AGENTS, target: "agents-filters" },
+  // The band's toggle rather than its cards: it renders only while the
+  // organization holds a judge, and folded it is one bounded line.
+  { id: "agents-judges", page: ROUTES.AGENTS, target: "agents-judges", optional: true },
 
   // The builder, entered from the Agents list. The engine opens an example agent
   // (the seeded "Getting Started", or the first one there is), switches to the

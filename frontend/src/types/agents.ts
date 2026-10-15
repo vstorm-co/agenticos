@@ -323,10 +323,14 @@ export interface Agent {
   current_version_id: string | null;
   /**
    * Set on an agent the platform seeded and starts itself - `eval_judge` for the
-   * eval judge. Edited and shared like any agent; the console marks it as a
-   * system agent.
+   * default eval judge. Edited and shared like any agent.
    */
   system_key?: string | null;
+  /**
+   * `judge` for an agent grading evals: only the platform runs it, so it has no
+   * chat, channels or delegation, and the console lists it apart.
+   */
+  kind?: "agent" | "judge";
   /** Whether `/api/agents/{id}/avatar` will answer with an image. */
   has_avatar?: boolean;
   /** Chosen default-avatar colour slot (1..10); null/absent is auto from the id. */

@@ -32,14 +32,13 @@ export interface PromoteSpecialist {
 }
 
 /**
- * The platform's system agents - the eval judge and its kind - which every other
- * agent list leaves out. Opened and edited like any agent; never run by hand.
+ * The organization's judges - the default eval judge and each dataset's own - which
+ * every other agent list leaves out. Opened and edited like any agent; never run by hand.
  */
-export function useSystemAgents() {
+export function useJudges() {
   const { data, isLoading, error } = useQuery({
-    queryKey: qk.agents.system(),
-    queryFn: () =>
-      apiClient.get<AgentList>("/agents", { params: { system: "true", limit: "100" } }),
+    queryKey: qk.agents.judges(),
+    queryFn: () => apiClient.get<AgentList>("/agents", { params: { kind: "judge", limit: "100" } }),
   });
   return { agents: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
 }

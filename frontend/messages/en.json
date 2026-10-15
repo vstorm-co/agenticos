@@ -353,8 +353,6 @@
     "newEnvironment": "New environment",
     "noCapabilityOrToolMatches": "No capability or tool matches “{query}”.",
     "noDelegatesYet": "No delegates yet. Only a published agent can be one - there is a version to pin.",
-    "systemAgent": "System",
-    "systemAgentHint": "Run by the platform, for example to judge eval answers. Nobody chats with it or delegates to it; its instructions, model and budget can be edited.",
     "noDescription": "No description.",
     "noInstructionsWritten": "No instructions written",
     "noKey": "no key",
@@ -674,8 +672,14 @@
     "testSideUnusable": "Off here: the test connection is disabled or not signed in",
     "testConnectionsSaved": "Test connections saved",
     "failedTestConnections": "The test connections could not be saved",
-    "systemAgents": "{count, plural, =1 {System agent (1)} other {System agents (#)}}",
-    "systemAgentsHint": "Run by the platform for you - the eval judge grades scores. They cannot be chatted with, put on a channel, scheduled or delegated to; open one to change its instructions, model or budget."
+    "judgesCount": "{count, plural, =1 {Judges (1)} other {Judges (#)}}",
+    "judgesHint": "Judges grade eval answers: the default one, and each dataset's own. The platform runs them, so nobody chats with one, puts it on a channel, schedules it or delegates to it; open one to change its instructions, model or budget.",
+    "defaultJudge": "Default judge",
+    "defaultJudgeHint": "Grades every dataset that has no judge of its own.",
+    "judgeUsedBy": "{more, plural, =0 {Used by {names}} other {Used by {names} and # more}}",
+    "judgeUnused": "No dataset uses this judge yet.",
+    "judgeDatasets": "Datasets",
+    "judgeDatasetsHint": "The datasets this judge grades. A dataset picks its judge on its Grading tab."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -3453,6 +3457,10 @@
       "dataset-review": {
         "title": "Scores and review",
         "body": "Every score kept for this dataset, with each scorer's reason. Show only those awaiting review, and overrule the judge when it is wrong - its opinion stays on record."
+      },
+      "agents-judges": {
+        "title": "Judges",
+        "body": "The agents that grade eval answers: the default judge, and each one a dataset made for itself. Open one to change how strictly it grades, its model or its budget; a dataset picks its judge on its Grading tab."
       }
     }
   },
@@ -3800,7 +3808,9 @@
       "skills": "Skills",
       "categoriesHint": "Broad groups - support, finance, internal. The catalog filters by these.",
       "tagsHint": "Anything narrower you want to search by later.",
-      "labelCount": "{used} of {max}"
+      "labelCount": "{used} of {max}",
+      "agentsCount": "{count, plural, =1 {Agents (1)} other {Agents (#)}}",
+      "judgeDatasets": "Datasets"
     },
     "auth": {
       "backSign": "Back to sign in",

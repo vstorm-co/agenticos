@@ -109,6 +109,7 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
       skip: 0,
       limit: PAGE_SIZE,
       editable: false,
+      judge: "",
     }),
     queryFn: () => apiClient.get<DatasetList>(`/datasets?sort=name&skip=0&limit=${PAGE_SIZE}`),
     enabled,
