@@ -490,9 +490,12 @@
   .font-mono {
     font-variant-numeric: tabular-nums;
   }
+  /* Neutral, like the rest of the console: a tint of the text colour that works
+     on either theme. A brand-blue fill with white text read as an alarm in light
+     mode and glared in dark. The text keeps its own colour. */
   ::selection {
-    background: var(--color-brand);
-    color: var(--color-brand-foreground);
+    background: color-mix(in oklab, var(--color-foreground) 18%, transparent);
+    color: inherit;
   }
 
   /* Visible focus ring on every interactive element. Browsers handle :focus-visible

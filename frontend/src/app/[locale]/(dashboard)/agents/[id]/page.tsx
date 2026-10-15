@@ -1302,47 +1302,6 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </TabsList>
 
           <TabsContent value="build" className="mt-6 space-y-6">
-            {/* The name is spec like everything else here, and autosaves with it:
-                a duplicate arrives as "<name> (copy)" and this is where it stops
-                being one. The handle is the row's, fixed at creation, so renaming
-                never breaks a delegation or an @mention wired to it. */}
-            <Card data-tour="agent-identity">
-              <CardHeader>
-                <CardTitle>{t("identity")}</CardTitle>
-                <CardDescription>{t("identityHelp", { slug: agent.slug })}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="agent-name">{t("agentNameLabel")}</Label>
-                  <Input
-                    id="agent-name"
-                    value={spec.name}
-                    maxLength={128}
-                    disabled={!canEdit}
-                    aria-invalid={!spec.name.trim()}
-                    aria-describedby={spec.name.trim() ? undefined : "agent-name-error"}
-                    onChange={(event) => update({ name: event.target.value })}
-                  />
-                  {!spec.name.trim() && (
-                    <p id="agent-name-error" className="text-destructive text-xs">
-                      {t("agentNameRequired")}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="agent-description">{t("agentDescriptionLabel")}</Label>
-                  <Textarea
-                    id="agent-description"
-                    value={spec.description ?? ""}
-                    maxLength={1000}
-                    rows={2}
-                    disabled={!canEdit}
-                    onChange={(event) => update({ description: event.target.value || null })}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
             <Card data-tour="agent-instructions">
               <CardHeader
                 data-tour="agent-instructions-header"
@@ -1452,6 +1411,48 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 </CardContent>
               </Card>
             )}
+
+            {/* Last on the tab: what the agent does comes first, what it is called is
+                set once. The name is spec like everything else here, and autosaves with it:
+                a duplicate arrives as "<name> (copy)" and this is where it stops
+                being one. The handle is the row's, fixed at creation, so renaming
+                never breaks a delegation or an @mention wired to it. */}
+            <Card data-tour="agent-identity">
+              <CardHeader>
+                <CardTitle>{t("identity")}</CardTitle>
+                <CardDescription>{t("identityHelp", { slug: agent.slug })}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="agent-name">{t("agentNameLabel")}</Label>
+                  <Input
+                    id="agent-name"
+                    value={spec.name}
+                    maxLength={128}
+                    disabled={!canEdit}
+                    aria-invalid={!spec.name.trim()}
+                    aria-describedby={spec.name.trim() ? undefined : "agent-name-error"}
+                    onChange={(event) => update({ name: event.target.value })}
+                  />
+                  {!spec.name.trim() && (
+                    <p id="agent-name-error" className="text-destructive text-xs">
+                      {t("agentNameRequired")}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="agent-description">{t("agentDescriptionLabel")}</Label>
+                  <Textarea
+                    id="agent-description"
+                    value={spec.description ?? ""}
+                    maxLength={1000}
+                    rows={2}
+                    disabled={!canEdit}
+                    onChange={(event) => update({ description: event.target.value || null })}
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="toolbox" className="mt-6 space-y-6">

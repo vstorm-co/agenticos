@@ -57,6 +57,8 @@
   --f-disp: inherit;
 }
 :root.dark .cap-art {
+  /* Lit a step above the dark card rather than sunk into it: at the card's own
+     lightness the scenes read as muddy shapes in the dark (2026-10-15). */
   --bg: oklch(21% 0.0025 265);
   --fg: oklch(94.5% 0.003 265);
   --card: oklch(25.5% 0.0025 265);
@@ -68,25 +70,25 @@
   --bad: oklch(68% 0.15 25);
   --sun: oklch(80% 0.13 85);
   --brand: oklch(70% 0.14 290);
-  --sL: 30.5%;
-  --sC: 0.03;
-  --s2L: 37%;
-  --s2C: 0.045;
-  --aL: 56%;
+  --sL: 41%;
+  --sC: 0.045;
+  --s2L: 48%;
+  --s2C: 0.06;
+  --aL: 66%;
   --aC: 0.09;
   --dL: 84%;
   --dC: 0.07;
-  --nT: 41%;
-  --nL: 34%;
-  --nR: 30%;
-  --cT: 63%;
-  --cL: 53%;
-  --cR: 46%;
-  --cC: 0.08;
-  --qT: 47%;
-  --qL: 40%;
-  --qR: 35%;
-  --qC: 0.035;
+  --nT: 58%;
+  --nL: 50%;
+  --nR: 44%;
+  --cT: 74%;
+  --cL: 64%;
+  --cR: 56%;
+  --cC: 0.1;
+  --qT: 60%;
+  --qL: 52%;
+  --qR: 46%;
+  --qC: 0.045;
   --kT: 22%;
   --kL: 17%;
   --kR: 14%;
@@ -650,4 +652,9 @@
   .cap-art .stage * {
     animation: none !important;
   }
+}
+/* Off, in the dark: greyed less, or a row of switched-off cards reads as mud. */
+:root.dark .cap-art.is-off .stage {
+  filter: saturate(0.6);
+  opacity: 0.9;
 }
