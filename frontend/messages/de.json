@@ -5770,8 +5770,6 @@
     "noCasesBody": "Fügen Sie einen Fall hinzu, importieren Sie eine Datei oder nutzen Sie „Zum Dataset hinzufügen“ an einer Antwort im Gespräch oder in Aktivität.",
     "caseReadOnly": "Schreibgeschützt: eine ältere Version, oder Sie dürfen dieses Dataset nicht ändern.",
     "caseSavesVersion": "Speichern erzeugt eine neue Version. Die Version davor behält diesen Fall, wie er war.",
-    "notJson": "Das ist kein gültiges JSON.",
-    "notList": "Das muss eine JSON-Liste sein.",
     "saveCase": "Fall speichern",
     "needsInput": "Schreiben Sie die Eingabe, auf die der Agent antwortet.",
     "needsExpectation": "Fügen Sie eine Referenzantwort, ein Gegenbeispiel, einen erwarteten Tool-Aufruf oder eine Prüfung hinzu: Ein Fall braucht etwas, woran die Antwort gemessen wird.",
@@ -5800,9 +5798,9 @@
       "reference_answer": "Was eine gute Antwort sagt. Ein Judge vergleicht die Antwort des Agents damit.",
       "counter_example": "Eine Antwort, die bekanntermaßen falsch ist, damit ein Judge einen Vergleich hat.",
       "note": "Warum es den Fall gibt - was schiefging oder was er absichert.",
-      "history": "Frühere Züge, älteste zuerst, als JSON-Liste von Objekten mit Rolle (user oder assistant) und Inhalt. Für eine einzelne Nachricht leer lassen.",
-      "expected_tool_calls": "Tools, die der Agent aufrufen soll, als JSON-Liste von Objekten mit dem Tool-Namen und den Argumenten, die passen müssen. Nicht genannte Argumente werden ignoriert.",
-      "checks": "Prüfungen der Antwort, als JSON-Liste - zum Beispiel, dass sie eine Phrase enthält oder einem Muster entspricht.",
+      "history": "Frühere Züge, älteste zuerst. Für eine einzelne Nachricht leer lassen.",
+      "expected_tool_calls": "Tools, die der Agent aufrufen soll, jeweils mit den Argumenten, die passen müssen, als JSON-Objekt. Nicht genannte Argumente werden ignoriert.",
+      "checks": "Regeln, gegen die die Antwort geprüft wird - dass sie eine Phrase enthält, einem Muster entspricht, unter einem Kostenrahmen bleibt.",
       "tags": "Durch Kommas getrennt, zum Gruppieren von Ergebnissen."
     },
     "source": {
@@ -5835,6 +5833,44 @@
     "shareTitle": "{name} teilen",
     "shareBody": "Wer dieses Dataset sieht und wer seine Cases ändern darf.",
     "noneShared": "Noch wurde nichts mit Ihnen geteilt",
-    "noneSharedBody": "Bitten Sie den Besitzer eines Datasets, es mit Ihnen zu teilen. Ihre Rolle liest Datasets, legt aber keine an."
+    "noneSharedBody": "Bitten Sie den Besitzer eines Datasets, es mit Ihnen zu teilen. Ihre Rolle liest Datasets, legt aber keine an.",
+    "role": {
+      "user": "Person",
+      "assistant": "Agent"
+    },
+    "turnRole": "Zug {number}: wer spricht",
+    "turnContent": "Zug {number}: was gesagt wurde",
+    "removeTurn": "Zug {number} entfernen",
+    "addTurn": "Zug hinzufügen",
+    "callTool": "Aufruf {number}: Tool",
+    "callArgs": "Aufruf {number}: Argumente",
+    "removeCall": "Aufruf {number} entfernen",
+    "addCall": "Tool-Aufruf hinzufügen",
+    "checkTypeOf": "Prüfung {number}: Typ",
+    "checkValue": "Prüfung {number}: was sie prüft",
+    "removeCheck": "Prüfung {number} entfernen",
+    "addCheck": "Prüfung hinzufügen",
+    "checkTypes": {
+      "contains": "Enthält",
+      "not_contains": "Enthält nicht",
+      "equals": "Ist gleich",
+      "regex": "Passt zu einem Muster",
+      "json_schema": "Passt zu einem JSON-Schema",
+      "max_cost_usd": "Kostet höchstens (USD)",
+      "max_latency_ms": "Antwortet innerhalb (ms)",
+      "judge": "Bewerter-Kriterium"
+    },
+    "checkPlaceholder": {
+      "contains": "30 Tage",
+      "not_contains": "Ich kann nicht helfen",
+      "equals": "Ja",
+      "judge": "Lehnt ab, ohne die Adresse des Kunden preiszugeben"
+    },
+    "argsNotObject": "Argumente werden als JSON-Objekt geschrieben, etwa {\"query\": \"refund\"}.",
+    "schemaNotObject": "Ein Schema wird als JSON-Objekt geschrieben.",
+    "notNumber": "Diese Prüfung nimmt eine Zahl.",
+    "checkEmpty": "Sagen Sie, was jede Prüfung prüft, oder entfernen Sie sie.",
+    "caseOpened": "Bearbeiten Sie ihn, um ihn zu ändern; Speichern erzeugt eine neue Version.",
+    "editCase": "Bearbeiten"
   }
 }

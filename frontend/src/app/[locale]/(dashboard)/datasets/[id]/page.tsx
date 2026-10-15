@@ -208,6 +208,7 @@ export default function DatasetPage({ params }: PageProps) {
             if (!open) setEditing(null);
           }}
           initial={editing.draft}
+          viewing={editing.item ?? undefined}
           title={editing.item === null ? t("addCase") : t("case")}
           onSave={editable ? save : undefined}
         />

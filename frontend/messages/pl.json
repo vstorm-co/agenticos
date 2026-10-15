@@ -3532,8 +3532,6 @@
     "noCasesBody": "Dodaj przypadek, zaimportuj plik albo użyj „Dodaj do datasetu” przy odpowiedzi w rozmowie lub w Aktywności.",
     "caseReadOnly": "Tylko do odczytu: to starsza wersja albo nie możesz zmieniać tego datasetu.",
     "caseSavesVersion": "Zapis tworzy nową wersję. Poprzednia wersja zachowuje ten przypadek bez zmian.",
-    "notJson": "To nie jest poprawny JSON.",
-    "notList": "To musi być lista JSON.",
     "saveCase": "Zapisz przypadek",
     "needsInput": "Wpisz wejście, na które odpowiada agent.",
     "needsExpectation": "Dodaj odpowiedź wzorcową, kontrprzykład, oczekiwane wywołanie narzędzia albo sprawdzenie: przypadek potrzebuje czegoś, z czym porówna odpowiedź.",
@@ -3562,9 +3560,9 @@
       "reference_answer": "Co mówi dobra odpowiedź. Sędzia porównuje z nią odpowiedź agenta.",
       "counter_example": "Odpowiedź znana jako błędna, żeby sędzia miał z czym porównać.",
       "note": "Po co ten przypadek - co poszło źle albo czego pilnuje.",
-      "history": "Wcześniejsze tury, od najstarszej, jako lista JSON obiektów z rolą (user albo assistant) i treścią. Zostaw puste dla jednej wiadomości.",
-      "expected_tool_calls": "Narzędzia, które agent powinien wywołać, jako lista JSON obiektów z nazwą narzędzia i argumentami, które muszą się zgadzać. Niewymienione argumenty są pomijane.",
-      "checks": "Sprawdzenia odpowiedzi, jako lista JSON - na przykład, że zawiera frazę albo pasuje do wzorca.",
+      "history": "Wcześniejsze tury, od najstarszej. Zostaw puste dla jednej wiadomości.",
+      "expected_tool_calls": "Narzędzia, które agent powinien wywołać, każde z argumentami, które muszą się zgadzać, jako obiekt JSON. Niewymienione argumenty są pomijane.",
+      "checks": "Reguły, według których sprawdzana jest odpowiedź - że zawiera frazę, pasuje do wzorca, nie przekracza kosztu.",
       "tags": "Oddzielone przecinkami, do grupowania wyników."
     },
     "source": {
@@ -3597,6 +3595,44 @@
     "shareTitle": "Udostępnij {name}",
     "shareBody": "Kto widzi ten dataset i kto może zmieniać jego przypadki.",
     "noneShared": "Nikt jeszcze niczego ci nie udostępnił",
-    "noneSharedBody": "Poproś właściciela datasetu, żeby ci go udostępnił. Twoja rola pozwala czytać datasety, ale nie tworzyć ich."
+    "noneSharedBody": "Poproś właściciela datasetu, żeby ci go udostępnił. Twoja rola pozwala czytać datasety, ale nie tworzyć ich.",
+    "role": {
+      "user": "Człowiek",
+      "assistant": "Agent"
+    },
+    "turnRole": "Tura {number}: kto mówi",
+    "turnContent": "Tura {number}: co powiedział",
+    "removeTurn": "Usuń turę {number}",
+    "addTurn": "Dodaj turę",
+    "callTool": "Wywołanie {number}: narzędzie",
+    "callArgs": "Wywołanie {number}: argumenty",
+    "removeCall": "Usuń wywołanie {number}",
+    "addCall": "Dodaj wywołanie narzędzia",
+    "checkTypeOf": "Sprawdzenie {number}: typ",
+    "checkValue": "Sprawdzenie {number}: co sprawdza",
+    "removeCheck": "Usuń sprawdzenie {number}",
+    "addCheck": "Dodaj sprawdzenie",
+    "checkTypes": {
+      "contains": "Zawiera",
+      "not_contains": "Nie zawiera",
+      "equals": "Równa się",
+      "regex": "Pasuje do wzorca",
+      "json_schema": "Pasuje do schematu JSON",
+      "max_cost_usd": "Kosztuje najwyżej (USD)",
+      "max_latency_ms": "Odpowiada w (ms)",
+      "judge": "Kryterium sędziego"
+    },
+    "checkPlaceholder": {
+      "contains": "30 dni",
+      "not_contains": "Nie mogę pomóc",
+      "equals": "Tak",
+      "judge": "Odmawia, nie ujawniając adresu klienta"
+    },
+    "argsNotObject": "Argumenty zapisuje się jako obiekt JSON, na przykład {\"query\": \"refund\"}.",
+    "schemaNotObject": "Schemat zapisuje się jako obiekt JSON.",
+    "notNumber": "To sprawdzenie przyjmuje liczbę.",
+    "checkEmpty": "Powiedz, co sprawdza każde sprawdzenie, albo je usuń.",
+    "caseOpened": "Edytuj, żeby go zmienić; zapis tworzy nową wersję.",
+    "editCase": "Edytuj"
   }
 }

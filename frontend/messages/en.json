@@ -5912,8 +5912,6 @@
     "noCasesBody": "Add a case, import a file, or use Add to dataset on an answer in a conversation or in Activity.",
     "caseReadOnly": "Read-only: this is an older version, or you cannot change this dataset.",
     "caseSavesVersion": "Saving makes a new version. The version before it keeps this case as it was.",
-    "notJson": "This is not valid JSON.",
-    "notList": "This must be a JSON list.",
     "saveCase": "Save case",
     "needsInput": "Write the input the agent answers.",
     "needsExpectation": "Add a reference answer, a counter-example, an expected tool call or a check: a case needs something to test the answer against.",
@@ -5942,9 +5940,9 @@
       "reference_answer": "What a good answer says. A judge compares the agent's answer with it.",
       "counter_example": "An answer known to be wrong, so a judge has something to compare against.",
       "note": "Why the case exists - what went wrong, or what it guards.",
-      "history": "Earlier turns, oldest first, as a JSON list of objects with a role (user or assistant) and the content. Leave empty for a single message.",
-      "expected_tool_calls": "Tools the agent should call, as a JSON list of objects with the tool name and the arguments that must match. Arguments not listed are ignored.",
-      "checks": "Checks on the answer, as a JSON list - for example, that it contains a phrase or matches a pattern.",
+      "history": "Earlier turns, oldest first. Leave empty for a single message.",
+      "expected_tool_calls": "Tools the agent should call, each with the arguments that must match, as a JSON object. Arguments not listed are ignored.",
+      "checks": "Rules the answer is checked against - that it contains a phrase, matches a pattern, stays under a cost.",
       "tags": "Comma-separated, for grouping results."
     },
     "source": {
@@ -5977,6 +5975,44 @@
     "shareTitle": "Share {name}",
     "shareBody": "Who sees this dataset, and who may change its cases.",
     "noneShared": "Nothing has been shared with you yet",
-    "noneSharedBody": "Ask a dataset's owner to share it with you. Your role reads datasets but does not create them."
+    "noneSharedBody": "Ask a dataset's owner to share it with you. Your role reads datasets but does not create them.",
+    "role": {
+      "user": "Person",
+      "assistant": "Agent"
+    },
+    "turnRole": "Turn {number}: who speaks",
+    "turnContent": "Turn {number}: what was said",
+    "removeTurn": "Remove turn {number}",
+    "addTurn": "Add a turn",
+    "callTool": "Call {number}: tool",
+    "callArgs": "Call {number}: arguments",
+    "removeCall": "Remove call {number}",
+    "addCall": "Add a tool call",
+    "checkTypeOf": "Check {number}: type",
+    "checkValue": "Check {number}: what it checks",
+    "removeCheck": "Remove check {number}",
+    "addCheck": "Add a check",
+    "checkTypes": {
+      "contains": "Contains",
+      "not_contains": "Does not contain",
+      "equals": "Equals",
+      "regex": "Matches a pattern",
+      "json_schema": "Matches a JSON schema",
+      "max_cost_usd": "Costs at most (USD)",
+      "max_latency_ms": "Answers within (ms)",
+      "judge": "Judge criterion"
+    },
+    "checkPlaceholder": {
+      "contains": "30 days",
+      "not_contains": "I cannot help",
+      "equals": "Yes",
+      "judge": "Refuses without revealing the customer's address"
+    },
+    "argsNotObject": "Arguments are written as a JSON object, such as {\"query\": \"refund\"}.",
+    "schemaNotObject": "A schema is written as a JSON object.",
+    "notNumber": "This check takes a number.",
+    "checkEmpty": "Say what each check checks, or remove it.",
+    "caseOpened": "Edit it to change it; saving makes a new version.",
+    "editCase": "Edit"
   }
 }
