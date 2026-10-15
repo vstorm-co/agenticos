@@ -3896,7 +3896,7 @@
       "surfaceSocket": "WebSocket",
       "surfaceWidget": "Widżet · {name}",
       "toolbox": "Narzędzia",
-      "twoLimitsWorthKnowing": "Dwa ograniczenia warte poznania, zanim na tym polegniesz. Które narzędzia serwera są udostępnione, ustawia się na połączeniu, więc każdy powiązany agent dostaje te same - nie ma wyboru per agent jak przy capabilities powyżej. A narzędzia MCP są całkowicie poza bramką zatwierdzeń: zatwierdzenie ustawione na capability ich nie obejmuje, więc wszystko, co potrafią te serwery, ten agent może zrobić bez pytania.",
+      "twoLimitsWorthKnowing": "Dla każdego serwera możesz zawęzić tego agenta do części narzędzi - w granicach tego, na co pozwala połączenie - i ustawić, by czekał na zatwierdzenie przed zapisami albo przed każdym wywołaniem. Nic nie czeka na zatwierdzenie, dopóki tego tu nie ustawisz.",
       "unnamedSpecialist": "Specjalista bez nazwy",
       "unsaved": "Niezapisane",
       "uploadAvatar": "Wgraj awatar",

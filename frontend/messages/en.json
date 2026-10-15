@@ -4126,7 +4126,7 @@
       "surfaceSocket": "WebSocket",
       "surfaceWidget": "Widget · {name}",
       "toolbox": "Toolbox",
-      "twoLimitsWorthKnowing": "Two limits worth knowing before you rely on this. Which of a server's tools are exposed is set on the connection, so every agent bound to it gets the same ones - not the per-agent choice the capabilities above offer. And MCP tools are outside the approval gate entirely: an approval set on a capability does not cover them, so anything these servers can do, this agent can do without asking.",
+      "twoLimitsWorthKnowing": "Per server, this agent can be narrowed to some of its tools - within what the connection allows - and set to stop for a person's approval before its writes or before every call. Nothing waits for approval unless you set it here.",
       "unnamedSpecialist": "Unnamed specialist",
       "unsaved": "Unsaved",
       "uploadAvatar": "Upload avatar",

@@ -4008,7 +4008,7 @@
       "surfaceSocket": "WebSocket",
       "surfaceWidget": "Widget · {name}",
       "toolbox": "Toolbox",
-      "twoLimitsWorthKnowing": "Zwei Grenzen, die man kennen sollte, bevor man sich darauf verlässt. Welche Tools eines Servers bereitstehen, wird an der Verbindung gesetzt, jeder daran gebundene Agent bekommt also dieselben – nicht die Auswahl pro Agent, die die Capabilities oben bieten. Und MCP-Tools liegen vollständig außerhalb der Freigabe: Eine auf einer Capability gesetzte Freigabe deckt sie nicht ab, alles, was diese Server können, kann dieser Agent also ungefragt.",
+      "twoLimitsWorthKnowing": "Pro Server lässt sich dieser Agent auf einen Teil der Tools beschränken - innerhalb dessen, was die Verbindung erlaubt - und so einstellen, dass er vor Schreibzugriffen oder vor jedem Aufruf auf eine Freigabe wartet. Ohne Einstellung hier wartet nichts auf eine Freigabe.",
       "unnamedSpecialist": "Spezialist ohne Namen",
       "unsaved": "Nicht gespeichert",
       "uploadAvatar": "Avatar hochladen",
