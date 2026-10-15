@@ -966,7 +966,7 @@ class TestVerdicts:
         )
         mine = await _scored_run(db, tenant)
         other = await _scored_run(db, tenant)
-        eval_run_id = uuid.uuid4()
+        eval_run_id = await _eval_run(db, tenant, dataset, mine)
         service = ScoringService(db)
         failed = await _score_for_an_eval(db, tenant, dataset, case, mine, eval_run_id)
         overruled = await _score_for_an_eval(db, tenant, dataset, case, other, None)
