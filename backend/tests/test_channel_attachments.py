@@ -49,6 +49,13 @@ from tests.workspaces import document_workspace
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def _no_question_waiting() -> Iterator[None]:
+    """No run in these chats is parked on a question, so every message is a turn."""
+    with patch("app.services.channels.router.ChannelPrompts.reply", AsyncMock(return_value=False)):
+        yield
+
+
 def _attachment(**overrides: Any) -> IncomingAttachment:
     fields: dict[str, Any] = {
         "filename": "report.csv",
@@ -967,3 +974,44 @@ class TestADeactivatedLinkedSenderIsRefusedEarly:
 
         router._receive_files.assert_awaited_once()
         router._transcribe.assert_awaited_once()
+
+
+class TestATypedAnswerIsNotATurn:
+    async def test_a_message_answering_a_parked_question_runs_nothing_else(self):
+        """Codex on #2062: a question that takes words is answered by the next message."""
+        router, _replies, rows = _router()
+        router._receive_files = AsyncMock()  # type: ignore[method-assign]
+        router._answer_mention = AsyncMock()  # type: ignore[method-assign]
+        agents = _agent_router()
+        incoming = IncomingMessage(
+            platform="slack",
+            bot_id=str(uuid.uuid4()),
+            platform_user_id="U1",
+            platform_chat_id="C1",
+            chat_type="private",
+            text="Kraków, please",
+            attachments=[_attachment()],
+        )
+
+        with (
+            _channel(agents, rows),
+            patch(
+                "app.services.channels.router.member_repo.get_active",
+                AsyncMock(return_value=MagicMock()),
+            ),
+            patch(
+                "app.services.channels.router.ChannelPrompts.reply",
+                AsyncMock(return_value=True),
+            ) as reply,
+        ):
+            await router._route_inner(incoming, MagicMock())
+
+        assert reply.await_args.kwargs == {
+            "platform": "slack",
+            "platform_chat_id": "C1",
+            "platform_user_id": "U1",
+            "text": "Kraków, please",
+        }
+        router._receive_files.assert_not_awaited()
+        router._answer_mention.assert_not_awaited()
+        assert rows == []

@@ -34,6 +34,7 @@ from app.services.channels.prompts import (
     NOT_ASKED,
     NOT_YOURS,
     SKIP,
+    TYPE_IT,
     ChannelPrompts,
     approval_text,
     call_action,
@@ -209,7 +210,13 @@ class TestOffering:
                     header="Tone",
                     options=[QuestionChoice(label="Formal"), QuestionChoice(label="Casual")],
                 ),
-                QuestionItem(question="Anything else?", options=[QuestionChoice(label="No")]),
+                QuestionItem(
+                    question="Anything else?",
+                    options=[QuestionChoice(label="No")],
+                    allow_custom=False,
+                ),
+                # Nothing to press but Skip: the only answer is a typed one.
+                QuestionItem(question="Which city?", allow_custom=False),
             ],
         )
         service = ChannelPrompts(_session())
@@ -234,7 +241,8 @@ class TestOffering:
 
             sent = [call.args[1] for call in env.adapter.send_prompt.await_args_list]
 
-        assert [fields["kind"] for fields in created] == [APPROVAL, QUESTION, QUESTION]
+        assert [fields["kind"] for fields in created] == [APPROVAL, QUESTION, QUESTION, QUESTION]
+        assert [fields.get("allow_custom") for fields in created[1:]] == [True, False, True]
         # What it wants to do and what about, in the agent's voice - no tool id,
         # no JSON, no empty fields.
         assert sent[0].text == "I need your approval to *send email in Gmail*: “a@b.c”"
@@ -242,9 +250,10 @@ class TestOffering:
             ("Approve", "primary"),
             ("Reject", "danger"),
         ]
-        assert sent[1].text == "*Tone* - How formal?"
+        assert sent[1].text == f"*Tone* - How formal?\n{TYPE_IT}"
         assert [choice.label for choice in sent[1].choices] == ["Formal", "Casual", SKIP]
         assert sent[2].text == "Anything else?"
+        assert sent[3].text == f"Which city?\n{TYPE_IT}"
         assert sent[0].bot_id == str(bot.id)
 
     async def test_a_question_the_chat_never_got_leaves_no_row_behind(self):
@@ -565,6 +574,95 @@ class TestPressingAQuestion:
             await service.press(_press(prompt, 0, bot))
 
         assert env.said() == ["Done."]
+
+
+class TestTypingAnAnswer:
+    """A question that takes words is answered by the person's next message (Codex on #2062)."""
+
+    async def _reply(
+        self,
+        *,
+        prompt: MagicMock | None,
+        siblings: list[MagicMock] | None = None,
+        role: str | None = "member",
+        text: str = "Kraków, please",
+        answer_raises: Exception | None = None,
+    ) -> tuple[bool, _Patched, AsyncMock, AsyncMock]:
+        bot = _bot()
+        service = ChannelPrompts(_session())
+        self.session = service.db
+        claim = AsyncMock(return_value=prompt)
+        with _Patched(bot=bot, prompt=None, role=role) as env:
+            with (
+                patch(f"{_MODULE}.channel_prompt_repo.claim_typed", new=claim),
+                patch(
+                    f"{_MODULE}.channel_prompt_repo.for_call",
+                    new=AsyncMock(return_value=siblings or [prompt]),
+                ),
+                patch.object(
+                    service.runner,
+                    "answer",
+                    new=AsyncMock(
+                        return_value=_segment("Kraków it is."), side_effect=answer_raises
+                    ),
+                ),
+                patch.object(service, "offer", new=AsyncMock()),
+            ):
+                answer = service.runner.answer
+                taken = await service.reply(
+                    bot,
+                    platform="slack",
+                    platform_chat_id="C1:1.0",
+                    platform_user_id="U1",
+                    text=text,
+                )
+            return taken, env, answer, claim
+
+    async def test_the_message_answers_the_question_and_continues_the_run(self):
+        taken, env, answer, claim = await self._reply(prompt=_prompt(QUESTION, allow_custom=True))
+
+        assert taken
+        assert claim.await_args.kwargs["user_id"] == USER
+        assert answer.await_args.args[2] == {"ask-1": [{"answer": "Kraków, please"}]}
+        assert env.said() == ["Kraków it is."]
+
+    async def test_with_questions_still_open_it_says_what_it_took(self):
+        prompt = _prompt(QUESTION, allow_custom=True)
+        taken, env, answer, _ = await self._reply(
+            prompt=prompt, siblings=[prompt, _prompt(QUESTION, question_index=1)]
+        )
+
+        assert taken
+        answer.assert_not_awaited()
+        assert env.said() == ["Answered: Kraków, please"]
+
+    async def test_a_refusal_is_said_and_the_answer_taken_back(self):
+        taken, env, _, _ = await self._reply(
+            prompt=_prompt(QUESTION, allow_custom=True),
+            answer_raises=BadRequestError(message="This run is not waiting for an answer"),
+        )
+
+        assert taken
+        assert env.said() == ["This run is not waiting for an answer"]
+        self.session.savepoint.rollback.assert_awaited_once()
+
+    @pytest.mark.parametrize(
+        ("role", "prompt", "text"),
+        [
+            (None, _prompt(QUESTION, allow_custom=True), "hi"),
+            ("member", None, "hi"),
+            ("member", _prompt(QUESTION, allow_custom=True), "   "),
+        ],
+        ids=["unlinked", "nothing-asked", "blank"],
+    )
+    async def test_otherwise_the_message_is_a_turn(
+        self, role: str | None, prompt: MagicMock | None, text: str
+    ):
+        taken, env, answer, _ = await self._reply(prompt=prompt, role=role, text=text)
+
+        assert not taken
+        answer.assert_not_awaited()
+        assert env.said() == []
 
 
 class TestPressesThatNameNothing:

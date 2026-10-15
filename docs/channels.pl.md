@@ -1,5 +1,5 @@
 ---
-source_sha: "ceece440c25d"
+source_sha: "b43c25711a40"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1187,6 +1187,11 @@ tego samego czatu; naciśnięta wiadomość zachowuje pytanie i pokazuje wybór.
 Pytanie, na które można wybrać kilka odpowiedzi, zostaje otwarte: każde
 kliknięcie dodaje albo usuwa opcję, czat dostaje to, co wybrano do tej pory, a
 **Done** je wysyła.
+
+Pytanie, na które można odpowiedzieć własnymi słowami — i takie bez żadnych
+opcji — mówi to pod sobą: następna wiadomość tej osoby w tym czacie jest
+odpowiedzią, a nie nową turą obok przebiegu, który wciąż czeka. Liczy się tylko
+wiadomość od osoby, której zadano pytanie, i trafia do najstarszego takiego pytania.
 
 Akceptacja brzmi jak prośba agenta, jego własnym głosem: co chce zrobić i jeden
 argument, który mówi, czego to dotyczy — *I need your approval to **search in

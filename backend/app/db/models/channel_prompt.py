@@ -74,6 +74,11 @@ class ChannelPrompt(Base, TimestampMixin):
     )
     """A question several of whose choices may be picked: presses toggle into
     `answer` and its Done button answers it."""
+    allow_custom: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    """A question that takes an answer in the person's own words: their next
+    message in the chat answers it, rather than starting a turn."""
     answer: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

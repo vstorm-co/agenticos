@@ -60,6 +60,7 @@ LINK_FIRST = "Link your account first - send /link to this bot - and press again
 ALREADY = "That has already been answered."
 NOT_YOURS = "Only somebody who may approve tool calls can decide this one."
 NOT_ASKED = "This question was asked of somebody else."
+TYPE_IT = "Or reply here with your own answer."
 NOBODY = UUID(int=0)
 _SUMMARY_SHOWN = 200
 """How much of a gated call's telling argument the approval message quotes."""
@@ -237,12 +238,17 @@ class ChannelPrompts:
                         question_index=index,
                         choices=[option.label for option in question.options],
                         multi_select=question.multi_select,
+                        # A question with no options can only be answered in words.
+                        allow_custom=question.allow_custom or not question.options,
                     )
                     offered.append(prompt)
                     heading = f"*{question.header}* - " if question.header else ""
+                    typed = f"\n{TYPE_IT}" if prompt.allow_custom else ""
                     await adapter.send_prompt(
                         token,
-                        self._message(bot, prompt, f"{heading}{question.question}", skippable=True),
+                        self._message(
+                            bot, prompt, f"{heading}{question.question}{typed}", skippable=True
+                        ),
                     )
             except Exception:
                 # A call is answered once all its rows are, so a row the chat never
@@ -333,8 +339,65 @@ class ChannelPrompts:
         else:
             await adapter.settle_prompt(token, press, self._chosen(prompt))
 
+    async def reply(
+        self,
+        bot: ChannelBot,
+        *,
+        platform: str,
+        platform_chat_id: str,
+        platform_user_id: str,
+        text: str,
+    ) -> bool:
+        """Answer, with a message, the question this chat put to its sender.
+
+        A question that takes an answer in the person's own words is offered with
+        its buttons and a line saying they may type instead; this is the typing.
+        The oldest such question for them in the chat takes the message whole.
+        `False` when there is none, and the message is a turn like any other.
+        """
+        ctx = await linked_member(self.db, bot, platform, platform_user_id)
+        if ctx is None or ctx.user_id is None or not text.strip():
+            return False
+        prompt = await channel_prompt_repo.claim_typed(
+            self.db, bot_id=bot.id, platform_chat_id=platform_chat_id, user_id=ctx.user_id
+        )
+        if prompt is None:
+            return False
+        adapter = get_adapter(platform)
+        token = unseal_bot_token(bot)
+
+        async def say(said: str) -> None:
+            await adapter.send_message(
+                token,
+                OutgoingMessage(
+                    platform_chat_id=platform_chat_id,
+                    text=said,
+                    api_base_url=bot.api_base_url,
+                ),
+            )
+
+        try:
+            segment = await self._settle(ctx, prompt, None, typed=text.strip())
+        except AppException as exc:
+            await say(exc.message)
+            return True
+        if segment is None:
+            # The call has more questions still open; this one is taken.
+            await say(self._chosen(prompt))
+            return True
+        await say(segment.output or "Done.")
+        await self.offer(
+            bot, platform=platform, platform_chat_id=platform_chat_id, run_id=prompt.run_id
+        )
+        return True
+
     async def _settle(
-        self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None
+        self,
+        ctx: AuthContext,
+        prompt: ChannelPrompt,
+        choice: int | None,
+        *,
+        typed: str | None = None,
     ) -> RunSegment | None:
         """Record the press and continue the run - or neither, when the run refuses.
 
@@ -350,7 +413,7 @@ class ChannelPrompts:
             segment = await (
                 self._decide(ctx, prompt, choice)
                 if prompt.kind == APPROVAL
-                else self._answer(ctx, prompt, choice)
+                else self._answer(ctx, prompt, choice, typed)
             )
         except AppException:
             if savepoint.is_active:
@@ -379,9 +442,9 @@ class ChannelPrompts:
         return await self.runner.resume(ctx, prompt.run_id)
 
     async def _answer(
-        self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None
+        self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None, typed: str | None
     ) -> RunSegment | None:
-        """Record the pick; answer the call once every one of its questions is.
+        """Record the pick, or the typed answer; answer the call once every one of its questions is.
 
         Raises:
             AuthorizationError: The presser is not the person the run asked -
@@ -392,8 +455,10 @@ class ChannelPrompts:
         if prompt.tool_call_id is None:  # pragma: no cover - the table's check constraint
             return None
         so_far = _selected(prompt)
-        if prompt.multi_select and choice == len(prompt.choices):
-            picked: dict[str, object] = {"selected": so_far} if so_far else {"skipped": True}
+        if typed is not None:
+            picked: dict[str, object] = {"answer": typed}
+        elif prompt.multi_select and choice == len(prompt.choices):
+            picked = {"selected": so_far} if so_far else {"skipped": True}
         elif choice is not None and choice < len(prompt.choices):
             picked = {"selected": [prompt.choices[choice]]}
         else:
@@ -431,6 +496,9 @@ class ChannelPrompts:
         answer = prompt.answer or {}
         if prompt.kind == APPROVAL:
             return "Approved." if answer.get("approved") else "Rejected."
+        typed = answer.get("answer")
+        if isinstance(typed, str) and typed:
+            return f"Answered: {typed}"
         selected = answer.get("selected")
         if not isinstance(selected, list) or not selected:
             return "Skipped."

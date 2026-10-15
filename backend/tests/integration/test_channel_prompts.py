@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
+from app.db.models.agent_run import RunStatus
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.channel_prompt import APPROVAL, QUESTION
 from app.db.models.organization import Organization
@@ -44,6 +45,52 @@ async def _estate(db: AsyncSession) -> tuple[Organization, ChannelBot, uuid.UUID
         started_at=datetime.now(UTC),
     )
     return org, bot, run.id
+
+
+async def test_a_typed_answer_finds_the_oldest_open_question_put_to_its_sender(
+    db: AsyncSession,
+) -> None:
+    org, bot, run_id = await _estate(db)
+    run = await agent_run_repo.get_run(db, run_id, organization_id=org.id)
+    assert run is not None and run.user_id is not None
+    run.status = RunStatus.AWAITING_ANSWER.value
+
+    async def ask(index: int, *, allow_custom: bool, chat: str = "C1") -> uuid.UUID:
+        prompt = await channel_prompt_repo.create(
+            db,
+            organization_id=org.id,
+            bot_id=bot.id,
+            run_id=run_id,
+            platform_chat_id=chat,
+            kind=QUESTION,
+            tool_call_id="ask-1",
+            question_index=index,
+            choices=[],
+            allow_custom=allow_custom,
+        )
+        return prompt.id
+
+    await ask(0, allow_custom=False)
+    typed = await ask(1, allow_custom=True)
+    await ask(2, allow_custom=True, chat="C2")
+
+    def find(user_id: uuid.UUID, chat: str = "C1"):
+        return channel_prompt_repo.claim_typed(
+            db, bot_id=bot.id, platform_chat_id=chat, user_id=user_id
+        )
+
+    found = await find(run.user_id)
+    assert found is not None and found.id == typed
+    # Somebody else in the chat is not the person asked.
+    assert await find(uuid.uuid4()) is None
+
+    await channel_prompt_repo.answer(db, prompt=found, value={"answer": "Kraków"})
+    assert await find(run.user_id) is None
+
+    # And a run no longer waiting has nothing to answer.
+    run.status = RunStatus.COMPLETED.value
+    await db.flush()
+    assert await find(run.user_id, "C2") is None
 
 
 async def test_a_question_s_rows_come_back_in_order_and_record_their_answers(

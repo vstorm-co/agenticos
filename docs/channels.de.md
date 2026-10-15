@@ -1,5 +1,5 @@
 ---
-source_sha: "ceece440c25d"
+source_sha: "b43c25711a40"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1269,6 +1269,12 @@ Nachricht behält die Frage und zeigt die Wahl.
 Eine Frage mit mehreren Antworten bleibt offen: Jeder Druck fügt eine Option
 hinzu oder nimmt sie weg, der Chat erfährt, was bisher gewählt ist, und **Done**
 schickt sie ab.
+
+Eine Frage, die eine Antwort in eigenen Worten zulässt — und eine ganz ohne
+Optionen — sagt das unter sich: Die nächste Nachricht der Person in diesem Chat
+ist die Antwort, kein neuer Turn neben einem Durchlauf, der noch wartet. Es zählt
+nur eine Nachricht der Person, der die Frage gestellt wurde, und sie geht an die
+älteste solche Frage.
 
 Eine Freigabe liest sich als Bitte des Agents, in seiner eigenen Stimme: was er tun
 will und das eine Argument, das sagt, worum es geht — *I need your approval to

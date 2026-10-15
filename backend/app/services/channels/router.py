@@ -427,6 +427,17 @@ class ChannelMessageRouter:
             await self._send_reply(bot, incoming, exc.message)
             return
 
+        # A run parked on a question to this person that takes a typed answer:
+        # the message is that answer, not a new turn beside a run still waiting.
+        if await ChannelPrompts(db).reply(
+            bot,
+            platform=incoming.platform,
+            platform_chat_id=incoming.platform_chat_id,
+            platform_user_id=incoming.platform_user_id,
+            text=incoming.text,
+        ):
+            return
+
         # Built here, once, from the row that admitted the message - so an agent
         # that asks about the channel asks about *this* channel, with the bot's
         # own token, and never about one named by the model. Free to build for a

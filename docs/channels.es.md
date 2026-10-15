@@ -1,5 +1,5 @@
 ---
-source_sha: "ceece440c25d"
+source_sha: "b43c25711a40"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1201,6 +1201,11 @@ elegido.
 
 Una pregunta que admite varias respuestas queda abierta: cada pulsación añade o
 quita una opción, el chat recibe lo elegido hasta ahora y **Done** las envía.
+
+Una pregunta que admite una respuesta con palabras propias — y una sin ninguna
+opción — lo dice debajo: el siguiente mensaje de esa persona en ese chat es la
+respuesta, no un turno nuevo junto a una ejecución que sigue esperando. Solo
+cuenta un mensaje de la persona a quien se hizo, y va a la pregunta más antigua.
 
 Una aprobación se lee como una petición del agent, con su propia voz: lo que quiere
 hacer y el único argumento que dice de qué trata — *I need your approval to
