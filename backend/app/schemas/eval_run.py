@@ -188,6 +188,13 @@ class EvalOutcomeRead(BaseSchema):
     baseline_first_pass_rate: float | None
 
 
+class RoutingErrorRead(BaseSchema):
+    """Why a run could not send its scores to review."""
+
+    code: str
+    message: str
+
+
 class EvalRunRead(BaseSchema):
     """One eval run, with each arm's results so far."""
 
@@ -228,6 +235,13 @@ class EvalRunRead(BaseSchema):
     judge_model_profile_id: UUID | None = Field(
         default=None,
         description="The model the judge graded this run's answers on; null when none did",
+    )
+    routing_error: RoutingErrorRead | None = Field(
+        default=None,
+        description=(
+            "Why the run could not send its scores to review itself; null when it "
+            "could. The run still completed, and its answers can be sent by hand"
+        ),
     )
     ungraded_score_ids: list[UUID] = Field(
         default_factory=list,
