@@ -60,6 +60,23 @@ describe("the datasets page", () => {
     expect(screen.queryByRole("button", { name: "Delete refunds" })).toBeNull();
   });
 
+  it("tells a Viewer with nothing shared to ask an owner, not to create one", async () => {
+    granted.perms = [Perm.datasetsView];
+    get.mockResolvedValue({ items: [], total: 0 });
+    render(<DatasetsPage />, { wrapper });
+
+    expect(await screen.findByText("Nothing has been shared with you yet")).toBeInTheDocument();
+    expect(screen.queryByText("No datasets yet")).toBeNull();
+  });
+
+  it("offers somebody who may create datasets the first one when there are none", async () => {
+    granted.perms = [Perm.datasetsView, Perm.datasetsEdit];
+    get.mockResolvedValue({ items: [], total: 0 });
+    render(<DatasetsPage />, { wrapper });
+
+    expect(await screen.findByText("No datasets yet")).toBeInTheDocument();
+  });
+
   it("offers a member who may edit datasets the create button", async () => {
     granted.perms = [Perm.datasetsView, Perm.datasetsEdit];
     render(<DatasetsPage />, { wrapper });

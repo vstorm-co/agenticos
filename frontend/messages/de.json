@@ -5829,6 +5829,8 @@
     "share": "Teilen",
     "delete": "Löschen",
     "shareTitle": "{name} teilen",
-    "shareBody": "Wer dieses Dataset sieht und wer seine Cases ändern darf."
+    "shareBody": "Wer dieses Dataset sieht und wer seine Cases ändern darf.",
+    "noneShared": "Noch wurde nichts mit Ihnen geteilt",
+    "noneSharedBody": "Bitten Sie den Besitzer eines Datasets, es mit Ihnen zu teilen. Ihre Rolle liest Datasets, legt aber keine an."
   }
 }

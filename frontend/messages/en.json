@@ -5971,6 +5971,8 @@
     "share": "Share",
     "delete": "Delete",
     "shareTitle": "Share {name}",
-    "shareBody": "Who sees this dataset, and who may change its cases."
+    "shareBody": "Who sees this dataset, and who may change its cases.",
+    "noneShared": "Nothing has been shared with you yet",
+    "noneSharedBody": "Ask a dataset's owner to share it with you. Your role reads datasets but does not create them."
   }
 }

@@ -3591,6 +3591,8 @@
     "share": "Udostępnij",
     "delete": "Usuń",
     "shareTitle": "Udostępnij {name}",
-    "shareBody": "Kto widzi ten dataset i kto może zmieniać jego przypadki."
+    "shareBody": "Kto widzi ten dataset i kto może zmieniać jego przypadki.",
+    "noneShared": "Nikt jeszcze niczego ci nie udostępnił",
+    "noneSharedBody": "Poproś właściciela datasetu, żeby ci go udostępnił. Twoja rola pozwala czytać datasety, ale nie tworzyć ich."
   }
 }

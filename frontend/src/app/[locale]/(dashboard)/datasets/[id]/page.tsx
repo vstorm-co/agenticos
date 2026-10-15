@@ -137,6 +137,14 @@ export default function DatasetPage({ params }: PageProps) {
                 icon={FlaskConical}
                 title={t("noCases")}
                 description={t("noCasesBody")}
+                cta={
+                  editable
+                    ? {
+                        label: t("addCase"),
+                        onClick: () => setEditing({ draft: EMPTY_DRAFT, item: null }),
+                      }
+                    : undefined
+                }
               />
             ) : (
               <div className="space-y-4">

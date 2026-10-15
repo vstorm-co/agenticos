@@ -123,6 +123,12 @@ describe("the dataset page", () => {
     await userEvent.click(await screen.findByRole("menuitem", { name: item }));
   }
 
+  it("offers the first case from the empty list to somebody who may add one", async () => {
+    await mount();
+    await userEvent.click(screen.getAllByRole("button", { name: "Add case" }).at(-1)!);
+    expect(screen.getByRole("dialog", { name: "Add case" })).toBeInTheDocument();
+  });
+
   it("offers editing the name and description to somebody who may edit it", async () => {
     await mount();
     await choose("Edit details");
