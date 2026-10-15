@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [0.0.537] - 2026-10-15
+
 ### Fixed
 
 - **An agent can be renamed in the Builder.** The name and description are
