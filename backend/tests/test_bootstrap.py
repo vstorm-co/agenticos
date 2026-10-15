@@ -258,6 +258,8 @@ class TestStarterAgents:
         await self._run(patches, None)
         mocks["install"].assert_awaited_once()
         mocks["publish"].assert_not_awaited()
+        # The sandbox does not wait for a model: it is set up on the first run.
+        mocks["sandbox"].assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_a_second_run_does_not_install_a_second_one(self):
@@ -265,6 +267,7 @@ class TestStarterAgents:
         _, mocks, patches = self._patches(existing=MagicMock())
         await self._run(patches, uuid.uuid4())
         mocks["install"].assert_not_awaited()
+        mocks["sandbox"].assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_a_spec_this_deployment_cannot_publish_is_left_a_draft(self):

@@ -1,5 +1,5 @@
 ---
-source_sha: "308da4d9b778"
+source_sha: "752624a0bddc"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -40,6 +40,12 @@ que una organización nueva recibe en su primer arranque - llevan la insignia
 **Recommended**, y un agente creado con **New agent** empieza con exactamente esas
 activadas, configuradas como las configura la plantilla. Su autor desactiva lo que
 el agente no deba hacer.
+
+Dos de ellas dependen de lo que ejecuta el despliegue. El espacio de trabajo es un
+contenedor en el servicio de sandbox del propio despliegue, que el bootstrap y la
+primera publicación registran como predeterminado de la organización; sin él solo
+guarda archivos. El navegador web apunta al servicio de navegador del despliegue
+(`BROWSER_SIGN_IN_CDP_URL`) y se omite donde no lo hay.
 
 ## Qué se entrega { #what-ships }
 

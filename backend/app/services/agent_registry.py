@@ -123,6 +123,7 @@ from app.services.file_storage import (
     get_file_storage,
 )
 from app.services.resource_usage import groups_sharing
+from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import sandbox_config
 from app.services.sharing import SharingService
 from app.services.skills import SkillService
@@ -231,9 +232,9 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
                 "organization. Pick one that does, or leave it unset to use the default."
             )
     else:
-        connection = await sandbox_connection_repo.get_default(
-            db, organization_id=ctx.organization_id
-        )
+        # The deployment's own sandbox service, set up here when it runs one and
+        # nobody has opened the Sandboxes page yet - the same row a run would set up.
+        connection = await SandboxConnectionService(db).ensure_local_connection(ctx.organization_id)
         if connection is None:
             problems.append(
                 "This organization has registered no sandbox connection, so an agent "
@@ -1106,7 +1107,7 @@ class AgentRegistryService:
             name=template.name,
             description=template.description,
             instructions=template.instructions,
-            capabilities=list(template.capabilities),
+            capabilities=agent_templates.for_this_deployment(template.capabilities),
             mcp_servers=list(template.mcp_servers),
             skill_ids=[row.id for row in rows],
             budget=(

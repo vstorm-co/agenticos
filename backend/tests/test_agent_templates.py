@@ -9,6 +9,7 @@ import re
 
 import pytest
 
+from app.core.config import settings
 from app.services import agent_templates
 
 pytestmark = pytest.mark.anyio
@@ -124,6 +125,42 @@ class TestTheStarterTemplate:
         assert sandbox.config == starter["sandbox"].get("config", {})
         assert by_id["guardrails"].recommended is None
         assert {i for i, e in by_id.items() if e.recommended} == set(starter) & set(by_id)
+
+
+class TestForThisDeployment:
+    """What a template cannot know - this deployment's browser and sandbox."""
+
+    BINDINGS = (
+        {"id": "browser_use", "config": {"max_steps": 20}},
+        {"id": "sandbox", "config": {"backend": "service", "include_execute": True}},
+        {"id": "clock"},
+    )
+
+    def test_its_own_browser_and_sandbox_are_used_where_it_runs_them(self, monkeypatch):
+        monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "http://browser:9222")
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "token")
+
+        assert agent_templates.for_this_deployment(self.BINDINGS) == [
+            {"id": "browser_use", "config": {"max_steps": 20, "cdp_url": "http://browser:9222"}},
+            {"id": "sandbox", "config": {"backend": "service", "include_execute": True}},
+            {"id": "clock"},
+        ]
+
+    def test_without_them_the_browser_is_left_out_and_the_workspace_keeps_files(self, monkeypatch):
+        """Either would refuse at publish, and the starter is every new agent's default."""
+        monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "")
+
+        assert agent_templates.for_this_deployment(self.BINDINGS) == [
+            {"id": "sandbox", "config": {"backend": "state"}},
+            {"id": "clock"},
+        ]
+
+    def test_a_browser_the_template_names_is_kept(self, monkeypatch):
+        monkeypatch.setattr(settings, "BROWSER_SIGN_IN_CDP_URL", "")
+        named = ({"id": "browser_use", "config": {"cdp_url": "http://other:9222"}},)
+
+        assert agent_templates.for_this_deployment(named) == list(named)
 
 
 class TestWhatAManifestMayCarry:

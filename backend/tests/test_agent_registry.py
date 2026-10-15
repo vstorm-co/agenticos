@@ -3271,6 +3271,8 @@ class TestWorkspaceConfigurationsRefusedAtPublish:
         from app.repositories import sandbox_connection_repo
 
         monkeypatch.setattr(sandbox_connection_repo, "get_default", AsyncMock(return_value=None))
+        # And no sandbox service of this deployment's own to set up instead.
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "")
         spec = _spec(capabilities=[{"id": "sandbox", "config": {"backend": "service"}}])
 
         with pytest.raises(BadRequestError) as refused:
@@ -3280,6 +3282,30 @@ class TestWorkspaceConfigurationsRefusedAtPublish:
             "registered no sandbox connection" in problem
             for problem in refused.value.details["problems"]
         )
+
+    @pytest.mark.anyio
+    async def test_the_deployments_own_sandbox_is_set_up_by_the_first_publish(self):
+        """Nobody had opened the Sandboxes page yet: publish sets the local one up
+        rather than refusing an agent the deployment can run."""
+        local = MagicMock(secret_id=uuid.uuid4())
+        spec = _spec(
+            capabilities=[{"id": "sandbox", "config": {"backend": "service"}}],
+            model_profile_id=uuid.uuid4(),
+        )
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.SandboxConnectionService.ensure_local_connection",
+                new=AsyncMock(return_value=local),
+            ) as ensured,
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        ensured.assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_a_connection_from_another_organization_is_refused(self, monkeypatch):
@@ -3992,12 +4018,23 @@ class TestTheShippedTemplatesOnDisk:
                     name=template.name,
                     description=template.description,
                     instructions=template.instructions,
-                    capabilities=list(template.capabilities),
+                    capabilities=agent_templates.for_this_deployment(template.capabilities),
                     model_profile_id=uuid.uuid4(),
                 )
-                with patch(
-                    f"{REGISTRY_PATH}.credential_repo.get_profile",
-                    new=AsyncMock(return_value=MagicMock()),
+                with (
+                    patch(
+                        f"{REGISTRY_PATH}.credential_repo.get_profile",
+                        new=AsyncMock(return_value=MagicMock()),
+                    ),
+                    # A deployment running both services a template can ask for:
+                    # its sandbox and its browser.
+                    patch(
+                        f"{REGISTRY_PATH}.SandboxConnectionService.ensure_local_connection",
+                        new=AsyncMock(return_value=MagicMock(secret_id=uuid.uuid4())),
+                    ),
+                    patch.object(settings, "SANDBOXD_TOKEN", "token"),
+                    patch.object(settings, "BROWSER_SIGN_IN_CDP_URL", "http://browser:9222"),
+                    patch.object(settings, "BROWSER_CDP_ALLOWED_HOSTS", ["browser"]),
                 ):
                     await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
 
@@ -4011,7 +4048,25 @@ class TestTheShippedTemplatesOnDisk:
         template = agent_templates.get("general/claude-code-like")
         assert template is not None
         bound = {binding["id"]: binding.get("config") or {} for binding in template.capabilities}
-        assert {"sandbox", "planning", "subagents", "web_research", "web_fetch"} <= set(bound)
+        assert {
+            "sandbox",
+            "planning",
+            "subagents",
+            "web_research",
+            "web_fetch",
+            "browser_use",
+        } <= set(bound)
+        # Its own container, and nothing it would carry without anything to read:
+        # no knowledge or context bound, no past-conversation search, no tool search,
+        # and no second interpreter beside the shell.
+        assert bound["sandbox"]["backend"] == "service"
+        assert not {
+            "code_execution",
+            "knowledge",
+            "context",
+            "conversation_search",
+            "tool_search",
+        } & set(bound)
         delegation = bound["subagents"]
         assert delegation["share_with_delegates"] == ["sandbox"]
         assert {specialist["name"] for specialist in delegation["inline"]} == {

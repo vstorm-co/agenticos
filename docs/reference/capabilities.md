@@ -34,6 +34,12 @@ a fresh organization gets on its first run - carry a **Recommended** badge, and 
 agent made with **New agent** starts with exactly those switched on, configured as
 the template configures them. Its author switches off what it should not do.
 
+Two of them depend on what the deployment runs. The workspace is a container on
+the deployment's own sandbox service, which bootstrap and the first publish
+register as the organization's default; without one it keeps files only. The web
+browser is pointed at the deployment's browser service
+(`BROWSER_SIGN_IN_CDP_URL`), and left out where there is none.
+
 ## What ships
 
 | id | Name | Category | Tools | Scope | Key |

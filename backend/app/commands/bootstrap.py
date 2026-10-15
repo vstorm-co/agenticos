@@ -254,6 +254,11 @@ async def _resolve_starter_agents(db, ctx: AuthContext, profile_id: uuid.UUID | 
     no sandbox to give it leaves it a draft and says why, rather than stopping.
     Idempotent: a second run finds both.
     """
+    # First, whatever else happens: a deployment that runs `sandboxd` beside the API
+    # has the organization's default sandbox from the moment it is bootstrapped,
+    # so the starter's container workspace - and any agent made later - finds one
+    # without anybody registering it (a no-op where there is no sandbox service).
+    await SandboxConnectionService(db).ensure_local_connection(ctx.organization_id)
     assistant = await AssistantService(db).state(ctx)
     if assistant.status == "ready":
         success(f"Installed and published the {assistant.name}")
@@ -282,7 +287,6 @@ async def _resolve_starter_agents(db, ctx: AuthContext, profile_id: uuid.UUID | 
         update={"model_profile_id": profile_id}
     )
     await registry.save_draft(ctx, agent.id, spec)
-    await SandboxConnectionService(db).ensure_local_connection(ctx.organization_id)
     try:
         await registry.publish(ctx, agent.id, note="Bootstrap")
     except AppException as exc:

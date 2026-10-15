@@ -1,5 +1,5 @@
 ---
-source_sha: "308da4d9b778"
+source_sha: "752624a0bddc"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -40,6 +40,12 @@ die eine neue Organisation beim ersten Start bekommt - tragen das Abzeichen
 **Empfohlen**, und ein mit **New agent** angelegter Agent startet mit genau diesen
 eingeschaltet, so konfiguriert wie in der Vorlage. Sein Autor schaltet ab, was der
 Agent nicht tun soll.
+
+Zwei davon hängen davon ab, was die Installation betreibt. Der Arbeitsbereich ist
+ein Container auf dem eigenen Sandbox-Dienst der Installation, den Bootstrap und
+die erste Veröffentlichung als Standard der Organisation registrieren; ohne ihn
+hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installation
+(`BROWSER_SIGN_IN_CDP_URL`) und entfällt, wo es keinen gibt.
 
 ## Was ausgeliefert wird { #what-ships }
 

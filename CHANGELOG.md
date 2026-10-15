@@ -858,6 +858,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **Claude Code like works in its own container, and browses.** The starter agent,
+  and so every new agent's defaults, runs in a container on the deployment's
+  sandbox service, which bootstrap now registers before anything else, and a
+  first publish sets up where nobody has yet. It searches, reads and drives a
+  real browser (pointed at the deployment's browser service, left out where
+  there is none). Calculations, knowledge search, context, past conversations and
+  tool search are off until something gives them a use, and its instructions now
+  say when to delegate to its specialists and which web tool fits.
+
 - **A conversation stops paying a second MCP handshake every turn.** A server that
   answered its probe in the last two minutes is attached without another; if it
   has gone down since, the turn goes on without its tools and the next turn

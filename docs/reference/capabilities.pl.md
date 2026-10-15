@@ -1,5 +1,5 @@
 ---
-source_sha: "308da4d9b778"
+source_sha: "752624a0bddc"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -40,6 +40,12 @@ organizacja dostaje przy pierwszym uruchomieniu - mają odznakę **Polecane**, a
 agent utworzony przez **New agent** startuje dokładnie z nimi włączonymi i
 skonfigurowanymi tak, jak konfiguruje je szablon. Jego autor wyłącza to, czego
 agent nie powinien robić.
+
+Dwie z nich zależą od tego, co uruchamia wdrożenie. Przestrzeń robocza to
+kontener w usłudze sandbox samego wdrożenia, którą bootstrap i pierwsza publikacja
+rejestrują jako domyślną dla organizacji; bez niej przechowuje tylko pliki.
+Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
+(`BROWSER_SIGN_IN_CDP_URL`) i pomijana, gdy jej nie ma.
 
 ## Co jest dostarczane { #what-ships }
 
