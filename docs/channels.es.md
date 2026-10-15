@@ -1,5 +1,5 @@
 ---
-source_sha: "b43c25711a40"
+source_sha: "76621e18ebf6"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1221,6 +1221,12 @@ respuesta durante `QUESTION_EXPIRY_HOURS` y una decisión durante
 `APPROVAL_EXPIRY_HOURS`, como en cualquier otro sitio. Slack firma sus
 pulsaciones; Mattermost no firma nada, así que cada botón lleva la firma propia
 de este despliegue sobre su valor y una pulsación sin ella se rechaza.
+
+Quién pulsó
+tampoco se toma del cuerpo de la pulsación: el trigger id que el servidor de
+Mattermost firma en cada pulsación nombra a la persona y se comprueba con la clave
+pública que el servidor publica, así que una pulsación que nadie puede probar
+también se rechaza.
 
 **Una navegación que necesita a una persona.** Un agente con el
 [navegador web](reference/capabilities.md#browser-automation) publica en su paso el

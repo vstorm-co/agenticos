@@ -1,5 +1,5 @@
 ---
-source_sha: "b43c25711a40"
+source_sha: "76621e18ebf6"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1290,6 +1290,12 @@ wartet `QUESTION_EXPIRY_HOURS` auf eine Antwort und `APPROVAL_EXPIRY_HOURS` auf
 eine Entscheidung, wie überall. Slack signiert seine Drucke; Mattermost signiert
 nichts, daher trägt jede Schaltfläche die eigene Signatur dieser Bereitstellung
 über ihren Wert, und ein Druck ohne sie wird abgelehnt.
+
+Wer gedrückt hat, kommt
+ebenfalls nicht aus dem Inhalt des Drucks: Die Trigger-ID, die der Mattermost-Server
+für jeden Druck signiert, nennt die Person und wird gegen den öffentlichen
+Schlüssel geprüft, den der Server veröffentlicht; ein Druck, den niemand belegen
+kann, wird ebenfalls abgelehnt.
 
 **Ein Browsen, das einen Menschen braucht.** Ein Agent mit dem
 [Webbrowser](reference/capabilities.md#browser-automation) postet in seinem Schritt den

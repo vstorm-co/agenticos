@@ -85,19 +85,25 @@ async def mattermost_action(
     """Receive a press on one of the bot's buttons (#2064, #2068).
 
     Mattermost signs nothing here, so the button's own context carries this
-    deployment's signature and a press without it is dropped. Answered at once
-    with an empty update; the post loses its buttons when the press is handled.
+    deployment's signature and a press without it is dropped. Who pressed is
+    taken from the trigger id the server signed, not from the body's `user_id`
+    alone. Answered at once with an empty update; the post loses its buttons
+    when the press is handled.
     """
     bot = await bot_service.find_active(bot_id)
     if bot is None:
         return {}
     adapter = get_adapter("mattermost")
-    if isinstance(adapter, MattermostAdapter):
-        adapter.remember_server(str(bot_id), bot.api_base_url or "")
+    # Registered to this adapter; the check only narrows the type for the calls below.
+    if not isinstance(adapter, MattermostAdapter):  # pragma: no cover
+        return {}
+    adapter.remember_server(str(bot_id), bot.api_base_url or "")
     payload: dict[str, Any] = await request.json()
     press = MattermostAdapter.parse_press(payload, str(bot_id))
     if press is None:
         raise HTTPException(status_code=403, detail="Unsigned button press")
+    if not await adapter.pressed_by(bot.api_base_url or "", payload):
+        raise HTTPException(status_code=403, detail="The press does not name who made it")
     spawn(process_channel_press(press), name=f"mattermost_press:{bot_id}")
     return {}
 

@@ -1176,6 +1176,10 @@ anywhere else. Slack signs its presses; Mattermost signs nothing, so each button
 carries this deployment's own signature over its value and a press without it is
 refused.
 
+Who pressed is not taken from the press's body either: the trigger id the
+Mattermost server signs for each press names the person, and it is checked against
+the public key the server publishes, so a press nobody can prove is refused too.
+
 **A browse that needs a person.** An agent with the
 [web browser](reference/capabilities.md#browser-automation) posts the link to the
 browse's live view in its step - *Watch or take over* - in Slack, Telegram and

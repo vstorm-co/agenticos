@@ -1,5 +1,5 @@
 ---
-source_sha: "b43c25711a40"
+source_sha: "76621e18ebf6"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1207,6 +1207,11 @@ na odpowiedź `QUESTION_EXPIRY_HOURS`, a na decyzję `APPROVAL_EXPIRY_HOURS`, ja
 wszędzie indziej. Slack podpisuje naciśnięcia; Mattermost nie podpisuje niczego,
 więc każdy przycisk niesie podpis tego deploymentu nad swoją wartością, a
 naciśnięcie bez niego jest odrzucane.
+
+To, kto nacisnął, też nie jest brane z treści
+naciśnięcia: trigger id, który serwer Mattermost podpisuje przy każdym naciśnięciu,
+wskazuje osobę i jest sprawdzany kluczem publicznym publikowanym przez serwer, więc
+naciśnięcie, którego nie da się udowodnić, też jest odrzucane.
 
 **Przeglądanie, które potrzebuje człowieka.** Agent z
 [przeglądarką](reference/capabilities.md#browser-automation) publikuje w swoim kroku

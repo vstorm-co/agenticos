@@ -27,16 +27,21 @@ policy and the mention handling are shared with Slack and Telegram.
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import contextlib
 import json
 import logging
 import re
 import secrets
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qs
 
 import httpx
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 
 from app.agents.capabilities.channel_tools import (
     ChannelDetails,
@@ -73,6 +78,37 @@ FEEDBACK_DIALOG = "aos_feedback_comment"
 # Mattermost closes an idle socket; the client is expected to keep it warm.
 _PING_SECONDS = 30.0
 _HTTP_TIMEOUT = 20.0
+
+TRIGGER_MAX_AGE = timedelta(minutes=5)
+"""How old a press's trigger id may be. Mattermost relays a press at once."""
+
+
+def trigger_presser(trigger_id: str, public_key_der: bytes, *, now: datetime) -> str | None:
+    """The user a Mattermost trigger id was minted for, if its server signed it lately.
+
+    A press's body is not signed - its `user_id` is whatever the request says -
+    but the trigger id beside it is: the server mints it per press as
+    `<client id>:<user id>:<ms>:[<channel id>:]<base64 ECDSA signature>`, over
+    everything before the signature, with the key whose public half it publishes
+    in its client config. Older servers leave the channel out; both are read.
+    """
+    try:
+        parts = base64.b64decode(trigger_id, validate=True).decode().split(":")
+        minted = datetime.fromtimestamp(int(parts[2]) / 1000, UTC)
+        signature = base64.b64decode(parts[-1], validate=True)
+        key = serialization.load_der_public_key(public_key_der)
+    except (binascii.Error, UnicodeDecodeError, ValueError, IndexError):
+        return None
+    if len(parts) < 4 or abs(now - minted) > TRIGGER_MAX_AGE:
+        return None
+    if not isinstance(key, ec.EllipticCurvePublicKey):
+        return None
+    signed = ":".join(parts[:-1]) + ":"
+    try:
+        key.verify(signature, signed.encode(), ec.ECDSA(hashes.SHA256()))
+    except InvalidSignature:
+        return None
+    return parts[1] or None
 
 
 def _posted_at(create_at: Any) -> datetime | None:
@@ -139,6 +175,8 @@ class MattermostAdapter(ChannelAdapter):
         # content and answers about it.
         self._own_names: dict[str, str] = {}
         self._seq: dict[str, int] = {}
+        # Each server's public signing key, which proves who pressed a button.
+        self._signing_keys: dict[str, bytes] = {}
 
     def remember_server(self, bot_id: str, api_base_url: str) -> None:
         """Record which Mattermost server a bot belongs to."""
@@ -444,6 +482,42 @@ class MattermostAdapter(ChannelAdapter):
             addressed=True,
             platform_team_id=form.get("team_id"),
         )
+
+    async def pressed_by(self, base_url: str, payload: dict[str, Any]) -> bool:
+        """Whether the press's `user_id` is the person the server says pressed.
+
+        Checked against the trigger id the server signed, so a participant who
+        learned a button's context cannot press it as somebody with more say.
+        The key is read once per server, and read again once when a trigger does
+        not verify against it, in case the server's key changed. No key, no press.
+        """
+        claimed = str(payload.get("user_id") or "")
+        trigger = payload.get("trigger_id")
+        if not claimed or not isinstance(trigger, str) or not base_url:
+            return False
+        presser = None
+        for fresh in (False, True):
+            key = await self._signing_key(base_url.rstrip("/"), fresh=fresh)
+            if key is None:
+                return False
+            presser = trigger_presser(trigger, key, now=datetime.now(UTC))
+            if presser is not None:
+                break
+        return presser == claimed
+
+    async def _signing_key(self, base_url: str, *, fresh: bool) -> bytes | None:
+        if not fresh and base_url in self._signing_keys:
+            return self._signing_keys[base_url]
+        async with self._client() as client:
+            response = await client.get(
+                f"{base_url}/api/v4/config/client", params={"format": "old"}
+            )
+        response.raise_for_status()
+        encoded = response.json().get("AsymmetricSigningPublicKey")
+        if not isinstance(encoded, str) or not encoded:
+            return None
+        self._signing_keys[base_url] = base64.b64decode(encoded)
+        return self._signing_keys[base_url]
 
     @staticmethod
     def parse_press(payload: dict[str, Any], bot_id: str) -> IncomingPress | None:
