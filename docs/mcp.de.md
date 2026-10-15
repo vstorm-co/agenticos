@@ -1,5 +1,5 @@
 ---
-source_sha: "91cb1b7dd346"
+source_sha: "3cb72cfc86da"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1017,9 +1017,10 @@ Tool-Fehler zurück, der die fehlende Berechtigung nennt.
 | `run_agent` | `agents:run` |
 | `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
+| `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
-| `list_members` | — |
+| `list_members` | `members:view` |
 | `invite_member` | `members:manage` |
 
 Bewusst fehlt: einen Agent veröffentlichen, Zugangsdaten anfassen und etwas

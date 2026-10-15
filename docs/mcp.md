@@ -938,9 +938,10 @@ would be; a refusal comes back as a tool error naming the missing permission.
 | `run_agent` | `agents:run` |
 | `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
+| `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
-| `list_members` | — |
+| `list_members` | `members:view` |
 | `invite_member` | `members:manage` |
 
 Deliberately absent: publishing an agent, touching a credential, and deleting

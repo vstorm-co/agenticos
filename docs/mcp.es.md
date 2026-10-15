@@ -1,5 +1,5 @@
 ---
-source_sha: "91cb1b7dd346"
+source_sha: "3cb72cfc86da"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -999,9 +999,10 @@ permiso que faltaba.
 | `run_agent` | `agents:run` |
 | `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
+| `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
-| `list_members` | — |
+| `list_members` | `members:view` |
 | `invite_member` | `members:manage` |
 
 A propósito no hay: publicar un agent, tocar credenciales ni borrar nada salvo

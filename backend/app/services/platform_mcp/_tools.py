@@ -146,14 +146,40 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("GET", "/kb")
 
-    async def create_knowledge_base(name: str, description: str | None = None) -> dict[str, Any]:
-        """Create an organization knowledge base with the deployment's defaults.
+    async def list_embedding_models() -> dict[str, Any]:
+        """The providers this deployment can embed through, and the models each serves."""
+        return await api.request("GET", "/rag/embedding-models")
 
-        Needs `collections:edit`.
+    async def create_knowledge_base(
+        name: str,
+        embedding_provider: str,
+        embedding_secret_id: UUID | None = None,
+        embedding_endpoint_id: UUID | None = None,
+        embedding_model: str | None = None,
+        description: str | None = None,
+    ) -> dict[str, Any]:
+        """Create an organization knowledge base. Needs `collections:edit`.
+
+        There is no deployment-wide embedding default: name the provider, and the
+        vault key that pays for it (`embedding_secret_id`) - or, for a keyless
+        provider, the local service it answers at (`embedding_endpoint_id`). The
+        easiest source is a knowledge base that already works: `list_knowledge_bases`
+        shows each one's `embedding_provider`, `embedding_model`, `embedding_secret_id`
+        and `embedding_endpoint_id`. `list_embedding_models` lists what this
+        deployment can embed with.
         """
-        body: dict[str, Any] = {"name": name, "scope": "org"}
-        if description:
-            body["description"] = description
+        body: dict[str, Any] = {
+            "name": name,
+            "scope": "org",
+            "embedding_provider": embedding_provider,
+        }
+        optional = {
+            "embedding_secret_id": embedding_secret_id,
+            "embedding_endpoint_id": embedding_endpoint_id,
+            "embedding_model": embedding_model,
+            "description": description,
+        }
+        body.update({key: str(value) for key, value in optional.items() if value})
         return await api.request("POST", "/kb", json=body)
 
     async def add_document(kb_id: UUID, filename: str, content: str) -> dict[str, Any]:
@@ -226,6 +252,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         (get_run, False),
         (get_spend, False),
         (list_knowledge_bases, False),
+        (list_embedding_models, False),
         (create_knowledge_base, True),
         (add_document, True),
         (search_knowledge, False),

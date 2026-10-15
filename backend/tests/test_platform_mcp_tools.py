@@ -103,15 +103,46 @@ def server(api: MagicMock) -> FastMCP:
         ("get_run", {"run_id": str(RUN)}, ("GET", f"/runs/{RUN}", {})),
         ("get_spend", {}, ("GET", "/spend", {"params": {"days": 30}})),
         ("list_knowledge_bases", {}, ("GET", "/kb", {})),
+        ("list_embedding_models", {}, ("GET", "/rag/embedding-models", {})),
         (
             "create_knowledge_base",
-            {"name": "Policies", "description": "HR"},
-            ("POST", "/kb", {"json": {"name": "Policies", "scope": "org", "description": "HR"}}),
+            {
+                "name": "Policies",
+                "embedding_provider": "openai",
+                "embedding_secret_id": str(KB),
+                "embedding_model": "text-embedding-3-small",
+                "description": "HR",
+            },
+            (
+                "POST",
+                "/kb",
+                {
+                    "json": {
+                        "name": "Policies",
+                        "scope": "org",
+                        "embedding_provider": "openai",
+                        "embedding_secret_id": str(KB),
+                        "embedding_model": "text-embedding-3-small",
+                        "description": "HR",
+                    }
+                },
+            ),
         ),
         (
             "create_knowledge_base",
-            {"name": "Policies"},
-            ("POST", "/kb", {"json": {"name": "Policies", "scope": "org"}}),
+            {"name": "Policies", "embedding_provider": "ollama", "embedding_endpoint_id": str(KB)},
+            (
+                "POST",
+                "/kb",
+                {
+                    "json": {
+                        "name": "Policies",
+                        "scope": "org",
+                        "embedding_provider": "ollama",
+                        "embedding_endpoint_id": str(KB),
+                    }
+                },
+            ),
         ),
         (
             "add_document",

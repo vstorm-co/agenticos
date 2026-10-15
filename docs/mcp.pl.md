@@ -1,5 +1,5 @@
 ---
-source_sha: "91cb1b7dd346"
+source_sha: "3cb72cfc86da"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -975,9 +975,10 @@ odmowa wraca jako błąd narzędzia nazywający brakujące uprawnienie.
 | `run_agent` | `agents:run` |
 | `list_runs`, `get_run`, `get_spend` | `runs:view` |
 | `list_knowledge_bases`, `search_knowledge` | `collections:view` |
+| `list_embedding_models` | — |
 | `create_knowledge_base`, `add_document` | `collections:edit` |
 | `list_skills` | `skills:view` |
-| `list_members` | — |
+| `list_members` | `members:view` |
 | `invite_member` | `members:manage` |
 
 Celowo nie ma tu publikowania agenta, dotykania poświadczeń ani usuwania
