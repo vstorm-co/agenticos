@@ -261,6 +261,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
+  const canViewRuns = can(Perm.runsView);
 
   // The stale-reference check reads a reference as dead when its id is absent
   // from a list, so it must not run until every list it consults has *succeeded*:
@@ -1085,9 +1086,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
           <TabsTrigger value="history" data-tour="agent-tab-history">
             {t("history")}
           </TabsTrigger>
-          <TabsTrigger value="evals" data-tour="agent-tab-evals">
-            {t("evals")}
-          </TabsTrigger>
+          {canViewRuns && (
+            <TabsTrigger value="evals" data-tour="agent-tab-evals">
+              {t("evals")}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="build" className="mt-6 space-y-6">
@@ -1440,18 +1443,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="evals" className="mt-6 space-y-6">
-          <EvalsPanel
-            agentId={id}
-            canStart={agent.can_run && can(Perm.datasetsRun)}
-            canRunDraft={canEdit}
-            currentVersion={
-              environments.find(
-                (environment) => environment.version_id === agent.current_version_id,
-              )?.version ?? null
-            }
-          />
-        </TabsContent>
+        {canViewRuns && (
+          <TabsContent value="evals" className="mt-6 space-y-6">
+            <EvalsPanel
+              agentId={id}
+              canStart={agent.can_run && can(Perm.datasetsRun)}
+              canRunDraft={canEdit}
+              currentVersion={
+                environments.find(
+                  (environment) => environment.version_id === agent.current_version_id,
+                )?.version ?? null
+              }
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
