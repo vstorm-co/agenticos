@@ -475,8 +475,8 @@ class TestLimitsBeforeTheLookup:
                 for _ in range(4)
             ]
 
-        assert [answer.status_code for answer in answers] == [401, 401, 401, 429]
-        assert lookups.await_count == 3
+        assert [answer.status_code for answer in answers] == [401, 401, 429, 429]
+        assert lookups.await_count == 2
 
     @pytest.mark.security
     async def test_a_socket_handshake_meets_the_same_limits(
@@ -511,8 +511,8 @@ class TestLimitsBeforeTheLookup:
 
         codes = [await handshake() for _ in range(4)]
 
-        assert codes == [4001, 4001, 4001, 4029]
-        assert lookups.await_count == 3
+        assert codes == [4001, 4001, 4029, 4029]
+        assert lookups.await_count == 2
 
 
 class TestSecrets:

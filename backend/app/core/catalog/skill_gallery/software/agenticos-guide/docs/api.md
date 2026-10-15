@@ -63,7 +63,7 @@ requests a minute (600 by default), and a run or an ML call it makes counts
 against those limits for the key rather than for its issuer. Both checks run
 before the key is looked up, on a request and on a socket handshake: a key is
 counted by a digest of the whole token - never by its prefix, which listings show -
-and an address that sent more than `RATE_LIMIT_AUTH_PER_MINUTE` keys that do not exist is
+and an address that has sent `RATE_LIMIT_AUTH_PER_MINUTE` keys that do not exist is
 answered `429` without a lookup until its minute is over.
 
 ### Without a browser

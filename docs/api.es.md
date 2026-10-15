@@ -1,5 +1,5 @@
 ---
-source_sha: "1a408d71dc61"
+source_sha: "386702662fed"
 ---
 
 # La API HTTP { #the-http-api }
@@ -71,7 +71,7 @@ cuenta contra esos límites para la clave y no para su emisor. Ambas comprobacio
 ocurren antes de buscar la clave, en una petición y al abrir un WebSocket: una clave
 se cuenta por un digest del token entero - nunca por su prefijo, que las listas
 muestran - y
-una dirección que envió más de `RATE_LIMIT_AUTH_PER_MINUTE` claves inexistentes
+una dirección que ya envió `RATE_LIMIT_AUTH_PER_MINUTE` claves inexistentes
 recibe `429` sin búsqueda hasta que termine su minuto.
 
 ### Sin navegador { #without-a-browser }

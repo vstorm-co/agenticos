@@ -154,9 +154,10 @@ class _Forward:
         if token is not None and is_api_key(token):
             # The limits a key meets on the API, met before the MCP server opens a
             # database session to look it up; a token it refuses (401) is counted
-            # against the address that sent it.
+            # against the address that sent it. The key's own allowance is read,
+            # not spent: each tool call is counted where it reaches the API.
             connection = HTTPConnection(scope)
-            refused = await rate_limit.key_attempt_refused(connection, token)
+            refused = await rate_limit.key_attempt_refused(connection, token, count=False)
             if refused is not None:
                 decision, message = refused
                 response = JSONResponse(

@@ -165,7 +165,7 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
 
 
 async def exhausted(*, surface: str, caller: str, limit: Limit) -> bool:
-    """Whether `caller` is already over `limit` on `surface`, without counting a hit.
+    """Whether `caller` has used all of `limit` on `surface`, without counting a hit.
 
     For a check made before work that may not happen: an attempt is counted only
     once it has failed, but a caller already over the line is turned away before
@@ -178,7 +178,7 @@ async def exhausted(*, surface: str, caller: str, limit: Limit) -> bool:
     except Exception:
         logger.warning("rate_limit_redis_unavailable", exc_info=True)
         return False
-    return used is not None and int(used) > limit.attempts
+    return used is not None and int(used) >= limit.attempts
 
 
 def run_limit() -> Limit:
@@ -386,17 +386,22 @@ async def embed_admission_allowed(connection: HTTPConnection) -> Decision:
 
 
 async def key_attempt_refused(
-    connection: HTTPConnection, token: str
+    connection: HTTPConnection, token: str, *, count: bool = True
 ) -> tuple[Decision, str] | None:
     """Why a key is turned away before it is looked up, or `None` to look it up.
 
     Both limits come before the lookup, so neither a key over its allowance nor
-    a flood of made-up ones costs a database query - on a request and on a
-    socket handshake and the MCP endpoint alike. A key is counted by a digest of the whole token,
-    readable without the database - not by its prefix, which listings and audit
-    entries show, so knowing it would let anybody spend a real key's allowance
-    with made-up tokens. Made-up keys are counted per address once refused
-    (:func:`count_refused_key`), and an address over the line is turned away here.
+    a flood of made-up ones costs a database query - on a request, a socket
+    handshake and the MCP endpoint alike. A key is counted by a digest of the
+    whole token, readable without the database - not by its prefix, which
+    listings and audit entries show, so knowing it would let anybody spend a real
+    key's allowance with made-up tokens. Made-up keys are counted per address
+    once refused (:func:`count_refused_key`), and an address over the line is
+    turned away here.
+
+    `count=False` checks the key's allowance without spending it: the MCP
+    endpoint's tool calls each reach the API with the same key, which counts
+    them there, and charging the outer request too halved the allowance.
     """
     address = f"ip:{caller_ip(connection)}"
     if await exhausted(surface="api_key_refused", caller=address, limit=auth_limit()):
@@ -404,11 +409,15 @@ async def key_attempt_refused(
             Decision(allowed=False, retry_after_seconds=60),
             "Too many requests with invalid API keys. Wait and try again.",
         )
-    decision = await consume(
-        surface="api_key",
-        caller=f"key:{hashlib.sha256(token.encode()).hexdigest()}",
-        limit=api_key_limit(),
-    )
+    caller = f"key:{hashlib.sha256(token.encode()).hexdigest()}"
+    if not count:
+        if await exhausted(surface="api_key", caller=caller, limit=api_key_limit()):
+            return (
+                Decision(allowed=False, retry_after_seconds=60),
+                "Too many requests with this API key. Wait and try again.",
+            )
+        return None
+    decision = await consume(surface="api_key", caller=caller, limit=api_key_limit())
     if not decision.allowed:
         return decision, "Too many requests with this API key. Wait and try again."
     return None

@@ -164,7 +164,7 @@ class TestReadingWithoutCounting:
         rate_limit.configure(client)
         assert await rate_limit.exhausted(surface="s", caller="c", limit=Limit(1)) is False
 
-    @pytest.mark.parametrize(("stored", "over"), [(None, False), ("1", False), ("2", True)])
+    @pytest.mark.parametrize(("stored", "over"), [(None, False), ("0", False), ("1", True)])
     async def test_it_reads_the_window_and_counts_nothing(self, stored, over):
         client = MagicMock()
         client.get = AsyncMock(return_value=stored)
@@ -173,6 +173,22 @@ class TestReadingWithoutCounting:
 
         assert await rate_limit.exhausted(surface="s", caller="c", limit=Limit(1)) is over
         assert client.get.await_args.args == ("ratelimit:s:c",)
+        client.count_in_window.assert_not_awaited()
+
+
+class TestAKeyReadWithoutBeingSpent:
+    """`/mcp` reads a key's allowance; the API its tool calls reach spends it."""
+
+    @pytest.mark.parametrize(("stored", "refused"), [(None, False), ("600", True)])
+    async def test_the_allowance_is_read_and_nothing_is_counted(self, stored, refused):
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=lambda key: stored if ":api_key:" in key else None)
+        client.count_in_window = AsyncMock()
+        rate_limit.configure(client)
+
+        answer = await rate_limit.key_attempt_refused(_connection(), "aos_x", count=False)
+
+        assert (answer is not None) is refused
         client.count_in_window.assert_not_awaited()
 
 

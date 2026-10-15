@@ -725,8 +725,39 @@ async def test_made_up_bearer_keys_are_limited_before_the_lookup(
 
     answers = [(await _whoami(f"aos_{uuid.uuid4().hex}")).status_code for _ in range(4)]
 
-    assert answers == [401, 401, 401, 429]
-    assert lookups.await_count == 3
+    assert answers == [401, 401, 429, 429]
+    assert lookups.await_count == 2
+
+
+async def test_a_tool_call_spends_its_key_once(
+    db: AsyncSession, served: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Codex on #2062: `/mcp` and the API the tool calls each counted the same
+    call, so a key's allowance bought half the tool calls it says."""
+    from collections import Counter
+
+    from app.services import rate_limit
+
+    class _Counter:
+        def __init__(self) -> None:
+            self.uses: Counter[str] = Counter()
+
+        async def count_in_window(self, key: str, *, ttl: int) -> int:
+            self.uses[key] += 1
+            return self.uses[key]
+
+        async def get(self, key: str) -> str | None:
+            return str(self.uses[key]) if key in self.uses else None
+
+    _ctx, _client_id, tokens = await _connected(db, Perm.AGENTS_VIEW)
+    counter = _Counter()
+    monkeypatch.setattr(rate_limit, "_redis", counter)
+
+    answer = await _whoami(tokens["access_token"])
+
+    assert answer.status_code == 200
+    spent = [uses for key, uses in counter.uses.items() if key.startswith("ratelimit:api_key:")]
+    assert spent == [1]
 
 
 async def test_a_client_nobody_signed_in_with_is_swept_on_the_next_registration(

@@ -1,5 +1,5 @@
 ---
-source_sha: "1a408d71dc61"
+source_sha: "386702662fed"
 ---
 
 # API HTTP { #the-http-api }
@@ -68,7 +68,7 @@ Każdy klucz ma też własny limit, `RATE_LIMIT_API_KEY_PER_MINUTE` żądań na 
 dla klucza, a nie dla jego wydającego. Oba sprawdzenia odbywają się przed
 wyszukaniem klucza, w żądaniu i przy otwieraniu WebSocketu: klucz jest liczony po
 skrócie całego tokenu - nigdy po prefiksie, który widać na listach - a adres,
-który wysłał więcej niż `RATE_LIMIT_AUTH_PER_MINUTE` nieistniejących kluczy, dostaje
+który wysłał już `RATE_LIMIT_AUTH_PER_MINUTE` nieistniejących kluczy, dostaje
 `429` bez wyszukiwania do końca swojej minuty.
 
 ### Bez przeglądarki { #without-a-browser }
