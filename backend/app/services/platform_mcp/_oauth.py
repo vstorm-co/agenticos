@@ -14,13 +14,16 @@ from __future__ import annotations
 
 from collections.abc import Awaitable
 from datetime import datetime
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastmcp.server.auth import AccessToken, OAuthProvider
+from fastmcp.server.auth.redirect_validation import UNSAFE_REDIRECT_URI_SCHEMES
 from mcp.server.auth.provider import (
     AuthorizationCode,
     AuthorizationParams,
     RefreshToken,
+    RegistrationError,
     TokenError,
 )
 from mcp.server.auth.settings import ClientRegistrationOptions, RevocationOptions
@@ -112,6 +115,19 @@ class PlatformOAuthProvider(OAuthProvider):
         §3.2.1 allows - the response it receives says so. Not issuing secrets means
         there is no client credential at rest to protect.
         """
+        # The consent screen sends the browser to this address after Approve or
+        # Deny; a `javascript:` or `data:` one would run in the console's origin,
+        # held back only by its CSP.
+        unsafe = [
+            str(uri)
+            for uri in client_info.redirect_uris or []
+            if urlsplit(str(uri)).scheme.lower() in UNSAFE_REDIRECT_URI_SCHEMES
+        ]
+        if unsafe:
+            raise RegistrationError(
+                error="invalid_redirect_uri",
+                error_description="A redirect URI may not be a script, data or file address",
+            )
         client_info.token_endpoint_auth_method = "none"
         client_info.client_secret = None
         client_info.client_secret_expires_at = None

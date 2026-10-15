@@ -659,6 +659,22 @@ async def test_a_grant_revoked_after_loading_issues_nothing(db: AsyncSession, se
 
 
 @pytest.mark.security
+@pytest.mark.parametrize(
+    "uri", ["javascript:fetch('/api/v1/me')//", "data:text/html,<script>1</script>"]
+)
+async def test_a_script_redirect_is_refused_at_registration(served: None, uri: str) -> None:
+    """Review on #2062: the consent screen sends the browser to the address the
+    client registered, and only the console's CSP stood in front of a script."""
+    async with _http() as http:
+        refused = await http.post(
+            "/register", json={"redirect_uris": [uri], "client_name": "sneaky"}
+        )
+
+    assert refused.status_code == 400
+    assert refused.json()["error"] == "invalid_redirect_uri"
+
+
+@pytest.mark.security
 async def test_registration_is_limited_per_address(served: None) -> None:
     """Registering needs no credential; one address may not create rows without end."""
     from unittest.mock import AsyncMock, patch
