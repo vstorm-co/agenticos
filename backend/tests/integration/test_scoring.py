@@ -906,6 +906,21 @@ class TestWhenTheJudgeCannotRun:
         judged = [r for r in score.results if r.scorer == "judge"]
         assert {r.reason_code for r in judged} == {"judge_unpublished"}
 
+    async def test_the_seeded_judge_waits_unpublished_while_there_is_no_model(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+
+        score = await ScoringService(db).score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+
+        judged = [r for r in score.results if r.scorer == "judge"]
+        assert {r.reason_code for r in judged} == {"judge_unpublished"}
+        assert judge.calls == 0
+
     async def test_an_archived_judge_says_so(self, db, judge) -> None:
         tenant = await _tenant(db)
         await _model(db, tenant)

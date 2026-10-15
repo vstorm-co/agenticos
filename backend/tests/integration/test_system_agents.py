@@ -160,6 +160,21 @@ class TestSeeding:
         assert version is not None
         assert version.spec["model_profile_id"] == str(profile.id)
         assert version.spec["model_settings"] == {"temperature": 0.0}
+        [entry] = list(
+            await db.scalars(
+                select(AppAdminAuditLog).where(
+                    AppAdminAuditLog.organization_id == organization.id,
+                    AppAdminAuditLog.action == "system_agent.published",
+                )
+            )
+        )
+        assert entry.actor_user_id is None
+        assert entry.target_id == str(judge.id)
+        assert entry.details == {
+            "key": JUDGE.key,
+            "model_profile_id": str(profile.id),
+            "model": "Default",
+        }
 
     async def test_a_judge_still_waiting_is_published_when_it_is_next_needed(self, db) -> None:
         owner = await _user(db)
@@ -187,6 +202,24 @@ class TestSeeding:
         await AgentRegistryService(db).save_draft(
             ctx, judge.id, spec.model_copy(update={"model_profile_id": picked.id})
         )
+
+        await SystemAgentService(db).adopt_model(organization_id=organization.id)
+
+        assert judge.current_version_id is None
+
+    async def test_a_draft_somebody_edited_waits_for_them_even_without_a_model(self, db) -> None:
+        owner = await _user(db)
+        organization = await OrganizationService(db).create(
+            OrganizationCreate(name="Fresh org"), owner.id
+        )
+        judge = await agent_repo.get_system(db, organization_id=organization.id, key=JUDGE.key)
+        assert judge is not None
+        ctx = AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+        spec = AgentSpec.model_validate(judge.draft_spec)
+        await AgentRegistryService(db).save_draft(
+            ctx, judge.id, spec.model_copy(update={"instructions": "Grade harshly."})
+        )
+        await _profile(db, organization, label="Default", created_at=datetime.now(UTC))
 
         await SystemAgentService(db).adopt_model(organization_id=organization.id)
 
