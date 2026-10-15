@@ -374,7 +374,13 @@ async def _drive(
                 )
                 if waiting is not None:
                     await held(
-                        session, control, emit, call_id=call_id, by=waiting.by, remember=remember
+                        session,
+                        control,
+                        emit,
+                        call_id=call_id,
+                        by=waiting.by,
+                        by_user_id=waiting.by_user_id,
+                        remember=remember,
                     )
                     was_held = True
             # A resized page has laid itself out again, so the first step's snapshot
@@ -500,7 +506,13 @@ async def _drive(
                     )
                 session.history += (f"step {step_no}: {step.next_goal} - asked a person",)
                 await held(
-                    session, control, emit, call_id=call_id, by=arrived.by, remember=remember
+                    session,
+                    control,
+                    emit,
+                    call_id=call_id,
+                    by=arrived.by,
+                    by_user_id=arrived.by_user_id,
+                    remember=remember,
                 )
                 continue
             if isinstance(action, Blocked):
@@ -715,9 +727,14 @@ async def held(
     *,
     call_id: str,
     by: str | None,
+    by_user_id: str | None,
     remember: RememberSignIn | None,
 ) -> None:
     """Hand the tab to a person until they give it back, or until `HOLD_LIMIT`.
+
+    Only that person's input and give-back are acted on: everyone else who may
+    drive the browse still sends commands down the same queue, and a click from
+    a second viewer must not land on a page somebody else is holding.
 
     The person's input reaches the page as it arrives, and a picture follows each
     one - and one a second while they are reading - so the view they act on is
@@ -727,11 +744,17 @@ async def held(
     agent touches the page again, and the release says which site it kept.
     """
     page = session.page
-    await emit(BrowserEvent(kind="browser_held", call_id=call_id, step=session.steps, by=by))
+    await emit(
+        BrowserEvent(
+            kind="browser_held", call_id=call_id, step=session.steps, by=by, by_user_id=by_user_id
+        )
+    )
     kept: str | None = None
     with anyio.move_on_after(HOLD_LIMIT):
         while True:
             command = await control.wait(FRAME_EVERY)
+            if command is not None and by_user_id is not None and command.by_user_id != by_user_id:
+                command = None
             if command is not None and command.type == "give_back":
                 if command.remember and remember is not None:
                     kept = await remember(page, command)
@@ -761,6 +784,7 @@ async def hand_over(
     *,
     call_id: str,
     by: str,
+    by_user_id: str,
     remember: RememberSignIn,
 ) -> None:
     """Give a person a tab with no agent in it, until they hand it back.
@@ -768,7 +792,9 @@ async def hand_over(
     Signing in to a site from Settings (#2129): the same hold a take-over is, from
     the first frame, and the same give-back that keeps the sign-in.
     """
-    await held(session, control, emit, call_id=call_id, by=by, remember=remember)
+    await held(
+        session, control, emit, call_id=call_id, by=by, by_user_id=by_user_id, remember=remember
+    )
 
 
 async def between_steps(

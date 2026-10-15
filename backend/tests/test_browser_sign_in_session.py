@@ -243,7 +243,10 @@ class TestDriving:
     ) -> None:
         page = _Page()
         remember = await self._drive(
-            monkeypatch, page, BrowserCommand(type="click", x=10, y=20), _give_back()
+            monkeypatch,
+            page,
+            BrowserCommand(type="click", x=10, y=20, by_user_id=str(PERSON)),
+            _give_back(),
         )
 
         assert page.clicks == [(10, 20)]
@@ -252,18 +255,30 @@ class TestDriving:
         assert kinds[0] == "browser_opened" and kinds[1] == "browser_held"
         # By name, as a take-over is: the view matches it against who is watching.
         assert deployment["published"][1].by == "Ada Lovelace"
+        assert deployment["published"][1].by_user_id == str(PERSON)
         released = next(e for e in deployment["published"] if e.kind == "browser_released")
         assert released.detail == "notion.so"
         assert deployment["published"][-1].outcome == "done"
         # The person's place is given back when the browser closes.
         assert deployment["released"] == [(f"browser-sign-in:{PERSON}", "sign-in-1")]
 
-    async def test_a_give_back_from_anyone_else_keeps_nothing(
+    async def test_nobody_but_the_person_drives_or_hands_it_back(
         self, deployment: dict[str, Any], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        remember = await self._drive(monkeypatch, _Page(), _give_back(by=uuid.uuid4()))
+        """Somebody else's click and give-back are dropped: the browser stays theirs
+        until they hand it back themselves."""
+        page = _Page()
+        stranger = uuid.uuid4()
+        remember = await self._drive(
+            monkeypatch,
+            page,
+            BrowserCommand(type="click", x=1, y=1, by_user_id=str(stranger)),
+            _give_back(by=stranger),
+            _give_back(),
+        )
 
-        remember.assert_not_awaited()
+        assert page.clicks == []
+        remember.assert_awaited_once_with(ORG, PERSON, SITE)
 
     async def test_a_page_with_no_sign_in_on_it_keeps_nothing(
         self, deployment: dict[str, Any], monkeypatch: pytest.MonkeyPatch

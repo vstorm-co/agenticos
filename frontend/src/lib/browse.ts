@@ -25,8 +25,10 @@ export interface Browse {
    * cleared once somebody takes it over.
    */
   needs?: string | null;
-  /** Who holds the browser right now, while a person does. */
+  /** Who holds the browser right now, while a person does - their name, for showing. */
   heldBy?: string | null;
+  /** The same person by id: names are not unique, so this is what says it is you. */
+  heldById?: string | null;
   goal: string;
   maxSteps: number | null;
   url: string | null;
@@ -67,6 +69,7 @@ function opened(frame: BrowserFrame): Browse {
     runId: frame.run_id ?? null,
     needs: null,
     heldBy: null,
+    heldById: null,
     callId: frame.call_id,
     goal: frame.goal ?? "",
     maxSteps: frame.max_steps ?? null,
@@ -117,15 +120,27 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
     case "browser_pointer":
       return { ...browse, pointer: { x: frame.x ?? 0, y: frame.y ?? 0, step: frame.step } };
     case "browser_held":
-      return { ...browse, needs: null, heldBy: frame.by ?? null, pointer: null };
+      return {
+        ...browse,
+        needs: null,
+        heldBy: frame.by ?? null,
+        heldById: frame.by_user_id ?? null,
+        pointer: null,
+      };
     case "browser_released":
       // A give-back that kept the sign-in says which site (#2129).
-      return { ...browse, heldBy: null, kept: frame.detail ?? browse.kept ?? null };
+      return {
+        ...browse,
+        heldBy: null,
+        heldById: null,
+        kept: frame.detail ?? browse.kept ?? null,
+      };
     case "browser_finished":
       return {
         ...browse,
         needs: null,
         heldBy: null,
+        heldById: null,
         pointer: null,
         outcome: frame.outcome ?? null,
         detail: frame.detail ?? null,

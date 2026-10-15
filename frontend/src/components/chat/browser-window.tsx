@@ -94,9 +94,10 @@ function ChromeButton({
  */
 function useHold(browse: Browse, control: BrowseControl | null) {
   const user = useAuthStore((state) => state.user);
-  const me = user?.full_name || user?.email || "";
   const [asked, setAsked] = useState(false);
-  const holding = Boolean(browse.heldBy) && browse.heldBy === me;
+  // By id: two viewers can share a name, and each would read the other's hold
+  // as their own and get the page's live controls.
+  const holding = Boolean(browse.heldById) && browse.heldById === user?.id;
   return {
     holding,
     someoneElse: Boolean(browse.heldBy) && !holding,
@@ -372,7 +373,12 @@ export function BrowserWindow({
           (hold.holding ? (
             <button
               type="button"
-              onClick={() => hold.giveBack(remember)}
+              onClick={() => {
+                hold.giveBack(remember);
+                // Consent to keep a sign-in is for this hand-back only; the next
+                // take-over asks again rather than inheriting a tick.
+                setRemember(false);
+              }}
               className="bg-foreground text-background hover:bg-foreground/90 flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium"
             >
               <Undo2 className="size-4" aria-hidden />

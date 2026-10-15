@@ -153,7 +153,7 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
 
   it("hands the page to its holder - clicks reach it - and hands it back", async () => {
     const live = control();
-    render(<BrowserWindow browse={browse({ heldBy: "Ada" })} control={live} />);
+    render(<BrowserWindow browse={browse({ heldBy: "Ada", heldById: "u1" })} control={live} />);
     expect(screen.getByText(/You're driving/)).toBeInTheDocument();
 
     const img = screen.getByRole("img");
@@ -170,21 +170,28 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
     const live = { ...control(), canRemember: true };
     render(
       <BrowserWindow
-        browse={browse({ heldBy: "Ada", url: "https://portal.example.test/home" })}
+        browse={browse({
+          heldBy: "Ada",
+          heldById: "u1",
+          url: "https://portal.example.test/home",
+        })}
         control={live}
       />,
     );
 
-    await userEvent.click(
-      screen.getByRole("checkbox", { name: /Keep me signed in to portal.example.test/ }),
-    );
+    const keep = screen.getByRole("checkbox", { name: /Keep me signed in to portal.example.test/ });
+    await userEvent.click(keep);
     await userEvent.click(screen.getByRole("button", { name: /Hand it back/ }));
 
     expect(live.send).toHaveBeenCalledWith({ type: "give_back", remember: true });
+    // The tick was for that hand-back: the next take-over asks again.
+    expect(keep).not.toBeChecked();
   });
 
   it("does not offer to keep a sign-in to someone the browse does not act for", () => {
-    render(<BrowserWindow browse={browse({ heldBy: "Ada" })} control={control()} />);
+    render(
+      <BrowserWindow browse={browse({ heldBy: "Ada", heldById: "u1" })} control={control()} />,
+    );
 
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
@@ -209,10 +216,12 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
     expect(screen.queryByText("Bob has the browser.")).toBeNull();
   });
 
-  it("knows a person by their address when they have no name", () => {
-    useAuthStore.setState({ user: { id: "u1", full_name: null, email: "ada@acme.test" } as never });
-    render(<BrowserWindow browse={browse({ heldBy: "ada@acme.test" })} control={control()} />);
-    expect(screen.getByRole("button", { name: /Hand it back/ })).toBeInTheDocument();
+  it("knows the holder by id, so a namesake holding it is not you", () => {
+    render(
+      <BrowserWindow browse={browse({ heldBy: "Ada", heldById: "u2" })} control={control()} />,
+    );
+    expect(screen.getByText("Ada has the browser.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Hand it back/ })).toBeNull();
   });
 
   it("is nobody without a signed-in user", () => {
@@ -222,7 +231,7 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
   });
 
   it("ignores the page without a live view to send to", () => {
-    render(<BrowserWindow browse={browse({ heldBy: "Ada" })} control={null} />);
+    render(<BrowserWindow browse={browse({ heldBy: "Ada", heldById: "u1" })} control={null} />);
     // No control: holding is drawn, but there is no socket for the click to go to.
     fireEvent.click(screen.getByRole("img"));
     expect(screen.queryByRole("button", { name: /Hand it back/ })).toBeNull();
@@ -233,7 +242,9 @@ describe("BrowserWindow - the agent's browser, drawn as a browser", () => {
     const { rerender } = render(<BrowserWindow browse={browse({ pointer })} control={null} />);
     expect(screen.getByTestId("agent-cursor")).toHaveStyle({ left: "25%", top: "50%" });
 
-    rerender(<BrowserWindow browse={browse({ pointer, heldBy: "Ada" })} control={null} />);
+    rerender(
+      <BrowserWindow browse={browse({ pointer, heldBy: "Ada", heldById: "u1" })} control={null} />,
+    );
     expect(screen.queryByTestId("agent-cursor")).toBeNull();
 
     rerender(<BrowserWindow browse={browse({ pointer, outcome: "done" })} control={null} />);

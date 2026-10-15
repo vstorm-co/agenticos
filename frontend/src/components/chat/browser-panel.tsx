@@ -67,6 +67,9 @@ function OpenBrowser({
   return (
     <aside className="bg-background fixed inset-0 z-50 flex flex-col">
       <BrowserWindow
+        // One window per browse: switching which one is open must not carry the
+        // last one's state - its remember-this-sign-in tick above all.
+        key={streamed.callId}
         waitForFit
         browse={browse}
         control={

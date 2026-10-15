@@ -1164,6 +1164,53 @@ class TestTheAgentsCursorIsDrawn:
             BrowserEvent(kind="browser_pointer", call_id="c", step=1, x=1.5, y=0.2)
 
 
+class TestOnlyTheHolderDrives:
+    """Codex on #2062: names are not unique, and every viewer who may drive sends
+    down one queue - so a hold answers its holder, by id, and nobody else."""
+
+    @pytest.mark.security
+    async def test_a_second_viewer_s_input_and_give_back_are_dropped(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        seen: list[BrowserCommand] = []
+        events: list[BrowserEvent] = []
+        kept: list[BrowserCommand] = []
+
+        async def person_input(_page: Any, command: BrowserCommand) -> None:
+            seen.append(command)
+
+        async def emit(event: BrowserEvent) -> bool:
+            events.append(event)
+            return True
+
+        async def remember(_page: Any, command: BrowserCommand) -> str | None:
+            kept.append(command)
+            return None
+
+        monkeypatch.setattr(_loop, "_person_input", person_input)
+        own_click = BrowserCommand(type="click", x=2, y=2, by_user_id="u-ada")
+        control = _Control(
+            BrowserCommand(type="click", x=1, y=1, by_user_id="u-bob"),
+            BrowserCommand(type="give_back", remember=True, by_user_id="u-bob"),
+            own_click,
+            BrowserCommand(type="give_back", remember=True, by_user_id="u-ada"),
+        )
+
+        await _loop.held(
+            BrowseSession(page=_FakePage()),
+            control,
+            emit,
+            call_id="c-1",
+            by="Ada",
+            by_user_id="u-ada",
+            remember=remember,
+        )
+
+        assert seen == [own_click]
+        assert [command.by_user_id for command in kept] == ["u-ada"]
+        assert events[0].kind == "browser_held" and events[0].by_user_id == "u-ada"
+
+
 class TestAPersonKeepsTheirSignIn:
     """#2129: handing the browser back can keep the sign-in made while holding it."""
 

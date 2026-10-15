@@ -297,6 +297,8 @@ export interface BrowserFrame {
   run_id?: string | null;
   /** On `browser_held`: who took the browser over. */
   by?: string | null;
+  /** Who took the browser over, by id - how a viewer tells it is them. */
+  by_user_id?: string | null;
   /** On `browser_pointer`: where the agent is about to press, as fractions of the viewport. */
   x?: number | null;
   y?: number | null;

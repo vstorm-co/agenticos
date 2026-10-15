@@ -190,6 +190,7 @@ async def drive(organization_id: UUID, user_id: UUID, run_id: str, url: str, hol
                     emit,
                     call_id=CALL_ID,
                     by=holder,
+                    by_user_id=str(user_id),
                     remember=keep,
                 )
                 await emit(

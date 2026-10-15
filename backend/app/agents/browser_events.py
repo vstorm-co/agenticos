@@ -139,6 +139,14 @@ class BrowserEvent(BaseModel):
         default=None,
         description="Who took the browser over, by name, on `browser_held`.",
     )
+    by_user_id: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "Who took the browser over, by id, on `browser_held` - how a viewer "
+            "tells that they are the one holding it. Names are not unique."
+        ),
+    )
     x: float | None = Field(
         default=None,
         ge=0,

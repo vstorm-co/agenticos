@@ -213,11 +213,14 @@ describe("applyBrowserFrame - a person and the browser (#2128)", () => {
     );
     expect(asked[0]).toMatchObject({ needs: "Sign in", heldBy: null });
 
-    const held = applyBrowserFrame(asked, frame({ kind: "browser_held", step: 2, by: "Ada" }));
-    expect(held[0]).toMatchObject({ needs: null, heldBy: "Ada" });
+    const held = applyBrowserFrame(
+      asked,
+      frame({ kind: "browser_held", step: 2, by: "Ada", by_user_id: "u1" }),
+    );
+    expect(held[0]).toMatchObject({ needs: null, heldBy: "Ada", heldById: "u1" });
 
     const back = applyBrowserFrame(held, frame({ kind: "browser_released", step: 2 }));
-    expect(back[0]?.heldBy).toBeNull();
+    expect(back[0]).toMatchObject({ heldBy: null, heldById: null });
   });
 
   it("reads a frame with nothing in it as nothing needed and nobody named", () => {
