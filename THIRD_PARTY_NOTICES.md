@@ -121,13 +121,13 @@ names no author is in the evidence column below.
 | eval-type-backport | 0.4.0 | MIT | https://github.com/alexmojaki/eval_type_backport | License field |
 | exceptiongroup | 1.3.1 | MIT | https://github.com/agronholm/exceptiongroup | classifier |
 | executing | 2.2.1 | MIT | https://github.com/alexmojaki/executing | License field |
-| fastapi | 0.141.1 | MIT | https://github.com/fastapi/fastapi | License-Expression |
+| fastapi | 0.143.1 | MIT | https://github.com/fastapi/fastapi | License-Expression |
 | fastavro | 1.12.2 | MIT | https://github.com/fastavro/fastavro | License field |
 | fastmcp-slim | 4.0.5 | Apache-2.0 | https://github.com/PrefectHQ/fastmcp | License-Expression; no licence file, attributed to Jeremiah Lowin, Nate Nowack |
 | filelock | 3.32.6 | MIT | https://github.com/tox-dev/py-filelock | License-Expression |
 | frozenlist | 1.8.0 | Apache-2.0 | https://github.com/aio-libs/frozenlist | License field |
 | fsspec | 2026.7.0 | BSD-3-Clause | https://github.com/fsspec/filesystem_spec | License-Expression |
-| genai-prices | 0.1.9 | MIT | https://github.com/pydantic/genai-prices | License-Expression |
+| genai-prices | 0.1.13 | MIT | https://github.com/pydantic/genai-prices | License-Expression |
 | google-api-core | 2.37.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python | License field |
 | google-api-python-client | 2.201.0 | Apache-2.0 | https://github.com/googleapis/google-api-python-client/ | License field |
 | google-auth | 2.61.0 | Apache-2.0 | https://github.com/googleapis/google-cloud-python/tree/main/packages/google-auth | License field |
@@ -176,7 +176,7 @@ names no author is in the evidence column below.
 | ldap3 | 2.9.1 | LGPL-3.0-only | https://github.com/cannatag/ldap3 | classifier; review accepted |
 | liteparse | 2.15.1 | Apache-2.0 | https://github.com/run-llama/liteparse | License-Expression; no licence file, attributed to Logan Markewich |
 | llama-cloud | 2.18.0 | MIT | https://github.com/run-llama/llama-parse-py | License field |
-| logfire | 5.1.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
+| logfire | 5.2.0 | MIT | https://github.com/pydantic/logfire | License-Expression |
 | logfire-api | 5.1.0 | MIT | https://pypi.org/project/logfire-api/5.1.0/ | License-Expression; no licence file, attributed to Pydantic Team, Samuel Colvin, Hasan Ramezani, Adrian Garcia Badaracco, David Montague, Marcelo Trylesinski, David Hewitt, Alex Hall |
 | lxml | 6.1.3 | BSD-3-Clause | https://github.com/lxml/lxml | License field |
 | magic-filter | 1.0.12 | MIT | https://github.com/aiogram/magic-filter | License-Expression |
@@ -237,7 +237,7 @@ names no author is in the evidence column below.
 | pydantic | 2.13.5 | MIT | https://github.com/pydantic/pydantic | License-Expression |
 | pydantic-ai-backend | 0.2.33 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
 | pydantic-ai-harness | 0.55.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
-| pydantic-ai-skills | 2.0.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
+| pydantic-ai-skills | 2.1.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
 | pydantic-ai-slim | 2.55.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |
 | pydantic-core | 2.46.5 | MIT | https://github.com/pydantic/pydantic/tree/main/pydantic-core | License-Expression |
 | pydantic-extra-types | 2.11.1 | MIT | https://github.com/pydantic/pydantic-extra-types | License-Expression |

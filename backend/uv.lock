@@ -119,8 +119,8 @@ requires-dist = [
     { name = "click", specifier = ">=8.5.0" },
     { name = "croniter", specifier = ">=3.0.0" },
     { name = "cryptography", specifier = ">=50.0.2" },
-    { name = "fastapi", specifier = ">=0.141.1" },
-    { name = "genai-prices", specifier = ">=0.1.4" },
+    { name = "fastapi", specifier = ">=0.143.0" },
+    { name = "genai-prices", specifier = ">=0.1.10" },
     { name = "google-api-python-client", specifier = ">=2.201.0" },
     { name = "google-auth", specifier = ">=2.59.1" },
     { name = "greenlet", specifier = ">=3.5.5" },
@@ -131,7 +131,7 @@ requires-dist = [
     { name = "ldap3", specifier = ">=2.9.1" },
     { name = "liteparse", specifier = ">=2.15.1" },
     { name = "llama-cloud", specifier = ">=2.18.0" },
-    { name = "logfire", extras = ["fastapi", "asyncpg", "redis", "httpx"], specifier = ">=5.1.0" },
+    { name = "logfire", extras = ["fastapi", "asyncpg", "redis", "httpx"], specifier = ">=5.1.1" },
     { name = "markdown-it-py", specifier = ">=4.0.0" },
     { name = "mcp", specifier = ">=2.3.0" },
     { name = "mem0ai", specifier = ">=2.2.1" },
@@ -145,10 +145,10 @@ requires-dist = [
     { name = "pydantic", extras = ["email"], specifier = ">=2.13.5" },
     { name = "pydantic-ai-backend", extras = ["console", "remote", "workspaces", "daytona"], specifier = ">=0.2.33" },
     { name = "pydantic-ai-harness", specifier = ">=0.55.0" },
-    { name = "pydantic-ai-skills", specifier = ">=2.0.0" },
-    { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.52.0" },
-    { name = "pydantic-ai-slim", extras = ["openrouter", "anthropic", "google", "duckduckgo", "web-fetch", "groq", "mistral", "cohere", "huggingface", "xai"], specifier = ">=2.52.0" },
-    { name = "pydantic-ai-slim", extras = ["typesafe"], marker = "extra == 'browser'", specifier = ">=2.52.0" },
+    { name = "pydantic-ai-skills", specifier = ">=2.1.0" },
+    { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.55.0" },
+    { name = "pydantic-ai-slim", extras = ["openrouter", "anthropic", "google", "duckduckgo", "web-fetch", "groq", "mistral", "cohere", "huggingface", "xai"], specifier = ">=2.55.0" },
+    { name = "pydantic-ai-slim", extras = ["typesafe"], marker = "extra == 'browser'", specifier = ">=2.55.0" },
     { name = "pydantic-monty", specifier = ">=1.1.0" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "pyjwt", specifier = ">=2.15.1" },
@@ -1710,18 +1710,19 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.141.1"
+version = "0.143.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
+    { name = "opentelemetry-api" },
     { name = "pydantic" },
     { name = "starlette" },
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8a/02/91e3416a8fdd715abb903a952a6bec7cdd8d14eed55d415fc8595524c319/fastapi-0.141.1.tar.gz", hash = "sha256:e8822fc40db1e1858054d7a949a888695bc9bdce70139178e33bd2871a453ca1", size = 425799, upload-time = "2026-07-29T17:18:05.568Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/96/16/52ca959230f9820660fd822f488f883d7dc42310716b4cc6d2a944835dcd/fastapi-0.143.1.tar.gz", hash = "sha256:4cafaab64df8534758bf0fce61947f5e27e6cd512798ccbbaad5425086c3b664", size = 469025, upload-time = "2026-10-14T12:53:09.448Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cb/03/10388a42375ee7e4ac9b94eb2c5c569c8b5795e377e701c9ac3ad63de890/fastapi-0.141.1-py3-none-any.whl", hash = "sha256:bfb91aa2d334c61cb35ba9a116fc123b3d3df31640b801cf57a7a78ec3f603b3", size = 131954, upload-time = "2026-07-29T17:18:04.364Z" },
+    { url = "https://files.pythonhosted.org/packages/ca/73/30ee3dd8f26fd385e451bbded9e1b54766a277db588e70154dd894f4b698/fastapi-0.143.1-py3-none-any.whl", hash = "sha256:687beb445804e4c4dbe2a76fd83c25e9b973ac48c267defb86f791e099baecc4", size = 144682, upload-time = "2026-10-14T12:53:07.69Z" },
 ]
 
 [[package]]
@@ -1901,15 +1902,15 @@ wheels = [
 
 [[package]]
 name = "genai-prices"
-version = "0.1.9"
+version = "0.1.13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx2" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d6/f0/4b4c7f63de6d558714d2207808080dd0988d0317a54ebcde790e4f6c1b6e/genai_prices-0.1.9.tar.gz", hash = "sha256:20ec774d32ec5d345510877fac415f2560bbfeb081bc4cd4e7ebce57a5503e8d", size = 118447, upload-time = "2026-09-25T03:47:27.569Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ad/de/119c7ba00b9ddbf629de34cf390ab472da6d7bc5df0c51cdbec900280a74/genai_prices-0.1.13.tar.gz", hash = "sha256:76c9e2dd3917fdacdf3bc562297c4591384142ea2283c477e1512fafa4e3a384", size = 134622, upload-time = "2026-10-15T09:47:04.739Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1b/e0/57d07f653813b7ea9e3a82064a2b6a112f63004530ac665e0934829473c7/genai_prices-0.1.9-py3-none-any.whl", hash = "sha256:3da8faa0a126e4df7be36696b90abe2be1fea8826bfcf45d39d91bc397fa9d1d", size = 125549, upload-time = "2026-09-25T03:47:26.483Z" },
+    { url = "https://files.pythonhosted.org/packages/41/5a/b6b7d55148d367d07bcd3efdf24e3086ad199ea5109d0c335a872dfaac95/genai_prices-0.1.13-py3-none-any.whl", hash = "sha256:6d2b40760a2f7f5e207bac9b98de0af80e60c58ead497872a5331a7cee610477", size = 142541, upload-time = "2026-10-15T09:47:03.424Z" },
 ]
 
 [[package]]
@@ -2808,20 +2809,23 @@ wheels = [
 
 [[package]]
 name = "logfire"
-version = "5.1.0"
+version = "5.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "executing" },
+    { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-instrumentation" },
     { name = "opentelemetry-sdk" },
+    { name = "opentelemetry-semantic-conventions" },
     { name = "protobuf" },
+    { name = "requests" },
     { name = "rich" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f9/da/0c73a4447dffe01e1737580556f5f061ffda8f85e46fbf35ac36f5b64d27/logfire-5.1.0.tar.gz", hash = "sha256:edf6c7d33c00214e11c2cdc567eb53051be36289747091e8bb910527e5970bea", size = 1359738, upload-time = "2026-09-11T10:25:11.674Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/5a/e6cccc98d30358b8beee47c61c2a1ca66ac7a76a07de9ba333aa5219b9a6/logfire-5.2.0.tar.gz", hash = "sha256:5fb9ddda303759766e86f5704a1ae96f3a0072906d52e21fbaad2e3c3b03f823", size = 1404990, upload-time = "2026-10-13T17:36:30.746Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cd/02/b32c3d5c298e4a9010694d261fb82c2c672747c0bf2b47bffda484aef349/logfire-5.1.0-py3-none-any.whl", hash = "sha256:c1d54eabf39f4c8f5e18e71f35da13375c8adb144c263f3076e650ba85929108", size = 474841, upload-time = "2026-09-11T10:25:08.131Z" },
+    { url = "https://files.pythonhosted.org/packages/73/cb/bfcd484c16eeac8cdeb2defe1a2ee39bb1b4b6e69324b85515e7818eb678/logfire-5.2.0-py3-none-any.whl", hash = "sha256:c73dd02cfe048f2254e803962aa992d7f53217d121f3488e797926c30442342c", size = 495128, upload-time = "2026-10-13T17:36:27.305Z" },
 ]
 
 [package.optional-dependencies]
@@ -3928,8 +3932,8 @@ name = "pendulum"
 version = "3.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "python-dateutil" },
-    { name = "tzdata" },
+    { name = "python-dateutil", marker = "python_full_version < '3.13'" },
+    { name = "tzdata", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cb/72/9a51afa0a822b09e286c4cb827ed7b00bc818dac7bd11a5f161e493a217d/pendulum-3.2.0.tar.gz", hash = "sha256:e80feda2d10fa3ff8b1526715f7d33dcb7e08494b3088f2c8a3ac92d4a4331ce", size = 86912, upload-time = "2026-01-30T11:22:24.093Z" }
 wheels = [
@@ -4541,7 +4545,7 @@ skills = [
 
 [[package]]
 name = "pydantic-ai-skills"
-version = "2.0.0"
+version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -4549,9 +4553,9 @@ dependencies = [
     { name = "pydantic-ai-slim" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cf/d5/f3059f89077f257e43475ad81878d5ee7e03c501579bf9a7b05166a7e18a/pydantic_ai_skills-2.0.0.tar.gz", hash = "sha256:25fd5f14268f68d25d68e38bc94fb93323092d3b7d96db0b5e499c074e3d40c7", size = 9110556, upload-time = "2026-09-06T01:44:21.651Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/66/ca/20eab3731a7bc58b119373dacd9fb4a7ff3cf77cee1e847561eab679f51d/pydantic_ai_skills-2.1.0.tar.gz", hash = "sha256:a02e763ca1a1fba81c9c4720c91644a684ef615e54c399231df0f52a828533d7", size = 9230413, upload-time = "2026-10-04T00:51:13.324Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/86/8a/b05c3540dfe4e1491aa3f3de06d320bb93b61dbe49b805e2d5c4465c47b5/pydantic_ai_skills-2.0.0-py3-none-any.whl", hash = "sha256:d3bed993fe65a7a4a1c6e37c71914e9594cec86114e446a332f203f2cdc755f2", size = 73558, upload-time = "2026-09-06T01:44:20.268Z" },
+    { url = "https://files.pythonhosted.org/packages/26/4c/c59ed1497545533476a5e20c946eae741e5af29dfab1b230f2b316b349ef/pydantic_ai_skills-2.1.0-py3-none-any.whl", hash = "sha256:dfe10255348d79ff9ed1e2a66a5536f6f35ff6ad0727f58601bf124eb1f5d679", size = 74790, upload-time = "2026-10-04T00:51:11.166Z" },
 ]
 
 [[package]]
@@ -6545,8 +6549,8 @@ name = "whenever"
 version = "0.10.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "tzdata", marker = "sys_platform == 'win32'" },
-    { name = "tzlocal", marker = "sys_platform != 'darwin' and sys_platform != 'linux'" },
+    { name = "tzdata", marker = "python_full_version >= '3.13' and sys_platform == 'win32'" },
+    { name = "tzlocal", marker = "python_full_version >= '3.13' and sys_platform != 'darwin' and sys_platform != 'linux'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d2/09/9ec61cfa69047a75af61e8db53e7782ed5b3995bc8a08132b951202c8aaf/whenever-0.10.5.tar.gz", hash = "sha256:bc8fd6208d50be50e490a3628fa6346d006b02df5de64c43170df8a809ded8d4", size = 437531, upload-time = "2026-08-07T15:03:30.933Z" }
 wheels = [
