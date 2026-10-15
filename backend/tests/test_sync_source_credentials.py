@@ -31,6 +31,7 @@ from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import organization_secret_repo
 from app.schemas.sync_source import (
+    SyncSourceClone,
     SyncSourceCreate,
     SyncSourceUpdate,
 )
@@ -161,6 +162,36 @@ class TestTheCredentialIsReferencedNotCarried:
             await service.create_source(_drive(secret_id=uuid.uuid4()), ctx=_ctx(_ORG))
 
         assert "no such credential" in exc.value.details["fields"][0]["message"].lower()
+
+    async def test_a_clone_of_a_source_on_a_credential_the_caller_cannot_see_is_refused(
+        self, monkeypatch
+    ):
+        """Codex on #2062: cloning copied the secret reference unchecked, so a key
+        with collection rights could point another member's private credential
+        at a collection it reads."""
+        service = _service(
+            monkeypatch, secret=_vault_row(kind="gcp_service_account"), visible=False
+        )
+        source = SimpleNamespace(
+            id=uuid.uuid4(),
+            name="Their drive",
+            connector_type="gdrive",
+            config={"folder_id": "1AbC_-def"},
+            secret_id=uuid.uuid4(),
+            organizational_unit=None,
+            sync_mode="new_only",
+            schedule_minutes=None,
+        )
+        monkeypatch.setattr(
+            sync_source_module.sync_source_repo, "get_by_id", AsyncMock(return_value=source)
+        )
+
+        with pytest.raises(BadRequestError):
+            await service.clone_source(
+                str(source.id), SyncSourceClone(collection_name="mine"), ctx=_ctx(_ORG)
+            )
+
+        sync_source_module.sync_source_repo.create.assert_not_awaited()
 
     async def test_a_credential_of_the_wrong_kind_is_refused(self, monkeypatch):
         """An AWS key pair cannot sign a Drive request. Refusing here says which
