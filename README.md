@@ -66,7 +66,7 @@ A lead agent hands parts of a task to colleagues and writes up what they found -
 
 Watch it click through sites, take over when a sign-in needs you, point at a spot to comment.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="A Sales Researcher reading the Pydantic AI releases page in a live browser beside the chat, with a Take over button" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="A Sales Researcher reading NASA's Artemis III mission page in a live browser beside the chat, and answering from it with the source linked" width="100%"></a>
 
 ### Build, equip and test in one window
 

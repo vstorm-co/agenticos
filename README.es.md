@@ -1,4 +1,4 @@
-<!-- source_sha: ecc6f6d0416e -->
+<!-- source_sha: f119e869314b -->
 
 <div align="center">
 
@@ -68,7 +68,7 @@ Un agente principal reparte partes de una tarea entre compañeros y redacta lo q
 
 Míralo hacer clic por los sitios, toma el control cuando un inicio de sesión te necesita, señala un punto para comentarlo.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Un Sales Researcher lee la página de versiones de Pydantic AI en un navegador en directo junto al chat, con un botón Take over" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Un Sales Researcher lee la página de la misión Artemis III de la NASA en un navegador en vivo junto al chat y responde a partir de ella, con la fuente enlazada" width="100%"></a>
 
 ### Construye, equipa y prueba en una ventana
 

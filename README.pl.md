@@ -1,4 +1,4 @@
-<!-- source_sha: ecc6f6d0416e -->
+<!-- source_sha: f119e869314b -->
 
 <div align="center">
 
@@ -68,7 +68,7 @@ Agent prowadzący przekazuje części zadania kolegom i spisuje, co znaleźli - 
 
 Patrz, jak klika po stronach, przejmij ją, gdy logowanie wymaga Ciebie, wskaż miejsce, żeby je skomentować.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Sales Researcher czyta stronę wydań Pydantic AI w przeglądarce na żywo obok czatu, z przyciskiem Take over" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Sales Researcher czyta stronę misji Artemis III na nasa.gov w przeglądarce obok czatu i odpowiada na jej podstawie, z linkiem do źródła" width="100%"></a>
 
 ### Buduj, wyposażaj i testuj w jednym oknie
 

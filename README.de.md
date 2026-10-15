@@ -1,4 +1,4 @@
-<!-- source_sha: ecc6f6d0416e -->
+<!-- source_sha: f119e869314b -->
 
 <div align="center">
 
@@ -68,7 +68,7 @@ Ein führender Agent gibt Teile einer Aufgabe an Kollegen weiter und fasst zusam
 
 Sieh zu, wie er sich durch Seiten klickt, übernimm, wenn eine Anmeldung dich braucht, zeig auf eine Stelle, um sie zu kommentieren.
 
-<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Ein Sales Researcher liest die Release-Seite von Pydantic AI in einem Live-Browser neben dem Chat, mit einem Take-over-Knopf" width="100%"></a>
+<a href="docs/assets/readme/highlight-browser.webp"><img src="docs/assets/readme/highlight-browser.webp" alt="Ein Sales Researcher liest die Artemis-III-Missionsseite der NASA in einem Live-Browser neben dem Chat und antwortet daraus, mit verlinkter Quelle" width="100%"></a>
 
 ### Bauen, ausstatten und testen in einem Fenster
 
