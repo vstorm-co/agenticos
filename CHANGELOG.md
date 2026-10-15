@@ -581,6 +581,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Stopping a turn that was asking a colleague leaves one quiet step.** The
+  step reads "Stopped asking …" instead of spinning "Asking …" beside "Done",
+  and the stopped delegation no longer stays under the answer as a panel of its own.
+
 - **A question in Slack, Telegram or Mattermost answers as the person it was
   asked** (Codex review of #2062). Another member's press is refused before
   anything is written; a question taking several answers collects them until

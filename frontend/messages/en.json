@@ -1383,6 +1383,7 @@
       "deleteMemory": "Forget a memory",
       "askingAgent": "Asking {name}",
       "askedAgent": "Asked {name}",
+      "stoppedAskingAgent": "Stopped asking {name}",
       "delegationBrief": "Brief",
       "delegationAnswer": "Answer",
       "openingPage": "Opening a page",

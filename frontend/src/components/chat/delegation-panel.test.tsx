@@ -17,6 +17,12 @@ vi.mock("./markdown-content", () => ({
 // `delegation-panel.integration.test.tsx`.
 vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
 
+const SPECIALIST = {
+  description: "Checks refunds",
+  instructions: "Read the handbook.",
+  model: "Claude",
+};
+
 function delegation(overrides: Partial<Delegation> = {}): Delegation {
   return {
     taskId: "t1",
@@ -296,6 +302,27 @@ describe("DelegationPanels - once the turn is over", () => {
     expect(screen.queryByText("Researcher")).toBeNull();
     expect(screen.getByText("Writer")).toBeInTheDocument();
     expect(screen.getByText("Critic")).toBeInTheDocument();
+  });
+
+  it("drops a delegation the person stopped, which its step now says", () => {
+    // A stopped run left "Sales Researcher stopped" hanging under the answer
+    // while the step list still spun "Asking Sales Researcher".
+    const { container } = render(
+      <DelegationPanels settled delegations={[delegation({ status: "cancelled" })]} />,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("keeps a stopped specialist that can still be kept", () => {
+    render(
+      <DelegationPanels
+        settled
+        delegations={[delegation({ status: "cancelled", specialist: SPECIALIST })]}
+      />,
+    );
+
+    expect(screen.getByText("stopped")).toBeInTheDocument();
   });
 
   it("draws nothing once every delegation is recorded elsewhere", () => {

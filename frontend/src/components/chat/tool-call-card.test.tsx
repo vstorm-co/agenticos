@@ -661,6 +661,13 @@ describe("one agent asking another", () => {
     expect(screen.getByText("Asking Finance Analyst")).toBeInTheDocument();
   });
 
+  it("says the person stopped it rather than asking on under a stopped turn", () => {
+    asking({ status: "unfinished", result: undefined });
+
+    expect(screen.getByText("Stopped asking Finance Analyst")).toBeInTheDocument();
+    expect(screen.queryByText("Asking Finance Analyst")).toBeNull();
+  });
+
   it("opens onto the brief and the answer, folding a long brief", async () => {
     asking();
 

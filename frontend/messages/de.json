@@ -1383,6 +1383,7 @@
       "deleteMemory": "Erinnerung vergessen",
       "askingAgent": "Fragt {name}",
       "askedAgent": "{name} gefragt",
+      "stoppedAskingAgent": "Frage an {name} gestoppt",
       "delegationBrief": "Auftrag",
       "delegationAnswer": "Antwort",
       "openingPage": "Öffnet eine Seite",

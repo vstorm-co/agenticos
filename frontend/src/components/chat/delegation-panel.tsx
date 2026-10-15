@@ -53,7 +53,8 @@ export function DelegationPanels({
   parent?: DelegateRef;
   /**
    * The turn is over. A delegation that answered in it is then the "Asked …" step
-   * and the team under the answer, so its panel goes; one still out in the
+   * and the team under the answer, so its panel goes; so does one the person
+   * stopped, which the step now reads as "Stopped asking …". One still out in the
    * background, one that failed, and a specialist that can still be kept stay.
    */
   settled?: boolean;
@@ -63,9 +64,10 @@ export function DelegationPanels({
   const roots = rootsOf(delegations).filter(
     (delegation) =>
       !settled ||
-      delegation.status !== "completed" ||
-      delegation.mode === "async" ||
-      delegation.specialist !== null,
+      delegation.specialist !== null ||
+      (delegation.status === "completed"
+        ? delegation.mode === "async"
+        : delegation.status !== "cancelled"),
   );
   if (roots.length === 0) return null;
   // While the turn runs, the team is drawn as the exchange it is - see

@@ -513,9 +513,11 @@ describe("useChat - failures and interruptions", () => {
   });
 
   it.each([
-    ["the turn failed", () => receive("error", { message: "Timed out" })],
-    ["the run was cancelled", () => receive("complete", { stopped: true })],
-  ])("marks a call still being written unfinished when %s", (_, end) => {
+    ["the turn failed", () => receive("error", { message: "Timed out" }), "running"],
+    // A stopped run ends the call that was already out too: a colleague asked a
+    // moment before the stop kept spinning "Asking …" under a finished turn.
+    ["the run was cancelled", () => receive("complete", { stopped: true }), "unfinished"],
+  ])("marks a call still being written unfinished when %s", (_, end, sent) => {
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("part_start", {
@@ -538,9 +540,29 @@ describe("useChat - failures and interruptions", () => {
 
     const calls = useChatStore.getState().messages.find((m) => m.id === id)?.toolCalls;
     expect(calls?.map((call) => [call.id, call.status])).toEqual([
-      ["tc-0", "running"],
+      ["tc-0", sent],
       ["tc-1", "unfinished"],
     ]);
+  });
+
+  it("ends a colleague's call that was already out when the person presses stop", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("part_start", {
+      index: 0,
+      part_type: "ToolCallPart",
+      tool_name: "task",
+      tool_call_id: "tc-1",
+    });
+    receive("tool_call", {
+      tool_call_id: "tc-1",
+      tool_name: "task",
+      args: { subagent_type: "sales-researcher", description: "News about Neno?" },
+    });
+
+    act(() => result.current.stopGeneration());
+
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]?.status).toBe("unfinished");
   });
 
   it("marks a call still being written unfinished when the person presses stop", () => {

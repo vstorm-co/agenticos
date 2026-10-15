@@ -359,6 +359,22 @@ export function useChat(options: UseChatOptions = {}) {
     [updateToolCallPart, chatApi],
   );
 
+  // A stopped turn ends every call still out, not only the ones whose arguments
+  // were streaming: a colleague asked a moment before the stop is `running`, and
+  // left so it keeps spinning "Asking …" under a turn that is over.
+  const abandonOpenCalls = useCallback(
+    (messageId: string) => {
+      streamingCallsRef.current.clear();
+      const message = chatApi.getState().messages.find((m) => m.id === messageId);
+      for (const call of message?.toolCalls ?? []) {
+        if (call.status === "pending" || call.status === "running") {
+          updateToolCallPart(messageId, call.id, { status: "unfinished" });
+        }
+      }
+    },
+    [updateToolCallPart, chatApi],
+  );
+
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
       const wsEvent: WSEvent = JSON.parse(event.data);
@@ -772,7 +788,10 @@ export function useChat(options: UseChatOptions = {}) {
             // a run that was cancelled, so whatever was open is closed here. Until
             // now the frontend never read this field at all.
             if (stopped) setDelegations(closeOpenDelegations);
-            if (currentMessageIdRef.current) abandonStreamingCalls(currentMessageIdRef.current);
+            if (currentMessageIdRef.current) {
+              if (stopped) abandonOpenCalls(currentMessageIdRef.current);
+              else abandonStreamingCalls(currentMessageIdRef.current);
+            }
             // Whatever else this turn did, it is not summarising any more.
             setCompacting(null);
             if (usage) {
@@ -821,6 +840,7 @@ export function useChat(options: UseChatOptions = {}) {
       addToolCallPart,
       updateToolCallPart,
       abandonStreamingCalls,
+      abandonOpenCalls,
       setCurrentConversationId,
       setCurrentMessageId,
       onConversationCreated,
@@ -1588,7 +1608,7 @@ export function useChat(options: UseChatOptions = {}) {
   const endTurnLocally = useCallback(() => {
     if (currentMessageIdRef.current) {
       updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
-      abandonStreamingCalls(currentMessageIdRef.current);
+      abandonOpenCalls(currentMessageIdRef.current);
     }
     setCurrentMessageId(null);
     currentGroupIdRef.current = null;
@@ -1598,7 +1618,7 @@ export function useChat(options: UseChatOptions = {}) {
     setPendingConnection(null);
     awaitingConnectionRef.current = false;
     setDelegations(closeOpenDelegations);
-  }, [updateMessage, abandonStreamingCalls, setCurrentMessageId]);
+  }, [updateMessage, abandonOpenCalls, setCurrentMessageId]);
 
   const stopGeneration = useCallback(() => {
     sendMessage({ type: "stop" });

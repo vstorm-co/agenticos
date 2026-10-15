@@ -200,7 +200,14 @@ export function ToolCallCard({
       label={
         delegate === null
           ? step.label
-          : t(isRunning ? "askingAgent" : "askedAgent", { name: delegate.name })
+          : t(
+              isRunning
+                ? "askingAgent"
+                : toolCall.status === "unfinished"
+                  ? "stoppedAskingAgent"
+                  : "askedAgent",
+              { name: delegate.name },
+            )
       }
       detail={isRunning || delegate !== null ? null : step.detail}
       kind={step.kind}
