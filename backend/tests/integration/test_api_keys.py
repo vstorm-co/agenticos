@@ -15,7 +15,7 @@ from collections import Counter
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -407,6 +407,9 @@ class _WindowCounter:
         self.uses[key] += 1
         return self.uses[key]
 
+    async def get(self, key: str) -> str | None:
+        return str(self.uses[key]) if key in self.uses else None
+
 
 class TestLimits:
     @pytest.mark.security
@@ -430,6 +433,30 @@ class TestLimits:
         assert answers[2].headers["Retry-After"] == "60"
         assert answers[2].json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
         assert other.status_code == 200
+
+
+class TestLimitsBeforeTheLookup:
+    @pytest.mark.security
+    async def test_made_up_keys_are_counted_per_address_and_then_cost_no_query(
+        self, db: AsyncSession, client: Client, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex on #2062: random `aos_` tokens were never counted, and each one
+        cost an authentication query."""
+        from app.repositories import api_key_repo
+
+        monkeypatch.setattr(rate_limit, "_redis", _WindowCounter())
+        monkeypatch.setattr(settings, "RATE_LIMIT_AUTH_PER_MINUTE", 2)
+        lookups = AsyncMock(return_value=None)
+        monkeypatch.setattr(api_key_repo, "get_by_prefix", lookups)
+
+        async with client() as http:
+            answers = [
+                await http.get(_url("/agents"), headers=_bearer(f"aos_{uuid.uuid4().hex}"))
+                for _ in range(4)
+            ]
+
+        assert [answer.status_code for answer in answers] == [401, 401, 401, 429]
+        assert lookups.await_count == 3
 
 
 class TestSecrets:

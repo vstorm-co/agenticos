@@ -164,6 +164,23 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     return Decision(allowed=True, retry_after_seconds=0)
 
 
+async def exhausted(*, surface: str, caller: str, limit: Limit) -> bool:
+    """Whether `caller` is already over `limit` on `surface`, without counting a hit.
+
+    For a check made before work that may not happen: an attempt is counted only
+    once it has failed, but a caller already over the line is turned away before
+    the work. False when the limiter cannot read, as `consume` allows then.
+    """
+    if _redis is None:
+        return False
+    try:
+        used = await _redis.get(f"ratelimit:{surface}:{_bounded(caller)}")
+    except Exception:
+        logger.warning("rate_limit_redis_unavailable", exc_info=True)
+        return False
+    return used is not None and int(used) > limit.attempts
+
+
 def run_limit() -> Limit:
     """What one caller may spend the public run API on, per minute."""
     return Limit(attempts=settings.RATE_LIMIT_RUN_PER_MINUTE)

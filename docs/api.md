@@ -60,7 +60,10 @@ Two refusals are worth knowing:
 
 Each key is also rate limited on its own, `RATE_LIMIT_API_KEY_PER_MINUTE`
 requests a minute (600 by default), and a run or an ML call it makes counts
-against those limits for the key rather than for its issuer.
+against those limits for the key rather than for its issuer. Both checks run
+before the key is looked up: a key is counted by the prefix it presents, and an
+address that sent more than `RATE_LIMIT_AUTH_PER_MINUTE` keys that do not exist is
+answered `429` without a lookup until its minute is over.
 
 ### Without a browser
 

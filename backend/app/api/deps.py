@@ -392,7 +392,7 @@ from app.core.audit import set_api_key
 from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
 from app.api.public_api import is_public_route
-from app.services.api_key import ApiKeyService, KeyCaller, is_api_key
+from app.services.api_key import ApiKeyService, KeyCaller, api_key_prefix, is_api_key
 from app.services.assistant import AssistantService
 from app.services.oauth_server import OAuthServerService
 from app.services.change_feed import CONSOLE_TAB_HEADER, ChangeOrigin, console_tab
@@ -439,13 +439,32 @@ async def _authenticate_api_key(request: Request, token: str, api_keys: ApiKeySe
             message="API keys are not accepted on this endpoint",
             details={"path": getattr(route, "path", request.url.path)},
         )
-    caller = await api_keys.authenticate(token)
+    # Both limits are applied before the key is looked up, so neither a key over
+    # its allowance nor a flood of made-up ones costs a database query. A key is
+    # counted by the prefix it presents - unique to it, and readable without the
+    # database. Made-up keys are counted per address, once refused, and an
+    # address over the line is turned away before the lookup.
+    address = f"ip:{rate_limit.caller_ip(request)}"
+    if await rate_limit.exhausted(
+        surface="api_key_refused", caller=address, limit=rate_limit.auth_limit()
+    ):
+        _refuse_if_over(
+            rate_limit.Decision(allowed=False, retry_after_seconds=60),
+            "Too many requests with invalid API keys. Wait and try again.",
+        )
     decision = await rate_limit.consume(
         surface="api_key",
-        caller=f"key:{caller.api_key_id}",
+        caller=f"prefix:{api_key_prefix(token)}",
         limit=rate_limit.api_key_limit(),
     )
     _refuse_if_over(decision, "Too many requests with this API key. Wait and try again.")
+    try:
+        caller = await api_keys.authenticate(token)
+    except AuthenticationError:
+        await rate_limit.consume(
+            surface="api_key_refused", caller=address, limit=rate_limit.auth_limit()
+        )
+        raise
     request.state.api_key_caller = caller
     set_api_key(caller.api_key_id, caller.prefix)
     return caller.user
@@ -929,9 +948,10 @@ def key_needs(perm: Perm) -> Callable[..., Awaitable[None]]:
     was issued: uploading a file for an agent run is `agents:run` work.
     """
 
-    async def dependency(request: Request, _user: CurrentUser) -> None:
-        caller = _key_caller(request)
-        if caller is not None and not caller.context.key_allows(perm):
+    async def dependency(ctx: Auth) -> None:
+        # Through the auth context, as every public route goes: it is the narrowed
+        # one for a key, and `key_allows` is always true for a session.
+        if not ctx.key_allows(perm):
             raise AuthorizationError(
                 message=f"This API key was not issued for {perm.value}",
                 details={"permission": perm.value},

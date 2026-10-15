@@ -74,6 +74,11 @@ _READ_ONLY = frozenset(
 _KNOWLEDGE_INGEST = frozenset({Perm.COLLECTIONS_VIEW, Perm.COLLECTIONS_EDIT})
 
 
+def api_key_prefix(raw: str) -> str:
+    """The part of a presented key that names it - what it is looked up and limited by."""
+    return raw[:_PREFIX_LENGTH]
+
+
 def is_api_key(token: str) -> bool:
     """Whether a bearer token is an organization key rather than a session JWT."""
     return token.startswith(KEY_PREFIX)
@@ -336,8 +341,7 @@ class ApiKeyService:
             AuthenticationError: Unknown, wrong, revoked or expired key, or an issuer
                 who is no longer an active member of the key's organization.
         """
-        prefix = raw[:_PREFIX_LENGTH]
-        key = await api_key_repo.get_by_prefix(self.db, prefix)
+        key = await api_key_repo.get_by_prefix(self.db, api_key_prefix(raw))
         if key is None or not secrets.compare_digest(key.key_hash, _digest(raw)):
             raise AuthenticationError(message=_REFUSED)
         now = datetime.now(UTC)

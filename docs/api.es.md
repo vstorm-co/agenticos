@@ -1,5 +1,5 @@
 ---
-source_sha: "10a5c3460bae"
+source_sha: "16ac978cca0b"
 ---
 
 # La API HTTP { #the-http-api }
@@ -67,7 +67,10 @@ Conviene conocer dos rechazos:
 
 Cada clave tiene además su propio límite, `RATE_LIMIT_API_KEY_PER_MINUTE`
 peticiones por minuto (600 por defecto), y un run o una llamada de ML que haga
-cuenta contra esos límites para la clave y no para su emisor.
+cuenta contra esos límites para la clave y no para su emisor. Ambas comprobaciones
+ocurren antes de buscar la clave: una clave se cuenta por el prefijo que presenta, y
+una dirección que envió más de `RATE_LIMIT_AUTH_PER_MINUTE` claves inexistentes
+recibe `429` sin búsqueda hasta que termine su minuto.
 
 ### Sin navegador { #without-a-browser }
 

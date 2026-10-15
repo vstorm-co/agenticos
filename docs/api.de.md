@@ -1,5 +1,5 @@
 ---
-source_sha: "10a5c3460bae"
+source_sha: "16ac978cca0b"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -70,7 +70,11 @@ Zwei Ablehnungen sollten Sie kennen:
 
 Jeder Schlüssel hat außerdem sein eigenes Limit, `RATE_LIMIT_API_KEY_PER_MINUTE`
 Anfragen pro Minute (standardmäßig 600), und ein Run oder ein ML-Aufruf, den er
-auslöst, zählt gegen diese Limits für den Schlüssel statt für seinen Aussteller.
+auslöst, zählt gegen diese Limits für den Schlüssel statt für seinen Aussteller. Beide
+Prüfungen laufen, bevor der Schlüssel nachgeschlagen wird: Ein Schlüssel wird nach
+dem Präfix gezählt, das er vorlegt, und eine Adresse, die mehr als
+`RATE_LIMIT_AUTH_PER_MINUTE` nicht existierende Schlüssel geschickt hat, erhält bis
+zum Ende ihrer Minute `429` ohne Nachschlagen.
 
 ### Ohne Browser { #without-a-browser }
 
