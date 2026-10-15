@@ -25,7 +25,7 @@ from app.agents.spec import ModelSettingsSpec
 from app.agents.system_agents import JUDGE, SYSTEM_AGENTS, system_agent
 from app.core.exceptions import BadRequestError, SystemAgentUnavailableError
 from app.repositories import agent_repo, credential_repo, member_repo
-from app.services.system_agents import SystemAgentService
+from app.services.system_agents import SystemAgentService, _seed_spec
 
 pytestmark = pytest.mark.anyio
 
@@ -85,6 +85,24 @@ async def test_a_refused_publish_leaves_the_agent_a_draft(monkeypatch) -> None:
     seeded = await service.ensure(organization_id=uuid.uuid4(), key=JUDGE.key)
 
     assert seeded is agent
+
+
+async def test_a_waiting_judge_whose_publish_is_refused_stays_a_draft_unaudited(
+    monkeypatch,
+) -> None:
+    service = _service(monkeypatch, profile=MagicMock(id=uuid.uuid4(), label="Default"))
+    seeded = _seed_spec(JUDGE, model_profile_id=None).model_dump()
+    waiting = MagicMock(id=uuid.uuid4(), current_version_id=None, draft_spec=seeded)
+    monkeypatch.setattr(agent_repo, "get_system", AsyncMock(return_value=waiting))
+    service.registry.save_draft = AsyncMock()
+    service.registry.publish = AsyncMock(side_effect=BadRequestError(message="no key"))
+    audit = AsyncMock()
+    monkeypatch.setattr("app.services.system_agents.record_audit", audit)
+
+    await service.adopt_model(organization_id=uuid.uuid4())
+
+    assert waiting.current_version_id is None
+    audit.assert_not_awaited()
 
 
 async def test_a_concurrent_seed_returns_the_row_that_won(monkeypatch) -> None:
