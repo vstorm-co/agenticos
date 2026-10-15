@@ -32,8 +32,11 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   notification: () => [qk.notifications.all()],
   secret: () => [qk.secrets.all(), qk.sharing.all()],
   mcp_connection: () => [qk.mcpConnections.all(), qk.sharing.all()],
-  // Run history, the approvals inbox and spend all live under `runs`.
-  run: () => [qk.runs.all()],
+  // Run history, the approvals inbox and spend all live under `runs`; the chat
+  // list reads its running, unread and order state off runs too - a run started
+  // by the API, a routine or another tab would otherwise leave it stale. The
+  // lists only: refetching an open thread's messages under a stream is not this.
+  run: () => [qk.runs.all(), qk.conversations.list()],
 };
 
 export function staleQueries(event: ChangeEvent): QueryKey[] {
