@@ -5870,6 +5870,9 @@
     "notNumber": "Diese Prüfung nimmt eine Zahl.",
     "checkEmpty": "Sagen Sie, was jede Prüfung prüft, oder entfernen Sie sie.",
     "caseOpened": "Bearbeiten Sie ihn, um ihn zu ändern; Speichern erzeugt eine neue Version.",
-    "editCase": "Bearbeiten"
+    "editCase": "Bearbeiten",
+    "evals": "Evals",
+    "noEvals": "Noch kein Eval-Run",
+    "noEvalsBody": "Ein Eval lässt einen Agent - eine Version oder seinen Entwurf - durch die Fälle dieses Datasets laufen und sagt, ob er besser oder schlechter ist als zuvor."
   }
 }

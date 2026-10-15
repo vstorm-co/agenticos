@@ -11,6 +11,7 @@ import { CaseRow } from "@/components/datasets/case-row";
 import { DatasetHeader } from "@/components/datasets/dataset-header";
 import { DatasetShareDialog } from "@/components/datasets/dataset-share-dialog";
 import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
+import { EvalsTab } from "@/components/datasets/evals-tab";
 import { ReviewPanel } from "@/components/datasets/review-panel";
 import { GradingPanel } from "@/components/datasets/grading-panel";
 import { VersionSelect } from "@/components/datasets/version-select";
@@ -36,7 +37,7 @@ interface PageProps {
 }
 
 /** The tabs `?tab=` may open, in the order they are drawn. */
-const TABS = ["cases", "grading", "review"];
+const TABS = ["cases", "grading", "evals", "review"];
 
 /** What the case dialog is showing: a new case, or one from the list. */
 type Editing = { draft: CaseDraft; item: DatasetCase | null } | null;
@@ -102,6 +103,9 @@ export default function DatasetPage({ params }: PageProps) {
           <TabsTrigger value="cases">{t("cases")}</TabsTrigger>
           <TabsTrigger value="grading" data-tour="datasets-grading-tab">
             {t("scoring.title")}
+          </TabsTrigger>
+          <TabsTrigger value="evals" data-tour="datasets-evals-tab">
+            {t("evals")}
           </TabsTrigger>
           <TabsTrigger value="review" data-tour="datasets-review-tab">
             {t("scoring.scores")}
@@ -172,6 +176,9 @@ export default function DatasetPage({ params }: PageProps) {
         </TabsContent>
         <TabsContent value="grading">
           <GradingPanel dataset={dataset} />
+        </TabsContent>
+        <TabsContent value="evals">
+          <EvalsTab />
         </TabsContent>
         <TabsContent value="review">
           <ReviewPanel datasetId={id} canDecide={dataset.can_edit} />

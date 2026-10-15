@@ -3632,6 +3632,9 @@
     "notNumber": "To sprawdzenie przyjmuje liczbę.",
     "checkEmpty": "Powiedz, co sprawdza każde sprawdzenie, albo je usuń.",
     "caseOpened": "Edytuj, żeby go zmienić; zapis tworzy nową wersję.",
-    "editCase": "Edytuj"
+    "editCase": "Edytuj",
+    "evals": "Ewaluacje",
+    "noEvals": "Nie ma jeszcze runów ewaluacji",
+    "noEvalsBody": "Ewaluacja przepuszcza agenta - wersję albo draft - przez przypadki tego datasetu i mówi, czy jest lepiej, czy gorzej niż poprzednio."
   }
 }

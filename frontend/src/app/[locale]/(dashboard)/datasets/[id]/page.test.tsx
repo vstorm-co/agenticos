@@ -161,13 +161,20 @@ describe("the dataset page", () => {
     expect(state.remove).toHaveBeenCalled();
   });
 
-  it("opens the tab the address names: Grading, then Review", async () => {
+  it("holds a place for the dataset's eval runs", async () => {
+    state.tab = "evals";
+    await mount();
+    expect(screen.getByText("No eval run yet")).toBeInTheDocument();
+  });
+
+  it("opens the tab the address names, in reading order", async () => {
     state.tab = "review";
     await mount();
     expect(screen.getByText("review")).toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Cases",
       "Grading",
+      "Evals",
       "Review",
     ]);
   });

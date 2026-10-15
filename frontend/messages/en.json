@@ -6012,6 +6012,9 @@
     "notNumber": "This check takes a number.",
     "checkEmpty": "Say what each check checks, or remove it.",
     "caseOpened": "Edit it to change it; saving makes a new version.",
-    "editCase": "Edit"
+    "editCase": "Edit",
+    "evals": "Evals",
+    "noEvals": "No eval run yet",
+    "noEvalsBody": "An eval runs an agent - a version or its draft - through this dataset's cases and says whether it got better or worse than before."
   }
 }
