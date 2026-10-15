@@ -2925,6 +2925,10 @@
       "create-dataset": {
         "title": "Create a dataset?",
         "body": "A dataset holds the questions your agents are tested on. Want to make your first one and write a first good case together? We'll walk you through it."
+      },
+      "test-change": {
+        "title": "Test a change before it goes live?",
+        "body": "Run the draft against the live version on a dataset and read the verdict: which cases broke, which were fixed, and whether it is worth publishing. We'll walk you through it."
       }
     },
     "steps": {
@@ -3471,6 +3475,34 @@
       "agent-evals": {
         "title": "Evals",
         "body": "Run the agent over a dataset to see which cases it passes, what it costs, and whether a change made it better or worse than the version before."
+      },
+      "agent-test-draft": {
+        "title": "Test the draft",
+        "body": "Before you publish, run the draft against the live version on a dataset. The verdict says whether the change made the agent better or worse."
+      },
+      "eval-verdict": {
+        "title": "The verdict",
+        "body": "Which side did better, by how many confirmed cases, and the pass rate before and after. From here, see what changed between the versions, open the cases that broke, or publish."
+      },
+      "flow-test-draft": {
+        "title": "Test the draft",
+        "body": "This draft differs from the live version. Test it on a dataset before publishing."
+      },
+      "flow-test-target": {
+        "title": "What you are testing",
+        "body": "The draft against the live version is already chosen: both answer the same cases now, so whatever changed is the draft's doing."
+      },
+      "flow-test-run": {
+        "title": "Run it for the price shown",
+        "body": "The cost is worked out as you choose and says what the budgets keep afterwards. Nothing runs before you press this."
+      },
+      "flow-test-verdict": {
+        "title": "Read the verdict",
+        "body": "Once both sides finish, this says whether the draft did better or worse, by how many confirmed cases. From here open the cases that broke, see what changed, or publish."
+      },
+      "flow-dataset-next": {
+        "title": "Next: grading, then an eval",
+        "body": "Decide here how answers to these cases are graded. Then run an agent over them - from the agent's Evals tab, or from this dataset - and read how it did."
       }
     }
   },
@@ -6016,9 +6048,9 @@
     },
     "comparison": {
       "title": "How the two compare",
-      "candidate": "Candidate",
-      "baselinePaired": "Baseline, in the same run",
-      "baselinePast": "Baseline, an earlier run",
+      "candidate": "Tested",
+      "baselinePaired": "Compared with, in the same run",
+      "baselinePast": "Compared with, an earlier run",
       "side": "{candidate} · {model} · dataset v{dataset} · {date}",
       "unfinished": "not finished",
       "verdict": {

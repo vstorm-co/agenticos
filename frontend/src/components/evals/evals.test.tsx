@@ -307,7 +307,7 @@ describe("ComparisonCard", () => {
       "/agents/agent-1/evals/run-1",
     );
     expect(screen.getByRole("link", { name: /Draft · gpt-4.1 · dataset v3 · not finished/ }));
-    expect(screen.getByText("Baseline, an earlier run")).toBeInTheDocument();
+    expect(screen.getByText("Compared with, an earlier run")).toBeInTheDocument();
     const confirmed = screen.getByText("Confirmed regressions");
     expect(confirmed.nextSibling).toHaveTextContent("1");
     expect(confirmed.parentElement).toHaveAttribute(
@@ -330,7 +330,7 @@ describe("ComparisonCard", () => {
         comparison={comparison({ paired: true, efficiency: null })}
       />,
     );
-    expect(screen.getByText("Baseline, in the same run")).toBeInTheDocument();
+    expect(screen.getByText("Compared with, in the same run")).toBeInTheDocument();
     expect(screen.queryByText(/Cost per passed case/)).not.toBeInTheDocument();
   });
 

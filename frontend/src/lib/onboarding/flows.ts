@@ -2,6 +2,7 @@ import { ROUTES } from "@/lib/constants";
 import {
   AGENT_BUILDER,
   DATASET_DETAIL,
+  EVAL_RUN,
   KB_DETAIL,
   ORG_GROUPS,
   ORG_MEMBERS,
@@ -36,7 +37,8 @@ export type FlowId =
   | "create-group"
   | "create-routine"
   | "create-dataset"
-  | "explore-chat";
+  | "explore-chat"
+  | "test-change";
 
 /**
  * A resource whose *appearance* ends a step. It is the react-query list the coach
@@ -801,6 +803,14 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         target: "dataset-file-actions",
         permission: Perm.datasetsEdit,
       },
+      // Where the dataset goes next: how its answers are graded, then an agent
+      // run over it.
+      {
+        id: "flow-dataset-next",
+        page: DATASET_DETAIL,
+        target: "datasets-scoring-tab",
+        permission: Perm.datasetsEdit,
+      },
     ],
   },
   // Starting a routine. One step, and deliberately not two: the page's two buttons
@@ -878,6 +888,45 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
   // agent, so a reader with none is asked to build one first and yes hands off to
   // `create-agent`. That fork aside, anyone signed in can chat, so no step past it
   // carries a permission.
+  // Testing a change before it goes live: from the draft's Test button, through
+  // the dialog's choice and price, to the verdict on the run's page. Offered at
+  // the end of the builder's own walk, where the reader is already in an agent -
+  // which is why it, rather than creating another agent, is what that walk ends on.
+  "test-change": {
+    id: "test-change",
+    permission: Perm.runsView,
+    steps: [
+      {
+        id: "flow-test-draft",
+        page: AGENT_BUILDER,
+        target: "agent-test-draft",
+        permission: Perm.runsView,
+        include: (state) => state.hasPublishedAgent,
+        signal: { kind: "opened" },
+      },
+      {
+        id: "flow-test-target",
+        page: AGENT_BUILDER,
+        target: "eval-target",
+        permission: Perm.runsView,
+        inOverlay: true,
+      },
+      {
+        id: "flow-test-run",
+        page: AGENT_BUILDER,
+        target: "eval-run-start",
+        permission: Perm.runsView,
+        inOverlay: true,
+        signal: { kind: "arrived", page: EVAL_RUN },
+      },
+      {
+        id: "flow-test-verdict",
+        page: EVAL_RUN,
+        target: "eval-verdict",
+        permission: Perm.runsView,
+      },
+    ],
+  },
   "explore-chat": {
     id: "explore-chat",
     steps: [
@@ -923,8 +972,9 @@ export function flowForPage(pageId: string): FlowId | null {
     case ROUTES.CHAT:
       return "explore-chat";
     case ROUTES.AGENTS:
-    case AGENT_BUILDER:
       return "create-agent";
+    case AGENT_BUILDER:
+      return "test-change";
     case ROUTES.SKILLS:
       return "create-skill";
     case ROUTES.RAG:

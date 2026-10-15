@@ -2788,6 +2788,10 @@
       "create-dataset": {
         "title": "Ein Dataset anlegen?",
         "body": "Ein Dataset enthält die Fragen, an denen Ihre Agents getestet werden. Möchten Sie jetzt Ihr erstes anlegen und gemeinsam einen ersten guten Fall schreiben? Wir führen Sie durch."
+      },
+      "test-change": {
+        "title": "Eine Änderung testen, bevor sie live geht?",
+        "body": "Lass den Entwurf auf einem Dataset gegen die Live-Version laufen und lies das Urteil: welche Fälle kaputtgingen, welche behoben wurden und ob sich das Veröffentlichen lohnt. Wir führen dich durch."
       }
     },
     "steps": {
@@ -3334,6 +3338,34 @@
       "agent-evals": {
         "title": "Evals",
         "body": "Lass den Agent über ein Dataset laufen, um zu sehen, welche Fälle er besteht, was es kostet und ob eine Änderung ihn gegenüber der vorherigen Version verbessert oder verschlechtert hat."
+      },
+      "agent-test-draft": {
+        "title": "Entwurf testen",
+        "body": "Bevor du veröffentlichst, lass den Entwurf auf einem Dataset gegen die Live-Version laufen. Das Urteil sagt, ob die Änderung den Agenten besser oder schlechter gemacht hat."
+      },
+      "eval-verdict": {
+        "title": "Das Urteil",
+        "body": "Welche Seite besser abschnitt, um wie viele bestätigte Fälle, und die Bestehensquote vorher und nachher. Von hier aus siehst du, was sich zwischen den Versionen geändert hat, öffnest die kaputten Fälle oder veröffentlichst."
+      },
+      "flow-test-draft": {
+        "title": "Den Entwurf testen",
+        "body": "Dieser Entwurf unterscheidet sich von der Live-Version. Teste ihn auf einem Dataset, bevor du veröffentlichst."
+      },
+      "flow-test-target": {
+        "title": "Was du testest",
+        "body": "Der Entwurf gegen die Live-Version ist schon gewählt: Beide beantworten jetzt dieselben Fälle, also geht jede Änderung auf den Entwurf zurück."
+      },
+      "flow-test-run": {
+        "title": "Für den gezeigten Preis starten",
+        "body": "Die Kosten werden beim Auswählen berechnet und sagen, was den Budgets danach bleibt. Nichts läuft, bevor du hier klickst."
+      },
+      "flow-test-verdict": {
+        "title": "Das Urteil lesen",
+        "body": "Sobald beide Seiten fertig sind, steht hier, ob der Entwurf besser oder schlechter abschnitt und um wie viele bestätigte Fälle. Von hier öffnest du die kaputten Fälle, siehst, was sich geändert hat, oder veröffentlichst."
+      },
+      "flow-dataset-next": {
+        "title": "Als Nächstes: Bewertung, dann ein Eval",
+        "body": "Lege hier fest, wie Antworten auf diese Fälle bewertet werden. Dann lass einen Agenten sie beantworten - im Evals-Tab des Agenten oder von diesem Dataset aus - und lies, wie er abschnitt."
       }
     }
   },
@@ -5874,9 +5906,9 @@
     },
     "comparison": {
       "title": "Wie die beiden abschneiden",
-      "candidate": "Kandidat",
-      "baselinePaired": "Baseline, im selben Run",
-      "baselinePast": "Baseline, ein früherer Run",
+      "candidate": "Getestet",
+      "baselinePaired": "Verglichen mit, im selben Run",
+      "baselinePast": "Verglichen mit, ein früherer Run",
       "side": "{candidate} · {model} · Dataset v{dataset} · {date}",
       "unfinished": "nicht abgeschlossen",
       "verdict": {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   AGENT_BUILDER,
   DATASET_DETAIL,
+  EVAL_RUN,
   KB_DETAIL,
   ORG_DIRECTORY,
   ORG_GROUPS,
@@ -46,6 +47,7 @@ const BUILDER_STEPS = [
   "agent-evals",
   "agent-history",
   "agent-test-connections",
+  "agent-test-draft",
   "agent-publish",
 ];
 
@@ -249,11 +251,24 @@ describe("stepsForPage", () => {
       ),
     ).toEqual(
       // Two are agents:publish - publishing, and the test connections a
-      // publisher manages per environment - and the Evals tab is runs:view.
+      // publisher manages per environment - and the Evals tab and testing the
+      // draft are runs:view.
       BUILDER_STEPS.filter(
-        (id) => id !== "agent-publish" && id !== "agent-test-connections" && id !== "agent-evals",
+        (id) =>
+          id !== "agent-publish" &&
+          id !== "agent-test-connections" &&
+          id !== "agent-evals" &&
+          id !== "agent-test-draft",
       ),
     );
+  });
+
+  it("walks an eval run's own page rather than the builder's", () => {
+    expect(pageKey("/agents/a-1/evals/run-1")).toBe(EVAL_RUN);
+    expect(pageKey("/agents/a-1")).toBe(AGENT_BUILDER);
+    expect(stepsForPage("/agents/a-1/evals/run-1", () => true).map((step) => step.id)).toEqual([
+      "eval-verdict",
+    ]);
   });
 
   it("walks the list and then the whole collection when asked from the Knowledge list", () => {

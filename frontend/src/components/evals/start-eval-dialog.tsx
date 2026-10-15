@@ -200,6 +200,7 @@ export function StartEvalDialog({
             {t("cancel")}
           </Button>
           <Button
+            data-tour="eval-run-start"
             disabled={!priced || !priced.affordable || start.isPending}
             onClick={() => full && void run(full).catch(() => undefined)}
           >

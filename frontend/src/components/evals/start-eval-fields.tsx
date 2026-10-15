@@ -41,7 +41,7 @@ export function TargetChoice({
     return <p className="text-muted-foreground text-sm">{t("noTarget")}</p>;
   }
   return (
-    <div role="radiogroup" aria-label={t("target")} className="space-y-1">
+    <div role="radiogroup" aria-label={t("target")} className="space-y-1" data-tour="eval-target">
       <p className="text-sm font-medium">{t("target")}</p>
       {targets.map((target) => (
         <button

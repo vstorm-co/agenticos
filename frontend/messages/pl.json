@@ -1520,6 +1520,10 @@
       "create-dataset": {
         "title": "Utworzyć dataset?",
         "body": "Dataset trzyma pytania, na których testujesz agentów. Chcesz utworzyć pierwszy i razem napisać pierwszy dobry przypadek? Przeprowadzimy cię przez to."
+      },
+      "test-change": {
+        "title": "Przetestować zmianę przed publikacją?",
+        "body": "Uruchom draft na datasecie razem z wersją produkcyjną i przeczytaj werdykt: które case'y się zepsuły, które naprawiły i czy warto publikować. Przeprowadzimy Cię przez to."
       }
     },
     "steps": {
@@ -2030,6 +2034,34 @@
       "agent-evals": {
         "title": "Evale",
         "body": "Uruchom agenta na datasecie, żeby zobaczyć, które przypadki zalicza, ile to kosztuje i czy zmiana poprawiła go, czy pogorszyła względem poprzedniej wersji."
+      },
+      "agent-test-draft": {
+        "title": "Przetestuj draft",
+        "body": "Zanim opublikujesz, uruchom draft na datasecie razem z wersją produkcyjną. Werdykt powie, czy zmiana poprawiła agenta, czy go pogorszyła."
+      },
+      "eval-verdict": {
+        "title": "Werdykt",
+        "body": "Która strona wypadła lepiej, o ile potwierdzonych case'ów i odsetek zaliczonych przed i po. Stąd zobaczysz, co się zmieniło między wersjami, otworzysz zepsute case'y albo opublikujesz."
+      },
+      "flow-test-draft": {
+        "title": "Przetestuj draft",
+        "body": "Ten draft różni się od wersji produkcyjnej. Przetestuj go na datasecie, zanim opublikujesz."
+      },
+      "flow-test-target": {
+        "title": "Co testujesz",
+        "body": "Draft w porównaniu z wersją produkcyjną jest już wybrany: obie odpowiadają teraz na te same case'y, więc każda zmiana wynika z draftu."
+      },
+      "flow-test-run": {
+        "title": "Uruchom za podaną kwotę",
+        "body": "Koszt liczy się na bieżąco i mówi, ile zostanie w budżetach. Nic się nie uruchomi, zanim tego nie klikniesz."
+      },
+      "flow-test-verdict": {
+        "title": "Przeczytaj werdykt",
+        "body": "Gdy obie strony skończą, tu zobaczysz, czy draft wypadł lepiej, czy gorzej i o ile potwierdzonych case'ów. Stąd otworzysz zepsute case'y, zobaczysz, co się zmieniło, albo opublikujesz."
+      },
+      "flow-dataset-next": {
+        "title": "Dalej: ocenianie, potem eval",
+        "body": "Tu ustalisz, jak oceniane są odpowiedzi na te case'y. Potem uruchom na nich agenta - z zakładki Evals agenta albo z tego datasetu - i przeczytaj, jak mu poszło."
       }
     }
   },
@@ -3637,9 +3669,9 @@
     },
     "comparison": {
       "title": "Jak wypadają obie strony",
-      "candidate": "Kandydat",
-      "baselinePaired": "Baseline, w tym samym runie",
-      "baselinePast": "Baseline, wcześniejszy run",
+      "candidate": "Testowane",
+      "baselinePaired": "Odniesienie, w tym samym runie",
+      "baselinePast": "Odniesienie, wcześniejszy run",
       "side": "{candidate} · {model} · dataset v{dataset} · {date}",
       "unfinished": "niezakończony",
       "verdict": {
