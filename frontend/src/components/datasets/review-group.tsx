@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useFormatter, useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import type { ScoreGroup } from "@/lib/scoring";
+import { formatDateTime } from "@/lib/utils";
 
 interface ReviewGroupHeadingProps {
   group: ScoreGroup;
@@ -28,12 +29,9 @@ export function ReviewGroupHeading({
   busy,
 }: ReviewGroupHeadingProps) {
   const t = useTranslations("datasets.scoring");
-  const format = useFormatter();
+  const locale = useLocale();
   const [first] = group.scores;
-  const when = format.dateTime(new Date(first!.created_at), {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  const when = formatDateTime(first!.created_at, locale);
   const ungraded = group.scores.filter((score) => score.unscored_reason !== null);
   const link =
     group.evalRunId !== null && first!.agent_id !== null

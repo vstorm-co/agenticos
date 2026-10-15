@@ -561,19 +561,23 @@ apart, in a folded **Judges** band under **Agents**, each card saying which
 datasets it grades and the seeded one marked **Default judge**; agent pickers
 leave them out. Whoever holds `agents:edit` opens one to change its
 instructions, model and budget - its page holds those, its limits, its history
-and the datasets it grades, and nothing else. Its runs are budget-checked and
-recorded like any other, and send no run notification. A judge starts with a
-small monthly budget of its own, so a new organization cannot spend its whole
-budget on evaluation by accident.
+and the datasets it grades, with how often people agreed with it on the results
+it graded and they decided, and nothing else.
+
+Its runs are budget-checked and recorded like any other, and send no run
+notification. A judge starts with a small monthly budget of its own, so a new
+organization cannot spend its whole budget on evaluation by accident.
 
 Only the platform runs it. Chat, the API, an embed or a public page, a channel,
 a schedule and delegation from another agent all refuse it, in the service that
 would start the run rather than only in the console.
 
 When the organization already has a model profile, a judge is published on the
-oldest one, or on the one picked when it was created. Without one, it is created
-as a draft, and a person picks its model and publishes it. The features that use
-it say so until then.
+oldest one, or on the one picked when it was created. Without one, it is
+created as a draft. The seeded Eval judge is published on the organization's
+first model as soon as one is added; a dataset's own judge waits for a person
+to pick its model and publish it, and the features that use it say so until
+then.
 
 The organization's [AI assistance switch](governance.md#ai-assistance) decides
 whether judges run at all.

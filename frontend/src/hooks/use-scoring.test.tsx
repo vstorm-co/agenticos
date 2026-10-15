@@ -5,6 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   useCreateJudge,
+  useJudgeAgreement,
+  useJudgeTemplate,
+  useNoteToCriterion,
   useReviewQueue,
   useScoreRun,
   useScores,
@@ -13,9 +16,12 @@ import {
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import { DEFAULT_SCORING } from "@/lib/scoring";
+import { caseScore } from "@/test-utils/scores";
+import type { Dataset } from "@/types/datasets";
+import type { DatasetScoring } from "@/types/scoring";
 
 vi.mock("@/lib/api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn() },
 }));
 
 let client: QueryClient;
@@ -169,6 +175,77 @@ describe("useScores rescore", () => {
     await expect(result.current.rescore.mutateAsync(["s1"])).rejects.toThrow("Gone");
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.datasets.allReviewQueue() });
+  });
+});
+
+describe("useNoteToCriterion", () => {
+  const dataset = {
+    id: "d1",
+    scoring: {
+      ...DEFAULT_SCORING,
+      judge: {
+        ...DEFAULT_SCORING.judge,
+        criteria: [{ name: "Must cite the policy", description: "x", required: true }],
+      },
+    },
+  } as Dataset;
+  const score = caseScore({ case_id: "c1", human_note: "  Must cite the policy  " });
+
+  it("adds the note to the newest revision's checks as a judge criterion", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ checks: [{ type: "contains", value: "30" }] });
+    vi.mocked(apiClient.patch).mockResolvedValue({});
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useNoteToCriterion(dataset), { wrapper });
+
+    await result.current.mutateAsync({ score, target: "case" });
+
+    expect(apiClient.get).toHaveBeenCalledWith("/datasets/d1/cases/c1");
+    expect(apiClient.patch).toHaveBeenCalledWith("/datasets/d1/cases/c1", {
+      checks: [
+        { type: "contains", value: "30" },
+        { type: "judge", criterion: "Must cite the policy" },
+      ],
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.datasets.all() });
+  });
+
+  it("adds the note to the rubric under a name of its own, and switches the judge on", async () => {
+    vi.mocked(apiClient.put).mockResolvedValue({});
+    const { result } = renderHook(() => useNoteToCriterion(dataset), { wrapper });
+
+    await result.current.mutateAsync({
+      score: caseScore({ human_note: null }),
+      target: "dataset",
+    });
+    await result.current.mutateAsync({ score, target: "dataset" });
+
+    const sent = vi.mocked(apiClient.put).mock.calls.at(-1)![1] as DatasetScoring;
+    expect(sent.judge.enabled).toBe(true);
+    expect(sent.judge.criteria.at(-1)).toEqual({
+      name: "Must cite the policy 2",
+      description: "Must cite the policy",
+      required: true,
+    });
+  });
+});
+
+describe("useJudgeTemplate", () => {
+  it("reads the prompt a dataset's judge starts from", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ instructions: "Grade by the rules." });
+    const { result } = renderHook(() => useJudgeTemplate("d1"), { wrapper });
+
+    await waitFor(() => expect(result.current.instructions).toBe("Grade by the rules."));
+    expect(apiClient.get).toHaveBeenCalledWith("/datasets/d1/judge-template");
+  });
+});
+
+describe("useJudgeAgreement", () => {
+  it("reads how often people agreed with one judge", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ agreed: 7, decided: 10 });
+    const { result } = renderHook(() => useJudgeAgreement("j1"), { wrapper });
+
+    await waitFor(() => expect(result.current.agreement).toEqual({ agreed: 7, decided: 10 }));
+    expect(apiClient.get).toHaveBeenCalledWith("/datasets/judge-agreement?judge=j1");
   });
 });
 

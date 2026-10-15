@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   push: vi.fn(),
   remove: vi.fn(),
   runsView: true,
+  findTwin: vi.fn(),
 }));
 vi.mock("next/navigation", async (original) => ({
   ...(await original<typeof import("next/navigation")>()),
@@ -58,6 +59,7 @@ vi.mock("@/hooks/use-datasets", () => ({
       remove: { mutate: vi.fn() },
       importFile: { mutateAsync: vi.fn() },
       refetch: vi.fn(),
+      findTwin: state.findTwin,
     };
   },
 }));
@@ -155,6 +157,39 @@ describe("the dataset page", () => {
     await mount();
     await userEvent.click(screen.getAllByRole("button", { name: "Add case" }).at(-1)!);
     expect(screen.getByRole("dialog", { name: "Add case" })).toBeInTheDocument();
+  });
+
+  it("opens the case a new one would repeat in its place", async () => {
+    state.findTwin.mockResolvedValue({
+      id: "r9",
+      case_id: "c9",
+      input: "How long is the return window?",
+      history: [],
+      reference_answer: "30 days",
+      counter_example: null,
+      expected_tool_calls: [],
+      order_mode: "any",
+      checks: [],
+      tags: [],
+      note: null,
+      source: "manual",
+      source_run_id: null,
+      source_conversation_id: null,
+      source_message_id: null,
+      created_by_user_id: null,
+      created_at: "2026-10-01T00:00:00Z",
+    });
+    await mount();
+    await userEvent.click(screen.getAllByRole("button", { name: "Add case" }).at(-1)!);
+    await userEvent.type(screen.getByLabelText(/^Input/), "how long is the return window?");
+    await userEvent.type(screen.getByLabelText("Reference answer"), "30 days");
+    await userEvent.click(screen.getByRole("button", { name: "Save case" }));
+
+    await userEvent.click(await screen.findByRole("button", { name: "Open it" }));
+
+    const opened = screen.getByRole("dialog", { name: "Case" });
+    expect(within(opened).getByText("How long is the return window?")).toBeInTheDocument();
+    expect(within(opened).getByRole("button", { name: "Edit" })).toBeInTheDocument();
   });
 
   it("offers editing the name and description to somebody who may edit it", async () => {

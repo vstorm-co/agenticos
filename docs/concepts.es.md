@@ -1,5 +1,5 @@
 ---
-source_sha: "896c26eb77f1"
+source_sha: "60c5c193c13f"
 ---
 
 # Conceptos { #concepts }
@@ -582,12 +582,15 @@ una organización creada antes lo recibe la primera vez que algo lo necesita, y
 un dataset puede tener un juez propio.
 
 Un juez lo ejecuta la plataforma; no es un agent que usen las personas. Agents
-muestra los jueces aparte, en una banda plegada **Judges** bajo **Agents**; cada
-tarjeta dice qué datasets califica, el sembrado lleva **Default judge**, y los
-selectores de agents los dejan fuera. Quien tiene `agents:edit` abre uno para
-cambiar sus instrucciones, su modelo y su budget: su página contiene eso, sus
-límites, su historial y los datasets que califica, y nada más. Sus runs se
-comprueban contra el budget y se registran como cualquier otro, sin
+muestra los jueces aparte, en una banda plegada **Judges** bajo **Agents**;
+cada tarjeta dice qué datasets califica, el sembrado lleva **Default judge**, y
+los selectores de agents los dejan fuera. Quien tiene `agents:edit` abre uno
+para cambiar sus instrucciones, su modelo y su budget: su página contiene eso,
+sus límites, su historial y los datasets que califica, con cuántas veces las
+personas coincidieron con él en los resultados que calificó y ellas decidieron,
+y nada más.
+
+Sus runs se comprueban contra el budget y se registran como cualquier otro, sin
 notificación de run. Un juez empieza con un budget mensual pequeño propio, para
 que una organización nueva no gaste por accidente todo su budget en evaluación.
 
@@ -595,9 +598,11 @@ Solo la plataforma lo ejecuta. El chat, la API, un embed o una página pública,
 un canal, una programación y la delegación desde otro agent lo rechazan, en el
 servicio que iniciaría el run y no solo en la consola.
 
-Cuando la organización ya tiene un perfil de modelo, un juez se publica sobre el
-más antiguo, o sobre el que se eligió al crearlo. Sin ninguno, se crea como
-borrador, y una persona elige su modelo y lo publica. Hasta entonces, las
+Cuando la organización ya tiene un perfil de modelo, un juez se publica sobre
+el más antiguo, o sobre el que se eligió al crearlo. Sin ninguno, se crea como
+borrador. El Eval judge que trae la plataforma se publica sobre el primer
+modelo de la organización en cuanto se añade uno; el juez propio de un dataset
+espera a que una persona elija su modelo y lo publique, y hasta entonces las
 funciones que lo usan lo indican.
 
 El [interruptor de asistencia de IA](governance.md#ai-assistance) de la

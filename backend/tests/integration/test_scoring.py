@@ -24,6 +24,7 @@ from app.agents.model_resolver import ModelRequestSpec
 from app.agents.spec import AgentSpec
 from app.agents.system_agents import JUDGE
 from app.core.exceptions import (
+    AiAssistanceDisabledError,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
@@ -53,7 +54,12 @@ from app.repositories import (
     dataset_repo,
     intercepted_tool_call_repo,
 )
-from app.schemas.dataset import DatasetCaseCreate, DatasetCreate, ExpectedToolCall
+from app.schemas.dataset import (
+    DatasetCaseCreate,
+    DatasetCreate,
+    DatasetUpdate,
+    ExpectedToolCall,
+)
 from app.schemas.resource_grant import VisibilityLiteral
 from app.schemas.scoring import (
     CaseScoreCreate,
@@ -411,8 +417,45 @@ class TestScoringARun:
             1,
         )
         assert first.judge.model_profile_id == profile.id
+        assert (first.judge_model, first.run_model) == ("Default", "gpt-4.1")
         assert again.judge == first.judge
         assert narrower.judge.rubric_hash != first.judge.rubric_hash
+
+    async def test_a_judge_model_gone_or_never_pinned_is_named_as_nothing(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+        unpinned = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        row = await case_score_repo.get(
+            db, unpinned.id, organization_id=tenant.organization.id, dataset_id=dataset.id
+        )
+        assert row is not None and row.judge is not None
+        await case_score_repo.update(
+            db, score=row, update_data={"judge": {**row.judge, "model_profile_id": None}}
+        )
+        orphaned = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        row = await case_score_repo.get(
+            db, orphaned.id, organization_id=tenant.organization.id, dataset_id=dataset.id
+        )
+        assert row is not None and row.judge is not None
+        await case_score_repo.update(
+            db,
+            score=row,
+            update_data={"judge": {**row.judge, "model_profile_id": str(uuid.uuid4())}},
+        )
+
+        listed = await scoring.list_scores(tenant.ctx, dataset.id)
+
+        assert {item.id: item.judge_model for item in listed.items} == {
+            unpinned.id: None,
+            orphaned.id: None,
+        }
 
     async def test_the_judge_is_a_recorded_eval_run_in_activity(self, db, judge) -> None:
         tenant = await _tenant(db)
@@ -632,6 +675,39 @@ class TestADatasetsOwnJudge:
         assert judged.agent_id == own
         assert score.judge is not None and score.judge.agent_id == own
 
+    async def test_it_grades_by_the_default_judge_s_rules_with_the_dataset_added(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, _ = await _dataset(db, tenant, scoring=_rubric())
+        await DatasetService(db).update(
+            tenant.ctx, dataset.id, DatasetUpdate(description="Returns and refunds")
+        )
+        scoring = ScoringService(db)
+
+        template = await scoring.judge_template(tenant.ctx, dataset.id)
+        made = await scoring.create_judge(
+            tenant.ctx, dataset.id, JudgeCreate(name="Refunds judge", knowledge="30 days.")
+        )
+
+        assert template.instructions.startswith(JUDGE.instructions)
+        assert (
+            f'dataset "{dataset.name}". It is about: Returns and refunds' in template.instructions
+        )
+        own = made.scoring.judge.agent_id
+        assert own is not None
+        agent = await agent_repo.get(db, own, organization_id=tenant.organization.id)
+        assert agent is not None and agent.current_version_id is not None
+        version = await agent_repo.get_version(
+            db, agent.current_version_id, organization_id=tenant.organization.id
+        )
+        assert version is not None
+        cloned = version.spec["instructions"]
+        assert "a counter-example is given, it is a known bad answer" in cloned
+        assert "Do not reward length, confidence or polish" in cloned
+        assert cloned == f"{template.instructions}\n\nWhat you must know to grade:\n30 days."
+
     async def test_creating_it_switches_grading_on_with_a_criterion_and_the_reference(
         self, db, judge
     ) -> None:
@@ -812,7 +888,7 @@ class TestWhenTheJudgeCannotRun:
         judged = [r for r in score.results if r.scorer == "judge"]
         assert {(r.status, r.reason_code) for r in judged} == {("skipped", "ai_assistance_off")}
         assert score.passed is None
-        assert score.judge is None
+        assert (score.judge, score.judge_model) == (None, None)
         assert judge.calls == 0
         assert await _eval_runs(db, tenant) == []
 
@@ -840,9 +916,26 @@ class TestWhenTheJudgeCannotRun:
         assert score.passed is None
 
     async def test_an_unpublished_judge_says_so(self, db, judge) -> None:
+        """A dataset's own judge created before any model stays a draft until published."""
         tenant = await _tenant(db)
-        await SystemAgentService(db).ensure(organization_id=tenant.organization.id, key=JUDGE.key)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        await ScoringService(db).create_judge(
+            tenant.ctx, dataset.id, JudgeCreate(name="Refunds judge", instructions="Be strict.")
+        )
         await _model(db, tenant)
+        run = await _scored_run(db, tenant)
+
+        score = await ScoringService(db).score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+
+        judged = [r for r in score.results if r.scorer == "judge"]
+        assert {r.reason_code for r in judged} == {"judge_unpublished"}
+
+    async def test_the_seeded_judge_waits_unpublished_while_there_is_no_model(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
         dataset, case = await _dataset(db, tenant, scoring=_rubric())
         run = await _scored_run(db, tenant)
 
@@ -852,6 +945,7 @@ class TestWhenTheJudgeCannotRun:
 
         judged = [r for r in score.results if r.scorer == "judge"]
         assert {r.reason_code for r in judged} == {"judge_unpublished"}
+        assert judge.calls == 0
 
     async def test_an_archived_judge_says_so(self, db, judge) -> None:
         tenant = await _tenant(db)
@@ -875,7 +969,7 @@ class TestWhenTheJudgeCannotRun:
         self, db, monkeypatch
     ) -> None:
         async def prose(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
-            return ModelResponse(parts=[TextPart("It is fine.")])
+            return ModelResponse(parts=[TextPart("It is fine.\n\n" + "Truly " * 60)])
 
         monkeypatch.setattr(ModelRequestSpec, "build", lambda self: FunctionModel(prose))
         tenant = await _tenant(db)
@@ -893,6 +987,90 @@ class TestWhenTheJudgeCannotRun:
             ("error", "judge_output_invalid", recorded.id)
         }
         assert (score.passed, score.unscored_reason) == (None, "judge_output_invalid")
+        said = {r.judge_said for r in judged}
+        assert len(said) == 1
+        [shown] = said
+        assert shown is not None and shown.startswith("It is fine. Truly Truly")
+        assert (len(shown), shown[-1]) == (201, "…")
+
+
+class TestJudgeAgreement:
+    async def test_people_agreed_with_the_judge_on_some_of_what_they_decided(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric(), visibility="private")
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+        judge.grades = {"r2": 2}
+        scores = [
+            await scoring.score_run(
+                tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+            )
+            for _ in range(3)
+        ]
+        assert {score.passed for score in scores} == {False}
+        await scoring.set_verdict(tenant.ctx, dataset.id, scores[0].id, CaseVerdict(passed=False))
+        await scoring.set_verdict(tenant.ctx, dataset.id, scores[1].id, CaseVerdict(passed=True))
+        judge_agent = await agent_repo.get_system(
+            db, organization_id=tenant.organization.id, key=JUDGE.key
+        )
+        assert judge_agent is not None
+        stranger = await _join(db, tenant, OrgRoleName.MEMBER)
+
+        mine = await scoring.judge_agreement(tenant.ctx, judge_agent.id)
+        theirs = await scoring.judge_agreement(stranger, judge_agent.id)
+        other = await scoring.judge_agreement(tenant.ctx, uuid.uuid4())
+
+        assert (mine.agreed, mine.decided) == (1, 2)
+        assert (theirs.agreed, theirs.decided) == (0, 0)
+        assert (other.agreed, other.decided) == (0, 0)
+
+
+class TestJudgeAgreementIsTheJudgesOwn:
+    async def test_a_check_failing_beside_the_judge_is_not_counted_against_it(
+        self, db, monkeypatch
+    ) -> None:
+        judging = Judge()
+        answers = iter(["", "", "It is fine."])
+
+        def model(self) -> FunctionModel:
+            async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+                if next(answers, "") == "It is fine.":
+                    return ModelResponse(parts=[TextPart("It is fine.")])
+                return await judging.model().function(messages, info)  # type: ignore[misc]
+
+            return FunctionModel(respond)
+
+        monkeypatch.setattr(ModelRequestSpec, "build", model)
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant, answer="Thirty days, as the policy says.")
+        scoring = ScoringService(db)
+        scores = [
+            await scoring.score_run(
+                tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+            )
+            for _ in range(3)
+        ]
+        # The answer is not JSON, so the required schema check fails every case,
+        # while the judge passes two and cannot read the third.
+        assert [score.passed for score in scores] == [False, False, False]
+        assert {r.reason_code for r in scores[2].results if r.scorer == "judge"} == {
+            "judge_output_invalid"
+        }
+        for score in scores:
+            await scoring.set_verdict(tenant.ctx, dataset.id, score.id, CaseVerdict(passed=True))
+        judge_agent = await agent_repo.get_system(
+            db, organization_id=tenant.organization.id, key=JUDGE.key
+        )
+        assert judge_agent is not None
+
+        agreement = await scoring.judge_agreement(tenant.ctx, judge_agent.id)
+
+        assert (agreement.agreed, agreement.decided) == (2, 2)
 
 
 class TestGradingAgain:
@@ -972,6 +1150,40 @@ class TestGradingAgain:
                 tenant.ctx, dataset.id, RescoreRequest(score_ids=[readable.id, lost.id])
             )
 
+        assert len(await _eval_runs(db, tenant)) == before
+
+    async def test_a_cause_still_there_or_a_judge_changed_since_is_refused(
+        self, db, monkeypatch
+    ) -> None:
+        async def prose(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            return ModelResponse(parts=[TextPart("It is fine.")])
+
+        monkeypatch.setattr(ModelRequestSpec, "build", lambda self: FunctionModel(prose))
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+        failed = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        before = len(await _eval_runs(db, tenant))
+        tenant.organization.ai_assistance_enabled = False
+        await db.flush()
+
+        with pytest.raises(AiAssistanceDisabledError):
+            await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id]))
+
+        tenant.organization.ai_assistance_enabled = True
+        await db.flush()
+        judge_agent = await agent_repo.get_system(
+            db, organization_id=tenant.organization.id, key=JUDGE.key
+        )
+        assert judge_agent is not None
+        await AgentRegistryService(db).publish(tenant.ctx, judge_agent.id, note="Stricter")
+
+        with pytest.raises(BadRequestError, match="published anew"):
+            await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id]))
         assert len(await _eval_runs(db, tenant)) == before
 
     async def test_a_score_of_another_dataset_refuses_the_request(self, db, judge) -> None:
@@ -1085,6 +1297,31 @@ class TestVerdicts:
         assert (again.queued, again.already) == (0, 1)
         [waiting] = (await service.list_scores(tenant.ctx, dataset.id, pending=True)).items
         assert (waiting.id, waiting.eval_run_id) == (score.id, eval_run_id)
+
+    async def test_an_eval_run_routes_one_score_per_case_and_never_twice(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        other, other_case = await _dataset(db, tenant, scoring=DatasetScoring())
+        run = await _scored_run(db, tenant)
+        eval_run_id = await _eval_run(db, tenant, dataset, run)
+        service = ScoringService(db)
+        first = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
+        second = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
+        elsewhere = await _score_for_an_eval(db, tenant, other, other_case, run, eval_run_id)
+
+        routed = await service.route_to_review(
+            tenant.ctx,
+            dataset_id=dataset.id,
+            score_ids=[first.id, second.id, elsewhere.id, uuid.uuid4()],
+        )
+        again = await service.route_to_review(
+            tenant.ctx, dataset_id=dataset.id, score_ids=[second.id]
+        )
+
+        assert (routed, again) == (1, 0)
+        waiting = (await service.list_scores(tenant.ctx, dataset.id, pending=True)).items
+        assert [score.id for score in waiting] == [first.id]
+        assert (await service.list_scores(tenant.ctx, other.id, pending=True)).total == 0
 
     async def test_a_score_keeps_the_answer_it_graded_and_who_gave_it(self, db, judge) -> None:
         tenant = await _tenant(db)
@@ -1302,19 +1539,28 @@ class TestRefusals:
                 member, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
             )
 
-    async def test_a_judge_model_from_another_organization_is_refused(self, db, judge) -> None:
+    async def test_a_model_named_for_the_judge_is_accepted_and_dropped(self, db, judge) -> None:
         mine, theirs = await _tenant(db), await _tenant(db)
         foreign = await _model(db, theirs)
         dataset, _ = await _dataset(db, mine, scoring=DatasetScoring())
 
-        with pytest.raises(BadRequestError, match="no such model"):
-            await ScoringService(db).set_scoring(
-                mine.ctx,
-                dataset.id,
-                DatasetScoring(
-                    judge=JudgeScorer(enabled=True, criteria=RUBRIC, model_profile_id=foreign.id)
-                ),
-            )
+        saved = await ScoringService(db).set_scoring(
+            mine.ctx,
+            dataset.id,
+            DatasetScoring.model_validate(
+                {
+                    "judge": {
+                        "enabled": True,
+                        "criteria": [c.model_dump() for c in RUBRIC],
+                        "model_profile_id": str(foreign.id),
+                    }
+                }
+            ),
+        )
+
+        assert saved.scoring.judge.model_profile_id is None
+        row = await dataset_repo.get(db, dataset.id, organization_id=mine.organization.id)
+        assert row is not None and row.scoring["judge"]["model_profile_id"] is None
 
     @pytest.mark.parametrize(
         ("scoring", "field"),

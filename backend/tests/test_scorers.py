@@ -34,11 +34,11 @@ from app.services.scorers import (
     ScoredAnswer,
     ScoredCall,
     case_passed,
-    echoes,
     graded,
     judge_criteria,
     judge_prompt,
     not_graded,
+    restates,
     run_checks,
     score_trajectory,
 )
@@ -551,16 +551,74 @@ class TestGrades:
         assert {r.reason_code for r in echoed} == {"judge_reason_echo"}
         assert results[1].status == "pass"
 
+    def test_a_criterion_copied_with_one_word_swapped_is_still_restated(self) -> None:
+        criterion = (
+            "The decision (approve, deny or need more info) follows the store's refund policy, "
+            "and the answer never promises a refund the policy does not allow."
+        )
+        copied = (
+            "The decision (deny) follows the store's refund policy, and the answer never "
+            "promises a refund the policy does not allow."
+        )
+
+        assert restates(copied, criterion)
+        assert restates("The decision follows the store's refund policy.", criterion)
+
     @pytest.mark.parametrize(
         ("reason", "criterion"),
         [
-            ("Right", "Facts are right"),
             ("The answer is polite", "Polite"),
             ("Says 30 days, which the reference also gives", "Facts are right"),
+            ("It is ok", "Facts are right"),
         ],
     )
-    def test_a_reason_of_its_own_is_not_an_echo(self, reason, criterion) -> None:
-        assert not echoes(reason, criterion)
+    def test_a_reason_of_its_own_is_not_restated(self, reason, criterion) -> None:
+        assert not restates(reason, criterion)
+
+    def test_a_quote_the_answer_holds_saves_a_reason_close_to_the_criterion(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
+        verdict = JudgeVerdict(
+            grades=[
+                JudgeGrade(
+                    id="r1",
+                    score=5,
+                    reason="Facts are right",
+                    rule="Refunds within 30 days",
+                    quotes=["within 30 days"],
+                )
+            ]
+        )
+
+        [result] = graded(
+            criteria,
+            verdict,
+            answer="You can return it within 30 days.",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+        )
+
+        assert (result.status, result.rule, result.unverified) == (
+            "pass",
+            "Refunds within 30 days",
+            False,
+        )
+
+    def test_a_top_grade_with_nothing_quoted_from_the_answer_is_unverified(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])
+        verdict = JudgeVerdict(
+            grades=[
+                JudgeGrade(id="r1", score=5, reason="Gives the date", quotes=["not there"]),
+                JudgeGrade(id="r2", score=4, reason="Courteous"),
+            ]
+        )
+
+        top, lower = graded(
+            criteria, verdict, answer="30 days.", scale_max=5, pass_at=4, run_id=uuid.uuid4()
+        )
+
+        assert (top.status, top.unverified, top.rule) == ("pass", True, None)
+        assert (lower.status, lower.unverified) == ("pass", False)
 
     def test_a_quote_not_in_the_answer_is_flagged_and_the_grade_stands(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])
@@ -603,6 +661,15 @@ class TestGrades:
             JudgeVerdict.model_validate(
                 {"grades": [{"id": "r1", "score": 4, "reason": "r", "quotes": quotes}]}
             )
+
+    def test_not_graded_keeps_what_an_unreadable_judge_said(self) -> None:
+        criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
+
+        [result] = not_graded(
+            criteria, skipped=False, code="judge_output_invalid", reason="x", said="It is fine."
+        )
+
+        assert (result.status, result.judge_said) == ("error", "It is fine.")
 
     def test_not_graded_says_why_on_every_criterion(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])

@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec, BudgetSpec, ModelSettingsSpec
 from app.agents.system_agents import JUDGE, SYSTEM_AGENTS, SystemAgentDef, system_agent
+from app.core.audit import record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
     BadRequestError,
@@ -40,6 +41,18 @@ from app.repositories import agent_repo, credential_repo, member_repo
 from app.services.agent_registry import AgentRegistryService
 
 logger = logging.getLogger(__name__)
+
+
+def _seed_spec(definition: SystemAgentDef, *, model_profile_id: UUID | None) -> AgentSpec:
+    """The spec a system agent is seeded with, on `model_profile_id` when there is one."""
+    return AgentSpec(
+        name=definition.name,
+        description=definition.description,
+        instructions=definition.instructions,
+        model_profile_id=model_profile_id,
+        model_settings=ModelSettingsSpec(temperature=definition.temperature),
+        budget=BudgetSpec(monthly_usd=definition.monthly_usd),
+    )
 
 
 class SystemAgentService:
@@ -80,6 +93,7 @@ class SystemAgentService:
         """
         existing = await agent_repo.get_system(self.db, organization_id=organization_id, key=key)
         if existing is not None:
+            await self._adopt(existing, system_agent(key), organization_id=organization_id)
             return existing
         definition = system_agent(key)
         owner_id = await member_repo.first_owner_id(self.db, organization_id=organization_id)
@@ -100,6 +114,60 @@ class SystemAgentService:
                 reason="not_seeded",
             ) from exc
 
+    async def adopt_model(self, *, organization_id: UUID) -> None:
+        """Publish the system agents still waiting for a model on the organization's first.
+
+        An organization is seeded before it has a model, so its system agents
+        start as drafts with none. Called once it has one, so the judge works
+        without anybody having to find it and publish it first.
+        """
+        for definition in SYSTEM_AGENTS:
+            agent = await agent_repo.get_system(
+                self.db, organization_id=organization_id, key=definition.key
+            )
+            if agent is not None:
+                await self._adopt(agent, definition, organization_id=organization_id)
+
+    async def _adopt(
+        self, agent: Agent, definition: SystemAgentDef, *, organization_id: UUID
+    ) -> None:
+        """Publish a seeded agent nobody has touched on the oldest model, and audit it.
+
+        Untouched is exact: never published, and its draft still the spec it was
+        seeded with, no model included. A draft somebody edited in any way is
+        theirs to publish, and an organization with no model or no owner to act
+        as leaves it waiting.
+        """
+        if agent.current_version_id is not None:
+            return
+        drafted = AgentSpec.model_validate(agent.draft_spec)
+        seeded = _seed_spec(definition, model_profile_id=None)
+        if drafted.model_dump() != seeded.model_copy(update={"name": drafted.name}).model_dump():
+            return
+        profile = await credential_repo.oldest_profile(self.db, organization_id=organization_id)
+        owner_id = await member_repo.first_owner_id(self.db, organization_id=organization_id)
+        if profile is None or owner_id is None:
+            return
+        ctx = AuthContext(user_id=owner_id, organization_id=organization_id, role=OrgRoleName.OWNER)
+        await self.registry.save_draft(
+            ctx, agent.id, drafted.model_copy(update={"model_profile_id": profile.id})
+        )
+        await self._publish(ctx, agent, published=True, note="Seeded")
+        if agent.current_version_id is not None:
+            await record_audit(
+                self.db,
+                actor_user_id=None,
+                organization_id=organization_id,
+                action="system_agent.published",
+                target_type="agent",
+                target_id=str(agent.id),
+                details={
+                    "key": definition.key,
+                    "model_profile_id": str(profile.id),
+                    "model": profile.label,
+                },
+            )
+
     async def _create(
         self, definition: SystemAgentDef, *, organization_id: UUID, owner_id: UUID
     ) -> Agent:
@@ -111,14 +179,7 @@ class SystemAgentService:
         """
         ctx = AuthContext(user_id=owner_id, organization_id=organization_id, role=OrgRoleName.OWNER)
         profile = await credential_repo.oldest_profile(self.db, organization_id=organization_id)
-        spec = AgentSpec(
-            name=definition.name,
-            description=definition.description,
-            instructions=definition.instructions,
-            model_profile_id=profile.id if profile is not None else None,
-            model_settings=ModelSettingsSpec(temperature=definition.temperature),
-            budget=BudgetSpec(monthly_usd=definition.monthly_usd),
-        )
+        spec = _seed_spec(definition, model_profile_id=None if profile is None else profile.id)
         try:
             agent = await self._insert(ctx, spec, definition=definition)
         except IntegrityError:

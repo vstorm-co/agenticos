@@ -32,6 +32,8 @@ interface AddToDatasetDialogProps {
    * rating; false after a thumbs-up in chat, where the rating already said.
    */
   askAnswerAs: boolean;
+  /** Whether the answer was rated down, so the rating's comment comes with it. */
+  ratedDown?: boolean;
 }
 
 /**
@@ -46,6 +48,7 @@ export function AddToDatasetDialog({
   messageId,
   answerAs: initial,
   askAnswerAs,
+  ratedDown = false,
 }: AddToDatasetDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
@@ -70,7 +73,13 @@ export function AddToDatasetDialog({
         <DialogHeader>
           <DialogTitle>{t("addToDataset")}</DialogTitle>
           <DialogDescription>
-            {t(askAnswerAs ? "addToDatasetBody" : "addAsReferenceBody")}
+            {t(
+              !askAnswerAs
+                ? "addAsReferenceBody"
+                : ratedDown
+                  ? "addToDatasetBody"
+                  : "addToDatasetBodyPlain",
+            )}
           </DialogDescription>
         </DialogHeader>
         <DatasetTargetFields

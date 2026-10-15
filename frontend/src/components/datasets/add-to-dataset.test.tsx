@@ -57,6 +57,7 @@ describe("Add to dataset", () => {
     state.add.mockResolvedValue({});
     render(<AddToDatasetButton messageId="m1" ratedDown />);
     await open();
+    expect(screen.getByText(/the comment left with a thumbs-down/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() => expect(state.add).toHaveBeenCalled());
   });
@@ -104,6 +105,9 @@ describe("Add to dataset", () => {
     state.add.mockResolvedValue({});
     render(<AddToDatasetButton messageId="m2" ratedDown={false} />);
     await open();
+    expect(
+      screen.getByText("The question and the conversation before it come with the answer."),
+    ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
     await userEvent.click(screen.getByRole("option", { name: "returns" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Keep the answer as" }));

@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { ErrorState, LoadingState } from "@/components/states";
 import { ListCard, ListCardEmpty, PAGE_SIZE, Pager } from "@/components/ui";
 import { usePermissions } from "@/hooks/use-permissions";
-import { useScores } from "@/hooks/use-scoring";
+import { type NoteTarget, useNoteToCriterion, useScores } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
 import { groupScores } from "@/lib/scoring";
 import type { Dataset } from "@/types/datasets";
@@ -45,6 +45,7 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   const { can } = usePermissions();
   const canDecide = dataset.can_edit;
   const canRescore = can(Perm.datasetsRun);
+  const toCriterion = useNoteToCriterion(dataset);
   const pageCount = Math.max(1, Math.ceil(scores.total / PAGE_SIZE));
   // A decision takes the last score off the last page of the queue; step back to
   // the page that still exists, the adjust-state-while-rendering way.
@@ -53,7 +54,8 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
     scores.verdict.isPending ||
     scores.review.isPending ||
     scores.withdraw.isPending ||
-    scores.rescore.isPending;
+    scores.rescore.isPending ||
+    toCriterion.isPending;
 
   const decide = async (score: CaseScore, verdict: Verdict) => {
     try {
@@ -87,6 +89,14 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
           ? t("rescored", { count: done.rescored.length })
           : t("rescoreNothing"),
       );
+    } catch (failure) {
+      toast.error(getErrorMessage(failure, tErrors));
+    }
+  };
+  const noteToCriterion = async (score: CaseScore, target: NoteTarget) => {
+    try {
+      await toCriterion.mutateAsync({ score, target });
+      toast.success(t(target === "case" ? "noteAddedToCase" : "noteAddedToRubric"));
     } catch (failure) {
       toast.error(getErrorMessage(failure, tErrors));
     }
@@ -152,6 +162,9 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
                   onVerdict={canDecide ? (verdict) => void decide(score, verdict) : undefined}
                   onReview={canDecide ? () => void queue(score.id) : undefined}
                   onRescore={canRescore ? () => void rescore([score.id]) : undefined}
+                  onNoteToCriterion={
+                    canDecide ? (target) => void noteToCriterion(score, target) : undefined
+                  }
                 />
               ))}
             </section>

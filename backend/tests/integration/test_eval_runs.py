@@ -61,6 +61,7 @@ from app.services.dataset import DatasetService
 from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.model_profile import ModelProfileService
+from app.services.scorers import JUDGE_PROMPT_VERSION
 from app.services.scoring import ScoringService
 from app.services.transcript import RecordedToolCall
 
@@ -919,6 +920,11 @@ async def test_a_baseline_graded_by_the_judge_s_older_prompt_says_so(db) -> None
     comparison = await service.compare(ctx, v7.id)
     assert comparison.verdict == "invalid"
     assert "instructions changed" in (comparison.invalid_reason or "")
+    # A run names the model its judge graded on, for a reader to set beside its own.
+    assert (await service.get(ctx, v7.id)).judge_model_profile_id is None
+    profile = uuid.uuid4()
+    await _pin(db, v6.id, {**pin, "model_profile_id": str(profile)})
+    assert (await service.get(ctx, v6.id)).judge_model_profile_id == profile
 
 
 async def test_cases_with_their_own_judge_checks_still_compare(db) -> None:
@@ -1084,7 +1090,7 @@ async def test_a_cached_baseline_must_have_been_graded_by_the_judge_that_grades_
         return next(arm.basis for arm in estimate.arms if arm.role == "baseline")
 
     # No judge is published in this organization, so that is the judge now.
-    now = {"agent_version_id": None, "rubric_hash": "a", "prompt_version": 2}
+    now = {"agent_version_id": None, "rubric_hash": "a", "prompt_version": JUDGE_PROMPT_VERSION}
     await _pin(db, first.id, now)
     assert await baseline_basis() == "cached"
     # Graded before the judge's prompt changed.
@@ -1537,7 +1543,7 @@ async def test_what_a_run_tested_is_gone_with_its_version(db) -> None:
 
 
 async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None:
-    """The dataset's model choice first, else the model the judge's published spec names."""
+    """At the model the judge's published spec names."""
     ctx = await _owner(db)
     await _assist(db, ctx, on=True)
     agent, _ = await _agent(db, ctx)
@@ -1573,20 +1579,11 @@ async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None
     service = EvalRunService(db)
 
     with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
-        by_spec = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
-        dataset.scoring = {
-            "judge": {
-                "enabled": True,
-                "agent_id": str(judge.id),
-                "model_profile_id": str(nano.id),
-                "criteria": criteria,
-            }
-        }
-        await db.flush()
-        by_dataset = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+        estimate = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
 
     # Ten cases, each 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
-    assert by_spec.judge_usd == by_dataset.judge_usd == Decimal("0.0036")
+    assert estimate.judge_usd == Decimal("0.0036")
+    assert estimate.judge_model_profile_id == nano.id
 
 
 async def test_a_reused_baseline_is_asked_the_flipped_cases_again_in_this_run(db) -> None:
@@ -1682,11 +1679,13 @@ async def test_run_history_names_each_eval_runs_case_for_who_may_see_it(db) -> N
     assert await service.case_links(member, answered) == {}
 
 
-async def _errored(db: AsyncSession, run_id) -> CaseScore:
-    """One of the run's scores, as a judge that errored would have left it."""
-    score = (
-        await db.execute(select(CaseScore).where(CaseScore.eval_run_id == run_id).limit(1))
-    ).scalar_one()
+async def _errored(db: AsyncSession, run_id, *, answer: str | None = None) -> CaseScore:
+    """One of the run's scores - one that kept `answer`, when given - as a judge
+    that errored would have left it."""
+    query = select(CaseScore).where(CaseScore.eval_run_id == run_id)
+    if answer is not None:
+        query = query.where(CaseScore.answer == answer)
+    score = (await db.execute(query.limit(1))).scalar_one()
     score.results = [
         {**result, "status": "error", "reason_code": "judge_run_failed"} for result in score.results
     ]
@@ -1758,3 +1757,63 @@ async def test_an_eval_score_whose_attempt_kept_no_answer_cannot_be_graded_again
 
     with pytest.raises(BadRequestError):
         await ScoringService(db).rescore(ctx, dataset.id, RescoreRequest(score_ids=[score.id]))
+
+
+async def test_a_run_sends_its_confirmed_regressions_to_review_itself(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=3)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    await _run_to_end(db, model, v7.id, ctx)
+
+    read = await service.get(ctx, v7.id)
+    assert (read.routed_to_review, (await service.get(ctx, v6.id)).routed_to_review) == (1, 0)
+    waiting = (
+        await db.scalars(
+            select(CaseScore).where(
+                CaseScore.eval_run_id == v7.id, CaseScore.review_state == "pending"
+            )
+        )
+    ).all()
+    # The first answer that broke, not its reruns.
+    assert [score.answer for score in waiting] == [_FAIL]
+    first = await db.scalar(
+        select(EvalRunCase).where(
+            EvalRunCase.eval_run_id == v7.id,
+            EvalRunCase.case_score_id == waiting[0].id,
+        )
+    )
+    assert first is not None and first.attempt == 0
+
+
+async def test_what_a_run_sends_to_review_is_what_a_person_should_see(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    await _run_to_end(db, model, v7.id, ctx)
+    run = await db.get(EvalRun, v7.id)
+    assert run is not None
+    broke = await service.review_worthy(ctx, run)
+    assert len(broke) == 1
+
+    # An answer the judge could not grade goes too, unless a person decided it.
+    errored = await _errored(db, v7.id, answer=_PASS)
+    worthy = await service.review_worthy(ctx, run)
+    assert errored.id in worthy and worthy[0] == broke[0]
+    errored.human_passed = True
+    await db.flush()
+    assert errored.id not in await service.review_worthy(ctx, run)
+
+    # A regression under another judge is not one to send.
+    await _pin(db, v6.id, {"agent_version_id": None, "rubric_hash": "a"})
+    await _pin(db, v7.id, {"agent_version_id": None, "rubric_hash": "b"})
+    assert broke[0] not in await service.review_worthy(ctx, run)

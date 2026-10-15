@@ -13,6 +13,7 @@ import {
   useDatasetVersions,
 } from "./use-datasets";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import { saveBlob } from "@/lib/file-access";
 
 vi.mock("@/lib/api-client", () => ({
@@ -183,6 +184,21 @@ describe("useDatasetCases", () => {
     );
   });
 
+  it("finds the case already asking a question, or none", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0, version: 1 });
+    const { result } = renderHook(() => useDatasetCases("d1"), { wrapper });
+
+    expect(await result.current.findTwin("Return window?")).toBeNull();
+    expect(apiClient.get).toHaveBeenLastCalledWith(
+      "/datasets/d1/cases?same_input=Return+window%3F&limit=1",
+    );
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "r1" }], total: 1, version: 1 });
+    expect(await result.current.findTwin("Return window?")).toEqual({ id: "r1" });
+    vi.mocked(apiClient.get).mockClear();
+    expect(await result.current.findTwin("q".repeat(2_001))).toBeNull();
+    expect(apiClient.get).not.toHaveBeenCalledWith(expect.stringContaining("same_input"));
+  });
+
   it("reads an empty answer as no cases at version 0", async () => {
     vi.mocked(apiClient.get).mockResolvedValue(undefined);
     const { result } = renderHook(() => useDatasetCases("d1"), { wrapper });
@@ -206,10 +222,25 @@ describe("useDatasetCases", () => {
     expect(apiClient.patch).toHaveBeenCalledWith("/datasets/d1/cases/c1", CONTENT);
     expect(apiClient.delete).toHaveBeenCalledWith("/datasets/d1/cases/c1");
     expect(toastSuccess.mock.calls.map(([message]) => message)).toEqual([
-      "Case added as a new version",
-      "Case saved as a new version",
-      "Case removed in a new version",
+      "Case added",
+      "Case saved",
+      "Case removed",
     ]);
+  });
+
+  it("names the version a change made, once the dataset has been read again", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(qk.datasets.detail("d1"), { id: "d1", latest_version: 4 });
+    vi.mocked(apiClient.post).mockResolvedValue({});
+    const { result } = renderHook(() => useDatasetCases("d1"), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+
+    await result.current.add.mutateAsync(CONTENT);
+
+    expect(toastSuccess).toHaveBeenLastCalledWith("Added as v4");
   });
 
   it("says when a removal is refused", async () => {

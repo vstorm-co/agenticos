@@ -6,11 +6,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import type { Dataset } from "@/types/datasets";
+import { criterionNameFrom, MAX_CRITERION } from "@/lib/scoring";
+import type { Dataset, DatasetCase } from "@/types/datasets";
 import type {
   CaseScore,
   CaseScoreList,
   DatasetScoring,
+  JudgeAgreement,
   Rescored,
   ReviewQueue,
   ScoreOutcome,
@@ -29,10 +31,13 @@ export function useSetScoring(datasetId: string) {
   });
 }
 
-/** What a dataset's own judge starts from; `model_profile_id` null is the oldest model. */
+/**
+ * What a dataset's own judge starts from; `instructions` null takes the dataset's
+ * judge template as it is, and `model_profile_id` null the oldest model.
+ */
 export interface NewJudge {
   name: string;
-  instructions: string;
+  instructions: string | null;
   /** What the judge must know to grade - a policy, a price list - added to its instructions. */
   knowledge?: string | null;
   model_profile_id?: string | null;
@@ -52,6 +57,18 @@ export function useCreateJudge(datasetId: string) {
       await queryClient.invalidateQueries({ queryKey: qk.agents.judges() });
     },
   });
+}
+
+/**
+ * The prompt a judge made for this dataset starts from: the default judge's rules
+ * with the dataset added, for the person creating it to edit.
+ */
+export function useJudgeTemplate(datasetId: string) {
+  const query = useQuery({
+    queryKey: qk.datasets.judgeTemplate(datasetId),
+    queryFn: () => apiClient.get<{ instructions: string }>(`/datasets/${datasetId}/judge-template`),
+  });
+  return { instructions: query.data?.instructions };
 }
 
 /** Score a recorded run's answer against one case. The judge, if configured, runs now. */
@@ -218,4 +235,57 @@ export function useReviewQueue({
     error: query.error,
     refetch: query.refetch,
   };
+}
+
+/** How often people's decisions agreed with a judge, over the datasets the caller sees. */
+export function useJudgeAgreement(judgeId: string) {
+  const query = useQuery({
+    queryKey: qk.datasets.judgeAgreement(judgeId),
+    queryFn: () =>
+      apiClient.get<JudgeAgreement>(
+        `/datasets/judge-agreement?${new URLSearchParams({ judge: judgeId })}`,
+      ),
+  });
+  return { agreement: query.data, isLoading: query.isLoading };
+}
+
+/** Where a reviewer's note becomes a judge criterion: this case alone, or every case. */
+export type NoteTarget = "case" | "dataset";
+
+/**
+ * Make a reviewer's note on a score a criterion the judge grades from now on.
+ *
+ * For the case, it joins the newest revision's checks as a `judge` check, which
+ * is a new version of the dataset. For every case, it joins the rubric and the
+ * judge is switched on, which the server refuses while AI assistance is off.
+ */
+export function useNoteToCriterion(dataset: Dataset) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ score, target }: { score: CaseScore; target: NoteTarget }) => {
+      const criterion = (score.human_note ?? "").trim().slice(0, MAX_CRITERION);
+      const path = `/datasets/${dataset.id}`;
+      if (target === "case") {
+        const current = await apiClient.get<DatasetCase>(`${path}/cases/${score.case_id}`);
+        await apiClient.patch<DatasetCase>(`${path}/cases/${score.case_id}`, {
+          checks: [...current.checks, { type: "judge", criterion }],
+        });
+        return;
+      }
+      const { judge } = dataset.scoring;
+      const name = criterionNameFrom(
+        criterion,
+        judge.criteria.map((item) => item.name),
+      );
+      await apiClient.put<Dataset>(`${path}/scoring`, {
+        ...dataset.scoring,
+        judge: {
+          ...judge,
+          enabled: true,
+          criteria: [...judge.criteria, { name, description: criterion, required: true }],
+        },
+      });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.datasets.all() }),
+  });
 }

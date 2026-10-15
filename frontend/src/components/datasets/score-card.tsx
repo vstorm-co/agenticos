@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
+import { ExternalLink, TriangleAlert } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Badge, Button } from "@/components/ui";
+import type { NoteTarget } from "@/hooks/use-scoring";
 import { ROUTES } from "@/lib/constants";
 import { reasonKey, reasonKeyOf } from "@/lib/scoring";
+import { formatDateTime } from "@/lib/utils";
 import type { CaseScore, ScorerResult } from "@/types/scoring";
 import { ScoreAnswer } from "./score-answer";
 import { ScoreDecision, type Verdict } from "./score-decision";
@@ -23,6 +25,8 @@ interface ScoreCardProps {
   onReview?: () => void;
   /** Score the same answer again. Absent for somebody who may not run the dataset. */
   onRescore?: () => void;
+  /** Make the reviewer's note a judge criterion. Absent for somebody who may not edit. */
+  onNoteToCriterion?: (target: NoteTarget) => void;
   busy?: boolean;
 }
 
@@ -59,6 +63,17 @@ function ResultRow({ result }: { result: ScorerResult }) {
           )}
         </p>
         <p className="text-muted-foreground break-words">{known ? t(known) : result.reason}</p>
+        {result.rule && (
+          <p className="text-muted-foreground mt-1 text-xs">{t("rule", { rule: result.rule })}</p>
+        )}
+        {result.judge_said && (
+          <p className="text-muted-foreground mt-1 font-mono text-xs break-words">
+            {t("judgeSaid", { said: result.judge_said })}
+          </p>
+        )}
+        {result.unverified && (
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t("unverifiedTop")}</p>
+        )}
         {result.unverified_quotes.length > 0 && (
           <p className="text-muted-foreground/80 mt-1 text-xs italic">
             {t("unverified", { quotes: result.unverified_quotes.join(" · ") })}
@@ -90,7 +105,7 @@ function ResultRow({ result }: { result: ScorerResult }) {
 /** Which agent answered, at which version, on which model, and when it was graded. */
 function ScoreSource({ score }: { score: CaseScore }) {
   const t = useTranslations("datasets.scoring");
-  const format = useFormatter();
+  const locale = useLocale();
   return (
     <span className="text-muted-foreground ml-auto flex flex-wrap items-center gap-2 text-xs">
       {score.agent_name !== null && (
@@ -101,9 +116,7 @@ function ScoreSource({ score }: { score: CaseScore }) {
         </span>
       )}
       {score.run_model !== null && <span className="font-mono">{score.run_model}</span>}
-      <time dateTime={score.created_at}>
-        {format.dateTime(new Date(score.created_at), { dateStyle: "medium", timeStyle: "short" })}
-      </time>
+      <time dateTime={score.created_at}>{formatDateTime(score.created_at, locale)}</time>
       {score.eval_run_id !== null && score.agent_id !== null ? (
         <Link
           href={`${ROUTES.AGENTS}/${score.agent_id}/evals/${score.eval_run_id}`}
@@ -184,7 +197,14 @@ function NotGraded({
  * The decision settles the outcome but is shown apart from the scorers, never in
  * place of them - the judge's opinion stays readable after it is overruled.
  */
-export function ScoreCard({ score, onVerdict, onReview, onRescore, busy = false }: ScoreCardProps) {
+export function ScoreCard({
+  score,
+  onVerdict,
+  onReview,
+  onRescore,
+  onNoteToCriterion,
+  busy = false,
+}: ScoreCardProps) {
   const t = useTranslations("datasets.scoring");
   const sendable = onReview !== undefined && score.review_state === "none";
   const decided = score.human_passed !== null;
@@ -198,6 +218,12 @@ export function ScoreCard({ score, onVerdict, onReview, onRescore, busy = false 
         <ScoreSource score={score} />
       </header>
 
+      {score.judge_model !== null && score.judge_model === score.run_model && (
+        <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {t("judgeSameModel", { model: score.judge_model })}
+        </p>
+      )}
       <ScoreExpectation score={score} />
       <ScoreAnswer answer={score.answer} />
 
@@ -212,6 +238,7 @@ export function ScoreCard({ score, onVerdict, onReview, onRescore, busy = false 
           note={score.human_note}
           onVerdict={onVerdict}
           onReview={sendable ? onReview : undefined}
+          onNoteToCriterion={decided ? onNoteToCriterion : undefined}
           busy={busy}
         />
       )}

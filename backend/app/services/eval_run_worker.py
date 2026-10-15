@@ -134,6 +134,7 @@ class EvalRunWorker:
         await self._wave(ctx)
         if await self._queue_reruns(ctx):
             await self._wave(ctx)
+        await self._route_to_review(ctx)
         await self._close(EvalRunStatus.COMPLETED, only_from=EvalRunStatus.RUNNING)
 
     async def _begin(self) -> AuthContext | None:
@@ -472,6 +473,25 @@ class EvalRunWorker:
             ]
             await eval_run_repo.add_cases(db, organization_id=org, cases=new)
             return bool(new)
+
+    async def _route_to_review(self, ctx: AuthContext) -> None:
+        """Send what deserves a person to the dataset's review queue, once the reruns are in.
+
+        Only what the run itself can stand behind: the regressions it confirmed
+        and the answers no scorer reached a verdict on. The rest of its failures
+        go when a person sends them.
+        """
+        async with self.sessions() as db:
+            run = await eval_run_repo.get(
+                db, self.eval_run_id, organization_id=self.organization_id
+            )
+            if run is None or run.status != EvalRunStatus.RUNNING.value:
+                return
+            worthy = await EvalRunService(db).review_worthy(ctx, run)
+            routed = await ScoringService(db).route_to_review(
+                ctx, dataset_id=run.dataset_id, score_ids=worthy
+            )
+            await eval_run_repo.update_run(db, run=run, values={"routed_to_review": routed})
 
     async def _close(self, status: EvalRunStatus, *, only_from: EvalRunStatus) -> None:
         async with self.sessions() as db:

@@ -188,16 +188,28 @@ class JudgeScorer(BaseSchema):
 
     `agent_id` is the dataset's own judge, one of the organization's judges;
     null is the platform's default eval judge. Each criterion is graded from 1
-    to `scale_max` and passes at `pass_at` or above. `model_profile_id` runs the
-    judge on another model than the one it publishes on.
+    to `scale_max` and passes at `pass_at` or above. A judge grades on the model
+    its own page publishes it on.
     """
 
     enabled: bool = False
     agent_id: UUID | None = None
-    model_profile_id: UUID | None = None
+    model_profile_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Withdrawn: a judge grades on the model its own page publishes it on. "
+            "Still accepted, so an older client's request validates, and always null."
+        ),
+        json_schema_extra={"deprecated": True},
+    )
     scale_max: int = Field(default=5, ge=2, le=10)
     pass_at: int = Field(default=4, ge=1, le=10)
     criteria: list[RubricCriterion] = Field(default_factory=list, max_length=20)
+
+    @field_validator("model_profile_id")
+    @classmethod
+    def _withdrawn(cls, _: UUID | None) -> None:
+        return None
 
     @model_validator(mode="after")
     def _pass_mark_on_the_scale(self) -> JudgeScorer:
@@ -238,7 +250,10 @@ class ScorerResult(BaseSchema):
     `score` is normalized to 0..1. `reason_code` names why a scorer was skipped or
     failed to run - `ai_assistance_off`, `judge_unpublished`, `judge_budget` - so
     each can be shown, and fixed, on its own. `unverified_quotes` are the parts of
-    the answer the judge quoted that the answer does not hold.
+    the answer the judge quoted that the answer does not hold. `rule` is the rule
+    the judge says its grade follows from; `unverified` marks a top grade with
+    nothing quoted from the answer to show for it. `judge_said` is the start of
+    an answer the judge gave that could not be read.
     """
 
     scorer: ScorerKind
@@ -249,6 +264,9 @@ class ScorerResult(BaseSchema):
     reason: str
     reason_code: str | None = None
     unverified_quotes: list[str] = Field(default_factory=list)
+    rule: str | None = None
+    unverified: bool = False
+    judge_said: str | None = None
     judge_run_id: UUID | None = None
 
 
@@ -335,7 +353,9 @@ class CaseScoreRead(BaseSchema):
     `agent_id`, `agent_version_id` and `run_model` are the scored run's;
     `agent_name` and `agent_version` are filled where scores are listed.
     `eval_run_id` is the eval run that scored it, null for a score asked for
-    by hand.
+    by hand. `judge_model` is the name of the model the judge graded on, while
+    that model exists; beside `run_model` it says when a judge graded the model
+    it runs on.
     """
 
     id: UUID
@@ -367,6 +387,7 @@ class CaseScoreRead(BaseSchema):
     )
     agent_name: str | None = None
     agent_version: int | None = None
+    judge_model: str | None = None
     eval_run_id: UUID | None = None
     results: list[ScorerResult]
     judge: JudgePin | None = None
@@ -413,12 +434,14 @@ class PendingScore(CaseScoreRead):
 class JudgeCreate(BaseSchema):
     """A judge of a dataset's own, made from the default judge's definition.
 
+    `instructions` are the judge's prompt as edited from the dataset's judge
+    template (`JudgeTemplate`); omitted, the template is used as it is.
     `knowledge` is what the judge must know to grade that the cases do not say -
     a policy, a price list - and is added to its instructions.
     """
 
     name: str = Field(min_length=1, max_length=128)
-    instructions: str = Field(min_length=1, max_length=20_000)
+    instructions: str | None = Field(default=None, min_length=1, max_length=20_000)
     knowledge: str | None = Field(default=None, max_length=20_000)
     model_profile_id: UUID | None = Field(
         default=None, description="The model it runs on; the organization's oldest if omitted"
@@ -429,6 +452,16 @@ class ReviewRequest(BaseSchema):
     """Scores of one dataset to put in the review queue."""
 
     score_ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
+class JudgeTemplate(BaseSchema):
+    """The prompt a dataset's own judge starts from: the default judge's, with the dataset.
+
+    The rules of grading are the default judge's, so a judge made for a dataset
+    grades by the same ones; only what the dataset is about is added.
+    """
+
+    instructions: str
 
 
 class RescoreRequest(BaseSchema):
@@ -446,6 +479,13 @@ class Rescored(BaseSchema):
 
     rescored: list[CaseScoreRead]
     kept: list[UUID]
+
+
+class JudgeAgreement(BaseSchema):
+    """How often people agreed with a judge: `agreed` of the `decided` scores it graded."""
+
+    agreed: int
+    decided: int
 
 
 class ReviewRequested(BaseSchema):

@@ -99,6 +99,23 @@ async def existing_ids(
     return set(result.scalars().all())
 
 
+async def cases_waiting(
+    db: AsyncSession, case_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
+) -> set[UUID]:
+    """Which of `case_ids` already have a score of this dataset waiting for a person."""
+    result = await db.execute(
+        select(CaseScore.case_id)
+        .where(
+            CaseScore.case_id.in_(case_ids),
+            CaseScore.organization_id == organization_id,
+            CaseScore.dataset_id == dataset_id,
+            CaseScore.review_state == "pending",
+        )
+        .distinct()
+    )
+    return set(result.scalars().all())
+
+
 async def queue_for_review(
     db: AsyncSession, score_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
 ) -> int:
@@ -246,6 +263,43 @@ async def pending_counts(
         .group_by(Dataset.id, Dataset.name, CaseScore.passed)
     )
     return [(row[0], row[1], row[2], row[3]) for row in result.all()]
+
+
+async def decided_for_judge(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    judge_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+) -> list[tuple[list[dict[str, Any]], bool]]:
+    """The results and the person's decision of every decided score one judge graded.
+
+    In the datasets one member may see; whether the judge reached a verdict of
+    its own is the caller's to read from the results.
+    """
+    where = [
+        CaseScore.organization_id == organization_id,
+        CaseScore.judge["agent_id"].astext == str(judge_id),
+        CaseScore.human_passed.is_not(None),
+    ]
+    if not see_all:
+        where.append(
+            visible_to_caller(
+                Dataset.owner_user_id,
+                Dataset.visibility,
+                Dataset.id,
+                user_id=user_id,
+                shared_ids=shared_ids,
+            )
+        )
+    rows = await db.execute(
+        select(CaseScore.results, CaseScore.human_passed)
+        .join(Dataset, Dataset.id == CaseScore.dataset_id)
+        .where(*where)
+    )
+    return [(results, bool(human)) for results, human in rows.all()]
 
 
 def _pending(

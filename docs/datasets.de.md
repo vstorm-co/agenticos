@@ -1,5 +1,5 @@
 ---
-source_sha: "f36f06065ad4"
+source_sha: "cc3cb4a6966a"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -97,6 +97,12 @@ Chat-Blasen; **Bearbeiten** macht ihn zum Formular, das sagt, welche Version ein
 Speichern erzeugt und welche Scorer des Datasets den Fall so, wie er geschrieben
 ist, bewerten würden. Ein Link auf `?tab=cases&case={case_id}` auf der Seite des
 Datasets öffnet einen einzelnen Fall.
+
+Das Speichern eines neuen Falls, dessen Frage ein Fall bereits stellt - ohne
+Rücksicht auf Groß- und Kleinschreibung oder Leerraum -, hält an und sagt das,
+mit **Öffnen**, um stattdessen jenen Fall zu lesen, und **Trotzdem
+hinzufügen**, um beide zu behalten. Geprüft wird mit `GET
+/datasets/{id}/cases?same_input=`.
 
 ### Aus einer Datei { #import-and-export }
 
@@ -277,18 +283,20 @@ Ein Bewerter ist ein Agent der Art `judge` (siehe
 [Bewerter](concepts.md#system-agents)). Ein Dataset bewertet mit dem **Eval
 judge**, den die Plattform jeder Organisation hinzufügt, oder mit einem eigenen
 Bewerter: **Bewerter für dieses Dataset anlegen** auf der Karte Bewerter legt
-einen an, dessen Prompt mit dem Namen und der Beschreibung des Datasets beginnt
-und mit dem, was der Bewerter laut Ihnen zum Bewerten wissen muss - einer
-Richtlinie, einer Preisliste -, auf dem ersten Modell der Organisation oder
-einem, das Sie wählen. Dafür braucht es `agents:edit` und `datasets:edit`.
+einen an, dessen Prompt der des Eval judge mit seinen Bewertungsregeln ist,
+gefolgt von Namen und Beschreibung des Datasets und dem, was der Bewerter laut
+Ihnen zum Bewerten wissen muss - einer Richtlinie, einer Preisliste -, auf dem
+ersten Modell der Organisation oder einem, das Sie wählen. Der Prompt lässt
+sich vor dem Anlegen bearbeiten (`GET /datasets/{id}/judge-template`). Dafür
+braucht es `agents:edit` und `datasets:edit`.
 
 Wo die KI-Unterstützung eingeschaltet ist, schaltet das Anlegen die Bewertung
 gleich mit ein: den Bewerter, mit einem Startkriterium zum Ersetzen, wenn das
 Dataset keines hat, und den Vergleich mit der Referenzantwort, wenn ein Fall
 eine hat. Die Kriterien, die Skala und die Bestehensgrenze bleiben am Dataset;
 Prompt, Modell und Budget des Bewerters werden auf seiner eigenen Seite
-bearbeitet, und ein Dataset kann weiterhin ein anderes Modell für ihn
-festlegen.
+bearbeitet, dem einzigen Ort, an dem sein Modell festgelegt wird; die Karte
+Bewerter zeigt es an.
 
 Ein Bewerter läuft als die Person, die den Score angefordert hat: Ihr Zugriff
 auf ihn wird geprüft, er wird vor dem Modellaufruf gegen sein eigenes Budget und
@@ -302,8 +310,8 @@ ein isolierter Run ihn blockiert hat - und die Antwort. Ein Fall mit
 Gegenbeispiel wird immer auch nach dem erforderlichen Kriterium
 **counter-example** bewertet: Die Antwort darf die bekannte schlechte Antwort
 nicht wiederholen. Bewerter starten mit Temperatur 0, damit dieselbe Antwort
-zweimal gleich bewertet wird; bei einem Reasoning-Modell, das die Einstellung
-ablehnt, muss sie auf der Seite des Bewerters entfernt werden.
+zweimal gleich bewertet wird; ein Modell, das keine Temperatur annimmt, etwa
+ein Reasoning-Modell, bewertet ohne sie.
 
 Der Bewerter läuft nur, wo die [KI-Unterstützung](governance.md#ai-assistance)
 eingeschaltet ist, und sie ist aus, bis ein Administrator sie für die
@@ -314,10 +322,13 @@ der ihn ändern darf. Der Bewerter und der Vergleich mit der Referenzantwort
 lassen sich in dieser Zeit nicht einschalten; ein bereits eingeschalteter bleibt
 an und wird übersprungen.
 
-Jedes Kriterium wird von 1 bis zum oberen Ende der Skala bewertet und besteht ab
-der Bestehensgrenze. Eine Bewertung, deren Begründung nur das Kriterium
-wiederholt, ist ein Fehler: Sie zeigt nicht, dass der Bewerter die Antwort
-gelesen hat.
+Jedes Kriterium wird von 1 bis zum oberen Ende der Skala bewertet und besteht
+ab der Bestehensgrenze. Für jedes Kriterium zitiert der Bewerter die Stelle der
+Antwort, auf der seine Bewertung beruht, und nennt die Regel, aus der sie
+folgt. Eine Bewertung, deren Begründung überwiegend aus den Worten des
+Kriteriums besteht, ohne ein Zitat, das die Antwort enthält, ist ein Fehler:
+Nichts zeigt, dass der Bewerter die Antwort gelesen hat. Eine Höchstnote ohne
+Zitat aus der Antwort bleibt bestehen und wird als nicht belegt markiert.
 
 Kann der Bewerter nicht bewerten, werden seine Kriterien als übersprungen oder
 als Fehler festgehalten, mit einer Begründung, die die Ursache nennt:
@@ -325,7 +336,8 @@ KI-Unterstützung ist ausgeschaltet, der vom Dataset gewählte Bewerter existier
 nicht mehr, er hat keine veröffentlichte Version, er ist archiviert, sein
 Modell ist entfernt oder hat keinen Schlüssel, die Person darf ihn nicht
 ausführen, sein Budget ist aufgebraucht, sein Run schlug fehl oder seine
-Antwort ließ sich nicht lesen. Die regelbasierten Scorer bewerten trotzdem.
+Antwort ließ sich nicht lesen - deren erste 200 Zeichen bleiben dann neben der
+Begründung. Die regelbasierten Scorer bewerten trotzdem.
 
 Ist die Ursache behoben, bewertet **Erneut bewerten** an einem nicht bewerteten
 Ergebnis - oder an allen in der Gruppe eines Eval-Runs auf dem Tab Prüfung -
@@ -334,6 +346,11 @@ dieselbe Antwort neu, mit der Konfiguration, mit der sie zuerst bewertet wurde
 Agent läuft nicht erneut, und der Score behält seinen Eval-Run und jede
 Entscheidung, die eine Person darüber getroffen hat; einer, bei dem jeder
 Scorer zu einem Urteil kam, bleibt, wie er ist.
+
+Eine Ursache, die noch besteht - KI-Unterstützung aus, Bewerter nicht
+veröffentlicht -, wird so abgelehnt, wie sie ist, ebenso ein Bewerter, der seit
+seinem Fehlschlag neu veröffentlicht wurde, dessen Bewertung sich nicht mit dem
+Rest des Runs vergleichen ließe; dann wird nichts bewertet.
 
 Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
 Antwort nicht wörtlich enthält, wird neben der Bewertung als nicht verifiziert
@@ -344,17 +361,21 @@ Jedes Ergebnis hält den Bewerter fest, der es bewertet hat - den Bewerter-Agent
 sein Modellprofil, die Version seines Specs, einen Hash der Rubrik und die
 Version der Aufgabe, die die Plattform jedem Bewerter übergibt -, damit
 Ergebnisse verschiedener Bewerter nicht als gleichwertig verglichen werden. Den
-Bewerter oder sein Modell zu wechseln ist erlaubt; vor dem Wechsel des
-Bewerters fragt die Konsole zuerst nach, und die Karte Bewerter sagt, dass sich
-die vorher bewerteten Scores nicht mit den danach bewerteten vergleichen
-lassen.
+Bewerter oder sein Modell auf seiner Seite zu wechseln ist erlaubt; vor dem
+Wechsel des Bewerters fragt die Konsole zuerst nach, und die Karte Bewerter
+sagt, dass sich die vorher bewerteten Scores nicht mit den danach bewerteten
+vergleichen lassen.
 
 ### Prüfung { #review }
 
 Ein Score wartet in der **Warteschlange zur Prüfung**, wenn jemand ihn dorthin
-schickt. Ein Eval-Run schickt von sich aus nichts: Seine Seite schickt die
-Scores, die Sie auswählen, alle auf einmal über
-`POST /datasets/{id}/scores/review` mit bis zu 500 Score-IDs - alle oder keine.
+schickt oder ein Eval-Run es tut. Hat er erneut ausgeführt, was gekippt ist,
+schickt ein Eval-Run die Regressionen, die er bestätigt hat, und die Antworten,
+die der Bewerter nicht bewerten konnte - ein Score pro Fall und keiner für einen
+Fall, der bereits wartet. Seine Seite schickt weitere Scores, die Sie
+auswählen, alle auf einmal über `POST /datasets/{id}/scores/review` mit bis zu
+500 Score-IDs - alle oder keine.
+
 Ein Score, der von Hand aus Activity angefordert wurde, folgt der Einstellung
 **Prüfung durch eine Person** des Datasets: nichts, bis jemand einen schickt,
 jedes Ergebnis, das nicht bestanden hat, oder jedes Ergebnis. Ein bereits
@@ -369,10 +390,17 @@ genommen werden können (`POST /datasets/{id}/scores/review/withdraw`).
 
 Jede Karte zeigt, was der Fall gefragt und erwartet hat - die Frage, mit einem
 Link zum Fall, die Referenzantwort, die erwarteten Tool-Aufrufe und die
-Prüfungen -, die bewertete Antwort, Agent und Version, die geantwortet haben, was
-jeder Scorer gefunden hat und warum, die nicht bestandenen zuerst, und die
+Prüfungen -, die bewertete Antwort, Agent und Version, die geantwortet haben -
+mit einer Warnung, wenn der Bewerter auf dem Modell bewertet hat, das
+geantwortet hat, da ein Bewerter Antworten wie seine eigenen bevorzugen kann -,
+was jeder Scorer gefunden hat und warum, die nicht bestandenen zuerst, und die
 Prüfentscheidung, die sich in der Meldung, die sie bestätigt, rückgängig machen
 lässt.
+
+Die Notiz zu einer Entscheidung ist oft die Regel, die der Bewerter übersehen
+hat, daher bietet die Karte an, sie zu einem Kriterium des Bewerters zu machen:
+nur für diesen Fall, als Prüfung `judge` in einer neuen Version des Datasets,
+oder für jeden Fall, in der Rubrik, was den Bewerter einschaltet.
 
 Die Dashboard-Karte **Wartet auf Prüfung** zeigt die Warteschlange über alle
 Datasets, die Sie sehen können: wie viele Ergebnisse nicht bestanden haben, nicht

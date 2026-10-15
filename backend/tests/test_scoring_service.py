@@ -92,19 +92,17 @@ class TestJudgePin:
         criteria = judge_criteria(CASE, scoring, [])
         return await ScoringService(AsyncMock())._pin(_ctx(), run, criteria, scoring)
 
-    async def test_a_run_with_no_version_pins_the_model_the_dataset_chose(self) -> None:
-        profile = uuid.uuid4()
+    async def test_a_run_with_no_version_pins_no_model_whatever_the_dataset_held(self) -> None:
+        """A model the dataset once named for its judge is not the one the judge ran on."""
         scoring = self.SCORING.model_copy(
-            update={"judge": self.SCORING.judge.model_copy(update={"model_profile_id": profile})}
+            update={
+                "judge": self.SCORING.judge.model_copy(update={"model_profile_id": uuid.uuid4()})
+            }
         )
 
         pin = await self._pin(MagicMock(agent_id=None, agent_version_id=None), scoring)
 
-        assert (pin.model_profile_id, pin.agent_version_id, pin.spec_version) == (
-            profile,
-            None,
-            None,
-        )
+        assert (pin.model_profile_id, pin.agent_version_id, pin.spec_version) == (None, None, None)
         assert len(pin.rubric_hash) == 64
 
     async def test_a_version_no_longer_readable_pins_only_its_id(self, monkeypatch) -> None:
@@ -149,3 +147,13 @@ async def test_a_role_that_may_not_create_agents_cannot_create_a_judge() -> None
         await service.create_judge(
             viewer, uuid.uuid4(), JudgeCreate(name="Refunds judge", instructions="Be strict.")
         )
+
+
+async def test_a_score_no_judge_graded_is_scored_again_without_asking_the_judge() -> None:
+    service = ScoringService(AsyncMock())
+    service.judge = MagicMock(require_runnable=AsyncMock())
+    score = MagicMock(results=[{"scorer": "check", "status": "error"}])
+
+    await service._judge_unchanged(_ctx(), score)
+
+    service.judge.require_runnable.assert_not_awaited()

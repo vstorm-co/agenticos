@@ -86,6 +86,11 @@ A case in the list opens as it reads, with the conversation as chat bubbles;
 of the dataset's scorers would grade the case as written. A link to
 `?tab=cases&case={case_id}` on the dataset's page opens one case.
 
+Saving a new case whose question a case already asks - compared without regard
+to case or spacing - stops to say so, with **Open it** to read that case instead
+and **Add anyway** to keep both. The check is `GET
+/datasets/{id}/cases?same_input=`.
+
 ### From a file { #import-and-export }
 
 **Import** reads a `.csv` or a `.jsonl` file and adds every case in it as one
@@ -249,16 +254,18 @@ old name.
 A judge is an agent of the `judge` kind (see
 [Judges](concepts.md#system-agents)). A dataset grades with the **Eval judge**
 the platform adds to every organization, or with a judge of its own: **Create a
-judge for this dataset**, on the Judge card, makes one whose prompt starts from
-the dataset's name and description and from what you say the judge must know to
-grade - a policy, a price list - on the organization's first model or one you
-pick. Creating it needs `agents:edit` as well as `datasets:edit`.
+judge for this dataset**, on the Judge card, makes one whose prompt is the Eval
+judge's, with its rules of grading, followed by the dataset's name and
+description and what you say the judge must know to grade - a policy, a price
+list - on the organization's first model or one you pick. The prompt is shown to
+edit before it is created (`GET /datasets/{id}/judge-template`). Creating it
+needs `agents:edit` as well as `datasets:edit`.
 
 Where AI assistance is on, creating it switches grading on as well: the judge,
 on a starting criterion to replace when the dataset has none, and the reference
 comparison when a case has a reference answer. The criteria, the scale and the
 pass mark stay on the dataset; the judge's prompt, model and budget are edited
-on its own page, and a dataset can still name another model for it.
+on its own page, the one place its model is set; the Judge card shows it.
 
 A judge runs as the person who asked for the score: their access to it is
 checked, it is checked against its own budget and the organization's before the
@@ -270,8 +277,8 @@ every tool call the agent made - its arguments, and whether an isolated run
 blocked it - and the answer. A case with a counter-example is always graded on a
 required **counter-example** criterion as well: the answer must not repeat the
 known bad answer. Judges start at temperature 0, so one answer is graded the
-same way twice; a reasoning model that refuses the setting needs it cleared on
-the judge's page.
+same way twice; a model that takes no temperature, such as a reasoning model,
+grades without one.
 
 The judge runs only where [AI assistance](governance.md#ai-assistance) is on,
 and it is off until an admin turns it on for the organization. Until then the
@@ -281,22 +288,29 @@ for whoever may change it. The judge and the reference comparison cannot be
 turned on meanwhile; one already on stays on, and is skipped.
 
 Each criterion is graded from 1 to the top of the scale and passes at the pass
-mark or above. A grade whose reason only restates the criterion is an error: it
-is no sign the judge read the answer.
+mark or above. For every criterion the judge quotes the passage of the answer
+its grade rests on and names the rule the grade follows from. A grade whose
+reason is mostly the criterion's own words, with no quote the answer holds, is
+an error: nothing shows the judge read the answer. A top grade with nothing
+quoted from the answer stands, marked unverified.
 
 When the judge cannot grade, its criteria are recorded as skipped or as errors,
 with a reason that names the cause: AI assistance is switched off, the judge
 the dataset picked no longer exists, it has no published version, it is
 archived, its model is gone or has no key, the person may not run it, its
-budget is spent, its run failed, or its answer could not be read. The
-rule-based scorers still score.
+budget is spent, its run failed, or its answer could not be read, whose first
+200 characters are kept beside the reason. The rule-based scorers still score.
 
 Once the cause is fixed, **Score again** on a result that was not graded - or on
 every one in an eval run's group on the Review tab - grades the same answer
-anew, with the configuration it was first graded with
-(`POST /datasets/{id}/scores/rescore`, up to ten scores a request). The agent
-does not run again, and the score keeps its eval run and any decision a person
-made on it; one every scorer reached a verdict on is left as it is.
+anew, with the configuration it was first graded with (`POST
+/datasets/{id}/scores/rescore`, up to ten scores a request). The agent does not
+run again, and the score keeps its eval run and any decision a person made on
+it; one every scorer reached a verdict on is left as it is.
+
+A cause still there - AI assistance off, the judge unpublished - is refused as it
+stands, and so is a judge published anew since it failed, whose grade would not
+compare with the rest of the run; nothing is graded then.
 
 A grade may quote the answer, up to 12 passages; a quote the answer does not
 contain word for word is kept beside the grade as unverified, shown on its own
@@ -305,16 +319,20 @@ line under the reason, and the grade stands.
 Each score records the judge that graded it - the judge agent, its model
 profile, its spec version, a hash of the rubric and the version of the task the
 platform hands every judge - so scores from different judges are not compared as
-like for like. Changing the judge or its model is allowed; switching the judge
-asks first, and the Judge card says that the scores graded before will not
-compare with the ones graded after.
+like for like. Changing the judge, or its model on its page, is allowed;
+switching the judge asks first, and the Judge card says that the scores graded
+before will not compare with the ones graded after.
 
 ### Review { #review }
 
-A score waits in the **review queue** when somebody sends it there. An eval run
-sends nothing by itself: its page sends the scores you pick, all at once through
-`POST /datasets/{id}/scores/review` with up to 500 score ids - all of them or
-none. A score asked for by hand from Activity follows the dataset's **Review by a
+A score waits in the **review queue** when somebody sends it there, or an eval
+run does. Once it has rerun what flipped, an eval run sends the regressions it
+confirmed and the answers the judge could not grade - one score per case, and
+none for a case already waiting. Its page sends any others you pick, all at
+once through `POST /datasets/{id}/scores/review` with up to 500 score ids - all
+of them or none.
+
+A score asked for by hand from Activity follows the dataset's **Review by a
 person** setting: nothing until somebody sends one, every result that did not
 pass, or every result. A score already decided stays decided.
 
@@ -324,11 +342,17 @@ by a tag of the case. It puts each eval run's scores under one heading linking t
 run, from which they can be taken out of the queue undecided
 (`POST /datasets/{id}/scores/review/withdraw`).
 
-Each card shows what the case
-asked and expected - the question, linked to the case, the reference answer, the
-expected tool calls and the checks - the answer as it was graded, which agent and
-version answered, what each scorer found and why, failing first, and the review
+Each card shows what the case asked and expected - the question, linked to the
+case, the reference answer, the expected tool calls and the checks - the answer
+as it was graded, which agent and version answered - with a warning when the
+judge graded on the model that answered, since a judge may favour answers like
+its own - what each scorer found and why, failing first, and the review
 decision, which can be undone from the message confirming it.
+
+The note left with a decision is often the rule the judge missed, so the card
+offers to make it a judge criterion: for that case alone, as a `judge` check in
+a new version of the dataset, or for every case, in the rubric, which switches
+the judge on.
 
 The **Waiting for review** dashboard card shows the queue across the datasets you
 can see: how many results did not pass, were not graded or passed, and in which

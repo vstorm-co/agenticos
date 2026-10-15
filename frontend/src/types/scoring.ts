@@ -26,6 +26,7 @@ export interface DatasetScoring {
     enabled: boolean;
     /** The dataset's own judge; null is the default eval judge. */
     agent_id: string | null;
+    /** Withdrawn and always null: a judge grades on the model its own page sets. */
     model_profile_id: string | null;
     scale_max: number;
     pass_at: number;
@@ -49,6 +50,12 @@ export interface ScorerResult {
   reason_code: string | null;
   /** What the judge quoted from the answer that the answer does not hold. */
   unverified_quotes: string[];
+  /** The rule the judge says its grade follows from. */
+  rule: string | null;
+  /** A top grade with nothing quoted from the answer to show for it. */
+  unverified: boolean;
+  /** The start of an answer the judge gave that could not be read. */
+  judge_said: string | null;
   judge_run_id: string | null;
 }
 
@@ -90,6 +97,8 @@ export interface CaseScore {
   agent_version_id: string | null;
   agent_name: string | null;
   agent_version: number | null;
+  /** The name of the model the judge graded on, while it exists. */
+  judge_model: string | null;
   /** The eval run that scored it; null for a score asked for by hand. */
   eval_run_id: string | null;
   results: ScorerResult[];
@@ -105,6 +114,12 @@ export interface CaseScore {
   created_by_user_id: string | null;
   created_at: string;
   outcome: boolean | null;
+}
+
+/** How often people agreed with a judge: `agreed` of the `decided` scores it graded. */
+export interface JudgeAgreement {
+  agreed: number;
+  decided: number;
 }
 
 /** What scoring again changed: the scores scored anew, and the ids that needed nothing. */
