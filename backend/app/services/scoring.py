@@ -140,7 +140,11 @@ def _kept_answer(text: str) -> str | None:
 # fit any dataset, so a person replaces it rather than keeps it.
 STARTING_CRITERION = RubricCriterion(
     name="answers the question",
-    description="The answer is correct and complete for what the question asks.",
+    description=(
+        "Quote what in the answer settles the question, then say whether it is right by "
+        "the reference answer or what you were told, and what the question asked that "
+        "the answer leaves out."
+    ),
 )
 
 
@@ -587,15 +591,20 @@ class ScoringService:
     async def _rescore(self, ctx: AuthContext, score: CaseScore, answer: ScoredAnswer) -> CaseScore:
         config = DatasetScoring.model_validate(score.scoring)
         evaluation = await self.evaluate(ctx, _case_view(score.case_revision), answer, config)
+        passed = case_passed(evaluation.results)
+        # A score waiting because nothing graded it, now graded a pass, has
+        # nothing left for a person to decide; one somebody decided stays decided.
+        settled = passed is True and score.review_state == "pending" and score.human_passed is None
         return await case_score_repo.update(
             self.db,
             score=score,
             update_data={
                 "results": _kept_results(evaluation.results),
-                "passed": case_passed(evaluation.results),
+                "passed": passed,
                 "judge": (
                     None if evaluation.judge is None else evaluation.judge.model_dump(mode="json")
                 ),
+                "review_state": "none" if settled else score.review_state,
             },
         )
 
@@ -680,6 +689,7 @@ class ScoringService:
             scale_max=scoring.judge.scale_max,
             pass_at=scoring.judge.pass_at,
             run_id=result.run.id,
+            counter_example=case.counter_example,
         )
         return Evaluation(grades, await self._pin(ctx, result.run, criteria, scoring))
 
@@ -926,8 +936,8 @@ class ScoringService:
         """Send an eval run's scores a person should see to the review queue; how many went.
 
         For the eval run's own worker, which has already decided what deserves a
-        person - its confirmed regressions and the scores no scorer reached a
-        verdict on - so no permission is checked here. One score per case at
+        person - its confirmed regressions and the scores its judge failed on -
+        so no permission is checked here. One score per case at
         most: a case with a score already waiting gets no second one, nor does a
         score already waiting or decided. Ids of another dataset are ignored.
         """

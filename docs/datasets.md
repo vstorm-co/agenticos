@@ -143,7 +143,9 @@ There are two ways in, and both make the same case:
   dataset you added to last, so the next add is one click.
 - **In Activity**, every agent turn has an **Add to dataset** control. This is
   where answers are curated, so a good answer can be kept as a reference just
-  as easily as a bad one as a counter-example.
+  as easily as a bad one as a counter-example. With no dataset to add to yet,
+  it starts one, visible to the organization; opened from a dataset's **Add
+  from Activity**, it adds to that dataset and offers the way back to it.
 
 Either way, the case is created from the turn:
 
@@ -156,8 +158,9 @@ Either way, the case is created from the turn:
 Both are shown only to members who may edit a dataset. The message must belong
 to your organization, and you must be able to read it: either you hold
 `runs:view`, which reads every run in the organization as Activity does, or you
-can open the conversation. A message from another organization is refused as
-if it did not exist.
+can open the conversation. A message from another organization is refused as if
+it did not exist, and an answer already a case of the dataset's newest version
+is refused rather than added twice.
 
 ## Credentials are redacted { #credentials }
 
@@ -276,9 +279,11 @@ and question, the reference answer when it is graded, the counter-example,
 every tool call the agent made - its arguments, and whether an isolated run
 blocked it - and the answer. A case with a counter-example is always graded on a
 required **counter-example** criterion as well: the answer must not repeat the
-known bad answer. Judges start at temperature 0, so one answer is graded the
-same way twice; a model that takes no temperature, such as a reasoning model,
-grades without one.
+known bad answer, and passing it needs a quote from the answer the
+counter-example does not also say.
+
+Judges start at temperature 0, so one answer is graded the same way twice; a
+model that takes no temperature, such as a reasoning model, grades without one.
 
 The judge runs only where [AI assistance](governance.md#ai-assistance) is on,
 and it is off until an admin turns it on for the organization. Until then the
@@ -314,7 +319,11 @@ compare with the rest of the run; nothing is graded then.
 
 A grade may quote the answer, up to 12 passages; a quote the answer does not
 contain word for word is kept beside the grade as unverified, shown on its own
-line under the reason, and the grade stands.
+line under the reason, and the grade stands. What backs a grade never sinks it:
+an empty or overlong quote is dropped, quotes past twelve and a rule past 300
+characters are cut, and only a missing criterion id or grade makes a verdict
+unreadable. An unreadable answer is kept on the judge's run in Activity, with
+why it could not be read.
 
 Each score records the judge that graded it - the judge agent, its model
 profile, its spec version, a hash of the rubric and the version of the task the
@@ -327,10 +336,11 @@ before will not compare with the ones graded after.
 
 A score waits in the **review queue** when somebody sends it there, or an eval
 run does. Once it has rerun what flipped, an eval run sends the regressions it
-confirmed and the answers the judge could not grade - one score per case, and
-none for a case already waiting. Its page sends any others you pick, all at
-once through `POST /datasets/{id}/scores/review` with up to 500 score ids - all
-of them or none.
+confirmed and the answers the judge failed on with an error - not one it
+skipped, which waits to be scored again - one score per case, and none for a
+case already waiting. Its page sends any others you pick, all at once through
+`POST /datasets/{id}/scores/review` with up to 500 score ids - all of them or
+none.
 
 A score asked for by hand from Activity follows the dataset's **Review by a
 person** setting: nothing until somebody sends one, every result that did not

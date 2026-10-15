@@ -17,7 +17,7 @@ describe("EmptyCases", () => {
     expect(onAddCase).toHaveBeenCalled();
     expect(screen.getByRole("link", { name: "Add from Activity" })).toHaveAttribute(
       "href",
-      "/runs",
+      "/runs?dataset=d1",
     );
 
     const picker = screen.getByLabelText("Choose a CSV or JSONL file to import");

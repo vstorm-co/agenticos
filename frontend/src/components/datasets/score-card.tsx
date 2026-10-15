@@ -111,7 +111,7 @@ function ScoreSource({ score }: { score: CaseScore }) {
       {score.agent_name !== null && (
         <span className="text-foreground font-medium">
           {score.agent_version === null
-            ? score.agent_name
+            ? t("agentDraft", { name: score.agent_name })
             : t("agentVersion", { name: score.agent_name, version: score.agent_version })}
         </span>
       )}
@@ -179,7 +179,8 @@ function NotGraded({
   return (
     <div className="bg-muted/40 flex flex-wrap items-center gap-2 rounded-md px-3 py-2 text-sm">
       <p className="min-w-0 flex-1">
-        {known ? t(known) : t("notGradedCode", { code })} {t("notGradedWhy")}
+        {known ? t(known) : t("notGradedCode", { code })}
+        {onRescore && ` ${t("notGradedWhy")}`}
       </p>
       {onRescore && (
         <Button size="sm" variant="outline" disabled={busy} onClick={onRescore}>

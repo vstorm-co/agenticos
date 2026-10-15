@@ -5594,7 +5594,7 @@
         "judge": "Bewerter",
         "reference": "Referenzantwort"
       },
-      "checksHint": "Die Prüfungen jedes Falls und die folgenden Standards für alle Fälle: contains, not_contains, equals, regex, json_schema, max_cost_usd, max_latency_ms und Kriterien für den Bewerter.",
+      "checksHint": "Die Prüfungen jedes Falls und die folgenden Standards für alle Fälle.",
       "defaults": "Prüfungen für jeden Fall",
       "trajectoryHint": "Die Tools, die der Agent aufgerufen hat, gegen die erwarteten Aufrufe des Falls, im Reihenfolgemodus des Falls.",
       "judgeHint": "Der Bewerter benotet jede Antwort nach den folgenden Kriterien. Jede Benotung ist ein Run in Activity.",
@@ -5653,7 +5653,8 @@
         "judgeRunFailed": "Der Run des Bewerters wurde nicht beendet.",
         "judgeOutputInvalid": "Der Bewerter hat in einer Form geantwortet, die sich nicht lesen ließ.",
         "judgeUngraded": "Der Bewerter hat für dieses Kriterium keine Note auf der Skala vergeben.",
-        "judgeReasonEcho": "Der Bewerter hat das Kriterium wiederholt, statt zu sagen, warum die Antwort es erfüllt."
+        "judgeReasonEcho": "Der Bewerter hat das Kriterium wiederholt, statt zu sagen, warum die Antwort es erfüllt.",
+        "judgeCounterUnsupported": "Der Bewerter hat die Antwort als anders als das Gegenbeispiel bestanden, ohne etwas daraus zu zitieren, das das Gegenbeispiel nicht auch sagt."
       },
       "scoreRun": "Gegen einen Fall bewerten",
       "scoreRunBody": "Alle im Dataset konfigurierten Bewertungen auf die Antwort dieses Runs anwenden. Das Ergebnis wird im Dataset gespeichert.",
@@ -5690,7 +5691,7 @@
       },
       "reviewCard": {
         "title": "Prüfung durch eine Person",
-        "description": "Welche von Hand bewerteten Antworten aus Activity auf eine Entscheidung warten. Ein Eval-Run sendet seine eigenen: die Regressionen, die er bestätigt hat, und die Antworten, die der Bewerter nicht bewerten konnte, eine pro Fall."
+        "description": "Welche von Hand bewerteten Antworten aus Activity auf eine Entscheidung warten. Ein Eval-Run sendet seine eigenen: die Regressionen, die er bestätigt hat, und die Antworten, an denen sein Bewerter gescheitert ist, eine pro Fall."
       },
       "suggestReference": "{count, plural, =1 {1 Fall hat eine Referenzantwort, und noch vergleicht nichts Antworten damit.} other {# Fälle haben eine Referenzantwort, und noch vergleicht nichts Antworten damit.}}",
       "suggestReferenceAction": "Mit der Referenz vergleichen",
@@ -5712,11 +5713,11 @@
       "reviewFilter": "Anzeigen",
       "filterPending": "Wartet auf Entscheidung ({count})",
       "filterAll": "Alle Ergebnisse ({count})",
-      "nothingAwaitingReviewBody": "Ein Eval-Run schickt die Regressionen hierher, die er bestätigt hat, und die Antworten, die sein Bewerter nicht bewerten konnte, und seine Seite weitere, die Sie auswählen. Von Hand bewertete Antworten folgen der Prüfeinstellung im Tab Bewertung.",
+      "nothingAwaitingReviewBody": "Ein Eval-Run schickt die Regressionen hierher, die er bestätigt hat, und die Antworten, an denen sein Bewerter gescheitert ist, und seine Seite weitere, die Sie auswählen. Von Hand bewertete Antworten folgen der Prüfeinstellung im Tab Bewertung.",
       "groupByHand": "Von Hand bewertet",
       "groupEvalRun": "Eval-Run · {when}",
       "agentGone": "Ein Agent, den es nicht mehr gibt",
-      "agentVersion": "{name} v{version}",
+      "agentVersion": "{name} · v{version}",
       "answer": "Antwort",
       "answerGone": "Die Antwort ist nicht gespeichert.",
       "showAll": "Alles anzeigen",
@@ -5774,12 +5775,13 @@
       "noteAddedToRubric": "Die Notiz ist jetzt eines der Kriterien des Bewerters für jeden Fall, und der Bewerter ist eingeschaltet.",
       "rule": "Regel: {rule}",
       "judgeSaid": "Der Bewerter antwortete: „{said}“",
-      "unverifiedTop": "Nicht belegt: eine Höchstnote ohne ein Zitat aus der Antwort, das sie stützt."
+      "unverifiedTop": "Nicht belegt: eine Höchstnote ohne ein Zitat aus der Antwort, das sie stützt.",
+      "agentDraft": "{name} · Entwurf"
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
     "newDataset": "Neues Dataset",
-    "newDatasetBody": "Ein leeres Dataset, privat, bis Sie es freigeben. Fügen Sie Fälle von Hand hinzu, importieren Sie eine CSV- oder JSONL-Datei oder übernehmen Sie eine Antwort aus einem Gespräch.",
+    "newDatasetBody": "Ein leeres Dataset. Fügen Sie Fälle von Hand hinzu, importieren Sie eine CSV- oder JSONL-Datei oder übernehmen Sie eine Antwort aus einem Gespräch.",
     "noAccess": "Sie können die Datasets dieser Organisation nicht sehen",
     "noAccessBody": "Bitten Sie einen Administrator um Zugriff auf Datasets.",
     "datasetCount": "{count, plural, =1 {1 Dataset} other {# Datasets}}",
@@ -5943,6 +5945,14 @@
     "caseTwin": "Ein Fall stellt diese Frage bereits:",
     "caseTwinOpen": "Öffnen",
     "caseTwinAddAnyway": "Trotzdem hinzufügen",
-    "addToDatasetBodyPlain": "Mit der Antwort kommen die Frage und das Gespräch davor."
+    "addToDatasetBodyPlain": "Mit der Antwort kommen die Frage und das Gespräch davor.",
+    "discardCaseTitle": "Änderungen verwerfen?",
+    "discardCaseBody": "Die Änderungen an diesem Fall sind nicht gespeichert und gehen verloren.",
+    "discardCase": "Verwerfen",
+    "keepEditing": "Weiter bearbeiten",
+    "newDatasetName": "Neues Dataset",
+    "newDatasetHere": "Sie haben noch kein Dataset, dem Sie etwas hinzufügen können, daher legt diese Antwort eines an, sichtbar für die ganze Organisation.",
+    "newDatasetFromActivity": "Antworten aus Aktivität",
+    "backToDataset": "Zurück zu {name}"
   }
 }

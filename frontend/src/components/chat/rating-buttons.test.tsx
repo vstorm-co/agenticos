@@ -38,7 +38,12 @@ vi.mock("@/hooks/use-datasets", () => ({
     const rows = query.editable
       ? datasets.list.filter((dataset) => dataset.can_edit)
       : datasets.list;
-    return { datasets: rows, total: rows.length, isLoading: false };
+    return {
+      datasets: rows,
+      total: rows.length,
+      isLoading: false,
+      create: { mutateAsync: vi.fn(), isPending: false },
+    };
   },
   useAddToDataset: () => ({ mutateAsync: datasets.add, isPending: false }),
 }));

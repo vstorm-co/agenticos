@@ -5736,7 +5736,7 @@
         "judge": "Judge",
         "reference": "Reference answer"
       },
-      "checksHint": "Each case's own checks, plus the defaults below for every case: contains, not_contains, equals, regex, json_schema, max_cost_usd, max_latency_ms and judge criteria.",
+      "checksHint": "Each case's own checks, plus the defaults below for every case.",
       "defaults": "Checks every case gets",
       "trajectoryHint": "The tools the agent called against the case's expected calls, in the case's order mode.",
       "judgeHint": "The judge grades every answer on the criteria below. Each grade is a run in Activity.",
@@ -5795,7 +5795,8 @@
         "judgeRunFailed": "The judge's run did not finish.",
         "judgeOutputInvalid": "The judge answered in a form that could not be read.",
         "judgeUngraded": "The judge gave no grade on the scale for this criterion.",
-        "judgeReasonEcho": "The judge restated the criterion instead of saying why the answer meets it."
+        "judgeReasonEcho": "The judge restated the criterion instead of saying why the answer meets it.",
+        "judgeCounterUnsupported": "The judge passed the answer as unlike the counter-example without quoting anything in it the counter-example does not also say."
       },
       "scoreRun": "Score against a case",
       "scoreRunBody": "Run every scorer the dataset configures on this run's answer. The result is kept on the dataset.",
@@ -5832,7 +5833,7 @@
       },
       "reviewCard": {
         "title": "Review by a person",
-        "description": "Which answers graded by hand, from Activity, wait for somebody to decide. An eval run sends its own: the regressions it confirmed and the answers the judge could not grade, one per case."
+        "description": "Which answers graded by hand, from Activity, wait for somebody to decide. An eval run sends its own: the regressions it confirmed and the answers its judge failed to grade, one per case."
       },
       "suggestReference": "{count, plural, =1 {1 case has a reference answer, and nothing compares answers with it yet.} other {# cases have a reference answer, and nothing compares answers with it yet.}}",
       "suggestReferenceAction": "Compare with the reference",
@@ -5854,11 +5855,11 @@
       "reviewFilter": "Show",
       "filterPending": "Waiting for a decision ({count})",
       "filterAll": "All results ({count})",
-      "nothingAwaitingReviewBody": "An eval run sends here the regressions it confirmed and the answers its judge could not grade, and its page any others you pick. Answers graded by hand follow the Grading tab's review setting.",
+      "nothingAwaitingReviewBody": "An eval run sends here the regressions it confirmed and the answers its judge failed to grade, and its page any others you pick. Answers graded by hand follow the Grading tab's review setting.",
       "groupByHand": "Graded by hand",
       "groupEvalRun": "Eval run · {when}",
       "agentGone": "An agent that is gone",
-      "agentVersion": "{name} v{version}",
+      "agentVersion": "{name} · v{version}",
       "answer": "Answer",
       "answerGone": "The answer is not kept.",
       "showAll": "Show all",
@@ -5916,12 +5917,13 @@
       "noteAddedToRubric": "The note is now one of the judge's criteria for every case, and the judge is on.",
       "rule": "Rule: {rule}",
       "judgeSaid": "The judge answered: “{said}”",
-      "unverifiedTop": "Unverified: a top grade with nothing quoted from the answer to show for it."
+      "unverifiedTop": "Unverified: a top grade with nothing quoted from the answer to show for it.",
+      "agentDraft": "{name} · Draft"
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
     "newDataset": "New dataset",
-    "newDatasetBody": "An empty dataset, private to you until you share it. Add cases by hand, import a CSV or JSONL file, or add an answer from a conversation.",
+    "newDatasetBody": "An empty dataset. Add cases by hand, import a CSV or JSONL file, or add an answer from a conversation.",
     "noAccess": "You cannot see this organization's datasets",
     "noAccessBody": "Ask an administrator for access to datasets.",
     "datasetCount": "{count, plural, =1 {1 dataset} other {# datasets}}",
@@ -6085,6 +6087,14 @@
     "caseTwin": "A case already asks this question:",
     "caseTwinOpen": "Open it",
     "caseTwinAddAnyway": "Add anyway",
-    "addToDatasetBodyPlain": "The question and the conversation before it come with the answer."
+    "addToDatasetBodyPlain": "The question and the conversation before it come with the answer.",
+    "discardCaseTitle": "Discard your changes?",
+    "discardCaseBody": "The changes to this case are not saved and will be lost.",
+    "discardCase": "Discard",
+    "keepEditing": "Keep editing",
+    "newDatasetName": "New dataset",
+    "newDatasetHere": "You have no dataset to add to yet, so this answer starts one, visible to the whole organization.",
+    "newDatasetFromActivity": "Answers from Activity",
+    "backToDataset": "Back to {name}"
   }
 }

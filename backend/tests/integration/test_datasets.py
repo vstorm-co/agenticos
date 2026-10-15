@@ -479,6 +479,32 @@ async def test_a_rated_down_answer_becomes_a_case_linked_to_its_run(db) -> None:
     assert case.note == "Wrong refund window"
 
 
+async def test_an_answer_already_a_case_is_not_added_twice(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="from activity"))
+    elsewhere = await service.create(ctx, DatasetCreate(name="another"))
+    _, answer = await _rated_down_turn(db, ctx)
+    first = await service.add_from_message(
+        ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+    )
+
+    with pytest.raises(AlreadyExistsError) as refused:
+        await service.add_from_message(
+            ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+        )
+    other = await service.add_from_message(
+        ctx, elsewhere.id, DatasetCaseFromMessage(message_id=answer.id)
+    )
+    await service.remove_case(ctx, dataset.id, first.case_id)
+    again = await service.add_from_message(
+        ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+    )
+
+    assert refused.value.details == {"case_id": first.case_id}
+    assert other.source_message_id == again.source_message_id == answer.id
+
+
 async def test_a_good_answer_can_be_kept_as_the_reference(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)
