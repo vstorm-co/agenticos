@@ -435,7 +435,10 @@ bearer token keeps working until the new consent lands.
 ## What happens on a turn
 
 Each server is probed with a short `tools/list` round-trip — 3 seconds — before the
-turn starts, and the probes run concurrently.
+turn starts, and the probes run concurrently. A server that answered its probe in
+the last two minutes, with the same credential, is not probed again: a
+conversation's next turn attaches it straight away. If it has gone down in the
+meantime, that turn goes on without its tools and the next one probes it again.
 
 !!! warning "An unreachable server is skipped with a warning, not raised"
 

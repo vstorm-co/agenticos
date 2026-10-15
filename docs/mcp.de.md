@@ -1,5 +1,5 @@
 ---
-source_sha: "05ff7bf4ae50"
+source_sha: "71a391e9da98"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -478,7 +478,11 @@ weiter, bis die neue Einwilligung eintrifft.
 ## Was bei einem Zug passiert { #what-happens-on-a-turn }
 
 Jeder Server wird vor Beginn des Zuges mit einem kurzen `tools/list`-Roundtrip
-geprüft — 3 Sekunden — und die Prüfungen laufen nebenläufig.
+geprüft — 3 Sekunden — und die Prüfungen laufen nebenläufig. Ein Server, der in den
+letzten zwei Minuten mit derselben Anmeldung auf seine Prüfung geantwortet hat, wird
+nicht erneut geprüft: Der nächste Zug einer Unterhaltung bindet ihn sofort ein. Ist
+er inzwischen ausgefallen, läuft dieser Zug ohne seine Tools weiter, und der nächste
+prüft ihn wieder.
 
 !!! warning "Ein nicht erreichbarer Server wird mit einer Warnung übersprungen, nicht ausgelöst"
 

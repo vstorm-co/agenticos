@@ -1,5 +1,5 @@
 ---
-source_sha: "05ff7bf4ae50"
+source_sha: "71a391e9da98"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -458,7 +458,11 @@ wyląduje nowa zgoda.
 ## Co dzieje się w turze { #what-happens-on-a-turn }
 
 Każdy serwer jest odpytywany krótkim obiegiem `tools/list` — 3 sekundy — zanim
-tura się zacznie, a odpytania biegną równolegle.
+tura się zacznie, a odpytania biegną równolegle. Serwer, który odpowiedział na
+odpytanie w ciągu ostatnich dwóch minut, z tym samym poświadczeniem, nie jest
+odpytywany ponownie: kolejna tura rozmowy dołącza go od razu. Jeśli w międzyczasie
+przestał odpowiadać, ta tura idzie dalej bez jego narzędzi, a następna odpytuje go
+znowu.
 
 !!! warning "Nieosiągalny serwer zostaje pominięty z ostrzeżeniem, a nie podnosi wyjątku"
 

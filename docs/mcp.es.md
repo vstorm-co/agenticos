@@ -1,5 +1,5 @@
 ---
-source_sha: "05ff7bf4ae50"
+source_sha: "71a391e9da98"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -469,7 +469,11 @@ bearer token sigue funcionando hasta que llega el nuevo consentimiento.
 ## Qué pasa en un turno { #what-happens-on-a-turn }
 
 Cada servidor se sondea con una ida y vuelta corta de `tools/list` — 3 segundos —
-antes de que empiece el turno, y los sondeos corren a la vez.
+antes de que empiece el turno, y los sondeos corren a la vez. Un servidor que
+respondió a su sondeo en los últimos dos minutos, con la misma credencial, no se
+vuelve a sondear: el siguiente turno de la conversación lo conecta directamente. Si
+ha caído entretanto, ese turno sigue sin sus herramientas y el siguiente lo sondea
+de nuevo.
 
 !!! warning "Un servidor inalcanzable se salta con un aviso, no lanza un error"
 
