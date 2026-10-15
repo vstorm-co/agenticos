@@ -437,6 +437,26 @@ class TestLimits:
 
 class TestLimitsBeforeTheLookup:
     @pytest.mark.security
+    async def test_made_up_tokens_with_a_real_prefix_do_not_spend_its_allowance(
+        self, db: AsyncSession, client: Client, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Codex on #2062: the prefix is shown in listings and audit entries, and
+        the allowance was keyed on it - anybody could spend a real key's minute."""
+        monkeypatch.setattr(rate_limit, "_redis", _WindowCounter())
+        monkeypatch.setattr(settings, "RATE_LIMIT_API_KEY_PER_MINUTE", 2)
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        key = await _issue(db, organization, owner, Perm.AGENTS_VIEW)
+
+        async with client() as http:
+            for _ in range(3):
+                forged = key[:12] + uuid.uuid4().hex
+                await http.get(_url("/agents"), headers=_bearer(forged))
+            real = await http.get(_url("/agents"), headers=_bearer(key))
+
+        assert real.status_code == 200
+
+    @pytest.mark.security
     async def test_made_up_keys_are_counted_per_address_and_then_cost_no_query(
         self, db: AsyncSession, client: Client, monkeypatch: pytest.MonkeyPatch
     ) -> None:

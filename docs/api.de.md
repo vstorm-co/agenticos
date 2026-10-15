@@ -1,5 +1,5 @@
 ---
-source_sha: "91aa6099a9bd"
+source_sha: "1a408d71dc61"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -71,8 +71,9 @@ Zwei Ablehnungen sollten Sie kennen:
 Jeder Schlüssel hat außerdem sein eigenes Limit, `RATE_LIMIT_API_KEY_PER_MINUTE`
 Anfragen pro Minute (standardmäßig 600), und ein Run oder ein ML-Aufruf, den er
 auslöst, zählt gegen diese Limits für den Schlüssel statt für seinen Aussteller. Beide
-Prüfungen laufen, bevor der Schlüssel nachgeschlagen wird: Ein Schlüssel wird nach
-dem Präfix gezählt, das er vorlegt, und eine Adresse, die mehr als
+Prüfungen laufen, bevor der Schlüssel nachgeschlagen wird, bei einer Anfrage wie beim
+Öffnen eines WebSockets: Ein Schlüssel wird nach einem Digest des ganzen Tokens
+gezählt - nie nach seinem Präfix, das Listen zeigen - und eine Adresse, die mehr als
 `RATE_LIMIT_AUTH_PER_MINUTE` nicht existierende Schlüssel geschickt hat, erhält bis
 zum Ende ihrer Minute `429` ohne Nachschlagen.
 

@@ -13,6 +13,7 @@ is why every write in this API used to be acknowledged before it was durable
 """
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 
+import hashlib
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
@@ -393,7 +394,7 @@ from app.core.audit import set_api_key
 from app.core.security import encode_untrusted, verify_token
 from app.db.models.user import User
 from app.api.public_api import is_public_route
-from app.services.api_key import ApiKeyService, KeyCaller, api_key_prefix, is_api_key
+from app.services.api_key import ApiKeyService, KeyCaller, is_api_key
 from app.services.assistant import AssistantService
 from app.services.oauth_server import OAuthServerService
 from app.services.change_feed import CONSOLE_TAB_HEADER, ChangeOrigin, console_tab
@@ -433,10 +434,11 @@ async def key_attempt_refused(
 
     Both limits come before the lookup, so neither a key over its allowance nor
     a flood of made-up ones costs a database query - on a request and on a
-    socket handshake alike. A key is counted by the prefix it presents, unique
-    to it and readable without the database; made-up keys are counted per
-    address once refused (:func:`count_refused_key`), and an address over the
-    line is turned away here.
+    socket handshake alike. A key is counted by a digest of the whole token,
+    readable without the database - not by its prefix, which listings and audit
+    entries show, so knowing it would let anybody spend a real key's allowance
+    with made-up tokens. Made-up keys are counted per address once refused
+    (:func:`count_refused_key`), and an address over the line is turned away here.
     """
     address = f"ip:{rate_limit.caller_ip(connection)}"
     if await rate_limit.exhausted(
@@ -448,7 +450,7 @@ async def key_attempt_refused(
         )
     decision = await rate_limit.consume(
         surface="api_key",
-        caller=f"prefix:{api_key_prefix(token)}",
+        caller=f"key:{hashlib.sha256(token.encode()).hexdigest()}",
         limit=rate_limit.api_key_limit(),
     )
     if not decision.allowed:

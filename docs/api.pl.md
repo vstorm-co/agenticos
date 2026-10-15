@@ -1,5 +1,5 @@
 ---
-source_sha: "91aa6099a9bd"
+source_sha: "1a408d71dc61"
 ---
 
 # API HTTP { #the-http-api }
@@ -66,7 +66,8 @@ Warto znać dwie odmowy:
 Każdy klucz ma też własny limit, `RATE_LIMIT_API_KEY_PER_MINUTE` żądań na minutę
 (domyślnie 600), a run albo wywołanie ML, które wykona, liczy się do tych limitów
 dla klucza, a nie dla jego wydającego. Oba sprawdzenia odbywają się przed
-wyszukaniem klucza: klucz jest liczony po prefiksie, który przedstawia, a adres,
+wyszukaniem klucza, w żądaniu i przy otwieraniu WebSocketu: klucz jest liczony po
+skrócie całego tokenu - nigdy po prefiksie, który widać na listach - a adres,
 który wysłał więcej niż `RATE_LIMIT_AUTH_PER_MINUTE` nieistniejących kluczy, dostaje
 `429` bez wyszukiwania do końca swojej minuty.
 
