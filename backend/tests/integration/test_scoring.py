@@ -967,6 +967,9 @@ class TestWhenTheJudgeCannotRun:
         [shown] = said
         assert shown is not None and shown.startswith("It is fine. Truly Truly")
         assert (len(shown), shown[-1]) == (201, "…")
+        assert recorded.error is not None
+        assert recorded.error.startswith("The answer did not match the shape asked for - ")
+        assert "Truly Truly" in recorded.error
 
 
 class TestJudgeAgreement:

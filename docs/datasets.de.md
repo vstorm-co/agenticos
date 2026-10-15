@@ -1,5 +1,5 @@
 ---
-source_sha: "13ea9ffe01ba"
+source_sha: "82fbb0ddb3d7"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -355,7 +355,11 @@ Rest des Runs vergleichen ließe; dann wird nichts bewertet.
 Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
 Antwort nicht wörtlich enthält, wird neben der Bewertung als nicht verifiziert
 aufbewahrt und in einer eigenen Zeile unter der Begründung angezeigt, und die
-Bewertung bleibt bestehen.
+Bewertung bleibt bestehen. Was eine Bewertung stützt, macht sie nie ungültig:
+Ein leeres oder zu langes Zitat wird verworfen, Zitate über zwölf und eine
+Regel über 300 Zeichen werden gekürzt, und nur eine fehlende Kriteriums-ID oder
+Note macht ein Urteil unlesbar. Eine unlesbare Antwort bleibt am Run des
+Bewerters in Activity erhalten, mit dem Grund, warum sie sich nicht lesen ließ.
 
 Jedes Ergebnis hält den Bewerter fest, der es bewertet hat - den Bewerter-Agent,
 sein Modellprofil, die Version seines Specs, einen Hash der Rubrik und die

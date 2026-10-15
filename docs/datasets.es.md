@@ -1,5 +1,5 @@
 ---
-source_sha: "13ea9ffe01ba"
+source_sha: "82fbb0ddb3d7"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -336,9 +336,14 @@ calificación no sería comparable con el resto del run; entonces no se califica
 nada.
 
 Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la
-respuesta no contiene palabra por palabra se guarda junto a la calificación como
-no verificada, se muestra en su propia línea bajo el motivo, y la calificación
-se mantiene.
+respuesta no contiene palabra por palabra se guarda junto a la calificación
+como no verificada, se muestra en su propia línea bajo el motivo, y la
+calificación se mantiene. Lo que respalda una calificación nunca la anula: una
+cita vacía o demasiado larga se descarta, las citas más allá de doce y una
+regla de más de 300 caracteres se recortan, y solo la falta de un identificador
+de criterio o de una nota hace ilegible un veredicto. Una respuesta ilegible se
+guarda en el run del juez en Activity, con el motivo por el que no se pudo
+leer.
 
 Cada puntuación registra el juez que la calificó - el agent juez, su perfil de
 modelo, la versión de su spec, un hash de la rúbrica y la versión de la tarea

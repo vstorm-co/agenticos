@@ -14,13 +14,13 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Any
 from uuid import UUID
 
 import regex
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field, JsonValue, field_validator
 from pydantic import ValidationError as PydanticValidationError
 from referencing.exceptions import Unresolvable
 
@@ -408,17 +408,34 @@ class JudgeGrade(BaseModel):
 
     `quotes` are the passages of the answer the grade rests on, word for word.
     Each is looked for in the answer; one that is not there is kept beside the
-    grade, and the grade stands. `rule` is the rule the grade follows from - a
+    grade, and the grade stands. An empty or overlong quote is dropped and the
+    list cut to its limit, and an overlong rule is cut, rather than refusing the
+    whole verdict. `rule` is the rule the grade follows from - a
     line of a policy the judge was given, or the part of the criterion it turns on.
     """
 
     id: str
     score: int
     reason: str
-    rule: str = Field(default="", max_length=MAX_RULE)
-    quotes: list[Annotated[str, Field(min_length=1, max_length=MAX_QUOTE)]] = Field(
-        default_factory=list, max_length=MAX_QUOTES
+    rule: str = Field(default="", description=f"At most {MAX_RULE} characters")
+    quotes: list[str] = Field(
+        default_factory=list,
+        description=f"At most {MAX_QUOTES} passages of at most {MAX_QUOTE} characters each",
     )
+
+    # Only the criterion id and the grade must be right for a grade to stand: a
+    # judge that overruns a limit on what backs it loses the overrun, not the grade.
+    @field_validator("rule", mode="before")
+    @classmethod
+    def _rule_cut(cls, value: object) -> str:
+        return value[:MAX_RULE] if isinstance(value, str) else ""
+
+    @field_validator("quotes", mode="before")
+    @classmethod
+    def _quotes_kept(cls, value: object) -> list[str]:
+        given = [value] if isinstance(value, str) else value if isinstance(value, list) else []
+        kept = [q for q in given if isinstance(q, str) and q.strip() and len(q) <= MAX_QUOTE]
+        return kept[:MAX_QUOTES]
 
 
 class JudgeVerdict(BaseModel):

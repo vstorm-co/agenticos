@@ -314,7 +314,11 @@ compare with the rest of the run; nothing is graded then.
 
 A grade may quote the answer, up to 12 passages; a quote the answer does not
 contain word for word is kept beside the grade as unverified, shown on its own
-line under the reason, and the grade stands.
+line under the reason, and the grade stands. What backs a grade never sinks it:
+an empty or overlong quote is dropped, quotes past twelve and a rule past 300
+characters are cut, and only a missing criterion id or grade makes a verdict
+unreadable. An unreadable answer is kept on the judge's run in Activity, with
+why it could not be read.
 
 Each score records the judge that graded it - the judge agent, its model
 profile, its spec version, a hash of the rubric and the version of the task the

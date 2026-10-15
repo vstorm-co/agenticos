@@ -28,6 +28,7 @@ from app.services.scorers import (
     MAX_QUOTE,
     MAX_QUOTES,
     MAX_REASON,
+    MAX_RULE,
     CaseView,
     JudgeGrade,
     JudgeVerdict,
@@ -655,12 +656,33 @@ class TestGrades:
         assert set(result.reason[5:]) == {"r"}
         assert (result.unverified_quotes, result.status) == (["absent"], "pass")
 
-    @pytest.mark.parametrize("quotes", [["q"] * (MAX_QUOTES + 1), ["q" * (MAX_QUOTE + 1)], [""]])
-    def test_quotes_past_the_limits_are_not_a_valid_verdict(self, quotes) -> None:
+    def test_a_grade_overrunning_what_backs_it_stands_with_the_overrun_cut(self) -> None:
+        quotes = ["", "   ", "q" * (MAX_QUOTE + 1), 7, *[f"passage {n}" for n in range(15)]]
+
+        [grade] = JudgeVerdict.model_validate(
+            {
+                "grades": [
+                    {"id": "r1", "score": 4, "reason": "r", "rule": "x" * 500, "quotes": quotes}
+                ]
+            }
+        ).grades
+
+        assert grade.score == 4
+        assert grade.rule == "x" * MAX_RULE
+        assert grade.quotes == [f"passage {n}" for n in range(MAX_QUOTES)]
+
+    @pytest.mark.parametrize(("quotes", "kept"), [("one passage", ["one passage"]), (None, [])])
+    def test_quotes_not_given_as_a_list_are_read_as_well_as_they_can_be(self, quotes, kept) -> None:
+        [grade] = JudgeVerdict.model_validate(
+            {"grades": [{"id": "r1", "score": 4, "reason": "r", "rule": 3, "quotes": quotes}]}
+        ).grades
+
+        assert (grade.quotes, grade.rule) == (kept, "")
+
+    @pytest.mark.parametrize("grade", [{"score": 4, "reason": "r"}, {"id": "r1", "reason": "r"}])
+    def test_a_grade_without_its_criterion_or_its_score_is_not_a_verdict(self, grade) -> None:
         with pytest.raises(ValidationError):
-            JudgeVerdict.model_validate(
-                {"grades": [{"id": "r1", "score": 4, "reason": "r", "quotes": quotes}]}
-            )
+            JudgeVerdict.model_validate({"grades": [grade]})
 
     def test_not_graded_keeps_what_an_unreadable_judge_said(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]

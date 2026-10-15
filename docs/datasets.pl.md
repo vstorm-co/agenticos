@@ -1,5 +1,5 @@
 ---
-source_sha: "13ea9ffe01ba"
+source_sha: "82fbb0ddb3d7"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -332,7 +332,12 @@ nic nie jest oceniane.
 
 Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
 zawiera słowo w słowo, jest zachowywany obok oceny jako niezweryfikowany,
-pokazywany w osobnej linii pod uzasadnieniem, a ocena pozostaje.
+pokazywany w osobnej linii pod uzasadnieniem, a ocena pozostaje. To, co
+uzasadnia ocenę, nigdy jej nie unieważnia: pusty albo za długi cytat jest
+pomijany, cytaty ponad dwanaście i reguła ponad 300 znaków są przycinane, a
+werdykt jest nieczytelny tylko bez identyfikatora kryterium albo oceny.
+Nieczytelna odpowiedź zostaje zapisana na runie sędziego w Activity, razem z
+powodem, dla którego nie dało się jej odczytać.
 
 Każdy wynik zapisuje sędziego, który go ocenił - agenta sędziego, jego profil
 modelu, wersję spec, hash rubryki i wersję zadania, które platforma przekazuje
