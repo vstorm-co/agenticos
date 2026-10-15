@@ -17,7 +17,9 @@ const state = vi.hoisted(() => ({
   verdict: vi.fn(),
   review: vi.fn(),
   withdraw: vi.fn(),
+  rescore: vi.fn(),
   refetch: vi.fn(),
+  canRun: true,
   agents: [] as { id: string; name: string }[],
 }));
 vi.mock("@/hooks/use-scoring", () => ({
@@ -33,12 +35,15 @@ vi.mock("@/hooks/use-scoring", () => ({
       verdict: { mutateAsync: state.verdict, isPending: false },
       review: { mutateAsync: state.review, isPending: false },
       withdraw: { mutateAsync: state.withdraw, isPending: false },
+      rescore: { mutateAsync: state.rescore, isPending: false },
       ...(counting ? {} : state.answer),
     };
   },
 }));
 vi.mock("@/hooks/use-agents", () => ({ useAgents: () => ({ agents: state.agents }) }));
-vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => true }) }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: (perm: string) => perm !== "datasets:run" || state.canRun }),
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from "sonner";
 
@@ -80,6 +85,7 @@ beforeEach(() => {
   state.otherTotal = 0;
   state.calls = [];
   state.agents = [{ id: "a1", name: "Support" }];
+  state.canRun = true;
 });
 
 describe("ReviewPanel", () => {
@@ -275,5 +281,62 @@ describe("ReviewPanel", () => {
 
     expect(screen.queryByRole("button", { name: "Mark passed" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Send to review" })).toBeNull();
+  });
+
+  it("scores an ungraded answer again, and a group's ungraded answers at once", async () => {
+    const ungraded = (id: string) =>
+      caseScore({
+        id,
+        eval_run_id: "e1",
+        agent_id: "x",
+        agent_name: "Support",
+        unscored_reason: "judge_output_invalid",
+      });
+    state.answer = {
+      scores: [
+        ungraded("a"),
+        ungraded("b"),
+        caseScore({ id: "c", eval_run_id: "e1", agent_id: "x" }),
+      ],
+      total: 3,
+    };
+    state.rescore
+      .mockResolvedValueOnce({ rescored: [ungraded("a"), ungraded("b")], kept: [] })
+      .mockResolvedValueOnce({ rescored: [], kept: ["a"] })
+      .mockRejectedValueOnce(new Error("Gone"));
+    render(<ReviewPanel dataset={dataset()} />);
+
+    expect(
+      screen.getAllByText(/The judge answered in a form that could not be read\./),
+    ).toHaveLength(2);
+    await userEvent.click(screen.getByRole("button", { name: "Score 2 ungraded answers again" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Scored 2 answers again"));
+    expect(state.rescore).toHaveBeenCalledWith(["a", "b"]);
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Score again" })[0]!);
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith(
+        "Every scorer had already reached a verdict, so nothing was scored again.",
+      ),
+    );
+    expect(state.rescore).toHaveBeenLastCalledWith(["a"]);
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Score again" })[1]!);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Gone"));
+  });
+
+  it("offers no scoring again to somebody who may not run the dataset", () => {
+    state.canRun = false;
+    state.answer = {
+      scores: [
+        caseScore({ id: "a", unscored_reason: "judge_budget" }),
+        caseScore({ id: "b", unscored_reason: "judge_budget" }),
+      ],
+      total: 2,
+    };
+    render(<ReviewPanel dataset={dataset()} />);
+
+    expect(screen.getAllByText(/budget is spent/)).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /again/ })).toBeNull();
   });
 });

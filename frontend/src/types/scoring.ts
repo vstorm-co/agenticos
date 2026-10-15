@@ -64,6 +64,8 @@ export interface JudgePin {
   agent_version_id: string | null;
   spec_version: number | null;
   rubric_hash: string;
+  /** The version of the task every judge is handed; null on a score graded before it was kept. */
+  prompt_version: number | null;
 }
 
 export interface CaseScore {
@@ -93,6 +95,8 @@ export interface CaseScore {
   results: ScorerResult[];
   judge: JudgePin | null;
   passed: boolean | null;
+  /** Why `passed` is null: the reason code of the first required scorer that reached no verdict. */
+  unscored_reason: string | null;
   review_state: ReviewState;
   human_passed: boolean | null;
   human_note: string | null;
@@ -101,6 +105,12 @@ export interface CaseScore {
   created_by_user_id: string | null;
   created_at: string;
   outcome: boolean | null;
+}
+
+/** What scoring again changed: the scores scored anew, and the ids that needed nothing. */
+export interface Rescored {
+  rescored: CaseScore[];
+  kept: string[];
 }
 
 export interface CaseScoreList {

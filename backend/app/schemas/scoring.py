@@ -305,7 +305,9 @@ class JudgePin(BaseSchema):
     Two scores are graded alike only when every field matches. `agent_id` is the
     judge agent, `rubric_hash` fingerprints what it was asked: each criterion it
     graded and the scale. `model_profile_id` is the model it ran on - the
-    dataset's choice, or the one its version publishes on.
+    dataset's choice, or the one its version publishes on. `prompt_version` is
+    the version of the task the platform hands every judge around the case;
+    null on a score graded before it was recorded, which was version 1.
     """
 
     agent_id: UUID | None = None
@@ -313,13 +315,16 @@ class JudgePin(BaseSchema):
     agent_version_id: UUID | None = None
     spec_version: int | None = None
     rubric_hash: str
+    prompt_version: int | None = None
 
 
 class CaseScoreRead(BaseSchema):
     """One run's answer scored against one case.
 
-    `passed` is what the scorers concluded; null means a required scorer could not
-    run, so the case is unscored rather than passed. `human_passed` is a person's
+    `passed` is what the scorers concluded; null means a required scorer reached
+    no verdict, so the case is unscored rather than passed or failed, and
+    `unscored_reason` names why: the `reason_code` of the first such scorer, or
+    its status when it has none. `human_passed` is a person's
     verdict, kept beside it. `outcome` is the one that counts: the person's when
     there is one, the scorers' otherwise.
 
@@ -379,6 +384,20 @@ class CaseScoreRead(BaseSchema):
     def outcome(self) -> bool | None:
         return self.human_passed if self.human_passed is not None else self.passed
 
+    @computed_field
+    @property
+    def unscored_reason(self) -> str | None:
+        if self.passed is not None:
+            return None
+        return next(
+            (
+                result.reason_code or result.status
+                for result in self.results
+                if result.required and result.status in ("skipped", "error")
+            ),
+            None,
+        )
+
 
 class CaseScoreList(BaseSchema):
     items: list[CaseScoreRead]
@@ -392,10 +411,15 @@ class PendingScore(CaseScoreRead):
 
 
 class JudgeCreate(BaseSchema):
-    """A judge of a dataset's own, made from the default judge's definition."""
+    """A judge of a dataset's own, made from the default judge's definition.
+
+    `knowledge` is what the judge must know to grade that the cases do not say -
+    a policy, a price list - and is added to its instructions.
+    """
 
     name: str = Field(min_length=1, max_length=128)
     instructions: str = Field(min_length=1, max_length=20_000)
+    knowledge: str | None = Field(default=None, max_length=20_000)
     model_profile_id: UUID | None = Field(
         default=None, description="The model it runs on; the organization's oldest if omitted"
     )
@@ -405,6 +429,23 @@ class ReviewRequest(BaseSchema):
     """Scores of one dataset to put in the review queue."""
 
     score_ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
+class RescoreRequest(BaseSchema):
+    """Scores of one dataset to grade again. Each one runs the judge, so a request is small."""
+
+    score_ids: list[UUID] = Field(min_length=1, max_length=10)
+
+
+class Rescored(BaseSchema):
+    """What grading again changed: the scores `rescored`, and the ids `kept` as they were.
+
+    A score is kept when every scorer reached a verdict on it: there is nothing to
+    grade again.
+    """
+
+    rescored: list[CaseScoreRead]
+    kept: list[UUID]
 
 
 class ReviewRequested(BaseSchema):

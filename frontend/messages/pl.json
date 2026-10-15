@@ -3474,7 +3474,11 @@
         "judgeNotSeeded": "Nie udało się utworzyć sędziego ewaluacji w tej organizacji.",
         "judgeBudget": "Budżet sędziego ewaluacji się wyczerpał, więc nie został uruchomiony.",
         "judgeNoModel": "Model sędziego ewaluacji został usunięty albo nie ma klucza. Wybierz dla niego inny model.",
-        "judgeMissing": "Sędzia wybrany dla tego datasetu już nie istnieje. Wybierz innego w zakładce Ocenianie."
+        "judgeMissing": "Sędzia wybrany dla tego datasetu już nie istnieje. Wybierz innego w zakładce Ocenianie.",
+        "judgeRunFailed": "Run sędziego się nie zakończył.",
+        "judgeOutputInvalid": "Sędzia odpowiedział w formie, której nie da się odczytać.",
+        "judgeUngraded": "Sędzia nie dał oceny na skali za to kryterium.",
+        "judgeReasonEcho": "Sędzia powtórzył kryterium, zamiast napisać, dlaczego odpowiedź je spełnia."
       },
       "scoreRun": "Oceń względem przypadku",
       "scoreRunBody": "Uruchom na odpowiedzi tego runu wszystkie oceniacze skonfigurowane w datasecie. Wynik zostanie zapisany w datasecie.",
@@ -3573,7 +3577,19 @@
       "judgeUnpublished": "Nieopublikowany",
       "gradedBy": "Tu ocenia: {graders}.",
       "gradedByJudge": "sędzia ({criteria})",
-      "gradedByNothing": "Nic z zakładki Ocenianie nie oceni tego przypadku w tej postaci."
+      "gradedByNothing": "Nic z zakładki Ocenianie nie oceni tego przypadku w tej postaci.",
+      "openJudgeRun": "Otwórz run sędziego",
+      "notGradedCode": "Wymagany scorer nie wydał werdyktu ({code}).",
+      "notGradedWhy": "Ta odpowiedź nie jest oceniona, więc nie liczy się ani jako zaliczona, ani jako niezaliczona. Usuń przyczynę i oceń ją ponownie - agent nie uruchamia się drugi raz.",
+      "rescore": "Oceń ponownie",
+      "rescoreGroup": "Oceń ponownie {count, plural, one {# nieocenioną odpowiedź} few {# nieocenione odpowiedzi} many {# nieocenionych odpowiedzi} other {# nieocenionej odpowiedzi}}",
+      "rescored": "{count, plural, one {Oceniono ponownie # odpowiedź} few {Oceniono ponownie # odpowiedzi} many {Oceniono ponownie # odpowiedzi} other {Oceniono ponownie # odpowiedzi}}",
+      "rescoreNothing": "Każdy scorer wydał już werdykt, więc nic nie zostało ocenione ponownie.",
+      "judgeKnowledge": "Co sędzia musi wiedzieć?",
+      "judgeKnowledgeHint": "Wszystko, względem czego ocenia, a czego przypadki nie mówią - polityka, cennik, zasady firmy. Zostanie dodane do instrukcji sędziego.",
+      "judgeKnowledgePlaceholder": "Zamówienie można zwrócić w ciągu 30 dni od dostawy. Otwarte oprogramowanie nie podlega zwrotowi.",
+      "unsavedChanges": "Niezapisane zmiany",
+      "discard": "Odrzuć"
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",

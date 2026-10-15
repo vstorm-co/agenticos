@@ -11,11 +11,22 @@ interface ReviewGroupHeadingProps {
   group: ScoreGroup;
   /** Takes the group's waiting scores out of the queue; absent when there is nothing to take. */
   onWithdraw?: () => void;
+  /** Scores these of the group's answers again; absent for somebody who may not. */
+  onRescore?: (scoreIds: string[]) => void;
   busy: boolean;
 }
 
-/** Where a group of scores came from - one eval run, or grading by hand - and what to do with it. */
-export function ReviewGroupHeading({ group, onWithdraw, busy }: ReviewGroupHeadingProps) {
+/**
+ * Where a group of scores came from - one eval run, or grading by hand - and what
+ * to do with it: score its ungraded answers again, when there is more than one,
+ * or take its waiting scores out of the queue.
+ */
+export function ReviewGroupHeading({
+  group,
+  onWithdraw,
+  onRescore,
+  busy,
+}: ReviewGroupHeadingProps) {
   const t = useTranslations("datasets.scoring");
   const format = useFormatter();
   const [first] = group.scores;
@@ -23,6 +34,7 @@ export function ReviewGroupHeading({ group, onWithdraw, busy }: ReviewGroupHeadi
     dateStyle: "medium",
     timeStyle: "short",
   });
+  const ungraded = group.scores.filter((score) => score.unscored_reason !== null);
   const link =
     group.evalRunId !== null && first!.agent_id !== null
       ? `${ROUTES.AGENTS}/${first!.agent_id}/evals/${group.evalRunId}`
@@ -40,11 +52,22 @@ export function ReviewGroupHeading({ group, onWithdraw, busy }: ReviewGroupHeadi
           {t("evalRunLink")}
         </Link>
       )}
-      {onWithdraw && (
+      {onRescore && ungraded.length > 1 && (
         <Button
           variant="ghost"
           size="sm"
           className="ml-auto h-7"
+          disabled={busy}
+          onClick={() => onRescore(ungraded.map((score) => score.id))}
+        >
+          {t("rescoreGroup", { count: ungraded.length })}
+        </Button>
+      )}
+      {onWithdraw && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className={onRescore && ungraded.length > 1 ? "h-7" : "ml-auto h-7"}
           disabled={busy}
           onClick={onWithdraw}
         >

@@ -11,9 +11,13 @@ import type {
   CaseScore,
   CaseScoreList,
   DatasetScoring,
+  Rescored,
   ReviewQueue,
   ScoreOutcome,
 } from "@/types/scoring";
+
+/** How many scores one request scores again: each one runs the judge. */
+const RESCORE_BATCH = 10;
 
 /** Replace how a dataset's cases are scored. Scores already kept keep theirs. */
 export function useSetScoring(datasetId: string) {
@@ -29,6 +33,8 @@ export function useSetScoring(datasetId: string) {
 export interface NewJudge {
   name: string;
   instructions: string;
+  /** What the judge must know to grade - a policy, a price list - added to its instructions. */
+  knowledge?: string | null;
   model_profile_id?: string | null;
 }
 
@@ -87,8 +93,9 @@ export interface ScoreQuery {
  * A page of a dataset's scores, and a person's decision on one.
  *
  * `pending` narrows to the scores waiting for a decision. A decision, a request
- * for review or taking scores out of it refreshes the dataset's scores and the
- * review queue together.
+ * for review, taking scores out of it or scoring again refreshes the dataset's
+ * scores and the review queue together. Scoring again goes ten scores a request,
+ * one request after another, and refreshes even when a later request fails.
  */
 export function useScores(
   datasetId: string,
@@ -157,6 +164,21 @@ export function useScores(
     onSuccess: changed,
   });
 
+  const rescore = useMutation({
+    mutationFn: async (scoreIds: string[]) => {
+      const done: Rescored = { rescored: [], kept: [] };
+      for (let start = 0; start < scoreIds.length; start += RESCORE_BATCH) {
+        const batch = await apiClient.post<Rescored>(`/datasets/${datasetId}/scores/rescore`, {
+          score_ids: scoreIds.slice(start, start + RESCORE_BATCH),
+        });
+        done.rescored.push(...batch.rescored);
+        done.kept.push(...batch.kept);
+      }
+      return done;
+    },
+    onSettled: changed,
+  });
+
   const withdraw = useMutation({
     mutationFn: (scoreIds: string[]) =>
       apiClient.post<{ removed: number; kept: number }>(
@@ -174,6 +196,7 @@ export function useScores(
     refetch: query.refetch,
     verdict,
     review,
+    rescore,
     withdraw,
   };
 }

@@ -241,6 +241,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_PREVIEW_CHARS = 80
+
+
+def _preview(text: str) -> str:
+    """A question as one line of a list: whitespace folded, cut at 80 characters."""
+    flat = " ".join(text.split())
+    return flat if len(flat) <= _PREVIEW_CHARS else f"{flat[: _PREVIEW_CHARS - 1].rstrip()}…"
+
+
 _DELEGATION_RUN_STATUS: Mapping[DelegationStatus, RunStatus] = {
     "completed": RunStatus.COMPLETED,
     "failed": RunStatus.FAILED,
@@ -4649,6 +4658,24 @@ class AgentRunnerService:
         return await agent_run_repo.down_rated_run_ids(
             self.db, organization_id=ctx.organization_id, run_ids=run_ids
         )
+
+    async def previews(
+        self, run_ids: Sequence[UUID], *, questions: Mapping[UUID, str]
+    ) -> dict[UUID, str]:
+        """What each of these runs was asked, as a list shows it beside the run.
+
+        `questions` holds what is already known for some of them - an eval case's
+        question, for a run that answered or graded one. The rest show the first
+        user turn they recorded - the transcript's own text, read under the
+        `runs:view` the transcript is. A run that kept no conversation has none.
+        The ids come from a listing already narrowed to the caller's organization.
+        """
+        turns = await conversation_repo.first_user_turns(
+            self.db,
+            [run_id for run_id in run_ids if run_id not in questions],
+            chars=_PREVIEW_CHARS * 4,
+        )
+        return {run_id: _preview(text) for run_id, text in {**turns, **questions}.items()}
 
     async def get_run(self, ctx: AuthContext, run_id: UUID) -> AgentRun:
         """One run in the caller's organization.

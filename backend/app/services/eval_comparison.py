@@ -10,9 +10,14 @@ The rules are the ones a gate can trust:
 * **A flip is confirmed only when it reproduces.** A case that changed outcome
   is rerun; it stays a regression (or a fix) only if every rerun repeats it on
   the side it was rerun on.
-* **A difference is a verdict only when the sample can carry it.** Confirmed
-  flips are tested with an exact McNemar test; when it cannot tell the two
-  apart the answer is `inconclusive` rather than better or worse.
+* **A verdict rests on confirmed flips.** One confirmed regression makes the
+  candidate worse, confirmed fixes alone make it better, both make it mixed.
+  An exact McNemar test over the confirmed flips says separately whether the
+  candidate is better or worse overall, which a handful of flips cannot show.
+* **A case settles on the majority of its attempts.** A case that was rerun
+  passes or fails as most of its decided attempts did, unless a person decided
+  its first answer; the pass rate counts settled outcomes, and the first
+  answers' rate is kept beside it.
 * **Quality and efficiency are separate axes.** Cost, tokens and latency are
   reported beside the pass rate, each as better, worse or unchanged within a
   tolerance, and never folded into it.
@@ -25,6 +30,7 @@ import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 type Outcome = bool | None
@@ -44,8 +50,8 @@ class Verdict(enum.StrEnum):
 
     BETTER = "better"
     WORSE = "worse"
+    MIXED = "mixed"
     NO_DIFFERENCE = "no_difference"
-    INCONCLUSIVE = "inconclusive"
     INVALID = "invalid"
 
 
@@ -121,48 +127,97 @@ def mcnemar_p(regressions: int, fixed: int) -> float:
     return min(1.0, 2 * tail)
 
 
+@dataclass(frozen=True)
+class QualityVerdict:
+    """What the confirmed flips say about the candidate.
+
+    Attributes:
+        verdict: Worse with a confirmed regression beyond the tolerance, better
+            with confirmed fixes alone, mixed with both.
+        p_value: The McNemar p-value over the confirmed flips, or `None` with
+            none to test.
+        overall: Which way the candidate moved as a whole, when the test can
+            tell - `None` when the flips are too few to say.
+    """
+
+    verdict: Verdict
+    p_value: float | None = None
+    overall: Literal["better", "worse"] | None = None
+
+
 def quality_verdict(
-    cases: Sequence[PairedCase], *, alpha: float, invalid: bool = False
-) -> tuple[Verdict, float | None]:
-    """The candidate's verdict on quality, and the p-value it rests on.
+    cases: Sequence[PairedCase], *, alpha: float, invalid: bool = False, tolerance: int = 0
+) -> QualityVerdict:
+    """The candidate's verdict on quality.
 
     `invalid` is set when the two sides were scored by different judges or
-    scoring, which no arithmetic can repair.
+    scoring, which no arithmetic can repair. `tolerance` is how many confirmed
+    regressions the verdict lets pass.
     """
     if invalid:
-        return Verdict.INVALID, None
+        return QualityVerdict(Verdict.INVALID)
     confirmed = [case for case in cases if case.confirmed]
     regressions = sum(1 for case in confirmed if case.flip is Flip.REGRESSION)
     fixed = len(confirmed) - regressions
     if regressions + fixed == 0:
-        return Verdict.NO_DIFFERENCE, None
+        return QualityVerdict(Verdict.NO_DIFFERENCE)
     p = mcnemar_p(regressions, fixed)
-    if p >= alpha:
-        return Verdict.INCONCLUSIVE, p
-    return (Verdict.WORSE if regressions > fixed else Verdict.BETTER), p
+    overall: Literal["better", "worse"] | None = (
+        None if p >= alpha else "worse" if regressions > fixed else "better"
+    )
+    broke = regressions > tolerance
+    if broke and fixed:
+        verdict = Verdict.MIXED
+    elif broke:
+        verdict = Verdict.WORSE
+    elif fixed:
+        verdict = Verdict.BETTER
+    else:
+        verdict = Verdict.NO_DIFFERENCE
+    return QualityVerdict(verdict, p, overall)
+
+
+def settle(outcomes: Sequence[Outcome]) -> Outcome:
+    """How a case came out over all its attempts: as most of its decided ones did.
+
+    A tie, or nothing decided, leaves it undecided.
+    """
+    passed = sum(1 for outcome in outcomes if outcome is True)
+    failed = sum(1 for outcome in outcomes if outcome is False)
+    if passed == failed:
+        return None
+    return passed > failed
 
 
 @dataclass(frozen=True)
 class Attempt:
-    """One scored attempt of one case on one arm."""
+    """One case's first scored attempt on one arm, and how its reruns came out."""
 
     outcome: Outcome
     cost_usd: Decimal | None = None
     tokens: int | None = None
     latency_ms: int | None = None
     tags: tuple[str, ...] = ()
+    reruns: tuple[Outcome, ...] = ()
+    by_person: bool = False
+
+    @property
+    def settled(self) -> Outcome:
+        """A person's decision on the first answer settles the case; else the majority."""
+        return self.outcome if self.by_person else settle((self.outcome, *self.reruns))
 
 
 @dataclass(frozen=True)
 class ArmSummary:
-    """Both axes for one arm, over its first attempts.
+    """Both axes for one arm: quality over settled outcomes, efficiency over first attempts.
 
     Attributes:
         cases: How many cases were attempted.
-        passed: How many passed.
-        failed: How many failed.
+        passed: How many settled as passed.
+        failed: How many settled as failed.
         incomplete: How many could not be decided.
         pass_rate: `passed` over the decided cases, or `None` with none decided.
+        first_pass_rate: The same over first attempts alone, reruns aside.
         cost_usd: What the attempts cost together.
         cost_per_pass: `cost_usd` over `passed`, or `None` with nothing passed.
         avg_tokens: Mean tokens per attempt that recorded any.
@@ -176,6 +231,7 @@ class ArmSummary:
     failed: int
     incomplete: int
     pass_rate: float | None
+    first_pass_rate: float | None
     cost_usd: Decimal
     cost_per_pass: Decimal | None
     avg_tokens: float | None
@@ -197,9 +253,12 @@ def percentile(values: Sequence[float], fraction: float) -> float | None:
 
 def summarize(attempts: Sequence[Attempt], *, with_tags: bool = True) -> ArmSummary:
     """Both axes over a set of attempts, and per tag when asked."""
-    passed = sum(1 for a in attempts if a.outcome is True)
-    failed = sum(1 for a in attempts if a.outcome is False)
+    settled = [a.settled for a in attempts]
+    passed = sum(1 for outcome in settled if outcome is True)
+    failed = sum(1 for outcome in settled if outcome is False)
     decided = passed + failed
+    first_passed = sum(1 for a in attempts if a.outcome is True)
+    first_decided = first_passed + sum(1 for a in attempts if a.outcome is False)
     cost = sum((a.cost_usd for a in attempts if a.cost_usd is not None), Decimal(0))
     tokens = [a.tokens for a in attempts if a.tokens is not None]
     latencies = [float(a.latency_ms) for a in attempts if a.latency_ms is not None]
@@ -213,6 +272,7 @@ def summarize(attempts: Sequence[Attempt], *, with_tags: bool = True) -> ArmSumm
         failed=failed,
         incomplete=len(attempts) - decided,
         pass_rate=passed / decided if decided else None,
+        first_pass_rate=first_passed / first_decided if first_decided else None,
         cost_usd=cost,
         cost_per_pass=cost / passed if passed else None,
         avg_tokens=sum(tokens) / len(tokens) if tokens else None,

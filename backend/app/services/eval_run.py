@@ -16,7 +16,8 @@ The comparison follows the rules a decision can rest on:
 * a run that backs a decision (`purpose=gate`) runs its baseline in the same run,
   because providers drift between days; a recent matching baseline may stand in;
 * a case that flipped is rerun, so regressions are reported confirmed or not;
-* too few confirmed flips are reported as inconclusive, not as a verdict;
+* the verdict rests on confirmed flips alone, and a pass rate on each case's
+  settled outcome - the majority of its attempts;
 * two sides scored by different scoring or a different judge do not compare;
 * quality and efficiency are separate axes.
 
@@ -115,6 +116,8 @@ from app.services.eval_comparison import (
     summarize,
 )
 from app.services.model_profile import ModelProfileService
+from app.services.scorers import JUDGE_PROMPT_VERSION
+from app.services.scoring import ungraded
 from app.services.spend import month_start, organization_monthly_spend
 
 logger = logging.getLogger(__name__)
@@ -245,6 +248,7 @@ def _summary_read(summary: ArmSummary) -> ArmSummaryRead:
         failed=summary.failed,
         incomplete=summary.incomplete,
         pass_rate=summary.pass_rate,
+        first_pass_rate=summary.first_pass_rate,
         cost_usd=summary.cost_usd,
         cost_per_pass_usd=summary.cost_per_pass,
         avg_tokens=summary.avg_tokens,
@@ -253,7 +257,12 @@ def _summary_read(summary: ArmSummary) -> ArmSummaryRead:
     )
 
 
-def _attempt(attempt: EvalRunCase, score: CaseScore | None, tags: Sequence[str]) -> Attempt:
+def _attempt(
+    attempt: EvalRunCase,
+    score: CaseScore | None,
+    tags: Sequence[str],
+    reruns: Sequence[Outcome] = (),
+) -> Attempt:
     tokens = (
         None
         if attempt.input_tokens is None and attempt.output_tokens is None
@@ -265,6 +274,8 @@ def _attempt(attempt: EvalRunCase, score: CaseScore | None, tags: Sequence[str])
         tokens=tokens,
         latency_ms=attempt.latency_ms,
         tags=tuple(tags),
+        reruns=tuple(reruns),
+        by_person=score is not None and score.human_passed is not None,
     )
 
 
@@ -555,8 +566,8 @@ class EvalRunService:
 
         Only one that matches on everything the comparison holds constant: the
         version, the dataset version, the model, the scoring - and the judge,
-        whose published version must be the one that graded every case, or no
-        judge at all when none would grade now.
+        whose published version and prompt must be the ones that graded every
+        case, or no judge at all when none would grade now.
         """
         assert arm.version is not None
         since = datetime.now(UTC) - timedelta(hours=settings.EVAL_BASELINE_CACHE_HOURS)
@@ -583,13 +594,14 @@ class EvalRunService:
             organization_id=ctx.organization_id,
         )
         pinned = {
-            (score.judge or {}).get("agent_version_id")
+            (score.judge.get("agent_version_id"), score.judge.get("prompt_version") or 1)
             for score in scores.values()
             if score.judge is not None
         }
         current = str(judge.current_version_id) if judge and judge.current_version_id else None
         # Graded by the judge that would grade now, or by none when none would.
-        return found if pinned == ({current} if judged else set()) else None
+        now = {(current, JUDGE_PROMPT_VERSION)} if judged else set()
+        return found if pinned == now else None
 
     async def estimate(
         self,
@@ -643,6 +655,12 @@ class EvalRunService:
         arms_usd = Decimal(0)
         rerun_per_case = Decimal(0)
         for arm in plan.arms:
+            per_case, known = await self._per_case(
+                ctx, plan.agent.id, arm.model_label, arm.model_profile_id
+            )
+            # A reused arm's first answers are free, but a case that flips is
+            # asked of it again in this run.
+            rerun_per_case += per_case
             if arm.cached is not None:
                 arms.append(
                     ArmEstimate(
@@ -659,12 +677,8 @@ class EvalRunService:
                     )
                 )
                 continue
-            per_case, known = await self._per_case(
-                ctx, plan.agent.id, arm.model_label, arm.model_profile_id
-            )
             cost = per_case * cases
             arms_usd += cost
-            rerun_per_case += per_case
             arms.append(
                 ArmEstimate(
                     role=arm.role,
@@ -692,7 +706,7 @@ class EvalRunService:
         fresh_arms = sum(1 for arm in plan.arms if arm.cached is None)
         judge_usd = judge_per_case * cases * fresh_arms
         total = arms_usd + judge_usd
-        rerun_ceiling = (rerun_per_case + judge_per_case * fresh_arms) * cases * plan.reruns
+        rerun_ceiling = (rerun_per_case + judge_per_case * len(plan.arms)) * cases * plan.reruns
 
         agent_left = await self._agent_left(ctx, plan)
         org_left = await self._org_left(ctx)
@@ -1035,36 +1049,53 @@ class EvalRunService:
     async def case_links(
         self, ctx: AuthContext, agent_run_ids: Sequence[UUID]
     ) -> dict[UUID, EvalCaseLinkRead]:
-        """The eval case each of these agent runs answered, read for a page of run
-        history at once - only over datasets the caller may see."""
+        """The eval case each of these agent runs answered or, for a judge's run,
+        graded - read for a page of run history at once, only over datasets the
+        caller may see."""
         if not agent_run_ids:
             return {}
         org = ctx.organization_id
-        attempts = await eval_run_repo.cases_of_agent_runs(
+        found: dict[UUID, tuple[UUID, UUID, UUID, bool]] = {}
+        for attempt in await eval_run_repo.cases_of_agent_runs(
             self.db, agent_run_ids, organization_id=org
+        ):
+            # Matched by the agent run it names.
+            assert attempt.agent_run_id is not None
+            found[attempt.agent_run_id] = (
+                attempt.eval_run_id,
+                attempt.case_id,
+                attempt.case_revision_id,
+                False,
+            )
+        graded = await eval_run_repo.scores_graded_by(
+            self.db,
+            [run_id for run_id in agent_run_ids if run_id not in found],
+            organization_id=org,
         )
+        for run_id, score in graded.items():
+            assert score.eval_run_id is not None
+            found[run_id] = (score.eval_run_id, score.case_id, score.case_revision_id, True)
         runs = await eval_run_repo.get_many(
-            self.db, sorted({a.eval_run_id for a in attempts}), organization_id=org
+            self.db, sorted({link[0] for link in found.values()}), organization_id=org
         )
         readable = await self._readable_datasets(ctx, {run.dataset_id for run in runs.values()})
         names = await eval_run_repo.datasets(self.db, sorted(readable), organization_id=org)
         revisions = await eval_run_repo.revisions(
-            self.db, sorted({a.case_revision_id for a in attempts}), organization_id=org
+            self.db, sorted({link[2] for link in found.values()}), organization_id=org
         )
         links: dict[UUID, EvalCaseLinkRead] = {}
-        for attempt in attempts:
-            run = runs[attempt.eval_run_id]
+        for agent_run_id, (eval_run_id, case_id, revision_id, by_judge) in found.items():
+            run = runs[eval_run_id]
             dataset = names.get(run.dataset_id)
-            # Read by the agent runs they name, so each attempt names one.
-            if dataset is None or attempt.agent_run_id is None:
+            if dataset is None:
                 continue
-            revision = revisions[attempt.case_revision_id]
-            links[attempt.agent_run_id] = EvalCaseLinkRead(
+            links[agent_run_id] = EvalCaseLinkRead(
                 eval_run_id=run.id,
                 agent_id=run.agent_id,
-                case_id=attempt.case_id,
+                case_id=case_id,
                 dataset_name=dataset.name,
-                case_input=revision.input,
+                case_input=revisions[revision_id].input,
+                graded=by_judge,
             )
         return links
 
@@ -1180,6 +1211,11 @@ class EvalRunService:
                     first_done=sum(1 for a in first if a.status in finished),
                     first_total=len(first),
                     outcome=await self._outcome(ctx, run),
+                    ungraded_score_ids=sorted(
+                        score.id
+                        for score in scores.values()
+                        if score.human_passed is None and ungraded(score)
+                    ),
                     error=run.error,
                     created_by_user_id=run.created_by_user_id,
                     created_at=run.created_at,
@@ -1221,6 +1257,18 @@ class EvalRunService:
             organization_id=ctx.organization_id,
         )
         return {revision.id: tuple(revision.tags or ()) for revision in revisions.values()}
+
+    async def _inputs(self, ctx: AuthContext, attempts: Sequence[EvalRunCase]) -> dict[UUID, str]:
+        revisions = await eval_run_repo.revisions(
+            self.db,
+            sorted({a.case_revision_id for a in attempts}),
+            organization_id=ctx.organization_id,
+        )
+        return {
+            a.case_id: revisions[a.case_revision_id].input
+            for a in attempts
+            if a.case_revision_id in revisions
+        }
 
     async def cases(
         self,
@@ -1429,16 +1477,18 @@ class EvalRunService:
             ):
                 return kept
         comparison = await self._comparison(ctx, run)
+        theirs = comparison.baseline_summary
         outcome = EvalOutcomeRead(
             candidate_arm_id=comparison.candidate.arm_id,
             verdict=comparison.verdict,
+            overall=comparison.overall,
             baseline=comparison.baseline,
             regressions_confirmed=comparison.regressions_confirmed,
             fixed_confirmed=comparison.fixed_confirmed,
             candidate_pass_rate=comparison.candidate_summary.pass_rate,
-            baseline_pass_rate=(
-                comparison.baseline_summary.pass_rate if comparison.baseline_summary else None
-            ),
+            baseline_pass_rate=theirs.pass_rate if theirs else None,
+            candidate_first_pass_rate=comparison.candidate_summary.first_pass_rate,
+            baseline_first_pass_rate=theirs.first_pass_rate if theirs else None,
         )
         await eval_run_repo.update_run(
             self.db,
@@ -1479,6 +1529,7 @@ class EvalRunService:
                 baseline=None,
                 paired=False,
                 verdict=None,
+                overall=None,
                 p_value=None,
                 invalid_reason=None,
                 regressions_confirmed=0,
@@ -1522,7 +1573,7 @@ class EvalRunService:
             for case_id in common
         ]
         invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
-        verdict, p_value = quality_verdict(
+        quality = quality_verdict(
             paired_cases, alpha=settings.EVAL_SIGNIFICANCE, invalid=invalid_reason is not None
         )
         shared = set(common)
@@ -1532,11 +1583,16 @@ class EvalRunService:
         theirs_summary = summarize(
             [
                 c.attempt
-                for c in await self._first_attempts(ctx, baseline.arm, None)
+                for c in (
+                    await self._first_attempts(ctx, baseline.here, attempts)
+                    if baseline.here is not None
+                    else await self._first_attempts(ctx, baseline.arm, None)
+                )
                 if c.case_id in shared
             ],
             with_tags=False,
         )
+        inputs = await self._inputs(ctx, [a for a in attempts if a.arm_id == candidate.id])
 
         def count(flip: Flip, confirmed: bool) -> int:
             return sum(1 for c in paired_cases if c.flip is flip and c.confirmed is confirmed)
@@ -1548,8 +1604,9 @@ class EvalRunService:
             candidate=candidate_side,
             baseline=await self._side(ctx, baseline.run, baseline.arm),
             paired=baseline.paired,
-            verdict=verdict.value,
-            p_value=p_value,
+            verdict=quality.verdict.value,
+            overall=quality.overall,
+            p_value=quality.p_value,
             invalid_reason=invalid_reason,
             regressions_confirmed=count(Flip.REGRESSION, True),
             regressions_unconfirmed=count(Flip.REGRESSION, False),
@@ -1568,6 +1625,7 @@ class EvalRunService:
             cases=[
                 CaseFlipRead(
                     case_id=c.case_id,
+                    input=inputs.get(c.case_id, ""),
                     flip=c.flip.value,
                     confirmed=c.confirmed,
                     baseline=c.baseline,
@@ -1591,13 +1649,23 @@ class EvalRunService:
             attempts = await eval_run_repo.list_cases(
                 self.db, arm.eval_run_id, organization_id=ctx.organization_id
             )
-        own = [a for a in await self._arm_attempts(ctx, arm, attempts) if a.attempt == 0]
-        scores = await self._scores(ctx, own)
+        every = await self._arm_attempts(ctx, arm, attempts)
+        scores = await self._scores(ctx, every)
+        reruns: dict[UUID, list[Outcome]] = defaultdict(list)
+        for a in sorted(every, key=lambda a: a.attempt):
+            if a.attempt > 0:
+                reruns[a.case_id].append(attempt_outcome(a, scores.get(a.case_score_id)))
+        own = [a for a in every if a.attempt == 0]
         tags = await self._tags(ctx, own)
         return [
             _CaseAttempt(
                 case_id=a.case_id,
-                attempt=_attempt(a, scores.get(a.case_score_id), tags.get(a.case_revision_id, ())),
+                attempt=_attempt(
+                    a,
+                    scores.get(a.case_score_id),
+                    tags.get(a.case_revision_id, ()),
+                    reruns[a.case_id],
+                ),
             )
             for a in own
         ]
@@ -1663,20 +1731,33 @@ class EvalRunService:
         )
         mine = await self._pins(ctx, await self._arm_attempts(ctx, candidate, attempts))
         theirs = await self._pins(ctx, await self._arm_attempts(ctx, baseline.arm, other_attempts))
-        if any(mine[case_id] != theirs[case_id] for case_id in mine.keys() & theirs.keys()):
-            return "The two sides were graded by a different judge, model or rubric."
-        return None
+        differ = [
+            case_id for case_id in mine.keys() & theirs.keys() if mine[case_id] != theirs[case_id]
+        ]
+        if not differ:
+            return None
+        if all(_unprompted(mine[case_id]) == _unprompted(theirs[case_id]) for case_id in differ):
+            return (
+                "The judge's instructions changed between the two sides, so their grades "
+                "do not compare. Run the baseline again to grade both the same way."
+            )
+        return "The two sides were graded by a different judge, model or rubric."
 
     async def _pins(
         self, ctx: AuthContext, attempts: Sequence[EvalRunCase]
     ) -> dict[UUID, set[str]]:
-        """Each case's judge pins across its attempts, for the cases a judge graded."""
+        """Each case's judge pins across its attempts, for the cases a judge graded.
+
+        A pin kept before the judge's prompt was versioned was graded by its
+        first version.
+        """
         scores = await self._scores(ctx, attempts)
         pins: dict[UUID, set[str]] = defaultdict(set)
         for attempt in attempts:
             score = scores.get(attempt.case_score_id)
             if score is not None and score.judge is not None:
-                pins[attempt.case_id].add(json.dumps(score.judge, sort_keys=True))
+                pin = {**score.judge, "prompt_version": score.judge.get("prompt_version") or 1}
+                pins[attempt.case_id].add(json.dumps(pin, sort_keys=True))
         return pins
 
 
@@ -1684,6 +1765,16 @@ class EvalRunService:
 class _CaseAttempt:
     case_id: UUID
     attempt: Attempt
+
+
+def _unprompted(pins: set[str]) -> set[str]:
+    """Judge pins with the prompt version left out."""
+    return {
+        json.dumps(
+            {k: v for k, v in json.loads(pin).items() if k != "prompt_version"}, sort_keys=True
+        )
+        for pin in pins
+    }
 
 
 def _money(value: Decimal | None) -> str | None:

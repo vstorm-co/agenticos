@@ -72,6 +72,14 @@ class AgentRunRead(BaseSchema):
         default=None,
         description="The run after this one in its own conversation. See `prev_run_id`",
     )
+    preview: str | None = Field(
+        default=None,
+        description=(
+            "What the run was asked, as one line: its first user turn, or the eval "
+            "case's question for a run that answered or graded one. Sent on the "
+            "listing; null for a run that kept no conversation"
+        ),
+    )
     eval_case: EvalCaseLinkRead | None = Field(
         default=None,
         description=(

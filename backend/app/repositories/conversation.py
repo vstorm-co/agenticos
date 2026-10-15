@@ -933,6 +933,21 @@ async def get_messages_by_run(
     return list(result.scalars().all())
 
 
+async def first_user_turns(
+    db: AsyncSession, run_ids: Collection[UUID], *, chars: int
+) -> dict[UUID, str]:
+    """The first user turn each of these runs recorded, cut to `chars` characters."""
+    if not run_ids:
+        return {}
+    result = await db.execute(
+        select(Message.run_id, func.left(Message.content, chars))
+        .where(Message.run_id.in_(run_ids), Message.role == "user")
+        .distinct(Message.run_id)
+        .order_by(Message.run_id, Message.ordinal)
+    )
+    return {run_id: content for run_id, content in result.tuples().all() if run_id}
+
+
 async def count_messages_by_run(db: AsyncSession, run_id: UUID) -> int:
     """Count the turns one run produced."""
     query = select(func.count(Message.id)).where(Message.run_id == run_id)

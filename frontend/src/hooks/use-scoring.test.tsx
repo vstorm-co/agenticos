@@ -138,6 +138,40 @@ describe("useScores", () => {
   });
 });
 
+describe("useScores rescore", () => {
+  it("scores answers again ten a request, gathering what each request changed", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    const ids = Array.from({ length: 12 }, (_, at) => `s${at}`);
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ rescored: [{ id: "s0" }], kept: ["s1"] })
+      .mockResolvedValueOnce({ rescored: [{ id: "s10" }], kept: [] });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useScores("d1"), { wrapper });
+
+    const done = await result.current.rescore.mutateAsync(ids);
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, "/datasets/d1/scores/rescore", {
+      score_ids: ids.slice(0, 10),
+    });
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/datasets/d1/scores/rescore", {
+      score_ids: ["s10", "s11"],
+    });
+    expect(done).toEqual({ rescored: [{ id: "s0" }, { id: "s10" }], kept: ["s1"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.datasets.allScores("d1") });
+  });
+
+  it("refreshes what an earlier request changed when a later one fails", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("Gone"));
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useScores("d1"), { wrapper });
+
+    await expect(result.current.rescore.mutateAsync(["s1"])).rejects.toThrow("Gone");
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.datasets.allReviewQueue() });
+  });
+});
+
 describe("useReviewQueue", () => {
   it("reads the queue across datasets", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "s1" }], total: 3 });

@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import time
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
 
 from app.schemas.scoring import (
+    CaseScoreRead,
     DatasetScoring,
     JudgeCheck,
     JudgeScorer,
@@ -32,6 +34,7 @@ from app.services.scorers import (
     ScoredAnswer,
     ScoredCall,
     case_passed,
+    echoes,
     graded,
     judge_criteria,
     judge_prompt,
@@ -327,15 +330,44 @@ class TestCasePassed:
     def test_every_required_scorer_passing_passes(self) -> None:
         assert case_passed([_result("pass"), _result("fail", required=False)]) is True
 
-    @pytest.mark.parametrize("status", ["fail", "error"])
-    def test_one_required_failure_fails(self, status) -> None:
-        assert case_passed([_result("pass"), _result(status), _result("skipped")]) is False
+    def test_one_required_failure_fails_whatever_else_reached_no_verdict(self) -> None:
+        assert (
+            case_passed([_result("pass"), _result("error"), _result("fail"), _result("skipped")])
+            is False
+        )
 
-    def test_a_required_scorer_skipped_leaves_the_case_unscored(self) -> None:
-        assert case_passed([_result("pass"), _result("skipped")]) is None
+    @pytest.mark.parametrize("status", ["skipped", "error"])
+    def test_a_required_scorer_without_a_verdict_leaves_the_case_unscored(self, status) -> None:
+        """A judge that errored checked nothing, so the case is neither passed nor failed."""
+        assert case_passed([_result("pass"), _result(status)]) is None
+
+    def test_an_optional_error_does_not_hold_the_case(self) -> None:
+        assert case_passed([_result("pass"), _result("error", required=False)]) is True
 
     def test_nothing_required_leaves_the_case_unscored(self) -> None:
         assert case_passed([_result("pass", required=False)]) is None
+
+    def test_an_unscored_score_names_the_first_required_scorer_without_a_verdict(self) -> None:
+        def read(results: list[ScorerResult], passed: bool | None) -> CaseScoreRead:
+            return CaseScoreRead(
+                id=uuid.uuid4(),
+                dataset_id=uuid.uuid4(),
+                case_id=uuid.uuid4(),
+                case_revision_id=uuid.uuid4(),
+                question="q",
+                results=results,
+                passed=passed,
+                review_state="none",
+                created_at=datetime.now(UTC),
+            )
+
+        budget = _result("skipped").model_copy(update={"reason_code": "judge_budget"})
+        optional = _result("error", required=False).model_copy(update={"reason_code": "x"})
+
+        assert read([optional, budget, _result("error")], None).unscored_reason == "judge_budget"
+        assert read([_result("error")], None).unscored_reason == "error"
+        assert read([_result("pass", required=False)], None).unscored_reason is None
+        assert read([_result("fail"), budget], False).unscored_reason is None
 
 
 class TestJudgeCriteria:
@@ -394,6 +426,61 @@ class TestJudgeCriteria:
         ):
             assert part in prompt
 
+    def test_the_prompt_says_why_the_case_exists_and_what_the_agent_called(self) -> None:
+        case = _case(note="Customers keep getting the old 90-day window")
+        criteria = judge_criteria(case, self._scoring(), [])
+        answer = _answer(
+            "30 days",
+            calls=(
+                ScoredCall(tool="search_kb", args={"query": "refund"}),
+                ScoredCall(tool="send_email", args={"to": "a@b.c"}, blocked=True),
+            ),
+        )
+
+        prompt = judge_prompt(case, answer, criteria, scale_max=5)
+
+        assert "<why_this_case_exists>\nCustomers keep getting the old 90-day window\n" in prompt
+        assert '1. search_kb {"query": "refund"} (ran)' in prompt
+        assert '2. send_email {"to": "a@b.c"} (blocked before it ran)' in prompt
+        assert prompt.index("<why_this_case_exists>") < prompt.index("<question>")
+
+    def test_a_prompt_with_no_calls_says_so_and_a_long_trajectory_is_cut(self) -> None:
+        criteria = judge_criteria(_case(), self._scoring(), [])
+
+        quiet = judge_prompt(_case(), _answer(), criteria, scale_max=5)
+        busy = judge_prompt(
+            _case(),
+            _answer(calls=tuple(ScoredCall(tool="t", args={"q": "x" * 2000}) for _ in range(52))),
+            criteria,
+            scale_max=5,
+        )
+
+        assert "The agent called no tools." in quiet
+        assert "<why_this_case_exists>" not in quiet
+        assert "50. t " in busy
+        assert "51. t" not in busy
+        assert "… and 2 more" in busy
+        assert f'{{"q": "{"x" * 993}…' in busy
+
+    def test_a_counter_example_is_a_required_criterion_once_the_judge_grades(self) -> None:
+        case = _case(counter_example="Ninety days.")
+        rubric_off = DatasetScoring(
+            judge=JudgeScorer(enabled=False), reference=ReferenceScorer(enabled=True)
+        )
+
+        for scoring in (self._scoring(), rubric_off):
+            counter = judge_criteria(case, scoring, [])[-1]
+            assert (counter.id, counter.scorer, counter.name, counter.required) == (
+                "counter",
+                "reference",
+                "counter-example",
+                True,
+            )
+        assert judge_criteria(case, DatasetScoring(), []) == []
+        assert "<reference_answer>" not in judge_prompt(
+            case, _answer(), judge_criteria(case, rubric_off, []), scale_max=5
+        )
+
     def test_the_reference_is_withheld_when_it_is_not_a_criterion(self) -> None:
         case = _case(reference_answer="Thirty days.")
         criteria = judge_criteria(case, self._scoring(), [])
@@ -435,6 +522,45 @@ class TestGrades:
 
         assert result.status == "error"
         assert result.reason_code == "judge_ungraded"
+
+    @pytest.mark.parametrize(
+        "reason",
+        [
+            "Facts are right",
+            "facts are RIGHT.",
+            "The answer agrees with the reference answer on every fact",
+            "Yes: The answer agrees with the reference answer on every fact the question "
+            "turns on. Wording may differ; a missing or contradicted fact does not.",
+        ],
+    )
+    def test_a_reason_that_restates_the_criterion_is_an_error(self, reason) -> None:
+        scoring = TestJudgeCriteria()._scoring(reference=ReferenceScorer(enabled=True))
+        criteria = judge_criteria(_case(reference_answer="30"), scoring, [])
+        verdict = JudgeVerdict(
+            grades=[
+                JudgeGrade(id="r1", score=5, reason=reason),
+                JudgeGrade(id="r2", score=5, reason="Thanks the customer by name"),
+                JudgeGrade(id="ref", score=5, reason=reason),
+            ]
+        )
+
+        results = graded(criteria, verdict, answer="", scale_max=5, pass_at=4, run_id=uuid.uuid4())
+
+        echoed = [r for r in results if r.status == "error"]
+        assert echoed
+        assert {r.reason_code for r in echoed} == {"judge_reason_echo"}
+        assert results[1].status == "pass"
+
+    @pytest.mark.parametrize(
+        ("reason", "criterion"),
+        [
+            ("Right", "Facts are right"),
+            ("The answer is polite", "Polite"),
+            ("Says 30 days, which the reference also gives", "Facts are right"),
+        ],
+    )
+    def test_a_reason_of_its_own_is_not_an_echo(self, reason, criterion) -> None:
+        assert not echoes(reason, criterion)
 
     def test_a_quote_not_in_the_answer_is_flagged_and_the_grade_stands(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])

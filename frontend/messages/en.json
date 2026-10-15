@@ -5853,7 +5853,11 @@
         "judgeNotSeeded": "The eval judge could not be set up in this organization.",
         "judgeBudget": "The eval judge's budget is spent, so it did not run.",
         "judgeNoModel": "The eval judge's model is gone or has no key. Pick another model for it.",
-        "judgeMissing": "The judge this dataset picked no longer exists. Pick another on its Grading tab."
+        "judgeMissing": "The judge this dataset picked no longer exists. Pick another on its Grading tab.",
+        "judgeRunFailed": "The judge's run did not finish.",
+        "judgeOutputInvalid": "The judge answered in a form that could not be read.",
+        "judgeUngraded": "The judge gave no grade on the scale for this criterion.",
+        "judgeReasonEcho": "The judge restated the criterion instead of saying why the answer meets it."
       },
       "scoreRun": "Score against a case",
       "scoreRunBody": "Run every scorer the dataset configures on this run's answer. The result is kept on the dataset.",
@@ -5952,7 +5956,19 @@
       "judgeUnpublished": "Not published",
       "gradedBy": "Graded here by {graders}.",
       "gradedByJudge": "the judge ({criteria})",
-      "gradedByNothing": "Nothing on the dataset's Grading tab would grade this case as written."
+      "gradedByNothing": "Nothing on the dataset's Grading tab would grade this case as written.",
+      "openJudgeRun": "Open the judge's run",
+      "notGradedCode": "A required scorer reached no verdict ({code}).",
+      "notGradedWhy": "This answer is not graded, so it counts as neither passed nor failed. Fix the cause, then score it again - the agent does not run again.",
+      "rescore": "Score again",
+      "rescoreGroup": "Score {count, plural, =1 {1 ungraded answer} other {# ungraded answers}} again",
+      "rescored": "{count, plural, =1 {Scored 1 answer again} other {Scored # answers again}}",
+      "rescoreNothing": "Every scorer had already reached a verdict, so nothing was scored again.",
+      "judgeKnowledge": "What must the judge know?",
+      "judgeKnowledgeHint": "Anything it grades against that the cases do not say - a policy, a price list, house rules. It is added to the judge's instructions.",
+      "judgeKnowledgePlaceholder": "Orders can be returned within 30 days of delivery. Opened software is not refundable.",
+      "unsavedChanges": "Unsaved changes",
+      "discard": "Discard"
     },
     "title": "Datasets",
     "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",

@@ -4,30 +4,19 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import { SettingsSection } from "@/components/settings/settings-section";
-import { Badge, Button } from "@/components/ui";
+import { Badge } from "@/components/ui";
 
 interface GradingCardProps {
   title: string;
   description: string;
-  /** Whether this card holds a change not yet saved; its Save button shows only then. */
+  /** Whether this card holds a change not yet saved, which the tab's save bar saves. */
   dirty: boolean;
-  /** False while the change cannot be saved, or while a save is running. */
-  canSave: boolean;
-  onSave: () => void;
   tour?: string;
   children: ReactNode;
 }
 
-/** One part of a dataset's grading, saved on its own beside the fields it changed. */
-export function GradingCard({
-  title,
-  description,
-  dirty,
-  canSave,
-  onSave,
-  tour,
-  children,
-}: GradingCardProps) {
+/** One part of a dataset's grading, marked while it holds a change not yet saved. */
+export function GradingCard({ title, description, dirty, tour, children }: GradingCardProps) {
   const t = useTranslations("datasets.scoring");
   return (
     <SettingsSection
@@ -35,14 +24,9 @@ export function GradingCard({
       description={description}
       action={
         dirty ? (
-          <span className="flex items-center gap-2">
-            <Badge variant="outline" className="font-normal">
-              {t("unsaved")}
-            </Badge>
-            <Button size="sm" disabled={!canSave} onClick={onSave}>
-              {t("save")}
-            </Button>
-          </span>
+          <Badge variant="outline" className="font-normal">
+            {t("unsaved")}
+          </Badge>
         ) : undefined
       }
     >

@@ -30,6 +30,7 @@ export function caseScore(overrides: Partial<CaseScore> = {}): CaseScore {
     results: [],
     judge: null,
     passed: null,
+    unscored_reason: null,
     review_state: "none",
     human_passed: null,
     human_note: null,

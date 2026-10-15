@@ -91,6 +91,7 @@ class CaseView:
     expected_tool_calls: Sequence[Mapping[str, Any]]
     order_mode: str
     checks: Sequence[Mapping[str, Any]]
+    note: str | None = None
 
 
 class _NoValue(Exception):
@@ -367,15 +368,16 @@ def _in_order(expected: Sequence[Mapping[str, Any]], calls: Sequence[ScoredCall]
 def case_passed(results: Sequence[ScorerResult]) -> bool | None:
     """Whether a case passed: every required scorer passed.
 
-    A required scorer that failed or errored fails it. One that was skipped - the
-    judge refused, switched off, out of budget - leaves it unscored (`None`), never
-    passed: a gate reading the result must not count what nobody checked. Nothing
+    A required scorer that failed fails it. One that could not reach a verdict -
+    it errored, or was skipped because the judge was refused, switched off or out
+    of budget - leaves it unscored (`None`), never passed and never failed: a gate
+    reading the result must not count what nobody checked, either way. Nothing
     required to score leaves it unscored too.
     """
     required = [result for result in results if result.required]
-    if any(result.status in ("fail", "error") for result in required):
+    if any(result.status == "fail" for result in required):
         return False
-    if not required or any(result.status == "skipped" for result in required):
+    if not required or any(result.status in ("skipped", "error") for result in required):
         return None
     return True
 
@@ -413,6 +415,19 @@ class JudgeVerdict(BaseModel):
     grades: list[JudgeGrade]
 
 
+# Bumped whenever what `judge_prompt` hands the judge changes, so a score graded
+# from one prompt is never compared as like for like with one graded from another.
+JUDGE_PROMPT_VERSION = 2
+
+COUNTER_CRITERION = (
+    "The answer does not repeat the mistake of the counter-example, a known bad answer "
+    "to this question."
+)
+_MAX_CALLS_SHOWN = 50
+_MAX_ARGS_SHOWN = 1_000
+# A reason this close to the criterion's own wording says nothing about the answer.
+_ECHO_MIN = 20
+
 REFERENCE_CRITERION = (
     "The answer agrees with the reference answer on every fact the question turns on. "
     "Wording may differ; a missing or contradicted fact does not."
@@ -422,7 +437,12 @@ REFERENCE_CRITERION = (
 def judge_criteria(
     case: CaseView, scoring: DatasetScoring, judged: Sequence[JudgeCheck]
 ) -> list[JudgeCriterion]:
-    """What the judge grades for this case: the rubric, the reference, the case's own."""
+    """What the judge grades for this case: the rubric, the reference, the case's own.
+
+    A case with a counter-example is always asked not to repeat it, and must
+    not, once the judge grades the dataset at all: a known bad answer is the
+    most direct thing a case can say about its answer.
+    """
     criteria = [
         JudgeCriterion(
             id=f"r{index}",
@@ -444,6 +464,16 @@ def judge_criteria(
                 required=scoring.reference.required,
             )
         )
+    if case.counter_example and (scoring.judge.enabled or scoring.reference.enabled):
+        criteria.append(
+            JudgeCriterion(
+                id="counter",
+                scorer="reference",
+                name="counter-example",
+                description=COUNTER_CRITERION,
+                required=True,
+            )
+        )
     criteria.extend(
         JudgeCriterion(
             id=f"c{index}",
@@ -457,26 +487,55 @@ def judge_criteria(
     return criteria
 
 
+def _call_line(number: int, call: ScoredCall) -> str:
+    args = json.dumps(call.args, ensure_ascii=False, default=str)
+    if len(args) > _MAX_ARGS_SHOWN:
+        args = f"{args[:_MAX_ARGS_SHOWN]}…"
+    done = "blocked before it ran" if call.blocked else "ran"
+    return f"{number}. {call.tool} {args} ({done})"
+
+
+def _tool_calls(answer: ScoredAnswer) -> str:
+    if not answer.calls:
+        return "<tool_calls>\nThe agent called no tools.\n</tool_calls>"
+    lines = [
+        _call_line(number, call)
+        for number, call in enumerate(answer.calls[:_MAX_CALLS_SHOWN], start=1)
+    ]
+    if len(answer.calls) > _MAX_CALLS_SHOWN:
+        lines.append(f"… and {len(answer.calls) - _MAX_CALLS_SHOWN} more")
+    return "<tool_calls>\n" + "\n".join(lines) + "\n</tool_calls>"
+
+
 def judge_prompt(
     case: CaseView, answer: ScoredAnswer, criteria: Sequence[JudgeCriterion], *, scale_max: int
 ) -> str:
-    """The task the judge is handed: the case, the answer and the criteria by id."""
+    """The task the judge is handed: the case, the answer, the agent's calls, the criteria.
+
+    What changes here changes what every judge is asked, so it bumps
+    `JUDGE_PROMPT_VERSION`.
+    """
     parts = []
+    if case.note:
+        parts.append(f"<why_this_case_exists>\n{case.note}\n</why_this_case_exists>")
     if case.history:
         turns = "\n".join(f"{turn['role']}: {turn['content']}" for turn in case.history)
         parts.append(f"<conversation_so_far>\n{turns}\n</conversation_so_far>")
     parts.append(f"<question>\n{case.input}\n</question>")
-    if any(criterion.scorer == "reference" for criterion in criteria):
+    if any(criterion.scorer == "reference" and criterion.id == "ref" for criterion in criteria):
         parts.append(f"<reference_answer>\n{case.reference_answer}\n</reference_answer>")
     if case.counter_example:
         parts.append(f"<counter_example>\n{case.counter_example}\n</counter_example>")
+    parts.append(_tool_calls(answer))
     parts.append(f"<answer>\n{answer.text[:MAX_MATCH_TEXT]}\n</answer>")
     listed = "\n".join(f"- {c.id} ({c.name}): {c.description}" for c in criteria)
     parts.append(
         f"Grade the answer on each criterion below, from 1 (does not meet it at all) to "
-        f"{scale_max} (fully meets it). Give exactly one grade per criterion id. Where a "
-        f"grade rests on something the answer says, copy that passage word for word into "
-        f"the grade's quotes.\n{listed}"
+        f"{scale_max} (fully meets it). Give exactly one grade per criterion id. The tool "
+        f"calls are what the agent did before answering; grade them only where a criterion "
+        f"asks about them. A reason says what in this answer decided the grade - do not "
+        f"restate the criterion. Where a grade rests on something the answer says, copy "
+        f"that passage word for word into the grade's quotes.\n{listed}"
     )
     return "\n\n".join(parts)
 
@@ -500,6 +559,24 @@ def _unverified(quotes: Sequence[str], answer: str) -> list[str]:
     ]
 
 
+def _plain(text: str) -> str:
+    return " ".join(re.sub(r"[^\w]+", " ", text.casefold()).split())
+
+
+def echoes(reason: str, criterion: str) -> bool:
+    """Whether a reason only restates its criterion rather than saying why.
+
+    The reason is the criterion word for word, a long piece of it, or the
+    criterion with a few words around it; case, punctuation and spacing aside.
+    """
+    said, asked = _plain(reason), _plain(criterion)
+    if said == asked:
+        return True
+    if len(said) >= _ECHO_MIN and said in asked:
+        return True
+    return len(asked) >= _ECHO_MIN and asked in said and len(said) - len(asked) < _ECHO_MIN
+
+
 def graded(
     criteria: Sequence[JudgeCriterion],
     verdict: JudgeVerdict,
@@ -511,8 +588,10 @@ def graded(
 ) -> list[ScorerResult]:
     """The judge's grades as results; a criterion it skipped or misgraded is an error.
 
-    A quote is checked against the part of `answer` the judge was shown, and one
-    it does not hold is kept beside the grade rather than in its reason.
+    A grade whose reason only restates the criterion is an error too: it is no
+    evidence the judge read the answer. A quote is checked against the part of
+    `answer` the judge was shown, and one it does not hold is kept beside the
+    grade rather than in its reason.
     """
     grades = {grade.id: grade for grade in verdict.grades}
     shown = answer[:MAX_MATCH_TEXT]
@@ -528,6 +607,20 @@ def graded(
                     status="error",
                     reason="The judge gave no grade on the scale for this criterion",
                     reason_code="judge_ungraded",
+                    judge_run_id=run_id,
+                )
+            )
+            continue
+        if echoes(grade.reason, criterion.description):
+            results.append(
+                ScorerResult(
+                    scorer=criterion.scorer,
+                    name=criterion.name,
+                    required=criterion.required,
+                    status="error",
+                    reason="The judge restated the criterion instead of saying why the answer "
+                    "meets it",
+                    reason_code="judge_reason_echo",
                     judge_run_id=run_id,
                 )
             )

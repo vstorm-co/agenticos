@@ -22,7 +22,8 @@ from app.schemas.scoring import CaseScoreRead
 
 CallOutcomeLiteral = Literal["executed", "blocked", "replayed", "divergent"]
 FlipLiteral = Literal["regression", "fixed", "unchanged", "incomplete"]
-VerdictLiteral = Literal["better", "worse", "no_difference", "inconclusive", "invalid"]
+VerdictLiteral = Literal["better", "worse", "mixed", "no_difference", "invalid"]
+OverallLiteral = Literal["better", "worse"]
 TrendLiteral = Literal["better", "worse", "unchanged", "unknown"]
 EstimateBasisLiteral = Literal["history", "fallback", "cached"]
 
@@ -113,13 +114,19 @@ class EvalRunEstimate(BaseSchema):
 
 
 class ArmSummaryRead(BaseSchema):
-    """Both axes for one arm over its first attempts."""
+    """Both axes for one arm: quality as each case settled, efficiency over first attempts."""
 
     cases: int
     passed: int
     failed: int
     incomplete: int
-    pass_rate: float | None
+    pass_rate: float | None = Field(
+        description=(
+            "Passed over decided cases, each case settled by the majority of its "
+            "decided attempts - its first alone when it was not rerun"
+        )
+    )
+    first_pass_rate: float | None = Field(description="The pass rate of the first attempts alone")
     cost_usd: Decimal
     cost_per_pass_usd: Decimal | None
     avg_tokens: float | None
@@ -161,16 +168,20 @@ class EvalOutcomeRead(BaseSchema):
     `verdict` and `baseline` are null when there was nothing to compare with:
     the run is then the first result the next version is measured against. Pass
     rates are over the cases both sides answered, or over every case without a
-    baseline, and count a person's decision before the scorers'.
+    baseline, settled as `ArmSummaryRead.pass_rate` is, and count a person's
+    decision before the scorers'.
     """
 
     candidate_arm_id: UUID
     verdict: VerdictLiteral | None
+    overall: OverallLiteral | None
     baseline: ComparisonSide | None
     regressions_confirmed: int
     fixed_confirmed: int
     candidate_pass_rate: float | None
     baseline_pass_rate: float | None
+    candidate_first_pass_rate: float | None
+    baseline_first_pass_rate: float | None
 
 
 class EvalRunRead(BaseSchema):
@@ -203,6 +214,13 @@ class EvalRunRead(BaseSchema):
     )
     outcome: EvalOutcomeRead | None = Field(
         description="The verdict once the run has ended; null while it answers"
+    )
+    ungraded_score_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "This run's scores a scorer reached no verdict on - the judge errored or "
+            "was skipped - and no person has decided: what grading again can settle"
+        ),
     )
     draft_changed: bool | None = Field(
         default=None,
@@ -288,6 +306,7 @@ class EvalCaseList(BaseSchema):
 
 class CaseFlipRead(BaseSchema):
     case_id: UUID
+    input: str = Field(description="The question the case asks")
     flip: FlipLiteral
     confirmed: bool
     baseline: bool | None
@@ -308,16 +327,19 @@ class EvalComparisonRead(BaseSchema):
     """A candidate arm against its baseline, quality first and efficiency beside it.
 
     `baseline` is null when there is nothing to compare with yet - the agent's
-    previous version was never run on this dataset. `verdict` is `invalid` when
-    the two sides were scored by different scoring or a different judge, and
-    `inconclusive` when the confirmed flips are too few to tell the two apart.
-    `paired` says whether the baseline ran in the same eval run.
+    previous version was never run on this dataset. `verdict` rests on the
+    confirmed flips: `worse` with a confirmed regression, `better` with
+    confirmed fixes alone, `mixed` with both, and `invalid` when the two sides
+    were scored by different scoring or a different judge. `overall` is the
+    direction an exact McNemar test finds over those flips, null when they are
+    too few to tell. `paired` says whether the baseline ran in the same eval run.
     """
 
     candidate: ComparisonSide
     baseline: ComparisonSide | None
     paired: bool
     verdict: VerdictLiteral | None
+    overall: OverallLiteral | None
     p_value: float | None
     invalid_reason: str | None
     regressions_confirmed: int

@@ -7,7 +7,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import exists, func, select, update
+from sqlalchemy import column, exists, func, or_, select, true, update
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.locks import LockScope, hold_subject
@@ -224,6 +225,25 @@ async def reviewed_since(
     )
 
 
+async def forget_outcomes(
+    db: AsyncSession, eval_run_ids: Sequence[UUID], *, organization_id: UUID
+) -> None:
+    """Drop the kept verdict of these runs and of every run measured against one."""
+    ids = [str(run_id) for run_id in eval_run_ids]
+    await db.execute(
+        update(EvalRun)
+        .where(
+            EvalRun.organization_id == organization_id,
+            or_(
+                EvalRun.id.in_(eval_run_ids),
+                EvalRun.outcome["baseline"]["run_id"].astext.in_(ids),
+            ),
+        )
+        .values(outcome=None, outcome_at=None)
+        .execution_options(synchronize_session="fetch")
+    )
+
+
 async def list_recent(
     db: AsyncSession,
     *,
@@ -292,6 +312,28 @@ async def score_graded_by(
     return result.scalar_one_or_none()
 
 
+async def scores_graded_by(
+    db: AsyncSession, judge_run_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, CaseScore]:
+    """The eval scores these judge runs graded, by the run each result names."""
+    result = (
+        func.jsonb_array_elements(CaseScore.results)
+        .table_valued(column("value", JSONB))
+        .render_derived(name="result")
+    )
+    graded_by = result.c.value["judge_run_id"].astext
+    rows = await db.execute(
+        select(CaseScore, graded_by)
+        .join(result, true())
+        .where(
+            CaseScore.organization_id == organization_id,
+            CaseScore.eval_run_id.is_not(None),
+            graded_by.in_([str(run_id) for run_id in judge_run_ids]),
+        )
+    )
+    return {UUID(run_id): score for score, run_id in rows.all()}
+
+
 async def cases_of_agent_runs(
     db: AsyncSession, agent_run_ids: Sequence[UUID], *, organization_id: UUID
 ) -> list[EvalRunCase]:
@@ -326,6 +368,19 @@ async def list_arm_cases(
         .order_by(EvalRunCase.position, EvalRunCase.attempt)
     )
     return list(result.scalars().all())
+
+
+async def case_of_score(
+    db: AsyncSession, case_score_id: UUID, *, organization_id: UUID
+) -> EvalRunCase | None:
+    """The attempt a score graded."""
+    result = await db.execute(
+        select(EvalRunCase).where(
+            EvalRunCase.case_score_id == case_score_id,
+            EvalRunCase.organization_id == organization_id,
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 async def get_case(

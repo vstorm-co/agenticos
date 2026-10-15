@@ -33,6 +33,8 @@ interface JudgeSettingsProps {
   onCreate?: () => void;
   /** How many of the dataset's cases have a reference answer, as a sentence. */
   referenceCoverage: string;
+  /** Changed to put the cursor in the rubric's first criterion. */
+  focusRubric?: number;
 }
 
 /**
@@ -51,6 +53,7 @@ export function JudgeSettings({
   disabled,
   onCreate,
   referenceCoverage,
+  focusRubric,
 }: JudgeSettingsProps) {
   const t = useTranslations("datasets.scoring");
   const { profiles } = useModelProviders();
@@ -146,6 +149,7 @@ export function JudgeSettings({
           criteria={judge.criteria}
           onChange={(criteria) => onJudge({ ...judge, criteria })}
           disabled={disabled}
+          focusKey={focusRubric}
         />
       </ScorerRow>
       <ScorerRow

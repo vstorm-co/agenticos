@@ -161,10 +161,18 @@ async def list_runs(
     links = await evals.case_links(
         ctx, [run.id for run in items if run.surface == RunSurface.EVAL.value]
     )
+    previews = await service.previews(
+        [run.id for run in items],
+        questions={run_id: link.case_input for run_id, link in links.items()},
+    )
     return AgentRunList(
         items=[
             AgentRunRead.model_validate(run).model_copy(
-                update={"down_rated": run.id in down_rated, "eval_case": links.get(run.id)}
+                update={
+                    "down_rated": run.id in down_rated,
+                    "eval_case": links.get(run.id),
+                    "preview": previews.get(run.id),
+                }
             )
             for run in items
         ],

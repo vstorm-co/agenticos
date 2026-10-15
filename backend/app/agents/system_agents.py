@@ -50,6 +50,9 @@ class SystemAgentDef:
             whole budget on evaluation by accident. Editable like any agent's.
         kind: What it is for. Agents of its kind are listed with it, and an
             organization may create more of them from this definition.
+        temperature: The temperature it starts with, and every agent created
+            from it; unset leaves the model's own. A judge starts at 0, so the
+            same answer is graded the same way twice.
     """
 
     key: str
@@ -58,6 +61,7 @@ class SystemAgentDef:
     instructions: str
     monthly_usd: float
     kind: AgentKind
+    temperature: float | None = None
 
 
 JUDGE = SystemAgentDef(
@@ -81,6 +85,7 @@ JUDGE = SystemAgentDef(
     ),
     monthly_usd=5.0,
     kind=AgentKind.JUDGE,
+    temperature=0.0,
 )
 
 SYSTEM_AGENTS: tuple[SystemAgentDef, ...] = (JUDGE,)
