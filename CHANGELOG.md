@@ -661,6 +661,11 @@ Two things are versioned separately from this file and worth knowing about:
   no browser sign-in; a lead cannot remove a co-lead; OAuth registration refuses
   script redirect URIs; a failed fallback chain answers 502 and a failed run
   names its conversation; and Ctrl+V attaches a pasted picture or file in chat.
+  A tenth round: a hosted browser that cannot give a browse its own context is
+  refused; an http or socks5 proxy is handed to the browser at its checked
+  address; the assistant's settings reach other open tabs; a department's agent
+  ranking leaves out runs its cap does not hold; and a deletion reaches the
+  deleting person's other tabs.
 
 - **New chat starts a new conversation.** The console sends `conversation_id: null`
   for a new chat, and the session read it as "no id given" and carried on in the
