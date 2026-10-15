@@ -73,8 +73,10 @@ def page_report(snapshot: Snapshot, done: str | None = None) -> str:
         lines += ["", f"PAGE TEXT ({UNTRUSTED}):", snapshot.text]
     lines += [
         "",
-        "Act on an element by its number with browser_click, browser_type or "
-        "browser_select; browser_scroll for more of the page.",
+        (
+            "Act on an element by its number with browser_click, browser_type or "
+            "browser_select; browser_scroll for more of the page."
+        ),
     ]
     return "\n".join(lines)
 
