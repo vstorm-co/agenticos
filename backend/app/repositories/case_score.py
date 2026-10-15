@@ -5,10 +5,12 @@ and a forgotten tenant filter must not look like an ordinary call (see
 tests/test_org_scope_regression.py).
 """
 
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import update as sql_update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.case_score import CaseScore
@@ -24,6 +26,8 @@ async def create(
     case_revision_id: UUID,
     case_id: UUID,
     run_id: UUID | None,
+    eval_run_id: UUID | None,
+    answer: str | None,
     scoring: dict[str, Any],
     results: list[dict[str, Any]],
     judge: dict[str, Any] | None,
@@ -37,6 +41,8 @@ async def create(
         case_revision_id=case_revision_id,
         case_id=case_id,
         run_id=run_id,
+        eval_run_id=eval_run_id,
+        answer=answer,
         scoring=scoring,
         results=results,
         judge=judge,
@@ -61,6 +67,42 @@ async def get(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def existing_ids(
+    db: AsyncSession, score_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
+) -> set[UUID]:
+    """Which of `score_ids` are scores of this dataset."""
+    result = await db.execute(
+        select(CaseScore.id).where(
+            CaseScore.id.in_(score_ids),
+            CaseScore.organization_id == organization_id,
+            CaseScore.dataset_id == dataset_id,
+        )
+    )
+    return set(result.scalars().all())
+
+
+async def queue_for_review(
+    db: AsyncSession, score_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
+) -> int:
+    """Put the scores no one was asked to review in the queue; how many that was."""
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            sql_update(CaseScore)
+            .where(
+                CaseScore.id.in_(score_ids),
+                CaseScore.organization_id == organization_id,
+                CaseScore.dataset_id == dataset_id,
+                CaseScore.review_state == "none",
+            )
+            .values(review_state="pending")
+            .execution_options(synchronize_session=False)
+        ),
+    )
+    await db.flush()
+    return result.rowcount or 0
 
 
 async def list_for_dataset(

@@ -17,8 +17,10 @@ organization's decision, so nothing model-backed runs until an admin turns it on
 with the cases - how a team grades is not what it asks - so `case_scores` keeps
 the configuration each score was computed with beside its results, and which
 judge graded it - model profile, spec version, rubric hash. A score
-outlives the run it read (`SET NULL`), and a person's verdict lives in its own
-columns so it never overwrites what the judge said.
+outlives the run it read (`SET NULL`), so it keeps the answer it scored, and a
+person's verdict lives in its own columns so it never overwrites what the judge
+said. `eval_run_id` names the eval run that scored it; eval runs come in a
+later migration, which adds its foreign key.
 
 Nothing existing changes meaning, so the downgrade drops what was added and loses
 which agents were seeded, whether an organization had switched AI assistance
@@ -77,6 +79,8 @@ def upgrade() -> None:
         sa.Column("case_revision_id", sa.UUID(), nullable=False),
         sa.Column("case_id", sa.UUID(), nullable=False),
         sa.Column("run_id", sa.UUID(), nullable=True),
+        sa.Column("eval_run_id", sa.UUID(), nullable=True),
+        sa.Column("answer", sa.Text(), nullable=True),
         sa.Column("scoring", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("results", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("judge", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
@@ -143,6 +147,9 @@ def upgrade() -> None:
         op.f("case_scores_organization_id_idx"), "case_scores", ["organization_id"], unique=False
     )
     op.create_index(op.f("case_scores_run_id_idx"), "case_scores", ["run_id"], unique=False)
+    op.create_index(
+        op.f("case_scores_eval_run_id_idx"), "case_scores", ["eval_run_id"], unique=False
+    )
     op.create_index(
         "ix_case_scores_dataset_created", "case_scores", ["dataset_id", "created_at"], unique=False
     )

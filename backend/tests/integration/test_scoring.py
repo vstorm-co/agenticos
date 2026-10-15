@@ -58,6 +58,7 @@ from app.schemas.scoring import (
     DatasetScoring,
     JudgeScorer,
     ReferenceScorer,
+    ReviewRequest,
     ReviewScorer,
     RubricCriterion,
     TrajectoryScorer,
@@ -288,6 +289,22 @@ async def _dataset(db, tenant: Tenant, *, scoring: DatasetScoring, visibility: s
 
 def _rubric(**overrides) -> DatasetScoring:
     return DatasetScoring(judge=JudgeScorer(enabled=True, criteria=RUBRIC), **overrides)
+
+
+async def _score_for_an_eval(db, tenant: Tenant, dataset, case, run: AgentRun, eval_run_id):
+    """Score `run` as an eval run scores it: never queued by the dataset's review setting."""
+    service = ScoringService(db)
+    row = await dataset_repo.get(db, dataset.id, organization_id=tenant.organization.id)
+    revision = await service.datasets.case_at(tenant.ctx, row, case.case_id, version=None)
+    answer = await service.answer_of(tenant.ctx, run.id)
+    return await service.score_case(
+        tenant.ctx,
+        dataset=row,
+        case=revision,
+        answer=answer,
+        enqueue_review=False,
+        eval_run_id=eval_run_id,
+    )
 
 
 async def _eval_runs(db, tenant: Tenant) -> list[AgentRun]:
@@ -730,6 +747,51 @@ class TestVerdicts:
         assert queued.review_state == "pending"
         assert again.review_state == "done"
 
+    async def test_an_eval_run_s_score_waits_only_once_someone_sends_it(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(
+            db, tenant, scoring=DatasetScoring(review=ReviewScorer(select="all"))
+        )
+        run = await _scored_run(db, tenant)
+        eval_run_id = uuid.uuid4()
+        service = ScoringService(db)
+        score = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
+        assert (score.review_state, score.eval_run_id) == ("none", eval_run_id)
+
+        sent = await service.request_reviews(
+            tenant.ctx, dataset.id, ReviewRequest(score_ids=[score.id, score.id])
+        )
+        again = await service.request_reviews(
+            tenant.ctx, dataset.id, ReviewRequest(score_ids=[score.id])
+        )
+
+        assert (sent.queued, sent.already) == (1, 0)
+        assert (again.queued, again.already) == (0, 1)
+        [waiting] = (await service.list_scores(tenant.ctx, dataset.id, pending=True)).items
+        assert (waiting.id, waiting.eval_run_id) == (score.id, eval_run_id)
+
+    async def test_a_score_keeps_the_answer_it_graded_and_who_gave_it(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        secret = "ghp_" + "a1B2" * 9
+        run = await _scored_run(db, tenant, answer=f'{{"days": 30}} {secret} ' + "x" * 9_000)
+
+        scored = await ScoringService(db).score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+
+        assert scored.answer is not None
+        assert scored.answer.startswith('{"days": 30} [redacted:github_token]')
+        assert scored.answer.endswith("x…")
+        assert secret not in scored.answer
+        assert scored.agent_id == run.agent_id
+        assert scored.agent_name is not None and scored.agent_name.startswith("Support ")
+        assert (scored.order_mode, [call.tool for call in scored.expected_tool_calls]) == (
+            "in_order",
+            ["search_kb", "lookup_order"],
+        )
+        assert [check.type for check in scored.checks] == ["json_schema"]
+
     async def test_the_queue_and_the_listing_show_what_waits(self, db, judge) -> None:
         tenant = await _tenant(db)
         dataset, case = await _dataset(
@@ -929,6 +991,25 @@ class TestRefusals:
 
         assert (await scoring.list_scores(tenant.ctx, dataset.id)).total == 0
         assert judge.calls == 0
+
+    async def test_a_review_request_naming_another_dataset_s_score_changes_nothing(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        other, other_case = await _dataset(db, tenant, scoring=DatasetScoring())
+        run = await _scored_run(db, tenant)
+        mine = await _score_for_an_eval(db, tenant, dataset, case, run, None)
+        theirs = await _score_for_an_eval(db, tenant, other, other_case, run, None)
+        service = ScoringService(db)
+
+        with pytest.raises(NotFoundError) as refused:
+            await service.request_reviews(
+                tenant.ctx, dataset.id, ReviewRequest(score_ids=[mine.id, theirs.id])
+            )
+
+        assert refused.value.details["missing"] == [theirs.id]
+        assert (await service.list_scores(tenant.ctx, dataset.id, pending=True)).total == 0
 
     async def test_a_score_from_another_dataset_is_not_found(self, db, judge) -> None:
         tenant = await _tenant(db)

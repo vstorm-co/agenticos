@@ -40,6 +40,8 @@ from app.schemas.scoring import (
     CaseVerdict,
     DatasetScoring,
     ReviewQueue,
+    ReviewRequest,
+    ReviewRequested,
 )
 from app.services.dataset_files import MAX_IMPORT_BYTES
 
@@ -259,6 +261,17 @@ async def list_dataset_scores(
     return await service.list_scores(
         ctx, dataset_id, case_id=case_id, pending=pending, skip=skip, limit=limit
     )
+
+
+@router.post("/{dataset_id}/scores/review", response_model=ReviewRequested)
+async def request_case_score_reviews(
+    dataset_id: UUID, data: ReviewRequest, service: ScoringSvc, ctx: Auth
+) -> Any:
+    """Put several of the dataset's scores in the review queue - all of them or none.
+
+    A score already waiting, or already decided, is left as it is.
+    """
+    return await service.request_reviews(ctx, dataset_id, data)
 
 
 @router.put("/{dataset_id}/scores/{score_id}/verdict", response_model=CaseScoreRead)

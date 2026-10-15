@@ -22,7 +22,13 @@ from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.dataset import DatasetRead
-from app.schemas.scoring import CaseScoreList, CaseScoreRead, ReviewQueue, ScorerResult
+from app.schemas.scoring import (
+    CaseScoreList,
+    CaseScoreRead,
+    ReviewQueue,
+    ReviewRequested,
+    ScorerResult,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -62,6 +68,7 @@ def service() -> MagicMock:
     stub.review_queue = AsyncMock(return_value=ReviewQueue(items=[], total=1, datasets=[]))
     stub.set_verdict = AsyncMock(return_value=_SCORE)
     stub.request_review = AsyncMock(return_value=_SCORE)
+    stub.request_reviews = AsyncMock(return_value=ReviewRequested(queued=2, already=1))
     return stub
 
 
@@ -100,6 +107,10 @@ async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
         assert (await http.get(_url("/review-queue"))).json()["total"] == 1
         assert (await http.put(_url(f"{score}/verdict"), json={"passed": True})).status_code == 200
         assert (await http.post(_url(f"{score}/review"))).status_code == 200
+        sent = await http.post(
+            _url(f"{dataset}/scores/review"), json={"score_ids": [str(uuid.uuid4())]}
+        )
+        assert sent.json() == {"queued": 2, "already": 1}
 
 
 async def test_a_score_carries_its_outcome_beside_the_judge_s_opinion(client: OpenClient) -> None:
@@ -130,3 +141,12 @@ async def test_a_scoring_configuration_the_schema_refuses_is_a_422(client: OpenC
         )
 
     assert response.status_code == 422
+
+
+async def test_a_review_request_with_no_score_or_too_many_is_a_422(client: OpenClient) -> None:
+    url = _url(f"/{_DATASET.id}/scores/review")
+    async with client() as http:
+        empty = await http.post(url, json={"score_ids": []})
+        too_many = await http.post(url, json={"score_ids": [str(uuid.uuid4()) for _ in range(501)]})
+
+    assert (empty.status_code, too_many.status_code) == (422, 422)
