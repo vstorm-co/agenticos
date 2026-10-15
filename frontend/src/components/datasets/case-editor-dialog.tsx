@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import {
   Button,
+  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -170,7 +171,15 @@ export function CaseEditorDialog({
     addAnyway: () => void;
   } | null>(null);
   const [repeat, setRepeat] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const readOnly = onSave === undefined || !editing;
+  // Escape, a click outside and Cancel all close the dialog; with a change not
+  // yet saved, each asks first.
+  const changed = !readOnly && (json !== null || JSON.stringify(draft) !== JSON.stringify(initial));
+  const close = (next: boolean) => {
+    if (!next && changed) setLeaving(true);
+    else onOpenChange(next);
+  };
   const missing =
     json !== null
       ? null
@@ -258,7 +267,7 @@ export function CaseEditorDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent className={cn(DIALOG_COLUMN, DIALOG_WIDE)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -416,7 +425,7 @@ export function CaseEditorDialog({
               {t(missing)}
             </p>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => close(false)}>
             {t(readOnly ? "close" : "cancel")}
           </Button>
           {onSave !== undefined && !editing && (
@@ -434,6 +443,16 @@ export function CaseEditorDialog({
             </Button>
           )}
         </DialogFooter>
+        <ConfirmDialog
+          open={leaving}
+          onOpenChange={setLeaving}
+          title={t("discardCaseTitle")}
+          description={t("discardCaseBody")}
+          confirmLabel={t("discardCase")}
+          cancelLabel={t("keepEditing")}
+          destructive
+          onConfirm={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   );

@@ -3356,7 +3356,7 @@
         "judge": "Sędzia",
         "reference": "Odpowiedź wzorcowa"
       },
-      "checksHint": "Sprawdzenia każdego przypadku oraz poniższe domyślne dla wszystkich: contains, not_contains, equals, regex, json_schema, max_cost_usd, max_latency_ms i kryteria dla sędziego.",
+      "checksHint": "Sprawdzenia każdego przypadku oraz poniższe domyślne dla wszystkich.",
       "defaults": "Sprawdzenia dla każdego przypadku",
       "trajectoryHint": "Narzędzia wywołane przez agenta w porównaniu z oczekiwanymi wywołaniami przypadku, w trybie kolejności przypadku.",
       "judgeHint": "Sędzia ocenia każdą odpowiedź według poniższych kryteriów. Każda ocena to run w Activity.",
@@ -3479,7 +3479,7 @@
       "groupByHand": "Oceniane ręcznie",
       "groupEvalRun": "Run ewaluacji · {when}",
       "agentGone": "Agent, którego już nie ma",
-      "agentVersion": "{name} v{version}",
+      "agentVersion": "{name} · v{version}",
       "answer": "Odpowiedź",
       "answerGone": "Odpowiedź nie jest przechowywana.",
       "showAll": "Pokaż całość",
@@ -3537,12 +3537,13 @@
       "noteAddedToRubric": "Notatka jest teraz jednym z kryteriów sędziego dla każdego przypadku, a sędzia jest włączony.",
       "rule": "Reguła: {rule}",
       "judgeSaid": "Sędzia odpowiedział: „{said}”",
-      "unverifiedTop": "Niezweryfikowane: najwyższa ocena bez żadnego cytatu z odpowiedzi na jej poparcie."
+      "unverifiedTop": "Niezweryfikowane: najwyższa ocena bez żadnego cytatu z odpowiedzi na jej poparcie.",
+      "agentDraft": "{name} · szkic"
     },
     "title": "Datasety",
     "pageDescription": "Pytania, na których testujesz agentów. Każda zmiana przypadków w datasecie tworzy nową wersję, więc dwa runy eval na jednej wersji widziały te same pytania.",
     "newDataset": "Nowy dataset",
-    "newDatasetBody": "Pusty dataset, prywatny, dopóki go nie udostępnisz. Dodaj przypadki ręcznie, zaimportuj plik CSV lub JSONL albo dodaj odpowiedź z rozmowy.",
+    "newDatasetBody": "Pusty dataset. Dodaj przypadki ręcznie, zaimportuj plik CSV lub JSONL albo dodaj odpowiedź z rozmowy.",
     "noAccess": "Nie widzisz datasetów tej organizacji",
     "noAccessBody": "Poproś administratora o dostęp do datasetów.",
     "datasetCount": "{count, plural, one {1 dataset} few {# datasety} many {# datasetów} other {# datasetu}}",
@@ -3706,6 +3707,10 @@
     "caseTwin": "Przypadek z tym pytaniem już istnieje:",
     "caseTwinOpen": "Otwórz go",
     "caseTwinAddAnyway": "Dodaj mimo to",
-    "addToDatasetBodyPlain": "Razem z odpowiedzią trafiają pytanie i wcześniejsza część rozmowy."
+    "addToDatasetBodyPlain": "Razem z odpowiedzią trafiają pytanie i wcześniejsza część rozmowy.",
+    "discardCaseTitle": "Odrzucić zmiany?",
+    "discardCaseBody": "Zmiany w tym przypadku nie są zapisane i zostaną utracone.",
+    "discardCase": "Odrzuć",
+    "keepEditing": "Edytuj dalej"
   }
 }

@@ -5594,7 +5594,7 @@
         "judge": "Bewerter",
         "reference": "Referenzantwort"
       },
-      "checksHint": "Die Prüfungen jedes Falls und die folgenden Standards für alle Fälle: contains, not_contains, equals, regex, json_schema, max_cost_usd, max_latency_ms und Kriterien für den Bewerter.",
+      "checksHint": "Die Prüfungen jedes Falls und die folgenden Standards für alle Fälle.",
       "defaults": "Prüfungen für jeden Fall",
       "trajectoryHint": "Die Tools, die der Agent aufgerufen hat, gegen die erwarteten Aufrufe des Falls, im Reihenfolgemodus des Falls.",
       "judgeHint": "Der Bewerter benotet jede Antwort nach den folgenden Kriterien. Jede Benotung ist ein Run in Activity.",
@@ -5717,7 +5717,7 @@
       "groupByHand": "Von Hand bewertet",
       "groupEvalRun": "Eval-Run · {when}",
       "agentGone": "Ein Agent, den es nicht mehr gibt",
-      "agentVersion": "{name} v{version}",
+      "agentVersion": "{name} · v{version}",
       "answer": "Antwort",
       "answerGone": "Die Antwort ist nicht gespeichert.",
       "showAll": "Alles anzeigen",
@@ -5775,12 +5775,13 @@
       "noteAddedToRubric": "Die Notiz ist jetzt eines der Kriterien des Bewerters für jeden Fall, und der Bewerter ist eingeschaltet.",
       "rule": "Regel: {rule}",
       "judgeSaid": "Der Bewerter antwortete: „{said}“",
-      "unverifiedTop": "Nicht belegt: eine Höchstnote ohne ein Zitat aus der Antwort, das sie stützt."
+      "unverifiedTop": "Nicht belegt: eine Höchstnote ohne ein Zitat aus der Antwort, das sie stützt.",
+      "agentDraft": "{name} · Entwurf"
     },
     "title": "Datasets",
     "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
     "newDataset": "Neues Dataset",
-    "newDatasetBody": "Ein leeres Dataset, privat, bis Sie es freigeben. Fügen Sie Fälle von Hand hinzu, importieren Sie eine CSV- oder JSONL-Datei oder übernehmen Sie eine Antwort aus einem Gespräch.",
+    "newDatasetBody": "Ein leeres Dataset. Fügen Sie Fälle von Hand hinzu, importieren Sie eine CSV- oder JSONL-Datei oder übernehmen Sie eine Antwort aus einem Gespräch.",
     "noAccess": "Sie können die Datasets dieser Organisation nicht sehen",
     "noAccessBody": "Bitten Sie einen Administrator um Zugriff auf Datasets.",
     "datasetCount": "{count, plural, =1 {1 Dataset} other {# Datasets}}",
@@ -5944,6 +5945,10 @@
     "caseTwin": "Ein Fall stellt diese Frage bereits:",
     "caseTwinOpen": "Öffnen",
     "caseTwinAddAnyway": "Trotzdem hinzufügen",
-    "addToDatasetBodyPlain": "Mit der Antwort kommen die Frage und das Gespräch davor."
+    "addToDatasetBodyPlain": "Mit der Antwort kommen die Frage und das Gespräch davor.",
+    "discardCaseTitle": "Änderungen verwerfen?",
+    "discardCaseBody": "Die Änderungen an diesem Fall sind nicht gespeichert und gehen verloren.",
+    "discardCase": "Verwerfen",
+    "keepEditing": "Weiter bearbeiten"
   }
 }
