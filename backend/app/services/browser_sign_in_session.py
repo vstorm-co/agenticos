@@ -156,9 +156,9 @@ async def drive(organization_id: UUID, user_id: UUID, run_id: str, url: str, hol
         await live_browse.publish(run_id, CALL_ID, event)
         return True
 
+    # Only the person's own give-back reaches this: `hand_over` drops every
+    # command from anybody but the holder it was given.
     async def keep(page: PageSession, command: BrowserCommand) -> str | None:
-        if command.by_user_id != str(user_id):
-            return None
         sign_in = await page.capture_sign_in()
         if sign_in is None:
             return None

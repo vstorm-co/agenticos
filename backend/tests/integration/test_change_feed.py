@@ -383,6 +383,18 @@ class TestVisibility:
         )
         assert await change_feed.visible(db, _ctx(organization, member, OrgRoleName.MEMBER), joined)
 
+    async def test_a_change_to_the_organization_is_heard_by_everyone_in_it(
+        self, db: AsyncSession
+    ) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        viewer = await _join(db, organization, OrgRoleName.VIEWER)
+        renamed = _event(organization, owner, resource="organization", id=organization.id)
+
+        assert await change_feed.visible(
+            db, _ctx(organization, viewer, OrgRoleName.VIEWER), renamed
+        )
+
     @pytest.mark.security
     async def test_a_routine_is_heard_by_whoever_may_read_its_agent(self, db: AsyncSession) -> None:
         owner = await _person(db)
