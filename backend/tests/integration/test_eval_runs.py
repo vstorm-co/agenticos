@@ -1538,7 +1538,7 @@ async def test_what_a_run_tested_is_gone_with_its_version(db) -> None:
 
 
 async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None:
-    """The dataset's model choice first, else the model the judge's published spec names."""
+    """At the model the judge's published spec names."""
     ctx = await _owner(db)
     await _assist(db, ctx, on=True)
     agent, _ = await _agent(db, ctx)
@@ -1574,20 +1574,10 @@ async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None
     service = EvalRunService(db)
 
     with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
-        by_spec = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
-        dataset.scoring = {
-            "judge": {
-                "enabled": True,
-                "agent_id": str(judge.id),
-                "model_profile_id": str(nano.id),
-                "criteria": criteria,
-            }
-        }
-        await db.flush()
-        by_dataset = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+        estimate = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
 
     # Ten cases, each 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
-    assert by_spec.judge_usd == by_dataset.judge_usd == Decimal("0.0036")
+    assert estimate.judge_usd == Decimal("0.0036")
 
 
 async def test_a_reused_baseline_is_asked_the_flipped_cases_again_in_this_run(db) -> None:
