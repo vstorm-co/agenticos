@@ -597,7 +597,6 @@ class EvalRunService:
             if score.judge is not None
         }
         current = str(judge.current_version_id) if judge and judge.current_version_id else None
-        # Graded by the judge that would grade now, or by none when none would.
         now = {(current, JUDGE_PROMPT_VERSION)} if judged else set()
         return found if pinned == now else None
 
