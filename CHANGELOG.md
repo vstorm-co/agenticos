@@ -635,7 +635,13 @@ Two things are versioned separately from this file and worth knowing about:
   a request; a key continues only a run a key started; a Mattermost feedback
   dialog is bound to whoever opened it; two accounts whose labels read alike get
   a tool prefix each; and `discard_agent_draft` works for a key issued only
-  `agents:edit`. CI now lists the lines a red coverage gate is missing.
+  `agents:edit`. CI now lists the lines a red coverage gate is missing. A sixth
+  round: cloning a sync source checks the credential it lends; `/rag/documents`
+  lists and resolves documents by collection and organization; an API key's
+  allowance is counted by a digest of the whole token, not its public prefix;
+  clearing the assistant's model is refused; and a channel run continues only
+  once every question it asked, across calls, is answered, with the run held so
+  two presses cannot both miss it.
 
 - **New chat starts a new conversation.** The console sends `conversation_id: null`
   for a new chat, and the session read it as "no id given" and carried on in the
