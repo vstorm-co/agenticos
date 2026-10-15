@@ -1,5 +1,5 @@
 ---
-source_sha: "0aeaa21bc6b9"
+source_sha: "9cc85ddc5fd0"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -50,7 +50,8 @@ obiema wersjami (History otwiera się na tym porównaniu, względem speca, któr
 run testował, a nie draftu w jego obecnym stanie), pokazać przypadki, które się
 zepsuły, wrócić do Build albo opublikować draft.
 
-Publish jest główną akcją tylko wtedy, gdy nie potwierdzono żadnej regresji, a
+Publish jest główną akcją tylko wtedy, gdy nie potwierdzono żadnej regresji i
+żadna odpowiedź kandydata nie została bez oceny, a
 run draftu, który od tego czasu się zmienił, proponuje zamiast tego **Test
 again**. Gdy run odpowiada, strona mówi, ile pierwszych odpowiedzi już jest, a
 porównanie czeka na obie strony. Odpowiedzi, których sędzia nie zdołał ocenić,

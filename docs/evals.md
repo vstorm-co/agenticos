@@ -45,7 +45,8 @@ see what changed between the two versions (History opens on that comparison,
 against the spec the run tested rather than the draft as it is now), show the
 cases that broke, go back to Build, or publish the draft.
 
-Publish is the main action only when no regression was confirmed, and a run of
+Publish is the main action only when no regression was confirmed and none of
+the candidate's answers was left ungraded, and a run of
 a draft that changed since offers **Test again** instead. While the run answers it says how many first answers are in and the comparison
 waits for both sides. Answers the judge failed to grade say why and count as
 neither passed nor failed, and **Grade again** in the header grades them again

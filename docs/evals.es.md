@@ -1,5 +1,5 @@
 ---
-source_sha: "0aeaa21bc6b9"
+source_sha: "9cc85ddc5fd0"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -50,7 +50,8 @@ junto con qué hacer a continuación: ver qué cambió entre las dos versiones
 (History se abre en esa comparación, frente al spec probado, no al borrador
 actual), mostrar los casos rotos, volver a Build o publicar el borrador.
 
-Publish es la acción principal solo sin ninguna regresión confirmada, y el run
+Publish es la acción principal solo sin ninguna regresión confirmada ni
+respuesta del candidato sin calificar, y el run
 de un borrador modificado desde entonces ofrece **Test again** en su lugar.
 Mientras el run responde, la página dice cuántas primeras respuestas hay, y la
 comparación espera a los dos lados. Las respuestas que el juez no logró

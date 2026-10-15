@@ -1,5 +1,5 @@
 ---
-source_sha: "0aeaa21bc6b9"
+source_sha: "9cc85ddc5fd0"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -54,7 +54,8 @@ Versionen geändert hat (History öffnet auf diesem Vergleich, gegen den
 getesteten Spec statt den jetzigen Draft), die kaputtgegangenen Fälle zeigen,
 zurück zu Build gehen oder den Draft veröffentlichen.
 
-Publish ist nur dann die Hauptaktion, wenn keine Regression bestätigt wurde,
+Publish ist nur dann die Hauptaktion, wenn keine Regression bestätigt wurde
+und keine Antwort des Kandidaten unbewertet blieb,
 und der Run eines seitdem geänderten Drafts bietet stattdessen **Test again**
 an. Solange der Run antwortet, sagt die Seite, wie viele erste Antworten
 vorliegen, und der Vergleich wartet auf beide Seiten. Antworten, die der Judge
