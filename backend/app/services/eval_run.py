@@ -72,6 +72,7 @@ from app.repositories import (
     eval_run_repo,
     organization_repo,
 )
+from app.schemas.dataset import StoredCaseContent
 from app.schemas.eval_run import (
     ArmEstimate,
     ArmSummaryRead,
@@ -1115,6 +1116,7 @@ class EvalRunService:
                     position=pairs[0][1].position,
                     input=revision.input if revision else "",
                     tags=tags,
+                    expectation=(StoredCaseContent.model_validate(revision) if revision else None),
                     attempts=[
                         self._attempt_read(shown_arm, a, scores.get(a.case_score_id))
                         for shown_arm, a in pairs

@@ -17,6 +17,7 @@ from app.db.models.eval_run import (
     EvalRunStatus,
 )
 from app.schemas.base import BaseSchema
+from app.schemas.dataset import StoredCaseContent
 from app.schemas.scoring import CaseScoreRead
 
 CallOutcomeLiteral = Literal["executed", "blocked", "replayed", "divergent"]
@@ -247,6 +248,12 @@ class EvalCaseRead(BaseSchema):
     position: int
     input: str
     tags: list[str]
+    expectation: StoredCaseContent | None = Field(
+        description=(
+            "What the case expects, as the revision the run answered holds it - "
+            "the reference, the counter-example, the calls and the checks"
+        )
+    )
     attempts: list[EvalAttemptRead]
 
 

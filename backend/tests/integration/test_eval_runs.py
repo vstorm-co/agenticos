@@ -1296,6 +1296,10 @@ async def test_cases_narrow_to_the_ones_named(db) -> None:
 
     assert [case.case_id for case in named.items] == [everything.items[1].case_id]
     assert named.total == 1
+    # What the case expects rides beside its answers.
+    expectation = named.items[0].expectation
+    assert expectation is not None
+    assert [check.model_dump()["value"] for check in expectation.checks] == ["30 days"]
 
 
 @pytest.mark.security
