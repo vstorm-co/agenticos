@@ -413,6 +413,23 @@ async def find_case(
     return None if row is None else (row[0], row[1])
 
 
+async def case_from_message(
+    db: AsyncSession, version_id: UUID, message_id: UUID, *, organization_id: UUID
+) -> DatasetCase | None:
+    """The case of a version made from this agent answer, if one was."""
+    result = await db.execute(
+        select(DatasetCase)
+        .join(DatasetVersionCase, DatasetVersionCase.case_revision_id == DatasetCase.id)
+        .where(
+            DatasetVersionCase.version_id == version_id,
+            DatasetCase.source_message_id == message_id,
+            DatasetCase.organization_id == organization_id,
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def last_position(db: AsyncSession, version_id: UUID, *, organization_id: UUID) -> int:
     """The highest position a version uses, or -1 when it holds nothing."""
     value = await db.scalar(

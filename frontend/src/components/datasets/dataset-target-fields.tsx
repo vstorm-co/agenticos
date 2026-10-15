@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import {
   FormField,
+  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -33,6 +34,8 @@ interface DatasetTargetFieldsProps {
   search?: { value: string; onChange: (value: string) => void } | null;
   /** Keeps two of these on one page from sharing input ids. */
   idPrefix: string;
+  /** With no dataset to add to, the name of one to create; absent, a link to Datasets. */
+  create?: { name: string; onChange: (name: string) => void };
 }
 
 /**
@@ -48,6 +51,7 @@ export function DatasetTargetFields({
   answerAs,
   search,
   idPrefix,
+  create,
 }: DatasetTargetFieldsProps) {
   const t = useTranslations("datasets");
   const finder = search && (
@@ -58,7 +62,8 @@ export function DatasetTargetFields({
       className="sm:w-full"
     />
   );
-  if (!isLoading && editable.length === 0 && !search?.value) {
+  const none = !isLoading && editable.length === 0 && !search?.value;
+  if (none && !create) {
     return (
       <p className="text-muted-foreground text-sm">
         {t.rich("noDatasetToAddTo", {
@@ -74,20 +79,35 @@ export function DatasetTargetFields({
   return (
     <div className="space-y-4">
       {finder}
-      <FormField htmlFor={`${idPrefix}-dataset`} label={t("dataset")}>
-        <Select value={datasetId} onValueChange={onDatasetChange}>
-          <SelectTrigger id={`${idPrefix}-dataset`}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {editable.map((dataset) => (
-              <SelectItem key={dataset.id} value={dataset.id}>
-                {dataset.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FormField>
+      {none && create ? (
+        <FormField
+          htmlFor={`${idPrefix}-new-dataset`}
+          label={t("newDatasetName")}
+          description={t("newDatasetHere")}
+        >
+          <Input
+            id={`${idPrefix}-new-dataset`}
+            value={create.name}
+            maxLength={200}
+            onChange={(event) => create.onChange(event.target.value)}
+          />
+        </FormField>
+      ) : (
+        <FormField htmlFor={`${idPrefix}-dataset`} label={t("dataset")}>
+          <Select value={datasetId} onValueChange={onDatasetChange}>
+            <SelectTrigger id={`${idPrefix}-dataset`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {editable.map((dataset) => (
+                <SelectItem key={dataset.id} value={dataset.id}>
+                  {dataset.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+      )}
       {answerAs && (
         <FormField htmlFor={`${idPrefix}-answer-as`} label={t("keepAnswerAs")}>
           <Select

@@ -340,6 +340,7 @@ describe("ReviewPanel", () => {
 
     expect(screen.getAllByText(/budget is spent/)).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /again/ })).toBeNull();
+    expect(screen.queryByText(/Fix the cause/)).toBeNull();
   });
 
   it("makes a decided score's note a criterion of its case or of every case", async () => {

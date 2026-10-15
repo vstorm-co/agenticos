@@ -64,12 +64,12 @@ describe("ScoreCard", () => {
       />,
     );
 
-    expect(screen.getByText("Support v3")).toBeInTheDocument();
+    expect(screen.getByText("Support · v3")).toBeInTheDocument();
     expect(screen.getByText("gpt-4.1")).toBeInTheDocument();
     expect(screen.getByText(/2026/)).toHaveAttribute("datetime", "2026-10-13T00:00:00Z");
 
     rerender(<ScoreCard score={score({ agent_name: "Support", agent_version: null })} />);
-    expect(screen.getByText("Support")).toBeInTheDocument();
+    expect(screen.getByText("Support · Draft")).toBeInTheDocument();
   });
 
   it("shows what the case expected: the tool calls in their order, and the checks", () => {

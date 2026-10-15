@@ -51,7 +51,9 @@ export function EmptyCases({ datasetId, onAddCase, onImport }: EmptyCasesProps) 
           {t("import")}
         </Button>
         <Button size="sm" variant="outline" asChild>
-          <Link href={ROUTES.RUNS}>{t("addFromActivity")}</Link>
+          <Link href={`${ROUTES.RUNS}?${new URLSearchParams({ dataset: datasetId })}`}>
+            {t("addFromActivity")}
+          </Link>
         </Button>
       </div>
     </div>

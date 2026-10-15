@@ -22,6 +22,7 @@ from uuid import UUID
 
 from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
+from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.system_agents import system_agent
@@ -35,7 +36,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
-from app.repositories import agent_repo
+from app.repositories import agent_repo, agent_run_repo
 from app.services.access import AGENT, resolve_access
 from app.services.agent_runner import AgentRunnerService
 from app.services.ai_assistance import AiAssistanceService
@@ -65,6 +66,23 @@ def output_contract(output_type: type[object]) -> str:
         "Answer with one JSON object and nothing else - no prose before or after it. "
         f"It must validate against this JSON schema:\n{schema}"
     )
+
+
+# Enough of an unreadable answer to see where it went wrong, on the run Activity shows.
+_KEPT_ANSWER = 4_000
+
+
+def _unreadable(text: str, exc: PydanticValidationError) -> str:
+    """Why an answer could not be read, and the answer, cut and with secrets redacted."""
+    problems = "; ".join(
+        f"{'.'.join(str(step) for step in error['loc']) or 'answer'}: {error['msg']}"
+        for error in exc.errors(include_url=False, include_input=False)[:10]
+    )
+    answer = text if len(text) <= _KEPT_ANSWER else f"{text[:_KEPT_ANSWER]}…"
+    verdict = redact_secrets(answer)
+    if verdict.action == "replace" and isinstance(verdict.replacement, str):
+        answer = verdict.replacement
+    return f"The answer did not match the shape asked for - {problems}\n\n{answer}"
 
 
 def parse_output[T](text: str, output_type: type[T]) -> T:
@@ -142,6 +160,7 @@ class SystemAgentRunner:
         try:
             output = parse_output(text, output_type)
         except PydanticValidationError as exc:
+            await agent_run_repo.set_error(self.db, run=run, error=_unreadable(text, exc))
             raise SystemAgentOutputError(
                 message=(
                     f"'{agent.name}' answered in a form that could not be read. Its run "

@@ -452,4 +452,23 @@ describe("CaseEditorDialog", () => {
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(screen.queryByRole("alert")).toBeNull();
   });
+
+  it("asks before a change not yet saved is thrown away, and closes at once without one", async () => {
+    const onOpenChange = mount(vi.fn());
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    onOpenChange.mockClear();
+
+    await userEvent.type(input(), "How long?");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "Discard your changes?" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(input()).toHaveValue("How long?");
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
 });

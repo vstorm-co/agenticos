@@ -1,5 +1,5 @@
 ---
-source_sha: "cc3cb4a6966a"
+source_sha: "fc81632d1998"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -149,8 +149,10 @@ Są dwie drogi i obie tworzą taki sam przypadek:
   przypadek na miejscu: to kopia, wersjonowana razem z datasetem. Konsola
   pamięta ostatnio użyty dataset, więc kolejne dodanie to jedno kliknięcie.
 - **W Aktywności** każda tura agenta ma przycisk **Dodaj do datasetu**. To
-  miejsce kuracji, więc dobrą odpowiedź równie łatwo zachować jako wzorcową, jak
-  złą jako kontrprzykład.
+  miejsce kuracji, więc dobrą odpowiedź równie łatwo zachować jako wzorcową,
+  jak złą jako kontrprzykład. Gdy nie ma jeszcze datasetu, do którego można
+  dodać, zakłada nowy, widoczny dla organizacji; otwarty z **Dodaj z
+  Aktywności** datasetu dodaje do tego datasetu i proponuje powrót do niego.
 
 W obu przypadkach przypadek powstaje z tej tury:
 
@@ -160,11 +162,12 @@ W obu przypadkach przypadek powstaje z tej tury:
   dwóch;
 - najnowszy komentarz zostawiony z łapką w dół staje się notatką.
 
-Obie drogi widzą tylko członkowie, którzy mogą edytować jakiś dataset. Wiadomość musi
-należeć do twojej organizacji i musisz móc ją przeczytać: albo masz
-`runs:view`, które czyta każdy run w organizacji tak jak Aktywność, albo możesz
-otworzyć rozmowę. Wiadomość z innej organizacji jest odrzucana tak, jakby nie
-istniała.
+Obie drogi widzą tylko członkowie, którzy mogą edytować jakiś dataset.
+Wiadomość musi należeć do twojej organizacji i musisz móc ją przeczytać: albo
+masz `runs:view`, które czyta każdy run w organizacji tak jak Aktywność, albo
+możesz otworzyć rozmowę. Wiadomość z innej organizacji jest odrzucana tak,
+jakby nie istniała, a odpowiedź, która już jest przypadkiem najnowszej wersji
+datasetu, jest odrzucana, zamiast zostać dodana drugi raz.
 
 ## Poświadczenia są redagowane { #credentials }
 
@@ -288,7 +291,10 @@ jego wcześniejsze tury i pytanie, odpowiedź wzorcową, gdy jest oceniana,
 kontrprzykład, każde wywołanie narzędzia wykonane przez agenta - z argumentami i
 informacją, czy izolowany run je zablokował - oraz odpowiedź. Przypadek z
 kontrprzykładem jest zawsze oceniany także według wymaganego kryterium
-**counter-example**: odpowiedź nie może powtarzać znanej złej odpowiedzi.
+**counter-example**: odpowiedź nie może powtarzać znanej złej odpowiedzi, a
+zaliczenie go wymaga cytatu z odpowiedzi, którego kontrprzykład też nie
+zawiera.
+
 Sędziowie startują z temperaturą 0, więc ta sama odpowiedź jest oceniana dwa
 razy tak samo; model, który nie przyjmuje temperatury, na przykład model
 rozumujący, ocenia bez niej.
@@ -332,7 +338,12 @@ nic nie jest oceniane.
 
 Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
 zawiera słowo w słowo, jest zachowywany obok oceny jako niezweryfikowany,
-pokazywany w osobnej linii pod uzasadnieniem, a ocena pozostaje.
+pokazywany w osobnej linii pod uzasadnieniem, a ocena pozostaje. To, co
+uzasadnia ocenę, nigdy jej nie unieważnia: pusty albo za długi cytat jest
+pomijany, cytaty ponad dwanaście i reguła ponad 300 znaków są przycinane, a
+werdykt jest nieczytelny tylko bez identyfikatora kryterium albo oceny.
+Nieczytelna odpowiedź zostaje zapisana na runie sędziego w Activity, razem z
+powodem, dla którego nie dało się jej odczytać.
 
 Każdy wynik zapisuje sędziego, który go ocenił - agenta sędziego, jego profil
 modelu, wersję spec, hash rubryki i wersję zadania, które platforma przekazuje
@@ -345,8 +356,9 @@ wyniki ocenione wcześniej nie będą porównywalne z ocenianymi później.
 
 Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle albo zrobi to run
 ewaluacji. Po ponownym uruchomieniu tego, co się zmieniło, run ewaluacji wysyła
-potwierdzone regresje i odpowiedzi, których sędzia nie ocenił - po jednym wyniku
-na przypadek i żadnego dla przypadku, który już czeka. Jego strona wysyła inne
+potwierdzone regresje i odpowiedzi, przy których sędzia zawiódł z błędem - nie
+te, które pominął i które czekają na ponowną ocenę - po jednym wyniku na
+przypadek i żadnego dla przypadku, który już czeka. Jego strona wysyła inne
 wybrane przez ciebie wyniki, wszystkie naraz przez `POST
 /datasets/{id}/scores/review`, do 500 identyfikatorów wyników - wszystkie albo
 żaden.

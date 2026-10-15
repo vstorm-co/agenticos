@@ -1,5 +1,5 @@
 ---
-source_sha: "cc3cb4a6966a"
+source_sha: "fc81632d1998"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -151,9 +151,12 @@ Hay dos caminos y los dos crean el mismo caso:
   el mensaje dice qué mitad falló. Quitar la valoración más tarde deja el caso
   donde está: es una copia, versionada con su dataset. La consola recuerda el
   último dataset al que añadiste, así que el siguiente añadido es un clic.
-- **En Actividad**, cada turno del agent tiene un control **Añadir al dataset**.
-  Es donde se curan las respuestas, así que una buena respuesta se guarda como
-  referencia tan fácilmente como una mala como contraejemplo.
+- **En Actividad**, cada turno del agent tiene un control **Añadir al
+  dataset**. Es donde se curan las respuestas, así que una buena respuesta se
+  guarda como referencia tan fácilmente como una mala como contraejemplo. Sin
+  ningún dataset al que añadir, crea uno, visible para la organización; abierto
+  desde **Add from Activity** de un dataset, añade a ese dataset y ofrece
+  volver a él.
 
 En ambos casos, el caso se crea a partir de ese turno:
 
@@ -165,10 +168,12 @@ En ambos casos, el caso se crea a partir de ese turno:
 - el comentario más reciente dejado con un pulgar abajo se convierte en la
   nota.
 
-Los dos caminos solo los ven los miembros que pueden editar un dataset. El mensaje debe
-pertenecer a tu organización y debes poder leerlo: o tienes `runs:view`, que lee
-cada run de la organización como hace Actividad, o puedes abrir la conversación.
-Un mensaje de otra organización se rechaza como si no existiera.
+Los dos caminos solo los ven los miembros que pueden editar un dataset. El
+mensaje debe pertenecer a tu organización y debes poder leerlo: o tienes
+`runs:view`, que lee cada run de la organización como hace Actividad, o puedes
+abrir la conversación. Un mensaje de otra organización se rechaza como si no
+existiera, y una respuesta que ya es un caso de la versión más reciente del
+dataset se rechaza en lugar de añadirse dos veces.
 
 ## Las credenciales se ocultan { #credentials }
 
@@ -293,7 +298,10 @@ anteriores y la pregunta, la respuesta de referencia cuando se califica, el
 contraejemplo, cada llamada a herramienta que hizo el agent (con sus
 argumentos, y si un run aislado la bloqueó) y la respuesta. Un caso con
 contraejemplo se califica siempre también con un criterio obligatorio
-**counter-example**: la respuesta no debe repetir la respuesta mala conocida.
+**counter-example**: la respuesta no debe repetir la respuesta mala conocida, y
+aprobarlo requiere una cita de la respuesta que el contraejemplo no diga
+también.
+
 Los jueces empiezan con temperatura 0, para que la misma respuesta se califique
 igual dos veces; un modelo que no acepta temperatura, como un modelo de
 razonamiento, califica sin ella.
@@ -336,9 +344,14 @@ calificación no sería comparable con el resto del run; entonces no se califica
 nada.
 
 Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la
-respuesta no contiene palabra por palabra se guarda junto a la calificación como
-no verificada, se muestra en su propia línea bajo el motivo, y la calificación
-se mantiene.
+respuesta no contiene palabra por palabra se guarda junto a la calificación
+como no verificada, se muestra en su propia línea bajo el motivo, y la
+calificación se mantiene. Lo que respalda una calificación nunca la anula: una
+cita vacía o demasiado larga se descarta, las citas más allá de doce y una
+regla de más de 300 caracteres se recortan, y solo la falta de un identificador
+de criterio o de una nota hace ilegible un veredicto. Una respuesta ilegible se
+guarda en el run del juez en Activity, con el motivo por el que no se pudo
+leer.
 
 Cada puntuación registra el juez que la calificó - el agent juez, su perfil de
 modelo, la versión de su spec, un hash de la rúbrica y la versión de la tarea
@@ -352,9 +365,10 @@ las calificadas después.
 
 Una puntuación espera en la **cola de revisión** cuando alguien la envía allí,
 o lo hace un run de eval. Tras volver a ejecutar lo que cambió, un run de eval
-envía las regresiones que confirmó y las respuestas que el juez no pudo
-calificar: una puntuación por caso, y ninguna para un caso que ya espera. Su
-página envía otras puntuaciones que elijas, todas a la vez mediante `POST
+envía las regresiones que confirmó y las respuestas en las que el juez falló
+con un error (no las que omitió, que esperan a volver a puntuarse): una
+puntuación por caso, y ninguna para un caso que ya espera. Su página envía
+otras puntuaciones que elijas, todas a la vez mediante `POST
 /datasets/{id}/scores/review` con hasta 500 identificadores de puntuación:
 todas o ninguna.
 

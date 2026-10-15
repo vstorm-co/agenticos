@@ -1,5 +1,5 @@
 ---
-source_sha: "cc3cb4a6966a"
+source_sha: "fc81632d1998"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -161,7 +161,9 @@ Es gibt zwei Wege, und beide erzeugen denselben Fall:
 - **In Aktivität** hat jeder Agent-Zug ein Bedienelement **Zum Dataset
   hinzufügen**. Hier werden Antworten kuratiert, daher lässt sich eine gute
   Antwort ebenso leicht als Referenz behalten wie eine schlechte als
-  Gegenbeispiel.
+  Gegenbeispiel. Gibt es noch kein Dataset zum Hinzufügen, legt es eines an,
+  sichtbar für die Organisation; aus **Aus der Aktivität hinzufügen** eines
+  Datasets geöffnet, fügt es diesem Dataset hinzu und bietet den Weg zurück an.
 
 In beiden Fällen entsteht der Fall aus diesem Zug:
 
@@ -176,7 +178,9 @@ Beide Wege sehen nur Mitglieder, die ein Dataset bearbeiten dürfen. Die
 Nachricht muss zu Ihrer Organisation gehören, und Sie müssen sie lesen dürfen:
 Entweder Sie haben `runs:view`, womit Sie wie in Aktivität jeden Run der
 Organisation lesen, oder Sie können das Gespräch öffnen. Eine Nachricht aus
-einer anderen Organisation wird abgelehnt, als gäbe es sie nicht.
+einer anderen Organisation wird abgelehnt, als gäbe es sie nicht, und eine
+Antwort, die bereits ein Fall der neuesten Version des Datasets ist, wird
+abgelehnt, statt ein zweites Mal hinzugefügt zu werden.
 
 ## Zugangsdaten werden geschwärzt { #credentials }
 
@@ -309,9 +313,12 @@ das Gegenbeispiel, jeden Tool-Aufruf des Agenten - mit seinen Argumenten und ob
 ein isolierter Run ihn blockiert hat - und die Antwort. Ein Fall mit
 Gegenbeispiel wird immer auch nach dem erforderlichen Kriterium
 **counter-example** bewertet: Die Antwort darf die bekannte schlechte Antwort
-nicht wiederholen. Bewerter starten mit Temperatur 0, damit dieselbe Antwort
-zweimal gleich bewertet wird; ein Modell, das keine Temperatur annimmt, etwa
-ein Reasoning-Modell, bewertet ohne sie.
+nicht wiederholen, und um es zu bestehen, braucht es ein Zitat aus der Antwort,
+das das Gegenbeispiel nicht auch enthält.
+
+Bewerter starten mit Temperatur 0, damit dieselbe Antwort zweimal gleich
+bewertet wird; ein Modell, das keine Temperatur annimmt, etwa ein
+Reasoning-Modell, bewertet ohne sie.
 
 Der Bewerter läuft nur, wo die [KI-Unterstützung](governance.md#ai-assistance)
 eingeschaltet ist, und sie ist aus, bis ein Administrator sie für die
@@ -355,7 +362,11 @@ Rest des Runs vergleichen ließe; dann wird nichts bewertet.
 Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
 Antwort nicht wörtlich enthält, wird neben der Bewertung als nicht verifiziert
 aufbewahrt und in einer eigenen Zeile unter der Begründung angezeigt, und die
-Bewertung bleibt bestehen.
+Bewertung bleibt bestehen. Was eine Bewertung stützt, macht sie nie ungültig:
+Ein leeres oder zu langes Zitat wird verworfen, Zitate über zwölf und eine
+Regel über 300 Zeichen werden gekürzt, und nur eine fehlende Kriteriums-ID oder
+Note macht ein Urteil unlesbar. Eine unlesbare Antwort bleibt am Run des
+Bewerters in Activity erhalten, mit dem Grund, warum sie sich nicht lesen ließ.
 
 Jedes Ergebnis hält den Bewerter fest, der es bewertet hat - den Bewerter-Agent,
 sein Modellprofil, die Version seines Specs, einen Hash der Rubrik und die
@@ -371,10 +382,11 @@ vergleichen lassen.
 Ein Score wartet in der **Warteschlange zur Prüfung**, wenn jemand ihn dorthin
 schickt oder ein Eval-Run es tut. Hat er erneut ausgeführt, was gekippt ist,
 schickt ein Eval-Run die Regressionen, die er bestätigt hat, und die Antworten,
-die der Bewerter nicht bewerten konnte - ein Score pro Fall und keiner für einen
-Fall, der bereits wartet. Seine Seite schickt weitere Scores, die Sie
-auswählen, alle auf einmal über `POST /datasets/{id}/scores/review` mit bis zu
-500 Score-IDs - alle oder keine.
+an denen der Bewerter mit einem Fehler scheiterte - nicht die, die er
+übersprungen hat und die auf eine erneute Bewertung warten - ein Score pro Fall
+und keiner für einen Fall, der bereits wartet. Seine Seite schickt weitere
+Scores, die Sie auswählen, alle auf einmal über `POST
+/datasets/{id}/scores/review` mit bis zu 500 Score-IDs - alle oder keine.
 
 Ein Score, der von Hand aus Activity angefordert wurde, folgt der Einstellung
 **Prüfung durch eine Person** des Datasets: nichts, bis jemand einen schickt,

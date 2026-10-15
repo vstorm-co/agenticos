@@ -992,6 +992,9 @@ class TestWhenTheJudgeCannotRun:
         [shown] = said
         assert shown is not None and shown.startswith("It is fine. Truly Truly")
         assert (len(shown), shown[-1]) == (201, "…")
+        assert recorded.error is not None
+        assert recorded.error.startswith("The answer did not match the shape asked for - ")
+        assert "Truly Truly" in recorded.error
 
 
 class TestJudgeAgreement:
@@ -1119,6 +1122,39 @@ class TestGradingAgain:
         assert again.judge is not None and again.judge.prompt_version == JUDGE_PROMPT_VERSION
         assert (again.human_passed, again.outcome, again.review_state) == (False, False, "done")
         assert len(await _eval_runs(db, tenant)) == 3
+
+    async def test_a_waiting_answer_scored_again_to_a_pass_leaves_the_queue(
+        self, db, monkeypatch
+    ) -> None:
+        judging = Judge()
+        answers = iter(["It is fine."])
+
+        def model(self) -> FunctionModel:
+            async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+                if next(answers, None) is not None:
+                    return ModelResponse(parts=[TextPart("It is fine.")])
+                return await judging.model().function(messages, info)  # type: ignore[misc]
+
+            return FunctionModel(respond)
+
+        monkeypatch.setattr(ModelRequestSpec, "build", model)
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(
+            db, tenant, scoring=_rubric(review=ReviewScorer(select="failed"))
+        )
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+        waiting = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        assert (waiting.passed, waiting.review_state) == (None, "pending")
+
+        [again] = (
+            await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[waiting.id]))
+        ).rescored
+
+        assert (again.passed, again.review_state) == (True, "none")
 
     async def test_nothing_is_graded_again_when_one_answer_cannot_be_read(
         self, db, monkeypatch

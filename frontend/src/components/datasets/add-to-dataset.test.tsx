@@ -12,6 +12,14 @@ const state = vi.hoisted(() => ({
   total: 0,
   lastQuery: undefined as unknown,
   add: vi.fn(),
+  create: vi.fn(),
+  asked: null as string | null,
+  push: vi.fn(),
+}));
+vi.mock("next/navigation", async (original) => ({
+  ...(await original<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: state.push }),
+  useSearchParams: () => new URLSearchParams(state.asked === null ? "" : `dataset=${state.asked}`),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => state.granted.includes(perm) }),
@@ -23,7 +31,12 @@ vi.mock("@/hooks/use-datasets", () => ({
     const rows = query.editable
       ? state.datasets.filter((dataset) => dataset.can_edit)
       : state.datasets;
-    return { datasets: rows, total: state.total || rows.length, isLoading: state.isLoading };
+    return {
+      datasets: rows,
+      total: state.total || rows.length,
+      isLoading: state.isLoading,
+      create: { mutateAsync: state.create, isPending: false },
+    };
   },
   useAddToDataset: () => ({ mutateAsync: state.add, isPending: false }),
 }));
@@ -43,6 +56,7 @@ describe("Add to dataset", () => {
     ];
     state.isLoading = false;
     state.total = 0;
+    state.asked = null;
   });
 
   it("is not offered to somebody who edits no dataset", () => {
@@ -134,13 +148,60 @@ describe("Add to dataset", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  it("points at creating one when there is no dataset to add to", async () => {
+  it("starts a dataset for the answer when there is none to add to", async () => {
     state.datasets = [{ id: "d2", name: "read only", can_edit: false }];
+    state.create.mockResolvedValue({ id: "d9", name: "Refund answers" });
+    state.add.mockResolvedValue({});
     render(<AddToDatasetButton messageId="m1" ratedDown />);
     await open();
-    expect(screen.getByRole("link", { name: "Create one" })).toHaveAttribute("href", "/datasets");
+
+    const name = screen.getByRole("textbox", { name: "New dataset" });
+    expect(name).toHaveValue("Answers from Activity");
+    await userEvent.clear(name);
     expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+    await userEvent.type(name, "Refund answers");
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() =>
+      expect(state.add).toHaveBeenCalledWith({
+        datasetId: "d9",
+        messageId: "m1",
+        answerAs: "counter_example",
+      }),
+    );
+    expect(state.create).toHaveBeenCalledWith({
+      name: "Refund answers",
+      description: null,
+      visibility: "org",
+    });
+  });
+
+  it("closes on Cancel without adding anything", async () => {
+    render(<AddToDatasetButton messageId="m1" ratedDown />);
+    await open();
+
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(state.add).not.toHaveBeenCalled();
+  });
+
+  it("adds to the dataset the page was opened from, and offers the way back to it", async () => {
+    state.asked = "d3";
+    state.add.mockResolvedValue({});
+    render(<AddToDatasetButton messageId="m1" ratedDown />);
+    await open();
+
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toHaveTextContent("returns");
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    const [, options] = vi.mocked(toast.success).mock.calls[0]! as unknown as [
+      string,
+      { action: { label: string; onClick: () => void } },
+    ];
+    expect(options.action.label).toBe("Back to returns");
+    options.action.onClick();
+    expect(state.push).toHaveBeenCalledWith("/datasets/d3?tab=cases");
   });
 });

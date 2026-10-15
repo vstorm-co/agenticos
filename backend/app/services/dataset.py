@@ -846,8 +846,10 @@ class DatasetService:
                 organization, or is in a conversation the caller may not read.
             BadRequestError: For a message that is not an agent's answer, or that
                 has no question before it.
+            AlreadyExistsError: The dataset's newest version already holds a
+                case made from this answer.
         """
-        await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
+        dataset = await self.get(ctx, dataset_id, perm=Perm.DATASETS_EDIT)
         missing = NotFoundError(
             message="Message not found", details={"message_id": data.message_id}
         )
@@ -871,6 +873,19 @@ class DatasetService:
             raise refused_field("message_id", "Only an agent's answer can be added to a dataset")
         if not message.content.strip():
             raise refused_field("message_id", "This answer has no text to keep as a case")
+        newest = await self._version(ctx, dataset, None)
+        kept = (
+            None
+            if newest is None
+            else await dataset_repo.case_from_message(
+                self.db, newest.id, message.id, organization_id=ctx.organization_id
+            )
+        )
+        if kept is not None:
+            raise AlreadyExistsError(
+                message="This answer is already a case of this dataset",
+                details={"case_id": kept.case_id},
+            )
 
         earlier = [
             turn

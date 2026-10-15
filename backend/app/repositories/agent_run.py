@@ -118,6 +118,15 @@ async def finish_run(
     return run
 
 
+async def set_error(db: AsyncSession, *, run: AgentRun, error: str) -> AgentRun:
+    """Note why a run that ended is of no use to its caller, beside what it did."""
+    run.error = error
+    db.add(run)
+    await db.flush()
+    await db.refresh(run)
+    return run
+
+
 async def record_delegated_run(
     db: AsyncSession,
     *,
