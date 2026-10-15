@@ -423,6 +423,10 @@ class GroupService:
             raise NotFoundError(
                 message="Not a member of this group", details={"user_id": str(user_id)}
             )
+        if member.is_lead and not ctx.has(Perm.MEMBERS_MANAGE):
+            # Removing a lead takes their lead with the row, and naming or
+            # removing a lead is `members:manage`'s - a lead may not unseat another.
+            raise AuthorizationError(message="Only someone who manages members can remove a lead")
         await group_repo.remove_member(self.db, member)
         await record_audit(
             self.db,

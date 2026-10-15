@@ -108,6 +108,27 @@ class TestTheLead:
         with pytest.raises(AuthorizationError):
             await service.add_member(organization.id, sales.id, newcomer.user_id, lead)
 
+    @pytest.mark.security
+    async def test_a_lead_cannot_unseat_a_co_lead(self, db: AsyncSession) -> None:
+        """Review on #2062: removing a co-lead took their lead with the row, and
+        adding them back made them a plain member - naming a lead, by another route."""
+        organization, owner = await _setup(db)
+        lead = await _member(db, organization, "member")
+        co_lead = await _member(db, organization, "member")
+        finance = await _department(db, organization, lead, co_lead)
+        assert owner.user_id and lead.user_id and co_lead.user_id
+        service = GroupService(db)
+        for person in (lead, co_lead):
+            assert person.user_id
+            await service.set_lead(
+                organization.id, finance.id, person.user_id, owner.user_id, is_lead=True
+            )
+
+        with pytest.raises(AuthorizationError, match="remove a lead"):
+            await service.remove_member(organization.id, finance.id, co_lead.user_id, lead)
+        # Whoever manages members still may.
+        await service.remove_member(organization.id, finance.id, co_lead.user_id, owner)
+
     async def test_only_an_administrator_names_a_lead(self, db: AsyncSession) -> None:
         organization, owner = await _setup(db)
         member = await _member(db, organization, "member")
