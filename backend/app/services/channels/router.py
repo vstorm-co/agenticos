@@ -322,6 +322,10 @@ class ChannelMessageRouter:
                 # A remark to a colleague in the thread is not to the bot; a
                 # second after the turn it would be ignored, and it is now too.
                 and not self._is_overheard(incoming)
+                # A steer carries words only. A message with a file or a voice
+                # note waits for the turn to end and is answered as one of its
+                # own, with what it carries.
+                and not incoming.attachments
                 else None
             )
             async with _chat_locks.hold(incoming.bot_id, incoming.platform_chat_id):

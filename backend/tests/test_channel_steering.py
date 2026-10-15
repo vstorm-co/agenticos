@@ -114,6 +114,25 @@ async def test_a_remark_not_addressed_to_the_bot_does_not_join_the_turn():
     ]
 
 
+async def test_a_message_with_a_file_is_a_turn_of_its_own():
+    """Codex review of #2062: the steer took the text and the router stopped before
+    the file was fetched, so the agent read "use this spreadsheet" without it."""
+    from dataclasses import replace
+
+    from app.services.channels.base import IncomingAttachment
+
+    sheet = IncomingAttachment(
+        filename="q3.xlsx", mime_type="application/vnd.ms-excel", size=10, handle="F1"
+    )
+    corrected = replace(_message("use this corrected spreadsheet"), attachments=[sheet])
+    turns = await _route_two(corrected)
+
+    assert [text for text, _inbox, _aside in turns.seen] == [
+        "draft the report",
+        "use this corrected spreadsheet",
+    ]
+
+
 async def test_a_colleagues_message_is_a_turn_of_its_own():
     turns = await _route_two(_message("what about Q3?", user="U2"))
 
