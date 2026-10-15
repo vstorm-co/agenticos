@@ -69,6 +69,12 @@ def _prompt(kind: str = APPROVAL, **fields: Any) -> MagicMock:
     return MagicMock(**{**defaults, **fields})
 
 
+def _session() -> MagicMock:
+    """A session whose savepoint is recorded: what a refused resume takes back."""
+    savepoint = MagicMock(is_active=True, rollback=AsyncMock(), commit=AsyncMock())
+    return MagicMock(begin_nested=AsyncMock(return_value=savepoint), savepoint=savepoint)
+
+
 def _press(prompt: MagicMock, choice: int | None, bot: MagicMock) -> IncomingPress:
     return IncomingPress(
         platform="slack",
@@ -206,7 +212,7 @@ class TestOffering:
                 QuestionItem(question="Anything else?", options=[QuestionChoice(label="No")]),
             ],
         )
-        service = ChannelPrompts(MagicMock())
+        service = ChannelPrompts(_session())
         created: list[dict[str, Any]] = []
 
         async def create(db: Any, **fields: Any) -> MagicMock:
@@ -254,7 +260,7 @@ class TestOffering:
                 ),
             ],
         )
-        service = ChannelPrompts(MagicMock())
+        service = ChannelPrompts(_session())
         rows: list[MagicMock] = []
 
         async def create(db: Any, **fields: Any) -> MagicMock:
@@ -279,7 +285,7 @@ class TestOffering:
 
     async def test_a_run_gone_or_a_failure_offers_nothing_and_raises_nothing(self):
         bot = _bot()
-        service = ChannelPrompts(MagicMock())
+        service = ChannelPrompts(_session())
         with _Patched(bot=bot, prompt=None, role="member") as env:
             with patch(f"{_MODULE}.agent_run_repo.get_run", new=AsyncMock(return_value=None)):
                 await service.offer(bot, platform="slack", platform_chat_id="C1", run_id=RUN)
@@ -292,7 +298,7 @@ class TestOffering:
 
     async def test_a_long_argument_list_is_cut_short(self):
         bot = _bot()
-        service = ChannelPrompts(MagicMock())
+        service = ChannelPrompts(_session())
         approval = ParkedCall(
             id=uuid.uuid4(), tool_call_id="c1", tool_name="write", tool_args={"body": "x" * 900}
         )
@@ -350,7 +356,7 @@ class TestPressingAnApproval:
     ):
         bot = _bot()
         prompt = prompt or _prompt()
-        service = ChannelPrompts(MagicMock())
+        service = ChannelPrompts(_session())
         approvals = [MagicMock(status=ApprovalStatus.PENDING.value)] if pending else []
         with _Patched(bot=bot, prompt=prompt, role=role) as env:
             with (
@@ -413,11 +419,43 @@ class TestPressingAnApproval:
         assert env.said() == [ALREADY]
 
 
+class TestSettlingAPress:
+    """The savepoint around a press: kept when the run continues, taken back when
+    it refuses, and left alone once the resume committed it away."""
+
+    @pytest.mark.parametrize("refused", [False, True])
+    async def test_a_resume_that_committed_leaves_what_it_wrote(self, refused: bool):
+        session = _session()
+        session.savepoint.is_active = False
+        service = ChannelPrompts(session)
+        outcome = AsyncMock(side_effect=BadRequestError(message="no")) if refused else AsyncMock()
+
+        with patch.object(service, "_answer", new=outcome):
+            if refused:
+                with pytest.raises(BadRequestError):
+                    await service._settle(MagicMock(), _prompt(QUESTION), 0)
+            else:
+                await service._settle(MagicMock(), _prompt(QUESTION), 0)
+
+        session.savepoint.rollback.assert_not_awaited()
+        session.savepoint.commit.assert_not_awaited()
+
+    async def test_a_run_that_continues_keeps_the_press(self):
+        session = _session()
+        service = ChannelPrompts(session)
+
+        with patch.object(service, "_answer", new=AsyncMock(return_value=None)):
+            await service._settle(MagicMock(), _prompt(QUESTION), 0)
+
+        session.savepoint.commit.assert_awaited_once()
+
+
 class TestPressingAQuestion:
     async def _press(self, *, choice: int | None, siblings: list[MagicMock], answer_raises=None):
         bot = _bot()
         prompt = siblings[0]
-        service = ChannelPrompts(MagicMock())
+        service = ChannelPrompts(_session())
+        self.session = service.db
         with _Patched(bot=bot, prompt=prompt, role="member") as env:
             with (
                 patch(
@@ -440,7 +478,7 @@ class TestPressingAQuestion:
         """Codex on #2062: a colleague's press in a shared channel used the question up."""
         bot = _bot()
         prompt = _prompt(QUESTION)
-        service = ChannelPrompts(MagicMock())
+        service = ChannelPrompts(_session())
         with (
             _Patched(bot=bot, prompt=prompt, role="member") as env,
             patch(
@@ -509,11 +547,15 @@ class TestPressingAQuestion:
         )
 
         assert env.said() == ["This run is not waiting for an answer"]
+        # The answer and the answered mark are taken back, so the question can be
+        # pressed again once the run can take it.
+        self.session.savepoint.rollback.assert_awaited_once()
+        self.session.savepoint.commit.assert_not_awaited()
 
     async def test_an_empty_continuation_still_says_something(self):
         bot = _bot()
         prompt = _prompt(QUESTION)
-        service = ChannelPrompts(MagicMock())
+        service = ChannelPrompts(_session())
         with (
             _Patched(bot=bot, prompt=prompt, role="member") as env,
             patch(f"{_MODULE}.channel_prompt_repo.for_call", new=AsyncMock(return_value=[prompt])),
@@ -537,7 +579,7 @@ class TestPressesThatNameNothing:
                 platform_chat_id="C",
                 value=value,
             )
-            await ChannelPrompts(MagicMock()).press(press)
+            await ChannelPrompts(_session()).press(press)
 
         env.adapter.acknowledge.assert_not_awaited()
 
@@ -546,7 +588,7 @@ class TestPressesThatNameNothing:
         """`claim` is scoped to the bot the press arrived on."""
         bot = _bot()
         with _Patched(bot=bot, prompt=None, role="member") as env:
-            await ChannelPrompts(MagicMock()).press(_press(_prompt(), 0, bot))
+            await ChannelPrompts(_session()).press(_press(_prompt(), 0, bot))
 
         env.adapter.acknowledge.assert_not_awaited()
 
@@ -554,7 +596,7 @@ class TestPressesThatNameNothing:
         bot = _bot()
         bot.is_active = False
         with _Patched(bot=bot, prompt=_prompt(), role="member") as env:
-            await ChannelPrompts(MagicMock()).press(_press(_prompt(), 0, bot))
+            await ChannelPrompts(_session()).press(_press(_prompt(), 0, bot))
 
         env.adapter.acknowledge.assert_not_awaited()
 
@@ -566,7 +608,7 @@ class TestPressesThatNameNothing:
             _Patched(bot=bot, prompt=prompt, role="member") as env,
             patch(f"{_MODULE}.member_repo.get_active", new=AsyncMock(return_value=None)),
         ):
-            await ChannelPrompts(MagicMock()).press(_press(prompt, 0, bot))
+            await ChannelPrompts(_session()).press(_press(prompt, 0, bot))
 
         assert env.said() == [LINK_FIRST]
 

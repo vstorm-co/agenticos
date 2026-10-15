@@ -317,11 +317,7 @@ class ChannelPrompts:
                 picked = await self._toggle(ctx, prompt, choice)
                 await say(_picked_so_far(picked))
                 return
-            segment = await (
-                self._decide(ctx, prompt, choice)
-                if prompt.kind == APPROVAL
-                else self._answer(ctx, prompt, choice)
-            )
+            segment = await self._settle(ctx, prompt, choice)
         except AppException as exc:
             await say(exc.message)
             return
@@ -336,6 +332,33 @@ class ChannelPrompts:
             )
         else:
             await adapter.settle_prompt(token, press, self._chosen(prompt))
+
+    async def _settle(
+        self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None
+    ) -> RunSegment | None:
+        """Record the press and continue the run - or neither, when the run refuses.
+
+        The decision (or answer) and the prompt's answered mark are written before
+        the run is resumed. A resume refused before it starts - a model profile or
+        a key gone missing meanwhile - would otherwise commit them anyway, leave
+        the run parked and every later press answered `ALREADY`, with no way to
+        try again. A savepoint takes them back. Once the resume has committed its
+        own work the savepoint is gone with it, and what it wrote stands.
+        """
+        savepoint = await self.db.begin_nested()
+        try:
+            segment = await (
+                self._decide(ctx, prompt, choice)
+                if prompt.kind == APPROVAL
+                else self._answer(ctx, prompt, choice)
+            )
+        except AppException:
+            if savepoint.is_active:
+                await savepoint.rollback()
+            raise
+        if savepoint.is_active:
+            await savepoint.commit()
+        return segment
 
     async def _decide(
         self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None
