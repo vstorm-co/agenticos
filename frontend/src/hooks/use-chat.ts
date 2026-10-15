@@ -1557,9 +1557,11 @@ export function useChat(options: UseChatOptions = {}) {
       setPendingQuestions(null);
       setParkedQuestion(null);
       const setStatus = (status: "running" | "awaiting_answer") => {
-        if (parked.messageId === null) return;
-        for (const call of parked.calls) {
-          updateToolCallPart(parked.messageId, call.toolCallId, { status });
+        const messageId = parked.messageId;
+        if (messageId !== null) {
+          for (const call of parked.calls) {
+            updateToolCallPart(messageId, call.toolCallId, { status });
+          }
         }
       };
       setStatus("running");
