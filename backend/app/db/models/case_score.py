@@ -75,7 +75,6 @@ class CaseScore(Base):
     answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     scoring: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     results: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
-    # Null when no judge graded the answer.
     judge: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     review_state: Mapped[str] = mapped_column(

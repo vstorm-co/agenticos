@@ -350,8 +350,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.contextView,
   },
 
-  // Datasets - the questions an agent is tested on. The same two stops as
-  // context: the create button (edit-gated) and the list (view-gated).
   {
     id: "datasets-new",
     page: ROUTES.DATASETS,
@@ -417,7 +415,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.runsView,
     optional: true,
   },
-  // Only on a focused run with an answer, for somebody who may run evals.
   {
     id: "runs-score-against-case",
     page: ROUTES.RUNS,

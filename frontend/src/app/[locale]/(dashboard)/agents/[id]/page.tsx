@@ -274,9 +274,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
   const canViewRuns = can(Perm.runsView);
-  // The platform runs a judge: nobody chats with it, gives it tools, makes it
-  // available or copies it into an agent, so its page is the prompt, the model,
-  // the limits, the history and the datasets it grades.
+  // Only the platform runs a judge - nobody chats with it, gives it tools or
+  // exposes it - so its page holds what changes how it grades, and nothing else.
   const isJudge = agent?.kind === "judge";
   // Testing the draft runs it - the editors' work in progress - on a dataset.
   const canTestDraft =

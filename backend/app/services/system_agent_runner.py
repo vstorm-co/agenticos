@@ -22,7 +22,6 @@ from uuid import UUID
 
 from pydantic import TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
-from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.system_agents import system_agent
@@ -68,21 +67,17 @@ def output_contract(output_type: type[object]) -> str:
     )
 
 
-# Enough of an unreadable answer to see where it went wrong, on the run Activity shows.
-_KEPT_ANSWER = 4_000
+def _unreadable(exc: PydanticValidationError) -> str:
+    """Why an answer could not be read, field by field, and never the answer itself.
 
-
-def _unreadable(text: str, exc: PydanticValidationError) -> str:
-    """Why an answer could not be read, and the answer, cut and with secrets redacted."""
+    A run's error is read by everyone who reads runs, whatever datasets they may
+    see, and a system agent's answer can repeat the private case it was given.
+    """
     problems = "; ".join(
         f"{'.'.join(str(step) for step in error['loc']) or 'answer'}: {error['msg']}"
         for error in exc.errors(include_url=False, include_input=False)[:10]
     )
-    answer = text if len(text) <= _KEPT_ANSWER else f"{text[:_KEPT_ANSWER]}…"
-    verdict = redact_secrets(answer)
-    if verdict.action == "replace" and isinstance(verdict.replacement, str):
-        answer = verdict.replacement
-    return f"The answer did not match the shape asked for - {problems}\n\n{answer}"
+    return f"The answer did not match the shape asked for - {problems}"
 
 
 def parse_output[T](text: str, output_type: type[T]) -> T:
@@ -160,7 +155,7 @@ class SystemAgentRunner:
         try:
             output = parse_output(text, output_type)
         except PydanticValidationError as exc:
-            await agent_run_repo.set_error(self.db, run=run, error=_unreadable(text, exc))
+            await agent_run_repo.set_error(self.db, run=run, error=_unreadable(exc))
             raise SystemAgentOutputError(
                 message=(
                     f"'{agent.name}' answered in a form that could not be read. Its run "
