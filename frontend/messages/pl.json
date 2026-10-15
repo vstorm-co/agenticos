@@ -3846,11 +3846,11 @@
       "side": "{candidate} · {model} · dataset v{dataset} · {date}",
       "unfinished": "niezakończony",
       "verdict": {
-        "better": "Lepiej",
-        "worse": "Gorzej",
-        "no_difference": "Bez różnicy",
-        "inconclusive": "Jeszcze nie wiadomo",
-        "invalid": "Nieporównywalne"
+        "better": "Naprawia case'y",
+        "worse": "Psuje case'y",
+        "no_difference": "Brak powtarzalnej zmiany",
+        "invalid": "Nieporównywalne",
+        "mixed": "Mieszany"
       },
       "regressionsConfirmed": "Potwierdzone regresje",
       "regressionsUnconfirmed": "Niepotwierdzone regresje",
@@ -3872,7 +3872,11 @@
       },
       "confirmedHint": "Potwierdzona: zmiana powtórzyła się w każdej powtórce.",
       "unconfirmedHint": "Niepotwierdzona: przy powtórce wyszło raz tak, raz inaczej.",
-      "glossary": "Potwierdzona: zmiana powtórzyła się w każdej powtórce. Niepotwierdzona: przy powtórce wyszło raz tak, raz inaczej."
+      "glossary": "Potwierdzona: zmiana powtórzyła się w każdej powtórce. Niepotwierdzona: przy powtórce wyszło raz tak, raz inaczej.",
+      "overall": {
+        "worse": "Gorszy ogólnie",
+        "better": "Lepszy ogólnie"
+      }
     },
     "arms": {
       "title": "Obok siebie",
@@ -3937,17 +3941,21 @@
         "calls": "Oczekiwane wywołania, {order}:",
         "checks": "Checki:",
         "openDataset": "Otwórz ten case w datasecie"
-      }
+      },
+      "notGraded": "bez oceny: {reason}"
     },
     "estimating": "Wyceniam…",
     "sideModel": "{name} · {model}",
     "headline": {
       "first": "To pierwszy wynik {candidate} na datasecie {dataset}: zalicza {rate} case'ów. Kolejne wersje będą z nim porównywane.",
-      "worse": "{candidate} jest gorszy od {baseline} na datasecie {dataset}: {broke, plural, one {# case się zepsuł} few {# case'y się zepsuły} many {# case'ów się zepsuło} other {# case'a się zepsuło}} (potwierdzone), naprawionych: {fixed}. Zaliczone {from} → {to}.",
-      "better": "{candidate} jest lepszy od {baseline} na datasecie {dataset}: {fixed, plural, one {# case naprawiony} few {# case'y naprawione} many {# case'ów naprawionych} other {# case'a naprawionego}} (potwierdzone), zepsutych: {broke}. Zaliczone {from} → {to}.",
-      "no_difference": "{candidate} radzi sobie tak samo jak {baseline} na datasecie {dataset}: żadna zmiana nie utrzymała się w powtórkach. Zaliczone {from} → {to}.",
-      "inconclusive": "Jeszcze nie wiadomo: między {baseline} a {candidate} {changes, plural, one {zmienił się # case} few {zmieniły się # case'y} many {zmieniło się # case'ów} other {zmieniło się # case'a}}, za mało, żeby odróżnić to od szumu. Zaliczone {from} → {to}.",
-      "invalid": "{candidate} i {baseline} nie da się porównać: strony oceniał inny sędzia albo inna rubryka."
+      "worse": "{candidate} psuje {broke, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}}, które przechodziły na {baseline}, za każdym razem ({held} z {tries}): „{question}”{others, plural, =0 {} other { i jeszcze #}}.",
+      "better": "{candidate} naprawia {fixed, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}}, które nie przechodziły na {baseline}, za każdym razem ({held} z {tries}): „{question}”{others, plural, =0 {} other { i jeszcze #}}.",
+      "no_difference": "Brak powtarzalnej zmiany: {candidate} radzi sobie tak samo jak {baseline} na datasecie {dataset}.{changes, plural, =0 {} one { # case zmienił się raz, ale nie przy ponownym pytaniu.} few { # case'y zmieniły się raz, ale nie przy ponownym pytaniu.} many { # case'ów zmieniło się raz, ale nie przy ponownym pytaniu.} other { # case'a zmieniło się raz, ale nie przy ponownym pytaniu.}}",
+      "invalid": "{candidate} i {baseline} nie da się porównać: strony oceniał inny sędzia albo inna rubryka.",
+      "mixed": "Mieszany: {candidate} psuje {broke, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}} i naprawia {fixed} względem {baseline}, za każdym razem. Psuje ({held} z {tries}): „{question}”{others, plural, =0 {} other { i jeszcze #}}.",
+      "overall": "{overall, select, worse {Gorszy ogólnie: po wszystkich potwierdzonych zmianach {candidate} wypada gorzej niż {baseline}.} other {Lepszy ogólnie: po wszystkich potwierdzonych zmianach {candidate} wypada lepiej niż {baseline}.}}",
+      "passRate": "Zaliczone {from} → {to}, każdy case tak, jak wypadła większość jego prób",
+      "firstPassRate": "Same pierwsze odpowiedzi: {from} → {to}"
     },
     "live": {
       "answering": "Gotowe {done} z {total} pierwszych odpowiedzi. Case'y, których wynik się zmieni, zostaną potem powtórzone, żeby to potwierdzić.",
@@ -3966,23 +3974,25 @@
       "label": "Odsetek zaliczonych w czasie",
       "single": "Na razie jeden run. Uruchom kolejny, żeby zobaczyć trend.",
       "legend": "Każdy punkt to run podpisany tym, co uruchomiono; pusty punkt to draft.",
-      "point": "{name} · {model} · {rate} · {verdict, select, better {lepiej} worse {gorzej} no_difference {bez różnicy} inconclusive {jeszcze nie wiadomo} invalid {nieporównywalne} other {pierwszy wynik}}",
+      "point": "{name} · {model} · {rate} · {verdict, select, better {naprawia case'y} worse {psuje case'y} mixed {mieszany} no_difference {brak powtarzalnej zmiany} invalid {nieporównywalne} other {pierwszy wynik}}",
       "baselineOf": "{name} · odniesienie",
-      "draftOn": "{name} {date}"
+      "at": "{name} · {time}"
     },
     "chip": {
       "pending": "W toku",
       "first": "Pierwszy wynik",
-      "better": "Lepiej · naprawione: {fixed}",
-      "worse": "Gorzej · zepsute: {broke}",
-      "no_difference": "Bez różnicy",
-      "inconclusive": "Jeszcze nie wiadomo",
-      "invalid": "Nieporównywalne"
+      "better": "Naprawia: {fixed}",
+      "worse": "Psuje: {broke}",
+      "no_difference": "Brak powtarzalnej zmiany",
+      "invalid": "Nieporównywalne",
+      "mixed": "Mieszany · zepsute: {broke}, naprawione: {fixed}",
+      "overall": "{overall, select, worse {Gorszy ogólnie} other {Lepszy ogólnie}} · zepsute: {broke}, naprawione: {fixed}"
     },
     "row": {
       "against": "{candidate} vs {baseline}",
       "agent": "{agent} · {title}",
-      "rate": "{model} {rate}"
+      "rate": "{model} {rate}",
+      "firstRate": "Same pierwsze odpowiedzi: {rate}"
     },
     "dataset": {
       "emptyTitle": "Żaden agent nie był jeszcze testowany na tym datasecie",
@@ -3993,12 +4003,17 @@
       "untested": "Ten draft nie był testowany od ostatniej zmiany.",
       "test": "Przetestuj",
       "running": "Ten draft jest właśnie testowany.",
-      "result": "{verdict, select, worse {Ostatni test draftu: gorszy od {baseline}, zepsute: {broke}.} better {Ostatni test draftu: lepszy od {baseline}, naprawione: {fixed}.} no_difference {Ostatni test draftu: bez różnicy względem {baseline}.} inconclusive {Ostatni test draftu: jeszcze nie wiadomo względem {baseline}.} invalid {Ostatniego testu draftu nie da się porównać z {baseline}.} other {Ostatni test draftu: pierwszy wynik, bez punktu odniesienia.}}"
+      "result": "{verdict, select, worse {Ostatni test draftu: psuje {broke} względem {baseline}.} better {Ostatni test draftu: naprawia {fixed} względem {baseline}.} mixed {Ostatni test draftu: mieszany względem {baseline}, zepsute: {broke}, naprawione: {fixed}.} no_difference {Ostatni test draftu: brak powtarzalnej zmiany względem {baseline}.} invalid {Ostatniego testu draftu nie da się porównać z {baseline}.} other {Ostatni test draftu: pierwszy wynik, bez punktu odniesienia.}}"
     },
     "review": {
       "send": "{count, plural, one {Wyślij niezaliczony case do Review} few {Wyślij # niezaliczone case'y do Review} many {Wyślij # niezaliczonych case'ów do Review} other {Wyślij # niezaliczonego case'a do Review}}",
       "sent": "{queued, plural, =0 {Nic nowego nie trafiło do Review} one {# case wysłany do Review} few {# case'y wysłane do Review} many {# case'ów wysłanych do Review} other {# case'a wysłanego do Review}}{already, plural, =0 {} other {; # już tam było lub ma decyzję}}."
     },
-    "draftChanged": "Draft zmienił się po tym runie."
+    "draftChanged": "Draft zmienił się po tym runie.",
+    "ungraded": {
+      "count": "{count, plural, one {# odpowiedź nie została oceniona: sędzia zawiódł albo został pominięty, więc nie liczy się ani jako zaliczona, ani jako oblana.} few {# odpowiedzi nie zostały ocenione: sędzia zawiódł albo został pominięty, więc nie liczą się ani jako zaliczone, ani jako oblane.} many {# odpowiedzi nie zostało ocenionych: sędzia zawiódł albo został pominięty, więc nie liczą się ani jako zaliczone, ani jako oblane.} other {# odpowiedzi nie zostało ocenionych: sędzia zawiódł albo został pominięty, więc nie liczą się ani jako zaliczone, ani jako oblane.}}",
+      "again": "Oceń ponownie",
+      "done": "{count, plural, =0 {Nic nie zostało ocenione ponownie} one {# odpowiedź oceniona ponownie} few {# odpowiedzi ocenione ponownie} many {# odpowiedzi ocenionych ponownie} other {# odpowiedzi ocenionych ponownie}}"
+    }
   }
 }

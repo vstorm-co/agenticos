@@ -6083,11 +6083,11 @@
       "side": "{candidate} · {model} · Dataset v{dataset} · {date}",
       "unfinished": "nicht abgeschlossen",
       "verdict": {
-        "better": "Besser",
-        "worse": "Schlechter",
-        "no_difference": "Kein Unterschied",
-        "inconclusive": "Noch unklar",
-        "invalid": "Nicht vergleichbar"
+        "better": "Behebt Fälle",
+        "worse": "Macht Fälle kaputt",
+        "no_difference": "Keine reproduzierbare Änderung",
+        "invalid": "Nicht vergleichbar",
+        "mixed": "Gemischt"
       },
       "regressionsConfirmed": "Bestätigte Regressionen",
       "regressionsUnconfirmed": "Unbestätigte Regressionen",
@@ -6109,7 +6109,11 @@
       },
       "confirmedHint": "Bestätigt: Die Änderung hielt bei jeder Wiederholung.",
       "unconfirmedHint": "Unbestätigt: Bei der Wiederholung kam es mal so, mal anders heraus.",
-      "glossary": "Bestätigt: Die Änderung hielt bei jeder Wiederholung. Unbestätigt: Bei der Wiederholung kam es mal so, mal anders heraus."
+      "glossary": "Bestätigt: Die Änderung hielt bei jeder Wiederholung. Unbestätigt: Bei der Wiederholung kam es mal so, mal anders heraus.",
+      "overall": {
+        "worse": "Insgesamt schlechter",
+        "better": "Insgesamt besser"
+      }
     },
     "arms": {
       "title": "Nebeneinander",
@@ -6174,17 +6178,21 @@
         "calls": "Erwartete Aufrufe, {order}:",
         "checks": "Checks:",
         "openDataset": "Diesen Fall im Dataset öffnen"
-      }
+      },
+      "notGraded": "nicht bewertet: {reason}"
     },
     "estimating": "Wird geschätzt…",
     "sideModel": "{name} · {model}",
     "headline": {
       "first": "Das ist das erste Ergebnis von {candidate} auf {dataset}: {rate} der Fälle bestehen. Spätere Versionen werden damit verglichen.",
-      "worse": "{candidate} ist schlechter als {baseline} auf {dataset}: {broke, plural, =1 {1 Fall ist kaputtgegangen} other {# Fälle sind kaputtgegangen}} (bestätigt), {fixed} behoben. Bestehensquote {from} → {to}.",
-      "better": "{candidate} ist besser als {baseline} auf {dataset}: {fixed, plural, =1 {1 Fall behoben} other {# Fälle behoben}} (bestätigt), {broke} kaputtgegangen. Bestehensquote {from} → {to}.",
-      "no_difference": "{candidate} schneidet auf {dataset} so gut ab wie {baseline}: Keine Änderung hielt bei den Wiederholungen. Bestehensquote {from} → {to}.",
-      "inconclusive": "Noch unklar: {changes, plural, =1 {1 Fall hat sich} other {# Fälle haben sich}} zwischen {baseline} und {candidate} geändert, zu wenige, um sie von Rauschen zu unterscheiden. Bestehensquote {from} → {to}.",
-      "invalid": "{candidate} und {baseline} lassen sich nicht vergleichen: Die Seiten wurden von einem anderen Judge oder nach einer anderen Rubrik bewertet."
+      "worse": "{candidate} macht {broke, plural, =1 {1 Fall} other {# Fälle}} kaputt, die auf {baseline} bestanden, bei jeder Frage ({held} von {tries}): „{question}“{others, plural, =0 {} other { und # weitere}}.",
+      "better": "{candidate} behebt {fixed, plural, =1 {1 Fall} other {# Fälle}}, die auf {baseline} durchfielen, bei jeder Frage ({held} von {tries}): „{question}“{others, plural, =0 {} other { und # weitere}}.",
+      "no_difference": "Keine Änderung hielt: {candidate} schneidet auf {dataset} so gut ab wie {baseline}.{changes, plural, =0 {} =1 { 1 Fall änderte sich einmal, aber nicht bei erneuter Frage.} other { # Fälle änderten sich einmal, aber nicht bei erneuter Frage.}}",
+      "invalid": "{candidate} und {baseline} lassen sich nicht vergleichen: Die Seiten wurden von einem anderen Judge oder nach einer anderen Rubrik bewertet.",
+      "mixed": "Gemischt: {candidate} macht gegenüber {baseline} {broke, plural, =1 {1 Fall} other {# Fälle}} kaputt und behebt {fixed}, bei jeder Frage. Kaputt ({held} von {tries}): „{question}“{others, plural, =0 {} other { und # weitere}}.",
+      "overall": "{overall, select, worse {Insgesamt schlechter: Über alle bestätigten Änderungen schneidet {candidate} schlechter ab als {baseline}.} other {Insgesamt besser: Über alle bestätigten Änderungen schneidet {candidate} besser ab als {baseline}.}}",
+      "passRate": "Bestehensquote {from} → {to}, jeder Fall so, wie die meisten seiner Versuche ausfielen",
+      "firstPassRate": "Nur die ersten Antworten: {from} → {to}"
     },
     "live": {
       "answering": "{done} von {total} ersten Antworten da. Fälle, deren Ergebnis sich ändert, werden danach wiederholt, um es zu bestätigen.",
@@ -6203,23 +6211,25 @@
       "label": "Bestehensquote im Zeitverlauf",
       "single": "Bisher ein Run. Starte einen weiteren, um einen Trend zu sehen.",
       "legend": "Jeder Punkt ist ein Run, beschriftet mit dem, was lief; ein hohler Punkt ist ein Entwurf.",
-      "point": "{name} · {model} · {rate} · {verdict, select, better {besser} worse {schlechter} no_difference {kein Unterschied} inconclusive {noch unklar} invalid {nicht vergleichbar} other {erstes Ergebnis}}",
+      "point": "{name} · {model} · {rate} · {verdict, select, better {behebt Fälle} worse {macht Fälle kaputt} mixed {gemischt} no_difference {keine reproduzierbare Änderung} invalid {nicht vergleichbar} other {erstes Ergebnis}}",
       "baselineOf": "{name} · verglichen mit",
-      "draftOn": "{name} {date}"
+      "at": "{name} · {time}"
     },
     "chip": {
       "pending": "Läuft",
       "first": "Erstes Ergebnis",
-      "better": "Besser · {fixed} behoben",
-      "worse": "Schlechter · {broke} kaputt",
-      "no_difference": "Kein Unterschied",
-      "inconclusive": "Noch unklar",
-      "invalid": "Nicht vergleichbar"
+      "better": "Behebt {fixed}",
+      "worse": "Macht {broke} kaputt",
+      "no_difference": "Keine reproduzierbare Änderung",
+      "invalid": "Nicht vergleichbar",
+      "mixed": "Gemischt · {broke} kaputt, {fixed} behoben",
+      "overall": "{overall, select, worse {Insgesamt schlechter} other {Insgesamt besser}} · {broke} kaputt, {fixed} behoben"
     },
     "row": {
       "against": "{candidate} vs. {baseline}",
       "agent": "{agent} · {title}",
-      "rate": "{model} {rate}"
+      "rate": "{model} {rate}",
+      "firstRate": "Nur die ersten Antworten: {rate}"
     },
     "dataset": {
       "emptyTitle": "Auf diesem Dataset wurde noch kein Agent getestet",
@@ -6230,12 +6240,17 @@
       "untested": "Dieser Entwurf wurde seit seiner letzten Änderung nicht getestet.",
       "test": "Testen",
       "running": "Dieser Entwurf wird gerade getestet.",
-      "result": "{verdict, select, worse {Letzter Test des Entwurfs: schlechter als {baseline}, {broke} kaputt.} better {Letzter Test des Entwurfs: besser als {baseline}, {fixed} behoben.} no_difference {Letzter Test des Entwurfs: kein Unterschied zu {baseline}.} inconclusive {Letzter Test des Entwurfs: noch unklar gegenüber {baseline}.} invalid {Der letzte Test des Entwurfs ließ sich nicht mit {baseline} vergleichen.} other {Letzter Test des Entwurfs: das erste Ergebnis, ohne Vergleich.}}"
+      "result": "{verdict, select, worse {Letzter Test des Entwurfs: macht gegenüber {baseline} {broke} kaputt.} better {Letzter Test des Entwurfs: behebt gegenüber {baseline} {fixed}.} mixed {Letzter Test des Entwurfs: gemischt gegenüber {baseline}, {broke} kaputt, {fixed} behoben.} no_difference {Letzter Test des Entwurfs: keine Änderung hielt gegenüber {baseline}.} invalid {Der letzte Test des Entwurfs ließ sich nicht mit {baseline} vergleichen.} other {Letzter Test des Entwurfs: das erste Ergebnis, ohne Vergleich.}}"
     },
     "review": {
       "send": "{count, plural, =1 {Den nicht bestandenen Fall zur Prüfung senden} other {# nicht bestandene Fälle zur Prüfung senden}}",
       "sent": "{queued, plural, =0 {Nichts Neues zur Prüfung gesendet} =1 {1 Fall zur Prüfung gesendet} other {# Fälle zur Prüfung gesendet}}{already, plural, =0 {} other {; # waren schon dort oder entschieden}}."
     },
-    "draftChanged": "Der Entwurf hat sich nach diesem Run geändert."
+    "draftChanged": "Der Entwurf hat sich nach diesem Run geändert.",
+    "ungraded": {
+      "count": "{count, plural, =1 {1 Antwort wurde nicht bewertet: Der Judge ist gescheitert oder wurde übersprungen, sie zählt weder als bestanden noch als durchgefallen.} other {# Antworten wurden nicht bewertet: Der Judge ist gescheitert oder wurde übersprungen, sie zählen weder als bestanden noch als durchgefallen.}}",
+      "again": "Erneut bewerten",
+      "done": "{count, plural, =0 {Nichts wurde erneut bewertet} =1 {1 Antwort erneut bewertet} other {# Antworten erneut bewertet}}"
+    }
   }
 }

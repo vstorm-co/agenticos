@@ -4,64 +4,18 @@ import Link from "next/link";
 import { GitCompare, ListFilter, RotateCcw, Square } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { Badge, Button, Card, CardContent, Progress } from "@/components/ui";
+import { Button, Card, CardContent, Progress } from "@/components/ui";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
-import type { EvalComparison, EvalRun, EvalRunArm, Verdict } from "@/types/eval-runs";
+import type { EvalComparison, EvalRun, EvalRunArm } from "@/types/eval-runs";
 import { Perm } from "@/types/permissions";
 import { EvalStatusBadge } from "./eval-status-badge";
-import { percent, usd } from "./format";
+import { usd } from "./format";
 import { sideName } from "./names";
 import { SendToReviewButton } from "./send-to-review-button";
-
-export const VERDICT_TONE: Record<Verdict, "success" | "destructive" | "secondary" | "warning"> = {
-  better: "success",
-  worse: "destructive",
-  no_difference: "secondary",
-  inconclusive: "secondary",
-  invalid: "warning",
-};
-
-/** The verdict as a sentence a person reads first: who did better, by how much, on what. */
-function Headline({
-  run,
-  candidate,
-  comparison,
-}: {
-  run: EvalRun;
-  candidate: EvalRunArm;
-  comparison: EvalComparison;
-}) {
-  const t = useTranslations("evals");
-  const locale = useLocale();
-  const { baseline, verdict } = comparison;
-  const values = {
-    candidate: sideName(candidate, t),
-    dataset: run.dataset_name,
-    to: percent(comparison.candidate_summary.pass_rate, locale),
-  };
-  if (baseline === null || verdict === null) {
-    return <>{t("headline.first", { ...values, rate: values.to })}</>;
-  }
-  const changes =
-    comparison.regressions_confirmed +
-    comparison.regressions_unconfirmed +
-    comparison.fixed_confirmed +
-    comparison.fixed_unconfirmed;
-  return (
-    <>
-      {t(`headline.${verdict}`, {
-        ...values,
-        baseline: sideName(baseline, t),
-        from: percent(comparison.baseline_summary?.pass_rate ?? null, locale),
-        broke: comparison.regressions_confirmed,
-        fixed: comparison.fixed_confirmed,
-        changes,
-      })}
-    </>
-  );
-}
+import { UngradedNote } from "./ungraded-note";
+import { VerdictBadge, VerdictHeadline } from "./verdict-headline";
 
 /**
  * The top of a run's page: what was run, then - once both sides have finished -
@@ -110,14 +64,12 @@ export function VerdictHeader({
               })}
             </p>
             {!live && candidate && comparison && (
-              <h1 className="flex flex-wrap items-center gap-2 text-lg font-semibold">
-                {comparison.verdict && (
-                  <Badge variant={VERDICT_TONE[comparison.verdict]}>
-                    {t(`comparison.verdict.${comparison.verdict}`)}
-                  </Badge>
-                )}
-                <Headline run={run} candidate={candidate} comparison={comparison} />
-              </h1>
+              <>
+                <VerdictBadge comparison={comparison} />
+                <h1 className="space-y-1 text-lg font-semibold">
+                  <VerdictHeadline run={run} candidate={candidate} comparison={comparison} />
+                </h1>
+              </>
             )}
             {comparison?.invalid_reason && (
               <p className="text-muted-foreground text-sm">{comparison.invalid_reason}</p>
@@ -157,6 +109,7 @@ export function VerdictHeader({
           })}
         </p>
         {run.error && <p className="text-destructive text-sm">{run.error}</p>}
+        {!live && <UngradedNote run={run} />}
 
         {!live && candidate && (
           <div className="flex flex-wrap gap-2">
@@ -201,7 +154,7 @@ export function VerdictHeader({
                 variant={
                   comparison &&
                   comparison.regressions_confirmed === 0 &&
-                  comparison.verdict !== "worse"
+                  comparison.overall !== "worse"
                     ? "default"
                     : "outline"
                 }

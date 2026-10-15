@@ -18,6 +18,7 @@ export const SUMMARY: ArmSummary = {
   failed: 1,
   incomplete: 0,
   pass_rate: 0.75,
+  first_pass_rate: 0.75,
   cost_usd: "0.040000",
   cost_per_pass_usd: "0.013333",
   avg_tokens: 120.4,
@@ -67,6 +68,7 @@ export function evalRun(overrides: Partial<EvalRun> = {}): EvalRun {
     first_done: 4,
     first_total: 4,
     outcome: null,
+    ungraded_score_ids: [],
     error: null,
     created_by_user_id: "u1",
     created_at: "2026-10-14T10:00:00Z",
@@ -128,6 +130,8 @@ export const CANDIDATE_ESTIMATE: ArmEstimate = {
 
 export const FLIP: CaseFlip = {
   case_id: "case-1",
+  // i18n-exempt: a dataset case's question in a fixture, not console copy
+  input: "How long do I have to return it?",
   flip: "regression",
   confirmed: true,
   baseline: true,
@@ -187,7 +191,8 @@ export function comparison(overrides: Partial<EvalComparison> = {}): EvalCompari
       finished_at: null,
     },
     paired: false,
-    verdict: "inconclusive",
+    verdict: "worse",
+    overall: null,
     p_value: 1,
     invalid_reason: null,
     regressions_confirmed: 1,

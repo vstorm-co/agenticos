@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import type { PassRateLine, PassRatePoint } from "@/components/charts/pass-rate-lines.impl";
 import { CHART_MIN_HEIGHT } from "@/lib/dashboard/system";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { EvalRun, EvalRunArm } from "@/types/eval-runs";
 import { percent } from "./format";
 import { sideName } from "./names";
@@ -24,9 +24,11 @@ type Translate = (key: string, values?: Record<string, string | number>) => stri
 
 /**
  * Finished runs as lines over time, one per group - a dataset on an agent's
- * page, an agent on a dataset's. A point is the candidate's pass rate over
- * every case, a person's decision counted before the scorers', which is the
- * number the run's own page shows.
+ * page, an agent on a dataset's. A point is the candidate's pass rate, each
+ * case as it settled, which is the number the run's own page shows. Beside it,
+ * dashed, the baseline each run was measured against - once per measurement:
+ * a baseline several runs reused from one earlier run is one point, at the
+ * time it was answered.
  */
 export function passRateLines(
   runs: EvalRun[],
@@ -41,6 +43,8 @@ export function passRateLines(
     return line;
   };
   const colors = new Map<string, string>();
+  const measured = new Set<string>();
+  const runOfArm = new Map(runs.flatMap((run) => run.arms.map((arm) => [arm.id, run] as const)));
   const finished = runs
     .filter((run) => run.status === "completed")
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
@@ -60,16 +64,33 @@ export function passRateLines(
     // What the candidate was measured against, the same run - so a drop on one
     // line reads beside whether the other moved too.
     const baseline = run.arms.find((item) => item.role === "baseline");
-    if (baseline !== undefined && baseline.summary.pass_rate !== null) {
-      lineOf(`${key}:baseline`, t("trend.baselineOf", { name }), true, color).points.push(
-        point(baseline, baseline.summary.pass_rate, at, "none", t, locale),
-      );
-    }
+    const answered = baseline?.reused_from_arm_id ?? baseline?.id;
+    if (baseline === undefined || answered === undefined || measured.has(answered)) continue;
+    measured.add(answered);
+    if (baseline.summary.pass_rate === null) continue;
+    const original = runOfArm.get(answered)?.created_at ?? run.outcome?.baseline?.finished_at;
+    lineOf(`${key}:baseline`, t("trend.baselineOf", { name }), true, color).points.push(
+      point(
+        baseline,
+        baseline.summary.pass_rate,
+        Date.parse(original ?? run.created_at),
+        "none",
+        t,
+        locale,
+        true,
+      ),
+    );
   }
+  // A reused baseline is drawn when it was answered, which can be before the run reusing it.
+  for (const line of lines.values()) line.points.sort((a, b) => a.at - b.at);
   return [...lines.values()];
 }
 
-/** One run's side as a point: labelled with its version, or a draft with its date. */
+/**
+ * One run's side as a point: labelled with its version, or - for a draft, and
+ * for a baseline, which is a measurement of a version at one time - with the
+ * time it was answered.
+ */
 function point(
   arm: EvalRunArm,
   rate: number,
@@ -77,11 +98,11 @@ function point(
   verdict: string,
   t: Translate,
   locale: string,
+  timed = false,
 ): PassRatePoint {
   const draft = arm.source !== "version";
-  const label = draft
-    ? t("trend.draftOn", { name: sideName(arm, t), date: formatDate(new Date(at), locale) })
-    : sideName(arm, t);
+  const time = new Date(at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  const label = draft || timed ? t("trend.at", { name: sideName(arm, t), time }) : sideName(arm, t);
   return {
     at,
     rate,

@@ -37,7 +37,9 @@ export function DraftEvalNote({ agentId, onTest }: { agentId: string; onTest: ()
       ? "border-destructive/40 text-destructive"
       : outcome?.verdict === "better"
         ? "border-success/40 text-success"
-        : "text-muted-foreground";
+        : outcome?.verdict === "mixed"
+          ? "border-warning/40 text-warning"
+          : "text-muted-foreground";
   return (
     <Link
       href={`${ROUTES.AGENTS}/${agentId}/evals/${run.id}`}

@@ -16,7 +16,9 @@ export type ArmSource = "version" | "draft" | "explicit";
 export type AttemptStatus = "pending" | "running" | "done" | "failed" | "skipped";
 export type CallOutcome = "executed" | "blocked" | "replayed" | "divergent";
 export type Flip = "regression" | "fixed" | "unchanged" | "incomplete";
-export type Verdict = "better" | "worse" | "no_difference" | "inconclusive" | "invalid";
+export type Verdict = "better" | "worse" | "mixed" | "no_difference" | "invalid";
+/** Which way the candidate moved as a whole, when the confirmed flips can tell. */
+export type Overall = "better" | "worse";
 export type Trend = "better" | "worse" | "unchanged" | "unknown";
 export type EstimateBasis = "history" | "fallback" | "cached";
 export type CaseOutcomeFilter = "passed" | "failed" | "undecided";
@@ -63,13 +65,16 @@ export interface EvalRunEstimate {
   affordable: boolean;
 }
 
-/** Both axes for one arm over its first attempts. */
+/** Both axes for one arm: quality as each case settled on its attempts, efficiency over first ones. */
 export interface ArmSummary {
   cases: number;
   passed: number;
   failed: number;
   incomplete: number;
+  /** Each case settled by the majority of its attempts - its first alone when it was not rerun. */
   pass_rate: number | null;
+  /** The first attempts alone, reruns aside. */
+  first_pass_rate: number | null;
   cost_usd: string;
   cost_per_pass_usd: string | null;
   avg_tokens: number | null;
@@ -101,11 +106,14 @@ export interface EvalRunArm {
 export interface EvalOutcome {
   candidate_arm_id: string;
   verdict: Verdict | null;
+  overall: Overall | null;
   baseline: ComparisonSide | null;
   regressions_confirmed: number;
   fixed_confirmed: number;
   candidate_pass_rate: number | null;
   baseline_pass_rate: number | null;
+  candidate_first_pass_rate: number | null;
+  baseline_first_pass_rate: number | null;
 }
 
 export interface EvalRun {
@@ -135,6 +143,8 @@ export interface EvalRun {
   first_total: number;
   /** The verdict once the run has ended; null while it answers. */
   outcome: EvalOutcome | null;
+  /** This run's scores no scorer reached a verdict on and no person decided. */
+  ungraded_score_ids: string[];
   /** On the single-run read of a run of the draft: whether the draft changed since. */
   draft_changed?: boolean | null;
   error: string | null;
@@ -204,6 +214,8 @@ export interface ComparisonSide {
 
 export interface CaseFlip {
   case_id: string;
+  /** The question the case asks. */
+  input: string;
   flip: Flip;
   confirmed: boolean;
   baseline: boolean | null;
@@ -226,6 +238,7 @@ export interface EvalComparison {
   baseline: ComparisonSide | null;
   paired: boolean;
   verdict: Verdict | null;
+  overall: Overall | null;
   p_value: number | null;
   invalid_reason: string | null;
   regressions_confirmed: number;

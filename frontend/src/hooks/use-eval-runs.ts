@@ -15,6 +15,7 @@ import type {
   EvalRunRequest,
   EvalRunStatus,
 } from "@/types/eval-runs";
+import type { Rescored } from "@/types/scoring";
 
 /** How often a run still answering cases is read again. */
 export const LIVE_POLL_MS = 3_000;
@@ -167,6 +168,8 @@ export function useEvalComparison(
 
 /** The most score ids one review request takes - the API's own ceiling. */
 const REVIEW_BATCH = 500;
+/** The most scores the dataset's endpoint grades again in one request. */
+const RESCORE_BATCH = 10;
 /** The most cases one page of a run's cases holds. */
 const CASE_PAGE = 100;
 
@@ -206,6 +209,33 @@ export function useSendToReview(runId: string, datasetId: string) {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: qk.datasets.allScores(datasetId) }),
         queryClient.invalidateQueries({ queryKey: qk.datasets.allReviewQueue() }),
+      ]),
+  });
+}
+
+/**
+ * Grades again the run's answers a scorer reached no verdict on - the judge
+ * errored or was skipped. The agent is not run again; the dataset's endpoint
+ * takes ten scores a request, so they go in batches, and the runs' verdicts and
+ * the dataset's scores are read afresh whatever the outcome.
+ */
+export function useRescoreRun(datasetId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (scoreIds: string[]) => {
+      let rescored = 0;
+      for (let at = 0; at < scoreIds.length; at += RESCORE_BATCH) {
+        const batch = await apiClient.post<Rescored>(`/datasets/${datasetId}/scores/rescore`, {
+          score_ids: scoreIds.slice(at, at + RESCORE_BATCH),
+        });
+        rescored += batch.rescored.length;
+      }
+      return rescored;
+    },
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.evalRuns.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.datasets.allScores(datasetId) }),
       ]),
   });
 }

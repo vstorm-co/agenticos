@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
+import { reasonKeyOf } from "@/lib/scoring";
 import type { DatasetCaseContent } from "@/types/datasets";
 import type { CallOutcome, EvalAttempt, EvalRunArm } from "@/types/eval-runs";
 import { seconds, usd } from "./format";
@@ -19,12 +20,20 @@ const CALL_TONE: Record<CallOutcome, "secondary" | "warning" | "outline"> = {
 
 function Attempt({ attempt }: { attempt: EvalAttempt }) {
   const t = useTranslations("evals.case");
+  const tScoring = useTranslations("datasets.scoring");
   const locale = useLocale();
+  // An answer no scorer reached a verdict on is not graded, not merely undecided.
+  const why = attempt.outcome === null ? (attempt.score?.unscored_reason ?? null) : null;
+  const known = reasonKeyOf(why);
   return (
     <div className="space-y-2 rounded-md border p-3">
       <p className="text-muted-foreground flex flex-wrap gap-x-3 text-xs">
         <span>{attempt.attempt === 0 ? t("firstAnswer") : t("rerun", { n: attempt.attempt })}</span>
-        <span>{t(`outcome.${String(attempt.outcome)}`)}</span>
+        <span>
+          {why === null
+            ? t(`outcome.${String(attempt.outcome)}`)
+            : t("notGraded", { reason: known ? tScoring(known) : why })}
+        </span>
         <span>{usd(attempt.cost_usd, locale)}</span>
         <span>{seconds(attempt.latency_ms, locale)}</span>
       </p>

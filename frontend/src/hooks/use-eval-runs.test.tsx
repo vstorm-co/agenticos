@@ -15,6 +15,7 @@ import {
   useEvalRun,
   useEvalRuns,
   useRecentEvalRuns,
+  useRescoreRun,
   useSendToReview,
 } from "./use-eval-runs";
 
@@ -205,6 +206,35 @@ describe("useEvalComparison while the run is live", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("useRescoreRun", () => {
+  it("grades the scores again ten a request, and reads the runs afresh even when one fails", async () => {
+    const ids = Array.from({ length: 12 }, (_, n) => `s${n}`);
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ rescored: ids.slice(0, 10).map((id) => ({ id })), kept: [] })
+      .mockResolvedValueOnce({ rescored: [{ id: "s10" }], kept: ["s11"] });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useRescoreRun("ds-1"), { wrapper });
+
+    let graded: unknown;
+    await act(async () => {
+      graded = await result.current.mutateAsync(ids);
+    });
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, "/datasets/ds-1/scores/rescore", {
+      score_ids: ["s10", "s11"],
+    });
+    expect(graded).toBe(11);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["eval-runs"] });
+
+    invalidate.mockClear();
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("judge down"));
+    await act(async () => {
+      await result.current.mutateAsync(["s1"]).catch(() => undefined);
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["eval-runs"] });
   });
 });
 

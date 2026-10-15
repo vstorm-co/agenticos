@@ -15,7 +15,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
-const review = vi.hoisted(() => ({ canEdit: false, mutate: vi.fn() }));
+const review = vi.hoisted(() => ({ canEdit: false, mutate: vi.fn(), rescore: vi.fn() }));
 vi.mock("@/hooks/use-datasets", () => ({
   useDataset: () => ({ dataset: { can_edit: review.canEdit } }),
 }));
@@ -43,6 +43,7 @@ vi.mock("@/hooks/use-eval-runs", async (importOriginal) => {
       return state.cases;
     },
     useSendToReview: () => ({ mutate: review.mutate, isPending: false }),
+    useRescoreRun: () => ({ mutate: review.rescore, isPending: false }),
     useEvalComparison: (...args: unknown[]) => {
       state.comparisonArgs.push(args);
       return { comparison: state.comparison, refetch: state.refetchComparison };
@@ -88,6 +89,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   review.canEdit = false;
   review.mutate = vi.fn();
+  review.rescore = vi.fn();
   access.allowed = new Set();
   state.casesArgs = [];
   state.comparisonArgs = [];
@@ -103,9 +105,14 @@ describe("EvalRunView", () => {
     expect(screen.getByText("refunds v3 · v7")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: /Not sure yet.*2 cases changed between Draft and v7/,
+        name: /v7 breaks 1 case that passed on Draft, every time it was asked \(3 of 3\): “How long do I have to return it\?”\./,
       }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Breaks cases")).toBeInTheDocument();
+    // Each case as it settled, the first answers alone on hover.
+    expect(screen.getByTitle("First answers alone: 75% → 75%")).toHaveTextContent(
+      "Pass rate 75% → 75%",
+    );
     expect(screen.getByText("4 cases · 4 answers + no confirming reruns")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -143,7 +150,7 @@ describe("EvalRunView", () => {
 
     expect(
       screen.getByRole("heading", {
-        name: /Draft is worse than v6 on refunds: 4 cases broke \(confirmed\), 0 fixed\. Pass rate 67% → 22%\./,
+        name: /Draft breaks 4 cases that passed on v6, every time it was asked \(3 of 3\): “How long do I have to return it\?” and 3 more\..*Pass rate 67% → 22%/,
       }),
     ).toBeInTheDocument();
     expect(screen.getByText(/4 answers \+ 2 confirming reruns/)).toBeInTheDocument();
@@ -172,22 +179,84 @@ describe("EvalRunView", () => {
       ...(state.comparison as object),
       verdict: "better",
       regressions_confirmed: 0,
+      fixed_confirmed: 1,
+      cases: [
+        { ...FLIP, flip: "fixed", baseline: false, candidate: true, candidate_reruns: [true] },
+      ],
     };
     access.allowed = new Set([Perm.agentsPublish]);
     const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
-    expect(screen.getByRole("heading", { name: /Draft is better than v6/ })).toBeVisible();
+    expect(
+      screen.getByRole("heading", {
+        name: /Draft fixes 1 case that failed on v6, every time it was asked \(2 of 2\)/,
+      }),
+    ).toBeVisible();
     expect(screen.getByRole("link", { name: "Publish" }).className).toContain("bg-primary");
     unmount();
 
-    // A confirmed regression is a reason not to publish, even when the sample
-    // is too small for a verdict.
+    // A confirmed regression is a reason not to publish, beside any number of fixes.
     state.comparison = {
       ...(state.comparison as object),
-      verdict: "inconclusive",
+      verdict: "mixed",
       regressions_confirmed: 3,
+      cases: [FLIP],
     };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("Mixed")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /Mixed: Draft breaks 3 cases and fixes 1 against v6/ }),
+    ).toBeVisible();
     expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-primary");
+  });
+
+  it("says when the confirmed changes make it worse as a whole", () => {
+    worseDraft();
+    state.comparison = { ...(state.comparison as object), overall: "worse" };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("Worse overall")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: /Worse overall: across every confirmed change, Draft does worse than v6\./,
+      }),
+    ).toBeVisible();
+  });
+
+  it("says no change held when nothing reproduced", () => {
+    state.comparison = comparison({
+      verdict: "no_difference",
+      regressions_confirmed: 0,
+      regressions_unconfirmed: 1,
+      fixed_unconfirmed: 1,
+      cases: [],
+    });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("No reproducible change")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: /No change held: v7 does as well as Draft on refunds\. 2 cases changed once and not when asked again\./,
+      }),
+    ).toBeVisible();
+  });
+
+  it("grades again the answers the judge left ungraded, for who may run the dataset", async () => {
+    state.run = { ...state.run, run: evalRun({ ungraded_score_ids: ["s1", "s2"] }) };
+    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText(/2 answers were not graded/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Grade again" })).toBeNull();
+    unmount();
+
+    access.allowed = new Set([Perm.datasetsRun]);
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByRole("button", { name: "Grade again" }));
+    expect(review.rescore).toHaveBeenCalledWith(["s1", "s2"], expect.any(Object));
+    const { onSuccess, onError } = review.rescore.mock.calls[0]![1] as {
+      onSuccess: (count: number) => void;
+      onError: (failure: Error) => void;
+    };
+    onSuccess(2);
+    expect(toastSuccess).toHaveBeenCalledWith("2 answers graded again");
+    onError(new Error("judge down"));
+    expect(toastError).toHaveBeenCalled();
   });
 
   it("shows no verdict for a run with no candidate to give one about", () => {

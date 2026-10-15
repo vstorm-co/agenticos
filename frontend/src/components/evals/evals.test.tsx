@@ -11,12 +11,14 @@ import {
   comparison,
   evalRun,
 } from "@/test-utils/eval-runs";
+import { caseScore } from "@/test-utils/scores";
 import { ArmsTable } from "./arms-table";
 import { CaseDetail } from "./case-detail";
 import { ComparisonCard } from "./comparison-card";
 import { EstimateSummary } from "./estimate-summary";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { EvalsPanel } from "./evals-panel";
+import { VerdictChip } from "./run-row";
 import { sideName } from "./names";
 import { passRateLines } from "./pass-rate-chart";
 import { percent, seconds, usd } from "./format";
@@ -78,6 +80,9 @@ function worse(overrides: Parameters<typeof evalRun>[0] = {}) {
       fixed_confirmed: 0,
       candidate_pass_rate: 0.75,
       baseline_pass_rate: 1,
+      overall: null,
+      candidate_first_pass_rate: null,
+      baseline_first_pass_rate: null,
     },
     ...overrides,
   });
@@ -122,11 +127,68 @@ describe("passRateLines", () => {
     ]);
     const [refunds, baseline] = lines;
     expect(refunds?.points.map((point) => [point.label, point.draft])).toEqual([
-      ["trend.draftOn:draft|Oct 14, 2026", true],
+      ["trend.at:draft|12:00 PM", true],
       ["version:7", false],
     ]);
     expect(refunds?.points[1]?.detail).toBe("trend.point:version:7|gpt-4.1|75%|worse");
-    expect(baseline?.points.map((point) => [point.label, point.rate])).toEqual([["version:6", 1]]);
+    expect(baseline?.points.map((point) => [point.label, point.rate])).toEqual([
+      ["trend.at:version:6|12:00 PM", 1],
+    ]);
+  });
+
+  it("draws a baseline several runs reused once, at the time it was answered", () => {
+    const reused = (id: string, from: string, rate: number | null = 1) =>
+      arm({
+        id,
+        role: "baseline",
+        version_number: 6,
+        reused_from_arm_id: from,
+        summary: { ...SUMMARY, pass_rate: rate },
+      });
+    const lines = passRateLines(
+      [
+        evalRun({
+          id: "first",
+          created_at: "2026-10-14T10:00:00Z",
+          arms: [arm(), arm({ id: "base", role: "baseline", version_number: 6 })],
+        }),
+        evalRun({
+          id: "second",
+          created_at: "2026-10-14T11:00:00Z",
+          arms: [arm({ id: "c2" }), reused("again", "base")],
+        }),
+        worse({
+          id: "third",
+          created_at: "2026-10-14T12:00:00Z",
+          arms: [arm({ id: "c3" }), reused("elsewhere", "gone")],
+          outcome: {
+            ...worse().outcome!,
+            candidate_arm_id: "c3",
+            baseline: { ...worse().outcome!.baseline!, finished_at: "2026-10-13T08:00:00Z" },
+          },
+        }),
+        evalRun({
+          id: "unrated",
+          created_at: "2026-10-14T13:00:00Z",
+          arms: [arm({ id: "c4" }), reused("blank", "lost", null)],
+        }),
+        evalRun({
+          id: "unknown",
+          created_at: "2026-10-14T14:00:00Z",
+          arms: [arm({ id: "c5" }), reused("orphan", "nowhere")],
+        }),
+      ],
+      () => ({ key: "refunds", name: "refunds" }),
+      t,
+      "en",
+    );
+
+    const baseline = lines.find((line) => line.dashed);
+    expect(baseline?.points.map((point) => [point.label, point.at])).toEqual([
+      ["trend.at:version:6|10:00 AM", Date.parse("2026-10-13T08:00:00Z")],
+      ["trend.at:version:6|12:00 PM", Date.parse("2026-10-14T10:00:00Z")],
+      ["trend.at:version:6|04:00 PM", Date.parse("2026-10-14T14:00:00Z")],
+    ]);
   });
 });
 
@@ -162,7 +224,7 @@ describe("EvalsPanel", () => {
 
     const compared = screen.getByRole("link", { name: /v7 vs v6/ });
     expect(compared).toHaveAttribute("href", "/agents/agent-1/evals/run-1");
-    expect(within(compared).getByText("Worse · 4 broke")).toBeInTheDocument();
+    expect(within(compared).getByText("Breaks 4")).toBeInTheDocument();
     expect(within(compared).getByText("gpt-4.1 75%")).toBeInTheDocument();
     expect(within(compared).getByText("claude 75%")).toBeInTheDocument();
     expect(within(compared).queryByText("Completed")).toBeNull();
@@ -421,6 +483,18 @@ describe("ArmsTable", () => {
   });
 });
 
+describe("VerdictChip", () => {
+  it("says which way a run moved as a whole when the confirmed flips can tell", () => {
+    const overall = (direction: "worse" | "better") =>
+      worse({ outcome: { ...worse().outcome!, overall: direction, fixed_confirmed: 1 } });
+    const { unmount } = render(<VerdictChip run={overall("worse")} />);
+    expect(screen.getByText("Worse overall · 4 broke, 1 fixed")).toBeInTheDocument();
+    unmount();
+    render(<VerdictChip run={overall("better")} />);
+    expect(screen.getByText("Better overall · 4 broke, 1 fixed")).toBeInTheDocument();
+  });
+});
+
 describe("CaseDetail", () => {
   it("shows each arm's answers, calls and scorer reasons side by side", () => {
     render(
@@ -449,6 +523,18 @@ describe("CaseDetail", () => {
           }),
           attempt({ id: "attempt-2", attempt: 1, outcome: false, answer: null, error: "boom" }),
           attempt({ id: "attempt-3", arm_id: "arm-2", outcome: null, agent_run_id: null }),
+          attempt({
+            id: "attempt-4",
+            attempt: 2,
+            outcome: null,
+            score: caseScore({ passed: null, unscored_reason: "judge_run_failed" }),
+          }),
+          attempt({
+            id: "attempt-5",
+            attempt: 3,
+            outcome: null,
+            score: caseScore({ passed: null, unscored_reason: "judge_new_reason" }),
+          }),
         ]}
         expectation={null}
         datasetId="ds-1"
@@ -467,6 +553,9 @@ describe("CaseDetail", () => {
     expect(screen.getByText("Rerun 1")).toBeInTheDocument();
     expect(screen.getByText("boom")).toBeInTheDocument();
     expect(screen.getByText("undecided")).toBeInTheDocument();
+    // Not graded is not undecided: the judge failed, and says why.
+    expect(screen.getByText("not graded: The judge's run did not finish.")).toBeInTheDocument();
+    expect(screen.getByText("not graded: judge_new_reason")).toBeInTheDocument();
   });
 
   it("puts what the case expects above the answers, and the way to its dataset", () => {

@@ -17,6 +17,9 @@ const OUTCOME: EvalOutcome = {
   fixed_confirmed: 0,
   candidate_pass_rate: 0.22,
   baseline_pass_rate: 0.67,
+  overall: null,
+  candidate_first_pass_rate: null,
+  baseline_first_pass_rate: null,
 };
 
 beforeEach(() => {
@@ -29,7 +32,7 @@ describe("DraftEvalNote", () => {
     draft.runs = [evalRun({ outcome: OUTCOME })];
     render(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
     const note = screen.getByRole("link", {
-      name: "Last test of this draft: worse than v1, 4 broke.",
+      name: "Last test of this draft: it breaks 4 against v1.",
     });
     expect(note).toHaveAttribute("href", "/agents/agent-1/evals/run-1");
     expect(note.className).toContain("text-destructive");
@@ -38,9 +41,17 @@ describe("DraftEvalNote", () => {
   it("says a draft made things better", () => {
     draft.runs = [evalRun({ outcome: { ...OUTCOME, verdict: "better", fixed_confirmed: 2 } })];
     render(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
-    expect(screen.getByRole("link", { name: /better than v1, 2 fixed/ }).className).toContain(
+    expect(screen.getByRole("link", { name: /it fixes 2 against v1/ }).className).toContain(
       "text-success",
     );
+  });
+
+  it("says a draft was mixed", () => {
+    draft.runs = [evalRun({ outcome: { ...OUTCOME, verdict: "mixed", fixed_confirmed: 2 } })];
+    render(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
+    expect(
+      screen.getByRole("link", { name: /mixed against v1, 4 broke and 2 fixed/ }).className,
+    ).toContain("text-warning");
   });
 
   it("says a first result has nothing to compare with, and a live run is still testing", () => {

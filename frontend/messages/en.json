@@ -6225,11 +6225,11 @@
       "side": "{candidate} · {model} · dataset v{dataset} · {date}",
       "unfinished": "not finished",
       "verdict": {
-        "better": "Better",
-        "worse": "Worse",
-        "no_difference": "No difference",
-        "inconclusive": "Not sure yet",
-        "invalid": "Not comparable"
+        "better": "Fixes cases",
+        "worse": "Breaks cases",
+        "no_difference": "No reproducible change",
+        "invalid": "Not comparable",
+        "mixed": "Mixed"
       },
       "regressionsConfirmed": "Confirmed regressions",
       "regressionsUnconfirmed": "Unconfirmed regressions",
@@ -6251,7 +6251,11 @@
       },
       "confirmedHint": "Confirmed: the change held on every rerun.",
       "unconfirmedHint": "Unconfirmed: on a rerun it came out one way, then the other.",
-      "glossary": "Confirmed: the change held on every rerun. Unconfirmed: on a rerun it came out one way, then the other."
+      "glossary": "Confirmed: the change held on every rerun. Unconfirmed: on a rerun it came out one way, then the other.",
+      "overall": {
+        "worse": "Worse overall",
+        "better": "Better overall"
+      }
     },
     "arms": {
       "title": "Side by side",
@@ -6316,17 +6320,21 @@
         "calls": "Expected calls, {order}:",
         "checks": "Checks:",
         "openDataset": "Open this case in its dataset"
-      }
+      },
+      "notGraded": "not graded: {reason}"
     },
     "estimating": "Estimating…",
     "sideModel": "{name} · {model}",
     "headline": {
       "first": "This is the first result of {candidate} on {dataset}: {rate} of cases pass. Later versions are compared with it.",
-      "worse": "{candidate} is worse than {baseline} on {dataset}: {broke, plural, =1 {1 case broke} other {# cases broke}} (confirmed), {fixed} fixed. Pass rate {from} → {to}.",
-      "better": "{candidate} is better than {baseline} on {dataset}: {fixed, plural, =1 {1 case fixed} other {# cases fixed}} (confirmed), {broke} broke. Pass rate {from} → {to}.",
-      "no_difference": "{candidate} does as well as {baseline} on {dataset}: no change held when rerun. Pass rate {from} → {to}.",
-      "inconclusive": "Not sure yet: {changes, plural, =1 {1 case changed} other {# cases changed}} between {baseline} and {candidate}, too few to tell apart from noise. Pass rate {from} → {to}.",
-      "invalid": "{candidate} and {baseline} cannot be compared: the two sides were graded by a different judge or rubric."
+      "worse": "{candidate} breaks {broke, plural, =1 {1 case} other {# cases}} that passed on {baseline}, every time it was asked ({held} of {tries}): “{question}”{others, plural, =0 {} other { and # more}}.",
+      "better": "{candidate} fixes {fixed, plural, =1 {1 case} other {# cases}} that failed on {baseline}, every time it was asked ({held} of {tries}): “{question}”{others, plural, =0 {} other { and # more}}.",
+      "no_difference": "No change held: {candidate} does as well as {baseline} on {dataset}.{changes, plural, =0 {} =1 { 1 case changed once and not when asked again.} other { # cases changed once and not when asked again.}}",
+      "invalid": "{candidate} and {baseline} cannot be compared: the two sides were graded by a different judge or rubric.",
+      "mixed": "Mixed: {candidate} breaks {broke, plural, =1 {1 case} other {# cases}} and fixes {fixed, plural, =1 {1} other {#}} against {baseline}, every time they were asked. It breaks ({held} of {tries}): “{question}”{others, plural, =0 {} other { and # more}}.",
+      "overall": "{overall, select, worse {Worse overall: across every confirmed change, {candidate} does worse than {baseline}.} other {Better overall: across every confirmed change, {candidate} does better than {baseline}.}}",
+      "passRate": "Pass rate {from} → {to}, each case as most of its tries came out",
+      "firstPassRate": "First answers alone: {from} → {to}"
     },
     "live": {
       "answering": "{done} of {total} first answers in. Cases whose result changes are then rerun to confirm it.",
@@ -6345,23 +6353,25 @@
       "label": "Pass rate over time",
       "single": "One run so far. Run another to see a trend.",
       "legend": "Each point is a run, labelled with what ran; a hollow point is a draft.",
-      "point": "{name} · {model} · {rate} · {verdict, select, better {better} worse {worse} no_difference {no difference} inconclusive {not sure yet} invalid {not comparable} other {first result}}",
+      "point": "{name} · {model} · {rate} · {verdict, select, better {fixes cases} worse {breaks cases} mixed {mixed} no_difference {no reproducible change} invalid {not comparable} other {first result}}",
       "baselineOf": "{name} · compared with",
-      "draftOn": "{name} {date}"
+      "at": "{name} · {time}"
     },
     "chip": {
       "pending": "Pending",
       "first": "First result",
-      "better": "Better · {fixed} fixed",
-      "worse": "Worse · {broke} broke",
-      "no_difference": "No difference",
-      "inconclusive": "Not sure yet",
-      "invalid": "Not comparable"
+      "better": "Fixes {fixed}",
+      "worse": "Breaks {broke}",
+      "no_difference": "No reproducible change",
+      "invalid": "Not comparable",
+      "mixed": "Mixed · {broke} broke, {fixed} fixed",
+      "overall": "{overall, select, worse {Worse overall} other {Better overall}} · {broke} broke, {fixed} fixed"
     },
     "row": {
       "against": "{candidate} vs {baseline}",
       "agent": "{agent} · {title}",
-      "rate": "{model} {rate}"
+      "rate": "{model} {rate}",
+      "firstRate": "First answers alone: {rate}"
     },
     "dataset": {
       "emptyTitle": "No agent has been tested on this dataset yet",
@@ -6372,12 +6382,17 @@
       "untested": "This draft was not tested since it last changed.",
       "test": "Test it",
       "running": "This draft is being tested now.",
-      "result": "{verdict, select, worse {Last test of this draft: worse than {baseline}, {broke} broke.} better {Last test of this draft: better than {baseline}, {fixed} fixed.} no_difference {Last test of this draft: no different from {baseline}.} inconclusive {Last test of this draft: not sure yet against {baseline}.} invalid {The last test of this draft could not be compared with {baseline}.} other {Last test of this draft: the first result, with nothing to compare it with.}}"
+      "result": "{verdict, select, worse {Last test of this draft: it breaks {broke} against {baseline}.} better {Last test of this draft: it fixes {fixed} against {baseline}.} mixed {Last test of this draft: mixed against {baseline}, {broke} broke and {fixed} fixed.} no_difference {Last test of this draft: no change held against {baseline}.} invalid {The last test of this draft could not be compared with {baseline}.} other {Last test of this draft: the first result, with nothing to compare it with.}}"
     },
     "review": {
       "send": "{count, plural, =1 {Send the failed case to review} other {Send # failed cases to review}}",
       "sent": "{queued, plural, =0 {Nothing new sent to review} =1 {1 case sent to review} other {# cases sent to review}}{already, plural, =0 {} other {; # already there or decided}}."
     },
-    "draftChanged": "The draft changed after this run."
+    "draftChanged": "The draft changed after this run.",
+    "ungraded": {
+      "count": "{count, plural, =1 {1 answer was not graded: the judge failed or was skipped, so it counts as neither passed nor failed.} other {# answers were not graded: the judge failed or was skipped, so they count as neither passed nor failed.}}",
+      "again": "Grade again",
+      "done": "{count, plural, =0 {Nothing was graded again} =1 {1 answer graded again} other {# answers graded again}}"
+    }
   }
 }

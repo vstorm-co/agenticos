@@ -48,6 +48,9 @@ describe("EvalRunsWidget", () => {
             fixed_confirmed: 0,
             candidate_pass_rate: 0.75,
             baseline_pass_rate: 1,
+            overall: null,
+            candidate_first_pass_rate: null,
+            baseline_first_pass_rate: null,
           },
         }),
         evalRun({ id: "run-2", status: "running", arms: [arm({ role: "baseline" })] }),
@@ -59,7 +62,7 @@ describe("EvalRunsWidget", () => {
     expect(screen.queryByText(/failed/)).not.toBeInTheDocument();
     const links = screen.getAllByRole("link", { name: /^Refund desk · v7/ });
     expect(links[0]).toHaveAttribute("href", "/agents/agent-1/evals/run-1");
-    expect(screen.getByText("Worse · 2 broke")).toBeInTheDocument();
+    expect(screen.getByText("Breaks 2")).toBeInTheDocument();
     expect(screen.getByText("gpt-4.1 75%")).toBeInTheDocument();
     expect(screen.getByText("Pending")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "See the eval traffic in Activity" })).toHaveAttribute(

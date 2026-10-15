@@ -10,9 +10,9 @@ import type { EvalRun } from "@/types/eval-runs";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { percent, usd } from "./format";
 import { sideName } from "./names";
-import { VERDICT_TONE } from "./verdict-header";
+import { VERDICT_TONE } from "./verdict-headline";
 
-/** The verdict as a chip: "Worse · 4 broke", "First result", "Pending". */
+/** The verdict as a chip: "Breaks 2", "Worse overall · 4 broke", "First result", "Pending". */
 export function VerdictChip({ run }: { run: EvalRun }) {
   const t = useTranslations("evals.chip");
   const { outcome } = run;
@@ -22,14 +22,15 @@ export function VerdictChip({ run }: { run: EvalRun }) {
     ) : null;
   }
   if (outcome.verdict === null) return <Badge variant="outline">{t("first")}</Badge>;
-  return (
-    <Badge variant={VERDICT_TONE[outcome.verdict]}>
-      {t(outcome.verdict, {
-        broke: outcome.regressions_confirmed,
-        fixed: outcome.fixed_confirmed,
-      })}
-    </Badge>
-  );
+  const counts = { broke: outcome.regressions_confirmed, fixed: outcome.fixed_confirmed };
+  if (outcome.overall !== null) {
+    return (
+      <Badge variant={outcome.overall === "worse" ? "destructive" : "success"}>
+        {t("overall", { ...counts, overall: outcome.overall })}
+      </Badge>
+    );
+  }
+  return <Badge variant={VERDICT_TONE[outcome.verdict]}>{t(outcome.verdict, counts)}</Badge>;
 }
 
 /**
@@ -64,7 +65,11 @@ export function EvalRunRow({ run, agentName }: { run: EvalRun; agentName?: strin
         <span className="flex shrink-0 flex-wrap items-center gap-3 text-xs">
           <VerdictChip run={run} />
           {candidates.map((arm) => (
-            <span key={arm.id} className="text-foreground tabular-nums">
+            <span
+              key={arm.id}
+              className="text-foreground tabular-nums"
+              title={t("row.firstRate", { rate: percent(arm.summary.first_pass_rate, locale) })}
+            >
               {t("row.rate", {
                 model: arm.model_label,
                 rate: percent(arm.summary.pass_rate, locale),
