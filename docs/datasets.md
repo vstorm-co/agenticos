@@ -143,7 +143,9 @@ There are two ways in, and both make the same case:
   dataset you added to last, so the next add is one click.
 - **In Activity**, every agent turn has an **Add to dataset** control. This is
   where answers are curated, so a good answer can be kept as a reference just
-  as easily as a bad one as a counter-example.
+  as easily as a bad one as a counter-example. With no dataset to add to yet,
+  it starts one, visible to the organization; opened from a dataset's **Add
+  from Activity**, it adds to that dataset and offers the way back to it.
 
 Either way, the case is created from the turn:
 

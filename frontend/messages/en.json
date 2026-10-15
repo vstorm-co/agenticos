@@ -6091,6 +6091,10 @@
     "discardCaseTitle": "Discard your changes?",
     "discardCaseBody": "The changes to this case are not saved and will be lost.",
     "discardCase": "Discard",
-    "keepEditing": "Keep editing"
+    "keepEditing": "Keep editing",
+    "newDatasetName": "New dataset",
+    "newDatasetHere": "You have no dataset to add to yet, so this answer starts one, visible to the whole organization.",
+    "newDatasetFromActivity": "Answers from Activity",
+    "backToDataset": "Back to {name}"
   }
 }

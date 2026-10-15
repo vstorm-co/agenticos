@@ -1,5 +1,5 @@
 ---
-source_sha: "1ccb714b7e20"
+source_sha: "002c3285b6a3"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -161,7 +161,9 @@ Es gibt zwei Wege, und beide erzeugen denselben Fall:
 - **In Aktivität** hat jeder Agent-Zug ein Bedienelement **Zum Dataset
   hinzufügen**. Hier werden Antworten kuratiert, daher lässt sich eine gute
   Antwort ebenso leicht als Referenz behalten wie eine schlechte als
-  Gegenbeispiel.
+  Gegenbeispiel. Gibt es noch kein Dataset zum Hinzufügen, legt es eines an,
+  sichtbar für die Organisation; aus **Aus der Aktivität hinzufügen** eines
+  Datasets geöffnet, fügt es diesem Dataset hinzu und bietet den Weg zurück an.
 
 In beiden Fällen entsteht der Fall aus diesem Zug:
 

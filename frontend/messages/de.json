@@ -5949,6 +5949,10 @@
     "discardCaseTitle": "Änderungen verwerfen?",
     "discardCaseBody": "Die Änderungen an diesem Fall sind nicht gespeichert und gehen verloren.",
     "discardCase": "Verwerfen",
-    "keepEditing": "Weiter bearbeiten"
+    "keepEditing": "Weiter bearbeiten",
+    "newDatasetName": "Neues Dataset",
+    "newDatasetHere": "Sie haben noch kein Dataset, dem Sie etwas hinzufügen können, daher legt diese Antwort eines an, sichtbar für die ganze Organisation.",
+    "newDatasetFromActivity": "Antworten aus Aktivität",
+    "backToDataset": "Zurück zu {name}"
   }
 }

@@ -1,5 +1,5 @@
 ---
-source_sha: "1ccb714b7e20"
+source_sha: "002c3285b6a3"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -151,9 +151,12 @@ Hay dos caminos y los dos crean el mismo caso:
   el mensaje dice qué mitad falló. Quitar la valoración más tarde deja el caso
   donde está: es una copia, versionada con su dataset. La consola recuerda el
   último dataset al que añadiste, así que el siguiente añadido es un clic.
-- **En Actividad**, cada turno del agent tiene un control **Añadir al dataset**.
-  Es donde se curan las respuestas, así que una buena respuesta se guarda como
-  referencia tan fácilmente como una mala como contraejemplo.
+- **En Actividad**, cada turno del agent tiene un control **Añadir al
+  dataset**. Es donde se curan las respuestas, así que una buena respuesta se
+  guarda como referencia tan fácilmente como una mala como contraejemplo. Sin
+  ningún dataset al que añadir, crea uno, visible para la organización; abierto
+  desde **Add from Activity** de un dataset, añade a ese dataset y ofrece
+  volver a él.
 
 En ambos casos, el caso se crea a partir de ese turno:
 

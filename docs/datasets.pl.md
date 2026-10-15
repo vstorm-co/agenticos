@@ -1,5 +1,5 @@
 ---
-source_sha: "1ccb714b7e20"
+source_sha: "002c3285b6a3"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -149,8 +149,10 @@ Są dwie drogi i obie tworzą taki sam przypadek:
   przypadek na miejscu: to kopia, wersjonowana razem z datasetem. Konsola
   pamięta ostatnio użyty dataset, więc kolejne dodanie to jedno kliknięcie.
 - **W Aktywności** każda tura agenta ma przycisk **Dodaj do datasetu**. To
-  miejsce kuracji, więc dobrą odpowiedź równie łatwo zachować jako wzorcową, jak
-  złą jako kontrprzykład.
+  miejsce kuracji, więc dobrą odpowiedź równie łatwo zachować jako wzorcową,
+  jak złą jako kontrprzykład. Gdy nie ma jeszcze datasetu, do którego można
+  dodać, zakłada nowy, widoczny dla organizacji; otwarty z **Dodaj z
+  Aktywności** datasetu dodaje do tego datasetu i proponuje powrót do niego.
 
 W obu przypadkach przypadek powstaje z tej tury:
 
