@@ -1217,6 +1217,12 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     await service.get(ctx, v7.id)
     assert stored.outcome_at == kept_at
 
+    # A kept verdict in a shape this build no longer reads is compared afresh.
+    stored.outcome = {"verdict": "worse"}
+    await db.flush()
+    assert (await service.get(ctx, v7.id)).outcome == outcome
+    kept_at = stored.outcome_at
+
     # A person passes the case that broke: the regression is gone from the listing.
     await _decide(db, v7.id, "Question 0", passed=True)
     decided = await service.get(ctx, v7.id)
@@ -1367,3 +1373,49 @@ async def test_an_eval_run_puts_nothing_in_the_review_queue_itself(db) -> None:
     ).all()
 
     assert states and set(states) == {"none"}
+
+
+async def test_the_estimate_prices_the_judge_the_dataset_names(db) -> None:
+    ctx = await _owner(db)
+    await _assist(db, ctx, on=True)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=4)
+    judge = Agent(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        visibility="org",
+        slug=f"strict-{uuid.uuid4().hex[:8]}",
+        name="Strict judge",
+        status="published",
+        kind="judge",
+        draft_spec={"name": "Strict judge"},
+    )
+    db.add(judge)
+    await db.flush()
+    db.add(
+        AgentRun(
+            organization_id=ctx.organization_id,
+            agent_id=judge.id,
+            surface=RunSurface.EVAL.value,
+            status="completed",
+            model_label="gpt-test",
+            cost_usd=Decimal("0.02"),
+            started_at=datetime.now(UTC),
+        )
+    )
+    dataset.scoring = {
+        "judge": {
+            "enabled": True,
+            "agent_id": str(judge.id),
+            "criteria": [{"name": "Tone", "description": "Polite"}],
+        }
+    }
+    await db.flush()
+
+    estimate = await EvalRunService(db).estimate(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id)
+    )
+
+    # Its own history, not the default judge's guess.
+    assert estimate.judge_usd == Decimal("0.08")

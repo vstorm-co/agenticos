@@ -39,6 +39,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from pydantic import ValidationError
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1270,13 +1271,25 @@ class EvalRunService:
         run = await self._readable(ctx, run_id)
         return await self._comparison(ctx, run, arm_id=arm_id, baseline_run_id=baseline_run_id)
 
+    @staticmethod
+    def _kept_outcome(run: EvalRun) -> EvalOutcomeRead | None:
+        """The verdict as kept, or None when there is none or its shape is an older
+        one - a cache that no longer reads is compared afresh, not a 500."""
+        if run.outcome is None:
+            return None
+        try:
+            return EvalOutcomeRead.model_validate(run.outcome)
+        except ValidationError:
+            logger.warning("Eval run %s kept an outcome that no longer reads", run.id)
+            return None
+
     async def _outcome(self, ctx: AuthContext, run: EvalRun) -> EvalOutcomeRead | None:
         """A finished run's verdict, as kept - or compared again once a person has
         decided one of the scores it rests on since it was kept."""
         if run.status in (EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value):
             return None
-        if run.outcome is not None and run.outcome_at is not None:
-            kept = EvalOutcomeRead.model_validate(run.outcome)
+        kept = self._kept_outcome(run)
+        if kept is not None and run.outcome_at is not None:
             sides = {run.id} | ({kept.baseline.run_id} if kept.baseline else set())
             if not await eval_run_repo.reviewed_since(
                 self.db, sorted(sides), since=run.outcome_at, organization_id=ctx.organization_id

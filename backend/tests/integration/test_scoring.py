@@ -35,6 +35,8 @@ from app.core.vault import VaultScope
 from app.db.models.agent import AgentStatus
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.credential import ModelProfile
+from app.db.models.dataset import DatasetVersion
+from app.db.models.eval_run import EvalRun
 from app.db.models.intercepted_tool_call import (
     InterceptedToolCall,
     InterceptionOutcome,
@@ -290,6 +292,29 @@ async def _dataset(
 
 def _rubric(**overrides) -> DatasetScoring:
     return DatasetScoring(judge=JudgeScorer(enabled=True, criteria=RUBRIC), **overrides)
+
+
+async def _eval_run(db, tenant: Tenant, dataset, run: AgentRun) -> uuid.UUID:
+    """An eval run's row, for a score to belong to."""
+    version = await db.scalar(
+        select(DatasetVersion)
+        .where(DatasetVersion.dataset_id == dataset.id)
+        .order_by(DatasetVersion.number.desc())
+    )
+    eval_run = EvalRun(
+        organization_id=tenant.organization.id,
+        agent_id=run.agent_id,
+        dataset_id=dataset.id,
+        dataset_version_id=version.id,
+        status="completed",
+        purpose="manual",
+        scoring={},
+        scoring_hash="",
+        estimate_usd=Decimal(0),
+    )
+    db.add(eval_run)
+    await db.flush()
+    return eval_run.id
 
 
 async def _score_for_an_eval(db, tenant: Tenant, dataset, case, run: AgentRun, eval_run_id):
@@ -863,7 +888,7 @@ class TestVerdicts:
             db, tenant, scoring=DatasetScoring(review=ReviewScorer(select="all"))
         )
         run = await _scored_run(db, tenant)
-        eval_run_id = uuid.uuid4()
+        eval_run_id = await _eval_run(db, tenant, dataset, run)
         service = ScoringService(db)
         score = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
         assert (score.review_state, score.eval_run_id) == ("none", eval_run_id)
