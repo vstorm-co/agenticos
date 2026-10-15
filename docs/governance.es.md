@@ -1,5 +1,5 @@
 ---
-source_sha: "dbde8ae77825"
+source_sha: "4d7e8773dd9e"
 ---
 
 # Governance { #governance }
@@ -58,7 +58,7 @@ verifica contra el secreto propio del trigger es un 403 que nunca llega al runne
 | Nivel | Se fija en | Mide | Lo sube |
 |---|---|---|---|
 | **Agent, mensual** | el spec del agent | los runs de ese mismo agent | quien pueda editar el agent |
-| **Departamento, mensual** | los ajustes del departamento | los runs que iniciaron sus miembros, en cualquier agent | quien tenga `members:manage` |
+| **Departamento, mensual** | los ajustes del departamento | los runs que iniciaron sus miembros, en cualquier agent | quien tenga `members:manage` y `budgets:manage` |
 | **Organización, mensual** | los ajustes de la organización | cada run *y* cada ingesta de la organización | quien tenga `budgets:manage` |
 
 Una **organización nueva empieza con el techo de la organización ya puesto** — el

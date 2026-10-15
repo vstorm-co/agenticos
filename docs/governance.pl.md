@@ -1,5 +1,5 @@
 ---
-source_sha: "dbde8ae77825"
+source_sha: "4d7e8773dd9e"
 ---
 
 # Governance { #governance }
@@ -58,7 +58,7 @@ które w ogóle nie dociera do runnera.
 | Poziom | Ustawiany w | Mierzy | Podnosi |
 |---|---|---|---|
 | **Miesięczny agenta** | spec agenta | runy tego agenta | ten, kto może edytować agenta |
-| **Miesięczny działu** | ustawienia działu | runy uruchomione przez jego członków, na dowolnym agencie | ten, kto ma `members:manage` |
+| **Miesięczny działu** | ustawienia działu | runy uruchomione przez jego członków, na dowolnym agencie | ten, kto ma `members:manage` i `budgets:manage` |
 | **Miesięczny organizacji** | ustawienia organizacji | każdy run *oraz* ingestię w organizacji | ten, kto ma `budgets:manage` |
 
 **Nowa organizacja startuje z już ustawionym pułapem organizacji** —

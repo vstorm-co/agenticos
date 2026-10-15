@@ -669,6 +669,41 @@ class TestAdministration:
         assert waiver.status_code == 403
 
     @pytest.mark.security
+    async def test_a_membership_key_cannot_set_a_department_cap(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        """Codex on #2062: the cap is a budget, and the service re-read the issuer's role."""
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        members_only = await _issue(db, organization, owner, Perm.MEMBERS_MANAGE)
+        budgets = await _issue(db, organization, owner, Perm.MEMBERS_MANAGE, Perm.BUDGETS_MANAGE)
+        path = _url(f"/orgs/{organization.id}/groups")
+
+        async with client() as http:
+            refused = await http.post(
+                path,
+                headers=_bearer(members_only),
+                json={"name": "Finance", "monthly_budget_usd": "10"},
+            )
+            plain = await http.post(path, headers=_bearer(members_only), json={"name": "Finance"})
+            group = plain.json()["id"]
+            lifted = await http.patch(
+                f"{path}/{group}", headers=_bearer(members_only), json={"monthly_budget_usd": None}
+            )
+            renamed = await http.patch(
+                f"{path}/{group}", headers=_bearer(members_only), json={"name": "Finance EU"}
+            )
+            capped = await http.patch(
+                f"{path}/{group}", headers=_bearer(budgets), json={"monthly_budget_usd": "25"}
+            )
+
+        assert refused.status_code == 403
+        assert plain.status_code == 201
+        assert lifted.status_code == 403
+        assert renamed.status_code == 200
+        assert capped.status_code == 200
+
+    @pytest.mark.security
     async def test_department_lists_are_the_directory_too(
         self, db: AsyncSession, client: Client
     ) -> None:

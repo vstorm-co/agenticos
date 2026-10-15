@@ -1,5 +1,5 @@
 ---
-source_sha: "dbde8ae77825"
+source_sha: "4d7e8773dd9e"
 ---
 
 # Governance { #governance }
@@ -61,7 +61,7 @@ lässt, ist ein 403, der den Runner überhaupt nie erreicht.
 | Ebene | Gesetzt in | Misst | Angehoben von |
 |---|---|---|---|
 | **Agent, monatlich** | dem Spec des Agents | den eigenen Runs dieses Agents | wer den Agent bearbeiten darf |
-| **Abteilung, monatlich** | den Einstellungen der Abteilung | den Runs, die ihre Mitglieder gestartet haben, auf jedem Agent | wer `members:manage` hält |
+| **Abteilung, monatlich** | den Einstellungen der Abteilung | den Runs, die ihre Mitglieder gestartet haben, auf jedem Agent | wer `members:manage` und `budgets:manage` hält |
 | **Organisation, monatlich** | den Einstellungen der Organisation | jedem Run *und* jeder Ingestion in der Organisation | wer `budgets:manage` hält |
 
 Eine **neue Organisation startet mit bereits gesetzter Obergrenze für die

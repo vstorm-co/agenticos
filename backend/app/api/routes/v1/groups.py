@@ -138,7 +138,7 @@ async def export_group_spend(
 )
 async def create_group(org_id: UUID, data: GroupCreate, service: GroupSvc, ctx: PathOrgAuth) -> Any:
     """Create a group. Requires `members:manage`."""
-    group = await service.create(org_id, ctx.subject_id, data)
+    group = await service.create(org_id, ctx.subject_id, data, key_scopes=ctx.key_scopes)
     return GroupRead(
         id=group.id,
         organization_id=group.organization_id,
@@ -156,7 +156,9 @@ async def update_group(
     org_id: UUID, group_id: UUID, data: GroupUpdate, service: GroupSvc, ctx: PathOrgAuth
 ) -> Any:
     """Rename a group or change its description. Requires `members:manage`."""
-    group, count = await service.update(org_id, group_id, ctx.subject_id, data)
+    group, count = await service.update(
+        org_id, group_id, ctx.subject_id, data, key_scopes=ctx.key_scopes
+    )
     return GroupRead(
         id=group.id,
         organization_id=group.organization_id,

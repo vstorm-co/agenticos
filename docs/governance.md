@@ -52,7 +52,7 @@ at all.
 | Level | Set in | Meters | Raised by |
 |---|---|---|---|
 | **Agent monthly** | the agent's spec | that agent's own runs | whoever may edit the agent |
-| **Department monthly** | the department's settings | runs its members started, on any agent | whoever holds `members:manage` |
+| **Department monthly** | the department's settings | runs its members started, on any agent | whoever holds `members:manage` and `budgets:manage` |
 | **Organization monthly** | organization settings | every run *and* ingestion in the organization | whoever holds `budgets:manage` |
 
 A **new organization starts with the organization ceiling already set** — the

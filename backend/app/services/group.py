@@ -75,10 +75,32 @@ class GroupService:
             )
         return membership
 
-    async def _require_manage(self, organization_id: UUID, requester_id: UUID) -> None:
+    async def _require_manage(
+        self,
+        organization_id: UUID,
+        requester_id: UUID,
+        *,
+        budget: bool = False,
+        key_scopes: frozenset[Perm] | None = None,
+    ) -> None:
+        """`members:manage` to shape a group, and `budgets:manage` to set its cap.
+
+        `key_scopes` are those of the API key the request came with, `None` for a
+        session: each permission must be one the key was issued for as well as
+        one the role holds, or a key narrowed to membership work would reach the
+        department's spending cap through its issuer's whole role.
+        """
         membership = await self._membership(organization_id, requester_id)
-        if not role_has(membership.role, Perm.MEMBERS_MANAGE):
+
+        def holds(perm: Perm) -> bool:
+            return role_has(membership.role, perm) and (key_scopes is None or perm in key_scopes)
+
+        if not holds(Perm.MEMBERS_MANAGE):
             raise AuthorizationError(message="You cannot manage groups in this organization")
+        if budget and not holds(Perm.BUDGETS_MANAGE):
+            raise AuthorizationError(
+                message="Setting a department's spending cap requires 'budgets:manage'"
+            )
 
     async def _require_member_manager(
         self, organization_id: UUID, group_id: UUID, ctx: AuthContext
@@ -116,7 +138,14 @@ class GroupService:
         await self._membership(organization_id, requester_id)
         return await group_repo.list_for_org(self.db, organization_id)
 
-    async def create(self, organization_id: UUID, requester_id: UUID, data: GroupCreate) -> Group:
+    async def create(
+        self,
+        organization_id: UUID,
+        requester_id: UUID,
+        data: GroupCreate,
+        *,
+        key_scopes: frozenset[Perm] | None = None,
+    ) -> Group:
         """Create a group.
 
         Raises:
@@ -125,7 +154,12 @@ class GroupService:
                 `uq_group_org_name` for the race, inside a savepoint so the loser
                 gets this 409 rather than an `IntegrityError` as a 500.
         """
-        await self._require_manage(organization_id, requester_id)
+        await self._require_manage(
+            organization_id,
+            requester_id,
+            budget=data.monthly_budget_usd is not None,
+            key_scopes=key_scopes,
+        )
         await self._refuse_taken_name(organization_id, data.name)
         try:
             async with self.db.begin_nested():
@@ -154,10 +188,21 @@ class GroupService:
         return group
 
     async def update(
-        self, organization_id: UUID, group_id: UUID, requester_id: UUID, data: GroupUpdate
+        self,
+        organization_id: UUID,
+        group_id: UUID,
+        requester_id: UUID,
+        data: GroupUpdate,
+        *,
+        key_scopes: frozenset[Perm] | None = None,
     ) -> tuple[Group, int]:
         """Rename a group or change its description; returns it with its member count."""
-        await self._require_manage(organization_id, requester_id)
+        await self._require_manage(
+            organization_id,
+            requester_id,
+            budget="monthly_budget_usd" in data.model_fields_set,
+            key_scopes=key_scopes,
+        )
         group = await self._group(organization_id, group_id)
         name = data.name if data.name is not None else group.name
         # A description sent as null clears it; one not sent at all is left alone.
