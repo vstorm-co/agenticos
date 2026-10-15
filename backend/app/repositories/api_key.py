@@ -116,3 +116,19 @@ async def delete_expired_internal(db: AsyncSession, *, user_id: UUID, before: da
             ApiKey.user_id == user_id, ApiKey.internal.is_(True), ApiKey.expires_at < before
         )
     )
+
+
+async def revoke_for_member(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, at: datetime
+) -> None:
+    """Revoke every key one person holds in one organization, a connected app's included."""
+    await db.execute(
+        sql_update(ApiKey)
+        .where(
+            ApiKey.organization_id == organization_id,
+            ApiKey.user_id == user_id,
+            ApiKey.revoked_at.is_(None),
+        )
+        .values(revoked_at=at)
+    )
+    await db.flush()

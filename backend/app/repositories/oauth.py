@@ -289,3 +289,23 @@ async def delete_expired_requests(db: AsyncSession, *, before: datetime) -> None
     await db.execute(
         delete(OAuthAuthorizationRequest).where(OAuthAuthorizationRequest.expires_at < before)
     )
+
+
+async def revoke_grants_for_member(
+    db: AsyncSession, *, organization_id: UUID, user_id: UUID, at: datetime
+) -> None:
+    """Revoke every app one person connected in one organization.
+
+    Grants before their keys, as `revoke_grant` orders it: an exchange in flight
+    holds the grant's row, and the keys are revoked once it has issued its own.
+    """
+    await db.execute(
+        sql_update(OAuthGrant)
+        .where(
+            OAuthGrant.organization_id == organization_id,
+            OAuthGrant.user_id == user_id,
+            OAuthGrant.revoked_at.is_(None),
+        )
+        .values(revoked_at=at)
+    )
+    await db.flush()

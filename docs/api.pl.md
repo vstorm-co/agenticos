@@ -1,5 +1,5 @@
 ---
-source_sha: "aa1f13d0da94"
+source_sha: "10a5c3460bae"
 ---
 
 # API HTTP { #the-http-api }
@@ -32,8 +32,10 @@ członka, zawężone dwukrotnie:
   *Zasilanie bazy wiedzy*, *Pełny dostęp* — albo zaznacz uprawnienia z
   [katalogu](permissions.md). Możesz nadać tylko to, co sam masz.
 - **Do tego, co wydający może zrobić teraz.** Każde żądanie odczytuje członkostwo
-  wydającego na nowo, więc jego degradacja od razu zawęża każdy z jego kluczy, a
-  usunięcie go z organizacji zatrzymuje wszystkie wydane przez niego klucze. Grant
+  wydającego na nowo, więc jego degradacja od razu zawęża każdy z jego kluczy.
+  Usunięcie go z organizacji albo jego odejście unieważnia wszystkie wydane przez
+  niego klucze i podłączone aplikacje - na stałe, więc ponowne zaproszenie żadnego
+  z nich nie przywraca. Grant
   na zasobie poszerza to, co może zrobić z jednym wierszem *osoba*; nigdy nie
   poszerza klucza ponad jego uprawnienia.
 

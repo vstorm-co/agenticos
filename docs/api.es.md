@@ -1,5 +1,5 @@
 ---
-source_sha: "aa1f13d0da94"
+source_sha: "10a5c3460bae"
 ---
 
 # La API HTTP { #the-http-api }
@@ -34,7 +34,9 @@ ese miembro, limitada dos veces:
   [catálogo](permissions.md). Solo puedes conceder lo que tienes.
 - **A lo que el emisor puede hacer ahora.** Cada petición vuelve a leer la
   membresía del emisor, así que degradarlo limita al instante cada una de sus
-  claves, y sacarlo de la organización detiene todas las claves que emitió. Un
+  claves. Sacarlo de la organización, o que se vaya, revoca todas las claves que
+  emitió y todas las apps que conectó - para siempre, así que volver a invitarlo no
+  reactiva ninguna. Un
   permiso concedido sobre un recurso amplía lo que una *persona* puede hacer con
   una fila; nunca amplía una clave más allá de sus permisos.
 

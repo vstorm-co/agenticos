@@ -29,8 +29,9 @@ authority, narrowed twice:
   *Knowledge ingest*, *Full access* — or tick permissions from the
   [catalog](permissions.md). You can only grant what you hold.
 - **To what the issuer may do now.** Every request re-reads the issuer's
-  membership, so demoting them narrows each of their keys at once, and removing
-  them from the organization stops every key they issued. A resource grant
+  membership, so demoting them narrows each of their keys at once. Removing them
+  from the organization, or their leaving it, revokes every key they issued and
+  every app they connected - for good, so inviting them back wakes none of it. A resource grant
   widens what a *person* may do to one row; it never widens a key past its
   permissions.
 

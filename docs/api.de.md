@@ -1,5 +1,5 @@
 ---
-source_sha: "aa1f13d0da94"
+source_sha: "10a5c3460bae"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -36,8 +36,9 @@ eingeschränkt:
   was Sie selbst haben.
 - **Auf das, was der Aussteller jetzt darf.** Jede Anfrage liest die Mitgliedschaft
   des Ausstellers neu, sodass eine Herabstufung jeden seiner Schlüssel sofort
-  einschränkt und seine Entfernung aus der Organisation jeden von ihm ausgestellten
-  Schlüssel stoppt. Eine Freigabe auf einer Ressource erweitert, was eine *Person*
+  einschränkt. Seine Entfernung aus der Organisation, oder sein Austritt, widerruft
+  jeden von ihm ausgestellten Schlüssel und jede von ihm verbundene App - endgültig,
+  sodass eine erneute Einladung keinen davon wieder weckt. Eine Freigabe auf einer Ressource erweitert, was eine *Person*
   mit einer Zeile tun darf; einen Schlüssel erweitert sie nie über seine
   Berechtigungen hinaus.
 

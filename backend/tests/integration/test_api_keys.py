@@ -261,6 +261,36 @@ class TestNarrowing:
         assert answer.status_code == 401
 
 
+class TestMembershipEnds:
+    @pytest.mark.security
+    async def test_a_key_stays_revoked_when_its_issuer_is_invited_back(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        """Removing somebody revokes what they held, so rejoining - the same role or
+        another - wakes none of it, nor any copy of it."""
+        from app.services.member import MemberService
+
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        member = await _join(db, organization, OrgRoleName.MEMBER)
+        key = await _issue(db, organization, member, Perm.AGENTS_VIEW, role="member")
+
+        await MemberService(db).remove(organization.id, member.id, owner.id)
+        db.add(
+            OrganizationMember(
+                organization_id=organization.id, user_id=member.id, role=OrgRoleName.ADMIN
+            )
+        )
+        await db.flush()
+
+        async with client() as http:
+            answer = await http.get(_url("/agents"), headers=_bearer(key))
+
+        assert answer.status_code == 401
+        held = (await db.execute(select(ApiKey).where(ApiKey.user_id == member.id))).scalar_one()
+        assert held.revoked_at is not None
+
+
 class TestTenancy:
     @pytest.mark.security
     async def test_a_key_acts_in_its_own_organization_and_says_so_about_another(
