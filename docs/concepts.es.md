@@ -1,5 +1,5 @@
 ---
-source_sha: "881c07a559a1"
+source_sha: "896c26eb77f1"
 ---
 
 # Conceptos { #concepts }
@@ -572,31 +572,36 @@ puede delegar en qué.
 
 ---
 
-## Agents del sistema { #system-agents }
+## Jueces { #system-agents }
 
-Algunos agents los inicia la plataforma y no una persona: el **Eval judge**
-califica respuestas para la [puntuación de datasets](datasets.md#judge). Son
-**agents del sistema**. Cada organización los recibe al crearse, y una
-organización creada antes recibe uno la primera vez que algo lo necesita.
+Algunos agents los inicia la plataforma y no una persona: los **jueces**, que
+califican respuestas para la [calificación de datasets](datasets.md#judge). El
+tipo de un agent dice cuál es: `agent` para los que usan las personas, `judge`
+para estos. Cada organización recibe el **Eval judge** por defecto al crearse,
+una organización creada antes lo recibe la primera vez que algo lo necesita, y
+un dataset puede tener un juez propio.
 
-Un agent del sistema es de la plataforma, no un agent que usen las personas.
-Agents lo muestra aparte, en una sección plegada **System agents** con una
-insignia **System**, y lo deja fuera de cualquier selector de agents. Quien tiene
-`agents:edit` lo abre para cambiar sus instrucciones, su modelo y su budget, y
-sus runs se comprueban contra el budget y se registran como cualquier otro.
-Empieza con un budget mensual pequeño propio, para que una organización nueva
-no pueda gastar por accidente todo su budget en evaluación.
+Un juez lo ejecuta la plataforma; no es un agent que usen las personas. Agents
+muestra los jueces aparte, en una banda plegada **Judges** bajo **Agents**; cada
+tarjeta dice qué datasets califica, el sembrado lleva **Default judge**, y los
+selectores de agents los dejan fuera. Quien tiene `agents:edit` abre uno para
+cambiar sus instrucciones, su modelo y su budget: su página contiene eso, sus
+límites, su historial y los datasets que califica, y nada más. Sus runs se
+comprueban contra el budget y se registran como cualquier otro, sin
+notificación de run. Un juez empieza con un budget mensual pequeño propio, para
+que una organización nueva no gaste por accidente todo su budget en evaluación.
 
 Solo la plataforma lo ejecuta. El chat, la API, un embed o una página pública,
 un canal, una programación y la delegación desde otro agent lo rechazan, en el
 servicio que iniciaría el run y no solo en la consola.
 
-Cuando la organización ya tiene un perfil de modelo, el agent se publica sobre
-el más antiguo. Sin ninguno, se crea como borrador, y una persona elige su
-modelo y lo publica. Hasta entonces, las funciones que lo usan lo indican.
+Cuando la organización ya tiene un perfil de modelo, un juez se publica sobre el
+más antiguo, o sobre el que se eligió al crearlo. Sin ninguno, se crea como
+borrador, y una persona elige su modelo y lo publica. Hasta entonces, las
+funciones que lo usan lo indican.
 
 El [interruptor de asistencia de IA](governance.md#ai-assistance) de la
-organización decide si los agents del sistema se ejecutan en absoluto.
+organización decide si los jueces se ejecutan en absoluto.
 
 ## Perfiles de modelo { #model-profiles }
 

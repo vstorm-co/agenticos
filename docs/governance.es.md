@@ -1,5 +1,5 @@
 ---
-source_sha: "8c94f2fc2c52"
+source_sha: "07ffc670b572"
 ---
 
 # Governance { #governance }
@@ -1208,10 +1208,12 @@ un relay SMTP caído — sin que el otro se entere jamás.
 
 Los dos canales se activan por separado, evento a evento, en **Settings →
 Notifications** — una persona puede conservar la fila en la aplicación para
-las aprobaciones y apagar su correo, o al revés. La misma página lleva además
-cada uno de los demás eventos que entrega el buzón: un run que termina o falla
-desatendido, la ingesta de un documento que **falla**, la cifra propia de un
-ciclo completo de sincronización de un conector, y el propio
+las aprobaciones y apagar su correo, o al revés.
+
+La misma página lleva además cada uno de los demás eventos que entrega el
+buzón: un run que termina o falla desatendido (salvo un run `eval`, uno de los
+muchos que inicia una eval), la ingesta de un documento que **falla**, la cifra
+propia de un ciclo completo de sincronización de un conector, y el propio
 anuncio de un app admin - `POST /admin/announcements`, todavía sin página en
 la consola - dirigido por organización y, opcionalmente, por rol, y
 restringido a uno o ambos canales.
@@ -1432,14 +1434,13 @@ comparación de llamadas a herramientas, registra los criterios del juez como
 omitidos con el motivo, y deja sin puntuar, en lugar de aprobado, un caso cuyo
 juez era obligatorio. Los veredictos de las personas siguen disponibles.
 
-Estas funciones se ejecutan como [agents del sistema](concepts.md#system-agents).
-Cada run es un run normal: se comprueba contra el budget mensual propio del
-agent y el de la organización antes de cada llamada al modelo, su coste se
-registra y aparece en Activity bajo la superficie `eval`. Un agent del sistema
-empieza con un budget propio (el del juez es de $5 al mes), que se puede cambiar
-como el de cualquier agent.
+Estas funciones se ejecutan como [jueces](concepts.md#system-agents). Cada run
+es un run normal: se comprueba contra el budget mensual propio del juez y el de
+la organización antes de cada llamada al modelo, su coste se registra y aparece
+en Activity bajo la superficie `eval`. Un juez empieza con un budget propio
+($5 al mes), que se puede cambiar como el de cualquier agent.
 
-Un agent del sistema nunca se expone: no se le puede conectar un canal, un
+Un juez nunca se expone: no se le puede conectar un canal, un
 embed, una página pública ni una programación, ningún agent puede delegar en
 él, y un run suyo en cualquier superficie que no sea `eval` se rechaza. Su gasto
 solo lo inician las funciones descritas arriba.

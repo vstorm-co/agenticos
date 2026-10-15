@@ -1,5 +1,5 @@
 ---
-source_sha: "88e1ea9ba019"
+source_sha: "c9aa0b1c45f0"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -79,9 +79,13 @@ wiersze.
 
 ### W konsoli { #in-the-console }
 
-Otwórz **Datasety**, utwórz dataset i wybierz **Dodaj przypadek**. Wpisz wejście
-i co najmniej jedno z czterech oczekiwań opisanych wyżej. Rozmowę, oczekiwane wywołania narzędzi i sprawdzenia
-wpisuje się jako listy JSON - ten sam tekst, w jakim trzyma je eksport CSV.
+Otwórz **Datasety**, utwórz dataset - otwiera się, gdy tylko powstanie - i
+wybierz **Dodaj przypadek**. Wpisz wejście i co najmniej jedno z czterech
+oczekiwań opisanych wyżej. Rozmowę wpisuje się tura po turze, każde oczekiwane
+wywołanie narzędzia jako nazwę narzędzia i jego argumenty jako obiekt JSON, a
+każde sprawdzenie jako typ wybrany z listy obok tego, co sprawdza. Przypadek na
+liście otwiera się w postaci do czytania, z rozmową jako dymkami czatu;
+**Edytuj** zamienia go w formularz.
 
 ### Z pliku { #import-and-export }
 
@@ -164,22 +168,28 @@ zredagowano, nigdy same wartości.
 
 ## Ocenianie { #scoring }
 
-Dataset określa, jak oceniane są jego przypadki, na karcie **Scoring**. Do
-jednego przypadku mogą mieć zastosowanie cztery oceniacze, a każdy z nich
-włącza się albo wyłącza i oznacza jako wymagany albo nie:
+Dataset określa, jak oceniane są jego przypadki, w zakładce **Ocenianie**, w
+trzech kartach, z których każda zapisuje się osobno: **Kiedy przypadek
+przechodzi** zawiera sprawdzenia i oczekiwane wywołania narzędzi, **Sędzia**
+mówi, który sędzia ocenia i według czego, a **Przegląd przez człowieka** mówi,
+co czeka na czyjąś decyzję. Do jednego przypadku mogą mieć zastosowanie cztery
+oceniacze, a każdy z nich włącza się albo wyłącza i oznacza jako **Musi
+przejść** albo nie:
 
 | Oceniacz | Co porównuje | Koszt |
 |---|---|---|
 | Sprawdzenia | Odpowiedź z regułami przypadku oraz z domyślnymi regułami, które dataset nadaje każdemu przypadkowi | Nic |
-| Wywołania narzędzi | Narzędzia wywołane przez agenta z oczekiwanymi wywołaniami przypadku | Nic |
-| Sędzia | Odpowiedź z rubryką nazwanych kryteriów, ocenianą przez sędziego evali | Jeden run sędziego |
-| Odpowiedź wzorcowa | Odpowiedź z odpowiedzią wzorcową przypadku, ocenianą przez sędziego evali | Ten sam run sędziego |
+| Oczekiwane wywołania narzędzi | Narzędzia wywołane przez agenta z oczekiwanymi wywołaniami przypadku | Nic |
+| Sędzia | Odpowiedź z rubryką nazwanych kryteriów, ocenianą przez sędziego datasetu | Jeden run sędziego |
+| Odpowiedź wzorcowa | Odpowiedź z odpowiedzią wzorcową przypadku, ocenianą przez sędziego datasetu | Ten sam run sędziego |
 
 Każdy oceniacz zwraca zaliczenie albo niezaliczenie, wynik od 0 do 1 i
-uzasadnienie. Przypadek **zalicza**, gdy zalicza go każdy wymagany oceniacz.
-Gdy wymagany oceniacz nie mógł zadziałać - sędzia był wyłączony, jego budżet
-się wyczerpał - przypadek jest **nieoceniony**, a nie zaliczony: wynik, którego
-nikt nie sprawdził, nie liczy się jako zaliczenie.
+uzasadnienie. Przypadek **zalicza**, gdy zalicza go każdy oceniacz oznaczony
+jako Musi przejść. Gdy któryś z nich nie mógł zadziałać - sędzia był wyłączony,
+jego budżet się wyczerpał - przypadek jest **bez oceny**, a nie zaliczony:
+wynik, którego nikt nie sprawdził, nie liczy się jako zaliczenie. Datasetowi,
+którego przypadki mają odpowiedzi wzorcowe, z którymi nic nie porównuje
+odpowiedzi, proponowane jest porównanie z odpowiedzią wzorcową.
 
 Konfiguracja nie jest wersjonowana razem z przypadkami, bo to, jak zespół
 ocenia, nie jest tym, o co pyta. Każdy wynik przechowuje kopię konfiguracji, z
@@ -218,7 +228,7 @@ Sprawdzenie `judge` to kryterium tylko dla jednego przypadku, oceniane w tym
 samym runie sędziego co rubryka datasetu. Używaj go do tego, czego reguła nie
 wyrazi, np. „odmawia i nie ujawnia adresu klienta”.
 
-### Wywołania narzędzi { #trajectory }
+### Oczekiwane wywołania narzędzi { #trajectory }
 
 Wywołania agenta są dopasowywane do oczekiwanych wywołań przypadku po nazwie
 narzędzia i po każdym argumencie, który przypadek wymienia. Tryb kolejności
@@ -234,63 +244,85 @@ narzędzia oczekuje starej nazwy.
 
 ### Sędzia { #judge }
 
-Sędzią jest **Eval judge**, agent, którego platforma dodaje do każdej
-organizacji (zobacz [Agenci systemowi](concepts.md#system-agents)). Działa jako
-osoba, która poprosiła o ocenę: sprawdzany jest jej dostęp do niego, przed
-wywołaniem modelu sprawdzany jest jego własny budżet i budżet organizacji, a
-jego run pojawia się w Activity pod powierzchnią `eval`. Jego instrukcje można
-edytować jak instrukcje każdego agenta, a dataset może wskazać dla niego inny
-model.
+Sędzia to agent rodzaju `judge` (zobacz [Sędziowie](concepts.md#system-agents)).
+Dataset ocenia za pomocą **Eval judge**, którego platforma dodaje do każdej
+organizacji, albo za pomocą własnego sędziego: **Utwórz sędziego dla tego
+datasetu** na karcie Sędzia tworzy sędziego, którego prompt zaczyna się od nazwy
+i opisu datasetu, na pierwszym modelu organizacji albo na wybranym przez ciebie.
+Utworzenie go wymaga `agents:edit` oraz `datasets:edit`. Kryteria, skala i próg
+zaliczenia zostają na datasecie; prompt, model i budżet sędziego edytuje się na
+jego własnej stronie, a dataset nadal może wskazać dla niego inny model.
+
+Sędzia działa jako osoba, która poprosiła o ocenę: sprawdzany jest jej dostęp do
+niego, przed wywołaniem modelu sprawdzany jest jego własny budżet i budżet
+organizacji, a jego run pojawia się w Activity pod powierzchnią `eval`.
 
 Sędzia działa tylko tam, gdzie włączone jest [wsparcie AI](governance.md#ai-assistance),
 a jest ono wyłączone, dopóki administrator nie włączy go dla organizacji. Do
 tego czasu kryteria sędziego i odpowiedzi wzorcowej są zapisywane jako
-pominięte, oceniają tylko oceniacze oparte na regułach, a karta Scoring mówi o
-tym i podaje link do przełącznika temu, kto może go zmienić. W tym czasie nie da
+pominięte, oceniają tylko oceniacze oparte na regułach, a zakładka Ocenianie
+mówi o tym i podaje link do przełącznika temu, kto może go zmienić. W tym czasie nie da
 się włączyć sędziego ani porównania z odpowiedzią wzorcową; już włączony zostaje
 włączony i jest pomijany.
 
 Każde kryterium jest oceniane od 1 do górnej granicy skali i zalicza na progu
 zaliczenia lub wyżej. Gdy sędzia nie może ocenić, jego kryteria są zapisywane
 jako pominięte albo jako błędy, z uzasadnieniem podającym przyczynę: wsparcie
-AI jest wyłączone, sędzia nie ma opublikowanej wersji, jest zarchiwizowany,
-jego model został usunięty albo nie ma klucza, osoba nie może go uruchomić albo
-jego budżet się wyczerpał. Oceniacze oparte na
-regułach nadal oceniają.
+AI jest wyłączone, sędzia wybrany przez dataset już nie istnieje, nie ma
+opublikowanej wersji, jest zarchiwizowany, jego model został usunięty albo nie
+ma klucza, osoba nie może go uruchomić albo jego budżet się wyczerpał.
+Oceniacze oparte na regułach nadal oceniają.
 
 Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
-zawiera słowo w słowo, jest wskazany w uzasadnieniu jako niezweryfikowany, a
-ocena pozostaje. Każdy wynik zapisuje sędziego, który go ocenił - jego profil
-modelu, wersję spec i hash rubryki - więc wyniki od różnych sędziów nie są
-porównywane jak równe z równym.
+zawiera słowo w słowo, jest zachowywany obok oceny jako niezweryfikowany,
+pokazywany w osobnej linii pod uzasadnieniem, a ocena pozostaje. Każdy wynik
+zapisuje sędziego, który go ocenił - agenta sędziego, jego profil modelu, wersję
+spec i hash rubryki - więc wyniki od różnych sędziów nie są porównywane jak
+równe z równym. Zmiana sędziego albo jego modelu jest dozwolona; karta Sędzia
+mówi, że wyniki ocenione wcześniej nie będą porównywalne z ocenianymi później.
 
-### Przegląd i werdykty { #review }
+### Przegląd { #review }
 
-Dataset może wysyłać wyniki do **kolejki przeglądu**: żadnych, dopóki ktoś
-jakiegoś nie wyśle, każdy wynik, który nie zaliczył, albo każdy wynik. Karta
-Scores pokazuje wyniki datasetu, a karta pulpitu **Awaiting review** pokazuje
-kolejkę ze wszystkich datasetów, które widzisz: ile wyników nie zaliczyło, nie
-dało się ocenić albo zaliczyło, i w których datasetach, a każdy otwiera się na
-karcie Scores. Karta jest domyślnie na pulpicie.
+Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle. Run ewaluacji sam
+niczego nie wysyła: jego strona wysyła wybrane przez ciebie wyniki, wszystkie
+naraz przez `POST /datasets/{id}/scores/review`, do 500 identyfikatorów
+wyników - wszystkie albo żaden. Wynik, o który poproszono ręcznie z Activity, podlega
+ustawieniu **Przegląd przez człowieka** datasetu: nic, dopóki ktoś czegoś nie
+wyśle, każdy wynik, który nie zaliczył, albo każdy wynik. Wynik już
+rozstrzygnięty pozostaje rozstrzygnięty.
 
-Werdykt osoby jest zapisywany obok wyników oceniaczy i rozstrzyga o rezultacie.
-Nigdy nie zmienia tego, co powiedział sędzia: oceny i uzasadnienia sędziego
-zostają w wyniku po tym, jak werdykt je uchyli. Werdykt można wycofać, a wtedy
-wynik znowu czeka na przegląd.
+Zakładka **Przegląd** otwiera się na tym, co czeka na decyzję, a każdy wynik
+jest o jeden filtr dalej, i zbiera wyniki każdego runa ewaluacji pod jednym
+nagłówkiem. Każda karta pokazuje, o co pytał i czego oczekiwał przypadek -
+pytanie, odpowiedź wzorcową, oczekiwane wywołania narzędzi i sprawdzenia -
+odpowiedź w postaci, w jakiej została oceniona, który agent i która wersja
+odpowiedziały, co ustalił każdy oceniacz i dlaczego, oraz decyzję przeglądu.
+Karta pulpitu **Do przeglądu** pokazuje kolejkę ze wszystkich datasetów, które
+widzisz: ile wyników nie zaliczyło, było bez oceny albo zaliczyło, i w których
+datasetach, a każdy otwiera się w zakładce Przegląd. Karta jest domyślnie na
+pulpicie.
+
+Decyzja przeglądu osoby jest zapisywana obok wyników oceniaczy i rozstrzyga o
+rezultacie. Nigdy nie zmienia tego, co powiedział sędzia: oceny i uzasadnienia
+sędziego zostają w wyniku po tym, jak decyzja je uchyli. Decyzję można wycofać,
+a wtedy wynik znowu czeka na przegląd.
 
 ### Ocenianie runa { #scoring-a-run }
 
-W **Activity** otwórz run i wybierz **Score against a case**. Wybierz dataset i
-przypadek, a odpowiedź i wywołania narzędzi runa zostaną ocenione każdym
+W **Aktywność** otwórz run, otwórz jego menu **⋯** i wybierz **Oceń względem
+przypadku**. Przypadek, który zadaje to samo pytanie co run, jest wybierany za
+ciebie; gdy dataset takiego nie ma, okno dialogowe proponuje dodanie odpowiedzi
+runa jako przypadku. Odpowiedź i wywołania narzędzi runa są oceniane każdym
 oceniaczem, który dataset konfiguruje. Run bez transkryptu nie ma odpowiedzi do
 oceny.
 
 | Aby | Potrzebujesz |
 |---|---|
 | Zmienić sposób oceniania datasetu | `datasets:edit` na nim |
+| Utworzyć dla niego sędziego | `datasets:edit` na nim oraz `agents:edit` |
 | Ocenić run względem niego | `datasets:run` na nim oraz `runs:view` |
 | Czytać jego wyniki | `datasets:view` na nim |
-| Zapisać albo wycofać werdykt | `datasets:edit` na nim |
+| Wysłać wyniki do przeglądu, zapisać albo wycofać decyzję | `datasets:edit` na nim |
 
 Uzasadnienie napisane przez sędziego przechodzi przed zapisaniem przez tę samą
 redakcję poświadczeń co przypadek.
@@ -331,7 +363,10 @@ jeśli była to wymazywana osoba. Zostaje tekst - który może nadal zawierać d
 osobowe wpisane przez kogoś i znika dopiero po usunięciu przypadku. Zobacz
 [Ochrona danych](data-protection.md#what-deletion-reaches).
 
-Wynik jest przechowywany tak samo. Gdy run, który ocenił, zostanie usunięty,
-wynik zostaje bez powiązania z nim, a gdy osoba, która o niego poprosiła albo o
-nim rozstrzygnęła, zostanie wymazana, jej nazwisko jest z niego czyszczone.
-Uzasadnienie sędziego może cytować ocenianą odpowiedź.
+Wynik jest przechowywany tak samo. Zawiera kopię ocenianej odpowiedzi, do 8000
+znaków ze zredagowanymi poświadczeniami, żeby recenzent czytał ją obok
+przypadku. Ta kopia wraca w eksporcie osoby, do której należał run, i jest
+czyszczona, gdy ta osoba zostanie wymazana. Gdy run, który ocenił, zostanie
+usunięty, wynik zostaje bez powiązania z nim, a gdy osoba, która o niego
+poprosiła albo o nim rozstrzygnęła, zostanie wymazana, jej nazwisko jest z niego
+czyszczone. Uzasadnienie sędziego może cytować ocenianą odpowiedź.

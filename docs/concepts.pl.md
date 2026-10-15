@@ -1,5 +1,5 @@
 ---
-source_sha: "881c07a559a1"
+source_sha: "896c26eb77f1"
 ---
 
 # Koncepcje { #concepts }
@@ -566,32 +566,37 @@ dowiedzieć się, kto komu może delegować.
 
 ---
 
-## Agenci systemowi { #system-agents }
+## Sędziowie { #system-agents }
 
-Niektórych agentów uruchamia platforma, a nie człowiek: **Eval judge** ocenia
-odpowiedzi na potrzeby [oceniania datasetów](datasets.md#judge). To są
-**agenci systemowi**. Każda organizacja dostaje ich przy utworzeniu, a
-organizacja utworzona wcześniej dostaje danego agenta wtedy, gdy coś po raz
-pierwszy go potrzebuje.
+Niektórych agentów uruchamia platforma, a nie człowiek: **sędziów**, którzy
+oceniają odpowiedzi na potrzeby [oceniania datasetów](datasets.md#judge). Rodzaj
+agenta mówi, którym jest - `agent` dla tych, których używają ludzie, `judge` dla
+tych. Każda organizacja dostaje domyślnego **Eval judge** przy utworzeniu,
+organizacja utworzona wcześniej dostaje go wtedy, gdy coś po raz pierwszy go
+potrzebuje, a dataset może dostać własnego sędziego.
 
-Agent systemowy należy do platformy, a nie jest agentem, którego używają ludzie.
-Agents pokazuje go osobno, w zwiniętej sekcji **System agents** z plakietką
-**System**, i pomija go w każdym wyborze agenta. Kto ma `agents:edit`, otwiera go,
-żeby zmienić jego instrukcje, model i budżet, a jego runy są sprawdzane względem
-budżetu i zapisywane jak każde inne. Startuje z niewielkim własnym miesięcznym
-budżetem, żeby nowa organizacja nie mogła przypadkiem wydać całego swojego
-budżetu na ewaluację.
+Sędzia należy do platformy, która go uruchamia, a nie jest agentem, którego
+używają ludzie. Agents pokazuje sędziów osobno, w zwiniętym pasie **Sędziowie**
+pod **Agenci**; każda karta mówi, które datasety ocenia dany sędzia, a ten
+utworzony przez platformę jest oznaczony jako **Domyślny sędzia**. Wybory agenta
+ich pomijają. Kto ma `agents:edit`, otwiera sędziego, żeby zmienić jego
+instrukcje, model i budżet - jego strona zawiera je, jego limity, historię i
+datasety, które ocenia, i nic więcej. Jego runy są sprawdzane względem budżetu i
+zapisywane jak każde inne, i nie wysyłają powiadomienia o runie. Sędzia startuje
+z niewielkim własnym miesięcznym budżetem, żeby nowa organizacja nie mogła
+przypadkiem wydać całego swojego budżetu na ewaluację.
 
 Uruchamia go tylko platforma. Czat, API, embed albo publiczna strona, kanał,
 harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która
 uruchomiłaby run, a nie tylko w konsoli.
 
-Gdy organizacja ma już profil modelu, agent jest publikowany na najstarszym z
-nich. Bez profilu jest tworzony jako draft, a człowiek wybiera mu model i go
+Gdy organizacja ma już profil modelu, sędzia jest publikowany na najstarszym z
+nich albo na tym, który wybrano przy jego tworzeniu. Bez profilu jest tworzony
+jako draft, a człowiek wybiera mu model i go
 publikuje. Do tego czasu mówią o tym funkcje, które z niego korzystają.
 
 [Przełącznik wsparcia AI](governance.md#ai-assistance) organizacji decyduje, czy
-agenci systemowi w ogóle działają.
+sędziowie w ogóle działają.
 
 ## Profile modeli { #model-profiles }
 
