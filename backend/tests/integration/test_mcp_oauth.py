@@ -729,6 +729,39 @@ async def test_made_up_bearer_keys_are_limited_before_the_lookup(
     assert lookups.await_count == 2
 
 
+@pytest.mark.security
+async def test_refused_token_requests_are_limited_before_the_lookup(
+    served: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Codex on #2062: `/token` looked up every made-up code with no ceiling."""
+    from collections import Counter
+
+    from app.core.config import settings
+    from app.services import rate_limit
+
+    class _Counter:
+        def __init__(self) -> None:
+            self.uses: Counter[str] = Counter()
+
+        async def count_in_window(self, key: str, *, ttl: int) -> int:
+            self.uses[key] += 1
+            return self.uses[key]
+
+        async def get(self, key: str) -> str | None:
+            return str(self.uses[key]) if key in self.uses else None
+
+    async with _http() as http:
+        client = await _register(http)
+        monkeypatch.setattr(rate_limit, "_redis", _Counter())
+        monkeypatch.setattr(settings, "RATE_LIMIT_AUTH_PER_MINUTE", 2)
+        answers = [
+            (await _exchange(http, client["client_id"], f"made-up-{index}", "v")).status_code
+            for index in range(3)
+        ]
+
+    assert answers == [401, 401, 429]
+
+
 async def test_a_tool_call_spends_its_key_once(
     db: AsyncSession, served: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:

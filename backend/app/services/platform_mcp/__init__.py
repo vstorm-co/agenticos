@@ -124,6 +124,11 @@ _UNAUTHENTICATED_LIMITS: dict[tuple[str, str], tuple[str, str]] = {
 """The OAuth endpoints anyone may call without a credential, each writing a row:
 limited per address, beside the per-client bound `start` keeps on requests."""
 
+_TOKEN_PATHS = frozenset({("/token", "POST"), ("/revoke", "POST")})
+"""The OAuth endpoints a client presents a code or a token to, each looked up in
+the database. A refusal is counted per address and an address over the line is
+turned away before the lookup; a client refreshing as it should is never counted."""
+
 
 class _Forward:
     """The ASGI endpoint for :data:`ROUTE_PATHS`: hand the request to the running server.
@@ -150,6 +155,25 @@ class _Forward:
                 )
                 await refused(scope, receive, send)
                 return
+        if (scope["path"], scope.get("method", "")) in _TOKEN_PATHS:
+            connection = HTTPConnection(scope)
+            address = f"ip:{rate_limit.caller_ip(connection)}"
+            if await rate_limit.exhausted(
+                surface="oauth_token_refused", caller=address, limit=rate_limit.auth_limit()
+            ):
+                refused_token = JSONResponse(
+                    {
+                        "error": "temporarily_unavailable",
+                        "error_description": "Too many refused token requests. Try again shortly.",
+                    },
+                    status_code=429,
+                    headers={"Retry-After": "60"},
+                )
+                await refused_token(scope, receive, send)
+                return
+            send = _counting_refusals(
+                send, connection, surface="oauth_token_refused", statuses=(400, 401)
+            )
         token = _bearer(scope)
         if token is not None and is_api_key(token):
             # The limits a key meets on the API, met before the MCP server opens a
@@ -167,7 +191,7 @@ class _Forward:
                 )
                 await response(scope, receive, send)
                 return
-            send = _counting_refusals(send, connection)
+            send = _counting_refusals(send, connection, surface="api_key_refused", statuses=(401,))
         starlette = getattr(scope["app"].state, "platform_mcp", None)
         if starlette is None:
             response = JSONResponse(
@@ -193,12 +217,23 @@ def _bearer(scope: Scope) -> str | None:
     return None
 
 
-def _counting_refusals(send: Send, connection: HTTPConnection) -> Send:
-    """`send`, counting a refused key against its address when the answer is 401."""
+def _counting_refusals(
+    send: Send, connection: HTTPConnection, *, surface: str, statuses: tuple[int, ...]
+) -> Send:
+    """`send`, counting a refused credential against its address.
+
+    `statuses` are what a refusal is answered with there: a bearer the MCP server
+    does not accept is a 401; OAuth answers a bad code or token with a 400
+    (`invalid_grant`) and an unknown client with a 401.
+    """
 
     async def counted(message: Message) -> None:
-        if message["type"] == "http.response.start" and message["status"] == 401:
-            await rate_limit.count_refused_key(connection)
+        if message["type"] == "http.response.start" and message["status"] in statuses:
+            await rate_limit.consume(
+                surface=surface,
+                caller=f"ip:{rate_limit.caller_ip(connection)}",
+                limit=rate_limit.auth_limit(),
+            )
         await send(message)
 
     return counted
