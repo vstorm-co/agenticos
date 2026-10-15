@@ -921,6 +921,25 @@ def require(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
     return dependency
 
 
+def key_needs(perm: Perm) -> Callable[..., Awaitable[None]]:
+    """Admit a key to a public route only when it was issued for `perm`.
+
+    For a route a session uses with no organization permission at all - a chat
+    attachment is the person's own file - but that a key reaches only for what it
+    was issued: uploading a file for an agent run is `agents:run` work.
+    """
+
+    async def dependency(request: Request, _user: CurrentUser) -> None:
+        caller = _key_caller(request)
+        if caller is not None and not caller.context.key_allows(perm):
+            raise AuthorizationError(
+                message=f"This API key was not issued for {perm.value}",
+                details={"permission": perm.value},
+            )
+
+    return dependency
+
+
 def _limit_caller(ctx: AuthContext) -> str:
     """Who a per-caller limit counts: the key when one is used, so each script an
     issuer runs has its own share instead of draining the issuer's."""

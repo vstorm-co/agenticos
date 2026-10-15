@@ -522,6 +522,24 @@ class TestAdministration:
         # issued for that, not because it holds some other scope.
         assert unlisted.status_code == 403
 
+    async def test_a_key_that_may_run_agents_uploads_a_file_for_a_run(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        """`file_ids` on the run API need an id, and this is where one comes from."""
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        runner = await _issue(db, organization, owner, Perm.AGENTS_RUN)
+        reader = await _issue(db, organization, owner, Perm.AGENTS_VIEW)
+        upload = {"file": ("notes.txt", b"hello", "text/plain")}
+
+        async with client() as http:
+            accepted = await http.post(_url("/files/upload"), headers=_bearer(runner), files=upload)
+            refused = await http.post(_url("/files/upload"), headers=_bearer(reader), files=upload)
+
+        assert accepted.status_code == 201
+        assert accepted.json()["filename"] == "notes.txt"
+        assert refused.status_code == 403
+
     @pytest.mark.security
     async def test_department_lists_are_the_directory_too(
         self, db: AsyncSession, client: Client
