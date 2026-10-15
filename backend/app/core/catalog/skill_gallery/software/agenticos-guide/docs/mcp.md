@@ -31,6 +31,7 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
 | `auth_token` | Sealed in the [vault](secrets.md), never returned by any endpoint |
 | `allowed_tools` | An allowlist, or null for "everything the server offers". A binding narrows within it — see below |
 | `is_enabled` | Off without losing the credential |
+| `include_instructions` | Add the server's own `initialize` instructions to the agent's. Off by default - they are the server operator's text, read as the agent's own - and switched on in the connection's Edit dialog |
 | `last_status` | What the last probe found, and when |
 
 !!! warning "An address this deployment must not reach is refused, and the refusal says so"
@@ -253,6 +254,10 @@ another account**. Wherever a run reaches one service through more than one
 account, one line of its instructions names each account beside its prefix
 and tells the model to ask when it is unclear which one the person means.
 
+A second account on a service has to be named: its label is what tells the two
+apart in every picker and approval, so the form asks for one before it connects,
+and the API refuses an unnamed second account on `label`.
+
 ## Authentication
 
 Three modes, which is the only thing that really varies between servers.
@@ -435,7 +440,16 @@ bearer token keeps working until the new consent lands.
 ## What happens on a turn
 
 Each server is probed with a short `tools/list` round-trip — 3 seconds — before the
-turn starts, and the probes run concurrently.
+turn starts, and the probes run concurrently. A server that answered its probe in
+the last two minutes, with the same credential, is not probed again: a
+conversation's next turn attaches it straight away. If it has gone down in the
+meantime, that turn goes on without its tools and the next one probes it again.
+
+A tool's name reaches the model as the prefix and the server's own name joined -
+and providers refuse a name over 64 characters, or one with anything but letters,
+digits, `_` and `-`, by refusing the whole request. Such a name is fitted: the
+refused characters replaced, the end cut and eight hex digits of a hash added, so
+two long names stay two tools. The server is still called by its real name.
 
 !!! warning "An unreachable server is skipped with a warning, not raised"
 

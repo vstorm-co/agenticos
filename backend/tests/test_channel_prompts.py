@@ -9,6 +9,7 @@ its call's questions is answered; and whatever was decided is said in the chat.
 from __future__ import annotations
 
 import uuid
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -563,3 +564,32 @@ class TestPressesThatNameNothing:
             await ChannelPrompts(MagicMock()).press(_press(prompt, 0, bot))
 
         assert env.said() == [LINK_FIRST]
+
+
+class TestTheRepository:
+    """The two writes the service tests stub out, against a session double."""
+
+    async def test_pick_records_the_choices_and_leaves_it_unanswered(self):
+        from app.repositories import channel_prompt as repo
+
+        db = AsyncMock()
+        db.add = MagicMock()
+        prompt = SimpleNamespace(answer=None, answered_at=None)
+
+        await repo.pick(db, prompt=prompt, selected=["Casual", "Formal"])
+
+        assert prompt.answer == {"selected": ["Casual", "Formal"]}
+        assert prompt.answered_at is None
+        db.flush.assert_awaited_once()
+        db.refresh.assert_awaited_once_with(prompt)
+
+    async def test_delete_removes_every_prompt_offered(self):
+        from app.repositories import channel_prompt as repo
+
+        db = AsyncMock()
+        prompts = [SimpleNamespace(id=1), SimpleNamespace(id=2)]
+
+        await repo.delete(db, prompts)
+
+        assert [call.args[0] for call in db.delete.await_args_list] == prompts
+        db.flush.assert_awaited_once()

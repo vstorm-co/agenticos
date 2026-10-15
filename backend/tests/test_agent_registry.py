@@ -4175,3 +4175,27 @@ class TestUndoingADraft:
 
         db.refresh.assert_awaited_once_with(agent, with_for_update=True)
         delete.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_draft_only_deletes_a_never_published_draft_of_ones_own(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        ctx = _ctx()
+        agent = _agent(ctx)
+        agent.owner_user_id = ctx.subject_id
+        agent.current_version_id = None
+        db = _db()
+        db.refresh = AsyncMock()
+        monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.get", AsyncMock(return_value=agent))
+        monkeypatch.setattr(f"{REGISTRY_PATH}.resolve_access", AsyncMock(return_value=True))
+        monkeypatch.setattr(
+            "app.services.agent_trigger.AgentTriggerService.deregister_agent_webhooks", AsyncMock()
+        )
+        monkeypatch.setattr(f"{REGISTRY_PATH}.resource_grant_repo.delete_for_resource", AsyncMock())
+        monkeypatch.setattr(f"{REGISTRY_PATH}.record_audit", AsyncMock())
+        delete = AsyncMock()
+        monkeypatch.setattr(f"{REGISTRY_PATH}.agent_repo.delete", delete)
+
+        await AgentRegistryService(db).delete(ctx, agent.id, draft_only=True)
+
+        delete.assert_awaited_once_with(db, agent)
