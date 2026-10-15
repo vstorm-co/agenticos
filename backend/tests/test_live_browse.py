@@ -524,3 +524,83 @@ class TestAKeyOnTheLiveView:
         )
 
         assert await live_browse.access_for(self._meta(), "aos_key") is None
+
+
+class _SortedSets:
+    """Just the sorted-set part of Redis that `claim_slot` uses, in a transaction."""
+
+    def __init__(self) -> None:
+        self.sets: dict[str, dict[str, float]] = {}
+
+    def pipeline(self, *, transaction: bool) -> _SortedSets._Pipe:
+        assert transaction
+        return _SortedSets._Pipe(self)
+
+    async def zrem(self, key: str, member: str) -> None:
+        self.sets.get(key, {}).pop(member, None)
+
+    class _Pipe:
+        def __init__(self, sets: _SortedSets) -> None:
+            self.sets, self.ops = sets, []
+
+        async def __aenter__(self) -> _SortedSets._Pipe:
+            return self
+
+        async def __aexit__(self, *_exc: object) -> None:
+            return None
+
+        def zremrangebyscore(self, key: str, low: str, high: float) -> None:
+            self.ops.append(
+                lambda: [
+                    self.sets.sets.setdefault(key, {}).pop(m)
+                    for m, s in list(self.sets.sets.get(key, {}).items())
+                    if s <= high
+                ]
+            )
+
+        def zadd(self, key: str, mapping: dict[str, float]) -> None:
+            self.ops.append(lambda: self.sets.sets.setdefault(key, {}).update(mapping))
+
+        def zcard(self, key: str) -> None:
+            self.ops.append(lambda: len(self.sets.sets.get(key, {})))
+
+        def expire(self, key: str, seconds: int) -> None:
+            self.ops.append(lambda: seconds > 0)
+
+        async def execute(self) -> list[object]:
+            return [op() for op in self.ops]
+
+
+class TestPlaces:
+    """A bounded number of places per key, which lapse (Codex review of #2062)."""
+
+    @pytest.fixture
+    def sets(self) -> Iterator[_SortedSets]:
+        sets = _SortedSets()
+        client = MagicMock(spec=RedisClient)
+        client.raw = sets
+        live_browse.configure(client)
+        yield sets
+        live_browse.configure(None)
+
+    async def test_places_are_handed_out_up_to_the_limit(self, sets: _SortedSets) -> None:
+        taken = [await live_browse.claim_slot("k", f"r{i}", limit=2, hold=60) for i in range(3)]
+
+        assert taken == [True, True, False]
+        assert set(sets.sets["k"]) == {"r0", "r1"}
+
+    async def test_a_place_given_back_is_free_again(self, sets: _SortedSets) -> None:
+        await live_browse.claim_slot("k", "r0", limit=1, hold=60)
+        await live_browse.release_slot("k", "r0")
+
+        assert await live_browse.claim_slot("k", "r1", limit=1, hold=60)
+
+    async def test_a_lapsed_place_is_free_again(
+        self, sets: _SortedSets, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        clock = [1000.0]
+        monkeypatch.setattr(live_browse.time, "time", lambda: clock[0])
+        await live_browse.claim_slot("k", "r0", limit=1, hold=60)
+        clock[0] += 61
+
+        assert await live_browse.claim_slot("k", "r1", limit=1, hold=60)

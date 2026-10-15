@@ -25,11 +25,16 @@ import httpx
 from app.agents.browser_events import BrowserCommand, BrowserEvent
 from app.agents.capabilities.browser_use import WebBrowserConfig, validate_cdp_url
 from app.agents.capabilities.browser_use._endpoint import EndpointError
-from app.agents.capabilities.browser_use._loop import BrowseSession, PageSession, hand_over
+from app.agents.capabilities.browser_use._loop import (
+    HOLD_LIMIT,
+    BrowseSession,
+    PageSession,
+    hand_over,
+)
 from app.agents.capabilities.browser_use._page import PagePolicy, open_page
 from app.core.background import spawn
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, ConfigurationError
+from app.core.exceptions import AuthorizationError, ConfigurationError, RateLimitError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.sanitize import SSRFBlockedError, UrlRefusedError, validate_webhook_url
@@ -39,6 +44,21 @@ logger = logging.getLogger(__name__)
 
 CALL_ID = "sign-in"
 """The one browse a sign-in session holds, as the live view keys it."""
+
+OPEN_LIMIT = 3
+"""How many sign-in browsers one person may hold open at once.
+
+Each holds a page in the shared browser for up to `HOLD_LIMIT` whether or not
+anybody is watching it, so an unbounded number is one account exhausting the
+browser and the API process for everybody. Three covers signing in to a couple
+of sites side by side, and a tab closed without finishing frees its place when
+it lapses.
+"""
+
+
+def _slots(user_id: UUID) -> str:
+    return f"browser-sign-in:{user_id}"
+
 
 _POLICY = PagePolicy(allowed_domains=None, candidate_cap=60, preview_width=1024)
 """Where the person may go: anywhere their own sign-in leads. Single sign-on sends
@@ -68,11 +88,13 @@ async def begin(ctx: AuthContext, url: str, *, holder: str) -> SignInSession:
         AuthorizationError: The caller is an API key, which has no session to keep.
         ConfigurationError: The deployment names no browser for this, or has no
             live view to show it in.
+        RateLimitError: The caller already holds `OPEN_LIMIT` sign-in browsers.
         BadRequestError: `url` is not a public http(s) address - the browser runs
             on the deployment's own network, and a sign-in is to somebody's site.
     """
     user_id = ctx.user_id
-    if user_id is None:
+    # A key's context carries its issuer's id, so the key is asked about directly.
+    if user_id is None or ctx.api_key_id is not None:
         raise AuthorizationError(
             message="Signing in to a site keeps a person's session; an API key has none.",
             details={"subject": "api_key"},
@@ -91,6 +113,16 @@ async def begin(ctx: AuthContext, url: str, *, holder: str) -> SignInSession:
         raise refused_field("url", str(exc)) from exc
     run_id = f"sign-in-{uuid4().hex}"
     site = urlsplit(url).hostname or url
+    if not await live_browse.claim_slot(
+        _slots(user_id), run_id, limit=OPEN_LIMIT, hold=HOLD_LIMIT + 60
+    ):
+        raise RateLimitError(
+            message=(
+                f"You already have {OPEN_LIMIT} sign-in browsers open. "
+                "Finish or close one, then try again."
+            ),
+            details={"limit": OPEN_LIMIT},
+        )
     await live_browse.open_view(
         run_id,
         CALL_ID,
@@ -133,47 +165,50 @@ async def drive(organization_id: UUID, user_id: UUID, run_id: str, url: str, hol
         await browser_sign_in.remember(organization_id, user_id, sign_in)
         return sign_in.site
 
-    cdp_url = settings.BROWSER_SIGN_IN_CDP_URL
     try:
-        validate_cdp_url(WebBrowserConfig(cdp_url=cdp_url))
-        sign_ins = await browser_sign_in.load_for(organization_id, user_id)
-        async with open_page(
-            cdp_url=cdp_url, start_url=url, policy=_POLICY, sign_ins=sign_ins
-        ) as page:
-            snapshot = await page.snapshot()
+        cdp_url = settings.BROWSER_SIGN_IN_CDP_URL
+        try:
+            validate_cdp_url(WebBrowserConfig(cdp_url=cdp_url))
+            sign_ins = await browser_sign_in.load_for(organization_id, user_id)
+            async with open_page(
+                cdp_url=cdp_url, start_url=url, policy=_POLICY, sign_ins=sign_ins
+            ) as page:
+                snapshot = await page.snapshot()
+                await emit(
+                    BrowserEvent(
+                        kind="browser_opened",
+                        call_id=CALL_ID,
+                        step=0,
+                        url=snapshot.url,
+                        title=snapshot.title,
+                        run_id=run_id,
+                    )
+                )
+                await hand_over(
+                    BrowseSession(page=page),
+                    control,
+                    emit,
+                    call_id=CALL_ID,
+                    by=holder,
+                    remember=keep,
+                )
+                await emit(
+                    BrowserEvent(kind="browser_finished", call_id=CALL_ID, step=0, outcome="done")
+                )
+        except (httpx.HTTPError, OSError, EndpointError, UrlRefusedError, RuntimeError) as exc:
+            # The host only: an endpoint URL can carry a token.
+            logger.warning(
+                "browser_sign_in_unavailable",
+                extra={"host": urlsplit(cdp_url).hostname, "error": type(exc).__name__},
+            )
             await emit(
                 BrowserEvent(
-                    kind="browser_opened",
+                    kind="browser_finished",
                     call_id=CALL_ID,
                     step=0,
-                    url=snapshot.url,
-                    title=snapshot.title,
-                    run_id=run_id,
+                    outcome="failed",
+                    detail="The browser is not answering right now. Try again in a minute.",
                 )
             )
-            await hand_over(
-                BrowseSession(page=page),
-                control,
-                emit,
-                call_id=CALL_ID,
-                by=holder,
-                remember=keep,
-            )
-            await emit(
-                BrowserEvent(kind="browser_finished", call_id=CALL_ID, step=0, outcome="done")
-            )
-    except (httpx.HTTPError, OSError, EndpointError, UrlRefusedError, RuntimeError) as exc:
-        # The host only: an endpoint URL can carry a token.
-        logger.warning(
-            "browser_sign_in_unavailable",
-            extra={"host": urlsplit(cdp_url).hostname, "error": type(exc).__name__},
-        )
-        await emit(
-            BrowserEvent(
-                kind="browser_finished",
-                call_id=CALL_ID,
-                step=0,
-                outcome="failed",
-                detail="The browser is not answering right now. Try again in a minute.",
-            )
-        )
+    finally:
+        await live_browse.release_slot(_slots(user_id), run_id)

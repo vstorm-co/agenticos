@@ -595,6 +595,8 @@ Two things are versioned separately from this file and worth knowing about:
   console or channel chats answers `400` instead of reaching the model.
   Reading or answering a run's questions with a key needs `agents:run`, as starting
   the run did, and a key no longer follows or unfollows an app for its issuer.
+  A person holds at most three sign-in browsers from Settings at once, an API key
+  opens none, and two sign-ins to one site handed back together both land.
 
 - **A long MCP tool name no longer takes the whole conversation down.** A prefixed
   name past 64 characters, or with a character providers refuse, reaches the

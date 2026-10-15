@@ -4,7 +4,8 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.browser_sign_in import BrowserSignIn
@@ -48,23 +49,39 @@ async def save(
     sealed_state: str,
     key_version: int,
 ) -> BrowserSignIn:
-    """Keep a sign-in, replacing the person's earlier one to the same site."""
-    result = await db.execute(
-        select(BrowserSignIn).where(
-            BrowserSignIn.organization_id == organization_id,
-            BrowserSignIn.user_id == user_id,
-            BrowserSignIn.site == site,
+    """Keep a sign-in, replacing the person's earlier one to the same site.
+
+    One statement, so two hand-backs of the same site at once - two live browsers
+    given back together - both land, the later replacing the earlier, where a
+    read-then-insert let both see no row and the second fail on the unique key.
+    `populate_existing`: a row this session already holds is refreshed from
+    `RETURNING` rather than handed back with its old values.
+    """
+    statement = (
+        insert(BrowserSignIn)
+        .values(
+            organization_id=organization_id,
+            user_id=user_id,
+            site=site,
+            sealed_state=sealed_state,
+            secret_key_version=key_version,
         )
+        .on_conflict_do_update(
+            index_elements=[
+                BrowserSignIn.organization_id,
+                BrowserSignIn.user_id,
+                BrowserSignIn.site,
+            ],
+            set_={
+                "sealed_state": sealed_state,
+                "secret_key_version": key_version,
+                "updated_at": func.now(),
+            },
+        )
+        .returning(BrowserSignIn)
+        .execution_options(populate_existing=True)
     )
-    row = result.scalar_one_or_none()
-    if row is None:
-        row = BrowserSignIn(organization_id=organization_id, user_id=user_id, site=site)
-        db.add(row)
-    row.sealed_state = sealed_state
-    row.secret_key_version = key_version
-    await db.flush()
-    await db.refresh(row)
-    return row
+    return (await db.execute(statement)).scalar_one()
 
 
 async def mark_used(db: AsyncSession, sign_in_ids: Sequence[UUID]) -> None:

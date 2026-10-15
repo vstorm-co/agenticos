@@ -22,7 +22,12 @@ from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities.browser_use._elements import Snapshot
 from app.api.routes.v1.browser_sign_ins import sign_in_browser, sign_in_to_a_site
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, BadRequestError, ConfigurationError
+from app.core.exceptions import (
+    AuthorizationError,
+    BadRequestError,
+    ConfigurationError,
+    RateLimitError,
+)
 from app.core.permissions import AuthContext
 from app.core.sanitize import SSRFBlockedError
 from app.schemas.browser_sign_in import SignInSessionCreate
@@ -59,13 +64,32 @@ def deployment(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         AsyncMock(side_effect=lambda run, call, event: published.append(event)),
     )
     monkeypatch.setattr(session_module, "validate_webhook_url", lambda url: url)
+    claimed: list[tuple[str, str]] = []
+    released: list[tuple[str, str]] = []
+
+    async def claim(key: str, holder: str, *, limit: int, hold: float) -> bool:
+        assert (limit, hold) == (session_module.OPEN_LIMIT, session_module.HOLD_LIMIT + 60)
+        claimed.append((key, holder))
+        return len(claimed) <= limit
+
+    async def release(key: str, holder: str) -> None:
+        released.append((key, holder))
+
+    monkeypatch.setattr(session_module.live_browse, "claim_slot", claim)
+    monkeypatch.setattr(session_module.live_browse, "release_slot", release)
 
     def spawn(coro: Any, *, name: str) -> None:
         spawned.append(name)
         coro.close()
 
     monkeypatch.setattr(session_module, "spawn", spawn)
-    return {"published": published, "opened": opened, "spawned": spawned}
+    return {
+        "published": published,
+        "opened": opened,
+        "spawned": spawned,
+        "claimed": claimed,
+        "released": released,
+    }
 
 
 class TestWhetherItIsOffered:
@@ -104,6 +128,33 @@ class TestBeginning:
             await session_module.begin(_ctx(user_id=None), "https://notion.so", holder="Ada")
 
         assert deployment["opened"] == []
+
+    async def test_a_key_carrying_its_issuer_has_no_session_to_keep(
+        self, deployment: dict[str, Any]
+    ) -> None:
+        """A key's context names its issuer, so `user_id` alone let one through."""
+        key = AuthContext(
+            user_id=PERSON, organization_id=ORG, role="member", api_key_id=uuid.uuid4()
+        )
+
+        with pytest.raises(AuthorizationError):
+            await session_module.begin(key, "https://notion.so", holder="Ada")
+
+        assert deployment["opened"] == []
+
+    async def test_a_person_holds_a_bounded_number_of_sign_in_browsers(
+        self, deployment: dict[str, Any]
+    ) -> None:
+        """Each holds a page in the shared browser for up to the hold limit, watched
+        or not (Codex review of #2062)."""
+        for _ in range(session_module.OPEN_LIMIT):
+            await session_module.begin(_ctx(), "https://notion.so", holder="Ada")
+
+        with pytest.raises(RateLimitError):
+            await session_module.begin(_ctx(), "https://notion.so", holder="Ada")
+
+        assert len(deployment["opened"]) == session_module.OPEN_LIMIT
+        assert {key for key, _ in deployment["claimed"]} == {f"browser-sign-in:{PERSON}"}
 
     async def test_a_deployment_without_the_browser_says_which_setting(
         self, deployment: dict[str, Any], monkeypatch: pytest.MonkeyPatch
@@ -204,6 +255,8 @@ class TestDriving:
         released = next(e for e in deployment["published"] if e.kind == "browser_released")
         assert released.detail == "notion.so"
         assert deployment["published"][-1].outcome == "done"
+        # The person's place is given back when the browser closes.
+        assert deployment["released"] == [(f"browser-sign-in:{PERSON}", "sign-in-1")]
 
     async def test_a_give_back_from_anyone_else_keeps_nothing(
         self, deployment: dict[str, Any], monkeypatch: pytest.MonkeyPatch
@@ -238,3 +291,4 @@ class TestDriving:
         finished = deployment["published"][-1]
         assert (finished.kind, finished.outcome) == ("browser_finished", "failed")
         assert "not answering" in (finished.detail or "")
+        assert deployment["released"] == [(f"browser-sign-in:{PERSON}", "sign-in-1")]

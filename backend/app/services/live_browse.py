@@ -25,6 +25,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import time
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from uuid import UUID
@@ -98,6 +99,35 @@ async def connect_in_worker() -> None:
 def available() -> bool:
     """Whether this process can publish a live view at all - a CLI or a test cannot."""
     return _redis is not None
+
+
+async def claim_slot(key: str, holder: str, *, limit: int, hold: float) -> bool:
+    """Take one of `limit` places under `key` for `holder`, for at most `hold` seconds.
+
+    A sorted set of holders scored by when their place lapses: lapsed places are
+    dropped, this one is added, and if that made more than `limit` it is taken
+    back. Added before counted, in one transaction, so two claims at once cannot
+    both see room for one. A place outlives a process that died holding it by no
+    more than `hold`.
+    """
+    assert _redis is not None
+    now = time.time()
+    async with _redis.raw.pipeline(transaction=True) as pipe:
+        pipe.zremrangebyscore(key, "-inf", now)
+        pipe.zadd(key, {holder: now + hold})
+        pipe.zcard(key)
+        pipe.expire(key, int(hold) + 1)
+        _, _, held, _ = await pipe.execute()
+    if held <= limit:
+        return True
+    await _redis.raw.zrem(key, holder)
+    return False
+
+
+async def release_slot(key: str, holder: str) -> None:
+    """Give back a place `claim_slot` handed out."""
+    assert _redis is not None
+    await _redis.raw.zrem(key, holder)
 
 
 def link(run_id: str, call_id: str) -> str:
