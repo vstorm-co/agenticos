@@ -1,5 +1,5 @@
 ---
-source_sha: "70972598eb0c"
+source_sha: "9a3d99efe68e"
 ---
 
 # Inwentarz komponentów { #the-component-inventory }
@@ -95,7 +95,7 @@ w dokumentach CycloneDX, bo generator czyta opublikowany obraz, a nie drzewo
 źródeł.
 
 Usługi, które wdrożenie uruchamia obok tych trzech — PostgreSQL z pgvector, Redis,
-reverse proxy, serwer Prefecta — operator pobiera od ich własnych wydawców. Są
+reverse proxy, serwer Prefecta, proxy wyjściowe przeglądarki (Squid) — operator pobiera od ich własnych wydawców. Są
 nazwane w plikach compose, nie są tu budowane i nie ma ich w SBOM-ie tego
 projektu.
 

@@ -739,6 +739,13 @@ class Settings(BaseSettings):
     # `BROWSER_CDP_ALLOWED_HOSTS` like any agent's. Empty hides the option.
     BROWSER_SIGN_IN_CDP_URL: str = ""
 
+    # The proxy the deployment's own browser reaches every site through - the
+    # compose `browser-egress` service, `http://browser-egress:3128`, which refuses
+    # anything inside the deployment's network and connects to the address it
+    # checked. Used by every browse that has no proxy of the organization's own
+    # and is not on a hosted browser; empty sends the browser straight out.
+    BROWSER_EGRESS_PROXY: str = ""
+
     @field_validator("CORS_ORIGINS")
     @classmethod
     def validate_cors_origins(cls, v: list[str], info: ValidationInfo) -> list[str]:

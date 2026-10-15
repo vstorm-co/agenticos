@@ -225,6 +225,21 @@ services:
       - browser
     restart: unless-stopped
 
+  # The browser's egress proxy (`docker/browser-egress`): set
+  # BROWSER_EGRESS_PROXY=http://browser-egress:3128 and every browse without an
+  # organization proxy goes out through it. It resolves each host itself, refuses
+  # private, loopback, link-local and metadata addresses, and connects to the
+  # address it checked - so neither a redirect nor a name that rebinds between
+  # two lookups takes a page inside the deployment's network.
+  browser-egress:
+    image: ubuntu/squid:6.6-24.04_edge
+    profiles: [browser]
+    volumes:
+      - ./docker/browser-egress/squid.conf:/etc/squid/squid.conf:ro
+    networks:
+      - browser
+    restart: unless-stopped
+
   sandboxd:
     image: ghcr.io/vstorm-co/sandboxd:0.2
     profiles: [sandbox]

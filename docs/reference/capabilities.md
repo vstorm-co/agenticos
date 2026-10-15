@@ -668,7 +668,7 @@ it lasts an hour after the browse last did anything.
 | Config | Default | Values |
 |---|---|---|
 | `cdp_url` | empty | a Chromium DevTools endpoint; required, and its host must be on `BROWSER_CDP_ALLOWED_HOSTS` |
-| `allowed_domains` | null | hosts the browser may be on; globs like `*.example.com` allowed; null is unrestricted on the web. Every request is also refused when it points inside the deployment's network (a private, loopback, link-local or metadata address, a redirect included) unless its host is listed here - list an internal tool to browse it |
+| `allowed_domains` | null | hosts the browser may be on; globs like `*.example.com` allowed; null is unrestricted on the web. Every request is also refused when it points inside the deployment's network (a private, loopback, link-local or metadata address, a redirect included) unless its host is listed here - list an internal tool to browse it (and, behind `BROWSER_EGRESS_PROXY`, add it to the proxy's exceptions) |
 | `max_steps` | 50 | 1–200; steps per call, each one model request |
 | `vision` | `false` | also send each step's screenshot to the model, which has to read images |
 | `candidate_cap` | 60 | 2–200; how many elements may be offered in one step |

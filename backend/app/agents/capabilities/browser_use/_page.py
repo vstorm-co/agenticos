@@ -53,6 +53,7 @@ from app.agents.capabilities.browser_use._endpoint import (
     websocket_url,
 )
 from app.agents.capabilities.browser_use._route import BrowserRoute
+from app.core.config import settings
 
 MISSING_EXTRA = (
     "Browser automation is bound to this agent but the 'browser' extra is not "
@@ -386,11 +387,20 @@ def user_agent_override(
     return {**base, "acceptLanguage": locale}
 
 
-def context_params(route: BrowserRoute | None) -> dict[str, object]:
-    """`Target.createBrowserContext`'s parameters: the proxy, where the organization set one."""
-    if route is None or route.proxy_server is None:
+def context_params(route: BrowserRoute | None, *, hosted: bool = False) -> dict[str, object]:
+    """`Target.createBrowserContext`'s parameters: the proxy the browse goes out through.
+
+    The organization's own proxy where it set one; otherwise the deployment's
+    egress proxy (`BROWSER_EGRESS_PROXY`), which keeps a page from reaching inside
+    the deployment's network. Not for a hosted browser, which is somebody else's
+    machine and cannot reach a proxy on this deployment's network.
+    """
+    server = route.proxy_server if route is not None else None
+    if server is None and not hosted:
+        server = settings.BROWSER_EGRESS_PROXY or None
+    if server is None:
         return {}
-    return {"proxyServer": route.proxy_server, "proxyBypassList": "<-loopback>"}
+    return {"proxyServer": server, "proxyBypassList": "<-loopback>"}
 
 
 def auth_reply(event: Mapping[str, object], route: BrowserRoute | None) -> dict[str, object]:
@@ -1287,7 +1297,9 @@ async def open_page(  # pragma: no cover - needs a live browser
         # each connection - its default context is shared with nobody, and some
         # services refuse a second one.
         try:
-            context = await client.send.Target.createBrowserContext(params=context_params(route))
+            context = await client.send.Target.createBrowserContext(
+                params=context_params(route, hosted=remote is not None)
+            )
             context_id = context["browserContextId"]
         except RuntimeError:
             if remote is None:

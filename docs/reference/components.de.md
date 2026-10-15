@@ -1,5 +1,5 @@
 ---
-source_sha: "70972598eb0c"
+source_sha: "9a3d99efe68e"
 ---
 
 # Das Komponenteninventar { #the-component-inventory }
@@ -97,7 +97,7 @@ erscheinen in den CycloneDX-Dokumenten, weil der Generator das veröffentlichte
 Image liest und nicht den Quellbaum.
 
 Dienste, die ein Deployment neben diesen dreien betreibt — PostgreSQL mit
-pgvector, Redis, ein Reverse Proxy, ein Prefect-Server — zieht der Betreiber von
+pgvector, Redis, ein Reverse Proxy, ein Prefect-Server, der Egress-Proxy des Browsers (Squid) — zieht der Betreiber von
 deren eigenen Herausgebern. Sie sind in den Compose-Dateien benannt, werden hier
 nicht gebaut und stehen nicht im SBOM dieses Projekts.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "93b37e4a1574"
+source_sha: "af0bb1043000"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -751,7 +751,7 @@ bestehen.
 | Konfiguration | Standard | Werte |
 |---|---|---|
 | `cdp_url` | leer | ein Chromium-DevTools-Endpunkt; Pflicht, und sein Host muss auf `BROWSER_CDP_ALLOWED_HOSTS` stehen |
-| `allowed_domains` | null | Hosts, auf denen der Browser sein darf; Muster wie `*.example.com` erlaubt; null heißt keine Einschränkung im Web. Jede Anfrage, die ins Netz der Installation zeigt (private, Loopback-, Link-Local- oder Metadaten-Adresse, auch nach einer Weiterleitung), wird abgelehnt, außer ihr Host steht hier - tragen Sie ein internes Werkzeug ein, um es zu besuchen |
+| `allowed_domains` | null | Hosts, auf denen der Browser sein darf; Muster wie `*.example.com` erlaubt; null heißt keine Einschränkung im Web. Jede Anfrage, die ins Netz der Installation zeigt (private, Loopback-, Link-Local- oder Metadaten-Adresse, auch nach einer Weiterleitung), wird abgelehnt, außer ihr Host steht hier - tragen Sie ein internes Werkzeug ein, um es zu besuchen (und hinter `BROWSER_EGRESS_PROXY` auch in die Ausnahmen des Proxys) |
 | `max_steps` | 50 | 1–200; Schritte pro Aufruf, jeder eine Modellanfrage |
 | `vision` | `false` | sendet dem Modell bei jedem Schritt auch einen Screenshot; das Modell muss Bilder lesen |
 | `candidate_cap` | 60 | 2–200; wie viele Elemente in einem Schritt angeboten werden dürfen |

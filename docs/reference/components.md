@@ -91,7 +91,7 @@ CycloneDX documents because the generator reads the published image rather than
 the source tree.
 
 Services a deployment runs beside these three — PostgreSQL with pgvector, Redis, a
-reverse proxy, a Prefect server — are pulled by the operator from their own
+reverse proxy, a Prefect server, the browser's Squid egress proxy — are pulled by the operator from their own
 publishers. They are named in the compose files, they are not built here, and
 they are not in this project's SBOM.
 

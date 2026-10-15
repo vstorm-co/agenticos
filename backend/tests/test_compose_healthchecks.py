@@ -183,7 +183,8 @@ class TestWaitingForHealthIgnoresAProbeFromBeforeThisStart:
 def test_the_browser_shares_a_network_only_with_what_drives_it(file_name: str) -> None:
     """A page the browser is sent to - or redirected to - must not reach Postgres,
     Redis, Prefect or MinIO (Codex review of #2062). It sits on a network of its
-    own, which only the API and the runner join to reach its DevTools port."""
+    own, which only the API and the runner join to reach its DevTools port - and
+    its egress proxy, the way out it is given, which joins nothing else."""
     services = _services(file_name)
 
     def networks(name: str) -> set[str]:
@@ -191,5 +192,6 @@ def test_the_browser_shares_a_network_only_with_what_drives_it(file_name: str) -
         return set(declared if isinstance(declared, list) else declared.keys())
 
     assert networks("browser") == {"browser"}
+    assert networks("browser-egress") == {"browser"}
     on_it = {name for name in services if "browser" in networks(name)}
-    assert on_it == {"browser", "app", "prefect-runner"}
+    assert on_it == {"browser", "browser-egress", "app", "prefect-runner"}

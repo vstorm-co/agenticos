@@ -219,7 +219,26 @@ class TestTheRouteARunGets:
 
 
 class TestWhatTheBrowserIsTold:
-    def test_a_proxy_goes_on_the_context(self):
+    def test_without_any_proxy_the_context_has_none(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "BROWSER_EGRESS_PROXY", "")
+        assert context_params(None) == {}
+
+    def test_the_deployment_s_egress_proxy_is_the_default_but_not_for_a_hosted_browser(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(settings, "BROWSER_EGRESS_PROXY", "http://browser-egress:3128")
+        egress = {"proxyServer": "http://browser-egress:3128", "proxyBypassList": "<-loopback>"}
+
+        assert context_params(None) == egress
+        assert context_params(BrowserRoute(timezone="UTC")) == egress
+        # The organization's own proxy wins, and a hosted browser cannot reach ours.
+        assert (
+            context_params(BrowserRoute(proxy_server="http://p:1"))["proxyServer"] == "http://p:1"
+        )
+        assert context_params(None, hosted=True) == {}
+
+    def test_a_proxy_goes_on_the_context(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(settings, "BROWSER_EGRESS_PROXY", "")
         assert context_params(None) == {}
         assert context_params(BrowserRoute(timezone="UTC")) == {}
         assert context_params(BrowserRoute(proxy_server="http://p:1")) == {

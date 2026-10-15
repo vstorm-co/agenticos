@@ -1,5 +1,5 @@
 ---
-source_sha: "70972598eb0c"
+source_sha: "9a3d99efe68e"
 ---
 
 # El inventario de componentes { #the-component-inventory }
@@ -97,7 +97,7 @@ en los documentos CycloneDX, porque el generador lee la imagen publicada y no el
 árbol de fuentes.
 
 Los servicios que un despliegue ejecuta junto a estas tres — PostgreSQL con
-pgvector, Redis, un proxy inverso, un servidor de Prefect — los descarga el
+pgvector, Redis, un proxy inverso, un servidor de Prefect, el proxy de salida del navegador (Squid) — los descarga el
 operador de sus propios editores. Están nombrados en los ficheros compose, no se
 compilan aquí y no están en el SBOM de este proyecto.
 
