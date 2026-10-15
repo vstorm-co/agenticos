@@ -27,6 +27,7 @@ from pydantic_ai.common_tools import web_fetch as web_fetch_module
 from pydantic_ai.messages import (
     BinaryContent,
     ModelMessage,
+    ModelRequest,
     ModelResponse,
     RetryPromptPart,
     TextPart,
@@ -207,9 +208,13 @@ class TestARunThatMeetsRefusals:
         result = await agent.run("Read these pages.")
 
         assert result.output == "None of them would let me in."
-        parts = [part for message in result.all_messages() for part in message.parts]
-        assert sum(isinstance(part, RetryPromptPart) for part in parts) == 2
-        assert sum(isinstance(part, ToolReturnPart) for part in parts) == 2
+        answered = [
+            [type(part) for part in message.parts]
+            for message in result.all_messages()
+            if isinstance(message, ModelRequest)
+            and any(isinstance(part, RetryPromptPart | ToolReturnPart) for part in message.parts)
+        ]
+        assert answered == [[RetryPromptPart, RetryPromptPart], [ToolReturnPart, ToolReturnPart]]
 
 
 class TestWhoFetches:
