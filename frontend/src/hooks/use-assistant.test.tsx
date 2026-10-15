@@ -50,6 +50,19 @@ describe("useAssistant", () => {
     await waitFor(() => expect(useArchitectMarkStore.getState().agentId).toBeNull());
   });
 
+  it("hands back a failed read, and reads again when asked", async () => {
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("install refused"));
+    const { result } = renderHook(() => useAssistant(), { wrapper });
+
+    await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
+    expect(result.current.assistant).toBeNull();
+
+    act(() => result.current.retry());
+
+    await waitFor(() => expect(result.current.assistant).toEqual(READY));
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+
   it("asks nothing before an organization is chosen", () => {
     useOrgStore.setState({ activeOrgId: null });
     const { result } = renderHook(() => useAssistant(), { wrapper });

@@ -18,7 +18,7 @@ import type { AssistantState, AssistantUpdate } from "@/types/assistant";
  */
 export function useAssistant() {
   const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.assistant(orgId),
     queryFn: () => apiClient.get<AssistantState>("/assistant"),
     enabled: orgId !== "",
@@ -29,7 +29,9 @@ export function useAssistant() {
   useEffect(() => {
     if (data) setMarked(markedId);
   }, [data, markedId, setMarked]);
-  return { assistant: data ?? null, isLoading };
+  // The failure is returned rather than read as "no assistant": a refused install
+  // or publish would otherwise make the whole feature vanish without a word.
+  return { assistant: data ?? null, isLoading, error, retry: () => void refetch() };
 }
 
 /** Change the assistant's name, greeting, model or knowledge, or switch it off. */

@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
-import { LoadingState } from "@/components/states";
+import { ErrorState, LoadingState } from "@/components/states";
 import { SectionCard } from "@/components/settings/settings-section";
 import { Button, FormField, Input, Label, Switch, Textarea } from "@/components/ui";
 import { useModelProviders, usePermissions } from "@/hooks";
+import { getErrorMessage } from "@/lib/api-error";
 import { useAssistant, useUpdateAssistant } from "@/hooks/use-assistant";
 import { readPreferences, resetSilenced, setBubblesOff } from "@/lib/assistant-bubbles";
 import { Perm } from "@/types/permissions";
@@ -20,8 +21,18 @@ import type { AssistantState } from "@/types/assistant";
  */
 export function AssistantSettings() {
   const t = useTranslations("assistantSettings");
-  const { assistant, isLoading } = useAssistant();
+  const tCommon = useTranslations("common");
+  const tErrors = useTranslations("errors");
+  const { assistant, isLoading, error, retry } = useAssistant();
   if (isLoading) return <LoadingState variant="skeleton-panel" rows={4} />;
+  if (error) {
+    return (
+      <ErrorState
+        description={getErrorMessage(error, tErrors)}
+        cta={{ label: tCommon("retry"), onClick: retry }}
+      />
+    );
+  }
   if (!assistant) return null;
   return (
     <div className="space-y-6">

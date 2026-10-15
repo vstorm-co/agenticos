@@ -47,6 +47,8 @@ let visits = 0;
  * other. Before it has a model it walks through connecting one instead.
  */
 export function AssistantWidget() {
+  // A failed read leaves the corner empty on every page rather than an error
+  // following the reader around; Settings → Assistant is where it is said.
   const { assistant } = useAssistant();
   if (!assistant || !assistant.can_use || assistant.agent_id === null) return null;
   if (assistant.status === "ready") {

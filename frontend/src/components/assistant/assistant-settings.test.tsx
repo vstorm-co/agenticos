@@ -8,13 +8,20 @@ import { AssistantSettings } from "./assistant-settings";
 const state = vi.hoisted(() => ({
   assistant: null as AssistantState | null,
   isLoading: false,
+  error: null as Error | null,
+  retry: vi.fn(),
   mutate: vi.fn(),
   isPending: false,
   permissions: new Set<string>(),
 }));
 
 vi.mock("@/hooks/use-assistant", () => ({
-  useAssistant: () => ({ assistant: state.assistant, isLoading: state.isLoading }),
+  useAssistant: () => ({
+    assistant: state.assistant,
+    isLoading: state.isLoading,
+    error: state.error,
+    retry: state.retry,
+  }),
   useUpdateAssistant: () => ({ mutate: state.mutate, isPending: state.isPending }),
 }));
 vi.mock("@/hooks", () => ({
@@ -60,6 +67,8 @@ function assistant(overrides: Partial<AssistantState> = {}): AssistantState {
 beforeEach(() => {
   state.assistant = assistant();
   state.isLoading = false;
+  state.error = null;
+  state.retry.mockReset();
   state.isPending = false;
   state.mutate.mockReset();
   state.permissions = new Set(["connections:manage"]);
@@ -72,6 +81,17 @@ describe("Settings → Assistant", () => {
     state.isLoading = true;
     render(<AssistantSettings />);
 
+    expect(screen.queryByText("Your tips")).toBeNull();
+  });
+
+  it("says why the assistant could not be read, and offers to try again", () => {
+    state.assistant = null;
+    state.error = new Error("The assistant could not be installed");
+    render(<AssistantSettings />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(state.retry).toHaveBeenCalledOnce();
     expect(screen.queryByText("Your tips")).toBeNull();
   });
 
