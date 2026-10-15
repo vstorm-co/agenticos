@@ -47,6 +47,12 @@ async def get_by_prefix(db: AsyncSession, prefix: str) -> ApiKey | None:
     return result.scalar_one_or_none()
 
 
+async def prefix_taken(db: AsyncSession, prefix: str) -> bool:
+    """Whether a row already carries this visible prefix - it is unique across every key."""
+    result = await db.execute(select(ApiKey.id).where(ApiKey.prefix == prefix).limit(1))
+    return result.first() is not None
+
+
 async def get(db: AsyncSession, key_id: UUID, *, organization_id: UUID) -> ApiKey | None:
     result = await db.execute(
         select(ApiKey).where(ApiKey.id == key_id, ApiKey.organization_id == organization_id)
@@ -93,6 +99,13 @@ async def touch(db: AsyncSession, key_id: UUID, *, at: datetime, stale_before: d
             (ApiKey.last_used_at.is_(None)) | (ApiKey.last_used_at < stale_before),
         )
         .values(last_used_at=at)
+    )
+
+
+async def delete_expired_for_grant(db: AsyncSession, *, grant_id: UUID, before: datetime) -> None:
+    """Drop one OAuth grant's lapsed access tokens - one is issued per refresh."""
+    await db.execute(
+        delete(ApiKey).where(ApiKey.oauth_grant_id == grant_id, ApiKey.expires_at < before)
     )
 
 

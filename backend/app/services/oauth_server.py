@@ -36,6 +36,7 @@ from app.db.models.oauth import (
     OAuthGrant,
     OAuthRefreshToken,
 )
+from app.repositories import api_key as api_key_repo
 from app.repositories import oauth as oauth_repo
 from app.repositories import organization as organization_repo
 from app.schemas.oauth_server import (
@@ -348,6 +349,11 @@ class OAuthServerService:
         self, client: OAuthClient, grant: OAuthGrant, scopes: list[str]
     ) -> IssuedTokens:
         now = datetime.now(UTC)
+        # Every refresh adds an access token and a refresh token, and a client
+        # that stays connected refreshes hourly - so the grant's lapsed ones go
+        # here, as the run credentials go when the next run mints one.
+        await api_key_repo.delete_expired_for_grant(self.db, grant_id=grant.id, before=now)
+        await oauth_repo.delete_expired_refresh_tokens(self.db, grant_id=grant.id, before=now)
         access = await ApiKeyService(self.db).issue_for_grant(
             grant_id=grant.id,
             organization_id=grant.organization_id,

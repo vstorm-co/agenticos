@@ -21,7 +21,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AuthenticationError, NotFoundError
+from app.core.exceptions import AuthenticationError, InternalError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.api_key import ApiKey
@@ -48,6 +48,8 @@ KEY_PREFIX = "aos_"
 and :func:`is_api_key` recognise one without a database round trip."""
 
 _PREFIX_LENGTH = len(KEY_PREFIX) + 8
+_PREFIX_ATTEMPTS = 5
+"""How many prefixes a mint draws before deciding the namespace is the problem."""
 _SECRET_BYTES = 32
 _TOUCH_EVERY = timedelta(minutes=1)
 _RUN_CREDENTIAL_LIFETIME = timedelta(hours=2)
@@ -181,6 +183,24 @@ class ApiKeyService:
         email = issuer.email if issuer is not None else ""
         return ApiKeyCreated(**_read(row, email, now).model_dump(), key=key)
 
+    async def _free_prefix(self) -> str:
+        """A visible prefix no key carries yet.
+
+        Thirty-two random bits, unique across every key, OAuth access token and
+        run credential together: by tens of thousands of rows a collision is
+        likely, and it failed the unique constraint - and with it the key, the
+        run or the refresh being issued. Drawn again rather than widened, since
+        the prefix's length is how a presented key is split into prefix and secret.
+        """
+        for _ in range(_PREFIX_ATTEMPTS):
+            prefix = KEY_PREFIX + secrets.token_hex(4)
+            if not await api_key_repo.prefix_taken(self.db, prefix):
+                return prefix
+        raise InternalError(
+            message="Could not draw a free API key prefix",
+            details={"attempts": _PREFIX_ATTEMPTS},
+        )
+
     async def _mint(
         self,
         *,
@@ -192,8 +212,13 @@ class ApiKeyService:
         oauth_grant_id: UUID | None,
         internal: bool = False,
     ) -> tuple[str, ApiKey]:
-        """A new key and its row; the plaintext exists only in the returned string."""
-        prefix = KEY_PREFIX + secrets.token_hex(4)
+        """A new key and its row; the plaintext exists only in the returned string.
+
+        Raises:
+            InternalError: Every prefix drawn was taken - a namespace that full is
+                a defect to look at, not a key to keep trying for.
+        """
+        prefix = await self._free_prefix()
         key = prefix + secrets.token_urlsafe(_SECRET_BYTES)
         row = await api_key_repo.create(
             self.db,

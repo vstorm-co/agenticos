@@ -597,6 +597,8 @@ Two things are versioned separately from this file and worth knowing about:
   the run did, and a key no longer follows or unfollows an app for its issuer.
   A person holds at most three sign-in browsers from Settings at once, an API key
   opens none, and two sign-ins to one site handed back together both land.
+  An OAuth refresh sweeps the grant's lapsed access and refresh tokens, and a key's
+  visible prefix is drawn again when it is taken instead of failing the issue.
 
 - **A long MCP tool name no longer takes the whole conversation down.** A prefixed
   name past 64 characters, or with a character providers refuse, reaches the

@@ -140,6 +140,31 @@ class TestRevoking:
         audit.assert_awaited_once()
 
 
+class TestDrawingAPrefix:
+    """The visible prefix is unique across every key, OAuth token and run credential (Codex review of #2062)."""
+
+    async def test_a_taken_prefix_is_drawn_again(self) -> None:
+        with (
+            patch(f"{PATH}.api_key_repo.prefix_taken", new=AsyncMock(side_effect=[True, False])),
+            patch(f"{PATH}.secrets.token_hex", side_effect=["0000aaaa", "1111bbbb"]),
+        ):
+            prefix = await ApiKeyService(MagicMock())._free_prefix()
+
+        assert prefix == "aos_1111bbbb"
+
+    async def test_a_namespace_with_no_room_is_a_defect_not_a_loop(self) -> None:
+        from app.core.exceptions import InternalError
+
+        taken = AsyncMock(return_value=True)
+        with (
+            patch(f"{PATH}.api_key_repo.prefix_taken", new=taken),
+            pytest.raises(InternalError),
+        ):
+            await ApiKeyService(MagicMock())._free_prefix()
+
+        assert taken.await_count == 5
+
+
 class TestAuthenticating:
     async def test_an_unknown_prefix_is_refused(self) -> None:
         with (

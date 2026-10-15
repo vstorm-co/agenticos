@@ -176,6 +176,22 @@ async def create_refresh_token(
     return token
 
 
+async def delete_expired_refresh_tokens(
+    db: AsyncSession, *, grant_id: UUID, before: datetime
+) -> None:
+    """Drop one grant's lapsed refresh tokens.
+
+    Only lapsed ones: a spent token still inside its lifetime is what reuse
+    detection recognises when it is presented again, so it has to stay; a lapsed
+    one is refused for its age before reuse is ever asked about.
+    """
+    await db.execute(
+        delete(OAuthRefreshToken).where(
+            OAuthRefreshToken.grant_id == grant_id, OAuthRefreshToken.expires_at < before
+        )
+    )
+
+
 async def get_refresh_token(
     db: AsyncSession, token_hash: str
 ) -> tuple[OAuthRefreshToken, OAuthGrant] | None:

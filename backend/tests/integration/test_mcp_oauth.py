@@ -250,6 +250,53 @@ async def test_refresh_rotates_and_a_spent_refresh_token_revokes_everything(
     assert after.status_code == 401
 
 
+async def test_a_refresh_sweeps_the_grant_s_lapsed_tokens_and_keeps_the_spent_ones(
+    db: AsyncSession, served: None
+) -> None:
+    """Each hourly refresh adds an access and a refresh token; lapsed ones used to
+    stay forever (Codex review of #2062). A spent one still inside its lifetime is
+    what reuse detection needs, so it stays."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.db.models.oauth import OAuthRefreshToken
+    from app.repositories import oauth as oauth_repo
+    from app.services.api_key import ApiKeyService
+
+    ctx, client_id, tokens = await _connected(db, Perm.AGENTS_VIEW)
+    grant = (
+        await db.execute(select(OAuthGrant).where(OAuthGrant.user_id == ctx.user_id))
+    ).scalar_one()
+    lapsed = datetime.now(UTC) - timedelta(hours=1)
+    await ApiKeyService(db).issue_for_grant(
+        grant_id=grant.id,
+        organization_id=grant.organization_id,
+        user_id=grant.user_id,
+        client_name="old",
+        scopes=[Perm.AGENTS_VIEW.value],
+        expires_at=lapsed,
+    )
+    await oauth_repo.create_refresh_token(
+        db, token_hash="lapsed-refresh", grant_id=grant.id, scopes=[], expires_at=lapsed
+    )
+    await db.commit()
+
+    async with _http() as http:
+        rotated = await _refresh(http, client_id, tokens["refresh_token"])
+
+    assert rotated.status_code == 200
+    keys = (
+        (await db.execute(select(ApiKey).where(ApiKey.oauth_grant_id == grant.id))).scalars().all()
+    )
+    assert all(key.expires_at > datetime.now(UTC) for key in keys)
+    refresh = (
+        (await db.execute(select(OAuthRefreshToken).where(OAuthRefreshToken.grant_id == grant.id)))
+        .scalars()
+        .all()
+    )
+    assert "lapsed-refresh" not in {row.token_hash for row in refresh}
+    assert any(row.used_at is not None for row in refresh)
+
+
 async def test_the_client_can_revoke_its_own_access(db: AsyncSession, served: None) -> None:
     _ctx, client_id, tokens = await _connected(db, Perm.AGENTS_VIEW)
 
