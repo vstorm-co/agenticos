@@ -1,5 +1,5 @@
 ---
-source_sha: "7a39d9d7a385"
+source_sha: "93b37e4a1574"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -709,7 +709,7 @@ przeglądania.
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
 | `cdp_url` | pusty | endpoint DevTools Chromium; wymagany, a jego host musi być na `BROWSER_CDP_ALLOWED_HOSTS` |
-| `allowed_domains` | null | hosty, na których może być przeglądarka; wzorce typu `*.example.com` dozwolone; null to brak ograniczeń |
+| `allowed_domains` | null | hosty, na których może być przeglądarka; wzorce typu `*.example.com` dozwolone; null to brak ograniczeń w sieci. Każde żądanie, które wskazuje do wnętrza sieci wdrożenia (adres prywatny, loopback, link-local albo metadanych, także po przekierowaniu), jest odrzucane, chyba że jego host jest tu wpisany - wpisz wewnętrzne narzędzie, żeby je przeglądać |
 | `max_steps` | 50 | 1–200; kroki na wywołanie, każdy to jedno zapytanie do modelu |
 | `vision` | `false` | wysyłaj modelowi także zrzut ekranu z każdego kroku; model musi czytać obrazy |
 | `candidate_cap` | 60 | 2–200; ile elementów można zaproponować w jednym kroku |

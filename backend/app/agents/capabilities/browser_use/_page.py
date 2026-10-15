@@ -47,6 +47,7 @@ from app.agents.capabilities.browser_use._elements import (
 from app.agents.capabilities.browser_use._endpoint import (
     EndpointError,
     domain_allowed,
+    egress_refused,
     pin_host,
     version_url,
     websocket_url,
@@ -1144,18 +1145,23 @@ async def _resolve(cdp_url: str) -> str | None:  # pragma: no cover - needs a re
     return None
 
 
-async def _answer_proxy_auth(  # pragma: no cover - needs a live browser
-    client: Any, session: str, route: BrowserRoute
+async def _intercept(  # pragma: no cover - needs a live browser
+    client: Any, session: str, route: BrowserRoute | None, allowed_domains: list[str] | None
 ) -> None:
-    """Sign the browse in to its proxy whenever the proxy asks.
+    """Pause every request the tab makes, refuse the internal ones, and sign in to a proxy.
+
+    `egress_refused` decides each request - a redirect hop and every resource a
+    page loads included - so a public page cannot walk the browser into the
+    deployment's network (Codex on #2062). The answer is kept per host and port
+    for the tab's life: a page loads dozens of resources from the same few.
 
     Chromium takes a proxy's address per context but has no way to be handed its
-    password, so the challenge is answered over CDP - `auth_reply` decides what
-    each one is told. Enabling auth handling pauses every request, so each is
-    continued as it arrives; the handlers run inside the client's receive loop
-    and only schedule their answers.
+    password, so a proxy's challenge is answered here too - `auth_reply` decides
+    what each one is told. One `Fetch.enable` per session, so both live in it.
+    The handlers run inside the client's receive loop and only schedule work.
     """
     pending: set[asyncio.Task[object]] = set()
+    verdicts: dict[tuple[str, int | None], bool] = {}
 
     def later(command: Awaitable[object]) -> None:
         task = asyncio.ensure_future(command)
@@ -1166,16 +1172,27 @@ async def _answer_proxy_auth(  # pragma: no cover - needs a live browser
             lambda done: pending.discard(done) or done.cancelled() or done.exception()
         )
 
+    async def decide(request_id: str, url: str) -> None:
+        parts = urlsplit(url)
+        key = (f"{parts.scheme}://{parts.hostname}", parts.port)
+        if key not in verdicts:
+            verdicts[key] = await egress_refused(url, allowed_domains)
+        if verdicts[key]:
+            await client.send.Fetch.failRequest(
+                params={"requestId": request_id, "errorReason": "AddressUnreachable"},
+                session_id=session,
+            )
+            return
+        await client.send.Fetch.continueRequest(
+            params={"requestId": request_id}, session_id=session
+        )
+
     def paused(event: dict[str, Any], session_id: str | None) -> None:
         if session_id == session:
-            later(
-                client.send.Fetch.continueRequest(
-                    params={"requestId": event["requestId"]}, session_id=session
-                )
-            )
+            later(decide(event["requestId"], str(event["request"]["url"])))
 
     def challenged(event: dict[str, Any], session_id: str | None) -> None:
-        if session_id == session:
+        if session_id == session and route is not None:
             later(
                 client.send.Fetch.continueWithAuth(
                     params=auth_reply(event, route), session_id=session
@@ -1184,8 +1201,9 @@ async def _answer_proxy_auth(  # pragma: no cover - needs a live browser
 
     client.register.Fetch.requestPaused(paused)
     client.register.Fetch.authRequired(challenged)
+    proxied = route is not None and route.proxy_username is not None
     await client.send.Fetch.enable(
-        params={"handleAuthRequests": True, "patterns": [{"urlPattern": "*"}]},
+        params={"handleAuthRequests": proxied, "patterns": [{"urlPattern": "*"}]},
         session_id=session,
     )
 
@@ -1310,8 +1328,7 @@ async def open_page(  # pragma: no cover - needs a live browser
             await client.send.Emulation.setTimezoneOverride(
                 params={"timezoneId": route.timezone}, session_id=session
             )
-        if route is not None and route.proxy_username is not None:
-            await _answer_proxy_auth(client, session, route)
+        await _intercept(client, session, route, policy.allowed_domains)
         await client.send.Page.addScriptToEvaluateOnNewDocument(
             params={"source": _STEALTH_JS}, session_id=session
         )

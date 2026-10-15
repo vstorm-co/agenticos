@@ -1,5 +1,5 @@
 ---
-source_sha: "7a39d9d7a385"
+source_sha: "93b37e4a1574"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -719,7 +719,7 @@ de la navegación.
 | Configuración | Por defecto | Valores |
 |---|---|---|
 | `cdp_url` | vacío | un endpoint DevTools de Chromium; obligatorio, y su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS` |
-| `allowed_domains` | null | hosts en los que puede estar el navegador; se admiten patrones como `*.example.com`; null es sin restricción |
+| `allowed_domains` | null | hosts en los que puede estar el navegador; se admiten patrones como `*.example.com`; null es sin restricción en la web. Toda petición que apunte dentro de la red del despliegue (una dirección privada, de loopback, link-local o de metadatos, también tras una redirección) se rechaza salvo que su host esté aquí - añade una herramienta interna para navegarla |
 | `max_steps` | 50 | 1–200; pasos por llamada, cada uno una petición al modelo |
 | `vision` | `false` | envía también al modelo la captura de cada paso; el modelo tiene que leer imágenes |
 | `candidate_cap` | 60 | 2–200; cuántos elementos se pueden ofrecer en un paso |

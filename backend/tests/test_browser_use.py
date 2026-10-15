@@ -22,7 +22,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from typing import Any, get_args
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import anyio
@@ -43,6 +43,7 @@ from app.agents.capabilities.browser_use import (
     BROWSER_STEP_MODEL_RESOURCE,
     WebBrowser,
     WebBrowserConfig,
+    _endpoint,
     _loop,
     validate_cdp_url,
 )
@@ -87,6 +88,7 @@ from app.agents.capabilities.browser_use._elements import (
 from app.agents.capabilities.browser_use._endpoint import (
     EndpointError,
     domain_allowed,
+    egress_refused,
     pin_host,
     version_url,
     websocket_url,
@@ -1162,6 +1164,45 @@ class TestTheAgentsCursorIsDrawn:
     def test_a_point_off_the_page_is_refused(self):
         with pytest.raises(ValidationError):
             BrowserEvent(kind="browser_pointer", call_id="c", step=1, x=1.5, y=0.2)
+
+
+class TestEgress:
+    """Codex on #2062: every request the browser makes is asked where it goes."""
+
+    @pytest.mark.parametrize("url", ["data:text/html,hi", "about:blank", "blob:abc", "https://"])
+    async def test_what_never_leaves_the_browser_is_not_resolved(
+        self, url: str, monkeypatch: pytest.MonkeyPatch
+    ):
+        resolve = MagicMock()
+        monkeypatch.setattr(_endpoint, "resolve_pinned_url", resolve)
+
+        assert await egress_refused(url, None) is False
+        resolve.assert_not_called()
+
+    @pytest.mark.security
+    async def test_an_internal_address_is_refused_and_a_public_one_is_not(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        from app.core.sanitize import SSRFBlockedError
+
+        def resolve(url: str, allowed_schemes: frozenset[str]) -> None:
+            if "169.254" in url:
+                raise SSRFBlockedError("internal")
+
+        monkeypatch.setattr(_endpoint, "resolve_pinned_url", resolve)
+
+        assert await egress_refused("http://169.254.169.254/latest/meta-data", None) is True
+        assert await egress_refused("https://example.com/a", None) is False
+
+    async def test_a_host_the_author_allowed_is_reached_even_inside(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Browsing an internal tool is what `allowed_domains` is for."""
+        resolve = MagicMock()
+        monkeypatch.setattr(_endpoint, "resolve_pinned_url", resolve)
+
+        assert await egress_refused("http://wiki.corp.internal/page", ["*.corp.internal"]) is False
+        resolve.assert_not_called()
 
 
 class TestOnlyTheHolderDrives:

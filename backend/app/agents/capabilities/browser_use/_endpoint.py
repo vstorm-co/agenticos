@@ -11,6 +11,10 @@ from __future__ import annotations
 from fnmatch import fnmatch
 from urllib.parse import urlparse, urlsplit
 
+import anyio
+
+from app.core.sanitize import UrlRefusedError, resolve_pinned_url
+
 DEBUGGER_KEY = "webSocketDebuggerUrl"
 """The field `/json/version` answers with, and the one thing read out of it."""
 
@@ -144,3 +148,39 @@ def domain_allowed(url: str, patterns: list[str] | None) -> bool:
     if patterns is None:
         return True
     return any(fnmatch(host, pattern.lower()) for pattern in patterns)
+
+
+_LEAVING_SCHEMES = frozenset({"http", "https", "ws", "wss"})
+"""What a browser request can reach another machine with. `data:`, `blob:` and
+`about:` never leave the browser, so there is nothing to check."""
+
+
+async def egress_refused(url: str, allowed_domains: list[str] | None) -> bool:
+    """Whether a request the browser is about to make points inside the deployment's network.
+
+    Asked of every request - each redirect hop and each resource a page loads -
+    not only of the address somebody typed: a public page that redirects to a
+    LAN host or a cloud metadata address otherwise has the browser fetch it and
+    stream the result to whoever is watching. The policy is `resolve_pinned_url`'s:
+    no private, reserved, loopback, link-local or CGNAT address.
+
+    A host the agent's author named in `allowed_domains` is let through even when
+    it is internal - browsing an internal tool is what that list is for. Without
+    a list nothing internal is reached. The browser resolves the name again when
+    it connects, so a name rebinding between the two answers is not caught here;
+    this closes redirects and every name that already points inside.
+    """
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in _LEAVING_SCHEMES or not host:
+        return False
+    if allowed_domains and any(fnmatch(host, pattern.lower()) for pattern in allowed_domains):
+        return False
+    try:
+        # Off the event loop: it blocks on DNS.
+        await anyio.to_thread.run_sync(
+            lambda: resolve_pinned_url(url, allowed_schemes=frozenset({parsed.scheme}))
+        )
+    except UrlRefusedError:
+        return True
+    return False
