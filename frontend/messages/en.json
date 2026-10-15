@@ -3599,6 +3599,10 @@
         "title": "Stay in the loop",
         "body": "A run that failed, an approval waiting on you, a budget about to run out, a message from an app admin - it all lands here, with an in-app and email toggle for the kinds you can turn off in Settings."
       },
+      "org-assistant": {
+        "title": "The AI Architect",
+        "body": "Switch the organization's assistant on or off and set how it greets people. Its name, model and knowledge are edited in the Agent Builder, like any agent's."
+      },
       "org-members": {
         "title": "Who's in it",
         "body": "Everyone in the organization and the role each holds. Invite teammates, change a role, or remove someone - all from this list."
@@ -3718,10 +3722,6 @@
       "assistant-widget": {
         "title": "Your Architect",
         "body": "Ask it anything about the platform - it builds agents with you, explains errors and finds settings. Its speech bubbles suggest what to do on each page; turn them off in Settings → Assistant."
-      },
-      "settings-assistant": {
-        "title": "The organization's assistant",
-        "body": "Name it, give it a greeting and choose the model it runs on. Everyone who may run agents sees it in the corner of every page."
       },
       "groups-new": {
         "title": "Add a group",
@@ -6421,12 +6421,12 @@
       "bubble": "I'm not connected to a model yet, so I can't think. Want me to show you how to connect one?",
       "title": "Connecting a model",
       "typing": "{name} is typing…",
-      "openSettings": "Open assistant settings",
+      "openBuilder": "Open my model settings",
       "steps": {
         "intro": "Hi, I'm {name}. I help build agents and find your way around the platform - but to think I need a language model, and none is connected yet. Here's how to connect one. It takes about two minutes.",
         "key": "<b>Step 1: get an API key.</b> Sign in to a model provider - Anthropic, OpenAI, Google or another - and create an API key in its console. It's a long string, often starting with \"sk-\". If your company runs its own model, for example on Ollama or vLLM, its address is enough.",
-        "settings": "<b>Step 2: open Settings → Assistant.</b> Under Model, choose the provider and paste the key. It goes straight into the vault, encrypted - nobody sees it whole again, me included.",
-        "model": "<b>Step 3: choose a model and save.</b> A capable mid-priced model is a good start, and you can change it any time.",
+        "settings": "<b>Step 2: open me in the Agent Builder.</b> Under Model, choose the provider and paste the key. It goes straight into the vault, encrypted - nobody sees it whole again, me included.",
+        "model": "<b>Step 3: choose a model and publish.</b> A capable mid-priced model is a good start, and you can change it any time.",
         "done": "<b>That's it.</b> Come back here and I'll say hello. Every other agent in your organization can use that model too.",
         "askAdmin": "<b>Who can do it:</b> only an administrator of your organization can connect a model. Ask one to follow these steps - it takes about two minutes, and then I'm here for everyone."
       }
@@ -6442,11 +6442,17 @@
     "showTips": "Show tips in speech bubbles",
     "unsilence": "{count, plural, =1 {Show tips again on the 1 page I silenced} other {Show tips again on the # pages I silenced}}",
     "organization": "For the organization",
-    "organizationDescription": "What everyone in the organization sees: the assistant's name, its greeting and the model it runs on. Its cost counts like any agent's.",
-    "enabled": "Assistant switched on",
-    "needsModel": "It has no model yet, so it cannot answer. Choose or add one below.",
-    "model": "Model",
-    "name": "Name",
+    "organizationDescription": "The AI Architect is an agent like any other: change its name, model and knowledge in the Agent Builder. Switching it off and its greeting are on the organization's page.",
+    "openBuilder": "Open in Agent Builder",
+    "openOrganization": "Organization settings"
+  },
+  "orgAssistant": {
+    "title": "AI Architect",
+    "description": "The assistant in the corner of every page, for everyone who may run agents. It is an agent like any other: its name, model and knowledge are edited in the Agent Builder, and its cost counts like any agent's.",
+    "openBuilder": "Open in Agent Builder",
+    "enabled": "Switched on",
+    "enabledHint": "Off, it disappears from every page for everyone in the organization, and nobody can run it.",
+    "needsModel": "It has no model yet, so it cannot answer. Choose one under Model in the Agent Builder.",
     "greeting": "Greeting",
     "greetingHint": "What it says when somebody opens it. Leave empty for the default.",
     "save": "Save"

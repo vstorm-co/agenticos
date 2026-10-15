@@ -777,14 +777,14 @@ class AgentRegistryService:
         It is installed as an ordinary organization-wide agent, so a Builder's
         `agents:edit` reaches it through the generic routes - and everybody who
         opens the corner widget runs it with their own authority. Its spec is
-        the assistant settings' to change, behind the gate `/assistant` has.
+        changed in the Builder, behind the gate `/assistant` has.
 
         Raises:
             AuthorizationError: The agent is the organization's assistant.
         """
         if await organization_assistant_repo.for_agent(self.db, agent.id) is not None:
             raise AuthorizationError(
-                message="The AI Architect is changed in Settings, by an administrator",
+                message="Only an administrator can change the AI Architect",
                 details={"agent_id": agent.id},
             )
 

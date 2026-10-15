@@ -41,8 +41,6 @@ class AssistantRead(BaseSchema):
             "in the theme's colours; false once somebody gave it a picture of its own"
         ),
     )
-    model_profile_id: UUID | None = None
-    collection_ids: list[UUID] = Field(default_factory=list)
     can_use: bool = Field(
         description="Whether the caller may talk to it - `agents:run`, as for any agent"
     )
@@ -50,8 +48,11 @@ class AssistantRead(BaseSchema):
 
 
 class AssistantUpdate(BaseSchema):
+    """What the organization decides about its assistant that is not the agent's own.
+
+    Its name, model, knowledge and the rest of its spec are the agent's, edited in
+    the Builder like any agent's.
+    """
+
     enabled: bool | None = None
-    name: str | None = Field(default=None, min_length=1, max_length=128)
     greeting: str | None = Field(default=None, max_length=500)
-    model_profile_id: UUID | None = None
-    collection_ids: list[UUID] = Field(default_factory=list)

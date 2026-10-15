@@ -1,23 +1,26 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { Bot, Building2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ErrorState, LoadingState } from "@/components/states";
 import { SectionCard } from "@/components/settings/settings-section";
-import { Button, FormField, Input, Label, Switch, Textarea } from "@/components/ui";
-import { useModelProviders, usePermissions } from "@/hooks";
+import { Button, Label, Switch } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
-import { useAssistant, useUpdateAssistant } from "@/hooks/use-assistant";
+import { useAssistant } from "@/hooks/use-assistant";
 import { readPreferences, resetSilenced, setBubblesOff } from "@/lib/assistant-bubbles";
-import { Perm } from "@/types/permissions";
-import type { AssistantState } from "@/types/assistant";
+import { ROUTES } from "@/lib/constants";
+import { useOrgStore } from "@/stores";
 
 /**
- * Settings → Assistant (#2063): the reader's own tips, and - for whoever may
- * change the organization's settings - what the AI Architect is called, how it
- * greets people, which model it runs on, and whether it is there at all.
+ * Settings → Assistant (#2063): the reader's own tips.
+ *
+ * Nothing of the organization's is set here. The AI Architect is an agent like
+ * any other, so its name, model and knowledge are edited in the Builder, and
+ * whether the organization has it - and how it greets people - is on the
+ * organization's page. Whoever may change those is pointed at both.
  */
 export function AssistantSettings() {
   const t = useTranslations("assistantSettings");
@@ -41,7 +44,9 @@ export function AssistantSettings() {
       ) : (
         <p className="text-muted-foreground text-sm">{t("notForYou")}</p>
       )}
-      {assistant.can_configure && <ForTheOrganization assistant={assistant} />}
+      {assistant.can_configure && assistant.agent_id && (
+        <WhereTheRestLives agentId={assistant.agent_id} />
+      )}
     </div>
   );
 }
@@ -82,72 +87,27 @@ function YourTips() {
   );
 }
 
-function ForTheOrganization({ assistant }: { assistant: AssistantState }) {
+function WhereTheRestLives({ agentId }: { agentId: string }) {
   const t = useTranslations("assistantSettings");
-  const { can } = usePermissions();
-  const { profiles, profilesStatus } = useModelProviders();
-  const update = useUpdateAssistant();
-  const [name, setName] = useState(assistant.name);
-  const [greeting, setGreeting] = useState(assistant.greeting ?? "");
-  const enabled = assistant.status !== "disabled";
-  const dirty = name !== assistant.name || greeting !== (assistant.greeting ?? "");
-
+  const orgId = useOrgStore((state) => state.activeOrgId);
   return (
-    <div data-tour="assistant-settings">
-      <SectionCard title={t("organization")} description={t("organizationDescription")}>
-        <div className="space-y-5">
-          <div className="flex items-center justify-between gap-4">
-            <Label htmlFor="assistant-enabled">{t("enabled")}</Label>
-            <Switch
-              id="assistant-enabled"
-              checked={enabled}
-              disabled={update.isPending}
-              onCheckedChange={(on) => update.mutate({ enabled: on })}
-            />
-          </div>
-          {assistant.status === "needs_model" && (
-            <p className="text-muted-foreground text-sm">{t("needsModel")}</p>
-          )}
-          <div className="space-y-2">
-            <Label>{t("model")}</Label>
-            <ModelProfilePicker
-              allowAdd={can(Perm.connectionsManage)}
-              profiles={profiles}
-              profilesStatus={profilesStatus}
-              value={assistant.model_profile_id}
-              onChange={(model_profile_id) => update.mutate({ model_profile_id })}
-              disabled={update.isPending}
-            />
-          </div>
-          <FormField label={t("name")} htmlFor="assistant-name">
-            <Input
-              id="assistant-name"
-              value={name}
-              maxLength={128}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </FormField>
-          <FormField
-            label={t("greeting")}
-            htmlFor="assistant-greeting"
-            description={t("greetingHint")}
-          >
-            <Textarea
-              id="assistant-greeting"
-              value={greeting}
-              rows={3}
-              maxLength={500}
-              onChange={(e) => setGreeting(e.target.value)}
-            />
-          </FormField>
-          <Button
-            disabled={!dirty || name.trim() === "" || update.isPending}
-            onClick={() => update.mutate({ name: name.trim(), greeting: greeting.trim() || null })}
-          >
-            {t("save")}
+    <SectionCard title={t("organization")} description={t("organizationDescription")}>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" asChild>
+          <Link href={ROUTES.AGENT_DETAIL(agentId)}>
+            <Bot className="h-4 w-4" />
+            {t("openBuilder")}
+          </Link>
+        </Button>
+        {orgId && (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={ROUTES.ORG_MEMBERS(orgId)}>
+              <Building2 className="h-4 w-4" />
+              {t("openOrganization")}
+            </Link>
           </Button>
-        </div>
-      </SectionCard>
-    </div>
+        )}
+      </div>
+    </SectionCard>
   );
 }

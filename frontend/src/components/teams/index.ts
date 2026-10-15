@@ -4,3 +4,4 @@ export { InviteMemberDialog } from "./invite-member-dialog";
 export { InviteLinkDialog } from "./invite-link-dialog";
 export { OrgSpendingLimit } from "./org-spending-limit";
 export { OrgApprovalWaiver } from "./org-approval-waiver";
+export { OrgAssistant } from "./org-assistant";

@@ -1,5 +1,5 @@
 ---
-source_sha: "7af7a29084ed"
+source_sha: "2f690e29c053"
 ---
 
 # Die Konsole { #the-console }
@@ -195,14 +195,17 @@ fehlgeschlagen ist und wenn ein Formular seit einer Minute unfertig offen ist.
 
 Solange die Organisation kein Modell hat, kann er nicht antworten. Geöffnet tippt
 er dann ein kurzes Gespräch darüber, wie man eins verbindet: einen API-Schlüssel
-beim Provider besorgen, **Einstellungen → Assistent** öffnen, den Provider wählen
-und den Schlüssel einfügen, dann ein Modell auswählen. Die Schaltfläche bekommt
-nur, wer die Einstellungen der Organisation ändern darf; alle anderen erfahren,
-wer das kann.
+beim Provider besorgen, den Architect im Agent Builder öffnen, unter **Modell**
+den Provider wählen und den Schlüssel einfügen, dann ein Modell auswählen. Die
+Schaltfläche bekommt nur, wer die Einstellungen der Organisation ändern darf;
+alle anderen erfahren, wer das kann.
 
-**Einstellungen → Assistent** enthält Ihre eigenen Tipps und, für alle, die die
-Einstellungen der Organisation ändern dürfen, Namen, Begrüßung und Modell des
-Assistenten sowie einen Schalter, der ihn für alle abschaltet.
+Der Architect ist ein Agent wie jeder andere, also werden Name, Modell, Wissen
+und der Rest seiner Spec im Agent Builder bearbeitet - von jemandem, der die
+Einstellungen der Organisation ändern darf, weil ihn alle in der Organisation
+ausführen. Auf der Seite der Organisation schaltet eine Karte ihn für alle ab und
+legt seine Begrüßung fest. **Einstellungen → Assistent** enthält nur noch Ihre
+eigenen Tipps.
 
 ## Änderungen von anderswo { #changes-made-elsewhere }
 

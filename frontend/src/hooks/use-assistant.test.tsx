@@ -74,14 +74,14 @@ describe("useAssistant", () => {
 
 describe("useUpdateAssistant", () => {
   it("writes the change and shows the answer without reading it again", async () => {
-    const renamed = { ...READY, name: "Ola" };
-    vi.mocked(apiClient.patch).mockResolvedValue(renamed);
+    const greeted = { ...READY, greeting: "Cześć!" };
+    vi.mocked(apiClient.patch).mockResolvedValue(greeted);
     const { result } = renderHook(() => useUpdateAssistant(), { wrapper });
 
-    await act(() => result.current.mutateAsync({ name: "Ola" }));
+    await act(() => result.current.mutateAsync({ greeting: "Cześć!" }));
 
-    expect(apiClient.patch).toHaveBeenCalledWith("/assistant", { name: "Ola" });
-    expect(client.getQueryData(qk.assistant("org-1"))).toEqual(renamed);
+    expect(apiClient.patch).toHaveBeenCalledWith("/assistant", { greeting: "Cześć!" });
+    expect(client.getQueryData(qk.assistant("org-1"))).toEqual(greeted);
   });
 
   it("files the answer under no organization while none is chosen", async () => {

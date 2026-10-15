@@ -34,7 +34,7 @@ export function useAssistant() {
   return { assistant: data ?? null, isLoading, error, retry: () => void refetch() };
 }
 
-/** Change the assistant's name, greeting, model or knowledge, or switch it off. */
+/** Change the assistant's greeting, or switch it off. */
 export function useUpdateAssistant() {
   const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
   const queryClient = useQueryClient();

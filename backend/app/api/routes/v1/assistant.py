@@ -27,5 +27,5 @@ async def get_assistant(service: AssistantSvc, ctx: Auth) -> Any:
     dependencies=[Depends(require(Perm.ORG_SETTINGS))],
 )
 async def update_assistant(data: AssistantUpdate, service: AssistantSvc, ctx: Auth) -> Any:
-    """Rename it, change its greeting, model or company knowledge, or switch it off."""
+    """Change its greeting, or switch it off. Everything else is its agent's, in the Builder."""
     return await service.update(ctx, data)

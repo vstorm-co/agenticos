@@ -22,8 +22,6 @@ function assistant(overrides: Partial<AssistantState> = {}): AssistantState {
     avatar_url: null,
     wears_mark: true,
     avatar_color: null,
-    model_profile_id: null,
-    collection_ids: [],
     can_use: true,
     can_configure: true,
     ...overrides,
@@ -93,18 +91,18 @@ describe("the Architect with no model", () => {
     follow.mockRestore();
   });
 
-  it("walks an administrator to the settings that connect the model", () => {
+  it("walks an administrator to the Architect's own model in the Builder", () => {
     mount();
     fireEvent.click(screen.getByRole("button", { name: "Open Architect" }));
     typeEverything();
 
-    expect(screen.getByText(/Step 2: open Settings → Assistant/)).toBeInTheDocument();
-    expect(screen.getByText(/Step 3: choose a model and save/)).toBeInTheDocument();
+    expect(screen.getByText(/Step 2: open me in the Agent Builder/)).toBeInTheDocument();
+    expect(screen.getByText(/Step 3: choose a model and publish/)).toBeInTheDocument();
     expect(screen.getByText(/That's it/)).toBeInTheDocument();
     expect(screen.queryByText(/is typing/)).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open assistant settings" }));
-    expect(push).toHaveBeenCalledWith(ROUTES.SETTINGS_ASSISTANT);
+    fireEvent.click(screen.getByRole("button", { name: "Open my model settings" }));
+    expect(push).toHaveBeenCalledWith(`${ROUTES.AGENT_DETAIL("a1")}?highlight=agent-model-picker`);
   });
 
   it("tells anybody else who can do it, and offers no button they could not use", () => {
@@ -114,7 +112,7 @@ describe("the Architect with no model", () => {
 
     expect(screen.getByText(/only an administrator of your organization/)).toBeInTheDocument();
     expect(screen.queryByText(/That's it/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Open assistant settings" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open my model settings" })).toBeNull();
   });
 
   it("closes from its header and its button alike, keeping the conversation", () => {

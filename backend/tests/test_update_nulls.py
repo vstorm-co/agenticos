@@ -101,8 +101,7 @@ from app.schemas.user_slash_command import UserSlashCommandUpdate
 UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     AgentDraftUpdate: None,
     ArtifactPublicLinkUpdate: Artifact,
-    # The organization's assistant row; its agent-shaped fields go to the agent's
-    # draft spec through the same `writable`, over `Agent` (#2063).
+    # The organization's assistant row; the agent itself is edited in the Builder.
     AssistantUpdate: OrganizationAssistant,
     ArtifactUpdate: Artifact,
     ChannelBotUpdate: ChannelBot,

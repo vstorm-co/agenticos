@@ -68,7 +68,9 @@ Link to the console with a relative link, and the person's console opens it when
 | The files agents kept - what people attached and what agents wrote | `/documents` |
 | Slack, Telegram and Mattermost bots | `/channels?highlight=channels-new` |
 | Provider keys | `/vault?highlight=vault-new` |
-| The assistant's own settings | `/settings/assistant` |
+| Your own model, name and knowledge - you are an agent like any other | your page in the Builder, `/agents/<your agent id>` |
+| Switching you off for everyone, and your greeting | the organization's page, `/orgs/<organization id>/members` |
+| A person's own tips from you | `/settings/assistant` |
 
 Three answers people miss, so give them plainly when asked. Everyone can connect **their own account** of an MCP server - their own GitHub, Gmail or Notion - from its card on the MCP servers page, and an agent set to use each person's own account acts as whoever is talking to it. Files an agent saves land in **Documents**, where people preview and download them. And a published agent can be put on a website, a hosted page, a WebSocket or the public API from its **Availability** tab, not only in chat.
 

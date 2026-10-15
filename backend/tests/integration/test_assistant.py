@@ -96,9 +96,9 @@ async def test_a_viewer_s_first_look_installs_it_and_a_model_publishes_it(
 
     assert ready.status == "ready"
     assert ready.agent_id == waiting.agent_id
-    assert ready.model_profile_id == profile.id
     agent = (await db.execute(select(Agent).where(Agent.id == ready.agent_id))).scalar_one()
     spec = AgentSpec.model_validate(agent.draft_spec)
+    assert spec.model_profile_id == profile.id
     assert agent.visibility == "org"
     # The one binding that asks before acting: the Architect drafts agents and
     # invites people, so its template holds those for the person it acts as.
@@ -155,34 +155,22 @@ async def test_who_may_talk_to_it_is_agents_run_as_for_any_agent(db: AsyncSessio
     assert agent.id == seen_by_viewer.agent_id
 
 
-async def test_an_administrator_configures_it_and_can_switch_it_off(db: AsyncSession) -> None:
+async def test_an_administrator_sets_its_greeting_and_can_switch_it_off(db: AsyncSession) -> None:
     organization, owner = await _organization(db)
     await _model(db, organization)
-    second = await _model(db, organization)
     admin = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
     member = await _member(db, organization, OrgRoleName.MEMBER)
     service = AssistantService(db)
-    await service.state(admin)
+    installed = await service.state(admin)
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
+    version_before = agent.current_version_id
 
-    changed = await service.update(
-        admin,
-        AssistantUpdate(name="Ola z IT", greeting="Cześć!", model_profile_id=second.id),
-    )
-    assert (changed.name, changed.greeting, changed.model_profile_id) == (
-        "Ola z IT",
-        "Cześć!",
-        second.id,
-    )
-    # Renamed, it is called what the administrator chose, in every language.
-    assert not changed.named_by_default
-
-    # Codex on #2062: clearing the model left the published version running on
-    # the old one while the answer said it had none.
-    with pytest.raises(BadRequestError, match="runs on a model") as refused:
-        await service.update(admin, AssistantUpdate(model_profile_id=None))
-    assert refused.value.details is not None
-    assert [problem["field"] for problem in refused.value.details["fields"]] == ["model_profile_id"]
-    assert (await service.state(admin)).model_profile_id == second.id
+    greeted = await service.update(admin, AssistantUpdate(greeting="Cześć!"))
+    assert greeted.greeting == "Cześć!"
+    # The greeting is the organization's; the agent itself is not republished, so
+    # its version history holds only what the Builder put there.
+    await db.refresh(agent)
+    assert agent.current_version_id == version_before
 
     off = await service.update(admin, AssistantUpdate(enabled=False))
     assert off.status == "disabled"
@@ -219,17 +207,31 @@ async def test_an_organization_at_its_agent_ceiling_hears_it_is_unavailable(
     assert assistants.scalars().all() == []
 
 
-async def test_settings_that_name_no_model_are_saved_without_publishing(
+async def test_its_name_and_model_are_the_agents_and_changed_in_the_builder(
     db: AsyncSession,
 ) -> None:
+    """Kacper on #2062: the Architect is an agent like any other, so what the agent
+    is - its name, model, knowledge - is edited where every agent's is, and the
+    settings only say whether the organization has it and how it greets people."""
     organization, owner = await _organization(db)
     admin = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
     service = AssistantService(db)
-    await service.state(admin)
+    installed = await service.state(admin)
+    assert installed.agent_id is not None
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
 
-    renamed = await service.update(admin, AssistantUpdate(name="Ola"))
+    # A client still sending the old fields changes nothing with them.
+    ignored = await service.update(
+        admin, AssistantUpdate.model_validate({"name": "Ola", "model_profile_id": None})
+    )
+    assert ignored.name == installed.name
 
-    assert (renamed.name, renamed.status) == ("Ola", "needs_model")
+    spec = AgentSpec.model_validate(agent.draft_spec).model_copy(update={"name": "Ola z IT"})
+    await AgentRegistryService(db).save_draft(admin, agent.id, spec)
+    renamed = await service.state(admin)
+
+    # Renamed, it is called what the administrator chose, in every language.
+    assert (renamed.name, renamed.named_by_default) == ("Ola z IT", False)
 
 
 async def test_a_model_chosen_in_the_builder_is_the_one_it_publishes_on(
@@ -251,7 +253,9 @@ async def test_a_model_chosen_in_the_builder_is_the_one_it_publishes_on(
     published = await service.state(admin)
     again = await service.state(admin)
 
-    assert (published.status, published.model_profile_id) == ("ready", chosen.id)
+    assert published.status == "ready"
+    await db.refresh(agent)
+    assert AgentSpec.model_validate(agent.draft_spec).model_profile_id == chosen.id
     assert again == published
 
 

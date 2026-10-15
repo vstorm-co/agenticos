@@ -15,17 +15,13 @@ export interface AssistantState {
   avatar_color: number | null;
   /** Still wears the mark it shipped with, which the console draws in the theme's colours. */
   wears_mark: boolean;
-  model_profile_id: string | null;
-  collection_ids: string[];
   /** `agents:run`, as for any agent. Without it there is no assistant at all. */
   can_use: boolean;
   can_configure: boolean;
 }
 
+/** What the organization decides about it; the agent itself is edited in the Builder. */
 export interface AssistantUpdate {
   enabled?: boolean;
-  name?: string;
   greeting?: string | null;
-  model_profile_id?: string | null;
-  collection_ids?: string[];
 }

@@ -89,8 +89,6 @@ function assistant(overrides: Partial<AssistantState> = {}): AssistantState {
     avatar_url: null,
     wears_mark: true,
     avatar_color: null,
-    model_profile_id: "m1",
-    collection_ids: [],
     can_use: true,
     can_configure: false,
     ...overrides,

@@ -10,9 +10,7 @@ const state = vi.hoisted(() => ({
   isLoading: false,
   error: null as Error | null,
   retry: vi.fn(),
-  mutate: vi.fn(),
-  isPending: false,
-  permissions: new Set<string>(),
+  orgId: "o1" as string | null,
 }));
 
 vi.mock("@/hooks/use-assistant", () => ({
@@ -22,27 +20,10 @@ vi.mock("@/hooks/use-assistant", () => ({
     error: state.error,
     retry: state.retry,
   }),
-  useUpdateAssistant: () => ({ mutate: state.mutate, isPending: state.isPending }),
 }));
-vi.mock("@/hooks", () => ({
-  usePermissions: () => ({ can: (perm: string) => state.permissions.has(perm) }),
-  useModelProviders: () => ({ profiles: [], profilesStatus: "loaded" }),
-}));
-// The picker is tested on its own; here it only has to report a choice.
-vi.mock("@/components/agents/model-profile-picker", () => ({
-  ModelProfilePicker: ({
-    value,
-    allowAdd,
-    onChange,
-  }: {
-    value: string | null;
-    allowAdd: boolean;
-    onChange: (id: string) => void;
-  }) => (
-    <button type="button" data-allow-add={String(allowAdd)} onClick={() => onChange("m2")}>
-      picker:{value ?? "none"}
-    </button>
-  ),
+vi.mock("@/stores", () => ({
+  useOrgStore: (pick: (store: { activeOrgId: string | null }) => unknown) =>
+    pick({ activeOrgId: state.orgId }),
 }));
 
 function assistant(overrides: Partial<AssistantState> = {}): AssistantState {
@@ -56,8 +37,6 @@ function assistant(overrides: Partial<AssistantState> = {}): AssistantState {
     avatar_url: null,
     wears_mark: true,
     avatar_color: null,
-    model_profile_id: "m1",
-    collection_ids: [],
     can_use: true,
     can_configure: true,
     ...overrides,
@@ -69,9 +48,7 @@ beforeEach(() => {
   state.isLoading = false;
   state.error = null;
   state.retry.mockReset();
-  state.isPending = false;
-  state.mutate.mockReset();
-  state.permissions = new Set(["connections:manage"]);
+  state.orgId = "o1";
 });
 
 afterEach(() => localStorage.clear());
@@ -133,54 +110,20 @@ describe("Settings → Assistant", () => {
     expect(screen.queryByRole("button", { name: /Show tips again/ })).toBeNull();
   });
 
-  it("saves an administrator's name and greeting, trimmed, and an empty greeting as none", () => {
-    state.assistant = assistant({ greeting: "Hello" });
-    render(<AssistantSettings />);
-    const save = screen.getByRole("button", { name: "Save" });
-    expect(save).toBeDisabled();
-
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "  Ola z IT " } });
-    fireEvent.change(screen.getByLabelText("Greeting"), { target: { value: "   " } });
-    fireEvent.click(save);
-
-    expect(state.mutate).toHaveBeenCalledWith({ name: "Ola z IT", greeting: null });
-  });
-
-  it("refuses an empty name", () => {
+  it("points an administrator at the Builder and the organization's page, and edits nothing here", () => {
     render(<AssistantSettings />);
 
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "  " } });
-
-    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
-  });
-
-  it("switches it off and picks its model straight away", () => {
-    render(<AssistantSettings />);
-
-    fireEvent.click(screen.getByRole("switch", { name: "Assistant switched on" }));
-    expect(state.mutate).toHaveBeenCalledWith({ enabled: false });
-
-    fireEvent.click(screen.getByRole("button", { name: "picker:m1" }));
-    expect(state.mutate).toHaveBeenCalledWith({ model_profile_id: "m2" });
-  });
-
-  it("says a model is missing, and offers adding one only to who may", () => {
-    state.assistant = assistant({ status: "needs_model", model_profile_id: null });
-    state.permissions = new Set();
-    render(<AssistantSettings />);
-
-    expect(screen.getByText(/It has no model yet/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "picker:none" })).toHaveAttribute(
-      "data-allow-add",
-      "false",
+    expect(screen.getByRole("link", { name: "Open in Agent Builder" })).toHaveAttribute(
+      "href",
+      "/agents/a1",
     );
-  });
-
-  it("shows a switched-off assistant as off", () => {
-    state.assistant = assistant({ status: "disabled", greeting: "Hej" });
-    render(<AssistantSettings />);
-
-    expect(screen.getByRole("switch", { name: "Assistant switched on" })).not.toBeChecked();
-    expect(screen.getByLabelText("Greeting")).toHaveValue("Hej");
+    expect(screen.getByRole("link", { name: "Organization settings" })).toHaveAttribute(
+      "href",
+      "/orgs/o1/members",
+    );
+    // Kacper on #2062: the Architect is an agent like any other, so nothing of
+    // the agent's is set from a person's own settings.
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("switch", { name: /switched on/ })).toBeNull();
   });
 });

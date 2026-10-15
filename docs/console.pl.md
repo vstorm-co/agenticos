@@ -1,5 +1,5 @@
 ---
-source_sha: "7af7a29084ed"
+source_sha: "2f690e29c053"
 ---
 
 # Konsola { #the-console }
@@ -181,13 +181,15 @@ udał, i gdy formularz jest otwarty, niedokończony, od minuty.
 
 Dopóki organizacja nie ma modelu, nie potrafi odpowiadać. Otwarty wtedy wypisuje
 krótką rozmowę o tym, jak go podpiąć: zdobądź klucz API od dostawcy, otwórz
-**Ustawienia → Asystent**, wybierz dostawcę i wklej klucz, a potem wybierz model.
-Przycisk dostaje tylko ktoś, kto może zmieniać ustawienia organizacji; pozostali
-dowiadują się, kto może to zrobić.
+Architekta w Agent Builderze, w sekcji **Model** wybierz dostawcę i wklej klucz, a
+potem wybierz model. Przycisk dostaje tylko ktoś, kto może zmieniać ustawienia
+organizacji; pozostali dowiadują się, kto może to zrobić.
 
-**Ustawienia → Asystent** to twoje własne wskazówki, a dla tego, kto może zmieniać
-ustawienia organizacji, także nazwa asystenta, jego powitanie i model oraz
-przełącznik, który wyłącza go dla wszystkich.
+Architekt jest agentem jak każdy inny, więc jego nazwę, model, wiedzę i resztę
+spec edytuje się w Agent Builderze - może to zrobić ktoś, kto zmienia ustawienia
+organizacji, bo uruchamia go każdy w organizacji. Na stronie organizacji jest
+karta, która wyłącza go dla wszystkich i ustawia jego powitanie. **Ustawienia →
+Asystent** to już tylko twoje własne wskazówki.
 
 ## Zmiany wprowadzone gdzie indziej { #changes-made-elsewhere }
 

@@ -531,6 +531,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // walk: the members page (profile, then the member list) and then a step
   // across into the roles matrix. Ungated — any member reaches both.
   { id: "org-profile", page: ORG_MEMBERS, target: "org-profile" },
+  // The AI Architect's card: drawn only on the active organization's page, and
+  // only for somebody who may change the organization's settings.
+  {
+    id: "org-assistant",
+    page: ORG_MEMBERS,
+    target: "org-assistant",
+    permission: Perm.orgSettings,
+    optional: true,
+  },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members" },
   { id: "org-roles", page: ORG_ROLES, target: "org-roles" },
   {
@@ -686,15 +695,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "settings-connected-apps",
     page: SETTINGS_DETAIL,
     target: "connected-apps",
-    optional: true,
-  },
-  // The organization half of Settings → Assistant, drawn only for somebody who
-  // may change the organization's settings.
-  {
-    id: "settings-assistant",
-    page: SETTINGS_DETAIL,
-    target: "assistant-settings",
-    permission: Perm.orgSettings,
     optional: true,
   },
 

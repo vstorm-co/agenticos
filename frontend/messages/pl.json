@@ -3369,6 +3369,10 @@
         "title": "Bądź na bieżąco",
         "body": "Nieudany run, prośba o zatwierdzenie czekająca na Ciebie, budżet bliski wyczerpania, wiadomość od administratora aplikacji - wszystko trafia tutaj, z osobnym przełącznikiem w aplikacji i mailem dla rodzajów, które można wyłączyć w Ustawieniach."
       },
+      "org-assistant": {
+        "title": "AI Architect",
+        "body": "Włącz lub wyłącz asystenta organizacji i ustaw jego powitanie. Nazwę, model i wiedzę edytujesz w Agent Builderze, jak u każdego agenta."
+      },
       "org-members": {
         "title": "Kto w niej jest",
         "body": "Wszyscy w organizacji i rola każdego z nich. Zaproś współpracowników, zmień rolę albo usuń kogoś - wszystko z tej listy."
@@ -3488,10 +3492,6 @@
       "assistant-widget": {
         "title": "Twój Architekt",
         "body": "Zapytaj go o cokolwiek na platformie - zbuduje z tobą agenta, wyjaśni błąd i znajdzie ustawienie. Jego dymki podpowiadają, co zrobić na każdej stronie; wyłączysz je w Ustawienia → Asystent."
-      },
-      "settings-assistant": {
-        "title": "Asystent organizacji",
-        "body": "Nadaj mu nazwę i powitanie oraz wybierz model, na którym działa. Widzi go w rogu każdej strony każdy, kto może uruchamiać agentów."
       },
       "groups-new": {
         "title": "Dodaj grupę",
@@ -6195,12 +6195,12 @@
       "bubble": "Nie mam jeszcze podpiętego modelu, więc nie potrafię myśleć. Pokazać Ci, jak go podpiąć?",
       "title": "Podpinanie modelu",
       "typing": "{name} pisze…",
-      "openSettings": "Otwórz ustawienia asystenta",
+      "openBuilder": "Otwórz ustawienia mojego modelu",
       "steps": {
         "intro": "Cześć, jestem {name}. Pomagam budować agentów i odnaleźć się na platformie - ale żeby myśleć, potrzebuję modelu językowego, a żaden nie jest jeszcze podpięty. Pokażę Ci, jak to zrobić. To zajmie około dwóch minut.",
         "key": "<b>Krok 1: zdobądź klucz API.</b> Zaloguj się u dostawcy modeli - Anthropic, OpenAI, Google lub innego - i utwórz klucz API w jego konsoli. To długi ciąg znaków, często zaczynający się od „sk-”. Jeśli Twoja firma ma własny model, np. na Ollamie albo vLLM, wystarczy jego adres.",
-        "settings": "<b>Krok 2: otwórz Ustawienia → Asystent.</b> W sekcji Model wybierz dostawcę i wklej klucz. Trafi prosto do vaulta, zaszyfrowany - nikt już nie zobaczy go w całości, ja też nie.",
-        "model": "<b>Krok 3: wybierz model i zapisz.</b> Na start dobry jest mocny model ze średniej półki cenowej - zmienisz go w każdej chwili.",
+        "settings": "<b>Krok 2: otwórz mnie w Agent Builderze.</b> W sekcji Model wybierz dostawcę i wklej klucz. Trafi prosto do vaulta, zaszyfrowany - nikt już nie zobaczy go w całości, ja też nie.",
+        "model": "<b>Krok 3: wybierz model i opublikuj.</b> Na start dobry jest mocny model ze średniej półki cenowej - zmienisz go w każdej chwili.",
         "done": "<b>To wszystko.</b> Wróć tutaj, a od razu się przywitam. Z tego modelu mogą korzystać też wszyscy inni agenci w Twojej organizacji.",
         "askAdmin": "<b>Kto może to zrobić:</b> model podpina tylko administrator Twojej organizacji. Poproś go o te kroki - zajmą mu około dwóch minut, a potem będę tu dla wszystkich."
       }
@@ -6216,11 +6216,17 @@
     "showTips": "Pokazuj podpowiedzi w dymkach",
     "unsilence": "{count, plural, one {Pokaż znów podpowiedzi na # wyciszonej stronie} other {Pokaż znów podpowiedzi na # wyciszonych stronach}}",
     "organization": "Dla organizacji",
-    "organizationDescription": "To, co widzą wszyscy w organizacji: nazwa asystenta, jego powitanie i model, na którym działa. Jego koszty liczą się jak każdego agenta.",
-    "enabled": "Asystent włączony",
-    "needsModel": "Nie ma jeszcze modelu, więc nie może odpowiadać. Wybierz lub dodaj model poniżej.",
-    "model": "Model",
-    "name": "Nazwa",
+    "organizationDescription": "AI Architect to agent jak każdy inny: nazwę, model i wiedzę zmienisz w Agent Builderze. Wyłączenie go i powitanie są na stronie organizacji.",
+    "openBuilder": "Otwórz w Agent Builderze",
+    "openOrganization": "Ustawienia organizacji"
+  },
+  "orgAssistant": {
+    "title": "AI Architect",
+    "description": "Asystent w rogu każdej strony, dla każdego, kto może uruchamiać agentów. To agent jak każdy inny: nazwę, model i wiedzę edytujesz w Agent Builderze, a jego koszty liczą się jak każdego agenta.",
+    "openBuilder": "Otwórz w Agent Builderze",
+    "enabled": "Włączony",
+    "enabledHint": "Wyłączony znika z każdej strony dla wszystkich w organizacji i nikt nie może go uruchomić.",
+    "needsModel": "Nie ma jeszcze modelu, więc nie może odpowiadać. Wybierz go w sekcji Model w Agent Builderze.",
     "greeting": "Powitanie",
     "greetingHint": "Co mówi, gdy ktoś go otworzy. Zostaw puste, by użyć domyślnego.",
     "save": "Zapisz"

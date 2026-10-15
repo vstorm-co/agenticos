@@ -170,13 +170,15 @@ and when a form has been open, unfinished, for a minute.
 
 Until the organization has a model, it cannot answer. Opening it then types out
 a short conversation explaining how to connect one: get an API key from a
-provider, open **Settings → Assistant**, choose the provider and paste the key,
-and pick a model. Only somebody who may change the organization's settings is
-given the button; anybody else is told who can do it.
+provider, open the Architect in the Agent Builder, choose the provider under
+**Model** and paste the key, and pick a model. Only somebody who may change the
+organization's settings is given the button; anybody else is told who can do it.
 
-**Settings → Assistant** holds your own tips and, for whoever may change the
-organization's settings, the assistant's name, greeting and model, and a switch
-to turn it off for everyone.
+The Architect is an agent like any other, so its name, model, knowledge and the
+rest of its spec are edited in the Agent Builder - by somebody who may change
+the organization's settings, because everyone in the organization runs it. The
+organization's page has a card that switches it off for everyone and sets its
+greeting. **Settings → Assistant** holds only your own tips.
 
 ## Changes made elsewhere
 

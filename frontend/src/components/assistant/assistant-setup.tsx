@@ -31,8 +31,8 @@ const STEPS = ["intro", "key", "settings", "model", "done"] as const;
  *
  * It cannot answer anything yet, so it does the one thing it can without a
  * model: a scripted conversation, typed out a message at a time, walking
- * through connecting one - get a key, open Settings → Assistant, paste it,
- * choose a model. Everybody who may talk to it sees the walkthrough, so
+ * through connecting one - get a key, open the Architect in the Builder, paste
+ * it under Model, choose a model. Everybody who may talk to it sees the walkthrough, so
  * everybody knows what is missing; only an administrator is given the button,
  * and anybody else is told who can do it.
  */
@@ -82,8 +82,13 @@ export function AssistantSetup({
             steps={steps}
             action={
               assistant.can_configure ? (
-                <Button size="sm" onClick={() => router.push(ROUTES.SETTINGS_ASSISTANT)}>
-                  {t("setup.openSettings")}
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    router.push(`${ROUTES.AGENT_DETAIL(agentId)}?highlight=agent-model-picker`)
+                  }
+                >
+                  {t("setup.openBuilder")}
                 </Button>
               ) : null
             }

@@ -22,7 +22,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec, BudgetSpec
 from app.core.exceptions import AppException, NotFoundError
-from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.organization_assistant import OrganizationAssistant
@@ -84,36 +83,17 @@ class AssistantService:
         return self._read(row, agent, can_use=can_use, can_configure=can_configure)
 
     async def update(self, ctx: AuthContext, data: AssistantUpdate) -> AssistantRead:
-        """Change how the assistant greets people, what it is called, what it runs
-        on and what company knowledge it has - or switch it off.
+        """Change how the assistant greets people, or switch it off.
 
-        The agent-shaped settings are written to its draft and published, as the
-        administrator making the change, so the version history says who did it.
-
-        Raises:
-            BadRequestError: `model_profile_id` sent as null. The published version
-                would keep running on the old model while this answered with none;
-                switching the assistant off is `enabled: false`.
+        Only what the organization decides about it as its assistant. Its name,
+        model, knowledge and the rest of its spec are the agent's, edited and
+        published in the Builder like any agent's - one place for them, rather
+        than a second form here that wrote the same draft.
         """
-        if "model_profile_id" in data.model_fields_set and data.model_profile_id is None:
-            raise refused_field(
-                "model_profile_id",
-                "The assistant runs on a model: pick another one, or switch it off",
-            )
         row, agent = await self._installed(ctx.organization_id)
-        own = writable(
-            data, over=OrganizationAssistant, exclude={"name", "model_profile_id", "collection_ids"}
-        )
+        own = writable(data, over=OrganizationAssistant)
         if own:
             row = await organization_assistant_repo.update(self.db, row=row, update_data=own)
-        # The agent's `name` column refuses a null, so `writable` over it drops one.
-        spec_changes = writable(data, over=Agent, exclude={"enabled", "greeting"})
-        if spec_changes:
-            spec = AgentSpec.model_validate(agent.draft_spec).model_copy(update=spec_changes)
-            agent = await self.registry.save_draft(ctx, agent.id, spec)
-            if spec.model_profile_id is not None:
-                await self.registry.publish(ctx, agent.id, note="Assistant settings")
-                agent = await self.registry.get(ctx, agent.id)
         return self._read(row, agent, can_use=ctx.has(Perm.AGENTS_RUN), can_configure=True)
 
     async def _installed(self, organization_id: UUID) -> tuple[OrganizationAssistant, Agent]:
@@ -197,7 +177,6 @@ class AssistantService:
     def _read(
         row: OrganizationAssistant, agent: Agent, *, can_use: bool, can_configure: bool
     ) -> AssistantRead:
-        spec = AgentSpec.model_validate(agent.draft_spec)
         status = (
             "disabled"
             if not row.enabled
@@ -215,8 +194,6 @@ class AssistantService:
             avatar_url=agent.avatar_url,
             avatar_color=agent.avatar_color,
             wears_mark=agent.avatar_url is None or agent.avatar_url == row.mark_path,
-            model_profile_id=spec.model_profile_id,
-            collection_ids=list(spec.collection_ids),
             can_use=can_use,
             can_configure=can_configure,
         )

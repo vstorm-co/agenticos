@@ -1,5 +1,5 @@
 ---
-source_sha: "7af7a29084ed"
+source_sha: "2f690e29c053"
 ---
 
 # La consola { #the-console }
@@ -182,13 +182,15 @@ acaba de fallar y cuando un formulario lleva un minuto abierto sin terminar.
 
 Mientras la organización no tenga un modelo, no puede responder. Al abrirlo
 escribe entonces una breve conversación sobre cómo conectar uno: consigue una clave
-de API de un provider, abre **Settings → Assistant**, elige el provider y pega la clave,
-y escoge un modelo. Solo quien puede cambiar los ajustes de la organización recibe
-el botón; a los demás se les dice quién puede hacerlo.
+de API de un provider, abre el Architect en el Agent Builder, elige el provider en
+**Model** y pega la clave, y escoge un modelo. Solo quien puede cambiar los ajustes
+de la organización recibe el botón; a los demás se les dice quién puede hacerlo.
 
-**Settings → Assistant** guarda tus propios consejos y, para quien puede cambiar los
-ajustes de la organización, el nombre del asistente, su saludo y su modelo, y un
-interruptor para apagarlo para todos.
+El Architect es un agente como cualquier otro, así que su nombre, su modelo, su
+conocimiento y el resto de su spec se editan en el Agent Builder - lo hace quien
+puede cambiar los ajustes de la organización, porque todos en la organización lo
+usan. La página de la organización tiene una tarjeta que lo apaga para todos y
+fija su saludo. **Settings → Assistant** guarda solo tus propios consejos.
 
 ## Cambios hechos en otro lugar { #changes-made-elsewhere }
 

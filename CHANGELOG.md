@@ -929,6 +929,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The AI Architect is edited in the Agent Builder, like any agent.** Its
+  name, model, knowledge and the rest of its spec are no longer a second form
+  in Settings → Assistant: an administrator changes them on its own Builder
+  page. Switching it off and its greeting moved to a card on the
+  organization's page, Settings → Assistant keeps only a person's own tips,
+  and the walkthrough for a missing model opens the Builder's model picker.
+  `PATCH /assistant` takes `enabled` and `greeting` only.
+
 - **The README shows one film: AgenticOS in two minutes.** It replaces the
   45-second intro and the recorded planner run in all four READMEs: agents
   handing work to each other, the Architect drafting an agent, a finance agent

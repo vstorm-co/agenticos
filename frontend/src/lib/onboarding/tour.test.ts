@@ -53,9 +53,10 @@ const BUILDER_STEPS = [
 // pass takes one of these (kb-documents).
 const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
 
-// The organization detail walk: the members page (profile, then the list), then
-// across into the roles matrix. None are inTour — orgs is a "?"-only section.
-const ORG_STEPS = ["org-profile", "org-members", "org-roles"];
+// The organization detail walk: the members page (profile, the AI Architect's
+// card, then the list), then across into the roles matrix. None are inTour —
+// orgs is a "?"-only section.
+const ORG_STEPS = ["org-profile", "org-assistant", "org-members", "org-roles"];
 
 describe("pageKey", () => {
   it("collapses every concrete builder route onto the one builder identity", () => {
@@ -206,7 +207,7 @@ describe("stepsForPage", () => {
   it("gives Settings and a workspace their own '?' stop, from any of their routes", () => {
     // Settings collapses its eight tabs onto one identity, so help opened on any of
     // them lands the same stops; a workspace detail has its own. The memory,
-    // sign-in, API key and assistant stops are optional - each card renders on one
+    // sign-in and API key stops are optional - each card renders on one
     // tab only.
     expect(stepsForPage(ROUTES.SETTINGS_NOTIFICATIONS, () => true).map((s) => s.id)).toEqual([
       "settings-tabs",
@@ -217,7 +218,6 @@ describe("stepsForPage", () => {
       "settings-api-keys",
       "settings-mcp-connect",
       "settings-connected-apps",
-      "settings-assistant",
     ]);
     expect(stepsForPage("/documents/some-id", () => true).map((s) => s.id)).toEqual([
       "workspaces-detail",
