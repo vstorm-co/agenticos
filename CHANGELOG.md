@@ -610,7 +610,14 @@ Two things are versioned separately from this file and worth knowing about:
   each hand-back, and every browser request to a private, loopback, link-local
   or metadata address is refused unless the agent's `allowed_domains` names it.
   The personal-data export lists kept browser sign-ins, and the MCP
-  `create_knowledge_base` tool takes the embedding settings it needs.
+  `create_knowledge_base` tool takes the embedding settings it needs. Department
+  lists also need `members:view`; a run an API key started stays under that
+  key's scopes when somebody else resumes it (migration
+  `0133_agent_run_key_scopes`); keys are rate limited before they are looked up;
+  a key with `agents:run` can upload the file it attaches to a run; a refused
+  channel resume can be pressed again; a failed assistant install leaves nothing
+  behind; and the browser can go out through `browser-egress`, a Squid proxy that
+  pins every address it allows (`BROWSER_EGRESS_PROXY`).
 
 - **New chat starts a new conversation.** The console sends `conversation_id: null`
   for a new chat, and the session read it as "no id given" and carried on in the
