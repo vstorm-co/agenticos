@@ -5837,7 +5837,7 @@
     "hint": {
       "input": "Die Nachricht, die der Agent beantwortet.",
       "reference_answer": "Was eine gute Antwort sagt. Ein Judge vergleicht die Antwort des Agents damit.",
-      "counter_example": "Eine Antwort, die bekanntermaßen falsch ist, damit ein Judge einen Vergleich hat.",
+      "counter_example": "Eine bekannte schlechte Antwort auf diese Frage - oft eine, die jemand mit Daumen nach unten bewertet hat. Sobald ein Judge das Dataset bewertet, wird jede Antwort darauf bewertet, dass sie deren Fehler nicht wiederholt, und muss das bestehen.",
       "note": "Warum es den Fall gibt - was schiefging oder was er absichert.",
       "history": "Frühere Züge, älteste zuerst. Für eine einzelne Nachricht leer lassen.",
       "expected_tool_calls": "Tools, die der Agent aufrufen soll, jeweils mit den Argumenten, die passen müssen. Ein Wert ist Text, oder eine Zahl, true, false oder eine Liste, wenn als JSON geschrieben. Nicht genannte Argumente werden ignoriert.",
@@ -5929,6 +5929,10 @@
     "createVisibleToOrg": "Für die ganze Organisation sichtbar.",
     "createPrivate": "Privat für Sie, bis Sie es teilen.",
     "createMakePrivate": "Privat machen",
-    "createShareWithOrg": "Der Organisation zeigen"
+    "createShareWithOrg": "Der Organisation zeigen",
+    "caseTwin": "Ein Fall stellt diese Frage bereits:",
+    "caseTwinOpen": "Öffnen",
+    "caseTwinAddAnyway": "Trotzdem hinzufügen",
+    "addToDatasetBodyPlain": "Mit der Antwort kommen die Frage und das Gespräch davor."
   }
 }

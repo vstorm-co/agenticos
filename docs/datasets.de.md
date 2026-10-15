@@ -1,5 +1,5 @@
 ---
-source_sha: "a36cb8c7d187"
+source_sha: "9551fca5d50a"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -97,6 +97,12 @@ Chat-Blasen; **Bearbeiten** macht ihn zum Formular, das sagt, welche Version ein
 Speichern erzeugt und welche Scorer des Datasets den Fall so, wie er geschrieben
 ist, bewerten würden. Ein Link auf `?tab=cases&case={case_id}` auf der Seite des
 Datasets öffnet einen einzelnen Fall.
+
+Das Speichern eines neuen Falls, dessen Frage ein Fall bereits stellt - ohne
+Rücksicht auf Groß- und Kleinschreibung oder Leerraum -, hält an und sagt das,
+mit **Öffnen**, um stattdessen jenen Fall zu lesen, und **Trotzdem
+hinzufügen**, um beide zu behalten. Geprüft wird mit `GET
+/datasets/{id}/cases?same_input=`.
 
 ### Aus einer Datei { #import-and-export }
 

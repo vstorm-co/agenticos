@@ -3599,7 +3599,7 @@
     "hint": {
       "input": "Wiadomość, na którą odpowiada agent.",
       "reference_answer": "Co mówi dobra odpowiedź. Sędzia porównuje z nią odpowiedź agenta.",
-      "counter_example": "Odpowiedź znana jako błędna, żeby sędzia miał z czym porównać.",
+      "counter_example": "Znana zła odpowiedź na to pytanie - często ta, którą ktoś ocenił łapką w dół. Gdy sędzia ocenia dataset, każda odpowiedź jest oceniana pod kątem tego, czy nie powtarza jej błędu, i musi to zaliczyć.",
       "note": "Po co ten przypadek - co poszło źle albo czego pilnuje.",
       "history": "Wcześniejsze tury, od najstarszej. Zostaw puste dla jednej wiadomości.",
       "expected_tool_calls": "Narzędzia, które agent powinien wywołać, każde z argumentami, które muszą się zgadzać. Wartość to tekst albo liczba, true, false lub lista, gdy zapisano je jako JSON. Niewymienione argumenty są pomijane.",
@@ -3691,6 +3691,10 @@
     "createVisibleToOrg": "Widoczny dla całej organizacji.",
     "createPrivate": "Prywatny dla ciebie, dopóki go nie udostępnisz.",
     "createMakePrivate": "Ustaw jako prywatny",
-    "createShareWithOrg": "Pokaż organizacji"
+    "createShareWithOrg": "Pokaż organizacji",
+    "caseTwin": "Przypadek z tym pytaniem już istnieje:",
+    "caseTwinOpen": "Otwórz go",
+    "caseTwinAddAnyway": "Dodaj mimo to",
+    "addToDatasetBodyPlain": "Razem z odpowiedzią trafiają pytanie i wcześniejsza część rozmowy."
   }
 }

@@ -183,6 +183,18 @@ describe("useDatasetCases", () => {
     );
   });
 
+  it("finds the case already asking a question, or none", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0, version: 1 });
+    const { result } = renderHook(() => useDatasetCases("d1"), { wrapper });
+
+    expect(await result.current.findTwin("Return window?")).toBeNull();
+    expect(apiClient.get).toHaveBeenLastCalledWith(
+      "/datasets/d1/cases?same_input=Return+window%3F&limit=1",
+    );
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "r1" }], total: 1, version: 1 });
+    expect(await result.current.findTwin("Return window?")).toEqual({ id: "r1" });
+  });
+
   it("reads an empty answer as no cases at version 0", async () => {
     vi.mocked(apiClient.get).mockResolvedValue(undefined);
     const { result } = renderHook(() => useDatasetCases("d1"), { wrapper });

@@ -1,5 +1,5 @@
 ---
-source_sha: "a36cb8c7d187"
+source_sha: "9551fca5d50a"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -91,6 +91,11 @@ Przypadek na liście otwiera się w postaci do czytania, z rozmową jako dymkami
 czatu; **Edytuj** zamienia go w formularz, który mówi, jaką wersję utworzy zapis
 i które oceniacze datasetu oceniłyby przypadek w obecnym brzmieniu. Link do
 `?tab=cases&case={case_id}` na stronie datasetu otwiera jeden przypadek.
+
+Zapisanie nowego przypadku, którego pytanie zadaje już inny przypadek - bez
+względu na wielkość liter i odstępy - zatrzymuje się, żeby o tym powiedzieć, z
+**Otwórz go**, by przeczytać tamten przypadek, i **Dodaj mimo to**, by zachować
+oba. Sprawdza to `GET /datasets/{id}/cases?same_input=`.
 
 ### Z pliku { #import-and-export }
 

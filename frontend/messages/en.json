@@ -5979,7 +5979,7 @@
     "hint": {
       "input": "The message the agent answers.",
       "reference_answer": "What a good answer says. A judge compares the agent's answer with it.",
-      "counter_example": "An answer known to be wrong, so a judge has something to compare against.",
+      "counter_example": "A known bad answer to this question - often one somebody rated down. Once a judge grades the dataset, every answer is graded on not repeating its mistake, and has to pass that.",
       "note": "Why the case exists - what went wrong, or what it guards.",
       "history": "Earlier turns, oldest first. Leave empty for a single message.",
       "expected_tool_calls": "Tools the agent should call, each with the arguments that must match. A value is text, or a number, true, false or a list when written as JSON. Arguments not listed are ignored.",
@@ -6071,6 +6071,10 @@
     "createVisibleToOrg": "Visible to the whole organization.",
     "createPrivate": "Private to you until you share it.",
     "createMakePrivate": "Make it private",
-    "createShareWithOrg": "Show it to the organization"
+    "createShareWithOrg": "Show it to the organization",
+    "caseTwin": "A case already asks this question:",
+    "caseTwinOpen": "Open it",
+    "caseTwinAddAnyway": "Add anyway",
+    "addToDatasetBodyPlain": "The question and the conversation before it come with the answer."
   }
 }

@@ -246,6 +246,14 @@ export default function DatasetPage({ params }: PageProps) {
             ...new Set(cases.cases.flatMap((item) => item.expected_tool_calls.map((c) => c.tool))),
           ]}
           onSave={editable ? save : undefined}
+          twins={
+            editing.item === null
+              ? {
+                  find: cases.findTwin,
+                  open: (twin) => setEditing({ draft: draftOf(twin), item: twin }),
+                }
+              : undefined
+          }
         />
       )}
     </div>

@@ -234,6 +234,16 @@ export function useDatasetCases(
     },
   });
 
+  // Read when a new case is saved, never cached: the answer must be as of now.
+  const findTwin = useCallback(
+    async (input: string): Promise<DatasetCase | null> => {
+      const params = new URLSearchParams({ same_input: input, limit: "1" });
+      const found = await apiClient.get<DatasetCaseList>(`/datasets/${datasetId}/cases?${params}`);
+      return found.items[0] ?? null;
+    },
+    [datasetId],
+  );
+
   return {
     cases: data?.items ?? [],
     total: data?.total ?? 0,
@@ -245,6 +255,7 @@ export function useDatasetCases(
     update,
     remove,
     importFile,
+    findTwin,
   };
 }
 

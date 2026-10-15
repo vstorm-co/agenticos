@@ -1,5 +1,5 @@
 ---
-source_sha: "a36cb8c7d187"
+source_sha: "9551fca5d50a"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -93,6 +93,11 @@ chat; **Edit** lo convierte en el formulario, que indica qué versión crea un
 guardado y cuáles de los evaluadores del dataset calificarían el caso tal como
 está escrito. Un enlace a `?tab=cases&case={case_id}` en la página del dataset
 abre un caso.
+
+Guardar un caso nuevo cuya pregunta ya hace otro caso (sin tener en cuenta
+mayúsculas ni espacios) se detiene para avisarlo, con **Open it** para leer ese
+caso en su lugar y **Add anyway** para conservar ambos. La comprobación es `GET
+/datasets/{id}/cases?same_input=`.
 
 ### Desde un archivo { #import-and-export }
 

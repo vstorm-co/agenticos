@@ -86,6 +86,11 @@ A case in the list opens as it reads, with the conversation as chat bubbles;
 of the dataset's scorers would grade the case as written. A link to
 `?tab=cases&case={case_id}` on the dataset's page opens one case.
 
+Saving a new case whose question a case already asks - compared without regard
+to case or spacing - stops to say so, with **Open it** to read that case instead
+and **Add anyway** to keep both. The check is `GET
+/datasets/{id}/cases?same_input=`.
+
 ### From a file { #import-and-export }
 
 **Import** reads a `.csv` or a `.jsonl` file and adds every case in it as one
