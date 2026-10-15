@@ -1,5 +1,5 @@
 ---
-source_sha: "16ac978cca0b"
+source_sha: "91aa6099a9bd"
 ---
 
 # API HTTP { #the-http-api }
@@ -153,7 +153,10 @@ w kolejnym wywołaniu, a agent przeczyta, co padło wcześniej - ostatnie tury a
 podsumowanie starszych i to, co po nim. Workspace współdzielony per rozmowa
 (domyślny) należy do tej rozmowy. Nieznany identyfikator albo cudza rozmowa
 dostają `404`; własna rozmowa wystawcy z konsoli albo kanału dostaje `400` -
-klucz, który może uruchamiać agentów, nie dostał czatów tej osoby. Rozmowa trafia na listę czatów wystawcy z etykietą **API**
+klucz, który może uruchamiać agentów, nie dostał czatów tej osoby. Podobnie
+z zaparkowanym przebiegiem: klucz wznawia albo odpowiada tylko na przebieg
+rozpoczęty kluczem, a ten rozpoczęty przez osobę dostaje `403`, bo kontynuacja
+działa w jej imieniu. Rozmowa trafia na listę czatów wystawcy z etykietą **API**
 i pozostaje ukryta, dopóki nie włączy tam takich rozmów przełącznikiem.
 
 `GET /api/v1/conversations/{id}/transcript` czyta jedną z rozmów wystawcy tura po

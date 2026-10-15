@@ -1,5 +1,5 @@
 ---
-source_sha: "16ac978cca0b"
+source_sha: "91aa6099a9bd"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -167,7 +167,10 @@ Agent liest, was zuvor gesagt wurde - die letzten Züge oder die Zusammenfassung
 Standard, ist der dieser Unterhaltung. Eine unbekannte Id oder die Unterhaltung
 eines anderen antwortet `404`; eine eigene Unterhaltung des Ausstellers aus der
 Konsole oder einem Kanal antwortet `400` - ein Schlüssel, der Agenten ausführen
-darf, hat die Chats der Person nicht erhalten. Die Unterhaltung landet in der Chatliste des
+darf, hat die Chats der Person nicht erhalten. Ebenso ein geparkter Durchlauf:
+Ein Schlüssel setzt nur einen Durchlauf fort oder beantwortet ihn, den ein
+Schlüssel gestartet hat; einer, den die Person gestartet hat, antwortet `403`,
+weil die Fortsetzung in ihrem Namen handelt. Die Unterhaltung landet in der Chatliste des
 Ausstellers mit dem Label **API** und bleibt ausgeblendet, bis er solche
 Unterhaltungen dort per Schalter einblendet.
 

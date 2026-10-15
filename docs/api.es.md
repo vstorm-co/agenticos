@@ -1,5 +1,5 @@
 ---
-source_sha: "16ac978cca0b"
+source_sha: "91aa6099a9bd"
 ---
 
 # La API HTTP { #the-http-api }
@@ -159,7 +159,9 @@ después. Un workspace compartido por conversación, el valor por defecto, es el
 esa conversación. Un id desconocido, o la conversación de otra persona, responde
 `404`; una conversación propia de quien emitió la clave desde la consola o un canal
 responde `400` - una clave que puede ejecutar agents no recibió los chats de esa
-persona. La conversación se guarda en la lista de chats de quien emitió la clave con
+persona. Lo mismo con una ejecución aparcada: una clave reanuda o responde solo una
+ejecución que inició una clave, y una que inició la persona responde `403`, porque
+continuarla actúa en su nombre. La conversación se guarda en la lista de chats de quien emitió la clave con
 la etiqueta **API** y queda oculta hasta que las muestre allí con un interruptor.
 
 `GET /api/v1/conversations/{id}/transcript` lee una de las conversaciones de

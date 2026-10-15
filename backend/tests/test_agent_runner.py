@@ -10,6 +10,7 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -195,6 +196,8 @@ def _parked_run(**overrides):
         environment_id=None,
         # A published version's run; a test of the draft is its own case (#2074).
         test_spec=None,
+        # Started from a session; a run a key started records the key's scopes.
+        key_scopes=None,
         surface=RunSurface.API.value,
         status=RunStatus.AWAITING_APPROVAL.value,
         paused_state={"messages": [], "tool_call_ids": {}},
@@ -597,6 +600,26 @@ class TestPrepare:
             await service.prepare(ctx, agent.id, surface=RunSurface.SCHEDULE)
 
         assert create_run.call_args.kwargs["initiated_by_publisher_fallback"] is False
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_key_does_not_resume_a_run_a_person_started(self):
+        """Codex on #2062: resuming acts as the run's person, which a key has no claim to."""
+        keyed = replace(_ctx(), api_key_id=uuid.uuid4(), key_scopes=frozenset(Perm))
+        service = AgentRunnerService(_db())
+        run = _parked_run()
+
+        with (
+            patch(
+                "app.services.agent_runner.agent_run_repo.claim_parked_run",
+                new=AsyncMock(return_value=run),
+            ),
+            patch("app.services.agent_runner.agent_run_repo.mark_running", new=AsyncMock()) as ran,
+            pytest.raises(AuthorizationError, match="from a session"),
+        ):
+            await service.resume(keyed, run.id)
+
+        ran.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_a_resumed_run_gets_its_servers_back(self):
@@ -4928,13 +4951,27 @@ class TestParkedQuestions:
         """A key holds its issuer's identity, so the owner check alone let a
         `collections:view` key answer in their name and resume the run (Codex review of #2062)."""
         with pytest.raises(AuthorizationError, match="may not run agents"):
-            await self._answer({"ask-1": []}, ctx=self._asker_s_key(Perm.COLLECTIONS_VIEW))
+            await self._answer(
+                {"ask-1": []},
+                ctx=self._asker_s_key(Perm.COLLECTIONS_VIEW),
+                key_scopes=[Perm.AGENTS_RUN.value],
+            )
 
     @pytest.mark.anyio
     async def test_the_asker_s_key_that_may_run_agents_answers(self):
-        resume = await self._answer({}, ctx=self._asker_s_key(Perm.AGENTS_RUN))
+        resume = await self._answer(
+            {}, ctx=self._asker_s_key(Perm.AGENTS_RUN), key_scopes=[Perm.AGENTS_RUN.value]
+        )
 
         resume.assert_awaited_once()
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_key_does_not_answer_a_run_its_person_started(self):
+        """Codex on #2062: the continuation acted as the person - their own accounts,
+        their kept sign-ins - and handed what it read to the key."""
+        with pytest.raises(AuthorizationError, match="from a session"):
+            await self._answer({}, ctx=self._asker_s_key(Perm.AGENTS_RUN))
 
     @pytest.mark.anyio
     @pytest.mark.security
@@ -4944,13 +4981,21 @@ class TestParkedQuestions:
             status=RunStatus.AWAITING_ANSWER.value,
             paused_state=_asked_state(),
             user_id=_THE_ASKER,
+            key_scopes=[Perm.AGENTS_RUN.value],
+        )
+        person_s = _parked_run(
+            status=RunStatus.AWAITING_ANSWER.value,
+            paused_state=_asked_state(),
+            user_id=_THE_ASKER,
         )
 
         unscoped = await service.parked_questions(self._asker_s_key(Perm.COLLECTIONS_VIEW), run)
         scoped = await service.parked_questions(self._asker_s_key(Perm.AGENTS_RUN), run)
+        theirs = await service.parked_questions(self._asker_s_key(Perm.AGENTS_RUN), person_s)
 
         assert unscoped == []
         assert [question.tool_call_id for question in scoped] == ["ask-1"]
+        assert theirs == []
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(

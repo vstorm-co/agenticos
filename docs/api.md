@@ -148,6 +148,8 @@ turns, or the summary of older ones and what came after. A workspace shared per
 conversation, the default, is that conversation's. An unknown id, or somebody
 else's, answers `404`; one of the issuer's own conversations from the console or a
 channel answers `400` - a key that may run agents was not given the person's chats.
+So does a parked run: a key resumes or answers only a run a key started, and
+one the person started answers `403`, since continuing it acts as them.
 The conversation is filed in the issuer's chat list,
 labelled **API** and hidden until they switch such conversations on there.
 

@@ -2097,14 +2097,26 @@ def _browser_step_profile(spec: AgentSpec) -> UUID | None:
     return None
 
 
-def _key_may_continue(ctx: AuthContext) -> bool:
+def _key_may_continue(ctx: AuthContext, run: AgentRun) -> bool:
     """Whether an organization key may read and answer the questions of its issuer's run.
 
     An owner check alone lets any of the issuer's keys through - a key holds its
     issuer's identity - and answering resumes the run, spending the budget and
-    running tools in their name. So a key needs `agents:run`, as starting the run did.
+    running tools in their name. So a key needs `agents:run`, as starting the run did,
+    and the run must be one a key started: see :func:`_started_by_a_person`.
     """
-    return ctx.api_key_id is None or ctx.has(Perm.AGENTS_RUN)
+    return ctx.api_key_id is None or (ctx.has(Perm.AGENTS_RUN) and not _started_by_a_person(run))
+
+
+def _started_by_a_person(run: AgentRun) -> bool:
+    """Whether a session started this run rather than an API key.
+
+    Such a run acts as its person: their own accounts on a service, their kept
+    browser sign-ins. A key carries no person to act as - the MCP contract says
+    so - so a key does not continue one, or it would reach those accounts and
+    read what they returned. Every keyed run records its key's scopes.
+    """
+    return run.key_scopes is None
 
 
 class AgentRunnerService:
@@ -4321,6 +4333,11 @@ class AgentRunnerService:
                 message="This run was parked without the state needed to continue it",
                 details={"run_id": str(run_id)},
             )
+        if ctx.api_key_id is not None and _started_by_a_person(run):
+            raise AuthorizationError(
+                message="A run a person started is continued from a session, not with an API key",
+                details={"run_id": str(run_id)},
+            )
         state = PausedRunState.model_validate(run.paused_state)
         given = answers or {}
         if run.status == RunStatus.AWAITING_ANSWER.value and any(
@@ -4511,7 +4528,12 @@ class AgentRunnerService:
             )
         if run.user_id != ctx.user_id:
             raise AuthorizationError(message="Only the person it asked can answer this question")
-        if not _key_may_continue(ctx):
+        if ctx.api_key_id is not None and _started_by_a_person(run):
+            raise AuthorizationError(
+                message="A run a person started is answered from a session, not with an API key",
+                details={"run_id": str(run_id)},
+            )
+        if not _key_may_continue(ctx, run):
             raise AuthorizationError(
                 message="Answering a run continues it, and this key may not run agents",
                 details={"scope": Perm.AGENTS_RUN.value},
@@ -4548,7 +4570,7 @@ class AgentRunnerService:
             run.status != RunStatus.AWAITING_ANSWER.value
             or run.paused_state is None
             or run.user_id != ctx.user_id
-            or not _key_may_continue(ctx)
+            or not _key_may_continue(ctx, run)
         ):
             return []
         state = PausedRunState.model_validate(run.paused_state)
