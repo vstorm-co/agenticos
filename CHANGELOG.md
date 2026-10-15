@@ -601,6 +601,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **Credentials and the browser, tightened after review.** A key reads the
+  member list only with the new `members:view` scope (every role holds it). A
+  person's keys and connected apps are revoked when their membership ends, so
+  inviting them back wakes none. An OAuth consent is answered once. A live
+  browser view asks again whether its viewer may still watch, a take-over
+  answers only its holder (by id), the keep-my-sign-in tick is cleared after
+  each hand-back, and every browser request to a private, loopback, link-local
+  or metadata address is refused unless the agent's `allowed_domains` names it.
+  The personal-data export lists kept browser sign-ins, and the MCP
+  `create_knowledge_base` tool takes the embedding settings it needs.
+
 - **New chat starts a new conversation.** The console sends `conversation_id: null`
   for a new chat, and the session read it as "no id given" and carried on in the
   conversation the socket had open: the next message was written into the old
