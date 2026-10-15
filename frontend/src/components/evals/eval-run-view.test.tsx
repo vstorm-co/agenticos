@@ -182,7 +182,6 @@ describe("EvalRunView", () => {
     const candidate = screen.getByRole("row", { name: /Candidate on/ });
     const baseline = screen.getByRole("row", { name: /Baseline on/ });
     expect(within(candidate).getByText("50%")).toBeInTheDocument();
-    // The baseline answered no case under the tag, so it has nothing to show.
     expect(within(baseline).getAllByText("—").length).toBeGreaterThan(0);
     expect(count("Confirmed regressions")).toBe("1");
     expect(count("Confirmed fixes")).toBe("0");
