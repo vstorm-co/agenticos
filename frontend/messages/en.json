@@ -6301,7 +6301,7 @@
       "flip": {
         "regression": "{confirmed, select, true {Confirmed regression} other {Regression, unconfirmed}}",
         "fixed": "{confirmed, select, true {Confirmed fix} other {Fixed, unconfirmed}}",
-        "incomplete": "Undecided on a side"
+        "incomplete": "Not graded on {side}"
       },
       "dot": "{side}: {state, select, passed {passed} failed {failed} undecided {undecided} other {pending}}",
       "brokenOnly": "{count, plural, =1 {Showing the case that broke.} other {Showing the # cases that broke.}}",

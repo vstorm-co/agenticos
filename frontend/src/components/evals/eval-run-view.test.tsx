@@ -281,6 +281,40 @@ describe("EvalRunView", () => {
     expect(screen.getByRole("button", { name: "Send the failed case to review" })).toBeVisible();
   });
 
+  it("draws no flip while the run answers, and names the side a case was not graded on", () => {
+    state.run = { ...state.run, run: evalRun({ status: "running", first_done: 1 }) };
+    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.queryByText("Confirmed regression")).toBeNull();
+    unmount();
+
+    const undecided = (id: string, side: "baseline" | "candidate") => ({
+      ...FLIP,
+      case_id: id,
+      flip: "incomplete" as const,
+      confirmed: false,
+      [side]: null,
+    });
+    state.run = { ...state.run, run: evalRun() };
+    state.cases = {
+      cases: [evalCase(), evalCase({ case_id: "case-2" })],
+      total: 2,
+      isLoading: false,
+      error: null,
+    };
+    state.comparison = comparison({
+      cases: [undecided("case-1", "candidate"), undecided("case-2", "baseline")],
+    });
+    const again = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("Not graded on v7")).toBeInTheDocument();
+    expect(screen.getByText("Not graded on Draft")).toBeInTheDocument();
+    again.unmount();
+
+    // With nothing to compare with, the only side there is.
+    state.comparison = comparison({ baseline: null, cases: [undecided("case-2", "baseline")] });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("Not graded on v7")).toBeInTheDocument();
+  });
+
   it("says no change held when nothing reproduced", () => {
     state.comparison = comparison({
       verdict: "no_difference",

@@ -6159,7 +6159,7 @@
       "flip": {
         "regression": "{confirmed, select, true {Bestätigte Regression} other {Regression, unbestätigt}}",
         "fixed": "{confirmed, select, true {Bestätigte Behebung} other {Behoben, unbestätigt}}",
-        "incomplete": "Auf einer Seite unentschieden"
+        "incomplete": "Auf {side} nicht bewertet"
       },
       "dot": "{side}: {state, select, passed {bestanden} failed {nicht bestanden} undecided {unentschieden} other {ausstehend}}",
       "brokenOnly": "{count, plural, =1 {Der kaputte Fall wird gezeigt.} other {Die # kaputten Fälle werden gezeigt.}}",

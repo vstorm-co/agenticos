@@ -3922,7 +3922,7 @@
       "flip": {
         "regression": "{confirmed, select, true {Potwierdzona regresja} other {Regresja, niepotwierdzona}}",
         "fixed": "{confirmed, select, true {Potwierdzona naprawa} other {Naprawione, niepotwierdzone}}",
-        "incomplete": "Nierozstrzygnięte po jednej stronie"
+        "incomplete": "Bez oceny na {side}"
       },
       "dot": "{side}: {state, select, passed {zaliczony} failed {niezaliczony} undecided {nierozstrzygnięty} other {oczekuje}}",
       "brokenOnly": "{count, plural, one {Widzisz case, który się zepsuł.} few {Widzisz # case'y, które się zepsuły.} many {Widzisz # case'ów, które się zepsuły.} other {Widzisz # case'a, które się zepsuły.}}",

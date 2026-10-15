@@ -23,6 +23,7 @@ import { useEvalCases } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type {
+  EvalComparison,
   CaseFlip,
   CaseOutcomeFilter,
   EvalAttempt,
@@ -120,14 +121,15 @@ function SideDots({ attempts, arms }: { attempts: EvalAttempt[]; arms: EvalRunAr
  */
 export function CaseTable({
   run,
-  flips,
+  comparison,
   tag,
   caseIds,
   opened = null,
   onShowAll,
 }: {
   run: EvalRun;
-  flips: CaseFlip[];
+  /** How the sides compare once both have answered; none while the run answers. */
+  comparison: EvalComparison | undefined;
   tag: string | null;
   /** Only these cases - the ones that broke, or the one asked for - until `onShowAll`. */
   caseIds: string[] | null;
@@ -156,7 +158,17 @@ export function CaseTable({
     limit: PAGE,
     live: run.status === "queued" || run.status === "running",
   });
-  const flipOf = new Map(flips.map((flip) => [flip.case_id, flip]));
+  const tSide = useTranslations("evals");
+  // Each flip with the side its case is undecided on - the one whose answer
+  // reached no verdict.
+  const flipOf = new Map<string, CaseFlip & { side: string }>();
+  if (comparison !== undefined) {
+    const { candidate, baseline } = comparison;
+    for (const flip of comparison.cases) {
+      const side = flip.candidate === null || baseline === null ? candidate : baseline;
+      flipOf.set(flip.case_id, { ...flip, side: sideName(side, tSide) });
+    }
+  }
 
   return (
     <Card>
@@ -212,7 +224,10 @@ export function CaseTable({
                     )}
                     {flip && flip.flip !== "unchanged" && (
                       <Badge variant={flip.flip === "regression" ? "destructive" : "secondary"}>
-                        {t(`flip.${flip.flip}`, { confirmed: String(flip.confirmed) })}
+                        {t(`flip.${flip.flip}`, {
+                          confirmed: String(flip.confirmed),
+                          side: flip.side,
+                        })}
                       </Badge>
                     )}
                   </button>
