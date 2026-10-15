@@ -245,7 +245,9 @@ const SHOTS = [
     path: () => "/mcp-servers",
     areas: async (page) => ({
       filter: await box(page.locator('[data-tour="mcp-filter"]')),
-      catalog: top(await box(page.locator('[data-tour="mcp-catalog"]')), 900 - 280),
+      // The anchor is the catalog's header row now; the area runs from it down
+      // the grid, to the bottom of the window.
+      catalog: { ...(await box(page.locator('[data-tour="mcp-catalog"]'))), height: 900 - 160 },
       add: await box(page.locator('[data-tour="mcp-add"]')),
     }),
   },
