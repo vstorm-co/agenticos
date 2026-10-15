@@ -1,5 +1,5 @@
 ---
-source_sha: "c9e38fd0d2e9"
+source_sha: "6460bba9d44c"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1277,6 +1277,11 @@ Optionen — sagt das unter sich: Die nächste Nachricht der Person in diesem Ch
 ist die Antwort, kein neuer Turn neben einem Durchlauf, der noch wartet. Es zählt
 nur eine Nachricht der Person, der die Frage gestellt wurde, und sie geht an die
 älteste solche Frage.
+
+Eine Frage kann nur einem verknüpften Mitglied gestellt werden. Ein Absender ohne
+verknüpftes Konto läuft als Herausgeber des Bindings, also wird eine Frage, die der
+Agent ihm stellt, abgelehnt und der Turn geht ohne Antwort weiter, statt auf
+Schaltflächen zu warten, die nur der Herausgeber drücken könnte.
 
 Eine Freigabe liest sich als Bitte des Agents, in seiner eigenen Stimme: was er tun
 will und das eine Argument, das sagt, worum es geht — *I need your approval to

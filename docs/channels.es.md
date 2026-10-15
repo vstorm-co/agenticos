@@ -1,5 +1,5 @@
 ---
-source_sha: "c9e38fd0d2e9"
+source_sha: "6460bba9d44c"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1209,6 +1209,11 @@ Una pregunta que admite una respuesta con palabras propias — y una sin ninguna
 opción — lo dice debajo: el siguiente mensaje de esa persona en ese chat es la
 respuesta, no un turno nuevo junto a una ejecución que sigue esperando. Solo
 cuenta un mensaje de la persona a quien se hizo, y va a la pregunta más antigua.
+
+Una pregunta solo puede hacerse a un miembro vinculado. Un remitente sin cuenta
+vinculada se ejecuta como el publicador del binding, así que una pregunta que el
+agent le haga se rechaza y el turno sigue sin la respuesta, en vez de esperar a
+botones que solo el publicador podría pulsar.
 
 Una aprobación se lee como una petición del agent, con su propia voz: lo que quiere
 hacer y el único argumento que dice de qué trata — *I need your approval to

@@ -789,6 +789,7 @@ class TestWhatARoomRunsAs:
                 **kwargs,
             )
 
+        self.executed = execute.call_args
         return execute.call_args.args[0]
 
     async def test_a_sender_nobody_can_name_runs_under_the_binding_creator(self):
@@ -804,6 +805,17 @@ class TestWhatARoomRunsAs:
         assert ctx.user_id == creator
         assert ctx.role == OrgRoleName.BUILDER
         assert ctx.organization_id == organization_id
+
+    @pytest.mark.security
+    async def test_a_sender_nobody_can_name_is_asked_no_parked_question(self):
+        """Review on #2062: the run is the publisher's, so a question parked for it
+        went to the publisher's buttons and swallowed the publisher's next message,
+        while the stranger who was asked could never answer. It is declined."""
+        exposure = self._binding(uuid.uuid4(), uuid.uuid4())
+
+        await self._ran_as(exposure, user_id=None, membership=MagicMock(role=OrgRoleName.BUILDER))
+
+        assert self.executed.kwargs["parks_questions"] is False
 
     async def test_a_creator_who_left_the_organization_drops_the_turn_to_viewer(self):
         """Their departure must not silently widen what a channel can reach."""

@@ -368,8 +368,11 @@ class ChannelAgentRouter:
             tool_calls=called,
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
-            # A question is asked here as buttons and answered later (#2064).
-            parks_questions=True,
+            # A question is asked here as buttons and answered later (#2064) - of
+            # a linked member. An unlinked sender's turn runs as the publisher,
+            # and a question parked for them could be answered only by the
+            # publisher, never by the stranger who was asked; it is declined.
+            parks_questions=sender is not None,
             # A `/btw` answer is not part of the thread's transcript (#2087).
             conversation_id=None if is_asked_aside() else conversation_id,
             # What the sender adds while this runs, and the side question (#2087).
@@ -482,8 +485,11 @@ class ChannelAgentRouter:
             tool_calls=called,
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
-            # A question is asked here as buttons and answered later (#2064).
-            parks_questions=True,
+            # A question is asked here as buttons and answered later (#2064) - of
+            # a linked member. An unlinked sender's turn runs as the publisher,
+            # and a question parked for them could be answered only by the
+            # publisher, never by the stranger who was asked; it is declined.
+            parks_questions=sender is not None,
             # A `/btw` answer is not part of the thread's transcript (#2087).
             conversation_id=None if is_asked_aside() else conversation_id,
             # What the sender adds while this runs, and the side question (#2087).

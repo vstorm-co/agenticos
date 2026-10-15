@@ -1164,6 +1164,11 @@ options at all — says so under it: their next message in that chat is the
 answer, rather than a new turn beside a run still waiting. Only a message from
 the person it was put to counts, and the oldest such question takes it.
 
+A question can be put only to a linked member. A sender with no linked account
+runs as the binding's publisher, so a question the agent asks them is declined
+and the turn goes on without the answer, rather than waiting on buttons only the
+publisher could press.
+
 An approval reads as the agent asking, in its own voice: what it wants to do and
 the one argument that says what it is about — *I need your approval to **search in
 Notion**: “what's new in releases”*. A tool from an MCP server is named by its

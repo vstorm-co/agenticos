@@ -1,5 +1,5 @@
 ---
-source_sha: "c9e38fd0d2e9"
+source_sha: "6460bba9d44c"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1195,6 +1195,11 @@ Pytanie, na które można odpowiedzieć własnymi słowami — i takie bez żadn
 opcji — mówi to pod sobą: następna wiadomość tej osoby w tym czacie jest
 odpowiedzią, a nie nową turą obok przebiegu, który wciąż czeka. Liczy się tylko
 wiadomość od osoby, której zadano pytanie, i trafia do najstarszego takiego pytania.
+
+Pytanie można zadać tylko powiązanemu członkowi. Nadawca bez powiązanego konta
+działa jako wydawca bindingu, więc pytanie, które agent mu zada, jest odrzucane i
+tura idzie dalej bez odpowiedzi, zamiast czekać na przyciski, które mógłby nacisnąć
+tylko wydawca.
 
 Akceptacja brzmi jak prośba agenta, jego własnym głosem: co chce zrobić i jeden
 argument, który mówi, czego to dotyczy — *I need your approval to **search in

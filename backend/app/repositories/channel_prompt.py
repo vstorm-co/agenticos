@@ -78,6 +78,8 @@ async def claim_typed(
             ChannelPrompt.allow_custom.is_(True),
             ChannelPrompt.answered_at.is_(None),
             AgentRun.user_id == user_id,
+            # A publisher standing in for a stranger was never the one asked.
+            AgentRun.initiated_by_publisher_fallback.is_(False),
             AgentRun.status == RunStatus.AWAITING_ANSWER.value,
         )
         .order_by(ChannelPrompt.created_at, ChannelPrompt.question_index)
