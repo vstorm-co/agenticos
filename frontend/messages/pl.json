@@ -3580,7 +3580,6 @@
     "back": "Wróć do evali agenta",
     "cancelRun": "Zatrzymaj",
     "progress": "Odpowiedziane przypadki",
-    "progressCount": "{done} z {total} odpowiedzi",
     "compareArm": "Porównaj ten model",
     "draft": "Draft",
     "proposed": "Proponowane zmiany",
@@ -3630,31 +3629,18 @@
       "rerunsHint": "Case, którego wynik się zmienił, dostaje tyle powtórek, a zmiana liczy się jako potwierdzona tylko wtedy, gdy powtórzy się za każdym razem. „Brak” pomija to sprawdzenie."
     },
     "comparison": {
-      "title": "Na tle baseline'u",
-      "noBaseline": "Nie ma jeszcze wcześniejszego runa tego datasetu do porównania. Uruchom poprzednią wersję albo baseline w tym samym runie.",
+      "title": "Jak wypadają obie strony",
       "candidate": "Kandydat",
       "baselinePaired": "Baseline, w tym samym runie",
       "baselinePast": "Baseline, wcześniejszy run",
       "side": "{candidate} · {model} · dataset v{dataset} · {date}",
       "unfinished": "niezakończony",
-      "version": "v{version}",
-      "source": {
-        "version": "Wersja",
-        "draft": "Draft",
-        "explicit": "Proponowane zmiany"
-      },
       "verdict": {
         "better": "Lepiej",
         "worse": "Gorzej",
         "no_difference": "Bez różnicy",
-        "inconclusive": "Za mała próba",
+        "inconclusive": "Jeszcze nie wiadomo",
         "invalid": "Nieporównywalne"
-      },
-      "explain": {
-        "better": "Więcej potwierdzonych napraw niż regresji, więcej, niż dałby przypadek.",
-        "worse": "Więcej potwierdzonych regresji niż napraw, więcej, niż dałby przypadek.",
-        "no_difference": "Żaden przypadek nie odwrócił się trwale po powtórce.",
-        "inconclusive": "Część przypadków się odwróciła, ale za mało, żeby odróżnić to od szumu."
       },
       "regressionsConfirmed": "Potwierdzone regresje",
       "regressionsUnconfirmed": "Niepotwierdzone regresje",
@@ -3673,23 +3659,24 @@
         "worse": "gorzej",
         "unchanged": "bez zmian",
         "unknown": "nieznane"
-      }
+      },
+      "confirmedHint": "Potwierdzona: zmiana powtórzyła się w każdej powtórce.",
+      "unconfirmedHint": "Niepotwierdzona: przy powtórce wyszło raz tak, raz inaczej.",
+      "glossary": "Potwierdzona: zmiana powtórzyła się w każdej powtórce. Niepotwierdzona: przy powtórce wyszło raz tak, raz inaczej."
     },
     "arms": {
-      "title": "Wyniki",
-      "titleTag": "Wyniki dla #{tag}",
-      "arm": "Ramię",
+      "title": "Obok siebie",
+      "titleTag": "Obok siebie dla #{tag}",
       "passRate": "Zaliczone",
       "undecided": "Nierozstrzygnięte",
       "costPerPass": "Koszt na zaliczenie",
       "tokens": "Tokeny na przypadek",
       "latency": "Latencja p50 / p95",
-      "role": {
-        "candidate": "Kandydat na {model}",
-        "baseline": "Baseline na {model}"
-      },
       "reused": "wzięty z wcześniejszego runa",
-      "p50p95": "{p50} / {p95}"
+      "p50p95": "{p50} / {p95}",
+      "side": "Strona",
+      "pending": "Oczekujące",
+      "reusedFrom": "wynik z runu z {date}"
     },
     "cases": {
       "title": "{count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
@@ -3706,7 +3693,10 @@
         "regression": "{confirmed, select, true {Potwierdzona regresja} other {Regresja, niepotwierdzona}}",
         "fixed": "{confirmed, select, true {Potwierdzona naprawa} other {Naprawione, niepotwierdzone}}",
         "incomplete": "Nierozstrzygnięte po jednej stronie"
-      }
+      },
+      "dot": "{side}: {state, select, passed {zaliczony} failed {niezaliczony} undecided {nierozstrzygnięty} other {oczekuje}}",
+      "brokenOnly": "{count, plural, one {Widzisz case, który się zepsuł.} few {Widzisz # case'y, które się zepsuły.} many {Widzisz # case'ów, które się zepsuły.} other {Widzisz # case'a, które się zepsuły.}}",
+      "showAll": "Pokaż wszystkie case'y"
     },
     "case": {
       "firstAnswer": "Odpowiedź",
@@ -3729,6 +3719,26 @@
         "error": "błąd"
       }
     },
-    "estimating": "Wyceniam…"
+    "estimating": "Wyceniam…",
+    "sideModel": "{name} · {model}",
+    "headline": {
+      "first": "To pierwszy wynik {candidate} na datasecie {dataset}: zalicza {rate} case'ów. Kolejne wersje będą z nim porównywane.",
+      "worse": "{candidate} jest gorszy od {baseline} na datasecie {dataset}: {broke, plural, one {# case się zepsuł} few {# case'y się zepsuły} many {# case'ów się zepsuło} other {# case'a się zepsuło}} (potwierdzone), naprawionych: {fixed}. Zaliczone {from} → {to}.",
+      "better": "{candidate} jest lepszy od {baseline} na datasecie {dataset}: {fixed, plural, one {# case naprawiony} few {# case'y naprawione} many {# case'ów naprawionych} other {# case'a naprawionego}} (potwierdzone), zepsutych: {broke}. Zaliczone {from} → {to}.",
+      "no_difference": "{candidate} radzi sobie tak samo jak {baseline} na datasecie {dataset}: żadna zmiana nie utrzymała się w powtórkach. Zaliczone {from} → {to}.",
+      "inconclusive": "Jeszcze nie wiadomo: między {baseline} a {candidate} {changes, plural, one {zmienił się # case} few {zmieniły się # case'y} many {zmieniło się # case'ów} other {zmieniło się # case'a}}, za mało, żeby odróżnić to od szumu. Zaliczone {from} → {to}.",
+      "invalid": "{candidate} i {baseline} nie da się porównać: strony oceniał inny sędzia albo inna rubryka."
+    },
+    "live": {
+      "answering": "Gotowe {done} z {total} pierwszych odpowiedzi. Case'y, których wynik się zmieni, zostaną potem powtórzone, żeby to potwierdzić.",
+      "comparisonLater": "Porównanie pojawi się, gdy obie strony skończą."
+    },
+    "answers": "{cases, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}} · {first, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}} + {reruns, plural, =0 {bez powtórek} one {# powtórka potwierdzająca} few {# powtórki potwierdzające} many {# powtórek potwierdzających} other {# powtórki potwierdzającej}}",
+    "actions": {
+      "whatChanged": "Zobacz, co się zmieniło",
+      "showBroken": "{count, plural, one {Pokaż case, który się zepsuł} few {Pokaż # case'y, które się zepsuły} many {Pokaż # case'ów, które się zepsuły} other {Pokaż # case'a, które się zepsuły}}",
+      "backToBuild": "Wróć do Build",
+      "publish": "Publish"
+    }
   }
 }

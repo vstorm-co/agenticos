@@ -5960,7 +5960,6 @@
     "back": "Back to the agent's evals",
     "cancelRun": "Stop",
     "progress": "Cases answered",
-    "progressCount": "{done} of {total} answers",
     "compareArm": "Compare this model",
     "draft": "Draft",
     "proposed": "Proposed changes",
@@ -6010,31 +6009,18 @@
       "rerunsHint": "A case whose result changes is answered again this many times, and the change counts as confirmed only if it holds every time. None skips the check."
     },
     "comparison": {
-      "title": "Against the baseline",
-      "noBaseline": "There is no earlier run of this dataset to compare with yet. Run the previous version, or run the baseline in the same run.",
+      "title": "How the two compare",
       "candidate": "Candidate",
       "baselinePaired": "Baseline, in the same run",
       "baselinePast": "Baseline, an earlier run",
       "side": "{candidate} · {model} · dataset v{dataset} · {date}",
       "unfinished": "not finished",
-      "version": "v{version}",
-      "source": {
-        "version": "Version",
-        "draft": "Draft",
-        "explicit": "Proposed changes"
-      },
       "verdict": {
         "better": "Better",
         "worse": "Worse",
         "no_difference": "No difference",
-        "inconclusive": "Sample too small",
+        "inconclusive": "Not sure yet",
         "invalid": "Not comparable"
-      },
-      "explain": {
-        "better": "More confirmed fixes than regressions, more than chance would give.",
-        "worse": "More confirmed regressions than fixes, more than chance would give.",
-        "no_difference": "No case flipped and held when it was rerun.",
-        "inconclusive": "Some cases flipped, but too few to tell the two apart from noise."
       },
       "regressionsConfirmed": "Confirmed regressions",
       "regressionsUnconfirmed": "Unconfirmed regressions",
@@ -6053,23 +6039,24 @@
         "worse": "worse",
         "unchanged": "unchanged",
         "unknown": "unknown"
-      }
+      },
+      "confirmedHint": "Confirmed: the change held on every rerun.",
+      "unconfirmedHint": "Unconfirmed: on a rerun it came out one way, then the other.",
+      "glossary": "Confirmed: the change held on every rerun. Unconfirmed: on a rerun it came out one way, then the other."
     },
     "arms": {
-      "title": "Results",
-      "titleTag": "Results for #{tag}",
-      "arm": "Arm",
+      "title": "Side by side",
+      "titleTag": "Side by side on #{tag}",
       "passRate": "Pass rate",
       "undecided": "Undecided",
       "costPerPass": "Cost per pass",
       "tokens": "Tokens per case",
       "latency": "Latency p50 / p95",
-      "role": {
-        "candidate": "Candidate on {model}",
-        "baseline": "Baseline on {model}"
-      },
       "reused": "reused",
-      "p50p95": "{p50} / {p95}"
+      "p50p95": "{p50} / {p95}",
+      "side": "Side",
+      "pending": "Pending",
+      "reusedFrom": "result from the run of {date}"
     },
     "cases": {
       "title": "{count, plural, =1 {1 case} other {# cases}}",
@@ -6086,7 +6073,10 @@
         "regression": "{confirmed, select, true {Confirmed regression} other {Regression, unconfirmed}}",
         "fixed": "{confirmed, select, true {Confirmed fix} other {Fixed, unconfirmed}}",
         "incomplete": "Undecided on a side"
-      }
+      },
+      "dot": "{side}: {state, select, passed {passed} failed {failed} undecided {undecided} other {pending}}",
+      "brokenOnly": "{count, plural, =1 {Showing the case that broke.} other {Showing the # cases that broke.}}",
+      "showAll": "Show every case"
     },
     "case": {
       "firstAnswer": "Answer",
@@ -6109,6 +6099,26 @@
         "error": "error"
       }
     },
-    "estimating": "Estimating…"
+    "estimating": "Estimating…",
+    "sideModel": "{name} · {model}",
+    "headline": {
+      "first": "This is the first result of {candidate} on {dataset}: {rate} of cases pass. Later versions are compared with it.",
+      "worse": "{candidate} is worse than {baseline} on {dataset}: {broke, plural, =1 {1 case broke} other {# cases broke}} (confirmed), {fixed} fixed. Pass rate {from} → {to}.",
+      "better": "{candidate} is better than {baseline} on {dataset}: {fixed, plural, =1 {1 case fixed} other {# cases fixed}} (confirmed), {broke} broke. Pass rate {from} → {to}.",
+      "no_difference": "{candidate} does as well as {baseline} on {dataset}: no change held when rerun. Pass rate {from} → {to}.",
+      "inconclusive": "Not sure yet: {changes, plural, =1 {1 case changed} other {# cases changed}} between {baseline} and {candidate}, too few to tell apart from noise. Pass rate {from} → {to}.",
+      "invalid": "{candidate} and {baseline} cannot be compared: the two sides were graded by a different judge or rubric."
+    },
+    "live": {
+      "answering": "{done} of {total} first answers in. Cases whose result changes are then rerun to confirm it.",
+      "comparisonLater": "The comparison appears when both sides finish."
+    },
+    "answers": "{cases, plural, =1 {1 case} other {# cases}} · {first, plural, =1 {1 answer} other {# answers}} + {reruns, plural, =0 {no confirming reruns} =1 {1 confirming rerun} other {# confirming reruns}}",
+    "actions": {
+      "whatChanged": "See what changed",
+      "showBroken": "{count, plural, =1 {Show the case that broke} other {Show the # cases that broke}}",
+      "backToBuild": "Back to Build",
+      "publish": "Publish"
+    }
   }
 }

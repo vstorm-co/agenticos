@@ -9,9 +9,12 @@ import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 
 /**
- * The Evals tab on the agent detail page. Every read behind it takes
- * `runs:view`, so without it the tab is not offered at all rather than opening
- * onto a refusal.
+ * What the agent detail page does with where it was sent from.
+ *
+ * The Evals tab: every read behind it takes `runs:view`, so without it the tab
+ * is not offered at all rather than opening onto a refusal. And `?publish=1`
+ * from an eval run: it walks the same path the Publish button does - store,
+ * validate, then ask - and only for someone who may publish.
  */
 
 const AGENT: AgentDetail = {
@@ -51,13 +54,17 @@ const mutation = () => ({
 });
 
 let allowed: Set<Permission>;
+const page = vi.hoisted(() => ({
+  params: "",
+  validate: (() => undefined) as unknown,
+}));
 
 vi.mock("@/hooks", () => ({
   useAgent: () => ({
     agent: AGENT,
     isLoading: false,
     saveDraft: mutation(),
-    validate: vi.fn().mockResolvedValue({ problems: [], fields: [] }),
+    validate: page.validate,
     publish: mutation(),
     rollback: mutation(),
     setAvatar: mutation(),
@@ -99,7 +106,7 @@ vi.mock("@/hooks/use-context", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => "/agents/a1",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(page.params),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -132,9 +139,13 @@ async function mount() {
   });
 }
 
-describe("the detail page's Evals tab gate", () => {
-  beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  page.params = "";
+  page.validate = vi.fn().mockResolvedValue({ problems: [], fields: [] });
+});
 
+describe("the detail page's Evals tab gate", () => {
   it("offers the tab to a caller who may read runs", async () => {
     allowed = new Set([Perm.runsView]);
     await mount();
@@ -148,5 +159,26 @@ describe("the detail page's Evals tab gate", () => {
 
     await screen.findByRole("tab", { name: "History" });
     expect(screen.queryByRole("tab", { name: "Evals" })).toBeNull();
+  });
+});
+
+describe("a publish asked for by a link", () => {
+  it("validates and asks before anything goes live", async () => {
+    allowed = new Set([Perm.agentsEdit, Perm.agentsPublish]);
+    page.params = "tab=build&publish=1";
+    await mount();
+
+    expect(await screen.findByRole("dialog", { name: "Publish v1?" })).toBeInTheDocument();
+    expect(page.validate).toHaveBeenCalledTimes(1);
+  });
+
+  it("is not offered to who may not publish", async () => {
+    allowed = new Set([Perm.agentsEdit]);
+    page.params = "tab=build&publish=1";
+    await mount();
+
+    await screen.findByText("Instructions");
+    expect(page.validate).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

@@ -44,6 +44,12 @@ interface VersionHistoryProps {
   /** Repoint one environment at this row's version - promotion. */
   onPromote?: (environmentId: string, versionId: string) => void;
   promoting?: boolean;
+  /**
+   * The comparison to open on, by version number - an eval run's "what
+   * changed" link names the two sides it measured.
+   */
+  compareFrom?: number | null;
+  compareTo?: number | "draft";
 }
 
 /** The draft is a comparison target with no version id of its own. */
@@ -163,6 +169,8 @@ export function VersionHistory({
   environments = [],
   onPromote,
   promoting,
+  compareFrom = null,
+  compareTo = "draft",
 }: VersionHistoryProps) {
   const t = useTranslations("agents");
   // `timeAgo` reads its words from the shared `time` namespace, not this one.
@@ -197,10 +205,22 @@ export function VersionHistory({
   const { versions: allVersions } = useAllAgentVersions(paged ? agentId : null);
   const pickable = paged ? allVersions : versions;
   const newestId = versions[0]?.id ?? null;
+  // The comparison a link asked for, adopted once both of its versions are
+  // known - they may sit past the first page.
+  const [askedAdopted, setAskedAdopted] = useState(false);
+  const askedFrom = pickable.find((version) => version.version === compareFrom);
+  const askedTo =
+    compareTo === "draft" ? DRAFT : pickable.find((version) => version.version === compareTo)?.id;
+  const asked = !askedAdopted && askedFrom !== undefined && askedTo !== undefined;
+  if (asked) {
+    setAskedAdopted(true);
+    setLeftId(askedFrom.id);
+    setRightId(askedTo);
+  }
   const [seenNewest, setSeenNewest] = useState<string | null>(null);
   if (page === 0 && newestId !== null && newestId !== seenNewest) {
     setSeenNewest(newestId);
-    if (leftId === null) setLeftId(newestId);
+    if (leftId === null && !asked) setLeftId(newestId);
   }
 
   const left = useAgentVersion(agentId, leftId);

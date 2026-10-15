@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
   Badge,
+  Button,
   Card,
   CardContent,
   CardHeader,
@@ -20,8 +21,16 @@ import {
 } from "@/components/ui";
 import { useEvalCases } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
-import type { CaseFlip, CaseOutcomeFilter, EvalRun } from "@/types/eval-runs";
+import { cn } from "@/lib/utils";
+import type {
+  CaseFlip,
+  CaseOutcomeFilter,
+  EvalAttempt,
+  EvalRun,
+  EvalRunArm,
+} from "@/types/eval-runs";
 import { CaseDetail } from "./case-detail";
+import { sideName } from "./names";
 
 export const ALL = "all";
 const PAGE = 25;
@@ -54,6 +63,50 @@ export function FilterSelect({
   );
 }
 
+type DotState = "passed" | "failed" | "undecided" | "pending";
+
+const DOT_CLASS: Record<DotState, string> = {
+  passed: "bg-success",
+  failed: "bg-destructive",
+  undecided: "bg-warning",
+  pending: "border-muted-foreground border bg-transparent",
+};
+
+function dotState(attempt: EvalAttempt | undefined): DotState {
+  if (attempt === undefined || attempt.status === "pending" || attempt.status === "running") {
+    return "pending";
+  }
+  if (attempt.outcome === null) return "undecided";
+  return attempt.outcome ? "passed" : "failed";
+}
+
+/** How each side's first answer to a case came out, one dot per side. */
+function SideDots({ attempts, arms }: { attempts: EvalAttempt[]; arms: EvalRunArm[] }) {
+  const t = useTranslations("evals");
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      {arms.map((arm) => {
+        const state = dotState(
+          attempts.find((attempt) => attempt.arm_id === arm.id && attempt.attempt === 0),
+        );
+        const label = t("cases.dot", {
+          side: t("sideModel", { name: sideName(arm, t), model: arm.model_label }),
+          state,
+        });
+        return (
+          <span
+            key={arm.id}
+            role="img"
+            aria-label={label}
+            title={label}
+            className={cn("h-2.5 w-2.5 rounded-full", DOT_CLASS[state])}
+          />
+        );
+      })}
+    </span>
+  );
+}
+
 /**
  * The run's cases, narrowed by outcome and by the tag the run view is read
  * under, each with how it moved against the baseline; opening one shows every
@@ -63,25 +116,33 @@ export function CaseTable({
   run,
   flips,
   tag,
+  caseIds,
+  onShowAll,
 }: {
   run: EvalRun;
   flips: CaseFlip[];
   tag: string | null;
+  /** Only these cases - the ones that broke - until `onShowAll`. */
+  caseIds: string[] | null;
+  onShowAll: () => void;
 }) {
   const t = useTranslations("evals.cases");
   const tErrors = useTranslations("errors");
   const [outcome, setOutcome] = useState<string>(ALL);
   const [skip, setSkip] = useState(0);
   const [open, setOpen] = useState<string | null>(null);
-  // Page three of one tag's cases is not page three of another's.
-  const [seenTag, setSeenTag] = useState(tag);
-  if (seenTag !== tag) {
-    setSeenTag(tag);
+  // Page three of one tag's cases is not page three of another's. Compared as a
+  // value: the ids arrive as a new array on every render.
+  const scope = JSON.stringify([tag, caseIds]);
+  const [seenScope, setSeenScope] = useState(scope);
+  if (seenScope !== scope) {
+    setSeenScope(scope);
     setSkip(0);
   }
   const { cases, total, isLoading, error } = useEvalCases(run.id, {
     outcome: outcome === ALL ? null : (outcome as CaseOutcomeFilter),
     tag,
+    caseIds,
     skip,
     limit: PAGE,
     live: run.status === "queued" || run.status === "running",
@@ -103,6 +164,14 @@ export function CaseTable({
         />
       </CardHeader>
       <CardContent>
+        {caseIds !== null && (
+          <p className="text-muted-foreground mb-2 flex flex-wrap items-center gap-2 text-sm">
+            {t("brokenOnly", { count: caseIds.length })}
+            <Button size="sm" variant="ghost" onClick={onShowAll}>
+              {t("showAll")}
+            </Button>
+          </p>
+        )}
         {isLoading ? (
           <LoadingState variant="skeleton-list" rows={4} />
         ) : error ? (
@@ -125,6 +194,7 @@ export function CaseTable({
                     ) : (
                       <ChevronRight className="h-4 w-4 shrink-0" aria-hidden />
                     )}
+                    <SideDots attempts={item.attempts} arms={run.arms} />
                     <span className="min-w-0 flex-1 truncate text-sm">{item.input}</span>
                     {flip && flip.flip !== "unchanged" && (
                       <Badge variant={flip.flip === "regression" ? "destructive" : "secondary"}>

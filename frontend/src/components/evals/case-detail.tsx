@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Badge } from "@/components/ui";
 import type { CallOutcome, EvalAttempt, EvalRunArm } from "@/types/eval-runs";
 import { seconds, usd } from "./format";
+import { sideName } from "./names";
 
 const CALL_TONE: Record<CallOutcome, "secondary" | "warning" | "outline"> = {
   executed: "secondary",
@@ -60,7 +61,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
  * what every scorer said.
  */
 export function CaseDetail({ attempts, arms }: { attempts: EvalAttempt[]; arms: EvalRunArm[] }) {
-  const t = useTranslations("evals.arms");
+  const t = useTranslations("evals");
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {arms.map((arm) => {
@@ -68,7 +69,7 @@ export function CaseDetail({ attempts, arms }: { attempts: EvalAttempt[]; arms: 
         return (
           <div key={arm.id} className="space-y-2">
             <p className="text-muted-foreground text-xs font-medium">
-              {t(`role.${arm.role}`, { model: arm.model_label })}
+              {t("sideModel", { name: sideName(arm, t), model: arm.model_label })}
             </p>
             {own.map((attempt) => (
               <Attempt key={attempt.id} attempt={attempt} />

@@ -5818,7 +5818,6 @@
     "back": "Zurück zu den Evals des Agents",
     "cancelRun": "Stoppen",
     "progress": "Beantwortete Fälle",
-    "progressCount": "{done} von {total} Antworten",
     "compareArm": "Dieses Modell vergleichen",
     "draft": "Draft",
     "proposed": "Vorgeschlagene Änderungen",
@@ -5868,31 +5867,18 @@
       "rerunsHint": "Ein Fall, dessen Ergebnis sich ändert, wird so oft erneut beantwortet, und die Änderung gilt nur als bestätigt, wenn sie jedes Mal hält. „Keine“ überspringt die Prüfung."
     },
     "comparison": {
-      "title": "Gegen die Baseline",
-      "noBaseline": "Es gibt noch keinen früheren Run dieses Datasets zum Vergleich. Lass die vorherige Version laufen oder die Baseline im selben Run.",
+      "title": "Wie die beiden abschneiden",
       "candidate": "Kandidat",
       "baselinePaired": "Baseline, im selben Run",
       "baselinePast": "Baseline, ein früherer Run",
       "side": "{candidate} · {model} · Dataset v{dataset} · {date}",
       "unfinished": "nicht abgeschlossen",
-      "version": "v{version}",
-      "source": {
-        "version": "Version",
-        "draft": "Draft",
-        "explicit": "Vorgeschlagene Änderungen"
-      },
       "verdict": {
         "better": "Besser",
         "worse": "Schlechter",
         "no_difference": "Kein Unterschied",
-        "inconclusive": "Stichprobe zu klein",
+        "inconclusive": "Noch unklar",
         "invalid": "Nicht vergleichbar"
-      },
-      "explain": {
-        "better": "Mehr bestätigte Behebungen als Regressionen, mehr als der Zufall ergäbe.",
-        "worse": "Mehr bestätigte Regressionen als Behebungen, mehr als der Zufall ergäbe.",
-        "no_difference": "Kein Fall ist gekippt und hat bei der Wiederholung gehalten.",
-        "inconclusive": "Einige Fälle sind gekippt, aber zu wenige, um es vom Rauschen zu unterscheiden."
       },
       "regressionsConfirmed": "Bestätigte Regressionen",
       "regressionsUnconfirmed": "Unbestätigte Regressionen",
@@ -5911,23 +5897,24 @@
         "worse": "schlechter",
         "unchanged": "unverändert",
         "unknown": "unbekannt"
-      }
+      },
+      "confirmedHint": "Bestätigt: Die Änderung hielt bei jeder Wiederholung.",
+      "unconfirmedHint": "Unbestätigt: Bei der Wiederholung kam es mal so, mal anders heraus.",
+      "glossary": "Bestätigt: Die Änderung hielt bei jeder Wiederholung. Unbestätigt: Bei der Wiederholung kam es mal so, mal anders heraus."
     },
     "arms": {
-      "title": "Ergebnisse",
-      "titleTag": "Ergebnisse für #{tag}",
-      "arm": "Arm",
+      "title": "Nebeneinander",
+      "titleTag": "Nebeneinander für #{tag}",
       "passRate": "Bestehensquote",
       "undecided": "Unentschieden",
       "costPerPass": "Kosten pro Bestehen",
       "tokens": "Tokens pro Fall",
       "latency": "Latenz p50 / p95",
-      "role": {
-        "candidate": "Kandidat auf {model}",
-        "baseline": "Baseline auf {model}"
-      },
       "reused": "wiederverwendet",
-      "p50p95": "{p50} / {p95}"
+      "p50p95": "{p50} / {p95}",
+      "side": "Seite",
+      "pending": "Ausstehend",
+      "reusedFrom": "Ergebnis aus dem Run vom {date}"
     },
     "cases": {
       "title": "{count, plural, =1 {1 Fall} other {# Fälle}}",
@@ -5944,7 +5931,10 @@
         "regression": "{confirmed, select, true {Bestätigte Regression} other {Regression, unbestätigt}}",
         "fixed": "{confirmed, select, true {Bestätigte Behebung} other {Behoben, unbestätigt}}",
         "incomplete": "Auf einer Seite unentschieden"
-      }
+      },
+      "dot": "{side}: {state, select, passed {bestanden} failed {nicht bestanden} undecided {unentschieden} other {ausstehend}}",
+      "brokenOnly": "{count, plural, =1 {Der kaputte Fall wird gezeigt.} other {Die # kaputten Fälle werden gezeigt.}}",
+      "showAll": "Alle Fälle zeigen"
     },
     "case": {
       "firstAnswer": "Antwort",
@@ -5967,6 +5957,26 @@
         "error": "Fehler"
       }
     },
-    "estimating": "Wird geschätzt…"
+    "estimating": "Wird geschätzt…",
+    "sideModel": "{name} · {model}",
+    "headline": {
+      "first": "Das ist das erste Ergebnis von {candidate} auf {dataset}: {rate} der Fälle bestehen. Spätere Versionen werden damit verglichen.",
+      "worse": "{candidate} ist schlechter als {baseline} auf {dataset}: {broke, plural, =1 {1 Fall ist kaputtgegangen} other {# Fälle sind kaputtgegangen}} (bestätigt), {fixed} behoben. Bestehensquote {from} → {to}.",
+      "better": "{candidate} ist besser als {baseline} auf {dataset}: {fixed, plural, =1 {1 Fall behoben} other {# Fälle behoben}} (bestätigt), {broke} kaputtgegangen. Bestehensquote {from} → {to}.",
+      "no_difference": "{candidate} schneidet auf {dataset} so gut ab wie {baseline}: Keine Änderung hielt bei den Wiederholungen. Bestehensquote {from} → {to}.",
+      "inconclusive": "Noch unklar: {changes, plural, =1 {1 Fall hat sich} other {# Fälle haben sich}} zwischen {baseline} und {candidate} geändert, zu wenige, um sie von Rauschen zu unterscheiden. Bestehensquote {from} → {to}.",
+      "invalid": "{candidate} und {baseline} lassen sich nicht vergleichen: Die Seiten wurden von einem anderen Judge oder nach einer anderen Rubrik bewertet."
+    },
+    "live": {
+      "answering": "{done} von {total} ersten Antworten da. Fälle, deren Ergebnis sich ändert, werden danach wiederholt, um es zu bestätigen.",
+      "comparisonLater": "Der Vergleich erscheint, wenn beide Seiten fertig sind."
+    },
+    "answers": "{cases, plural, =1 {1 Fall} other {# Fälle}} · {first, plural, =1 {1 Antwort} other {# Antworten}} + {reruns, plural, =0 {keine bestätigenden Wiederholungen} =1 {1 bestätigende Wiederholung} other {# bestätigende Wiederholungen}}",
+    "actions": {
+      "whatChanged": "Änderungen ansehen",
+      "showBroken": "{count, plural, =1 {Den kaputten Fall zeigen} other {Die # kaputten Fälle zeigen}}",
+      "backToBuild": "Zurück zu Build",
+      "publish": "Veröffentlichen"
+    }
   }
 }

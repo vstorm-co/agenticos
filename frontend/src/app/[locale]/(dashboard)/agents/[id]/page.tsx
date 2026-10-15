@@ -170,8 +170,13 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const { id } = use(params);
   const router = useRouter();
-  // A link back from an eval run lands on the Evals tab rather than on Build.
-  const openTab = useSearchParams().get("tab") ?? "build";
+  // A link from an eval run lands on the tab it names: its Evals, the History
+  // comparing the two versions it measured, or Build with the publish asked for.
+  const searchParams = useSearchParams();
+  const openTab = searchParams.get("tab") ?? "build";
+  const compareFrom = Number(searchParams.get("from")) || null;
+  const compareTo = Number(searchParams.get("to")) || "draft";
+  const publishAsked = searchParams.get("publish") === "1";
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor } =
     useAgent(id);
   const { environments, promote } = useAgentEnvironments(id);
@@ -336,6 +341,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
     }, 1200);
     return () => clearTimeout(timer);
   }, [spec, agent?.draft_spec, isDirty, canEdit, storeDraft, storing]);
+
+  // Asked once per visit, and only of someone who may publish: the dialog still
+  // validates first and still asks before anything goes live.
+  const publishOffered = useRef(false);
+  useEffect(() => {
+    if (!publishAsked || publishOffered.current || !agent || !spec || !canPublish) return;
+    publishOffered.current = true;
+    void handlePublish();
+  });
 
   // Names, never ids: the map exists to be read, and a row of uuids is the
   // thing it replaces. Anything the spec references but the organization no
@@ -1438,6 +1452,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   promote.mutate({ environmentId, versionId })
                 }
                 promoting={promote.isPending}
+                compareFrom={compareFrom}
+                compareTo={compareTo}
               />
             </CardContent>
           </Card>

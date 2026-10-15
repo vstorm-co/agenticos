@@ -89,6 +89,8 @@ export interface CaseQuery {
   arm?: string | null;
   outcome?: CaseOutcomeFilter | null;
   tag?: string | null;
+  /** Only these cases - the ones a comparison says broke, say. */
+  caseIds?: string[] | null;
   skip?: number;
   limit?: number;
   /** Whether the run is still answering, so the table is read again while it is. */
@@ -98,15 +100,24 @@ export interface CaseQuery {
 /** A page of a run's cases, each with every attempt every arm made at it. */
 export function useEvalCases(
   runId: string,
-  { arm = null, outcome = null, tag = null, skip = 0, limit = 50, live = false }: CaseQuery = {},
+  {
+    arm = null,
+    outcome = null,
+    tag = null,
+    caseIds = null,
+    skip = 0,
+    limit = 50,
+    live = false,
+  }: CaseQuery = {},
 ) {
   const query = useQuery({
-    queryKey: qk.evalRuns.cases(runId, { arm, outcome, tag, skip, limit }),
+    queryKey: qk.evalRuns.cases(runId, { arm, outcome, tag, caseIds, skip, limit }),
     queryFn: () => {
       const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
       if (arm) params.set("arm_id", arm);
       if (outcome) params.set("outcome", outcome);
       if (tag) params.set("tag", tag);
+      for (const id of caseIds ?? []) params.append("case_id", id);
       return apiClient.get<EvalCaseList>(`/eval-runs/${runId}/cases?${params}`);
     },
     placeholderData: (previous) => previous,
@@ -151,6 +162,32 @@ export function useEvalComparison(
     error: query.error,
     refetch: query.refetch,
   };
+}
+
+/** A dataset's runs over the agents the caller may see, newest first. */
+export function useDatasetEvalRuns(datasetId: string, { limit = 100 } = {}) {
+  const query = useQuery({
+    queryKey: qk.evalRuns.forDataset(datasetId, limit),
+    queryFn: () => apiClient.get<EvalRunList>(`/datasets/${datasetId}/eval-runs?limit=${limit}`),
+    refetchInterval: (current) =>
+      current.state.data?.items.some((run) => isLive(run.status)) ? LIVE_POLL_MS : false,
+  });
+  return {
+    runs: query.data?.items ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+/** The agent's runs of its draft as it stands now, newest first. */
+export function useDraftEvalRuns(agentId: string | null, { enabled = true } = {}) {
+  const query = useQuery({
+    queryKey: qk.evalRuns.forDraft(agentId ?? ""),
+    queryFn: () => apiClient.get<EvalRunList>(`/agents/${agentId}/eval-runs?draft=current&limit=1`),
+    enabled: enabled && agentId !== null,
+  });
+  return { runs: query.data?.items ?? [], isLoading: query.isLoading };
 }
 
 /** The organization's latest runs the caller may read - the dashboard's card. */

@@ -90,6 +90,21 @@ export interface EvalRunArm {
   by_tag: Record<string, ArmSummary>;
 }
 
+/**
+ * How a finished run's first candidate came out against its baseline. A null
+ * `verdict` and `baseline` make it the first result later versions are
+ * measured against.
+ */
+export interface EvalOutcome {
+  candidate_arm_id: string;
+  verdict: Verdict | null;
+  baseline: ComparisonSide | null;
+  regressions_confirmed: number;
+  fixed_confirmed: number;
+  candidate_pass_rate: number | null;
+  baseline_pass_rate: number | null;
+}
+
 export interface EvalRun {
   id: string;
   agent_id: string;
@@ -108,6 +123,13 @@ export interface EvalRun {
   cost_is_partial: boolean;
   attempts_done: number;
   attempts_total: number;
+  /** The cases the run answers. */
+  cases: number;
+  /** First answers finished and in all, every side's; the rest are confirming reruns. */
+  first_done: number;
+  first_total: number;
+  /** The verdict once the run has ended; null while it answers. */
+  outcome: EvalOutcome | null;
   error: string | null;
   created_by_user_id: string | null;
   created_at: string;

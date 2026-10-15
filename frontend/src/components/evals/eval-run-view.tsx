@@ -2,81 +2,25 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Square } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { ArrowLeft } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { ErrorState, LoadingState } from "@/components/states";
-import {
-  Button,
-  Card,
-  CardContent,
-  Progress,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { isLive, useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { formatDateTime } from "@/lib/utils";
-import type { EvalRun } from "@/types/eval-runs";
 import { ArmsTable } from "./arms-table";
 import { ALL, CaseTable, FilterSelect } from "./case-table";
 import { ComparisonCard } from "./comparison-card";
-import { EvalStatusBadge } from "./eval-status-badge";
-import { candidateLabel } from "./evals-panel";
-import { usd } from "./format";
-
-function RunHeader({ run, onCancel }: { run: EvalRun; onCancel?: () => void }) {
-  const t = useTranslations("evals");
-  const locale = useLocale();
-  const done = run.attempts_total === 0 ? 0 : (run.attempts_done / run.attempts_total) * 100;
-  return (
-    <Card>
-      <CardContent className="space-y-3 pt-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <h1 className="text-lg font-semibold">
-              {t("runTitle", {
-                dataset: run.dataset_name,
-                version: run.dataset_version,
-                candidate: candidateLabel(run, t),
-              })}
-            </h1>
-            <p className="text-muted-foreground text-xs">
-              {t("runMeta", {
-                date: formatDateTime(run.created_at, locale),
-                cost: usd(run.cost_usd, locale),
-                estimate: usd(run.estimate_usd, locale),
-              })}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <EvalStatusBadge status={run.status} />
-            {onCancel && (
-              <Button size="sm" variant="outline" onClick={onCancel}>
-                <Square className="h-3.5 w-3.5" aria-hidden />
-                {t("cancelRun")}
-              </Button>
-            )}
-          </div>
-        </div>
-        <Progress value={done} aria-label={t("progress")} />
-        <p className="text-muted-foreground text-xs">
-          {t("progressCount", { done: run.attempts_done, total: run.attempts_total })}
-        </p>
-        {run.error && <p className="text-destructive text-sm">{run.error}</p>}
-      </CardContent>
-    </Card>
-  );
-}
+import { sideName } from "./names";
+import { VerdictHeader } from "./verdict-header";
 
 /**
- * One eval run: where it is, how each arm did, how it compares, and every case -
- * over the whole dataset, or over the cases carrying one tag.
+ * One eval run, verdict first: what changed and what to do about it, then each
+ * side's numbers, how the two compare, and every case - over the whole dataset
+ * or over the cases carrying one tag.
  */
 export function EvalRunView({ agentId, runId }: { agentId: string; runId: string }) {
   const t = useTranslations("evals");
@@ -87,6 +31,8 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const candidates = run?.arms.filter((arm) => arm.role === "candidate") ?? [];
   const [arm, setArm] = useState<string | null>(null);
   const [tag, setTag] = useState<string | null>(null);
+  const [broken, setBroken] = useState(false);
+  const cases = useRef<HTMLDivElement>(null);
   const focus = arm ?? candidates[0]?.id ?? null;
   const live = run !== undefined && isLive(run.status);
   const { comparison, refetch: refetchComparison } = useEvalComparison(runId, {
@@ -112,6 +58,10 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   }
 
   const tags = [...new Set(run.arms.flatMap((item) => Object.keys(item.by_tag)))].sort();
+  const candidate = candidates.find((item) => item.id === focus);
+  const brokenIds = (comparison?.cases ?? [])
+    .filter((item) => item.flip === "regression")
+    .map((item) => item.case_id);
 
   return (
     <div className="space-y-6">
@@ -122,45 +72,70 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         <ArrowLeft className="h-4 w-4" aria-hidden />
         {t("back")}
       </Link>
-      <RunHeader
+      <VerdictHeader
+        agentId={agentId}
         run={run}
+        candidate={candidate}
+        comparison={live ? undefined : comparison}
         onCancel={
-          isLive(run.status)
+          live
             ? () =>
                 cancel.mutate(undefined, {
                   onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
                 })
             : undefined
         }
+        onShowBroken={() => {
+          setBroken(true);
+          cases.current?.scrollIntoView?.({ behavior: "smooth" });
+        }}
       />
-      {tags.length > 0 && (
-        <FilterSelect
-          label={tCases("tagFilter")}
-          value={tag ?? ALL}
-          onChange={(value) => setTag(value === ALL ? null : value)}
-          options={[
-            { value: ALL, label: tCases("allTags") },
-            ...tags.map((value) => ({ value, label: `#${value}` })),
-          ]}
+      <div className="flex flex-wrap gap-2">
+        {candidates.length > 1 && (
+          <Select value={focus ?? ""} onValueChange={setArm}>
+            <SelectTrigger aria-label={t("compareArm")} className="w-64">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {candidates.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {t("sideModel", { name: sideName(item, t), model: item.model_label })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {tags.length > 0 && (
+          <FilterSelect
+            label={tCases("tagFilter")}
+            value={tag ?? ALL}
+            onChange={(value) => setTag(value === ALL ? null : value)}
+            options={[
+              { value: ALL, label: tCases("allTags") },
+              ...tags.map((value) => ({ value, label: `#${value}` })),
+            ]}
+          />
+        )}
+      </div>
+      <ArmsTable
+        agentId={agentId}
+        arms={run.arms}
+        tag={tag}
+        live={live}
+        baseline={comparison?.baseline ?? null}
+      />
+      {!live && comparison && (
+        <ComparisonCard agentId={agentId} comparison={comparison} tag={tag} />
+      )}
+      <div ref={cases}>
+        <CaseTable
+          run={run}
+          flips={comparison?.cases ?? []}
+          tag={tag}
+          caseIds={broken ? brokenIds : null}
+          onShowAll={() => setBroken(false)}
         />
-      )}
-      <ArmsTable arms={run.arms} tag={tag} />
-      {candidates.length > 1 && (
-        <Select value={focus ?? ""} onValueChange={setArm}>
-          <SelectTrigger aria-label={t("compareArm")} className="w-64">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {candidates.map((candidate) => (
-              <SelectItem key={candidate.id} value={candidate.id}>
-                {candidate.model_label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
-      {comparison && <ComparisonCard agentId={agentId} comparison={comparison} tag={tag} />}
-      <CaseTable run={run} flips={comparison?.cases ?? []} tag={tag} />
+      </div>
     </div>
   );
 }

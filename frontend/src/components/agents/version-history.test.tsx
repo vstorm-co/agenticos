@@ -315,6 +315,24 @@ describe("the diff", () => {
     expect(screen.getByLabelText("Compare to")).toHaveTextContent("Draft");
   });
 
+  it("opens on the two versions a link asks for, once both are known", () => {
+    mount({ versions: [version(3), version(2), version(1)], compareFrom: 1, compareTo: 2 });
+
+    expect(screen.getByLabelText("Compare from")).toHaveTextContent("v1");
+    expect(screen.getByLabelText("Compare to")).toHaveTextContent("v2");
+  });
+
+  it("compares an asked-for version with the draft, and ignores one that does not exist", () => {
+    mount({ compareFrom: 1 });
+    expect(screen.getByLabelText("Compare from")).toHaveTextContent("v1");
+    expect(screen.getByLabelText("Compare to")).toHaveTextContent("Draft");
+  });
+
+  it("keeps the default comparison when the asked-for version is not there", () => {
+    mount({ compareFrom: 9 });
+    expect(screen.getByLabelText("Compare from")).toHaveTextContent("v2");
+  });
+
   it("says two identical specs are identical rather than showing an empty diff", () => {
     // v2 and the draft are the same object here.
     mount();

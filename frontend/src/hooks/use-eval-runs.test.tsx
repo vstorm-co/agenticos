@@ -9,6 +9,8 @@ import {
   isLive,
   useEvalCases,
   useEvalComparison,
+  useDatasetEvalRuns,
+  useDraftEvalRuns,
   useEvalRun,
   useEvalRuns,
   useRecentEvalRuns,
@@ -93,6 +95,12 @@ describe("useEvalRuns", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["eval-runs"] });
   });
 
+  it("reads nothing until there is an agent", () => {
+    const { result } = renderHook(() => useEvalRuns(null), { wrapper });
+    expect(apiClient.get).not.toHaveBeenCalled();
+    expect(result.current.runs).toEqual([]);
+  });
+
   it("reads defaults when no page is asked for", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     const { result } = renderHook(() => useEvalRuns("agent-1"), { wrapper });
@@ -129,12 +137,19 @@ describe("useEvalCases", () => {
   it("narrows by arm, outcome and tag only when asked", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 7 });
     const { result } = renderHook(
-      () => useEvalCases("run-1", { arm: "a1", outcome: "failed", tag: "refunds", live: true }),
+      () =>
+        useEvalCases("run-1", {
+          arm: "a1",
+          outcome: "failed",
+          tag: "refunds",
+          caseIds: ["c1", "c2"],
+          live: true,
+        }),
       { wrapper },
     );
     await waitFor(() => expect(result.current.total).toBe(7));
     expect(apiClient.get).toHaveBeenCalledWith(
-      "/eval-runs/run-1/cases?skip=0&limit=50&arm_id=a1&outcome=failed&tag=refunds",
+      "/eval-runs/run-1/cases?skip=0&limit=50&arm_id=a1&outcome=failed&tag=refunds&case_id=c1&case_id=c2",
     );
 
     const plain = renderHook(() => useEvalCases("run-2"), { wrapper });
@@ -188,6 +203,38 @@ describe("useEvalComparison while the run is live", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("useDatasetEvalRuns", () => {
+  it("lists a dataset's runs, and polls only while one is live", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [evalRun()], total: 1 });
+    const { result } = renderHook(() => useDatasetEvalRuns("ds-1"), { wrapper });
+    await waitFor(() => expect(result.current.runs).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/datasets/ds-1/eval-runs?limit=100");
+
+    const { query, next } = polling();
+    expect(next()).toBe(false);
+    query.setData({ items: [evalRun({ status: "queued" })], total: 1 });
+    expect(next()).toBe(3_000);
+    query.setData(undefined);
+    expect(next()).toBe(false);
+  });
+});
+
+describe("useDraftEvalRuns", () => {
+  it("reads the latest run of the draft as it stands, and nothing when held back", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [evalRun()], total: 1 });
+    const { result } = renderHook(() => useDraftEvalRuns("agent-1"), { wrapper });
+    await waitFor(() => expect(result.current.runs).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledWith("/agents/agent-1/eval-runs?draft=current&limit=1");
+
+    vi.mocked(apiClient.get).mockClear();
+    const held = renderHook(() => useDraftEvalRuns("agent-2", { enabled: false }), { wrapper });
+    const none = renderHook(() => useDraftEvalRuns(null), { wrapper });
+    expect(held.result.current.runs).toEqual([]);
+    expect(none.result.current.runs).toEqual([]);
+    expect(apiClient.get).not.toHaveBeenCalled();
   });
 });
 

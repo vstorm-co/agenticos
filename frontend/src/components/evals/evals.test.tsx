@@ -193,82 +193,109 @@ describe("EstimateSummary", () => {
 });
 
 describe("ComparisonCard", () => {
-  it("shows the verdict, both sides, the flips and the efficiency axis", () => {
+  it("shows both sides, the changes with what confirmed means, and the efficiency axis", () => {
     render(<ComparisonCard agentId="agent-1" comparison={comparison()} tag={null} />);
-    expect(screen.getByText("Sample too small")).toBeInTheDocument();
-    expect(screen.getByText(/too few to tell the two apart/)).toBeInTheDocument();
+    expect(screen.getByText("How the two compare")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /v7 · gpt-4.1 · dataset v3/ })).toHaveAttribute(
       "href",
       "/agents/agent-1/evals/run-1",
     );
     expect(screen.getByRole("link", { name: /Draft · gpt-4.1 · dataset v3 · not finished/ }));
     expect(screen.getByText("Baseline, an earlier run")).toBeInTheDocument();
-    expect(screen.getByText("Confirmed regressions").nextSibling).toHaveTextContent("1");
+    const confirmed = screen.getByText("Confirmed regressions");
+    expect(confirmed.nextSibling).toHaveTextContent("1");
+    expect(confirmed.parentElement).toHaveAttribute(
+      "title",
+      "Confirmed: the change held on every rerun.",
+    );
+    expect(screen.getByText("Unconfirmed fixes").parentElement).toHaveAttribute(
+      "title",
+      "Unconfirmed: on a rerun it came out one way, then the other.",
+    );
     expect(screen.getByText("Cost per passed case: worse")).toBeInTheDocument();
     expect(screen.getByText(/4 cases compared, 0 answered on one side only/)).toBeInTheDocument();
   });
 
-  it("names a baseline in the same run, and why a comparison is refused", () => {
+  it("names a baseline in the same run, and leaves out what it could not measure", () => {
     render(
       <ComparisonCard
         tag={null}
         agentId="agent-1"
-        comparison={comparison({
-          paired: true,
-          verdict: "invalid",
-          invalid_reason: "The two sides were graded by a different judge, model or rubric.",
-          efficiency: null,
-        })}
+        comparison={comparison({ paired: true, efficiency: null })}
       />,
     );
-    expect(screen.getByText("Not comparable")).toBeInTheDocument();
-    expect(screen.getByText(/graded by a different judge/)).toBeInTheDocument();
     expect(screen.getByText("Baseline, in the same run")).toBeInTheDocument();
     expect(screen.queryByText(/Cost per passed case/)).not.toBeInTheDocument();
   });
 
-  it("says there is nothing to compare with yet", () => {
-    render(
+  it("renders nothing when there is nothing to compare with", () => {
+    const { container } = render(
       <ComparisonCard
         tag={null}
         agentId="agent-1"
         comparison={comparison({ baseline: null, verdict: null })}
       />,
     );
-    expect(screen.getByText(/no earlier run of this dataset/)).toBeInTheDocument();
-    expect(screen.queryByText("Confirmed regressions")).not.toBeInTheDocument();
+    expect(container).toBeEmptyDOMElement();
   });
 
-  it("explains a verdict that carries no reason of its own", () => {
+  it("names a proposed change by what it is", () => {
     render(
-      <ComparisonCard agentId="agent-1" comparison={comparison({ verdict: null })} tag={null} />,
+      <ComparisonCard
+        tag={null}
+        agentId="agent-1"
+        comparison={comparison({
+          candidate: { ...comparison().candidate, source: "explicit", version_number: null },
+        })}
+      />,
     );
-    expect(screen.getByText(/No case flipped and held/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Proposed changes · gpt-4.1/ })).toBeVisible();
   });
 });
 
 describe("ArmsTable", () => {
-  it("puts every arm's axes side by side and marks a reused baseline", () => {
+  it("puts every side next to the other and links a reused result to its run", () => {
     render(
       <ArmsTable
+        agentId="agent-1"
         tag={null}
+        live={false}
+        baseline={{ ...comparison().candidate, run_id: "run-0", version_number: 6 }}
         arms={[
           arm(),
           arm({
             id: "arm-2",
             role: "baseline",
+            version_number: 6,
             reused_from_arm_id: "arm-0",
             summary: { ...SUMMARY, avg_tokens: null, pass_rate: null },
           }),
         ]}
       />,
     );
-    const candidate = within(screen.getByRole("row", { name: /Candidate on/ }));
-    const baseline = within(screen.getByRole("row", { name: /Baseline on/ }));
+    const candidate = within(screen.getByRole("row", { name: /v7 · gpt-4.1/ }));
+    const baseline = within(screen.getByRole("row", { name: /v6 · gpt-4.1/ }));
     expect(candidate.getByText("120")).toBeInTheDocument();
     expect(candidate.getByText("0.5s / 1.5s")).toBeInTheDocument();
-    expect(baseline.getByText(/reused/)).toBeInTheDocument();
+    expect(baseline.getByRole("link", { name: /result from the run of/ })).toHaveAttribute(
+      "href",
+      "/agents/agent-1/evals/run-0",
+    );
     expect(baseline.getAllByText("—")).toHaveLength(2);
+  });
+
+  it("says a reused result was reused when its run has not finished", () => {
+    render(
+      <ArmsTable
+        agentId="agent-1"
+        tag={null}
+        live
+        baseline={{ ...comparison().candidate, run_id: "run-0", finished_at: null }}
+        arms={[arm({ id: "arm-2", role: "baseline", reused_from_arm_id: "arm-0" })]}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "reused" })).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "Pending" })).toBeVisible();
   });
 });
 
@@ -276,7 +303,7 @@ describe("CaseDetail", () => {
   it("shows each arm's answers, calls and scorer reasons side by side", () => {
     render(
       <CaseDetail
-        arms={[arm(), arm({ id: "arm-2", role: "baseline" })]}
+        arms={[arm(), arm({ id: "arm-2", role: "baseline", version_number: 6 })]}
         attempts={[
           attempt({
             calls: [
@@ -303,8 +330,8 @@ describe("CaseDetail", () => {
         ]}
       />,
     );
-    expect(screen.getByText("Candidate on gpt-4.1")).toBeInTheDocument();
-    expect(screen.getByText("Baseline on gpt-4.1")).toBeInTheDocument();
+    expect(screen.getByText("v7 · gpt-4.1")).toBeInTheDocument();
+    expect(screen.getByText("v6 · gpt-4.1")).toBeInTheDocument();
     expect(screen.getByText("held, writes")).toBeInTheDocument();
     expect(screen.getByText('send_email({"to":"a@b.c"})')).toBeInTheDocument();
     expect(screen.getByText("contains 30 days")).toBeInTheDocument();
