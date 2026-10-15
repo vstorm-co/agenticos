@@ -1,5 +1,5 @@
 ---
-source_sha: "c86c5d8c490f"
+source_sha: "f9ec7e031724"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -47,9 +47,12 @@ Die Seite eines Runs öffnet mit seinem Urteil als Satz - welche Seite besser
 abgeschnitten hat, um wie viele bestätigte Fälle und die Bestehensquote vorher
 und nachher - und mit dem, was als Nächstes zu tun ist: sehen, was sich
 zwischen den beiden Versionen geändert hat (History öffnet auf diesem
-Vergleich), die Fälle zeigen, die kaputtgegangen sind, zurück zu Build gehen
-oder den Draft veröffentlichen. Solange der Run antwortet, sagt sie, wie viele
-erste Antworten vorliegen, und der Vergleich wartet auf beide Seiten.
+Vergleich, gegen den getesteten Spec statt den jetzigen Draft), die
+kaputtgegangenen Fälle zeigen, zurück zu Build gehen oder den Draft
+veröffentlichen. Publish ist nur dann die Hauptaktion, wenn keine Regression
+bestätigt wurde, und der Run eines seitdem geänderten Drafts bietet stattdessen
+**Test again** an. Solange der Run antwortet, sagt sie, wie viele erste
+Antworten vorliegen, und der Vergleich wartet auf beide Seiten.
 
 Unter dem Urteil stehen die Seiten nebeneinander, wie die beiden abschneiden,
 und die Fälle - jede Zeile mit einem Punkt für bestanden oder nicht bestanden
@@ -70,8 +73,10 @@ den Startdialog auf dem Dataset und fragt, welcher Agent getestet werden soll.
 Die Karte **Eval runs** im Dashboard listet die neuesten Runs der Organisation
 mit ihrem Agent und ihrem Urteil. Die Fälle eines Evals und die Bewertung durch
 den Judge bleiben aus jeder anderen Dashboard-Zahl heraus, und Activity blendet
-sie aus, außer ihr Oberflächenfilter verlangt jede Oberfläche oder nur Evals;
-ein dort geöffneter Eval-Fall nennt seinen Eval-Run und verlinkt darauf.
+sie aus, außer ihr Oberflächenfilter verlangt jede Oberfläche oder nur Evals.
+Dort sagt die Zeile eines Eval-Runs, welche Frage er beantwortet hat, und ein
+Eval-Fall - oder der Run des Judges, der einen bewertet hat - nennt seinen
+Eval-Run und verlinkt darauf.
 
 ## Einen Run starten { #starting-a-run }
 
@@ -101,9 +106,11 @@ Ein Agent ohne Historie auf einem Modell wird als typischer Fall geschätzt -
 `EVAL_FALLBACK_INPUT_TOKENS` hinein, `EVAL_FALLBACK_OUTPUT_TOKENS` heraus - zum
 eigenen Preis des Modells, oder mit `EVAL_FALLBACK_CASE_COST_USD` bei einem
 Modell ohne bekannten Preis, und die Schätzung sagt, dass es eine grobe Annahme
-ist (`basis: "fallback"`). Die Kosten der Baseline gehören zur
-Summe, außer eine aktuelle passende Baseline wird wiederverwendet - dann kostet
-sie nichts, und die Schätzung nennt den Run, den sie wiederverwendet.
+ist (`basis: "fallback"`). Ein Judge ohne Historie wird genauso bepreist, auf
+dem Modell, das das Dataset für ihn wählt, oder dem, das sein veröffentlichter
+Spec nennt. Die Kosten der Baseline gehören zur Summe, außer eine aktuelle
+passende Baseline wird wiederverwendet - dann kosten ihre ersten Antworten
+nichts, und die Schätzung nennt den Run, aus dem sie stammen.
 
 ### Das verbleibende Budget { #the-budget-it-leaves }
 
@@ -223,6 +230,7 @@ GET /api/v1/eval-runs/{id}                   one run, with each arm's summary an
 GET /api/v1/eval-runs/{id}/cases             cases, what each expects, and every attempt;
                                              ?outcome=, ?tag=, ?arm_id=, ?case_id=
 GET /api/v1/eval-runs/{id}/comparison        a candidate arm against its baseline
+GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents:edit
 ```
 
 `?draft=current` behält die Runs, die den Draft in seinem jetzigen Stand
@@ -253,7 +261,8 @@ Agent.
 Ein abgeschlossener Baseline-Arm ersetzt einen neuen Lauf nur, wenn Version,
 Dataset-Version, Modell, Scoring und Judge übereinstimmen und er innerhalb von
 `EVAL_BASELINE_CACHE_HOURS` fertig wurde. Der Run nennt den Run, den er
-wiederverwendet hat.
+wiederverwendet hat. Nur seine ersten Antworten werden wiederverwendet: Ein Fall,
+der kippt, wird ihm in diesem Run erneut gestellt.
 
 ### Ein Kippen wird bestätigt, bevor es zählt { #a-flip-is-confirmed-before-it-counts }
 
@@ -261,9 +270,12 @@ Ein gekippter Fall wird `EVAL_RERUNS` Mal (standardmäßig 2) wiederholt, sobald
 die ersten Antworten vorliegen. Eine Regression ist **bestätigt**, wenn jede
 Wiederholung des Kandidaten wieder nicht besteht und - bei einer Baseline im
 selben Run - jede Wiederholung der Baseline wieder besteht; sonst wird sie als
-**unbestätigt** gemeldet. Eine Behebung wird genauso bestätigt. Eine
-vergangene Baseline lässt sich nicht wiederholen, daher bestätigt ihr gegenüber
-nur die Seite des Kandidaten.
+**unbestätigt** gemeldet. Eine Behebung wird genauso bestätigt. Eine Baseline
+im selben Run - eine, die hier geantwortet hat, oder eine, deren erste Antworten
+wiederverwendet wurden - wird neben dem Kandidaten wiederholt, sodass beide
+Seiten ein Kippen am selben Tag bestätigen. Eine Baseline aus einem früheren
+Run, mit der verglichen wird, wenn nichts neben dem Kandidaten lief, lässt sich
+nicht wiederholen, daher bestätigt ihr gegenüber nur die Seite des Kandidaten.
 
 ### Zu wenige Kippfälle sind kein Urteil { #too-few-flips-are-not-a-verdict }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "c86c5d8c490f"
+source_sha: "f9ec7e031724"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -43,10 +43,12 @@ testowano od jego ostatniej zmiany - nie wstrzymując publikacji.
 Strona runa otwiera się jego werdyktem w postaci zdania - która strona
 wypadła lepiej, o ile potwierdzonych przypadków i jaki był odsetek zaliczeń
 przed i po - razem z tym, co zrobić dalej: zobaczyć, co zmieniło się między
-obiema wersjami (History otwiera się na tym porównaniu), pokazać przypadki,
-które się zepsuły, wrócić do Build albo opublikować draft. Gdy run odpowiada,
-strona mówi, ile pierwszych odpowiedzi już jest, a porównanie czeka na obie
-strony.
+obiema wersjami (History otwiera się na tym porównaniu, względem speca, który
+run testował, a nie draftu w jego obecnym stanie), pokazać przypadki, które się
+zepsuły, wrócić do Build albo opublikować draft. Publish jest główną akcją tylko
+wtedy, gdy nie potwierdzono żadnej regresji, a run draftu, który od tego czasu
+się zmienił, proponuje zamiast tego **Test again**. Gdy run odpowiada, strona
+mówi, ile pierwszych odpowiedzi już jest, a porównanie czeka na obie strony.
 
 Pod werdyktem są obie strony obok siebie, to, jak wypadają w porównaniu, i
 przypadki - każdy wiersz z kropką zaliczenia lub niezaliczenia dla każdej
@@ -66,8 +68,9 @@ datasecie i pyta, którego agenta testować.
 Karta **Eval runs** na dashboardzie wymienia ostatnie runy organizacji z ich
 agentem i werdyktem. Przypadki evala i ocenianie sędziego nie wchodzą do żadnej
 innej liczby na dashboardzie, a Activity je ukrywa, chyba że jej filtr
-powierzchni prosi o wszystkie powierzchnie albo tylko o evale; otwarty tam
-przypadek evala wskazuje swój eval run i do niego linkuje.
+powierzchni prosi o wszystkie powierzchnie albo tylko o evale. Wiersz eval runa
+mówi tam, na które pytanie odpowiedział, a przypadek evala - albo run sędziego,
+który go ocenił - wskazuje swój eval run i do niego linkuje.
 
 ## Uruchamianie runa { #starting-a-run }
 
@@ -95,9 +98,11 @@ Agent bez historii na danym modelu jest szacowany jako typowy przypadek -
 `EVAL_FALLBACK_INPUT_TOKENS` na wejściu, `EVAL_FALLBACK_OUTPUT_TOKENS` na
 wyjściu - według ceny samego modelu, albo na `EVAL_FALLBACK_CASE_COST_USD` dla
 modelu, którego ceny nic nie zna, a szacunek mówi, że to zgrubne zgadywanie
-(`basis: "fallback"`). Koszt baseline'u wchodzi do sumy, chyba że użyty zostanie
-niedawny pasujący baseline - wtedy nic nie kosztuje, a szacunek wskazuje run,
-który wykorzystuje.
+(`basis: "fallback"`). Sędzia bez historii jest wyceniany tak samo, na modelu,
+który wybiera dla niego dataset, albo na tym, który wskazuje jego opublikowany
+spec. Koszt baseline'u wchodzi do sumy, chyba że użyty zostanie niedawny
+pasujący baseline - wtedy jego pierwsze odpowiedzi nic nie kosztują, a szacunek
+wskazuje run, z którego pochodzą.
 
 ### Budżet, który zostaje { #the-budget-it-leaves }
 
@@ -213,6 +218,7 @@ GET /api/v1/eval-runs/{id}                   one run, with each arm's summary an
 GET /api/v1/eval-runs/{id}/cases             cases, what each expects, and every attempt;
                                              ?outcome=, ?tag=, ?arm_id=, ?case_id=
 GET /api/v1/eval-runs/{id}/comparison        a candidate arm against its baseline
+GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents:edit
 ```
 
 `?draft=current` zostawia runy, które testowały draft w obecnym stanie - ten
@@ -241,7 +247,8 @@ może być winą providera, nie agenta.
 Zakończone ramię baseline'u zastępuje uruchomienie nowego tylko wtedy, gdy
 zgadzają się jego wersja, wersja datasetu, model, ocenianie i sędzia, a
 skończyło się w ciągu `EVAL_BASELINE_CACHE_HOURS`. Run mówi, który run
-wykorzystał.
+wykorzystał. Wykorzystywane są tylko jego pierwsze odpowiedzi: przypadek, który
+się odwraca, jest mu w tym runie zadawany ponownie.
 
 ### Odwrócenie jest potwierdzane, zanim się liczy { #a-flip-is-confirmed-before-it-counts }
 
@@ -249,9 +256,12 @@ Przypadek, który się odwrócił, jest powtarzany `EVAL_RERUNS` razy (domyślni
 2), gdy są już pierwsze odpowiedzi. Regresja jest **potwierdzona**, gdy każda
 powtórka kandydata znowu nie przechodzi, a przy baseline'ie w tym samym runie
 każda powtórka baseline'u znowu przechodzi; w przeciwnym razie jest podawana
-jako **niepotwierdzona**. Naprawa jest potwierdzana tak samo. Baseline'u z
-przeszłości nie da się powtórzyć, więc wobec niego potwierdza tylko strona
-kandydata.
+jako **niepotwierdzona**. Naprawa jest potwierdzana tak samo. Baseline w tym
+samym runie - taki, który odpowiadał tutaj, albo taki, którego pierwsze
+odpowiedzi wykorzystano - jest powtarzany obok kandydata, więc obie strony
+potwierdzają odwrócenie tego samego dnia. Baseline'u z wcześniejszego runa,
+porównywanego, gdy nic nie działało obok kandydata, nie da się powtórzyć, więc
+wobec niego potwierdza tylko strona kandydata.
 
 ### Za mało odwróceń to nie werdykt { #too-few-flips-are-not-a-verdict }
 

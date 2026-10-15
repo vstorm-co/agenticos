@@ -1,5 +1,5 @@
 ---
-source_sha: "c86c5d8c490f"
+source_sha: "f9ec7e031724"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -44,10 +44,12 @@ frenar la publicación.
 La página de un run se abre con su veredicto en forma de frase - qué lado lo
 hizo mejor, por cuántos casos confirmados, y la tasa de aprobados antes y
 después - junto con qué hacer a continuación: ver qué cambió entre las dos
-versiones (History se abre en esa comparación), mostrar los casos que se
-rompieron, volver a Build o publicar el borrador. Mientras el run responde,
-dice cuántas primeras respuestas hay ya, y la comparación espera a los dos
-lados.
+versiones (History se abre en esa comparación, frente al spec probado, no al
+borrador actual), mostrar los casos rotos, volver a Build o publicar el
+borrador. Publish es la acción principal solo sin ninguna regresión confirmada,
+y el run de un borrador modificado desde entonces ofrece **Test again** en su
+lugar. Mientras el run responde, dice cuántas primeras respuestas hay, y la
+comparación espera a los dos lados.
 
 Bajo el veredicto están los lados uno junto al otro, cómo se comparan y los
 casos - cada fila con un punto de aprobado o fallido por lado, filtrados por
@@ -68,8 +70,9 @@ La tarjeta **Eval runs** del dashboard lista los runs más recientes de la
 organización con su agent y su veredicto. Los casos de un eval y la
 calificación del juez quedan fuera de cualquier otra cifra del dashboard, y
 Activity los oculta salvo que su filtro de superficie pida todas las
-superficies o solo los evals; un caso de eval abierto allí nombra su eval run y
-enlaza con él.
+superficies o solo los evals. Allí la fila de un eval run dice a qué pregunta
+respondió, y un caso de eval - o el run del juez que calificó uno - nombra su
+eval run y enlaza con él.
 
 ## Iniciar un run { #starting-a-run }
 
@@ -98,9 +101,11 @@ Un agent sin historial en un modelo se estima como un caso típico -
 `EVAL_FALLBACK_INPUT_TOKENS` de entrada, `EVAL_FALLBACK_OUTPUT_TOKENS` de
 salida - al precio propio del modelo, o en `EVAL_FALLBACK_CASE_COST_USD` para
 un modelo sin precio conocido, y la estimación dice que es una suposición
-aproximada (`basis: "fallback"`). El coste del baseline forma parte del total, salvo que se
-reutilice un baseline reciente que coincida; en ese caso no cuesta nada y la
-estimación nombra el run que reutiliza.
+aproximada (`basis: "fallback"`). Un juez sin historial se calcula de la misma
+manera, en el modelo que el dataset elige para él o en el que nombra su spec
+publicado. El coste del baseline forma parte del total, salvo que se reutilice
+un baseline reciente que coincida; en ese caso sus primeras respuestas no
+cuestan nada y la estimación nombra el run del que provienen.
 
 ### El budget que deja { #the-budget-it-leaves }
 
@@ -215,6 +220,7 @@ GET /api/v1/eval-runs/{id}                   one run, with each arm's summary an
 GET /api/v1/eval-runs/{id}/cases             cases, what each expects, and every attempt;
                                              ?outcome=, ?tag=, ?arm_id=, ?case_id=
 GET /api/v1/eval-runs/{id}/comparison        a candidate arm against its baseline
+GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents:edit
 ```
 
 `?draft=current` conserva los runs que probaron el borrador tal como está
@@ -245,7 +251,8 @@ del agent.
 Un brazo de baseline completado sustituye a ejecutar uno nuevo solo cuando
 coinciden su versión, la versión del dataset, el modelo, la puntuación y el
 juez, y terminó dentro de `EVAL_BASELINE_CACHE_HOURS`. El run dice qué run
-reutilizó.
+reutilizó. Solo se reutilizan sus primeras respuestas: a un caso que cambia se
+le vuelve a preguntar en este run.
 
 ### Un cambio se confirma antes de contar { #a-flip-is-confirmed-before-it-counts }
 
@@ -253,8 +260,11 @@ Un caso que cambió se repite `EVAL_RERUNS` veces (2 por defecto) cuando ya
 están las primeras respuestas. Una regresión está **confirmada** cuando cada
 repetición del candidato vuelve a fallar y, con un baseline en el mismo run,
 cada repetición del baseline vuelve a aprobar; si no, se informa como **no
-confirmada**. Un arreglo se confirma de la misma manera. Un baseline pasado no
-puede repetirse, así que frente a él solo confirma el lado del candidato.
+confirmada**. Un arreglo se confirma igual. Un baseline en el mismo run - uno
+que respondió aquí o cuyas primeras respuestas se reutilizaron - se repite junto
+al candidato, así que ambos lados confirman un cambio el mismo día. Un baseline
+de un run anterior, comparado cuando nada se ejecutó junto al candidato, no
+puede repetirse: frente a él solo confirma el lado del candidato.
 
 ### Pocos cambios no son un veredicto { #too-few-flips-are-not-a-verdict }
 

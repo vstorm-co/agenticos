@@ -39,10 +39,12 @@ it last changed - without holding the publish back.
 
 A run's page opens on its verdict as a sentence - which side did better, by how
 many confirmed cases, and the pass rate before and after - with what to do next:
-see what changed between the two versions (History opens on that comparison),
-show the cases that broke, go back to Build, or publish the draft. While the run
-answers it says how many first answers are in and the comparison waits for both
-sides.
+see what changed between the two versions (History opens on that comparison,
+against the spec the run tested rather than the draft as it is now), show the
+cases that broke, go back to Build, or publish the draft. Publish is the main
+action only when no regression was confirmed, and a run of a draft that changed
+since offers **Test again** instead. While the run answers it says how many
+first answers are in and the comparison waits for both sides.
 
 Below the verdict are the sides next to each other, how the two compare, and the
 cases - each row with a pass or fail dot per side, filtered by outcome or tag,
@@ -60,8 +62,9 @@ evals** opens the start dialog on the dataset, asking which agent to test.
 The dashboard's **Eval runs** card lists the organization's latest runs with
 their agent and verdict. An eval's cases and the judge's grading are kept out
 of every other dashboard figure, and Activity hides them unless its surface
-filter asks for every surface or for evals alone; an eval case opened there
-names its eval run and links to it.
+filter asks for every surface or for evals alone. There an eval run's row says
+which question it answered, and an eval case - or the judge's run that graded
+one - names its eval run and links to it.
 
 ## Starting a run { #starting-a-run }
 
@@ -88,9 +91,11 @@ skipped, and the estimate counts no judge.
 An agent with no history on a model is estimated as a typical case -
 `EVAL_FALLBACK_INPUT_TOKENS` in, `EVAL_FALLBACK_OUTPUT_TOKENS` out - at the
 model's own price, or at `EVAL_FALLBACK_CASE_COST_USD` for a model nothing
-prices, and the estimate says it is a rough guess (`basis: "fallback"`). The baseline's cost is part of the total, unless a
-recent matching baseline is reused, in which case it costs nothing and the
-estimate names the run it reuses.
+prices, and the estimate says it is a rough guess (`basis: "fallback"`). A judge
+with no history is priced the same way, on the model the dataset picks for it or
+the one its published spec names. The baseline's cost is part of the total,
+unless a recent matching baseline is reused, in which case its first answers
+cost nothing and the estimate names the run they come from.
 
 ### The budget it leaves { #the-budget-it-leaves }
 
@@ -198,6 +203,7 @@ GET /api/v1/eval-runs/{id}                   one run, with each arm's summary an
 GET /api/v1/eval-runs/{id}/cases             cases, what each expects, and every attempt;
                                              ?outcome=, ?tag=, ?arm_id=, ?case_id=
 GET /api/v1/eval-runs/{id}/comparison        a candidate arm against its baseline
+GET /api/v1/eval-runs/{id}/arms/{arm}/spec   the spec one side ran; needs agents:edit
 ```
 
 `?draft=current` keeps the runs that tested the draft as it stands now - the
@@ -226,7 +232,8 @@ provider's, not the agent's.
 
 A completed baseline arm stands in for running one only when its version,
 dataset version, model, scoring and judge all match, and it finished within
-`EVAL_BASELINE_CACHE_HOURS`. The run says which run it reused.
+`EVAL_BASELINE_CACHE_HOURS`. The run says which run it reused. Only its first
+answers are reused: a case that flips is asked of it again in this run.
 
 ### A flip is confirmed before it counts { #a-flip-is-confirmed-before-it-counts }
 
@@ -234,8 +241,11 @@ A case that flipped is rerun `EVAL_RERUNS` times (2 by default) when the first
 answers are in. A regression is **confirmed** when every rerun of the candidate
 fails again and, for a baseline in the same run, every rerun of the baseline
 passes again; otherwise it is reported as **unconfirmed**. A fix is confirmed
-the same way. A past baseline cannot be rerun, so only the candidate side
-confirms against it.
+the same way. A baseline in the same run - one that answered here, or one whose
+first answers were reused - is rerun beside the candidate, so both sides confirm
+a flip the same day. A baseline from an earlier run, compared with when nothing
+ran beside the candidate, cannot be rerun, so only the candidate side confirms
+against it.
 
 ### Too few flips are not a verdict { #too-few-flips-are-not-a-verdict }
 
