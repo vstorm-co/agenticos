@@ -563,15 +563,20 @@ class ScoringService:
     async def _rescore(self, ctx: AuthContext, score: CaseScore, answer: ScoredAnswer) -> CaseScore:
         config = DatasetScoring.model_validate(score.scoring)
         evaluation = await self.evaluate(ctx, _case_view(score.case_revision), answer, config)
+        passed = case_passed(evaluation.results)
+        # A score waiting because nothing graded it, now graded a pass, has
+        # nothing left for a person to decide; one somebody decided stays decided.
+        settled = passed is True and score.review_state == "pending" and score.human_passed is None
         return await case_score_repo.update(
             self.db,
             score=score,
             update_data={
                 "results": _kept_results(evaluation.results),
-                "passed": case_passed(evaluation.results),
+                "passed": passed,
                 "judge": (
                     None if evaluation.judge is None else evaluation.judge.model_dump(mode="json")
                 ),
+                "review_state": "none" if settled else score.review_state,
             },
         )
 
