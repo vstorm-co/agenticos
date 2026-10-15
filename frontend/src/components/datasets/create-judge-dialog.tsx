@@ -22,13 +22,19 @@ import {
   Textarea,
 } from "@/components/ui";
 import { useModelProviders } from "@/hooks/use-model-providers";
-import { useCreateJudge } from "@/hooks/use-scoring";
+import { useCreateJudge, useJudgeTemplate } from "@/hooks/use-scoring";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { Dataset } from "@/types/datasets";
+import type { ModelProfile } from "@/types/providers";
 
-const OLDEST = "oldest";
+/** The model a judge is offered first: the organization's oldest, which the server would pick. */
+function oldest(profiles: ModelProfile[]): ModelProfile | undefined {
+  return profiles.toSorted(
+    (a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? "") || a.id.localeCompare(b.id),
+  )[0];
+}
 
 interface CreateJudgeDialogProps {
   dataset: Dataset;
@@ -38,7 +44,8 @@ interface CreateJudgeDialogProps {
 }
 
 /**
- * A judge of the dataset's own, started from its name and what it is about.
+ * A judge of the dataset's own, started from the default judge's rules of
+ * grading and what the dataset is about, as the server writes them.
  *
  * The judge is an agent: what is written here is its prompt, which its page
  * edits later, and what it must know to grade - a policy the cases do not
@@ -50,24 +57,23 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
   const create = useCreateJudge(dataset.id);
   const { profiles } = useModelProviders();
   const [name, setName] = useState(t("judgeNameFor", { name: dataset.name }));
-  const [instructions, setInstructions] = useState(
-    t("judgeInstructionsTemplate", {
-      name: dataset.name,
-      described: dataset.description ? "yes" : "no",
-      description: dataset.description ?? "",
-    }),
-  );
+  const template = useJudgeTemplate(dataset.id);
+  // The template arrives after the dialog opens; it fills the field once, and an
+  // edit made before it arrives is kept.
+  const [instructions, setInstructions] = useState<string | null>(null);
+  const shown = instructions ?? template.instructions ?? "";
   const [knowledge, setKnowledge] = useState("");
-  const [model, setModel] = useState(OLDEST);
+  const [chosen, setChosen] = useState<string | null>(null);
+  const model = chosen ?? oldest(profiles)?.id ?? null;
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
 
   async function submit() {
     try {
       const updated = await create.mutateAsync({
         name: name.trim(),
-        instructions: instructions.trim(),
+        instructions: shown.trim() === "" ? null : shown.trim(),
         knowledge: knowledge.trim() === "" ? null : knowledge.trim(),
-        model_profile_id: model === OLDEST ? null : model,
+        model_profile_id: model,
       });
       onCreated(updated);
       toast.success(t("judgeCreated", { name: name.trim() }));
@@ -109,7 +115,7 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
           >
             <Textarea
               id="judge-instructions"
-              value={instructions}
+              value={shown}
               rows={8}
               onChange={(event) => setInstructions(event.target.value)}
             />
@@ -129,13 +135,17 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
               onChange={(event) => setKnowledge(event.target.value)}
             />
           </FormField>
-          <FormField htmlFor="judge-model" label={t("judgeModel")} error={errors.model_profile_id}>
-            <Select value={model} onValueChange={setModel}>
+          <FormField
+            htmlFor="judge-model"
+            label={t("judgeModel")}
+            description={model === null ? t("judgeNoModelYet") : undefined}
+            error={errors.model_profile_id}
+          >
+            <Select value={model ?? ""} onValueChange={setChosen} disabled={model === null}>
               <SelectTrigger id="judge-model">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={OLDEST}>{t("judgeOldestModel")}</SelectItem>
+              <SelectContent position="popper" className="max-h-64">
                 {profiles.map((profile) => (
                   <SelectItem key={profile.id} value={profile.id}>
                     {profile.label}
@@ -149,10 +159,7 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button
-            disabled={create.isPending || name.trim() === "" || instructions.trim() === ""}
-            onClick={() => void submit()}
-          >
+          <Button disabled={create.isPending || name.trim() === ""} onClick={() => void submit()}>
             {t("createJudge")}
           </Button>
         </DialogFooter>

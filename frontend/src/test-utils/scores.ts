@@ -26,6 +26,7 @@ export function caseScore(overrides: Partial<CaseScore> = {}): CaseScore {
     agent_version_id: null,
     agent_name: null,
     agent_version: null,
+    judge_model: null,
     eval_run_id: null,
     results: [],
     judge: null,

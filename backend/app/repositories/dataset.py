@@ -252,8 +252,13 @@ async def list_cases(
     organization_id: UUID,
     skip: int = 0,
     limit: int | None = 50,
+    same_input: str | None = None,
 ) -> list[DatasetCase]:
-    """A version's cases in their order. `limit=None` reads them all, for an export."""
+    """A version's cases in their order. `limit=None` reads them all, for an export.
+
+    `same_input` keeps the cases asking that question, compared without regard
+    to case, surrounding space or how the space inside it runs.
+    """
     query = (
         select(DatasetCase)
         .join(DatasetVersionCase, DatasetVersionCase.case_revision_id == DatasetCase.id)
@@ -264,6 +269,9 @@ async def list_cases(
         .order_by(DatasetVersionCase.position.asc())
         .offset(skip)
     )
+    if same_input is not None:
+        spaced = func.btrim(func.regexp_replace(DatasetCase.input, r"\s+", " ", "g"))
+        query = query.where(func.lower(spaced) == " ".join(same_input.split()).lower())
     if limit is not None:
         query = query.limit(limit)
     result = await db.execute(query)

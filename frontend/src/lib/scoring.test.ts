@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SCORING,
   callsJudge,
+  criterionNameFrom,
   describeCheck,
   groupScores,
   reasonKey,
@@ -22,6 +23,9 @@ function result(reason_code: string | null): ScorerResult {
     reason: "from the server",
     reason_code,
     unverified_quotes: [],
+    rule: null,
+    unverified: false,
+    judge_said: null,
     judge_run_id: null,
   };
 }
@@ -172,5 +176,16 @@ describe("ungradedCases", () => {
       },
     };
     expect(ungradedCases(judged, stats, 0)).toBe(0);
+  });
+});
+
+describe("criterionNameFrom", () => {
+  it("names a criterion by its first words, numbered past the names taken", () => {
+    const text = "Cites the refund policy by its section number every single time";
+    expect(criterionNameFrom(text, [])).toBe("Cites the refund policy by its");
+    expect(criterionNameFrom(text, ["Cites the refund policy by its"])).toBe(
+      "Cites the refund policy by its 2",
+    );
+    expect(criterionNameFrom("Polite", ["Polite", "Polite 2"])).toBe("Polite 3");
   });
 });

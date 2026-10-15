@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { formatDateTime } from "@/lib/utils";
 import { caseScore } from "@/test-utils/scores";
 
 import type { CaseScore, ScorerResult } from "@/types/scoring";
@@ -17,6 +18,9 @@ function result(overrides: Partial<ScorerResult> = {}): ScorerResult {
     reason: "2/5: curt",
     reason_code: null,
     unverified_quotes: [],
+    rule: null,
+    unverified: false,
+    judge_said: null,
     judge_run_id: null,
     ...overrides,
   };
@@ -166,6 +170,51 @@ describe("ScoreCard", () => {
       screen.getByText(/A required scorer reached no verdict \(pattern_timeout\)\./),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Score again" })).toBeNull();
+  });
+
+  it("warns when the judge graded on the model that answered, and only then", () => {
+    const { rerender } = render(
+      <ScoreCard score={score({ judge_model: "GPT-4.1", run_model: "GPT-4.1" })} />,
+    );
+    expect(
+      screen.getByText(/The judge graded on GPT-4.1, the model that answered/),
+    ).toBeInTheDocument();
+
+    rerender(<ScoreCard score={score({ judge_model: "Claude", run_model: "GPT-4.1" })} />);
+    expect(screen.queryByText(/the model that answered/)).toBeNull();
+    rerender(<ScoreCard score={score({ judge_model: null, run_model: null })} />);
+    expect(screen.queryByText(/the model that answered/)).toBeNull();
+  });
+
+  it("shows the rule a grade follows from, a top grade nothing backs, and what an unreadable judge said", () => {
+    render(
+      <ScoreCard
+        score={score({
+          results: [
+            result({ rule: "Refunds over $500 need a manager", unverified: true }),
+            result({
+              name: "policy",
+              status: "error",
+              reason_code: "judge_output_invalid",
+              judge_said: "It is fine.",
+            }),
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Rule: Refunds over $500 need a manager")).toBeInTheDocument();
+    expect(screen.getByText(/Unverified: a top grade with nothing quoted/)).toBeInTheDocument();
+    expect(screen.getByText("The judge answered: “It is fine.”")).toBeInTheDocument();
+  });
+
+  it("says when it was graded in the reader's own time zone", () => {
+    render(<ScoreCard score={score({ created_at: "2026-10-13T23:30:00Z" })} />);
+
+    expect(screen.getByText(formatDateTime("2026-10-13T23:30:00Z", "en"))).toHaveAttribute(
+      "datetime",
+      "2026-10-13T23:30:00Z",
+    );
   });
 
   it("shows what the scored revision asked, and its reference answer", () => {

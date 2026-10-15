@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Button, Textarea } from "@/components/ui";
+import type { NoteTarget } from "@/hooks/use-scoring";
 import { cn } from "@/lib/utils";
 
 /** A review decision as the card hands it back: pass, fail, or `null` to withdraw one. */
@@ -16,11 +17,20 @@ interface ScoreDecisionProps {
   onVerdict?: (verdict: Verdict) => void;
   /** Shown while the score is not in the queue and may be sent there. */
   onReview?: () => void;
+  /** Makes the note on record a judge criterion, for this case or every case. */
+  onNoteToCriterion?: (target: NoteTarget) => void;
   busy: boolean;
 }
 
 /** A person's review decision on a score, with the note that says why. */
-export function ScoreDecision({ decided, note, onVerdict, onReview, busy }: ScoreDecisionProps) {
+export function ScoreDecision({
+  decided,
+  note,
+  onVerdict,
+  onReview,
+  onNoteToCriterion,
+  busy,
+}: ScoreDecisionProps) {
   const t = useTranslations("datasets.scoring");
   const [written, setWritten] = useState(note ?? "");
   const decide = (passed: boolean | null) =>
@@ -40,7 +50,7 @@ export function ScoreDecision({ decided, note, onVerdict, onReview, busy }: Scor
             rows={2}
           />
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={busy} onClick={() => decide(true)}>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => decide(true)}>
               {t("markPassed")}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => decide(false)}>
@@ -53,6 +63,29 @@ export function ScoreDecision({ decided, note, onVerdict, onReview, busy }: Scor
             )}
           </div>
         </>
+      )}
+      {onNoteToCriterion && note && (
+        <div className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
+          <span>{t("noteToCriterion")}</span>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto px-1"
+            disabled={busy}
+            onClick={() => onNoteToCriterion("case")}
+          >
+            {t("noteForCase")}
+          </Button>
+          <Button
+            variant="link"
+            size="sm"
+            className="h-auto px-1"
+            disabled={busy}
+            onClick={() => onNoteToCriterion("dataset")}
+          >
+            {t("noteForEveryCase")}
+          </Button>
+        </div>
       )}
       {onReview && (
         <Button size="sm" variant="ghost" disabled={busy} onClick={onReview}>

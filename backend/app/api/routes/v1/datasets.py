@@ -19,6 +19,7 @@ from app.api.deps import Auth, DatasetSvc, ScoringSvc, require
 from app.api.responses import csv_response, jsonl_response
 from app.core.permissions import Perm
 from app.schemas.dataset import (
+    MAX_CASE_TEXT,
     DatasetCaseCreate,
     DatasetCaseFromMessage,
     DatasetCaseList,
@@ -39,7 +40,9 @@ from app.schemas.scoring import (
     CaseScoreRead,
     CaseVerdict,
     DatasetScoring,
+    JudgeAgreement,
     JudgeCreate,
+    JudgeTemplate,
     Rescored,
     RescoreRequest,
     ReviewQueue,
@@ -80,6 +83,16 @@ async def list_datasets(
         skip=skip,
         limit=limit,
     )
+
+
+@router.get(
+    "/judge-agreement",
+    response_model=JudgeAgreement,
+    dependencies=[Depends(require(Perm.DATASETS_VIEW))],
+)
+async def read_judge_agreement(service: ScoringSvc, ctx: Auth, judge: UUID = Query(...)) -> Any:
+    """How often people agreed with a judge, over the scores it graded that somebody decided."""
+    return await service.judge_agreement(ctx, judge)
 
 
 @router.get(
@@ -149,9 +162,17 @@ async def list_dataset_cases(
     version: int | None = Query(None, ge=1, description="A version number; the newest if omitted"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    same_input: str | None = Query(
+        None,
+        min_length=1,
+        max_length=MAX_CASE_TEXT,
+        description="Only the cases asking this question, ignoring case and spacing",
+    ),
 ) -> Any:
     """A page of the cases one version holds, in their order."""
-    return await service.list_cases(ctx, dataset_id, version=version, skip=skip, limit=limit)
+    return await service.list_cases(
+        ctx, dataset_id, version=version, skip=skip, limit=limit, same_input=same_input
+    )
 
 
 @router.post(
@@ -250,6 +271,15 @@ async def set_dataset_scoring(
 ) -> Any:
     """Replace how the dataset's cases are scored. Scores already kept are unchanged."""
     return await service.set_scoring(ctx, dataset_id, data)
+
+
+@router.get("/{dataset_id}/judge-template", response_model=JudgeTemplate)
+async def read_dataset_judge_template(dataset_id: UUID, service: ScoringSvc, ctx: Auth) -> Any:
+    """The prompt a judge made for this dataset starts from, for the person creating it to edit.
+
+    The default judge's prompt - the rules of grading - with what the dataset is about.
+    """
+    return await service.judge_template(ctx, dataset_id)
 
 
 @router.post("/{dataset_id}/judge", response_model=DatasetRead, status_code=status.HTTP_201_CREATED)

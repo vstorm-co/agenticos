@@ -24,11 +24,12 @@ import {
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
-import type { DatasetCaseContent, ToolOrderMode } from "@/types/datasets";
+import type { DatasetCase, DatasetCaseContent, ToolOrderMode } from "@/types/datasets";
 import type { DatasetScoring } from "@/types/scoring";
 import { CaseCallsEditor } from "./case-calls-editor";
 import { CaseChecksEditor } from "./case-checks-editor";
 import { CaseGradedBy } from "./case-graded-by";
+import { CaseTwinNotice } from "./case-twin-notice";
 import {
   CASE_FIELDS,
   contentOf,
@@ -56,6 +57,14 @@ interface CaseEditorDialogProps {
   scoring?: DatasetScoring;
   /** Tool names the dataset's cases already expect. */
   knownTools?: string[];
+  /**
+   * For a new case: `find` reads the case already asking its question, if one
+   * does, and `open` shows that case in place of the new one.
+   */
+  twins?: {
+    find: (input: string) => Promise<DatasetCase | null>;
+    open: (twin: DatasetCase) => void;
+  };
 }
 
 const ORDER_MODES: ToolOrderMode[] = ["any", "in_order", "exact"];
@@ -142,6 +151,7 @@ export function CaseEditorDialog({
   nextVersion,
   scoring,
   knownTools,
+  twins,
 }: CaseEditorDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
@@ -152,6 +162,14 @@ export function CaseEditorDialog({
   // The whole case as JSON, while it is edited that way; null in the form.
   const [json, setJson] = useState<string | null>(null);
   const [jsonProblem, setJsonProblem] = useState(false);
+  // A case already asking the question, and what to do about it; `repeat` once the
+  // person chose to add the new one anyway.
+  const [twin, setTwin] = useState<{
+    found: DatasetCase;
+    open: () => void;
+    addAnyway: () => void;
+  } | null>(null);
+  const [repeat, setRepeat] = useState(false);
   const readOnly = onSave === undefined || !editing;
   const missing =
     json !== null
@@ -188,11 +206,18 @@ export function CaseEditorDialog({
   }
 
   function edit<K extends keyof CaseDraft>(field: K, value: CaseDraft[K]) {
+    if (field === "input") {
+      setTwin(null);
+      setRepeat(false);
+    }
     setDraft((current) => ({ ...current, [field]: value }));
     setErrors(({ [field as CaseField]: _cleared, ...rest }) => rest);
   }
 
-  async function save(onSave: (content: DatasetCaseContent) => Promise<unknown>) {
+  async function save(
+    onSave: (content: DatasetCaseContent) => Promise<unknown>,
+    anyway: boolean = repeat,
+  ) {
     let content: DatasetCaseContent | null;
     if (json !== null) {
       content = parsed();
@@ -206,6 +231,21 @@ export function CaseEditorDialog({
     if (content === null) return;
     setSaving(true);
     try {
+      if (twins !== undefined && !anyway) {
+        // The check only warns: when it cannot be made, the case is saved as asked.
+        const found = await twins.find(content.input).catch(() => null);
+        if (found !== null) {
+          setTwin({
+            found,
+            open: () => twins.open(found),
+            addAnyway: () => {
+              setRepeat(true);
+              void save(onSave, true);
+            },
+          });
+          return;
+        }
+      }
       await onSave(content);
       onOpenChange(false);
     } catch (error) {
@@ -356,6 +396,14 @@ export function CaseEditorDialog({
         </div>
         {editing && json === null && scoring !== undefined && (
           <CaseGradedBy scoring={scoring} draft={draft} />
+        )}
+        {twin !== null && (
+          <CaseTwinNotice
+            twin={twin.found}
+            busy={saving}
+            onOpen={twin.open}
+            onAddAnyway={twin.addAnyway}
+          />
         )}
         <DialogFooter className="items-center">
           {!readOnly && (

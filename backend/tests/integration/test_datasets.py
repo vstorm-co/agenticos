@@ -157,6 +157,28 @@ async def _rated_down_turn(
     return run, answer
 
 
+async def test_a_question_already_asked_is_found_whatever_its_case_and_spacing(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="refunds"))
+    asked = await service.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="\nHow long is the\nreturn window?", reference_answer="30"),
+    )
+    await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="Lost receipt?", reference_answer="yes")
+    )
+
+    twins = await service.list_cases(
+        ctx, dataset.id, same_input="  how LONG is the return   window? "
+    )
+    none = await service.list_cases(ctx, dataset.id, same_input="How long is the return window")
+
+    assert [case.case_id for case in twins.items] == [asked.case_id]
+    assert (twins.total, none.total) == (1, 0)
+
+
 async def test_editing_a_case_mints_a_version_and_the_old_one_stays_readable(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)

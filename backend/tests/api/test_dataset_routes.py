@@ -102,7 +102,7 @@ def _url(suffix: str = "") -> str:
     return f"{settings.API_V1_STR}/datasets{suffix}"
 
 
-async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
+async def test_each_route_answers_with_its_status(client: OpenClient, service: MagicMock) -> None:
     dataset = f"/{_DATASET.id}"
     case = f"{dataset}/cases/{_CASE.case_id}"
     async with client() as http:
@@ -112,6 +112,7 @@ async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
         renamed = await http.patch(_url(dataset), json={"description": "x"})
         versions = await http.get(_url(f"{dataset}/versions"))
         cases = await http.get(_url(f"{dataset}/cases?version=1"))
+        twins = await http.get(_url(f"{dataset}/cases?same_input=Refund%20window%3F"))
         added = await http.post(
             _url(f"{dataset}/cases"), json={"input": "q", "reference_answer": "a"}
         )
@@ -128,6 +129,8 @@ async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
     assert renamed.status_code == 200
     assert versions.json()["items"][0]["number"] == 2
     assert cases.json()["version"] == 1
+    assert twins.status_code == 200
+    assert service.list_cases.call_args.kwargs["same_input"] == "Refund window?"
     assert added.status_code == 201
     assert from_message.status_code == 201
     assert edited.status_code == 200

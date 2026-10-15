@@ -467,17 +467,28 @@ class DatasetService:
         version: int | None = None,
         skip: int = 0,
         limit: int = 50,
+        same_input: str | None = None,
     ) -> DatasetCaseList:
-        """A page of the cases one version holds - the newest version unless one is named."""
+        """A page of the cases one version holds - the newest version unless one is named.
+
+        `same_input` narrows to the cases asking that question, as a new case is
+        checked for one already there; `total` then counts the matches on this page.
+        """
         dataset = await self.get(ctx, dataset_id)
         held = await self._version(ctx, dataset, version)
         if held is None:
             return DatasetCaseList(items=[], total=0, version=0)
         cases = await dataset_repo.list_cases(
-            self.db, held.id, organization_id=ctx.organization_id, skip=skip, limit=limit
+            self.db,
+            held.id,
+            organization_id=ctx.organization_id,
+            skip=skip,
+            limit=limit,
+            same_input=same_input,
         )
+        total = held.case_count if same_input is None else len(cases)
         return DatasetCaseList(
-            items=[_case_read(case) for case in cases], total=held.case_count, version=held.number
+            items=[_case_read(case) for case in cases], total=total, version=held.number
         )
 
     async def _mint(

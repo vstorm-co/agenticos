@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-error";
 import { CaseEditorDialog } from "./case-editor-dialog";
 import { DEFAULT_SCORING } from "@/lib/scoring";
+import type { DatasetCase } from "@/types/datasets";
 import { draftOf, EMPTY_DRAFT } from "./case-form";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -380,5 +381,75 @@ describe("CaseEditorDialog", () => {
 
     expect(screen.getByText("Say what each check checks, or remove it.")).toBeInTheDocument();
     expect(screen.queryByLabelText("The case as JSON")).toBeNull();
+  });
+
+  it("says when a new case asks a question one already asks, and lets either go ahead", async () => {
+    const onSave = vi.fn().mockResolvedValue({});
+    const twin: DatasetCase = {
+      ...STORED,
+      id: "r1",
+      case_id: "c1",
+      source: "manual",
+      source_run_id: null,
+      source_conversation_id: null,
+      source_message_id: null,
+      created_by_user_id: null,
+      created_at: "2026-10-01T00:00:00Z",
+    };
+    const find = vi.fn().mockResolvedValueOnce(twin).mockResolvedValueOnce(twin);
+    const open = vi.fn();
+    render(
+      <CaseEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        initial={EMPTY_DRAFT}
+        onSave={onSave}
+        title="Add case"
+        twins={{ find, open }}
+      />,
+    );
+    await userEvent.type(input(), "how long is the return window?");
+    await userEvent.type(answer(), "30 days");
+
+    await userEvent.click(save());
+    const notice = await screen.findByRole("alert");
+    expect(notice).toHaveTextContent("A case already asks this question:");
+    expect(notice).toHaveTextContent(STORED.input);
+    expect(find).toHaveBeenCalledWith("how long is the return window?");
+    expect(onSave).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Open it" }));
+    expect(open).toHaveBeenCalledWith(twin);
+
+    await userEvent.type(input(), "!");
+    expect(screen.queryByRole("alert")).toBeNull();
+    await userEvent.click(save());
+    await userEvent.click(await screen.findByRole("button", { name: "Add anyway" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(find).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["no case asks its question", () => Promise.resolve(null)],
+    ["the check cannot be made", () => Promise.reject(new Error("URI too long"))],
+  ])("saves a new case straight away when %s", async (_, reply) => {
+    const onSave = vi.fn().mockResolvedValue({});
+    const find = vi.fn(reply);
+    render(
+      <CaseEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        initial={EMPTY_DRAFT}
+        onSave={onSave}
+        title="Add case"
+        twins={{ find, open: vi.fn() }}
+      />,
+    );
+    await userEvent.type(input(), "Lost receipt?");
+    await userEvent.type(answer(), "Yes");
+
+    await userEvent.click(save());
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

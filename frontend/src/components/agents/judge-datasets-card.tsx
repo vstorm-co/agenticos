@@ -14,8 +14,23 @@ import {
   ListCardEmpty,
 } from "@/components/ui";
 import { useDatasets } from "@/hooks/use-datasets";
+import { useJudgeAgreement } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
+
+/** How often people agreed with the judge, once anybody decided what it graded. */
+function JudgeAgreementLine({ judgeId }: { judgeId: string }) {
+  const t = useTranslations("agents");
+  const { agreement } = useJudgeAgreement(judgeId);
+  if (agreement === undefined) return null;
+  return (
+    <p className="text-sm font-medium">
+      {agreement.decided === 0
+        ? t("judgeAgreementNone")
+        : t("judgeAgreement", { agreed: agreement.agreed, decided: agreement.decided })}
+    </p>
+  );
+}
 
 /** As many datasets as one page of the listing holds. */
 const SHOWN = 100;
@@ -34,6 +49,7 @@ export function JudgeDatasetsCard({ judgeId }: { judgeId: string }) {
       <CardHeader>
         <CardTitle>{t("judgeDatasets")}</CardTitle>
         <CardDescription>{t("judgeDatasetsHint")}</CardDescription>
+        <JudgeAgreementLine judgeId={judgeId} />
       </CardHeader>
       <CardContent>
         {isLoading ? (
