@@ -3547,7 +3547,7 @@
   },
   "evals": {
     "title": "Evale",
-    "description": "Każdy run tego agenta na datasecie: jak odpowiedział na każdy przypadek, jak go oceniono i jak wypada na tle wcześniejszej wersji.",
+    "description": "Jak zmieniał się odsetek zaliczonych case'ów agenta, wersja po wersji, oraz każdy run z werdyktem.",
     "start": "Uruchom evale",
     "startTitle": "Uruchom evale",
     "startBody": "Wybierz, co testujesz i na jakim datasecie. Koszt zobaczysz, zanim cokolwiek się uruchomi.",
@@ -3739,6 +3739,27 @@
       "showBroken": "{count, plural, one {Pokaż case, który się zepsuł} few {Pokaż # case'y, które się zepsuły} many {Pokaż # case'ów, które się zepsuły} other {Pokaż # case'a, które się zepsuły}}",
       "backToBuild": "Wróć do Build",
       "publish": "Publish"
+    },
+    "group": "{name} · {count, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
+    "trend": {
+      "label": "Odsetek zaliczonych w czasie",
+      "single": "Na razie jeden run. Uruchom kolejny, żeby zobaczyć trend.",
+      "legend": "Każdy punkt to run podpisany tym, co uruchomiono; pusty punkt to draft.",
+      "point": "{name} · {model} · {rate} · {verdict, select, better {lepiej} worse {gorzej} no_difference {bez różnicy} inconclusive {jeszcze nie wiadomo} invalid {nieporównywalne} other {pierwszy wynik}}"
+    },
+    "chip": {
+      "pending": "W toku",
+      "first": "Pierwszy wynik",
+      "better": "Lepiej · naprawione: {fixed}",
+      "worse": "Gorzej · zepsute: {broke}",
+      "no_difference": "Bez różnicy",
+      "inconclusive": "Jeszcze nie wiadomo",
+      "invalid": "Nieporównywalne"
+    },
+    "row": {
+      "against": "{candidate} vs {baseline}",
+      "agent": "{agent} · {title}",
+      "rate": "{model} {rate}"
     }
   }
 }

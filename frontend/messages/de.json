@@ -5785,7 +5785,7 @@
   },
   "evals": {
     "title": "Evals",
-    "description": "Jeder Run dieses Agents über ein Dataset: wie jeder Fall beantwortet und bewertet wurde und wie er im Vergleich zu einer früheren Version abschneidet.",
+    "description": "Wie sich die Bestehensquote des Agenten Version für Version entwickelt hat, und jeder Run mit seinem Urteil.",
     "start": "Evals starten",
     "startTitle": "Evals starten",
     "startBody": "Wähle, was du testest und auf welchem Dataset. Die Kosten siehst du, bevor etwas läuft.",
@@ -5977,6 +5977,27 @@
       "showBroken": "{count, plural, =1 {Den kaputten Fall zeigen} other {Die # kaputten Fälle zeigen}}",
       "backToBuild": "Zurück zu Build",
       "publish": "Veröffentlichen"
+    },
+    "group": "{name} · {count, plural, =1 {1 Run} other {# Runs}}",
+    "trend": {
+      "label": "Bestehensquote im Zeitverlauf",
+      "single": "Bisher ein Run. Starte einen weiteren, um einen Trend zu sehen.",
+      "legend": "Jeder Punkt ist ein Run, beschriftet mit dem, was lief; ein hohler Punkt ist ein Entwurf.",
+      "point": "{name} · {model} · {rate} · {verdict, select, better {besser} worse {schlechter} no_difference {kein Unterschied} inconclusive {noch unklar} invalid {nicht vergleichbar} other {erstes Ergebnis}}"
+    },
+    "chip": {
+      "pending": "Läuft",
+      "first": "Erstes Ergebnis",
+      "better": "Besser · {fixed} behoben",
+      "worse": "Schlechter · {broke} kaputt",
+      "no_difference": "Kein Unterschied",
+      "inconclusive": "Noch unklar",
+      "invalid": "Nicht vergleichbar"
+    },
+    "row": {
+      "against": "{candidate} vs. {baseline}",
+      "agent": "{agent} · {title}",
+      "rate": "{model} {rate}"
     }
   }
 }

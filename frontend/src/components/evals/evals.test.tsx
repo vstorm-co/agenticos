@@ -16,7 +16,9 @@ import { CaseDetail } from "./case-detail";
 import { ComparisonCard } from "./comparison-card";
 import { EstimateSummary } from "./estimate-summary";
 import { EvalStatusBadge } from "./eval-status-badge";
-import { EvalsPanel, candidateLabel } from "./evals-panel";
+import { EvalsPanel } from "./evals-panel";
+import { sideName } from "./names";
+import { passRateLines } from "./pass-rate-chart";
 import { percent, seconds, usd } from "./format";
 
 const evalRuns = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
@@ -53,43 +55,150 @@ describe("EvalStatusBadge", () => {
   });
 });
 
-describe("candidateLabel", () => {
+describe("sideName", () => {
   const t = (key: string, values?: { version: number }) =>
     values ? `${key}:${values.version}` : key;
 
   it("names a version by its number, a draft and a proposal by what they are", () => {
-    expect(candidateLabel(evalRun(), t)).toBe("version:7");
-    expect(
-      candidateLabel(evalRun({ arms: [arm({ source: "draft", version_number: null })] }), t),
-    ).toBe("draft");
-    expect(
-      candidateLabel(evalRun({ arms: [arm({ source: "explicit", version_number: null })] }), t),
-    ).toBe("proposed");
-    expect(candidateLabel(evalRun({ arms: [] }), t)).toBe("draft");
+    expect(sideName(arm(), t)).toBe("version:7");
+    expect(sideName(arm({ source: "draft", version_number: null }), t)).toBe("draft");
+    expect(sideName(arm({ source: "explicit", version_number: null }), t)).toBe("proposed");
+  });
+});
+
+/** A finished run of v7 against v6 on refunds that made things worse. */
+function worse(overrides: Parameters<typeof evalRun>[0] = {}) {
+  return evalRun({
+    arms: [arm(), arm({ id: "arm-2", model_label: "claude" })],
+    outcome: {
+      candidate_arm_id: "arm-1",
+      verdict: "worse",
+      baseline: { ...comparison().candidate, run_id: "run-0", version_number: 6 },
+      regressions_confirmed: 4,
+      fixed_confirmed: 0,
+      candidate_pass_rate: 0.75,
+      baseline_pass_rate: 1,
+    },
+    ...overrides,
+  });
+}
+
+describe("passRateLines", () => {
+  const t = (key: string, values?: Record<string, string | number>) =>
+    values ? `${key}:${Object.values(values).join("|")}` : key;
+
+  it("draws finished runs over time, a line per group, a draft hollow", () => {
+    const lines = passRateLines(
+      [
+        worse({ id: "late", created_at: "2026-10-15T10:00:00Z" }),
+        evalRun({
+          id: "early",
+          created_at: "2026-10-14T10:00:00Z",
+          arms: [arm({ source: "draft", version_number: null })],
+        }),
+        evalRun({ id: "other", dataset_id: "ds-2", dataset_name: "shipping" }),
+        evalRun({ id: "live", status: "running" }),
+        evalRun({ id: "nothing", arms: [arm({ summary: { ...SUMMARY, pass_rate: null } })] }),
+        evalRun({ id: "armless", arms: [] }),
+      ],
+      (run) => ({ key: run.dataset_id, name: run.dataset_name }),
+      t,
+      "en",
+    );
+
+    expect(lines.map((line) => [line.name, line.color])).toEqual([
+      ["refunds", "var(--series-1)"],
+      ["shipping", "var(--series-2)"],
+    ]);
+    const [refunds] = lines;
+    expect(refunds?.points.map((point) => [point.label, point.draft])).toEqual([
+      ["draft", true],
+      ["version:7", false],
+    ]);
+    expect(refunds?.points[1]?.detail).toBe("trend.point:version:7|gpt-4.1|75%|worse");
+    expect(refunds?.points[0]?.detail).toBe("trend.point:draft|gpt-4.1|75%|none");
   });
 });
 
 describe("EvalsPanel", () => {
-  it("lists the runs with each candidate's pass rate, cost and status", async () => {
+  it("draws the trend, then every run by dataset with its verdict", async () => {
     evalRuns.value = {
       ...evalRuns.value,
-      runs: [evalRun({ arms: [arm(), arm({ id: "arm-2", model_label: "claude" })] })],
+      runs: [
+        evalRun({
+          id: "run-3",
+          dataset_id: "ds-2",
+          dataset_name: "shipping",
+          status: "running",
+          arms: [
+            arm({ source: "draft", version_number: null }),
+            arm({ id: "b", role: "baseline" }),
+          ],
+        }),
+        worse(),
+        evalRun({
+          id: "run-0",
+          created_at: "2026-10-13T10:00:00Z",
+          outcome: { ...worse().outcome!, verdict: null, baseline: null },
+        }),
+      ],
     };
-    render(<EvalsPanel agentId="agent-1" canStart canRunDraft currentVersion={7} />);
+    render(<EvalsPanel agentId="agent-1" canStart />);
 
-    const row = screen.getByRole("link", { name: /refunds v3 · v7/ });
-    expect(row).toHaveAttribute("href", "/agents/agent-1/evals/run-1");
-    expect(within(row).getAllByText("75%")).toHaveLength(2);
-    expect(within(row).getByText(/gpt-4.1, claude/)).toBeInTheDocument();
-    expect(within(row).getByText("Completed")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Pass rate over time" })).toBeInTheDocument();
+    expect(screen.getByText(/a hollow point is a draft/)).toBeInTheDocument();
+    expect(screen.getByText("refunds · 2 runs")).toBeInTheDocument();
+    expect(screen.getByText("shipping · 1 run")).toBeInTheDocument();
+
+    const compared = screen.getByRole("link", { name: /v7 vs v6/ });
+    expect(compared).toHaveAttribute("href", "/agents/agent-1/evals/run-1");
+    expect(within(compared).getByText("Worse · 4 broke")).toBeInTheDocument();
+    expect(within(compared).getByText("gpt-4.1 75%")).toBeInTheDocument();
+    expect(within(compared).getByText("claude 75%")).toBeInTheDocument();
+    expect(within(compared).queryByText("Completed")).toBeNull();
+    const first = screen.getByRole("link", { name: /^v7.*First result/ });
+    expect(first).toHaveAttribute("href", "/agents/agent-1/evals/run-0");
+    const live = screen.getByRole("link", { name: /Draft vs v7/ });
+    expect(within(live).getByText("Pending")).toBeInTheDocument();
+    expect(within(live).getByText("Running")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Run evals" }));
     await userEvent.click(screen.getByText("start-dialog"));
     expect(screen.queryByText("start-dialog")).not.toBeInTheDocument();
   });
 
+  it("says one run is not yet a trend, and draws none while nothing has finished", () => {
+    evalRuns.value = { ...evalRuns.value, runs: [evalRun()] };
+    const { rerender } = render(<EvalsPanel agentId="agent-1" canStart />);
+    expect(screen.getByText("One run so far. Run another to see a trend.")).toBeInTheDocument();
+
+    evalRuns.value = { ...evalRuns.value, runs: [evalRun({ status: "queued" })] };
+    rerender(<EvalsPanel agentId="agent-1" canStart />);
+    expect(screen.queryByRole("img", { name: "Pass rate over time" })).toBeNull();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+  });
+
+  it("keys each line when runs of several datasets finished", () => {
+    evalRuns.value = {
+      ...evalRuns.value,
+      runs: [evalRun(), evalRun({ id: "run-2", dataset_id: "ds-2", dataset_name: "shipping" })],
+    };
+    render(<EvalsPanel agentId="agent-1" canStart />);
+    expect(screen.getByText("refunds", { selector: "li" })).toBeInTheDocument();
+    expect(screen.getByText("shipping", { selector: "li" })).toBeInTheDocument();
+  });
+
+  it("lists a run that has no candidate side without naming one", () => {
+    evalRuns.value = { ...evalRuns.value, runs: [evalRun({ arms: [], status: "failed" })] };
+    render(<EvalsPanel agentId="agent-1" canStart />);
+    expect(screen.getByRole("link", { name: /Failed/ })).toHaveAttribute(
+      "href",
+      "/agents/agent-1/evals/run-1",
+    );
+  });
+
   it("sends an agent with no dataset to create one first", () => {
-    render(<EvalsPanel agentId="agent-1" canStart canRunDraft currentVersion={7} />);
+    render(<EvalsPanel agentId="agent-1" canStart />);
     expect(screen.getByText("Create a dataset first")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go to datasets" })).toHaveAttribute(
       "href",
@@ -99,13 +208,10 @@ describe("EvalsPanel", () => {
 
   it("offers the first run once a dataset exists, and only to who may start one", async () => {
     datasets.items = [{ id: "ds-1" }];
-    const { rerender } = render(
-      <EvalsPanel agentId="agent-1" canStart canRunDraft={false} currentVersion={null} />,
-    );
-    // Nothing published and no edit access: there is nothing this caller may run.
+    const { rerender } = render(<EvalsPanel agentId="agent-1" canStart={false} />);
     expect(screen.queryByRole("button", { name: "Run evals" })).not.toBeInTheDocument();
 
-    rerender(<EvalsPanel agentId="agent-1" canStart canRunDraft currentVersion={null} />);
+    rerender(<EvalsPanel agentId="agent-1" canStart />);
     expect(screen.getByText("No evals yet")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Run evals" }));
     expect(screen.getByText("start-dialog")).toBeInTheDocument();
@@ -114,14 +220,14 @@ describe("EvalsPanel", () => {
   it("says when the runs could not be read, and retries", async () => {
     const refetch = vi.fn();
     evalRuns.value = { runs: [], isLoading: false, error: new Error("boom"), refetch };
-    render(<EvalsPanel agentId="agent-1" canStart canRunDraft currentVersion={7} />);
+    render(<EvalsPanel agentId="agent-1" canStart />);
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(refetch).toHaveBeenCalled();
   });
 
   it("holds a placeholder while the runs load", () => {
     evalRuns.value = { ...evalRuns.value, isLoading: true };
-    render(<EvalsPanel agentId="agent-1" canStart={false} canRunDraft currentVersion={7} />);
+    render(<EvalsPanel agentId="agent-1" canStart={false} />);
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 });

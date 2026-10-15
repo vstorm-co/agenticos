@@ -1461,16 +1461,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
         {canViewRuns && (
           <TabsContent value="evals" className="mt-6 space-y-6">
-            <EvalsPanel
-              agentId={id}
-              canStart={agent.can_run && can(Perm.datasetsRun)}
-              canRunDraft={canEdit}
-              currentVersion={
-                environments.find(
-                  (environment) => environment.version_id === agent.current_version_id,
-                )?.version ?? null
-              }
-            />
+            <EvalsPanel agentId={id} canStart={agent.can_run && can(Perm.datasetsRun)} />
           </TabsContent>
         )}
       </Tabs>

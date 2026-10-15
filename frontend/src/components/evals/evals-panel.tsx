@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { FlaskConical, Play } from "lucide-react";
+import { ChevronRight, FlaskConical, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
@@ -11,85 +10,45 @@ import { useDatasets } from "@/hooks/use-datasets";
 import { useEvalRuns } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { formatDateTime } from "@/lib/utils";
 import type { EvalRun } from "@/types/eval-runs";
-import { EvalStatusBadge } from "./eval-status-badge";
-import { percent, usd } from "./format";
+import { PassRateChart, passRateLines } from "./pass-rate-chart";
+import { EvalRunRow } from "./run-row";
 import { StartEvalDialog } from "./start-eval-dialog";
 
-interface EvalsPanelProps {
-  agentId: string;
-  /** Whether the caller may start one: run the agent, and run a dataset. */
-  canStart: boolean;
-  /** Whether the caller may run the draft, which is the editors' work in progress. */
-  canRunDraft: boolean;
-  /** The published version, or null for an agent nobody published. */
-  currentVersion: number | null;
-}
+/** As many runs as the trend reads back; the API's own ceiling. */
+const TREND_RUNS = 100;
 
-/** The candidate a run measured, as a short label: "v7", "Draft" or "Proposed". */
-export function candidateLabel(
-  run: EvalRun,
-  t: (key: string, values?: { version: number }) => string,
-) {
-  const candidate = run.arms.find((arm) => arm.role === "candidate");
-  if (!candidate || candidate.version_number === null) {
-    return candidate?.source === "explicit" ? t("proposed") : t("draft");
+/** Runs by dataset, each group in the order its newest run came. */
+export function byDataset(runs: EvalRun[]): { id: string; name: string; runs: EvalRun[] }[] {
+  const groups = new Map<string, { id: string; name: string; runs: EvalRun[] }>();
+  for (const run of runs) {
+    const group = groups.get(run.dataset_id) ?? {
+      id: run.dataset_id,
+      name: run.dataset_name,
+      runs: [],
+    };
+    group.runs.push(run);
+    groups.set(run.dataset_id, group);
   }
-  return t("version", { version: candidate.version_number });
-}
-
-function RunRow({ agentId, run }: { agentId: string; run: EvalRun }) {
-  const t = useTranslations("evals");
-  const locale = useLocale();
-  const candidates = run.arms.filter((arm) => arm.role === "candidate");
-  return (
-    <li>
-      <Link
-        href={`${ROUTES.AGENTS}/${agentId}/evals/${run.id}`}
-        className="hover:bg-accent/40 flex flex-wrap items-center justify-between gap-3 rounded-md px-2 py-3"
-      >
-        <span className="min-w-0 space-y-1">
-          <span className="text-foreground block truncate text-sm font-medium">
-            {t("runTitle", {
-              dataset: run.dataset_name,
-              version: run.dataset_version,
-              candidate: candidateLabel(run, t),
-            })}
-          </span>
-          <span className="text-muted-foreground block text-xs">
-            {formatDateTime(run.created_at, locale)} ·{" "}
-            {candidates.map((arm) => arm.model_label).join(", ")}
-          </span>
-        </span>
-        <span className="flex shrink-0 items-center gap-3 text-xs">
-          {candidates.map((arm) => (
-            <span key={arm.id} className="text-foreground tabular-nums">
-              {percent(arm.summary.pass_rate, locale)}
-            </span>
-          ))}
-          <span className="text-muted-foreground tabular-nums">{usd(run.cost_usd, locale)}</span>
-          <EvalStatusBadge status={run.status} />
-        </span>
-      </Link>
-    </li>
-  );
+  return [...groups.values()];
 }
 
 /**
- * The Evals tab: every run of this agent over a dataset, newest first, and
- * where a new one starts. A run is rare and costs money, so starting one is a
- * button here rather than a control on every screen.
+ * The Evals tab: how the agent's pass rate moved, version after version, on
+ * each dataset - then every run, grouped by the dataset it answered, each with
+ * its verdict. A run is rare and costs money, so starting one is a button here
+ * rather than a control on every screen.
  */
-export function EvalsPanel({ agentId, canStart, canRunDraft, currentVersion }: EvalsPanelProps) {
+export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: boolean }) {
   const t = useTranslations("evals");
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
+  const locale = useLocale();
   const [starting, setStarting] = useState(false);
-  const { runs, isLoading, error, refetch } = useEvalRuns(agentId);
+  const { runs, isLoading, error, refetch } = useEvalRuns(agentId, { limit: TREND_RUNS });
   const { datasets } = useDatasets({ sort: "updated", limit: 1 });
-  const startable = canStart && (currentVersion !== null || canRunDraft);
-  const start = startable ? { label: t("start"), onClick: () => setStarting(true) } : undefined;
+  const start = canStart ? { label: t("start"), onClick: () => setStarting(true) } : undefined;
+  const groups = byDataset(runs);
 
   return (
     <Card data-tour="agent-evals">
@@ -105,7 +64,7 @@ export function EvalsPanel({ agentId, canStart, canRunDraft, currentVersion }: E
           </Button>
         )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
         {isLoading ? (
           <LoadingState variant="skeleton-list" rows={3} />
         ) : error ? (
@@ -130,11 +89,32 @@ export function EvalsPanel({ agentId, canStart, canRunDraft, currentVersion }: E
             />
           )
         ) : (
-          <ul className="divide-border divide-y">
-            {runs.map((run) => (
-              <RunRow key={run.id} agentId={agentId} run={run} />
+          <>
+            <PassRateChart
+              lines={passRateLines(
+                runs,
+                (run) => ({ key: run.dataset_id, name: run.dataset_name }),
+                t,
+                locale,
+              )}
+            />
+            {groups.map((group, index) => (
+              <details key={group.id} open={index === 0} className="group">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium">
+                  <ChevronRight
+                    className="h-3.5 w-3.5 transition-transform group-open:rotate-90"
+                    aria-hidden
+                  />
+                  {t("group", { name: group.name, count: group.runs.length })}
+                </summary>
+                <ul className="divide-border mt-2 divide-y">
+                  {group.runs.map((run) => (
+                    <EvalRunRow key={run.id} run={run} />
+                  ))}
+                </ul>
+              </details>
             ))}
-          </ul>
+          </>
         )}
       </CardContent>
       {starting && <StartEvalDialog agentId={agentId} onOpenChange={setStarting} />}

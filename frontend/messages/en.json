@@ -5927,7 +5927,7 @@
   },
   "evals": {
     "title": "Evals",
-    "description": "Every run of this agent over a dataset: how each case was answered and scored, and how it compares with an earlier version.",
+    "description": "How the agent's pass rate moved, version after version, and every run with its verdict.",
     "start": "Run evals",
     "startTitle": "Run evals",
     "startBody": "Pick what to test and on which dataset. The cost shows before anything runs.",
@@ -6119,6 +6119,27 @@
       "showBroken": "{count, plural, =1 {Show the case that broke} other {Show the # cases that broke}}",
       "backToBuild": "Back to Build",
       "publish": "Publish"
+    },
+    "group": "{name} · {count, plural, =1 {1 run} other {# runs}}",
+    "trend": {
+      "label": "Pass rate over time",
+      "single": "One run so far. Run another to see a trend.",
+      "legend": "Each point is a run, labelled with what ran; a hollow point is a draft.",
+      "point": "{name} · {model} · {rate} · {verdict, select, better {better} worse {worse} no_difference {no difference} inconclusive {not sure yet} invalid {not comparable} other {first result}}"
+    },
+    "chip": {
+      "pending": "Pending",
+      "first": "First result",
+      "better": "Better · {fixed} fixed",
+      "worse": "Worse · {broke} broke",
+      "no_difference": "No difference",
+      "inconclusive": "Not sure yet",
+      "invalid": "Not comparable"
+    },
+    "row": {
+      "against": "{candidate} vs {baseline}",
+      "agent": "{agent} · {title}",
+      "rate": "{model} {rate}"
     }
   }
 }
