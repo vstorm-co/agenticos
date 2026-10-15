@@ -315,8 +315,14 @@ def _app() -> FastAPI:
     @public.post("/skills")
     async def oversized(request: Request) -> StreamingResponse:
         request.state.change_origin = ORIGIN
-        head = f'{{"id": "{uuid.uuid4()}", "body": "'.encode()
+        head = f'{{"id": "{LONG_ID}", "body": "'.encode()
         return StreamingResponse(iter([head, b"x" * 200_000, b"x" * 200_000, b'"}']))
+
+    @public.post("/apps")
+    async def oversized_without_a_leading_id(request: Request) -> StreamingResponse:
+        request.state.change_origin = ORIGIN
+        head = f'{{"body": "{uuid.uuid4()}'.encode()
+        return StreamingResponse(iter([head, b"x" * 300_000, f'", "id": "{LONG_ID}"}}'.encode()]))
 
     @public.get("/kb")
     async def read(request: Request) -> dict[str, str]:
@@ -327,6 +333,9 @@ def _app() -> FastAPI:
     app.include_router(console, prefix=V1)
     app.add_middleware(ChangeFeedMiddleware)
     return app
+
+
+LONG_ID = uuid.uuid4()
 
 
 class TestMiddleware:
@@ -353,13 +362,20 @@ class TestMiddleware:
             ("knowledge_base", created.json()["id"]),
         ]
 
-    async def test_an_answer_too_long_to_be_a_row_is_not_read_for_an_id(self, redis: Any) -> None:
+    async def test_a_long_answer_is_still_read_for_the_id_it_opens_with(self, redis: Any) -> None:
+        """Codex on #2062: a create answering past the limit published no id, and a
+        reader who sees only their own rows was never told of it."""
         async with AsyncClient(transport=ASGITransport(app=_app()), base_url="http://t") as http:
             await http.post(f"{V1}/skills")
+            await http.post(f"{V1}/apps")
 
-        [call] = redis.raw.publish.await_args_list
-        event = ChangeEvent.model_validate_json(call.args[1])
-        assert (event.resource, event.id) == ("skill", None)
+        skill, app = (
+            ChangeEvent.model_validate_json(call.args[1])
+            for call in redis.raw.publish.await_args_list
+        )
+        assert (skill.resource, skill.id) == ("skill", LONG_ID)
+        # An id further in than was kept is not guessed at.
+        assert (app.resource, app.id) == ("artifact", None)
 
     async def test_lifespan_and_socket_traffic_passes_straight_through(self) -> None:
         inner = AsyncMock()

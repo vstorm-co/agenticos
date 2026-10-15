@@ -90,8 +90,10 @@ def console_tab(value: str | None) -> str | None:
 
 _WRITES = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 _BODY_LIMIT = 256 * 1024
-"""How much of a response is kept to read a created row's `id` from. A create
-answers with the row; anything longer than this is not one."""
+"""How much of a response is kept whole to read a created row's `id` from. A
+longer one keeps only its start (`_HEAD_KEPT`), which still names the row."""
+_HEAD_KEPT = 4096
+"""What of a longer answer is kept: enough for the id it opens with."""
 
 
 @dataclass(frozen=True)
@@ -234,12 +236,21 @@ def _feed(template: str) -> _Feed | None:
     return None
 
 
+_LEADING_ID = re.compile(
+    rb'^\s*\{\s*"id"\s*:\s*"'
+    rb"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"
+)
+"""An object whose first key is its id - every row's read schema - as far as it was kept."""
+
+
 def _created_id(body: bytes) -> UUID | None:
     with contextlib.suppress(ValueError):
         payload = json.loads(body)
         if isinstance(payload, dict):
             return UUID(str(payload.get("id")))
-    return None
+    # Longer than was kept: the start of it still names the row.
+    leading = _LEADING_ID.match(body)
+    return UUID(leading.group(1).decode()) if leading else None
 
 
 def _decoded(body: bytes, encoding: str) -> bytes:
@@ -343,17 +354,21 @@ class ChangeFeedMiddleware:
             return
         status = 0
         encoding = ""
-        body: bytearray | None = bytearray()
+        body = bytearray()
+        truncated = False
 
         async def watch(message: Message) -> None:
-            nonlocal status, encoding, body
+            nonlocal status, encoding, truncated
             if message["type"] == "http.response.start":
                 status = message["status"]
                 encoding = Headers(raw=message["headers"]).get("content-encoding", "")
-            elif body is not None:
+            elif not truncated:
                 body.extend(message.get("body", b""))
                 if len(body) > _BODY_LIMIT:
-                    body = None
+                    # The start is kept, not the whole: a long answer still opens
+                    # with the id of the row it made.
+                    del body[_HEAD_KEPT:]
+                    truncated = True
             await send(message)
 
         await self.app(scope, receive, watch)
@@ -365,7 +380,7 @@ class ChangeFeedMiddleware:
             path=scope["path"],
             path_params=scope.get("path_params", {}),
             origin=origin,
-            body=_decoded(bytes(body or b""), encoding),
+            body=_decoded(bytes(body), encoding),
         )
         if event is not None:
             await publish(event)
