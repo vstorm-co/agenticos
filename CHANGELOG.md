@@ -929,6 +929,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The README shows one film: AgenticOS in two minutes.** It replaces the
+  45-second intro and the recorded planner run in all four READMEs: agents
+  handing work to each other, the Architect drafting an agent, a finance agent
+  tested and publishing a dashboard, a browse of GitHub and Notion over MCP,
+  with the console's blobs and a synthetic narrator.
+
 - **A browse draws under its message, not in a side panel.** The agent's browser
   is a live window in the transcript, at a reading width that grows and shrinks
   with the conversation, with the address, what the agent is doing and **Take

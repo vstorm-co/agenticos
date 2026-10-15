@@ -1,4 +1,4 @@
-<!-- source_sha: f993c01306ab -->
+<!-- source_sha: 6a6eef184a2d -->
 
 <div align="center">
 
@@ -96,13 +96,9 @@ AgenticOS jest serwerem MCP. Dodajesz go jednym poleceniem i logujesz się przez
 
 ## 📸 Zobacz, jak to działa
 
-<a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c"><img src="docs/assets/screens/agenticos-intro-play.webp" alt="AgenticOS: agenci AI, z których cały zespół może korzystać i które może ulepszać, Sovereign Agentic AI Layer" width="100%"></a>
+<a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a"><img src="docs/assets/screens/agenticos-intro-play.webp" alt="Logo agenticos wśród blobów z konsoli, z przyciskiem odtwarzania: AgenticOS w dwie minuty" width="100%"></a>
 
-<p align="center"><sub><b>AgenticOS w 45 sekund.</b> Dowolny agent zbudowany w przeglądarce, opublikowany tam, gdzie pracuje zespół, działający samodzielnie, a każde zapytanie przechodzi te same kontrole. Lektor syntetyczny. <a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c">Obejrzyj (46 s, 4K)</a></sub></p>
-
-<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512"><img src="docs/assets/screens/oss-launch-planner-play.webp" alt="Vstorm OSS Launch Planner: wybór odbiorców, rekomendacja projektu i linki do źródeł" width="100%"></a>
-
-<p align="center"><sub><b>Brief → research → wspólny wynik.</b> Nagrany run: agent czyta brief kampanii w Notion, analizuje repozytoria na GitHubie i publikuje interaktywny planer. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Obejrzyj (37 s)</a></sub></p>
+<p align="center"><sub><b>AgenticOS w dwie minuty.</b> Nagrana sesja: szef sztabu rozdziela pracę między innych agentów, Architekt szkicuje nowego agenta do zatwierdzenia, agent finansowy dostaje narzędzia, przechodzi test i publikuje dashboard, inny przegląda GitHuba, a jeszcze inny czyta Notion przez MCP. Lektor syntetyczny. <a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a">Obejrzyj (2:11)</a></sub></p>
 
 
 ## 💡 Czym jest AgenticOS?

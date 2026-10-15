@@ -94,13 +94,9 @@ AgenticOS is an MCP server. Add it with one command and sign in through the brow
 
 ## 📸 See it in action
 
-<a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c"><img src="docs/assets/screens/agenticos-intro-play.webp" alt="AgenticOS: AI agents your whole team can use and improve, Sovereign Agentic AI Layer" width="100%"></a>
+<a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a"><img src="docs/assets/screens/agenticos-intro-play.webp" alt="The agenticos logo among the console's blob characters, with a play button: AgenticOS in two minutes" width="100%"></a>
 
-<p align="center"><sub><b>AgenticOS in 45 seconds.</b> Build any agent in the browser, publish it where your team works, let it run on its own, and keep every request under the same controls. Narrated with a synthetic voice. <a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c">Watch (46 s, 4K)</a></sub></p>
-
-<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512"><img src="docs/assets/screens/oss-launch-planner-play.webp" alt="Vstorm OSS Launch Planner: audience selection, project recommendation and source links" width="100%"></a>
-
-<p align="center"><sub><b>Brief → research → shared result.</b> A recorded run: an agent reads a campaign brief in Notion, researches repositories on GitHub and publishes an interactive planner. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Watch (37 s)</a></sub></p>
+<p align="center"><sub><b>AgenticOS in two minutes.</b> A recorded session: a chief of staff hands work to other agents, the Architect drafts a new agent for approval, a finance agent gets its tools, is tested and publishes a dashboard, another browses GitHub, and one reads Notion over MCP. Narrated with a synthetic voice. <a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a">Watch (2:11)</a></sub></p>
 
 
 ## 💡 What is AgenticOS?

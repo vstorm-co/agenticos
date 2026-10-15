@@ -49,11 +49,18 @@ repository metrics are a dated snapshot, not a live feed or customer outcome stu
 
 The shortened cut retains source 00:00–00:30 and 00:39–00:46.466667: 37.466667 seconds total.
 Audio has 30 ms fades around the cut. The local `oss-launch-planner-demo.mp4` derivative is
-960 × 546, 20 fps, H.264/AAC, 1,024,008 bytes. The README shows each recording as a
-linked poster with a play label (`agenticos-intro-play.webp`,
-`oss-launch-planner-play.webp`), because GitHub's mobile app does not render an
-inline `<video>`; the poster opens the uploaded attachment. The recording file is
-unchanged.
+960 × 546, 20 fps, H.264/AAC, 1,024,008 bytes. The recording file is unchanged; the
+README no longer shows it, and the presentation tour still plays it.
+
+## README film
+
+- Recording: https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a
+- Upload reference: https://github.com/vstorm-co/agenticos/issues/168#issuecomment-6204502542
+- 2:11, 1920 × 1080, synthetic narration; a product film cut from two console
+  recordings of the demo deployment.
+- Poster: `agenticos-intro-play.webp`, the film's end card at 127 s with a play
+  label drawn over it. The README links the poster rather than embedding a
+  `<video>`, because GitHub's mobile app does not render one inline.
 
 Earlier validation covered full MP4 decoding, duration and sampled frames around the cut.
 Full-speed listening and physical mobile-device playback were not verified.

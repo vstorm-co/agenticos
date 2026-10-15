@@ -1,4 +1,4 @@
-<!-- source_sha: f993c01306ab -->
+<!-- source_sha: 6a6eef184a2d -->
 
 <div align="center">
 
@@ -96,13 +96,9 @@ AgenticOS ist ein MCP-Server. Mit einem Befehl hinzufügen und im Browser anmeld
 
 ## 📸 AgenticOS in Aktion
 
-<a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c"><img src="docs/assets/screens/agenticos-intro-play.webp" alt="AgenticOS: KI-Agenten, die Ihr ganzes Team nutzen und verbessern kann, Sovereign Agentic AI Layer" width="100%"></a>
+<a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a"><img src="docs/assets/screens/agenticos-intro-play.webp" alt="Das agenticos-Logo zwischen den Blob-Figuren der Konsole, mit Abspielknopf: AgenticOS in zwei Minuten" width="100%"></a>
 
-<p align="center"><sub><b>AgenticOS in 45 Sekunden.</b> Beliebige Agenten im Browser bauen, dort veröffentlichen, wo Ihr Team arbeitet, selbstständig laufen lassen, und jede Anfrage durchläuft dieselben Kontrollen. Mit synthetischer Stimme vertont. <a href="https://github.com/user-attachments/assets/d9457e3a-94ef-4802-a78f-0e2069effc7c">Ansehen (46 s, 4K)</a></sub></p>
-
-<a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512"><img src="docs/assets/screens/oss-launch-planner-play.webp" alt="Vstorm OSS Launch Planner: Zielgruppenauswahl, Projektempfehlung und Quellenlinks" width="100%"></a>
-
-<p align="center"><sub><b>Briefing → Recherche → gemeinsames Ergebnis.</b> Ein aufgezeichneter Run: Ein Agent liest ein Kampagnen-Briefing in Notion, untersucht Repositories auf GitHub und veröffentlicht einen interaktiven Planer. <a href="https://github.com/user-attachments/assets/1d6bba29-3bfe-4c86-bda3-52ce2b0aa512">Ansehen (37 s)</a></sub></p>
+<p align="center"><sub><b>AgenticOS in zwei Minuten.</b> Eine aufgezeichnete Sitzung: Ein Stabschef verteilt Arbeit an andere Agenten, der Architect entwirft einen neuen Agenten zur Freigabe, ein Finanzagent bekommt seine Tools, wird getestet und veröffentlicht ein Dashboard, ein anderer durchsucht GitHub, und einer liest Notion über MCP. Mit synthetischer Stimme vertont. <a href="https://github.com/user-attachments/assets/9d2a7923-a52e-4ee6-ab6a-734692824d5a">Ansehen (2:11)</a></sub></p>
 
 
 ## 💡 Was ist AgenticOS?
