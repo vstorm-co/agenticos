@@ -644,7 +644,13 @@ Two things are versioned separately from this file and worth knowing about:
   two presses cannot both miss it. A seventh round: setting a department's cap
   needs `budgets:manage`, sending an invitation or invite link needs
   `roles:manage`, keys presented to `/mcp` meet the same limits as on the API,
-  and a resumed run answers to its starter's department caps.
+  and a resumed run answers to its starter's department caps. An eighth round:
+  refused keys stop at the auth limit rather than one past it; an MCP tool call
+  spends its key once; refused OAuth token requests are limited per address;
+  run-as-me is withdrawn by a publish made through the creator's key or by an
+  impersonator; listings name departments only for `members:view`; a lead
+  without `runs:view` is offered no run link; and Settings says when the
+  assistant could not be read.
 
 - **New chat starts a new conversation.** The console sends `conversation_id: null`
   for a new chat, and the session read it as "no id given" and carried on in the
