@@ -1266,8 +1266,10 @@ class EvalRunService:
         """The scores of a run a person should see, a confirmed regression's first.
 
         Each candidate's first answer to a case its comparison confirmed it broke
-        - unless the two sides cannot be compared - then every answer no scorer
-        reached a verdict on and no person has decided.
+        - unless the two sides cannot be compared - then every answer the judge
+        failed to grade and no person has decided. A judge that was skipped -
+        AI assistance off, its budget spent - is a state to fix and grade again,
+        not work for a person.
         """
         org = ctx.organization_id
         attempts = await eval_run_repo.list_cases(self.db, run.id, organization_id=org)
@@ -1287,7 +1289,9 @@ class EvalRunService:
                     worthy.append(score_id)
         scores = await self._scores(ctx, attempts)
         worthy += sorted(
-            score.id for score in scores.values() if score.human_passed is None and ungraded(score)
+            score.id
+            for score in scores.values()
+            if score.human_passed is None and _judge_failed(score)
         )
         return list(dict.fromkeys(worthy))
 
@@ -1798,6 +1802,16 @@ class EvalRunService:
 class _CaseAttempt:
     case_id: UUID
     attempt: Attempt
+
+
+def _judge_failed(score: CaseScore) -> bool:
+    """Whether the judge ran on a score and failed to grade a criterion the case needs."""
+    return any(
+        result.get("scorer") in ("judge", "reference")
+        and result.get("required")
+        and result.get("status") == "error"
+        for result in score.results
+    )
 
 
 def _unprompted(pins: set[str]) -> set[str]:

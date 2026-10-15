@@ -1679,15 +1679,24 @@ async def test_run_history_names_each_eval_runs_case_for_who_may_see_it(db) -> N
     assert await service.case_links(member, answered) == {}
 
 
-async def _errored(db: AsyncSession, run_id, *, answer: str | None = None) -> CaseScore:
-    """One of the run's scores - one that kept `answer`, when given - as a judge
-    that errored would have left it."""
+async def _errored(
+    db: AsyncSession,
+    run_id,
+    *,
+    answer: str | None = None,
+    scorer: str = "check",
+    status: str = "error",
+    reason_code: str = "judge_run_failed",
+) -> CaseScore:
+    """One of the run's scores - one that kept `answer`, when given - as a scorer
+    that reached no verdict would have left it."""
     query = select(CaseScore).where(CaseScore.eval_run_id == run_id)
     if answer is not None:
         query = query.where(CaseScore.answer == answer)
     score = (await db.execute(query.limit(1))).scalar_one()
     score.results = [
-        {**result, "status": "error", "reason_code": "judge_run_failed"} for result in score.results
+        {**result, "scorer": scorer, "status": status, "reason_code": reason_code}
+        for result in score.results
     ]
     score.passed = None
     await db.flush()
@@ -1805,8 +1814,19 @@ async def test_what_a_run_sends_to_review_is_what_a_person_should_see(db) -> Non
     broke = await service.review_worthy(ctx, run)
     assert len(broke) == 1
 
-    # An answer the judge could not grade goes too, unless a person decided it.
-    errored = await _errored(db, v7.id, answer=_PASS)
+    # A judge that was skipped, or a check that failed to run, is not work for a person.
+    for scorer, status, code in (
+        ("judge", "skipped", "ai_assistance_off"),
+        ("judge", "skipped", "judge_budget"),
+        ("check", "error", None),
+    ):
+        skipped = await _errored(
+            db, v7.id, answer=_PASS, scorer=scorer, status=status, reason_code=code
+        )
+        assert skipped.id not in await service.review_worthy(ctx, run)
+
+    # An answer the judge failed to grade goes too, unless a person decided it.
+    errored = await _errored(db, v7.id, answer=_PASS, scorer="judge")
     worthy = await service.review_worthy(ctx, run)
     assert errored.id in worthy and worthy[0] == broke[0]
     errored.human_passed = True
