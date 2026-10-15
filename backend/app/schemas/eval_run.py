@@ -140,6 +140,37 @@ class EvalRunArmRead(BaseSchema):
     by_tag: dict[str, ArmSummaryRead]
 
 
+class ComparisonSide(BaseSchema):
+    """Which run and arm one side of a comparison is, labelled the way it is shown."""
+
+    run_id: UUID
+    arm_id: UUID
+    role: ArmRole
+    source: ArmSource
+    version_number: int | None
+    model_label: str
+    dataset_version: int
+    finished_at: datetime | None
+
+
+class EvalOutcomeRead(BaseSchema):
+    """How a finished run's first candidate came out against its baseline.
+
+    `verdict` and `baseline` are null when there was nothing to compare with:
+    the run is then the first result the next version is measured against. Pass
+    rates are over the cases both sides answered, or over every case without a
+    baseline, and count a person's decision before the scorers'.
+    """
+
+    candidate_arm_id: UUID
+    verdict: VerdictLiteral | None
+    baseline: ComparisonSide | None
+    regressions_confirmed: int
+    fixed_confirmed: int
+    candidate_pass_rate: float | None
+    baseline_pass_rate: float | None
+
+
 class EvalRunRead(BaseSchema):
     """One eval run, with each arm's results so far."""
 
@@ -160,6 +191,14 @@ class EvalRunRead(BaseSchema):
     cost_is_partial: bool
     attempts_done: int
     attempts_total: int
+    cases: int = Field(description="The cases the run answers")
+    first_done: int = Field(description="First answers finished, every arm's")
+    first_total: int = Field(
+        description="First answers in all; the rest of `attempts_total` are confirming reruns"
+    )
+    outcome: EvalOutcomeRead | None = Field(
+        description="The verdict once the run has ended; null while it answers"
+    )
     error: str | None
     created_by_user_id: UUID | None
     created_at: datetime
@@ -214,19 +253,6 @@ class EvalCaseRead(BaseSchema):
 class EvalCaseList(BaseSchema):
     items: list[EvalCaseRead]
     total: int
-
-
-class ComparisonSide(BaseSchema):
-    """Which run and arm one side of a comparison is, labelled the way it is shown."""
-
-    run_id: UUID
-    arm_id: UUID
-    role: ArmRole
-    source: ArmSource
-    version_number: int | None
-    model_label: str
-    dataset_version: int
-    finished_at: datetime | None
 
 
 class CaseFlipRead(BaseSchema):

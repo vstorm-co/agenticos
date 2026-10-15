@@ -7,13 +7,15 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import exists, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.locks import LockScope, hold_subject
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion
 from app.db.models.eval_run import (
+    ArmRole,
+    ArmSource,
     CaseAttemptStatus,
     EvalRun,
     EvalRunArm,
@@ -127,9 +129,13 @@ async def list_for_agent(
 
 
 async def referenced_ids(
-    db: AsyncSession, *, organization_id: UUID, agent_id: UUID | None = None
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID | None = None,
+    dataset_id: UUID | None = None,
 ) -> tuple[set[UUID], set[UUID]]:
-    """Every agent and dataset this organization's runs name, optionally for one agent.
+    """Every agent and dataset this organization's runs name, optionally for one of either.
 
     Small by nature - a handful of datasets per agent - and what a listing
     narrows by access before it pages, so its total counts only what the
@@ -138,11 +144,79 @@ async def referenced_ids(
     conditions = [EvalRun.organization_id == organization_id]
     if agent_id is not None:
         conditions.append(EvalRun.agent_id == agent_id)
+    if dataset_id is not None:
+        conditions.append(EvalRun.dataset_id == dataset_id)
     result = await db.execute(
         select(EvalRun.agent_id, EvalRun.dataset_id).where(*conditions).distinct()
     )
     rows = result.all()
     return {row[0] for row in rows}, {row[1] for row in rows}
+
+
+async def list_for_dataset(
+    db: AsyncSession,
+    dataset_id: UUID,
+    *,
+    organization_id: UUID,
+    agent_ids: Sequence[UUID],
+    skip: int = 0,
+    limit: int = 50,
+) -> tuple[list[EvalRun], int]:
+    """A dataset's runs, newest first, narrowed to agents the reader may see."""
+    conditions = [
+        EvalRun.organization_id == organization_id,
+        EvalRun.dataset_id == dataset_id,
+        EvalRun.agent_id.in_(agent_ids),
+    ]
+    total = await db.scalar(select(func.count()).select_from(EvalRun).where(*conditions))
+    result = await db.execute(
+        select(EvalRun)
+        .where(*conditions)
+        .order_by(EvalRun.created_at.desc(), EvalRun.id)
+        .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all()), int(total or 0)
+
+
+async def draft_runs(
+    db: AsyncSession, agent_id: UUID, *, organization_id: UUID, dataset_ids: Sequence[UUID]
+) -> list[tuple[EvalRun, dict[str, Any] | None]]:
+    """An agent's runs that tested a draft, newest first, each with the draft it froze.
+
+    A run comparing several models has one draft arm per model, so a run can
+    appear more than once.
+    """
+    result = await db.execute(
+        select(EvalRun, EvalRunArm.spec)
+        .join(EvalRunArm, EvalRunArm.eval_run_id == EvalRun.id)
+        .where(
+            EvalRun.organization_id == organization_id,
+            EvalRun.agent_id == agent_id,
+            EvalRun.dataset_id.in_(dataset_ids),
+            EvalRunArm.source == ArmSource.DRAFT.value,
+            EvalRunArm.role == ArmRole.CANDIDATE.value,
+        )
+        .order_by(EvalRun.created_at.desc(), EvalRun.id)
+    )
+    return [(run, spec) for run, spec in result.all()]
+
+
+async def reviewed_since(
+    db: AsyncSession, eval_run_ids: Sequence[UUID], *, since: datetime, organization_id: UUID
+) -> bool:
+    """Whether a person decided any score of these runs after `since`."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    CaseScore.organization_id == organization_id,
+                    CaseScore.eval_run_id.in_(eval_run_ids),
+                    CaseScore.reviewed_at > since,
+                )
+            )
+        )
+    )
 
 
 async def list_recent(
