@@ -67,6 +67,14 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
             <li key={index}>
               <span className="font-medium">{result.name}</span> · {t(`scorer.${result.status}`)} ·{" "}
               <span className="text-muted-foreground">{result.reason}</span>
+              {result.rule && (
+                <span className="text-muted-foreground block">
+                  {tScoring("rule", { rule: result.rule })}
+                </span>
+              )}
+              {result.unverified && (
+                <span className="text-warning block">{tScoring("unverifiedTop")}</span>
+              )}
             </li>
           ))}
         </ul>

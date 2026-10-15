@@ -18,7 +18,7 @@ export const VERDICT_TONE: Record<Verdict, "success" | "destructive" | "secondar
 /** How long a quoted question may run in a sentence before it is cut. */
 const QUOTED = 120;
 
-function quoted(text: string): string {
+export function quoted(text: string): string {
   return text.length <= QUOTED ? text : `${text.slice(0, QUOTED - 1).trimEnd()}…`;
 }
 

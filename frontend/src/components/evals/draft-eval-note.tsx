@@ -9,6 +9,7 @@ import { useDraftEvalRuns } from "@/hooks/use-eval-runs";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { sideName } from "./names";
+import { quoted } from "./verdict-headline";
 
 /**
  * What the evals said about the draft about to be published: the verdict of
@@ -32,13 +33,16 @@ export function DraftEvalNote({ agentId, onTest }: { agentId: string; onTest: ()
     );
   }
   const outcome = run.outcome;
+  // What the draft's own answers left ungraded is undecided, not passed.
+  const [ungraded, ...more] =
+    run.arms.find((arm) => arm.id === outcome?.candidate_arm_id)?.ungraded_cases ?? [];
   const tone =
     outcome?.verdict === "worse"
       ? "border-destructive/40 text-destructive"
-      : outcome?.verdict === "better"
-        ? "border-success/40 text-success"
-        : outcome?.verdict === "mixed"
-          ? "border-warning/40 text-warning"
+      : outcome?.verdict === "mixed" || ungraded
+        ? "border-warning/40 text-warning"
+        : outcome?.verdict === "better"
+          ? "border-success/40 text-success"
           : "text-muted-foreground";
   return (
     <Link
@@ -56,6 +60,15 @@ export function DraftEvalNote({ agentId, onTest }: { agentId: string; onTest: ()
             broke: outcome.regressions_confirmed,
             fixed: outcome.fixed_confirmed,
           })}
+      {ungraded && (
+        <span className="mt-1 block">
+          {t("draftNote.ungraded", {
+            count: more.length + 1,
+            question: quoted(ungraded.input),
+            others: more.length,
+          })}
+        </span>
+      )}
     </Link>
   );
 }

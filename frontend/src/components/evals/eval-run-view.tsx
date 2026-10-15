@@ -3,16 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { ErrorState, LoadingState } from "@/components/states";
+import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
 import { useAgent } from "@/hooks/use-agents";
 import { isLive, useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
-import { getErrorMessage } from "@/lib/api-error";
+import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 import { ArmsTable } from "./arms-table";
@@ -65,6 +65,9 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   }, [asked, loaded]);
 
   if (isLoading) return <LoadingState variant="skeleton-cards" rows={3} />;
+  if (error instanceof ApiError && error.status === 403) {
+    return <EmptyState icon={Lock} title={t("noAccess.title")} description={t("noAccess.body")} />;
+  }
   if (error || !run) {
     return (
       <ErrorState

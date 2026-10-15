@@ -535,6 +535,18 @@ describe("CaseDetail", () => {
                   reason_code: null,
                   judge_run_id: null,
                 },
+                {
+                  scorer: "judge",
+                  name: "Tone",
+                  required: true,
+                  status: "pass",
+                  score: 1,
+                  reason: "polite",
+                  reason_code: null,
+                  judge_run_id: null,
+                  rule: "A refusal names the policy",
+                  unverified: true,
+                },
               ],
             } as never,
           }),
@@ -571,6 +583,9 @@ describe("CaseDetail", () => {
     expect(screen.getByText("Rerun 1")).toBeInTheDocument();
     expect(screen.getByText("boom")).toBeInTheDocument();
     expect(screen.getByText("undecided")).toBeInTheDocument();
+    // The judge's rule and an unverified top grade read as they do in Review.
+    expect(screen.getByText("Rule: A refusal names the policy")).toBeInTheDocument();
+    expect(screen.getByText(/Unverified: a top grade/)).toBeInTheDocument();
     // Not graded is not undecided: the judge failed, and says why.
     expect(screen.getByText("not graded: The judge's run did not finish.")).toBeInTheDocument();
     expect(screen.getByText("not graded: judge_new_reason")).toBeInTheDocument();

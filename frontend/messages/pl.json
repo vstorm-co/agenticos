@@ -3976,7 +3976,8 @@
     },
     "live": {
       "answering": "Gotowe {done} z {total} pierwszych odpowiedzi. Case'y, których wynik się zmieni, zostaną potem powtórzone, żeby to potwierdzić.",
-      "comparisonLater": "Porównanie pojawi się, gdy obie strony skończą."
+      "comparisonLater": "Porównanie pojawi się, gdy obie strony skończą.",
+      "confirming": "Wszystkie pierwsze odpowiedzi są już gotowe. Potwierdzam case'y, które się zmieniły: {done} z {total} powtórek gotowe."
     },
     "answers": "{cases, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}} · {first, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}} + {reruns, plural, =0 {bez powtórek} one {# powtórka potwierdzająca} few {# powtórki potwierdzające} many {# powtórek potwierdzających} other {# powtórki potwierdzającej}}",
     "actions": {
@@ -3984,7 +3985,8 @@
       "showBroken": "{count, plural, one {Pokaż case, który się zepsuł} few {Pokaż # case'y, które się zepsuły} many {Pokaż # case'ów, które się zepsuły} other {Pokaż # case'a, które się zepsuły}}",
       "backToBuild": "Wróć do Build",
       "publish": "Publish",
-      "testAgain": "Testuj ponownie"
+      "testAgain": "Testuj ponownie",
+      "showBrokenOnce": "{count, plural, one {Pokaż case, który zepsuł się przynajmniej raz} few {Pokaż # case'y, które zepsuły się przynajmniej raz} many {Pokaż # case'ów, które zepsuły się przynajmniej raz} other {Pokaż # case'a, które zepsuły się przynajmniej raz}}"
     },
     "group": "{name} · {count, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
     "trend": {
@@ -4020,19 +4022,26 @@
       "untested": "Ten draft nie był testowany od ostatniej zmiany.",
       "test": "Przetestuj",
       "running": "Ten draft jest właśnie testowany.",
-      "result": "{verdict, select, worse {Ostatni test draftu: psuje {broke} względem {baseline}.} better {Ostatni test draftu: naprawia {fixed} względem {baseline}.} mixed {Ostatni test draftu: mieszany względem {baseline}, zepsute: {broke}, naprawione: {fixed}.} no_difference {Ostatni test draftu: brak powtarzalnej zmiany względem {baseline}.} invalid {Ostatniego testu draftu nie da się porównać z {baseline}.} other {Ostatni test draftu: pierwszy wynik, bez punktu odniesienia.}}"
+      "result": "{verdict, select, worse {Ostatni test draftu: psuje {broke} względem {baseline}.} better {Ostatni test draftu: naprawia {fixed} względem {baseline}.} mixed {Ostatni test draftu: mieszany względem {baseline}, zepsute: {broke}, naprawione: {fixed}.} no_difference {Ostatni test draftu: brak powtarzalnej zmiany względem {baseline}.} invalid {Ostatniego testu draftu nie da się porównać z {baseline}.} other {Ostatni test draftu: pierwszy wynik, bez punktu odniesienia.}}",
+      "ungraded": "{count, plural, one {# case tego draftu nie został oceniony} few {# case'y tego draftu nie zostały ocenione} many {# case'ów tego draftu nie zostało ocenionych} other {# case'a tego draftu nie zostało ocenionych}}: „{question}”{others, plural, =0 {} other { i jeszcze #}}. Oceń ponownie na runie przed publikacją."
     },
     "review": {
       "send": "{count, plural, one {Wyślij niezaliczony case do Review} few {Wyślij # niezaliczone case'y do Review} many {Wyślij # niezaliczonych case'ów do Review} other {Wyślij # niezaliczonego case'a do Review}}",
       "sent": "{queued, plural, =0 {Nic nowego nie trafiło do Review} one {# case wysłany do Review} few {# case'y wysłane do Review} many {# case'ów wysłanych do Review} other {# case'a wysłanego do Review}}{already, plural, =0 {} other {; # już tam było lub ma decyzję}}.",
       "routed": "Ten run sam wysłał do review {count, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}: potwierdzone regresje i odpowiedzi, przy których ocenie sędzia zawiódł.",
-      "routingFailed": "Ten run nie zdołał sam wysłać odpowiedzi do review, więc wyślij oblane ręcznie. Powód: {reason}"
+      "routingFailed": "Ten run nie zdołał sam wysłać odpowiedzi do review, więc wyślij oblane ręcznie. Powód: {reason}",
+      "sendOther": "{count, plural, one {Wyślij pozostały oblany case} few {Wyślij pozostałe # oblane case'y} many {Wyślij pozostałe # oblanych case'ów} other {Wyślij pozostałe # oblanego case'a}}"
     },
     "draftChanged": "Draft zmienił się po tym runie.",
     "ungraded": {
       "count": "{count, plural, one {# odpowiedź nie została oceniona: sędzia zawiódł albo został pominięty, więc nie liczy się ani jako zaliczona, ani jako oblana.} few {# odpowiedzi nie zostały ocenione: sędzia zawiódł albo został pominięty, więc nie liczą się ani jako zaliczone, ani jako oblane.} many {# odpowiedzi nie zostało ocenionych: sędzia zawiódł albo został pominięty, więc nie liczą się ani jako zaliczone, ani jako oblane.} other {# odpowiedzi nie zostało ocenionych: sędzia zawiódł albo został pominięty, więc nie liczą się ani jako zaliczone, ani jako oblane.}}",
       "again": "Oceń ponownie",
-      "done": "{count, plural, =0 {Nic nie zostało ocenione ponownie} one {# odpowiedź oceniona ponownie} few {# odpowiedzi ocenione ponownie} many {# odpowiedzi ocenionych ponownie} other {# odpowiedzi ocenionych ponownie}}"
+      "done": "{count, plural, =0 {Nic nie zostało ocenione ponownie} one {# odpowiedź oceniona ponownie} few {# odpowiedzi ocenione ponownie} many {# odpowiedzi ocenionych ponownie} other {# odpowiedzi ocenionych ponownie}}",
+      "side": "{count, plural, one {# case {side} nie został oceniony} few {# case'y {side} nie zostały ocenione} many {# case'ów {side} nie zostało ocenionych} other {# case'a {side} nie zostało ocenionych}}: „{question}”{others, plural, =0 {} other { i jeszcze #}}. Oceń ponownie przed decyzją."
+    },
+    "noAccess": {
+      "title": "Nie możesz otworzyć tego eval runa",
+      "body": "Czytanie eval runów wymaga uprawnienia do podglądu runów oraz dostępu do agenta i datasetu. Poproś administratora organizacji."
     }
   }
 }

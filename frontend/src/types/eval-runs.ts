@@ -98,6 +98,10 @@ export interface EvalRunArm {
   spec_hash: string;
   summary: ArmSummary;
   by_tag: Record<string, ArmSummary>;
+  /** The cases this side's first answer was not graded on, by a scorer that reached no verdict. */
+  ungraded_cases: { case_id: string; input: string }[];
+  /** This side's failed first answers not yet waiting for review. */
+  unsent_failed: number;
 }
 
 /**

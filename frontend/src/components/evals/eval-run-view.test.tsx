@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FLIP, SUMMARY, arm, attempt, comparison, evalCase, evalRun } from "@/test-utils/eval-runs";
+import { ApiError } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
 import { EvalRunView } from "./eval-run-view";
 
@@ -16,7 +17,11 @@ vi.mock("sonner", () => ({
 }));
 
 const navigation = vi.hoisted(() => ({ params: new URLSearchParams() }));
-vi.mock("next/navigation", () => ({ useSearchParams: () => navigation.params }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => navigation.params,
+  usePathname: () => "/agents/agent-1/evals/run-1",
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+}));
 
 const review = vi.hoisted(() => ({ canEdit: false, mutate: vi.fn(), rescore: vi.fn() }));
 const loaded = vi.hoisted(() => ({ agent: { can_run: true } as { can_run: boolean } | undefined }));
@@ -371,10 +376,97 @@ describe("EvalRunView", () => {
     review.canEdit = true;
     state.run = {
       ...state.run,
-      run: evalRun({ arms: [arm({ summary: { ...SUMMARY, failed: 0 } })] }),
+      run: evalRun({ arms: [arm({ unsent_failed: 0 })] }),
     };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
-    expect(screen.queryByRole("button", { name: /to review/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /to review|failed case/ })).toBeNull();
+  });
+
+  it("offers to send what the run did not send itself", () => {
+    review.canEdit = true;
+    state.run = {
+      ...state.run,
+      run: evalRun({ routed_to_review: 1, arms: [arm({ unsent_failed: 2 })] }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByRole("button", { name: "Send the other 2 failed cases" })).toBeVisible();
+  });
+
+  it("names each side's ungraded cases and keeps Publish from leading over them", () => {
+    worseDraft();
+    state.comparison = {
+      ...(state.comparison as object),
+      verdict: "better",
+      regressions_confirmed: 0,
+      fixed_confirmed: 1,
+      cases: [
+        { ...FLIP, flip: "fixed", baseline: false, candidate: true, candidate_reruns: [true] },
+      ],
+    };
+    state.run = {
+      ...state.run,
+      run: evalRun({
+        ungraded_score_ids: ["s1", "s2"],
+        arms: [
+          arm({
+            source: "draft",
+            version_number: null,
+            ungraded_cases: [
+              { case_id: "c1", input: "$700 TV, can I return it?" },
+              { case_id: "c2", input: "Is shipping free?" },
+            ],
+          }),
+          arm({ id: "arm-0", role: "baseline", version_number: 6 }),
+        ],
+      }),
+    };
+    access.allowed = new Set([Perm.agentsPublish]);
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(
+      screen.getByText(
+        "2 cases of Draft were not graded: “$700 TV, can I return it?” and 1 more. Grade again before deciding.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-primary");
+  });
+
+  it("says a run is confirming its flips once every first answer is in", () => {
+    state.comparison = undefined;
+    state.run = {
+      ...state.run,
+      run: evalRun({
+        status: "running",
+        first_done: 4,
+        first_total: 4,
+        attempts_done: 5,
+        attempts_total: 8,
+      }),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(
+      screen.getByText(
+        "Every first answer is in. Confirming the cases that changed: 1 of 4 reruns in.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("shows the cases that broke at least once when some did not break again", () => {
+    worseDraft();
+    state.comparison = { ...(state.comparison as object), regressions_unconfirmed: 1 };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(
+      screen.getByRole("button", { name: "Show the 5 cases that broke at least once" }),
+    ).toBeVisible();
+  });
+
+  it("says a reader without access cannot open the run, rather than that it broke", () => {
+    state.run = {
+      ...state.run,
+      run: undefined,
+      error: new ApiError(403, "Insufficient permissions"),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("You can't open this eval run")).toBeVisible();
   });
 
   it("marks a case a person's review overturned", () => {

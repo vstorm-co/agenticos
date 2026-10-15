@@ -6213,7 +6213,8 @@
     },
     "live": {
       "answering": "{done} von {total} ersten Antworten da. Fälle, deren Ergebnis sich ändert, werden danach wiederholt, um es zu bestätigen.",
-      "comparisonLater": "Der Vergleich erscheint, wenn beide Seiten fertig sind."
+      "comparisonLater": "Der Vergleich erscheint, wenn beide Seiten fertig sind.",
+      "confirming": "Alle ersten Antworten sind da. Die geänderten Fälle werden bestätigt: {done} von {total} Wiederholungen da."
     },
     "answers": "{cases, plural, =1 {1 Fall} other {# Fälle}} · {first, plural, =1 {1 Antwort} other {# Antworten}} + {reruns, plural, =0 {keine bestätigenden Wiederholungen} =1 {1 bestätigende Wiederholung} other {# bestätigende Wiederholungen}}",
     "actions": {
@@ -6221,7 +6222,8 @@
       "showBroken": "{count, plural, =1 {Den kaputten Fall zeigen} other {Die # kaputten Fälle zeigen}}",
       "backToBuild": "Zurück zu Build",
       "publish": "Veröffentlichen",
-      "testAgain": "Erneut testen"
+      "testAgain": "Erneut testen",
+      "showBrokenOnce": "{count, plural, =1 {Den Fall zeigen, der mindestens einmal kaputtging} other {Die # Fälle zeigen, die mindestens einmal kaputtgingen}}"
     },
     "group": "{name} · {count, plural, =1 {1 Run} other {# Runs}}",
     "trend": {
@@ -6257,19 +6259,26 @@
       "untested": "Dieser Entwurf wurde seit seiner letzten Änderung nicht getestet.",
       "test": "Testen",
       "running": "Dieser Entwurf wird gerade getestet.",
-      "result": "{verdict, select, worse {Letzter Test des Entwurfs: macht gegenüber {baseline} {broke} kaputt.} better {Letzter Test des Entwurfs: behebt gegenüber {baseline} {fixed}.} mixed {Letzter Test des Entwurfs: gemischt gegenüber {baseline}, {broke} kaputt, {fixed} behoben.} no_difference {Letzter Test des Entwurfs: keine Änderung hielt gegenüber {baseline}.} invalid {Der letzte Test des Entwurfs ließ sich nicht mit {baseline} vergleichen.} other {Letzter Test des Entwurfs: das erste Ergebnis, ohne Vergleich.}}"
+      "result": "{verdict, select, worse {Letzter Test des Entwurfs: macht gegenüber {baseline} {broke} kaputt.} better {Letzter Test des Entwurfs: behebt gegenüber {baseline} {fixed}.} mixed {Letzter Test des Entwurfs: gemischt gegenüber {baseline}, {broke} kaputt, {fixed} behoben.} no_difference {Letzter Test des Entwurfs: keine Änderung hielt gegenüber {baseline}.} invalid {Der letzte Test des Entwurfs ließ sich nicht mit {baseline} vergleichen.} other {Letzter Test des Entwurfs: das erste Ergebnis, ohne Vergleich.}}",
+      "ungraded": "{count, plural, =1 {1 Fall dieses Entwurfs wurde nicht bewertet} other {# Fälle dieses Entwurfs wurden nicht bewertet}}: „{question}“{others, plural, =0 {} other { und # weitere}}. Vor dem Veröffentlichen auf dem Run erneut bewerten."
     },
     "review": {
       "send": "{count, plural, =1 {Den nicht bestandenen Fall zur Prüfung senden} other {# nicht bestandene Fälle zur Prüfung senden}}",
       "sent": "{queued, plural, =0 {Nichts Neues zur Prüfung gesendet} =1 {1 Fall zur Prüfung gesendet} other {# Fälle zur Prüfung gesendet}}{already, plural, =0 {} other {; # waren schon dort oder entschieden}}.",
       "routed": "Dieser Run hat {count, plural, =1 {1 Antwort} other {# Antworten}} selbst zum Review geschickt: die bestätigten Regressionen und die Antworten, an deren Bewertung der Judge gescheitert ist.",
-      "routingFailed": "Dieser Run konnte seine Antworten nicht selbst zum Review schicken, also schick die durchgefallenen von Hand. Grund: {reason}"
+      "routingFailed": "Dieser Run konnte seine Antworten nicht selbst zum Review schicken, also schick die durchgefallenen von Hand. Grund: {reason}",
+      "sendOther": "{count, plural, =1 {Den anderen durchgefallenen Fall senden} other {Die anderen # durchgefallenen Fälle senden}}"
     },
     "draftChanged": "Der Entwurf hat sich nach diesem Run geändert.",
     "ungraded": {
       "count": "{count, plural, =1 {1 Antwort wurde nicht bewertet: Der Judge ist gescheitert oder wurde übersprungen, sie zählt weder als bestanden noch als durchgefallen.} other {# Antworten wurden nicht bewertet: Der Judge ist gescheitert oder wurde übersprungen, sie zählen weder als bestanden noch als durchgefallen.}}",
       "again": "Erneut bewerten",
-      "done": "{count, plural, =0 {Nichts wurde erneut bewertet} =1 {1 Antwort erneut bewertet} other {# Antworten erneut bewertet}}"
+      "done": "{count, plural, =0 {Nichts wurde erneut bewertet} =1 {1 Antwort erneut bewertet} other {# Antworten erneut bewertet}}",
+      "side": "{count, plural, =1 {1 Fall von {side} wurde nicht bewertet} other {# Fälle von {side} wurden nicht bewertet}}: „{question}“{others, plural, =0 {} other { und # weitere}}. Vor der Entscheidung erneut bewerten."
+    },
+    "noAccess": {
+      "title": "Diesen Eval-Run kannst du nicht öffnen",
+      "body": "Eval-Runs zu lesen braucht die Berechtigung, Runs anzusehen, und Zugriff auf den Agent und das Dataset. Frag eine Admin-Person der Organisation."
     }
   }
 }

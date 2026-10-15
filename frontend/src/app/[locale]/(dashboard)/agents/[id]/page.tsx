@@ -1021,7 +1021,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         open={publishOpen}
         onOpenChange={setPublishOpen}
         version={nextVersion}
-        environments={environments}
+        environments={isJudge ? null : environments}
         publishing={publish.isPending}
         onConfirm={async () => {
           try {
@@ -1033,7 +1033,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           }
         }}
       >
-        {canViewRuns && (
+        {canViewRuns && !isJudge && (
           <DraftEvalNote
             agentId={id}
             onTest={() => {

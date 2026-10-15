@@ -40,6 +40,8 @@ export function arm(overrides: Partial<EvalRunArm> = {}): EvalRunArm {
     spec_hash: "hash-7",
     summary: SUMMARY,
     by_tag: { refunds: SUMMARY },
+    ungraded_cases: [],
+    unsent_failed: 1,
     ...overrides,
   };
 }

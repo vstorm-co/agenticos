@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { comparison, evalRun } from "@/test-utils/eval-runs";
+import { arm, comparison, evalRun } from "@/test-utils/eval-runs";
 import type { EvalOutcome } from "@/types/eval-runs";
 import { DraftEvalNote } from "./draft-eval-note";
 
@@ -44,6 +44,21 @@ describe("DraftEvalNote", () => {
     expect(screen.getByRole("link", { name: /it fixes 2 against v1/ }).className).toContain(
       "text-success",
     );
+  });
+
+  it("says what the draft left ungraded, in a warning however it came out", () => {
+    draft.runs = [
+      evalRun({
+        outcome: { ...OUTCOME, verdict: "better", fixed_confirmed: 1 },
+        arms: [arm({ ungraded_cases: [{ case_id: "c1", input: "$700 TV, can I return it?" }] })],
+      }),
+    ];
+    render(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
+    const note = screen.getByRole("link", { name: /it fixes 1 against v1/ });
+    expect(note).toHaveTextContent(
+      "1 case of this draft was not graded: “$700 TV, can I return it?”. Grade again on the run before publishing.",
+    );
+    expect(note.className).toContain("text-warning");
   });
 
   it("says a draft was mixed", () => {

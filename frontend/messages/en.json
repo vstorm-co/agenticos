@@ -6355,7 +6355,8 @@
     },
     "live": {
       "answering": "{done} of {total} first answers in. Cases whose result changes are then rerun to confirm it.",
-      "comparisonLater": "The comparison appears when both sides finish."
+      "comparisonLater": "The comparison appears when both sides finish.",
+      "confirming": "Every first answer is in. Confirming the cases that changed: {done} of {total} reruns in."
     },
     "answers": "{cases, plural, =1 {1 case} other {# cases}} · {first, plural, =1 {1 answer} other {# answers}} + {reruns, plural, =0 {no confirming reruns} =1 {1 confirming rerun} other {# confirming reruns}}",
     "actions": {
@@ -6363,7 +6364,8 @@
       "showBroken": "{count, plural, =1 {Show the case that broke} other {Show the # cases that broke}}",
       "backToBuild": "Back to Build",
       "publish": "Publish",
-      "testAgain": "Test again"
+      "testAgain": "Test again",
+      "showBrokenOnce": "{count, plural, =1 {Show the case that broke at least once} other {Show the # cases that broke at least once}}"
     },
     "group": "{name} · {count, plural, =1 {1 run} other {# runs}}",
     "trend": {
@@ -6399,19 +6401,26 @@
       "untested": "This draft was not tested since it last changed.",
       "test": "Test it",
       "running": "This draft is being tested now.",
-      "result": "{verdict, select, worse {Last test of this draft: it breaks {broke} against {baseline}.} better {Last test of this draft: it fixes {fixed} against {baseline}.} mixed {Last test of this draft: mixed against {baseline}, {broke} broke and {fixed} fixed.} no_difference {Last test of this draft: no change held against {baseline}.} invalid {The last test of this draft could not be compared with {baseline}.} other {Last test of this draft: the first result, with nothing to compare it with.}}"
+      "result": "{verdict, select, worse {Last test of this draft: it breaks {broke} against {baseline}.} better {Last test of this draft: it fixes {fixed} against {baseline}.} mixed {Last test of this draft: mixed against {baseline}, {broke} broke and {fixed} fixed.} no_difference {Last test of this draft: no change held against {baseline}.} invalid {The last test of this draft could not be compared with {baseline}.} other {Last test of this draft: the first result, with nothing to compare it with.}}",
+      "ungraded": "{count, plural, =1 {1 case of this draft was not graded} other {# cases of this draft were not graded}}: “{question}”{others, plural, =0 {} other { and # more}}. Grade again on the run before publishing."
     },
     "review": {
       "send": "{count, plural, =1 {Send the failed case to review} other {Send # failed cases to review}}",
       "sent": "{queued, plural, =0 {Nothing new sent to review} =1 {1 case sent to review} other {# cases sent to review}}{already, plural, =0 {} other {; # already there or decided}}.",
       "routed": "This run sent {count, plural, =1 {1 answer} other {# answers}} to review itself: the regressions it confirmed and the answers the judge failed to grade.",
-      "routingFailed": "This run couldn't send its answers to review itself, so send the failed ones by hand. Why: {reason}"
+      "routingFailed": "This run couldn't send its answers to review itself, so send the failed ones by hand. Why: {reason}",
+      "sendOther": "{count, plural, =1 {Send the other failed case} other {Send the other # failed cases}}"
     },
     "draftChanged": "The draft changed after this run.",
     "ungraded": {
       "count": "{count, plural, =1 {1 answer was not graded: the judge failed or was skipped, so it counts as neither passed nor failed.} other {# answers were not graded: the judge failed or was skipped, so they count as neither passed nor failed.}}",
       "again": "Grade again",
-      "done": "{count, plural, =0 {Nothing was graded again} =1 {1 answer graded again} other {# answers graded again}}"
+      "done": "{count, plural, =0 {Nothing was graded again} =1 {1 answer graded again} other {# answers graded again}}",
+      "side": "{count, plural, =1 {1 case of {side} was not graded} other {# cases of {side} were not graded}}: “{question}”{others, plural, =0 {} other { and # more}}. Grade again before deciding."
+    },
+    "noAccess": {
+      "title": "You can't open this eval run",
+      "body": "Reading eval runs needs permission to view runs, and access to the agent and the dataset. Ask an admin of the organization."
     }
   }
 }

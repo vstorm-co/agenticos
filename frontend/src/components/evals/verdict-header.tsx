@@ -46,12 +46,18 @@ export function VerdictHeader({
   const locale = useLocale();
   const { can } = usePermissions();
   const live = run.status === "queued" || run.status === "running";
-  const done = run.first_total === 0 ? 0 : (run.first_done / run.first_total) * 100;
+  const reruns = run.attempts_total - run.first_total;
+  // Once every first answer is in, what is left is confirming the flips.
+  const confirming = run.first_total > 0 && run.first_done === run.first_total && reruns > 0;
+  const [doneNow, ofNow] = confirming
+    ? [run.attempts_done - run.first_done, reruns]
+    : [run.first_done, run.first_total];
+  const done = ofNow === 0 ? 0 : (doneNow / ofNow) * 100;
   const broke = comparison
     ? comparison.regressions_confirmed + comparison.regressions_unconfirmed
     : 0;
+  const brokeOnce = comparison !== undefined && comparison.regressions_unconfirmed > 0;
   const baseline = comparison?.baseline ?? null;
-  const reruns = run.attempts_total - run.first_total;
   return (
     <Card data-tour="eval-verdict">
       <CardContent className="space-y-4 pt-6">
@@ -91,7 +97,9 @@ export function VerdictHeader({
           <div className="space-y-2">
             <Progress value={done} aria-label={t("progress")} />
             <p className="text-muted-foreground text-xs">
-              {t("live.answering", { done: run.first_done, total: run.first_total })}
+              {confirming
+                ? t("live.confirming", { done: doneNow, total: ofNow })
+                : t("live.answering", { done: doneNow, total: ofNow })}
             </p>
             <p className="text-muted-foreground text-xs">{t("live.comparisonLater")}</p>
           </div>
@@ -134,7 +142,9 @@ export function VerdictHeader({
             {broke > 0 && (
               <Button size="sm" variant="outline" onClick={onShowBroken}>
                 <ListFilter className="h-3.5 w-3.5" aria-hidden />
-                {t("actions.showBroken", { count: broke })}
+                {brokeOnce
+                  ? t("actions.showBrokenOnce", { count: broke })
+                  : t("actions.showBroken", { count: broke })}
               </Button>
             )}
             <Button size="sm" variant="outline" asChild>
@@ -158,7 +168,8 @@ export function VerdictHeader({
                 variant={
                   comparison &&
                   comparison.regressions_confirmed === 0 &&
-                  comparison.overall !== "worse"
+                  comparison.overall !== "worse" &&
+                  candidate.ungraded_cases.length === 0
                     ? "default"
                     : "outline"
                 }

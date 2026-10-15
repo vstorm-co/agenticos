@@ -53,6 +53,21 @@ describe("the publish dialog", () => {
     ).toBeInTheDocument();
   });
 
+  it("says nothing of environments for an agent none reaches, like a judge", () => {
+    render(
+      <PublishDialog
+        open
+        onOpenChange={vi.fn()}
+        version={2}
+        environments={null}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Publish v2?" })).toBeInTheDocument();
+    expect(screen.queryByText(/production/)).toBeNull();
+  });
+
   it("names what moves and what does not, the default included", () => {
     // Publishing mints a version and moves only what asked to be moved. The
     // question worth answering before the click is what changes for the people
