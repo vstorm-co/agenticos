@@ -133,10 +133,7 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         return await api.request("GET", "/runs", params=params)
 
     async def get_run(run_id: UUID) -> dict[str, Any]:
-        """One run: status, the error a failed one stopped on, tokens and cost.
-
-        Needs `runs:view`, or to be the person the run ran as.
-        """
+        """One run: status, the error a failed one stopped on, tokens and cost. Needs `runs:view`."""
         return await api.request("GET", f"/runs/{run_id}")
 
     async def list_knowledge_bases() -> dict[str, Any]:
