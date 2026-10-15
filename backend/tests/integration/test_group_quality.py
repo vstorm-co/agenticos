@@ -133,6 +133,21 @@ async def test_a_lead_sees_the_split_the_busiest_agents_and_the_worst_answers(
     await org.answer(anna, payables, 1)
     wrong = await org.answer(lead, ledger, -1, "Wrong VAT rate")
     await org.answer(outsider, ledger, -1, "Not Finance's problem")
+    # A widget visitor the lead stands in for as publisher: not the department's
+    # own activity, so not in its ranking (Codex on #2062).
+    for _ in range(3):
+        db.add(
+            AgentRun(
+                organization_id=org.organization.id,
+                agent_id=ledger.id,
+                user_id=lead.user_id,
+                status="completed",
+                surface="embed",
+                started_at=datetime.now(UTC),
+                initiated_by_publisher_fallback=True,
+            )
+        )
+    await db.flush()
 
     quality = await GroupQualityService(db).detail(lead, finance.id, from_date=None, to_date=None)
 

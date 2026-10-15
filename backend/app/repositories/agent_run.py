@@ -765,6 +765,7 @@ async def group_top_agents(
             AgentRun.started_at < end,
             AgentRun.parent_run_id.is_(None),
             AgentRun.user_id.in_(members),
+            *_counts_for_a_department(),
         )
         .group_by(Agent.id, Agent.name)
         .order_by(runs.desc(), Agent.name)
