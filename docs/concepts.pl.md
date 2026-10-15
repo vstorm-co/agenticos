@@ -1,5 +1,5 @@
 ---
-source_sha: "59fc8f638706"
+source_sha: "111d48326705"
 ---
 
 # Koncepcje { #concepts }
@@ -198,6 +198,9 @@ skrzynce*, którego domyślne ustawienie nie potrafi — na tych warunkach:
   triggera, którego nie utworzyłeś, wyłącza ustawienie, więc nikt nie przepisze
   tego, co działa jako ty. Administrator działający jako ty przez impersonację
   ani skrypt z twoim kluczem API nie mogą go włączyć.
+- **Tak samo nowa wersja opublikowana nie przez ciebie osobiście.** Publikacja, promocja
+  albo cofnięcie przez kogokolwiek innego to wyłącza - także zrobione twoim
+  kluczem API albo przez administratora w impersonacji.
 - **Zapis to pokazuje.** Run wskazuje trigger, który go odpalił, a każdy wpis
   audytu zapisany przez odpalenie niesie `via_trigger` z członkiem, jako który
   działało.

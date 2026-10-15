@@ -1,5 +1,5 @@
 ---
-source_sha: "59fc8f638706"
+source_sha: "111d48326705"
 ---
 
 # Conceptos { #concepts }
@@ -201,6 +201,9 @@ condiciones:
   filtro de un trigger que no creaste lo desactiva, así que nadie reescribe lo que
   se ejecuta como tú. Un administrador que actúa como tú mediante suplantación, o
   un script con tu clave de API, no puede activarlo.
+- **También una versión nueva que no publicaste tú.** Una publicación, una
+  promoción o una reversión de cualquier otra persona lo desactiva, y también una
+  hecha con tu clave de API o por un administrador que te suplanta.
 - **El registro lo dice.** El run nombra el trigger que lo disparó, y cada entrada
   de auditoría que registra el disparo lleva `via_trigger` con el miembro como el
   que actuó.

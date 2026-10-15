@@ -192,6 +192,9 @@ matters in my inbox* the default cannot do — on these terms:
   the filter of a trigger you did not create switches it off, so nobody rewrites
   what runs as you. An administrator acting as you through impersonation, or a
   script holding your API key, cannot turn it on.
+- **So does a new version you did not publish yourself.** A publish, a
+  promotion or a rollback by anybody else turns it off - and so does one made
+  through your API key or by an administrator impersonating you.
 - **The record says so.** The run names the trigger that fired it, and every audit
   entry the fire records carries `via_trigger` with the member it acted as.
 

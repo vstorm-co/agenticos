@@ -222,6 +222,29 @@ class TestPromoteAndRename:
             "current_version_id": environment.version_id
         }
 
+    @pytest.mark.security
+    @pytest.mark.parametrize("delegated", ["key", "impersonation"])
+    async def test_a_publish_through_a_key_or_an_impersonator_keeps_nobody_s_consent(
+        self, _consent: AsyncMock, delegated: str
+    ):
+        """Codex on #2062: the creator's own key kept their consent while it swapped
+        the spec a routine runs as them."""
+        from dataclasses import replace
+
+        from app.services.agent_registry import AgentRegistryService
+
+        ctx = _ctx()
+        if delegated == "key":
+            ctx = replace(ctx, api_key_id=uuid.uuid4())
+        agent = _agent()
+        with patch(
+            "app.services.agent_registry.current_impersonator",
+            return_value=uuid.uuid4() if delegated == "impersonation" else None,
+        ):
+            await AgentRegistryService(MagicMock()).withdraw_creator_consent(ctx, agent)
+
+        assert _consent.await_args.kwargs == {"agent_id": agent.id, "kept_for": None}
+
     async def test_a_promotion_withdraws_other_peoples_run_as_me(self, _consent: AsyncMock):
         """Codex on #2062: a creator agreed to what the agent did then, not to a
         version somebody else put in front of their trigger."""

@@ -1,5 +1,5 @@
 ---
-source_sha: "59fc8f638706"
+source_sha: "111d48326705"
 ---
 
 # Begriffe { #concepts }
@@ -214,6 +214,10 @@ nicht kann — zu diesen Bedingungen:
   aus, sodass niemand umschreibt, was als Sie läuft. Ein Administrator, der per
   Impersonation als Sie handelt, oder ein Skript mit Ihrem API-Schlüssel kann es
   nicht einschalten.
+- **Ebenso eine neue Version, die du nicht selbst veröffentlicht hast.** Eine
+  Veröffentlichung, eine Promotion oder ein Rollback durch jemand anderen schaltet
+  es ab - auch eine über deinen API-Schlüssel oder durch einen Administrator, der
+  dich impersoniert.
 - **Der Nachweis sagt es.** Der Run nennt den Trigger, der ihn ausgelöst hat, und
   jeder Audit-Eintrag, den das Auslösen schreibt, trägt `via_trigger` mit dem
   Mitglied, als das es gehandelt hat.
