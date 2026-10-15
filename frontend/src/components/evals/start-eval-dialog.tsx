@@ -86,7 +86,6 @@ export function StartEvalDialog({
   const { currentVersion, targets, preferred } = useEvalTarget(agentId);
 
   const runnable = datasets.filter((dataset) => dataset.case_count > 0);
-  // The dataset this agent was last measured on, else the only one there is.
   const offered =
     runs.find((run) => runnable.some((dataset) => dataset.id === run.dataset_id))?.dataset_id ??
     (runnable.length === 1 ? runnable[0]?.id : undefined) ??

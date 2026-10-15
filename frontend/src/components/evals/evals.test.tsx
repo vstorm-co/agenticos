@@ -444,7 +444,6 @@ describe("CaseDetail", () => {
     expect(
       screen.getAllByRole("link", { name: "Open this answer in Activity" })[0],
     ).toHaveAttribute("href", "/runs?run=r1");
-    // Without an expectation there is nothing above the answers.
     expect(screen.queryByText("What the case expects")).toBeNull();
     expect(screen.getByText('send_email({"to":"a@b.c"})')).toBeInTheDocument();
     expect(screen.getByText("contains 30 days")).toBeInTheDocument();

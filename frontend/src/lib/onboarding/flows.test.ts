@@ -254,7 +254,6 @@ describe("create-dataset", () => {
     expect(save?.blockSubmit).toBeUndefined();
     expect(sources?.target).toBe("dataset-file-actions");
     expect(sources?.signal).toBeUndefined();
-    // And where the dataset goes next: grading, then an agent run over it.
     expect(next).toMatchObject({ target: "datasets-scoring-tab", page: DATASET_DETAIL });
   });
 });

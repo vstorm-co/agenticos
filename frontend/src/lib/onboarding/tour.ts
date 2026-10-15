@@ -305,7 +305,6 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
 
-  // The verdict, first thing on a run's page: what changed and what to do next.
   {
     id: "eval-verdict",
     page: EVAL_RUN,

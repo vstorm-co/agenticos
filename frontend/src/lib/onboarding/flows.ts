@@ -803,8 +803,6 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
         target: "dataset-file-actions",
         permission: Perm.datasetsEdit,
       },
-      // Where the dataset goes next: how its answers are graded, then an agent
-      // run over it.
       {
         id: "flow-dataset-next",
         page: DATASET_DETAIL,
