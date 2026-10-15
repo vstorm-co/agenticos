@@ -523,6 +523,28 @@ class TestAdministration:
         assert unlisted.status_code == 403
 
     @pytest.mark.security
+    async def test_department_lists_are_the_directory_too(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        """`/groups` and a group's members name people as `/members` does, so a key
+        reads them only with `members:view`."""
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        reader = await _issue(db, organization, owner, Perm.AGENTS_VIEW)
+        directory = await _issue(db, organization, owner, Perm.MEMBERS_VIEW)
+
+        async with client() as http:
+            refused = await http.get(
+                _url(f"/orgs/{organization.id}/groups"), headers=_bearer(reader)
+            )
+            listed = await http.get(
+                _url(f"/orgs/{organization.id}/groups"), headers=_bearer(directory)
+            )
+
+        assert refused.status_code == 403
+        assert listed.status_code == 200
+
+    @pytest.mark.security
     async def test_a_key_cannot_reach_another_organization_through_the_path(
         self, db: AsyncSession, client: Client
     ) -> None:

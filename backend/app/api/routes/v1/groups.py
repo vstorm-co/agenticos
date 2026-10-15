@@ -43,9 +43,12 @@ from app.schemas.group import (
 router = APIRouter(dependencies=[PUBLIC])
 
 _MANAGE = Depends(require_in_path_org(Perm.MEMBERS_MANAGE))
+# Who is in which department is the member directory, read as `/members` reads it:
+# every role holds `members:view`, a key only when it was issued with it.
+_DIRECTORY = Depends(require_in_path_org(Perm.MEMBERS_VIEW))
 
 
-@router.get("/{org_id}/groups", response_model=GroupList)
+@router.get("/{org_id}/groups", response_model=GroupList, dependencies=[_DIRECTORY])
 async def list_groups(org_id: UUID, service: GroupSvc, ctx: PathOrgAuth) -> Any:
     """Every group in the organization, with its member count. Any member may call this."""
     rows = await service.list_groups(org_id, ctx.subject_id)
@@ -218,7 +221,9 @@ async def share_with_group(
     await service.share(ctx, group_id, data.items, level=GrantLevel(data.level))
 
 
-@router.get("/{org_id}/groups/{group_id}/members", response_model=GroupMemberList)
+@router.get(
+    "/{org_id}/groups/{group_id}/members", response_model=GroupMemberList, dependencies=[_DIRECTORY]
+)
 async def list_group_members(
     org_id: UUID, group_id: UUID, service: GroupSvc, ctx: PathOrgAuth
 ) -> Any:
