@@ -510,6 +510,21 @@ class EvalRunService:
             model_label=model.label,
         )
 
+    async def _judge_model(
+        self, ctx: AuthContext, judge: Agent, scoring: DatasetScoring
+    ) -> UUID | None:
+        """The model the judge grades on: the dataset's choice, else its published spec's."""
+        if scoring.judge.model_profile_id is not None:
+            return scoring.judge.model_profile_id
+        version = (
+            await agent_repo.get_version(
+                self.db, judge.current_version_id, organization_id=ctx.organization_id
+            )
+            if judge.current_version_id is not None
+            else None
+        )
+        return AgentSpec.model_validate(version.spec).model_profile_id if version else None
+
     async def _judge_agent(self, ctx: AuthContext, judge_id: UUID | None) -> Agent | None:
         """The agent that grades a dataset: the judge it names, or the default one."""
         if judge_id is not None:
@@ -660,7 +675,11 @@ class EvalRunService:
         if plan.judged:
             judge = await self._judge_agent(ctx, plan.scoring.judge.agent_id)
             judge_per_case = (
-                (await self._per_case(ctx, judge.id, None))[0]
+                (
+                    await self._per_case(
+                        ctx, judge.id, None, await self._judge_model(ctx, judge, plan.scoring)
+                    )
+                )[0]
                 if judge is not None
                 else settings.EVAL_FALLBACK_CASE_COST_USD
             )

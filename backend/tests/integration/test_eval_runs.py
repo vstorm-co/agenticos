@@ -1474,3 +1474,56 @@ async def test_what_a_run_tested_is_gone_with_its_version(db) -> None:
 
     with pytest.raises(NotFoundError, match="version this side ran is gone"):
         await service.arm_spec(ctx, run.id, arm.id)
+
+
+async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None:
+    """The dataset's model choice first, else the model the judge's published spec names."""
+    ctx = await _owner(db)
+    await _assist(db, ctx, on=True)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=10)
+    nano = await _profile(db, ctx, "gpt-4.1-nano")
+    judge = Agent(
+        id=uuid.uuid4(),
+        organization_id=ctx.organization_id,
+        owner_user_id=ctx.user_id,
+        visibility="org",
+        slug=f"strict-{uuid.uuid4().hex[:8]}",
+        name="Strict judge",
+        status="published",
+        kind="judge",
+        draft_spec={"name": "Strict judge"},
+    )
+    db.add(judge)
+    await db.flush()
+    published = AgentVersion(
+        id=uuid.uuid4(),
+        agent_id=judge.id,
+        organization_id=ctx.organization_id,
+        version=1,
+        spec={"name": "Strict judge", "model_profile_id": str(nano.id)},
+    )
+    db.add(published)
+    await db.flush()
+    judge.current_version_id = published.id
+    criteria = [{"name": "Tone", "description": "Polite"}]
+    dataset.scoring = {"judge": {"enabled": True, "agent_id": str(judge.id), "criteria": criteria}}
+    await db.flush()
+    priced = SimpleNamespace(label="nano", model="gpt-4.1-nano", provider="openai")
+    service = EvalRunService(db)
+
+    with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
+        by_spec = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+        dataset.scoring = {
+            "judge": {
+                "enabled": True,
+                "agent_id": str(judge.id),
+                "model_profile_id": str(nano.id),
+                "criteria": criteria,
+            }
+        }
+        await db.flush()
+        by_dataset = await service.estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    # Ten cases, each 2000 tokens in at $0.10/1M and 400 out at $0.40/1M.
+    assert by_spec.judge_usd == by_dataset.judge_usd == Decimal("0.0036")
