@@ -195,6 +195,10 @@ async def test_a_platform_binding_asking_no_approval_still_holds_its_writes(
 ) -> None:
     """Review on #2062: a Builder's agent with `approval: none` ran an Admin's
     invite_member with no card - the credential is the asker's own authority."""
+    from pydantic_ai import Agent as PydanticAgent
+    from pydantic_ai.messages import ModelResponse
+    from pydantic_ai.models.function import FunctionModel
+
     from app.agents.mcp import NEEDS_APPROVAL
     from app.agents.spec import PlatformMcpServerRef
     from app.services.mcp_connection import build_toolsets_for_agent
@@ -207,7 +211,9 @@ async def test_a_platform_binding_asking_no_approval_still_holds_its_writes(
         platform_credential=key,
     )
     [toolset] = resolved.toolsets
-    async with toolset:
+    # Opened the way a run opens it - through the agent - as the test above does.
+    agent = PydanticAgent(FunctionModel(lambda _m, _i: ModelResponse(parts=[])), toolsets=[toolset])
+    async with agent:
         tools = await toolset.get_tools(MagicMock())
 
     assert tools["agenticos_invite_member"].tool_def.metadata[NEEDS_APPROVAL] is True

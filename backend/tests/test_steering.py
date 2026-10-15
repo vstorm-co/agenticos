@@ -176,3 +176,28 @@ async def test_a_steer_meets_the_agents_input_guardrail(blocked: bool):
         await agent.run("go", deps=_Deps(steering=inbox))
         assert not any(steer in text for text in seen[1])
         assert any("Added by the person" in text for text in seen[1])
+
+
+def test_a_spec_s_steers_are_screened_by_its_own_input_guardrail():
+    """The runner reads the spec's guardrails binding: on, off, or absent."""
+    from app.agents.spec import AgentSpec, CapabilityBindingSpec
+    from app.services.agent_runner import input_screen_for
+
+    guarded = AgentSpec(
+        name="Ops",
+        capabilities=[
+            CapabilityBindingSpec(id="guardrails", config={"blocked_keywords_in": "salary"})
+        ],
+    )
+    switched_off = AgentSpec(
+        name="Ops",
+        capabilities=[
+            CapabilityBindingSpec(
+                id="guardrails", enabled=False, config={"blocked_keywords_in": "salary"}
+            )
+        ],
+    )
+
+    assert input_screen_for(guarded) is not None
+    assert input_screen_for(switched_off) is None
+    assert input_screen_for(AgentSpec(name="Ops")) is None
