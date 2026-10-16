@@ -165,6 +165,9 @@ class EvalRun(Base):
     )
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Written by the worker while it works, so a slow case or a full organization
+    # is not taken for a worker that died.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # The first candidate's comparison once the run ended, so a listing reads its
     # verdict without comparing every run again. Stale once a person decides one
     # of its scores after `outcome_at`, and read afresh then.

@@ -313,8 +313,14 @@ class Settings(BaseSettings):
     EVAL_FALLBACK_OUTPUT_TOKENS: int = 400
     EVAL_FALLBACK_CASE_COST_USD: Decimal = Decimal("0.05")
     EVAL_ESTIMATE_SAMPLE: int = 50
-    # A live eval run with nothing started or finished for this long lost its worker.
+    # A running eval run whose worker has not said it is alive, nor started or
+    # finished a case, for this long lost its worker. The worker says so every
+    # `EVAL_HEARTBEAT_SECONDS` while it works.
     EVAL_ABANDONED_AFTER_MINUTES: float = 30.0
+    EVAL_HEARTBEAT_SECONDS: float = 60.0
+    # A queued run has no worker yet - it waits for a runner slot - so it is
+    # given up on only after this long.
+    EVAL_QUEUED_ABANDONED_AFTER_HOURS: float = 24.0
     ALGORITHM: str = "HS256"
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"

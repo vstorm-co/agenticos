@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import column, exists, func, or_, select, true, update
+from sqlalchemy import and_, column, exists, func, or_, select, true, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -527,16 +527,36 @@ async def latest_arm(
     return (row[0], row[1]) if row is not None else None
 
 
-async def fail_abandoned(db: AsyncSession, *, idle_since: datetime, now: datetime) -> int:
+async def heartbeat(
+    db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID, now: datetime
+) -> None:
+    """Record that a live run's worker is still at it."""
+    await db.execute(
+        update(EvalRun)
+        .where(
+            EvalRun.id == eval_run_id,
+            EvalRun.organization_id == organization_id,
+            EvalRun.status.in_(_LIVE),
+        )
+        .values(heartbeat_at=now)
+    )
+    await db.flush()
+
+
+async def fail_abandoned(
+    db: AsyncSession, *, idle_since: datetime, queued_since: datetime, now: datetime
+) -> int:
     """Fail live runs whose worker is gone, across every organization.
 
     Unscoped by design: the sweep that calls it runs for the deployment, and a
     dead worker leaves runs behind in whichever organizations it was serving.
 
-    A run is abandoned when it is live and nothing about it has moved since
-    `idle_since`: no attempt started or ended after it, and it was not created
-    after it either. Its unstarted attempts are skipped and its running ones
-    failed, so the organization's concurrency count does not keep them forever.
+    A running run is abandoned when nothing about it has moved since
+    `idle_since`: its worker has not beaten, no attempt started or ended, and it
+    did not start after it either. A queued run has no worker to beat yet, so it
+    is abandoned only once created before `queued_since`. Its unstarted attempts
+    are skipped and its running ones failed, so the organization's concurrency
+    count does not keep them forever.
     """
     last_activity = (
         select(
@@ -550,9 +570,22 @@ async def fail_abandoned(db: AsyncSession, *, idle_since: datetime, now: datetim
         select(EvalRun.id)
         .outerjoin(last_activity, last_activity.c.eval_run_id == EvalRun.id)
         .where(
-            EvalRun.status.in_(_LIVE),
-            EvalRun.created_at < idle_since,
-            func.coalesce(last_activity.c.moved, EvalRun.created_at) < idle_since,
+            or_(
+                and_(
+                    EvalRun.status == EvalRunStatus.RUNNING.value,
+                    func.greatest(
+                        EvalRun.created_at,
+                        EvalRun.started_at,
+                        EvalRun.heartbeat_at,
+                        last_activity.c.moved,
+                    )
+                    < idle_since,
+                ),
+                and_(
+                    EvalRun.status == EvalRunStatus.QUEUED.value,
+                    EvalRun.created_at < queued_since,
+                ),
+            )
         )
         .with_for_update(of=EvalRun, skip_locked=True)
     )

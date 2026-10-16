@@ -21,7 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from contextlib import AbstractAsyncContextManager
+from contextlib import AbstractAsyncContextManager, suppress
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
@@ -125,22 +125,47 @@ class EvalRunWorker:
         *,
         sessions: Sessions = get_worker_db_context,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        heartbeat: float | None = None,
     ) -> None:
         self.eval_run_id = eval_run_id
         self.organization_id = organization_id
         self.sessions = sessions
         self.sleep = sleep
+        self.heartbeat = settings.EVAL_HEARTBEAT_SECONDS if heartbeat is None else heartbeat
 
     async def run(self) -> None:
         """Answer every case, confirm the flips, and close the run."""
         ctx = await self._begin()
         if ctx is None:
             return
-        await self._wave(ctx)
-        if await self._queue_reruns(ctx):
+        beating = asyncio.create_task(self._beat())
+        try:
             await self._wave(ctx)
-        await self._route_to_review(ctx)
-        await self._close(EvalRunStatus.COMPLETED, only_from=EvalRunStatus.RUNNING)
+            if await self._queue_reruns(ctx):
+                await self._wave(ctx)
+            await self._route_to_review(ctx)
+            await self._close(EvalRunStatus.COMPLETED, only_from=EvalRunStatus.RUNNING)
+        finally:
+            beating.cancel()
+            with suppress(asyncio.CancelledError):
+                await beating
+
+    async def _beat(self) -> None:
+        """Say the run is alive every `heartbeat` seconds, for as long as it works.
+
+        A case can outlast the sweep's window, and a full organization can hold
+        every attempt back; neither moves an attempt, and only this tells them
+        from a worker that died.
+        """
+        while True:
+            await asyncio.sleep(self.heartbeat)
+            async with self.sessions() as db:
+                await eval_run_repo.heartbeat(
+                    db,
+                    self.eval_run_id,
+                    organization_id=self.organization_id,
+                    now=datetime.now(UTC),
+                )
 
     async def _begin(self) -> AuthContext | None:
         """Mark the run running and rebuild who it runs as - or end it if it cannot run."""

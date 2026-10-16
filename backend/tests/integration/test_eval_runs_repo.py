@@ -356,15 +356,26 @@ async def test_an_abandoned_run_is_failed_and_frees_its_slots(db) -> None:
     )
     assert claimed is not None
     run.created_at = _NOW - timedelta(hours=3)
+    run.status = EvalRunStatus.RUNNING.value
     await db.flush()
+    queued_since = _NOW - timedelta(days=1)
 
     still_moving = await eval_run_repo.fail_abandoned(
-        db, idle_since=_NOW - timedelta(hours=1), now=_NOW
+        db, idle_since=_NOW - timedelta(hours=1), queued_since=queued_since, now=_NOW
     )
     assert still_moving == 0
 
+    # A worker that still beats is not dead, though no case has moved since.
+    await eval_run_repo.heartbeat(
+        db, run.id, organization_id=ctx.organization_id, now=_NOW + timedelta(minutes=5)
+    )
+    beating = await eval_run_repo.fail_abandoned(
+        db, idle_since=_NOW + timedelta(minutes=1), queued_since=queued_since, now=_NOW
+    )
+    assert beating == 0
+
     reaped = await eval_run_repo.fail_abandoned(
-        db, idle_since=_NOW + timedelta(minutes=1), now=_NOW
+        db, idle_since=_NOW + timedelta(minutes=10), queued_since=queued_since, now=_NOW
     )
     await db.refresh(run)
     cases = await eval_run_repo.list_cases(db, run.id, organization_id=ctx.organization_id)
@@ -374,6 +385,24 @@ async def test_an_abandoned_run_is_failed_and_frees_its_slots(db) -> None:
     assert run.ended_at == _NOW
     assert sorted(case.status for case in cases) == ["failed", "skipped", "skipped"]
     assert claimed.id in {case.id for case in cases if case.error}
+
+
+async def test_a_queued_run_waits_its_own_window_before_it_is_given_up(db) -> None:
+    ctx, *_, run, _arm = await _setup(db)
+    run.created_at = _NOW - timedelta(hours=3)
+    await db.flush()
+    assert run.status == EvalRunStatus.QUEUED.value
+
+    waiting = await eval_run_repo.fail_abandoned(
+        db, idle_since=_NOW, queued_since=_NOW - timedelta(hours=4), now=_NOW
+    )
+    assert waiting == 0
+
+    given_up = await eval_run_repo.fail_abandoned(
+        db, idle_since=_NOW, queued_since=_NOW - timedelta(hours=2), now=_NOW
+    )
+    await db.refresh(run)
+    assert (given_up, run.status) == (1, EvalRunStatus.FAILED.value)
 
 
 async def test_an_attempt_is_read_and_updated_in_place(db) -> None:

@@ -1,5 +1,5 @@
 ---
-source_sha: "9f948efccb97"
+source_sha: "c002e273dc7b"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -125,11 +125,15 @@ höchstens `EVAL_RUN_CONCURRENCY` pro Run und höchstens `EVAL_ORG_CONCURRENCY`
 jede Anfrage belegen kann, die ein Provider der Organisation erlaubt.
 
 Abbrechen (`POST /api/v1/eval-runs/{id}/cancel`, durch die Person, die ihn
-gestartet hat, oder jeden, der den Agent bearbeiten darf) stoppt, was noch
-nicht begonnen hat: Bereits laufende Fälle laufen zu Ende und werden behalten,
-und kein weiterer Fall startet. Ein Run, dessen Worker sich
-`EVAL_ABANDONED_AFTER_MINUTES` lang nicht bewegt, wird vom stündlichen Sweep
-für hängende Runs als fehlgeschlagen beendet, der auch seine Plätze freigibt.
+gestartet hat, oder jeden, der den Agent bearbeiten darf) stoppt, was noch nicht
+begonnen hat: Bereits laufende Fälle laufen zu Ende und werden behalten, und
+kein weiterer Fall startet. Der Worker eines laufenden Runs meldet alle
+`EVAL_HEARTBEAT_SECONDS`, dass er lebt; ein Run, dessen Worker schweigt und
+dessen Fälle sich `EVAL_ABANDONED_AFTER_MINUTES` lang nicht bewegt haben, wird
+vom stündlichen Sweep für hängende Runs als fehlgeschlagen beendet, der auch
+seine Plätze freigibt. Ein Run in der Warteschlange hat noch keinen Worker - er
+wartet auf einen freien Runner - daher gibt der Sweep ihn erst nach
+`EVAL_QUEUED_ABANDONED_AFTER_HOURS` auf.
 
 ## Ergebnisse { #results }
 
@@ -240,7 +244,9 @@ verglichen.
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | Eine relative Änderung von Kosten, Tokens oder Latenz, die als keine zählt |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | Die Schätzung pro Fall auf einem Modell ohne Historie |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Wie viele letzte Runs die Schätzung mittelt |
-| `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Wie lange ein Run stillstehen darf, bevor der Sweep ihn beendet |
+| `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Wie lange ein laufender Run bei schweigendem Worker stillstehen darf, bevor der Sweep ihn beendet |
+| `EVAL_HEARTBEAT_SECONDS` | `60` | Wie oft ein arbeitender Run meldet, dass er lebt |
+| `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Wie lange ein Run auf einen Worker warten darf, bevor der Sweep ihn beendet |
 
 ## Zugriff { #access }
 

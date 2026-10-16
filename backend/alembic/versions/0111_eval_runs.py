@@ -65,6 +65,7 @@ def upgrade() -> None:
         ),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("heartbeat_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("outcome", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("outcome_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("routed_to_review", sa.Integer(), nullable=False),

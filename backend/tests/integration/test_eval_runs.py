@@ -15,6 +15,8 @@ attribution - is covered where it lives. What only a database shows is here:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -1284,6 +1286,29 @@ async def test_a_version_whose_last_case_was_removed_is_refused(db) -> None:
 
     with pytest.raises(BadRequestError, match="holds no cases"):
         await EvalRunService(db).estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+
+async def test_a_working_run_says_it_is_alive(db) -> None:
+    ctx = await _owner(db)
+    run_id = uuid.uuid4()
+    worker = EvalRunWorker(run_id, ctx.organization_id, sessions=_sessions(db), heartbeat=0)
+    twice = asyncio.Event()
+
+    async def beaten(*_args: object, **_kwargs: object) -> None:
+        if beat.await_count >= 2:
+            twice.set()
+
+    beat = AsyncMock(side_effect=beaten)
+
+    with patch("app.services.eval_run_worker.eval_run_repo.heartbeat", new=beat):
+        beating = asyncio.create_task(worker._beat())
+        await asyncio.wait_for(twice.wait(), timeout=5)
+        beating.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await beating
+
+    assert beat.await_args.args[1] == run_id
+    assert beat.await_args.kwargs["organization_id"] == ctx.organization_id
 
 
 async def test_an_attempt_gone_with_its_run_stops_the_drainer(db) -> None:

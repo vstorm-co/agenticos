@@ -1,5 +1,5 @@
 ---
-source_sha: "9f948efccb97"
+source_sha: "c002e273dc7b"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -121,9 +121,12 @@ pozwala organizacji.
 Anulowanie (`POST /api/v1/eval-runs/{id}/cancel`, przez osobę, która run
 uruchomiła, albo każdego, kto może edytować agenta) zatrzymuje to, co się nie
 zaczęło: przypadki, które już działają, kończą się i są zachowywane, a żaden
-inny się nie zaczyna. Run, którego worker przestaje robić postępy na
-`EVAL_ABANDONED_AFTER_MINUTES`, kończy się błędem w cogodzinnym sweepie
-zawieszonych runów, który zwalnia też jego miejsca.
+inny się nie zaczyna. Worker działającego runu co `EVAL_HEARTBEAT_SECONDS` daje
+znać, że żyje; run, którego worker milczy i którego przypadki nie ruszyły się
+przez `EVAL_ABANDONED_AFTER_MINUTES`, kończy się błędem w cogodzinnym sweepie
+zawieszonych runów, który zwalnia też jego miejsca. Run w kolejce nie ma jeszcze
+workera - czeka na wolny runner - więc sweep rezygnuje z niego dopiero po
+`EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
 ## Wyniki { #results }
 
@@ -230,7 +233,9 @@ porównywane.
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | Względna zmiana kosztu, tokenów lub latencji liczona jako brak zmiany |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | Szacunek na przypadek na modelu bez historii |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Ile ostatnich runów uśrednia szacunek |
-| `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Jak długo run może stać, zanim sweep zakończy go błędem |
+| `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Jak długo działający run może stać przy milczącym workerze, zanim sweep zakończy go błędem |
+| `EVAL_HEARTBEAT_SECONDS` | `60` | Jak często pracujący run daje znać, że żyje |
+| `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Jak długo run może czekać na workera, zanim sweep zakończy go błędem |
 
 ## Dostęp { #access }
 

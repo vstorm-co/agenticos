@@ -1,5 +1,5 @@
 ---
-source_sha: "9f948efccb97"
+source_sha: "c002e273dc7b"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -119,11 +119,15 @@ mucho `EVAL_RUN_CONCURRENCY` por run y como mucho `EVAL_ORG_CONCURRENCY` entre
 todos los eval runs de una organización, para que un dataset de 500 casos no
 ocupe todas las peticiones que un provider permite a la organización.
 
-Cancelar (`POST /api/v1/eval-runs/{id}/cancel`, quien lo inició o cualquiera
-que pueda editar el agent) detiene lo que no ha empezado: los casos que ya se
-están ejecutando terminan y se conservan, y no empieza ningún otro. Un run cuyo
-worker deja de avanzar durante `EVAL_ABANDONED_AFTER_MINUTES` se da por fallido
-en el barrido horario de runs colgados, que además libera sus plazas.
+Cancelar (`POST /api/v1/eval-runs/{id}/cancel`, quien lo inició o cualquiera que
+pueda editar el agent) detiene lo que no ha empezado: los casos que ya se están
+ejecutando terminan y se conservan, y no empieza ningún otro. El worker de un
+run en marcha avisa cada `EVAL_HEARTBEAT_SECONDS` de que sigue vivo; un run cuyo
+worker calla y cuyos casos no han avanzado durante
+`EVAL_ABANDONED_AFTER_MINUTES` se da por fallido en el barrido horario de runs
+colgados, que además libera sus plazas. Un run en cola aún no tiene worker -
+espera un runner libre - así que el barrido lo abandona solo tras
+`EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
 ## Resultados { #results }
 
@@ -231,7 +235,9 @@ el baseline se ejecuta en el primer modelo indicado y cada brazo se compara con
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | Un cambio relativo de coste, tokens o latencia que cuenta como ninguno |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | La estimación por caso en un modelo sin historial |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Cuántos runs recientes promedia la estimación |
-| `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Cuánto puede estar parado un run antes de que el barrido lo dé por fallido |
+| `EVAL_ABANDONED_AFTER_MINUTES` | `30` | Cuánto puede estar parado un run en marcha, con su worker callado, antes de que el barrido lo dé por fallido |
+| `EVAL_HEARTBEAT_SECONDS` | `60` | Cada cuánto avisa un run que trabaja de que sigue vivo |
+| `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | Cuánto puede esperar un run a un worker antes de que el barrido lo dé por fallido |
 
 ## Acceso { #access }
 

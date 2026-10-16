@@ -92,5 +92,8 @@ class RunReaperService:
             return 0
         now = datetime.now(UTC)
         return await eval_run_repo.fail_abandoned(
-            self.db, idle_since=now - timedelta(minutes=minutes), now=now
+            self.db,
+            idle_since=now - timedelta(minutes=minutes),
+            queued_since=now - timedelta(hours=settings.EVAL_QUEUED_ABANDONED_AFTER_HOURS),
+            now=now,
         )
