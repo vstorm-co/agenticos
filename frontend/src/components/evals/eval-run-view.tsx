@@ -22,6 +22,9 @@ import { sideName } from "./names";
 import { StartEvalDialog } from "./start-eval-dialog";
 import { VerdictHeader } from "./verdict-header";
 
+/** As many cases as the API filters on by id in one request. */
+const CASE_IDS = 100;
+
 /**
  * One eval run, verdict first: what changed and what to do about it, then each
  * side's numbers, how the two compare, and every case - over the whole dataset
@@ -163,7 +166,8 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
           arm={focus}
           comparison={live ? undefined : comparison}
           tag={tag}
-          caseIds={only !== null ? [only] : broken ? brokenIds : null}
+          caseIds={only !== null ? [only] : broken ? brokenIds.slice(0, CASE_IDS) : null}
+          brokenTotal={brokenIds.length}
           opened={only}
           onShowAll={() => {
             setBroken(false);

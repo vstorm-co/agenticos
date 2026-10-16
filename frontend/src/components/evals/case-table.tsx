@@ -125,6 +125,7 @@ export function CaseTable({
   comparison,
   tag,
   caseIds,
+  brokenTotal,
   opened = null,
   onShowAll,
 }: {
@@ -136,6 +137,8 @@ export function CaseTable({
   tag: string | null;
   /** Only these cases - the ones that broke, or the one asked for - until `onShowAll`. */
   caseIds: string[] | null;
+  /** How many cases broke, when `caseIds` holds only the first of them. */
+  brokenTotal?: number;
   /** The case to show open on arrival - one a link from elsewhere names. */
   opened?: string | null;
   onShowAll: () => void;
@@ -201,7 +204,9 @@ export function CaseTable({
           <p className="text-muted-foreground mb-2 flex flex-wrap items-center gap-2 text-sm">
             {opened !== null && caseIds[0] === opened
               ? t("askedOnly")
-              : t("brokenOnly", { count: caseIds.length })}
+              : brokenTotal !== undefined && brokenTotal > caseIds.length
+                ? t("brokenFirst", { count: caseIds.length, total: brokenTotal })
+                : t("brokenOnly", { count: caseIds.length })}
             <Button size="sm" variant="ghost" onClick={onShowAll}>
               {t("showAll")}
             </Button>

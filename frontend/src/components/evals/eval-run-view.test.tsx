@@ -187,6 +187,20 @@ describe("EvalRunView", () => {
     expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ caseIds: null })]);
   });
 
+  it("shows the first hundred of many broken cases, as many as one request names", async () => {
+    worseDraft();
+    state.comparison = {
+      ...(state.comparison as object),
+      cases: Array.from({ length: 101 }, (_, i) => ({ ...FLIP, case_id: `case-${i}` })),
+    };
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Show the 4 cases that broke/ }));
+    const [, query] = state.casesArgs.at(-1) as [string, { caseIds: string[] }];
+    expect(query.caseIds).toHaveLength(100);
+    expect(screen.getByText("Showing the first 100 of the 101 cases that broke.")).toBeVisible();
+  });
+
   it("puts Publish first only when nothing broke for sure", () => {
     worseDraft();
     state.comparison = {

@@ -6328,6 +6328,7 @@
         "incomplete": "Not graded on {side}"
       },
       "dot": "{side}: {state, select, passed {passed} failed {failed} undecided {undecided} other {pending}}",
+      "brokenFirst": "Showing the first {count} of the {total} cases that broke.",
       "brokenOnly": "{count, plural, =1 {Showing the case that broke.} other {Showing the # cases that broke.}}",
       "showAll": "Show every case",
       "corrected": "Corrected by a person",

@@ -6186,6 +6186,7 @@
         "incomplete": "Auf {side} nicht bewertet"
       },
       "dot": "{side}: {state, select, passed {bestanden} failed {nicht bestanden} undecided {unentschieden} other {ausstehend}}",
+      "brokenFirst": "Die ersten {count} der {total} kaputten Fälle werden gezeigt.",
       "brokenOnly": "{count, plural, =1 {Der kaputte Fall wird gezeigt.} other {Die # kaputten Fälle werden gezeigt.}}",
       "showAll": "Alle Fälle zeigen",
       "corrected": "Von einer Person korrigiert",
