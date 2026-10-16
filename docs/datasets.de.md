@@ -1,5 +1,5 @@
 ---
-source_sha: "f7c49ae25823"
+source_sha: "1bceab74e881"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -330,7 +330,8 @@ unterscheidet. Ein Bestehen ist ein Fehler, wenn es nur zitiert, was beide
 sagen, oder nichts aus einer Antwort zitiert, die das Gegenbeispiel kopiert;
 jedes andere ohne Zitat bleibt stehen, als nicht belegt markiert. Eine Antwort,
 die das Gegenbeispiel behält und ergänzt, was ihm fehlte, besteht mit einem
-Zitat der Ergänzung.
+Zitat der Ergänzung. Eine Antwort, die das Gegenbeispiel ist oder ein Teil
+davon, fällt bei dem Kriterium durch, was auch immer der Bewerter sagte.
 
 Bewerter starten mit Temperatur 0, damit dieselbe Antwort zweimal gleich
 bewertet wird; ein Modell, das keine Temperatur annimmt, etwa ein

@@ -296,7 +296,8 @@ judge is asked to quote what sets the answer apart from it. A pass is an error
 when it quotes only what the two share, or quotes nothing from an answer that
 copies the counter-example; any other with nothing quoted stands, marked
 unverified. An answer that keeps the counter-example and adds what it lacked
-passes on a quote of the addition.
+passes on a quote of the addition. An answer that is the counter-example, or a
+part of it, fails the criterion whatever the judge said.
 
 Judges start at temperature 0, so one answer is graded the same way twice; a
 model that takes no temperature, such as a reasoning model, grades without one.

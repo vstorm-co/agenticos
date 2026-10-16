@@ -1,5 +1,5 @@
 ---
-source_sha: "f7c49ae25823"
+source_sha: "1bceab74e881"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -308,7 +308,9 @@ odpowiedzi, a sędzia ma zacytować to, co odróżnia od niej odpowiedź. Zalicz
 jest błędem, gdy cytuje tylko to, co obie mówią, albo nie cytuje niczego z
 odpowiedzi, która kopiuje kontrprzykład; każde inne bez cytatu zostaje,
 oznaczone jako niezweryfikowane. Odpowiedź, która zachowuje kontrprzykład i
-dopisuje to, czego mu brakowało, zalicza się na cytacie z dopisku.
+dopisuje to, czego mu brakowało, zalicza się na cytacie z dopisku. Odpowiedź,
+która jest kontrprzykładem albo jego fragmentem, oblewa to kryterium bez względu
+na to, co powiedział sędzia.
 
 Sędziowie startują z temperaturą 0, więc ta sama odpowiedź jest oceniana dwa
 razy tak samo; model, który nie przyjmuje temperatury, na przykład model

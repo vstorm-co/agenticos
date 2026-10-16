@@ -40,6 +40,7 @@ from app.services.scorers import (
     judge_criteria,
     judge_prompt,
     not_graded,
+    repeats,
     restates,
     run_checks,
     score_trajectory,
@@ -675,27 +676,63 @@ class TestGrades:
         assert (result.status, result.reason_code, result.unverified) == ("pass", None, True)
 
     @pytest.mark.parametrize(
-        ("answer", "quotes"),
+        ("answer", "quotes", "grade"),
         [
-            ("sure - I've refunded your gift code!", []),
-            ("Sure - I've refunded your gift code.", ["Sure - I've"]),
-            ("Sure, I\u2019ve refunded your gift code.", ["I\u2019ve refunded your gift code"]),
-            ("Sure, I\u2019ve refunded your gift code. Bye!", ["I\u2019ve refunded"]),
+            ("sure - I've refunded your gift code!", [], 5),
+            ("Sure - I've refunded your gift code.", ["Sure - I've"], 5),
+            ("Sure, I\u2019ve refunded your gift code.", ["I\u2019ve refunded your gift code"], 4),
+            ("I've refunded your gift code", [], 1),
         ],
     )
-    def test_a_copy_of_the_counter_example_cannot_pass_whatever_is_quoted(
-        self, answer, quotes
+    def test_an_answer_that_is_the_counter_example_fails_on_it_whatever_the_judge_said(
+        self, answer, quotes, grade
     ) -> None:
         case = _case(counter_example="Sure, I've refunded your gift code.")
         criteria = judge_criteria(case, DatasetScoring(reference=ReferenceScorer(enabled=True)), [])
         verdict = JudgeVerdict(
-            grades=[JudgeGrade(id="counter", score=5, reason="Fine", quotes=quotes)]
+            grades=[JudgeGrade(id="counter", score=grade, reason="Unlike it", quotes=quotes)]
         )
 
         [result] = graded(
             criteria,
             verdict,
             answer=answer,
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+            counter_example=case.counter_example,
+        )
+
+        assert (result.status, result.reason_code, result.score) == ("fail", None, 0.2)
+        assert result.reason == "The answer repeats the counter-example"
+
+    def test_an_answer_that_is_the_counter_example_fails_even_with_no_grade(self) -> None:
+        case = _case(counter_example="Sure, I've refunded your gift code.")
+        criteria = judge_criteria(case, DatasetScoring(reference=ReferenceScorer(enabled=True)), [])
+
+        [result] = graded(
+            criteria,
+            JudgeVerdict(grades=[]),
+            answer="Sure, I've refunded your gift code.",
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+            counter_example=case.counter_example,
+        )
+
+        assert result.status == "fail"
+
+    def test_more_around_the_counter_example_quoting_only_it_cannot_pass(self) -> None:
+        case = _case(counter_example="Sure, I've refunded your gift code.")
+        criteria = judge_criteria(case, DatasetScoring(reference=ReferenceScorer(enabled=True)), [])
+        verdict = JudgeVerdict(
+            grades=[JudgeGrade(id="counter", score=5, reason="Fine", quotes=["I\u2019ve refunded"])]
+        )
+
+        [result] = graded(
+            criteria,
+            verdict,
+            answer="Sure, I\u2019ve refunded your gift code. Bye!",
             scale_max=5,
             pass_at=4,
             run_id=uuid.uuid4(),
@@ -738,6 +775,21 @@ class TestGrades:
     )
     def test_only_the_counter_examples_own_words_in_order_are_a_copy(self, answer, copied) -> None:
         assert copies(answer, "Sure, I have refunded your gift code.") is copied
+
+    @pytest.mark.parametrize(
+        ("answer", "repeated"),
+        [
+            ("Sure, I have refunded your gift code.", True),
+            ("I have refunded", True),
+            ("Gift code.", False),
+            ("Hello! Sure, I have refunded your gift code. Anything else?", False),
+            ("...", False),
+        ],
+    )
+    def test_only_an_answer_saying_nothing_more_repeats_the_counter_example(
+        self, answer, repeated
+    ) -> None:
+        assert repeats(answer, "Sure, I have refunded your gift code.") is repeated
 
     def test_a_restated_reason_keeps_what_the_judge_wrote(self) -> None:
         criteria = judge_criteria(_case(), TestJudgeCriteria()._scoring(), [])[:1]
