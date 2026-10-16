@@ -15,6 +15,7 @@ import {
   useChatStore,
   useConversationStore,
   useOrgStore,
+  useWorkingStore,
 } from "@/stores";
 
 // The socket itself is not under test: what matters is the frame the hook hands
@@ -144,6 +145,7 @@ beforeEach(() => {
   useOrgStore.setState({ activeOrgId: null });
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
+  useWorkingStore.getState().reset();
   window.history.replaceState({}, "", "/chat");
 });
 
@@ -2252,6 +2254,21 @@ describe("useChat - leaving a conversation whose agent is still answering", () =
       }),
     );
     expect(result.current.leftTurnPending).toBe(false);
+  });
+
+  it("keeps the thread it left marked as working, for the listing to take over", () => {
+    // The listing may not have seen the run yet - the gap the working mark is
+    // there for - so leaving the thread must not take the mark down with the turn.
+    let conversationId = "c-a";
+    const { result, rerender } = renderHook(() => useChat({ conversationId }), { wrapper });
+    act(() => result.current.sendMessage("a long question"));
+    expect(useWorkingStore.getState().since["c-a"]).toBeDefined();
+
+    conversationId = "c-b";
+    rerender();
+
+    expect(useWorkingStore.getState().since["c-a"]).toBeDefined();
+    expect(useWorkingStore.getState().handedOff["c-a"]).toBe(true);
   });
 
   it("stops saying so once the reader goes to look", () => {

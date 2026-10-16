@@ -59,6 +59,10 @@ interface ConversationItemProps {
   onFavourite: (favourite: boolean) => void;
 }
 
+/** How long a thread left mid-answer keeps its mark when the listing never shows
+ *  its run: a turn that short is over by then, and the listing is right. */
+const HANDOFF_GRACE_MS = 20_000;
+
 function ConversationItem({
   conversation,
   isActive,
@@ -113,6 +117,21 @@ function ConversationItem({
   // look idle for it.
   const workingHere = useWorkingStore((state) => state.since[conversation.id]);
   const runningSince = conversation.running_since ?? workingHere ?? null;
+  // A thread this tab left mid-answer keeps its own mark until the listing has
+  // the run - then the listing speaks for it, and polls it to its end - or until
+  // long enough that a turn the listing never saw has surely finished.
+  const handedOff = useWorkingStore((state) => conversation.id in state.handedOff);
+  const settleWorking = useWorkingStore((state) => state.settle);
+  const listed = conversation.running_since != null;
+  useEffect(() => {
+    if (!handedOff) return;
+    if (listed) {
+      settleWorking(conversation.id);
+      return;
+    }
+    const timer = setTimeout(() => settleWorking(conversation.id), HANDOFF_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [handedOff, listed, conversation.id, settleWorking]);
   const agentLabel =
     agents.length === 0
       ? null
@@ -761,6 +780,19 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
+
+  // A link to another thread followed from this page - the inbox's "answered
+  // while you were away" - is a same-page navigation: nothing remounts, so the
+  // effect above never sees the new `?id=`, and the address said one thread while
+  // the chat showed another. Acted on only when the address moves, and only when
+  // it disagrees: a thread picked here writes `?id=` after it is already open.
+  const linkedId = searchParams.get("id");
+  const lastLinked = useRef(linkedId);
+  useEffect(() => {
+    if (lastLinked.current === linkedId) return;
+    lastLinked.current = linkedId;
+    if (linkedId !== null && linkedId !== currentConversationId) void selectConversation(linkedId);
+  }, [linkedId, currentConversationId, selectConversation]);
 
   const changeView = (next: ConversationView) => {
     setView(next);

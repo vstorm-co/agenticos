@@ -114,6 +114,10 @@ interface ChatContainerProps {
   holdSending?: boolean;
 }
 
+/** When to read a finished turn's transcript again while its answer is not yet
+ *  written: at once, then backing off, about fifteen seconds in all. */
+const ANSWER_REREADS_MS = [0, 500, 1000, 2000, 4000, 8000];
+
 /** The test panel's pinned questions, and how one is pinned or taken off. */
 export interface PinnedPrompts {
   pinned: readonly string[];
@@ -275,14 +279,36 @@ export function ChatContainer({
     runningSince !== null && !isProcessing && messages.at(-1)?.role === "user";
   // And fetch the answer when that run ends, rather than waiting for a reload:
   // the run's end clears `running_since`, and the transcript is where it landed.
+  //
+  // Read until it is there, not once. The run's terminal event is published when
+  // its row commits, and the session writes the answer after that, so the first
+  // read can come back ending in the question - and nothing else would ask again.
   const runningIn = useRef<{ id: string | null; running: boolean }>({ id: null, running: false });
+  const answered = messages.at(-1)?.role === "assistant";
+  const answeredRef = useRef(answered);
+  useEffect(() => {
+    answeredRef.current = answered;
+  }, [answered]);
   useEffect(() => {
     const was = runningIn.current;
     const running = runningSince !== null;
     runningIn.current = { id: currentConversationId, running };
     if (was.id !== currentConversationId || !was.running || running) return;
-    if (messages.at(-1)?.role !== "assistant") handleTurnInterrupted();
-  }, [runningSince, currentConversationId, messages, handleTurnInterrupted]);
+    if (currentConversationId === null || answeredRef.current) return;
+    const id = currentConversationId;
+    let waiting = true;
+    void (async () => {
+      for (const pause of ANSWER_REREADS_MS) {
+        await new Promise((resolve) => setTimeout(resolve, pause));
+        if (!waiting) return;
+        await selectConversation(id);
+        if (useConversationStore.getState().currentMessages.at(-1)?.role === "assistant") return;
+      }
+    })();
+    return () => {
+      waiting = false;
+    };
+  }, [runningSince, currentConversationId, selectConversation]);
 
   // What the file panel watches, rather than a timer. Counted from the transcript
   // rather than kept as state: a finished assistant message *is* a finished turn,

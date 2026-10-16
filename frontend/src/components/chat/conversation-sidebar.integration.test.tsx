@@ -106,6 +106,7 @@ beforeEach(() => {
   urlParams = new URLSearchParams();
   window.history.replaceState({}, "", "/chat");
   useConversationStore.getState().reset();
+  useWorkingStore.getState().reset();
   useChatBandsStore.setState({ folded: [], opened: [] });
   mockAgents = [{ id: "a-1", name: "Analyst", status: "published", can_run: true }];
   serve([conversation("c-1", "Quarterly numbers")]);
@@ -131,6 +132,23 @@ describe("the list the URL asks for", () => {
     mount();
 
     await waitFor(() => expect(listRequests().at(-1)).toContain("sort_by=updated_at"));
+  });
+});
+
+describe("a link to another thread followed from this page", () => {
+  it("opens the thread the address now names", async () => {
+    // A notification's link is a same-page navigation: nothing remounts (#2108).
+    urlParams = new URLSearchParams("id=c-1");
+    window.history.replaceState({}, "", "/chat?id=c-1");
+    serve([conversation("c-1", "First one"), conversation("c-2", "Answered while away")]);
+    const { rerender } = mount();
+    await screen.findAllByText("First one");
+    await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-1"));
+
+    urlParams = new URLSearchParams("id=c-2");
+    rerender(<ConversationSidebar />);
+
+    await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBe("c-2"));
   });
 });
 
@@ -167,6 +185,49 @@ describe("what the sidebar says about the list", () => {
 
     act(() => useWorkingStore.getState().stop("c-2"));
     expect(within(asked).queryByText(/Working/)).toBeNull();
+  });
+
+  it("hands a thread this tab left mid-answer to the listing once it has the run", async () => {
+    useWorkingStore.getState().start("c-2", new Date(Date.now() - 3_000).toISOString());
+    useWorkingStore.getState().handOff("c-2");
+    serve([
+      {
+        ...conversation("c-2", "Left mid-answer"),
+        running_since: new Date(Date.now() - 3_000).toISOString(),
+      },
+    ] as unknown as ReturnType<typeof conversation>[]);
+    mount();
+    await screen.findAllByText("Left mid-answer");
+
+    await waitFor(() => expect(useWorkingStore.getState().handedOff).toEqual({}));
+    expect(useWorkingStore.getState().since).toEqual({});
+    const row = within(list())
+      .getByText("Left mid-answer")
+      .closest("[class*='group']") as HTMLElement;
+    expect(within(row).getByText(/Working/)).toBeInTheDocument();
+  });
+
+  it("lets a handed-off mark go when the listing never shows the run", async () => {
+    // A turn short enough to end between two listings: after the grace, the
+    // listing that says nothing is running is right.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      useWorkingStore.getState().start("c-2", new Date(Date.now() - 3_000).toISOString());
+      useWorkingStore.getState().handOff("c-2");
+      serve([conversation("c-2", "Quick one")]);
+      mount();
+      await screen.findAllByText("Quick one");
+      const row = within(list()).getByText("Quick one").closest("[class*='group']") as HTMLElement;
+      expect(within(row).getByText(/Working/)).toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000);
+      });
+
+      expect(within(row).queryByText(/Working/)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("marks a thread with an answer the reader has not seen, but not the open one", async () => {

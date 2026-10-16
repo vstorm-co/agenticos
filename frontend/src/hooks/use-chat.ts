@@ -321,6 +321,7 @@ export function useChat(options: UseChatOptions = {}) {
   const turnStartedAt = useRef<string | null>(null);
   const startWorking = useWorkingStore((state) => state.start);
   const stopWorking = useWorkingStore((state) => state.stop);
+  const handOffWorking = useWorkingStore((state) => state.handOff);
   useEffect(() => {
     if (!isProcessing) {
       turnStartedAt.current = null;
@@ -1713,10 +1714,13 @@ export function useChat(options: UseChatOptions = {}) {
     const previous = turnBelongsTo.current;
     turnBelongsTo.current = activeConversationId;
     if (previous === null || previous === activeConversationId || !isProcessing) return;
+    // Before the working mark's own cleanup, which runs after layout effects:
+    // the thread left is still being answered, whatever this tab does next.
+    handOffWorking(previous);
     endTurnLocally();
     reopen();
     setLeftRunning((threads) => new Set(threads).add(previous));
-  }, [activeConversationId, isProcessing, endTurnLocally, reopen]);
+  }, [activeConversationId, isProcessing, endTurnLocally, reopen, handOffWorking]);
 
   // The answer that was left behind has landed - the transcript, re-read on
   // coming back, ends with it - so there is nothing still coming to talk about.

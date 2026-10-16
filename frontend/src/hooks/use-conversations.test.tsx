@@ -12,6 +12,7 @@ import {
   useChatStore,
   useConversationStore,
   useOrgStore,
+  useWorkingStore,
 } from "@/stores";
 
 vi.mock("@/lib/api-client", () => ({
@@ -112,6 +113,24 @@ describe("the conversation list", () => {
     // Nothing at work now, so no further read comes.
     await act(async () => vi.advanceTimersByTimeAsync(8_000));
     expect(lists()).toBe(first + 1);
+    vi.useRealTimers();
+  });
+
+  it("reads the list again while a thread this tab left mid-answer is not on it yet", async () => {
+    // The listing has not seen the run the tab let go; polling is how it does.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    useWorkingStore.getState().start("c-1", "2026-10-13T12:00:00Z");
+    useWorkingStore.getState().handOff("c-1");
+    serve({ items: [conversation("c-1", { running_since: null })] });
+    await hook();
+    const lists = () =>
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => !String(path).includes("/messages"))
+        .length;
+    const first = lists();
+
+    await act(async () => vi.advanceTimersByTimeAsync(4_000));
+    await waitFor(() => expect(lists()).toBe(first + 1));
+    useWorkingStore.getState().reset();
     vi.useRealTimers();
   });
 

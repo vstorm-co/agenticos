@@ -15,6 +15,7 @@ import {
   useChatStore,
   useInChatScope,
   useOrgStore,
+  useWorkingStore,
 } from "@/stores";
 import type {
   Conversation,
@@ -210,9 +211,11 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     },
     // While a thread on the page is at work, ask again every few seconds, so its
     // row stops saying so when the run ends - a routine's, or another tab's, as
-    // well as this one's.
+    // well as this one's. A thread this tab handed off counts too: the listing
+    // has to catch up with it before it can say anything about it.
     refetchInterval: (query) =>
-      query.state.data?.items.some((conversation) => conversation.running_since)
+      query.state.data?.items.some((conversation) => conversation.running_since) ||
+      Object.keys(useWorkingStore.getState().handedOff).length > 0
         ? RUNNING_POLL_MS
         : false,
   });

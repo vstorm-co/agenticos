@@ -479,7 +479,7 @@ write — so set it well past your longest legitimate run and no closer. See
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `CHAT_DETACHED_TURN_MINUTES` | `60` | How long a chat turn goes on after the person who asked it has left - a closed tab, a quit app, a dropped connection - before it is stopped |
+| `CHAT_DETACHED_TURN_MINUTES` | `60` | How long a chat turn goes on after the person who asked it has left - a closed tab, a quit app, a dropped connection - before it is stopped; at most `120`, past which the conversation list no longer shows the turn as at work |
 
 The answer lands in the conversation and its person is notified, so this bounds
 spend on an answer that may never be read rather than switching anything off. It

@@ -1,5 +1,5 @@
 ---
-source_sha: "5ac052aff72b"
+source_sha: "d81e5264a713"
 ---
 
 # Konfiguracja { #configuration }
@@ -487,7 +487,7 @@ najdłuższym uprawnionym runem i nie bliżej. Zobacz
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|
-| `CHAT_DETACHED_TURN_MINUTES` | `60` | Jak długo tura czatu trwa po tym, jak osoba, która pytała, wyszła - zamknięta karta, zamknięta aplikacja, zerwane połączenie - zanim zostanie zatrzymana |
+| `CHAT_DETACHED_TURN_MINUTES` | `60` | Jak długo tura czatu trwa po tym, jak osoba, która pytała, wyszła - zamknięta karta, zamknięta aplikacja, zerwane połączenie - zanim zostanie zatrzymana; najwyżej `120`, bo dłużej lista rozmów przestaje pokazywać turę jako trwającą |
 
 Odpowiedź trafia do rozmowy, a jej osoba dostaje powiadomienie, więc to ogranicza
 wydatki na odpowiedź, której może nikt nie przeczytać, a nie wyłącza czegokolwiek.

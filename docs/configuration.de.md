@@ -1,5 +1,5 @@
 ---
-source_sha: "5ac052aff72b"
+source_sha: "d81e5264a713"
 ---
 
 # Konfiguration { #configuration }
@@ -511,7 +511,7 @@ legitimen Run und nicht knapper. Siehe
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
-| `CHAT_DETACHED_TURN_MINUTES` | `60` | Wie lange ein Chat-Turn weiterläuft, nachdem die fragende Person gegangen ist - geschlossener Tab, beendete App, abgebrochene Verbindung -, bevor er gestoppt wird |
+| `CHAT_DETACHED_TURN_MINUTES` | `60` | Wie lange ein Chat-Turn weiterläuft, nachdem die fragende Person gegangen ist - geschlossener Tab, beendete App, abgebrochene Verbindung -, bevor er gestoppt wird; höchstens `120`, denn danach zeigt die Gesprächsliste den Turn nicht mehr als laufend |
 
 Die Antwort landet in der Unterhaltung und ihre Person wird benachrichtigt; der
 Wert begrenzt also die Ausgaben für eine Antwort, die vielleicht nie gelesen wird,

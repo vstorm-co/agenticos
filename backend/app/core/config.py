@@ -289,7 +289,10 @@ class Settings(BaseSettings):
     # The answer lands in the conversation and they are notified, so this bounds
     # spend on an answer that may never be read rather than gating the feature.
     # Long enough for a research or browsing task; a run still has its budget.
-    CHAT_DETACHED_TURN_MINUTES: float = 60.0
+    # At most two hours, the `RUNNING_HORIZON` past which the conversation list
+    # stops calling a run at work: a longer turn would go on unseen, and someone
+    # reopening the thread could ask again over an answer still being written.
+    CHAT_DETACHED_TURN_MINUTES: float = Field(default=60.0, gt=0, le=120)
     # How long a run may sit `running` before the sweep decides its process
     # died. The row is committed before the model is called (#12), so a worker
     # killed mid-run leaves it `running` with nothing left to finish it - in

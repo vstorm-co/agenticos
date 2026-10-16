@@ -3238,7 +3238,7 @@ class TestTellingThePersonWhoLeft:
     """
 
     @contextmanager
-    def _left(self, ends: Any) -> Iterator[SimpleNamespace]:
+    def _left(self, ends: Any, *, saved_as: str | None = "saved-1") -> Iterator[SimpleNamespace]:
         """A turn that waits for the socket to go, then ends as `ends` says."""
         gone = asyncio.Event()
         run_id = uuid4()
@@ -3254,7 +3254,7 @@ class TestTellingThePersonWhoLeft:
         notifications.answered_while_away = AsyncMock()
         run_row, agent_row = MagicMock(), MagicMock()
         with (
-            _chat(AsyncMock(side_effect=run)),
+            _chat(AsyncMock(side_effect=run), message_id=saved_as),
             patch("app.services.agent_session.NotificationService", return_value=notifications),
             patch.object(
                 agent_session_module.agent_run_repo, "get_run", AsyncMock(return_value=run_row)
@@ -3283,6 +3283,15 @@ class TestTellingThePersonWhoLeft:
         assert left.told.await_args.args == (left.run,)
         assert left.told.await_args.kwargs["conversation_id"] == UUID(_CONVERSATION)
         assert left.told.await_args.kwargs["error"] is None
+
+    async def test_an_answer_whose_write_failed_is_not_announced_as_answered(self):
+        """The run finished but the message did not save, so the link would open
+        a conversation ending in the question."""
+        session = _session()
+        with self._left(_finished_turn(), saved_as=None) as left:
+            await self._leave(session, left)
+
+        assert left.told.await_args.kwargs["error"] == "the answer could not be saved."
 
     async def test_a_turn_that_failed_after_they_left_says_why(self):
         session = _session()

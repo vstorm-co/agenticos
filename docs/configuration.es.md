@@ -1,5 +1,5 @@
 ---
-source_sha: "5ac052aff72b"
+source_sha: "d81e5264a713"
 ---
 
 # Configuración { #configuration }
@@ -499,7 +499,7 @@ no más cerca. Ver [Gobernanza](governance.md#a-run-whose-process-died).
 
 | Variable | Predeterminado | Descripción |
 |----------|---------|-------------|
-| `CHAT_DETACHED_TURN_MINUTES` | `60` | Cuánto sigue un turno de chat después de que la persona que preguntó se fue - pestaña cerrada, app cerrada, conexión perdida - antes de detenerse |
+| `CHAT_DETACHED_TURN_MINUTES` | `60` | Cuánto sigue un turno de chat después de que la persona que preguntó se fue - pestaña cerrada, app cerrada, conexión perdida - antes de detenerse; como máximo `120`, porque después la lista de conversaciones deja de mostrar el turno como en curso |
 
 La respuesta llega a la conversación y se avisa a su persona, así que esto limita
 el gasto en una respuesta que quizá nadie lea, en lugar de apagar nada. Debe cubrir

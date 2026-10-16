@@ -142,6 +142,10 @@ def _turn_failed(exc: Exception) -> str:
     )
 
 
+_ANSWER_NOT_SAVED = "the answer could not be saved."
+"""What the away notice says when the run finished and its answer's write failed."""
+
+
 class _Outcome(NamedTuple):
     """How a turn ended, for telling somebody who was not there to see it."""
 
@@ -622,7 +626,12 @@ class AgentSession:
                 answered = True
                 await self._remember_context(turn)
                 if turn.run_id is not None and not turn.parked and not turn.questions:
-                    self._outcome = _Outcome(turn.run_id, agent_id, None)
+                    # Only an answer that is there to come back to. A write that
+                    # failed returns no id, and "answered while you were away"
+                    # would link to a conversation ending in the question.
+                    self._outcome = _Outcome(
+                        turn.run_id, agent_id, None if assistant_msg_id else _ANSWER_NOT_SAVED
+                    )
 
             if assistant_msg_id:
                 await send_event(
