@@ -796,6 +796,63 @@ async def recent_tool_calls(
     return [ToolCallSeen(*row) for row in result.all()]
 
 
+class ToolCallArgs(NamedTuple):
+    """A recorded call's name and arguments, and the agent whose turn made it."""
+
+    tool_call_id: str
+    tool_name: str
+    args: dict[str, Any]
+    agent_id: UUID | None = None
+
+
+async def tool_calls_named(
+    db: AsyncSession, *, conversation_id: UUID, names: Collection[str], limit: int
+) -> list[ToolCallArgs]:
+    """The conversation's latest calls of these tools that returned, oldest first."""
+    newest = (
+        select(ToolCall.tool_call_id, ToolCall.tool_name, ToolCall.args, ToolCall.started_at)
+        .join(Message, Message.id == ToolCall.message_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            ToolCall.tool_name.in_(names),
+            ToolCall.status == "completed",
+        )
+        .order_by(ToolCall.started_at.desc())
+        .limit(limit)
+        .subquery()
+    )
+    result = await db.execute(
+        select(newest.c.tool_call_id, newest.c.tool_name, newest.c.args).order_by(
+            newest.c.started_at.asc()
+        )
+    )
+    return [ToolCallArgs(*row) for row in result.all()]
+
+
+async def tool_call_in_conversation(
+    db: AsyncSession, *, conversation_id: UUID, tool_call_id: str, names: Collection[str]
+) -> ToolCallArgs | None:
+    """One returned call of these tools, by the provider's id, within one conversation.
+
+    The conversation is the boundary: the id is the model's to name, and a call in
+    any other conversation is not one it may reach.
+    """
+    result = await db.execute(
+        select(ToolCall.tool_call_id, ToolCall.tool_name, ToolCall.args, Message.agent_id)
+        .join(Message, Message.id == ToolCall.message_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            ToolCall.tool_call_id == tool_call_id,
+            ToolCall.tool_name.in_(names),
+            ToolCall.status == "completed",
+        )
+        .order_by(ToolCall.started_at.desc())
+        .limit(1)
+    )
+    row = result.first()
+    return ToolCallArgs(*row) if row is not None else None
+
+
 async def get_message_by_id(db: AsyncSession, message_id: UUID) -> Message | None:
     """Get message by ID."""
     return await db.get(Message, message_id)

@@ -26,6 +26,7 @@ from app.agents.connect_on_use import ConnectionRequest
 from app.agents.failures import run_failure_summary
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
+from app.agents.visual_reports import VisualReports
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError
 from app.db.models.chat_file import ChatFile
@@ -211,6 +212,8 @@ class AgentSession:
         # What the person adds to the running turn (#2087). Set for the length of
         # a turn by `process_message`, None between turns.
         self._steering: SteeringInbox | None = None
+        # How the turn's drawings rendered in this tab (#2171), for the same span.
+        self._visual_reports: VisualReports | None = None
         # The running turn's agent and run, and how the turn ended - read by
         # `shutdown` to tell a person who left before the answer came (#2108).
         self._turn_agent_id: UUID | None = None
@@ -279,6 +282,19 @@ class AgentSession:
             if not await self._reauthorize():
                 return
             inbox.add(text)
+            return
+
+        if msg_type == "visual_report":
+            reports = self._visual_reports
+            call_id = data.get("tool_call_id")
+            raw = data.get("errors")
+            if reports is None or not isinstance(call_id, str) or not isinstance(raw, list):
+                return
+            if self._turn_task is None or self._turn_task.done():
+                return
+            if not await self._reauthorize():
+                return
+            reports.resolve(call_id, [str(error) for error in raw])
             return
 
         if msg_type == "connect_account_response":
@@ -518,6 +534,8 @@ class AgentSession:
 
         steering = SteeringInbox(on_applied=steered)
         self._steering = steering
+        visual_reports = VisualReports()
+        self._visual_reports = visual_reports
         # The run row, as soon as `prepare` opens one. A list because the
         # callback is `list.append` and a turn opens at most one run - it is
         # empty when the run was refused before it existed.
@@ -592,6 +610,7 @@ class AgentSession:
                     # as a test either way (#2074).
                     testing=requested_testing(data),
                     steering=steering,
+                    visual_reports=visual_reports,
                 )
             # `turn.output` is what the run *ended* with; a turn that parked ended
             # with nothing, so its words are on the timeline (#509).
@@ -703,6 +722,7 @@ class AgentSession:
         finally:
             self._current_timeline = None
             self._steering = None
+            self._visual_reports = None
             late = steering.unapplied()
             if late:
                 # Sent after the agent's last request, so no request carried them.

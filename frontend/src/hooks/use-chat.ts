@@ -11,6 +11,8 @@ import { clientId } from "@/lib/ids";
 import { useChatStore, useAuthStore, useInChatScope, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
+import { appendVisualArgs, dropVisualArgs } from "@/stores/visual-stream-store";
+import { isVisualTool } from "@/lib/visuals";
 import { Perm } from "@/types/permissions";
 import type {
   ActionRequest,
@@ -173,6 +175,8 @@ export function useChat(options: UseChatOptions = {}) {
   // The tool calls whose arguments are still streaming, by part index, so a turn
   // that ends before `tool_call` arrives can mark them unfinished.
   const streamingCallsRef = useRef<Map<number, string>>(new Map());
+  // The streaming calls that draw, whose arguments are shown as they arrive.
+  const visualCallsRef = useRef<Set<string>>(new Set());
   // Whether the next text delta opens a new model response, and so a new part.
   const newResponseRef = useRef(false);
   // Outbound queue: messages typed while agent is busy / socket offline. Held
@@ -508,6 +512,7 @@ export function useChat(options: UseChatOptions = {}) {
           };
           if (currentMessageIdRef.current && tool_name && tool_call_id) {
             streamingCallsRef.current.set(index, tool_call_id);
+            if (isVisualTool(tool_name)) visualCallsRef.current.add(tool_call_id);
             addToolCallPart(currentMessageIdRef.current, {
               id: tool_call_id,
               name: tool_name,
@@ -520,9 +525,17 @@ export function useChat(options: UseChatOptions = {}) {
 
         // How far the arguments have streamed is not drawn: a byte count beside
         // the step said nothing a reader could use, and writing it into the store
-        // on every frame re-rendered the turn hundreds of times a second.
-        case "tool_call_delta":
+        // on every frame re-rendered the turn hundreds of times a second. A
+        // drawing is the exception - it is shown as it is written - and its text
+        // gathers outside the chat store (`visual-stream-store`).
+        case "tool_call_delta": {
+          const { index, args_delta } = wsEvent.data as { index: number; args_delta: unknown };
+          const callId = streamingCallsRef.current.get(index);
+          if (callId !== undefined && visualCallsRef.current.has(callId)) {
+            appendVisualArgs(callId, args_delta);
+          }
           break;
+        }
 
         case "text_delta": {
           // Append to the ordered parts timeline (extends the trailing
@@ -561,6 +574,7 @@ export function useChat(options: UseChatOptions = {}) {
               args,
               status: "running",
             };
+            if (visualCallsRef.current.delete(tool_call_id)) dropVisualArgs(tool_call_id);
             const drawn = chatApi
               .getState()
               .messages.find((m) => m.id === currentMessageIdRef.current)
@@ -1816,6 +1830,15 @@ export function useChat(options: UseChatOptions = {}) {
   const onThisConversation =
     liveUsage !== null && liveUsage.conversationId === activeConversationId;
 
+  // How a drawing rendered in this tab, for the `draw` call still waiting on it:
+  // the model hears a script error while it can still fix it (#2171).
+  const reportVisual = useCallback(
+    (toolCallId: string, errors: string[]) => {
+      sendMessage({ type: "visual_report", tool_call_id: toolCallId, errors });
+    },
+    [sendMessage],
+  );
+
   return {
     messages,
     isConnected,
@@ -1845,6 +1868,8 @@ export function useChat(options: UseChatOptions = {}) {
     connect,
     disconnect,
     sendMessage: sendChatMessage,
+    /** Tell the running turn how one of its drawings rendered. */
+    reportVisual,
     stopGeneration,
     clearMessages,
     queuedMessages,

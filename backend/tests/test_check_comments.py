@@ -95,3 +95,23 @@ def test_a_root_that_itself_lives_under_a_skipped_name_is_walked(tmp_path: Path)
     (root / "module.py").write_text(BANNER_LINE)
 
     assert "module.py" in _walked(root)
+
+
+def test_a_vendored_library_package_is_not_walked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """three.js keeps its package layout in the artifact library set, comments and all.
+
+    Its banners are its authors', vendored byte for byte; the set's own files beside
+    it are this repository's and still read.
+    """
+    library = tmp_path / "artifact_lib"
+    (library / "three-0.186.0").mkdir(parents=True)
+    (library / "three-0.186.0" / "three.module.js").write_text(BANNER_LINE.replace("#", "//"))
+    (library / "agenticos-2.js").write_text(BANNER_LINE.replace("#", "//"))
+    monkeypatch.setattr(check_comments, "VENDORED", library)
+
+    walked = _walked(tmp_path)
+
+    assert "artifact_lib/agenticos-2.js" in walked
+    assert "artifact_lib/three-0.186.0/three.module.js" not in walked

@@ -1,0 +1,433 @@
+"""Visuals - drawings an agent writes into the conversation, and how they are framed.
+
+A visual is an app that has not been saved: a self-contained document an agent
+writes as the `content` argument of `draw`, rendered live in the chat while the
+argument streams. It is stored nowhere but in the tool call that carried it, so a
+reload re-renders it from the transcript.
+
+Two things live here because both the frame and a saved app must agree on them:
+
+- **The document a visual becomes** (:func:`visual_document`). `html` is the page
+  as written; `svg` and `mermaid` are wrapped into one. The live frame builds the
+  same document from the same templates, which :func:`frame_document` hands it, so
+  what is drawn in the chat and what is saved as an app are the same bytes.
+- **The frame** (:func:`frame_document`): one fixed page served on the content
+  origin under the app sandbox policy. It holds no visual - the console posts the
+  content into it - so nothing streaming has to be stored before it can be shown,
+  and the isolation comes from a response header rather than a `srcdoc` meta tag.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from html import escape
+from pathlib import Path
+from typing import Any, Literal
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
+from app.core.permissions import AuthContext
+from app.db.models.artifact import ArtifactMediaType
+from app.db.session import get_db_context
+from app.repositories import agent_run as agent_run_repo
+from app.repositories import conversation as conversation_repo
+from app.repositories.conversation import ToolCallArgs
+from app.schemas.visual import VisualPublish, VisualPublished
+from app.services import artifact as artifacts
+from app.services.artifact import PLATFORM_SCRIPT
+from app.services.conversation import ConversationService
+
+VisualKind = Literal["svg", "html", "mermaid"]
+
+DRAW = "draw"
+REVISE = "revise_visual"
+VISUAL_TOOLS = (DRAW, REVISE)
+"""The calls that leave a visual behind. `read_visual` reads one and leaves none."""
+
+_KINDS: tuple[VisualKind, ...] = ("svg", "html", "mermaid")
+
+MAX_CHAIN = 50
+"""How many revisions deep a visual is followed before it is called broken.
+
+A revision names the visual it changes, and that one may be a revision too. The
+id is the model's to choose, so a chain is bounded rather than trusted to end.
+"""
+
+_FRAME_PATH = Path(__file__).resolve().parent.parent / "core" / "catalog" / "visuals" / "frame.html"
+
+MERMAID_LIBRARY = "lib/mermaid-12.1.0.min.js"
+
+_SVG_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}}</title>
+<style>
+:root { color-scheme: light dark; }
+html, body { margin: 0; height: 100%; }
+body > svg { display: block; width: 100%; height: 100%; }
+</style></head><body>
+{{content}}
+</body></html>
+"""
+
+_MERMAID_PAGE = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{{{title}}}}</title>
+<style>
+:root {{ color-scheme: light dark; }}
+html, body {{ margin: 0; }}
+body {{ font: 14px/1.5 system-ui, sans-serif; padding: 16px; box-sizing: border-box; }}
+.mermaid {{ margin: 0; display: flex; justify-content: center; }}
+.mermaid svg {{ max-width: 100%; height: auto; }}
+</style>
+<script src="{MERMAID_LIBRARY}"></script>
+</head><body>
+<pre class="mermaid">{{{{content}}}}</pre>
+<script>
+mermaid.initialize({{
+  startOnLoad: false,
+  securityLevel: "strict",
+  theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "default",
+}});
+mermaid.run({{ querySelector: ".mermaid" }});
+</script>
+</body></html>
+"""
+
+VISUAL_RUNTIME = """<script data-agenticos="visual">(function () {
+  "use strict";
+  function post(message) {
+    try { parent.postMessage(message, "*"); } catch (error) { /* opened on its own */ }
+  }
+  function fail(message) { post({ type: "agenticos:visual-error", message: String(message) }); }
+  window.addEventListener("error", function (event) {
+    var target = event.target;
+    if (target && target !== window && (target.src || target.href)) {
+      fail("Could not load " + (target.src || target.href));
+      return;
+    }
+    fail((event.message || "Script error") + (event.lineno ? " (line " + event.lineno + ")" : ""));
+  }, true);
+  window.addEventListener("unhandledrejection", function (event) {
+    var reason = event.reason;
+    fail(reason && reason.message ? reason.message : reason);
+  });
+  document.addEventListener("securitypolicyviolation", function (event) {
+    fail("Blocked: " + (event.blockedURI || "inline") + " is not allowed (" + event.effectiveDirective + ")");
+  });
+  function size() {
+    post({ type: "agenticos:visual-size", height: Math.ceil(document.documentElement.scrollHeight) });
+  }
+  if (window.ResizeObserver) new ResizeObserver(size).observe(document.documentElement);
+  window.addEventListener("load", function () {
+    size();
+    setTimeout(function () { post({ type: "agenticos:visual-rendered" }); }, 800);
+  });
+  setInterval(function () { post({ type: "agenticos:visual-alive" }); }, 1000);
+})();</script>"""
+"""What a visual's document gets first in the live frame: its size and its failures.
+
+Reported to the console, which sizes the frame to the drawing and tells the model
+what went wrong - a script error, a library that did not load, a request the
+policy refused. A heartbeat lets the console notice a drawing that has locked up.
+Not part of a saved app: there is nobody to report to on a page opened on its own.
+"""
+
+_frame: bytes | None = None
+
+
+@dataclass(frozen=True)
+class VisualSummary:
+    """A visual named for the model, without its content."""
+
+    id: str
+    title: str
+    kind: str
+    characters: int
+    revision_of: str | None
+
+
+def text_arg(args: dict[str, Any], key: str) -> str:
+    """A string argument of a recorded call, or empty when it is missing or not a string."""
+    value = args.get(key)
+    return value if isinstance(value, str) else ""
+
+
+def revised_id(call: ToolCallArgs) -> str | None:
+    """The visual a `revise_visual` call changed; `None` for a drawing."""
+    if call.tool_name != REVISE:
+        return None
+    return text_arg(call.args, "visual_id") or None
+
+
+def visual_kind(value: str) -> VisualKind | None:
+    """The kind a recorded call names, or `None` for anything else."""
+    for kind in _KINDS:
+        if value == kind:
+            return kind
+    return None
+
+
+@dataclass(frozen=True)
+class Visual:
+    """One visual as it now reads: a drawing, or a drawing with its revisions applied."""
+
+    id: str
+    title: str
+    kind: VisualKind
+    content: str
+    agent_id: UUID | None
+
+
+class VisualError(Exception):
+    """A visual that cannot be rebuilt, in words the model - or a person - can act on."""
+
+
+Lookup = Callable[[str], Awaitable[ToolCallArgs | None]]
+
+
+def _replacements(raw: object) -> list[tuple[str, str]]:
+    if not isinstance(raw, list):
+        return []
+    pairs: list[tuple[str, str]] = []
+    for item in raw:
+        if isinstance(item, dict):
+            old, new = item.get("old"), item.get("new")
+            if isinstance(old, str) and isinstance(new, str):
+                pairs.append((old, new))
+    return pairs
+
+
+async def rebuild(visual_id: str, lookup: Lookup) -> Visual:
+    """The visual behind an id, with every revision on the way to it applied.
+
+    Raises:
+        VisualError: No visual has that id, a revision in the chain no longer
+            applies, or the chain does not end.
+    """
+    chain: list[ToolCallArgs] = []
+    current: str | None = visual_id.strip()
+    while current is not None:
+        if len(chain) >= MAX_CHAIN:
+            raise VisualError(f"Visual `{visual_id}` has too many revisions. Draw it again.")
+        call = await lookup(current)
+        if call is None:
+            if not chain:
+                raise VisualError(
+                    f"There is no visual `{current}` in this conversation. Use the id a "
+                    "`draw` or `revise_visual` call returned."
+                )
+            raise VisualError(
+                f"Visual `{visual_id}` revises `{current}`, which is gone. Draw it again."
+            )
+        chain.append(call)
+        current = revised_id(call)
+
+    origin = chain[-1].args
+    kind = visual_kind(text_arg(origin, "kind"))
+    if kind is None:
+        raise VisualError(f"Visual `{visual_id}` has no kind it can be drawn as. Draw it again.")
+    title = text_arg(origin, "title")
+    content = text_arg(origin, "content")
+    for call in reversed(chain[:-1]):
+        try:
+            content = artifacts.apply_replacements(content, _replacements(call.args.get("edits")))
+        except ValueError as missed:
+            raise VisualError(
+                f"A revision of `{visual_id}` no longer applies: {missed}"
+            ) from missed
+        title = text_arg(call.args, "title") or title
+    return Visual(
+        id=chain[0].tool_call_id,
+        title=title,
+        kind=kind,
+        content=content,
+        agent_id=chain[0].agent_id,
+    )
+
+
+async def conversation_of_run(*, run_id: UUID, organization_id: UUID) -> UUID | None:
+    """The conversation a run answers in, or `None` for one that has none."""
+    async with get_db_context() as db:
+        run = await agent_run_repo.get_run(db, run_id, organization_id=organization_id)
+    return run.conversation_id if run is not None else None
+
+
+async def stored_call(*, conversation_id: UUID, tool_call_id: str) -> ToolCallArgs | None:
+    """A returned `draw` or `revise_visual` call in this conversation's transcript."""
+    async with get_db_context() as db:
+        return await conversation_repo.tool_call_in_conversation(
+            db, conversation_id=conversation_id, tool_call_id=tool_call_id, names=VISUAL_TOOLS
+        )
+
+
+async def earlier_visuals(*, conversation_id: UUID, limit: int) -> list[VisualSummary]:
+    """The conversation's latest visuals, oldest first, named but not read."""
+    async with get_db_context() as db:
+        calls = await conversation_repo.tool_calls_named(
+            db, conversation_id=conversation_id, names=VISUAL_TOOLS, limit=limit
+        )
+    titles = {call.tool_call_id: text_arg(call.args, "title") for call in calls}
+    kinds = {call.tool_call_id: text_arg(call.args, "kind") for call in calls}
+    summaries: list[VisualSummary] = []
+    for call in calls:
+        base = revised_id(call)
+        title = titles[call.tool_call_id] or (titles.get(base, "") if base else "")
+        kind = kinds[call.tool_call_id] or (kinds.get(base, "") if base else "")
+        if base:
+            titles[call.tool_call_id] = title
+            kinds[call.tool_call_id] = kind
+        summaries.append(
+            VisualSummary(
+                id=call.tool_call_id,
+                title=title or "Untitled",
+                kind=kind or "visual",
+                characters=len(text_arg(call.args, "content")),
+                revision_of=base,
+            )
+        )
+    return summaries
+
+
+class VisualService:
+    """What a member does with a visual from the console: save it as an app."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def publish(
+        self, ctx: AuthContext, conversation_id: UUID, visual_id: str, data: VisualPublish
+    ) -> VisualPublished:
+        """Save a visual as a version of an app, under the agent whose turn drew it.
+
+        The bytes are rebuilt from the transcript, never taken from the client, so
+        the app is exactly what the agent drew. A name the member already has adds
+        a version to that app; one belonging to somebody else is refused, as it is
+        for an agent's own publication.
+
+        Raises:
+            NotFoundError: No such conversation for this member, or no such visual
+                in it.
+            BadRequestError: The name is not a valid app name, the visual cannot be
+                rebuilt, or it is too large to be an app.
+            AuthorizationError: The name is another member's app.
+        """
+        if ctx.user_id is None:
+            raise AuthorizationError(message="Saving a visual takes a signed-in member")
+        await ConversationService(self.db).get_conversation(
+            conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            ctx=ctx,
+            include_favourite=False,
+        )
+
+        async def lookup(call_id: str) -> ToolCallArgs | None:
+            return await conversation_repo.tool_call_in_conversation(
+                self.db, conversation_id=conversation_id, tool_call_id=call_id, names=VISUAL_TOOLS
+            )
+
+        try:
+            visual = await rebuild(visual_id, lookup)
+        except VisualError as broken:
+            if await lookup(visual_id) is None:
+                raise NotFoundError(
+                    message="There is no such visual in this conversation",
+                    details={"visual_id": visual_id},
+                ) from broken
+            raise BadRequestError(message=str(broken), details={"visual_id": visual_id}) from broken
+        if visual.agent_id is None:
+            raise BadRequestError(
+                message="This visual has no agent to save it under",
+                details={"visual_id": visual_id},
+            )
+        title = (data.title or "").strip() or visual.title or data.name
+        document = visual_document(visual.kind, visual.content, title=title).encode("utf-8")
+        problem = artifacts.publish_problem(
+            name=data.name, media_type=ArtifactMediaType.HTML, data=document
+        )
+        if problem is not None:
+            if not artifacts.valid_name(data.name):
+                raise refused_field("name", problem)
+            raise BadRequestError(message=problem, details={"visual_id": visual_id})
+        published = await artifacts.publish_with(
+            self.db,
+            organization_id=ctx.organization_id,
+            agent_id=visual.agent_id,
+            owner_user_id=ctx.user_id,
+            run_id=None,
+            name=data.name,
+            title=title[:200],
+            media_type=ArtifactMediaType.HTML,
+            data=document,
+        )
+        return VisualPublished(
+            artifact_id=published.artifact_id,
+            version=published.version_number,
+            name=published.name,
+            title=published.title,
+            created=published.created,
+            unchanged=published.unchanged,
+            url=artifacts.console_url_for(published.artifact_id, published.organization_id),
+        )
+
+
+def visual_document(kind: VisualKind, content: str, *, title: str) -> str:
+    """The self-contained page a visual is, as a saved app stores it."""
+    if kind == "html":
+        return content
+    template = _SVG_PAGE if kind == "svg" else _MERMAID_PAGE
+    body = content if kind == "svg" else escape(content, quote=False)
+    return template.replace("{{title}}", escape(title)).replace("{{content}}", body)
+
+
+async def frame_document() -> bytes:
+    """The renderer page, with the visual templates and the runtime it writes first.
+
+    Read once and kept: it is the same page for every visual.
+    """
+    global _frame
+    if _frame is None:
+        page = await asyncio.to_thread(_FRAME_PATH.read_text, "utf-8")
+        _frame = page.replace("</head>", _composer() + "\n</head>", 1).encode("utf-8")
+    return _frame
+
+
+def _composer() -> str:
+    """The frame's `__agenticosVisualDocument`, built from the templates above.
+
+    The templates travel as JSON in a script, so a `</script>` inside one is
+    written `<\\/script>` to keep the script element whole.
+    """
+    data = json.dumps(
+        {
+            "svg": _SVG_PAGE,
+            "mermaid": _MERMAID_PAGE,
+            "runtime": PLATFORM_SCRIPT + VISUAL_RUNTIME,
+        }
+    ).replace("</", "<\\/")
+    return f"""<script>(function () {{
+  "use strict";
+  var T = {data};
+  var LEAD = /^(?:\\uFEFF)?(?:\\s+|<!--[\\s\\S]*?-->)*(?:<!doctype\\b[^>]*>)?/i;
+  function esc(text, attribute) {{
+    var out = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return attribute ? out.replace(/"/g, "&quot;").replace(/'/g, "&#x27;") : out;
+  }}
+  window.__agenticosVisualDocument = function (kind, content, title) {{
+    var page = content;
+    if (kind === "svg" || kind === "mermaid") {{
+      var body = kind === "svg" ? content : esc(content, false);
+      page = T[kind].split("{{{{title}}}}").join(esc(title || "", true)).split("{{{{content}}}}").join(body);
+    }}
+    var lead = LEAD.exec(page)[0].length;
+    return page.slice(0, lead) + T.runtime + page.slice(lead);
+  }};
+}})();</script>"""

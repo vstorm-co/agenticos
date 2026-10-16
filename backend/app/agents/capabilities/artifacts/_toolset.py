@@ -120,31 +120,18 @@ def _media_type(path: str | None, fmt: str | None) -> ArtifactMediaType | str:
 
 
 def apply_edits(source: str, edits: list[ArtifactEdit]) -> str:
-    """The page with every edit applied in order.
-
-    Each `old` must occur exactly once in the page as the edits before it left it:
-    not at all means the model is editing from a memory of the page rather than the
-    page, and more than once means the edit does not say which one it means.
+    """The page with every edit applied in order - see :func:`artifacts.apply_replacements`.
 
     Raises:
-        ValueError: The first edit that does not name exactly one place, in words
-            the model can act on.
+        ValueError: The first edit that does not name exactly one place.
     """
-    text = source
-    for number, edit in enumerate(edits, start=1):
-        found = text.count(edit.old)
-        if found == 0:
-            raise ValueError(
-                f"Edit {number}: its `old` text is not in the page. Copy it exactly from "
-                "`read_artifact`, whitespace included."
-            )
-        if found > 1:
-            raise ValueError(
-                f"Edit {number}: its `old` text appears {found} times. Include more of the "
-                "surrounding text so it names one place."
-            )
-        text = text.replace(edit.old, edit.new, 1)
-    return text
+    try:
+        return artifacts.apply_replacements(source, [(edit.old, edit.new) for edit in edits])
+    except ValueError as missed:
+        # The wording the tool has always used: `read_artifact` is where to copy from.
+        raise ValueError(
+            str(missed).replace("Copy it exactly,", "Copy it exactly from `read_artifact`,")
+        ) from missed
 
 
 def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:

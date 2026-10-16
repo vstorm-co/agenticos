@@ -1,7 +1,7 @@
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import (
     ActiveOrg,
@@ -10,10 +10,13 @@ from app.api.deps import (
     ConversationSvc,
     CurrentUser,
     MessageRatingSvc,
+    VisualSvc,
     WorkspaceSvc,
+    require,
 )
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.exceptions import NotFoundError
+from app.core.permissions import Perm
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationList,
@@ -33,6 +36,7 @@ from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
 )
+from app.schemas.visual import VisualPublish, VisualPublished
 from app.schemas.workspace import (
     WorkspaceFileContent,
     WorkspaceFileRead,
@@ -153,6 +157,23 @@ async def get_conversation(
         user_id=current_user.id,
         ctx=ctx,
     )
+
+
+@router.post(
+    "/{conversation_id}/visuals/{visual_id}/publish",
+    response_model=VisualPublished,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.ARTIFACTS_EDIT))],
+)
+async def publish_visual(
+    conversation_id: UUID, visual_id: str, data: VisualPublish, service: VisualSvc, ctx: Auth
+) -> Any:
+    """Save a visual from this conversation as an app, or as a new version of one.
+
+    The visual is rebuilt from the transcript - revisions applied - and published
+    under the agent whose turn drew it, owned by the caller.
+    """
+    return await service.publish(ctx, conversation_id, visual_id, data)
 
 
 @router.patch("/{conversation_id}", response_model=ConversationRead)

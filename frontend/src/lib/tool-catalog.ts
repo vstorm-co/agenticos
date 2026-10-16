@@ -170,6 +170,30 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "readArtifact",
   },
 
+  // visuals - the drawing is its own panel under the message, drawn while it is
+  // written; the step stays a line, since opening it would print the drawing's
+  // source as JSON.
+  draw: {
+    kind: "image",
+    render: "generic",
+    captionKey: "drawingVisual",
+    displayNameKey: "drawVisual",
+    staysClosed: true,
+  },
+  revise_visual: {
+    kind: "edit",
+    render: "generic",
+    captionKey: "revisingVisual",
+    displayNameKey: "reviseVisual",
+    staysClosed: true,
+  },
+  read_visual: {
+    kind: "read",
+    render: "generic",
+    captionKey: "readingVisual",
+    displayNameKey: "readVisual",
+  },
+
   // browser_use - a whole browse. The step card stays generic because the live view
   // is its own panel beside the transcript: a frame per step folded into the message
   // list would rewrite the transcript thirty times over.

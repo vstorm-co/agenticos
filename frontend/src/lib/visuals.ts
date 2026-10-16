@@ -1,0 +1,168 @@
+/**
+ * Visuals: what a `draw` or `revise_visual` call shows, from its arguments.
+ *
+ * A visual lives in the call that drew it - the backend keeps no copy - so this
+ * side rebuilds it the way `app/agents/capabilities/visuals/_toolset.py` does: a
+ * drawing is its `content`, and a revision is the visual it names with its exact
+ * replacements applied, in order. The two must agree, which is why the edit rule
+ * here is `apply_edits`'s, word for word.
+ */
+
+import type { ToolCall } from "@/types";
+import type { PartialField } from "./partial-args";
+
+export const DRAW = "draw";
+export const REVISE = "revise_visual";
+
+export type VisualKind = "svg" | "html" | "mermaid";
+
+/** A call that leaves a visual behind, whose arguments are shown as they arrive. */
+export function isVisualTool(name: string | undefined): boolean {
+  return name === DRAW || name === REVISE;
+}
+
+/** The frame's starting height when the call names none, and the range it keeps to. */
+export const DEFAULT_HEIGHT = 480;
+const MIN_HEIGHT = 160;
+const MAX_HEIGHT = 1200;
+
+export function clampHeight(value: unknown, fallback = DEFAULT_HEIGHT): number {
+  const number = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  return Math.round(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, number)));
+}
+
+export function visualKind(value: unknown): VisualKind | null {
+  return value === "svg" || value === "html" || value === "mermaid" ? value : null;
+}
+
+const VIEW_BOX =
+  /<svg\b[^>]*?\bviewBox\s*=\s*["']\s*[-+\d.eE]+[\s,]+[-+\d.eE]+[\s,]+([\d.eE+]+)[\s,]+([\d.eE+]+)/i;
+
+/** Height over width of an SVG drawing, from its `viewBox`; null when it declares none. */
+export function svgAspect(content: string): number | null {
+  const match = VIEW_BOX.exec(content.slice(0, 4000));
+  if (match === null) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  return width > 0 && height > 0 ? height / width : null;
+}
+
+/** The renderer page on the content origin, beside the apps it shares a sandbox with. */
+export function visualFrameUrl(artifactUrl: string): string {
+  return `${artifactUrl.replace(/\/+$/, "")}/api/v1/artifact-content/visual-frame`;
+}
+
+interface Edit {
+  old: string;
+  new: string;
+}
+
+function edits(value: unknown): Edit[] | null {
+  if (!Array.isArray(value)) return null;
+  const out: Edit[] = [];
+  for (const item of value) {
+    if (typeof item !== "object" || item === null) return null;
+    const { old, new: next } = item as { old?: unknown; new?: unknown };
+    if (typeof old !== "string" || old === "" || typeof next !== "string") return null;
+    out.push({ old, new: next });
+  }
+  return out;
+}
+
+/** The text with each edit applied in order, or null when one does not name one place. */
+export function applyEdits(source: string, changes: Edit[]): string | null {
+  let text = source;
+  for (const change of changes) {
+    const at = text.indexOf(change.old);
+    if (at < 0 || text.indexOf(change.old, at + 1) >= 0) return null;
+    text = text.slice(0, at) + change.new + text.slice(at + change.old.length);
+  }
+  return text;
+}
+
+export interface ResolvedVisual {
+  title: string;
+  kind: VisualKind;
+  content: string;
+  height: number;
+}
+
+const MAX_CHAIN = 50;
+
+/**
+ * The visual a finished call shows, revisions applied, or null when it cannot be
+ * rebuilt from what is loaded - a revision of a visual in a page of the
+ * conversation nobody has scrolled to, or one whose edits no longer apply.
+ */
+export function resolveVisual(
+  call: Pick<ToolCall, "id" | "name" | "args">,
+  known: ReadonlyMap<string, Pick<ToolCall, "id" | "name" | "args">>,
+): ResolvedVisual | null {
+  const chain: Pick<ToolCall, "id" | "name" | "args">[] = [];
+  let current: Pick<ToolCall, "id" | "name" | "args"> | undefined = call;
+  while (current !== undefined) {
+    if (chain.length >= MAX_CHAIN) return null;
+    chain.push(current);
+    if (current.name !== REVISE) break;
+    const base: unknown = current.args.visual_id;
+    current = typeof base === "string" ? known.get(base) : undefined;
+    if (current === undefined) return null;
+  }
+  const origin = (chain.at(-1) ?? call).args;
+  const kind = visualKind(origin.kind);
+  if (kind === null || typeof origin.content !== "string") return null;
+  let content: string = origin.content;
+  let title = typeof origin.title === "string" ? origin.title : "";
+  for (const revision of chain.slice(0, -1).reverse()) {
+    const changes = edits(revision.args.edits);
+    const applied = changes === null ? null : applyEdits(content, changes);
+    if (applied === null) return null;
+    content = applied;
+    if (typeof revision.args.title === "string" && revision.args.title.trim() !== "") {
+      title = revision.args.title;
+    }
+  }
+  return { title, kind, content, height: clampHeight(origin.height) };
+}
+
+/** What of a `draw` call has arrived while its arguments stream. */
+export interface StreamedDrawing {
+  title: string;
+  kind: VisualKind | null;
+  height: number | null;
+  content: string;
+}
+
+export function streamedDrawing(fields: Record<string, PartialField>): StreamedDrawing {
+  const title = fields.title?.value;
+  const height = fields.height;
+  const content = fields.content?.value;
+  return {
+    title: typeof title === "string" ? title : "",
+    kind: fields.kind?.complete ? visualKind(fields.kind.value) : null,
+    height: height?.complete && typeof height.value === "number" ? clampHeight(height.value) : null,
+    content: typeof content === "string" ? content : "",
+  };
+}
+
+/** A title as an app name: lower-case letters, digits and hyphens, as the server asks. */
+export function appName(title: string): string {
+  const slug = title
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ł/g, "l")
+    .replace(/Ł/g, "l")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64)
+    .replace(/-+$/, "");
+  return slug || "visual";
+}
+
+/** The name a downloaded visual is saved under. */
+export function visualFilename(title: string, kind: VisualKind): string {
+  const base = appName(title);
+  const extension = kind === "svg" ? "svg" : kind === "mermaid" ? "mmd" : "html";
+  return `${base}.${extension}`;
+}
