@@ -4001,12 +4001,21 @@
     },
     "group": "{name} · {count, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
     "trend": {
-      "label": "Odsetek zaliczonych w czasie",
+      "label": "Odsetek zaliczeń według runów",
       "single": "Na razie jeden run. Uruchom kolejny, żeby zobaczyć trend.",
-      "legend": "Każdy punkt to run podpisany tym, co uruchomiono; pusty punkt to draft.",
-      "point": "{name} · {model} · {rate} · {verdict, select, better {naprawia case'y} worse {psuje case'y} mixed {mieszany} no_difference {brak powtarzalnej zmiany} invalid {nieporównywalne} other {pierwszy wynik}}",
-      "baselineOf": "{name} · odniesienie",
-      "at": "{name} · {time}"
+      "legend": "Każdy punkt to run, najstarszy po lewej; najedź na punkt, żeby zobaczyć, co uruchomiono i z czym porównano, a kliknij, żeby otworzyć run.",
+      "draftTick": "D",
+      "comparedWith": "porównany z {name}",
+      "rate": "Odsetek zaliczeń {rate}",
+      "verdict": "{verdict, select, better {Naprawia case'y} worse {Psuje case'y} mixed {Część case'ów psuje, część naprawia} no_difference {Brak powtarzalnej zmiany} invalid {Nieporównywalne} other {Pierwszy wynik}}",
+      "key": {
+        "worse": "Psuje case'y",
+        "better": "Naprawia case'y",
+        "mixed": "Mieszany",
+        "draft": "Draft"
+      },
+      "showAll": "{count, plural, one {Pokaż # run} few {Pokaż wszystkie # runy} many {Pokaż wszystkie # runów} other {Pokaż wszystkie # runu}}",
+      "showRecent": "{count, plural, one {Pokaż ostatni} few {Pokaż ostatnie #} many {Pokaż ostatnie #} other {Pokaż ostatnie #}}"
     },
     "chip": {
       "pending": "W toku",

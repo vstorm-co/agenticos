@@ -11,6 +11,7 @@ import {
   comparison,
   evalRun,
 } from "@/test-utils/eval-runs";
+import type { PassRateLine } from "@/components/charts/pass-rate-lines.impl";
 import { caseScore } from "@/test-utils/scores";
 import { ArmsTable } from "./arms-table";
 import { CaseDetail } from "./case-detail";
@@ -20,10 +21,15 @@ import { EvalStatusBadge } from "./eval-status-badge";
 import { EvalsPanel } from "./evals-panel";
 import { VerdictChip } from "./run-row";
 import { sideName } from "./names";
-import { passRateLines } from "./pass-rate-chart";
+import { PassRateChart, passRateLines } from "./pass-rate-chart";
 import { percent, seconds, usd } from "./format";
 
 const evalRuns = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
+vi.mock("@/components/charts/pass-rate-lines.impl", () => ({
+  PassRateLinesImpl: ({ lines, from, to }: { lines: PassRateLine[]; from: number; to: number }) => (
+    <p>{`from ${from} to ${to}: ${lines.map((l) => `${l.key}×${l.points.length}`).join(" ")}`}</p>
+  ),
+}));
 vi.mock("@/hooks/use-eval-runs", () => ({ useEvalRuns: () => evalRuns.value }));
 const datasets = vi.hoisted(() => ({ items: [] as unknown[] }));
 vi.mock("@/hooks/use-datasets", () => ({ useDatasets: () => ({ datasets: datasets.items }) }));
@@ -92,23 +98,14 @@ describe("passRateLines", () => {
   const t = (key: string, values?: Record<string, string | number>) =>
     values ? `${key}:${Object.values(values).join("|")}` : key;
 
-  it("draws finished runs over time, a line per group, a draft hollow and dated", () => {
+  it("puts finished runs in order, a line per group, each point in its verdict's colour", () => {
     const lines = passRateLines(
       [
         worse({ id: "late", created_at: "2026-10-15T10:00:00Z" }),
         evalRun({
           id: "early",
-          created_at: "2026-10-14T10:00:00Z",
-          arms: [
-            arm({ source: "draft", version_number: null }),
-            arm({
-              id: "base",
-              role: "baseline",
-              version_number: 6,
-              summary: { ...SUMMARY, pass_rate: 1 },
-            }),
-            arm({ id: "none", role: "baseline", summary: { ...SUMMARY, pass_rate: null } }),
-          ],
+          arms: [arm({ source: "draft", version_number: null })],
+          outcome: { ...worse().outcome!, verdict: "better", baseline: null },
         }),
         evalRun({ id: "other", dataset_id: "ds-2", dataset_name: "shipping" }),
         evalRun({ id: "live", status: "running" }),
@@ -120,75 +117,67 @@ describe("passRateLines", () => {
       "en",
     );
 
-    expect(lines.map((line) => [line.name, line.color, line.dashed])).toEqual([
-      ["refunds", "var(--series-1)", false],
-      ["trend.baselineOf:refunds", "var(--series-1)", true],
-      ["shipping", "var(--series-2)", false],
+    expect(lines.map((line) => [line.name, line.color])).toEqual([
+      ["refunds", "var(--series-1)"],
+      ["shipping", "var(--series-2)"],
     ]);
-    const [refunds, baseline] = lines;
-    expect(refunds?.points.map((point) => [point.label, point.draft])).toEqual([
-      ["trend.at:draft|12:00 PM", true],
-      ["version:7", false],
+    const [refunds, shipping] = lines;
+    expect(refunds?.points.map((p) => [p.index, p.tick, p.draft, p.color])).toEqual([
+      [0, "trend.draftTick", true, "var(--color-success)"],
+      [2, "version:7", false, "var(--color-destructive)"],
     ]);
-    expect(refunds?.points[1]?.detail).toBe("trend.point:version:7|gpt-4.1|75%|worse");
-    expect(baseline?.points.map((point) => [point.label, point.rate])).toEqual([
-      ["trend.at:version:6|12:00 PM", 1],
+    expect(shipping?.points.map((p) => [p.index, p.color])).toEqual([[1, "var(--series-2)"]]);
+    const late = refunds?.points[1];
+    expect(late?.href).toBe("/agents/agent-1/evals/late");
+    expect(late?.title).toBe("sideModel:version:7|gpt-4.1");
+    expect(late?.details.slice(0, 3)).toEqual([
+      "trend.comparedWith:version:6",
+      "trend.rate:75%",
+      "trend.verdict:worse",
+    ]);
+    expect(late?.details).toHaveLength(4);
+    expect(shipping?.points[0]?.details.slice(0, 2)).toEqual([
+      "trend.rate:75%",
+      "trend.verdict:none",
     ]);
   });
+});
 
-  it("draws a baseline several runs reused once, at the time it was answered", () => {
-    const reused = (id: string, from: string, rate: number | null = 1) =>
-      arm({
-        id,
-        role: "baseline",
-        version_number: 6,
-        reused_from_arm_id: from,
-        summary: { ...SUMMARY, pass_rate: rate },
-      });
-    const lines = passRateLines(
-      [
-        evalRun({
-          id: "first",
-          created_at: "2026-10-14T10:00:00Z",
-          arms: [arm(), arm({ id: "base", role: "baseline", version_number: 6 })],
-        }),
-        evalRun({
-          id: "second",
-          created_at: "2026-10-14T11:00:00Z",
-          arms: [arm({ id: "c2" }), reused("again", "base")],
-        }),
-        worse({
-          id: "third",
-          created_at: "2026-10-14T12:00:00Z",
-          arms: [arm({ id: "c3" }), reused("elsewhere", "gone")],
-          outcome: {
-            ...worse().outcome!,
-            candidate_arm_id: "c3",
-            baseline: { ...worse().outcome!.baseline!, finished_at: "2026-10-13T08:00:00Z" },
-          },
-        }),
-        evalRun({
-          id: "unrated",
-          created_at: "2026-10-14T13:00:00Z",
-          arms: [arm({ id: "c4" }), reused("blank", "lost", null)],
-        }),
-        evalRun({
-          id: "unknown",
-          created_at: "2026-10-14T14:00:00Z",
-          arms: [arm({ id: "c5" }), reused("orphan", "nowhere")],
-        }),
-      ],
-      () => ({ key: "refunds", name: "refunds" }),
-      t,
-      "en",
-    );
+describe("PassRateChart", () => {
+  const line = (key: string, name: string, count: number, offset = 0): PassRateLine => ({
+    key,
+    name,
+    color: "var(--series-1)",
+    points: Array.from({ length: count }, (_, i) => ({
+      index: offset + i,
+      rate: 0.5,
+      tick: "v1",
+      draft: false,
+      color: "var(--series-1)",
+      href: "/agents/a/evals/r",
+      title: "v1",
+      details: [],
+    })),
+  });
 
-    const baseline = lines.find((line) => line.dashed);
-    expect(baseline?.points.map((point) => [point.label, point.at])).toEqual([
-      ["trend.at:version:6|10:00 AM", Date.parse("2026-10-13T08:00:00Z")],
-      ["trend.at:version:6|12:00 PM", Date.parse("2026-10-14T10:00:00Z")],
-      ["trend.at:version:6|04:00 PM", Date.parse("2026-10-14T14:00:00Z")],
-    ]);
+  it("shows the newest runs until asked for all, and keys its lines and colours", async () => {
+    render(<PassRateChart lines={[line("a", "refunds", 10), line("b", "shipping", 4, 10)]} />);
+
+    expect(await screen.findByText("from 2 to 13: a×8 b×4")).toBeInTheDocument();
+    expect(screen.getByText("refunds")).toBeInTheDocument();
+    expect(screen.getByText("Breaks cases")).toBeInTheDocument();
+    expect(screen.getByText("Draft")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show all 14 runs" }));
+    expect(await screen.findByText("from 0 to 13: a×10 b×4")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show the last 12" }));
+    expect(await screen.findByText("from 2 to 13: a×8 b×4")).toBeInTheDocument();
+  });
+
+  it("names no line when there is only one, and offers nothing more with few runs", async () => {
+    render(<PassRateChart lines={[line("a", "refunds", 3)]} />);
+    expect(await screen.findByText("from 0 to 2: a×3")).toBeInTheDocument();
+    expect(screen.queryByText("refunds")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Show/ })).toBeNull();
   });
 });
 
@@ -217,8 +206,8 @@ describe("EvalsPanel", () => {
     };
     render(<EvalsPanel agentId="agent-1" canStart />);
 
-    expect(screen.getByRole("img", { name: "Pass rate over time" })).toBeInTheDocument();
-    expect(screen.getByText(/a hollow point is a draft/)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Pass rate by run" })).toBeInTheDocument();
+    expect(screen.getByText(/click it to open the run/)).toBeInTheDocument();
     expect(screen.getByText("refunds · 2 runs")).toBeInTheDocument();
     expect(screen.getByText("shipping · 1 run")).toBeInTheDocument();
 
@@ -246,7 +235,7 @@ describe("EvalsPanel", () => {
 
     evalRuns.value = { ...evalRuns.value, runs: [evalRun({ status: "queued" })] };
     rerender(<EvalsPanel agentId="agent-1" canStart />);
-    expect(screen.queryByRole("img", { name: "Pass rate over time" })).toBeNull();
+    expect(screen.queryByRole("img", { name: "Pass rate by run" })).toBeNull();
     expect(screen.getByText("Pending")).toBeInTheDocument();
   });
 

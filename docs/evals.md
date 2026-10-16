@@ -19,11 +19,15 @@ the same run, so the two meet the same provider on the same day.
 
 ## In the console { #in-the-console }
 
-An agent's **Evals** tab opens on a line chart of its pass rate over time, a
-line per dataset, each point labelled with what ran - a draft drawn hollow.
+An agent's **Evals** tab opens on a line chart of its pass rate run by run,
+oldest on the left, a line per dataset. A point is red where the run broke
+cases, green where it fixed them, amber where it did both, and hollow for a
+draft; hovering it says what ran, against what and when, and clicking it opens
+the run. The chart shows the last 12 runs until **Show all**.
+
 Below it are its runs, grouped by dataset, each naming what was tested against
-what, its verdict (Breaks 2, Worse overall · 4 broke, First result, Pending)
-and each model's pass rate, with the first answers' rate on hover.
+what, its verdict (Breaks 2, Worse overall · 4 broke, First result, Pending) and
+each model's pass rate, with the first answers' rate on hover.
 
 **Run evals** opens the start dialog on the obvious answer: the draft against
 the live version when the draft differs from it, the live version alone when it

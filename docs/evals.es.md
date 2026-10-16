@@ -1,5 +1,5 @@
 ---
-source_sha: "05394ed74a14"
+source_sha: "47478098bbbc"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -22,12 +22,16 @@ encuentren con el mismo provider el mismo día.
 ## En la consola { #in-the-console }
 
 La pestaña **Evals** de un agent se abre con un gráfico de líneas de su tasa
-de aprobados a lo largo del tiempo, una línea por dataset, cada punto
-etiquetado con lo que se ejecutó - un borrador, dibujado hueco. Debajo están
-sus runs, agrupados por dataset, cada uno indicando qué se probó frente a qué,
-su veredicto (Breaks 2, Worse overall · 4 broke, First result, Pending) y la
-tasa de aprobados de cada modelo, con la tasa de las primeras respuestas al
-pasar el ratón.
+de aprobados run a run, el más antiguo a la izquierda, una línea por dataset.
+Un punto es rojo donde el run rompió casos, verde donde los arregló, ámbar
+donde hizo ambas cosas y hueco para un borrador; al pasar el cursor dice qué
+se ejecutó, frente a qué y cuándo, y un clic abre el run. El gráfico muestra
+los últimos 12 runs hasta **Show all**.
+
+Debajo están sus runs, agrupados por dataset, cada uno indicando qué se probó
+frente a qué, su veredicto (Breaks 2, Worse overall · 4 broke, First result,
+Pending) y la tasa de aprobados de cada modelo, con la tasa de las primeras
+respuestas al pasar el ratón.
 
 **Run evals** abre el diálogo de inicio con la respuesta obvia: el borrador
 frente a la versión publicada actual cuando el borrador difiere de ella, la

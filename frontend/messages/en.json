@@ -6380,12 +6380,21 @@
     },
     "group": "{name} · {count, plural, =1 {1 run} other {# runs}}",
     "trend": {
-      "label": "Pass rate over time",
+      "label": "Pass rate by run",
       "single": "One run so far. Run another to see a trend.",
-      "legend": "Each point is a run, labelled with what ran; a hollow point is a draft.",
-      "point": "{name} · {model} · {rate} · {verdict, select, better {fixes cases} worse {breaks cases} mixed {mixed} no_difference {no reproducible change} invalid {not comparable} other {first result}}",
-      "baselineOf": "{name} · compared with",
-      "at": "{name} · {time}"
+      "legend": "Each point is a run, oldest on the left; hover one for what ran and against what, and click it to open the run.",
+      "draftTick": "D",
+      "comparedWith": "compared with {name}",
+      "rate": "Pass rate {rate}",
+      "verdict": "{verdict, select, better {Fixes cases} worse {Breaks cases} mixed {Breaks some cases, fixes others} no_difference {No reproducible change} invalid {Not comparable} other {First result}}",
+      "key": {
+        "worse": "Breaks cases",
+        "better": "Fixes cases",
+        "mixed": "Mixed",
+        "draft": "Draft"
+      },
+      "showAll": "Show all {count} runs",
+      "showRecent": "Show the last {count}"
     },
     "chip": {
       "pending": "Pending",

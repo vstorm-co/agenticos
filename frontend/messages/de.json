@@ -6238,12 +6238,21 @@
     },
     "group": "{name} · {count, plural, =1 {1 Run} other {# Runs}}",
     "trend": {
-      "label": "Bestehensquote im Zeitverlauf",
+      "label": "Bestehensquote je Run",
       "single": "Bisher ein Run. Starte einen weiteren, um einen Trend zu sehen.",
-      "legend": "Jeder Punkt ist ein Run, beschriftet mit dem, was lief; ein hohler Punkt ist ein Entwurf.",
-      "point": "{name} · {model} · {rate} · {verdict, select, better {behebt Fälle} worse {macht Fälle kaputt} mixed {gemischt} no_difference {keine reproduzierbare Änderung} invalid {nicht vergleichbar} other {erstes Ergebnis}}",
-      "baselineOf": "{name} · verglichen mit",
-      "at": "{name} · {time}"
+      "legend": "Jeder Punkt ist ein Run, der älteste links; zeige auf einen, um zu sehen, was lief und womit verglichen wurde, und klicke, um den Run zu öffnen.",
+      "draftTick": "E",
+      "comparedWith": "verglichen mit {name}",
+      "rate": "Bestehensquote {rate}",
+      "verdict": "{verdict, select, better {Behebt Fälle} worse {Macht Fälle kaputt} mixed {Macht einige Fälle kaputt, behebt andere} no_difference {Keine reproduzierbare Änderung} invalid {Nicht vergleichbar} other {Erstes Ergebnis}}",
+      "key": {
+        "worse": "Macht Fälle kaputt",
+        "better": "Behebt Fälle",
+        "mixed": "Gemischt",
+        "draft": "Entwurf"
+      },
+      "showAll": "Alle {count} Runs zeigen",
+      "showRecent": "Die letzten {count} zeigen"
     },
     "chip": {
       "pending": "Läuft",

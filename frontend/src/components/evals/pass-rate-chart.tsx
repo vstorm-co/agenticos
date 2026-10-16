@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import dynamic from "next/dynamic";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 
 import type { PassRateLine, PassRatePoint } from "@/components/charts/pass-rate-lines.impl";
-import { CHART_MIN_HEIGHT } from "@/lib/dashboard/system";
-import { cn } from "@/lib/utils";
-import type { EvalRun, EvalRunArm } from "@/types/eval-runs";
+import { Button } from "@/components/ui";
+import { ROUTES } from "@/lib/constants";
+import { CHART_MIN_HEIGHT, seriesColor } from "@/lib/dashboard/system";
+import { cn, formatDateTime } from "@/lib/utils";
+import type { EvalRun, Verdict } from "@/types/eval-runs";
 import { percent } from "./format";
 import { sideName } from "./names";
 
@@ -18,17 +21,24 @@ const PassRateLinesImpl = dynamic(
   },
 );
 
-const SERIES = ["--series-1", "--series-2", "--series-3", "--series-4", "--series-5"];
+/** How many of the newest runs the trend shows until asked for every one. */
+export const RECENT_RUNS = 12;
+
+/** A verdict worth a colour of its own: what the run did to the cases. */
+const VERDICT_COLOR: Partial<Record<Verdict, string>> = {
+  worse: "var(--color-destructive)",
+  better: "var(--color-success)",
+  mixed: "var(--color-warning)",
+};
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 /**
- * Finished runs as lines over time, one per group - a dataset on an agent's
- * page, an agent on a dataset's. A point is the candidate's pass rate, each
- * case as it settled, which is the number the run's own page shows. Beside it,
- * dashed, the baseline each run was measured against - once per measurement:
- * a baseline several runs reused from one earlier run is one point, at the
- * time it was answered.
+ * Finished runs as lines, one per group - a dataset on an agent's page, an
+ * agent on a dataset's - each run one step along, oldest first. A point is the
+ * candidate's pass rate, each case as it settled, which is the number the
+ * run's own page shows, coloured by what the run's verdict says it did to the
+ * cases; the rest of the run is in its tooltip.
  */
 export function passRateLines(
   runs: EvalRun[],
@@ -37,87 +47,44 @@ export function passRateLines(
   locale: string,
 ): PassRateLine[] {
   const lines = new Map<string, PassRateLine>();
-  const lineOf = (key: string, name: string, dashed: boolean, color: string) => {
-    const line = lines.get(key) ?? { key, name, color, dashed, points: [] };
-    lines.set(key, line);
-    return line;
-  };
-  const colors = new Map<string, string>();
-  const measured = new Set<string>();
-  const runOfArm = new Map(runs.flatMap((run) => run.arms.map((arm) => [arm.id, run] as const)));
   const finished = runs
     .filter((run) => run.status === "completed")
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  let index = 0;
   for (const run of finished) {
     const arm =
       run.arms.find((item) => item.id === run.outcome?.candidate_arm_id) ??
       run.arms.find((item) => item.role === "candidate");
     if (arm === undefined || arm.summary.pass_rate === null) continue;
     const { key, name } = group(run);
-    const color = colors.get(key) ?? `var(${SERIES[colors.size % SERIES.length]})`;
-    colors.set(key, color);
-    const at = Date.parse(run.created_at);
-    const verdict = run.outcome?.verdict ?? "none";
-    lineOf(key, name, false, color).points.push(
-      point(arm, arm.summary.pass_rate, at, verdict, t, locale),
-    );
-    // What the candidate was measured against, the same run - so a drop on one
-    // line reads beside whether the other moved too.
-    const baseline = run.arms.find((item) => item.role === "baseline");
-    const answered = baseline?.reused_from_arm_id ?? baseline?.id;
-    if (baseline === undefined || answered === undefined || measured.has(answered)) continue;
-    measured.add(answered);
-    if (baseline.summary.pass_rate === null) continue;
-    const original = runOfArm.get(answered)?.created_at ?? run.outcome?.baseline?.finished_at;
-    lineOf(`${key}:baseline`, t("trend.baselineOf", { name }), true, color).points.push(
-      point(
-        baseline,
-        baseline.summary.pass_rate,
-        Date.parse(original ?? run.created_at),
-        "none",
-        t,
-        locale,
-        true,
-      ),
-    );
+    const line = lines.get(key) ?? { key, name, color: seriesColor(lines.size), points: [] };
+    lines.set(key, line);
+    const verdict = run.outcome?.verdict ?? null;
+    const draft = arm.source !== "version";
+    const baseline = run.outcome?.baseline ?? null;
+    line.points.push({
+      index: index++,
+      rate: arm.summary.pass_rate,
+      tick: draft ? t("trend.draftTick") : sideName(arm, t),
+      draft,
+      color: (verdict && VERDICT_COLOR[verdict]) ?? line.color,
+      href: `${ROUTES.AGENTS}/${run.agent_id}/evals/${run.id}`,
+      title: t("sideModel", { name: sideName(arm, t), model: arm.model_label }),
+      details: [
+        ...(baseline ? [t("trend.comparedWith", { name: sideName(baseline, t) })] : []),
+        t("trend.rate", { rate: percent(arm.summary.pass_rate, locale) }),
+        t("trend.verdict", { verdict: verdict ?? "none" }),
+        formatDateTime(run.created_at, locale),
+      ],
+    } satisfies PassRatePoint);
   }
-  // A reused baseline is drawn when it was answered, which can be before the run reusing it.
-  for (const line of lines.values()) line.points.sort((a, b) => a.at - b.at);
   return [...lines.values()];
 }
 
 /**
- * One run's side as a point: labelled with its version, or - for a draft, and
- * for a baseline, which is a measurement of a version at one time - with the
- * time it was answered.
+ * The pass-rate trend: the newest runs until a person asks for all of them, a
+ * key to its lines and colours, and - with one run - what makes it a trend.
  */
-function point(
-  arm: EvalRunArm,
-  rate: number,
-  at: number,
-  verdict: string,
-  t: Translate,
-  locale: string,
-  timed = false,
-): PassRatePoint {
-  const draft = arm.source !== "version";
-  const time = new Date(at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
-  const label = draft || timed ? t("trend.at", { name: sideName(arm, t), time }) : sideName(arm, t);
-  return {
-    at,
-    rate,
-    label,
-    draft,
-    detail: t("trend.point", {
-      name: label,
-      model: arm.model_label,
-      rate: percent(rate, locale),
-      verdict,
-    }),
-  };
-}
-
-/** The pass-rate trend, with its key and - with one run - what makes it a trend. */
 export function PassRateChart({
   lines,
   compact = false,
@@ -126,35 +93,62 @@ export function PassRateChart({
   compact?: boolean;
 }) {
   const t = useTranslations("evals");
-  const locale = useLocale();
+  const [all, setAll] = useState(false);
   const points = lines.reduce((sum, line) => sum + line.points.length, 0);
   if (points === 0) return null;
+  const from = all ? 0 : Math.max(0, points - RECENT_RUNS);
+  const shown = lines
+    .map((line) => ({ ...line, points: line.points.filter((p) => p.index >= from) }))
+    .filter((line) => line.points.length > 0);
   return (
     <div className="space-y-2" data-tour="evals-trend">
-      {lines.length > 1 && (
-        <ul className="text-muted-foreground flex flex-wrap items-center gap-3 text-xs">
-          {lines.map((line) => (
+      <ul className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        {shown.length > 1 &&
+          shown.map((line) => (
             <li key={line.key} className="flex items-center gap-1.5">
               <span
-                className="size-2.5 shrink-0 rounded-full"
+                className="h-0.5 w-4 shrink-0 rounded-full"
                 style={{ background: line.color }}
                 aria-hidden
               />
               {line.name}
             </li>
           ))}
-        </ul>
-      )}
+        {(["worse", "better", "mixed"] as const).map((verdict) => (
+          <li key={verdict} className="flex items-center gap-1.5">
+            <span
+              className="size-2.5 shrink-0 rounded-full"
+              style={{ background: VERDICT_COLOR[verdict] }}
+              aria-hidden
+            />
+            {t(`trend.key.${verdict}`)}
+          </li>
+        ))}
+        <li className="flex items-center gap-1.5">
+          <span
+            className="border-muted-foreground size-2.5 shrink-0 rounded-full border-2"
+            aria-hidden
+          />
+          {t("trend.key.draft")}
+        </li>
+      </ul>
       <div
         role="img"
         aria-label={t("trend.label")}
-        className={cn(CHART_MIN_HEIGHT, compact ? "h-32" : "h-48")}
+        className={cn(CHART_MIN_HEIGHT, compact ? "h-48" : "h-56")}
       >
-        <PassRateLinesImpl lines={lines} locale={locale} />
+        <PassRateLinesImpl lines={shown} from={from} to={points - 1} />
       </div>
-      <p className="text-muted-foreground text-xs">
-        {points === 1 ? t("trend.single") : t("trend.legend")}
-      </p>
+      <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 text-xs">
+        <p>{points === 1 ? t("trend.single") : t("trend.legend")}</p>
+        {points > RECENT_RUNS && (
+          <Button size="sm" variant="ghost" onClick={() => setAll(!all)}>
+            {all
+              ? t("trend.showRecent", { count: RECENT_RUNS })
+              : t("trend.showAll", { count: points })}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

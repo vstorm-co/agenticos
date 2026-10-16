@@ -1,5 +1,5 @@
 ---
-source_sha: "05394ed74a14"
+source_sha: "47478098bbbc"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -23,12 +23,16 @@ Tag auf denselben Provider treffen.
 ## In der Konsole { #in-the-console }
 
 Der Tab **Evals** eines Agents öffnet mit einem Liniendiagramm seiner
-Bestehensquote über die Zeit, eine Linie pro Dataset, jeder Punkt beschriftet
-mit dem, was lief - ein Draft hohl gezeichnet. Darunter stehen seine Runs,
-nach Dataset gruppiert, jeder mit dem, was gegen was getestet wurde, seinem
-Urteil (Breaks 2, Worse overall · 4 broke, First result, Pending) und der
-Bestehensquote jedes Modells, mit der Quote der ersten Antworten beim
-Darüberfahren.
+Bestehensquote Run für Run, der älteste links, eine Linie pro Dataset. Ein
+Punkt ist rot, wo der Run Fälle kaputt gemacht hat, grün, wo er sie behoben
+hat, bernsteinfarben, wo beides, und hohl für einen Draft; der Hover sagt, was
+lief, wogegen und wann, und ein Klick öffnet den Run. Das Diagramm zeigt die
+letzten 12 Runs bis **Show all**.
+
+Darunter stehen seine Runs, nach Dataset gruppiert, jeder mit dem, was gegen was
+getestet wurde, seinem Urteil (Breaks 2, Worse overall · 4 broke, First result,
+Pending) und der Bestehensquote jedes Modells, mit der Quote der ersten
+Antworten beim Darüberfahren.
 
 **Run evals** öffnet den Startdialog mit der naheliegenden Antwort: der Draft
 gegen die Live-Version, wenn sich der Draft von ihr unterscheidet, die
