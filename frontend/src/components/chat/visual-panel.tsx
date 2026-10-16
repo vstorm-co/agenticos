@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { createContext, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -31,13 +31,20 @@ import { cn } from "@/lib/utils";
 import {
   DEFAULT_HEIGHT,
   REVISE,
+  inlineImages,
   isVisualTool,
   resolveVisual,
   streamedDrawing,
   svgAspect,
   type VisualKind,
 } from "@/lib/visuals";
-import { useSavedVisualsStore, useVisualStreamStore } from "@/stores/visual-stream-store";
+import { getVisualImage } from "@/lib/visuals-api";
+import {
+  addVisualImages,
+  useSavedVisualsStore,
+  useVisualImagesStore,
+  useVisualStreamStore,
+} from "@/stores/visual-stream-store";
 import type { ChatMessage, ToolCall } from "@/types";
 import { copySvgImage, downloadVisual } from "./visual-actions";
 import { VisualFrame } from "./visual-frame";
@@ -112,6 +119,8 @@ interface Shown {
   revisionOf: string | null;
   /** The ids this visual is built from, itself first - for the app it was saved as. */
   lineage: string[];
+  /** Each picture the visual uses, by name, and the call that brought it. */
+  images: Record<string, string>;
 }
 
 function fieldsOf(
@@ -173,8 +182,63 @@ function useShown(call: ToolCall, known: KnownCalls): Shown | null | "missing" {
       done: false,
       revisionOf: null,
       lineage: [],
+      images: {},
     };
   }, [call, known, streamed]);
+}
+
+const NO_IMAGES: Record<string, string> = {};
+
+/** How many times a picture is asked for before the drawing is shown without it. */
+const IMAGE_ATTEMPTS = 3;
+
+/**
+ * The pictures a finished visual uses, as `data:` URIs, and whether it may be drawn.
+ *
+ * A drawing made in this turn has its pictures already - the socket sent them
+ * before the call was rendered. One read back from the transcript asks the image
+ * route for each. A picture that cannot be had after a few attempts is left out
+ * rather than holding the drawing back for ever.
+ */
+function useVisualImages(
+  conversationId: string | null,
+  wanted: Record<string, string>,
+  done: boolean,
+): { uris: Record<string, string>; ready: boolean } {
+  const stored = useVisualImagesStore((state) => state.images);
+  const [gaveUp, setGaveUp] = useState(false);
+  const uris: Record<string, string> = {};
+  const missing: [string, string][] = [];
+  for (const [name, owner] of Object.entries(wanted)) {
+    const uri = stored[owner]?.[name];
+    if (uri !== undefined) uris[name] = uri;
+    else missing.push([name, owner]);
+  }
+  // A string, so the effect below runs when the set of missing pictures changes
+  // rather than on every render's fresh array.
+  const key = JSON.stringify(missing);
+  useEffect(() => {
+    const pending = JSON.parse(key) as [string, string][];
+    if (!done || conversationId === null || pending.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      for (const [name, owner] of pending) {
+        for (let attempt = 0; attempt < IMAGE_ATTEMPTS && !cancelled; attempt += 1) {
+          try {
+            addVisualImages(owner, { [name]: await getVisualImage(conversationId, owner, name) });
+            break;
+          } catch {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
+        }
+      }
+      if (!cancelled) setGaveUp(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, key, done]);
+  return { uris, ready: missing.length === 0 || gaveUp };
 }
 
 /** How many of a drawing's errors the panel lists; the first few say what broke. */
@@ -184,6 +248,11 @@ function VisualPanel({ call }: { call: ToolCall }) {
   const t = useTranslations("chat.visuals");
   const { known, conversationId, onReport, onCompose } = useContext(ConversationVisuals);
   const shown = useShown(call, known);
+  const pictures = useVisualImages(
+    conversationId,
+    shown !== null && shown !== "missing" ? shown.images : NO_IMAGES,
+    shown !== null && shown !== "missing" && shown.done,
+  );
   const saved = useSavedVisualsStore((state) => state.saved);
   const [code, setCode] = useState(false);
   const [full, setFull] = useState(false);
@@ -210,7 +279,10 @@ function VisualPanel({ call }: { call: ToolCall }) {
     );
   }
   const unfinished = call.status === "unfinished";
-  const done = shown.done && !unfinished;
+  // Held back until its pictures are here: once its scripts run, a drawing is
+  // not written again, and one drawn without them would stay without them.
+  const done = shown.done && !unfinished && pictures.ready;
+  const content = inlineImages(shown.content, pictures.uris);
   const app = shown.lineage.map((id) => saved[id]).find((entry) => entry !== undefined);
   const savedHere = saved[call.id];
   const label = unfinished
@@ -243,7 +315,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
   };
   const copyImage = async () => {
     try {
-      await copySvgImage(shown.content);
+      await copySvgImage(content);
       toast.success(t("imageCopied"));
     } catch {
       toast.error(t("copyImageFailed"));
@@ -251,7 +323,10 @@ function VisualPanel({ call }: { call: ToolCall }) {
   };
 
   return (
-    <div className="border-border bg-background w-full max-w-2xl min-w-0 overflow-hidden rounded-2xl border shadow-sm">
+    <div
+      data-tour="chat-visual"
+      className="border-border bg-background w-full max-w-2xl min-w-0 overflow-hidden rounded-2xl border shadow-sm"
+    >
       <div className="border-border flex min-w-0 items-center gap-2 border-b py-1.5 pr-1.5 pl-3">
         <Shapes className="text-muted-foreground size-4 shrink-0" aria-hidden />
         <span className="text-foreground min-w-0 truncate text-sm font-medium">{shown.title}</span>
@@ -305,7 +380,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
             <IconButton
               aria-label={t("download")}
               title={t("download")}
-              onClick={() => downloadVisual(shown.title, shown.kind, shown.content)}
+              onClick={() => downloadVisual(shown.title, shown.kind, content)}
             >
               <Download className="size-4" />
             </IconButton>
@@ -350,7 +425,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
             key={frameKey}
             kind={shown.kind}
             title={shown.title}
-            content={shown.content}
+            content={content}
             done={done}
             height={shown.height}
             aspect={shown.kind === "svg" ? svgAspect(shown.content) : null}
@@ -407,7 +482,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
               <VisualFrame
                 kind={shown.kind}
                 title={shown.title}
-                content={shown.content}
+                content={content}
                 done={done}
                 height={shown.height}
                 fill

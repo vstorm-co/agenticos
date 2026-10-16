@@ -13,6 +13,7 @@ tool answers at once and says the drawing was not checked.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 
 MAX_ERRORS = 5
@@ -30,10 +31,24 @@ class VisualReport:
     errors: tuple[str, ...]
 
 
+ImageSink = Callable[[str, Mapping[str, str]], Awaitable[None]]
+"""Hands a drawing's images to the watching console, as `data:` URIs by name.
+
+The transcript records a turn's calls only when the turn ends, so the console
+cannot read a drawing's images back while the turn that drew it is still running;
+the tool sends them over the same socket instead.
+"""
+
+
 @dataclass
 class VisualReports:
-    """One turn's reports, by tool call id, whichever arrives first - the report or the wait."""
+    """One turn's reports, by tool call id, whichever arrives first - the report or the wait.
 
+    `send_images` is how the drawing's images reach the console that is about to
+    render it, before it asks how the drawing went.
+    """
+
+    send_images: ImageSink | None = None
     _futures: dict[str, asyncio.Future[VisualReport]] = field(default_factory=dict)
 
     def _future(self, call_id: str) -> asyncio.Future[VisualReport]:

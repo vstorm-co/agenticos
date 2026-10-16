@@ -63,6 +63,7 @@ from app.agents.capabilities.system_reminders import (
     ReminderState,
     SystemReminders,
 )
+from app.agents.capabilities.visuals import BOUND_CAPABILITIES_RESOURCE
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
@@ -278,6 +279,12 @@ def build_agent(
             # delete the bytes is the conversation, not a setting.
             MEDIA_ORGANIZATION_RESOURCE: organization_id,
             MEDIA_CONVERSATION_RESOURCE: conversation_id,
+            # What else the agent has, for a capability whose reach depends on it:
+            # a drawing may fetch an image by address only where the agent already
+            # reads the web.
+            BOUND_CAPABILITIES_RESOURCE: frozenset(
+                binding.capability_id for binding in bindings if binding.enabled
+            ),
         },
         secrets=secrets,
     )

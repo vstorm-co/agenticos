@@ -775,7 +775,10 @@
     "capabilityShelfEnabled": "{enabled} of {total} on",
     "capabilityShelfPrevious": "Earlier in {shelf}",
     "capabilityShelfNext": "More in {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}"
+    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}",
+    "visualDesignDetail": "Bind the visual-design skill and the agent draws from its house style and templates - architecture diagrams, explainers with sliders, 3D scenes. Switching Visuals on binds it for you; the agent reads it through the Skills capability.",
+    "visualDesignMissing": "This organization has no visual-design skill. Seed the bundled skills to add it.",
+    "visualDesignHeading": "Drawing style"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -3829,6 +3832,10 @@
       "agent-identity": {
         "title": "Call it something recognizable",
         "body": "The name is what people pick in chat and find in the catalog. A duplicate starts as its source with a suffix, so rename it here; the handle other agents reach it by stays the same."
+      },
+      "chat-visual": {
+        "title": "Drawings",
+        "body": "An agent with Visuals draws diagrams, explainers and 3D scenes here, live while it writes them. Open one full screen, download it, ask about it, or save it as an app with a link you can share."
       }
     },
     "chooseLanguage": "Language"
@@ -6709,6 +6716,14 @@
       "example2": "Find three competitors and their prices",
       "needs": "Nothing, with DuckDuckGo. Brave, Exa or Tavily need their API key in the vault.",
       "never": "Never sends your documents to the search engine, only the search words."
+    },
+    "visuals": {
+      "name": "Visuals",
+      "does": "Draws in the conversation - a diagram, an architecture map, an explainer with sliders, a 3D scene - live while the agent writes it. A drawing can be saved as an app.",
+      "example1": "Our order flow as a diagram",
+      "example2": "A 3D model of the warehouse you can turn",
+      "needs": "Nothing extra. The visual-design skill makes the drawings look designed.",
+      "never": "Never reaches the network - a drawing runs sealed off, like an app's page."
     }
   },
   "capabilityCategories": {

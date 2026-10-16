@@ -11,7 +11,7 @@ import { clientId } from "@/lib/ids";
 import { useChatStore, useAuthStore, useInChatScope, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
-import { appendVisualArgs, dropVisualArgs } from "@/stores/visual-stream-store";
+import { addVisualImages, appendVisualArgs, dropVisualArgs } from "@/stores/visual-stream-store";
 import { isVisualTool } from "@/lib/visuals";
 import { Perm } from "@/types/permissions";
 import type {
@@ -534,6 +534,17 @@ export function useChat(options: UseChatOptions = {}) {
           if (callId !== undefined && visualCallsRef.current.has(callId)) {
             appendVisualArgs(callId, args_delta);
           }
+          break;
+        }
+
+        // A drawing's pictures, sent before it is rendered: its call is not in the
+        // transcript until the turn ends, so the panel could not ask for them.
+        case "visual_images": {
+          const { tool_call_id, images } = wsEvent.data as {
+            tool_call_id: string;
+            images: Record<string, string>;
+          };
+          addVisualImages(tool_call_id, images);
           break;
         }
 

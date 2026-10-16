@@ -89,3 +89,23 @@ export const useSavedVisualsStore = create<SavedVisualsState>()(() => ({ saved: 
 export function rememberSavedVisual(visualId: string, app: SavedVisual): void {
   useSavedVisualsStore.setState((state) => ({ saved: { ...state.saved, [visualId]: app } }));
 }
+
+interface VisualImagesState {
+  /** Each visual's images as `data:` URIs, by the visual's id and the image's name. */
+  images: Record<string, Record<string, string>>;
+}
+
+/**
+ * The pictures drawings use, once they are here.
+ *
+ * Filled two ways: by the socket while a turn draws (the transcript records the
+ * call only when the turn ends, so there is nothing to ask for yet), and by the
+ * image route for a drawing read back from the transcript.
+ */
+export const useVisualImagesStore = create<VisualImagesState>()(() => ({ images: {} }));
+
+export function addVisualImages(visualId: string, images: Record<string, string>): void {
+  useVisualImagesStore.setState((state) => ({
+    images: { ...state.images, [visualId]: { ...state.images[visualId], ...images } },
+  }));
+}

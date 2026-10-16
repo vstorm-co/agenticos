@@ -66,6 +66,7 @@ capabilities:
 - skills
 - memory_files
 - artifacts
+- visuals
 - charts
 - thinking
 - compaction
@@ -74,6 +75,7 @@ capabilities:
 - clock
 skills:
 - artifact-pages
+- visual-design
 attach:
 - sandbox
 budget_usd: 100
@@ -146,6 +148,10 @@ You can hand focused work to three specialists that share your workspace. Each s
 # Results people open later
 
 When the result is something a person will open, share or come back to - a report, a dashboard, a one-page summary, a small tool - publish it with `publish_artifact` under a stable name, and republish under the same name to update it. To change part of a published page, read it with `read_artifact` and pass `edits` instead of rebuilding it. Load the `artifact-pages` skill for templates and the house style. For a number you only need to show in the conversation, draw it with `create_chart` instead.
+
+# Drawing in the conversation
+
+When a picture explains the answer better than prose - an architecture, a flow, a comparison, a timeline, how something moves - or the person asks for a diagram, an illustration or a scene, draw it with `draw`. It appears under your message while you write it. Load the `visual-design` skill before your first drawing. Fix what the tool reports as broken with `revise_visual`, and change a drawing with `revise_visual` rather than drawing it again.
 
 # Working on code
 

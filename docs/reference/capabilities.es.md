@@ -1,5 +1,5 @@
 ---
-source_sha: "60dde7e73718"
+source_sha: "0011f395bd1f"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -63,6 +63,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona |
 | `charts` | Gráficos | analysis | `create_chart` | — | — |
+| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — |
 | `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
@@ -1098,6 +1099,48 @@ constancia de quién produjo una imagen. Cuando el agent tiene además un worksp
 un paso `execute` posterior pueda construir con ella: montar un PDF, una diapositiva,
 una página. Un agent sin workspace sigue generando y mostrando imágenes; simplemente
 no tiene dónde construir con ellas.
+
+## Visuals { #visuals }
+
+`draw` — *Dibuja en la conversación: un diagrama, un mapa, un flujo, una explicación, una escena 3D.*
+`revise_visual` — *Cambia un visual con reemplazos exactos, sin dibujarlo de nuevo.*
+`read_visual` — *Lee un visual de esta conversación tal como está, con las revisiones aplicadas.*
+
+Dibuja en el propio chat. `kind` es `svg` para diagramas e ilustraciones, `mermaid`
+para diagramas de flujo, secuencias y diagramas ER, o `html` para todo lo
+interactivo - controles deslizantes, `<canvas>`, three.js. Sin configuración; el skill
+incluido `visual-design` lleva el estilo y tres plantillas, y el Builder lo vincula al
+activar Visuals.
+
+**Aparece mientras se escribe.** El dibujo es el argumento `content` de la llamada. La
+consola lo lee de los argumentos en streaming y lo envía a un marco bajo el mensaje,
+así que el SVG y el HTML crecen en pantalla y Mermaid se redibuja en cada línea
+completa. Los scripts se ejecutan una vez, cuando la llamada está completa: hasta
+entonces el marcado se muestra sin scripts ni atributos `on*`, así que una escena a
+medio escribir nunca arranca.
+
+**Vive en la conversación.** Solo se guarda la llamada a la herramienta, que la
+transcripción ya conserva, así que una recarga y un hilo compartido lo vuelven a
+dibujar. Un turno anterior llega al modelo solo como texto, por eso la capability
+nombra en sus instrucciones los visuales anteriores de la conversación, por id y
+título, y `read_visual` recupera uno antes de una revisión.
+
+**El modelo sabe cómo se renderizó.** Mientras alguien mira en el chat web, la consola
+informa de los errores de script, las cargas fallidas y las peticiones rechazadas de
+cada dibujo, y `draw` espera ese informe hasta diez segundos antes de responder - así
+el modelo corrige un dibujo roto con `revise_visual` en el mismo turno. Si nadie mira,
+responde enseguida y dice que el dibujo no se comprobó.
+
+**Las revisiones** son reemplazos exactos, la misma regla que las ediciones de
+`publish_artifact`, y cada una es un visual propio bajo el mensaje que la hizo. Un
+dibujo demasiado grande para una aplicación (`ARTIFACT_MAX_BYTES`), un SVG que no es un
+único elemento `<svg>`, o uno que carga algo de otro sitio es un reintento que dice qué
+cambiar.
+
+**Tiene el aislamiento de una aplicación.** El marco es el sandbox de las aplicaciones
+- un origen opaco, `connect-src 'none'`, nada remoto salvo el conjunto de bibliotecas
+del despliegue, que ahora incluye three.js y Mermaid. Consulte
+[Visuals](../artifacts.md#visuals).
 
 ## Aplicaciones { #artifacts }
 

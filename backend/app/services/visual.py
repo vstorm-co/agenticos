@@ -20,8 +20,10 @@ Two things live here because both the frame and a saved app must agree on them:
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
-from collections.abc import Awaitable, Callable
+import re
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
@@ -36,12 +38,14 @@ from app.core.permissions import AuthContext
 from app.db.models.artifact import ArtifactMediaType
 from app.db.session import get_db_context
 from app.repositories import agent_run as agent_run_repo
+from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
 from app.repositories.conversation import ToolCallArgs
 from app.schemas.visual import VisualPublish, VisualPublished
 from app.services import artifact as artifacts
 from app.services.artifact import PLATFORM_SCRIPT
 from app.services.conversation import ConversationService
+from app.services.file_storage import get_file_storage
 
 VisualKind = Literal["svg", "html", "mermaid"]
 
@@ -58,6 +62,20 @@ MAX_CHAIN = 50
 A revision names the visual it changes, and that one may be a revision too. The
 id is the model's to choose, so a chain is bounded rather than trusted to end.
 """
+
+IMAGE_NAME = r"^[a-z0-9][a-z0-9_-]{0,39}$"
+"""What an image of a visual may be called - the `NAME` in `{{image:NAME}}`."""
+
+IMAGE_MAX_BYTES = 2 * 1024 * 1024
+"""One image's ceiling. A visual inlines its images when it is drawn and saved,
+so a few photos are the budget, not an album."""
+
+MAX_IMAGES = 6
+"""How many images one visual may carry."""
+
+IMAGE_TOKEN = re.compile(r"\{\{image:([a-z0-9][a-z0-9_-]{0,39})\}\}")
+"""Where a visual uses one of its images: `<img src="{{image:logo}}">`, an SVG
+`<image href="{{image:logo}}">`, or a CSS `url({{image:logo}})`."""
 
 _FRAME_PATH = Path(__file__).resolve().parent.parent / "core" / "catalog" / "visuals" / "frame.html"
 
@@ -143,6 +161,82 @@ Not part of a saved app: there is nobody to report to on a page opened on its ow
 _frame: bytes | None = None
 
 
+def image_type(data: bytes) -> str | None:
+    """The media type of an image, read from its bytes; `None` for anything else.
+
+    By content, never by a name or a header: the bytes become a `data:` URI a
+    drawing renders, and a file called `photo.png` that is HTML is not an image.
+    SVG is admitted - shown through `<img>` or as a `data:` URI it runs no script.
+    """
+    head = data[:512]
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if head.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if head.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    if head[4:12] in (b"ftypavif", b"ftypavis"):
+        return "image/avif"
+    text = head.lstrip(b"\xef\xbb\xbf \t\r\n").lower()
+    if text.startswith(b"<svg") or (text.startswith(b"<?xml") and b"<svg" in data[:4096].lower()):
+        return "image/svg+xml"
+    return None
+
+
+def image_path(organization_id: UUID, conversation_id: UUID, visual_id: str, name: str) -> str:
+    """Where one image of one visual is kept: under its thread's media prefix.
+
+    So it goes when the conversation does, with the rest of the thread's media,
+    and an organization's teardown takes it too.
+    """
+    from app.agents.capabilities.media import prefix_for
+
+    return f"{prefix_for(organization_id, conversation_id)}/visuals/{visual_id}/{name}"
+
+
+async def save_image(
+    organization_id: UUID, conversation_id: UUID, visual_id: str, name: str, data: bytes
+) -> None:
+    """Keep one image of a visual, for the console and a saved app to read."""
+    await get_file_storage().save_at(
+        image_path(organization_id, conversation_id, visual_id, name), data
+    )
+
+
+async def load_image(
+    organization_id: UUID, conversation_id: UUID, visual_id: str, name: str
+) -> tuple[bytes, str] | None:
+    """One kept image and its media type, or `None` when it is not there."""
+    storage = get_file_storage()
+    path = image_path(organization_id, conversation_id, visual_id, name)
+    if not await storage.exists(path):
+        return None
+    data = await storage.load(path)
+    kind = image_type(data)
+    return (data, kind) if kind is not None else None
+
+
+def image_names(args: Mapping[str, Any]) -> list[str]:
+    """The names a recorded `draw` or `revise_visual` call gave its images."""
+    raw = args.get("images")
+    if not isinstance(raw, list):
+        return []
+    return [
+        name for item in raw if isinstance(item, dict) and isinstance(name := item.get("name"), str)
+    ]
+
+
+def inline_images(content: str, uris: Mapping[str, str]) -> str:
+    """The visual with each `{{image:NAME}}` it has an image for replaced by its URI."""
+    return IMAGE_TOKEN.sub(lambda match: uris.get(match.group(1), match.group(0)), content)
+
+
+def data_uri(data: bytes, media_type: str) -> str:
+    return f"data:{media_type};base64,{base64.b64encode(data).decode('ascii')}"
+
+
 @dataclass(frozen=True)
 class VisualSummary:
     """A visual named for the model, without its content."""
@@ -184,6 +278,8 @@ class Visual:
     kind: VisualKind
     content: str
     agent_id: UUID | None
+    images: Mapping[str, str]
+    """Each image the visual may use, by name, and the call that brought it."""
 
 
 class VisualError(Exception):
@@ -236,7 +332,9 @@ async def rebuild(visual_id: str, lookup: Lookup) -> Visual:
         raise VisualError(f"Visual `{visual_id}` has no kind it can be drawn as. Draw it again.")
     title = text_arg(origin, "title")
     content = text_arg(origin, "content")
+    images = dict.fromkeys(image_names(origin), chain[-1].tool_call_id)
     for call in reversed(chain[:-1]):
+        images.update(dict.fromkeys(image_names(call.args), call.tool_call_id))
         try:
             content = artifacts.apply_replacements(content, _replacements(call.args.get("edits")))
         except ValueError as missed:
@@ -250,6 +348,7 @@ async def rebuild(visual_id: str, lookup: Lookup) -> Visual:
         kind=kind,
         content=content,
         agent_id=chain[0].agent_id,
+        images=images,
     )
 
 
@@ -266,6 +365,17 @@ async def stored_call(*, conversation_id: UUID, tool_call_id: str) -> ToolCallAr
         return await conversation_repo.tool_call_in_conversation(
             db, conversation_id=conversation_id, tool_call_id=tool_call_id, names=VISUAL_TOOLS
         )
+
+
+async def attachment_bytes(conversation_id: UUID, filename: str) -> bytes | None:
+    """The newest attachment of this name in the thread, or `None` when there is none."""
+    async with get_db_context() as db:
+        attached = await chat_file_repo.latest_named_in_conversation(
+            db, filename, conversation_id=conversation_id
+        )
+    if attached is None:
+        return None
+    return await get_file_storage().load(attached.storage_path)
 
 
 async def earlier_visuals(*, conversation_id: UUID, limit: int) -> list[VisualSummary]:
@@ -349,7 +459,13 @@ class VisualService:
                 details={"visual_id": visual_id},
             )
         title = (data.title or "").strip() or visual.title or data.name
-        document = visual_document(visual.kind, visual.content, title=title).encode("utf-8")
+        uris: dict[str, str] = {}
+        for name, owner in visual.images.items():
+            kept = await load_image(ctx.organization_id, conversation_id, owner, name)
+            if kept is not None:
+                uris[name] = data_uri(*kept)
+        content = inline_images(visual.content, uris)
+        document = visual_document(visual.kind, content, title=title).encode("utf-8")
         problem = artifacts.publish_problem(
             name=data.name, media_type=ArtifactMediaType.HTML, data=document
         )
@@ -377,6 +493,41 @@ class VisualService:
             unchanged=published.unchanged,
             url=artifacts.console_url_for(published.artifact_id, published.organization_id),
         )
+
+    async def image(
+        self, ctx: AuthContext, conversation_id: UUID, visual_id: str, name: str
+    ) -> tuple[bytes, str]:
+        """One image of a visual, for the console to inline into the drawing.
+
+        Read only for a member who may read the conversation, and only an image the
+        visual's own call declared - so the path is never the caller's to choose.
+
+        Raises:
+            NotFoundError: No such conversation for this member, no such visual in it,
+                or no such image of it - one answer for all three. Also when the image
+                is declared but not kept yet: the console asks again.
+        """
+        missing = NotFoundError(
+            message="There is no such image", details={"visual_id": visual_id, "name": name}
+        )
+        if ctx.user_id is None:
+            raise missing
+        await ConversationService(self.db).get_conversation(
+            conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            ctx=ctx,
+            include_favourite=False,
+        )
+        call = await conversation_repo.tool_call_in_conversation(
+            self.db, conversation_id=conversation_id, tool_call_id=visual_id, names=VISUAL_TOOLS
+        )
+        if call is None or name not in image_names(call.args):
+            raise missing
+        kept = await load_image(ctx.organization_id, conversation_id, visual_id, name)
+        if kept is None:
+            raise missing
+        return kept
 
 
 def visual_document(kind: VisualKind, content: str, *, title: str) -> str:

@@ -775,7 +775,10 @@
     "capabilityShelfEnabled": "{enabled} von {total} an",
     "capabilityShelfPrevious": "Zurück in {shelf}",
     "capabilityShelfNext": "Mehr in {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Eingebaut, keine Werkzeuge} =1 {1 Werkzeug} other {# Werkzeuge}}"
+    "capabilityToolCount": "{count, plural, =0 {Eingebaut, keine Werkzeuge} =1 {1 Werkzeug} other {# Werkzeuge}}",
+    "visualDesignDetail": "Binden Sie den Skill visual-design, und der Agent zeichnet nach seinem Stil und seinen Vorlagen - Architekturdiagramme, Erklärungen mit Schiebereglern, 3D-Szenen. Das Einschalten von Visuals bindet ihn automatisch; der Agent liest ihn über die Capability Skills.",
+    "visualDesignMissing": "Diese Organisation hat keinen Skill visual-design. Installieren Sie die mitgelieferten Skills, um ihn hinzuzufügen.",
+    "visualDesignHeading": "Zeichenstil"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1399,7 +1402,13 @@
       "scrollingPage": "Scrollt",
       "scrollPage": "Gescrollt",
       "goingBack": "Geht zurück",
-      "goBack": "Zurückgegangen"
+      "goBack": "Zurückgegangen",
+      "drawingVisual": "Zeichnet",
+      "drawVisual": "Hat ein Visual gezeichnet",
+      "revisingVisual": "Überarbeitet ein Visual",
+      "reviseVisual": "Hat ein Visual überarbeitet",
+      "readingVisual": "Liest ein Visual",
+      "readVisual": "Hat ein Visual gelesen"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -1500,7 +1509,44 @@
     "openPageNamed": "{name} öffnen",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
-    "openApp": "App öffnen"
+    "openApp": "App öffnen",
+    "visuals": {
+      "drawing": "Zeichnet…",
+      "revising": "Überarbeitet…",
+      "unfinished": "Unvollständig",
+      "revisionOf": "Überarbeitung von {title}",
+      "drawnByAgent": "Vom Agent gezeichnet",
+      "showCode": "Code anzeigen",
+      "showVisual": "Visual anzeigen",
+      "fullScreen": "Vollbild",
+      "download": "Herunterladen",
+      "copyImage": "Als Bild kopieren",
+      "imageCopied": "Bild kopiert",
+      "copyImageFailed": "Das Bild konnte nicht kopiert werden",
+      "renderError": "Die Zeichnung hat einen Fehler gemeldet",
+      "stalled": "Die Zeichnung reagierte nicht mehr und wurde geschlossen.",
+      "reload": "Neu laden",
+      "baseMissing": "Das Visual, das diese Überarbeitung ändert, ist im geladenen Teil der Unterhaltung nicht enthalten.",
+      "kind": "{kind, select, svg {SVG} mermaid {Mermaid} html {HTML} other {Visual}}",
+      "close": "Schließen",
+      "askAbout": "Danach fragen",
+      "askAboutPrompt": "Zum Visual „{title}“ ({id}): ",
+      "fixIt": "Beheben",
+      "fixItPrompt": "Das Visual „{title}“ ({id}) hat diese Fehler gemeldet:\n{errors}\nBitte behebe sie.",
+      "saveToApps": "In Apps speichern",
+      "updateApp": "App aktualisieren",
+      "saveDescription": "Als App gespeichert bekommt es einen Link, Versionen und Freigaben. Unter einem Namen gespeichert, den Sie schon haben, wird es eine neue Version dieser App.",
+      "saveTitleLabel": "Titel",
+      "saveName": "Name",
+      "saveNameHint": "Kleinbuchstaben, Ziffern und Bindestriche. Derselbe Name aktualisiert die App.",
+      "save": "Speichern",
+      "saving": "Wird gespeichert…",
+      "cancel": "Abbrechen",
+      "savedToast": "Als App gespeichert, Version {version}",
+      "savedUnchanged": "Die App hat bereits genau diese Version",
+      "savedBadge": "Gespeichert · v{version}",
+      "openApp": "Öffnen"
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -3668,6 +3714,10 @@
       "agent-identity": {
         "title": "Geben Sie ihm einen erkennbaren Namen",
         "body": "Den Namen wählt man im Chat aus und findet ihn im Katalog. Ein Duplikat beginnt mit dem Namen seiner Vorlage und einem Zusatz, benennen Sie es also hier um; das Handle, über das andere Agents es erreichen, bleibt gleich."
+      },
+      "chat-visual": {
+        "title": "Zeichnungen",
+        "body": "Ein Agent mit Visuals zeichnet hier Diagramme, Erklärungen und 3D-Szenen, live während er sie schreibt. Öffnen Sie eine im Vollbild, laden Sie sie herunter, fragen Sie danach oder speichern Sie sie als App mit einem Link zum Teilen."
       }
     },
     "chooseLanguage": "Sprache"
@@ -6549,6 +6599,14 @@
       "example2": "Drei Wettbewerber und ihre Preise finden",
       "needs": "Nichts, mit DuckDuckGo. Brave, Exa oder Tavily brauchen ihren API-Schlüssel im Vault.",
       "never": "Schickt nie Ihre Dokumente an die Suchmaschine, nur die Suchwörter."
+    },
+    "visuals": {
+      "name": "Visuals",
+      "does": "Zeichnet im Gespräch - ein Diagramm, eine Architekturkarte, eine Erklärung mit Schiebereglern, eine 3D-Szene - live, während der Agent sie schreibt. Eine Zeichnung lässt sich als App speichern.",
+      "example1": "Unser Bestellablauf als Diagramm",
+      "example2": "Ein 3D-Modell des Lagers zum Drehen",
+      "needs": "Nichts weiter. Der Skill visual-design lässt die Zeichnungen gestaltet aussehen.",
+      "never": "Greift nie aufs Netz zu - eine Zeichnung läuft abgeschottet, wie die Seite einer App."
     }
   },
   "capabilityCategories": {

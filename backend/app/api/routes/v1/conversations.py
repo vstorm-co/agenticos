@@ -14,6 +14,7 @@ from app.api.deps import (
     WorkspaceSvc,
     require,
 )
+from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -174,6 +175,22 @@ async def publish_visual(
     under the agent whose turn drew it, owned by the caller.
     """
     return await service.publish(ctx, conversation_id, visual_id, data)
+
+
+@router.get(
+    "/{conversation_id}/visuals/{visual_id}/images/{name}",
+    response_class=Response,
+)
+async def get_visual_image(
+    conversation_id: UUID, visual_id: str, name: str, service: VisualSvc, ctx: Auth
+) -> Response:
+    """One image a visual uses, for the console to put into the drawing.
+
+    Read with the conversation's own access: whoever may read the thread may see
+    the pictures drawn in it.
+    """
+    data, media_type = await service.image(ctx, conversation_id, visual_id, name)
+    return visual_image_response(data, media_type)
 
 
 @router.patch("/{conversation_id}", response_model=ConversationRead)

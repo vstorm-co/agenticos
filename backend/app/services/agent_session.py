@@ -2,6 +2,7 @@
 import asyncio
 import contextlib
 import logging
+from collections.abc import Mapping
 from typing import Any, NamedTuple
 from uuid import UUID
 
@@ -534,7 +535,7 @@ class AgentSession:
 
         steering = SteeringInbox(on_applied=steered)
         self._steering = steering
-        visual_reports = VisualReports()
+        visual_reports = VisualReports(send_images=self._visual_images)
         self._visual_reports = visual_reports
         # The run row, as soon as `prepare` opens one. A list because the
         # callback is `list.append` and a turn opens at most one run - it is
@@ -962,6 +963,12 @@ class AgentSession:
         """
         frame = event.model_dump(mode="json")
         await send_event(self.websocket, event.kind, frame)
+
+    async def _visual_images(self, tool_call_id: str, images: Mapping[str, str]) -> None:
+        """A drawing's images, for the tab about to render it (#2171)."""
+        await send_event(
+            self.websocket, "visual_images", {"tool_call_id": tool_call_id, "images": dict(images)}
+        )
 
     async def _browser_event(self, event: BrowserEvent) -> bool:
         """Forward one frame from a browse in progress, under the frame's own name.

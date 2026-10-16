@@ -198,6 +198,7 @@ export type WSEventType =
   | "thinking_delta"
   | "part_start"
   | "tool_call_delta"
+  | "visual_images"
   | "tool_call"
   | "tool_result"
   | "final_result"

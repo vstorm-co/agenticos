@@ -1,5 +1,5 @@
 ---
-source_sha: "94ce53b8a699"
+source_sha: "135c28e5be54"
 ---
 
 # Aplikacje { #artifacts }
@@ -128,11 +128,17 @@ jeśli wdrożenie przeniesie później treść do innego originu:
 | `lib/agenticos-2.css` | Wygląd konsoli dla stron, jasny i ciemny, oraz komponenty `ao-`, z których buduje się stronę |
 | `lib/agenticos-2.js` | `window.AO`: Chart.js w stylu konsoli, formatowanie liczb w języku strony, ikony, zakładki |
 | `lib/agenticos-1.css` | Pierwsza wersja wyglądu, zostawiona dla stron opublikowanych z nią |
+| `lib/three-0.186.0/three.module.js` | three.js 0.186.0 jako moduł ES, z `addons/controls/OrbitControls.js` obok - zmapuj `three` i `three/addons/` mapą importów |
+| `lib/mermaid-12.1.0.min.js` | Mermaid 12.1.0, jako `window.mermaid` |
 
 Każda nazwa niesie swoją wersję i jest cache'owana przez rok. Aktualizacja dodaje
 nowy plik obok starego, więc strona opublikowana z jedną wersją dalej ją dostaje.
 Nic nie jest pobierane spoza wdrożenia, więc wdrożenie bez dostępu do internetu
 działa tak samo. Pliki są wymienione w `backend/app/core/catalog/artifact_lib/`.
+
+Pliki odpowiadają `Access-Control-Allow-Origin: *`, bo skrypt modułowy jest pobierany
+w trybie CORS, a strona w nieprzezroczystym originie wysyła `Origin: null` - bez tego
+three.js by się nie zaimportował.
 
 Dołączony [skill](skills.md) **`artifact-pages`** uczy agenta z nich korzystać: dwa
 szablony (dashboard i raport), styl domu z jego komponentami, ikony zamiast
@@ -141,6 +147,37 @@ emoji i sposób zmiany strony przez
 istniejąca przez `seed-skills`, a zakładka **Page style** capability Artifacts w
 Builderze go proponuje. Edytuj skill, żeby opisać własny branding, a agent będzie
 się go trzymał.
+
+## Wizualizacje { #visuals }
+
+[Wizual](reference/capabilities.md#visuals) to aplikacja, której jeszcze nie zapisano:
+rysunek, który agent pisze w rozmowie przez `draw`, pokazywany pod jego wiadomością w
+trakcie pisania. To ten sam rodzaj dokumentu - wizual `html` jest stroną, a `svg` czy
+`mermaid` staje się stroną, która go zawiera - i jest rysowany z tą samą izolacją.
+
+**Ramka.** `/api/v1/artifact-content/visual-frame` to jedna stała strona na originie
+treści, serwowana z tą samą polityką, którą dostaje strona każdej aplikacji. Nie zawiera
+rysunku: konsola wysyła do niej rysunek w trakcie strumieniowania, więc nic nie musi być
+zapisane, zanim zostanie pokazane, a izolacja pochodzi z nagłówka odpowiedzi, a nie z
+meta tagu `srcdoc`. Podczas strumieniowania ramka przekształca znaczniki na miejscu, bez
+skryptów i atrybutów `on*`; po zakończeniu zapisuje cały dokument, żeby jego skrypty
+ruszyły, dokładnie tak jak na zapisanej stronie. Ramka zgłasza swój rozmiar, błędy i
+sygnał życia; rysunek, który przestaje go wysyłać, jest zamykany, zamiast blokować kartę.
+
+**W czacie.** Panel pokazuje cały rysunek - SVG dopasowane po `viewBox`, stronę ułożoną
+w szerokości panelu i zmniejszoną powyżej 560 pikseli - z tytułem i napisem *Narysowane
+przez agenta*, więc nie da się go pomylić z konsolą. Pełny ekran pokazuje go w jego
+rozmiarze; na telefonie podgląd otwiera pełny ekran po stuknięciu. Obok są *Pokaż kod*,
+*Pobierz* (`.svg`, `.html` albo źródło Mermaid), *Kopiuj jako obraz* dla SVG i *Zapytaj
+o to*, a błąd zgłoszony przez rysunek przychodzi z *Napraw*, które prosi agenta.
+
+**Zapis jako aplikacja.** *Zapisz w Aplikacjach* bierze tytuł i nazwę, obie wypełnione,
+i publikuje wizual jako wersję aplikacji pod agentem, którego tura go narysowała,
+należącą do osoby, która zapisuje, i prywatną, dopóki jej nie udostępni. Serwer odtwarza
+wizual z transkryptu - z naniesionymi poprawkami - zamiast brać bajty z przeglądarki,
+więc aplikacja jest dokładnie tym, co narysował agent. Zapis pod nazwą, którą osoba już
+ma, dodaje wersję tej aplikacji - w ten sposób poprawka zapisanego rysunku aktualizuje
+stronę, którą udostępniono. Zapis wymaga `artifacts:edit`.
 
 ## Kto może ją otworzyć { #who-can-open-it }
 
@@ -322,6 +359,8 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
   zalogować się w ramce na cudzej witrynie.
 - **Usunięte wersje przepadają.** Rozmowa, która linkuje do wersji starszej niż
   przechowywane okno, może zaproponować tylko najnowszą.
+- **Wizual rysuje się tylko w czacie konsoli i w udostępnionym wątku.** Kanał czatu,
+  widget i osadzenie na innej witrynie pokazują jego tytuł, nie rysunek.
 
 ## Podsumowanie { #recap }
 

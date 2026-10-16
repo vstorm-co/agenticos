@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "3e47abd1c4d8"
 ---
 
 # Die Konsole { #the-console }
@@ -299,6 +299,15 @@ Eingabefeld bleibt über der Tastatur und die Unterhaltung bei ihrer letzten
 Nachricht, wenn sie aufgeht, Enter
 beginnt eine neue Zeile, und Anhängen oder Diktieren liegen hinter einem **+**.
 Felder sind nie so klein, dass iOS hineinzoomt.
+
+**Zeichnungen.** Ein Agent mit [Visuals](reference/capabilities.md#visuals)
+zeichnet unter seiner Nachricht - ein Diagramm, eine Erklärung mit Schiebereglern, eine
+3D-Szene - und Sie sehen sie entstehen, während sie geschrieben wird; ihre Skripte
+starten, wenn sie vollständig ist. Das Panel zeigt die ganze Zeichnung, passend zum
+Gespräch, mit Schaltflächen für Vollbild, Code, Herunterladen, Kopieren eines SVG als
+Bild, Fragen danach und Speichern als [App](artifacts.md#visuals) mit einem Link zum
+Teilen. Meldet eine Zeichnung einen Fehler, weiß der Agent schon davon; **Beheben**
+fragt erneut. Auf einem Telefon öffnet ein Tippen sie im Vollbild.
 
 **Einem Durchlauf zusehen.** Beginnt ein Agent mit dem
 [Webbrowser](reference/capabilities.md#browser-automation) auf einer Seite, erscheint

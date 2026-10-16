@@ -11,13 +11,18 @@ made. Nothing the model passes reaches past the run's conversation.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal
 from uuid import UUID
 
+import httpx2
+from pydantic import BaseModel, Field
+from pydantic_ai._ssrf import safe_download
 from pydantic_ai.messages import ModelResponse, ToolCallPart
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.artifacts._toolset import ArtifactEdit, apply_edits
@@ -25,7 +30,17 @@ from app.agents.deps import AgentDeps
 from app.core.config import settings
 from app.repositories.conversation import ToolCallArgs
 from app.services import visual as visuals
-from app.services.visual import DRAW, REVISE, VISUAL_TOOLS, VisualError, VisualKind
+from app.services.visual import (
+    DRAW,
+    IMAGE_MAX_BYTES,
+    IMAGE_NAME,
+    IMAGE_TOKEN,
+    MAX_IMAGES,
+    REVISE,
+    VISUAL_TOOLS,
+    VisualError,
+    VisualKind,
+)
 
 READ_LIMIT = 100_000
 """How much of a visual `read_visual` returns, in characters - `read_artifact`'s cut."""
@@ -52,6 +67,23 @@ Long enough for the frame to load the libraries and run the drawing's scripts;
 short enough that a tab closed mid-turn costs the run a pause, not a stall.
 """
 
+IMAGE_DOWNLOAD_TIMEOUT = 20
+"""Seconds one image from the web may take to arrive."""
+
+
+class VisualImage(BaseModel):
+    """A picture the drawing uses, by the name the drawing calls it."""
+
+    name: str = Field(
+        description="How the drawing refers to it, as `{{image:NAME}}` - lower-case letters, "
+        "digits, `-` and `_`, e.g. `logo` or `team-photo`"
+    )
+    source: str = Field(
+        description="Where it comes from: the file name of an image attached to this "
+        "conversation, a path in your workspace, or an `https://` address"
+    )
+
+
 _NO_CONVERSATION = (
     "There is no earlier visual to reach here: this run is not part of a conversation. "
     "Draw it again with `draw`."
@@ -76,8 +108,40 @@ def content_problem(kind: VisualKind, content: str) -> str | None:
     if _REMOTE.search(content) is not None:
         return (
             "The drawing loads something from another site, and the frame has no network: it "
-            "would not load. Use the served library set by its relative path (`lib/...`), and "
-            "inline images as `data:` URIs and fonts as system fonts."
+            "would not load. Use the served library set by its relative path (`lib/...`), list "
+            "pictures in `images` and write `{{image:NAME}}` where each goes, and use system "
+            "fonts."
+        )
+    return None
+
+
+def image_problem(content: str, available: set[str]) -> str | None:
+    """A `{{image:NAME}}` the drawing uses with no image of that name; `None` when all have one."""
+    missing = sorted({name for name in IMAGE_TOKEN.findall(content) if name not in available})
+    if not missing:
+        return None
+    return (
+        f"The drawing uses {', '.join(f'{{{{image:{name}}}}}' for name in missing)} but "
+        "`images` names no such image. Add each to `images` with its source, or remove it."
+    )
+
+
+def images_problem(images: list[VisualImage]) -> str | None:
+    """Why this list of images is refused before anything is fetched; `None` when it is not."""
+    if len(images) > MAX_IMAGES:
+        return f"A drawing carries at most {MAX_IMAGES} images. Use fewer, or smaller ones."
+    names = [image.name for image in images]
+    for name in names:
+        if re.fullmatch(IMAGE_NAME, name) is None:
+            return (
+                f"Image name {name!r} is not valid. Use 1-40 lower-case letters, digits, `-` "
+                "and `_`, starting with a letter or digit, e.g. `logo`."
+            )
+    if len(set(names)) != len(names):
+        return "Two images share a name. Give each its own."
+    if any(not image.source.strip() for image in images):
+        return (
+            "An image has no `source`. Name the attached file, the workspace path or the address."
         )
     return None
 
@@ -85,6 +149,12 @@ def content_problem(kind: VisualKind, content: str) -> str | None:
 @dataclass
 class VisualsToolset:
     """The three tools, and which of this run's drawings actually returned."""
+
+    fetches_web: bool = False
+    """Whether an image may come from an `https://` address - only for an agent that may
+    already read the web. A picture's address is a request the agent chooses, and a
+    prompt-injected one could carry what it read in the query string; drawing must
+    not open that door for an agent that has no other."""
 
     drawn: set[str] = field(default_factory=set)
     """Ids of this run's calls that produced a visual, so a steered call is not one."""
@@ -103,6 +173,7 @@ class VisualsToolset:
         kind: Literal["svg", "html", "mermaid"],
         height: int,
         content: str,
+        images: list[VisualImage] | None = None,
     ) -> str:
         """Draw a picture in the conversation: a diagram, a map, a flow, an explainer, a 3D scene.
 
@@ -123,9 +194,12 @@ class VisualsToolset:
           sliders, hover, tabs, `<canvas>`, WebGL. Its scripts run once the call is
           complete, so a half-written scene never starts.
 
-        The frame has no network. No CDN, no `fetch`, no web fonts, no remote images:
-        inline images as `data:` URIs and use system fonts. The deployment serves a
-        library set by relative path, free to use:
+        The frame has no network. No CDN, no `fetch`, no web fonts, no remote images,
+        and use system fonts. A picture - a photo the person attached, an image in your
+        workspace, a picture from the web - goes in `images` with a name, and the
+        drawing uses it as `{{image:NAME}}` wherever a URL goes: `<img src="{{image:logo}}">`,
+        an SVG `<image href="{{image:logo}}">`, or CSS `url({{image:logo}})`. The
+        deployment serves a library set by relative path, free to use:
         - `<link rel="stylesheet" href="lib/agenticos-2.css">` - the product's look,
           light and dark, with `ao-` components;
         - `lib/chart-4.5.1.umd.min.js` (`window.Chart`), `lib/d3-7.9.0.min.js`
@@ -145,7 +219,11 @@ class VisualsToolset:
             kind: `svg`, `mermaid` or `html`, as above.
             height: How tall to start the frame, in pixels, 160-1200 - about 480 for a
                 diagram, 600 for a scene. The frame then fits the drawing.
-            content: The whole drawing, written last. Up to the app size limit.
+            content: The whole drawing. Up to the app size limit.
+            images: Pictures the drawing uses, each with the `name` it is used by and its
+                `source`: the file name of an image attached to this conversation, a path
+                in your workspace, or an `https://` address when you can read the web. Up
+                to 6, 2 MB each; PNG, JPEG, GIF, WebP, AVIF or SVG.
 
         Returns:
             A line naming the drawing and its visual id, and - when somebody is
@@ -159,10 +237,16 @@ class VisualsToolset:
             return steer(ctx, "`kind` must be `svg`, `mermaid` or `html`.")
         if not title.strip():
             return steer(ctx, "`title` is empty. Say in a few words what the drawing shows.")
-        problem = content_problem(found, content)
+        problem = content_problem(found, content) or image_problem(
+            content, {image.name for image in images or []}
+        )
         if problem is not None:
             return steer(ctx, problem)
         visual_id = ctx.tool_call_id or ""
+        try:
+            await self._keep_images(ctx, visual_id, images or [])
+        except VisualError as refused:
+            return steer(ctx, str(refused))
         self.drawn.add(visual_id)
         checked = await _checked(ctx, visual_id)
         return f"Drew {title.strip()!r} as visual `{visual_id}`. {checked}"
@@ -173,6 +257,7 @@ class VisualsToolset:
         visual_id: str,
         edits: list[ArtifactEdit],
         title: str | None = None,
+        images: list[VisualImage] | None = None,
     ) -> str:
         """Change a visual by exact replacements, without drawing it again.
 
@@ -187,6 +272,8 @@ class VisualsToolset:
             edits: Exact replacements, applied in order. Each `old` must appear exactly
                 once in the visual as the edits before it left it.
             title: A new title; omit to keep the current one.
+            images: Pictures to add, as for `draw`. The visual's own images stay
+                available by their names; one of the same name replaces it.
 
         Returns:
             A line naming the revision and its own visual id, which later revisions
@@ -203,10 +290,17 @@ class VisualsToolset:
             content = apply_edits(base.content, edits)
         except ValueError as missed:
             return steer(ctx, f"{missed} Read it with `read_visual` to copy the text exactly.")
-        problem = content_problem(base.kind, content)
+        added = images or []
+        problem = content_problem(base.kind, content) or image_problem(
+            content, set(base.images) | {image.name for image in added}
+        )
         if problem is not None:
             return steer(ctx, problem)
         revision_id = ctx.tool_call_id or ""
+        try:
+            await self._keep_images(ctx, revision_id, added)
+        except VisualError as refused:
+            return steer(ctx, str(refused))
         self.drawn.add(revision_id)
         shown = (title or "").strip() or base.title
         checked = await _checked(ctx, revision_id)
@@ -239,6 +333,94 @@ class VisualsToolset:
         return (
             f"Visual `{found.id}` - {found.title!r}, {found.kind}, "
             f"{len(found.content):,} characters.{cut}\n\n{shown}"
+        )
+
+    async def _keep_images(
+        self, ctx: RunContext[AgentDeps], visual_id: str, images: list[VisualImage]
+    ) -> None:
+        """Fetch, check and keep a drawing's images, and hand them to the watching console.
+
+        Raises:
+            VisualError: An image that is refused - its list, its source, its size or
+                its type - in words the model can act on. Nothing is kept then.
+        """
+        if not images:
+            return
+        problem = images_problem(images)
+        if problem is not None:
+            raise VisualError(problem)
+        organization_id = ctx.deps.organization_id
+        conversation_id = await _conversation(ctx.deps)
+        if organization_id is None or conversation_id is None:
+            raise VisualError(
+                "Images need a conversation to keep them in, and this run has none. Draw "
+                "without `images`."
+            )
+        fetched: dict[str, tuple[bytes, str]] = {}
+        for image in images:
+            data = await self._image_bytes(ctx, conversation_id, image.source.strip())
+            if len(data) > IMAGE_MAX_BYTES:
+                raise VisualError(
+                    f"Image {image.name!r} is {len(data):,} bytes, over the "
+                    f"{IMAGE_MAX_BYTES:,}-byte limit. Use a smaller one."
+                )
+            media_type = visuals.image_type(data)
+            if media_type is None:
+                raise VisualError(
+                    f"{image.source!r} is not an image this can show - PNG, JPEG, GIF, WebP, "
+                    "AVIF or SVG."
+                )
+            fetched[image.name] = (data, media_type)
+        for name, (data, _media_type) in fetched.items():
+            await visuals.save_image(organization_id, conversation_id, visual_id, name, data)
+        reports = ctx.deps.visual_reports
+        if reports is not None and reports.send_images is not None:
+            uris: Mapping[str, str] = {
+                name: visuals.data_uri(data, media_type)
+                for name, (data, media_type) in fetched.items()
+            }
+            await reports.send_images(visual_id, uris)
+
+    async def _image_bytes(
+        self, ctx: RunContext[AgentDeps], conversation_id: UUID, source: str
+    ) -> bytes:
+        """One image's bytes: from the web, an attachment of this thread, or the workspace.
+
+        Raises:
+            VisualError: The source names nothing that can be read, in words the
+                model can act on.
+        """
+        if source.lower().startswith(("http://", "https://")):
+            if not self.fetches_web:
+                raise VisualError(
+                    "This agent cannot read the web, so it cannot fetch an image by address. "
+                    "Use an image attached to the conversation or a file in your workspace."
+                )
+            try:
+                response = await safe_download(
+                    source, max_bytes=IMAGE_MAX_BYTES, timeout=IMAGE_DOWNLOAD_TIMEOUT
+                )
+            except (ValueError, httpx2.HTTPError) as failed:
+                raise VisualError(f"{source!r} could not be downloaded: {failed}") from failed
+            if response.status_code >= 400:
+                raise VisualError(f"{source!r} answered {response.status_code}. Use another image.")
+            return response.content
+        attached = await visuals.attachment_bytes(conversation_id, source)
+        if attached is not None:
+            return attached
+        if ctx.workspace.attached:
+            try:
+                return await ctx.workspace.read_bytes(source)
+            except (FileNotFoundError, IsADirectoryError, NotADirectoryError):
+                pass
+            except PermissionError as refused:
+                raise VisualError(f"Reading {source!r} was refused: {refused}") from refused
+            except WorkspaceError as failed:
+                raise VisualError(f"Reading {source!r} failed: {failed}") from failed
+        raise VisualError(
+            f"There is no image called {source!r} attached to this conversation"
+            + (" or in your workspace." if ctx.workspace.attached else ".")
+            + " Use the file name exactly as it was attached, or a workspace path."
         )
 
     async def _resolve(self, ctx: RunContext[AgentDeps], visual_id: str) -> visuals.Visual:

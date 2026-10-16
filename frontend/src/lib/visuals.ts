@@ -85,6 +85,27 @@ export interface ResolvedVisual {
   kind: VisualKind;
   content: string;
   height: number;
+  /** Each picture the visual may use, by name, and the call that brought it. */
+  images: Record<string, string>;
+}
+
+/** Where a visual uses one of its pictures - the backend's `IMAGE_TOKEN`. */
+const IMAGE_TOKEN = /\{\{image:([a-z0-9][a-z0-9_-]{0,39})\}\}/g;
+
+/** The names a `draw` or `revise_visual` call gave its pictures. */
+export function imageNames(args: Record<string, unknown>): string[] {
+  const raw = args.images;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item: unknown) => {
+    if (typeof item !== "object" || item === null) return [];
+    const { name } = item as { name?: unknown };
+    return typeof name === "string" ? [name] : [];
+  });
+}
+
+/** The visual with each `{{image:NAME}}` it has a picture for replaced by its URI. */
+export function inlineImages(content: string, uris: Readonly<Record<string, string>>): string {
+  return content.replace(IMAGE_TOKEN, (token, name: string) => uris[name] ?? token);
 }
 
 const MAX_CHAIN = 50;
@@ -113,7 +134,12 @@ export function resolveVisual(
   if (kind === null || typeof origin.content !== "string") return null;
   let content: string = origin.content;
   let title = typeof origin.title === "string" ? origin.title : "";
+  const owner = chain.at(-1) ?? call;
+  const images: Record<string, string> = Object.fromEntries(
+    imageNames(origin).map((name) => [name, owner.id]),
+  );
   for (const revision of chain.slice(0, -1).reverse()) {
+    for (const name of imageNames(revision.args)) images[name] = revision.id;
     const changes = edits(revision.args.edits);
     const applied = changes === null ? null : applyEdits(content, changes);
     if (applied === null) return null;
@@ -122,7 +148,7 @@ export function resolveVisual(
       title = revision.args.title;
     }
   }
-  return { title, kind, content, height: clampHeight(origin.height) };
+  return { title, kind, content, height: clampHeight(origin.height), images };
 }
 
 /** What of a `draw` call has arrived while its arguments stream. */

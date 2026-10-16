@@ -35,3 +35,26 @@ export function publishVisual(
     data,
   );
 }
+
+/**
+ * One picture a visual uses, as a `data:` URI the drawing's frame can show.
+ *
+ * Read through the console's own session and put into the drawing as data: the
+ * frame has no network and must not be given one for a picture.
+ */
+export async function getVisualImage(
+  conversationId: string,
+  visualId: string,
+  name: string,
+): Promise<string> {
+  const response = await apiClient.raw(
+    `/conversations/${conversationId}/visuals/${encodeURIComponent(visualId)}/images/${encodeURIComponent(name)}`,
+  );
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("unreadable"));
+    reader.readAsDataURL(blob);
+  });
+}

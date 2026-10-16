@@ -86,3 +86,20 @@ def embed_response(embed: EmbedDocument) -> Response:
             "Cross-Origin-Resource-Policy": "cross-origin",
         },
     )
+
+
+def visual_image_response(data: bytes, media_type: str) -> Response:
+    """One image of a visual, for the console to read - never a page of its own.
+
+    An SVG among them is the agent's choice of file, so the response is sandboxed
+    and allows nothing: opened directly it renders as an image and runs no script.
+    """
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, max-age=3600",
+        },
+    )

@@ -7,9 +7,18 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.visuals._capability import Visuals
 
-__all__ = ["VISUALS_CAPABILITY_ID", "Visuals"]
+__all__ = ["BOUND_CAPABILITIES_RESOURCE", "VISUALS_CAPABILITY_ID", "Visuals"]
 
 VISUALS_CAPABILITY_ID = "visuals"
+
+BOUND_CAPABILITIES_RESOURCE = "bound_capability_ids"
+"""Key the factory puts the agent's switched-on capability ids under.
+
+Read here to tell whether the agent may already reach the web, which decides
+whether a drawing may fetch an image by address.
+"""
+
+_WEB_READERS = frozenset({"web_fetch", "browser_use"})
 
 
 @register(
@@ -40,4 +49,5 @@ VISUALS_CAPABILITY_ID = "visuals"
     ),
 )
 def _build(ctx: CapabilityBuildContext) -> Visuals:
-    return Visuals()
+    bound = ctx.resources.get(BOUND_CAPABILITIES_RESOURCE) or frozenset()
+    return Visuals(fetches_web=bool(_WEB_READERS & set(bound)))

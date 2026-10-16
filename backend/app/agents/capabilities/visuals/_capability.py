@@ -27,11 +27,17 @@ class Visuals(AbstractCapability[AgentDeps]):
     frame is the app sandbox, and why earlier visuals are named rather than replayed.
     """
 
-    _tools: VisualsToolset = field(default_factory=VisualsToolset, init=False, repr=False)
+    fetches_web: bool = False
+    """Whether the agent may already read the web, so a drawing may use an image by address."""
+
+    _tools: VisualsToolset = field(init=False, repr=False)
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
     )
     _listed: dict[UUID, str] = field(default_factory=dict, init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        self._tools = VisualsToolset(fetches_web=self.fetches_web)
 
     def get_toolset(self) -> AbstractToolset[Any]:
         if self._toolset is None:
