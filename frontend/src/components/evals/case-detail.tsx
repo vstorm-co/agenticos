@@ -73,7 +73,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
                 </span>
               )}
               {result.unverified && (
-                <span className="text-warning block">{tScoring("unverifiedTop")}</span>
+                <span className="text-warning block">{tScoring("unverifiedGrade")}</span>
               )}
             </li>
           ))}

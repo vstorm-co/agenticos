@@ -585,7 +585,9 @@ describe("CaseDetail", () => {
     expect(screen.getByText("undecided")).toBeInTheDocument();
     // The judge's rule and an unverified top grade read as they do in Review.
     expect(screen.getByText("Rule: A refusal names the policy")).toBeInTheDocument();
-    expect(screen.getByText(/Unverified: a top grade/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Unverified: nothing quoted from the answer backs this grade/),
+    ).toBeInTheDocument();
     // Not graded is not undecided: the judge failed, and says why.
     expect(screen.getByText("not graded: The judge's run did not finish.")).toBeInTheDocument();
     expect(screen.getByText("not graded: judge_new_reason")).toBeInTheDocument();
