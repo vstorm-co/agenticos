@@ -1,5 +1,5 @@
 ---
-source_sha: "0ceb552b4aa0"
+source_sha: "f0751034aff5"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -463,6 +463,31 @@ cat deploy_key                           # → DEPLOY_SSH_KEY, then delete it lo
 Entonces aparece una ejecución con **Review deployments**; aprobarla arranca el
 job. `workflow_dispatch` ejecuta el mismo job contra una ref que tú indiques, que
 es como se hace una vuelta atrás, y pasa por la misma aprobación.
+
+### Un pull request, antes de fusionarlo { #a-pull-request-before-it-merges }
+
+`Deploy` acepta también un pull request abierto, no solo un commit fusionado,
+para probar un cambio grande en el servidor antes de hacer squash. Lánzalo desde
+`main` e indica el pull request:
+
+```bash
+gh workflow run deploy.yml --ref main -f pr=2062
+```
+
+Fija la cabeza del pull request, publica las imágenes de ese commit solo como
+`sha-<short>` (nunca `edge` ni `latest`) y espera la misma aprobación. Solo se
+acepta una rama de este repositorio; la de un fork se rechaza antes de que nada
+tenga la clave del servidor. Un push posterior a la rama no despliega nada:
+vuelve a lanzarlo.
+
+!!! danger "No despliegues ningún commit de `main` encima hasta que se fusione"
+
+    Las migraciones del pull request están en la base de datos del servidor y no
+    en `main`, así que un despliegue de `main` encuentra una revisión que no
+    conoce. Deja sin aprobar - cancela - los despliegues de los merges hasta que
+    el pull request se fusione; su commit de squash lleva las mismas migraciones,
+    y el primer despliegue de `main` después continúa desde donde está la base de
+    datos.
 
 ## Copias de seguridad { #backups }
 

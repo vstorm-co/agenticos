@@ -434,6 +434,30 @@ A run then appears with **Review deployments**; approving it starts the job.
 `workflow_dispatch` runs the same job against a ref you name, which is how a
 rollback is done, and it passes through the same approval.
 
+### A pull request, before it merges
+
+`Deploy` takes an open pull request as well as a merged commit, to try a large
+change on the server before squashing it. Start it from `main` and name the
+pull request:
+
+```bash
+gh workflow run deploy.yml --ref main -f pr=2062
+```
+
+It pins the pull request's head, publishes that commit's images as
+`sha-<short>` alone (never `edge` or `latest`), and waits at the same approval.
+Only a branch of this repository is accepted; a fork's is refused before
+anything holds the server's key. Pushing to the branch afterwards deploys
+nothing: run it again.
+
+!!! danger "Deploy no commit of `main` over it until it merges"
+
+    A pull request's migrations are in the server's database and not in `main`,
+    so a deploy of `main` meets a revision it does not know. Leave the merges'
+    own deploys unapproved - cancel them - until the pull request merges; its
+    squashed commit carries the same migrations, and the first deploy of `main`
+    after it continues from where the database is.
+
 ## Backups
 
 One volume matters, and it is not obvious which:

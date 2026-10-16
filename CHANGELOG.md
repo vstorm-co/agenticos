@@ -17,6 +17,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **An open pull request can be put on the test server before it merges.**
+  `gh workflow run deploy.yml --ref main -f pr=<number>` pins the pull
+  request's head, publishes its images as `sha-<short>` alone and waits at the
+  same approval as any deploy; a fork's branch is refused. `docs/deploy.md`
+  says why `main` must not be deployed over it until it merges.
+
 ## [0.0.539] - 2026-10-15
 
 ### Fixed

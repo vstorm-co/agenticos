@@ -11,7 +11,9 @@ laptop, where the override file builds the image locally under another name.
     with that permission that ran on a fork's pull request would let the fork
     publish under this organization's name.
   - Only a commit already on `main` is published, whatever ref the run was
-    started from - a `v*` tag pushed from a branch must not move `latest`.
+    started from - a `v*` tag pushed from a branch must not move `latest`. The
+    one exception is asked for by name: an open pull request from this
+    repository, published as `sha-<short>` alone for a test deploy.
   - One concurrency group per commit. A group per ref with
     `cancel-in-progress: false` is one running and one *pending* run, so a
     third merge cancels the second's publish and that commit has no `sha-`
@@ -122,6 +124,26 @@ class TestOnlyThisRepositoryCanPublish:
         holds it to the same on-`main` rule as everything else.
         """
         assert "sha" in triggers["workflow_dispatch"]["inputs"]
+
+    def test_a_pull_request_is_published_only_from_this_repository_and_only_by_its_sha(
+        self, workflow: dict[str, Any], triggers: dict[str, Any]
+    ) -> None:
+        """`deploy.yml` puts an open pull request on the test server, which needs images.
+
+        So a dispatch may name one (`pr`) - but only an open one whose branch is
+        this repository's, never a fork's, and the commit is held to that branch.
+        It gets `sha-<short>` alone: `edge`, a version and `latest` stay behind
+        the merge.
+        """
+        assert "pr" in triggers["workflow_dispatch"]["inputs"]
+        script = "\n".join(step.get("run", "") for step in workflow["jobs"]["resolve"]["steps"])
+        assert ".head.repo.full_name" in script and '"$head_repo" != "$REPO"' in script
+        assert '"$state" != open' in script
+        assert 'git merge-base --is-ancestor "$sha" "$head_sha"' in script
+        assert 'if [ -z "$BACKFILL$PR" ]; then' in script, (
+            "a pull request's images must not move edge, a version or latest"
+        )
+        assert workflow["jobs"]["resolve"]["permissions"]["pull-requests"] == "read"
 
 
 class TestOnePublishPerCommit:

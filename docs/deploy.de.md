@@ -1,5 +1,5 @@
 ---
-source_sha: "0ceb552b4aa0"
+source_sha: "f0751034aff5"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -469,6 +469,31 @@ cat deploy_key                           # → DEPLOY_SSH_KEY, then delete it lo
 Es erscheint dann ein Lauf mit **Review deployments**; ihn freizugeben startet den
 Job. `workflow_dispatch` führt denselben Job gegen eine von Ihnen benannte Ref
 aus, so wird ein Rollback gemacht, und er durchläuft dieselbe Freigabe.
+
+### Ein Pull Request, bevor er gemergt ist { #a-pull-request-before-it-merges }
+
+`Deploy` nimmt neben einem gemergten Commit auch einen offenen Pull Request, um
+eine große Änderung vor dem Squash auf dem Server auszuprobieren. Starten Sie ihn
+von `main` und nennen Sie den Pull Request:
+
+```bash
+gh workflow run deploy.yml --ref main -f pr=2062
+```
+
+Er pinnt den Head des Pull Requests, veröffentlicht die Images dieses Commits nur
+als `sha-<short>` (nie `edge` oder `latest`) und wartet auf dieselbe Freigabe.
+Angenommen wird nur ein Branch dieses Repositorys; der eines Forks wird
+abgelehnt, bevor irgendetwas den Schlüssel zum Server hält. Ein späterer Push auf
+den Branch deployt nichts: Starten Sie ihn erneut.
+
+!!! danger "Deployen Sie keinen Commit von `main` darüber, bis er gemergt ist"
+
+    Die Migrationen des Pull Requests sind in der Datenbank des Servers und nicht
+    in `main`, also trifft ein Deploy von `main` auf eine Revision, die er nicht
+    kennt. Lassen Sie die Deploys der Merges unfreigegeben - brechen Sie sie ab -,
+    bis der Pull Request gemergt ist; sein Squash-Commit trägt dieselben
+    Migrationen, und der erste Deploy von `main` danach setzt dort fort, wo die
+    Datenbank steht.
 
 ## Backups { #backups }
 

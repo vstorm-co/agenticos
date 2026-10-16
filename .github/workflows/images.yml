@@ -16,9 +16,13 @@
 # job that used to build the backend on `main` with `push: false` for Trivy to
 # scan; the scan is the last job here, over the image that was actually pushed.
 #
-# **Only a commit already on `main` is published.** `resolve` refuses anything
-# else, so a `v*` tag pushed from a branch cannot move `latest` past the
-# pull-request boundary, and a dispatch on a branch publishes nothing. A release
+# **Only a commit already on `main` is published** - with one exception, asked
+# for by name. `resolve` refuses anything else, so a `v*` tag pushed from a
+# branch cannot move `latest` past the pull-request boundary, and a dispatch on
+# a branch publishes nothing. The exception is a dispatch naming an open pull
+# request from this repository (`pr`), which publishes that branch's commit as
+# `sha-<short>` alone, for `deploy.yml` to put on the test server before it
+# merges. Nothing that moves is touched, and a fork's branch is refused. A release
 # tag on a commit `main` already built is not built again: `sha-<short>` is in
 # the registry, and `publish` gives that manifest list its version and `latest`
 # - seconds rather than minutes, and the digests a deployment pinned to are the
@@ -44,7 +48,11 @@ on:
   workflow_dispatch:
     inputs:
       sha:
-        description: "Commit to publish (default: the ref this is run from). It has to be on main already."
+        description: "Commit to publish (default: the ref this is run from). It has to be on main already, or on the branch of `pr`."
+        required: false
+        type: string
+      pr:
+        description: "An open pull request from this repository to publish instead (default: its head). Gets its sha- tag and nothing else."
         required: false
         type: string
 
@@ -64,7 +72,7 @@ permissions:
 # still serialises two runs of the *same* commit - a push and a dispatch re-run
 # - which is the one collision worth preventing.
 concurrency:
-  group: images-${{ inputs.sha || github.sha }}
+  group: images-${{ inputs.sha || inputs.pr || github.sha }}
   cancel-in-progress: false
 
 env:
@@ -82,6 +90,8 @@ jobs:
     permissions:
       contents: read
       packages: read
+      # To read a pull request named by `pr`: its state, its head, and whose it is.
+      pull-requests: read
     outputs:
       sha: ${{ steps.pin.outputs.sha }}
       short: ${{ steps.pin.outputs.short }}
@@ -106,24 +116,47 @@ jobs:
       # `publish` against where `main` is by then. The version and `latest` for a
       # `v*` tag - `latest` only for a plain `x.y.z`, the way metadata-action's
       # `latest=auto` would have it, so a pre-release never becomes the default
-      # pull. A backfill (`sha` given) gets the `sha-` tag alone: a tag that moves
-      # belongs to the event that would have moved it.
+      # pull. A backfill (`sha` given) and a pull request (`pr`) get the `sha-` tag
+      # alone: a tag that moves belongs to the event that would have moved it.
       - name: Pin it
         id: pin
         env:
           REF: ${{ inputs.sha || github.sha }}
           BACKFILL: ${{ inputs.sha }}
+          PR: ${{ inputs.pr }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          sha=$(git rev-parse --verify "$REF^{commit}")
-          if ! git merge-base --is-ancestor "$sha" origin/main; then
-            echo "::error::$REF ($sha) is not on main - only merged commits are published" >&2
-            exit 1
+          if [ -n "$PR" ]; then
+            # Open, and a branch of this repository: a fork's code must never be
+            # published under this organization's name. The commit is the head,
+            # or one the branch already holds - what `deploy.yml` pinned before
+            # somebody pushed again.
+            IFS=$'\t' read -r state head_repo head_sha < <(
+              gh api "repos/$REPO/pulls/$PR" --jq '[.state, .head.repo.full_name, .head.sha] | @tsv'
+            )
+            if [ "$state" != open ] || [ "$head_repo" != "$REPO" ]; then
+              echo "::error::#$PR is $state, from $head_repo - only an open pull request from $REPO is published" >&2
+              exit 1
+            fi
+            git fetch --quiet origin "$head_sha"
+            sha=$(git rev-parse --verify "${BACKFILL:-$head_sha}^{commit}")
+            if ! git merge-base --is-ancestor "$sha" "$head_sha"; then
+              echo "::error::$sha is not on the branch of #$PR" >&2
+              exit 1
+            fi
+          else
+            sha=$(git rev-parse --verify "$REF^{commit}")
+            if ! git merge-base --is-ancestor "$sha" origin/main; then
+              echo "::error::$REF ($sha) is not on main - only merged commits are published" >&2
+              exit 1
+            fi
           fi
           short=${sha:0:7}
           tags="sha-$short"
           edge=false
-          if [ -z "$BACKFILL" ]; then
+          if [ -z "$BACKFILL$PR" ]; then
             case "$GITHUB_REF" in
               refs/heads/main) edge=true ;;
               refs/tags/v*)

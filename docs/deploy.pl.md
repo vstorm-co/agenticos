@@ -1,5 +1,5 @@
 ---
-source_sha: "0ceb552b4aa0"
+source_sha: "f0751034aff5"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -446,6 +446,30 @@ Pojawia się wtedy uruchomienie z **Review deployments**; zatwierdzenie go
 uruchamia job. `workflow_dispatch` uruchamia ten sam job wobec wskazanego przez
 ciebie refa, i tak właśnie robi się rollback, a przechodzi on przez to samo
 zatwierdzenie.
+
+### Pull request, zanim zostanie scalony { #a-pull-request-before-it-merges }
+
+`Deploy` przyjmuje też otwarty pull request, nie tylko scalony commit, żeby
+wypróbować dużą zmianę na serwerze przed squashem. Uruchom go z `main` i podaj
+numer pull requesta:
+
+```bash
+gh workflow run deploy.yml --ref main -f pr=2062
+```
+
+Przypina głowę pull requesta, publikuje obrazy tego commita tylko jako
+`sha-<short>` (nigdy `edge` ani `latest`) i czeka na to samo zatwierdzenie.
+Przyjmowana jest tylko gałąź tego repozytorium; gałąź z forka zostaje odrzucona,
+zanim cokolwiek dostanie klucz do serwera. Push do gałęzi potem niczego nie
+wdraża: uruchom go jeszcze raz.
+
+!!! danger "Nie wdrażaj na niego żadnego commita z `main`, dopóki nie zostanie scalony"
+
+    Migracje pull requesta są w bazie serwera, a nie w `main`, więc deploy `main`
+    trafi na rewizję, której nie zna. Nie zatwierdzaj - anuluj - deployów po
+    kolejnych merge'ach, dopóki pull request nie zostanie scalony; jego squash
+    niesie te same migracje, a pierwszy deploy `main` po nim zaczyna tam, gdzie
+    jest baza.
 
 ## Kopie zapasowe { #backups }
 

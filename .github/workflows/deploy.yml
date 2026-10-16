@@ -9,7 +9,10 @@ name: Deploy
 #
 # `workflow_dispatch` is the same job with a ref you pick - a rollback, or a
 # redeploy after changing something on the host - and it passes through the same
-# approval.
+# approval. With `pr` it puts an open pull request on the server before it
+# merges, to try it where people can reach it; `docs/deploy.md` says what that
+# costs (#2062 was the first: four hundred commits nobody wanted to squash
+# untried).
 on:
   push:
     branches: [main]
@@ -17,6 +20,10 @@ on:
     inputs:
       ref:
         description: "Commit or tag to deploy (default: the branch this is run from)"
+        required: false
+        type: string
+      pr:
+        description: "Deploy this open pull request's head instead, before it merges (this repository's branches only)"
         required: false
         type: string
 
@@ -51,6 +58,12 @@ jobs:
     name: Resolve the commit
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # `pull-requests` to read the one named by `pr`, `actions` to start the
+    # publish of its images - a pull request's commit has none until asked.
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: write
     outputs:
       sha: ${{ steps.pin.outputs.sha }}
     steps:
@@ -64,8 +77,28 @@ jobs:
         id: pin
         env:
           REF: ${{ inputs.ref || github.sha }}
+          PR: ${{ inputs.pr }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          if [ -n "$PR" ]; then
+            # Open, and a branch of this repository - never a fork's code on a
+            # server holding this organization's keys. Its head now, pinned: a
+            # push after this is not what the approval below is for.
+            IFS=$'\t' read -r state head_repo sha < <(
+              gh api "repos/$REPO/pulls/$PR" --jq '[.state, .head.repo.full_name, .head.sha] | @tsv'
+            )
+            if [ "$state" != open ] || [ "$head_repo" != "$REPO" ]; then
+              echo "::error::#$PR is $state, from $head_repo - only an open pull request from $REPO is deployable" >&2
+              exit 1
+            fi
+            git fetch --quiet origin "$sha"
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+            echo "::warning::Deploying #$PR, which has not merged. Approve no deploy of main until it does: main lacks its migrations, and the server's database is ahead of it."
+            echo "Deploying #$PR at $(git --no-pager log --oneline -1 "$sha")"
+            exit 0
+          fi
           sha=$(git rev-parse --verify "$REF^{commit}")
           # `main` rather than the default branch by name from the API: this
           # workflow only ever deploys what merged, and a repository that renamed
@@ -76,6 +109,18 @@ jobs:
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "Deploying $(git --no-pager log --oneline -1 "$sha")"
+
+      # A merged commit's images were published by its push to `main`; a pull
+      # request's are published now, while the deploy waits for approval -
+      # `scripts/deploy.sh` waits for them as it does for any commit.
+      - name: Publish its images
+        if: inputs.pr != ''
+        env:
+          PR: ${{ inputs.pr }}
+          SHA: ${{ steps.pin.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: gh workflow run images.yml --repo "$REPO" --ref main -f pr="$PR" -f sha="$SHA"
 
   deploy:
     name: Deploy to production
