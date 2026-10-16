@@ -1127,6 +1127,19 @@ async def test_a_cached_baseline_must_have_been_graded_by_the_judge_that_grades_
     now = {"agent_version_id": None, "rubric_hash": "a", "prompt_version": JUDGE_PROMPT_VERSION}
     await _pin(db, first.id, now)
     assert await baseline_basis() == "cached"
+    # A first answer that never came in would never be asked again.
+    hole = await db.scalar(
+        select(EvalRunCase)
+        .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
+        .where(EvalRunArm.eval_run_id == first.id, EvalRunArm.role == "baseline")
+        .limit(1)
+    )
+    assert hole is not None
+    hole.status = "failed"
+    await db.flush()
+    assert await baseline_basis() == "history"
+    hole.status = "done"
+    await db.flush()
     # Graded before the judge's prompt changed.
     await _pin(db, first.id, {"agent_version_id": None, "rubric_hash": "a"})
     assert await baseline_basis() == "history"
