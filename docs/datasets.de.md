@@ -1,5 +1,5 @@
 ---
-source_sha: "34ffb9ee0669"
+source_sha: "a5c47b5f9e50"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -361,13 +361,16 @@ Scorer zu einem Urteil kam, bleibt, wie er ist.
 
 Eine Ursache, die noch besteht - KI-Unterstützung aus, Bewerter nicht
 veröffentlicht -, wird so abgelehnt, wie sie ist, ebenso der Bewerter eines
-Eval-Runs, der seit seinem Fehlschlag neu veröffentlicht wurde, oder ein Ergebnis
-eines solchen Runs, das an einen früheren Bewerter-Prompt gebunden ist, dessen
-Bewertung sich nicht mit dem Rest des Runs vergleichen ließe; dann wird nichts
-bewertet.
+Eval-Runs, der seit seinem Fehlschlag neu veröffentlicht wurde, oder ein
+Ergebnis eines solchen Runs, das an einen früheren Bewerter-Prompt gebunden ist,
+dessen Bewertung sich nicht mit dem Rest des Runs vergleichen ließe; dann wird
+nichts bewertet.
+
 Eine für sich bewertete Antwort, aus dem Chat oder aus Activity, hat keinen Run,
 mit dem sie sich vergleichen müsste: Sie wird von der jetzt veröffentlichten
-Version bewertet, und ihr Pin nennt diese Version.
+Version bewertet, und ihr Pin nennt diese Version. Ein Ergebnis wird gebunden,
+ob sein Bewerter bewertet hat oder gescheitert ist, also bleibt ein
+gescheitertes an die Version und den Prompt gebunden, mit denen es scheiterte.
 
 Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
 Antwort nicht wörtlich enthält, wird neben der Bewertung als nicht verifiziert

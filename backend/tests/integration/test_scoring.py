@@ -1176,6 +1176,8 @@ class TestGradingAgain:
         run = await _scored_run(db, tenant)
         scoring = ScoringService(db)
         failed = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        assert failed.judge is not None
+        assert failed.judge["prompt_version"] == JUDGE_PROMPT_VERSION
         before = len(await _eval_runs(db, tenant))
         tenant.organization.ai_assistance_enabled = False
         await db.flush()
@@ -1193,6 +1195,33 @@ class TestGradingAgain:
 
         with pytest.raises(BadRequestError, match="published anew"):
             await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id]))
+        assert len(await _eval_runs(db, tenant)) == before
+
+    async def test_an_eval_runs_score_kept_without_the_prompt_it_failed_on_is_refused(
+        self, db, monkeypatch
+    ) -> None:
+        async def prose(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            return ModelResponse(parts=[TextPart("It is fine.")])
+
+        monkeypatch.setattr(ModelRequestSpec, "build", lambda self: FunctionModel(prose))
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        failed = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        kept = await case_score_repo.update(db, score=failed, update_data={"judge": None})
+        results, before = kept.results, len(await _eval_runs(db, tenant))
+
+        with pytest.raises(BadRequestError, match="asked differently"):
+            await ScoringService(db).rescore(
+                tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id])
+            )
+
+        row = await case_score_repo.get(
+            db, failed.id, organization_id=tenant.organization.id, dataset_id=dataset.id
+        )
+        assert row is not None
+        assert (row.judge, row.results, row.passed) == (None, results, None)
         assert len(await _eval_runs(db, tenant)) == before
 
     async def test_an_eval_runs_score_is_graded_again_by_the_judge_that_failed_on_it(

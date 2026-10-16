@@ -522,9 +522,10 @@ class ScoringService:
         unpublished - is refused as it stands rather than recorded again. A judge
         published anew since its run failed, or a judge prompt changed since the
         score was pinned, would grade with other instructions, so a score of an
-        eval run would no longer compare with the rest of it. A score graded on
-        its own has no run to compare with, and is graded by the version
-        published now, which its pin then names.
+        eval run would no longer compare with the rest of it. A judge that ran
+        and left no pin was asked from a prompt nothing recorded, and is refused
+        the same way. A score graded on its own has no run to compare with, and
+        is graded by the version published now, which its pin then names.
 
         Raises:
             AiAssistanceDisabledError: AI assistance is off.
@@ -542,7 +543,8 @@ class ScoringService:
         if score.eval_run_id is None:
             return
         asked = (score.judge or {}).get("prompt_version")
-        if score.judge is not None and asked != JUDGE_PROMPT_VERSION:
+        ran = any(r.get("judge_run_id") for r in judged)
+        if (score.judge is not None or ran) and asked != JUDGE_PROMPT_VERSION:
             raise BadRequestError(
                 message=(
                     "The judge has been asked differently since it graded this answer, so a new "
@@ -658,7 +660,7 @@ class ScoringService:
                 reason=exc.message,
                 run_id=exc.run_id,
             )
-            return Evaluation(failed)
+            return Evaluation(failed, await self._failed_pin(ctx, exc.run_id, criteria, scoring))
         except SystemAgentOutputError as exc:
             said = " ".join(exc.answer.split())
             failed = not_graded(
@@ -669,7 +671,7 @@ class ScoringService:
                 run_id=exc.run_id,
                 said=said if len(said) <= _SAID else f"{said[:_SAID]}…",
             )
-            return Evaluation(failed)
+            return Evaluation(failed, await self._failed_pin(ctx, exc.run_id, criteria, scoring))
         grades = graded(
             criteria,
             result.output,
@@ -680,6 +682,21 @@ class ScoringService:
             counter_example=case.counter_example,
         )
         return Evaluation(grades, await self._pin(ctx, result.run, criteria, scoring))
+
+    async def _failed_pin(
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        criteria: list[JudgeCriterion],
+        scoring: DatasetScoring,
+    ) -> JudgePin | None:
+        """The judge that ran and failed, pinned as one that graded is.
+
+        A judge that failed still answered to a version and a prompt; grading
+        the answer again from other ones would leave its eval run graded two ways.
+        """
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        return None if run is None else await self._pin(ctx, run, criteria, scoring)
 
     async def _pin(
         self,

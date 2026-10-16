@@ -180,3 +180,32 @@ async def test_an_eval_runs_score_graded_from_another_prompt_is_not_graded_again
         await service._judge_unchanged(_ctx(), score)
 
     assert refused.value.details["prompt_version"] == pinned
+
+
+async def test_an_eval_runs_score_its_judge_ran_on_without_a_pin_is_not_graded_again() -> None:
+    service = ScoringService(AsyncMock())
+    service.judge = MagicMock(require_runnable=AsyncMock())
+    score = MagicMock(
+        results=[{"scorer": "judge", "status": "error", "judge_run_id": str(uuid.uuid4())}],
+        scoring=DatasetScoring().model_dump(mode="json", by_alias=True),
+        eval_run_id=uuid.uuid4(),
+        judge=None,
+    )
+
+    with pytest.raises(BadRequestError, match="asked differently"):
+        await service._judge_unchanged(_ctx(), score)
+
+
+async def test_an_eval_runs_score_its_judge_never_ran_on_is_graded_again() -> None:
+    service = ScoringService(AsyncMock())
+    service.judge = MagicMock(require_runnable=AsyncMock())
+    score = MagicMock(
+        results=[{"scorer": "judge", "status": "skipped", "judge_run_id": None}],
+        scoring=DatasetScoring().model_dump(mode="json", by_alias=True),
+        eval_run_id=uuid.uuid4(),
+        judge=None,
+    )
+
+    await service._judge_unchanged(_ctx(), score)
+
+    service.judge.require_runnable.assert_awaited_once()
