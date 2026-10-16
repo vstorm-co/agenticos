@@ -481,8 +481,8 @@ class ScoringService:
                 may not read runs.
             AiAssistanceDisabledError: AI assistance is still off.
             SystemAgentUnavailableError: The judge still cannot run, and why.
-            BadRequestError: A score's answer can no longer be read, or its judge
-                has been published anew since it failed.
+            BadRequestError: A score's answer can no longer be read, or an eval
+                run's judge has been published anew since it failed.
         """
         dataset = await self.datasets.get(ctx, dataset_id, perm=Perm.DATASETS_RUN)
         wanted = list(dict.fromkeys(data.score_ids))
@@ -516,17 +516,20 @@ class ScoringService:
         return Rescored(rescored=await self._reads(ctx, rescored), kept=kept)
 
     async def _judge_unchanged(self, ctx: AuthContext, score: CaseScore) -> None:
-        """Refuse to grade a score again when its judge cannot run, or is not the same judge.
+        """Refuse to grade a score again when its judge cannot run, or an eval run's has changed.
 
         The cause a judge was skipped for - AI assistance off, the judge gone or
         unpublished - is refused as it stands rather than recorded again. A judge
         published anew since its run failed would grade with other instructions,
-        and the score would no longer compare with the rest of its eval run.
+        so a score of an eval run would no longer compare with the rest of it. A
+        score graded on its own has no run to compare with, and is graded by the
+        version published now, which its pin then names.
 
         Raises:
             AiAssistanceDisabledError: AI assistance is off.
             SystemAgentUnavailableError: The judge cannot run, and why.
-            BadRequestError: The judge has a newer version than the one that failed.
+            BadRequestError: An eval run's judge has a newer version than the one
+                that failed.
         """
         judged = [r for r in score.results if r.get("scorer") in ("judge", "reference")]
         if not judged:
@@ -535,6 +538,8 @@ class ScoringService:
         judge = await self.judge.require_runnable(
             ctx, key=JUDGE.key, agent_id=config.judge.agent_id
         )
+        if score.eval_run_id is None:
+            return
         for run_id in {r["judge_run_id"] for r in judged if r.get("judge_run_id")}:
             run = await agent_run_repo.get_run(
                 self.db, UUID(run_id), organization_id=ctx.organization_id

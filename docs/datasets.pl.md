@@ -1,5 +1,5 @@
 ---
-source_sha: "98ecf2dd21b2"
+source_sha: "c346ef291de8"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -332,9 +332,11 @@ którą ktoś na nim podjął; wynik, na którym każdy oceniacz wydał werdykt,
 zostaje bez zmian.
 
 Przyczyna, która nadal trwa - wyłączone wsparcie AI, nieopublikowany sędzia -
-jest odrzucana tak, jak jest, podobnie jak sędzia opublikowany na nowo od
-czasu, gdy zawiódł, bo jego ocena nie byłaby porównywalna z resztą runu; wtedy
-nic nie jest oceniane.
+jest odrzucana tak, jak jest, podobnie jak sędzia runu ewaluacji opublikowany na
+nowo od czasu, gdy zawiódł, bo jego ocena nie byłaby porównywalna z resztą runu;
+wtedy nic nie jest oceniane. Odpowiedź oceniona osobno, z czatu albo z Activity,
+nie ma runu, z którym trzeba ją porównać: ocenia ją wersja opublikowana teraz, a
+jej pin wskazuje tę wersję.
 
 Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
 zawiera słowo w słowo, jest zachowywany obok oceny jako niezweryfikowany,

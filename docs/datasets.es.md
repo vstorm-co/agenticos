@@ -1,5 +1,5 @@
 ---
-source_sha: "98ecf2dd21b2"
+source_sha: "c346ef291de8"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -339,9 +339,11 @@ cualquier decisión que una persona tomara sobre ella; una en la que cada
 evaluador llegó a un veredicto se queda como está.
 
 Una causa que sigue ahí (la asistencia de IA desactivada, el juez sin publicar)
-se rechaza tal cual, igual que un juez publicado de nuevo desde que falló, cuya
-calificación no sería comparable con el resto del run; entonces no se califica
-nada.
+se rechaza tal cual, igual que el juez de un run de evaluación publicado de nuevo
+desde que falló, cuya calificación no sería comparable con el resto del run;
+entonces no se califica nada. Una respuesta calificada por sí sola, desde el chat
+o desde Activity, no tiene un run con el que compararse: la califica la versión
+publicada ahora, y su pin nombra esa versión.
 
 Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la
 respuesta no contiene palabra por palabra se guarda junto a la calificación

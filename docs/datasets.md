@@ -315,8 +315,10 @@ run again, and the score keeps its eval run and any decision a person made on
 it; one every scorer reached a verdict on is left as it is.
 
 A cause still there - AI assistance off, the judge unpublished - is refused as it
-stands, and so is a judge published anew since it failed, whose grade would not
-compare with the rest of the run; nothing is graded then.
+stands, and so is an eval run's judge published anew since it failed, whose grade
+would not compare with the rest of the run; nothing is graded then. An answer
+graded on its own, from the chat or from Activity, has no run to compare with: it
+is graded by the version published now, and its pin names that version.
 
 A grade may quote the answer, up to 12 passages; a quote the answer does not
 contain word for word is kept beside the grade as unverified, shown on its own

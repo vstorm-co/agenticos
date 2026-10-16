@@ -1,5 +1,5 @@
 ---
-source_sha: "98ecf2dd21b2"
+source_sha: "c346ef291de8"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -355,9 +355,12 @@ Entscheidung, die eine Person darüber getroffen hat; einer, bei dem jeder
 Scorer zu einem Urteil kam, bleibt, wie er ist.
 
 Eine Ursache, die noch besteht - KI-Unterstützung aus, Bewerter nicht
-veröffentlicht -, wird so abgelehnt, wie sie ist, ebenso ein Bewerter, der seit
-seinem Fehlschlag neu veröffentlicht wurde, dessen Bewertung sich nicht mit dem
-Rest des Runs vergleichen ließe; dann wird nichts bewertet.
+veröffentlicht -, wird so abgelehnt, wie sie ist, ebenso der Bewerter eines
+Eval-Runs, der seit seinem Fehlschlag neu veröffentlicht wurde, dessen Bewertung
+sich nicht mit dem Rest des Runs vergleichen ließe; dann wird nichts bewertet.
+Eine für sich bewertete Antwort, aus dem Chat oder aus Activity, hat keinen Run,
+mit dem sie sich vergleichen müsste: Sie wird von der jetzt veröffentlichten
+Version bewertet, und ihr Pin nennt diese Version.
 
 Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
 Antwort nicht wörtlich enthält, wird neben der Bewertung als nicht verifiziert
