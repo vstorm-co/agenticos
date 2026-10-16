@@ -34,6 +34,7 @@ _ORG = uuid.uuid4()
 _CALLER = uuid.uuid4()
 
 _REPO = "app.services.agent_environment.agent_environment_repo"
+_EVALS = "app.services.agent_environment.eval_run_repo.count_live_in_environment"
 _AGENTS = "app.services.agent_environment.agent_repo"
 _AUDIT = "app.services.agent_environment.record_audit"
 
@@ -849,6 +850,28 @@ class TestDelete:
         # Locked before counting, so no run can start in it between the two.
         assert order == ["lock", "count"]
 
+    async def test_an_environment_with_an_eval_run_waiting_is_not_removed(self):
+        """A queued eval run would otherwise go on against production's connections."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id, name="staging")
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(
+                "app.services.agent_environment.agent_run_repo.count_unfinished_in_environment",
+                new=AsyncMock(return_value=0),
+            ),
+            patch(_EVALS, new=AsyncMock(return_value=1)),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.lock = AsyncMock()
+            environments.delete = AsyncMock()
+            with pytest.raises(ConcurrentChangeError, match="1 eval run"):
+                await service.delete(_ctx(), agent.id, environment.id)
+
+        environments.delete.assert_not_awaited()
+
     async def test_a_named_environment_is_removed_and_audited(self):
         agent = _agent()
         environment = _environment(agent_id=agent.id, name="dev")
@@ -866,6 +889,7 @@ class TestDelete:
                 "app.services.agent_environment.agent_run_repo.count_unfinished_in_environment",
                 new=AsyncMock(return_value=0),
             ),
+            patch(_EVALS, new=AsyncMock(return_value=0)),
         ):
             environments.get = AsyncMock(return_value=environment)
             environments.lock = AsyncMock()

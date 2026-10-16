@@ -35,6 +35,7 @@ from app.agents.spec import AgentSpec
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     NotFoundError,
     NothingToScoreError,
     PaymentRequiredError,
@@ -50,9 +51,11 @@ from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
+from app.schemas.agent_environment import EnvironmentCreate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.eval_run import EvalRunRequest
 from app.schemas.scoring import CaseVerdict, RescoreRequest
+from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import (
     AgentRegistryService,
     PublishedCandidate,
@@ -1996,3 +1999,22 @@ async def test_a_run_that_cannot_send_to_review_still_completes_and_says_why(db)
     )
     # The answers and their grades are kept all the same.
     assert read.arms[0].summary.failed == 1
+
+
+async def test_an_environment_with_an_eval_run_waiting_in_it_is_kept(db) -> None:
+    """Removed, the run's environment would read as the default and its cases would
+    go on against production's connections."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    environments = AgentEnvironmentService(db)
+    staging = await environments.create(ctx, agent.id, EnvironmentCreate(name="staging"))
+    started = await EvalRunService(db).start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, environment_id=staging.id)
+    )
+
+    with pytest.raises(ConcurrentChangeError, match="1 eval run"):
+        await environments.delete(ctx, agent.id, staging.id)
+
+    await _run_to_end(db, Model(db), started.id, ctx)
+    await environments.delete(ctx, agent.id, staging.id)

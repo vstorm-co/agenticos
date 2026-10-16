@@ -527,6 +527,22 @@ async def latest_arm(
     return (row[0], row[1]) if row is not None else None
 
 
+async def count_live_in_environment(
+    db: AsyncSession, *, environment_id: UUID, organization_id: UUID
+) -> int:
+    """How many eval runs in an environment are queued or running."""
+    count = await db.scalar(
+        select(func.count())
+        .select_from(EvalRun)
+        .where(
+            EvalRun.environment_id == environment_id,
+            EvalRun.organization_id == organization_id,
+            EvalRun.status.in_(_LIVE),
+        )
+    )
+    return count or 0
+
+
 async def heartbeat(
     db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID, now: datetime
 ) -> None:
