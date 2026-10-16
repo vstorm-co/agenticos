@@ -10,7 +10,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from "@/comp
 import { IconButton } from "@/components/ui";
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { cn, setUrlParam, timeAgo } from "@/lib/utils";
-import { useAgentSelectionStore, useChatBandsStore, useChatSidebarStore } from "@/stores";
+import {
+  useAgentSelectionStore,
+  useChatBandsStore,
+  useChatSidebarStore,
+  useWorkingStore,
+} from "@/stores";
 import { DEFAULT_COLLAPSED_BANDS, LONG_LIST } from "@/stores/chat-sidebar-store";
 import {
   Archive,
@@ -103,6 +108,11 @@ function ConversationItem({
             has_avatar: addressed.has_avatar ?? false,
           },
         ];
+  // The server's word, or this tab's own when it is the one waiting: a short turn
+  // can begin and end between two listings, and the thread asked in must not
+  // look idle for it.
+  const workingHere = useWorkingStore((state) => state.since[conversation.id]);
+  const runningSince = conversation.running_since ?? workingHere ?? null;
   const agentLabel =
     agents.length === 0
       ? null
@@ -162,8 +172,8 @@ function ConversationItem({
         <div className="min-w-0 flex-1">
           <p className="text-muted-foreground truncate text-[11px] leading-4">
             {agentLabel && <>{agentLabel} · </>}
-            {conversation.running_since ? (
-              <RunningFor since={conversation.running_since} />
+            {runningSince ? (
+              <RunningFor since={runningSince} />
             ) : (
               timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)
             )}

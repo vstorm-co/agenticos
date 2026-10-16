@@ -263,6 +263,27 @@ export function ChatContainer({
     handleTurnInterrupted();
   }, [acknowledgeDetachedTurn, handleTurnInterrupted]);
 
+  // An answer being written under a session this tab does not hold (#2108): the
+  // question was asked, then the tab closed, the app quit or the page reloaded,
+  // and the turn goes on on the server. The conversation list says a run is
+  // still at work - it is re-read on every run event - and the transcript ends
+  // with the question, so say so rather than show a question nobody is answering.
+  const runningSince =
+    conversations.find((conversation) => conversation.id === currentConversationId)
+      ?.running_since ?? null;
+  const answeringElsewhere =
+    runningSince !== null && !isProcessing && messages.at(-1)?.role === "user";
+  // And fetch the answer when that run ends, rather than waiting for a reload:
+  // the run's end clears `running_since`, and the transcript is where it landed.
+  const runningIn = useRef<{ id: string | null; running: boolean }>({ id: null, running: false });
+  useEffect(() => {
+    const was = runningIn.current;
+    const running = runningSince !== null;
+    runningIn.current = { id: currentConversationId, running };
+    if (was.id !== currentConversationId || !was.running || running) return;
+    if (messages.at(-1)?.role !== "assistant") handleTurnInterrupted();
+  }, [runningSince, currentConversationId, messages, handleTurnInterrupted]);
+
   // What the file panel watches, rather than a timer. Counted from the transcript
   // rather than kept as state: a finished assistant message *is* a finished turn,
   // and a second counter would be a second answer to the same question.
@@ -446,7 +467,7 @@ export function ChatContainer({
       compactionImpossible={compactionImpossible}
       interrupted={interrupted}
       detachedTurnPending={detachedTurnPending}
-      leftTurnPending={leftTurnPending}
+      leftTurnPending={leftTurnPending || answeringElsewhere}
       onRecheck={handleRecheck}
       personalGaps={personalGaps}
       // The live turn's cost while there is one, and the newest measured answer in

@@ -47,7 +47,7 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api-client";
 import { setUrlParam } from "@/lib/utils";
-import { useConversationStore } from "@/stores";
+import { useConversationStore, useWorkingStore } from "@/stores";
 /** A message the user typed while the agent was busy / socket offline.
  *  Held outside the chat history until the drainer ships it. */
 /** A correction sent to the running turn, shown until it reaches the model. */
@@ -312,6 +312,23 @@ export function useChat(options: UseChatOptions = {}) {
   // when it finishes, which is what coming back to one of these says.
   const [leftRunning, setLeftRunning] = useState<ReadonlySet<string>>(() => new Set());
   const leftTurnPending = activeConversationId !== null && leftRunning.has(activeConversationId);
+  // Say in the list of conversations that this one is being answered, from the
+  // moment the question goes rather than from whenever the server's next listing
+  // arrives (`useWorkingStore`). Stamped once per turn, so a conversation named
+  // mid-turn keeps the time the question was asked.
+  const turnStartedAt = useRef<string | null>(null);
+  const startWorking = useWorkingStore((state) => state.start);
+  const stopWorking = useWorkingStore((state) => state.stop);
+  useEffect(() => {
+    if (!isProcessing) {
+      turnStartedAt.current = null;
+      return;
+    }
+    turnStartedAt.current ??= new Date().toISOString();
+    if (activeConversationId === null) return;
+    startWorking(activeConversationId, turnStartedAt.current);
+    return () => stopWorking(activeConversationId);
+  }, [isProcessing, activeConversationId, startWorking, stopWorking]);
 
   /**
    * Re-read what the whole thread has cost, after a turn has added to it.

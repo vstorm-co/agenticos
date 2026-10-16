@@ -11,14 +11,19 @@
  * was what a deployment holding hundreds reported.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
-import { useAgentSelectionStore, useChatBandsStore, useConversationStore } from "@/stores";
+import {
+  useAgentSelectionStore,
+  useChatBandsStore,
+  useConversationStore,
+  useWorkingStore,
+} from "@/stores";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -145,6 +150,23 @@ describe("what the sidebar says about the list", () => {
     expect(within(busy).getByText(/Working/)).toBeInTheDocument();
     const quiet = within(list()).getByText("Quiet one").closest("[class*='group']") as HTMLElement;
     expect(within(quiet).queryByText(/Working/)).toBeNull();
+  });
+
+  it("says a thread is at work the moment this tab asks in it, before the server does", async () => {
+    // A turn of a few seconds can start and end between two listings, or while
+    // the live-update socket reconnects; the tab that asked knows (#2108).
+    useWorkingStore.getState().start("c-2", new Date(Date.now() - 3_000).toISOString());
+    serve([conversation("c-1", "Other one"), conversation("c-2", "Just asked")]);
+    mount();
+    await screen.findAllByText("Just asked");
+
+    const asked = within(list()).getByText("Just asked").closest("[class*='group']") as HTMLElement;
+    expect(within(asked).getByText(/Working/)).toBeInTheDocument();
+    const other = within(list()).getByText("Other one").closest("[class*='group']") as HTMLElement;
+    expect(within(other).queryByText(/Working/)).toBeNull();
+
+    act(() => useWorkingStore.getState().stop("c-2"));
+    expect(within(asked).queryByText(/Working/)).toBeNull();
   });
 
   it("marks a thread with an answer the reader has not seen, but not the open one", async () => {

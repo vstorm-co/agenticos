@@ -28,6 +28,12 @@ Two things are versioned separately from this file and worth knowing about:
   bell - and an email, under the run-finished and run-failed preferences - with a
   link back to it. One stopped at the limit says so (#2108).
 
+- **Coming back to an answer still being written.** Open a conversation whose
+  agent is still answering - after a reload, in another tab, on another
+  device - and the chat says so, then shows the answer when the run ends,
+  without reloading. The list of conversations marks a thread as working the
+  moment you ask in it, rather than when the server's next listing arrives.
+
 - **An approval says which account is acting.** A call through a labelled MCP
   connection, or one of several accounts on one service, carries the account's
   name to the approval - the chat card, Activity, the dashboard widget, the Slack

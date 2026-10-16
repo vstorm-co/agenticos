@@ -333,3 +333,89 @@ describe("the chat container - who a reopened thread is addressed to", () => {
     expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-sup");
   });
 });
+
+describe("the chat container - an answer still being written after its person left", () => {
+  // #2108: the question was asked, the tab closed, and the page opened again
+  // while the server was still answering it.
+  const LEFT = "c-left";
+  let running: string | null;
+
+  beforeEach(() => {
+    running = new Date(Date.now() - 30_000).toISOString();
+    window.history.replaceState(null, "", `/chat?id=${LEFT}`);
+    const answered = vi.fn();
+    get.mockImplementation((url: string) => {
+      if (url.startsWith("/auth/me")) return Promise.resolve({ ...SIGNED_IN, access_token: "t-1" });
+      if (url === "/me/permissions")
+        return Promise.resolve({
+          organization_id: "org-1",
+          role: "member",
+          is_app_admin: false,
+          permissions: [],
+        });
+      if (url.startsWith("/conversations?"))
+        return Promise.resolve({
+          items: [
+            {
+              id: LEFT,
+              title: "A rollout plan",
+              created_at: new Date().toISOString(),
+              updated_at: null,
+              is_archived: false,
+              running_since: running,
+            },
+          ],
+          total: 1,
+        });
+      if (url === `/conversations/${LEFT}/messages`) {
+        answered();
+        return Promise.resolve({
+          items: [
+            {
+              id: "m-1",
+              conversation_id: LEFT,
+              role: "user",
+              content: "Write me a rollout plan",
+              created_at: new Date().toISOString(),
+            },
+          ],
+          total: 1,
+          cost: null,
+        });
+      }
+      return Promise.resolve({ items: [], total: 0 });
+    });
+  });
+
+  it("says the agent is still answering, and fetches the answer when its run ends", async () => {
+    // The thread as a reload finds it: the question, and nothing after it.
+    useConversationStore.getState().setCurrentConversationId(LEFT);
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "m-1",
+        conversation_id: LEFT,
+        role: "user",
+        content: "Write me a rollout plan",
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ChatContainer />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText(/still answering when you left/)).toBeInTheDocument();
+    const reads = () => get.mock.calls.filter(([url]) => url === `/conversations/${LEFT}/messages`);
+    const before = reads().length;
+
+    // The run ends: the next read of the list no longer says it is at work.
+    running = null;
+    await act(async () => {
+      await client.invalidateQueries();
+    });
+
+    await vi.waitFor(() => expect(reads().length).toBeGreaterThan(before));
+  });
+});
