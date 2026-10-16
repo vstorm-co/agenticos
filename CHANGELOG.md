@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A plan stops saying "Running…" when its run is over** (#2149). A turn that
+  finished or failed left any call it had not answered spinning - a planning
+  step read "Running…" under the answer, and after a reload too. Every ending
+  now closes what is still out, the plan's step in progress spins only while a
+  turn works it, and a run that failed or was stopped hands the next turn its
+  step as still to do rather than under way.
+
 ## [1.1.0] - 2026-10-16
 
 ### Added
@@ -628,13 +637,6 @@ Two things are versioned separately from this file and worth knowing about:
   `0113_test_runs` (#2074).
 
 ### Fixed
-
-- **A plan stops saying "Running…" when its run is over** (#2149). A turn that
-  finished or failed left any call it had not answered spinning - a planning
-  step read "Running…" under the answer, and after a reload too. Every ending
-  now closes what is still out, the plan's step in progress spins only while a
-  turn works it, and a run that failed or was stopped hands the next turn its
-  step as still to do rather than under way.
 
 - **A browse opened on its own page fills it.** The page that a channel and
   Settings' sign-in link open shrank to whatever its first picture was, so a
