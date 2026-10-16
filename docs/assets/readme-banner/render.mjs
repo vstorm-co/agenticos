@@ -37,7 +37,7 @@ const CARDS = [
   ["guardrails", "Guardrails", "Keep card numbers out"],
 ];
 const LOOP_MS = 6000;
-const FPS = 12;
+const FPS = 15;
 
 // The generated module is two object literals behind TypeScript annotations.
 const source = readFileSync(join(art, "art.generated.ts"), "utf8")
@@ -95,7 +95,7 @@ await browser.close();
 
 execFileSync("ffmpeg", [
   "-v", "error", "-y", "-framerate", String(FPS), "-i", join(scratch, "f%03d.png"),
-  "-vf", "split[a][b];[a]palettegen=max_colors=256:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle",
+  "-vf", "split[a][b];[a]palettegen=max_colors=256:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle",
   "-loop", "0", join(here, "../readme-banner.gif"),
 ]);
 console.log(`${frames} frames -> docs/assets/readme-banner.gif`);
