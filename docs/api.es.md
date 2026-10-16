@@ -1,5 +1,5 @@
 ---
-source_sha: "4f30765a1a54"
+source_sha: "ba34a88c524a"
 ---
 
 # La API HTTP { #the-http-api }
@@ -180,16 +180,19 @@ del agent o lo que queda de una llamada que se reanuda - en lugar de uno que
 revele los minutos de la organización. El servidor sigue terminando la llamada
 en el límite real. Los frames de herramientas siguen los interruptores
 `show_tool_steps` y `show_tool_results` del embed, como los de una respuesta
-escrita. Sin pasos de herramientas no se envía ningún frame `tool`,
-`tool_running` llega como `thinking` y `turn_saved` no lleva llamadas a
-herramientas. Sin resultados de herramientas, cada llamada a herramienta de
-`turn_saved` tiene `args` vacíos y un `result` `null`, y `approval_unavailable`
-llega con `args` vacíos.
+escrita. Sin pasos de herramientas no se envía ningún frame `tool` y
+`tool_running` llega como `thinking`. Sin resultados de herramientas,
+`approval_unavailable` llega con `args` vacíos. El `turn_saved` de un
+visitante lleva solo el `id`, `role`, `content`, `interrupted` y `turn_id` del
+mensaje, sean cuales sean los interruptores: nunca los ids de su run, de su
+agent o de su versión, ni su coste ni sus llamadas a herramientas.
 
 **Una reconexión demuestra que la llamada es suya.** Un `start` con `resume_of`
 debe llevar también el `resume_token` del `ready` de esa conexión. Sin él, o
 con uno incorrecto, la reconexión se rechaza como `resume_refused` y la llamada
-que nombra no se toca. El servidor guarda solo un hash del token.
+que nombra no se toca. El servidor guarda solo un hash del token. Una llamada
+que ya consta de 20 conexiones no se reanuda más: su siguiente reconexión
+también se rechaza como `resume_refused`.
 
 Un socket que no envía `start` en 10 segundos recibe `ended` con `no_start`.
 Una llamada que no va a empezar responde con `ended` y un `reason` estable:
@@ -200,7 +203,8 @@ mostrar. Un inicio que falla por cualquier otro motivo responde con `ended` y
 `error`. Un visitante rechazado como `not_configured`, `not_priced`,
 `minutes_exhausted` o `budget` recibe el mismo motivo con el mensaje "Calls are
 not available right now.", porque el mensaje completo está escrito para el
-operador del agent.
+operador del agent. Una llamada a una conversación archivada se rechaza como
+`forbidden`, igual que un mensaje escrito en ella.
 
 Una llamada que se llegó a mantener termina con `user`, `time_limit`, `budget`,
 `minutes`, `disconnected`, `revoked`, `shutdown` o `error`. Termina con

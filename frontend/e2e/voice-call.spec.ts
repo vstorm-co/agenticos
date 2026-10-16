@@ -93,6 +93,11 @@ async function chatWithSeededAgent(page: Page): Promise<void> {
   await agent.click();
   await expect(agent).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
+  // Closed, and focus handed back to the picker: Radix returns it a beat after the
+  // menu closes, and a popover opened in between is dismissed by that focus landing
+  // outside it.
+  await expect(agent).toBeHidden();
+  await expect(page.getByRole("button", { name: /^Agent:/ })).toBeFocused();
 }
 
 test("a call shows captions, an approval with the exact arguments, a warning and its end", async ({

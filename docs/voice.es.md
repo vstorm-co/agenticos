@@ -1,5 +1,5 @@
 ---
-source_sha: "9c9b30a42443"
+source_sha: "3b30b65cd3fd"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y minutos, redes de seguridad y transcripciones."
@@ -104,7 +104,11 @@ micrófono y envía la oferta SDP dentro de `start`. El servidor la responde con
 provider, devuelve la respuesta y luego mantiene una conexión *sideband* a la
 misma llamada mientras el socket siga abierto. El audio fluye entre el navegador
 y OpenAI; las herramientas, las aprobaciones, las transcripciones y la medición
-corren en el servidor.
+corren en el servidor. El servidor lee el socket mientras establece la llamada,
+así que un `end` o una pestaña cerrada detienen el establecimiento antes de que
+se abra la sesión con el provider. Una oferta ya enviada al provider se deja
+terminar primero, y la llamada que creó se cuelga a continuación, para que no
+siga hasta el límite propio del provider.
 
 ```mermaid
 sequenceDiagram
@@ -224,9 +228,10 @@ aviso. El agent dice entonces solo que las llamadas no están disponibles ahora.
 
 **Minutos.** Los minutos mensuales de la organización se cuentan a partir de las
 filas de llamada (`voice_calls`): cada llamada hasta su fin, o hasta su último
-heartbeat mientras sigue en curso. Cuando se agotan, las llamadas nuevas se
-rechazan, y a una llamada en curso se le avisa y se termina en su siguiente
-heartbeat. La cifra «Voice minutes» del dashboard y la tarjeta Voice de la
+heartbeat mientras sigue en curso. Una llamada que cruza el cambio de mes cuenta
+en el mes nuevo solo por su tiempo después de la medianoche UTC. Cuando se
+agotan, las llamadas nuevas se rechazan, y a una llamada en curso se le avisa y
+se termina en su siguiente heartbeat. La cifra «Voice minutes» del dashboard y la tarjeta Voice de la
 organización leen las mismas filas.
 
 **Dinero.** Las llamadas cuentan contra los budgets del agent y de la
@@ -308,8 +313,12 @@ conversación, solo con el token de reanudación que la conexión anterior recib
 al establecerse, y solo dentro de los 10 segundos posteriores al cierre de la
 anterior. El servidor guarda solo un hash de ese token. Una reconexión termina
 la anterior si sigue medio abierta, y la cuenta como terminada en su último
-heartbeat. El tiempo y el budget se arrastran: una reconexión continúa el reloj
-de la llamada en vez de reiniciarlo.
+heartbeat.
+
+El tiempo y el budget se arrastran: una reconexión continúa el reloj de
+la llamada en vez de reiniciarlo, y la vista de llamada conserva todo el límite
+de tiempo de la llamada. Una llamada que ya consta de 20 conexiones no se
+reanuda más, para que su tiempo no pueda escaparse del cómputo.
 
 La sesión nueva empieza desde los turnos guardados hasta ese momento, como
 **texto**, así que no se repite nada, ninguna herramienta se ejecuta dos veces y

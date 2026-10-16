@@ -35,6 +35,7 @@ from app.core.secret_kinds import StorableSecret
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.agent_run import RunSurface
+from app.db.models.conversation import Conversation
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
 from app.repositories import conversation_repo, embed_visitor_repo, voice_call_repo
 from app.repositories import organization as organization_repo
@@ -354,6 +355,7 @@ class VoiceCallStarter:
                 raise VoiceRefused(
                     "forbidden", "That conversation is not yours to call into."
                 ) from None
+            _refuse_archived(conversation)
             return conversation.id
         conversation = await conversation_repo.create_conversation(
             self.db,
@@ -379,7 +381,7 @@ class VoiceCallStarter:
         `link_conversation` has the race.
         """
         if caller.conversation_id is not None:
-            return caller.conversation_id
+            return await self._reused(caller.conversation_id, organization_id=organization_id)
         if frame.resume_of is not None:
             previous = await voice_call_repo.get(
                 self.db, frame.resume_of, organization_id=organization_id
@@ -393,7 +395,7 @@ class VoiceCallStarter:
                 and previous.user_id is None
                 and previous.agent_id == agent_id
             ):
-                return previous.conversation_id
+                return await self._reused(previous.conversation_id, organization_id=organization_id)
         conversation = await conversation_repo.create_conversation(
             self.db,
             organization_id=organization_id,
@@ -410,6 +412,14 @@ class VoiceCallStarter:
         return await embed_visitor_repo.link_conversation(
             self.db, db_visitor=visitor, conversation_id=conversation.id
         )
+
+    async def _reused(self, conversation_id: UUID, *, organization_id: UUID) -> UUID:
+        """A thread an embed's call continues, refused when it has been archived since."""
+        conversation = await ConversationService(self.db).get_conversation(
+            conversation_id, organization_id=organization_id, include_favourite=False
+        )
+        _refuse_archived(conversation)
+        return conversation_id
 
     async def _resume(
         self, caller: VoiceCaller, frame: StartFrame, *, agent_id: UUID, conversation_id: UUID
@@ -449,7 +459,12 @@ class VoiceCallStarter:
             datetime.now(UTC) - _closed_at(previous, ended_at=previous.ended_at)
         ).total_seconds() > limits.RESUME_WINDOW_SECONDS:
             raise refused
-        return await voice_call_repo.chain_seconds(self.db, previous.id)
+        elapsed = await voice_call_repo.chain_seconds(self.db, previous.id)
+        if elapsed is None:
+            # Reconnected as often as a chain is counted: a further connection's
+            # time would not be summed with the oldest ones'.
+            raise refused
+        return elapsed
 
     async def _end_previous(self, previous: VoiceCall) -> VoiceCall:
         """End a connection the server still holds open, and wait (bounded) until it reads ended.
@@ -551,6 +566,15 @@ def _holds_resume_token(previous: VoiceCall, frame: StartFrame) -> bool:
         and frame.resume_token is not None
         and compare_digest(previous.resume_token_hash, hash_token(frame.resume_token))
     )
+
+
+def _refuse_archived(conversation: Conversation) -> None:
+    """Refuse a call into an archived thread: it is closed to new messages, as
+    `ConversationService.add_message` holds it, and a call's turns are messages."""
+    if conversation.is_archived:
+        raise VoiceRefused(
+            "forbidden", "That conversation is archived. Restore it to call into it."
+        )
 
 
 def _closed_at(previous: VoiceCall, *, ended_at: datetime) -> datetime:

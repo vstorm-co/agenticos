@@ -259,6 +259,9 @@ function hasContent(part: MessagePart): boolean {
   return part.toolCall !== undefined || (part.content ?? "") !== "";
 }
 
+/** The key minted on this page load, per public key: where storage cannot keep it. */
+const pageVisitorKeys = new Map<string, string>();
+
 /**
  * Where a returning visitor's identity is kept, per public key.
  *
@@ -273,7 +276,10 @@ function visitorKeyFor(publicKey: string): string {
   } catch {
     // "Block all cookies" makes even reading window.localStorage throw. A
     // visitor with that setting gets a fresh thread each visit rather than the
-    // page failing to open at all.
+    // page failing to open at all - but one key for the whole visit, so the
+    // page's socket, a call and an upload are one visitor in one thread.
+    const held = pageVisitorKeys.get(publicKey);
+    if (held) return held;
   }
   return mintVisitorKey(publicKey);
 }
@@ -294,6 +300,7 @@ function mintVisitorKey(publicKey: string): string {
   const bytes = new Uint8Array(16);
   window.crypto.getRandomValues(bytes);
   const minted = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  pageVisitorKeys.set(publicKey, minted);
   try {
     window.localStorage.setItem(storageKeyFor(publicKey), minted);
   } catch {

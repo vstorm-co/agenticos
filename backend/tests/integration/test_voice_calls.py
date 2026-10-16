@@ -292,3 +292,49 @@ async def test_every_column_a_lookup_or_a_parent_delete_filters_on_leads_an_inde
         "secret_id",
         "resume_of",
     } <= leading
+
+
+async def test_a_call_running_across_the_month_boundary_counts_its_part_after_it(db, voice_rows):
+    """A call started before `since` and still going after it spends the new month's
+    minutes for its part after `since`, and none of the old month's."""
+    now = datetime.now(UTC)
+    since = now - timedelta(minutes=5)
+    across = await _call(db, voice_rows, started=since - timedelta(minutes=10))
+    await voice_call_repo.heartbeat(db, across.id, at=now, cost_usd=Decimal(0), seconds=900)
+    before = await _call(db, voice_rows, started=since - timedelta(minutes=20))
+    await voice_call_repo.end(
+        db,
+        before.id,
+        at=since - timedelta(minutes=15),
+        reason=VoiceEndReason.USER,
+        cost_usd=Decimal(0),
+        seconds=300,
+        guardrail_hits=0,
+    )
+
+    used = await voice_call_repo.seconds_since(db, organization_id=voice_rows[0].id, since=since)
+
+    assert used == 300
+
+
+async def test_a_chain_at_its_bound_has_no_seconds_so_it_cannot_be_resumed_again(db, voice_rows):
+    """Past `_CHAIN_DEPTH` connections the older ones would drop out of the sum and
+    hand their time back; such a chain is reported as `None`, not as a smaller sum."""
+    from app.repositories.voice_call import _CHAIN_DEPTH
+
+    previous = None
+    for _ in range(_CHAIN_DEPTH - 1):
+        previous = await _call(db, voice_rows, resume_of=None if previous is None else previous.id)
+        await voice_call_repo.heartbeat(
+            db, previous.id, at=datetime.now(UTC), cost_usd=Decimal(0), seconds=10
+        )
+    assert previous is not None
+    assert await voice_call_repo.chain_seconds(db, previous.id) == 10 * (_CHAIN_DEPTH - 1)
+
+    last = await _call(db, voice_rows, resume_of=previous.id)
+
+    assert await voice_call_repo.chain_seconds(db, last.id) is None
+
+
+async def test_a_connection_that_is_gone_has_no_seconds(db):
+    assert await voice_call_repo.chain_seconds(db, uuid.uuid4()) == 0

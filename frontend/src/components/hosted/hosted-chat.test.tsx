@@ -1001,6 +1001,30 @@ describe("a voice call on the page (#54)", () => {
     });
   });
 
+  it("starts the call as the socket's visitor when localStorage is blocked", async () => {
+    // With nowhere to store the key, the page keeps one for its lifetime: a second
+    // key for the call would put it in a thread the page's socket is not in.
+    const denied = () => {
+      throw new DOMException("denied", "SecurityError");
+    };
+    // On the instance: the suite's storage is a stand-in, not a `Storage`.
+    const getItem = vi.spyOn(window.localStorage, "getItem").mockImplementation(denied);
+    const setItem = vi.spyOn(window.localStorage, "setItem").mockImplementation(denied);
+    try {
+      render(<HostedChat config={voice({ public_key: "pk_blocked" })} />);
+      await userEvent.click(screen.getByRole("button", { name: "Start a voice call" }));
+
+      const visitor = new URL(socket().url).searchParams.get("visitor");
+      expect(getItem).toHaveBeenCalled();
+      expect(voiceCall.start).toHaveBeenCalledWith(
+        expect.objectContaining({ visitorKey: visitor }),
+      );
+    } finally {
+      getItem.mockRestore();
+      setItem.mockRestore();
+    }
+  });
+
   it("briefs the call with the page's supplied variables, as a typed message is", async () => {
     window.history.replaceState({}, "", "/e/pk_abc?var_order=123&var_secret=x");
     render(<HostedChat config={voice({ variables: ["order"] })} />);

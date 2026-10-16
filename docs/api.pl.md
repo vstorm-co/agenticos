@@ -1,5 +1,5 @@
 ---
-source_sha: "4f30765a1a54"
+source_sha: "ba34a88c524a"
 ---
 
 # API HTTP { #the-http-api }
@@ -176,16 +176,20 @@ limit samej rozmowy - najdłuższa rozmowa organizacji, agenta albo to, co
 zostało ze wznawianej rozmowy - a nie limit zdradzający minuty organizacji.
 Serwer i tak kończy rozmowę na prawdziwym limicie. Ramki narzędzi podlegają
 przełącznikom embeda `show_tool_steps` i `show_tool_results`, tak jak
-odpowiedź pisana. Bez kroków narzędzi nie jest wysyłana żadna ramka `tool`,
-`tool_running` przychodzi jako `thinking`, a `turn_saved` nie zawiera wywołań
-narzędzi. Bez wyników narzędzi każde wywołanie w `turn_saved` ma puste `args` i
-`result` równe `null`, a `approval_unavailable` przychodzi z pustym `args`.
+odpowiedź pisana. Bez kroków narzędzi nie jest wysyłana żadna ramka `tool`, a
+`tool_running` przychodzi jako `thinking`. Bez wyników narzędzi
+`approval_unavailable` przychodzi z pustym `args`. Niezależnie od przełączników
+`turn_saved` odwiedzającego zawiera tylko `id`, `role`, `content`,
+`interrupted` i `turn_id` wiadomości: nigdy identyfikatorów runa, agenta ani
+wersji, kosztu ani wywołań narzędzi.
 
 **Ponowne połączenie musi udowodnić, że rozmowa należy do niego.** `start` z
 `resume_of` musi zawierać także `resume_token` z ramki `ready` tamtego
 połączenia. Bez niego albo z błędnym ponowne połączenie jest odrzucane jako
 `resume_refused`, a wskazana rozmowa pozostaje nietknięta. Serwer przechowuje
-tylko skrót tokena.
+tylko skrót tokena. Rozmowa złożona już z 20 połączeń nie jest wznawiana
+ponownie: jej kolejne ponowne połączenie też jest odrzucane jako
+`resume_refused`.
 
 Socket, który w ciągu 10 sekund nie wyśle `start`, dostaje `ended` z `no_start`.
 Rozmowa, która się nie rozpocznie, odpowiada `ended` ze stałym `reason`:
@@ -196,7 +200,8 @@ bezpiecznie pokazać. Start, który nie powiedzie się z jakiegokolwiek innego
 powodu, odpowiada `ended` z `error`. Odwiedzający odrzucony jako
 `not_configured`, `not_priced`, `minutes_exhausted` albo `budget` dostaje ten
 sam powód z komunikatem "Calls are not available right now.", bo pełny
-komunikat jest pisany dla operatora agenta.
+komunikat jest pisany dla operatora agenta. Rozmowa w zarchiwizowanej
+konwersacji jest odrzucana jako `forbidden`, tak jak wiadomość pisana do niej.
 
 Rozmowa, która trwała, kończy się z `user`, `time_limit`, `budget`, `minutes`,
 `disconnected`, `revoked`, `shutdown` albo `error`. Kończy się z `minutes`, gdy

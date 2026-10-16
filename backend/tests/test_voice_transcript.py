@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import anyio
 import pytest
 
 from app.services.voice.transcript import SpeechClock, SpokenToolCall, TurnWriter, trim_to_played
@@ -240,3 +241,21 @@ def test_a_saved_turn_reads_without_a_session():
         [],
         [],
     )
+
+
+async def test_a_turn_already_being_written_is_saved_when_the_call_is_cut_off(read):
+    """The pump is cancelled when a call ends; a turn it was writing must still land,
+    and a write cut off mid-way would also break its pooled connection."""
+    writer, _ = _writer()
+    written: list[str] = []
+
+    async def slow_create(db, **kwargs):
+        await anyio.sleep(0.2)
+        written.append(kwargs["role"])
+        return SimpleNamespace(id=uuid4())
+
+    with patch("app.services.voice.transcript.conversation_repo.create_voice_turn", slow_create):
+        with anyio.move_on_after(0.1):
+            await writer.user_turn("hello", turn_id="c:1:user")
+
+    assert written == ["user"]

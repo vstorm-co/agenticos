@@ -122,7 +122,11 @@ export const initialCall: CallState = {
 
 function onFrame(state: CallState, frame: VoiceServerFrame, now: number): CallState {
   switch (frame.type) {
-    case "ready":
+    case "ready": {
+      // A resumed connection's `ready` says what is left of the call: its time
+      // is rebased onto the time the call has run, and its minutes stay the
+      // ones the call started with, which the summary takes the call's off.
+      const resumed = state.startedAt !== null;
       return {
         ...state,
         phase: "live",
@@ -131,11 +135,14 @@ function onFrame(state: CallState, frame: VoiceServerFrame, now: number): CallSt
         runId: frame.run_id ?? null,
         conversationId: frame.conversation_id,
         transport: frame.transport,
-        capSeconds: frame.cap_seconds,
-        minutesLeft: frame.minutes_left,
+        capSeconds: resumed
+          ? Math.round((now - (state.startedAt as number)) / 1000) + frame.cap_seconds
+          : frame.cap_seconds,
+        minutesLeft: resumed ? state.minutesLeft : frame.minutes_left,
         startedAt: state.startedAt ?? now,
         failure: null,
       };
+    }
     case "state":
       return {
         ...state,

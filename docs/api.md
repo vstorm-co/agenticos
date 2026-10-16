@@ -169,15 +169,18 @@ own limit - the organization's longest call, the agent's, or what is left of a
 call being resumed - rather than one that gives away the organization's minutes.
 The server still ends the call at the real limit. The tool frames follow the
 embed's `show_tool_steps` and `show_tool_results` switches, as a typed reply's
-do. Without tool steps no `tool` frame is sent, `tool_running` is sent as
-`thinking`, and `turn_saved` carries no tool calls. Without tool results, each
-tool call in `turn_saved` has empty `args` and a `null` `result`, and
-`approval_unavailable` is sent with empty `args`.
+do. Without tool steps no `tool` frame is sent and `tool_running` is sent as
+`thinking`. Without tool results, `approval_unavailable` is sent with empty
+`args`. A visitor's `turn_saved` carries only the message's `id`, `role`,
+`content`, `interrupted` and `turn_id`, whatever the switches: never its run,
+agent or version ids, its cost or its tool calls.
 
 **A reconnect proves it holds the call.** A `start` with `resume_of` must also
 carry the `resume_token` from that connection's `ready`. Without it, or with a
 wrong one, the reconnect is refused as `resume_refused` and the call it names
-is not touched. The server keeps only a hash of the token.
+is not touched. The server keeps only a hash of the token. A call already made
+of 20 connections is not resumed again: its next reconnect is refused as
+`resume_refused` too.
 
 A socket that sends no `start` within 10 seconds gets `ended` with `no_start`.
 A call that will not start answers with `ended` and a stable `reason`:
@@ -187,7 +190,8 @@ A call that will not start answers with `ended` and a stable `reason`:
 start that fails for any other reason answers `ended` with `error`. A visitor
 refused as `not_configured`, `not_priced`, `minutes_exhausted` or `budget` gets
 the same reason with the message "Calls are not available right now.", because
-the full message is written for the agent's operator.
+the full message is written for the agent's operator. A call into an archived
+conversation is refused as `forbidden`, as a typed message into one is refused.
 
 A call that ran ends with `user`, `time_limit`, `budget`, `minutes`,
 `disconnected`, `revoked`, `shutdown` or `error`. It ends as `minutes` when the

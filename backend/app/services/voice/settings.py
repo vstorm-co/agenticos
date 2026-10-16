@@ -18,7 +18,7 @@ from app.agents.spec import AgentSpec, VoiceSpec
 from app.agents.voice import voice_unavailable
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.organization import Organization
-from app.repositories import agent_repo, voice_call_repo
+from app.repositories import agent_repo, organization_secret_repo, voice_call_repo
 from app.repositories import organization as organization_repo
 from app.services import realtime_models
 from app.services.realtime_models import RealtimeModelEntry, Transport
@@ -161,10 +161,11 @@ class VoiceSettingsService:
         """Whether a call would start, from settings alone - the entry button reads this.
 
         The caller has already decided the person may run this agent. Never
-        opens the vault: a key deleted since resolves its column to null and
-        reads as `no_key`; one that no longer unseals is refused at start. A
-        key's visibility is not read here or at start: once bound, a key is lent
-        to whoever may run the agent, as a text run's is.
+        unseals the key: a key deleted since keeps its id in the published spec,
+        so its row is looked up and a missing one reads as `no_key`; one that no
+        longer unseals is refused at start. A key's visibility is not read here
+        or at start: once bound, a key is lent to whoever may run the agent, as a
+        text run's is.
         """
         organization = await organization_repo.get_by_id(self.db, organization_id)
         spec = await self.published_spec(agent)
@@ -189,7 +190,13 @@ class VoiceSettingsService:
             )
         elif spec is None or spec.voice is None:
             reason = "no_voice"
-        elif spec.voice.secret_id is None:
+        elif (
+            spec.voice.secret_id is None
+            or await organization_secret_repo.get(
+                self.db, spec.voice.secret_id, organization_id=organization_id
+            )
+            is None
+        ):
             reason = "no_key"
         elif resolved is None:
             reason = "not_offered"

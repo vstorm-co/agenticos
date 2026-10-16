@@ -140,7 +140,8 @@ async def test_a_summary_slower_than_the_sweeps_patience_does_not_get_a_live_cal
         agent_id=started.prepared.agent.id,
         conversation_id=None,
     )
-    socket = FakeSocket([_START, json.dumps({"type": "end"})])
+    # The end comes once the summary is done: one during setup would cancel it.
+    socket = FakeSocket([_START, 1.5, json.dumps({"type": "end"})])
     with (
         patch("app.services.voice.reaper.STALE_AFTER_SECONDS", 0.4),
         patch("app.services.voice.session.VoiceCallStarter.start", AsyncMock(return_value=started)),
@@ -213,7 +214,7 @@ async def test_a_calls_row_starts_when_the_call_is_ready_so_setup_is_not_its_min
         return []
 
     row, used = await _run_through_setup(
-        engine, org, user, call_id, run_id, slow_seed, [_START, 0.3, json.dumps({"type": "end"})]
+        engine, org, user, call_id, run_id, slow_seed, [_START, 1.6, json.dumps({"type": "end"})]
     )
 
     assert row.end_reason == "user"

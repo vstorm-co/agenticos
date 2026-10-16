@@ -46,7 +46,7 @@ def _org(**overrides):
     return SimpleNamespace(**values)
 
 
-async def _readiness(org, spec, *, used_seconds=0, surface="web"):
+async def _readiness(org, spec, *, used_seconds=0, surface="web", key=True):
     service = VoiceSettingsService(MagicMock())
     agent = SimpleNamespace(
         id=uuid4(), organization_id=org.id, current_version_id=uuid4(), status="published"
@@ -60,6 +60,10 @@ async def _readiness(org, spec, *, used_seconds=0, surface="web"):
         patch(
             "app.services.voice.settings.voice_call_repo.seconds_since",
             new=AsyncMock(return_value=used_seconds),
+        ),
+        patch(
+            "app.services.voice.settings.organization_secret_repo.get",
+            new=AsyncMock(return_value=SimpleNamespace(id=_KEY) if key else None),
         ),
     ):
         return await service.readiness(organization_id=org.id, agent=agent, surface=surface)
@@ -97,6 +101,13 @@ async def test_a_configured_agent_is_ready_and_lists_what_a_call_cannot_use():
 async def test_each_reason_a_call_is_not_offered(org, spec, used, reason):
     readiness = await _readiness(org, spec, used_seconds=used)
     assert not readiness.available and readiness.unavailable == reason
+
+
+async def test_a_published_key_deleted_from_the_vault_since_is_no_key():
+    """The spec keeps the deleted key's id, so only the vault's row says it is gone:
+    offering the call would ask for the microphone only for the start to refuse it."""
+    readiness = await _readiness(_org(), _READY, key=False)
+    assert not readiness.available and readiness.unavailable == "no_key"
 
 
 async def test_an_embed_ignores_the_chat_switch():

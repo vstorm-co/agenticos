@@ -282,6 +282,21 @@ describe("callReducer", () => {
     expect(resumed.callId).toBe("c2");
   });
 
+  it("keeps the call's whole time limit and its starting minutes through a reconnect", () => {
+    // Five minutes into a ten-minute call, the resumed connection's `ready` says
+    // what is left of both: the bar must not read 5:00 / 5:00, nor the summary
+    // take the call's minutes off a balance they already came off.
+    const lost = callReducer(live(), { type: "socket_lost", willRetry: true });
+    const resumed = callReducer(lost, {
+      type: "frame",
+      now: 1000 + 300_000,
+      frame: { ...ready, call_id: "c2", cap_seconds: 300, minutes_left: 535 },
+    });
+
+    expect(resumed.capSeconds).toBe(600);
+    expect(resumed.minutesLeft).toBe(540);
+  });
+
   it("starts a new call from nothing, captions and clock included", () => {
     const captioned = callReducer(live(), {
       type: "frame",

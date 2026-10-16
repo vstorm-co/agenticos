@@ -186,11 +186,17 @@ async def count_open_for_embed(db: AsyncSession, *, embed_id: UUID, fresh_since:
 
 
 async def seconds_since(db: AsyncSession, *, organization_id: UUID, since: datetime) -> int:
-    """Call seconds this organization used since `since`: to `ended_at`, else to the last heartbeat."""
+    """Call seconds this organization used since `since`: to `ended_at`, else to the last heartbeat.
+
+    A call that began before `since` and went on past it counts its part after
+    `since`, so a call started just before the month turns spends the new month's
+    minutes for the time it runs in it.
+    """
     until = func.coalesce(VoiceCall.ended_at, VoiceCall.heartbeat_at)
+    began = func.greatest(VoiceCall.started_at, since)
     result = await db.execute(
-        select(func.coalesce(func.sum(extract("epoch", until - VoiceCall.started_at)), 0)).where(
-            VoiceCall.organization_id == organization_id, VoiceCall.started_at >= since
+        select(func.coalesce(func.sum(extract("epoch", until - began)), 0)).where(
+            VoiceCall.organization_id == organization_id, until > since
         )
     )
     return int(result.scalar_one())
@@ -230,23 +236,29 @@ async def usage_by_agent(
     return [(row[0], row[1], int(row[2]), int(row[3])) for row in result.all()]
 
 
-async def chain_seconds(db: AsyncSession, call_id: UUID) -> int:
-    """Every connection's recorded seconds up the `resume_of` chain, this one included."""
+async def chain_seconds(db: AsyncSession, call_id: UUID) -> int | None:
+    """Every connection's recorded seconds up the `resume_of` chain, this one included.
+
+    `None` once the chain holds `_CHAIN_DEPTH` connections, so it is not resumed
+    again: a sum stopped at the bound would leave the oldest connections' time
+    out and hand it back to the reconnect, and Activity (`chains_for_runs`)
+    counts no connection past it.
+    """
     total = 0
     current: UUID | None = call_id
-    for _ in range(_CHAIN_DEPTH):
-        if current is None:
-            break
+    for _ in range(_CHAIN_DEPTH - 1):
         row = (
             await db.execute(
                 select(VoiceCall.seconds, VoiceCall.resume_of).where(VoiceCall.id == current)
             )
         ).one_or_none()
         if row is None:
-            break
+            return total
         total += row.seconds
         current = row.resume_of
-    return total
+        if current is None:
+            return total
+    return None
 
 
 async def is_live_run(db: AsyncSession, run_id: UUID) -> bool:

@@ -216,6 +216,12 @@ async def socket_caller(
     )
 
 
+_VISITOR_TURN_FIELDS = ("id", "role", "content", "interrupted", "turn_id")
+"""What the widget and the hosted page draw of a saved turn. The rest of the saved
+message - its run, agent and version ids, its model, tokens, cost and tool calls -
+is the organization's, as `ready` keeps the run's id from a visitor."""
+
+
 def _visible(frame: ServerFrame, shows: frozenset[str]) -> ServerFrame | None:
     """A frame as an embed's operator agreed to show it, or `None` when it is not sent.
 
@@ -223,7 +229,8 @@ def _visible(frame: ServerFrame, shows: frozenset[str]) -> ServerFrame | None:
     steps a visitor is not told a tool ran, nor its name; without tool results a
     step does not open into what it was called with or what came back - raw
     output is the most likely thing to carry something internal. A saved turn
-    keeps its words either way.
+    is sent as its words alone (`_VISITOR_TURN_FIELDS`), whatever the switches:
+    the steps reach the page as `tool` frames, never from the saved message.
     """
     steps = "tool_call" in shows
     details = "tool_result" in shows
@@ -233,21 +240,8 @@ def _visible(frame: ServerFrame, shows: frozenset[str]) -> ServerFrame | None:
         return StateFrame(type="state", state="thinking")
     if isinstance(frame, ApprovalUnavailableFrame) and not details:
         return frame.model_copy(update={"args": {}})
-    if isinstance(frame, TurnSavedFrame) and not details:
-        message = dict(frame.message)
-        calls = message.get("tool_calls")
-        parts = message.get("parts")
-        message["tool_calls"] = (
-            [{**call, "args": {}, "result": None} for call in calls if isinstance(call, dict)]
-            if steps and isinstance(calls, list)
-            else []
-        )
-        if not steps and isinstance(parts, list):
-            message["parts"] = [
-                part
-                for part in parts
-                if not (isinstance(part, dict) and part.get("type") == "tool")
-            ]
+    if isinstance(frame, TurnSavedFrame):
+        message = {field: frame.message.get(field) for field in _VISITOR_TURN_FIELDS}
         return frame.model_copy(update={"message": message})
     return frame
 
@@ -393,10 +387,14 @@ class VoiceCallSession:
             # finishes the run, ends the row and tells the client (review fix 6).
             # Setup can outlast the sweep's patience - a summary of a long thread
             # is a model call - and the call's own heartbeat has not started, so
-            # the row is beaten for meanwhile, as a live call's is.
+            # the row is beaten for meanwhile, as a live call's is. The socket is
+            # read meanwhile too: an End or a closed tab cancels the setup, and
+            # the provider session is never opened for a caller who has gone.
             answer = None
             async with anyio.create_task_group() as setup:
+                self._scope = setup.cancel_scope
                 setup.start_soon(self._keep_alive, started)
+                setup.start_soon(self._watch_setup)
                 async with self._sessions() as own:
                     history = await seed_history(
                         own,
@@ -411,13 +409,23 @@ class VoiceCallSession:
                     cost_limit=started.cost_limit,
                 )
                 if started.resolved.entry.transport == "webrtc":
-                    answer = await started.prepared.answer_offer(realtime, frame.sdp_offer or "")
-                    provider_call_id = answer.session.call_id
-                    async with self._sessions() as own:
-                        await voice_call_repo.set_provider_call_id(
-                            own, started.call_id, provider_call_id=provider_call_id
+                    # Shielded: the provider may create its call before it answers,
+                    # and an offer cut off midway leaves a call nobody knows the id
+                    # of to hang up, billing until the provider's own limit. An end
+                    # meanwhile is honoured once the id is held, by the teardown.
+                    with anyio.CancelScope(shield=True):
+                        answer = await started.prepared.answer_offer(
+                            realtime, frame.sdp_offer or ""
                         )
+                        provider_call_id = answer.session.call_id
+                        async with self._sessions() as own:
+                            await voice_call_repo.set_provider_call_id(
+                                own, started.call_id, provider_call_id=provider_call_id
+                            )
                 setup.cancel_scope.cancel()
+            if self._reason is not None:
+                # Ended while it was set up: the teardown hangs up an answered offer.
+                return
             provider_session = None
             if answer is not None:
                 await self._send(AnswerFrame(type="answer", sdp=answer.sdp))
@@ -542,32 +550,34 @@ class VoiceCallSession:
         while True:
             await anyio.sleep(self._heartbeat_seconds)
             started.meter.book_elapsed(self._elapsed())
-            async with self._sessions() as db:
-                await self._beat(db, started)
-                now_ctx = await (self._reauthorize or self._default_reauthorize(started))(db)
-                if now_ctx is None:
-                    self.request_end(VoiceEndReason.REVOKED)
-                    return
-                started.bridge.refresh_decider(
-                    now_ctx
-                    if not self._caller.anonymous and now_ctx.has(Perm.APPROVALS_DECIDE)
-                    else None
-                )
-                own_row = await voice_call_repo.get(
-                    db, started.call_id, organization_id=self._caller.ctx.organization_id
-                )
-                if own_row is not None and own_row.ended_at is not None:
-                    # A reconnect on another worker ended this half-open connection (Task 17).
-                    self.request_end(VoiceEndReason.DISCONNECTED)
-                    return
-                organization = await organization_repo.get_by_id(
-                    db, self._caller.ctx.organization_id
-                )
-                left = (
-                    None
-                    if organization is None
-                    else await VoiceSettingsService(db).minutes_left_seconds(organization)
-                )
+            # Shielded like `_keep_alive`'s beat, and for the same reason.
+            with anyio.CancelScope(shield=True):
+                async with self._sessions() as db:
+                    await self._beat(db, started)
+                    now_ctx = await (self._reauthorize or self._default_reauthorize(started))(db)
+                    if now_ctx is None:
+                        self.request_end(VoiceEndReason.REVOKED)
+                        return
+                    started.bridge.refresh_decider(
+                        now_ctx
+                        if not self._caller.anonymous and now_ctx.has(Perm.APPROVALS_DECIDE)
+                        else None
+                    )
+                    own_row = await voice_call_repo.get(
+                        db, started.call_id, organization_id=self._caller.ctx.organization_id
+                    )
+                    if own_row is not None and own_row.ended_at is not None:
+                        # A reconnect on another worker ended this half-open connection (Task 17).
+                        self.request_end(VoiceEndReason.DISCONNECTED)
+                        return
+                    organization = await organization_repo.get_by_id(
+                        db, self._caller.ctx.organization_id
+                    )
+                    left = (
+                        None
+                        if organization is None
+                        else await VoiceSettingsService(db).minutes_left_seconds(organization)
+                    )
             if left is not None and left <= 0:
                 await self._end_with_notice(pump, session, VoiceEndReason.MINUTES)
                 return
@@ -575,16 +585,39 @@ class VoiceCallSession:
             # Other runs spend while a call lasts; re-read their spend each heartbeat
             # rather than trusting the figure read when the call began.
             budget.refresh_baselines()
-            if not await budget.can_afford_next_request():
+            # Its baselines are read on the shared pool: shielded for the same reason.
+            with anyio.CancelScope(shield=True):
+                affordable = await budget.can_afford_next_request()
+            if not affordable:
                 await self._end_with_notice(pump, session, VoiceEndReason.BUDGET)
+                return
+
+    async def _watch_setup(self) -> None:
+        """Read the socket while the call is set up, for the caller hanging up.
+
+        Nothing else is the caller's to send before `ready`, so any other frame
+        is dropped; `_socket` takes over once the call is live.
+        """
+        while True:
+            try:
+                frame = await self._receive()
+            except WebSocketDisconnect:
+                self.request_end(VoiceEndReason.DISCONNECTED)
+                return
+            if isinstance(frame, EndFrame):
+                self.request_end(VoiceEndReason.USER)
                 return
 
     async def _keep_alive(self, started: StartedCall) -> None:
         """Beat for the row while the call is set up, until setup cancels it."""
         while True:
             await anyio.sleep(self._heartbeat_seconds)
-            async with self._sessions() as own:
-                await self._beat(own, started)
+            # Shielded: a write cut off mid-way closes its pooled connection but
+            # hands it back to the pool, where the call's own end then fails on it.
+            # A beat that has started finishes; the cancel lands between beats.
+            with anyio.CancelScope(shield=True):
+                async with self._sessions() as own:
+                    await self._beat(own, started)
 
     async def _beat(self, db: AsyncSession, started: StartedCall) -> None:
         """Prove the call alive, with its seconds and spend so far."""

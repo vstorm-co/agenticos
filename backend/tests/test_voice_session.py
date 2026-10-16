@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import anyio
 import pytest
 from fastapi import WebSocketDisconnect
 from pydantic import SecretStr
@@ -578,6 +579,23 @@ async def test_an_end_asked_for_before_the_call_connects_is_honoured():
     assert started.runner.finish.await_args.kwargs["status"] is RunStatus.CANCELLED
 
 
+async def test_an_end_asked_for_once_ready_has_gone_is_honoured_as_the_session_opens():
+    """Between setup and the live call - while its clock is stamped - an end has no
+    task group to cancel yet; the live call starts cancelled instead."""
+    from app.services.voice.registry import LIVE_CALLS
+
+    socket = FakeSocket([_START])
+    started = _started(FakeRealtime(hold=True))
+
+    async def stamp_then_shutdown(*args, **kwargs):
+        LIVE_CALLS.request_end_for(started.call_id, VoiceEndReason.SHUTDOWN)
+
+    _, repo = await _run(socket, started, start_clock=AsyncMock(side_effect=stamp_then_shutdown))
+
+    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.SHUTDOWN
+    assert [frame["type"] for frame in socket.sent][-2:] == ["ready", "ended"]
+
+
 @pytest.mark.security
 async def test_a_response_the_budget_cannot_follow_ends_the_call_with_a_notice():
     from pydantic_ai.realtime import RealtimeTurnCompleteEvent
@@ -1094,8 +1112,6 @@ async def test_a_widget_visitor_never_receives_what_a_tool_was_called_with_or_re
     assert "SECRET ROW" not in wire and "SECRET ARGS" not in wire
     assert {"type": "tool", "name": "find_order", "status": "done"} in socket.sent
     (turn,) = [frame["message"] for frame in socket.sent if frame["type"] == "turn_saved"]
-    (call,) = turn["tool_calls"]
-    assert call["tool_name"] == "find_order" and call["args"] == {} and call["result"] is None
     assert turn["content"] == "It ships on Monday."
 
 
@@ -1114,22 +1130,55 @@ async def test_a_page_showing_no_steps_never_names_a_tool_or_says_one_ran():
     assert not [frame for frame in socket.sent if frame["type"] == "tool"]
     assert {"type": "state", "state": "tool_running"} not in socket.sent
     (turn,) = [frame["message"] for frame in socket.sent if frame["type"] == "turn_saved"]
-    assert turn["tool_calls"] == [] and [part["type"] for part in turn["parts"]] == ["text"]
+    assert "tool_calls" not in turn and "parts" not in turn
 
 
-async def test_a_page_showing_results_and_a_members_call_carry_the_whole_tool_call():
-    page = {"kind": "page", "show_tool_steps": True, "show_tool_results": True}
-    for caller in (_visitor(kind="page", config=page), _caller()):
-        events, saved = _tool_turn()
-        socket = FakeSocket([_START])
-        started = _started(FakeRealtime(events, hold=True), cap=0)
-        started.writer.assistant_turn = AsyncMock(return_value=saved)
+async def test_a_members_call_carries_the_whole_saved_turn():
+    events, saved = _tool_turn()
+    saved.run_id, saved.agent_id = uuid4(), uuid4()
+    socket = FakeSocket([_START])
+    started = _started(FakeRealtime(events, hold=True), cap=0)
+    started.writer.assistant_turn = AsyncMock(return_value=saved)
 
-        await _run(socket, started, caller=caller)
+    await _run(socket, started, caller=_caller())
 
-        (turn,) = [frame["message"] for frame in socket.sent if frame["type"] == "turn_saved"]
-        assert turn["tool_calls"][0]["result"] == "SECRET ROW"
-        assert turn["tool_calls"][0]["args"] == {"q": "SECRET ARGS"}
+    (turn,) = [frame["message"] for frame in socket.sent if frame["type"] == "turn_saved"]
+    assert turn["tool_calls"][0]["result"] == "SECRET ROW"
+    assert turn["tool_calls"][0]["args"] == {"q": "SECRET ARGS"}
+    assert turn["run_id"] == str(saved.run_id)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "config",
+    [
+        None,
+        {"kind": "page", "show_tool_steps": False, "show_tool_results": False},
+        {"kind": "page", "show_tool_steps": True, "show_tool_results": True},
+    ],
+    ids=["widget", "page-showing-nothing", "page-showing-everything"],
+)
+async def test_a_visitor_is_sent_only_what_their_page_draws_of_a_saved_turn(config):
+    """The widget and the hosted page draw a saved turn's words and nothing else; the
+    run, the agent, its version and the turn's cost are the organization's, as `ready`
+    keeps the run's id from a visitor, whatever the page shows of tools."""
+    events, saved = _tool_turn()
+    saved.run_id, saved.agent_id, saved.agent_version_id = uuid4(), uuid4(), uuid4()
+    socket = FakeSocket([_START])
+    started = _started(FakeRealtime(events, hold=True), cap=0)
+    started.writer.assistant_turn = AsyncMock(return_value=saved)
+    caller = _visitor() if config is None else _visitor(kind="page", config=config)
+
+    await _run(socket, started, caller=caller)
+
+    (turn,) = [frame["message"] for frame in socket.sent if frame["type"] == "turn_saved"]
+    assert turn == {
+        "id": str(saved.id),
+        "role": "assistant",
+        "content": "It ships on Monday.",
+        "interrupted": False,
+        "turn_id": "call:1:assistant",
+    }
 
 
 @pytest.mark.security
@@ -1309,7 +1358,8 @@ async def test_a_call_proves_it_is_alive_while_a_slow_summary_seeds_it():
     """A long summary of the history must not leave the row looking dead to the sweep:
     the row is beaten for while the summary runs, not only once it is done. The sweep
     itself against real rows is `integration/test_voice_setup_heartbeat.py`."""
-    socket = FakeSocket([_START, json.dumps({"type": "end"})])
+    # The end comes once the summary is done: one during setup would cancel it.
+    socket = FakeSocket([_START, 0.6, json.dumps({"type": "end"})])
     started = _started(FakeRealtime(hold=True))
     beats_while_seeding: list[int] = []
 
@@ -1324,6 +1374,85 @@ async def test_a_call_proves_it_is_alive_while_a_slow_summary_seeds_it():
 
     assert beats_while_seeding[0] >= 2
     assert all(beat.args[1] == started.call_id for beat in repo.heartbeat.await_args_list)
+
+
+@pytest.mark.parametrize(
+    ("hang_up", "reason"),
+    [
+        (json.dumps({"type": "end"}), VoiceEndReason.USER),
+        (WebSocketDisconnect(1001), VoiceEndReason.DISCONNECTED),
+    ],
+    ids=["end", "tab-closed"],
+)
+async def test_a_caller_gone_while_the_call_is_set_up_never_opens_the_provider_session(
+    hang_up, reason
+):
+    """A long summary seeds the call before `ready`; an End pressed or a tab closed
+    meanwhile stops it there, not after the paid provider session has been opened."""
+    # A frame that is not the caller's to send yet is read past, not obeyed.
+    socket = FakeSocket([_START, 0.05, json.dumps({"type": "mute", "muted": True}), hang_up])
+    started = _started(FakeRealtime(hold=True))
+    opened = MagicMock()
+
+    @asynccontextmanager
+    async def realtime_session(rt, *, provider_session):
+        opened()
+        yield FakeRealtime(hold=True)
+
+    started.prepared.realtime_session = realtime_session
+
+    async def slow_seed(own, *, conversation_id, context_window, summarise):
+        await asyncio.sleep(2)
+        return []
+
+    began = time.monotonic()
+    _, repo = await _run(socket, started, seed=slow_seed)
+
+    assert time.monotonic() - began < 1
+    opened.assert_not_called()
+    started.prepared.answer_offer.assert_not_awaited()
+    assert "ready" not in [frame["type"] for frame in socket.sent]
+    assert repo.end.await_args.kwargs["reason"] is reason
+    assert repo.end.await_args.kwargs["seconds"] == 0
+
+
+@pytest.mark.parametrize(
+    "hang_up",
+    [json.dumps({"type": "end"}), WebSocketDisconnect(1001)],
+    ids=["end", "tab-closed"],
+)
+async def test_a_caller_gone_while_the_offer_is_answered_still_has_the_provider_call_hung_up(
+    hang_up,
+):
+    """The provider may have created its call before answering the offer, so the
+    request is never cut off midway: it finishes, its call id is recorded, and the
+    teardown hangs up by that id rather than leave the call billing to its limit."""
+    socket = FakeSocket([_START, 0.05, hang_up])
+    started = _started(FakeRealtime(hold=True))
+    opened = MagicMock()
+
+    @asynccontextmanager
+    async def realtime_session(rt, *, provider_session):
+        opened()
+        yield FakeRealtime(hold=True)
+
+    started.prepared.realtime_session = realtime_session
+    answered = MagicMock()
+
+    async def slow_answer(realtime, sdp):
+        await asyncio.sleep(0.3)
+        answered()
+        return SimpleNamespace(sdp="answer-sdp", session=SimpleNamespace(call_id="rtc_mid"))
+
+    started.prepared.answer_offer = slow_answer
+
+    hung, repo = await _run(socket, started)
+
+    answered.assert_called_once()
+    assert repo.set_provider_call_id.await_args.kwargs["provider_call_id"] == "rtc_mid"
+    assert hung.await_args.args[0].provider_call_id == "rtc_mid"
+    opened.assert_not_called()
+    assert [frame["type"] for frame in socket.sent] == ["ended"]
 
 
 def test_push_to_talk_is_not_a_frame_the_server_reads():
@@ -1372,3 +1501,32 @@ async def test_ready_gives_the_caller_its_resume_token_and_a_visitor_no_run_id(v
         assert "run_id" not in ready
     else:
         assert ready["run_id"] == str(started.prepared.run.id)
+
+
+@pytest.mark.parametrize("loop", ["keep_alive", "heartbeat"])
+async def test_a_beat_already_writing_finishes_when_its_loop_is_cancelled(loop):
+    """Cut off mid-write, a pooled connection is closed but handed back to the pool,
+    and the call's own end then fails on it (`voice_call_row_end_failed`): so a beat
+    that has started writing is let finish, and the cancel lands between beats."""
+    finished: list[bool] = []
+
+    async def slow_beat(db, started):
+        await asyncio.sleep(0.2)
+        finished.append(True)
+
+    session = VoiceCallSession(
+        FakeSocket([]),
+        _caller(),
+        sessions=_sessions,
+        reauthorize=AsyncMock(return_value=None),
+        heartbeat_seconds=0.01,
+    )
+    session._beat = slow_beat  # type: ignore[method-assign]
+    started = _started(FakeRealtime(hold=True))
+    with anyio.move_on_after(0.1):
+        if loop == "keep_alive":
+            await session._keep_alive(started)
+        else:
+            await session._heartbeat(started, MagicMock(), MagicMock())
+
+    assert finished == [True]

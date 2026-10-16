@@ -1,5 +1,5 @@
 ---
-source_sha: "4f30765a1a54"
+source_sha: "ba34a88c524a"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -185,16 +185,20 @@ Organisation, der des Agents oder was von einem fortgesetzten Anruf übrig ist -
 statt eines Limits, das die Minuten der Organisation verrät. Der Server beendet
 den Anruf trotzdem am echten Limit. Die Tool-Frames folgen den Schaltern
 `show_tool_steps` und `show_tool_results` des Embeds, wie die einer getippten
-Antwort. Ohne Tool-Schritte wird kein `tool`-Frame gesendet, `tool_running`
-kommt als `thinking`, und `turn_saved` enthält keine Tool-Aufrufe. Ohne
-Tool-Ergebnisse hat jeder Tool-Aufruf in `turn_saved` leere `args` und ein
-`result` von `null`, und `approval_unavailable` kommt mit leeren `args`.
+Antwort. Ohne Tool-Schritte wird kein `tool`-Frame gesendet, und
+`tool_running` kommt als `thinking`. Ohne Tool-Ergebnisse kommt
+`approval_unavailable` mit leeren `args`. Das `turn_saved` eines Besuchers
+enthält, unabhängig von den Schaltern, nur `id`, `role`, `content`,
+`interrupted` und `turn_id` der Nachricht: nie die IDs von Run, Agent oder
+Version, nie ihre Kosten oder Tool-Aufrufe.
 
 **Eine Wiederverbindung muss beweisen, dass ihr der Anruf gehört.** Ein `start`
 mit `resume_of` muss auch das `resume_token` aus dem `ready` jener Verbindung
 mitschicken. Ohne es oder mit einem falschen wird die Wiederverbindung als
 `resume_refused` abgelehnt, und der genannte Anruf bleibt unberührt. Der Server
-speichert nur einen Hash des Tokens.
+speichert nur einen Hash des Tokens. Ein Anruf, der schon aus 20 Verbindungen
+besteht, wird nicht mehr fortgesetzt: Auch seine nächste Wiederverbindung wird
+als `resume_refused` abgelehnt.
 
 Ein Socket, das innerhalb von 10 Sekunden kein `start` sendet, bekommt `ended`
 mit `no_start`. Ein Anruf, der nicht startet, antwortet mit `ended` und einem
@@ -206,7 +210,8 @@ anderen Grund scheitert, antwortet mit `ended` und `error`. Ein Besucher, der
 als `not_configured`, `not_priced`, `minutes_exhausted` oder `budget` abgelehnt
 wird, bekommt denselben Grund mit der Meldung "Calls are not available right
 now.", denn die vollständige Meldung ist für den Betreiber des Agents
-geschrieben.
+geschrieben. Ein Anruf in eine archivierte Unterhaltung wird als `forbidden`
+abgelehnt, so wie eine getippte Nachricht dorthin.
 
 Ein Anruf, der gelaufen ist, endet mit `user`, `time_limit`, `budget`,
 `minutes`, `disconnected`, `revoked`, `shutdown` oder `error`. Er endet mit

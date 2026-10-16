@@ -96,7 +96,10 @@ microphone and sends the SDP offer inside `start`. The server answers it with
 the provider, sends the answer back, and then holds a *sideband* connection to
 the same call for as long as the socket is open. The audio flows between the
 browser and OpenAI; the tools, the approvals, the transcripts and the metering
-run on the server.
+run on the server. The server reads the socket while it sets the call up, so
+an `end` or a closed tab stops the setup before the provider session is opened.
+An offer already sent to the provider is allowed to finish first, and the call
+it created is then hung up, so it does not run on to the provider's own limit.
 
 ```mermaid
 sequenceDiagram
@@ -206,7 +209,8 @@ that calls are not available right now.
 
 **Minutes.** The organization's monthly minutes are counted from the call rows
 (`voice_calls`): each call to its end, or to its last heartbeat while it is
-still running. When they run out, new calls are refused, and a running call is
+still running. A call that runs across the turn of the month counts in the new
+month only for its time after midnight UTC. When they run out, new calls are refused, and a running call is
 told and ended at its next heartbeat. The dashboard's "Voice minutes" figure and
 the organization's Voice card read the same rows.
 
@@ -282,8 +286,12 @@ connection is accepted only for the same person, agent and conversation, only
 with the resume token the previous connection was given when it was set up, and
 only within 10 seconds of the previous one being closed. The server keeps only
 a hash of that token. A reconnect ends the previous connection if it is still
-half-open, and counts it as ending at its last heartbeat. Time and budget carry
-over: a reconnect continues the call's clock rather than restarting it.
+half-open, and counts it as ending at its last heartbeat.
+
+Time and budget carry over: a reconnect continues the call's clock rather than
+restarting it, and the call view keeps the call's whole time limit. A call
+already made of 20 connections is not resumed again, so its time cannot slip
+out of the count.
 
 The new session starts from the turns saved so far, as **text**, so nothing is
 repeated, no tool runs twice and the audio is not billed again. When those turns

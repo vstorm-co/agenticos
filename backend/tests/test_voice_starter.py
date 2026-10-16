@@ -37,7 +37,7 @@ class _World:
         self.agent = SimpleNamespace(
             id=uuid4(), organization_id=self.org.id, current_version_id=uuid4(), status="published"
         )
-        self.conversation = SimpleNamespace(id=uuid4())
+        self.conversation = SimpleNamespace(id=uuid4(), is_archived=False)
         self.headroom = Decimal("50")
         self.open_calls = 0
         self.open_embed_calls = 0
@@ -1118,3 +1118,56 @@ async def test_a_started_call_hands_its_caller_a_resume_token_and_keeps_only_its
     assert len(first.resume_token) >= 43  # 256 random bits
     assert stored == hash_token(first.resume_token) != first.resume_token
     assert first.resume_token != second.resume_token
+
+
+@pytest.mark.security
+async def test_a_chain_reconnected_as_often_as_it_may_be_is_not_resumed_again(world, monkeypatch):
+    """Past the chain's bound its oldest connections' time would drop out of the sum
+    and the reconnect would be given it again; the resume is refused instead."""
+    world.previous = _open_previous(
+        world, ended_at=datetime.now(UTC) - timedelta(seconds=3), end_reason="disconnected"
+    )
+    monkeypatch.setattr(f"{_M}.voice_call_repo.chain_seconds", AsyncMock(return_value=None))
+
+    assert await _refusal(world, frame=_resume_frame(world, world.previous)) == "resume_refused"
+
+
+async def test_a_member_cannot_call_into_an_archived_conversation(world):
+    """Archived is closed to new messages, as `ConversationService.add_message` holds it."""
+    world.conversation.is_archived = True
+
+    reason = await _refusal(
+        world,
+        caller=world.caller(conversation_id=world.conversation.id),
+        frame=StartFrame(
+            type="start",
+            agent_id=world.agent.id,
+            conversation_id=world.conversation.id,
+            sdp_offer=_OFFER,
+        ),
+    )
+
+    assert reason == "forbidden"
+
+
+@pytest.mark.parametrize("reused", ["page", "resume"])
+async def test_a_visitor_cannot_call_into_an_archived_thread(world, monkeypatch, reused):
+    """The hosted page's thread, or the one a widget's reconnect continues."""
+    world.conversation.is_archived = True
+    if reused == "page":
+        caller = _visitor(world, conversation_id=world.conversation.id)
+        frame = StartFrame(type="start", agent_id=world.agent.id, sdp_offer=_OFFER)
+    else:
+        caller = _visitor(world)
+        world.previous = _visitor_previous(
+            world, embed_id=caller.embed_id, conversation_id=world.conversation.id
+        )
+        frame = StartFrame(
+            type="start",
+            agent_id=world.agent.id,
+            sdp_offer=_OFFER,
+            resume_of=world.previous.id,
+            resume_token=_TOKEN,
+        )
+
+    assert await _refusal(world, caller=caller, frame=frame) == "forbidden"

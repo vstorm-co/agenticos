@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
+import anyio
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 
@@ -121,20 +122,24 @@ class TurnWriter:
         """Write what the caller said, as transcribed. Nothing for silence."""
         if not text.strip():
             return None
-        async with self._sessions() as db:
-            message = await conversation_repo.create_voice_turn(
-                db,
-                conversation_id=self._conversation_id,
-                role="user",
-                content=text.strip(),
-                turn_id=turn_id,
-                interrupted=False,
-                run_id=self._run_id,
-                agent_id=None,
-                agent_version_id=None,
-                parts=None,
-            )
-            return None if message is None else _read(message, tool_calls=[])
+        # Shielded, here and below: the pump is cancelled when a call ends, and a
+        # write cut off mid-way loses the turn and hands a closed connection back
+        # to the pool, where the call's own end then fails on it.
+        with anyio.CancelScope(shield=True):
+            async with self._sessions() as db:
+                message = await conversation_repo.create_voice_turn(
+                    db,
+                    conversation_id=self._conversation_id,
+                    role="user",
+                    content=text.strip(),
+                    turn_id=turn_id,
+                    interrupted=False,
+                    run_id=self._run_id,
+                    agent_id=None,
+                    agent_version_id=None,
+                    parts=None,
+                )
+                return None if message is None else _read(message, tool_calls=[])
 
     async def assistant_turn(
         self, text: str, *, turn_id: str, interrupted: bool, tools: Sequence[SpokenToolCall]
@@ -146,41 +151,42 @@ class TurnWriter:
         if text.strip():
             parts.append({"type": "text", "text": text.strip()})
         parts.extend({"type": "tool", "tool_call_id": tool.tool_call_id} for tool in tools)
-        async with self._sessions() as db:
-            message = await conversation_repo.create_voice_turn(
-                db,
-                conversation_id=self._conversation_id,
-                role="assistant",
-                content=text.strip(),
-                turn_id=turn_id,
-                interrupted=interrupted,
-                run_id=self._run_id,
-                agent_id=self._agent_id,
-                agent_version_id=self._agent_version_id,
-                parts=parts,
-            )
-            if message is None:
-                return None
-            rows: list[ToolCall] = []
-            for tool in tools:
-                row = await conversation_repo.create_tool_call(
+        with anyio.CancelScope(shield=True):
+            async with self._sessions() as db:
+                message = await conversation_repo.create_voice_turn(
                     db,
-                    message_id=message.id,
-                    tool_call_id=tool.tool_call_id,
-                    tool_name=tool.tool_name,
-                    args=tool.args,
-                    started_at=tool.started_at,
+                    conversation_id=self._conversation_id,
+                    role="assistant",
+                    content=text.strip(),
+                    turn_id=turn_id,
+                    interrupted=interrupted,
+                    run_id=self._run_id,
+                    agent_id=self._agent_id,
+                    agent_version_id=self._agent_version_id,
+                    parts=parts,
                 )
-                if tool.result is not None:
-                    row = await conversation_repo.complete_tool_call(
+                if message is None:
+                    return None
+                rows: list[ToolCall] = []
+                for tool in tools:
+                    row = await conversation_repo.create_tool_call(
                         db,
-                        db_tool_call=row,
-                        result=tool.result,
-                        completed_at=tool.completed_at or datetime.now(UTC),
-                        success=tool.success,
+                        message_id=message.id,
+                        tool_call_id=tool.tool_call_id,
+                        tool_name=tool.tool_name,
+                        args=tool.args,
+                        started_at=tool.started_at,
                     )
-                rows.append(row)
-            return _read(message, tool_calls=rows)
+                    if tool.result is not None:
+                        row = await conversation_repo.complete_tool_call(
+                            db,
+                            db_tool_call=row,
+                            result=tool.result,
+                            completed_at=tool.completed_at or datetime.now(UTC),
+                            success=tool.success,
+                        )
+                    rows.append(row)
+                return _read(message, tool_calls=rows)
 
 
 def _read(message: Message, *, tool_calls: list[ToolCall]) -> MessageRead:

@@ -1,5 +1,5 @@
 ---
-source_sha: "9c9b30a42443"
+source_sha: "3b30b65cd3fd"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i minut, bezpieczne rozłączanie i transkrypcje."
@@ -103,6 +103,10 @@ mikrofonem i wysyła ofertę SDP wewnątrz `start`. Serwer odpowiada na nią prz
 providera, odsyła odpowiedź, a potem trzyma połączenie *sideband* z tą samą
 rozmową, dopóki gniazdo jest otwarte. Dźwięk płynie między przeglądarką a
 OpenAI; narzędzia, zatwierdzenia, transkrypcje i pomiar działają na serwerze.
+Podczas zestawiania rozmowy serwer czyta gniazdo, więc `end` albo zamknięta
+karta przerywa zestawianie, zanim sesja u providera zostanie otwarta. Oferta
+już wysłana do providera może się najpierw dokończyć, a utworzona przez nią
+rozmowa jest potem rozłączana, więc nie trwa aż do własnego limitu providera.
 
 ```mermaid
 sequenceDiagram
@@ -219,9 +223,10 @@ wtedy tylko, że rozmowy nie są teraz dostępne.
 
 **Minuty.** Miesięczne minuty organizacji są liczone z wierszy rozmów
 (`voice_calls`): każda rozmowa do swojego końca albo, póki jeszcze trwa, do
-swojego ostatniego heartbeatu. Gdy się wyczerpią, nowe rozmowy są odrzucane, a
-trwająca rozmowa dostaje o tym informację i jest kończona przy swoim następnym
-heartbeacie. Liczba „Minuty rozmów (Voice minutes)” na dashboardzie i karta Głos
+swojego ostatniego heartbeatu. Rozmowa trwająca na przełomie miesięcy liczy się
+do nowego miesiąca tylko czasem po północy UTC. Gdy się wyczerpią, nowe rozmowy
+są odrzucane, a trwająca rozmowa dostaje o tym informację i jest kończona przy
+swoim następnym heartbeacie. Liczba „Minuty rozmów (Voice minutes)” na dashboardzie i karta Głos
 organizacji czytają te same wiersze.
 
 **Pieniądze.** Rozmowy liczą się do budżetów agenta i organizacji, tak jak runy
@@ -302,8 +307,11 @@ agenta i tej samej konwersacji, tylko z tokenem wznowienia, który poprzednie
 połączenie dostało przy zestawieniu, i tylko w ciągu 10 sekund od zamknięcia
 poprzedniego. Serwer przechowuje tylko skrót tego tokena. Ponowne połączenie
 kończy poprzednie, jeśli to jest jeszcze półotwarte, i liczy je jako zakończone
-przy jego ostatnim heartbeacie. Czas i budżet przechodzą dalej: ponowne
-połączenie kontynuuje zegar rozmowy, zamiast go restartować.
+przy jego ostatnim heartbeacie.
+
+Czas i budżet przechodzą dalej: ponowne połączenie kontynuuje zegar rozmowy,
+zamiast go restartować, a widok rozmowy zachowuje cały jej limit czasu. Rozmowa złożona już z 20 połączeń nie jest
+wznawiana ponownie, więc jej czas nie może wymknąć się z rachunku.
 
 Nowa sesja startuje od zapisanych dotąd tur, jako **tekst**, więc nic nie jest
 powtarzane, żadne narzędzie nie wykonuje się dwa razy, a za dźwięk nie płaci się

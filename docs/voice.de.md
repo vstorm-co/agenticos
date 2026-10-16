@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Minutenlimits, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "9c9b30a42443"
+source_sha: "3b30b65cd3fd"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -107,7 +107,12 @@ Peer-Verbindung auf und sendet das SDP-Angebot innerhalb von `start`. Der Server
 beantwortet es beim Provider, schickt die Antwort zurück und hält dann eine
 *Sideband*-Verbindung zum selben Anruf, solange das Socket offen ist. Das Audio
 fließt zwischen dem Browser und OpenAI; die Tools, die Freigaben, die
-Transkripte und die Messung laufen auf dem Server.
+Transkripte und die Messung laufen auf dem Server. Während der Einrichtung
+liest der Server das Socket mit, sodass ein `end` oder ein geschlossener Tab
+die Einrichtung stoppt, bevor die Provider-Session geöffnet wird. Ein Angebot,
+das schon beim Provider liegt, darf zuerst zu Ende laufen; den Anruf, den es
+angelegt hat, legt der Server danach auf, damit er nicht bis zum eigenen Limit
+des Providers weiterläuft.
 
 ```mermaid
 sequenceDiagram
@@ -228,9 +233,10 @@ echten Limit. Der Agent sagt dann nur, dass Anrufe gerade nicht verfügbar sind.
 
 **Minuten.** Die monatlichen Minuten der Organisation werden aus den Anrufzeilen
 (`voice_calls`) gezählt: jeder Anruf bis zu seinem Ende oder, solange er noch
-läuft, bis zu seinem letzten Heartbeat. Wenn sie aufgebraucht sind, werden neue
-Anrufe abgelehnt, und ein laufender Anruf wird bei seinem nächsten Heartbeat
-informiert und beendet. Der Wert „Anrufminuten“ (Voice minutes) auf dem
+läuft, bis zu seinem letzten Heartbeat. Ein Anruf über den Monatswechsel zählt
+im neuen Monat nur mit seiner Zeit nach Mitternacht UTC. Wenn sie aufgebraucht
+sind, werden neue Anrufe abgelehnt, und ein laufender Anruf wird bei seinem
+nächsten Heartbeat informiert und beendet. Der Wert „Anrufminuten“ (Voice minutes) auf dem
 Dashboard und die Karte Stimme der Organisation lesen dieselben Zeilen.
 
 **Geld.** Anrufe zählen gegen die Budgets des Agents und der Organisation, wie
@@ -315,9 +321,12 @@ Agent und dieselbe Unterhaltung angenommen, nur mit dem Fortsetzungs-Token, das
 die vorige Verbindung bei ihrer Einrichtung bekommen hat, und nur innerhalb von
 10 Sekunden, nachdem die vorige geschlossen wurde. Der Server speichert nur
 einen Hash dieses Tokens. Eine Wiederverbindung beendet die vorige, wenn diese
-noch halb offen ist, und zählt sie als bei ihrem letzten Heartbeat beendet. Zeit
-und Budget werden übernommen: Eine Wiederverbindung setzt die Uhr des Anrufs
-fort, statt sie neu zu starten.
+noch halb offen ist, und zählt sie als bei ihrem letzten Heartbeat beendet.
+
+Zeit und Budget werden übernommen: Eine Wiederverbindung setzt die Uhr des Anrufs
+fort, statt sie neu zu starten, und die Anrufansicht behält das volle Zeitlimit
+des Anrufs. Ein Anruf, der schon aus 20 Verbindungen besteht, wird nicht mehr
+fortgesetzt, damit seine Zeit nicht aus der Zählung rutschen kann.
 
 Die neue Sitzung beginnt mit den bisher gespeicherten Zügen, als **Text**, also
 wird nichts wiederholt, kein Tool läuft zweimal, und das Audio wird nicht noch
