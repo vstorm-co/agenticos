@@ -936,9 +936,11 @@ Two things are versioned separately from this file and worth knowing about:
 ### Changed
 
 - **The README opens on an animated banner.** The Toolbox's own capability
-  cards, with the blobs floating and blinking over them, in place of the mark
-  and the title, in all four READMEs. `docs/assets/readme-banner/render.mjs`
-  rebuilds it from the current illustrations.
+  cards, with the blobs floating and blinking over them and Vstorm's mark under
+  the title, in place of the mark and the heading, in all four READMEs - an
+  animated WebP at twice its shown size, sharp on a high-density screen.
+  `docs/assets/readme-banner/render.mjs` rebuilds it from the current
+  illustrations.
 
 - **The AI Architect is edited in the Agent Builder, like any agent.** Its
   name, model, knowledge and the rest of its spec are no longer a second form

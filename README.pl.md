@@ -1,8 +1,8 @@
-<!-- source_sha: 04c9cc235631 -->
+<!-- source_sha: d5e4569f35c6 -->
 
 <div align="center">
 
-<img src="docs/assets/readme-banner.gif" alt="AgenticOS: open-source'owi współpracownicy AI dla Twojej firmy. Agenci, narysowani jako bloby, pracują z capabilities z Toolboxa: wyszukiwaniem w wiedzy, przeglądarką, subagentami, sandboxem, wykresami, aplikacjami, skills i guardrails." width="100%">
+<img src="docs/assets/readme-banner.webp" alt="AgenticOS: open-source'owi współpracownicy AI dla Twojej firmy. Agenci, narysowani jako bloby, pracują z capabilities z Toolboxa: wyszukiwaniem w wiedzy, przeglądarką, subagentami, sandboxem, wykresami, aplikacjami, skills i guardrails." width="100%">
 
 <h3>Koledzy z AI dla Twojej firmy - open source</h3>
 

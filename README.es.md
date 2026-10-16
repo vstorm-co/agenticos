@@ -1,8 +1,8 @@
-<!-- source_sha: 04c9cc235631 -->
+<!-- source_sha: d5e4569f35c6 -->
 
 <div align="center">
 
-<img src="docs/assets/readme-banner.gif" alt="AgenticOS: compañeros de IA de código abierto para tu empresa. Los agentes, dibujados como blobs, trabajan con las capabilities de la Toolbox: búsqueda en el conocimiento, un navegador web, subagentes, un sandbox, gráficos, apps, skills y guardrails." width="100%">
+<img src="docs/assets/readme-banner.webp" alt="AgenticOS: compañeros de IA de código abierto para tu empresa. Los agentes, dibujados como blobs, trabajan con las capabilities de la Toolbox: búsqueda en el conocimiento, un navegador web, subagentes, un sandbox, gráficos, apps, skills y guardrails." width="100%">
 
 <h3>Compañeros de IA de código abierto para tu empresa</h3>
 

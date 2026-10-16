@@ -1,8 +1,8 @@
-<!-- source_sha: 04c9cc235631 -->
+<!-- source_sha: d5e4569f35c6 -->
 
 <div align="center">
 
-<img src="docs/assets/readme-banner.gif" alt="AgenticOS: Open-Source-KI-Teammates für Ihr Unternehmen. Agents, als Blobs gezeichnet, arbeiten mit den Capabilities der Toolbox: Wissenssuche, ein Webbrowser, Subagents, eine Sandbox, Diagramme, Apps, Skills und Guardrails." width="100%">
+<img src="docs/assets/readme-banner.webp" alt="AgenticOS: Open-Source-KI-Teammates für Ihr Unternehmen. Agents, als Blobs gezeichnet, arbeiten mit den Capabilities der Toolbox: Wissenssuche, ein Webbrowser, Subagents, eine Sandbox, Diagramme, Apps, Skills und Guardrails." width="100%">
 
 <h3>Open-Source-KI-Teammates für dein Unternehmen</h3>
 

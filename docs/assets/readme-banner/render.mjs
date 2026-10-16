@@ -1,5 +1,5 @@
 /**
- * Render the README's banner, docs/assets/readme-banner.gif.
+ * Render the README's banner, docs/assets/readme-banner.webp.
  *
  *     node docs/assets/readme-banner/render.mjs
  *
@@ -8,10 +8,15 @@
  * illustration reaches the banner by running this again rather than by
  * redrawing it. The blobs float and blink on periods that divide the six-second
  * loop, and every card animation is stepped to a period that does too, so the
- * GIF repeats without a seam; a drift much slower than the loop holds still.
+ * banner repeats without a seam; a drift much slower than the loop holds still.
  *
- * Playwright comes from frontend/ and ffmpeg from the developer's machine: this
- * is run by hand, like the social card, and the `.gif` is what the README links.
+ * An animated WebP at twice the size it is shown, rather than a GIF: a GIF's 256
+ * colours dithered the dark ground into noise and its 1x frames went soft on a
+ * high-density screen.
+ *
+ * Playwright comes from frontend/ and img2webp (libwebp) from the developer's
+ * machine: this is run by hand, like the social card, and the `.webp` is what the
+ * README links.
  */
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -27,14 +32,14 @@ const { chromium } = require("@playwright/test");
 
 // [capability id, the name the Toolbox shows, an example from its guide]
 const CARDS = [
-  ["knowledge", "Knowledge search", "Answer from the HR handbook"],
-  ["browser_use", "Web browser", "Check a supplier's portal"],
-  ["subagents", "Subagents", "Research topics side by side"],
-  ["sandbox", "Sandbox", "Clean up a spreadsheet"],
-  ["charts", "Charts", "Sales by region, as bars"],
-  ["artifacts", "Apps", "A weekly sales summary page"],
-  ["skills", "Skills", "Write a proposal your way"],
-  ["guardrails", "Guardrails", "Keep card numbers out"],
+  ["knowledge", "Knowledge search", "From the HR handbook"],
+  ["browser_use", "Web browser", "A supplier's portal"],
+  ["subagents", "Subagents", "Topics side by side"],
+  ["sandbox", "Sandbox", "Tidy a spreadsheet"],
+  ["charts", "Charts", "Sales by region"],
+  ["artifacts", "Apps", "A weekly sales page"],
+  ["skills", "Skills", "Proposals your way"],
+  ["guardrails", "Guardrails", "Card numbers kept out"],
 ];
 const LOOP_MS = 6000;
 const FPS = 15;
@@ -61,14 +66,24 @@ writeFileSync(
   page_,
   readFileSync(join(here, "template.html"), "utf8")
     .replace("/*CAPCSS*/", readFileSync(join(art, "capability-art.css"), "utf8"))
-    .replace("<!--CARDS-->", columns),
+    .replace("<!--CARDS-->", columns)
+    // Vstorm's colour logo with its wordmark lightened for the dark ground,
+    // from content-os's tools/brand/logo_vstorm_color.svg.
+    .replace("<!--VSTORM-->", readFileSync(join(here, "vstorm.svg"), "utf8")),
 );
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1600, height: 480 }, deviceScaleFactor: 1 });
+const page = await browser.newPage({ viewport: { width: 1200, height: 400 }, deviceScaleFactor: 2 });
 await page.goto(`file://${page_}`);
 await page.waitForLoadState("networkidle");
 await page.evaluate(() => document.fonts.ready);
+// `--still out.png` renders the first frame alone, to judge the layout.
+const still = process.argv.indexOf("--still");
+if (still !== -1) {
+  await page.locator(".card").screenshot({ path: process.argv[still + 1] });
+  await browser.close();
+  process.exit(0);
+}
 await page.evaluate((loop) => {
   window.__anims = document.getAnimations().map((a) => {
     const timing = a.effect.getTiming();
@@ -93,9 +108,11 @@ for (let i = 0; i < frames; i++) {
 }
 await browser.close();
 
-execFileSync("ffmpeg", [
-  "-v", "error", "-y", "-framerate", String(FPS), "-i", join(scratch, "f%03d.png"),
-  "-vf", "split[a][b];[a]palettegen=max_colors=256:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle",
-  "-loop", "0", join(here, "../readme-banner.gif"),
+const frameFiles = Array.from({ length: frames }, (_, i) => join(scratch, `f${String(i).padStart(3, "0")}.png`));
+// Near-lossless: lossy VP8 broke the blobs' smooth gradients into visible blocks
+// at every quality tried, and fully lossless was 14 MB for no visible gain.
+execFileSync("img2webp", [
+  "-loop", "0", "-near_lossless", "40", "-m", "6", "-d", String(Math.round(1000 / FPS)),
+  ...frameFiles, "-o", join(here, "../readme-banner.webp"),
 ]);
-console.log(`${frames} frames -> docs/assets/readme-banner.gif`);
+console.log(`${frames} frames -> docs/assets/readme-banner.webp`);
