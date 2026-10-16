@@ -1,5 +1,5 @@
 ---
-source_sha: "0b5ae075ae8b"
+source_sha: "a05656e86cf3"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -66,12 +66,17 @@ Pro Profile, und pro Agent über die `model_settings` des Specs überschreibbar:
 `temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Siehe
 [die Spec-Referenz](reference/spec.md#model-settings).
 
-**Prompt-Caching ist standardmäßig an** für Anthropic- und OpenRouter-Profile.
-Jeder Request eines Runs schickt die Anweisungen, die Tool-Schemas und den ganzen
-Verlauf erneut, also markiert jeder Request die Anweisungen, die Tools und seine
-letzte Nachricht als Cache-Breakpoints und liest den vorigen Request aus dem Cache.
-Ein Profile schaltet jeden davon ab, indem es ihn auf `false` setzt -
-`anthropic_cache_messages`, `openrouter_cache_instructions` und so weiter.
+**Prompt-Caching ist standardmäßig an**, über die anbieterneutrale
+`cache`-Einstellung von Pydantic AI. Jeder Request eines Runs schickt die
+Anweisungen, die Tool-Schemas und den ganzen Verlauf erneut, also werden der
+stabile Präfix und das Gespräch als Cache-Breakpoints markiert, und jeder Request
+liest den vorigen aus dem Cache. Das greift überall, wo ein Anbieter explizites
+Caching annimmt - Anthropic, die Anthropic- und Nova-Modelle bei Bedrock, die
+Anthropic- und Gemini-Modelle bei OpenRouter, OpenAI ab GPT-5.6 - und ändert
+nichts bei einem, der selbst cacht, wie Google. Ein Profile schaltet es mit
+`cache: false` ab oder cacht mit `cache: {"messages": false}` nur Anweisungen und
+Tools. Ein anbieterspezifisches Flag, das ein Profile schon setzt, etwa
+`anthropic_cache_messages`, hat für dieses Profile weiter Vorrang.
 
 Der Reasoning-Aufwand steht **nicht** hier. Er ist die
 [`thinking`-Capability](reference/capabilities.md#thinking), denn "denk
