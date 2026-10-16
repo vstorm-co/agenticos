@@ -1,5 +1,5 @@
 ---
-source_sha: "3409285bde3b"
+source_sha: "e5c1d990447a"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -500,6 +500,22 @@ jest nadal wywoływany pod prawdziwą nazwą.
 To świadomy kompromis. Dowiadujesz się o tym przez endpoint `/test`
 i `last_status`, a [ślad audytowy](governance.md#audit) zapisuje, co faktycznie
 się wykonało.
+
+### W środowisku testowym i w evalu { #in-a-test-environment-and-in-an-eval }
+
+Nazwane [środowisko](environments.md#test-connections) może zastąpić
+organizacyjny binding połączeniem testowym — sandboxowym CRM w `staging`. Tura
+sięga wtedy do serwera testowego pod nazwą połączenia produkcyjnego, więc model
+widzi te same narzędzia; jeśli połączenie testowe zniknęło albo jest wyłączone,
+binding jest w tej turze wyłączony i zamiast niego nigdy nie trafia na
+produkcję.
+
+W evalu każde wywołanie połączenia produkcyjnego jest wstrzymywane i zapisywane z
+argumentami zamiast wykonywane. Jedyny wyjątek to narzędzie, które serwer oznacza
+`readOnlyHint`, na połączeniu z włączonym zaufaniem do tego oznaczenia.
+Oznaczenie to deklaracja samego serwera, więc zaufanie jest wyłączone na każdym
+połączeniu. Włącza się je w oknie **Tools** połączenia. Okno podaje, ile narzędzi
+deklaruje oznaczenie, a zmiana trafia do audytu razem z tą liczbą.
 
 ### Podłączenie serwera z poziomu Buildera { #connecting-one-from-the-builder }
 

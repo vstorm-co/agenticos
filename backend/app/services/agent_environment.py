@@ -14,11 +14,15 @@ What this service refuses is as deliberate as what it allows:
 * The default is managed by publish, not here. Deleting it, renaming another
   row onto it, or hand-toggling `is_default` would put "what does a plain
   surface get" into two hands, and they would eventually disagree.
+* No connection override that names something the organization does not hold,
+  or that lends a secret the caller cannot see. An override is a binding the
+  spec does not carry, so it is checked the way publish checks a binding.
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,16 +36,28 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentVersion
-from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.agent_environment import (
+    AgentEnvironment,
+    AgentEnvironmentConnection,
+    ConnectionKind,
+)
 from app.db.updates import cleared, writable
 from app.repositories import (
     agent_environment_repo,
     agent_repo,
     agent_run_repo,
     artifact_repo,
+    mcp_connection_repo,
     organization_secret_repo,
 )
-from app.schemas.agent_environment import EnvironmentCreate, EnvironmentRead, EnvironmentUpdate
+from app.schemas.agent_environment import (
+    EnvironmentConnectionRead,
+    EnvironmentConnectionWrite,
+    EnvironmentCreate,
+    EnvironmentRead,
+    EnvironmentUpdate,
+)
+from app.services.access import SECRET, resolve_access
 from app.services.agent_registry import AgentRegistryService
 
 logger = logging.getLogger(__name__)
@@ -72,6 +88,19 @@ class AgentEnvironmentService:
         newest = await agent_repo.count_versions(
             self.db, agent_id=agent.id, organization_id=ctx.organization_id
         )
+        overrides: dict[UUID, list[EnvironmentConnectionRead]] = {}
+        for row in await agent_environment_repo.list_connections(
+            self.db,
+            environment_ids=[environment.id for environment in environments],
+            organization_id=ctx.organization_id,
+        ):
+            overrides.setdefault(row.environment_id, []).append(
+                EnvironmentConnectionRead(
+                    kind=ConnectionKind(row.kind).value,
+                    production_id=row.production_id,
+                    test_id=row.test_id,
+                )
+            )
         return [
             EnvironmentRead(
                 id=environment.id,
@@ -84,6 +113,7 @@ class AgentEnvironmentService:
                 behind_by=max(newest - numbers[environment.version_id], 0),
                 logfire_token_secret_id=environment.logfire_token_secret_id,
                 service_name=environment.service_name,
+                connections=overrides.get(environment.id, []),
                 created_at=environment.created_at,
             )
             for environment in environments
@@ -117,6 +147,7 @@ class AgentEnvironmentService:
         version = await self._version_of(ctx, agent, data.version_id or agent.current_version_id)
         if data.logfire_token_secret_id is not None:
             await self._check_logfire_secret(ctx, data.logfire_token_secret_id)
+        connections = await self._checked_connections(ctx, data.connections)
 
         environment = await agent_environment_repo.create(
             self.db,
@@ -129,6 +160,13 @@ class AgentEnvironmentService:
             logfire_token_secret_id=data.logfire_token_secret_id,
             service_name=data.service_name,
         )
+        if connections:
+            await agent_environment_repo.replace_connections(
+                self.db,
+                environment_id=environment.id,
+                organization_id=ctx.organization_id,
+                connections=connections,
+            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -140,6 +178,7 @@ class AgentEnvironmentService:
                 "environment_id": str(environment.id),
                 "name": environment.name,
                 "version": version.version,
+                "connections": len(connections),
             },
         )
         return environment
@@ -171,9 +210,22 @@ class AgentEnvironmentService:
                 message="An environment is always pinned - point it at a version.",
                 details={"environment_id": str(environment.id)},
             )
-        changes = writable(data, over=AgentEnvironment)
-        if not changes:
+        changes = writable(data, over=AgentEnvironment, exclude={"connections"})
+        if not changes and data.connections is None:
             raise BadRequestError(message="Nothing to change", details={})
+        if data.connections and environment.is_default:
+            raise BadRequestError(
+                message=(
+                    "The default environment runs the connections the spec binds - "
+                    "add test connections to a named environment such as staging."
+                ),
+                details={"environment_id": str(environment.id)},
+            )
+        connections = (
+            None
+            if data.connections is None
+            else await self._checked_connections(ctx, data.connections)
+        )
 
         if changes.get("logfire_token_secret_id") is not None:
             await self._check_logfire_secret(ctx, changes["logfire_token_secret_id"])
@@ -211,9 +263,17 @@ class AgentEnvironmentService:
                 changes["version_id"] = newest.id
                 version = newest
 
-        environment = await agent_environment_repo.update(
-            self.db, environment=environment, update_data=changes
-        )
+        if changes:
+            environment = await agent_environment_repo.update(
+                self.db, environment=environment, update_data=changes
+            )
+        if connections is not None:
+            await agent_environment_repo.replace_connections(
+                self.db,
+                environment_id=environment.id,
+                organization_id=ctx.organization_id,
+                connections=connections,
+            )
         if version is not None:
             await AgentRegistryService(self.db).withdraw_creator_consent(ctx, agent)
         if environment.is_default and version is not None:
@@ -234,7 +294,7 @@ class AgentEnvironmentService:
             details={
                 "environment_id": str(environment.id),
                 "name": environment.name,
-                "fields": sorted(changes),
+                "fields": sorted([*changes, *(["connections"] if connections is not None else [])]),
                 **({"version": version.version} if version else {}),
             },
         )
@@ -314,6 +374,104 @@ class AgentEnvironmentService:
                 details={"environment_id": str(environment_id)},
             )
         return agent, environment
+
+    async def _checked_connections(
+        self, ctx: AuthContext, entries: Sequence[EnvironmentConnectionWrite]
+    ) -> list[AgentEnvironmentConnection]:
+        """The overrides as rows, once each one names things this caller may lend.
+
+        Both sides must be the organization's own: an MCP override pairs two
+        organization connections - never a member's personal one, for the reason
+        publish refuses one - and a secret override pairs two vault secrets of
+        one kind and purpose, the test one readable by the caller, because an
+        environment runs it for everybody who reaches the environment. Misses
+        and refusals read alike, as they do at publish, so the vault cannot be
+        enumerated one guessed id at a time.
+
+        A null test side is an override too: the binding is off here, which an
+        operator can ask for directly and is what a deleted test side becomes.
+        The production side of a switched-off MCP binding is still checked, so
+        an override cannot name what the organization does not hold.
+
+        Raises:
+            BadRequestError: On a duplicate override, an override onto itself, or
+                a side the organization does not have or the caller cannot lend.
+        """
+        seen: set[tuple[str, UUID]] = set()
+        for entry in entries:
+            if (entry.kind, entry.production_id) in seen:
+                raise BadRequestError(
+                    message="A binding can have one test replacement per environment",
+                    details={"kind": entry.kind, "production_id": entry.production_id},
+                )
+            seen.add((entry.kind, entry.production_id))
+            if entry.production_id == entry.test_id:
+                raise BadRequestError(
+                    message="A test replacement must be a different connection or secret",
+                    details={"kind": entry.kind, "production_id": entry.production_id},
+                )
+
+        mcp = [entry for entry in entries if entry.kind == ConnectionKind.MCP]
+        found = await mcp_connection_repo.get_org_scoped_by_ids(
+            self.db,
+            connection_ids=[
+                *(entry.production_id for entry in mcp),
+                *(entry.test_id for entry in mcp if entry.test_id is not None),
+            ],
+            organization_id=ctx.organization_id,
+        )
+        for entry in mcp:
+            for connection_id in (entry.production_id, entry.test_id):
+                if connection_id is not None and connection_id not in found:
+                    raise BadRequestError(
+                        message=(
+                            f"MCP server {connection_id} is not shared with this organization. "
+                            "Both sides of an override must be organization connections."
+                        ),
+                        details={"connection_id": connection_id},
+                    )
+
+        for entry in entries:
+            if entry.kind == ConnectionKind.SECRET and entry.test_id is not None:
+                await self._check_secret_pair(ctx, entry, entry.test_id)
+
+        return [
+            AgentEnvironmentConnection(
+                kind=entry.kind,
+                production_id=entry.production_id,
+                test_connection_id=entry.test_id if entry.kind == ConnectionKind.MCP else None,
+                test_secret_id=entry.test_id if entry.kind == ConnectionKind.SECRET else None,
+            )
+            for entry in entries
+        ]
+
+    async def _check_secret_pair(
+        self, ctx: AuthContext, entry: EnvironmentConnectionWrite, test_id: UUID
+    ) -> None:
+        """Refuse a test secret that could not stand in for the production one."""
+        production = await organization_secret_repo.get(
+            self.db, entry.production_id, organization_id=ctx.organization_id
+        )
+        test = await organization_secret_repo.get(
+            self.db, test_id, organization_id=ctx.organization_id
+        )
+        if (
+            production is None
+            or test is None
+            or not await resolve_access(self.db, ctx, test, Perm.SECRETS_VIEW, resource_type=SECRET)
+        ):
+            raise BadRequestError(
+                message="That key is not in this organization's vault",
+                details={"production_id": entry.production_id, "test_id": entry.test_id},
+            )
+        if (test.kind, test.purpose) != (production.kind, production.purpose):
+            raise BadRequestError(
+                message=(
+                    "That key cannot stand in for the one the agent binds: a test key must "
+                    "be the same kind of key, for the same service"
+                ),
+                details={"production_id": entry.production_id, "test_id": entry.test_id},
+            )
 
     async def _check_logfire_secret(self, ctx: AuthContext, secret_id: UUID) -> None:
         """Refuse a token the organization does not hold, or one for something else.

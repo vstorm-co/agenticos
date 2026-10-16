@@ -39,6 +39,7 @@ _CONSOLE_PATHS = {
     "context": "/context",
     "secret": "/vault",
     "artifact": "/apps/{id}",
+    "dataset": "/datasets/{id}",
     "mcp_connection": "/mcp-servers",
 }
 """Where the console opens a shared resource of each kind."""

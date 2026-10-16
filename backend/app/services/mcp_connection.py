@@ -34,7 +34,7 @@ import logging
 import re
 import secrets
 from collections import Counter
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
@@ -1858,7 +1858,10 @@ class McpConnectionService:
             action="mcp_connection.updated",
             target_type="mcp_connection",
             target_id=str(connection.id),
-            details={"fields": sorted(edited_fields)},
+            details={
+                "fields": sorted(edited_fields),
+                **(_trust_details(connection) if "trust_read_only_hints" in edited_fields else {}),
+            },
         )
         return connection
 
@@ -2132,6 +2135,7 @@ async def build_toolsets_for_agent(
     organization_id: UUID,
     refs: Sequence[McpServerRef],
     sender_user_id: UUID | None = None,
+    test_connections: Mapping[UUID, UUID | None] | None = None,
     platform_credential: str | None = None,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
@@ -2160,9 +2164,18 @@ async def build_toolsets_for_agent(
     prefix, and listed on `accounts` so the run can be told which is which
     (#2125).
 
+    `test_connections` is the run's environment speaking: an organization
+    binding whose connection is a key there runs against the test connection it
+    maps to, under the production connection's name - so the model sees the same
+    tool names in staging as in production, and an eval's trajectory is
+    comparable across the two. A key mapping to `None` is a binding switched off
+    in that environment, as is a test connection that is gone, disabled or
+    without credentials: the production connection is never the fallback.
+
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
     """
+    overrides = test_connections or {}
     specs: list[McpServerSpec] = []
     bindings: dict[int, str] = {}
     # Which service and account each spec reaches, for the accounts briefing.
@@ -2170,9 +2183,13 @@ async def build_toolsets_for_agent(
     # Whether each organization server had an outage open when this run read it.
     outage_open: dict[UUID, bool] = {}
     unavailable: list[UnavailableBinding] = []
+    org_ids = [ref.connection_id for ref in refs if isinstance(ref, OrgMcpServerRef)]
     found = await mcp_connection_repo.get_org_scoped_by_ids(
         db,
-        connection_ids=[ref.connection_id for ref in refs if isinstance(ref, OrgMcpServerRef)],
+        connection_ids=[
+            *org_ids,
+            *(test_id for ref_id in org_ids if (test_id := overrides.get(ref_id)) is not None),
+        ],
         organization_id=organization_id,
     )
     for ref in refs:
@@ -2205,6 +2222,18 @@ async def build_toolsets_for_agent(
             if gap is not None:
                 unavailable.append(UnavailablePersonalService(ref.catalog_key, gap))
             continue
+        if ref.connection_id in overrides:
+            spec = await _test_spec(
+                db,
+                ref,
+                production=found.get(ref.connection_id),
+                test_id=overrides[ref.connection_id],
+                found=found,
+            )
+            if spec is not None:
+                specs.append(spec)
+                bindings[id(spec)] = f"the connection {spec.name!r}"
+            continue
         connection = found.get(ref.connection_id)
         if connection is None or not connection.is_enabled:
             # Deleted, disabled or moved out of the organization since publish.
@@ -2233,6 +2262,7 @@ async def build_toolsets_for_agent(
             url=connection.url,
             headers=headers,
             allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
+            trust_read_only_hints=connection.trust_read_only_hints,
             approval=ref.approval,
             include_instructions=connection.include_instructions,
             # Its label, where it has one: an organization holding two accounts on a
@@ -2301,6 +2331,65 @@ async def build_toolsets_for_agent(
             [reaches[id(spec)] for spec, _ in attached if id(spec) in reaches]
         ),
         origins=origins,
+    )
+
+
+def _trust_details(connection: McpConnection) -> dict[str, Any]:
+    """What believing this server's `readOnlyHint` covers: how many of its tools claim it.
+
+    Counted from the last probe, so the count is null until anything reached it.
+    """
+    tools = connection.last_tools
+    return {
+        "trust_read_only_hints": connection.trust_read_only_hints,
+        "read_only_hint_tools": None
+        if tools is None
+        else sum(1 for tool in tools if tool.get("read_only") is True),
+    }
+
+
+async def _test_spec(
+    db: AsyncSession,
+    ref: OrgMcpServerRef,
+    *,
+    production: McpConnection | None,
+    test_id: UUID | None,
+    found: Mapping[UUID, McpConnection],
+) -> McpServerSpec | None:
+    """The environment's test connection in place of the one the spec binds, or none.
+
+    Both allowlists narrow it - the production connection's, so the test side
+    offers no tool production does not, and the test connection's own - and so
+    does the binding's.
+    """
+    test = found.get(test_id) if test_id is not None else None
+    if test is None or not test.is_enabled:
+        logger.warning(
+            "MCP connection %s is switched off in this environment: its test connection "
+            "is gone or disabled",
+            ref.connection_id,
+        )
+        return None
+    headers = await _resolve_auth_headers(db, test)
+    if headers is None:
+        logger.warning(
+            "Skipping test MCP connection %r for this run: no usable credentials", test.name
+        )
+        return None
+    ceiling = _narrowed_tools(
+        production.allowed_tools if production is not None else None, ref.allowed_tools
+    )
+    return McpServerSpec(
+        name=production.name if production is not None else test.name,
+        url=test.url,
+        headers=headers,
+        allowed_tools=_narrowed_tools(test.allowed_tools, ceiling),
+        test=True,
+        trust_read_only_hints=test.trust_read_only_hints,
+        approval=ref.approval,
+        include_instructions=test.include_instructions,
+        account=test.label,
+        connection_id=test.id,
     )
 
 

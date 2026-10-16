@@ -14,6 +14,13 @@ export const AGENT_BUILDER = "agent-builder";
 export const KB_DETAIL = "kb-detail";
 
 /**
+ * A dataset's own page, `/datasets/<id>`, collapsed the same way. Only the guided
+ * creation reaches it - the reader opens the dataset they just made - so it has no
+ * example to resolve.
+ */
+export const DATASET_DETAIL = "dataset-detail";
+
+/**
  * The two organization detail routes, collapsed the same way. Unlike the builder
  * and the collection — one detail route each — an organization opens onto two,
  * `/orgs/<id>/members` and `/orgs/<id>/roles`, so it takes two identities chained
@@ -291,6 +298,16 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  // On the first named environment's test-connections toggle, which only an
+  // agent with one renders and only a publisher sees.
+  {
+    id: "agent-test-connections",
+    page: AGENT_BUILDER,
+    target: "environment-connections",
+    activate: "agent-tab-history",
+    permission: Perm.agentsPublish,
+    optional: true,
+  },
   // Trying it beside the Builder before publishing (#2074).
   {
     id: "agent-test",
@@ -378,6 +395,22 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "groups-list", page: ROUTES.GROUPS, target: "groups-list" },
   { id: "group-members", page: GROUP_DETAIL, target: "group-members" },
   { id: "group-add-to", page: GROUP_DETAIL, target: "group-add-to" },
+
+  // Datasets - the questions an agent is tested on. The same two stops as
+  // context: the create button (edit-gated) and the list (view-gated).
+  {
+    id: "datasets-new",
+    page: ROUTES.DATASETS,
+    target: "datasets-new",
+    permission: Perm.datasetsEdit,
+    inTour: true,
+  },
+  {
+    id: "datasets-list",
+    page: ROUTES.DATASETS,
+    target: "datasets-list",
+    permission: Perm.datasetsView,
+  },
 
   // Published artifacts - pages agents wrote. Nothing to create here (a run
   // publishes one), so a single describing stop on the list, view-gated.
@@ -719,6 +752,7 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
 export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
+  if (path.startsWith(`${ROUTES.DATASETS}/`)) return DATASET_DETAIL;
   if (path.startsWith(`${ROUTES.ORGS}/`)) {
     if (path.endsWith("/roles")) return ORG_ROLES;
     if (path.endsWith("/retention")) return ORG_RETENTION;

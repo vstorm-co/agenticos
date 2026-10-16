@@ -47,6 +47,11 @@ logger = logging.getLogger(__name__)
 # deployment, and no installation ever tuned it.
 CONNECT_TIMEOUT_SECS = 3.0
 
+#: Tool metadata saying which side of an environment override a tool came from and
+#: whether its connection trusts the server's annotations. Stamped here after the
+#: server answered, so a server cannot claim either.
+MCP_ORIGIN = "agenticos_mcp"
+
 ANSWERED_FOR = 120.0
 """How long, in seconds, a server that answered its probe is taken to be up without another.
 
@@ -123,6 +128,8 @@ class McpServerSpec:
     headers: dict[str, str] = field(default_factory=dict)
     # None = expose every tool the server offers.
     allowed_tools: list[str] | None = None
+    test: bool = False
+    trust_read_only_hints: bool = False
     approval: McpApproval = "none"
     # Whether the server's `initialize` instructions join the agent's (the
     # connection's own opt-in; Pydantic AI leaves them out by default).
@@ -289,8 +296,9 @@ def _make_toolset(spec: McpServerSpec) -> Any:
     if spec.allowed_tools is not None:
         allowed = set(spec.allowed_tools)
         server = server.filtered(lambda _ctx, tool: tool.name in allowed)
+    origin = {"test": spec.test, "trust_read_only_hints": spec.trust_read_only_hints}
     return ApprovalMarked(
-        FittedNames(server.prefixed(tool_prefix(spec.name))),
+        FittedNames(server.prefixed(tool_prefix(spec.name)).with_metadata(**{MCP_ORIGIN: origin})),
         policy=spec.approval,
         account=spec.account,
     )

@@ -13,8 +13,16 @@ import pytest
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.resource_grant import GrantLevel, Visibility
-from app.services.access import COLLECTION
-from app.services.sharing import SharingService
+from app.services import access
+from app.services.access import COLLECTION, ResourceType
+from app.services.sharing import _CONSOLE_PATHS, SharingService
+
+
+def test_every_resource_type_has_a_console_path():
+    """A share with a group links its members to what was shared: a kind with no
+    path would fail the share itself rather than leave the link out."""
+    kinds = {value.key for value in vars(access).values() if isinstance(value, ResourceType)}
+    assert kinds == set(_CONSOLE_PATHS)
 
 
 def _ctx(role: str, org_id=None, user_id=None) -> AuthContext:

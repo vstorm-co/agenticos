@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AGENT_BUILDER,
+  DATASET_DETAIL,
   KB_DETAIL,
   GROUP_DETAIL,
   ORG_DIRECTORY,
@@ -44,6 +45,7 @@ const BUILDER_STEPS = [
   "agent-limits",
   "agent-availability",
   "agent-history",
+  "agent-test-connections",
   "agent-test",
   "agent-share",
   "agent-publish",
@@ -68,6 +70,11 @@ describe("pageKey", () => {
     expect(pageKey("/rag/abc-123")).toBe(KB_DETAIL);
     expect(pageKey("/rag/abc-123/anything")).toBe(KB_DETAIL);
     expect(pageKey("/groups/abc-123")).toBe(GROUP_DETAIL);
+  });
+
+  it("collapses every concrete dataset route onto the one dataset identity", () => {
+    expect(pageKey("/datasets/abc-123")).toBe(DATASET_DETAIL);
+    expect(pageKey("/datasets")).toBe("/datasets");
   });
 
   it("splits the three organization detail routes onto their own identities", () => {
@@ -250,7 +257,13 @@ describe("stepsForPage", () => {
       stepsForPage("/agents/some-id", (permission) => permission === Perm.agentsView).map(
         (step) => step.id,
       ),
-    ).toEqual(BUILDER_STEPS.filter((id) => id !== "agent-publish" && id !== "agent-test"));
+    ).toEqual(
+      // agents:publish publishes and manages an environment's test connections;
+      // trying the agent beside the Builder takes agents:edit.
+      BUILDER_STEPS.filter(
+        (id) => id !== "agent-publish" && id !== "agent-test-connections" && id !== "agent-test",
+      ),
+    );
   });
 
   it("walks the list and then the whole collection when asked from the Knowledge list", () => {

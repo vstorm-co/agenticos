@@ -1,5 +1,5 @@
 ---
-source_sha: "60dde7e73718"
+source_sha: "d61d0d68830c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -101,6 +101,41 @@ ofrece a un modelo.** La delegación es el único sitio donde ambas difieren:
 bot vinculado en *Where this agent is available*, y la publicación rechaza un spec
 que intente llevarla — consulta
 [Consulta del canal de chat](#chat-channel-lookup).
+
+## Qué ejecuta un eval { #what-an-eval-runs }
+
+Un eval ejecuta el agent de verdad, así que ejecuta una herramienta solo cuando
+no cambia nada fuera del run, o llega a una conexión de prueba del
+[entorno](../environments.md#in-an-eval). Cada capability declara cuáles de sus
+herramientas solo leen — `read_only`, junto a `side_effecting` — y una
+herramienta que no declara nada escribe. Estas son las herramientas que escriben,
+y que un eval retiene y registra:
+
+| id | Herramientas que escriben |
+|---|---|
+| `artifacts` | `publish_artifact` |
+| `ask_user` | `ask_user_question` |
+| `browser_use` | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `image_generation` | `generate_image` |
+| `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
+| `memory_mem0` | `remember` |
+| `sandbox` | `write_file`, `edit_file`, `execute` |
+
+Todas las demás herramientas de arriba solo leen. Delegar cuenta como leer: las
+herramientas propias de un delegado se rigen por sus propias declaraciones.
+`side_effecting` y `read_only` responden a preguntas distintas: la primera es
+sobre qué pregunta la aprobación por defecto, la segunda qué puede ejecutar un
+eval, y una herramienta sin declarar queda sin aprobación con la primera y
+bloqueada con la segunda.
+
+Un entorno puede sustituir la clave del vault de una capability por una de
+prueba, pero una clave sustituida no hace segura una escritura por sí sola: la
+clave de `browser_use` es para el navegador alojado o su proxy, mientras que su
+`cdp_url` sigue nombrando el navegador que hace clic. Una capability declara
+`test_key_isolates` solo cuando la clave por sí sola elige adónde van sus
+escrituras, y nunca con una URL, un host o un endpoint en su configuración.
+Ninguna capability incluida lo declara, así que en un eval cada escritura de
+arriba se registra, no se ejecuta, tenga la clave que tenga.
 
 ## Búsqueda de conocimiento { #knowledge-search }
 

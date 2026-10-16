@@ -45,6 +45,7 @@ class ConversationSearchConfig(BaseModel):
 
 @register(
     id=CONVERSATION_SEARCH_CAPABILITY_ID,
+    read_only=True,
     name="Past conversations",
     category="knowledge",
     description=(

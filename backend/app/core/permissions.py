@@ -59,6 +59,11 @@ class Perm(StrEnum):
     # wrote it. `edit` covers managing it: sharing, the public link, deletion.
     ARTIFACTS_VIEW = "artifacts:view"
     ARTIFACTS_EDIT = "artifacts:edit"
+    # Cases are often copied from real conversations, so reading them, changing them
+    # and spending model budget running evals over them are three separate answers.
+    DATASETS_VIEW = "datasets:view"
+    DATASETS_EDIT = "datasets:edit"
+    DATASETS_RUN = "datasets:run"
 
     APPROVALS_DECIDE = "approvals:decide"
     # Watching a host and managing one are separate authorities. Reading a
@@ -114,6 +119,9 @@ RESOURCE_PERMS: frozenset[Perm] = frozenset(
         Perm.SECRETS_EDIT,
         Perm.ARTIFACTS_VIEW,
         Perm.ARTIFACTS_EDIT,
+        Perm.DATASETS_VIEW,
+        Perm.DATASETS_EDIT,
+        Perm.DATASETS_RUN,
         # Per connection since an organization's MCP server can be narrowed to the
         # groups that use it (#2072): Finance's ledger server is Finance's.
         Perm.MCP_MANAGE,
@@ -219,6 +227,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONTEXT_EDIT: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.ALL,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_EDIT: Scope.ALL,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
     },
     # Admin runs the org day to day but cannot delete it.
@@ -238,6 +249,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONTEXT_EDIT: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.ALL,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_EDIT: Scope.ALL,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.MCP_MANAGE: Scope.ALL,
     },
     # Builder sees the whole org to learn from it, but edits only what is theirs
@@ -255,6 +269,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONTEXT_EDIT: Scope.SHARED,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
         Perm.ARTIFACTS_EDIT: Scope.SHARED,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_EDIT: Scope.SHARED,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         # The organization's servers, its own, and those shared with its groups -
@@ -283,6 +300,8 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_VIEW: Scope.ALL,
         Perm.CONTEXT_VIEW: Scope.ALL,
         Perm.ARTIFACTS_VIEW: Scope.ALL,
+        Perm.DATASETS_VIEW: Scope.ALL,
+        Perm.DATASETS_RUN: Scope.ALL,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.APPROVALS_DECIDE: Scope.ALL,
         Perm.CONNECTIONS_VIEW: Scope.ALL,
@@ -305,6 +324,9 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.CONTEXT_EDIT: Scope.OWN,
         Perm.ARTIFACTS_VIEW: Scope.SHARED,
         Perm.ARTIFACTS_EDIT: Scope.OWN,
+        Perm.DATASETS_VIEW: Scope.SHARED,
+        Perm.DATASETS_EDIT: Scope.OWN,
+        Perm.DATASETS_RUN: Scope.SHARED,
         Perm.SECRETS_VIEW: Scope.SHARED,
         Perm.SECRETS_EDIT: Scope.OWN,
         Perm.ML_INVOKE: Scope.ALL,
@@ -317,6 +339,7 @@ ROLE_PERMS: dict[str, dict[Perm, Scope]] = {
         Perm.SKILLS_VIEW: Scope.SHARED,
         Perm.CONTEXT_VIEW: Scope.SHARED,
         Perm.ARTIFACTS_VIEW: Scope.SHARED,
+        Perm.DATASETS_VIEW: Scope.SHARED,
         Perm.MEMBERS_VIEW: Scope.ALL,
     },
 }

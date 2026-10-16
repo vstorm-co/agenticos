@@ -302,6 +302,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           : connection.allowed_tools,
       ),
       appliesTo: "connection",
+      ...(scope === "organization" ? { trustReadOnlyHints: connection.trust_read_only_hints } : {}),
     });
   };
 
@@ -520,16 +521,20 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
 
   const handleSaveTools = async () => {
     if (!toolPicker) return;
-    const { scope, connection, tools, checked } = toolPicker;
+    const { scope, connection, tools, checked, trustReadOnlyHints } = toolPicker;
     setSubmitting(true);
     try {
-      if (checked.size === tools.length) {
+      await api(scope).update(connection.id, {
         // Everything selected → store NULL, so tools the server adds later flow
         // through instead of silently staying off.
-        await api(scope).update(connection.id, { clear_allowed_tools: true });
-      } else {
-        await api(scope).update(connection.id, { allowed_tools: [...checked] });
-      }
+        ...(checked.size === tools.length
+          ? { clear_allowed_tools: true }
+          : { allowed_tools: [...checked] }),
+        ...(trustReadOnlyHints !== undefined &&
+        trustReadOnlyHints !== connection.trust_read_only_hints
+          ? { trust_read_only_hints: trustReadOnlyHints }
+          : {}),
+      });
       toast.success(t("toolSelectionSaved"));
       setToolPicker(null);
     } catch (caught) {

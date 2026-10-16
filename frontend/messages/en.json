@@ -659,6 +659,18 @@
     "eachPersonsOwnAccount": "Each person's own account",
     "whoCanFindIt": "Who can find it",
     "preview": "Preview",
+    "testConnectionsFor": "Test connections for {name}",
+    "testConnectionsHint": "Runs in this environment, evals included, answer each binding below with its test system. A binding switched off here does nothing - it never falls back to production.",
+    "testConnectionKindLabel": "What to replace",
+    "testConnectionKindMcp": "MCP server",
+    "testConnectionKindSecret": "Vault key",
+    "productionSide": "Production",
+    "testSide": "Test replacement",
+    "testSideFor": "Test replacement for {name}",
+    "bindingOffHere": "Off in this environment",
+    "testSideUnusable": "Off here: the test connection is disabled or not signed in",
+    "testConnectionsSaved": "Test connections saved",
+    "failedTestConnections": "The test connections could not be saved",
     "variablesSuggestions": "Variables",
     "variablesTitle": "Variables",
     "variablesHint": "Write '{{name}}' in the instructions, or click one to insert it. They are filled in when each conversation starts.",
@@ -2107,6 +2119,27 @@
           "description": "Reports and dashboards an agent publishes appear here."
         }
       },
+      "datasets": {
+        "title": "Datasets",
+        "description": "The datasets changed most recently, and what their cases test against.",
+        "cases": "{count, plural, =1 {1 case} other {# cases}} · v{version}",
+        "empty": {
+          "title": "No datasets yet",
+          "description": "Test cases you collect for evals appear here."
+        },
+        "stat": {
+          "reference": "{count, plural, =1 {1 reference} other {# references}}",
+          "counter": "{count, plural, =1 {1 counter-example} other {# counter-examples}}",
+          "toolCalls": "{count, plural, =1 {1 with tool calls} other {# with tool calls}}",
+          "checks": "{count, plural, =1 {1 with checks} other {# with checks}}"
+        },
+        "source": {
+          "conversation": "{count} from chat",
+          "import": "{count} imported",
+          "manual": "{count} by hand",
+          "synthetic": "{count} generated"
+        }
+      },
       "department-spend": {
         "title": "Spend by department",
         "description": "What each department's people ran this month, against its cap. A person in two departments counts in both.",
@@ -3057,6 +3090,8 @@
     "theOrganizations": "The organization's",
     "toolSelectionSaved": "Tool selection saved.",
     "tools": "Tools",
+    "trustReadOnlyHints": "Let evals call tools this server marks read-only",
+    "trustReadOnlyHintsHint": "Evals hold every call to a production server unless you trust it: the read-only mark is the server's own claim. {count, plural, =0 {No tool here claims it.} =1 {1 tool here claims it.} other {# tools here claim it.}}",
     "toolsFrom": "Tools from \"{name}\"",
     "toolsSelected": "{on} of {total} on",
     "unreachable": "Unreachable",
@@ -3180,6 +3215,7 @@
     "collapseSidebar": "Collapse the sidebar",
     "expandSidebar": "Expand the sidebar",
     "artifacts": "Apps",
+    "datasets": "Datasets",
     "assistant": "Assistant",
     "groups": "Groups",
     "api": "API",
@@ -3240,6 +3276,10 @@
       "explore-chat": {
         "title": "Take a quick tour of chat?",
         "body": "See how to start a conversation, switch which agent answers, and change the model or thinking effort for a single chat. Want a quick guided run through it?"
+      },
+      "create-dataset": {
+        "title": "Create a dataset?",
+        "body": "A dataset holds the questions your agents are tested on. Want to make your first one and write a first good case together? We'll walk you through it."
       }
     },
     "steps": {
@@ -3266,6 +3306,10 @@
       "agent-history": {
         "title": "Every version, kept",
         "body": "Each publish freezes the spec as a version you can promote to an environment, roll back to, or read the run history against."
+      },
+      "agent-test-connections": {
+        "title": "Test connections",
+        "body": "A named environment can answer the agent's MCP servers and vault keys with test ones - a sandbox CRM, a test mailbox. Evals run there, and a tool that writes with no test connection is held and recorded instead of run."
       },
       "agent-instructions": {
         "title": "Instructions are the behaviour",
@@ -3710,6 +3754,62 @@
       "artifacts-list": {
         "title": "Published pages",
         "body": "Reports and dashboards your agents published. Open one to see it, pick an earlier version, share it with colleagues or give it a public link."
+      },
+      "datasets-new": {
+        "title": "Collect test cases",
+        "body": "A dataset holds the questions an agent is tested on. Create one here, then add cases by hand, from a file, from an answer rated up or down in chat, or from a turn in Activity."
+      },
+      "datasets-list": {
+        "title": "Your datasets",
+        "body": "Every change to a dataset's cases makes a new version, so an eval run always points at questions that do not move."
+      },
+      "flow-dataset-create": {
+        "title": "Create a dataset",
+        "body": "Choose New dataset - the form opens and we'll fill it together."
+      },
+      "flow-dataset-field-name": {
+        "title": "Name it",
+        "body": "Say what it tests, like refund questions. Then choose Next."
+      },
+      "flow-dataset-field-create": {
+        "title": "Create it",
+        "body": "Choose Create. We'll move on the moment it's saved."
+      },
+      "flow-dataset-open": {
+        "title": "Open your dataset",
+        "body": "It is the first card - the one changed last. Open it to add its first case."
+      },
+      "flow-dataset-add-case": {
+        "title": "Add your first case",
+        "body": "Choose Add case. A case is one question, and what a good answer to it looks like."
+      },
+      "flow-dataset-case-question": {
+        "title": "What the agent is asked",
+        "body": "The input is the message the agent answers. Add the conversation before it only when the question depends on earlier turns. Then choose Next."
+      },
+      "flow-dataset-case-answers": {
+        "title": "A good answer, and a bad one",
+        "body": "The reference answer says what a good answer contains; a judge compares the agent's answer with it. The counter-example is an answer known to be wrong - often the one somebody rated down. One of them is usually enough."
+      },
+      "flow-dataset-case-tools": {
+        "title": "The tools it should call",
+        "body": "List the tools the agent must call, with the arguments that have to match. Choose how they are matched: in any order, in this order with others allowed between, or exactly these and nothing else."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Rules about the answer",
+        "body": "A check is a rule the answer is scored by, such as that it mentions 30 days. Each one names its type and carries that rule's parameters."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tags and a note",
+        "body": "Tags group results, such as billing or refusal. The note says why the case exists - what went wrong, or what it guards."
+      },
+      "flow-dataset-case-save": {
+        "title": "Save the case",
+        "body": "A case has to say what the answer is tested against: a reference answer, a counter-example, a tool call or a check. Until it has one, Save case stays off and says what is missing."
+      },
+      "flow-dataset-sources": {
+        "title": "Where the next cases come from",
+        "body": "Write them here, or import a CSV or JSONL file here. In chat, rate an answer up or down and add it - a thumbs-up keeps it as the reference, a thumbs-down as the counter-example. In Activity, add any agent turn of a run."
       },
       "settings-api-keys": {
         "title": "Your API keys",
@@ -5317,11 +5417,11 @@
     "share": "Share",
     "sharingUpdated": "Sharing updated",
     "visibilityOrg": "Everyone in the organization",
-    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} context {context files} mcp_connection {MCP servers} other {secrets}} at all.",
+    "visibilityOrgReaches": "Everyone in the organization who can view {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} other {secrets}} at all.",
     "visibilityPrivate": "Only people with access",
-    "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} context {context file} mcp_connection {MCP server} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
+    "visibilityPrivateReaches": "Only the people listed above. Nobody else finds this {resource, select, agent {agent} skill {skill} collection {collection} artifact {app} dataset {dataset} context {context file} mcp_connection {MCP server} other {secret}} in their list - and if it has no owner yet, it becomes yours.",
     "visibilityTeam": "Team (no longer offered)",
-    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} context {context files} mcp_connection {MCP servers} other {secrets}}. This organization has no teams - pick one of the two above.",
+    "visibilityTeamReaches": "Anyone whose role reaches team {resource, select, agent {agents} skill {skills} collection {collections} artifact {apps} dataset {datasets} context {context files} mcp_connection {MCP servers} other {secrets}}. This organization has no teams - pick one of the two above.",
     "visibilityUpdated": "Visibility updated",
     "groupsHeading": "Groups",
     "membersHeading": "Members",
@@ -6223,6 +6323,112 @@
     "add": "Add",
     "mappingAdded": "Mapping added",
     "mappingDeleted": "Mapping deleted"
+  },
+  "datasets": {
+    "title": "Datasets",
+    "pageDescription": "The questions your agents are tested on. Every change to a dataset's cases makes a new version, so two eval runs on one version saw the same questions.",
+    "newDataset": "New dataset",
+    "newDatasetBody": "An empty dataset, private to you until you share it. Add cases by hand, import a CSV or JSONL file, or add an answer from a conversation.",
+    "noAccess": "You cannot see this organization's datasets",
+    "noAccessBody": "Ask an administrator for access to datasets.",
+    "datasetCount": "{count, plural, =1 {1 dataset} other {# datasets}}",
+    "search": "Search datasets",
+    "noMatches": "No dataset matches",
+    "noMatchesBody": "Names and descriptions are searched.",
+    "empty": "No datasets yet",
+    "emptyBody": "A dataset holds the test cases an agent is checked against.",
+    "deleteBody": "Every version and case of this dataset is deleted. Eval runs that used it lose the questions they answered.",
+    "created": "Created {name}",
+    "deleted": "Dataset deleted",
+    "name": "Name",
+    "description": "Description",
+    "cancel": "Cancel",
+    "close": "Close",
+    "create": "Create",
+    "add": "Add",
+    "versionNumber": "v{number}",
+    "caseCount": "{count, plural, =1 {1 case} other {# cases}}",
+    "version": "Version",
+    "newestVersion": "Newest version",
+    "versionChange": "v{number} · {change, select, add {added} edit {edited} remove {removed} import {imported} other {changed}} {count, plural, =1 {1 case} other {# cases}}",
+    "importFile": "Choose a CSV or JSONL file to import",
+    "import": "Import",
+    "exportCsv": "Export CSV",
+    "exportJsonl": "Export JSONL",
+    "imported": "{count, plural, =1 {1 case} other {# cases}} imported as version {version}",
+    "caseAdded": "Case added as a new version",
+    "caseSaved": "Case saved as a new version",
+    "caseRemoved": "Case removed in a new version",
+    "turnsBefore": "{count, plural, =1 {1 earlier turn} other {# earlier turns}}",
+    "hasReference": "Reference answer",
+    "hasCounterExample": "Counter-example",
+    "expectedCalls": "{count, plural, =1 {1 expected call} other {# expected calls}}",
+    "addCase": "Add case",
+    "cases": "Cases",
+    "case": "Case",
+    "noCases": "No cases in this version",
+    "noCasesBody": "Add a case, import a file, or use Add to dataset on an answer in a conversation or in Activity.",
+    "caseReadOnly": "Read-only: this is an older version, or you cannot change this dataset.",
+    "caseSavesVersion": "Saving makes a new version. The version before it keeps this case as it was.",
+    "notJson": "This is not valid JSON.",
+    "notList": "This must be a JSON list.",
+    "saveCase": "Save case",
+    "needsInput": "Write the input the agent answers.",
+    "needsExpectation": "Add a reference answer, a counter-example, an expected tool call or a check: a case needs something to test the answer against.",
+    "addToDataset": "Add to dataset",
+    "addToDatasetBody": "The question, the conversation before it and the comment left with a thumbs-down come with the answer.",
+    "addAsReferenceBody": "You rated this answer up, so it is kept as the reference answer. The question and the conversation before it come with it.",
+    "noDatasetToAddTo": "There is no dataset you can add to. <link>Create one</link> first.",
+    "dataset": "Dataset",
+    "keepAnswerAs": "Keep the answer as",
+    "addedTo": "Added to {name}",
+    "alsoAddToDataset": "Add this answer to a dataset",
+    "addAfterRatingFailed": "The rating was saved, but the answer was not added to a dataset: {reason}",
+    "field": {
+      "input": "Input",
+      "reference_answer": "Reference answer",
+      "counter_example": "Counter-example",
+      "note": "Note",
+      "history": "Conversation before the input",
+      "expected_tool_calls": "Expected tool calls",
+      "checks": "Checks",
+      "tags": "Tags",
+      "order_mode": "How expected calls are matched"
+    },
+    "hint": {
+      "input": "The message the agent answers.",
+      "reference_answer": "What a good answer says. A judge compares the agent's answer with it.",
+      "counter_example": "An answer known to be wrong, so a judge has something to compare against.",
+      "note": "Why the case exists - what went wrong, or what it guards.",
+      "history": "Earlier turns, oldest first, as a JSON list of objects with a role (user or assistant) and the content. Leave empty for a single message.",
+      "expected_tool_calls": "Tools the agent should call, as a JSON list of objects with the tool name and the arguments that must match. Arguments not listed are ignored.",
+      "checks": "Checks on the answer, as a JSON list - for example, that it contains a phrase or matches a pattern.",
+      "tags": "Comma-separated, for grouping results."
+    },
+    "source": {
+      "manual": "Written",
+      "import": "Imported",
+      "conversation": "From a conversation",
+      "synthetic": "Generated"
+    },
+    "orderMode": {
+      "any": "Any order",
+      "anyHint": "Every expected call must happen; order and other calls do not matter.",
+      "in_order": "In this order",
+      "in_orderHint": "The expected calls must happen in the listed order; other calls may come between them.",
+      "exact": "Exactly these, in this order",
+      "exactHint": "The agent must make exactly the expected calls, in the listed order, and no others."
+    },
+    "importRowProblem": "Row {row}: {message}",
+    "importRowFieldProblem": "Row {row}, {field}: {message}",
+    "checkCount": "{count, plural, =1 {1 check} other {# checks}}",
+    "hasNote": "Note",
+    "editDetails": "Edit details",
+    "editDetailsBody": "What the dataset is called and what it is for. Changing them makes no new version: no case changes.",
+    "saveDetails": "Save",
+    "detailsSaved": "Saved",
+    "olderVersion": "Older version #",
+    "findDataset": "Find a dataset"
   },
   "apiKeys": {
     "title": "API keys",

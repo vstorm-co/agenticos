@@ -1,6 +1,7 @@
 import { ROUTES } from "@/lib/constants";
 import {
   AGENT_BUILDER,
+  DATASET_DETAIL,
   KB_DETAIL,
   ORG_GROUPS,
   ORG_MEMBERS,
@@ -34,6 +35,7 @@ export type FlowId =
   | "create-org"
   | "create-group"
   | "create-routine"
+  | "create-dataset"
   | "explore-chat";
 
 /**
@@ -46,9 +48,12 @@ export type FlowId =
  * hung when "Connect" defaulted to personal for a server the org already had. The
  * fork that branches on whether an agent has one to bind reads `hasOrgMcp`, which
  * stays org-only. `model` is a model profile (`useModelProviders`), the resource a
- * new agent needs before it can run.
+ * new agent needs before it can run. `case` is a case added to a dataset, read as
+ * the cases the most recently changed datasets hold - the one a case was just
+ * added to is the newest change.
  */
-export type FlowResource = "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "group" | "routine";
+export type FlowResource =
+  "agent" | "model" | "skill" | "kb" | "mcp" | "org" | "group" | "routine" | "dataset" | "case";
 
 /**
  * How a step knows it is finished. Five shapes.
@@ -218,6 +223,23 @@ export interface CreationFlow {
   id: FlowId;
   permission?: Permission;
   steps: readonly FlowStep[];
+}
+
+/**
+ * The case editor, one group of fields per stop: what the agent is asked, what a
+ * good and a bad answer are, the tools it should call, the rules it is checked
+ * by, and the labels. Each holds the save shut, so the walk reaches the rule that
+ * a case has to expect something before the button that enforces it.
+ */
+function caseEditorSteps(): FlowStep[] {
+  return ["question", "answers", "tools", "checks", "labels"].map((group) => ({
+    id: `flow-dataset-case-${group}`,
+    page: DATASET_DETAIL,
+    target: `case-group-${group}`,
+    permission: Perm.datasetsEdit,
+    inOverlay: true,
+    blockSubmit: "case-save",
+  }));
 }
 
 /**
@@ -720,6 +742,67 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       ...mcpDialogSteps(ROUTES.MCP_SERVERS),
     ],
   },
+  // The walk goes on past the empty dataset into its first case: an empty dataset
+  // is the part nobody needs help with.
+  "create-dataset": {
+    id: "create-dataset",
+    permission: Perm.datasetsEdit,
+    steps: [
+      {
+        id: "flow-dataset-create",
+        page: ROUTES.DATASETS,
+        target: "datasets-new",
+        permission: Perm.datasetsEdit,
+        signal: { kind: "opened" },
+      },
+      {
+        id: "flow-dataset-field-name",
+        page: ROUTES.DATASETS,
+        target: "datasets-dialog-name",
+        permission: Perm.datasetsEdit,
+        inOverlay: true,
+        blockSubmit: "datasets-create-submit",
+      },
+      {
+        id: "flow-dataset-field-create",
+        page: ROUTES.DATASETS,
+        target: "datasets-create-submit",
+        permission: Perm.datasetsEdit,
+        inOverlay: true,
+        signal: { kind: "created", resource: "dataset" },
+      },
+      // The list is sorted by most recent change, so the first card is the one
+      // just created; the reader makes the move, which is what `arrived` waits on.
+      {
+        id: "flow-dataset-open",
+        target: "dataset-card-open",
+        permission: Perm.datasetsEdit,
+        signal: { kind: "arrived", page: DATASET_DETAIL },
+      },
+      {
+        id: "flow-dataset-add-case",
+        page: DATASET_DETAIL,
+        target: "datasets-add-case",
+        permission: Perm.datasetsEdit,
+        signal: { kind: "opened" },
+      },
+      ...caseEditorSteps(),
+      {
+        id: "flow-dataset-case-save",
+        page: DATASET_DETAIL,
+        target: "case-save",
+        permission: Perm.datasetsEdit,
+        inOverlay: true,
+        signal: { kind: "created", resource: "case" },
+      },
+      {
+        id: "flow-dataset-sources",
+        page: DATASET_DETAIL,
+        target: "dataset-file-actions",
+        permission: Perm.datasetsEdit,
+      },
+    ],
+  },
   // Starting a routine. One step, and deliberately not two: the page's two buttons
   // open two different dialogs - a cadence form and the portal grid - and a walk
   // that picked one for the reader would teach the wrong half. So it points at the
@@ -851,6 +934,8 @@ export function flowForPage(pageId: string): FlowId | null {
       return "create-mcp";
     case ROUTES.ROUTINES:
       return "create-routine";
+    case ROUTES.DATASETS:
+      return "create-dataset";
     case ROUTES.ORGS:
     case ORG_MEMBERS:
     case ORG_ROLES:

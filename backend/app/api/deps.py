@@ -743,6 +743,16 @@ def get_context_service(db: DBSession) -> ContextService:
 
 ContextSvc = Annotated[ContextService, Depends(get_context_service)]
 
+from app.services.dataset import DatasetService
+
+
+def get_dataset_service(db: DBSession) -> DatasetService:
+    """Create DatasetService instance with database session."""
+    return DatasetService(db)
+
+
+DatasetSvc = Annotated[DatasetService, Depends(get_dataset_service)]
+
 from app.services.artifact import ArtifactService
 
 

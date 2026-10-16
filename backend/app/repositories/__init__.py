@@ -33,6 +33,7 @@ from app.repositories import agent_environment as agent_environment_repo
 from app.repositories import agent_exposure as agent_exposure_repo
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import agent_trigger as agent_trigger_repo
+from app.repositories import intercepted_tool_call as intercepted_tool_call_repo
 from app.repositories import run_manifest as run_manifest_repo
 from app.repositories import agent_workspace as agent_workspace_repo
 from app.repositories import sandbox_connection as sandbox_connection_repo
@@ -51,6 +52,7 @@ from app.repositories import api_key as api_key_repo
 from app.repositories import oauth as oauth_repo
 from app.repositories import artifact as artifact_repo
 from app.repositories import context as context_repo
+from app.repositories import dataset as dataset_repo
 from app.repositories import memory as memory_repo
 
 from app.repositories import invitation as invitation_repo
@@ -116,6 +118,7 @@ __all__ = [
     "embed_visitor_repo",
     "agent_run_repo",
     "agent_trigger_repo",
+    "intercepted_tool_call_repo",
     "run_manifest_repo",
     "agent_workspace_repo",
     "sandbox_connection_repo",
@@ -128,6 +131,7 @@ __all__ = [
     "oauth_repo",
     "artifact_repo",
     "context_repo",
+    "dataset_repo",
     "memory_repo",
     "notification_repo",
 ]

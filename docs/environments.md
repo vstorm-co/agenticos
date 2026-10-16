@@ -19,6 +19,7 @@ when nobody said otherwise.
 | **Version** | Which published version answers here. There is no unpinned state |
 | **Tracks latest** | Whether publishing repoints this environment on its own. Off by default |
 | **Tracing** | A Logfire write token from the vault, so this environment's runs land in their own project |
+| **Test connections** | MCP servers and vault keys this environment answers with test ones — a sandbox CRM, a test mailbox. Named environments only |
 
 !!! info "There is no environment without a version"
 
@@ -76,6 +77,73 @@ publishes an [app](artifacts.md#one-name-one-link) of its own, so trying
 An environment with a run still working, or waiting for an approval, cannot be
 removed until the run ends: deleting it would hand that run to the default, and
 its pages to production's.
+
+## Test connections
+
+A version is the same spec wherever it runs, so `staging` would otherwise reach
+the same CRM and the same mailbox as `production`. A named environment can
+answer a binding with a **test connection** instead: an organization
+[MCP server](mcp.md) with a sandbox one, or a capability's vault key with a test
+key. The spec does not change, so promoting a version carries no test
+credential with it.
+
+| Binding | Replaced by | What the model sees |
+|---|---|---|
+| An organization MCP connection | Another organization MCP connection | The production connection's tool names, so staging and production are comparable |
+| A capability's vault key | Another key of the same kind and purpose | Nothing: the capability never learns which key it was handed |
+
+Every run in the environment uses them: a Slack bot bound to `staging`, an API
+call naming it, a schedule, and every delegate those runs call. The tools a
+test connection offers are narrowed by the production connection's allowlist,
+the test connection's own and the binding's.
+
+!!! warning "Off, never production"
+
+    A binding can be switched off in an environment instead of replaced. So can
+    one whose test side was deleted, disabled or lost its credentials: the
+    binding goes dark there until somebody picks another test connection. The
+    production side is never the fallback. A capability whose test key was
+    deleted refuses the run rather than run without its key.
+
+The default environment carries no test connections — it is what a surface
+naming no environment runs, which is production. Both sides of an override must
+be the organization's own, and a test key must be one the person setting it can
+see. Only ids are stored; a test key stays in [the vault](secrets.md), and the
+audit entry records how many overrides there are, not what they hold.
+
+### In an eval
+
+An eval runs the agent for real, so its tools would act for real: an agent that
+sends e-mail would send one per case. A run started **isolated** — which is how
+an eval runs — executes a tool only when that is safe:
+
+| The tool | What happens |
+|---|---|
+| Reaches a test MCP connection of the environment | Runs, against the test system |
+| Only reads | Runs on the normal connection |
+| Writes, on a test vault key | Runs only if its capability declares that the key alone picks the target; otherwise **not executed** and recorded |
+| Writes, with no test connection | **Not executed.** Recorded as an intended call, with its arguments |
+
+A test key stands in for a credential, but a URL or host in the capability's
+config can still point the writes at production. So a swapped key lets a
+capability write in an eval only when the capability declares
+`test_key_isolates`, and the [catalog](reference/capabilities.md#what-an-eval-runs)
+lists which do.
+
+An MCP tool counts as reading only when its server marks it `readOnlyHint` and
+the connection is set to trust that mark; by default it is not, because the mark
+is the server's own claim. A capability's tool declares it in the registry, and the
+[catalog](reference/capabilities.md#what-an-eval-runs) lists which do. **A tool
+that declares nothing writes.** The model is told the call was not sent, and
+the intended call is kept with the run for scoring.
+
+An isolated run can also be answered from the recording of the run a case was
+taken from - the calls its transcript kept. A call is matched by its tool, its
+arguments and its order among identical calls, and gets the original result; a
+call the recording does not hold is not executed and is recorded as divergent. A
+run whose transcript lost a call is not replayed at all. An isolated run has
+nobody to ask for an approval, so a call the agent gates is not executed either,
+and is recorded as one that needed an approval.
 
 ## Trying it from the Builder
 
@@ -139,5 +207,8 @@ released.
   serve different versions of one agent.
 - **Rolling back is repointing**, because old versions stay readable and
   runnable.
+- A named environment can answer bindings with **test connections**; a binding
+  without one is off there, never production. In an eval, a tool that writes
+  with no test connection is **recorded, not run**.
 - The default environment is managed by publish, and deliberately not editable
   here.

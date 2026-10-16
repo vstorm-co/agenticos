@@ -68,6 +68,7 @@ function environment(overrides: Partial<AgentEnvironment> = {}): AgentEnvironmen
     behind_by: 0,
     logfire_token_secret_id: null,
     service_name: null,
+    connections: [],
     created_at: "2026-07-01T00:00:00Z",
     ...overrides,
   };
