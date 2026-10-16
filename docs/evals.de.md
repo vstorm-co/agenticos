@@ -1,5 +1,5 @@
 ---
-source_sha: "9cc85ddc5fd0"
+source_sha: "979dc3bef53a"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -301,6 +301,16 @@ wiederverwendet wurden - wird neben dem Kandidaten wiederholt, sodass beide
 Seiten ein Kippen am selben Tag bestätigen. Eine Baseline aus einem früheren
 Run, mit der verglichen wird, wenn nichts neben dem Kandidaten lief, lässt sich
 nicht wiederholen, daher bestätigt ihr gegenüber nur die Seite des Kandidaten.
+
+Wiederholungen heben die Latte, statt sie zu senken: Ein Kippen gilt nur als
+bestätigt, wenn es bei jeder Wiederholung hält, daher bestätigen mehr
+Wiederholungen weniger Kippen. Ein kleines oder günstiges Modell, das einen Fall
+von Versuch zu Versuch anders beantwortet, lässt seine Kippen unbestätigt, und
+das Urteil lautet `no_difference`, auch wenn sich die Bestehensquote bewegt hat -
+das heißt, das Modell ist bei diesen Fällen unbeständig, nicht dass sich nichts
+geändert hat. Helfen mehr Fälle im Dataset, ein beständigeres Modell oder eine
+niedrigere `temperature` in seinen [Model Settings](models.md#model-settings)
+und das Durchsehen der unbestätigten Fälle in der Tabelle.
 
 ### Was das Urteil sagt { #what-the-verdict-says }
 

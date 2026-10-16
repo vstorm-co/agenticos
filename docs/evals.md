@@ -268,6 +268,15 @@ a flip the same day. A baseline from an earlier run, compared with when nothing
 ran beside the candidate, cannot be rerun, so only the candidate side confirms
 against it.
 
+Reruns raise the bar rather than lower it: a flip confirms only when it holds
+on every rerun, so more reruns confirm fewer flips. A small or cheap model that
+answers a case differently from one try to the next leaves its flips
+unconfirmed, and the verdict reads `no_difference` even when the pass rate
+moved - that means the model is unsteady on those cases, not that nothing
+changed. What helps is more cases in the dataset, a steadier model or a lower
+`temperature` in its [model settings](models.md#model-settings), and reading the
+unconfirmed cases in the table.
+
 ### What the verdict says { #what-the-verdict-says }
 
 The verdict rests on the confirmed flips only. One confirmed regression makes

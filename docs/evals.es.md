@@ -1,5 +1,5 @@
 ---
-source_sha: "9cc85ddc5fd0"
+source_sha: "979dc3bef53a"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -286,6 +286,16 @@ que respondió aquí o cuyas primeras respuestas se reutilizaron - se repite jun
 al candidato, así que ambos lados confirman un cambio el mismo día. Un baseline
 de un run anterior, comparado cuando nada se ejecutó junto al candidato, no
 puede repetirse: frente a él solo confirma el lado del candidato.
+
+Las repeticiones suben el listón en vez de bajarlo: un cambio solo se confirma
+cuando se mantiene en cada repetición, así que más repeticiones confirman menos
+cambios. Un modelo pequeño o barato que responde a un caso de forma distinta de
+un intento a otro deja sus cambios sin confirmar, y el veredicto es
+`no_difference` aunque la tasa de aprobados se haya movido: significa que el
+modelo es inestable en esos casos, no que nada haya cambiado. Ayudan más casos
+en el dataset, un modelo más estable o una `temperature` más baja en sus
+[ajustes del modelo](models.md#model-settings), y revisar en la tabla los casos
+no confirmados.
 
 ### Qué dice el veredicto { #what-the-verdict-says }
 

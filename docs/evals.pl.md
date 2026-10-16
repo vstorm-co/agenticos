@@ -1,5 +1,5 @@
 ---
-source_sha: "9cc85ddc5fd0"
+source_sha: "979dc3bef53a"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -286,6 +286,17 @@ odpowiedzi wykorzystano - jest powtarzany obok kandydata, więc obie strony
 potwierdzają odwrócenie tego samego dnia. Baseline'u z wcześniejszego runa,
 porównywanego, gdy nic nie działało obok kandydata, nie da się powtórzyć, więc
 wobec niego potwierdza tylko strona kandydata.
+
+Powtórki podnoszą poprzeczkę, a nie ją obniżają: odwrócenie jest potwierdzone
+tylko wtedy, gdy utrzyma się przy każdej powtórce, więc więcej powtórek
+potwierdza mniej odwróceń. Mały lub tani model, który na ten sam przypadek
+odpowiada inaczej przy kolejnych próbach, zostawia swoje odwrócenia
+niepotwierdzone, a werdykt brzmi `no_difference`, nawet gdy odsetek zaliczeń
+się zmienił - to znaczy, że model jest niestabilny na tych przypadkach, a nie
+że nic się nie zmieniło. Pomaga więcej przypadków w datasecie, stabilniejszy
+model albo niższa `temperature` w jego
+[ustawieniach modelu](models.md#model-settings) oraz przejrzenie
+niepotwierdzonych przypadków w tabeli.
 
 ### Co mówi werdykt { #what-the-verdict-says }
 
