@@ -16,7 +16,9 @@ vi.mock("@/hooks/use-eval-runs", async (importOriginal) => ({
   useDatasetEvalRuns: () => state.runs,
 }));
 vi.mock("@/hooks", () => ({
-  useAgents: () => ({ agents: [{ id: "agent-1", name: "Refund desk" }] }),
+  useAgents: () => ({
+    agents: [{ id: "agent-1", name: "Refund desk", slug: "refund-desk", has_avatar: true }],
+  }),
 }));
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (permission: string) => state.allowed.has(permission) }),
@@ -59,8 +61,11 @@ describe("DatasetEvalsPanel", () => {
       "href",
       "/agents/agent-1/evals/run-2",
     );
+    // The agent's face beside its name; none for one the reader cannot see.
+    expect(desk.querySelector("summary .rounded-full")).not.toBeNull();
     const other = screen.getByText("An agent you cannot see · 1 run").closest("details")!;
     expect(other).not.toHaveAttribute("open");
+    expect(other.querySelector("summary .rounded-full")).toBeNull();
   });
 
   it("offers the first run when no agent was tested on it", async () => {

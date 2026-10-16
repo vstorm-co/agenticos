@@ -4,12 +4,14 @@ import { useState } from "react";
 import { ChevronRight, FlaskConical, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { Button, ListCard } from "@/components/ui";
 import { useAgents } from "@/hooks";
 import { useDatasetEvalRuns } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
+import type { Agent } from "@/types/agents";
 import type { EvalRun } from "@/types/eval-runs";
 import { Perm } from "@/types/permissions";
 import { PassRateChart, passRateLines } from "./pass-rate-chart";
@@ -52,7 +54,7 @@ export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; tit
   const t = useTranslations("evals");
   const { runs, isLoading, error, refetch } = useDatasetEvalRuns(datasetId);
   const { agents } = useAgents();
-  const names = new Map(agents.map((agent) => [agent.id, agent.name]));
+  const known = new Map(agents.map((agent) => [agent.id, agent]));
   const groups = byAgent(runs);
   const counted = isLoading
     ? null
@@ -67,7 +69,7 @@ export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; tit
         <Groups
           datasetId={datasetId}
           groups={groups}
-          names={names}
+          known={known}
           error={error}
           onRetry={() => void refetch()}
         />
@@ -80,13 +82,13 @@ export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; tit
 function Groups({
   datasetId,
   groups,
-  names,
+  known,
   error,
   onRetry,
 }: {
   datasetId: string;
   groups: { id: string; runs: EvalRun[] }[];
-  names: Map<string, string>;
+  known: Map<string, Agent>;
   error: Error | null;
   onRetry: () => void;
 }) {
@@ -119,7 +121,8 @@ function Groups({
   return (
     <div className="space-y-4" data-tour="dataset-evals">
       {groups.map((group, index) => {
-        const name = names.get(group.id) ?? t("dataset.unnamedAgent");
+        const agent = known.get(group.id);
+        const name = agent?.name ?? t("dataset.unnamedAgent");
         return (
           <details key={group.id} open={index === 0} className="group rounded-lg border p-3">
             <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium">
@@ -127,6 +130,15 @@ function Groups({
                 className="h-3.5 w-3.5 transition-transform group-open:rotate-90"
                 aria-hidden
               />
+              {agent && (
+                <AgentAvatar
+                  agentId={agent.id}
+                  slug={agent.slug}
+                  hasAvatar={agent.has_avatar}
+                  colorSlot={agent.avatar_color}
+                  size="sm"
+                />
+              )}
               {t("group", { name, count: group.runs.length })}
             </summary>
             <div className="mt-3 space-y-3">
