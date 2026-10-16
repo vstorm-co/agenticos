@@ -21,9 +21,11 @@ and closes the tab when the run ends, whatever ended it.
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import functools
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -238,6 +240,10 @@ class BrowserToolset(FunctionToolset[Any]):
     def __init__(self) -> None:
         # Sequential: two browses at once would drive the one tab in turns.
         super().__init__(sequential=True)
+        self.tab = asyncio.Lock()
+        """Held by whatever is driving the tab. `browse_web` is not a barrier, so it
+        can run in the background (#2108); a direct action called meanwhile waits
+        here for the tab rather than driving it in turns with the browse."""
         self.session: BrowseSession | None = None
         self.view: DirectView | None = None
         """The live view the agent's own actions are drawn in, once one acted."""
@@ -642,8 +648,20 @@ def build_toolset(
         """
         return await drive(ctx, GoBack(action="back"))
 
-    # A long browse is the slow tool `background_tools` exists for (#2108).
-    toolset.add_function(browse_web, takes_ctx=True, metadata=BACKGROUND)
+    def on_the_tab(tool: Callable[..., Awaitable[str]]) -> Callable[..., Awaitable[str]]:
+        @functools.wraps(tool)
+        async def holding(ctx: RunContext[AgentDeps], *args: Any, **kwargs: Any) -> str:
+            async with toolset.tab:
+                return await tool(ctx, *args, **kwargs)
+
+        return holding
+
+    # A long browse is the slow tool `background_tools` exists for (#2108): not a
+    # barrier, so it may be sent away, and the tab's lock keeps it from driving
+    # the page in turns with a direct action instead.
+    toolset.add_function(
+        on_the_tab(browse_web), takes_ctx=True, metadata=BACKGROUND, sequential=False
+    )
     for direct in (
         browser_open,
         browser_read,
@@ -653,5 +671,5 @@ def build_toolset(
         browser_scroll,
         browser_back,
     ):
-        toolset.add_function(direct, takes_ctx=True)
+        toolset.add_function(on_the_tab(direct), takes_ctx=True)
     return toolset

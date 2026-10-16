@@ -173,6 +173,8 @@ export function useChat(options: UseChatOptions = {}) {
   // The tool calls whose arguments are still streaming, by part index, so a turn
   // that ends before `tool_call` arrives can mark them unfinished.
   const streamingCallsRef = useRef<Map<number, string>>(new Map());
+  // Whether the next text delta opens a new model response, and so a new part.
+  const newResponseRef = useRef(false);
   // Outbound queue: messages typed while agent is busy / socket offline. Held
   // here (not in the chat history) so the UI can surface them as cancellable
   // "pending" entries above the input. The ref is the source of truth for the
@@ -498,6 +500,11 @@ export function useChat(options: UseChatOptions = {}) {
           }
           // Part indices restart with every model response.
           streamingCallsRef.current.clear();
+          // And its text is its own part. Two responses used to meet only across
+          // a tool step; a tool run in the background answers as a message, so
+          // what was written while it ran and after it returned met mid-word
+          // (#2108) - the stored transcript splits them the same way.
+          newResponseRef.current = true;
           break;
         }
 
@@ -534,7 +541,8 @@ export function useChat(options: UseChatOptions = {}) {
           // text part or starts a new one after a thinking/tool part).
           if (currentMessageIdRef.current) {
             const content = (wsEvent.data as { index: number; content: string }).content;
-            appendTextDelta(currentMessageIdRef.current, content);
+            appendTextDelta(currentMessageIdRef.current, content, newResponseRef.current);
+            newResponseRef.current = false;
           }
           break;
         }

@@ -98,6 +98,7 @@ class RunFrames:
                 said = node.user_prompt if isinstance(node.user_prompt, str) else self.prompt
                 await self.emit("user_prompt_processed", {"prompt": said})
             elif Agent.is_model_request_node(node):
+                self.timeline.next_response()
                 await self.emit("model_request_start", {})
                 async with node.stream(agent_run.ctx) as request_stream:
                     await self.request(request_stream)

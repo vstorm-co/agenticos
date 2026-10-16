@@ -34,10 +34,22 @@ class TurnTimeline:
     """
 
     parts: list[MessagePart] = field(default_factory=list)
+    _sealed: bool = field(default=False, repr=False)
+    """Whether the open part ended with the model response that wrote it."""
 
     def add_text(self, delta: str) -> None:
         """Extend the open text part, or open one."""
         self._append("text", delta)
+
+    def next_response(self) -> None:
+        """Close the open part: the model is writing a new response.
+
+        Two responses used to meet only across a tool call, whose part kept their
+        text apart. A tool run in the background (#2108) answers as a message
+        instead, so the text written while it ran and the text written once it
+        returned arrived back to back and ran together mid-sentence.
+        """
+        self._sealed = True
 
     def add_thinking(self, delta: str) -> None:
         """Extend the open reasoning part, or open one.
@@ -89,7 +101,8 @@ class TurnTimeline:
 
     def _append(self, kind: str, delta: str) -> None:
         open_part = self.parts[-1] if self.parts else None
-        if open_part is not None and open_part.type == kind:
+        sealed, self._sealed = self._sealed, False
+        if open_part is not None and open_part.type == kind and not sealed:
             open_part.text = (open_part.text or "") + delta
             return
         self.parts.append(MessagePart(type=kind, text=delta))  # ty: ignore[invalid-argument-type]

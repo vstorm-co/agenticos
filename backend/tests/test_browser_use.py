@@ -1701,6 +1701,24 @@ class TestALongBrowseMayRunInTheBackground:
         tools = await toolset.get_tools(_tool_context(_browsing_model(DONE_ARGS), None))
 
         assert tools["browse_web"].tool_def.metadata == BACKGROUND
+        # Not a barrier, which the library would refuse to send away; the direct
+        # actions still are, so two of them never interleave.
+        assert tools["browse_web"].tool_def.sequential is False
+        assert tools["browser_read"].tool_def.sequential is True
+
+    async def test_a_direct_action_waits_for_the_tab_a_browse_is_driving(self):
+        toolset = _toolset(_Opener())
+        ctx = _tool_context(_browsing_model(DONE_ARGS), None)
+        tools = await toolset.get_tools(ctx)
+
+        async with toolset.tab:
+            read = asyncio.create_task(
+                toolset.call_tool("browser_read", {}, ctx, tools["browser_read"])
+            )
+            await asyncio.sleep(0.02)
+            assert not read.done()
+
+        assert "No page is open" in str(await read)
 
 
 class TestEveryBrowseIsAlsoLive:
