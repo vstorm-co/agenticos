@@ -1,5 +1,5 @@
 ---
-source_sha: "a5c47b5f9e50"
+source_sha: "184d7b38042a"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -376,14 +376,19 @@ las calificadas después.
 
 ### Revisión { #review }
 
-Una puntuación espera en la **cola de revisión** cuando alguien la envía allí,
-o lo hace un run de eval. Tras volver a ejecutar lo que cambió, un run de eval
-envía las regresiones que confirmó y las respuestas en las que el juez falló
-con un error (no las que omitió, que esperan a volver a puntuarse): una
-puntuación por caso, y ninguna para un caso que ya espera. Su página envía
-otras puntuaciones que elijas, todas a la vez mediante `POST
-/datasets/{id}/scores/review` con hasta 500 identificadores de puntuación:
+Una puntuación espera en la **cola de revisión** cuando alguien la envía allí, o
+lo hace un run de eval. Tras volver a ejecutar lo que cambió, un run de eval
+envía las regresiones que confirmó y las respuestas en las que el juez falló con
+un error (no las que omitió, que esperan a volver a puntuarse): una puntuación
+por caso. Su página envía otras puntuaciones que elijas, todas a la vez mediante
+`POST /datasets/{id}/scores/review` con hasta 500 identificadores de puntuación:
 todas o ninguna.
+
+Una puntuación enviada allí, por un run de eval o a mano, sustituye a una
+puntuación más antigua de su caso que aún espera: esa sale de la cola sin
+decidir y sigue siendo una puntuación. Una que espera y se puntuó igual de tarde
+o más tarde conserva su lugar, y la enviada no entra en la cola. Una puntuación
+decidida nunca se toca.
 
 Una puntuación pedida a mano desde Activity sigue el ajuste **Review by a
 person** del dataset: nada hasta que alguien envíe una, cada resultado que no

@@ -1428,10 +1428,79 @@ class TestVerdicts:
             tenant.ctx, dataset_id=dataset.id, score_ids=[second.id]
         )
 
-        assert (routed, again) == (1, 0)
+        assert (routed.queued, routed.replaced, again.queued) == (1, 0, 0)
         waiting = (await service.list_scores(tenant.ctx, dataset.id, pending=True)).items
         assert [score.id for score in waiting] == [first.id]
         assert (await service.list_scores(tenant.ctx, other.id, pending=True)).total == 0
+
+    async def test_a_newer_score_of_a_case_replaces_the_one_waiting_and_not_a_decided_one(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        run = await _scored_run(db, tenant)
+        service = ScoringService(db)
+        decided = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        waiting = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        newer = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        now = datetime.now(UTC)
+        for score, age in ((decided, 3), (waiting, 2)):
+            await case_score_repo.update(
+                db, score=score, update_data={"created_at": now - timedelta(days=age)}
+            )
+        await service.route_to_review(tenant.ctx, dataset_id=dataset.id, score_ids=[decided.id])
+        await service.set_verdict(tenant.ctx, dataset.id, decided.id, CaseVerdict(passed=False))
+        await service.route_to_review(tenant.ctx, dataset_id=dataset.id, score_ids=[waiting.id])
+
+        routed = await service.route_to_review(
+            tenant.ctx, dataset_id=dataset.id, score_ids=[newer.id]
+        )
+
+        assert (routed.queued, routed.replaced, routed.already) == (1, 1, 0)
+        states = {
+            score.id: (score.review_state, score.human_passed)
+            for score in (await service.list_scores(tenant.ctx, dataset.id)).items
+        }
+        assert states == {
+            decided.id: ("done", False),
+            waiting.id: ("none", None),
+            newer.id: ("pending", None),
+        }
+
+    async def test_an_older_score_sent_by_hand_leaves_the_newer_one_waiting(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        run = await _scored_run(db, tenant)
+        service = ScoringService(db)
+        older = await service.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        twin = await service.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        newer = await service.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        row = await case_score_repo.get(
+            db, older.id, organization_id=tenant.organization.id, dataset_id=dataset.id
+        )
+        assert row is not None
+        await case_score_repo.update(
+            db, score=row, update_data={"created_at": datetime.now(UTC) - timedelta(days=1)}
+        )
+        await service.request_review(tenant.ctx, dataset.id, newer.id)
+
+        alone = await service.request_review(tenant.ctx, dataset.id, older.id)
+        sent = await service.request_reviews(
+            tenant.ctx, dataset.id, ReviewRequest(score_ids=[older.id, twin.id])
+        )
+
+        assert alone.review_state == "none"
+        assert (sent.queued, sent.replaced, sent.already) == (0, 0, 2)
+        waiting = (await service.list_scores(tenant.ctx, dataset.id, pending=True)).items
+        assert [score.id for score in waiting] == [newer.id]
 
     async def test_a_score_keeps_the_answer_it_graded_and_who_gave_it(self, db, judge) -> None:
         tenant = await _tenant(db)

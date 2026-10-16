@@ -351,10 +351,14 @@ before will not compare with the ones graded after.
 A score waits in the **review queue** when somebody sends it there, or an eval
 run does. Once it has rerun what flipped, an eval run sends the regressions it
 confirmed and the answers the judge failed on with an error - not one it
-skipped, which waits to be scored again - one score per case, and none for a
-case already waiting. Its page sends any others you pick, all at once through
-`POST /datasets/{id}/scores/review` with up to 500 score ids - all of them or
-none.
+skipped, which waits to be scored again - one score per case. Its page sends any
+others you pick, all at once through `POST /datasets/{id}/scores/review` with up
+to 500 score ids - all of them or none.
+
+A score sent there, by an eval run or by hand, replaces an older score of its
+case that still waits: that one leaves the queue undecided and stays a score.
+One waiting that was scored as late or later keeps its place, and the one sent
+is not queued. A decided score is never touched.
 
 A score asked for by hand from Activity follows the dataset's **Review by a
 person** setting: nothing until somebody sends one, every result that did not

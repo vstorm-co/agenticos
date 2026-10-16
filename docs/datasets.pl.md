@@ -1,5 +1,5 @@
 ---
-source_sha: "a5c47b5f9e50"
+source_sha: "184d7b38042a"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -370,10 +370,15 @@ Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle albo zrobi to run
 ewaluacji. Po ponownym uruchomieniu tego, co się zmieniło, run ewaluacji wysyła
 potwierdzone regresje i odpowiedzi, przy których sędzia zawiódł z błędem - nie
 te, które pominął i które czekają na ponowną ocenę - po jednym wyniku na
-przypadek i żadnego dla przypadku, który już czeka. Jego strona wysyła inne
-wybrane przez ciebie wyniki, wszystkie naraz przez `POST
-/datasets/{id}/scores/review`, do 500 identyfikatorów wyników - wszystkie albo
-żaden.
+przypadek. Jego strona wysyła inne wybrane przez ciebie wyniki, wszystkie naraz
+przez `POST /datasets/{id}/scores/review`, do 500 identyfikatorów wyników -
+wszystkie albo żaden.
+
+Wynik wysłany do kolejki, przez run ewaluacji albo ręcznie, zastępuje starszy
+wynik swojego przypadku, który jeszcze czeka: tamten wychodzi z kolejki
+nierozstrzygnięty i zostaje zwykłym wynikiem. Czekający wynik oceniony równie
+późno albo później zostaje na miejscu, a wysłany nie trafia do kolejki. Wyniku
+rozstrzygniętego nic nie rusza.
 
 Wynik, o który poproszono ręcznie z Activity, podlega ustawieniu **Przegląd
 przez człowieka** datasetu: nic, dopóki ktoś czegoś nie wyśle, każdy wynik,

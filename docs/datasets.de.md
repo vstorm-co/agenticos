@@ -1,5 +1,5 @@
 ---
-source_sha: "a5c47b5f9e50"
+source_sha: "184d7b38042a"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -399,10 +399,15 @@ Ein Score wartet in der **Warteschlange zur Prüfung**, wenn jemand ihn dorthin
 schickt oder ein Eval-Run es tut. Hat er erneut ausgeführt, was gekippt ist,
 schickt ein Eval-Run die Regressionen, die er bestätigt hat, und die Antworten,
 an denen der Bewerter mit einem Fehler scheiterte - nicht die, die er
-übersprungen hat und die auf eine erneute Bewertung warten - ein Score pro Fall
-und keiner für einen Fall, der bereits wartet. Seine Seite schickt weitere
-Scores, die Sie auswählen, alle auf einmal über `POST
-/datasets/{id}/scores/review` mit bis zu 500 Score-IDs - alle oder keine.
+übersprungen hat und die auf eine erneute Bewertung warten - ein Score pro Fall.
+Seine Seite schickt weitere Scores, die Sie auswählen, alle auf einmal über
+`POST /datasets/{id}/scores/review` mit bis zu 500 Score-IDs - alle oder keine.
+
+Ein dorthin geschickter Score, von einem Eval-Run oder von Hand, ersetzt einen
+älteren Score seines Falls, der noch wartet: Dieser verlässt die Warteschlange
+unentschieden und bleibt ein Score. Ein wartender, der ebenso spät oder später
+bewertet wurde, behält seinen Platz, und der geschickte wird nicht eingereiht.
+Ein entschiedener Score wird nie angetastet.
 
 Ein Score, der von Hand aus Activity angefordert wurde, folgt der Einstellung
 **Prüfung durch eine Person** des Datasets: nichts, bis jemand einen schickt,
