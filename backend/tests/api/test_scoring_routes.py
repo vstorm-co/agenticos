@@ -73,7 +73,7 @@ def service() -> MagicMock:
     stub.set_verdict = AsyncMock(return_value=_SCORE)
     stub.request_review = AsyncMock(return_value=_SCORE)
     stub.create_judge = AsyncMock(return_value=_DATASET)
-    stub.request_reviews = AsyncMock(return_value=ReviewRequested(queued=2, already=1))
+    stub.request_reviews = AsyncMock(return_value=ReviewRequested(queued=2, replaced=0, already=1))
     stub.withdraw_reviews = AsyncMock(return_value=ReviewWithdrawn(removed=1, kept=0))
     stub.rescore = AsyncMock(return_value=Rescored(rescored=[_SCORE], kept=[]))
     stub.judge_agreement = AsyncMock(return_value=JudgeAgreement(agreed=7, decided=10))
@@ -127,7 +127,7 @@ async def test_each_route_answers_with_its_status(client: OpenClient) -> None:
         sent = await http.post(
             _url(f"{dataset}/scores/review"), json={"score_ids": [str(uuid.uuid4())]}
         )
-        assert sent.json() == {"queued": 2, "already": 1}
+        assert sent.json() == {"queued": 2, "replaced": 0, "already": 1}
         taken = await http.post(
             _url(f"{dataset}/scores/review/withdraw"), json={"score_ids": [str(uuid.uuid4())]}
         )

@@ -1,5 +1,5 @@
 ---
-source_sha: "fd7502bd1fcb"
+source_sha: "d6268bc1d2ed"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -338,10 +338,13 @@ zostaje bez zmian.
 Przyczyna, która nadal trwa - wyłączone wsparcie AI, nieopublikowany sędzia -
 jest odrzucana tak, jak jest, podobnie jak sędzia runu ewaluacji opublikowany na
 nowo od czasu, gdy zawiódł, albo wynik takiego runu przypięty do wcześniejszego
-promptu sędziego, bo jego ocena nie byłaby porównywalna z resztą runu;
-wtedy nic nie jest oceniane. Odpowiedź oceniona osobno, z czatu albo z Activity,
-nie ma runu, z którym trzeba ją porównać: ocenia ją wersja opublikowana teraz, a
-jej pin wskazuje tę wersję.
+promptu sędziego, bo jego ocena nie byłaby porównywalna z resztą runu; wtedy nic
+nie jest oceniane.
+
+Odpowiedź oceniona osobno, z czatu albo z Activity, nie ma runu, z którym trzeba
+ją porównać: ocenia ją wersja opublikowana teraz, a jej pin wskazuje tę wersję.
+Wynik jest przypinany niezależnie od tego, czy sędzia ocenił, czy zawiódł, więc
+nieudany trzyma się wersji i promptu, przy których zawiódł.
 
 Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
 zawiera słowo w słowo, jest zachowywany obok oceny jako niezweryfikowany,
@@ -367,10 +370,15 @@ Wynik czeka w **kolejce przeglądu**, gdy ktoś go tam wyśle albo zrobi to run
 ewaluacji. Po ponownym uruchomieniu tego, co się zmieniło, run ewaluacji wysyła
 potwierdzone regresje i odpowiedzi, przy których sędzia zawiódł z błędem - nie
 te, które pominął i które czekają na ponowną ocenę - po jednym wyniku na
-przypadek i żadnego dla przypadku, który już czeka. Jego strona wysyła inne
-wybrane przez ciebie wyniki, wszystkie naraz przez `POST
-/datasets/{id}/scores/review`, do 500 identyfikatorów wyników - wszystkie albo
-żaden.
+przypadek. Jego strona wysyła inne wybrane przez ciebie wyniki, wszystkie naraz
+przez `POST /datasets/{id}/scores/review`, do 500 identyfikatorów wyników -
+wszystkie albo żaden.
+
+Wynik wysłany do kolejki, przez run ewaluacji albo ręcznie, zastępuje starszy
+wynik swojego przypadku, który jeszcze czeka: tamten wychodzi z kolejki
+nierozstrzygnięty i zostaje zwykłym wynikiem. Czekający wynik oceniony równie
+późno albo później zostaje na miejscu, a wysłany nie trafia do kolejki. Wyniku
+rozstrzygniętego nic nie rusza.
 
 Wynik, o który poproszono ręcznie z Activity, podlega ustawieniu **Przegląd
 przez człowieka** datasetu: nic, dopóki ktoś czegoś nie wyśle, każdy wynik,

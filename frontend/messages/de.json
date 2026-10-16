@@ -5641,6 +5641,7 @@
       "verdictWithdrawn": "Entscheidung zurückgezogen",
       "sendToReview": "Zur Prüfung senden",
       "sentToReview": "In die Prüfwarteschlange gesendet",
+      "newerWaits": "Eine neuere Antwort auf diesen Fall wartet bereits auf Prüfung, daher wurde diese nicht gesendet.",
       "reason": {
         "aiAssistanceOff": "Die KI-Unterstützung ist in dieser Organisation ausgeschaltet, daher lief der Bewerter nicht.",
         "judgeUnpublished": "Der Eval-Bewerter hat keine veröffentlichte Version. Wählen Sie sein Modell und veröffentlichen Sie ihn.",

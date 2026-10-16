@@ -75,8 +75,9 @@ export function ReviewPanel({ dataset }: { dataset: Dataset }) {
   };
   const queue = async (scoreId: string) => {
     try {
-      await scores.review.mutateAsync(scoreId);
-      toast.success(t("sentToReview"));
+      const sent = await scores.review.mutateAsync(scoreId);
+      if (sent.review_state === "pending") toast.success(t("sentToReview"));
+      else toast.info(t("newerWaits"));
     } catch (failure) {
       toast.error(getErrorMessage(failure, tErrors));
     }

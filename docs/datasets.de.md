@@ -1,5 +1,5 @@
 ---
-source_sha: "fd7502bd1fcb"
+source_sha: "d6268bc1d2ed"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -361,13 +361,16 @@ Scorer zu einem Urteil kam, bleibt, wie er ist.
 
 Eine Ursache, die noch besteht - KI-Unterstützung aus, Bewerter nicht
 veröffentlicht -, wird so abgelehnt, wie sie ist, ebenso der Bewerter eines
-Eval-Runs, der seit seinem Fehlschlag neu veröffentlicht wurde, oder ein Ergebnis
-eines solchen Runs, das an einen früheren Bewerter-Prompt gebunden ist, dessen
-Bewertung sich nicht mit dem Rest des Runs vergleichen ließe; dann wird nichts
-bewertet.
+Eval-Runs, der seit seinem Fehlschlag neu veröffentlicht wurde, oder ein
+Ergebnis eines solchen Runs, das an einen früheren Bewerter-Prompt gebunden ist,
+dessen Bewertung sich nicht mit dem Rest des Runs vergleichen ließe; dann wird
+nichts bewertet.
+
 Eine für sich bewertete Antwort, aus dem Chat oder aus Activity, hat keinen Run,
 mit dem sie sich vergleichen müsste: Sie wird von der jetzt veröffentlichten
-Version bewertet, und ihr Pin nennt diese Version.
+Version bewertet, und ihr Pin nennt diese Version. Ein Ergebnis wird gebunden,
+ob sein Bewerter bewertet hat oder gescheitert ist, also bleibt ein
+gescheitertes an die Version und den Prompt gebunden, mit denen es scheiterte.
 
 Eine Bewertung darf die Antwort zitieren, bis zu 12 Stellen; ein Zitat, das die
 Antwort nicht wörtlich enthält, wird neben der Bewertung als nicht verifiziert
@@ -396,10 +399,15 @@ Ein Score wartet in der **Warteschlange zur Prüfung**, wenn jemand ihn dorthin
 schickt oder ein Eval-Run es tut. Hat er erneut ausgeführt, was gekippt ist,
 schickt ein Eval-Run die Regressionen, die er bestätigt hat, und die Antworten,
 an denen der Bewerter mit einem Fehler scheiterte - nicht die, die er
-übersprungen hat und die auf eine erneute Bewertung warten - ein Score pro Fall
-und keiner für einen Fall, der bereits wartet. Seine Seite schickt weitere
-Scores, die Sie auswählen, alle auf einmal über `POST
-/datasets/{id}/scores/review` mit bis zu 500 Score-IDs - alle oder keine.
+übersprungen hat und die auf eine erneute Bewertung warten - ein Score pro Fall.
+Seine Seite schickt weitere Scores, die Sie auswählen, alle auf einmal über
+`POST /datasets/{id}/scores/review` mit bis zu 500 Score-IDs - alle oder keine.
+
+Ein dorthin geschickter Score, von einem Eval-Run oder von Hand, ersetzt einen
+älteren Score seines Falls, der noch wartet: Dieser verlässt die Warteschlange
+unentschieden und bleibt ein Score. Ein wartender, der ebenso spät oder später
+bewertet wurde, behält seinen Platz, und der geschickte wird nicht eingereiht.
+Ein entschiedener Score wird nie angetastet.
 
 Ein Score, der von Hand aus Activity angefordert wurde, folgt der Einstellung
 **Prüfung durch eine Person** des Datasets: nichts, bis jemand einen schickt,

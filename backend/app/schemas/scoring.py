@@ -489,9 +489,15 @@ class JudgeAgreement(BaseSchema):
 
 
 class ReviewRequested(BaseSchema):
-    """What a review request changed: `queued` newly waiting, `already` waiting or decided."""
+    """What a review request changed.
+
+    `queued` are newly waiting. `replaced` were waiting on the same cases, older
+    than the ones queued, and no longer wait. `already` were not queued: waiting
+    or decided already, or not the newest of their case.
+    """
 
     queued: int
+    replaced: int
     already: int
 
 

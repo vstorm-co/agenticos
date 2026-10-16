@@ -46,7 +46,7 @@ vi.mock("@/hooks/use-agents", () => ({ useAgents: () => ({ agents: state.agents 
 vi.mock("@/hooks/use-permissions", () => ({
   usePermissions: () => ({ can: (perm: string) => perm !== "datasets:run" || state.canRun }),
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 import { toast } from "sonner";
 
 const SCORE: CaseScore = caseScore({ passed: false, outcome: false });
@@ -268,13 +268,28 @@ describe("ReviewPanel", () => {
 
   it("sends a score to review", async () => {
     state.answer = { scores: [SCORE], total: 1 };
-    state.review.mockResolvedValue({});
+    state.review.mockResolvedValue({ ...SCORE, review_state: "pending" });
     render(<ReviewPanel dataset={dataset()} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Send to review" }));
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Sent to the review queue"));
     expect(state.review).toHaveBeenCalledWith("s1");
+  });
+
+  it("says when a newer answer to the case already waits instead", async () => {
+    state.answer = { scores: [SCORE], total: 1 };
+    state.review.mockResolvedValue({ ...SCORE, review_state: "none" });
+    render(<ReviewPanel dataset={dataset()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Send to review" }));
+
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith(
+        "A newer answer to this case already waits for review, so this one was not sent.",
+      ),
+    );
+    expect(toast.success).not.toHaveBeenCalledWith("Sent to the review queue");
   });
 
   it("offers no decision to somebody who may not decide", () => {

@@ -528,9 +528,10 @@ class ScoringService:
         unpublished - is refused as it stands rather than recorded again. A judge
         published anew since its run failed, or a judge prompt changed since the
         score was pinned, would grade with other instructions, so a score of an
-        eval run would no longer compare with the rest of it. A score graded on
-        its own has no run to compare with, and is graded by the version
-        published now, which its pin then names.
+        eval run would no longer compare with the rest of it. A judge that ran
+        and left no pin was asked from a prompt nothing recorded, and is refused
+        the same way. A score graded on its own has no run to compare with, and
+        is graded by the version published now, which its pin then names.
 
         Raises:
             AiAssistanceDisabledError: AI assistance is off.
@@ -548,7 +549,8 @@ class ScoringService:
         if score.eval_run_id is None:
             return
         asked = (score.judge or {}).get("prompt_version")
-        if score.judge is not None and asked != JUDGE_PROMPT_VERSION:
+        ran = any(r.get("judge_run_id") for r in judged)
+        if (score.judge is not None or ran) and asked != JUDGE_PROMPT_VERSION:
             raise BadRequestError(
                 message=(
                     "The judge has been asked differently since it graded this answer, so a new "
@@ -686,7 +688,7 @@ class ScoringService:
                 reason=exc.message,
                 run_id=exc.run_id,
             )
-            return Evaluation(failed)
+            return Evaluation(failed, await self._failed_pin(ctx, exc.run_id, criteria, scoring))
         except SystemAgentOutputError as exc:
             said = " ".join(exc.answer.split())
             failed = not_graded(
@@ -697,7 +699,7 @@ class ScoringService:
                 run_id=exc.run_id,
                 said=said if len(said) <= _SAID else f"{said[:_SAID]}…",
             )
-            return Evaluation(failed)
+            return Evaluation(failed, await self._failed_pin(ctx, exc.run_id, criteria, scoring))
         grades = graded(
             criteria,
             result.output,
@@ -708,6 +710,21 @@ class ScoringService:
             counter_example=case.counter_example,
         )
         return Evaluation(grades, await self._pin(ctx, result.run, criteria, scoring))
+
+    async def _failed_pin(
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        criteria: list[JudgeCriterion],
+        scoring: DatasetScoring,
+    ) -> JudgePin | None:
+        """The judge that ran and failed, pinned as one that graded is.
+
+        A judge that failed still answered to a version and a prompt; grading
+        the answer again from other ones would leave its eval run graded two ways.
+        """
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        return None if run is None else await self._pin(ctx, run, criteria, scoring)
 
     async def _pin(
         self,
@@ -920,12 +937,13 @@ class ScoringService:
     async def request_review(
         self, ctx: AuthContext, dataset_id: UUID, score_id: UUID
     ) -> CaseScoreRead:
-        """Put a score in the review queue. Needs `datasets:edit`; a decided one stays decided."""
+        """Put a score in the review queue. Needs `datasets:edit`.
+
+        It replaces an older score of its case waiting there, as
+        `route_to_review` says; a decided one stays decided.
+        """
         score = await self._score(ctx, dataset_id, score_id)
-        if score.review_state == "none":
-            score = await case_score_repo.update(
-                self.db, score=score, update_data={"review_state": "pending"}
-            )
+        await self.route_to_review(ctx, dataset_id=dataset_id, score_ids=[score.id])
         return (await self._reads(ctx, [score]))[0]
 
     async def request_reviews(
@@ -934,49 +952,60 @@ class ScoringService:
         """Put several of a dataset's scores in the review queue. Needs `datasets:edit`.
 
         All of them or none: one that is not a score of this dataset refuses the
-        request. A score already waiting, or already decided, is left as it is.
+        request. Each case gets one score in the queue, as `route_to_review` says.
 
         Raises:
             NotFoundError: The dataset is not one the caller may edit, or it has
                 no score with one of the ids.
         """
         wanted = await self._scores_of(ctx, dataset_id, data)
-        queued = await case_score_repo.queue_for_review(
-            self.db, wanted, organization_id=ctx.organization_id, dataset_id=dataset_id
-        )
-        return ReviewRequested(queued=queued, already=len(wanted) - queued)
+        return await self.route_to_review(ctx, dataset_id=dataset_id, score_ids=wanted)
 
     async def route_to_review(
         self, ctx: AuthContext, *, dataset_id: UUID, score_ids: list[UUID]
-    ) -> int:
-        """Send an eval run's scores a person should see to the review queue; how many went.
+    ) -> ReviewRequested:
+        """Send scores to the review queue, one per case, the newest replacing an older one.
 
         For the eval run's own worker, which has already decided what deserves a
         person - its confirmed regressions and the scores its judge failed on -
-        so no permission is checked here. One score per case at
-        most: a case with a score already waiting gets no second one, nor does a
-        score already waiting or decided. Ids of another dataset are ignored.
+        and for the routes, which check `datasets:edit` first; no permission is
+        checked here. Of the scores sent for one case only the newest is queued,
+        the first given among those scored at the same moment. A score of the
+        case waiting already and scored earlier leaves the queue undecided and
+        stays a score; one scored as late or later keeps its place, and the one
+        sent is not queued. A decided score is never touched, and one already
+        waiting or decided is not queued again. Ids of another dataset are
+        ignored.
         """
         scores = await case_score_repo.get_many(
             self.db, score_ids, organization_id=ctx.organization_id, dataset_id=dataset_id
         )
-        waiting = await case_score_repo.cases_waiting(
-            self.db,
-            list({score.case_id for score in scores.values()}),
-            organization_id=ctx.organization_id,
-            dataset_id=dataset_id,
-        )
-        chosen: dict[UUID, UUID] = {}
-        for score_id in score_ids:
+        newest: dict[UUID, CaseScore] = {}
+        for score_id in dict.fromkeys(score_ids):
             score = scores.get(score_id)
-            if score is None or score.review_state != "none" or score.case_id in waiting:
+            if score is None or score.review_state != "none":
                 continue
-            chosen.setdefault(score.case_id, score.id)
-        return await case_score_repo.queue_for_review(
-            self.db,
-            list(chosen.values()),
-            organization_id=ctx.organization_id,
-            dataset_id=dataset_id,
+            held = newest.get(score.case_id)
+            if held is None or score.created_at > held.created_at:
+                newest[score.case_id] = score
+        waiting = await case_score_repo.waiting_for_cases(
+            self.db, list(newest), organization_id=ctx.organization_id, dataset_id=dataset_id
+        )
+        chosen, older = [], []
+        for case_id, score in newest.items():
+            others = [other for other in waiting if other.case_id == case_id]
+            if any(other.created_at >= score.created_at for other in others):
+                continue
+            chosen.append(score.id)
+            older.extend(other.id for other in others)
+        replaced = await case_score_repo.dequeue(
+            self.db, older, organization_id=ctx.organization_id, dataset_id=dataset_id
+        )
+        queued = await case_score_repo.queue_for_review(
+            self.db, chosen, organization_id=ctx.organization_id, dataset_id=dataset_id
+        )
+        return ReviewRequested(
+            queued=queued, replaced=replaced, already=len(set(score_ids)) - queued
         )
 
     async def withdraw_reviews(

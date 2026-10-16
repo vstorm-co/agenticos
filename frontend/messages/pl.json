@@ -3403,6 +3403,7 @@
       "verdictWithdrawn": "Wycofano decyzję",
       "sendToReview": "Wyślij do przeglądu",
       "sentToReview": "Wysłano do kolejki przeglądu",
+      "newerWaits": "Na przegląd czeka już nowsza odpowiedź na ten przypadek, więc tej nie wysłano.",
       "reason": {
         "aiAssistanceOff": "Asystent AI jest wyłączony w tej organizacji, więc sędzia nie został uruchomiony.",
         "judgeUnpublished": "Sędzia ewaluacji nie ma opublikowanej wersji. Wybierz jego model i opublikuj go.",
