@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "abce12351d33"
 ---
 
 # Governance { #governance }
@@ -925,6 +925,17 @@ zatrzymuje.
 Run, którego nie dało się wycenić — model, którego `genai-prices` nie zna — jest
 zapisywany na zero z ostrzeżeniem, a suma jest oznaczana jako **dolna granica**,
 zamiast być zgadywana. UI pokazuje to jako `+` obok liczby.
+
+**Cache promptu, który przestaje trafiać, jest oznaczany.** Cache'owanie opłaca
+się tylko, dopóki początek każdego żądania jest identyczny; zmieniona kolejność
+narzędzi albo znacznik czasu w instrukcjach sprawia, że dostawca liczy pełną
+stawkę za tokeny, które miał w cache. Każdy agent odczytuje z każdej odpowiedzi
+liczby cache podane przez dostawcę, a żądanie, którego prefiks z cache się
+załamał, jest oznaczane w wykresie żądań runu - *cache zerwany*, gdy dostawca
+powinien go jeszcze trzymać, *cache wygasł*, gdy minęła retencja - z liczbą
+tokenów wysłanych ponownie po pełnej stawce, i logowane z agentem i modelem.
+Pierwsze żądanie tury jest porównywane z tym, co zapisała poprzednia tura, gdy
+obie obsługuje ten sam worker API.
 
 ## Zatwierdzenia { #approvals }
 

@@ -228,6 +228,10 @@ export interface ManifestRequest {
   finish_reason: string | null;
   /** The exception class, where the request raised - never its message. */
   failed: string | null;
+  /** `bust` when its cached prompt prefix collapsed early, `expired` when past retention (#2109). */
+  cache?: "bust" | "expired" | null;
+  /** The previously cached tokens it re-sent at the full input rate. */
+  cache_missed_tokens: number;
 }
 
 /**

@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Prompt-cache busts are flagged on the run** (#2109). A request whose cached
+  prompt prefix collapsed is marked in the run's request waterfall - *cache
+  bust* when the prefix moved, *cache expired* when the provider's retention had
+  passed - with the tokens re-sent at the full input rate, and logged with the
+  agent and model. The first request of a turn is compared with what the
+  previous turn cached.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

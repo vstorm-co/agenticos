@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "abce12351d33"
 ---
 
 # Governance { #governance }
@@ -989,6 +989,18 @@ Ein Run, der sich nicht bepreisen ließ — ein Modell, das `genai-prices` nicht
 kennt —, wird mit einer Warnung bei null festgehalten, und die Summe wird als
 **Untergrenze** gekennzeichnet, statt geraten zu werden. Die UI zeigt das als ein
 `+` neben der Zahl.
+
+**Ein Prompt-Cache, der nicht mehr trifft, wird markiert.** Caching lohnt sich
+nur, solange der Anfang jedes Requests gleich bleibt; eine umgestellte Tool-Liste
+oder ein Zeitstempel in den Anweisungen lässt den Anbieter den vollen Preis für
+Tokens berechnen, die er im Cache hatte. Jeder Agent liest bei jeder Antwort die
+Cache-Zahlen des Anbieters, und ein Request, dessen gecachter Präfix
+eingebrochen ist, wird im Request-Wasserfall des Runs markiert - *Cache
+gebrochen*, solange der Anbieter ihn noch hätte halten sollen, *Cache
+abgelaufen*, wenn die Aufbewahrung vorbei war - mit den zum vollen Preis erneut
+gesendeten Tokens, und mit Agent und Modell geloggt. Der erste Request eines
+Turns wird mit dem verglichen, was der vorige Turn gecacht hat, wenn derselbe
+API-Worker beide bedient.
 
 ## Freigaben { #approvals }
 
