@@ -402,6 +402,53 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def answered_while_away(
+        self,
+        run: AgentRun,
+        *,
+        agent: Agent,
+        conversation_id: UUID,
+        error: str | None,
+    ) -> None:
+        """A chat turn finished after the person who asked it left (#2108).
+
+        The one `WEB` run that does tell somebody: `_notify` leaves chat out
+        because a person watching the stream sees the ending on screen, and this
+        person closed the tab, switched off the app or lost the connection
+        before it came. It reuses `run_completed` and `run_failed`, so the
+        preferences a person already set for those are the ones honoured, and it
+        links to the conversation rather than the agent - the answer is what
+        they are coming back for.
+        """
+        if run.user_id is None:  # pragma: no cover - a chat turn always has its person
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db, organization_id=run.organization_id, user_ids=[run.user_id]
+        )
+        if not recipients:
+            return
+        chat_path = self._link(f"/chat?id={conversation_id}", run.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=(
+                NotificationEventType.RUN_FAILED if error else NotificationEventType.RUN_COMPLETED
+            ),
+            occurrence_id=str(run.id),
+            summary=(
+                f"{agent.name} could not finish its answer: {error}"
+                if error
+                else f"{agent.name} answered while you were away."
+            ),
+            context_url=chat_path,
+            render_context={
+                "agent_name": agent.name,
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(chat_path),
+            },
+            organization_id=run.organization_id,
+            use_savepoint=True,
+        )
+
     async def ingestion_failed(self, doc: RAGDocument, *, attempt: int, error_message: str) -> None:
         """One document did not parse or index cleanly.
 

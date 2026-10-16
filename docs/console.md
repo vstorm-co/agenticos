@@ -250,6 +250,15 @@ without starting over, and it appears in the conversation where it landed. A
 message carrying files always waits for the answer. Slack, Telegram and
 Mattermost keep their own behaviour, described in [Channels](channels.md).
 
+**Leaving while it answers.** You do not have to wait for it. Close the tab, quit
+the app or open another conversation, and the agent finishes the answer on its
+own: it lands in the conversation, and the bell - and an email, if you keep them
+for runs that finish or fail - tells you it is there, with a link back to it. A
+turn still going after an hour with nobody watching is stopped, and you are told
+that instead ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)).
+One that waits on an approval or on your answer to a question tells you through
+those.
+
 **On a phone** the chat behaves like a messaging app: the composer stays above
 the keyboard and the conversation stays on its last message while it opens,
 Enter starts a new line, and attaching a file or dictating sits behind one

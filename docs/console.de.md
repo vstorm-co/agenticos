@@ -1,5 +1,5 @@
 ---
-source_sha: "2f690e29c053"
+source_sha: "19bc39209f10"
 ---
 
 # Die Konsole { #the-console }
@@ -283,6 +283,16 @@ stattdessen in die laufende Aufgabe - der Agent liest sie beim nächsten Schritt
 ändert den Kurs, ohne neu anzufangen, und sie erscheint im Gespräch dort, wo sie
 ankam. Eine Nachricht mit Dateien wartet immer auf die Antwort. Slack, Telegram und
 Mattermost behalten ihr eigenes Verhalten, beschrieben unter [Kanäle](channels.md).
+
+**Gehen, während er antwortet.** Sie müssen nicht warten. Schließen Sie den Tab,
+beenden Sie die App oder öffnen Sie eine andere Unterhaltung, und der Agent
+beendet die Antwort selbst: Sie landet in der Unterhaltung, und die Glocke - und
+eine E-Mail, wenn Sie sie für fertige oder gescheiterte Runs eingeschaltet lassen
+- sagt Ihnen, dass sie da ist, mit einem Link dorthin. Ein Turn, der nach einer
+Stunde ohne Zuschauer noch läuft, wird gestoppt, und Sie erfahren das
+([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)). Einer,
+der auf eine Freigabe oder auf Ihre Antwort auf eine Frage wartet, meldet sich
+über diese.
 
 **Auf dem Telefon** verhält sich der Chat wie eine Messenger-App: Das
 Eingabefeld bleibt über der Tastatur und die Unterhaltung bei ihrer letzten

@@ -21,6 +21,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Write to an agent and leave: it answers anyway, and tells you.** A chat
+  turn left running when you close the tab, quit the app or open another
+  conversation now carries on for up to an hour (`CHAT_DETACHED_TURN_MINUTES`,
+  was a fixed ten minutes), lands in the conversation, and puts a notice in the
+  bell - and an email, under the run-finished and run-failed preferences - with a
+  link back to it. One stopped at the limit says so (#2108).
+
 - **An approval says which account is acting.** A call through a labelled MCP
   connection, or one of several accounts on one service, carries the account's
   name to the approval - the chat card, Activity, the dashboard widget, the Slack

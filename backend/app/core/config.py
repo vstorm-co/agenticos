@@ -284,6 +284,12 @@ class Settings(BaseSettings):
     # How long an agent's unanswered `ask_user` question keeps its run parked
     # before the run is ended with the question expired (#2064).
     QUESTION_EXPIRY_HOURS: int = 24
+    # How long a chat turn goes on after the person who asked it has left - a
+    # closed tab, a quit app, a dropped connection - before it is stopped (#2108).
+    # The answer lands in the conversation and they are notified, so this bounds
+    # spend on an answer that may never be read rather than gating the feature.
+    # Long enough for a research or browsing task; a run still has its budget.
+    CHAT_DETACHED_TURN_MINUTES: float = 60.0
     # How long a run may sit `running` before the sweep decides its process
     # died. The row is committed before the model is called (#12), so a worker
     # killed mid-run leaves it `running` with nothing left to finish it - in

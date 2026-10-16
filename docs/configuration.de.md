@@ -1,5 +1,5 @@
 ---
-source_sha: "3abd2378a650"
+source_sha: "5ac052aff72b"
 ---
 
 # Konfiguration { #configuration }
@@ -506,6 +506,18 @@ Run, den der Durchlauf trotzdem umstellt, wird durch seinen eigenen abschließen
 Schreibvorgang zurückgestellt —, setzen Sie sie also deutlich über Ihren längsten
 legitimen Run und nicht knapper. Siehe
 [Governance](governance.md#a-run-whose-process-died).
+
+### Ein verlassener Chat-Turn { #a-chat-turn-left-running }
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `CHAT_DETACHED_TURN_MINUTES` | `60` | Wie lange ein Chat-Turn weiterläuft, nachdem die fragende Person gegangen ist - geschlossener Tab, beendete App, abgebrochene Verbindung -, bevor er gestoppt wird |
+
+Die Antwort landet in der Unterhaltung und ihre Person wird benachrichtigt; der
+Wert begrenzt also die Ausgaben für eine Antwort, die vielleicht nie gelesen wird,
+statt etwas abzuschalten. Er muss Ihren längsten Recherche- oder Browser-Turn
+abdecken; ein Run bleibt ohnehin an das Budget seines Agenten gebunden. Siehe
+[Konsole](console.md#chat).
 
 ## KI-Modelle — in der App konfiguriert, nicht hier { #ai-models-configured-in-the-app-not-here }
 

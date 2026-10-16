@@ -1,5 +1,5 @@
 ---
-source_sha: "2f690e29c053"
+source_sha: "19bc39209f10"
 ---
 
 # La consola { #the-console }
@@ -266,6 +266,14 @@ siguiente paso y corrige el rumbo sin empezar de nuevo, y aparece en la
 conversación donde llegó. Un mensaje con archivos siempre espera la respuesta.
 Slack, Telegram y Mattermost mantienen su propio comportamiento, descrito en
 [Canales](channels.md).
+
+**Irte mientras responde.** No tienes que esperar. Cierra la pestaña, sal de la
+app o abre otra conversación, y el agente termina la respuesta solo: llega a la
+conversación, y la campana - y un correo, si los mantienes para los runs que
+terminan o fallan - te avisa de que está ahí, con un enlace a ella. Un turno que
+sigue en marcha tras una hora sin nadie mirando se detiene, y se te avisa de eso
+([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)). Uno
+que espera una aprobación o tu respuesta a una pregunta te avisa por esa vía.
 
 **En el teléfono** el chat se comporta como una app de mensajería: el campo de
 escritura queda sobre el teclado y la conversación en su último mensaje mientras

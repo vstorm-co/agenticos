@@ -1,5 +1,5 @@
 ---
-source_sha: "3abd2378a650"
+source_sha: "5ac052aff72b"
 ---
 
 # Configuración { #configuration }
@@ -494,6 +494,17 @@ media ejecución la deja en `running` sin nada que la termine. El techo no tiene
 ser exacto — un run vivo que el barrido marque igualmente lo devuelve su propia
 escritura terminal — así que ponlo bastante por encima de tu run legítimo más largo y
 no más cerca. Ver [Gobernanza](governance.md#a-run-whose-process-died).
+
+### Un turno de chat que se deja en marcha { #a-chat-turn-left-running }
+
+| Variable | Predeterminado | Descripción |
+|----------|---------|-------------|
+| `CHAT_DETACHED_TURN_MINUTES` | `60` | Cuánto sigue un turno de chat después de que la persona que preguntó se fue - pestaña cerrada, app cerrada, conexión perdida - antes de detenerse |
+
+La respuesta llega a la conversación y se avisa a su persona, así que esto limita
+el gasto en una respuesta que quizá nadie lea, en lugar de apagar nada. Debe cubrir
+tu turno de investigación o navegación más largo; un run sigue sujeto al
+presupuesto de su agente. Ver [Consola](console.md#chat).
 
 ## Modelos de IA — se configuran en la aplicación, no aquí { #ai-models-configured-in-the-app-not-here }
 

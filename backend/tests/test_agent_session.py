@@ -44,6 +44,7 @@ import contextlib
 import logging
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
+from dataclasses import replace
 from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
@@ -106,6 +107,7 @@ from app.agents.subagent_runtime import (
     ResolvedSubagent,
     SubagentRuntime,
 )
+from app.core.config import settings
 from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequestError
 from app.db.models.agent_run import RunStatus
 from app.repositories import conversation as conversation_repo
@@ -2880,7 +2882,12 @@ class TestStoppingATurnMidDelegation:
         turn = _Turn()
         session = _session()
 
-        with turn.patched(), patch.object(agent_session_module, "DETACHED_TURN_GRACE_S", 0.05):
+        with (
+            turn.patched(),
+            patch.object(settings, "CHAT_DETACHED_TURN_MINUTES", 0.05 / 60),
+            # Who is told is `TestTellingThePersonWhoLeft`'s; this is about the cancel.
+            patch.object(AgentSession, "_tell_the_absent", AsyncMock()),
+        ):
             await session.handle_frame({"message": "price this up", "agent_id": str(uuid4())})
             await turn.in_flight()
             await session.shutdown()
@@ -2904,7 +2911,7 @@ class TestASocketThatWentAway:
     a closed socket with `False` rather than raising, and `process_message` writes
     the answer to the transcript rather than to the socket, so the only thing the
     cancel was protecting against was a turn running for ever - which is what
-    `DETACHED_TURN_GRACE_S` bounds instead.
+    `CHAT_DETACHED_TURN_MINUTES` bounds instead.
     """
 
     async def test_a_turn_is_given_time_to_finish_rather_than_cancelled(self):
@@ -2928,7 +2935,7 @@ class TestASocketThatWentAway:
         task = asyncio.create_task(asyncio.sleep(30))
         session._turn_task = task
 
-        with patch.object(agent_session_module, "DETACHED_TURN_GRACE_S", 0.01):
+        with patch.object(settings, "CHAT_DETACHED_TURN_MINUTES", 0.01 / 60):
             await session.shutdown()
 
         assert task.cancelled()
@@ -3220,3 +3227,108 @@ class TestAddingToARunningTurn:
         await session.handle_frame({"type": "steer", "text": "   "})
 
         assert _sent_events(session) == [("steer_unapplied", {"texts": ["hello"]})]
+
+
+class TestTellingThePersonWhoLeft:
+    """#2108: write to an agent, leave, and hear when the answer lands.
+
+    A turn left running when its socket went is finished without anybody
+    watching (`TestASocketThatWentAway`); the person is then told how it ended,
+    in the inbox and by email, with a link back to the conversation.
+    """
+
+    @contextmanager
+    def _left(self, ends: Any) -> Iterator[SimpleNamespace]:
+        """A turn that waits for the socket to go, then ends as `ends` says."""
+        gone = asyncio.Event()
+        run_id = uuid4()
+
+        async def run(**kwargs: Any) -> ChatTurn:
+            kwargs["on_run_open"](OpenedRun(run_id=run_id, model_label="m", agent_version_id=None))
+            await gone.wait()
+            if isinstance(ends, BaseException):
+                raise ends
+            return replace(ends, run_id=run_id)
+
+        notifications = MagicMock()
+        notifications.answered_while_away = AsyncMock()
+        run_row, agent_row = MagicMock(), MagicMock()
+        with (
+            _chat(AsyncMock(side_effect=run)),
+            patch("app.services.agent_session.NotificationService", return_value=notifications),
+            patch.object(
+                agent_session_module.agent_run_repo, "get_run", AsyncMock(return_value=run_row)
+            ),
+            patch.object(agent_session_module.agent_repo, "get", AsyncMock(return_value=agent_row)),
+        ):
+            yield SimpleNamespace(
+                gone=gone, run_id=run_id, told=notifications.answered_while_away, run=run_row
+            )
+
+    async def _leave(self, session: AgentSession, left: SimpleNamespace) -> None:
+        await session.handle_frame(_message())
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        shutting = asyncio.create_task(session.shutdown())
+        await asyncio.sleep(0)
+        left.gone.set()
+        await shutting
+
+    async def test_an_answer_that_lands_after_they_left_is_announced_with_its_conversation(self):
+        session = _session()
+        with self._left(_finished_turn()) as left:
+            await self._leave(session, left)
+
+        left.told.assert_awaited_once()
+        assert left.told.await_args.args == (left.run,)
+        assert left.told.await_args.kwargs["conversation_id"] == UUID(_CONVERSATION)
+        assert left.told.await_args.kwargs["error"] is None
+
+    async def test_a_turn_that_failed_after_they_left_says_why(self):
+        session = _session()
+        with self._left(RuntimeError("the provider fell over")) as left:
+            await self._leave(session, left)
+
+        assert left.told.await_args.kwargs["error"]
+
+    async def test_a_turn_refused_after_its_run_opened_says_why(self):
+        """A budget stop or a guardrail block mid-turn is told as what it was."""
+        session = _session()
+        with self._left(BadRequestError(message="The monthly budget is spent")) as left:
+            await self._leave(session, left)
+
+        assert left.told.await_args.kwargs["error"] == "The monthly budget is spent"
+
+    async def test_a_turn_that_parked_on_an_approval_says_nothing_more(self):
+        """The approval already told them, through `approval_requested`."""
+        session = _session()
+        with self._left(_finished_turn(output="", parked=_parked_call())) as left:
+            await self._leave(session, left)
+
+        left.told.assert_not_awaited()
+
+    async def test_a_turn_stopped_at_the_end_of_the_grace_says_it_was_stopped(self):
+        session = _session()
+        with (
+            self._left(_finished_turn()) as left,
+            patch.object(settings, "CHAT_DETACHED_TURN_MINUTES", 0.01 / 60),
+        ):
+            await session.handle_frame(_message())
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            await session.shutdown()
+
+        assert "stopped" in left.told.await_args.kwargs["error"]
+
+    async def test_a_turn_watched_to_its_end_tells_nobody(self):
+        """The ordinary chat: the ending was on screen."""
+        session = _session()
+        with _chat(AsyncMock(return_value=_finished_turn())):
+            notifications = MagicMock()
+            with patch(
+                "app.services.agent_session.NotificationService", return_value=notifications
+            ):
+                await session.process_message(_message())
+                await session.shutdown()
+
+        notifications.answered_while_away.assert_not_called()

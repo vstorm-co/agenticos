@@ -2,7 +2,7 @@
 import asyncio
 import contextlib
 import logging
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -26,11 +26,13 @@ from app.agents.connect_on_use import ConnectionRequest
 from app.agents.failures import run_failure_summary
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
+from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
+from app.repositories import agent_repo, agent_run_repo
 from app.schemas.conversation import MessagePart
 from app.services.agent import (
     persist_assistant_turn,
@@ -52,6 +54,7 @@ from app.services.agent_runner import PersonalServiceGap
 from app.services.attachments import load_turn_attachments
 from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
+from app.services.notifications import NotificationService
 from app.services.run_stream import RunFrames
 from app.services.usage_report import usage_frame
 from app.services.ws_auth import authenticate_socket_token
@@ -83,25 +86,28 @@ This is a count of messages, not of tokens, and nothing here compacts it: the
 is replayed as text.
 """
 
-DETACHED_TURN_GRACE_S = 600.0
-"""How long a turn may go on after the socket watching it has gone.
 
-A dropped socket is not a decision to abandon the answer. `send_event` already
-answers a closed socket with `False` rather than raising, which is the contract
-`run_stream.FrameSink` states - *a visitor who closed the tab must not take the
-run with them* - and `process_message`'s own `finally` writes down whatever the
-model produced either way. So a turn allowed to reach its end is a `COMPLETED`
-run with its answer in the transcript, which is what the reader finds when they
-come back. Cancelling on the disconnect instead wrote `CANCELLED` against a
-half-finished reply and labelled it *stopped*, for a browser that had done
-nothing but refresh its access token.
+def _detached_grace_s() -> float:
+    """How long a turn may go on after the socket watching it has gone.
 
-Bounded, because nobody is watching any more: an agent left iterating spends the
-organization's budget on an answer no one will read. Ten minutes is above the
-longest turn measured on a small deployment (416 s) with room to spare, and far
-below the cost of an afternoon. The budget capability is the real ceiling; this
-is the one that applies when the reason to stop is that the reader has gone.
-"""
+    A dropped socket is not a decision to abandon the answer. `send_event` already
+    answers a closed socket with `False` rather than raising, which is the contract
+    `run_stream.FrameSink` states - *a visitor who closed the tab must not take the
+    run with them* - and `process_message`'s own `finally` writes down whatever the
+    model produced either way. So a turn allowed to reach its end is a `COMPLETED`
+    run with its answer in the transcript, which is what the reader finds when they
+    come back. Cancelling on the disconnect instead wrote `CANCELLED` against a
+    half-finished reply and labelled it *stopped*, for a browser that had done
+    nothing but refresh its access token.
+
+    Bounded, because an agent left iterating spends the organization's budget on an
+    answer that may never be read. It was ten minutes, which cut off exactly the
+    turns somebody walks away from - a research task, a long browse - and an hour
+    by default now that the person is told when it lands (#2108):
+    `CHAT_DETACHED_TURN_MINUTES`. The budget capability is the real ceiling; this
+    is the one that applies when the reason to stop is that the reader has gone.
+    """
+    return settings.CHAT_DETACHED_TURN_MINUTES * 60
 
 
 def _turn_failed(exc: Exception) -> str:
@@ -134,6 +140,14 @@ def _turn_failed(exc: Exception) -> str:
         f"The agent could not finish this turn ({type(exc).__name__}). "
         "Try again; the server log has the full error."
     )
+
+
+class _Outcome(NamedTuple):
+    """How a turn ended, for telling somebody who was not there to see it."""
+
+    run_id: UUID
+    agent_id: UUID
+    error: str | None
 
 
 class _LeftUnanswered(Exception):
@@ -193,6 +207,11 @@ class AgentSession:
         # What the person adds to the running turn (#2087). Set for the length of
         # a turn by `process_message`, None between turns.
         self._steering: SteeringInbox | None = None
+        # The running turn's agent and run, and how the turn ended - read by
+        # `shutdown` to tell a person who left before the answer came (#2108).
+        self._turn_agent_id: UUID | None = None
+        self._turn_runs: list[OpenedRun] = []
+        self._outcome: _Outcome | None = None
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
@@ -365,7 +384,7 @@ class AgentSession:
         Nobody is waiting on the frames any more, but the answer is still worth
         having: it is written to the transcript by `process_message`, not to the
         socket, so the reader who comes back finds a finished turn rather than a
-        half-written one marked *stopped*. See `DETACHED_TURN_GRACE_S`.
+        half-written one marked *stopped*. See `_detached_grace_s`.
 
         `stop` is untouched. `handle_frame` still cancels immediately there,
         because somebody asked.
@@ -394,19 +413,35 @@ class AgentSession:
         # explicit cancellation below - the path every existing test covers, and
         # the one that unwinds delegations - would never run.
         try:
-            await asyncio.wait_for(asyncio.shield(task), DETACHED_TURN_GRACE_S)
+            await asyncio.wait_for(asyncio.shield(task), _detached_grace_s())
         except TimeoutError:
             logger.info("Turn ran past its detached grace with nobody watching; stopping it")
             await self._cancel_turn()
+            if self._turn_runs and self._turn_agent_id is not None:
+                minutes = round(settings.CHAT_DETACHED_TURN_MINUTES)
+                await self._tell_the_absent(
+                    _Outcome(
+                        self._turn_runs[0].run_id,
+                        self._turn_agent_id,
+                        f"it was still working after {minutes} minutes with nobody "
+                        "watching, so it was stopped",
+                    )
+                )
+            return
         except asyncio.CancelledError:
             # This session's own task tree is being torn down - a redeploy, or
             # uvicorn draining. Stop the turn, then let the cancellation carry on
             # unwinding rather than swallowing it here.
             await self._cancel_turn()
             raise
+        # The turn reached its end with nobody watching: say how, where they
+        # will see it. A turn that parked on an approval or a question has
+        # already told them through `approval_requested` or the question's park.
+        await self._tell_the_absent(self._outcome)
 
     async def process_message(self, data: dict[str, Any]) -> None:
         """Process one user turn: persist input, run the agent, stream events, persist output."""
+        self._outcome = None
         user_message = data.get("message", "")
         file_ids = data.get("file_ids", [])
 
@@ -483,6 +518,8 @@ class AgentSession:
         # callback is `list.append` and a turn opens at most one run - it is
         # empty when the run was refused before it existed.
         opened: list[OpenedRun] = []
+        self._turn_agent_id = agent_id
+        self._turn_runs = opened
         # Whether the assistant turn reached the database. Read by the `finally`,
         # which exists for the paths where `turn` was never assigned and so
         # cannot be consulted.
@@ -584,6 +621,8 @@ class AgentSession:
                 # the paths where `turn` was never assigned.
                 answered = True
                 await self._remember_context(turn)
+                if turn.run_id is not None and not turn.parked and not turn.questions:
+                    self._outcome = _Outcome(turn.run_id, agent_id, None)
 
             if assistant_msg_id:
                 await send_event(
@@ -645,9 +684,13 @@ class AgentSession:
             # in the named agent's place.
             logger.info("Agent turn refused: %s", exc)
             await send_event(self.websocket, "error", {"message": str(exc)})
+            if opened:
+                self._outcome = _Outcome(opened[0].run_id, agent_id, str(exc))
         except Exception as exc:
             logger.exception("Error processing agent request")
             await send_event(self.websocket, "error", {"message": _turn_failed(exc)})
+            if opened:
+                self._outcome = _Outcome(opened[0].run_id, agent_id, _turn_failed(exc))
         finally:
             self._current_timeline = None
             self._steering = None
@@ -667,6 +710,28 @@ class AgentSession:
                     thinking=timeline.thinking,
                     parts=timeline.stored(),
                 )
+
+    async def _tell_the_absent(self, outcome: _Outcome | None) -> None:
+        """Notify the person a turn ended without, in the inbox and by email (#2108).
+
+        Nothing when the turn ended with nothing to say - refused before its run
+        existed, or parked waiting on somebody - or outside a conversation.
+        """
+        if outcome is None or self.current_conversation_id is None:
+            return
+        async with get_db_context() as db:
+            run = await agent_run_repo.get_run(
+                db, outcome.run_id, organization_id=self.organization_id
+            )
+            agent = await agent_repo.get(db, outcome.agent_id, organization_id=self.organization_id)
+            if run is None or agent is None:  # pragma: no cover - the turn just wrote both
+                return
+            await NotificationService(db).answered_while_away(
+                run,
+                agent=agent,
+                conversation_id=UUID(self.current_conversation_id),
+                error=outcome.error,
+            )
 
     async def _persist_partial_turn(
         self,

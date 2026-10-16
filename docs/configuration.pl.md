@@ -1,5 +1,5 @@
 ---
-source_sha: "3abd2378a650"
+source_sha: "5ac052aff72b"
 ---
 
 # Konfiguracja { #configuration }
@@ -482,6 +482,17 @@ nie musi być dokładny — żywy run, który zamiatanie mimo to przestawi, zost
 przestawiony z powrotem przez własny zapis końcowy — więc ustaw go daleko za swoim
 najdłuższym uprawnionym runem i nie bliżej. Zobacz
 [Governance](governance.md#a-run-whose-process-died).
+
+### Tura czatu zostawiona w trakcie { #a-chat-turn-left-running }
+
+| Zmienna | Domyślnie | Opis |
+|----------|---------|-------------|
+| `CHAT_DETACHED_TURN_MINUTES` | `60` | Jak długo tura czatu trwa po tym, jak osoba, która pytała, wyszła - zamknięta karta, zamknięta aplikacja, zerwane połączenie - zanim zostanie zatrzymana |
+
+Odpowiedź trafia do rozmowy, a jej osoba dostaje powiadomienie, więc to ogranicza
+wydatki na odpowiedź, której może nikt nie przeczytać, a nie wyłącza czegokolwiek.
+Musi objąć Twoją najdłuższą turę researchu albo przeglądania; run i tak trzyma się
+budżetu agenta. Zobacz [Konsola](console.md#chat).
 
 ## Modele AI — konfigurowane w aplikacji, nie tutaj { #ai-models-configured-in-the-app-not-here }
 

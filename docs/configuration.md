@@ -475,6 +475,17 @@ be exact — a live run the sweep flips anyway is flipped back by its own termin
 write — so set it well past your longest legitimate run and no closer. See
 [Governance](governance.md#a-run-whose-process-died).
 
+### A chat turn left running
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CHAT_DETACHED_TURN_MINUTES` | `60` | How long a chat turn goes on after the person who asked it has left - a closed tab, a quit app, a dropped connection - before it is stopped |
+
+The answer lands in the conversation and its person is notified, so this bounds
+spend on an answer that may never be read rather than switching anything off. It
+needs to cover your longest research or browsing turn; a run is still held to its
+agent's budget either way. See [Console](console.md#chat).
+
 ## AI models — configured in the app, not here
 
 Chat models are not environment variables. Each organization stores its own

@@ -1,5 +1,5 @@
 ---
-source_sha: "2f690e29c053"
+source_sha: "19bc39209f10"
 ---
 
 # Konsola { #the-console }
@@ -260,6 +260,15 @@ Przeciągnij wiadomość w kolejce albo użyj jej strzałek, żeby zmienić kole
 następnym kroku i zmienia kurs bez zaczynania od nowa, a w rozmowie pojawia się
 tam, gdzie dotarła. Wiadomość z plikami zawsze czeka na odpowiedź. Slack, Telegram
 i Mattermost działają po swojemu, jak opisuje [Kanały](channels.md).
+
+**Wychodzenie w trakcie odpowiedzi.** Nie musisz czekać. Zamknij kartę, wyjdź z
+aplikacji albo otwórz inną rozmowę, a agent dokończy odpowiedź sam: trafi ona do
+rozmowy, a dzwonek - i e-mail, jeśli zostawiasz je włączone dla runów, które się
+kończą albo nie udają - powie Ci, że jest, z linkiem do niej. Tura, która po
+godzinie bez nikogo przy ekranie wciąż trwa, zostaje zatrzymana i dostajesz o tym
+informację ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)).
+Taka, która czeka na zatwierdzenie albo na Twoją odpowiedź na pytanie, powiadamia
+Cię przez nie.
 
 **Na telefonie** czat działa jak komunikator: pole wpisywania zostaje nad
 klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera,

@@ -628,6 +628,49 @@ class TestApprovalRequested:
         assert written.calls[0]["use_savepoint"] is True
 
 
+class TestAnsweredWhileAway:
+    """#2108: a chat turn that finished after its person left links back to the chat."""
+
+    @pytest.mark.anyio
+    async def test_the_person_is_told_the_answer_landed_and_where(self, written):
+        person, conversation = uuid.uuid4(), uuid.uuid4()
+        run = _run(user_id=person)
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)):
+            await NotificationService(MagicMock()).answered_while_away(
+                run, agent=_agent(), conversation_id=conversation, error=None
+            )
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.RUN_COMPLETED
+        assert call["recipients"] == [person]
+        assert f"/chat?id={conversation}" in call["context_url"]
+        assert "answered while you were away" in call["summary"]
+
+    @pytest.mark.anyio
+    async def test_a_turn_that_did_not_finish_is_told_as_a_failure_with_its_reason(self, written):
+        person = uuid.uuid4()
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)):
+            await NotificationService(MagicMock()).answered_while_away(
+                _run(user_id=person),
+                agent=_agent(),
+                conversation_id=uuid.uuid4(),
+                error="it timed out",
+            )
+
+        call = written.calls[0]
+        assert call["event_type"] is NotificationEventType.RUN_FAILED
+        assert "it timed out" in call["summary"]
+
+    @pytest.mark.anyio
+    async def test_a_person_no_longer_a_member_is_told_nothing(self, written):
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()):
+            await NotificationService(MagicMock()).answered_while_away(
+                _run(user_id=uuid.uuid4()), agent=_agent(), conversation_id=uuid.uuid4(), error=None
+            )
+
+        assert written.calls == []
+
+
 class TestRunCompletedAndFailed:
     """A run that ended off a surface nobody was watching live - `WEB`'s
     exclusion is `_notify`'s job (`tests/test_coverage_edges.py`), not this
