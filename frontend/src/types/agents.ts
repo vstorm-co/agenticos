@@ -67,6 +67,13 @@ export interface CapabilityBindingSpec {
  * tokens, cost and tool names but no message text or tool arguments. */
 export type TraceContent = "full" | "none";
 
+/** Mirrors `CodeModeSpec`: many tool calls from one sandboxed script (#2107). */
+export interface CodeModeSpec {
+  enabled: boolean;
+  /** How many tool calls one script may make. */
+  max_tool_calls: number;
+}
+
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
   /** An organization secret holding a Logfire write token - an id, never a token. */
@@ -327,6 +334,8 @@ export interface AgentSpec {
   subagents?: SubagentRef[];
   /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
+  /** Whether tools are called from one sandboxed script; defaulted off server side. */
+  code_mode?: CodeModeSpec;
   budget?: BudgetSpec | null;
   /**
    * Optional here, required on the wire.

@@ -380,6 +380,27 @@ class BudgetSpec(BaseModel):
     monthly_usd: float | None = Field(default=None, gt=0)
 
 
+class CodeModeSpec(BaseModel):
+    """Whether the agent calls its tools from one sandboxed script (#2107).
+
+    Off by default: it changes how the model works, from one call per turn to a
+    `run_code` script that calls many, which pays off for an agent that works
+    through records or fans out over an MCP server and is noise for one that calls
+    a tool now and then. A tool that needs approval is never called from a script.
+    See `app/agents/code_mode.py`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    max_tool_calls: int = Field(
+        default=100,
+        ge=1,
+        le=500,
+        description="How many tool calls one script may make.",
+    )
+
+
 class AlertAudience(StrEnum):
     """Who an agent's alert reaches.
 
@@ -1221,6 +1242,14 @@ class AgentSpec(BaseModel):
         description=(
             "How many model requests one run may make before it is stopped. "
             "Null uses the platform default; a tool loop is what this catches."
+        ),
+    )
+
+    code_mode: CodeModeSpec = Field(
+        default_factory=CodeModeSpec,
+        description=(
+            "Whether the agent calls its tools from one sandboxed `run_code` script. "
+            "Defaulted off, so a spec written before it existed is unchanged."
         ),
     )
 

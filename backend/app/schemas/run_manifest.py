@@ -11,7 +11,7 @@ rather than a gap in one panel.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -62,6 +62,34 @@ class ManifestRequest(BaseSchema):
     failed: str | None = None
 
 
+class ManifestCodeCall(BaseSchema):
+    """One tool call a `run_code` script made.
+
+    Attributes:
+        tool: The tool it called.
+        args: Its arguments, as JSON, cut to a preview.
+        status: `returned`, or `failed` when the call raised or never finished.
+    """
+
+    tool: str
+    args: str
+    status: Literal["returned", "failed"]
+
+
+class ManifestCodeRun(BaseSchema):
+    """One script code mode ran, and the calls it made (#2107).
+
+    Attributes:
+        tool_call_id: The `run_code` call it was, in the transcript.
+        code: The script, as the model wrote it.
+        calls: Every tool call the script made, in the order they started.
+    """
+
+    tool_call_id: str
+    code: str
+    calls: list[ManifestCodeCall] = Field(default_factory=list)
+
+
 class RunManifestRead(BaseSchema):
     """The whole record, as `GET /runs/{run_id}/manifest` answers it.
 
@@ -92,4 +120,5 @@ class RunManifestRead(BaseSchema):
     settings: dict[str, Any] = Field(default_factory=dict)
     requests: list[ManifestRequest] = Field(default_factory=list)
     messages: list[dict[str, Any]] = Field(default_factory=list)
+    code_runs: list[ManifestCodeRun] = Field(default_factory=list)
     truncated: bool = False

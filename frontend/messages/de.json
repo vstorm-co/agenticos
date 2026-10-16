@@ -73,6 +73,9 @@
     "sessionsCouldNotBeRead": "Die Sitzungen konnten nicht gelesen werden."
   },
   "agents": {
+    "codeMode": "Code-Modus",
+    "codeModeHint": "Der Agent ruft seine Tools aus einem kurzen Python-Skript in einer Sandbox auf - Schleifen, Bedingungen, viele Aufrufe auf einmal - statt eines Modell-Turns pro Aufruf. Lohnt sich, um Datensätze abzuarbeiten oder über einen MCP-Server auszufächern. Tools, die eine Freigabe brauchen, bleiben normale Aufrufe.",
+    "codeModeMaxCalls": "Tool-Aufrufe pro Skript",
     "accentColour": "Akzentfarbe",
     "actsOutsideWorld": "wirkt auf die Außenwelt",
     "actsWorld": "wirkt auf die Welt",
@@ -4512,6 +4515,8 @@
       "recordWasTrimmed": "Dieser Eintrag wurde auf seine Größengrenze gekürzt – die Nachrichten und womöglich die Argumentschemata sind weggefallen.",
       "reject": "Ablehnen",
       "requestDetail": "{input} ein, {output} aus · {messages} Nachrichten mitgeführt · beendet {finish}",
+      "codeRuns": "{count, plural, =1 {1 Skript} other {# Skripte}}",
+      "codeRunCalls": "{count, plural, =0 {Es hat kein Tool aufgerufen} =1 {Es hat 1 Tool aufgerufen} other {Es hat # Tools aufgerufen}}",
       "requestIndex": "#{index}",
       "requests": "{count, plural, =0 {Anfragen} =1 {1 Anfrage} other {# Anfragen}}",
       "resizeRunDetail": "Die Größe der Run-Details ändern",

@@ -138,6 +138,9 @@ class RunRecorder:
     #: the end of the run - retries, tool returns and reminders included, which
     #: the conversation transcript deliberately does not show.
     messages: list[dict[str, Any]] = field(default_factory=list)
+    #: Each `run_code` script code mode ran, and every tool call it made (#2107) -
+    #: one `run_code` step otherwise hides all of them.
+    code_runs: list[dict[str, Any]] = field(default_factory=list)
 
     def observe_request(
         self,
@@ -373,6 +376,7 @@ def as_payload(recorder: RunRecorder) -> dict[str, Any]:
             for request in recorder.requests
         ],
         "messages": recorder.messages,
+        "code_runs": list(recorder.code_runs),
     }
 
 

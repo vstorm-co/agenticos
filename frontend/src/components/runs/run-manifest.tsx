@@ -104,6 +104,34 @@ export function RunManifest({ runId }: { runId: string }) {
         <RunWaterfall requests={manifest.requests} />
       </Section>
 
+      {/* One `run_code` step hides every call its script made; this is them (#2107). */}
+      {!!manifest.code_runs?.length && (
+        <Section title={t("codeRuns", { count: manifest.code_runs.length })}>
+          <ul className="space-y-3">
+            {manifest.code_runs.map((run) => (
+              <li key={run.tool_call_id} className="space-y-1.5">
+                <pre className="bg-muted/50 max-h-64 overflow-auto rounded-md p-3 text-xs">
+                  {run.code}
+                </pre>
+                <p className="text-muted-foreground text-xs">
+                  {t("codeRunCalls", { count: run.calls.length })}
+                </p>
+                <ol className="space-y-0.5">
+                  {run.calls.map((call, index) => (
+                    <li key={index} className="flex gap-2 font-mono text-xs">
+                      <span className={call.status === "failed" ? "text-destructive" : ""}>
+                        {call.tool}
+                      </span>
+                      <span className="text-muted-foreground truncate">{call.args}</span>
+                    </li>
+                  ))}
+                </ol>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
       {manifest.messages.length > 0 && (
         <Section
           title={t("lastRequestContext")}

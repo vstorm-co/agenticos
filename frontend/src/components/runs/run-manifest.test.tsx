@@ -58,6 +58,29 @@ function renderManifest() {
 beforeEach(() => useRunManifestMock.mockReset());
 
 describe("what the model was told", () => {
+  it("shows each script code mode ran, and every call it made (#2107)", () => {
+    serve({
+      manifest: record({
+        code_runs: [
+          {
+            tool_call_id: "c1",
+            code: "await update_record(n=1)",
+            calls: [
+              { tool: "update_record", args: '{"n": 1}', status: "returned" },
+              { tool: "update_record", args: '{"n": 2}', status: "failed" },
+            ],
+          },
+        ],
+      }),
+    });
+    renderManifest();
+
+    expect(screen.getByText("1 script")).toBeInTheDocument();
+    expect(screen.getByText("await update_record(n=1)")).toBeInTheDocument();
+    expect(screen.getByText("It made 2 tool calls")).toBeInTheDocument();
+    expect(screen.getByText('{"n": 2}')).toBeInTheDocument();
+  });
+
   it("shows the prompt as it was sent, and the system parts beside it", () => {
     serve({
       manifest: record({

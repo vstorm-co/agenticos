@@ -63,6 +63,7 @@ from app.agents.capabilities.system_reminders import (
     ReminderState,
     SystemReminders,
 )
+from app.agents.code_mode import CodeCalls, code_mode
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
@@ -341,6 +342,16 @@ def build_agent(
     # accident. The gate is attached even when nothing is gated, so that adding
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
+    # Wrapped, so what the provider is handed is written down as it is handed
+    # over. Reconstructing the prompt and the tool schemas from the spec
+    # afterwards would be a second implementation of everything above this line.
+    # Made before the capabilities, because code mode writes onto it.
+    recorder = RunRecorder()
+    asking = (
+        frozenset({CONNECT_ACCOUNT})
+        if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
+        else frozenset()
+    )
     capabilities: list[Any] = [
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
@@ -354,14 +365,24 @@ def build_agent(
         ApprovalGate(
             required_tool_names=approval_required,
             gate_every_tool=gate_every_tool,
-            asking_tool_names=(
-                frozenset({CONNECT_ACCOUNT})
-                if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
-                else frozenset()
-            ),
+            asking_tool_names=asking,
         ),
         *configured,
         *extra_capabilities,
+        # Off unless the spec asks, and never under a session that asks before
+        # every tool: nothing could be folded into a script there.
+        *(
+            [
+                code_mode(
+                    approval_required=approval_required,
+                    asking=asking,
+                    max_tool_calls=spec.code_mode.max_tool_calls,
+                ),
+                CodeCalls(recorder=recorder),
+            ]
+            if spec.code_mode.enabled and not gate_every_tool
+            else []
+        ),
         # Every agent, not only one that compacts. The warning is most useful to
         # exactly the agent that will not: it is the one that reaches the ceiling
         # and gets refused by the provider.
@@ -385,10 +406,6 @@ def build_agent(
         }
     )
 
-    # Wrapped, so what the provider is handed is written down as it is handed
-    # over. Reconstructing the prompt and the tool schemas from the spec
-    # afterwards would be a second implementation of everything above this line.
-    recorder = RunRecorder()
     agent = PydanticAgent[AgentDeps, str | DeferredToolRequests](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
