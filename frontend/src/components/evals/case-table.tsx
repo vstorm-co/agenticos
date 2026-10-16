@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useEvalCases } from "@/hooks/use-eval-runs";
+import { isLive, useEvalCases } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import type {
@@ -121,6 +121,7 @@ function SideDots({ attempts, arms }: { attempts: EvalAttempt[]; arms: EvalRunAr
  */
 export function CaseTable({
   run,
+  arm,
   comparison,
   tag,
   caseIds,
@@ -128,6 +129,8 @@ export function CaseTable({
   onShowAll,
 }: {
   run: EvalRun;
+  /** The candidate whose first answers the outcome filter reads. */
+  arm: string | null;
   /** How the sides compare once both have answered; none while the run answers. */
   comparison: EvalComparison | undefined;
   tag: string | null;
@@ -150,14 +153,23 @@ export function CaseTable({
     setSeenScope(scope);
     setSkip(0);
   }
-  const { cases, total, isLoading, error } = useEvalCases(run.id, {
+  const live = isLive(run.status);
+  const { cases, total, isLoading, error, refetch } = useEvalCases(run.id, {
+    arm,
     outcome: outcome === ALL ? null : (outcome as CaseOutcomeFilter),
     tag,
     caseIds,
     skip,
     limit: PAGE,
-    live: run.status === "queued" || run.status === "running",
+    live,
   });
+  // The poll that sees the run end stops this one, which may not have read the
+  // last answers yet: read them once more.
+  const wasLive = useRef(live);
+  useEffect(() => {
+    if (wasLive.current && !live) void refetch();
+    wasLive.current = live;
+  }, [live, refetch]);
   const tSide = useTranslations("evals");
   // Each flip with the side its case is undecided on - the one whose answer
   // reached no verdict.

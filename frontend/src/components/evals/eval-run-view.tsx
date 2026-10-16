@@ -160,6 +160,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
       <div ref={cases}>
         <CaseTable
           run={run}
+          arm={focus}
           comparison={live ? undefined : comparison}
           tag={tag}
           caseIds={only !== null ? [only] : broken ? brokenIds : null}

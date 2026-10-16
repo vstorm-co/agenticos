@@ -43,6 +43,7 @@ const state = vi.hoisted(() => ({
   casesArgs: [] as unknown[],
   comparisonArgs: [] as unknown[],
   refetchComparison: (() => undefined) as () => unknown,
+  refetchCases: (() => undefined) as () => unknown,
 }));
 vi.mock("@/hooks/use-eval-runs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/use-eval-runs")>();
@@ -51,7 +52,7 @@ vi.mock("@/hooks/use-eval-runs", async (importOriginal) => {
     useEvalRun: () => state.run,
     useEvalCases: (...args: unknown[]) => {
       state.casesArgs.push(args);
-      return state.cases;
+      return { refetch: state.refetchCases, ...state.cases };
     },
     useSendToReview: () => ({ mutate: review.mutate, isPending: false }),
     useRescoreRun: () => ({ mutate: review.rescore, isPending: false }),
@@ -685,9 +686,11 @@ describe("EvalRunView", () => {
     expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-1", live: true }]);
   });
 
-  it("reads the verdict once more when the run ends, after its last reruns", () => {
+  it("reads the verdict and the cases once more when the run ends, after its last reruns", () => {
     const refetch = vi.fn();
+    const refetchCases = vi.fn();
     state.refetchComparison = refetch;
+    state.refetchCases = refetchCases;
     state.run = { ...state.run, run: evalRun({ status: "running" }) };
     const { rerender } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
     rerender(<EvalRunView agentId="agent-1" runId="run-1" />);
@@ -697,6 +700,7 @@ describe("EvalRunView", () => {
     rerender(<EvalRunView agentId="agent-1" runId="run-1" />);
     rerender(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(refetch).toHaveBeenCalledTimes(1);
+    expect(refetchCases).toHaveBeenCalledTimes(1);
   });
 
   it("compares the model a reader picks when several ran", async () => {
@@ -710,6 +714,8 @@ describe("EvalRunView", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Compare this model" }));
     await userEvent.click(screen.getByRole("option", { name: "v7 · claude" }));
     expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-2", live: false }]);
+    // The outcome filter reads the picked model's answers too.
+    expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ arm: "arm-2" })]);
   });
 
   it("filters the cases by outcome and tag, back to the first page", async () => {
