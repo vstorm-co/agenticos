@@ -70,7 +70,11 @@ class ManifestRequest(BaseSchema):
     )
     cache_missed_tokens: int = Field(
         default=0,
-        description="Previously cached tokens this request re-sent at the full input rate",
+        description=(
+            "Of the prefix earlier requests cached, how many tokens this request did not "
+            "read back. A miss, not a bill: a compaction that shrank the request misses "
+            "tokens it never sent again"
+        ),
     )
 
 

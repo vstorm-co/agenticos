@@ -121,7 +121,7 @@ class RecordedRequest:
     #: should still have held it, `expired` when its retention had passed - see
     #: `app/agents/cache_watch.py` (#2109).
     cache: str | None = None
-    #: The previously cached tokens this request re-sent at the full input rate.
+    #: Of the prefix earlier requests cached, the tokens this one did not read back.
     cache_missed_tokens: int = 0
 
 

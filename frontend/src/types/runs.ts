@@ -230,7 +230,7 @@ export interface ManifestRequest {
   failed: string | null;
   /** `bust` when its cached prompt prefix collapsed early, `expired` when past retention (#2109). */
   cache?: "bust" | "expired" | null;
-  /** The previously cached tokens it re-sent at the full input rate. */
+  /** Of the prefix earlier requests cached, the tokens it did not read back. */
   cache_missed_tokens: number;
 }
 

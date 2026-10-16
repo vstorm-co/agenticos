@@ -13,7 +13,8 @@ provider should still have held it: the prefix moved) from an *expiry* (the
 retention window passed). Rather than `warnings.warn`, which is process-global
 and says nothing about whose run it was, each one is written onto the request it
 happened at in the run's manifest - the run view's request waterfall - and logged
-with the agent and model, for whoever is investigating cost.
+with the agent and model, for whoever is investigating cost. A delegate's own
+requests are not rows of its parent's waterfall, so its events are in the log.
 
 The detector's marks are kept per conversation in one store for the process, so
 the first request of a turn is judged against what the previous turn cached:
@@ -65,7 +66,11 @@ class CacheWatch(AbstractCapability[AgentDeps]):
     """Notes each prompt-cache bust or expiry on the request it happened at."""
 
     recorder: RunRecorder
-    conversation_id: UUID | None = None
+    marks_key: str | None = None
+    """Whose marks these are: a conversation and the agent in it, or `None` for a
+    run with no conversation, which is judged alone. The agent is part of it
+    because a delegate in the same thread has its own instructions and tools, and
+    so its own prefix - judged against its parent's, every turn would be a bust."""
     agent_id: UUID | None = None
     _detector: CacheHealthDetector | None = field(default=None, init=False, repr=False)
 
@@ -79,7 +84,7 @@ class CacheWatch(AbstractCapability[AgentDeps]):
         if self._detector is None:
             self._detector = CacheHealthDetector(
                 _MARKS,
-                None if self.conversation_id is None else str(self.conversation_id),
+                self.marks_key,
                 ctx.run_id,
                 alert_on=frozenset(_EVENT),
             )

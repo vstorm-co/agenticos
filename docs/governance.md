@@ -865,7 +865,7 @@ the instructions makes the provider charge full price for tokens it had cached.
 Every agent reads the provider's own cache figures on each response, and a
 request whose cached prefix collapsed is marked in the run's request waterfall -
 *cache bust* while the provider should still have held it, *cache expired* once
-its retention passed - with the tokens re-sent at the full rate, and logged with
+its retention passed - with how many cached tokens it did not read back, and logged with
 the agent and model. The first request of a turn is compared with what the
 previous turn cached, when the same API worker serves both.
 

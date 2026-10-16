@@ -51,7 +51,7 @@ async def _run(
     agent = Agent[AgentDeps, str](
         RecordingModel(model, recorder),
         capabilities=[
-            CacheWatch(recorder=recorder, conversation_id=conversation_id, agent_id=agent_id)
+            CacheWatch(recorder=recorder, marks_key=str(conversation_id), agent_id=agent_id)
         ],
     )
 
@@ -146,3 +146,36 @@ async def test_a_conversation_resumed_after_the_cache_expired_is_an_expiry(monke
     )
 
     assert _caches(an_hour_later) == [("expired", 10_400)]
+
+
+async def test_two_agents_in_one_conversation_keep_their_own_marks() -> None:
+    """A delegate has its own instructions and tools, so its own cached prefix;
+    judged against its parent's, every one of its requests would read as a bust."""
+    conversation = uuid.uuid4()
+    usages = [
+        RequestUsage(input_tokens=10_000, cache_write_tokens=10_000),
+        RequestUsage(input_tokens=10_400, cache_read_tokens=10_000, cache_write_tokens=400),
+    ]
+    parent = await _run_as(usages, marks_key=f"{conversation}/parent")
+    delegate = await _run_as(
+        [RequestUsage(input_tokens=3_000, cache_write_tokens=3_000)],
+        marks_key=f"{conversation}/delegate",
+    )
+
+    assert _caches(parent) == [(None, 0), (None, 0)]
+    assert _caches(delegate) == [(None, 0)]
+
+
+async def _run_as(usages: list[RequestUsage], *, marks_key: str) -> RunRecorder:
+    recorder = RunRecorder()
+    agent = Agent[AgentDeps, str](
+        RecordingModel(FunctionModel(_scripted(usages)), recorder),
+        capabilities=[CacheWatch(recorder=recorder, marks_key=marks_key)],
+    )
+
+    @agent.tool_plain
+    def look(n: int) -> str:
+        return str(n)
+
+    await agent.run("go", deps=AgentDeps())
+    return recorder

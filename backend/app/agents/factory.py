@@ -370,7 +370,13 @@ def build_agent(
         *extra_capabilities,
         # Every agent: a moved cache prefix costs the most on exactly the long,
         # tool-heavy runs nobody is watching the invoice of (#2109).
-        CacheWatch(recorder=recorder, conversation_id=conversation_id, agent_id=agent_id),
+        CacheWatch(
+            recorder=recorder,
+            marks_key=(
+                None if conversation_id is None else f"{conversation_id}/{agent_id}/{spec.name}"
+            ),
+            agent_id=agent_id,
+        ),
         # Every agent, not only one that compacts. The warning is most useful to
         # exactly the agent that will not: it is the one that reaches the ceiling
         # and gets refused by the provider.

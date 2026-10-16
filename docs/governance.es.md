@@ -1,5 +1,5 @@
 ---
-source_sha: "abce12351d33"
+source_sha: "a4c4982a7155"
 ---
 
 # Governance { #governance }
@@ -914,7 +914,7 @@ cobre a precio completo tokens que tenía en caché. Cada agente lee las cifras 
 caché del proveedor en cada respuesta, y una petición cuyo prefijo en caché se
 hundió se marca en la cascada de peticiones del run - *caché rota* cuando el
 proveedor aún debía conservarla, *caché caducada* cuando pasó su retención - con
-los tokens reenviados a tarifa completa, y se registra con el agente y el modelo.
+cuántos tokens en caché no leyó, y se registra con el agente y el modelo.
 La primera petición de un turno se compara con lo que guardó el turno anterior,
 cuando el mismo worker de API atiende ambos.
 

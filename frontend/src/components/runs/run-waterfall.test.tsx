@@ -53,7 +53,7 @@ describe("the requests a run made", () => {
 
     expect(screen.getByText("cache bust")).toHaveAttribute(
       "title",
-      expect.stringContaining("41,200 cached tokens re-sent"),
+      expect.stringContaining("41,200 cached tokens not read back"),
     );
     expect(screen.getByText("cache expired")).toHaveAttribute(
       "title",

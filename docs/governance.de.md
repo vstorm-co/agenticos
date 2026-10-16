@@ -1,5 +1,5 @@
 ---
-source_sha: "abce12351d33"
+source_sha: "a4c4982a7155"
 ---
 
 # Governance { #governance }
@@ -997,8 +997,8 @@ Tokens berechnen, die er im Cache hatte. Jeder Agent liest bei jeder Antwort die
 Cache-Zahlen des Anbieters, und ein Request, dessen gecachter Präfix
 eingebrochen ist, wird im Request-Wasserfall des Runs markiert - *Cache
 gebrochen*, solange der Anbieter ihn noch hätte halten sollen, *Cache
-abgelaufen*, wenn die Aufbewahrung vorbei war - mit den zum vollen Preis erneut
-gesendeten Tokens, und mit Agent und Modell geloggt. Der erste Request eines
+abgelaufen*, wenn die Aufbewahrung vorbei war - mit der Zahl der gecachten
+Tokens, die er nicht zurückgelesen hat, und mit Agent und Modell geloggt. Der erste Request eines
 Turns wird mit dem verglichen, was der vorige Turn gecacht hat, wenn derselbe
 API-Worker beide bedient.
 
