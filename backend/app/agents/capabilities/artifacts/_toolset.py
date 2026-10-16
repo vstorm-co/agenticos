@@ -165,8 +165,12 @@ def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
         `window.Chart`), `lib/d3-7.9.0.min.js` (d3, `window.d3`),
         `lib/lucide-1.46.0.min.js` (icons: write `<i data-lucide="calendar"></i>`) and,
         after those, `lib/agenticos-2.js` (`window.AO`: chart defaults in the product's
-        style, number formatting, icons, tabs); `lib/agenticos-1.css` stays served for
-        pages published against it. Keep to the product's look: graphite,
+        style, number formatting, icons, tabs); `lib/mermaid-12.1.0.min.js`
+        (`window.mermaid`) for diagrams; three.js as ES modules through an import map
+        (`"three": "./lib/three-0.186.0/three.module.js"`, with
+        `lib/three-0.186.0/three.core.js` beside it and
+        `lib/three-0.186.0/addons/controls/OrbitControls.js` under `three/addons/`);
+        `lib/agenticos-1.css` stays served for pages published against it. Keep to the product's look: graphite,
         no accent colour, green and red only for better and worse, icons rather than
         emoji unless the person asked for emoji. Before building a page, load the
         `artifact-pages` skill if it is available - it has the components and two

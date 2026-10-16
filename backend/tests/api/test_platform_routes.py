@@ -1550,10 +1550,15 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # 403 that names nothing, and the link's bucket counts every attempt.
         ("POST", f"{V1}/public/apps/{{public_key}}/unlock"),
         ("POST", f"{V1}/public/artifacts/{{public_key}}/unlock"),
-        # The library set a published page may load (#1971): three static files
-        # this repository ships, named in `ARTIFACT_LIBRARY`, which a page in an
-        # opaque origin fetches with no credentials by construction.
-        ("GET", f"{V1}/artifact-content/lib/{{name}}"),
+        # The library set a published page may load (#1971): static files this
+        # repository ships, named in `ARTIFACT_LIBRARY` - a path, since three.js
+        # keeps its package layout (#2171) - which a page in an opaque origin
+        # fetches with no credentials by construction.
+        ("GET", f"{V1}/artifact-content/lib/{{name:path}}"),
+        # The renderer a visual is drawn in (#2171): one fixed page holding no
+        # drawing - the console posts it in - under the app sandbox policy, framed
+        # only by the console.
+        ("GET", f"{V1}/artifact-content/visual-frame"),
         # The document another site frames for a public link (#1973). The key is
         # the capability, as for the link itself, and its policy lets only the
         # origins the artifact names frame it.

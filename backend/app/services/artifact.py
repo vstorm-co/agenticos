@@ -201,6 +201,13 @@ a page published against one keeps getting exactly that one. See
 `app/core/catalog/artifact_lib/README.md`.
 """
 
+FRAME_ONLY_LIBRARY = frozenset({"idiomorph-0.8.0.min.js"})
+"""Files of the set the visual frame loads for itself, not offered to a page.
+
+The frame morphs a drawing's markup in place while it streams; a page has no use
+for that, so the tool text does not name it.
+"""
+
 _library_bytes: dict[str, bytes] = {}
 
 _EMBED_ORIGIN = re.compile(

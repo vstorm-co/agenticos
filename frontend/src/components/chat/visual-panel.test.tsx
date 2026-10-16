@@ -1,0 +1,360 @@
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { VisualFrameProps } from "./visual-frame";
+import { ConversationVisualsProvider, TurnVisuals } from "./visual-panel";
+import {
+  useSavedVisualsStore,
+  useVisualImagesStore,
+  useVisualStreamStore,
+} from "@/stores/visual-stream-store";
+import type { ChatMessage, ToolCall } from "@/types";
+
+const frames: VisualFrameProps[] = [];
+vi.mock("./visual-frame", () => ({
+  VisualFrame: (props: VisualFrameProps) => {
+    frames.push(props);
+    return (
+      <div data-testid={props.fill ? "full-frame" : "frame"} data-done={String(props.done)}>
+        {props.content}
+      </div>
+    );
+  },
+}));
+
+const { copySvgImage, downloadVisual } = vi.hoisted(() => ({
+  copySvgImage: vi.fn(),
+  downloadVisual: vi.fn(),
+}));
+vi.mock("./visual-actions", () => ({ copySvgImage, downloadVisual }));
+
+const { getVisualImage } = vi.hoisted(() => ({ getVisualImage: vi.fn() }));
+vi.mock("@/lib/visuals-api", () => ({ getVisualImage }));
+
+vi.mock("./visual-save-dialog", () => ({
+  VisualSaveDialog: (props: { visualId: string; updates: string | null }) => (
+    <div data-testid="save-dialog">
+      {props.visualId}:{props.updates ?? "new"}
+    </div>
+  ),
+}));
+
+const { toast } = vi.hoisted(() => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast }));
+
+const SVG = '<svg viewBox="0 0 10 10"><rect/></svg>';
+
+function call(overrides: Partial<ToolCall> = {}): ToolCall {
+  return {
+    id: "d1",
+    name: "draw",
+    args: { title: "Flow", kind: "svg", height: 400, content: SVG },
+    status: "completed",
+    ...overrides,
+  };
+}
+
+function lastFrame(): VisualFrameProps {
+  return frames.at(-1)!;
+}
+
+function show(
+  calls: ToolCall[],
+  options: {
+    known?: ToolCall[];
+    conversationId?: string | null;
+    onReport?: (id: string, errors: string[]) => void;
+    onCompose?: (text: string) => void;
+  } = {},
+) {
+  const messages: ChatMessage[] = [
+    {
+      id: "m",
+      role: "assistant",
+      content: "",
+      timestamp: new Date(),
+      toolCalls: options.known ?? calls,
+    } as ChatMessage,
+  ];
+  return render(
+    <ConversationVisualsProvider
+      messages={messages}
+      conversationId={options.conversationId === undefined ? "c1" : options.conversationId}
+      onReport={options.onReport}
+      onCompose={options.onCompose}
+    >
+      <TurnVisuals calls={calls} />
+    </ConversationVisualsProvider>,
+  );
+}
+
+describe("TurnVisuals", () => {
+  beforeEach(() => {
+    frames.length = 0;
+    useVisualStreamStore.setState({ args: {} });
+    useVisualImagesStore.setState({ images: {} });
+    useSavedVisualsStore.setState({ saved: {} });
+    vi.clearAllMocks();
+  });
+
+  it("draws nothing for a turn that drew nothing", () => {
+    const { container } = show([]);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("shows a finished drawing, labelled as the agent's, with its kind", () => {
+    show([call()]);
+    expect(screen.getByText("Flow")).toBeInTheDocument();
+    expect(screen.getByText("SVG")).toBeInTheDocument();
+    expect(screen.getAllByText("Drawn by the agent").length).toBeGreaterThan(0);
+    expect(lastFrame()).toMatchObject({ done: true, aspect: 1, content: SVG, height: 400 });
+  });
+
+  it("shows nothing for a call that failed", () => {
+    const { container } = show([call({ status: "error" })]);
+    expect(container.querySelector("[data-tour]")).toBeNull();
+  });
+
+  it("holds a place while nothing has streamed yet", () => {
+    show([call({ args: {}, status: "pending" })]);
+    expect(screen.getByText("Drawing…")).toBeInTheDocument();
+  });
+
+  it("draws what has streamed, inert, while the call is written", () => {
+    useVisualStreamStore.setState({
+      args: { d1: '{"title": "Flow", "kind": "html", "height": 300, "content": "<p>par' },
+    });
+    show([call({ args: {}, status: "pending" })]);
+    expect(lastFrame()).toMatchObject({
+      done: false,
+      content: "<p>par",
+      kind: "html",
+      height: 300,
+    });
+    expect(screen.getByText("Drawing…")).toBeInTheDocument();
+  });
+
+  it("reads a provider that streams objects instead of text", () => {
+    useVisualStreamStore.setState({
+      args: { d1: { title: "Flow", kind: "mermaid", content: "graph TD" } },
+    });
+    show([call({ args: {}, status: "pending" })]);
+    expect(lastFrame()).toMatchObject({ kind: "mermaid", content: "graph TD", height: 480 });
+  });
+
+  it("shows nothing for a finished call that is not a drawing it can rebuild", () => {
+    const { container } = show([call({ args: { kind: "pdf", content: "x" } })]);
+    expect(container.querySelector("[data-tour]")).toBeNull();
+  });
+
+  it("shows the visual being revised until the revision is whole", () => {
+    useVisualStreamStore.setState({ args: { r1: '{"visual_id": "d1", "edits": [' } });
+    const revision = call({ id: "r1", name: "revise_visual", args: {}, status: "pending" });
+    show([revision], { known: [call(), revision] });
+    expect(screen.getByText("Revising…")).toBeInTheDocument();
+    expect(lastFrame()).toMatchObject({ done: false, content: SVG });
+  });
+
+  it("holds a place for a revision of something not loaded", () => {
+    useVisualStreamStore.setState({ args: { r1: '{"visual_id": "gone"' } });
+    show([call({ id: "r1", name: "revise_visual", args: {}, status: "pending" })]);
+    expect(screen.getByText("Drawing…")).toBeInTheDocument();
+  });
+
+  it("names the visual a finished revision changed", () => {
+    const revision = call({
+      id: "r1",
+      name: "revise_visual",
+      args: { visual_id: "d1", edits: [{ old: "<rect/>", new: "<circle/>" }] },
+    });
+    show([revision], { known: [call(), revision] });
+    expect(screen.getByText("Revision of Flow")).toBeInTheDocument();
+    expect(lastFrame().content).toContain("<circle/>");
+  });
+
+  it("says when a revision's visual is not in the loaded conversation", () => {
+    show([call({ id: "r1", name: "revise_visual", args: { visual_id: "gone", edits: [] } })]);
+    expect(
+      screen.getByText("The visual this revises is not in the loaded conversation."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a drawing a stopped turn left unfinished, without running it", () => {
+    show([call({ status: "unfinished" })]);
+    expect(screen.getByText("Unfinished")).toBeInTheDocument();
+    expect(lastFrame().done).toBe(false);
+  });
+
+  it("toggles to the code and back", () => {
+    show([call()]);
+    fireEvent.click(screen.getByRole("button", { name: "Show code" }));
+    expect(screen.getByText(SVG)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show visual" }));
+    expect(screen.getByTestId("frame")).toBeInTheDocument();
+  });
+
+  it("downloads and copies an SVG", async () => {
+    copySvgImage.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("no"));
+    show([call()]);
+    fireEvent.click(screen.getByRole("button", { name: "Download" }));
+    expect(downloadVisual).toHaveBeenCalledWith("Flow", "svg", SVG);
+    fireEvent.click(screen.getByRole("button", { name: "Copy as image" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Image copied"));
+    fireEvent.click(screen.getByRole("button", { name: "Copy as image" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it("opens full screen from the button, and closes it", () => {
+    show([call()]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Full screen" })[0]!);
+    expect(screen.getByTestId("full-frame")).toBeInTheDocument();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    expect(screen.queryByTestId("full-frame")).toBeNull();
+  });
+
+  it("opens full screen from a tap on the preview, as a phone does", () => {
+    show([call()]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Full screen" })[1]!);
+    expect(screen.getByTestId("full-frame")).toBeInTheDocument();
+  });
+
+  it("asks about the drawing and asks the agent to fix what it reported", () => {
+    const onCompose = vi.fn();
+    show([call()], { onCompose });
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask about this" }));
+    expect(onCompose).toHaveBeenLastCalledWith("About the visual “Flow” (d1): ");
+
+    act(() => lastFrame().onError?.("boom"));
+    act(() => lastFrame().onError?.("boom"));
+    expect(screen.getByText("The drawing reported an error")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fix it" }));
+    expect(onCompose).toHaveBeenLastCalledWith(
+      "The visual “Flow” (d1) reported these errors:\nboom\nPlease fix it.",
+    );
+  });
+
+  it("tells a running turn how the drawing rendered, once", () => {
+    const onReport = vi.fn();
+    show([call({ status: "running" })], { onReport });
+    act(() => lastFrame().onError?.("Blocked: x"));
+    act(() => lastFrame().onRendered?.());
+    act(() => lastFrame().onRendered?.());
+    expect(onReport).toHaveBeenCalledTimes(1);
+    expect(onReport).toHaveBeenCalledWith("d1", ["Blocked: x"]);
+  });
+
+  it("tells nobody about a drawing read back from the transcript", () => {
+    const onReport = vi.fn();
+    show([call()], { onReport });
+    act(() => lastFrame().onRendered?.());
+    expect(onReport).not.toHaveBeenCalled();
+  });
+
+  it("offers a reload when the drawing stops responding", () => {
+    show([call()]);
+    act(() => lastFrame().onError?.("x"));
+    act(() => lastFrame().onStall?.());
+    expect(
+      screen.getByText("The drawing stopped responding, so it was closed."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+    expect(screen.getByTestId("frame")).toBeInTheDocument();
+    expect(screen.queryByText("The drawing reported an error")).toBeNull();
+  });
+
+  it("saves to Apps, and offers to update the app a base was saved as", () => {
+    useSavedVisualsStore.setState({
+      saved: { d1: { artifactId: "a", name: "flow", version: 1, url: "/apps/a" } },
+    });
+    const revision = call({
+      id: "r1",
+      name: "revise_visual",
+      args: { visual_id: "d1", edits: [{ old: "<rect/>", new: "<g/>" }] },
+    });
+    show([call(), revision], { known: [call(), revision] });
+
+    expect(screen.getByRole("link", { name: "Saved · v1" })).toHaveAttribute("href", "/apps/a");
+    const buttons = screen.getAllByRole("button", { name: "Update the app" });
+    fireEvent.click(buttons[1]!);
+    expect(screen.getByTestId("save-dialog")).toHaveTextContent("r1:flow");
+  });
+
+  it("does not offer to save where there is no conversation", () => {
+    show([call()], { conversationId: null });
+    expect(screen.queryByRole("button", { name: "Save to Apps" })).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Full screen" })[0]!);
+  });
+
+  it("opens the save dialog for a new app", () => {
+    show([call()]);
+    fireEvent.click(screen.getByRole("button", { name: "Save to Apps" }));
+    expect(screen.getByTestId("save-dialog")).toHaveTextContent("d1:new");
+  });
+});
+
+describe("pictures", () => {
+  const withPicture = call({
+    args: {
+      title: "Poster",
+      kind: "html",
+      height: 400,
+      content: '<img src="{{image:logo}}">',
+      images: [{ name: "logo", source: "logo.png" }],
+    },
+  });
+
+  beforeEach(() => {
+    frames.length = 0;
+    useVisualImagesStore.setState({ images: {} });
+    vi.clearAllMocks();
+  });
+
+  it("draws with the pictures the socket already sent", () => {
+    useVisualImagesStore.setState({ images: { d1: { logo: "data:image/png;base64,AA" } } });
+    show([withPicture]);
+    expect(lastFrame()).toMatchObject({
+      done: true,
+      content: '<img src="data:image/png;base64,AA">',
+    });
+    expect(getVisualImage).not.toHaveBeenCalled();
+  });
+
+  it("asks for a picture of a drawing read back, and draws once it has it", async () => {
+    getVisualImage.mockResolvedValue("data:image/png;base64,BB");
+    show([withPicture]);
+    expect(lastFrame().done).toBe(false);
+    await waitFor(() => expect(lastFrame().done).toBe(true));
+    expect(getVisualImage).toHaveBeenCalledWith("c1", "d1", "logo");
+    expect(lastFrame().content).toBe('<img src="data:image/png;base64,BB">');
+  });
+
+  it("draws without a picture it cannot have", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    getVisualImage.mockRejectedValue(new Error("404"));
+    show([withPicture]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+    expect(getVisualImage).toHaveBeenCalledTimes(3);
+    expect(lastFrame().done).toBe(true);
+    expect(lastFrame().content).toBe('<img src="{{image:logo}}">');
+    vi.useRealTimers();
+  });
+
+  it("asks nobody for pictures where there is no conversation", () => {
+    show([withPicture], { conversationId: null });
+    expect(getVisualImage).not.toHaveBeenCalled();
+    expect(lastFrame().done).toBe(false);
+  });
+
+  it("stops asking once the panel is gone", async () => {
+    getVisualImage.mockImplementation(
+      () => new Promise((_resolve, reject) => setTimeout(() => reject(new Error("x")), 10)),
+    );
+    const { unmount } = show([withPicture]);
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(getVisualImage).toHaveBeenCalledTimes(1);
+  });
+});

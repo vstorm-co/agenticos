@@ -1,0 +1,499 @@
+"""Visuals in the service layer: rebuilding one, its pictures, and saving it as an app.
+
+The bytes an app is saved with are rebuilt from the transcript, never taken from
+the browser; a picture is read only for a member who may read its thread, and
+only when the visual's own call declared it; and the documents the frame and an
+app are built from are the same ones.
+"""
+
+from __future__ import annotations
+
+import uuid
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.permissions import AuthContext
+from app.repositories.conversation import ToolCallArgs
+from app.schemas.visual import VisualPublish
+from app.services import visual as visuals
+from app.services.artifact import PublishedArtifact
+from app.services.visual import MAX_CHAIN, VisualError, VisualService
+
+pytestmark = pytest.mark.anyio
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+SVG = '<svg viewBox="0 0 10 10"><rect width="10" height="10"/></svg>'
+
+
+def _ctx(*, user: bool = True) -> AuthContext:
+    return AuthContext(
+        user_id=uuid.uuid4() if user else None, organization_id=uuid.uuid4(), role="member"
+    )
+
+
+def _db_context(db: Any) -> Any:
+    @asynccontextmanager
+    async def session():
+        yield db
+
+    return session
+
+
+def _lookup(calls: dict[str, ToolCallArgs]):
+    async def lookup(call_id: str) -> ToolCallArgs | None:
+        return calls.get(call_id)
+
+    return lookup
+
+
+class TestImageType:
+    @pytest.mark.parametrize(
+        ("data", "kind"),
+        [
+            (PNG, "image/png"),
+            (b"\xff\xd8\xff\xe0rest", "image/jpeg"),
+            (b"GIF89a....", "image/gif"),
+            (b"RIFF\x00\x00\x00\x00WEBPVP8 ", "image/webp"),
+            (b"\x00\x00\x00\x1cftypavif", "image/avif"),
+            (b"\xef\xbb\xbf  <svg viewBox='0 0 1 1'/>", "image/svg+xml"),
+            (b'<?xml version="1.0"?>\n<svg/>', "image/svg+xml"),
+            (b'<?xml version="1.0"?>\n<html/>', None),
+            (b"<html><script>x</script></html>", None),
+        ],
+    )
+    def test_an_image_is_known_by_its_bytes(self, data: bytes, kind: str | None) -> None:
+        assert visuals.image_type(data) == kind
+
+
+class TestPictures:
+    def test_pictures_live_under_the_thread_s_media_prefix(self) -> None:
+        org, conversation = uuid.uuid4(), uuid.uuid4()
+        path = visuals.image_path(org, conversation, "call-1", "logo")
+        assert path == f"media/{org}/{conversation}/visuals/call-1/logo"
+
+    async def test_a_picture_is_saved_and_read_back_with_its_type(self) -> None:
+        storage = MagicMock(
+            save_at=AsyncMock(),
+            exists=AsyncMock(return_value=True),
+            load=AsyncMock(return_value=PNG),
+        )
+        org, conversation = uuid.uuid4(), uuid.uuid4()
+        with patch("app.services.visual.get_file_storage", return_value=storage):
+            await visuals.save_image(org, conversation, "c", "logo", PNG)
+            kept = await visuals.load_image(org, conversation, "c", "logo")
+        assert storage.save_at.await_args.args == (
+            visuals.image_path(org, conversation, "c", "logo"),
+            PNG,
+        )
+        assert kept == (PNG, "image/png")
+
+    @pytest.mark.parametrize(("exists", "data"), [(False, PNG), (True, b"<html>")])
+    async def test_a_picture_that_is_gone_or_not_a_picture_is_none(
+        self, exists: bool, data: bytes
+    ) -> None:
+        storage = MagicMock(
+            exists=AsyncMock(return_value=exists), load=AsyncMock(return_value=data)
+        )
+        with patch("app.services.visual.get_file_storage", return_value=storage):
+            assert await visuals.load_image(uuid.uuid4(), uuid.uuid4(), "c", "logo") is None
+
+    def test_image_names_reads_only_well_formed_entries(self) -> None:
+        args = {"images": [{"name": "a", "source": "a.png"}, {"source": "x"}, "b", {"name": 3}]}
+        assert visuals.image_names(args) == ["a"]
+        assert visuals.image_names({"images": "nope"}) == []
+
+    def test_a_known_picture_is_inlined_and_an_unknown_one_left_alone(self) -> None:
+        content = '<img src="{{image:a}}"><img src="{{image:b}}">'
+        assert visuals.inline_images(content, {"a": "data:x"}) == (
+            '<img src="data:x"><img src="{{image:b}}">'
+        )
+
+    def test_a_data_uri_carries_the_type_and_the_bytes(self) -> None:
+        assert visuals.data_uri(b"hi", "image/png") == "data:image/png;base64,aGk="
+
+
+class TestRebuild:
+    async def test_revisions_are_applied_in_order_with_their_titles_and_pictures(self) -> None:
+        calls = {
+            "r2": ToolCallArgs(
+                "r2",
+                "revise_visual",
+                {
+                    "visual_id": "r1",
+                    "edits": [{"old": "two", "new": "three"}],
+                    "images": [{"name": "logo", "source": "new.png"}],
+                },
+                uuid.uuid4(),
+            ),
+            "r1": ToolCallArgs(
+                "r1",
+                "revise_visual",
+                {"visual_id": "d", "title": "Renamed", "edits": [{"old": "one", "new": "two"}]},
+            ),
+            "d": ToolCallArgs(
+                "d",
+                "draw",
+                {
+                    "title": "Flow",
+                    "kind": "html",
+                    "content": "<p>one</p>",
+                    "images": [
+                        {"name": "logo", "source": "old.png"},
+                        {"name": "bg", "source": "b"},
+                    ],
+                },
+            ),
+        }
+        visual = await visuals.rebuild("r2", _lookup(calls))
+
+        assert visual.id == "r2"
+        assert visual.title == "Renamed"
+        assert visual.content == "<p>three</p>"
+        assert visual.agent_id == calls["r2"].agent_id
+        assert visual.images == {"logo": "r2", "bg": "d"}
+
+    @pytest.mark.parametrize(
+        ("calls", "said"),
+        [
+            ({}, "There is no visual `x`"),
+            (
+                {"x": ToolCallArgs("x", "revise_visual", {"visual_id": "gone", "edits": []})},
+                "revises `gone`, which is gone",
+            ),
+            ({"x": ToolCallArgs("x", "draw", {"kind": "pdf", "content": "c"})}, "has no kind"),
+            (
+                {
+                    "x": ToolCallArgs(
+                        "x",
+                        "revise_visual",
+                        {"visual_id": "d", "edits": [{"old": "zz", "new": "y"}]},
+                    ),
+                    "d": ToolCallArgs("d", "draw", {"kind": "svg", "content": SVG}),
+                },
+                "no longer applies",
+            ),
+        ],
+    )
+    async def test_what_cannot_be_rebuilt_says_why(
+        self, calls: dict[str, ToolCallArgs], said: str
+    ) -> None:
+        with pytest.raises(VisualError, match=said):
+            await visuals.rebuild("x", _lookup(calls))
+
+    async def test_a_chain_that_does_not_end_is_cut_off(self) -> None:
+        """The ids are the model's, so a revision that names itself must not loop."""
+        loop = {"x": ToolCallArgs("x", "revise_visual", {"visual_id": "x", "edits": []})}
+        with pytest.raises(VisualError, match="too many revisions"):
+            await visuals.rebuild("x", _lookup(loop))
+        assert MAX_CHAIN == 50
+
+    async def test_a_malformed_edit_list_changes_nothing(self) -> None:
+        calls = {
+            "x": ToolCallArgs(
+                "x", "revise_visual", {"visual_id": "d", "edits": [{"old": 1}, "bad", None]}
+            ),
+            "d": ToolCallArgs("d", "draw", {"kind": "svg", "content": SVG}),
+        }
+        assert (await visuals.rebuild("x", _lookup(calls))).content == SVG
+        calls["x"] = ToolCallArgs("x", "revise_visual", {"visual_id": "d", "edits": "nope"})
+        assert (await visuals.rebuild("x", _lookup(calls))).content == SVG
+
+    def test_a_revision_with_no_base_named_is_a_drawing(self) -> None:
+        assert visuals.revised_id(ToolCallArgs("x", "revise_visual", {"visual_id": ""})) is None
+        assert visuals.revised_id(ToolCallArgs("x", "draw", {"visual_id": "y"})) is None
+
+
+class TestReads:
+    async def test_the_run_s_conversation_is_read_off_its_row(self) -> None:
+        conversation = uuid.uuid4()
+        with (
+            patch("app.services.visual.get_db_context", _db_context(MagicMock())),
+            patch(
+                "app.services.visual.agent_run_repo.get_run",
+                new=AsyncMock(side_effect=[SimpleNamespace(conversation_id=conversation), None]),
+            ),
+        ):
+            assert (
+                await visuals.conversation_of_run(run_id=uuid.uuid4(), organization_id=uuid.uuid4())
+                == conversation
+            )
+            assert (
+                await visuals.conversation_of_run(run_id=uuid.uuid4(), organization_id=uuid.uuid4())
+                is None
+            )
+
+    async def test_a_stored_call_is_looked_up_within_its_conversation(self) -> None:
+        conversation = uuid.uuid4()
+        call = ToolCallArgs("c", "draw", {})
+        with (
+            patch("app.services.visual.get_db_context", _db_context(MagicMock())),
+            patch(
+                "app.services.visual.conversation_repo.tool_call_in_conversation",
+                new=AsyncMock(return_value=call),
+            ) as lookup,
+        ):
+            assert await visuals.stored_call(conversation_id=conversation, tool_call_id="c") == call
+        assert lookup.await_args.kwargs["conversation_id"] == conversation
+        assert lookup.await_args.kwargs["names"] == ("draw", "revise_visual")
+
+    async def test_an_attachment_is_read_by_its_name_in_the_thread(self) -> None:
+        storage = MagicMock(load=AsyncMock(return_value=PNG))
+        with (
+            patch("app.services.visual.get_db_context", _db_context(MagicMock())),
+            patch(
+                "app.services.visual.chat_file_repo.latest_named_in_conversation",
+                new=AsyncMock(side_effect=[SimpleNamespace(storage_path="p"), None]),
+            ),
+            patch("app.services.visual.get_file_storage", return_value=storage),
+        ):
+            assert await visuals.attachment_bytes(uuid.uuid4(), "a.png") == PNG
+            assert await visuals.attachment_bytes(uuid.uuid4(), "b.png") is None
+        storage.load.assert_awaited_once_with("p")
+
+    async def test_earlier_visuals_carry_their_base_s_title_and_kind(self) -> None:
+        calls = [
+            ToolCallArgs("d", "draw", {"title": "Flow", "kind": "svg", "content": SVG}),
+            ToolCallArgs("r", "revise_visual", {"visual_id": "d", "edits": []}),
+            ToolCallArgs("x", "draw", {}),
+        ]
+        with (
+            patch("app.services.visual.get_db_context", _db_context(MagicMock())),
+            patch(
+                "app.services.visual.conversation_repo.tool_calls_named",
+                new=AsyncMock(return_value=calls),
+            ),
+        ):
+            listed = await visuals.earlier_visuals(conversation_id=uuid.uuid4(), limit=20)
+
+        assert [(item.id, item.title, item.kind, item.revision_of) for item in listed] == [
+            ("d", "Flow", "svg", None),
+            ("r", "Flow", "svg", "d"),
+            ("x", "Untitled", "visual", None),
+        ]
+        assert listed[0].characters == len(SVG)
+
+
+class TestPublish:
+    def _published(self, **overrides: Any) -> PublishedArtifact:
+        values: dict[str, Any] = {
+            "artifact_id": uuid.uuid4(),
+            "organization_id": uuid.uuid4(),
+            "version_id": uuid.uuid4(),
+            "version_number": 2,
+            "name": "flow",
+            "title": "Flow",
+            "created": False,
+            "unchanged": False,
+            "visibility": "private",
+            "public": False,
+        }
+        values.update(overrides)
+        return PublishedArtifact(**values)
+
+    def _patches(self, calls: dict[str, ToolCallArgs]) -> Any:
+        async def lookup(_db: Any, *, conversation_id: Any, tool_call_id: str, names: Any):
+            return calls.get(tool_call_id)
+
+        return (
+            patch("app.services.visual.ConversationService.get_conversation", new=AsyncMock()),
+            patch(
+                "app.services.visual.conversation_repo.tool_call_in_conversation",
+                new=AsyncMock(side_effect=lookup),
+            ),
+        )
+
+    async def test_a_visual_is_published_from_the_transcript_with_its_pictures_inlined(
+        self,
+    ) -> None:
+        agent = uuid.uuid4()
+        calls = {
+            "d": ToolCallArgs(
+                "d",
+                "draw",
+                {
+                    "title": "Flow",
+                    "kind": "html",
+                    "content": '<img src="{{image:logo}}"><img src="{{image:gone}}">',
+                    "images": [{"name": "logo", "source": "l"}, {"name": "gone", "source": "g"}],
+                },
+                agent,
+            )
+        }
+        ctx = _ctx()
+        published = self._published()
+        conversation_read, repo = self._patches(calls)
+        with (
+            conversation_read as read,
+            repo,
+            patch(
+                "app.services.visual.load_image",
+                new=AsyncMock(side_effect=[(PNG, "image/png"), None]),
+            ),
+            patch(
+                "app.services.visual.artifacts.publish_with", new=AsyncMock(return_value=published)
+            ) as publish,
+        ):
+            result = await VisualService(MagicMock()).publish(
+                ctx, uuid.uuid4(), "d", VisualPublish(name="flow")
+            )
+
+        assert read.await_args.kwargs["user_id"] == ctx.user_id
+        kwargs = publish.await_args.kwargs
+        assert kwargs["agent_id"] == agent
+        assert kwargs["owner_user_id"] == ctx.user_id
+        assert kwargs["run_id"] is None
+        assert kwargs["title"] == "Flow"
+        assert b"data:image/png;base64," in kwargs["data"]
+        assert b"{{image:gone}}" in kwargs["data"]
+        assert result.version == 2
+        assert result.url == f"/apps/{published.artifact_id}?org={published.organization_id}"
+
+    async def test_a_title_given_wins_over_the_visual_s(self) -> None:
+        calls = {"d": ToolCallArgs("d", "draw", {"kind": "svg", "content": SVG}, uuid.uuid4())}
+        conversation_read, repo = self._patches(calls)
+        with (
+            conversation_read,
+            repo,
+            patch(
+                "app.services.visual.artifacts.publish_with",
+                new=AsyncMock(return_value=self._published()),
+            ) as publish,
+        ):
+            await VisualService(MagicMock()).publish(
+                _ctx(), uuid.uuid4(), "d", VisualPublish(name="flow", title="  Our flow ")
+            )
+        assert publish.await_args.kwargs["title"] == "Our flow"
+        assert b"<title>Our flow</title>" in publish.await_args.kwargs["data"]
+
+    async def test_a_key_with_no_person_is_refused(self) -> None:
+        with pytest.raises(AuthorizationError):
+            await VisualService(MagicMock()).publish(
+                _ctx(user=False), uuid.uuid4(), "d", VisualPublish(name="flow")
+            )
+
+    async def test_no_such_visual_is_not_found(self) -> None:
+        conversation_read, repo = self._patches({})
+        with conversation_read, repo, pytest.raises(NotFoundError):
+            await VisualService(MagicMock()).publish(
+                _ctx(), uuid.uuid4(), "d", VisualPublish(name="flow")
+            )
+
+    async def test_a_visual_that_cannot_be_rebuilt_is_a_bad_request(self) -> None:
+        calls = {"d": ToolCallArgs("d", "draw", {"kind": "pdf"}, uuid.uuid4())}
+        conversation_read, repo = self._patches(calls)
+        with conversation_read, repo, pytest.raises(BadRequestError, match="no kind"):
+            await VisualService(MagicMock()).publish(
+                _ctx(), uuid.uuid4(), "d", VisualPublish(name="flow")
+            )
+
+    async def test_a_visual_with_no_agent_is_a_bad_request(self) -> None:
+        calls = {"d": ToolCallArgs("d", "draw", {"kind": "svg", "content": SVG}, None)}
+        conversation_read, repo = self._patches(calls)
+        with conversation_read, repo, pytest.raises(BadRequestError, match="no agent"):
+            await VisualService(MagicMock()).publish(
+                _ctx(), uuid.uuid4(), "d", VisualPublish(name="flow")
+            )
+
+    async def test_a_bad_name_is_refused_on_the_field(self) -> None:
+        calls = {"d": ToolCallArgs("d", "draw", {"kind": "svg", "content": SVG}, uuid.uuid4())}
+        conversation_read, repo = self._patches(calls)
+        with conversation_read, repo, pytest.raises(BadRequestError) as refused:
+            await VisualService(MagicMock()).publish(
+                _ctx(), uuid.uuid4(), "d", VisualPublish(name="Not A Name")
+            )
+        assert refused.value.details["fields"][0]["field"] == "name"
+
+    async def test_a_visual_too_large_for_an_app_is_refused(self, monkeypatch) -> None:
+        monkeypatch.setattr("app.services.artifact.settings.ARTIFACT_MAX_BYTES", 10)
+        calls = {"d": ToolCallArgs("d", "draw", {"kind": "svg", "content": SVG}, uuid.uuid4())}
+        conversation_read, repo = self._patches(calls)
+        with conversation_read, repo, pytest.raises(BadRequestError, match="limit"):
+            await VisualService(MagicMock()).publish(
+                _ctx(), uuid.uuid4(), "d", VisualPublish(name="flow")
+            )
+
+
+class TestImageRead:
+    def _call(self, *names: str) -> ToolCallArgs:
+        return ToolCallArgs("d", "draw", {"images": [{"name": n, "source": "s"} for n in names]})
+
+    @pytest.mark.security
+    async def test_only_a_picture_its_visual_declared_is_read(self) -> None:
+        """The name is the caller's, so it never reaches storage unless the
+        visual's own call named it - no path of the caller's choosing is read."""
+        with (
+            patch("app.services.visual.ConversationService.get_conversation", new=AsyncMock()),
+            patch(
+                "app.services.visual.conversation_repo.tool_call_in_conversation",
+                new=AsyncMock(return_value=self._call("logo")),
+            ),
+            patch("app.services.visual.load_image", new=AsyncMock()) as load,
+            pytest.raises(NotFoundError),
+        ):
+            await VisualService(MagicMock()).image(_ctx(), uuid.uuid4(), "d", "../../secret")
+        load.assert_not_awaited()
+
+    async def test_a_declared_picture_is_returned(self) -> None:
+        with (
+            patch("app.services.visual.ConversationService.get_conversation", new=AsyncMock()),
+            patch(
+                "app.services.visual.conversation_repo.tool_call_in_conversation",
+                new=AsyncMock(return_value=self._call("logo")),
+            ),
+            patch("app.services.visual.load_image", new=AsyncMock(return_value=(PNG, "image/png"))),
+        ):
+            assert await VisualService(MagicMock()).image(_ctx(), uuid.uuid4(), "d", "logo") == (
+                PNG,
+                "image/png",
+            )
+
+    @pytest.mark.parametrize(("call", "kept"), [(None, None), ("logo", None)])
+    async def test_a_missing_visual_or_picture_is_not_found(
+        self, call: str | None, kept: Any
+    ) -> None:
+        with (
+            patch("app.services.visual.ConversationService.get_conversation", new=AsyncMock()),
+            patch(
+                "app.services.visual.conversation_repo.tool_call_in_conversation",
+                new=AsyncMock(return_value=None if call is None else self._call(call)),
+            ),
+            patch("app.services.visual.load_image", new=AsyncMock(return_value=kept)),
+            pytest.raises(NotFoundError),
+        ):
+            await VisualService(MagicMock()).image(_ctx(), uuid.uuid4(), "d", "logo")
+
+    async def test_a_key_with_no_person_reads_nothing(self) -> None:
+        with pytest.raises(NotFoundError):
+            await VisualService(MagicMock()).image(_ctx(user=False), uuid.uuid4(), "d", "logo")
+
+
+class TestDocuments:
+    def test_an_html_visual_is_its_own_document(self) -> None:
+        assert visuals.visual_document("html", "<p>x</p>", title="T") == "<p>x</p>"
+
+    def test_an_svg_visual_is_wrapped_with_its_title_escaped(self) -> None:
+        page = visuals.visual_document("svg", SVG, title="A & B")
+        assert "<title>A &amp; B</title>" in page
+        assert SVG in page
+
+    def test_mermaid_source_is_escaped_into_the_page(self) -> None:
+        page = visuals.visual_document("mermaid", "A --> B<br>", title="T")
+        assert "A --&gt; B&lt;br&gt;" in page
+        assert "lib/mermaid-12.1.0.min.js" in page
+
+    async def test_the_frame_carries_the_templates_and_is_read_once(self, monkeypatch) -> None:
+        monkeypatch.setattr(visuals, "_frame", None)
+        first = await visuals.frame_document()
+        second = await visuals.frame_document()
+        assert first is second
+        text = first.decode()
+        assert "__agenticosVisualDocument" in text
+        # A template's own `</script>` would end the script that carries it.
+        composer = text[text.index("var T = ") :]
+        assert "</script>" not in composer.split("};\n")[0]
+        assert "lib/idiomorph-0.8.0.min.js" in text

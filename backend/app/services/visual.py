@@ -32,6 +32,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.media import prefix_for
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
@@ -191,8 +192,6 @@ def image_path(organization_id: UUID, conversation_id: UUID, visual_id: str, nam
     So it goes when the conversation does, with the rest of the thread's media,
     and an organization's teardown takes it too.
     """
-    from app.agents.capabilities.media import prefix_for
-
     return f"{prefix_for(organization_id, conversation_id)}/visuals/{visual_id}/{name}"
 
 
