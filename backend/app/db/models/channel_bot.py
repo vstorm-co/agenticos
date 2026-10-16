@@ -55,6 +55,12 @@ class ChannelBot(Base, TimestampMixin):
     # registered before the credentials moved off the environment.
     slack_signing_secret_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     slack_app_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # A Teams bot's Azure Bot registration (#1985): the Entra app it signs in as
+    # and the tenant it is registered in. Identifiers, not credentials - the
+    # client secret is `token_encrypted` - and the audience every inbound Bot
+    # Connector token is checked against. NULL on other platforms.
+    teams_app_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    teams_tenant_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # The token Mattermost gives a slash command when it is created, which every
     # `/agent` request carries (#2084). Sealed like the rest; Mattermost bots only.
     command_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)

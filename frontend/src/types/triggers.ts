@@ -42,6 +42,8 @@ export interface Trigger {
   can_manage: boolean;
   /** Which named environment answers here; null = the default. */
   environment_id: string | null;
+  /** The Teams channel or group chat each fire's answer is also posted to (#1985). */
+  teams_conversation_id?: string | null;
   /**
    * Whether a fire acts as the person who made it - their memory and their own
    * MCP connections (#2027). Only they may turn it on.
@@ -103,6 +105,7 @@ export interface TriggerCreate {
   name?: string | null;
   trigger_type: TriggerType;
   environment_id?: string | null;
+  teams_conversation_id?: string | null;
   runs_as_creator?: boolean;
   schedule_kind?: ScheduleKind;
   interval_seconds?: number | null;
@@ -154,6 +157,7 @@ export interface TriggerUpdate {
   cron_expression?: string | null;
   is_active?: boolean;
   environment_id?: string | null;
+  teams_conversation_id?: string | null;
   runs_as_creator?: boolean;
   event_config?: Record<string, unknown>;
 }

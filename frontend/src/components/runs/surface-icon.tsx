@@ -25,6 +25,7 @@ const MARKS = {
   slack: brandMark("slack"),
   telegram: brandMark("telegram"),
   mattermost: brandMark("mattermost"),
+  teams: brandMark("microsoftteams"),
   // Nobody sat at a keyboard for these two: a clock for the run a schedule was
   // due to make, a bolt for the one an event fired. They are in this table and
   // not yet in `SURFACES` on the filter bar, because the filter's vocabulary is
@@ -42,6 +43,7 @@ const LABEL_KEYS = {
   slack: "surfaceSlack",
   telegram: "surfaceTelegram",
   mattermost: "surfaceMattermost",
+  teams: "surfaceTeams",
   schedule: "surfaceSchedule",
   trigger: "surfaceTrigger",
 } as const;

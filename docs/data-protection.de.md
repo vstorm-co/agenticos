@@ -1,5 +1,5 @@
 ---
-source_sha: "4e9bf91114a6"
+source_sha: "bf8685496559"
 ---
 
 # Datenschutz { #data-protection }
@@ -92,7 +92,7 @@ des Elternteils.
 | `app_admin_audit_logs` | Wer Zugriff geändert oder Geld ausgegeben hat — die Spur der Organisation und die des Deployment-Administrators teilen sich eine Tabelle | Akteur, Impersonator, IP-Adresse, die Aktion und eine `details`-Map. Die Map benennt meist Felder, aber manche Einträge halten Werte: die E-Mail des impersonierten Kontos, die E-Mail eines vom Administrator gelöschten Kontos, eine Veröffentlichungsnotiz | Rechenschaft. Siehe [Governance](governance.md#audit) |
 | `notifications`, `notification_deliveries` | Jede an jemanden adressierte Benachrichtigung und ihre E-Mail-Zustellung. Eine Zeile wird auch dann geschrieben, wenn der Empfänger für dieses Ereignis jeden Kanal abgeschaltet hat - sie ist es, die verhindert, dass dasselbe Vorkommnis zweimal geschrieben wird - und wird dann einfach nie gezeigt oder gesendet; nur die Zustellungszeile ist bedingt | Der Empfänger, eine vorgerenderte Zusammenfassung (nie ein roher Kommentar oder Secret-Wert) und die typisierten Variablen, aus denen eine E-Mail neu rendert; eine Zustellungszeile fügt ihren Kanal, Status, die Versuche und einen bereinigten Fehlgrund hinzu — nie den Fehlertext des Providers | Warnungen, die eine Person einmal liest, unbeaufsichtigt. Siehe [Governance](governance.md#alerts) |
 | `notification_preferences`, `announcements` | Kanal-Umschalter je Ereignis, und die eigenen Ankündigungen eines App-Administrators | Eine Benutzer-Id je Umschalter; der Absender einer Ankündigung, ihr Text sowie die Organisationen und die Rolle, an die sie adressiert war — nie die aufgelöste Empfängerliste, die aus `notifications` nur rekonstruierbar ist, solange diese Zeile nicht durch [den Retention-Sweep für Benachrichtigungen](governance.md#alerts) verfällt — danach hält der Audit-Eintrag dahinter nur noch eine Zahl, nie die Empfänger | Opt-out, und der eigene Nachweis des Verfassers |
-| `embed_visitors`, `channel_identities`, `channel_sessions` | Fremde auf einer gehosteten Seite und Menschen auf Slack, Telegram oder Mattermost | Ein zufälliger Besucherschlüssel; eine Plattform-Benutzer-Id, ein Benutzername und ein Anzeigename; die Chat-Id | Den richtigen Thread fortsetzen |
+| `embed_visitors`, `channel_identities`, `channel_sessions` | Fremde auf einer gehosteten Seite und Menschen auf Slack, Teams, Telegram oder Mattermost | Ein zufälliger Besucherschlüssel; eine Plattform-Benutzer-Id, ein Benutzername und ein Anzeigename; die Chat-Id | Den richtigen Thread fortsetzen |
 | `message_ratings` | Daumen und Kommentare zu Antworten | Der Bewertende und sein Kommentar | Qualitätsprüfung |
 | `ml_service_calls` | Jeder Aufruf der [ML-Dienste](ml-services.md) | Die Organisation, wer gefragt hat, welcher Dienst, Byte- und Einheitenzahlen, die Dauer und wie es endete - **nichts von dem, was eingereicht wurde, und nichts von dem, was zurückkam** | Nutzungsberichte und der Blick eines Betreibers auf eine Integration, die scheitert |
 | `agent_workspaces`, `sandbox_operations` | Dateien, an denen ein Agent gearbeitet hat, und das Log dessen, was er ausgeführt hat | Beim `state`-Backend die Dateien selbst, als JSON; bei einem Container die Session-Id und jedes Kommando, Ziel und Ergebnis-Resümee | Die Sandbox. Siehe [Die Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
@@ -136,7 +136,7 @@ benennt. Dies ist die vollständige Liste der Ziele, mit der Konfiguration, die
 | mem0 | Die für eine Person oder einen Chat geschriebenen Memories | Die `base_url` der Capability `memory_mem0`, die in `MEM0_ALLOWED_HOSTS` stehen muss | Die des mem0-Hosts, den Sie zulassen |
 | Logfire | Spans für jede Anfrage und jeden Run | `LOGFIRE_TOKEN` deploymentweit; ein `observability`-Token auf einem Spec oder `logfire_token_secret_id` auf einem Environment lenkt diese Runs in ein anderes Projekt. `LOGFIRE_BASE_URL` wählt das US- oder EU-Deployment. Überall ungesetzt wird nichts gesendet | Die von Pydantic, US oder EU |
 | Speech-to-Text, Bildgenerierung | Die Sprachnachricht; der Prompt | Ein Profil für `groq`, `mistral` oder `openai`; ein Profil für `google` oder `openai` | Die des Providers |
-| Slack, Telegram, Mattermost | Die Antworten des Agents | Eine `channel_bots`-Zeile mit ihrem Token im Vault | Der Messaging-Anbieter hält den Chat ohnehin schon |
+| Slack, Teams, Telegram, Mattermost | Die Antworten des Agents | Eine `channel_bots`-Zeile mit ihrem Token im Vault | Der Messaging-Anbieter hält den Chat ohnehin schon |
 | Google-Anmeldung | Nichts ausgehend; Google liefert E-Mail, Name, Bild und Konto-Id zurück | `GOOGLE_CLIENT_ID` | Die von Google |
 | Ihr SMTP-Relay | Die oben genannte Post | `SMTP_HOST`, `SMTP_TLS` | Ihre |
 

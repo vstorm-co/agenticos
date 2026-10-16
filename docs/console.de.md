@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "d13f7808346d"
 ---
 
 # Die Konsole { #the-console }
@@ -360,7 +360,7 @@ verlassen haben.
 | **Documents** | Alle Dateien, die Agents für Sie aufbewahren - Angehängtes und Geschriebenes | [Die Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
 | **Sandboxes** | Wo Agents Code ausführen: Hosts, laufende Sessions, Policy | [Die Sandbox](sandbox.md) |
 | **MCP servers** | Verbindungen zu externen Werkzeugen, persönlich und organisationsweit | [MCP](mcp.md) |
-| **Channels** | Slack-, Telegram- und Mattermost-Bots, Widgets, gehostete Seiten | [Oberflächen](channels.md) |
+| **Channels** | Slack-, Teams-, Telegram- und Mattermost-Bots, Widgets, gehostete Seiten | [Oberflächen](channels.md) |
 | **Vault** | Zugangsdaten, pro Organisation versiegelt | [Secrets](secrets.md) |
 | **Organizations** | Mitglieder, Rollen, Einladungen | [Berechtigungen](permissions.md) |
 | **Settings** | Provider, Ingestion-Vorgaben, Benachrichtigungen, Ihr eigenes Profil | [Konfiguration](configuration.md) |

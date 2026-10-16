@@ -1,9 +1,9 @@
 ---
 name: channel-bot
-description: Work with messaging-channel bots — Telegram, Slack or Mattermost. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
+description: Work with messaging-channel bots — Telegram, Slack, Mattermost or Microsoft Teams. Register a bot, route inbound messages through an agent, choose webhook vs polling, handle an @slug mention, or add a new channel adapter. Use when wiring chat into a messaging platform or debugging bot delivery, identity linking or "the bot answered as itself".
 ---
 
-# Channels — Telegram, Slack, Mattermost
+# Channels — Telegram, Slack, Mattermost, Teams
 
 **Read `docs/channels.md`.** Code: `app/services/channels/` — a thick service with
 per-platform adapters plus a router that funnels inbound messages into the **same**
@@ -15,6 +15,7 @@ agent pipeline as the web chat.
 | `telegram.py` | Telegram (aiogram v3) |
 | `slack.py` | Slack (Events API + Socket Mode) |
 | `mattermost.py` | Mattermost |
+| `teams.py`, `teams_auth.py` | Microsoft Teams over the Bot Connector's HTTP protocol (#1985): JWT-verified activities, Adaptive Cards, conversation references in `teams_conversations` |
 | `router.py` | Inbound platform message → conversation/session → agent run → reply |
 | `mentions.py` | `@slug` resolution, and the identity rules below |
 
@@ -71,7 +72,10 @@ makes the *other* modes refuse in a channel too (#639).
 - **Polling (dev)** — the adapter long-polls; no public URL needed.
 - **Webhook (prod)** — the platform POSTs to a route under `api/routes/v1/`.
   **Verify the signature or secret before processing anything** (HMAC for Telegram,
-  signing secret for Slack).
+  signing secret for Slack, the Bot Connector JWT for Teams - `TeamsAuth.verify`,
+  which needs the network and so is not `verify_webhook_signature`).
+- **Teams is push only** - there is nothing to poll, and a reply needs the
+  conversation's `serviceUrl`, which the route records on every activity.
 
 ## Adding an adapter
 

@@ -36,7 +36,7 @@ class TestEveryMemberIsAssignedBySomething:
     design documents a paragraph each explaining the omission.
     """
 
-    def test_the_vocabulary_is_exactly_the_seven_surfaces_that_exist(self):
+    def test_the_vocabulary_is_exactly_the_eight_surfaces_that_exist(self):
         assert {surface.value for surface in RunSurface} == {
             "web",
             "embed",
@@ -44,6 +44,7 @@ class TestEveryMemberIsAssignedBySomething:
             "slack",
             "telegram",
             "mattermost",
+            "teams",
             "schedule",
         }
 
@@ -60,7 +61,7 @@ class TestEveryMemberIsAssignedBySomething:
         """The map's `.get(platform, API)` default is what silently recorded a
         Mattermost mention as an HTTP API call. A platform missing here does not
         error; it lands in the wrong bucket."""
-        assert set(_SURFACES) == {"slack", "telegram", "mattermost"}
+        assert set(_SURFACES) == {"slack", "telegram", "mattermost", "teams"}
         assert _SURFACES["mattermost"] is RunSurface.MATTERMOST
 
 

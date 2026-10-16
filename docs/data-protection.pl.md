@@ -1,5 +1,5 @@
 ---
-source_sha: "4e9bf91114a6"
+source_sha: "bf8685496559"
 ---
 
 # Ochrona danych { #data-protection }
@@ -87,7 +87,7 @@ przez sprawdzenie rodzica.
 | `app_admin_audit_logs` | Kto zmienił dostęp albo wydał pieniądze — ślad organizacji i ślad administratora wdrożenia dzielą jedną tabelę | Aktor, podszywający się, adres IP, akcja i mapa `details`. Mapa przeważnie nazywa pola, ale niektóre wpisy trzymają wartości: e-mail konta, pod które się podszyto, e-mail konta usuniętego przez administratora, notatka publikacji | Rozliczalność. Zobacz [Nadzór](governance.md#audit) |
 | `notifications`, `notification_deliveries` | Każde powiadomienie zaadresowane do kogoś oraz jego dostarczenie mailem. Wiersz powstaje nawet wtedy, gdy odbiorca wyłączył dla tego zdarzenia wszystkie kanały — to on nie pozwala zapisać tego samego wystąpienia dwa razy — i po prostu nigdy nie jest pokazywany ani wysyłany; warunkowy jest tylko wiersz dostawy | Odbiorca, wyrenderowane wcześniej podsumowanie (nigdy surowy komentarz albo wartość sekretu) oraz otypowane zmienne, z których e-mail się odtwarza; wiersz dostawy dodaje swój kanał, status, liczbę prób i oczyszczony powód niepowodzenia — nigdy tekst błędu od providera | Alerty, które ktoś czyta raz, bez asysty. Zobacz [Nadzór](governance.md#alerts) |
 | `notification_preferences`, `announcements` | Przełączniki kanału per zdarzenie oraz własne ogłoszenia administratora aplikacji | Id użytkownika na przełącznik; nadawca ogłoszenia, jego treść oraz organizacje i rola, do których było zaadresowane — nigdy rozwiązana lista odbiorców, którą można odtworzyć z `notifications` tylko dopóki ten wiersz nie wypadnie w ramach [zamiatania retencji powiadomień](governance.md#alerts) — po czym wpis audytowy zachowuje tylko liczbę, nigdy odbiorców | Rezygnacja z powiadomień i własny zapis autora |
-| `embed_visitors`, `channel_identities`, `channel_sessions` | Obcy na hostowanej stronie oraz ludzie na Slacku, Telegramie albo Mattermoście | Losowy klucz odwiedzającego; id użytkownika platformy, nazwa użytkownika i nazwa wyświetlana; id czatu | Wznowienie właściwego wątku |
+| `embed_visitors`, `channel_identities`, `channel_sessions` | Obcy na hostowanej stronie oraz ludzie na Slacku, Teams, Telegramie albo Mattermoście | Losowy klucz odwiedzającego; id użytkownika platformy, nazwa użytkownika i nazwa wyświetlana; id czatu | Wznowienie właściwego wątku |
 | `message_ratings` | Kciuki i komentarze pod odpowiedziami | Oceniający i jego komentarz | Przegląd jakości |
 | `ml_service_calls` | Każde wywołanie [usług ML](ml-services.md) | Organizacja, kto poprosił, która usługa, liczby bajtów i jednostek, czas trwania i sposób zakończenia - **nic z tego, co wysłano, i nic z tego, co wróciło** | Raportowanie zużycia i wgląd operatora w integrację, która się psuje |
 | `agent_workspaces`, `sandbox_operations` | Pliki, na których pracował agent, i log tego, co uruchomił | Dla backendu `state` same pliki, jako JSON; dla kontenera id sesji oraz każda komenda, cel i podsumowanie wyniku | Sandbox. Zobacz [Sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
@@ -130,7 +130,7 @@ lista celów, wraz z konfiguracją, która o każdym decyduje.
 | mem0 | Wspomnienia zapisane dla osoby albo czatu | `base_url` capability `memory_mem0`, który musi być w `MEM0_ALLOWED_HOSTS` | Hosta mem0, na który pozwalasz |
 | Logfire | Spany każdego żądania i runu | `LOGFIRE_TOKEN` na poziomie wdrożenia; token `observability` w specu albo `logfire_token_secret_id` na środowisku przekierowuje te runy do innego projektu. `LOGFIRE_BASE_URL` wybiera wdrożenie w USA albo w UE. Nieustawione wszędzie — nic nie jest wysyłane | Pydantic, USA albo UE |
 | Mowa na tekst, generowanie obrazów | Notatka głosowa; prompt | Profil dla `groq`, `mistral` albo `openai`; profil dla `google` albo `openai` | Providera |
-| Slack, Telegram, Mattermost | Odpowiedzi agenta | Wiersz `channel_bots` z tokenem w vaulcie | Dostawca komunikatora i tak ma już ten czat |
+| Slack, Teams, Telegram, Mattermost | Odpowiedzi agenta | Wiersz `channel_bots` z tokenem w vaulcie | Dostawca komunikatora i tak ma już ten czat |
 | Logowanie Google | Nic wychodzącego; Google zwraca e-mail, imię, zdjęcie i id konta | `GOOGLE_CLIENT_ID` | Google |
 | Twój relay SMTP | Poczta wymieniona wyżej | `SMTP_HOST`, `SMTP_TLS` | Twoja |
 

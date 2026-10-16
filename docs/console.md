@@ -320,7 +320,7 @@ page inside it, and stays the way you left it.
 | **Documents** | Every file agents are keeping for you, what you attached and what they wrote | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
 | **Sandboxes** | Where agents run code: hosts, live sessions, policy | [The sandbox](sandbox.md) |
 | **MCP servers** | Connections to external tools, personal and organization-wide | [MCP](mcp.md) |
-| **Channels** | Slack, Telegram and Mattermost bots, widgets, hosted pages | [Surfaces](channels.md) |
+| **Channels** | Slack, Teams, Telegram and Mattermost bots, widgets, hosted pages | [Surfaces](channels.md) |
 | **Vault** | Credentials, sealed per organization | [Secrets](secrets.md) |
 | **Organizations** | Members, roles, invitations | [Permissions](permissions.md) |
 | **Settings** | Providers, ingestion defaults, notifications, your own profile | [Configuration](configuration.md) |

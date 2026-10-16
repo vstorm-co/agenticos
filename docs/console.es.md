@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "d13f7808346d"
 ---
 
 # La consola { #the-console }
@@ -340,7 +340,7 @@ cualquier página que le pertenezca, y se queda como lo dejaste.
 | **Documents** | Todos los archivos que los agents guardan para ti: lo que adjuntaste y lo que escribieron | [La sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
 | **Sandboxes** | Dónde ejecutan código los agents: hosts, sesiones en curso, política | [La sandbox](sandbox.md) |
 | **MCP servers** | Conexiones a herramientas externas, personales y de toda la organización | [MCP](mcp.md) |
-| **Channels** | Bots de Slack, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
+| **Channels** | Bots de Slack, Teams, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
 | **Vault** | Credenciales, selladas por organización | [Secretos](secrets.md) |
 | **Organizations** | Miembros, roles, invitaciones | [Permisos](permissions.md) |
 | **Settings** | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil | [Configuración](configuration.md) |

@@ -29,6 +29,8 @@ const AUTH_OUT = join(here, "..", "src", "lib", "auth-glyphs.generated.ts");
  *
  * - `simple` — Simple Icons, the set behind `react-icons/si`. Every service and
  *   connector mark, monochrome and 24×24 by construction.
+ * - `simple8` — the same set at 8.x, for a Microsoft product mark later releases
+ *   dropped (Teams). Coloured by hand, like the two below.
  * - `fontawesome` — the marks Simple Icons does not carry in the form the
  *   console used: AWS, Microsoft, and Slack's rounded hash. Their own
  *   viewBoxes.
@@ -36,10 +38,14 @@ const AUTH_OUT = join(here, "..", "src", "lib", "auth-glyphs.generated.ts");
  *   package *is* the monochrome form, which is what the console wants: a column
  *   where Gemini is four colours and OpenAI is ink reads as two products.
  */
-type IconSet = "simple" | "fontawesome" | "lobehub";
+type IconSet = "simple" | "simple8" | "fontawesome" | "lobehub";
 
 const SOURCES: Readonly<Record<IconSet, (slug: string) => string>> = {
   simple: (slug) => `https://cdn.jsdelivr.net/npm/simple-icons@15/icons/${slug}.svg`,
+  // Simple Icons dropped its Microsoft product marks after 8.x; Teams is a
+  // channel the console draws beside Slack, so it comes from the last release
+  // that carried it.
+  simple8: (slug) => `https://cdn.jsdelivr.net/npm/simple-icons@8/icons/${slug}.svg`,
   fontawesome: (slug) =>
     `https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6/svgs/brands/${slug}.svg`,
   lobehub: (slug) => `https://unpkg.com/@lobehub/icons-static-svg@1/icons/${slug}.svg`,
@@ -51,6 +57,7 @@ interface Source {
 }
 
 const simple = (slug: string): Source => ({ set: "simple", slug });
+const simple8 = (slug: string): Source => ({ set: "simple8", slug });
 const fontawesome = (slug: string): Source => ({ set: "fontawesome", slug });
 const lobehub = (slug: string): Source => ({ set: "lobehub", slug });
 
@@ -120,6 +127,7 @@ const BRANDS: Readonly<Record<string, Source>> = {
   mcp: simple("modelcontextprotocol"),
   meta: simple("meta"),
   microsoft: fontawesome("microsoft"),
+  microsoftteams: simple8("microsoftteams"),
   miro: simple("miro"),
   mixpanel: simple("mixpanel"),
   n8n: simple("n8n"),
@@ -223,6 +231,7 @@ const MANUAL_COLORS: Readonly<Record<string, string>> = {
   claudecode: "#D97757",
   exa: "#1F40ED",
   microsoft: "#00A4EF",
+  microsoftteams: "#6264A7",
   s3: "#FF9900",
   slack: "#E01E5A",
   alibaba: "#FF6A00",

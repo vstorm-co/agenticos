@@ -50,6 +50,7 @@ from app.api.routes.v1 import permissions
 from app.api.routes.v1 import telegram_webhook
 from app.api.routes.v1 import slack_webhook
 from app.api.routes.v1 import mattermost_webhook
+from app.api.routes.v1 import teams_webhook
 from app.api.routes.v1 import embed as embed_widget
 from app.api.routes.v1 import members, organizations
 from app.api.routes.v1 import groups, directory_mappings, directory_auth
@@ -187,6 +188,7 @@ v1_router.include_router(telegram_webhook.router, prefix="/telegram", tags=["tel
 v1_router.include_router(slack_webhook.router, prefix="/slack", tags=["slack"])
 
 v1_router.include_router(mattermost_webhook.router, prefix="/mattermost", tags=["mattermost"])
+v1_router.include_router(teams_webhook.router, prefix="/teams", tags=["teams"])
 
 v1_router.include_router(organizations.router, prefix="/orgs", tags=["organizations"])
 v1_router.include_router(members.router, prefix="/orgs", tags=["members"])

@@ -1,5 +1,5 @@
 ---
-source_sha: "4e9bf91114a6"
+source_sha: "bf8685496559"
 ---
 
 # Protección de datos { #data-protection }
@@ -90,7 +90,7 @@ cuelga, y leerla pasa por la comprobación del padre.
 | `app_admin_audit_logs` | Quién cambió accesos o gastó dinero — el rastro de la organización y el del administrador del deployment comparten tabla | Actor, suplantador, dirección IP, la acción y un mapa `details`. El mapa nombra sobre todo campos, pero algunas entradas guardan valores: el correo de la cuenta suplantada, el correo de una cuenta que un administrador borró, una nota de publicación | Rendición de cuentas. Consulta [Gobernanza](governance.md#audit) |
 | `notifications`, `notification_deliveries` | Cada notificación dirigida a alguien y su envío por correo. La fila se escribe incluso cuando el destinatario ha desactivado todos los canales para ese evento — es lo que impide escribir dos veces la misma ocurrencia — y simplemente no se muestra ni se envía nunca; solo la fila de envío es condicional | El destinatario, un resumen prerrenderizado (nunca un comentario en bruto ni un valor secreto) y las variables tipadas a partir de las cuales un correo se vuelve a renderizar; una fila de envío añade su canal, estado, intentos y un motivo de fallo depurado — nunca el texto de error del provider | Alertas que una persona lee una vez, sin supervisión. Consulta [Gobernanza](governance.md#alerts) |
 | `notification_preferences`, `announcements` | Interruptores de canal por evento, y las difusiones propias del app admin | Un id de usuario por interruptor; el remitente de una difusión, su cuerpo y las organizaciones y el rol a los que iba dirigida — nunca la lista resuelta de destinatarios, que solo se puede reconstruir a partir de `notifications` hasta que esa fila caduca en [el barrido de retención de notificaciones](governance.md#alerts) — después de lo cual la entrada de audit detrás de ella conserva solo un recuento, nunca los destinatarios | Exclusión voluntaria, y el registro propio de quien la escribió |
-| `embed_visitors`, `channel_identities`, `channel_sessions` | Desconocidos en una página alojada y personas en Slack, Telegram o Mattermost | Una clave de visitante aleatoria; un id de usuario de la plataforma, nombre de usuario y nombre visible; el id del chat | Retomar el hilo correcto |
+| `embed_visitors`, `channel_identities`, `channel_sessions` | Desconocidos en una página alojada y personas en Slack, Teams, Telegram o Mattermost | Una clave de visitante aleatoria; un id de usuario de la plataforma, nombre de usuario y nombre visible; el id del chat | Retomar el hilo correcto |
 | `message_ratings` | Pulgares y comentarios sobre las respuestas | Quien valora y su comentario | Revisión de calidad |
 | `ml_service_calls` | Cada llamada a los [servicios de ML](ml-services.md) | La organización, quién pidió, qué servicio, recuentos de bytes y unidades, la duración y cómo terminó - **nada de lo que se envió y nada de lo que volvió** | Informe de uso, y la vista de un operador sobre una integración que falla |
 | `agent_workspaces`, `sandbox_operations` | Archivos sobre los que trabajó un agent y el registro de lo que ejecutó | Para el backend `state`, los propios archivos, en JSON; para un contenedor, el id de sesión y cada comando, destino y resumen del resultado | La sandbox. Consulta [La sandbox](sandbox.md#what-was-done-in-one-and-where-that-record-lives) |
@@ -133,7 +133,7 @@ lista completa de destinos, con la configuración que decide cada uno.
 | mem0 | Los recuerdos escritos para una persona o un chat | La `base_url` de la capability `memory_mem0`, que tiene que estar en `MEM0_ALLOWED_HOSTS` | La del host de mem0 que permitas |
 | Logfire | Spans de cada petición y cada run | `LOGFIRE_TOKEN` a nivel de deployment; un token `observability` en un spec, o `logfire_token_secret_id` en un entorno, redirige esos runs a otro proyecto. `LOGFIRE_BASE_URL` elige el deployment de EE. UU. o el de la UE. Sin definir en ninguna parte, no se envía nada | La de Pydantic, EE. UU. o UE |
 | Voz a texto, generación de imágenes | La nota de voz; el prompt | Un perfil para `groq`, `mistral` u `openai`; un perfil para `google` u `openai` | La del provider |
-| Slack, Telegram, Mattermost | Las respuestas del agent | Una fila `channel_bots` con su token en el vault | El proveedor de mensajería ya tiene el chat |
+| Slack, Teams, Telegram, Mattermost | Las respuestas del agent | Una fila `channel_bots` con su token en el vault | El proveedor de mensajería ya tiene el chat |
 | Inicio de sesión con Google | Nada hacia fuera; Google devuelve el correo, el nombre, la foto y el id de la cuenta | `GOOGLE_CLIENT_ID` | La de Google |
 | Tu relay SMTP | El correo de arriba | `SMTP_HOST`, `SMTP_TLS` | La tuya |
 
