@@ -9,7 +9,9 @@ export type RunStatus =
   /** Parked on an agent's question its person left unanswered (#2064). */
   | "awaiting_answer"
   | "budget_exceeded"
-  | "guardrail_blocked";
+  | "guardrail_blocked"
+  /** Stopped for looping on its tool calls after it was warned (#2086). */
+  | "loop_stopped";
 
 export interface AgentRun {
   id: string;

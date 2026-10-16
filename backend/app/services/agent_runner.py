@@ -150,6 +150,7 @@ from app.agents.connect_on_use import (
 from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
+from app.agents.loop_guard import ToolLoopStopped
 from app.agents.manifest import as_payload, fit
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
@@ -1474,6 +1475,7 @@ _INTERRUPTED = frozenset(
         RunStatus.CANCELLED,
         RunStatus.BUDGET_EXCEEDED,
         RunStatus.GUARDRAIL_BLOCKED,
+        RunStatus.LOOP_STOPPED,
     }
 )
 """The endings that leave the plan with nobody working it - see `put_down`. A
@@ -4172,7 +4174,8 @@ class AgentRunnerService:
             # silently" gap this module's own docstring names.
             if status is RunStatus.COMPLETED:
                 await notifications.run_completed(run, agent=agent)
-            elif status is RunStatus.FAILED:
+            elif status in (RunStatus.FAILED, RunStatus.LOOP_STOPPED):
+                # A run stopped for looping produced nothing either, and says why.
                 await notifications.run_failed(run, agent=agent, error=error)
         # Whatever the outcome: a failed run spent money too.
         await notifications.department_budget_warnings(run)
@@ -4948,6 +4951,13 @@ class AgentRunnerService:
             status = RunStatus.GUARDRAIL_BLOCKED
             error = str(exc)
             logger.info("Run %s blocked by a %s guardrail", prepared.run.id, exc.edge)
+            finished_cleanly = True
+        except ToolLoopStopped as exc:
+            # The guard warned the model and it looped again - the platform
+            # stopping a run that was spending for nothing, not a malfunction.
+            status = RunStatus.LOOP_STOPPED
+            error = str(exc)
+            logger.info("Run %s stopped for looping: %s", prepared.run.id, exc)
             finished_cleanly = True
         except Exception as exc:
             error = run_failure_summary(exc)

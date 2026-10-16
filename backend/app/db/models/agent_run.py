@@ -41,8 +41,8 @@ class RunStatus(enum.StrEnum):
     """Where a run ended up.
 
     `AWAITING_APPROVAL` is a real terminal-ish state, not a transient one: the
-    run is parked until a human decides, which may be tomorrow. `BUDGET_EXCEEDED`
-    and `GUARDRAIL_BLOCKED` are separated from `FAILED` for the same reason - each
+    run is parked until a human decides, which may be tomorrow. `BUDGET_EXCEEDED`,
+    `GUARDRAIL_BLOCKED` and `LOOP_STOPPED` are separated from `FAILED` for the same reason - each
     is not a malfunction but the platform working, and an operator filtering for
     problems should not have to wade through them. A guardrail that redacted rather
     than blocked leaves no trace here: the run `COMPLETED`, which is the point.
@@ -58,6 +58,8 @@ class RunStatus(enum.StrEnum):
     It resumes when they answer and ends, the agent told so, after a day."""
     BUDGET_EXCEEDED = "budget_exceeded"
     GUARDRAIL_BLOCKED = "guardrail_blocked"
+    LOOP_STOPPED = "loop_stopped"
+    """Stopped for looping on its tool calls after it was warned (#2086)."""
 
     @classmethod
     def parse_csv(cls, raw: str | None) -> list[str] | None:

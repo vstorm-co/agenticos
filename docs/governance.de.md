@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "7b0c3bd45bee"
 ---
 
 # Governance { #governance }
@@ -982,6 +982,17 @@ hat, erführe es nie.
 Die andere Art von Ausreißer ist eine Tool-Schleife: billig je Aufruf, und sie
 wird nie fertig. Ein Budget rechnet dafür nur ab. `max_steps` deckelt, wie viele
 Modellanfragen ein Run stellen darf, und ist das, was sie tatsächlich stoppt.
+
+Der Schleifenwächter stoppt die meisten Schleifen früher und sagt, warum. Jeder
+Agent hat ihn, standardmäßig eingeschaltet. Ruft ein Run ein Tool viermal in
+Folge mit denselben Argumenten auf oder durchläuft er einen Zyklus aus zwei oder
+drei Aufrufen dreimal, wird dem Modell gesagt, dass es in einer Schleife steckt
+und anders vorgehen soll. Laufen die Aufrufe nach dieser Warnung wieder in eine
+Schleife, endet der Run als `loop_stopped`, mit einer Begründung, die die Tools
+nennt - nie ihre Argumente. Aufrufe mit anderen Argumenten sind nie eine
+Schleife, und nur die Aufrufe des Runs selbst zählen. Der Builder setzt beide
+Schwellen oder schaltet den Wächter aus, neben `max_steps` (`loop_guard` im
+Spec).
 
 ### Berichte { #reporting }
 

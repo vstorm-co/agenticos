@@ -65,6 +65,7 @@ from app.agents.capabilities.system_reminders import (
 )
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
+from app.agents.loop_guard import LoopGuard
 from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
@@ -362,6 +363,13 @@ def build_agent(
         ),
         *configured,
         *extra_capabilities,
+        # After the configured ones, so a compaction that rebuilds the request in
+        # its own before hook cannot drop the loop warning.
+        *(
+            [LoopGuard(repeats=spec.loop_guard.repeats, cycles=spec.loop_guard.cycles)]
+            if spec.loop_guard.enabled
+            else []
+        ),
         # Every agent, not only one that compacts. The warning is most useful to
         # exactly the agent that will not: it is the one that reaches the ceiling
         # and gets refused by the provider.

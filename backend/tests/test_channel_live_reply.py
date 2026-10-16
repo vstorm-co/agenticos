@@ -353,6 +353,14 @@ class TestAnEmptyAnswerTellsItsReasonsApart:
         assert "usage limit" in message
         assert "approval" not in message
 
+    def test_a_run_stopped_for_looping_says_so(self):
+        from app.db.models.agent_run import RunStatus
+        from app.services.channels.router import _empty_answer
+
+        message = _empty_answer(self._answered(status=RunStatus.LOOP_STOPPED))
+
+        assert "kept repeating" in message
+
     def test_a_run_waiting_on_an_answer_says_a_question_follows(self):
         """The question itself follows as its own message with buttons (#2064)."""
         from app.db.models.agent_run import RunStatus

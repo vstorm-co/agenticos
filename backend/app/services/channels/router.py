@@ -254,6 +254,8 @@ def _empty_answer(answered: Any) -> str:
         return "I have a question for you before I go on."
     if answered.status == RunStatus.BUDGET_EXCEEDED:
         return "This assistant has reached its usage limit."
+    if answered.status == RunStatus.LOOP_STOPPED:
+        return "I kept repeating the same steps without getting anywhere, so I stopped. Try asking in a different way."
     return "Sorry, I could not produce an answer to that. Please try again."
 
 

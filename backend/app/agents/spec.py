@@ -380,6 +380,33 @@ class BudgetSpec(BaseModel):
     monthly_usd: float | None = Field(default=None, gt=0)
 
 
+class LoopGuardSpec(BaseModel):
+    """How this agent is stopped when it loops on its tool calls (#2086).
+
+    On for every agent, including one published before it existed: a run that
+    calls the same tool with the same arguments again and again spends its
+    budget and returns nothing. The first loop is a warning to the model; a loop
+    after the warning ends the run as `loop_stopped`, with the reason. Calls
+    with different arguments are never a loop. See `app/agents/loop_guard.py`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    repeats: int = Field(
+        default=4,
+        ge=2,
+        le=20,
+        description="How many identical calls in a row - same tool, same arguments - are a loop.",
+    )
+    cycles: int = Field(
+        default=3,
+        ge=2,
+        le=10,
+        description="How many times a cycle of two or three different calls may repeat.",
+    )
+
+
 class AlertAudience(StrEnum):
     """Who an agent's alert reaches.
 
@@ -1221,6 +1248,14 @@ class AgentSpec(BaseModel):
         description=(
             "How many model requests one run may make before it is stopped. "
             "Null uses the platform default; a tool loop is what this catches."
+        ),
+    )
+
+    loop_guard: LoopGuardSpec = Field(
+        default_factory=LoopGuardSpec,
+        description=(
+            "When a run that loops on its tool calls is warned and then stopped. "
+            "Defaulted, so every agent has it; switch it off or change the thresholds here."
         ),
     )
 

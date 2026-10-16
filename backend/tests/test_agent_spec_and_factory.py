@@ -31,12 +31,14 @@ from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.agents.capabilities.compaction import ReportContextSize
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
 from app.agents.factory import _AUDIENCE_AWARE, DEFAULT_MAX_STEPS, BuiltAgent, build_agent
+from app.agents.loop_guard import LoopGuard
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
     AlertAudience,
     AlertSpec,
+    LoopGuardSpec,
     NotificationSpec,
 )
 from app.core.exceptions import BadRequestError
@@ -658,6 +660,31 @@ class TestBudgetComposition:
         )
 
         assert self._lookups(built)[BudgetScope.AGENT] is None
+
+
+class TestStoppingToolLoops:
+    """Every agent has the loop guard, on by default (#2086)."""
+
+    def test_a_spec_written_before_it_existed_loads_with_it_on(self):
+        spec = AgentSpec.from_yaml("name: Clerk\ninstructions: Answer briefly.\n")
+        assert spec.loop_guard == LoopGuardSpec(enabled=True, repeats=4, cycles=3)
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    def test_the_factory_attaches_it_with_the_agents_thresholds_and_not_when_off(self):
+        def guards(spec: AgentSpec) -> list[LoopGuard]:
+            built = build_agent(spec, _model_spec(), organization_id=uuid.uuid4())
+            attached: list[object] = []
+            built.agent.root_capability.apply(attached.append)
+            return [one for one in attached if isinstance(one, LoopGuard)]
+
+        (guard,) = guards(AgentSpec(name="Clerk", loop_guard=LoopGuardSpec(repeats=6, cycles=2)))
+        assert (guard.repeats, guard.cycles) == (6, 2)
+        assert guards(AgentSpec(name="Clerk", loop_guard=LoopGuardSpec(enabled=False))) == []
+
+    @pytest.mark.parametrize("field", [{"repeats": 1}, {"cycles": 11}, {"other": 1}])
+    def test_a_threshold_out_of_range_is_refused(self, field: dict[str, int]):
+        with pytest.raises(ValidationError):
+            LoopGuardSpec.model_validate(field)
 
 
 class TestAskingAboutEveryTool:
