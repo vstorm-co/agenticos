@@ -4034,6 +4034,7 @@
       "firstRate": "Same pierwsze odpowiedzi: {rate}"
     },
     "dataset": {
+      "counted": "{runs, plural, =0 {Jeszcze żadnego runa} one {# run · 1 agent} few {# runy · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}}} many {# runów · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}}} other {# runu · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}}}}",
       "emptyTitle": "Żaden agent nie był jeszcze testowany na tym datasecie",
       "emptyBody": "Uruchom agenta na tych case'ach, żeby zobaczyć, które zalicza, jak wypada na tle wcześniejszych wersji i ile to kosztuje.",
       "unnamedAgent": "Agent, którego nie widzisz"

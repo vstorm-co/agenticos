@@ -213,9 +213,7 @@ export default function DatasetPage({ params }: PageProps) {
         </TabsContent>
         {canViewRuns && (
           <TabsContent value="evals">
-            <ListCard title={t("evals")} counted={null}>
-              <DatasetEvalsPanel datasetId={id} />
-            </ListCard>
+            <DatasetEvalsPanel datasetId={id} title={t("evals")} />
           </TabsContent>
         )}
         <TabsContent value="review">

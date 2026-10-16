@@ -6413,6 +6413,7 @@
       "firstRate": "First answers alone: {rate}"
     },
     "dataset": {
+      "counted": "{runs, plural, =0 {No runs yet} =1 {1 run of 1 agent} other {# runs of {agents, plural, =1 {1 agent} other {# agents}}}}",
       "emptyTitle": "No agent has been tested on this dataset yet",
       "emptyBody": "Run an agent over these cases to see which it passes, how it compares with its earlier versions, and what it costs.",
       "unnamedAgent": "An agent you cannot see"

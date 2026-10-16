@@ -5,7 +5,7 @@ import { ChevronRight, FlaskConical, Play } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { Button } from "@/components/ui";
+import { Button, ListCard } from "@/components/ui";
 import { useAgents } from "@/hooks";
 import { useDatasetEvalRuns } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -45,27 +45,64 @@ function byAgent(runs: EvalRun[]): { id: string; runs: EvalRun[] }[] {
 
 /**
  * A dataset's Evals tab: every agent measured on it, each folded to its own
- * pass-rate trend and its runs with their verdicts.
+ * pass-rate trend and its runs with their verdicts, in a card whose header
+ * counts them once they are read.
  */
-export function DatasetEvalsPanel({ datasetId }: { datasetId: string }) {
+export function DatasetEvalsPanel({ datasetId, title }: { datasetId: string; title: string }) {
+  const t = useTranslations("evals");
+  const { runs, isLoading, error, refetch } = useDatasetEvalRuns(datasetId);
+  const { agents } = useAgents();
+  const names = new Map(agents.map((agent) => [agent.id, agent.name]));
+  const groups = byAgent(runs);
+  const counted = isLoading
+    ? null
+    : error
+      ? ""
+      : t("dataset.counted", { runs: runs.length, agents: groups.length });
+  return (
+    <ListCard title={title} counted={counted}>
+      {isLoading ? (
+        <LoadingState variant="skeleton-list" rows={3} />
+      ) : (
+        <Groups
+          datasetId={datasetId}
+          groups={groups}
+          names={names}
+          error={error}
+          onRetry={() => void refetch()}
+        />
+      )}
+    </ListCard>
+  );
+}
+
+/** The card's body once the runs are read: why they could not be, none yet, or each agent's. */
+function Groups({
+  datasetId,
+  groups,
+  names,
+  error,
+  onRetry,
+}: {
+  datasetId: string;
+  groups: { id: string; runs: EvalRun[] }[];
+  names: Map<string, string>;
+  error: Error | null;
+  onRetry: () => void;
+}) {
   const t = useTranslations("evals");
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
   const locale = useLocale();
-  const { runs, isLoading, error, refetch } = useDatasetEvalRuns(datasetId);
-  const { agents } = useAgents();
-  const names = new Map(agents.map((agent) => [agent.id, agent.name]));
-
-  if (isLoading) return <LoadingState variant="skeleton-list" rows={3} />;
   if (error) {
     return (
       <ErrorState
         description={getErrorMessage(error, tErrors)}
-        cta={{ label: tc("retry"), onClick: () => void refetch() }}
+        cta={{ label: tc("retry"), onClick: onRetry }}
       />
     );
   }
-  if (runs.length === 0) {
+  if (groups.length === 0) {
     return (
       <div className="space-y-3">
         <EmptyState
@@ -81,7 +118,7 @@ export function DatasetEvalsPanel({ datasetId }: { datasetId: string }) {
   }
   return (
     <div className="space-y-4" data-tour="dataset-evals">
-      {byAgent(runs).map((group, index) => {
+      {groups.map((group, index) => {
         const name = names.get(group.id) ?? t("dataset.unnamedAgent");
         return (
           <details key={group.id} open={index === 0} className="group rounded-lg border p-3">

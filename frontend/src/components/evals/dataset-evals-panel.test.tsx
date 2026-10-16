@@ -49,11 +49,12 @@ describe("DatasetEvalsPanel", () => {
         evalRun({ id: "run-3", agent_id: "hidden" }),
       ],
     };
-    render(<DatasetEvalsPanel datasetId="ds-1" />);
+    render(<DatasetEvalsPanel datasetId="ds-1" title="Evals" />);
 
+    expect(screen.getByText("3 runs of 2 agents")).toBeInTheDocument();
     const desk = screen.getByText("Refund desk · 2 runs").closest("details")!;
     expect(desk).toHaveAttribute("open");
-    expect(within(desk).getByRole("img", { name: "Pass rate over time" })).toBeInTheDocument();
+    expect(within(desk).getByRole("img", { name: "Pass rate by run" })).toBeInTheDocument();
     expect(within(desk).getByRole("link", { name: /^Draft/ })).toHaveAttribute(
       "href",
       "/agents/agent-1/evals/run-2",
@@ -63,7 +64,8 @@ describe("DatasetEvalsPanel", () => {
   });
 
   it("offers the first run when no agent was tested on it", async () => {
-    render(<DatasetEvalsPanel datasetId="ds-1" />);
+    render(<DatasetEvalsPanel datasetId="ds-1" title="Evals" />);
+    expect(screen.getByText("No runs yet")).toBeInTheDocument();
     expect(screen.getByText("No agent has been tested on this dataset yet")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Run evals" }));
@@ -77,14 +79,18 @@ describe("DatasetEvalsPanel", () => {
   it("says when the runs could not be read, and retries", async () => {
     const refetch = vi.fn();
     state.runs = { runs: [], isLoading: false, error: new Error("boom"), refetch };
-    render(<DatasetEvalsPanel datasetId="ds-1" />);
+    const { container } = render(<DatasetEvalsPanel datasetId="ds-1" title="Evals" />);
+    // The header's count line resolves to nothing rather than waiting forever.
+    expect(container.querySelector(".animate-pulse")).toBeNull();
+    expect(screen.queryByText("No runs yet")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(refetch).toHaveBeenCalled();
   });
 
   it("holds a placeholder while the runs load", () => {
     state.runs = { ...state.runs, isLoading: true };
-    render(<DatasetEvalsPanel datasetId="ds-1" />);
+    render(<DatasetEvalsPanel datasetId="ds-1" title="Evals" />);
+    expect(screen.getByText("Evals")).toBeInTheDocument();
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 });
