@@ -17,8 +17,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-10-16
-
 ### Added
 
 - **Write to an agent and leave: it answers anyway, and tells you.** A chat
@@ -42,6 +40,10 @@ Two things are versioned separately from this file and worth knowing about:
   guardrails and tool output limits like a foreground one, where the library
   alone would deliver it past them. Approval still comes first, the spend is
   the run's, and stopping the run stops the tool (#2108).
+
+## [1.0.0] - 2026-10-16
+
+### Added
 
 - **An approval says which account is acting.** A call through a labelled MCP
   connection, or one of several accounts on one service, carries the account's
