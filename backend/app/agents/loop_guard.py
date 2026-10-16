@@ -15,8 +15,10 @@ If the calls after the warning loop again, the run stops with its own status,
 carry what the agent read.
 
 A call is the tool's name and its arguments, so reading ten different pages is
-ten calls and no loop. Only this run's calls count: an earlier turn's are in the
-history too, and a person asking the same thing twice is not the agent looping.
+ten calls and no loop. Only this run's calls count - the guard notes each
+response as it arrives rather than reading the history, which holds earlier
+turns' calls and which a compaction may cut - and a person asking the same thing
+twice is not the agent looping.
 """
 
 from __future__ import annotations
@@ -114,13 +116,31 @@ def find_loop(calls: Sequence[tuple[str, str]], *, repeats: int, cycles: int) ->
 
 @dataclass
 class LoopGuard(AbstractCapability[AgentDeps]):
-    """Warns a run that loops on its tool calls, then stops it if it goes on."""
+    """Warns a run that loops on its tool calls, then stops it if it goes on.
+
+    The run's calls are kept here, as each response arrives, rather than read
+    back from the request: a compaction that summarises or slides the history
+    removes the very responses a loop is made of, and a position in a history
+    that shrinks means nothing a request later.
+    """
 
     repeats: int = 4
     cycles: int = 3
+    _calls: list[tuple[str, str]] = field(default_factory=list, init=False, repr=False)
     _warned_after: int | None = field(default=None, init=False, repr=False)
     """How many of the run's calls had been made when it was warned; only those
     after count towards stopping it."""
+
+    async def after_model_request(
+        self,
+        ctx: RunContext[AgentDeps],
+        *,
+        request_context: ModelRequestContext,
+        response: ModelResponse,
+    ) -> ModelResponse:
+        """Note the calls this response asked for."""
+        self._calls.extend(run_calls([response], response.run_id))
+        return response
 
     async def before_model_request(
         self,
@@ -138,8 +158,7 @@ class LoopGuard(AbstractCapability[AgentDeps]):
         # `SystemReminders.before_model_request`.
         if not messages or not isinstance(last := messages[-1], ModelRequest):
             return request_context
-        calls = run_calls(messages, ctx.run_id)
-        since = calls[self._warned_after or 0 :]
+        since = self._calls[self._warned_after or 0 :]
         loop = find_loop(since, repeats=self.repeats, cycles=self.cycles)
         if loop is None:
             return request_context
@@ -147,7 +166,7 @@ class LoopGuard(AbstractCapability[AgentDeps]):
             raise ToolLoopStopped(
                 f"Stopped: the agent {loop.describe()} after it was told it was looping."
             )
-        self._warned_after = len(calls)
+        self._warned_after = len(self._calls)
         warning = (
             f"<system-reminder>You have {loop.describe()}, and it is not getting you "
             "anywhere. Stop repeating it. Change approach: use what the calls already "

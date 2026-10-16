@@ -3664,7 +3664,11 @@ class AgentRunnerService:
                 agent_id=outcome.agent_id,
                 agent_version_id=outcome.agent_version_id,
                 task_id=outcome.task_id,
-                status=_DELEGATION_RUN_STATUS[outcome.status],
+                status=(
+                    RunStatus.LOOP_STOPPED
+                    if outcome.loop_stopped
+                    else _DELEGATION_RUN_STATUS[outcome.status]
+                ),
                 model_label=model.label,
                 provider=model.provider,
                 secret_id=model.secret_id,

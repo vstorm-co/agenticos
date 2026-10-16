@@ -6,11 +6,13 @@ what the run did.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 from pydantic_ai import Agent
+from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -142,3 +144,28 @@ async def test_a_provider_resume_turn_is_passed_through_untouched() -> None:
     resumed = MagicMock(messages=[ModelResponse(parts=[TextPart("partial")])])
     guard = LoopGuard()
     assert await guard.before_model_request(MagicMock(run_id="r"), resumed) is resumed
+
+
+async def test_a_loop_is_seen_even_when_compaction_cut_the_history() -> None:
+    """A summarising or sliding compaction runs first and removes the very
+    responses a loop is made of, so the guard keeps the calls itself."""
+
+    class _KeepsTheLastTwo(AbstractCapability[AgentDeps]):
+        async def before_model_request(self, ctx, request_context):
+            messages = request_context.messages
+            return replace(
+                request_context, messages=messages[-2:] if len(messages) > 2 else messages
+            )
+
+    seen: list[list[ModelMessage]] = []
+    agent = Agent[AgentDeps, str](
+        FunctionModel(_looping_model(seen, changes_after_warning=False)),
+        capabilities=[_KeepsTheLastTwo(), LoopGuard(repeats=3, cycles=3)],
+    )
+
+    @agent.tool_plain
+    def search(q: str) -> str:
+        return "nothing found"
+
+    with pytest.raises(ToolLoopStopped):
+        await agent.run("find the customer", deps=AgentDeps())

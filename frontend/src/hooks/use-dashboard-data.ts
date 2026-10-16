@@ -11,13 +11,13 @@ import type { AdminStats, SystemHealth } from "@/types/admin";
 import type { AdminRatingsSummary, Conversation } from "@/types/conversation";
 import type { AgentRunList } from "@/types/runs";
 
-/** Failed or out-of-budget runs, newest first - the recent-failures card. */
+/** Failed, out-of-budget or loop-stopped runs, newest first - the recent-failures card. */
 export function useRecentFailures(limit = 5, options?: { enabled?: boolean }) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: qk.runs.failures(limit),
     queryFn: () =>
       apiClient.get<AgentRunList>("/runs", {
-        params: { status: "failed,budget_exceeded", limit: String(limit) },
+        params: { status: "failed,budget_exceeded,loop_stopped", limit: String(limit) },
       }),
     enabled: options?.enabled ?? true,
     ...DASHBOARD_FRESHNESS,
