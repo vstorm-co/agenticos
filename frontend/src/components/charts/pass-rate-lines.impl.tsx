@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import {
+  Brush,
   CartesianGrid,
   Line,
   LineChart,
@@ -20,6 +21,8 @@ export interface PassRatePoint {
   rate: number;
   /** What ran, as short as the axis has room for: "v7", "D". */
   tick: string;
+  /** When the run started, in the reader's words - shown only while the range is dragged. */
+  when: string;
   /** A draft is drawn hollow: it is not a version anyone is talking to. */
   draft: boolean;
   /** The point's own colour - the verdict's, or the line's when there is none. */
@@ -38,17 +41,34 @@ export interface PassRateLine {
   points: PassRatePoint[];
 }
 
+/** One run across every line: its rate under its own line's key, and the point that drew it. */
+interface Row {
+  index: number;
+  tick: string;
+  when: string;
+  point: PassRatePoint;
+  [line: string]: number | string | PassRatePoint;
+}
+
 const AXIS = "oklch(from var(--color-foreground) l c h / 0.45)";
 const QUARTERS = [0, 0.25, 0.5, 0.75, 1];
 
-function PointTip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: { payload: PassRatePoint }[];
-}) {
-  const point = payload?.[0]?.payload;
+function rows(lines: PassRateLine[]): Row[] {
+  return lines
+    .flatMap((line) =>
+      line.points.map((point) => ({
+        index: point.index,
+        tick: point.tick,
+        when: point.when,
+        point,
+        [line.key]: point.rate,
+      })),
+    )
+    .sort((a, b) => a.index - b.index);
+}
+
+function PointTip({ active, payload }: { active?: boolean; payload?: { payload: Row }[] }) {
+  const point = payload?.[0]?.payload.point;
   if (!active || point === undefined) return null;
   return (
     <div className="bg-card space-y-0.5 rounded-xl border px-3 py-2 text-xs shadow-sm">
@@ -64,32 +84,52 @@ function PointTip({
 
 /**
  * Pass rate by run, one line per series, each point in its verdict's colour
- * and opening its run. Split out so pages don't statically import recharts;
- * colours are CSS variables because recharts renders raw SVG, which Tailwind
- * cannot reach.
+ * and opening its run, over a range a person drags to widen or narrow - the
+ * newest `recent` runs to begin with. Split out so pages don't statically
+ * import recharts; colours are CSS variables because recharts renders raw SVG,
+ * which Tailwind cannot reach.
  */
 export function PassRateLinesImpl({
   lines,
-  from,
-  to,
+  recent,
+  rangeLabel,
 }: {
   lines: PassRateLine[];
-  from: number;
-  to: number;
+  recent: number;
+  rangeLabel: string;
 }) {
   const router = useRouter();
-  const ticks = new Map(lines.flatMap((line) => line.points.map((p) => [p.index, p.tick])));
-  const indexes = [...ticks.keys()].sort((a, b) => a - b);
+  const data = rows(lines);
+  const dot = (
+    props: { cx?: number; cy?: number; payload?: Row },
+    line: PassRateLine,
+    radius: number,
+  ) => {
+    const point = props.payload?.point;
+    if (point === undefined || props.payload?.[line.key] === undefined) {
+      return <g key={`${line.key}-${props.payload?.index}`} />;
+    }
+    return (
+      <circle
+        key={`${line.key}-${point.index}`}
+        cx={props.cx}
+        cy={props.cy}
+        r={radius}
+        stroke={point.color}
+        strokeWidth={2}
+        fill={point.draft ? "var(--color-card)" : point.color}
+        className="cursor-pointer"
+        onClick={() => router.push(point.href)}
+      />
+    );
+  };
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+      <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
         <CartesianGrid stroke="oklch(from var(--color-foreground) l c h / 0.07)" vertical={false} />
         <XAxis
-          type="number"
-          dataKey="index"
-          domain={[from - 0.5, to + 0.5]}
-          ticks={indexes}
-          tickFormatter={(index: number) => ticks.get(index) ?? ""}
+          dataKey="tick"
+          padding={{ left: 12, right: 12 }}
           interval="preserveStartEnd"
           minTickGap={8}
           fontSize={11}
@@ -98,7 +138,6 @@ export function PassRateLinesImpl({
           tick={{ fill: AXIS }}
         />
         <YAxis
-          dataKey="rate"
           domain={[0, 1]}
           ticks={QUARTERS}
           tickFormatter={(value: number) => `${Math.round(value * 100)}%`}
@@ -115,39 +154,43 @@ export function PassRateLinesImpl({
         {lines.map((line) => (
           <Line
             key={line.key}
-            data={line.points}
-            dataKey="rate"
+            dataKey={line.key}
             name={line.name}
             stroke={line.color}
             strokeWidth={LINE_WIDTH}
+            connectNulls
             isAnimationActive={false}
-            dot={(props: { cx?: number; cy?: number; index?: number; payload?: PassRatePoint }) => (
-              <circle
-                key={`${line.key}-${props.index}`}
-                cx={props.cx}
-                cy={props.cy}
-                r={5}
-                stroke={props.payload?.color ?? line.color}
-                strokeWidth={2}
-                fill={props.payload?.draft ? "var(--color-card)" : props.payload?.color}
-                className="cursor-pointer"
-                onClick={() => props.payload && router.push(props.payload.href)}
-              />
-            )}
-            activeDot={(props: { cx?: number; cy?: number; payload?: PassRatePoint }) => (
-              <circle
-                cx={props.cx}
-                cy={props.cy}
-                r={7}
-                stroke={props.payload?.color ?? line.color}
-                strokeWidth={2}
-                fill={props.payload?.draft ? "var(--color-card)" : props.payload?.color}
-                className="cursor-pointer"
-                onClick={() => props.payload && router.push(props.payload.href)}
-              />
-            )}
+            dot={(props: { cx?: number; cy?: number; payload?: Row }) => dot(props, line, 5)}
+            activeDot={(props: { cx?: number; cy?: number; payload?: Row }) => dot(props, line, 7)}
           />
         ))}
+        {data.length > 1 && (
+          <Brush
+            dataKey="when"
+            height={28}
+            travellerWidth={10}
+            startIndex={Math.max(0, data.length - recent)}
+            endIndex={data.length - 1}
+            stroke="oklch(from var(--color-foreground) l c h / 0.3)"
+            fill="var(--color-card)"
+            ariaLabel={rangeLabel}
+          >
+            {/* Every run in miniature, so the range reads against the whole. */}
+            <LineChart data={data}>
+              {lines.map((line) => (
+                <Line
+                  key={line.key}
+                  dataKey={line.key}
+                  stroke={line.color}
+                  strokeWidth={1}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                />
+              ))}
+            </LineChart>
+          </Brush>
+        )}
       </LineChart>
     </ResponsiveContainer>
   );

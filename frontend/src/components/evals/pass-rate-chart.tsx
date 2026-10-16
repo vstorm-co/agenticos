@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 
 import type { PassRateLine, PassRatePoint } from "@/components/charts/pass-rate-lines.impl";
-import { Button } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { CHART_MIN_HEIGHT, seriesColor } from "@/lib/dashboard/system";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -21,7 +19,7 @@ const PassRateLinesImpl = dynamic(
   },
 );
 
-/** How many of the newest runs the trend shows until asked for every one. */
+/** How many of the newest runs the trend shows until its range is dragged wider. */
 export const RECENT_RUNS = 12;
 
 /** A verdict worth a colour of its own: what the run did to the cases. */
@@ -66,6 +64,7 @@ export function passRateLines(
       index: index++,
       rate: arm.summary.pass_rate,
       tick: draft ? t("trend.draftTick") : sideName(arm, t),
+      when: formatDateTime(run.created_at, locale),
       draft,
       color: (verdict && VERDICT_COLOR[verdict]) ?? line.color,
       href: `${ROUTES.AGENTS}/${run.agent_id}/evals/${run.id}`,
@@ -82,8 +81,9 @@ export function passRateLines(
 }
 
 /**
- * The pass-rate trend: the newest runs until a person asks for all of them, a
- * key to its lines and colours, and - with one run - what makes it a trend.
+ * The pass-rate trend: a key to its lines and colours, the newest runs over a
+ * range a person drags to see more or fewer, and - with one run - what makes it
+ * a trend.
  */
 export function PassRateChart({
   lines,
@@ -93,18 +93,13 @@ export function PassRateChart({
   compact?: boolean;
 }) {
   const t = useTranslations("evals");
-  const [all, setAll] = useState(false);
   const points = lines.reduce((sum, line) => sum + line.points.length, 0);
   if (points === 0) return null;
-  const from = all ? 0 : Math.max(0, points - RECENT_RUNS);
-  const shown = lines
-    .map((line) => ({ ...line, points: line.points.filter((p) => p.index >= from) }))
-    .filter((line) => line.points.length > 0);
   return (
     <div className="space-y-2" data-tour="evals-trend">
       <ul className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        {shown.length > 1 &&
-          shown.map((line) => (
+        {lines.length > 1 &&
+          lines.map((line) => (
             <li key={line.key} className="flex items-center gap-1.5">
               <span
                 className="h-0.5 w-4 shrink-0 rounded-full"
@@ -133,22 +128,15 @@ export function PassRateChart({
         </li>
       </ul>
       <div
-        role="img"
+        role="group"
         aria-label={t("trend.label")}
-        className={cn(CHART_MIN_HEIGHT, compact ? "h-48" : "h-56")}
+        className={cn(CHART_MIN_HEIGHT, compact ? "h-56" : "h-64")}
       >
-        <PassRateLinesImpl lines={shown} from={from} to={points - 1} />
+        <PassRateLinesImpl lines={lines} recent={RECENT_RUNS} rangeLabel={t("trend.range")} />
       </div>
-      <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-2 text-xs">
-        <p>{points === 1 ? t("trend.single") : t("trend.legend")}</p>
-        {points > RECENT_RUNS && (
-          <Button size="sm" variant="ghost" onClick={() => setAll(!all)}>
-            {all
-              ? t("trend.showRecent", { count: RECENT_RUNS })
-              : t("trend.showAll", { count: points })}
-          </Button>
-        )}
-      </div>
+      <p className="text-muted-foreground text-xs">
+        {points === 1 ? t("trend.single") : t("trend.legend")}
+      </p>
     </div>
   );
 }

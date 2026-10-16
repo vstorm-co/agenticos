@@ -26,8 +26,16 @@ import { percent, seconds, usd } from "./format";
 
 const evalRuns = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
 vi.mock("@/components/charts/pass-rate-lines.impl", () => ({
-  PassRateLinesImpl: ({ lines, from, to }: { lines: PassRateLine[]; from: number; to: number }) => (
-    <p>{`from ${from} to ${to}: ${lines.map((l) => `${l.key}×${l.points.length}`).join(" ")}`}</p>
+  PassRateLinesImpl: ({
+    lines,
+    recent,
+    rangeLabel,
+  }: {
+    lines: PassRateLine[];
+    recent: number;
+    rangeLabel: string;
+  }) => (
+    <p>{`${rangeLabel}, last ${recent}: ${lines.map((l) => `${l.key}×${l.points.length}`).join(" ")}`}</p>
   ),
 }));
 vi.mock("@/hooks/use-eval-runs", () => ({ useEvalRuns: () => evalRuns.value }));
@@ -136,6 +144,7 @@ describe("passRateLines", () => {
       "trend.verdict:worse",
     ]);
     expect(late?.details).toHaveLength(4);
+    expect(late?.when).toBe(late?.details[3]);
     expect(shipping?.points[0]?.details.slice(0, 2)).toEqual([
       "trend.rate:75%",
       "trend.verdict:none",
@@ -152,6 +161,7 @@ describe("PassRateChart", () => {
       index: offset + i,
       rate: 0.5,
       tick: "v1",
+      when: "Oct 16",
       draft: false,
       color: "var(--series-1)",
       href: "/agents/a/evals/r",
@@ -160,24 +170,21 @@ describe("PassRateChart", () => {
     })),
   });
 
-  it("shows the newest runs until asked for all, and keys its lines and colours", async () => {
+  it("starts on the newest runs over a range to drag, and keys its lines and colours", async () => {
     render(<PassRateChart lines={[line("a", "refunds", 10), line("b", "shipping", 4, 10)]} />);
 
-    expect(await screen.findByText("from 2 to 13: a×8 b×4")).toBeInTheDocument();
+    expect(await screen.findByText("Runs shown, last 12: a×10 b×4")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Pass rate by run" })).toBeInTheDocument();
     expect(screen.getByText("refunds")).toBeInTheDocument();
     expect(screen.getByText("Breaks cases")).toBeInTheDocument();
     expect(screen.getByText("Draft")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Show all 14 runs" }));
-    expect(await screen.findByText("from 0 to 13: a×10 b×4")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Show the last 12" }));
-    expect(await screen.findByText("from 2 to 13: a×8 b×4")).toBeInTheDocument();
+    expect(screen.getByText(/Drag the handles under the chart/)).toBeInTheDocument();
   });
 
-  it("names no line when there is only one, and offers nothing more with few runs", async () => {
+  it("names no line when there is only one", async () => {
     render(<PassRateChart lines={[line("a", "refunds", 3)]} />);
-    expect(await screen.findByText("from 0 to 2: a×3")).toBeInTheDocument();
+    expect(await screen.findByText("Runs shown, last 12: a×3")).toBeInTheDocument();
     expect(screen.queryByText("refunds")).toBeNull();
-    expect(screen.queryByRole("button", { name: /Show/ })).toBeNull();
   });
 });
 
@@ -206,7 +213,7 @@ describe("EvalsPanel", () => {
     };
     render(<EvalsPanel agentId="agent-1" canStart />);
 
-    expect(screen.getByRole("img", { name: "Pass rate by run" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Pass rate by run" })).toBeInTheDocument();
     expect(screen.getByText(/click it to open the run/)).toBeInTheDocument();
     expect(screen.getByText("refunds · 2 runs")).toBeInTheDocument();
     expect(screen.getByText("shipping · 1 run")).toBeInTheDocument();
@@ -235,7 +242,7 @@ describe("EvalsPanel", () => {
 
     evalRuns.value = { ...evalRuns.value, runs: [evalRun({ status: "queued" })] };
     rerender(<EvalsPanel agentId="agent-1" canStart />);
-    expect(screen.queryByRole("img", { name: "Pass rate by run" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Pass rate by run" })).toBeNull();
     expect(screen.getByText("Pending")).toBeInTheDocument();
   });
 

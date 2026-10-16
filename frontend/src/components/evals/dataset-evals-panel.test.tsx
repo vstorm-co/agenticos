@@ -54,7 +54,7 @@ describe("DatasetEvalsPanel", () => {
     expect(screen.getByText("3 runs of 2 agents")).toBeInTheDocument();
     const desk = screen.getByText("Refund desk · 2 runs").closest("details")!;
     expect(desk).toHaveAttribute("open");
-    expect(within(desk).getByRole("img", { name: "Pass rate by run" })).toBeInTheDocument();
+    expect(within(desk).getByRole("group", { name: "Pass rate by run" })).toBeInTheDocument();
     expect(within(desk).getByRole("link", { name: /^Draft/ })).toHaveAttribute(
       "href",
       "/agents/agent-1/evals/run-2",

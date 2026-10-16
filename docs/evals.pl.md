@@ -1,5 +1,5 @@
 ---
-source_sha: "47478098bbbc"
+source_sha: "f7bb85d2c46a"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -25,8 +25,9 @@ Zakładka **Evals** agenta otwiera się wykresem liniowym jego odsetka zaliczeń
 run po runie, od najstarszego po lewej, z linią na każdy dataset. Punkt jest
 czerwony, gdy run zepsuł przypadki, zielony, gdy je naprawił, bursztynowy, gdy
 zrobił jedno i drugie, a pusty dla draftu; najechanie na punkt mówi, co
-uruchomiono, z czym porównano i kiedy, a kliknięcie otwiera run. Wykres
-pokazuje ostatnie 12 runów, dopóki nie wybierzesz **Show all**.
+uruchomiono, z czym porównano i kiedy, a kliknięcie otwiera run. Wykres otwiera
+się na ostatnich 12 runach; przeciągnij uchwyty zakresu pod nim albo przesuń je
+strzałkami, żeby zobaczyć więcej lub mniej.
 
 Pod wykresem są jego runy, pogrupowane po datasecie, każdy z tym, co testowano
 względem czego, z werdyktem (Breaks 2, Worse overall · 4 broke, First result,

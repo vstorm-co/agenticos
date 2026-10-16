@@ -4003,7 +4003,8 @@
     "trend": {
       "label": "Odsetek zaliczeń według runów",
       "single": "Na razie jeden run. Uruchom kolejny, żeby zobaczyć trend.",
-      "legend": "Każdy punkt to run, najstarszy po lewej; najedź na punkt, żeby zobaczyć, co uruchomiono i z czym porównano, a kliknij, żeby otworzyć run.",
+      "legend": "Każdy punkt to run, najstarszy po lewej; najedź na punkt, żeby zobaczyć, co uruchomiono, z czym porównano i kiedy, a kliknij, żeby otworzyć run. Przeciągnij uchwyty pod wykresem, żeby pokazać więcej lub mniej runów.",
+      "range": "Pokazane runy",
       "draftTick": "D",
       "comparedWith": "porównany z {name}",
       "rate": "Odsetek zaliczeń {rate}",
@@ -4013,9 +4014,7 @@
         "better": "Naprawia case'y",
         "mixed": "Mieszany",
         "draft": "Draft"
-      },
-      "showAll": "{count, plural, one {Pokaż # run} few {Pokaż wszystkie # runy} many {Pokaż wszystkie # runów} other {Pokaż wszystkie # runu}}",
-      "showRecent": "{count, plural, one {Pokaż ostatni} few {Pokaż ostatnie #} many {Pokaż ostatnie #} other {Pokaż ostatnie #}}"
+      }
     },
     "chip": {
       "pending": "W toku",
