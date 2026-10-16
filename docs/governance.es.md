@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "bfb05b4c817f"
 ---
 
 # Governance { #governance }
@@ -906,6 +906,20 @@ modelo puede hacer un run y es lo que de verdad lo detiene.
 Un run que no se pudo tarifar — un modelo que `genai-prices` no conoce — se registra
 a cero con un aviso y el total se marca como un **suelo** en vez de adivinarse. La UI
 lo muestra como un `+` junto a la cifra.
+
+**Las lecturas y escrituras de caché se llevan aparte.** Los tokens de entrada de
+un run incluyen los que el proveedor sirvió desde su caché de prompts y los que
+escribió en ella, y los tres se tarifan aparte - en Claude Sonnet 5.5 una lectura
+de caché cuesta el 5 % de la tarifa de entrada y una escritura el 125 %. Cada run
+y cada respuesta guardan `cache_read_tokens` y `cache_write_tokens` junto al
+total, el coste se calcula a partir de ese reparto, y la vista del run y el coste
+bajo cada respuesta lo muestran - que es lo que concilia un run con la consola del
+proveedor.
+
+**El coste de un run incluye sus delegaciones.** El run que alguien inició lleva
+todo el ledger, delegados incluidos; la fila propia de una delegación reparte el
+mismo dinero por agente, y la vista del run dice que sus delegaciones ya están
+dentro de la cifra de arriba. Sumar ambas cuenta las delegaciones dos veces.
 
 ## Aprobaciones { #approvals }
 

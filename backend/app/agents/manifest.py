@@ -117,6 +117,8 @@ class RecordedRequest:
     #: The exception class, where the request raised. Never its message: a
     #: provider SDK puts the failing URL, and therefore a key, in that string.
     failed: str | None = None
+    #: Written to the provider's cache - priced above the input rate (#2170).
+    cache_write_tokens: int = 0
 
 
 @dataclass
@@ -174,6 +176,7 @@ class RunRecorder:
                 input_tokens=usage.input_tokens,
                 output_tokens=usage.output_tokens,
                 cache_read_tokens=usage.cache_read_tokens,
+                cache_write_tokens=usage.cache_write_tokens,
                 tool_calls=[
                     part.tool_name for part in response.parts if isinstance(part, ToolCallPart)
                 ],
@@ -200,6 +203,7 @@ class RunRecorder:
                 input_tokens=0,
                 output_tokens=0,
                 cache_read_tokens=0,
+                cache_write_tokens=0,
                 tool_calls=[],
                 finish_reason=None,
                 failed=type(exc).__name__,
@@ -366,6 +370,7 @@ def as_payload(recorder: RunRecorder) -> dict[str, Any]:
                 "input_tokens": request.input_tokens,
                 "output_tokens": request.output_tokens,
                 "cache_read_tokens": request.cache_read_tokens,
+                "cache_write_tokens": request.cache_write_tokens,
                 "tool_calls": list(request.tool_calls),
                 "finish_reason": request.finish_reason,
                 "failed": request.failed,

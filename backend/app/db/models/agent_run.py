@@ -310,6 +310,15 @@ class AgentRun(Base, TimestampMixin):
     )
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Of `input_tokens`, which by Pydantic AI's convention includes them: those
+    # served from the provider's cache, and those written to it. Priced apart, so
+    # a run is reconciled with a provider's console from these (#2170).
+    cache_read_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    cache_write_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     # Numeric, not float: costs are summed into monthly totals that must not drift.
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     # True when some model in the run had no price - the cost is then a floor.

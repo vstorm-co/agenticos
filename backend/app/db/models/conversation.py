@@ -280,6 +280,11 @@ class Message(Base, TimestampMixin):
     template's own path and read by nothing here, and dropping a column to tidy a
     model is a migration somebody else's fork has to run."""
 
+    cache_read_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """Of `input_tokens`, those served from the provider's cache (#2170)."""
+    cache_write_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """Of `input_tokens`, those written to the provider's cache (#2170)."""
+
     cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     """Money, at the same scale as `agent_runs.cost_usd` and the organization's cap.
 

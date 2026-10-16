@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "bfb05b4c817f"
 ---
 
 # Governance { #governance }
@@ -989,6 +989,21 @@ Ein Run, der sich nicht bepreisen ließ — ein Modell, das `genai-prices` nicht
 kennt —, wird mit einer Warnung bei null festgehalten, und die Summe wird als
 **Untergrenze** gekennzeichnet, statt geraten zu werden. Die UI zeigt das als ein
 `+` neben der Zahl.
+
+**Cache-Lese- und Schreibvorgänge werden getrennt geführt.** Die Eingabetokens
+eines Runs enthalten die, die der Anbieter aus seinem Prompt-Cache bedient hat,
+und die, die er hineingeschrieben hat, und alle drei werden getrennt bepreist -
+bei Claude Sonnet 5.5 kostet ein Cache-Lesevorgang 5 % des Eingabepreises und ein
+Schreibvorgang 125 %. Jeder Run und jede Antwort speichert `cache_read_tokens` und
+`cache_write_tokens` neben der Summe, die Kosten werden aus dieser Aufteilung
+berechnet, und die Run-Ansicht und die Kosten unter jeder Antwort zeigen sie -
+damit lässt sich ein Run mit der Konsole des Anbieters abgleichen.
+
+**Die Kosten eines Runs enthalten seine Delegationen.** Der Run, den jemand
+gestartet hat, trägt das ganze Ledger, Delegates eingeschlossen; die eigene Zeile
+einer Delegation teilt dasselbe Geld nach Agent auf, und die Run-Ansicht sagt,
+dass ihre Delegationen schon in der Zahl darüber stecken. Beide zu addieren zählt
+die Delegationen doppelt.
 
 ## Freigaben { #approvals }
 

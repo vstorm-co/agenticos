@@ -180,6 +180,10 @@ class SpendEntry:
     output_tokens: int
     cost_usd: Decimal
     priced: bool
+    cache_read_tokens: int = 0
+    """Of `input_tokens`, those served from the provider's cache - priced lower."""
+    cache_write_tokens: int = 0
+    """Of `input_tokens`, those written to the provider's cache - priced higher."""
 
     delegation: str | None = None
     """The delegation whose agent issued this request, or `None` for the run's own.
@@ -240,6 +244,8 @@ class SpendShare:
     cost_usd: Decimal = Decimal(0)
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
     has_unpriced_models: bool = False
     """Whether any request in this share went unpriced - the cost is then a floor.
 
@@ -275,6 +281,16 @@ class SpendLedger:
     @property
     def output_tokens(self) -> int:
         return sum(entry.output_tokens for entry in self.entries)
+
+    @property
+    def cache_read_tokens(self) -> int:
+        """Of :attr:`input_tokens`, those read from the provider's cache (#2170)."""
+        return sum(entry.cache_read_tokens for entry in self.entries)
+
+    @property
+    def cache_write_tokens(self) -> int:
+        """Of :attr:`input_tokens`, those written to the provider's cache (#2170)."""
+        return sum(entry.cache_write_tokens for entry in self.entries)
 
     @property
     def has_unpriced_models(self) -> bool:
@@ -334,6 +350,8 @@ class SpendLedger:
             cost_usd=sum((entry.cost_usd for entry in mine), Decimal(0)),
             input_tokens=sum(entry.input_tokens for entry in mine),
             output_tokens=sum(entry.output_tokens for entry in mine),
+            cache_read_tokens=sum(entry.cache_read_tokens for entry in mine),
+            cache_write_tokens=sum(entry.cache_write_tokens for entry in mine),
             has_unpriced_models=any(not entry.priced for entry in mine),
         )
 
@@ -371,6 +389,10 @@ class SpendLedger:
                 output_tokens=usage.output_tokens or 0,
                 cost_usd=cost if cost is not None else Decimal(0),
                 priced=cost is not None,
+                # The split the price was computed from, kept so a run can be
+                # reconciled with a provider's console (#2170).
+                cache_read_tokens=usage.cache_read_tokens or 0,
+                cache_write_tokens=usage.cache_write_tokens or 0,
             )
         )
 

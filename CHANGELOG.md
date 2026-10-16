@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **A run shows how much of its input the cache served** (#2170). Runs and
+  answers now keep `cache_read_tokens` and `cache_write_tokens` beside the input
+  total, in the run API, the run's request record, the run view and the cost
+  under each answer - so a run can be reconciled with the provider's console.
+  The cost was already priced from this split: the bundled prices match
+  Anthropic's current list (a Sonnet 5.5 cache read is 5% of the input rate).
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

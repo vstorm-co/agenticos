@@ -694,6 +694,8 @@ class DelegationJournal:
             billed_cost_usd=billed.cost_usd,
             billed_input_tokens=billed.input_tokens,
             billed_output_tokens=billed.output_tokens,
+            billed_cache_read_tokens=billed.cache_read_tokens,
+            billed_cache_write_tokens=billed.cache_write_tokens,
             billed_has_unpriced_models=billed.has_unpriced_models,
         )
 
@@ -977,6 +979,8 @@ class DelegationJournal:
                 cost_usd=billed.cost_usd,
                 input_tokens=billed.input_tokens,
                 output_tokens=billed.output_tokens,
+                cache_read_tokens=billed.cache_read_tokens,
+                cache_write_tokens=billed.cache_write_tokens,
                 cost_is_partial=billed.has_unpriced_models,
                 agent_id=delegation.agent_id,
                 agent_version_id=delegation.agent_version_id,
@@ -1188,6 +1192,8 @@ class DelegationJournal:
             cost_usd=carried.billed_cost_usd + share.cost_usd,
             input_tokens=carried.billed_input_tokens + share.input_tokens,
             output_tokens=carried.billed_output_tokens + share.output_tokens,
+            cache_read_tokens=carried.billed_cache_read_tokens + share.cache_read_tokens,
+            cache_write_tokens=carried.billed_cache_write_tokens + share.cache_write_tokens,
             has_unpriced_models=carried.billed_has_unpriced_models or share.has_unpriced_models,
         )
 

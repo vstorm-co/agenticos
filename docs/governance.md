@@ -859,6 +859,19 @@ A run that could not be priced - a model `genai-prices` does not know - is
 recorded at zero with a warning and the total is flagged as a **floor** rather
 than guessed at. The UI shows that as a `+` next to the figure.
 
+**Cache reads and writes are kept apart.** A run's input tokens include the ones
+the provider served from its prompt cache and the ones it wrote to it, and the
+three are priced apart - on Claude Sonnet 5.5 a cache read costs 5% of the input
+rate and a write 125%. Each run and each answer stores `cache_read_tokens` and
+`cache_write_tokens` beside the total, the cost is priced from that split, and the
+run view and the cost under each answer show it - which is what reconciles a run
+with the provider's console.
+
+**A run's cost includes its delegations.** The run somebody started carries the
+whole ledger, delegates included; a delegation's own row divides the same money by
+agent, and the run view says its delegations are already inside the figure above
+them. Adding the two counts the delegations twice.
+
 ## Approvals
 
 A tool the agent's author gated parks the run and waits for a person. Nothing

@@ -532,6 +532,12 @@ class DelegationFrame(BaseModel):
     )
     billed_input_tokens: int = Field(default=0, description="The billed share, in input tokens")
     billed_output_tokens: int = Field(default=0, description="The billed share, in output tokens")
+    billed_cache_read_tokens: int = Field(
+        default=0, description="Of the billed input tokens, those read from the provider's cache"
+    )
+    billed_cache_write_tokens: int = Field(
+        default=0, description="Of the billed input tokens, those written to the provider's cache"
+    )
     billed_cost_is_partial: bool = Field(
         default=False,
         description="Whether the billed share went unpriced, making `billed_cost_usd` a floor",
@@ -948,6 +954,8 @@ def _delegation_frames(
                 billed_cost_usd=entry.spent.billed_cost_usd,
                 billed_input_tokens=entry.spent.billed_input_tokens,
                 billed_output_tokens=entry.spent.billed_output_tokens,
+                billed_cache_read_tokens=entry.spent.billed_cache_read_tokens,
+                billed_cache_write_tokens=entry.spent.billed_cache_write_tokens,
                 billed_cost_is_partial=entry.spent.billed_has_unpriced_models,
                 started_at=entry.started_at,
                 delegations=frames(by_parent.get(entry.task_id, [])),
@@ -1054,6 +1062,8 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
                 billed_cost_usd=frame.billed_cost_usd,
                 billed_input_tokens=frame.billed_input_tokens,
                 billed_output_tokens=frame.billed_output_tokens,
+                billed_cache_read_tokens=frame.billed_cache_read_tokens,
+                billed_cache_write_tokens=frame.billed_cache_write_tokens,
                 billed_has_unpriced_models=frame.billed_cost_is_partial,
             )
             started[frame.tool_call_id] = frame.started_at
@@ -1125,6 +1135,8 @@ class RecordedDelegation:
     started_at: datetime
     ended_at: datetime
     error: str | None = None
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 @dataclass
@@ -2031,6 +2043,8 @@ def _spend_already_booked(run: AgentRun) -> SpendEntry:
         model_name=run.model_label or "unknown",
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
+        cache_read_tokens=run.cache_read_tokens or 0,
+        cache_write_tokens=run.cache_write_tokens or 0,
         cost_usd=run.cost_usd,
         priced=not run.cost_is_partial,
     )
@@ -3668,6 +3682,8 @@ class AgentRunnerService:
                 secret_id=model.secret_id,
                 input_tokens=outcome.input_tokens,
                 output_tokens=outcome.output_tokens,
+                cache_read_tokens=outcome.cache_read_tokens,
+                cache_write_tokens=outcome.cache_write_tokens,
                 cost_usd=outcome.cost_usd,
                 # Whether *this delegation's* own requests were priced, not the
                 # run's. A parent on a model `genai-prices` does not know makes the
@@ -3741,6 +3757,8 @@ class AgentRunnerService:
                         status=delegation.status.value,
                         input_tokens=delegation.input_tokens,
                         output_tokens=delegation.output_tokens,
+                        cache_read_tokens=delegation.cache_read_tokens,
+                        cache_write_tokens=delegation.cache_write_tokens,
                         cost_usd=delegation.cost_usd,
                         cost_is_partial=delegation.cost_is_partial,
                         started_at=delegation.started_at,
@@ -3932,6 +3950,8 @@ class AgentRunnerService:
             status=status.value,
             input_tokens=ledger.input_tokens,
             output_tokens=ledger.output_tokens,
+            cache_read_tokens=ledger.cache_read_tokens,
+            cache_write_tokens=ledger.cache_write_tokens,
             cost_usd=ledger.total_usd,
             cost_is_partial=ledger.has_unpriced_models,
             ended_at=datetime.now(UTC),

@@ -96,6 +96,14 @@ beforeEach(() => {
 });
 
 describe("stepping to a neighbour", () => {
+  it("says how much of the input the cache served, when it did (#2170)", () => {
+    serve({ run: run({ cache_read_tokens: 900, cache_write_tokens: 100 }) });
+    renderRun();
+    expect(
+      screen.getByText(/900 read from the provider's cache and 100 written to it/),
+    ).toBeVisible();
+  });
+
   it("warms both neighbours on arrival, so the step is a cache hit", () => {
     serve({ run: run() });
 
