@@ -6241,7 +6241,7 @@
       "reruns": "Confirming reruns",
       "rerunsDefault": "Default",
       "rerunsCount": "{count, plural, =0 {None} =1 {1 rerun} other {# reruns}}",
-      "rerunsHint": "A case whose result changes is answered again this many times, and the change counts as confirmed only if it holds every time. None skips the check."
+      "rerunsHint": "A case whose result changes is answered again this many times, and the change counts as confirmed only if it holds every time. More reruns make a change harder to confirm, not easier: a model that answers differently each time rarely confirms anything. None skips the check."
     },
     "comparison": {
       "title": "How the two compare",
@@ -6356,7 +6356,7 @@
       "first": "This is the first result of {candidate} on {dataset}: {rate} of cases pass. Later versions are compared with it.",
       "worse": "{candidate} breaks {broke, plural, =1 {1 case} other {# cases}} that passed on {baseline}, every time it was asked: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
       "better": "{candidate} fixes {fixed, plural, =1 {1 case} other {# cases}} that failed on {baseline}, every time it was asked: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
-      "no_difference": "No change held: {candidate} does as well as {baseline} on {dataset}.{changes, plural, =0 {} =1 { 1 case changed once and not when asked again.} other { # cases changed once and not when asked again.}}",
+      "no_difference": "No change held: {changes, plural, =0 {{candidate} does as well as {baseline} on {dataset}.} =1 {1 case changed once and came out differently when asked again, so the pass rates of {candidate} and {baseline} on {dataset} do not tell the two apart.} other {# cases changed once and came out differently when asked again, so the pass rates of {candidate} and {baseline} on {dataset} do not tell the two apart.}}",
       "invalid": "{candidate} and {baseline} cannot be compared: the two sides were graded by a different judge or rubric.",
       "mixed": "Mixed: {candidate} breaks {broke, plural, =1 {1 case} other {# cases}} and fixes {fixed, plural, =1 {1} other {#}} against {baseline}, every time they were asked. It breaks: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
       "overall": "{overall, select, worse {Worse overall: across every confirmed change, {candidate} does worse than {baseline}.} other {Better overall: across every confirmed change, {candidate} does better than {baseline}.}}",

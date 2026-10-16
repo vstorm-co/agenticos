@@ -323,11 +323,26 @@ describe("EvalRunView", () => {
       fixed_unconfirmed: 1,
       cases: [],
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("No reproducible change")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: /No change held: v7 does as well as Draft on refunds\. 2 cases changed once and not when asked again\./,
+        name: /No change held: 2 cases changed once and came out differently when asked again, so the pass rates of v7 and Draft on refunds do not tell the two apart\./,
+      }),
+    ).toBeVisible();
+    unmount();
+
+    state.comparison = comparison({
+      verdict: "no_difference",
+      regressions_confirmed: 0,
+      regressions_unconfirmed: 0,
+      fixed_unconfirmed: 0,
+      cases: [],
+    });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(
+      screen.getByRole("heading", {
+        name: /No change held: v7 does as well as Draft on refunds\./,
       }),
     ).toBeVisible();
   });

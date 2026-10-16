@@ -3862,7 +3862,7 @@
       "reruns": "Powtórki potwierdzające",
       "rerunsDefault": "Domyślnie",
       "rerunsCount": "{count, plural, =0 {Brak} one {# powtórka} few {# powtórki} many {# powtórek} other {# powtórki}}",
-      "rerunsHint": "Case, którego wynik się zmienił, dostaje tyle powtórek, a zmiana liczy się jako potwierdzona tylko wtedy, gdy powtórzy się za każdym razem. „Brak” pomija to sprawdzenie."
+      "rerunsHint": "Case, którego wynik się zmienił, dostaje tyle powtórek, a zmiana liczy się jako potwierdzona tylko wtedy, gdy powtórzy się za każdym razem. Więcej powtórek utrudnia potwierdzenie zmiany, a nie ułatwia: model, który za każdym razem odpowiada inaczej, rzadko cokolwiek potwierdzi. „Brak” pomija to sprawdzenie."
     },
     "comparison": {
       "title": "Jak wypadają obie strony",
@@ -3977,7 +3977,7 @@
       "first": "To pierwszy wynik {candidate} na datasecie {dataset}: zalicza {rate} case'ów. Kolejne wersje będą z nim porównywane.",
       "worse": "{candidate} psuje {broke, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}}, które przechodziły na {baseline}, za każdym razem: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
       "better": "{candidate} naprawia {fixed, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}}, które nie przechodziły na {baseline}, za każdym razem: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
-      "no_difference": "Brak powtarzalnej zmiany: {candidate} radzi sobie tak samo jak {baseline} na datasecie {dataset}.{changes, plural, =0 {} one { # case zmienił się raz, ale nie przy ponownym pytaniu.} few { # case'y zmieniły się raz, ale nie przy ponownym pytaniu.} many { # case'ów zmieniło się raz, ale nie przy ponownym pytaniu.} other { # case'a zmieniło się raz, ale nie przy ponownym pytaniu.}}",
+      "no_difference": "Brak powtarzalnej zmiany: {changes, plural, =0 {{candidate} radzi sobie tak samo jak {baseline} na datasecie {dataset}.} one {# case zmienił się raz, a przy ponownym pytaniu wypadł inaczej, więc odsetek zaliczeń nie rozróżnia {candidate} i {baseline} na datasecie {dataset}.} few {# case'y zmieniły się raz, a przy ponownym pytaniu wypadły inaczej, więc odsetek zaliczeń nie rozróżnia {candidate} i {baseline} na datasecie {dataset}.} many {# case'ów zmieniło się raz, a przy ponownym pytaniu wypadło inaczej, więc odsetek zaliczeń nie rozróżnia {candidate} i {baseline} na datasecie {dataset}.} other {# case'a zmieniło się raz, a przy ponownym pytaniu wypadło inaczej, więc odsetek zaliczeń nie rozróżnia {candidate} i {baseline} na datasecie {dataset}.}}",
       "invalid": "{candidate} i {baseline} nie da się porównać: strony oceniał inny sędzia albo inna rubryka.",
       "mixed": "Mieszany: {candidate} psuje {broke, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}} i naprawia {fixed} względem {baseline}, za każdym razem. Psuje: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
       "overall": "{overall, select, worse {Gorszy ogólnie: po wszystkich potwierdzonych zmianach {candidate} wypada gorzej niż {baseline}.} other {Lepszy ogólnie: po wszystkich potwierdzonych zmianach {candidate} wypada lepiej niż {baseline}.}}",
