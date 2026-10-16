@@ -1188,7 +1188,7 @@ class TestGradingAgain:
 
         assert len(await _eval_runs(db, tenant)) == before
 
-    async def test_a_cause_still_there_or_a_judge_changed_since_is_refused(
+    async def test_a_cause_still_there_or_an_eval_runs_judge_changed_since_is_refused(
         self, db, monkeypatch
     ) -> None:
         async def prose(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
@@ -1200,9 +1200,7 @@ class TestGradingAgain:
         dataset, case = await _dataset(db, tenant, scoring=_rubric())
         run = await _scored_run(db, tenant)
         scoring = ScoringService(db)
-        failed = await scoring.score_run(
-            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
-        )
+        failed = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
         before = len(await _eval_runs(db, tenant))
         tenant.organization.ai_assistance_enabled = False
         await db.flush()
@@ -1221,6 +1219,47 @@ class TestGradingAgain:
         with pytest.raises(BadRequestError, match="published anew"):
             await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id]))
         assert len(await _eval_runs(db, tenant)) == before
+
+    async def test_an_answer_graded_on_its_own_is_graded_by_the_judge_published_since(
+        self, db, monkeypatch
+    ) -> None:
+        judging = Judge()
+        answers = iter(["It is fine."])
+
+        def model(self) -> FunctionModel:
+            async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+                text = next(answers, None)
+                if text is not None:
+                    return ModelResponse(parts=[TextPart(text)])
+                return await judging.model().function(messages, info)  # type: ignore[misc]
+
+            return FunctionModel(respond)
+
+        monkeypatch.setattr(ModelRequestSpec, "build", model)
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        scoring = ScoringService(db)
+        failed = await scoring.score_run(
+            tenant.ctx, dataset.id, case.case_id, CaseScoreCreate(run_id=run.id)
+        )
+        judge_agent = await agent_repo.get_system(
+            db, organization_id=tenant.organization.id, key=JUDGE.key
+        )
+        assert judge_agent is not None
+        published = await AgentRegistryService(db).publish(
+            tenant.ctx, judge_agent.id, note="Stricter"
+        )
+
+        result = await scoring.rescore(
+            tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id])
+        )
+
+        [again] = result.rescored
+        assert (again.passed, again.unscored_reason) == (True, None)
+        assert again.judge is not None
+        assert again.judge.agent_version_id == published.id
 
     async def test_a_score_of_another_dataset_refuses_the_request(self, db, judge) -> None:
         tenant = await _tenant(db)

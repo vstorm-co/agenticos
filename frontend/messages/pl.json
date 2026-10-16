@@ -3416,7 +3416,7 @@
         "judgeOutputInvalid": "Sędzia odpowiedział w formie, której nie da się odczytać.",
         "judgeUngraded": "Sędzia nie dał oceny na skali za to kryterium.",
         "judgeReasonEcho": "Sędzia powtórzył kryterium, zamiast napisać, dlaczego odpowiedź je spełnia.",
-        "judgeCounterUnsupported": "Sędzia uznał, że odpowiedź różni się od kontrprzykładu, nie cytując z niej niczego, czego kontrprzykład też by nie mówił."
+        "judgeCounterUnsupported": "Sędzia uznał, że odpowiedź różni się od kontrprzykładu, choć odpowiedź go powtarza albo sędzia zacytował tylko to, co oba mówią."
       },
       "scoreRun": "Oceń względem przypadku",
       "scoreRunBody": "Uruchom na odpowiedzi tego runu wszystkie oceniacze skonfigurowane w datasecie. Wynik zostanie zapisany w datasecie.",
@@ -3537,7 +3537,7 @@
       "noteAddedToRubric": "Notatka jest teraz jednym z kryteriów sędziego dla każdego przypadku, a sędzia jest włączony.",
       "rule": "Reguła: {rule}",
       "judgeSaid": "Sędzia odpowiedział: „{said}”",
-      "unverifiedTop": "Niezweryfikowane: najwyższa ocena bez żadnego cytatu z odpowiedzi na jej poparcie.",
+      "unverifiedGrade": "Niezweryfikowane: żaden cytat z odpowiedzi nie popiera tej oceny.",
       "agentDraft": "{name} · szkic"
     },
     "title": "Datasety",

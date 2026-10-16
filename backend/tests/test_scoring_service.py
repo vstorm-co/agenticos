@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.core.exceptions import AuthorizationError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.case_score import CaseScore
 from app.repositories import agent_repo, organization_repo
@@ -25,7 +25,13 @@ from app.schemas.scoring import (
 )
 from app.services import scoring
 from app.services.ai_assistance import AiAssistanceService
-from app.services.scorers import CaseView, ScoredAnswer, ScoredCall, judge_criteria
+from app.services.scorers import (
+    JUDGE_PROMPT_VERSION,
+    CaseView,
+    ScoredAnswer,
+    ScoredCall,
+    judge_criteria,
+)
 from app.services.scoring import Evaluation, ScoringService
 
 pytestmark = pytest.mark.anyio
@@ -157,3 +163,20 @@ async def test_a_score_no_judge_graded_is_scored_again_without_asking_the_judge(
     await service._judge_unchanged(_ctx(), score)
 
     service.judge.require_runnable.assert_not_awaited()
+
+
+@pytest.mark.parametrize("pinned", [JUDGE_PROMPT_VERSION - 1, None])
+async def test_an_eval_runs_score_graded_from_another_prompt_is_not_graded_again(pinned) -> None:
+    service = ScoringService(AsyncMock())
+    service.judge = MagicMock(require_runnable=AsyncMock())
+    score = MagicMock(
+        results=[{"scorer": "judge", "status": "error"}],
+        scoring=DatasetScoring().model_dump(mode="json", by_alias=True),
+        eval_run_id=uuid.uuid4(),
+        judge={"prompt_version": pinned},
+    )
+
+    with pytest.raises(BadRequestError, match="asked differently") as refused:
+        await service._judge_unchanged(_ctx(), score)
+
+    assert refused.value.details["prompt_version"] == pinned

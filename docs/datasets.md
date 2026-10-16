@@ -277,10 +277,15 @@ model is called, and its run appears in Activity under the `eval` surface.
 The judge is handed the case's note, as why the case exists, its earlier turns
 and question, the reference answer when it is graded, the counter-example,
 every tool call the agent made - its arguments, and whether an isolated run
-blocked it - and the answer. A case with a counter-example is always graded on a
-required **counter-example** criterion as well: the answer must not repeat the
-known bad answer, and passing it needs a quote from the answer the
-counter-example does not also say.
+blocked it - and the answer.
+
+A case with a counter-example is always graded on a required **counter-example**
+criterion as well: the answer must not repeat the known bad answer, and the
+judge is asked to quote what sets the answer apart from it. A pass is an error
+when it quotes only what the two share, or quotes nothing from an answer that
+copies the counter-example; any other with nothing quoted stands, marked
+unverified. An answer that keeps the counter-example and adds what it lacked
+passes on a quote of the addition.
 
 Judges start at temperature 0, so one answer is graded the same way twice; a
 model that takes no temperature, such as a reasoning model, grades without one.
@@ -315,8 +320,11 @@ run again, and the score keeps its eval run and any decision a person made on
 it; one every scorer reached a verdict on is left as it is.
 
 A cause still there - AI assistance off, the judge unpublished - is refused as it
-stands, and so is a judge published anew since it failed, whose grade would not
-compare with the rest of the run; nothing is graded then.
+stands, and so is an eval run's judge published anew since it failed, or a score
+of one pinned to an earlier judge prompt, whose grade would not compare with the
+rest of the run; nothing is graded then. An answer
+graded on its own, from the chat or from Activity, has no run to compare with: it
+is graded by the version published now, and its pin names that version.
 
 A grade may quote the answer, up to 12 passages; a quote the answer does not
 contain word for word is kept beside the grade as unverified, shown on its own
