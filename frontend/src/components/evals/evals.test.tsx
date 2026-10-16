@@ -17,6 +17,7 @@ import { ArmsTable } from "./arms-table";
 import { CaseDetail } from "./case-detail";
 import { ComparisonCard } from "./comparison-card";
 import { EstimateSummary } from "./estimate-summary";
+import { EvalRunVerdict } from "./eval-run-verdict";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { EvalsPanel } from "./evals-panel";
 import { VerdictChip } from "./run-row";
@@ -38,7 +39,11 @@ vi.mock("@/components/charts/pass-rate-lines.impl", () => ({
     <p>{`${rangeLabel}, last ${recent}: ${lines.map((l) => `${l.key}×${l.points.length}`).join(" ")}`}</p>
   ),
 }));
-vi.mock("@/hooks/use-eval-runs", () => ({ useEvalRuns: () => evalRuns.value }));
+const oneRun = vi.hoisted(() => ({ run: undefined as unknown }));
+vi.mock("@/hooks/use-eval-runs", () => ({
+  useEvalRuns: () => evalRuns.value,
+  useEvalRun: () => ({ run: oneRun.run }),
+}));
 const datasets = vi.hoisted(() => ({ items: [] as unknown[] }));
 vi.mock("@/hooks/use-datasets", () => ({ useDatasets: () => ({ datasets: datasets.items }) }));
 vi.mock("./start-eval-dialog", () => ({
@@ -61,6 +66,18 @@ describe("format", () => {
     expect(percent(null, "en")).toBe("—");
     expect(seconds(1500, "en")).toBe("1.5s");
     expect(seconds(null, "en")).toBe("—");
+  });
+});
+
+describe("EvalRunVerdict", () => {
+  it("shows the run's verdict chip once it is read, and nothing before", () => {
+    oneRun.run = undefined;
+    const { container, rerender } = render(<EvalRunVerdict runId="run-1" />);
+    expect(container).toBeEmptyDOMElement();
+
+    oneRun.run = worse();
+    rerender(<EvalRunVerdict runId="run-1" />);
+    expect(screen.getByText("Breaks 4")).toBeInTheDocument();
   });
 });
 
