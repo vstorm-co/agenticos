@@ -108,6 +108,9 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "knowledge": "the collection's embedding endpoint",
     "memory_mem0": "the mem0 host the binding names (MEM0_ALLOWED_HOSTS bounds it)",
     "sandbox": "the sandbox runtime this deployment configures",
+    # A drawing's pictures by address, only for an agent that already reads the
+    # web and only on a host its `web_fetch` or `browser_use` may reach.
+    "visuals": "picture addresses the model names, on hosts the agent's web readers may reach",
     "web_fetch": "whatever address the model asks for",
     "web_research": "DuckDuckGo by default, or the search provider the binding names",
 }

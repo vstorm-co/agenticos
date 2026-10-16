@@ -56,6 +56,13 @@ describe("partialArgs", () => {
     });
   });
 
+  it("reads an escaped quote inside a nested value without ending the string early", () => {
+    expect(partialArgs('{"images": [{"name": "a\\"]b"}], "z": 1}')).toEqual({
+      images: { value: [{ name: 'a"]b' }], complete: true },
+      z: { value: 1, complete: true },
+    });
+  });
+
   it("treats a nested value that has not closed as not there yet", () => {
     expect(partialArgs('{"images": [{"name": "a"')).toEqual({});
   });
