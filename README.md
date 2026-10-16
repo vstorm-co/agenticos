@@ -334,16 +334,6 @@ Choose it when a team has repeated document or tool-based work, subject experts 
 
 <img src="docs/assets/readme/limits.webp" alt="Eight limits with alternatives: source permissions, Microsoft 365 triggers, visual workflow builder, MFA/SAML/SCIM, search quality tools, scale-out, budgets under load, results." width="100%">
 
-**Not available today:**
-- Source-system permissions, such as SharePoint ACLs, are not mirrored per user. Scope the source credential instead.
-- There is no built-in Microsoft 365 trigger.
-- The visual workflow builder is in development.
-- There is no native MFA, SAML or SCIM. Use your identity provider through OIDC.
-- There is no reranker.
-- AgenticOS runs on a single host with Docker Compose. There are no Kubernetes manifests.
-- Budgets can be overshot by parallel runs.
-- Results depend on the model, tools and instructions, so evaluate them on your own task.
-
 ## 🔐 Own your deployment, models and access
 
 **Sovereign means control over deployment, model providers, data flows and agent access.** AgenticOS is Apache-2.0 software you can inspect, modify and operate.

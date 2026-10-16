@@ -1,4 +1,4 @@
-<!-- source_sha: d5e4569f35c6 -->
+<!-- source_sha: 665955a1eec4 -->
 
 <div align="center">
 
@@ -335,16 +335,6 @@ Los compañeros de IA llegan a la nube de cada proveedor. AgenticOS es el que ej
 Elígelo si el equipo tiene tareas recurrentes con documentos o herramientas, expertos que mantengan las instrucciones y una persona responsable de operar un despliegue autoalojado. Ten claro dónde se detiene hoy:
 
 <img src="docs/assets/readme/limits.webp" alt="Ocho límites con alternativas: permisos de las fuentes, triggers de Microsoft 365, editor visual de flujos, MFA/SAML/SCIM, herramientas de calidad de búsqueda, escalado horizontal, budgets bajo carga, resultados." width="100%">
-
-**No disponible hoy:**
-- Los permisos de los sistemas de origen, como las ACL de SharePoint, no se replican por usuario. Limita en su lugar la credencial de la fuente.
-- No hay un trigger integrado de Microsoft 365.
-- El editor visual de flujos de trabajo está en desarrollo.
-- No hay MFA, SAML ni SCIM nativos. Usa tu proveedor de identidad mediante OIDC.
-- No hay reranker.
-- AgenticOS se ejecuta en un solo host con Docker Compose. No hay manifiestos de Kubernetes.
-- Los runs en paralelo pueden superar los budgets.
-- Los resultados dependen del modelo, las herramientas y las instrucciones, así que evalúalos con tu propia tarea.
 
 ## 🔐 Controla tu despliegue, modelos y acceso
 

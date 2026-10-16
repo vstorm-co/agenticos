@@ -1,4 +1,4 @@
-<!-- source_sha: d5e4569f35c6 -->
+<!-- source_sha: 665955a1eec4 -->
 
 <div align="center">
 
@@ -335,16 +335,6 @@ Koledzy z AI pojawiają się w chmurze każdego dostawcy. AgenticOS to ten, któ
 Wybierz go, gdy zespół ma powtarzalne zadania związane z dokumentami lub narzędziami, ekspertów utrzymujących instrukcje oraz osobę odpowiedzialną za działanie wdrożenia na własnej infrastrukturze. Zobacz, gdzie dziś kończą się jego możliwości:
 
 <img src="docs/assets/readme/limits.webp" alt="Osiem ograniczeń z alternatywami: uprawnienia źródeł, wyzwalacze Microsoft 365, wizualny kreator workflow, MFA/SAML/SCIM, narzędzia jakości wyszukiwania, skalowanie, budżety pod obciążeniem, wyniki." width="100%">
-
-**Czego dziś nie ma:**
-- Uprawnienia z systemów źródłowych, takie jak ACL SharePoint, nie są odwzorowywane dla poszczególnych użytkowników. Zamiast tego ogranicz zakres poświadczeń źródła.
-- Nie ma wbudowanego wyzwalacza Microsoft 365.
-- Wizualny kreator workflow jest w trakcie rozwoju.
-- Nie ma natywnego MFA, SAML ani SCIM. Korzystaj z dostawcy tożsamości przez OIDC.
-- Nie ma rerankera.
-- AgenticOS działa na jednym hoście z Docker Compose. Nie ma manifestów Kubernetes.
-- Równoległe runy mogą przekroczyć budżet.
-- Wyniki zależą od modelu, narzędzi i instrukcji, więc oceń je na własnym zadaniu.
 
 ## 🔐 Kontroluj wdrożenie, modele i dostęp
 

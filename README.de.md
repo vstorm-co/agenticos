@@ -1,4 +1,4 @@
-<!-- source_sha: d5e4569f35c6 -->
+<!-- source_sha: 665955a1eec4 -->
 
 <div align="center">
 
@@ -335,16 +335,6 @@ KI-Teammates kommen in die Cloud jedes Anbieters. AgenticOS ist der, den du selb
 Wähle es, wenn ein Team wiederkehrende Arbeit mit Dokumenten oder Werkzeugen hat, Fachleute die Anweisungen pflegen können und jemand den Betrieb einer selbst gehosteten Bereitstellung verantwortet. Wisse, wo es heute endet:
 
 <img src="docs/assets/readme/limits.webp" alt="Acht Grenzen mit Alternativen: Berechtigungen der Quellsysteme, Microsoft-365-Trigger, visueller Workflow-Builder, MFA/SAML/SCIM, Werkzeuge für Suchqualität, horizontale Skalierung, Budgets unter Last, Ergebnisse." width="100%">
-
-**Heute nicht verfügbar:**
-- Berechtigungen der Quellsysteme, etwa SharePoint-ACLs, werden nicht pro Benutzer gespiegelt. Begrenze stattdessen die Zugangsdaten der Quelle.
-- Es gibt keinen integrierten Microsoft-365-Trigger.
-- Der visuelle Workflow-Builder ist in Entwicklung.
-- Es gibt keine native MFA, kein SAML und kein SCIM. Nutze deinen Identitätsanbieter über OIDC.
-- Es gibt keinen Reranker.
-- AgenticOS läuft auf einem einzelnen Host mit Docker Compose. Es gibt keine Kubernetes-Manifeste.
-- Parallele Runs können Budgets überschreiten.
-- Ergebnisse hängen von Modell, Werkzeugen und Anweisungen ab, also prüfe sie an deiner eigenen Aufgabe.
 
 ## 🔐 Betrieb, Modelle und Zugriff selbst kontrollieren
 
