@@ -123,6 +123,7 @@ async def test_a_run_on_track_is_left_alone() -> None:
     assert recorder.reviews == []
 
 
+@pytest.mark.security
 async def test_a_review_refused_for_budget_is_skipped_and_the_run_goes_on() -> None:
     """Its call is checked against the caps like any other, before it is made."""
     asked: list[str] = []
