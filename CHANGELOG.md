@@ -17,6 +17,28 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Agents draw in the conversation** (#2171). A new **Visuals** capability
+  gives an agent `draw`, `revise_visual` and `read_visual`: an SVG diagram, a
+  Mermaid flow, or a whole HTML page with sliders, `<canvas>` or three.js,
+  drawn under its message while it is written and kept in the conversation. The
+  drawing runs in a frame with exactly an app's sandbox, and the console tells
+  the model what broke in the person's browser so it fixes it in the same turn.
+  A drawing can use a photo attached to the thread, a workspace file, or - for
+  an agent that already reads the web - a picture from an address. From the
+  panel: full screen, the code, download, copy as image, ask about it, fix it,
+  and **Save to Apps** with versions. A shared thread shows its drawings, the
+  dashboard gains a **Recent visuals** card, and with `VISUAL_RENDER_CDP_URL` a
+  chat app gets the drawing as a picture. The bundled `visual-design` skill
+  carries the house style and templates; the library set gains three.js 0.186.0
+  and Mermaid 12.1.0. `seed-skills --skill` installs one bundled skill.
+
+### Fixed
+
+- **A conversation shared by link opens again.** Its route promised a member's
+  conversation and returned the link's narrower shape, so every link answered 500.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed
