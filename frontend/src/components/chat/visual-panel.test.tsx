@@ -23,14 +23,18 @@ vi.mock("./visual-frame", () => ({
   },
 }));
 
-const { copySvgImage, downloadVisual } = vi.hoisted(() => ({
+const { copySvgImage, downloadVisual, svgPng } = vi.hoisted(() => ({
   copySvgImage: vi.fn(),
   downloadVisual: vi.fn(),
+  svgPng: vi.fn(),
 }));
-vi.mock("./visual-actions", () => ({ copySvgImage, downloadVisual }));
+vi.mock("./visual-actions", () => ({ copySvgImage, downloadVisual, svgPng }));
 
-const { getVisualImage } = vi.hoisted(() => ({ getVisualImage: vi.fn() }));
-vi.mock("@/lib/visuals-api", () => ({ getVisualImage }));
+const { getVisualImage, putVisualThumbnail } = vi.hoisted(() => ({
+  getVisualImage: vi.fn(),
+  putVisualThumbnail: vi.fn(),
+}));
+vi.mock("@/lib/visuals-api", () => ({ getVisualImage, putVisualThumbnail }));
 
 const { nested } = vi.hoisted(() => ({ nested: { value: false } }));
 vi.mock("@/lib/visuals", async (importOriginal) => ({
@@ -400,5 +404,48 @@ describe("on the server", () => {
     const { unmount } = show([call()]);
     unmount();
     expect(screen.queryByText("Flow")).toBeNull();
+  });
+});
+
+describe("thumbnails", () => {
+  beforeEach(() => {
+    frames.length = 0;
+    nested.value = false;
+    vi.clearAllMocks();
+    svgPng.mockResolvedValue(new Blob(["png"]));
+    putVisualThumbnail.mockResolvedValue(undefined);
+  });
+
+  it("keeps one thumbnail of a drawing rendered live, from its own source", async () => {
+    show([call({ status: "running" })]);
+    act(() => lastFrame().onSvg?.("<svg>rendered</svg>"));
+    act(() => lastFrame().onSvg?.("<svg>again</svg>"));
+    await waitFor(() => expect(putVisualThumbnail).toHaveBeenCalledTimes(1));
+    expect(svgPng).toHaveBeenCalledWith(SVG, 640);
+    expect(putVisualThumbnail.mock.calls[0]!.slice(0, 2)).toEqual(["c1", "d1"]);
+  });
+
+  it("thumbnails a Mermaid diagram from what the frame rendered", async () => {
+    show([call({ status: "running", args: { title: "F", kind: "mermaid", content: "graph TD" } })]);
+    act(() => lastFrame().onSvg?.("<svg>diagram</svg>"));
+    await waitFor(() => expect(svgPng).toHaveBeenCalledWith("<svg>diagram</svg>", 640));
+  });
+
+  it("leaves a page, a reloaded drawing and a thread with no conversation alone", () => {
+    show([call({ status: "running", args: { title: "P", kind: "html", content: "<p/>" } })]);
+    act(() => lastFrame().onSvg?.("<svg/>"));
+    show([call()]);
+    act(() => lastFrame().onSvg?.("<svg/>"));
+    show([call({ status: "running" })], { conversationId: null });
+    act(() => lastFrame().onSvg?.("<svg/>"));
+    expect(svgPng).not.toHaveBeenCalled();
+  });
+
+  it("shrugs off a thumbnail that could not be made", async () => {
+    svgPng.mockRejectedValue(new Error("no canvas"));
+    show([call({ status: "running" })]);
+    act(() => lastFrame().onSvg?.("<svg/>"));
+    await waitFor(() => expect(svgPng).toHaveBeenCalled());
+    expect(putVisualThumbnail).not.toHaveBeenCalled();
   });
 });

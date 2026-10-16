@@ -47,6 +47,8 @@ export interface VisualFrameProps {
   onError?: (message: string) => void;
   /** The finished drawing has loaded and run its scripts for a moment. */
   onRendered?: () => void;
+  /** The SVG the drawing ended up as, for a thumbnail - a Mermaid diagram's above all. */
+  onSvg?: (markup: string) => void;
   onStall?: () => void;
 }
 
@@ -70,6 +72,7 @@ export function VisualFrame({
   fill = false,
   onError,
   onRendered,
+  onSvg,
   onStall,
 }: VisualFrameProps) {
   const { artifactUrl } = usePublicConfig();
@@ -83,9 +86,9 @@ export function VisualFrame({
   const [pending, setPending] = useLinkRequests(frame);
   const box = useRef<HTMLDivElement>(null);
   const [boxWidth, setBoxWidth] = useState(0);
-  const handlers = useRef({ onError, onRendered, onStall });
+  const handlers = useRef({ onError, onRendered, onSvg, onStall });
   useEffect(() => {
-    handlers.current = { onError, onRendered, onStall };
+    handlers.current = { onError, onRendered, onSvg, onStall };
   });
 
   useEffect(() => {
@@ -93,10 +96,17 @@ export function VisualFrame({
       if (frame.current === null || event.source !== frame.current.contentWindow) return;
       const data: unknown = event.data;
       if (typeof data !== "object" || data === null) return;
-      const message = data as { type?: unknown; height?: unknown; message?: unknown };
+      const message = data as {
+        type?: unknown;
+        height?: unknown;
+        message?: unknown;
+        markup?: unknown;
+      };
       if (message.type === "agenticos:visual-ready") setReady(true);
       else if (message.type === "agenticos:visual-rendered") handlers.current.onRendered?.();
-      else if (message.type === "agenticos:visual-alive") alive.current = Date.now();
+      else if (message.type === "agenticos:visual-svg" && typeof message.markup === "string") {
+        handlers.current.onSvg?.(message.markup);
+      } else if (message.type === "agenticos:visual-alive") alive.current = Date.now();
       else if (message.type === "agenticos:visual-size" && typeof message.height === "number") {
         const next = message.height;
         setReported((current) => {

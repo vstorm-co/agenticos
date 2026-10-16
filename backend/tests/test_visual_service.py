@@ -279,6 +279,13 @@ class TestReads:
 
 
 class TestPublish:
+    @pytest.fixture(autouse=True)
+    def _not_indexed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A visual drawn before the index existed has no row, and saves all the same."""
+        monkeypatch.setattr(
+            "app.services.visual.visual_repo.get_by_call", AsyncMock(return_value=None)
+        )
+
     def _published(self, **overrides: Any) -> PublishedArtifact:
         values: dict[str, Any] = {
             "artifact_id": uuid.uuid4(),
@@ -337,10 +344,16 @@ class TestPublish:
             patch(
                 "app.services.visual.artifacts.publish_with", new=AsyncMock(return_value=published)
             ) as publish,
+            patch(
+                "app.services.visual.visual_repo.get_by_call",
+                new=AsyncMock(return_value=SimpleNamespace()),
+            ),
+            patch("app.services.visual.visual_repo.update", new=AsyncMock()) as linked,
         ):
             result = await VisualService(MagicMock()).publish(
                 ctx, uuid.uuid4(), "d", VisualPublish(name="flow")
             )
+        assert linked.await_args.kwargs["artifact_id"] == published.artifact_id
 
         assert read.await_args.kwargs["user_id"] == ctx.user_id
         kwargs = publish.await_args.kwargs
@@ -550,3 +563,131 @@ class TestSharedThread:
     async def test_a_thread_with_no_messages_shares_no_visuals(self) -> None:
         conversation = SimpleNamespace(id=uuid.uuid4(), organization_id=uuid.uuid4(), messages=None)
         assert await visuals.shared_visuals(conversation) == {}
+
+
+class TestTheIndex:
+    async def test_a_drawing_is_indexed_on_a_session_of_its_own(self) -> None:
+        db = MagicMock()
+        with (
+            patch("app.services.visual.get_db_context", _db_context(db)),
+            patch("app.services.visual.visual_repo.record", new=AsyncMock()) as record,
+        ):
+            await visuals.record_visual(
+                organization_id=uuid.uuid4(),
+                conversation_id=uuid.uuid4(),
+                tool_call_id="c",
+                agent_id=None,
+                user_id=None,
+                title="Flow",
+                kind="svg",
+                revision_of=None,
+            )
+        assert record.await_args.args == (db,)
+        assert record.await_args.kwargs["title"] == "Flow"
+
+    async def test_recent_lists_the_caller_s_own_drawings(self) -> None:
+        from datetime import UTC, datetime
+
+        ctx = _ctx()
+        row = SimpleNamespace(
+            id=uuid.uuid4(),
+            conversation_id=uuid.uuid4(),
+            tool_call_id="c",
+            agent_id=None,
+            title="Flow",
+            kind="svg",
+            revision_of=None,
+            artifact_id=None,
+            thumbnail_path="media/x",
+            created_at=datetime(2026, 10, 16, tzinfo=UTC),
+        )
+        with patch(
+            "app.services.visual.visual_repo.recent", new=AsyncMock(return_value=[row])
+        ) as recent:
+            listed = await VisualService(MagicMock()).recent(ctx, limit=6)
+        assert recent.await_args.kwargs == {
+            "organization_id": ctx.organization_id,
+            "user_id": ctx.user_id,
+            "limit": 6,
+        }
+        assert listed.items[0].has_thumbnail is True
+
+    async def test_a_key_with_no_person_has_no_recent_drawings(self) -> None:
+        assert (await VisualService(MagicMock()).recent(_ctx(user=False), limit=6)).items == []
+
+    async def test_a_thumbnail_is_read_only_by_its_person(self) -> None:
+        ctx = _ctx()
+        mine = SimpleNamespace(user_id=ctx.user_id, thumbnail_path="media/t")
+        theirs = SimpleNamespace(user_id=uuid.uuid4(), thumbnail_path="media/t")
+        storage = MagicMock(load=AsyncMock(return_value=PNG))
+        with (
+            patch("app.services.visual.get_file_storage", return_value=storage),
+            patch("app.services.visual.visual_repo.get", new=AsyncMock(side_effect=[mine, theirs])),
+        ):
+            assert await VisualService(MagicMock()).thumbnail(ctx, uuid.uuid4()) == PNG
+            with pytest.raises(NotFoundError):
+                await VisualService(MagicMock()).thumbnail(ctx, uuid.uuid4())
+
+    async def test_a_drawing_without_a_thumbnail_has_none_to_give(self) -> None:
+        ctx = _ctx()
+        with (
+            patch(
+                "app.services.visual.visual_repo.get",
+                new=AsyncMock(
+                    return_value=SimpleNamespace(user_id=ctx.user_id, thumbnail_path=None)
+                ),
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await VisualService(MagicMock()).thumbnail(ctx, uuid.uuid4())
+
+    async def test_the_person_s_thumbnail_is_kept_beside_the_pictures(self) -> None:
+        ctx = _ctx()
+        conversation = uuid.uuid4()
+        row = SimpleNamespace(organization_id=ctx.organization_id, user_id=ctx.user_id)
+        storage = MagicMock(save_at=AsyncMock())
+        with (
+            patch("app.services.visual.get_file_storage", return_value=storage),
+            patch("app.services.visual.visual_repo.get_by_call", new=AsyncMock(return_value=row)),
+            patch("app.services.visual.visual_repo.update", new=AsyncMock()) as update,
+        ):
+            await VisualService(MagicMock()).save_thumbnail(ctx, conversation, "c", PNG)
+        path = visuals.image_path(ctx.organization_id, conversation, "c", "_thumbnail")
+        storage.save_at.assert_awaited_once_with(path, PNG)
+        assert update.await_args.kwargs["thumbnail_path"] == path
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("whose", ["nobody", "other-person", "other-org"])
+    async def test_only_the_person_sets_their_thumbnail(self, whose: str) -> None:
+        ctx = _ctx()
+        row = {
+            "nobody": None,
+            "other-person": SimpleNamespace(
+                organization_id=ctx.organization_id, user_id=uuid.uuid4()
+            ),
+            "other-org": SimpleNamespace(organization_id=uuid.uuid4(), user_id=ctx.user_id),
+        }[whose]
+        with (
+            patch("app.services.visual.visual_repo.get_by_call", new=AsyncMock(return_value=row)),
+            pytest.raises(NotFoundError),
+        ):
+            await VisualService(MagicMock()).save_thumbnail(ctx, uuid.uuid4(), "c", PNG)
+
+    @pytest.mark.parametrize("data", [b"<svg/>", PNG + b"\x00" * (513 * 1024)])
+    async def test_a_thumbnail_is_a_small_png(self, data: bytes) -> None:
+        ctx = _ctx()
+        row = SimpleNamespace(organization_id=ctx.organization_id, user_id=ctx.user_id)
+        with (
+            patch("app.services.visual.visual_repo.get_by_call", new=AsyncMock(return_value=row)),
+            pytest.raises(BadRequestError, match="PNG"),
+        ):
+            await VisualService(MagicMock()).save_thumbnail(ctx, uuid.uuid4(), "c", data)
+
+    async def test_saving_a_drawing_as_an_app_records_the_app_only(self) -> None:
+        from app.repositories import visual as visual_repo
+
+        db = MagicMock(flush=AsyncMock(), refresh=AsyncMock())
+        row = SimpleNamespace(artifact_id=None, thumbnail_path="media/t")
+        artifact = uuid.uuid4()
+        await visual_repo.update(db, db_visual=row, artifact_id=artifact)
+        assert (row.artifact_id, row.thumbnail_path) == (artifact, "media/t")

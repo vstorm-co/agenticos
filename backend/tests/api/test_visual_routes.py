@@ -145,3 +145,48 @@ async def test_a_thread_opened_by_its_link_carries_its_drawings(mock_redis: Magi
     shared = body["conversation"]["messages"][0]
     assert shared["visuals"] == [{"id": "d", "title": "Flow", "kind": "svg", "content": "<svg/>"}]
     assert "tool_calls" not in shared
+
+
+async def test_the_caller_s_recent_drawings_are_listed(service: MagicMock) -> None:
+    from app.schemas.visual import VisualList
+
+    context = _as(OrgRoleName.MEMBER)
+    service.recent = AsyncMock(return_value=VisualList(items=[]))
+
+    response = await _call("GET", f"{settings.API_V1_STR}/visuals?limit=6")
+
+    assert response.status_code == 200
+    assert response.json() == {"items": []}
+    assert service.recent.await_args.args == (context,)
+    assert service.recent.await_args.kwargs == {"limit": 6}
+
+
+async def test_a_thumbnail_is_a_png_that_runs_nothing(service: MagicMock) -> None:
+    _as(OrgRoleName.MEMBER)
+    service.thumbnail = AsyncMock(return_value=b"\x89PNG")
+    visual_id = uuid4()
+
+    response = await _call("GET", f"{settings.API_V1_STR}/visuals/{visual_id}/thumbnail")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert service.thumbnail.await_args.args[1] == visual_id
+
+
+async def test_the_console_s_thumbnail_reaches_the_service(service: MagicMock) -> None:
+    context = _as(OrgRoleName.MEMBER)
+    service.save_thumbnail = AsyncMock()
+
+    response = await _call(
+        "POST",
+        f"{BASE}/thumbnail",
+        files={"file": ("thumbnail.png", b"\x89PNG", "image/png")},
+    )
+
+    assert response.status_code == 204
+    assert service.save_thumbnail.await_args.args == (
+        context,
+        CONVERSATION_ID,
+        "toolu_1",
+        b"\x89PNG",
+    )

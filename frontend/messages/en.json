@@ -2183,6 +2183,15 @@
         "nothingWaiting": "Nothing waiting",
         "spent": "Spent",
         "spentLabel": "{amount} spent"
+      },
+      "recent-visuals": {
+        "title": "Recent visuals",
+        "description": "Diagrams, explainers and scenes your agents drew for you lately.",
+        "app": "App",
+        "empty": {
+          "title": "Nothing drawn yet",
+          "description": "Ask an agent with Visuals to draw something - a diagram, an explainer, a 3D scene - and it appears here."
+        }
       }
     },
     "edit": {

@@ -1,5 +1,5 @@
 ---
-source_sha: "3e47abd1c4d8"
+source_sha: "2c887121394b"
 ---
 
 # La consola { #the-console }
@@ -289,6 +289,8 @@ pantalla completa, mostrar su código, descargarlo, copiar un SVG como imagen, p
 sobre él y guardarlo como [aplicación](artifacts.md#visuals) con un enlace para
 compartir. Cuando un dibujo informa de un error, el agente ya lo sabe; **Corregir**
 vuelve a pedírselo. En un teléfono, un toque lo abre a pantalla completa.
+La tarjeta **Recent visuals** del panel muestra los últimos dibujados para usted, y
+cada uno abre la conversación en la que se dibujó.
 
 **Ver un recorrido.** Cuando un agent con el
 [navegador web](reference/capabilities.md#browser-automation) empieza en una página, su

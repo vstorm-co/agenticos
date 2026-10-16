@@ -1,5 +1,5 @@
 ---
-source_sha: "3e47abd1c4d8"
+source_sha: "2c887121394b"
 ---
 
 # Die Konsole { #the-console }
@@ -308,6 +308,8 @@ Gespräch, mit Schaltflächen für Vollbild, Code, Herunterladen, Kopieren eines
 Bild, Fragen danach und Speichern als [App](artifacts.md#visuals) mit einem Link zum
 Teilen. Meldet eine Zeichnung einen Fehler, weiß der Agent schon davon; **Beheben**
 fragt erneut. Auf einem Telefon öffnet ein Tippen sie im Vollbild.
+Die Karte **Neueste Visuals** auf dem Dashboard zeigt die zuletzt für Sie
+gezeichneten, jede öffnet das Gespräch, in dem sie entstand.
 
 **Einem Durchlauf zusehen.** Beginnt ein Agent mit dem
 [Webbrowser](reference/capabilities.md#browser-automation) auf einer Seite, erscheint

@@ -126,9 +126,10 @@ describe("VisualFrame", () => {
     expect(frameOf().getAttribute("scrolling")).toBeNull();
   });
 
-  it("passes the drawing's errors and its rendering on", () => {
+  it("passes the drawing's errors, its rendering and its SVG on", () => {
     const onError = vi.fn();
     const onRendered = vi.fn();
+    const onSvg = vi.fn();
     render(
       <VisualFrame
         kind="svg"
@@ -138,8 +139,13 @@ describe("VisualFrame", () => {
         height={300}
         onError={onError}
         onRendered={onRendered}
+        onSvg={onSvg}
       />,
     );
+    say({ type: "agenticos:visual-svg", markup: "<svg/>" });
+    say({ type: "agenticos:visual-svg", markup: 3 });
+    expect(onSvg).toHaveBeenCalledTimes(1);
+    expect(onSvg).toHaveBeenCalledWith("<svg/>");
     say({ type: "agenticos:visual-error", message: "boom" });
     say({ type: "agenticos:visual-error", message: 3 });
     say({ type: "agenticos:visual-rendered" });

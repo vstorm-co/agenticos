@@ -2183,6 +2183,15 @@
         "nothingWaiting": "Nic nie czeka",
         "spent": "Wydane",
         "spentLabel": "wydano {amount}"
+      },
+      "recent-visuals": {
+        "title": "Ostatnie wizualizacje",
+        "description": "Diagramy, explainery i sceny, które agenci ostatnio dla ciebie narysowali.",
+        "app": "Aplikacja",
+        "empty": {
+          "title": "Nic jeszcze nie narysowano",
+          "description": "Poproś agenta z Wizualizacjami, żeby coś narysował - diagram, explainer, scenę 3D - a pojawi się tutaj."
+        }
       }
     },
     "edit": {

@@ -47,7 +47,7 @@ import {
   svgAspect,
   type VisualKind,
 } from "@/lib/visuals";
-import { getVisualImage } from "@/lib/visuals-api";
+import { getVisualImage, putVisualThumbnail } from "@/lib/visuals-api";
 import {
   addVisualImages,
   useSavedVisualsStore,
@@ -55,7 +55,7 @@ import {
   useVisualStreamStore,
 } from "@/stores/visual-stream-store";
 import type { ChatMessage, ToolCall } from "@/types";
-import { copySvgImage, downloadVisual } from "./visual-actions";
+import { copySvgImage, downloadVisual, svgPng } from "./visual-actions";
 import { VisualFrame } from "./visual-frame";
 import { VisualSaveDialog } from "./visual-save-dialog";
 
@@ -201,6 +201,21 @@ const NO_IMAGES: Record<string, string> = {};
 /** Whether a page can change frames under it within its life: it cannot. */
 const subscribeToNothing = () => () => {};
 
+/** How wide a dashboard thumbnail is drawn. */
+const THUMBNAIL_WIDTH = 640;
+
+/**
+ * Keep a thumbnail of a drawing this console just rendered, for its dashboard tile.
+ *
+ * Best effort by design: a drawing with no thumbnail is shown on the dashboard
+ * by its kind's icon, so a refusal here costs a picture, not the drawing.
+ */
+function keepThumbnail(conversationId: string, visualId: string, svg: string): void {
+  void svgPng(svg, THUMBNAIL_WIDTH)
+    .then((png) => putVisualThumbnail(conversationId, visualId, png))
+    .catch(() => undefined);
+}
+
 /** How many times a picture is asked for before the drawing is shown without it. */
 const IMAGE_ATTEMPTS = 3;
 
@@ -277,6 +292,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
   // last error - so a ref, not the state that has not re-rendered yet.
   const errorsSeen = useRef<string[]>([]);
   const reported = useRef(false);
+  const thumbnailed = useRef(false);
 
   if (call.status === "error") return null;
   const streaming =
@@ -326,6 +342,14 @@ function VisualPanel({ call }: { call: ToolCall }) {
     if (reported.current || call.status !== "running") return;
     reported.current = true;
     onReport?.(call.id, errorsSeen.current);
+  };
+  // Once, from the session that watched it being drawn: a drawing read back
+  // later already has one, or never will from here.
+  const onSvg = (markup: string) => {
+    if (thumbnailed.current || call.status !== "running" || conversationId === null) return;
+    if (shown.kind === "html") return;
+    thumbnailed.current = true;
+    keepThumbnail(conversationId, call.id, shown.kind === "svg" ? content : markup);
   };
   const copyImage = async () => {
     try {
@@ -445,6 +469,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
             aspect={shown.kind === "svg" ? svgAspect(shown.content) : null}
             onError={onError}
             onRendered={onRendered}
+            onSvg={onSvg}
             onStall={() => setStalled(true)}
           />
           {/* On a phone the preview is a picture: a drag on a canvas would take

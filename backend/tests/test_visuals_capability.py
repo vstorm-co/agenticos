@@ -44,6 +44,16 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
 SVG = '<svg viewBox="0 0 100 50"><rect width="100" height="50"/></svg>'
 
 
+@pytest.fixture(autouse=True)
+def _no_index(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """No database here: a run's conversation is unknown unless a test says, and
+    indexing a drawing is recorded rather than written."""
+    monkeypatch.setattr(f"{SERVICE}.conversation_of_run", AsyncMock(return_value=None))
+    record = AsyncMock()
+    monkeypatch.setattr(f"{SERVICE}.record_visual", record)
+    return record
+
+
 def _deps(**overrides: Any) -> AgentDeps:
     values: dict[str, Any] = {
         "organization_id": uuid.uuid4(),
@@ -160,6 +170,45 @@ class TestDraw:
             _ctx(deps), title="Flow", kind="svg", height=480, content=SVG
         )
         assert "no browser reported how it rendered" in result
+
+
+class TestIndexing:
+    async def test_a_drawing_is_listed_for_the_person_it_was_made_for(
+        self, _no_index: AsyncMock
+    ) -> None:
+        person = uuid.uuid4()
+        conversation = uuid.uuid4()
+        deps = _deps(user_id=str(person))
+        with patch(f"{SERVICE}.conversation_of_run", new=AsyncMock(return_value=conversation)):
+            await VisualsToolset().draw(
+                _ctx(deps), title=" Flow ", kind="svg", height=1, content=SVG
+            )
+        assert _no_index.await_args.kwargs == {
+            "organization_id": deps.organization_id,
+            "conversation_id": conversation,
+            "tool_call_id": "call-1",
+            "agent_id": deps.agent_id,
+            "user_id": person,
+            "title": "Flow",
+            "kind": "svg",
+            "revision_of": None,
+        }
+
+    async def test_a_revision_is_listed_as_one(self, _no_index: AsyncMock) -> None:
+        tools = VisualsToolset()
+        messages = [_drawn_in_run(tools, "base", title="Flow", kind="svg", height=1, content=SVG)]
+        with patch(f"{SERVICE}.conversation_of_run", new=AsyncMock(return_value=uuid.uuid4())):
+            await tools.revise_visual(
+                _ctx(messages=messages, call_id="rev"),
+                visual_id="base",
+                edits=[ArtifactEdit(old="<rect", new="<g")],
+            )
+        assert _no_index.await_args.kwargs["revision_of"] == "base"
+        assert _no_index.await_args.kwargs["user_id"] is None
+
+    async def test_a_run_outside_a_thread_lists_nothing(self, _no_index: AsyncMock) -> None:
+        await VisualsToolset().draw(_ctx(), title="Flow", kind="svg", height=1, content=SVG)
+        _no_index.assert_not_awaited()
 
 
 class TestPictures:

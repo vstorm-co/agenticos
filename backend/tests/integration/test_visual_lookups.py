@@ -136,3 +136,38 @@ class TestAttachments:
         assert found is not None
         assert found.storage_path == "new"
         assert missing is None
+
+
+class TestTheIndex:
+    async def test_a_drawing_is_indexed_once_and_listed_for_its_person(self, db) -> None:
+        from app.repositories import visual as visual_repo
+
+        owner, message = await _thread(db)
+        conversation = await db.get(Conversation, message.conversation_id)
+        assert conversation is not None
+        for call_id, title in (("a", "First"), ("a", "Again"), ("b", "Second")):
+            await visual_repo.record(
+                db,
+                organization_id=conversation.organization_id,
+                conversation_id=conversation.id,
+                tool_call_id=call_id,
+                agent_id=None,
+                user_id=owner.id,
+                title=title,
+                kind="svg",
+                revision_of=None,
+            )
+
+        listed = await visual_repo.recent(
+            db, organization_id=conversation.organization_id, user_id=owner.id, limit=10
+        )
+        assert sorted(row.title for row in listed) == ["First", "Second"]
+
+        row = await visual_repo.get_by_call(db, conversation_id=conversation.id, tool_call_id="a")
+        assert row is not None
+        assert repr(row).startswith("<Visual(")
+        await visual_repo.update(db, db_visual=row, thumbnail_path="media/x")
+        assert (
+            await visual_repo.get(db, row.id, organization_id=conversation.organization_id)
+        ).thumbnail_path == "media/x"
+        assert await visual_repo.get(db, row.id, organization_id=uuid.uuid4()) is None

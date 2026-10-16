@@ -1,5 +1,6 @@
 """Saving a visual from the conversation as an app."""
 
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import Field
@@ -32,3 +33,22 @@ class VisualPublished(BaseSchema):
     created: bool
     unchanged: bool
     url: str = Field(description="Where the app opens in the console")
+
+
+class VisualListItem(BaseSchema):
+    """A drawing as the dashboard lists it: what it is, where it was drawn, nothing of it."""
+
+    id: UUID
+    conversation_id: UUID
+    tool_call_id: str
+    agent_id: UUID | None
+    title: str
+    kind: str
+    revision_of: str | None
+    artifact_id: UUID | None = Field(description="The app it was saved as, if it was")
+    has_thumbnail: bool
+    created_at: datetime
+
+
+class VisualList(BaseSchema):
+    items: list[VisualListItem]

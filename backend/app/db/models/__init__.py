@@ -74,8 +74,10 @@ from app.db.models.artifact import (
     ArtifactMediaType,
     ArtifactVersion,
 )
+from app.db.models.visual import Visual
 
 __all__ = [
+    "Visual",
     "ApiKey",
     "BrowserSignIn",
     "OrganizationAssistant",

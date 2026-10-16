@@ -248,6 +248,7 @@ class VisualsToolset:
         except VisualError as refused:
             return steer(ctx, str(refused))
         self.drawn.add(visual_id)
+        await _index(ctx, visual_id, title=title.strip(), kind=found, revision_of=None)
         checked = await _checked(ctx, visual_id)
         return f"Drew {title.strip()!r} as visual `{visual_id}`. {checked}"
 
@@ -303,6 +304,7 @@ class VisualsToolset:
             return steer(ctx, str(refused))
         self.drawn.add(revision_id)
         shown = (title or "").strip() or base.title
+        await _index(ctx, revision_id, title=shown, kind=base.kind, revision_of=base.id)
         checked = await _checked(ctx, revision_id)
         return f"Revised {shown!r} as visual `{revision_id}` (a revision of `{base.id}`). {checked}"
 
@@ -485,6 +487,26 @@ async def _checked(ctx: RunContext[AgentDeps], call_id: str) -> str:
         f"{problems}\n"
         "Fix them now with `revise_visual` on this id, or draw it again - then tell the "
         "person in one line what you changed."
+    )
+
+
+async def _index(
+    ctx: RunContext[AgentDeps], visual_id: str, *, title: str, kind: str, revision_of: str | None
+) -> None:
+    """List the drawing for the person it was made for; a run outside a thread lists nothing."""
+    deps = ctx.deps
+    conversation_id = await _conversation(deps)
+    if deps.organization_id is None or conversation_id is None:
+        return
+    await visuals.record_visual(
+        organization_id=deps.organization_id,
+        conversation_id=conversation_id,
+        tool_call_id=visual_id,
+        agent_id=deps.agent_id,
+        user_id=UUID(deps.user_id) if deps.user_id else None,
+        title=title,
+        kind=kind,
+        revision_of=revision_of,
     )
 
 

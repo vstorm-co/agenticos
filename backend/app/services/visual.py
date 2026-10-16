@@ -42,8 +42,9 @@ from app.db.session import get_db_context
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
+from app.repositories import visual as visual_repo
 from app.repositories.conversation import ToolCallArgs
-from app.schemas.visual import VisualPublish, VisualPublished
+from app.schemas.visual import VisualList, VisualListItem, VisualPublish, VisualPublished
 from app.services import artifact as artifacts
 from app.services.artifact import PLATFORM_SCRIPT
 from app.services.conversation import ConversationService
@@ -74,6 +75,13 @@ so a few photos are the budget, not an album."""
 
 MAX_IMAGES = 6
 """How many images one visual may carry."""
+
+THUMBNAIL = "_thumbnail"
+"""The name a visual's thumbnail is kept under, beside its pictures - one no
+picture can take, since a picture's name starts with a letter or a digit."""
+
+THUMBNAIL_MAX_BYTES = 512 * 1024
+"""A thumbnail's ceiling: a small PNG for a dashboard tile, not the drawing."""
 
 IMAGE_TOKEN = re.compile(r"\{\{image:([a-z0-9][a-z0-9_-]{0,39})\}\}")
 """Where a visual uses one of its images: `<img src="{{image:logo}}">`, an SVG
@@ -148,7 +156,14 @@ VISUAL_RUNTIME = """<script data-agenticos="visual">(function () {
   if (window.ResizeObserver) new ResizeObserver(size).observe(document.documentElement);
   window.addEventListener("load", function () {
     size();
-    setTimeout(function () { post({ type: "agenticos:visual-rendered" }); }, 800);
+    setTimeout(function () {
+      // A drawing that ends up as an SVG - a Mermaid diagram above all - is sent
+      // back as markup, so the console can make its thumbnail without a browser
+      // of its own: the frame's pixels are not the console's to read.
+      var drawn = document.querySelector("svg");
+      if (drawn) post({ type: "agenticos:visual-svg", markup: drawn.outerHTML });
+      post({ type: "agenticos:visual-rendered" });
+    }, 800);
   });
   setInterval(function () { post({ type: "agenticos:visual-alive" }); }, 1000);
 })();</script>"""
@@ -378,6 +393,32 @@ async def attachment_bytes(conversation_id: UUID, filename: str) -> bytes | None
     return await get_file_storage().load(attached.storage_path)
 
 
+async def record_visual(
+    *,
+    organization_id: UUID,
+    conversation_id: UUID,
+    tool_call_id: str,
+    agent_id: UUID | None,
+    user_id: UUID | None,
+    title: str,
+    kind: str,
+    revision_of: str | None,
+) -> None:
+    """Index a drawing a run just made, on a session of its own, as a tool must."""
+    async with get_db_context() as db:
+        await visual_repo.record(
+            db,
+            organization_id=organization_id,
+            conversation_id=conversation_id,
+            tool_call_id=tool_call_id,
+            agent_id=agent_id,
+            user_id=user_id,
+            title=title,
+            kind=kind,
+            revision_of=revision_of,
+        )
+
+
 async def earlier_visuals(*, conversation_id: UUID, limit: int) -> list[VisualSummary]:
     """The conversation's latest visuals, oldest first, named but not read."""
     async with get_db_context() as db:
@@ -527,6 +568,11 @@ class VisualService:
             media_type=ArtifactMediaType.HTML,
             data=document,
         )
+        indexed = await visual_repo.get_by_call(
+            self.db, conversation_id=conversation_id, tool_call_id=visual_id
+        )
+        if indexed is not None:
+            await visual_repo.update(self.db, db_visual=indexed, artifact_id=published.artifact_id)
         return VisualPublished(
             artifact_id=published.artifact_id,
             version=published.version_number,
@@ -571,6 +617,81 @@ class VisualService:
         if kept is None:
             raise missing
         return kept
+
+    async def recent(self, ctx: AuthContext, *, limit: int) -> VisualList:
+        """The caller's latest drawings in this organization, newest first."""
+        if ctx.user_id is None:
+            return VisualList(items=[])
+        rows = await visual_repo.recent(
+            self.db, organization_id=ctx.organization_id, user_id=ctx.user_id, limit=limit
+        )
+        return VisualList(
+            items=[
+                VisualListItem(
+                    id=row.id,
+                    conversation_id=row.conversation_id,
+                    tool_call_id=row.tool_call_id,
+                    agent_id=row.agent_id,
+                    title=row.title,
+                    kind=row.kind,
+                    revision_of=row.revision_of,
+                    artifact_id=row.artifact_id,
+                    has_thumbnail=row.thumbnail_path is not None,
+                    created_at=row.created_at,
+                )
+                for row in rows
+            ]
+        )
+
+    async def thumbnail(self, ctx: AuthContext, visual_id: UUID) -> bytes:
+        """A drawing's thumbnail, for the person it was drawn for.
+
+        Raises:
+            NotFoundError: No such drawing of theirs, or it has no thumbnail yet -
+                one answer for both, so an id says nothing about anybody else's.
+        """
+        row = await visual_repo.get(self.db, visual_id, organization_id=ctx.organization_id)
+        if (
+            row is None
+            or row.user_id is None
+            or row.user_id != ctx.user_id
+            or not row.thumbnail_path
+        ):
+            raise NotFoundError(
+                message="There is no such thumbnail", details={"visual_id": visual_id}
+            )
+        return await get_file_storage().load(row.thumbnail_path)
+
+    async def save_thumbnail(
+        self, ctx: AuthContext, conversation_id: UUID, visual_id: str, data: bytes
+    ) -> None:
+        """Keep the thumbnail the console made of a drawing it just rendered.
+
+        Only the person the drawing was made for sets it - the tile is on their
+        dashboard - and only a small PNG is taken.
+
+        Raises:
+            NotFoundError: No such drawing of theirs in this conversation.
+            BadRequestError: Not a PNG, or too large for a thumbnail.
+        """
+        row = await visual_repo.get_by_call(
+            self.db, conversation_id=conversation_id, tool_call_id=visual_id
+        )
+        if (
+            row is None
+            or row.organization_id != ctx.organization_id
+            or row.user_id is None
+            or row.user_id != ctx.user_id
+        ):
+            raise NotFoundError(message="There is no such visual", details={"visual_id": visual_id})
+        if image_type(data) != "image/png" or len(data) > THUMBNAIL_MAX_BYTES:
+            raise BadRequestError(
+                message=f"A thumbnail is a PNG of at most {THUMBNAIL_MAX_BYTES:,} bytes",
+                details={"visual_id": visual_id},
+            )
+        path = image_path(ctx.organization_id, conversation_id, visual_id, THUMBNAIL)
+        await get_file_storage().save_at(path, data)
+        await visual_repo.update(self.db, db_visual=row, thumbnail_path=path)
 
 
 def visual_document(kind: VisualKind, content: str, *, title: str) -> str:

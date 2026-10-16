@@ -1,7 +1,7 @@
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 
 from app.api.deps import (
     ActiveOrg,
@@ -176,6 +176,22 @@ async def publish_visual(
     under the agent whose turn drew it, owned by the caller.
     """
     return await service.publish(ctx, conversation_id, visual_id, data)
+
+
+@router.post(
+    "/{conversation_id}/visuals/{visual_id}/thumbnail",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def put_visual_thumbnail(
+    conversation_id: UUID,
+    visual_id: str,
+    service: VisualSvc,
+    ctx: Auth,
+    file: UploadFile = File(...),
+) -> None:
+    """Keep the thumbnail the console made of a drawing, for the dashboard's tile."""
+    await service.save_thumbnail(ctx, conversation_id, visual_id, await file.read())
 
 
 @router.get(

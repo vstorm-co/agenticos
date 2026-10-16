@@ -1,5 +1,5 @@
 ---
-source_sha: "3e47abd1c4d8"
+source_sha: "2c887121394b"
 ---
 
 # Konsola { #the-console }
@@ -283,7 +283,8 @@ dopasowany do rozmowy, z przyciskami do pełnego ekranu, pokazania kodu, pobrani
 skopiowania SVG jako obrazu, zapytania o niego i zapisu jako
 [aplikacji](artifacts.md#visuals) z linkiem do udostępnienia. Gdy rysunek zgłosi błąd,
 agent już o nim wie; **Napraw** prosi go ponownie. Na telefonie stuknięcie otwiera go na
-pełnym ekranie.
+pełnym ekranie. Karta **Ostatnie wizualizacje** na dashboardzie pokazuje najnowsze
+rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
 
 **Oglądanie przeglądania.** Gdy agent z
 [przeglądarką](reference/capabilities.md#browser-automation) zaczyna na stronie, jego

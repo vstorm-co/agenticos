@@ -306,6 +306,10 @@ export const qk = {
     list: (orgId: string) => ["api-keys", orgId, "list"] as const,
     scopes: (orgId: string) => ["api-keys", orgId, "scopes"] as const,
   },
+  // The drawings agents made for the caller (#2171).
+  visuals: {
+    recent: (limit: number) => ["visuals", "recent", limit] as const,
+  },
   artifacts: {
     all: () => ["artifacts"] as const,
     list: (query: {

@@ -2183,6 +2183,15 @@
         "nothingWaiting": "Nichts wartet",
         "spent": "Ausgegeben",
         "spentLabel": "{amount} ausgegeben"
+      },
+      "recent-visuals": {
+        "title": "Neueste Visuals",
+        "description": "Diagramme, Erklärungen und Szenen, die Ihre Agents zuletzt für Sie gezeichnet haben.",
+        "app": "App",
+        "empty": {
+          "title": "Noch nichts gezeichnet",
+          "description": "Bitten Sie einen Agent mit Visuals, etwas zu zeichnen - ein Diagramm, eine Erklärung, eine 3D-Szene - und es erscheint hier."
+        }
       }
     },
     "edit": {

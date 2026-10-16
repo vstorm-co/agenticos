@@ -25,6 +25,41 @@ export interface VisualPublished {
   url: string;
 }
 
+/** One drawing the caller was drawn, as the dashboard lists it. */
+export interface VisualListItem {
+  id: string;
+  conversation_id: string;
+  tool_call_id: string;
+  agent_id: string | null;
+  title: string;
+  kind: "svg" | "html" | "mermaid";
+  revision_of: string | null;
+  artifact_id: string | null;
+  has_thumbnail: boolean;
+  created_at: string;
+}
+
+export function listRecentVisuals(limit: number): Promise<{ items: VisualListItem[] }> {
+  return apiClient.get<{ items: VisualListItem[] }>(`/visuals?limit=${limit}`);
+}
+
+/** Where a drawing's thumbnail is read, through the console's own proxy. */
+export function visualThumbnailUrl(visualId: string): string {
+  return `/api/visuals/${visualId}/thumbnail`;
+}
+
+/** Keep the thumbnail this console made of a drawing it just rendered. */
+export function putVisualThumbnail(
+  conversationId: string,
+  visualId: string,
+  png: Blob,
+): Promise<void> {
+  return apiClient.upload<void>(
+    `/conversations/${conversationId}/visuals/${encodeURIComponent(visualId)}/thumbnail`,
+    new File([png], "thumbnail.png", { type: "image/png" }),
+  );
+}
+
 export function publishVisual(
   conversationId: string,
   visualId: string,
