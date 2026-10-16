@@ -3861,6 +3861,28 @@ class AgentRunnerService:
         except Exception:
             logger.exception("skill_proposal_record_failed", extra={"run_id": str(prepared.run.id)})
 
+    async def keep_plan(self, prepared: PreparedRun, *, status: RunStatus) -> None:
+        """Store the checklist the turn ended on, so the next turn starts from it.
+
+        Every surface that runs a turn in a conversation calls this on its way
+        out - the web chat as much as `_run` (#1077, #2162). A run with no
+        conversation has nowhere to keep one and writes nothing.
+
+        `keep_plan` treats an empty list as no plan, so an agent that binds no
+        planning capability writes nothing, and a run that emptied a stored plan
+        records that it did. An interrupted run puts its step in progress down
+        (`put_down`). The one turn that writes nothing is the one whose store was
+        opened empty over a finished plan: it did nothing to the checklist, and
+        `[]` would delete the row #1221 keeps.
+        """
+        if prepared.run.conversation_id is None:
+            return
+        checklist = await dump_plan(prepared.plan_store)
+        if status in _INTERRUPTED:
+            checklist = put_down(checklist)
+        if checklist or not prepared.finished_plan_withheld:
+            await ConversationService(self.db).keep_plan(prepared.run.conversation_id, checklist)
+
     async def finish(
         self,
         prepared: PreparedRun,
@@ -5019,20 +5041,7 @@ class AgentRunnerService:
                             prepared.run.conversation_id,
                             prepared.built.reminder_state.snapshot(),
                         )
-                    # The checklist the turn ended on, so the next turn starts
-                    # from it rather than from nothing. `keep_plan` treats an empty
-                    # list as no plan, so an agent that binds no planning
-                    # capability writes nothing, and a run that emptied a stored
-                    # plan records that it did.
-                    #
-                    # The one turn that writes nothing is the one whose store was
-                    # opened empty over a finished plan: it did nothing to the
-                    # checklist, and `[]` would delete the row #1221 keeps.
-                    checklist = await dump_plan(prepared.plan_store)
-                    if status in _INTERRUPTED:
-                        checklist = put_down(checklist)
-                    if checklist or not prepared.finished_plan_withheld:
-                        await conversations.keep_plan(prepared.run.conversation_id, checklist)
+                    await self.keep_plan(prepared, status=status)
                 await self.db.commit()
                 await change_feed.publish_run(prepared.run, "updated")
             except Exception:

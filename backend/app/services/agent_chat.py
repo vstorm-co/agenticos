@@ -604,6 +604,7 @@ class ChatAgentRunner:
                     paused_state=paused,
                     budget_scope=budget_scope,
                 )
+                await self.runner.keep_plan(prepared, status=status)
                 await self.db.commit()
                 await change_feed.publish_run(prepared.run, "updated")
             except Exception:
