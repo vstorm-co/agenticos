@@ -1,163 +1,105 @@
 <!doctype html>
+<!--
+  The source of docs/assets/social-preview.png - the card GitHub shows for the
+  repository and every docs page carries as its Open Graph image. A template:
+  `node docs/assets/readme-banner/render.mjs --social` fills it with the
+  Toolbox's own cards, as it does the README banner, renders it at 2x and
+  downsizes it to 1280x640, so a changed illustration or mark reaches the card
+  by running that again.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>AgenticOS - social preview</title>
-<!--
-  The source of docs/assets/social-preview.png, kept because a card that is only a
-  finished PNG goes stale the day the mark changes and no check notices.
-
-  The mark is docs/assets/logo.svg itself, loaded rather than copied, and the
-  agents around it are drawn by the same blobatar version the console's avatars
-  use, on the console's own hues - so the card shows the product's faces, not a
-  drawing of them. Render it with:
-
-    screenshot the .card at 1280x640, dpr 2
-    downscale to 1280x640, Lanczos (magick in.png -filter Lanczos -resize 1280x640 out.png)
-
-  Type and the library come from public CDNs rather than the repository, because
-  this is rendered once by hand and a relative path out of docs/ into frontend/
-  would not survive the docs build.
--->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --ground: #100e18;
-    --tile: #2b2547;
-    --ink: #f4f2fb;
-    --dim: #a19cb8;
-    --blob: #bbd1ff;
-  }
-  * { box-sizing: border-box; }
+/*CAPCSS*/
+  :root { --ground: #100e18; --tile: #2b2547; --ink: #f4f2fb; --dim: #a19cb8; --blob: #bbd1ff; }
   html, body { margin: 0; background: var(--ground); }
-
   .card {
-    position: relative;
-    width: 1280px;
-    height: 640px;
-    overflow: hidden;
-    background:
-      radial-gradient(circle at 76% 50%, rgba(129, 112, 214, 0.22), transparent 46%),
-      radial-gradient(circle at 76% 50%, rgba(43, 37, 71, 0.55), transparent 72%),
-      var(--ground);
-    font-family: Inter, system-ui, sans-serif;
-    color: var(--ink);
+    position: relative; width: 1280px; height: 640px; overflow: hidden;
+    background: var(--ground); font-family: Inter, system-ui, sans-serif; color: var(--ink);
   }
+  .dots { position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,0.07) 1.2px, transparent 1.2px); background-size: 28px 28px; }
+  .glow { position: absolute; width: 1000px; height: 1000px; right: -260px; top: -200px; background: radial-gradient(closest-side, rgba(120,110,220,0.30), rgba(120,110,220,0) 70%); }
+  .left { position: absolute; left: 72px; top: 0; bottom: 0; width: 600px; display: flex; flex-direction: column; justify-content: center; gap: 24px; z-index: 3; }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .brand svg { width: 80px; height: 80px; }
+  .brand span { font-size: 72px; font-weight: 800; letter-spacing: -0.035em; }
+  .tag { font-size: 40px; white-space: nowrap; line-height: 1.2; font-weight: 500; color: #d9d5ec; letter-spacing: -0.015em; }
+  .tag b { color: var(--blob); font-weight: 700; }
+  .sub { font-family: "Geist Mono", monospace; font-size: 19px; line-height: 1.7; color: var(--dim); }
+  .sub i { font-style: normal; color: var(--ink); }
+  .by { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-family: "Geist Mono", monospace; font-size: 17px; color: var(--dim); }
+  .by svg { height: 28px; width: auto; }
+  .url { position: absolute; left: 0; bottom: 48px; font-family: "Geist Mono", monospace; font-size: 18px; color: var(--ink); }
+  .url em { font-style: normal; color: var(--dim); }
 
-  /* The console's dotted canvas, faint, so the ground reads as a workspace. */
-  .grid {
-    position: absolute;
-    inset: 0;
-    background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1.2px, transparent 1.2px);
-    background-size: 28px 28px;
-    mask-image: linear-gradient(90deg, transparent 0%, #000 45%, #000 100%);
-  }
-
-  .copy {
-    position: absolute;
-    left: 80px;
-    top: 0;
-    bottom: 0;
-    width: 600px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
-  .meta {
-    margin: 0;
-    font-family: "Geist Mono", ui-monospace, monospace;
-    font-size: 15px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--dim);
-  }
-  h1 {
-    margin: 22px 0 0;
-    font-size: 104px;
-    font-weight: 800;
-    letter-spacing: -0.045em;
-    line-height: 0.95;
-  }
-  .tag {
-    margin: 26px 0 0;
-    font-size: 28px;
-    line-height: 1.38;
-    color: #c9c5da;
-    text-wrap: balance;
-  }
-  .tag b { color: var(--blob); font-weight: 600; }
-
-  .repo {
-    position: absolute;
-    left: 80px;
-    bottom: 56px;
-    margin: 0;
-    font-family: "Geist Mono", ui-monospace, monospace;
-    font-size: 17px;
-    color: var(--dim);
-  }
-  .repo b { color: var(--ink); font-weight: 400; }
-
-  .crew { position: absolute; inset: 0; }
-  .crew > * { position: absolute; }
-  .mark {
-    left: 828px;
-    top: 170px;
-    width: 300px;
-    height: 300px;
-    /* The tile's own corner (30 of 104), so the rim follows it exactly. */
-    border-radius: 86.5px;
-    box-shadow: 0 0 0 1.5px rgba(187, 209, 255, 0.16), 0 30px 64px rgba(4, 3, 10, 0.65);
-  }
-  .agent {
-    width: var(--s);
-    height: var(--s);
-    filter: drop-shadow(0 10px 22px rgba(8, 6, 16, 0.5));
-  }
-  .agent svg { width: 100%; height: 100%; display: block; }
+  .wall { position: absolute; left: 660px; top: -30px; height: 760px; display: flex; gap: 20px; transform: rotate(-5deg); transform-origin: left top; }
+  .col { display: flex; flex-direction: column; gap: 20px; }
+  .c0 { margin-top: 40px; } .c1 { margin-top: -30px; } .c2 { margin-top: 30px; } .c3 { margin-top: -20px; }
+  .cardx { flex-shrink: 0; width: 236px; background: #fff; border-radius: 18px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.25), 0 24px 48px -12px rgba(0,0,0,0.6); }
+  .cardx .cap-art { background: oklch(97.8% 0.002 265); }
+  .lbl { padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 3px; color: oklch(17.5% 0.004 265); }
+  .lbl b { font-size: 15px; font-weight: 650; }
+  .lbl span { font-size: 12.5px; color: oklch(45% 0.006 265); }
+  .fade { position: absolute; inset: 0; pointer-events: none; z-index: 2;
+    background: linear-gradient(90deg, var(--ground) 0, var(--ground) 600px, rgba(16,14,24,0.0) 720px, rgba(16,14,24,0) 1200px, rgba(16,14,24,0.55) 1280px),
+                linear-gradient(180deg, rgba(16,14,24,0.5) 0, rgba(16,14,24,0) 50px, rgba(16,14,24,0) 580px, rgba(16,14,24,0.6) 640px); }
+  .b { position: absolute; z-index: 4; }
+  .b svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 12px 18px rgba(0,0,0,0.5)); }
+  /* Every period divides the six-second loop, so the GIF repeats without a seam. */
+  .b { animation: bob var(--bob) ease-in-out var(--bobd) infinite; }
+  .b .eyes { transform-box: fill-box; transform-origin: center; animation: blink var(--blink) linear var(--blinkd) infinite; }
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-9px) rotate(-2deg); } }
+  @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 93% { transform: scaleY(0.12); } 96% { transform: scaleY(1); } }
 </style>
 </head>
 <body>
 <div class="card">
-  <div class="grid"></div>
+  <div class="dots"></div>
+  <div class="glow"></div>
+  <div class="wall"><!--CARDS--></div>
+  <div class="fade"></div>
 
-  <div class="copy">
-    <p class="meta">Self-hosted &middot; Apache-2.0 &middot; Open source</p>
-    <h1>AgenticOS</h1>
-    <p class="tag">One place to <b>build</b>, <b>run</b> and <b>govern</b> your company&rsquo;s AI agents.</p>
+  <div class="left">
+    <div class="brand">
+      <svg viewBox="0 0 104 104"><rect width="104" height="104" rx="30" fill="#2b2547"/><g transform="translate(10 10) scale(0.84)"><path fill="#bbd1ff" d="M84.91 51.44C84.91 71.47 72.07 83.63 50.89 83.63C29.72 83.63 16.87 71.47 16.87 51.44C16.87 31.41 29.72 19.26 50.89 19.26C72.07 19.26 84.91 31.41 84.91 51.44Z"/><g fill="#0b0f18"><path d="M47.24 45.43C47.13 52.95 46.91 53.47 43.77 53.42C40.64 53.37 40.43 52.85 40.54 45.34C40.65 37.82 40.87 37.3 44.01 37.35C47.14 37.4 47.35 37.92 47.24 45.43Z"/><path d="M65.15 45.55C65.37 54.87 65.14 55.52 61.7 55.6C58.26 55.68 58 55.04 57.79 45.72C57.57 36.41 57.79 35.76 61.24 35.68C64.68 35.59 64.93 36.24 65.15 45.55Z"/></g></g></svg>
+      <span>AgenticOS</span>
+    </div>
+    <div class="tag">Open-source <b>AI teammates</b><br>for your company.</div>
+    <div class="sub"><i>Build, run and govern AI agents</i><br>on your own servers · Apache-2.0</div>
+    <div class="by">by <!--VSTORM--></div>
+    <div class="url">github.com/<em>vstorm-co/agenticos</em></div>
   </div>
-
-  <div class="crew" id="crew">
-    <img class="mark" src="logo.svg" alt="AgenticOS">
-  </div>
-
-  <p class="repo"><b>github.com</b>/vstorm-co/agenticos</p>
+  <div id="blobs"></div>
 </div>
-
-<script type="module">
-  import { blobatar } from "https://cdn.jsdelivr.net/npm/blobatar@2.7.0/+esm";
-
-  // A company's agents around the one that runs them: names a real team would
-  // give them, each on a hue from the console's AVATAR_HUES.
-  const AGENTS = [
-    { seed: "support", hue: 175, x: 742, y: 92, s: 92 },
-    { seed: "research", hue: 20, x: 1150, y: 110, s: 80 },
-    { seed: "finance", hue: 140, x: 1170, y: 392, s: 70 },
-    { seed: "legal", hue: 300, x: 1060, y: 500, s: 64 },
-    { seed: "ops", hue: 55, x: 712, y: 430, s: 76 },
-    { seed: "sales", hue: 330, x: 980, y: 66, s: 58 },
-  ];
-  const crew = document.getElementById("crew");
-  for (const agent of AGENTS) {
-    const el = document.createElement("div");
-    el.className = "agent";
-    el.style.cssText = `left:${agent.x}px;top:${agent.y}px;--s:${agent.s}px`;
-    el.innerHTML = blobatar(agent.seed, { hue: agent.hue, background: "circle" });
-    crew.append(el);
-  }
-  document.body.dataset.ready = "1";
+<script>
+const BLOBS = [
+  // [left, top, size, base, light, dark, look, bob s, bob delay, blink s, blink delay] - on the scenes or in the gaps, never on a label
+  [838, 214, 92, "#f28ab8", "#ffd0e4", "#c25587", 1, 3, 0, 6, -1.0],
+  [846, 18, 70, "#2fc39a", "#a3f2d6", "#16805f", -1, 2, -0.7, 3, -2.2],
+  [952, 346, 86, "#5b6cf0", "#b5bdff", "#3442b8", -1, 3, -1.4, 6, -3.9],
+  [968, 556, 72, "#f3a93c", "#ffe0a3", "#bf7414", -1, 2, -1.2, 6, -5.1],
+  [944, 128, 56, "#5cc9f5", "#c5ecff", "#2a8fc0", 1, 3, -2.1, 3, -0.4],
+  [896, 438, 56, "#9b7cf2", "#d6c8ff", "#6a4bc4", 1, 2, -0.3, 6, -2.9],
+];
+const path = "M84.91 51.44C84.91 71.47 72.07 83.63 50.89 83.63C29.72 83.63 16.87 71.47 16.87 51.44C16.87 31.41 29.72 19.26 50.89 19.26C72.07 19.26 84.91 31.41 84.91 51.44Z";
+const host = document.getElementById("blobs");
+BLOBS.forEach(([x, y, s, base, light, dark, look, bob, bobd, blink, blinkd], i) => {
+  host.insertAdjacentHTML("beforeend", `
+  <div class="b" style="left:${x}px;top:${y}px;width:${s}px;height:${s}px;--bob:${bob}s;--bobd:${bobd}s;--blink:${blink}s;--blinkd:${blinkd}s">
+    <svg viewBox="16 18 70 67">
+      <defs><radialGradient id="g${i}" cx="38%" cy="30%" r="80%">
+        <stop offset="0" stop-color="${light}"/><stop offset="0.45" stop-color="${base}"/><stop offset="1" stop-color="${dark}"/>
+      </radialGradient></defs>
+      <path d="${path}" fill="url(#g${i})"/>
+      <ellipse cx="37" cy="31" rx="9" ry="6" fill="#fff" opacity="0.55" transform="rotate(-25 37 31)"/>
+      <g fill="#1d1a2b" transform="translate(${look * 3} 2)"><g class="eyes">
+        <rect x="40.5" y="40" width="7" height="15" rx="3.5"/><rect x="56.5" y="40" width="7" height="15" rx="3.5"/>
+      </g></g>
+    </svg>
+  </div>`);
+});
 </script>
 </body>
 </html>

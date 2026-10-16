@@ -1,7 +1,8 @@
 /**
  * Render the README's banner, docs/assets/readme-banner.webp.
  *
- *     node docs/assets/readme-banner/render.mjs
+ *     node docs/assets/readme-banner/render.mjs            # the banner
+ *     node docs/assets/readme-banner/render.mjs --social   # docs/assets/social-preview.png
  *
  * The cards are the Toolbox's own: their scenes and stylesheet are read from
  * frontend/src/components/agents/capability-art at render time, so a changed
@@ -56,15 +57,27 @@ const card = ([id, name, does]) => `
     <div class="cap-art" style="--h:${CAPABILITY_HUE[id]}"><div class="stage v-B" style="aspect-ratio:16/9">${CAPABILITY_ART[id]}</div></div>
     <div class="lbl"><b>${name}</b><span>${does}</span></div>
   </div>`;
-const columns = [0, 2, 4, 6]
-  .map((start, i) => `<div class="col c${i}">${CARDS.slice(start, start + 2).map(card).join("")}</div>`)
+// Four columns of cards: two deep in the banner, three in the taller social card,
+// going round the list again where it runs out.
+const rows = process.argv.includes("--social") ? 3 : 2;
+const columns = [0, 1, 2, 3]
+  .map((col) => {
+    const cards = Array.from({ length: rows }, (_, row) => CARDS[(col * rows + row) % CARDS.length]);
+    return `<div class="col c${col}">${cards.map(card).join("")}</div>`;
+  })
   .join("");
+
+// The social card is the same composition at GitHub's 1280x640, still: its
+// template is docs/assets/social-preview.html.
+const social = process.argv.includes("--social");
+const size = social ? { width: 1280, height: 640 } : { width: 1200, height: 400 };
+const template = social ? join(here, "../social-preview.html") : join(here, "template.html");
 
 const scratch = mkdtempSync(join(tmpdir(), "readme-banner-"));
 const page_ = join(scratch, "banner.html");
 writeFileSync(
   page_,
-  readFileSync(join(here, "template.html"), "utf8")
+  readFileSync(template, "utf8")
     .replace("/*CAPCSS*/", readFileSync(join(art, "capability-art.css"), "utf8"))
     .replace("<!--CARDS-->", columns)
     // Vstorm's colour logo with its wordmark lightened for the dark ground,
@@ -73,15 +86,23 @@ writeFileSync(
 );
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1200, height: 400 }, deviceScaleFactor: 2 });
+const page = await browser.newPage({ viewport: size, deviceScaleFactor: 2 });
 await page.goto(`file://${page_}`);
 await page.waitForLoadState("networkidle");
 await page.evaluate(() => document.fonts.ready);
 // `--still out.png` renders the first frame alone, to judge the layout.
 const still = process.argv.indexOf("--still");
-if (still !== -1) {
-  await page.locator(".card").screenshot({ path: process.argv[still + 1] });
+if (still !== -1 || social) {
+  // Every animation at its own start, so the still is the same on every run.
+  await page.evaluate(() => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = 0; }));
+  const shot = still !== -1 ? process.argv[still + 1] : join(scratch, "card@2x.png");
+  await page.locator(".card").screenshot({ path: shot });
   await browser.close();
+  if (social) {
+    // Rendered at 2x and brought down with Lanczos: sharper type than a 1x render.
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", shot, "-vf", "scale=1280:640:flags=lanczos", join(here, "../social-preview.png")]);
+    console.log("-> docs/assets/social-preview.png");
+  }
   process.exit(0);
 }
 await page.evaluate((loop) => {

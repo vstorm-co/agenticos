@@ -935,6 +935,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The repository's social card matches the banner.** `social-preview.png`
+  is the README banner's composition at 1280x640: the Toolbox's cards, the
+  blobs and Vstorm's mark beside the title. `render.mjs --social` builds it from
+  `docs/assets/social-preview.html`, which is now its template.
+
 - **The README opens on an animated banner.** The Toolbox's own capability
   cards, with the blobs floating and blinking over them and Vstorm's mark under
   the title, in place of the mark and the heading, in all four READMEs - an
