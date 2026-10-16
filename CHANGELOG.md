@@ -935,6 +935,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The README opens on an animated banner.** The Toolbox's own capability
+  cards, with the blobs floating and blinking over them, in place of the mark
+  and the title, in all four READMEs. `docs/assets/readme-banner/render.mjs`
+  rebuilds it from the current illustrations.
+
 - **The AI Architect is edited in the Agent Builder, like any agent.** Its
   name, model, knowledge and the rest of its spec are no longer a second form
   in Settings → Assistant: an administrator changes them on its own Builder

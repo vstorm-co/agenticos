@@ -1,10 +1,8 @@
-<!-- source_sha: 6a6eef184a2d -->
+<!-- source_sha: 04c9cc235631 -->
 
 <div align="center">
 
-<img src="docs/assets/logo-animated.svg" alt="" width="96" height="96">
-
-<h1>AgenticOS</h1>
+<img src="docs/assets/readme-banner.gif" alt="AgenticOS: compañeros de IA de código abierto para tu empresa. Los agentes, dibujados como blobs, trabajan con las capabilities de la Toolbox: búsqueda en el conocimiento, un navegador web, subagentes, un sandbox, gráficos, apps, skills y guardrails." width="100%">
 
 <h3>Compañeros de IA de código abierto para tu empresa</h3>
 

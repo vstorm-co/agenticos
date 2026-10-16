@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/logo-animated.svg" alt="" width="96" height="96">
-
-<h1>AgenticOS</h1>
+<img src="docs/assets/readme-banner.gif" alt="AgenticOS: open-source AI teammates for your company. Agents, drawn as blobs, work with the Toolbox's capabilities: knowledge search, a web browser, subagents, a sandbox, charts, apps, skills and guardrails." width="100%">
 
 <h3>Open-source AI teammates for your company</h3>
 
