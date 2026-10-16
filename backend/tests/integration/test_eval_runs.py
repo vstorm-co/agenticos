@@ -1842,6 +1842,7 @@ async def test_a_run_sends_its_confirmed_regressions_to_review_itself(db) -> Non
 
     read = await service.get(ctx, v7.id)
     assert (read.routed_to_review, (await service.get(ctx, v6.id)).routed_to_review) == (1, 0)
+    assert read.routed_replacing == 0
     # The one that failed is waiting, so none is left for a person to send.
     assert read.arms[0].unsent_failed == 0
     waiting = (
@@ -1860,6 +1861,18 @@ async def test_a_run_sends_its_confirmed_regressions_to_review_itself(db) -> Non
         )
     )
     assert first is not None and first.attempt == 0
+
+    # The same case broken again by a later run takes the older one's place in review.
+    # One transaction gives every score the same clock; only a newer one replaces.
+    waiting[0].created_at = datetime.now(UTC) - timedelta(hours=1)
+    passed = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), passed.id, ctx)
+    again = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, model, again.id, ctx)
+    later = await service.get(ctx, again.id)
+    assert (later.routed_to_review, later.routed_replacing) == (1, 1)
+    await db.refresh(waiting[0])
+    assert (waiting[0].review_state, waiting[0].human_passed) == ("none", None)
 
 
 async def test_what_a_run_sends_to_review_is_what_a_person_should_see(db) -> None:

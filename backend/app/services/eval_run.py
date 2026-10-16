@@ -1230,6 +1230,7 @@ class EvalRunService:
                     first_total=len(first),
                     outcome=await self._outcome(ctx, run),
                     routed_to_review=run.routed_to_review,
+                    routed_replacing=run.routed_replacing,
                     routing_error=(
                         RoutingErrorRead.model_validate(run.routing_error)
                         if run.routing_error

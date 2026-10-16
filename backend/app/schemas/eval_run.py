@@ -250,6 +250,12 @@ class EvalRunRead(BaseSchema):
             "regressions and the answers no scorer reached a verdict on"
         )
     )
+    routed_replacing: int = Field(
+        description=(
+            "How many older scores of the same cases, still waiting in review, the "
+            "ones it sent replaced"
+        )
+    )
     judge_model_profile_id: UUID | None = Field(
         default=None,
         description="The model the judge graded this run's answers on; null when none did",
