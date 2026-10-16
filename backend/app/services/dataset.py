@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import UTC, datetime
+from itertools import takewhile
 from typing import Any
 from uuid import UUID
 
@@ -58,7 +59,7 @@ from app.schemas.dataset import (
     EditedCaseContent,
 )
 from app.schemas.resource_grant import as_visibility
-from app.schemas.scoring import DatasetScoring
+from app.schemas.scoring import DatasetScoring, ExpectedToolCall
 from app.services import dataset_files
 from app.services.access import DATASET, accessible_ids, resolve_access, visible_resource_ids
 from app.services.conversation import ConversationService
@@ -69,6 +70,8 @@ logger = logging.getLogger(__name__)
 # The most cases one dataset holds. The export cap, so every version of every
 # dataset can always be exported whole.
 MAX_CASES = MAX_EXPORT_ROWS
+_MAX_REPLY_STEPS = 50
+_MAX_EXPECTED_CALLS = 50
 
 
 def _name_taken(name: str) -> AlreadyExistsError:
@@ -832,10 +835,13 @@ class DatasetService:
     ) -> DatasetCaseRead:
         """Turn an agent's answer into a case: the question, the turns before it, the answer.
 
-        The answer becomes the counter-example (or the reference answer, when
-        somebody is keeping a good one), the newest comment left with a thumbs-down
-        on it becomes the note, and the case keeps a link to the run, the
-        conversation and the message it came from.
+        The answer is the agent's whole reply to the question - every step it
+        wrote before the next question, whichever of them `message_id` names.
+        Its text becomes the counter-example (or the reference answer, when
+        somebody is keeping a good one), and a good one's tool calls become the
+        calls the case expects, by tool name. The newest comment left with a
+        thumbs-down on the reply becomes the note, and the case keeps a link to
+        the run, the conversation and the reply's last step.
 
         The source is checked like any read of a transcript: it must be in the
         caller's organization, and the caller must hold `runs:view` (which reads
@@ -844,8 +850,9 @@ class DatasetService:
         Raises:
             NotFoundError: For a message that is not there, is in another
                 organization, or is in a conversation the caller may not read.
-            BadRequestError: For a message that is not an agent's answer, or that
-                has no question before it.
+            BadRequestError: For a message that is not an agent's answer, one
+                with nothing to keep - no text, nor for a reference a tool call -
+                or one with no question before it.
             AlreadyExistsError: The dataset's newest version already holds a
                 case made from this answer.
         """
@@ -871,14 +878,50 @@ class DatasetService:
             raise missing from None
         if message.role != "assistant":
             raise refused_field("message_id", "Only an agent's answer can be added to a dataset")
-        if not message.content.strip():
-            raise refused_field("message_id", "This answer has no text to keep as a case")
+        before = await conversation_repo.get_messages_before(
+            self.db,
+            conversation.id,
+            organization_id=ctx.organization_id,
+            ordinal=message.ordinal,
+            limit=MAX_HISTORY_TURNS + _MAX_REPLY_STEPS + 1,
+        )
+        after = await conversation_repo.get_messages_following(
+            self.db,
+            conversation.id,
+            organization_id=ctx.organization_id,
+            ordinal=message.ordinal,
+            limit=_MAX_REPLY_STEPS,
+        )
+        asking = len(before)
+        while asking > 0 and before[asking - 1].role == "assistant":
+            asking -= 1
+        reply = [
+            *before[asking:],
+            message,
+            *takewhile(lambda turn: turn.role == "assistant", after),
+        ]
+        last = reply[-1]
+        answer = "\n\n".join(turn.content.strip() for turn in reply if turn.content.strip())
+        keeps_good = data.answer_as == "reference_answer"
+        calls = (
+            await conversation_repo.tool_calls_of_messages(self.db, [turn.id for turn in reply])
+            if keeps_good
+            else []
+        )
+        if not answer and not calls:
+            raise refused_field(
+                "message_id",
+                "This answer has no text to keep as a case"
+                if keeps_good
+                else "This answer has no text to keep as a counter-example; keep it as a "
+                "reference answer to expect the tools it called",
+            )
         newest = await self._version(ctx, dataset, None)
         kept = (
             None
             if newest is None
             else await dataset_repo.case_from_message(
-                self.db, newest.id, message.id, organization_id=ctx.organization_id
+                self.db, newest.id, last.id, organization_id=ctx.organization_id
             )
         )
         if kept is not None:
@@ -889,13 +932,7 @@ class DatasetService:
 
         earlier = [
             turn
-            for turn in await conversation_repo.get_messages_before(
-                self.db,
-                conversation.id,
-                organization_id=ctx.organization_id,
-                ordinal=message.ordinal,
-                limit=MAX_HISTORY_TURNS + 1,
-            )
+            for turn in before[:asking]
             if turn.role in ("user", "assistant") and turn.content.strip()
         ]
         asked = next(
@@ -905,9 +942,8 @@ class DatasetService:
         if asked is None:
             raise refused_field("message_id", "This answer has no question before it to test on")
         comments = await message_rating_repo.get_down_rating_comments_for_messages(
-            self.db, message_ids=[message.id]
+            self.db, message_ids=[turn.id for turn in reply]
         )
-        answer = message.content
         try:
             content = DatasetCaseContent(
                 input=earlier[asked].content,
@@ -915,9 +951,14 @@ class DatasetService:
                     {"role": turn.role, "content": turn.content}
                     for turn in earlier[:asked][-MAX_HISTORY_TURNS:]
                 ],
-                counter_example=answer if data.answer_as == "counter_example" else None,
-                reference_answer=answer if data.answer_as == "reference_answer" else None,
-                note=comments.get(message.id),
+                counter_example=None if keeps_good else answer,
+                reference_answer=(answer or None) if keeps_good else None,
+                expected_tool_calls=[
+                    ExpectedToolCall(tool=call.tool_name) for call in calls[:_MAX_EXPECTED_CALLS]
+                ],
+                note=next(
+                    (comments[turn.id] for turn in reversed(reply) if turn.id in comments), None
+                ),
             )
         except ValidationError as exc:
             raise BadRequestError(
@@ -929,7 +970,7 @@ class DatasetService:
             dataset_id,
             content,
             source=CaseSource.CONVERSATION,
-            source_run_id=message.run_id,
+            source_run_id=last.run_id or message.run_id,
             source_conversation_id=conversation.id,
-            source_message_id=message.id,
+            source_message_id=last.id,
         )

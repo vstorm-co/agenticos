@@ -101,6 +101,7 @@ export interface ScoreQuery {
   pending?: boolean;
   outcome?: ScoreOutcome | null;
   agentId?: string | null;
+  judgeId?: string | null;
   tag?: string | null;
   skip?: number;
   limit?: number;
@@ -121,6 +122,7 @@ export function useScores(
     pending = false,
     outcome = null,
     agentId = null,
+    judgeId = null,
     tag = null,
     skip = 0,
     limit = PAGE_SIZE,
@@ -133,6 +135,7 @@ export function useScores(
       pending,
       outcome,
       agentId,
+      judgeId,
       tag,
       skip,
       limit,
@@ -143,6 +146,7 @@ export function useScores(
       if (pending) params.set("pending", "true");
       if (outcome !== null) params.set("outcome", outcome);
       if (agentId !== null) params.set("agent_id", agentId);
+      if (judgeId !== null) params.set("judge", judgeId);
       if (tag !== null) params.set("tag", tag);
       return apiClient.get<CaseScoreList>(`/datasets/${datasetId}/scores?${params}`);
     },

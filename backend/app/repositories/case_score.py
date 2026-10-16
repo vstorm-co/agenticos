@@ -168,6 +168,7 @@ async def list_for_dataset(
     outcome: ScoreOutcome | None = None,
     agent_id: UUID | None = None,
     eval_run_id: UUID | None = None,
+    judge_id: UUID | None = None,
     tag: str | None = None,
     skip: int = 0,
     limit: int = 50,
@@ -194,6 +195,8 @@ async def list_for_dataset(
         where.append(CaseScore.run_id.in_(runs))
     if eval_run_id is not None:
         where.append(CaseScore.eval_run_id == eval_run_id)
+    if judge_id is not None:
+        where.append(CaseScore.judge["agent_id"].astext == str(judge_id))
     if tag is not None:
         where.append(
             CaseScore.case_revision_id.in_(

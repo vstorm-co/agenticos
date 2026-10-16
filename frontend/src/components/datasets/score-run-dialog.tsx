@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { Pager, SearchInput, useDebounced } from "@/components/ui/list-controls";
+import { useJudges } from "@/hooks/use-agents";
 import { useDatasetCases, useDatasets } from "@/hooks/use-datasets";
 import { useRunTranscript } from "@/hooks/use-runs";
 import { useScoreRun } from "@/hooks/use-scoring";
@@ -28,7 +29,7 @@ import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { callsJudge } from "@/lib/scoring";
 import { DIALOG_SCROLL, DIALOG_WIDE } from "@/lib/dialog-sizes";
-import type { DatasetCase } from "@/types/datasets";
+import type { Dataset, DatasetCase } from "@/types/datasets";
 import type { CaseScore, DatasetScoring } from "@/types/scoring";
 import { AddToDatasetDialog } from "./add-to-dataset-dialog";
 import { ScoreCard } from "./score-card";
@@ -63,6 +64,49 @@ function ScorersToRun({
       {t("willRun", { scorers: names })}
       {kase !== undefined && callsJudge(scoring, kase) && ` ${t("judgeSpends")}`}
     </p>
+  );
+}
+
+/**
+ * Which judge will grade, and on which model, for a dataset that calls one. Both
+ * are changed where they are kept - the judge on the dataset's Grading tab, the
+ * model on the judge's page - because either applies to every answer graded
+ * after it, not to this one alone.
+ */
+function GradedBy({ dataset }: { dataset: Dataset }) {
+  const t = useTranslations("datasets.scoring");
+  const { agents: judges } = useJudges();
+  const picked = dataset.scoring.judge.agent_id;
+  const judge =
+    picked === null
+      ? judges.find((candidate) => candidate.system_key != null)
+      : judges.find((candidate) => candidate.id === picked);
+  const name = judge?.name ?? dataset.judge_name;
+  if (!(dataset.scoring.judge.enabled || dataset.scoring.reference.enabled) || !name) {
+    return null;
+  }
+  const model = judge?.published_model?.label;
+  return (
+    <div className="border-border space-y-1 rounded-md border px-3 py-2 text-xs">
+      <p>
+        {judge === undefined
+          ? t("willBeGradedBy", { judge: name })
+          : model === undefined
+            ? t("willBeGradedByUnpublished", { judge: name })
+            : t("willBeGradedByOn", { judge: name, model })}
+      </p>
+      <p className="text-muted-foreground flex flex-wrap gap-x-3">
+        <Link href={`${ROUTES.DATASET_DETAIL(dataset.id)}?tab=grading`} className="underline">
+          {t("changeDatasetJudge")}
+        </Link>
+        {judge !== undefined && (
+          <Link href={ROUTES.AGENT_DETAIL(judge.id)} className="underline">
+            {t("changeJudgeModel")}
+          </Link>
+        )}
+        <span>{t("willBeGradedByHint")}</span>
+      </p>
+    </div>
   );
 }
 
@@ -110,7 +154,8 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
   const [result, setResult] = useState<CaseScore | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const chosen = datasetId || datasets[0]?.id || "";
-  const scoring = datasets.find((dataset) => dataset.id === chosen)?.scoring;
+  const dataset = datasets.find((item) => item.id === chosen);
+  const scoring = dataset?.scoring;
   const listing = useDatasetCases(chosen, { skip: page * SHOWN, limit: SHOWN });
   const { cases } = listing;
   const { question, answerId } = useRunTurn(runId);
@@ -238,7 +283,12 @@ export function ScoreRunDialog({ open, onOpenChange, runId }: ScoreRunDialogProp
                 />
               )
             )}
-            {scoring !== undefined && <ScorersToRun scoring={scoring} kase={kase} />}
+            {dataset !== undefined && scoring !== undefined && (
+              <>
+                <ScorersToRun scoring={scoring} kase={kase} />
+                <GradedBy dataset={dataset} />
+              </>
+            )}
           </div>
         )}
         <DialogFooter>

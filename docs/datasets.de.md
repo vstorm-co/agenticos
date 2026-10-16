@@ -1,5 +1,5 @@
 ---
-source_sha: "dac87a53bbc5"
+source_sha: "0a82031f265d"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -158,20 +158,25 @@ Es gibt zwei Wege, und beide erzeugen denselben Fall:
   später entfernt, bleibt der Fall: Er ist eine Kopie, versioniert mit seinem
   Dataset. Die Konsole merkt sich das zuletzt verwendete Dataset, sodass das
   nächste Hinzufügen ein Klick ist.
-- **In Aktivität** hat jeder Agent-Zug ein Bedienelement **Zum Dataset
-  hinzufügen**. Hier werden Antworten kuratiert, daher lässt sich eine gute
-  Antwort ebenso leicht als Referenz behalten wie eine schlechte als
-  Gegenbeispiel. Gibt es noch kein Dataset zum Hinzufügen, legt es eines an,
-  sichtbar für die Organisation; aus **Aus der Aktivität hinzufügen** eines
-  Datasets geöffnet, fügt es diesem Dataset hinzu und bietet den Weg zurück an.
+- **In Aktivität** hat jede Antwort eines Agents ein Bedienelement **Zum Dataset
+  hinzufügen**, einmal, an ihrem letzten Schritt: Eine in Schritten geschriebene
+  Antwort - ein Tool-Aufruf, dann der Text - ist ein Fall. Hier werden Antworten
+  kuratiert, daher lässt sich eine gute Antwort ebenso leicht als Referenz
+  behalten wie eine schlechte als Gegenbeispiel. Gibt es noch kein Dataset zum
+  Hinzufügen, legt es eines an, sichtbar für die Organisation; aus **Aus der
+  Aktivität hinzufügen** eines Datasets geöffnet, fügt es diesem Dataset hinzu
+  und bietet den Weg zurück an.
 
 In beiden Fällen entsteht der Fall aus diesem Zug:
 
 - die Frage wird zur Eingabe, die Züge davor werden zum Gespräch vor der
   Eingabe;
-- die Antwort wird zum Gegenbeispiel. Hat niemand sie negativ bewertet, wird
-  sie stattdessen als Referenzantwort angeboten, und Sie wählen eines von
-  beiden;
+- die ganze Antwort des Agents auf die Frage - jeder Schritt, den er vor der
+  nächsten Frage schrieb - ist die Antwort, und ihr Text wird zum Gegenbeispiel.
+  Hat niemand sie negativ bewertet, wird sie stattdessen als Referenzantwort
+  angeboten, und Sie wählen eines von beiden; als Referenz behalten, werden die
+  Tools, die sie aufrief, zu den erwarteten Tool-Aufrufen des Falls, nach Namen,
+  und eine Antwort ohne Text wird als diese allein behalten;
 - der neueste Kommentar zu einem Daumen nach unten wird zur Notiz.
 
 Beide Wege sehen nur Mitglieder, die ein Dataset bearbeiten dürfen. Die
@@ -461,6 +466,11 @@ wird für Sie ausgewählt; hat das Dataset keinen, bietet der Dialog an, die
 Antwort des Runs als Fall hinzuzufügen. Die Antwort und die Tool-Aufrufe des
 Runs werden mit jedem Scorer bewertet, den das Dataset konfiguriert. Ein Run
 ohne Transkript hat keine Antwort, die sich bewerten ließe.
+
+Der Dialog nennt den Bewerter, der bewerten wird, und das Modell, auf dem er
+bewertet, mit Links, um den Bewerter des Datasets in seinem Tab Bewertung und
+das Modell des Bewerters auf seiner Seite zu ändern - beides gilt für jede
+danach bewertete Antwort, daher wird keines davon im Dialog geändert.
 
 | Um | Brauchen Sie |
 |---|---|
