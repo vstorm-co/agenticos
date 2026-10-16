@@ -1,5 +1,5 @@
 ---
-source_sha: "d6244bf5e175"
+source_sha: "e5c73ecd6615"
 ---
 
 # Architektur { #architecture }
@@ -435,7 +435,7 @@ Transaktion der Anfrage selbst:
   auf Org-Sichtbarkeit, sodass das Null, das das Cascade schreibt, zulässig ist und
   der Schlüssel für die Organisation erreichbar bleibt, statt gestrandet zu sein.
 - **Die Organisationen eines Erstellers.** `organizations.created_by_user_id` ist
-  `RESTRICT`, und jede Registrierung erzeugt eine persönliche Org, ein blankes
+  `RESTRICT`, und eine Registrierung erzeugt standardmäßig eine persönliche Org, ein blankes
   `DELETE users` hat für ein echtes Konto also nie funktioniert. Die persönliche Org
   wird mit ihrem Besitzer entfernt; eine geteilte wird an einen anderen Besitzer
   übergeben, oder die Löschung wird abgelehnt, wenn es niemanden gibt, dem sie zu

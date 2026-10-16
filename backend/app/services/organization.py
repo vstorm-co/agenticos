@@ -19,6 +19,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.repositories import (
     collection_teardown_repo,
+    invitation_repo,
     knowledge_base_repo,
     member_repo,
     organization_repo,
@@ -33,6 +34,7 @@ from app.schemas.organization import (
 from app.services import skill_library
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
+from app.services.invitation_admission import admits
 from app.services.skills import SkillService
 
 if TYPE_CHECKING:
@@ -41,18 +43,22 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRead:
+def _org_read(
+    org: Organization, member_count: int, role: str, *, is_default: bool = False
+) -> OrganizationRead:
     """One organization as a member of it sees it.
 
     `member_count` and `role` are not on the row - the first is a count over
     the membership table, the second is the caller's own membership - so every
-    response has to carry them in alongside it.
+    response has to carry them in alongside it. `is_default` is the deployment's
+    setting, which is not on the row either.
     """
     return OrganizationRead(
         id=org.id,
         name=org.name,
         slug=org.slug,
         is_personal=org.is_personal,
+        is_default=is_default,
         avatar_url=org.avatar_url,
         avatar_color=org.avatar_color,
         member_count=member_count,
@@ -104,12 +110,24 @@ class OrganizationService:
         """
         org, membership = await self.get_for_user(org_id, user_id)
         count = await organization_repo.count_members(self.db, org_id)
-        return _org_read(org, member_count=count, role=membership.role)
+        default_id = await self._default_organization_id()
+        return _org_read(
+            org, member_count=count, role=membership.role, is_default=org.id == default_id
+        )
 
     async def list_readable_for_user(self, user_id: UUID) -> OrganizationList:
         """Every organization the caller belongs to, each with role and size."""
         rows = await self.list_for_user(user_id)
-        items = [_org_read(row["org"], row["member_count"], row["role"]) for row in rows]
+        default_id = await self._default_organization_id()
+        items = [
+            _org_read(
+                row["org"],
+                row["member_count"],
+                row["role"],
+                is_default=row["org"].id == default_id,
+            )
+            for row in rows
+        ]
         return OrganizationList(items=items, total=len(items))
 
     async def list_for_user(self, user_id: UUID) -> list[dict]:
@@ -227,6 +245,103 @@ class OrganizationService:
                 ),
                 details={"limit": limit, "owned": owned},
             )
+
+    async def _default_organization_id(self) -> UUID | None:
+        placement = await DeploymentSettingsService(self.db).new_account_placement()
+        return placement.default_organization_id
+
+    async def settle_new_account(
+        self,
+        user_id: UUID,
+        email: str,
+        *,
+        invitation_token: str | None = None,
+        admitted_by_policy: bool = True,
+    ) -> None:
+        """Give an account created just now the organizations the deployment says it starts in.
+
+        Its own, unless the deployment has turned personal organizations off, and
+        the default organization when one is set (#2156). Both account-creation
+        paths - the sign-up form and a first sign-in through a provider - end here,
+        so neither can place a person somewhere the other would not.
+
+        The default organization only for an account the deployment's own rule
+        admitted. One admitted solely by another organization's invitation or
+        directory mapping was vouched for by that organization's managers, and
+        joining it to the default one would let them add people to an
+        organization they cannot manage.
+        """
+        placement = await DeploymentSettingsService(self.db).new_account_placement()
+        if placement.personal:
+            await self.create_personal_org(user_id, email)
+        if placement.default_organization_id is not None and admitted_by_policy:
+            await self._join_default(
+                user_id,
+                email,
+                placement.default_organization_id,
+                role=placement.role,
+                invitation_token=invitation_token,
+            )
+
+    async def _join_default(
+        self,
+        user_id: UUID,
+        email: str,
+        organization_id: UUID,
+        *,
+        role: str,
+        invitation_token: str | None,
+    ) -> None:
+        """Join the default organization, unless an invitation to it is about to.
+
+        An invitation names its own role, and accepting one into an organization
+        the person already joined is refused as "already a member" - so a
+        newcomer invited as an admin would end up a member, with an invitation
+        that no longer works. The invitation wins: the person joins when they
+        accept it.
+        """
+        invitations = [
+            await invitation_repo.get_by_token(self.db, invitation_token)
+            if invitation_token is not None
+            else None,
+            await invitation_repo.get_pending_for_org_email(
+                self.db, organization_id=organization_id, email=email
+            ),
+        ]
+        # Only an invitation the person can still accept stands in for the join:
+        # one past its expiry, used up or revoked would leave them in nothing.
+        if any(
+            invitation is not None
+            and invitation.organization_id == organization_id
+            and admits(invitation, email=email)
+            for invitation in invitations
+        ):
+            return
+        await member_repo.create(
+            self.db, organization_id=organization_id, user_id=user_id, role=role
+        )
+
+    async def fallback_for(self, user_id: UUID) -> Organization | None:
+        """The organization a session acts in when the request names none.
+
+        The default organization when the person belongs to it, then their
+        personal one, then their only organization. `None` when that still leaves
+        a choice - two organizations and neither of them default or personal -
+        because guessing would be a request quietly acting in a tenant its
+        sender never meant (#2156).
+        """
+        default_id = await self._default_organization_id()
+        if default_id is not None and await member_repo.get(
+            self.db, organization_id=default_id, user_id=user_id
+        ):
+            return await organization_repo.get_by_id(self.db, default_id)
+        personal = await organization_repo.get_personal_for_user(self.db, user_id)
+        if personal is not None:
+            return personal
+        memberships = await organization_repo.list_for_user(self.db, user_id)
+        if len(memberships) == 1:
+            return memberships[0][0]
+        return None
 
     async def create_personal_org(self, user_id: UUID, email: str) -> Organization:
         """Create the Personal Organization for a newly registered user.

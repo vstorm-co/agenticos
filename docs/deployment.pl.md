@@ -1,5 +1,5 @@
 ---
-source_sha: "11e8f02699df"
+source_sha: "090def62072a"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -281,6 +281,46 @@ który kłamie; odwiedzający nie ma jak wiedzieć, że reguła istnieje, i czyt
 odrzucenie jako zepsuty produkt. To także powód, dla którego dozwolone domeny są
 publikowane: nie są tajemnicą, a wdrożenie stoi na własnym hoście firmy.
 
+## Gdzie zaczyna nowe konto { #where-a-new-account-starts }
+
+Decydują o tym dwa ustawienia obok trybu rejestracji, oba w sekcji **Nowe konta**
+na `/admin/settings`, i oba dotyczą kont utworzonych później — istniejąca
+organizacja osobista zostaje (#2156).
+
+| Ustawienie | Domyślnie | Skutek |
+|---|---|---|
+| `personal_organizations` | włączone | Każde nowe konto dostaje własną organizację, z sobą jako Ownerem. |
+| `default_organization_id` | brak | Każde nowe konto dołącza do tej organizacji, z rolą `default_organization_role`. |
+| `default_organization_role` | `member` | Każda rola poza `owner`; ustawienie, które robiłoby z każdego nowego ownera, dałoby im wszystkim klucze firmy. |
+
+Wdrożenie otwarte dla niezależnych osób zostawia wartości domyślne. Wdrożenie dla
+jednej firmy wyłącza organizacje osobiste i wskazuje organizację firmy, więc
+współpracownik zaczyna tam, gdzie są agenci i wiedza firmy, i nikt nie uruchamia
+agentów pod własnym budżetem, polityką zatwierdzeń i dziennikiem audytu obok
+firmowych. Organizacja osobista nie może być domyślna, a usunięcie domyślnej
+organizacji czyści to ustawienie.
+
+**Zaproszenie do domyślnej organizacji ma pierwszeństwo.** Zaproszenie nadaje
+własną rolę, a przyjęcie go do organizacji, do której osoba już należy, jest
+odrzucane — więc nowa osoba, która rejestruje się z zaproszeniem do domyślnej
+organizacji albo ma oczekujące zaproszenie na swój adres, nie dołącza do niej przy
+rejestracji. Dołącza, gdy je przyjmie, z rolą z zaproszenia.
+
+**Dołącza do niej tylko reguła samego wdrożenia.** Konto wpuszczone przez sam
+tryb rejestracji — otwarte wdrożenie, adres w dozwolonej domenie — dołącza do
+domyślnej organizacji. Konto wpuszczone wyłącznie przez zaproszenie albo
+mapowanie katalogu innej organizacji nie dołącza: menedżerowie tamtej organizacji
+poręczyli za tę osobę wobec własnej organizacji, a dołączenie do domyślnej
+pozwoliłoby im dodawać ludzi do organizacji, którą nie zarządzają.
+
+**Domyślna organizacja to także miejsce, w którym ląduje sesja.** Żądanie z tokenem
+sesji i bez `X-Organization-Id` działa w domyślnej organizacji, gdy osoba do niej
+należy, potem w jej osobistej, potem w jedynej. Osoba, która ma wybór i nie wysłała
+nagłówka, dostaje `400` wskazujące nagłówek zamiast zgadywania — zobacz
+[nagłówek organizacji](api.md#the-organization-header). Konsola wybiera tę samą
+organizację, gdy nic innego nie jest wybrane, a przyjęcie zaproszenia przełącza
+konsolę na organizację, do której osoba dołączyła.
+
 ## Znalezienie jednego tenanta wśród wszystkich { #finding-one-tenant-among-all-of-them }
 
 `GET /admin/organizations` to jedyna powierzchnia, która odpowiada na pytanie
@@ -297,7 +337,7 @@ trzeba mu pokazać.
 | `search` | Nazwa, slug albo adres właściciela. Fraza jest tekstem, a nie wzorcem — `100%` znajduje tenanta o takiej nazwie, a nie wszystkie |
 | `sort_by` | `name`, `slug`, `members`, `agents`, `created_at`. Cokolwiek innego to 422 |
 | `sort_dir` | `asc` / `desc`, domyślnie od najnowszych |
-| `kind` | `personal`, `team` albo `all`. Każde konto dostaje przy rejestracji organizację osobistą, więc na większości wdrożeń to one stanowią większość listy |
+| `kind` | `personal`, `team` albo `all`. Każde konto dostaje przy rejestracji organizację osobistą, chyba że wdrożenie to wyłączyło, więc na większości wdrożeń to one stanowią większość listy |
 | `skip`, `limit` | Jedna strona serwera, do 100 |
 
 **Wszystko to dzieje się w SQL, przed `OFFSET`/`LIMIT`**, a `total` liczy to, do
@@ -563,6 +603,9 @@ moduł znika.
 - `signup_mode` jest stosowany w **jednym miejscu** i bramkuje obie ścieżki, które
   tworzą konto. Zaproszenie ma pierwszeństwo przed listą domen; `closed` nie
   ustępuje niczemu.
+- Nowe konto dostaje **organizację osobistą, chyba że to wyłączono**, i dołącza do
+  **domyślnej organizacji**, gdy jest ustawiona; tam też trafia sesja, która nie
+  wskazuje organizacji.
 - App admin **nie może odciąć sam siebie** z poziomu konsoli.
 - **Impersonacja jest sesją**: uruchamiana z konsoli bez żadnego tokena
   w schowku, nazwana w banerze, kończona przez administratora, przez wylogowanie

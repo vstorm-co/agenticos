@@ -63,6 +63,9 @@ def a_row(**overrides) -> DeploymentSettings:
         maintenance_mode=False,
         maintenance_message=None,
         notify_impersonated_users=False,
+        personal_organizations=True,
+        default_organization_id=None,
+        default_organization_role="member",
     )
     row.created_at = WRITTEN
     row.updated_at = None
@@ -742,3 +745,93 @@ class TestTheSingletonRepository:
 
     def test_the_model_says_what_it_holds(self):
         assert "Acme AI" in repr(a_row(app_name="Acme AI"))
+
+
+class TestWhereANewAccountStarts:
+    """Personal organizations on or off, and a default organization (#2156)."""
+
+    async def test_an_unconfigured_deployment_keeps_personal_organizations(
+        self, mock_db_session, repo
+    ):
+        placement = await DeploymentSettingsService(mock_db_session).new_account_placement()
+
+        assert placement == module.NewAccountPlacement(
+            personal=True, default_organization_id=None, role="member"
+        )
+        repo.upsert.assert_not_awaited()
+
+    async def test_the_stored_choice_is_what_a_new_account_gets(self, mock_db_session, repo):
+        company = uuid4()
+        repo.get.return_value = a_row(
+            personal_organizations=False,
+            default_organization_id=company,
+            default_organization_role="viewer",
+        )
+
+        placement = await DeploymentSettingsService(mock_db_session).new_account_placement()
+
+        assert placement == module.NewAccountPlacement(
+            personal=False, default_organization_id=company, role="viewer"
+        )
+
+    @pytest.mark.security
+    async def test_an_owner_role_written_by_hand_joins_as_a_member(self, mock_db_session, repo):
+        repo.get.return_value = a_row(default_organization_role="owner")
+
+        placement = await DeploymentSettingsService(mock_db_session).new_account_placement()
+
+        assert placement.role == "member"
+
+    @pytest.mark.security
+    def test_owner_is_not_a_role_the_setting_takes(self):
+        with pytest.raises(ValidationError):
+            DeploymentSettingsUpdate(default_organization_role="owner")
+
+    async def test_the_administrators_view_carries_both_settings(self, mock_db_session, repo):
+        company = uuid4()
+        repo.get.return_value = a_row(personal_organizations=False, default_organization_id=company)
+
+        read = await DeploymentSettingsService(mock_db_session).read()
+
+        assert read.personal_organizations is False
+        assert read.default_organization_id == company
+        assert read.default_organization_role == "member"
+
+    @pytest.mark.parametrize(
+        ("found", "refused"),
+        [(None, "does not exist"), (MagicMock(is_personal=True), "personal organization")],
+    )
+    async def test_a_default_that_is_missing_or_somebodys_own_is_refused(
+        self, mock_db_session, repo, monkeypatch, found, refused
+    ):
+        monkeypatch.setattr(module.organization_repo, "get_by_id", AsyncMock(return_value=found))
+
+        with pytest.raises(BadRequestError, match=refused):
+            await DeploymentSettingsService(mock_db_session).update(
+                actor_user_id=uuid4(),
+                data=DeploymentSettingsUpdate(default_organization_id=uuid4()),
+            )
+        repo.upsert.assert_not_awaited()
+
+    async def test_a_company_organization_is_accepted_and_null_clears_it(
+        self, mock_db_session, repo, monkeypatch
+    ):
+        company = uuid4()
+        monkeypatch.setattr(
+            module.organization_repo,
+            "get_by_id",
+            AsyncMock(return_value=MagicMock(is_personal=False)),
+        )
+        service = DeploymentSettingsService(mock_db_session)
+
+        await service.update(
+            actor_user_id=uuid4(),
+            data=DeploymentSettingsUpdate(default_organization_id=company),
+        )
+        assert repo.upsert.await_args.kwargs["update_data"] == {"default_organization_id": company}
+
+        await service.update(
+            actor_user_id=uuid4(),
+            data=DeploymentSettingsUpdate.model_validate({"default_organization_id": None}),
+        )
+        assert repo.upsert.await_args.kwargs["update_data"] == {"default_organization_id": None}

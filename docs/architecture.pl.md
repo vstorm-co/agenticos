@@ -1,5 +1,5 @@
 ---
-source_sha: "d6244bf5e175"
+source_sha: "e5c73ecd6615"
 ---
 
 # Architektura { #architecture }
@@ -423,7 +423,7 @@ są godzone w serwisie, zanim wiersz zniknie, wewnątrz własnej transakcji żą
   jest legalny, a klucz pozostaje osiągalny dla organizacji, zamiast zostać
   osierocony.
 - **Organizacje twórcy.** `organizations.created_by_user_id` jest `RESTRICT`,
-  a każda rejestracja tworzy organizację osobistą, więc gołe `DELETE users` nigdy
+  a rejestracja domyślnie tworzy organizację osobistą, więc gołe `DELETE users` nigdy
   nie zadziałało dla prawdziwego konta. Organizacja osobista jest usuwana razem
   z właścicielem; współdzielona jest przekazywana innemu właścicielowi, a gdy nie
   ma komu jej przekazać, usunięcie zostaje odrzucone.

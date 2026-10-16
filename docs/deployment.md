@@ -263,6 +263,46 @@ know the rule exists and reads the refusal as the product being broken. That is
 also why the allowed domains are published: they are not a secret, and the
 deployment is on the company's own host.
 
+## Where a new account starts
+
+Two settings beside the sign-up mode decide it, both under **New accounts** on
+`/admin/settings`, and both apply to accounts created afterwards — an existing
+personal organization stays (#2156).
+
+| Setting | Default | Effect |
+|---|---|---|
+| `personal_organizations` | on | Each new account gets an organization of its own, with itself as Owner. |
+| `default_organization_id` | none | Each new account joins this organization, as `default_organization_role`. |
+| `default_organization_role` | `member` | Any role but `owner`; a setting that made every newcomer an owner would hand all of them the company's keys. |
+
+A deployment open to independent people keeps the defaults. A deployment for one
+company turns personal organizations off and names the company organization, so
+a colleague starts where the company's agents and knowledge are, and nobody runs
+agents under a budget, approval policy and audit trail of their own beside the
+company's. A personal organization cannot be the default, and deleting the default
+organization clears the setting.
+
+**An invitation to the default organization wins.** An invitation names its own
+role, and accepting one into an organization the person already belongs to is
+refused — so a newcomer registering with an invitation to the default organization,
+or with one pending for their address, does not join it at sign-up. They join when
+they accept, with the invitation's role.
+
+**Only the deployment's own rule joins somebody to it.** An account admitted by
+the sign-up mode itself — an open deployment, an address at an allowed domain —
+joins the default organization. One admitted only by another organization's
+invitation or directory mapping does not: that organization's managers vouched for
+the person to their own organization, and joining the default one would let them
+add people to an organization they cannot manage.
+
+**The default organization is also where a session lands.** A request with a
+session token and no `X-Organization-Id` acts in the default organization when the
+person belongs to it, then in their personal one, then in their only one. A person
+with a choice and no header gets a `400` naming the header instead of a guess —
+see [the organization header](api.md#the-organization-header). The console selects
+the same organization when nothing else is selected, and accepting an invitation
+switches the console to the organization joined.
+
 ## Finding one tenant among all of them
 
 `GET /admin/organizations` is the only surface that answers *what tenants exist*,
@@ -277,7 +317,7 @@ deployment admin can fix and therefore one they have to be shown.
 | `search` | Name, slug, or the owner's address. The term is text, not a pattern — `100%` finds the tenant called that rather than all of them |
 | `sort_by` | `name`, `slug`, `members`, `agents`, `created_at`. Anything else is a 422 |
 | `sort_dir` | `asc` / `desc`, defaulting to newest first |
-| `kind` | `personal`, `team`, or `all`. Every account is given a personal organization at sign-up, so on most deployments they are most of the list |
+| `kind` | `personal`, `team`, or `all`. Every account is given a personal organization at sign-up unless the deployment turned that off, so on most deployments they are most of the list |
 | `skip`, `limit` | One server page, up to 100 |
 
 **All of it happens in SQL, before `OFFSET`/`LIMIT`**, and `total` counts what was
@@ -528,6 +568,9 @@ which is when the module goes away.
   null column means *the built-in* rather than *empty*.
 - `signup_mode` is applied in **one place** and gates both paths that mint an
   account. An invitation overrides a domain list; nothing overrides `closed`.
+- A new account gets a **personal organization unless that is turned off**, and
+  joins the **default organization** when one is set; a session naming no
+  organization lands there too.
 - An app admin **cannot lock themselves out** through the console.
 - **Impersonation is a session**: started from the console with no token on the
   clipboard, named in a banner, ended by the administrator, by the person signing
