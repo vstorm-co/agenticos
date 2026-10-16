@@ -1,5 +1,5 @@
 ---
-source_sha: "dadd44638bc2"
+source_sha: "cfeaa395be88"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -443,6 +443,11 @@ dataset no tiene ninguno, el diálogo ofrece añadir la respuesta del run como
 caso. La respuesta y las llamadas a herramientas del run se califican con cada
 evaluador que configura el dataset. Un run sin transcripción no tiene respuesta
 que calificar.
+
+El diálogo nombra al juez que calificará y el modelo en el que califica, con
+enlaces para cambiar el juez del dataset en su pestaña Grading y el modelo del
+juez en su página: ambos cambios se aplican a cada respuesta calificada después,
+así que ninguno se hace desde el diálogo.
 
 | Para | Necesitas |
 |---|---|

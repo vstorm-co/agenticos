@@ -1,5 +1,5 @@
 ---
-source_sha: "dadd44638bc2"
+source_sha: "cfeaa395be88"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -466,6 +466,11 @@ wird für Sie ausgewählt; hat das Dataset keinen, bietet der Dialog an, die
 Antwort des Runs als Fall hinzuzufügen. Die Antwort und die Tool-Aufrufe des
 Runs werden mit jedem Scorer bewertet, den das Dataset konfiguriert. Ein Run
 ohne Transkript hat keine Antwort, die sich bewerten ließe.
+
+Der Dialog nennt den Bewerter, der bewerten wird, und das Modell, auf dem er
+bewertet, mit Links, um den Bewerter des Datasets in seinem Tab Bewertung und
+das Modell des Bewerters auf seiner Seite zu ändern - beides gilt für jede
+danach bewertete Antwort, daher wird keines davon im Dialog geändert.
 
 | Um | Brauchen Sie |
 |---|---|

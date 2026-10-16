@@ -1,5 +1,5 @@
 ---
-source_sha: "dadd44638bc2"
+source_sha: "cfeaa395be88"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -435,6 +435,11 @@ ciebie; gdy dataset takiego nie ma, okno dialogowe proponuje dodanie odpowiedzi
 runa jako przypadku. Odpowiedź i wywołania narzędzi runa są oceniane każdym
 oceniaczem, który dataset konfiguruje. Run bez transkryptu nie ma odpowiedzi do
 oceny.
+
+Okno dialogowe podaje sędziego, który oceni run, i model, na którym ocenia, z
+linkami do zmiany sędziego datasetu na jego zakładce Ocenianie i modelu sędziego
+na jego stronie - obie zmiany dotyczą każdej odpowiedzi ocenianej później, więc
+żadnej nie robi się z okna dialogowego.
 
 | Aby | Potrzebujesz |
 |---|---|

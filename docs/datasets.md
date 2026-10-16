@@ -411,6 +411,11 @@ dataset has none, the dialog offers to add the run's answer as a case. The run's
 answer and tool calls are graded with every scorer the dataset configures. A run
 with no transcript has no answer to grade.
 
+The dialog names the judge that will grade it and the model it grades on, with
+links to change the dataset's judge on its Grading tab and the judge's model on
+its page - both apply to every answer graded after the change, so neither is
+changed from the dialog.
+
 | To | You need |
 |---|---|
 | Change how a dataset is graded | `datasets:edit` on it |
