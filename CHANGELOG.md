@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-16
+
 ### Fixed
 
 - **A plan stops saying "Running…" when its run is over** (#2149). A turn that
