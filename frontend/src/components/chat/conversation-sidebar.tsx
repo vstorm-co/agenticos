@@ -171,11 +171,16 @@ function ConversationItem({
         // One line hid the time behind a hover and left the face to say who.
         <div className="min-w-0 flex-1">
           <p className="text-muted-foreground truncate text-[11px] leading-4">
-            {agentLabel && <>{agentLabel} · </>}
+            {/* At work, the line says so and for how long, in place of who and
+                when: beside the agent's name it was cut to nothing. The face
+                still says who. */}
             {runningSince ? (
               <RunningFor since={runningSince} />
             ) : (
-              timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)
+              <>
+                {agentLabel && <>{agentLabel} · </>}
+                {timeAgo(conversation.updated_at || conversation.created_at, tTime, locale)}
+              </>
             )}
           </p>
           <div className="flex min-w-0 items-center gap-1.5">
