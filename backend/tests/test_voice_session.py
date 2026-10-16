@@ -203,6 +203,7 @@ async def _run(
     notice_seconds=0.05,
     caller=None,
     expire=None,
+    start_clock=None,
 ):
     with (
         patch(f"{_M}.VoiceCallStarter.start", AsyncMock(return_value=started)),
@@ -226,7 +227,7 @@ async def _run(
         repo.end = end or AsyncMock()
         repo.mark_hung_up = AsyncMock()
         repo.heartbeat = AsyncMock()
-        repo.start_clock = AsyncMock()
+        repo.start_clock = start_clock or AsyncMock()
         repo.set_provider_call_id = AsyncMock()
         repo.get = AsyncMock(return_value=own_row)
         session = VoiceCallSession(
@@ -1186,6 +1187,20 @@ class _TimedSocket(FakeSocket):
     async def send_text(self, text):
         await super().send_text(text)
         self.first_sent.setdefault(self.sent[-1]["type"], time.monotonic())
+
+
+async def test_a_call_never_ends_before_its_callers_timer_reaches_the_cap():
+    """The caller's timer starts when `ready` arrives, so the call's clock must not
+    start before `ready` has gone - not even by a slow write of its `started_at`."""
+    socket = _TimedSocket([_START])
+    started = _started(FakeRealtime(hold=True), cap=0.6, shown_cap=1)
+
+    async def slow_write(*args, **kwargs):
+        await asyncio.sleep(0.3)
+
+    await _run(socket, started, start_clock=AsyncMock(side_effect=slow_write))
+
+    assert socket.first_sent["notice"] - socket.first_sent["ready"] >= 0.6
 
 
 async def test_time_spent_setting_a_call_up_counts_toward_neither_its_cap_nor_its_seconds():

@@ -437,12 +437,13 @@ class VoiceCallSession:
                 # Not a visitor's: nothing on a public page reads it, and a text
                 # embed does not send it either.
                 ready.run_id = started.prepared.run.id
-            # The call's clock starts here, as its caller's timer does on `ready`.
-            at, clock = datetime.now(UTC), time.monotonic()
+            await self._send(ready)
+            # The call's clock starts once `ready` has gone, as its caller's timer
+            # does on receiving it: never before, so the call cannot end ahead of
+            # the timer the caller sees, even by the time `started_at` takes to write.
+            at, self._started_at = datetime.now(UTC), time.monotonic()
             async with self._sessions() as own:
                 await voice_call_repo.start_clock(own, started.call_id, at=at)
-            self._started_at = clock
-            await self._send(ready)
             async with (
                 started.prepared.realtime_session(
                     realtime, provider_session=provider_session
