@@ -15,6 +15,8 @@ attribution - is covered where it lives. What only a database shows is here:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -33,6 +35,7 @@ from app.agents.spec import AgentSpec
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     NotFoundError,
     NothingToScoreError,
     PaymentRequiredError,
@@ -48,9 +51,11 @@ from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
+from app.schemas.agent_environment import EnvironmentCreate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.eval_run import EvalRunRequest
-from app.schemas.scoring import RescoreRequest
+from app.schemas.scoring import CaseVerdict, RescoreRequest
+from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import (
     AgentRegistryService,
     PublishedCandidate,
@@ -408,6 +413,8 @@ async def test_a_case_that_passed_on_v6_and_fails_on_v7_is_a_confirmed_regressio
     assert comparison.flips_by_tag["refunds"]["regression"] == 1
 
     failed = await service.cases(ctx, v7.id, outcome="failed")
+    with pytest.raises(NotFoundError, match="Arm not found"):
+        await service.cases(ctx, v7.id, arm_id=uuid.uuid4(), outcome="failed")
     assert [case.input for case in failed.items] == ["Question 0"]
     assert [attempt.attempt for attempt in failed.items[0].attempts] == [0, 1, 2]
 
@@ -1127,6 +1134,19 @@ async def test_a_cached_baseline_must_have_been_graded_by_the_judge_that_grades_
     now = {"agent_version_id": None, "rubric_hash": "a", "prompt_version": JUDGE_PROMPT_VERSION}
     await _pin(db, first.id, now)
     assert await baseline_basis() == "cached"
+    # A first answer that never came in would never be asked again.
+    hole = await db.scalar(
+        select(EvalRunCase)
+        .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
+        .where(EvalRunArm.eval_run_id == first.id, EvalRunArm.role == "baseline")
+        .limit(1)
+    )
+    assert hole is not None
+    hole.status = "failed"
+    await db.flush()
+    assert await baseline_basis() == "history"
+    hole.status = "done"
+    await db.flush()
     # Graded before the judge's prompt changed.
     await _pin(db, first.id, {"agent_version_id": None, "rubric_hash": "a"})
     assert await baseline_basis() == "history"
@@ -1273,6 +1293,29 @@ async def test_a_version_whose_last_case_was_removed_is_refused(db) -> None:
         await EvalRunService(db).estimate(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
 
 
+async def test_a_working_run_says_it_is_alive(db) -> None:
+    ctx = await _owner(db)
+    run_id = uuid.uuid4()
+    worker = EvalRunWorker(run_id, ctx.organization_id, sessions=_sessions(db), heartbeat=0)
+    twice = asyncio.Event()
+
+    async def beaten(*_args: object, **_kwargs: object) -> None:
+        if beat.await_count >= 2:
+            twice.set()
+
+    beat = AsyncMock(side_effect=beaten)
+
+    with patch("app.services.eval_run_worker.eval_run_repo.heartbeat", new=beat):
+        beating = asyncio.create_task(worker._beat())
+        await asyncio.wait_for(twice.wait(), timeout=5)
+        beating.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await beating
+
+    assert beat.await_args.args[1] == run_id
+    assert beat.await_args.kwargs["organization_id"] == ctx.organization_id
+
+
 async def test_an_attempt_gone_with_its_run_stops_the_drainer(db) -> None:
     ctx = await _owner(db)
     worker = EvalRunWorker(uuid.uuid4(), ctx.organization_id, sessions=_sessions(db))
@@ -1348,6 +1391,24 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     assert decided.outcome.regressions_confirmed == 0
     assert decided.outcome.candidate_pass_rate == 1.0
     assert stored.outcome_at > kept_at
+
+    # Withdrawn, the verdict is gone and the regression is back.
+    revision = await db.scalar(select(DatasetCase).where(DatasetCase.input == "Question 0"))
+    assert revision is not None
+    attempt = await db.scalar(
+        select(EvalRunCase).where(
+            EvalRunCase.eval_run_id == v7.id,
+            EvalRunCase.case_id == revision.case_id,
+            EvalRunCase.attempt == 0,
+        )
+    )
+    assert attempt is not None and attempt.case_score_id is not None
+    await ScoringService(db).set_verdict(
+        ctx, dataset.id, attempt.case_score_id, CaseVerdict(passed=None)
+    )
+    withdrawn = await service.get(ctx, v7.id)
+    assert withdrawn.outcome is not None
+    assert withdrawn.outcome.regressions_confirmed == 1
 
 
 async def test_runs_of_the_draft_as_it_stands_now(db) -> None:
@@ -1698,6 +1759,8 @@ async def test_the_judges_run_names_the_eval_case_it_graded(db) -> None:
     assert link is not None and link.graded
     assert (link.eval_run_id, link.case_id) == (run.id, score.case_id)
     assert await service.case_links(ctx, [judge_run]) == {judge_run: link}
+    # The judge's run is not kept (retention took it), so its price is missing.
+    assert (await service.get(ctx, run.id)).cost_is_partial is True
     # A score nobody's eval run produced names no eval run.
     score.eval_run_id = None
     await db.flush()
@@ -1940,3 +2003,49 @@ async def test_a_run_that_cannot_send_to_review_still_completes_and_says_why(db)
     )
     # The answers and their grades are kept all the same.
     assert read.arms[0].summary.failed == 1
+
+
+async def test_an_environment_with_an_eval_run_waiting_in_it_is_kept(db) -> None:
+    """Removed, the run's environment would read as the default and its cases would
+    go on against production's connections."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=1)
+    environments = AgentEnvironmentService(db)
+    staging = await environments.create(ctx, agent.id, EnvironmentCreate(name="staging"))
+    started = await EvalRunService(db).start(
+        ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, environment_id=staging.id)
+    )
+
+    with pytest.raises(ConcurrentChangeError, match="1 eval run"):
+        await environments.delete(ctx, agent.id, staging.id)
+
+    await _run_to_end(db, Model(db), started.id, ctx)
+    await environments.delete(ctx, agent.id, staging.id)
+
+
+async def test_a_run_cancelled_before_its_reruns_queues_none(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    worker = EvalRunWorker(v7.id, ctx.organization_id, sessions=_sessions(db), sleep=AsyncMock())
+
+    async def execute(runner, *args, **kwargs):
+        return await model.execute(runner, *args, **kwargs)
+
+    with patch.object(AgentRunnerService, "execute", new=execute):
+        started = await worker._begin()
+        assert started is not None
+        await worker._wave(started)
+    await service.cancel(ctx, v7.id)
+
+    assert await worker._queue_reruns(started) is False
+    reruns = await db.scalars(
+        select(EvalRunCase).where(EvalRunCase.eval_run_id == v7.id, EvalRunCase.attempt > 0)
+    )
+    assert reruns.all() == []

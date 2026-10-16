@@ -195,10 +195,13 @@ an organization's eval runs, so a 500-case dataset cannot take every request a
 provider allows the organization.
 
 Cancelling (`POST /api/v1/eval-runs/{id}/cancel`, by whoever started it or
-anyone who may edit the agent) stops what has not started: cases already
-running finish and are kept, and no other case starts. A run whose worker
-stops moving for `EVAL_ABANDONED_AFTER_MINUTES` is failed by the hourly
-stale-run sweep, which also frees its slots.
+anyone who may edit the agent) stops what has not started: cases already running
+finish and are kept, and no other case starts. A running run's worker says it is
+alive every `EVAL_HEARTBEAT_SECONDS`; one that has not, and whose cases have not
+moved, for `EVAL_ABANDONED_AFTER_MINUTES` is failed by the hourly stale-run
+sweep, which also frees its slots. A queued run has no worker yet - it waits for
+a runner slot - so the sweep gives up on it only after
+`EVAL_QUEUED_ABANDONED_AFTER_HOURS`.
 
 ## Results { #results }
 
@@ -343,7 +346,9 @@ first model named, and every arm is compared with it.
 | `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | The output tokens a case is priced at on a model with no history |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | The estimate per case on a model with no history and no known price |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | How many recent runs the estimate averages |
-| `EVAL_ABANDONED_AFTER_MINUTES` | `30` | How long a run may stand still before the sweep fails it |
+| `EVAL_ABANDONED_AFTER_MINUTES` | `30` | How long a running run may stand still, its worker silent, before the sweep fails it |
+| `EVAL_HEARTBEAT_SECONDS` | `60` | How often a working run says it is alive |
+| `EVAL_QUEUED_ABANDONED_AFTER_HOURS` | `24` | How long a run may wait for a worker before the sweep fails it |
 
 ## Access { #access }
 

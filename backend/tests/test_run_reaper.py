@@ -109,6 +109,7 @@ class TestAbandonedEvals:
         fail = AsyncMock(return_value=1)
         monkeypatch.setattr(eval_run_repo, "fail_abandoned", fail)
         monkeypatch.setattr(run_reaper.settings, "EVAL_ABANDONED_AFTER_MINUTES", 30.0)
+        monkeypatch.setattr(run_reaper.settings, "EVAL_QUEUED_ABANDONED_AFTER_HOURS", 24.0)
 
         before = datetime.now(UTC)
         assert await RunReaperService(MagicMock()).reap_abandoned_evals() == 1
@@ -117,6 +118,8 @@ class TestAbandonedEvals:
         asked = fail.await_args.kwargs
         window = timedelta(minutes=30)
         assert before - window <= asked["idle_since"] <= after - window
+        queued = timedelta(hours=24)
+        assert before - queued <= asked["queued_since"] <= after - queued
         assert before <= asked["now"] <= after
 
     async def test_zero_switches_it_off(self, monkeypatch):

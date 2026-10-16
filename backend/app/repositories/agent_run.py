@@ -699,17 +699,22 @@ async def average_cost(
 async def cost_of_runs(
     db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
 ) -> tuple[Decimal, bool]:
-    """What these runs cost together, and whether any price was missing."""
+    """What these runs cost together, and whether any price was missing.
+
+    A run retention has since deleted is a price missing too: the total is then
+    what is left of it, and says so.
+    """
     if not run_ids:
         return Decimal(0), False
     result = await db.execute(
         select(
             func.coalesce(func.sum(AgentRun.cost_usd), 0),
             func.coalesce(func.bool_or(AgentRun.cost_is_partial), False),
+            func.count(AgentRun.id),
         ).where(AgentRun.id.in_(list(run_ids)), AgentRun.organization_id == organization_id)
     )
-    total, partial = result.one()
-    return Decimal(total), bool(partial)
+    total, partial, found = result.one()
+    return Decimal(total), bool(partial) or found < len(set(run_ids))
 
 
 async def cost_breakdown(

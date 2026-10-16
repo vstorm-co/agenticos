@@ -565,7 +565,9 @@ class EvalRunService:
         Only one that matches on everything the comparison holds constant: the
         version, the dataset version, the model, the scoring - and the judge,
         whose published version and prompt must be the ones that graded every
-        case, or no judge at all when none would grade now.
+        case, or no judge at all when none would grade now. Every first answer
+        must be in and scored: a reused arm's cases are never asked again, so a
+        hole in it would read as a case nobody changed.
         """
         assert arm.version is not None
         since = datetime.now(UTC) - timedelta(hours=settings.EVAL_BASELINE_CACHE_HOURS)
@@ -586,6 +588,12 @@ class EvalRunService:
         attempts = await eval_run_repo.list_arm_cases(
             self.db, found[0].id, organization_id=ctx.organization_id
         )
+        if any(
+            attempt.status != CaseAttemptStatus.DONE.value or attempt.case_score_id is None
+            for attempt in attempts
+            if attempt.attempt == 0
+        ):
+            return None
         scores = await eval_run_repo.scores(
             self.db,
             [a.case_score_id for a in attempts if a.case_score_id is not None],
@@ -1352,6 +1360,9 @@ class EvalRunService:
         candidate when omitted) passed, failed or is undecided, and `case_ids`
         to those cases - the ones a comparison says broke, say. A reused
         baseline's attempts are shown under this run's baseline arm.
+
+        Raises:
+            NotFoundError: `arm_id` is not an arm of this run.
         """
         run = await self._readable(ctx, run_id)
         org = ctx.organization_id
@@ -1364,6 +1375,8 @@ class EvalRunService:
         revisions = await eval_run_repo.revisions(
             self.db, sorted({a.case_revision_id for _, a in shown}), organization_id=org
         )
+        if arm_id is not None and arm_id not in {arm.id for arm in arms}:
+            raise NotFoundError(message="Arm not found", details={"arm_id": arm_id})
         focus = arm_id or next(arm.id for arm in arms if arm.role == ArmRole.CANDIDATE.value)
         by_case: dict[UUID, list[tuple[UUID, EvalRunCase]]] = defaultdict(list)
         for pair in shown:

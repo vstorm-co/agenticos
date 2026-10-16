@@ -915,7 +915,8 @@ class ScoringService:
         """Record a person's verdict on a score, or withdraw it. Needs `datasets:edit`.
 
         Only the verdict's own columns change: the scorers' results, the judge's
-        grades among them, stay as they were written.
+        grades among them, stay as they were written. A score of an eval run drops
+        the run's kept verdict, given or withdrawn, so it is compared afresh.
         """
         score = await self._score(ctx, dataset_id, score_id)
         decided = data.passed is not None
@@ -930,6 +931,10 @@ class ScoringService:
                 "review_state": "done" if decided else "pending",
             },
         )
+        if score.eval_run_id is not None:
+            await eval_run_repo.forget_outcomes(
+                self.db, [score.eval_run_id], organization_id=ctx.organization_id
+            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
