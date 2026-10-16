@@ -288,3 +288,31 @@ retranslated is how a stale translation stops being visible.
 - Fix confirmed in-scope defects; record out-of-scope defects without expanding the
   change. Before filing or triaging issues, read
   `.claude/references/issue-triage.md` for the repository's board conventions.
+
+## Releases
+
+Versions follow [Semantic Versioning](https://semver.org) from 1.0.0 onwards; every
+release before it was `0.0.N`. A release is numbered by the largest change it ships,
+judged by someone running a deployment, not by the size of the diff:
+
+| Bump | When the release contains |
+|---|---|
+| MAJOR | A change an existing deployment has to act on: a removed or renamed API route, field or setting, a spec that no longer loads or must be republished, a migration that drops data, a changed default that alters stored behaviour. The commit carries `!` and a `BREAKING CHANGE:` footer |
+| MINOR | Something new a member or operator can do: a feature, a capability or tool, an endpoint, a setting, a new screen. Backwards compatible |
+| PATCH | Fixes, documentation, dependency updates and refactors with no new behaviour |
+
+- Cut after the merge, never beside it. Once a PR lands on `main`, a
+  `chore: cut X.Y.Z` PR renames the `[Unreleased]` block in `CHANGELOG.md` to
+  `## [X.Y.Z] - YYYY-MM-DD` under a new empty `[Unreleased]`, and bumps
+  `backend/pyproject.toml`, `backend/uv.lock` and `frontend/package.json`. Feature
+  PRs write their changelog entries under `[Unreleased]`; the cut does not add new
+  ones.
+- After the cut merges, tag that commit `vX.Y.Z` and publish a GitHub release whose
+  notes are its changelog section. The tag publishes the images (`images.yml`);
+  production deploys wait for approval (`deploy.yml`).
+- One release per merged change, or one for a train merged together, numbered by
+  the largest change in it. Stacked PRs are released in merge order, each with its
+  own number.
+- An agent asked to release may pick a PATCH or MINOR number by the table above.
+  A MAJOR release, and any number the maintainer has named, is the maintainer's
+  decision.
