@@ -853,6 +853,21 @@ The other kind of runaway is a tool loop: cheap per call, and it never finishes.
 budget only bills for that. `max_steps` caps how many model requests one run may
 make and is what actually stops it.
 
+### Run reviewers { #run-reviewers }
+
+A long run drifts: instructions fade, claims pile up without a source, the agent
+wanders off the request. An agent can carry up to five reviewers (`reviewers` in
+the spec, *Run reviewers* in the Builder beside the limits), each a second,
+usually cheaper model with one concern. Every `every` model requests a reviewer
+reads the most recent `window` tokens of the run and either lets it be or sends
+one short correction, which the run's model receives on its next request with the
+reviewer's name on it. The run view lists each correction and who sent it.
+
+A reviewer's calls are checked against the agent's and the organization's budget
+before they are made and booked on the run, priced as the reviewer's model. One
+refused for budget is skipped, and a reviewer that fails is logged; neither fails
+the run. An agent without a reviewer makes no extra model calls.
+
 ### Reporting
 
 A run that could not be priced - a model `genai-prices` does not know - is

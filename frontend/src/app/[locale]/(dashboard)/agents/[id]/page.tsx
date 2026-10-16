@@ -44,6 +44,7 @@ import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
+import { ReviewersCard } from "@/components/agents/reviewers-card";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
@@ -1670,6 +1671,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
               questions are "how much may this agent spend" and "who is told when
               it stops", and answering the first without the second is how a run
               stops quietly. */}
+            <ReviewersCard
+              value={spec.reviewers}
+              onChange={(reviewers) => update({ reviewers })}
+              disabled={!canEdit}
+            />
             <AlertsPanel
               value={spec.notifications}
               onChange={(notifications) => update({ notifications })}

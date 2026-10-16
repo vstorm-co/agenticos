@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "ce18f8748e05"
 ---
 
 # Governance { #governance }
@@ -982,6 +982,23 @@ hat, erführe es nie.
 Die andere Art von Ausreißer ist eine Tool-Schleife: billig je Aufruf, und sie
 wird nie fertig. Ein Budget rechnet dafür nur ab. `max_steps` deckelt, wie viele
 Modellanfragen ein Run stellen darf, und ist das, was sie tatsächlich stoppt.
+
+### Run-Reviewer { #run-reviewers }
+
+Ein langer Run driftet: Anweisungen verblassen, Behauptungen ohne Quelle häufen
+sich, der Agent entfernt sich von der Anfrage. Ein Agent kann bis zu fünf
+Reviewer haben (`reviewers` im Spec, *Run-Reviewer* im Builder neben den
+Limits), jeder ein zweites, meist günstigeres Modell mit einem Anliegen. Alle
+`every` Modell-Requests liest ein Reviewer die letzten `window` Tokens des Runs
+und lässt ihn entweder laufen oder schickt eine kurze Korrektur, die das Modell
+des Runs beim nächsten Request mit dem Namen des Reviewers erhält. Die
+Run-Ansicht listet jede Korrektur und wer sie geschickt hat.
+
+Die Aufrufe eines Reviewers werden vor dem Absenden gegen das Budget des Agents
+und der Organisation geprüft und auf dem Run gebucht, bepreist als das Modell des
+Reviewers. Ein wegen des Budgets abgelehnter Aufruf wird übersprungen, und ein
+Reviewer, der scheitert, wird geloggt; keines von beiden lässt den Run scheitern.
+Ein Agent ohne Reviewer macht keine zusätzlichen Modellaufrufe.
 
 ### Berichte { #reporting }
 

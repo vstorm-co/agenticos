@@ -12,7 +12,7 @@ from decimal import Decimal
 from importlib import import_module
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
@@ -32,6 +32,7 @@ from app.agents.capabilities.compaction import ReportContextSize
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
 from app.agents.factory import _AUDIENCE_AWARE, DEFAULT_MAX_STEPS, BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
+from app.agents.run_reviewer import RunReviewer
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
@@ -658,6 +659,86 @@ class TestBudgetComposition:
         )
 
         assert self._lookups(built)[BudgetScope.AGENT] is None
+
+
+class TestRunReviewers:
+    """A second model that reviews the run while it goes (#2106)."""
+
+    def test_a_spec_written_before_reviewers_loads_with_none(self):
+        spec = AgentSpec.from_yaml("name: Clerk\ninstructions: Answer briefly.\n")
+        assert spec.reviewers == []
+
+    def test_two_reviewers_with_one_name_are_refused(self):
+        reviewer = {"name": "sources", "model_profile_id": str(uuid.uuid4()), "instructions": "x"}
+        with pytest.raises(ValidationError, match="Reviewer named more than once"):
+            AgentSpec(name="Clerk", reviewers=[reviewer, reviewer])
+
+    def _reviewers(self, spec: AgentSpec, models: dict | None = None) -> list[RunReviewer]:
+        built = build_agent(
+            spec, _model_spec(), organization_id=uuid.uuid4(), reviewer_models=models or {}
+        )
+        attached: list[object] = []
+        built.agent.root_capability.apply(attached.append)
+        return [one for one in attached if isinstance(one, RunReviewer)]
+
+    def test_an_agent_without_one_gets_no_reviewer(self):
+        assert self._reviewers(AgentSpec(name="Clerk")) == []
+
+    def test_each_reviewer_runs_on_the_model_resolved_for_it(self, caplog):
+        resolved, missing = uuid.uuid4(), uuid.uuid4()
+        model = MagicMock(params={"temperature": 0.0}, context_length=None)
+        spec = AgentSpec(
+            name="Clerk",
+            reviewers=[
+                {
+                    "name": "sources",
+                    "model_profile_id": str(resolved),
+                    "instructions": "x",
+                    "every": 4,
+                },
+                {"name": "scope", "model_profile_id": str(missing), "instructions": "y"},
+                {"name": "draft", "model_profile_id": str(resolved)},
+            ],
+        )
+
+        (reviewer,) = self._reviewers(spec, {resolved: model})
+
+        assert (reviewer.name, reviewer.every, reviewer.model) == ("sources", 4, model.build())
+        assert reviewer.model_settings == {"temperature": 0.0}
+        assert reviewer.screen is None
+        assert "scope is incomplete or unresolved" in caplog.text
+        assert "draft is incomplete or unresolved" in caplog.text
+
+    def test_the_window_is_held_to_what_the_reviewers_model_can_read(self):
+        profile = uuid.uuid4()
+        small = MagicMock(params={}, context_length=8_000)
+        spec = AgentSpec(
+            name="Clerk",
+            reviewers=[
+                {
+                    "name": "a",
+                    "model_profile_id": str(profile),
+                    "instructions": "x",
+                    "window": 20_000,
+                }
+            ],
+        )
+
+        (reviewer,) = self._reviewers(spec, {profile: small})
+
+        assert reviewer.window == 6_000
+
+    def test_corrections_are_screened_by_the_agents_input_guardrail(self):
+        profile = uuid.uuid4()
+        spec = AgentSpec(
+            name="Clerk",
+            capabilities=[{"id": "guardrails", "config": {"redact_secrets_in": True}}],
+            reviewers=[{"name": "a", "model_profile_id": str(profile), "instructions": "x"}],
+        )
+
+        (reviewer,) = self._reviewers(spec, {profile: MagicMock(params={}, context_length=None)})
+
+        assert reviewer.screen is not None
 
 
 class TestAskingAboutEveryTool:

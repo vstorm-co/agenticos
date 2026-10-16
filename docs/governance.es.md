@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "ce18f8748e05"
 ---
 
 # Governance { #governance }
@@ -900,6 +900,23 @@ mira, y quien lo jubiló no se enteraría nunca.
 La otra clase de desbocamiento es un bucle de herramientas: barato por llamada, y no
 termina nunca. Un budget solo factura eso. `max_steps` limita cuántas peticiones al
 modelo puede hacer un run y es lo que de verdad lo detiene.
+
+### Revisores del run { #run-reviewers }
+
+Un run largo deriva: las instrucciones se desvanecen, se acumulan afirmaciones sin
+fuente, el agente se aleja de la petición. Un agente puede llevar hasta cinco
+revisores (`reviewers` en el spec, *Revisores del run* en el Builder junto a los
+límites), cada uno un segundo modelo, normalmente más barato, con un solo
+cometido. Cada `every` peticiones al modelo un revisor lee los últimos `window`
+tokens del run y lo deja seguir o envía una corrección breve, que el modelo del
+run recibe en su siguiente petición con el nombre del revisor. La vista del run
+lista cada corrección y quién la envió.
+
+Las llamadas de un revisor se comprueban contra el budget del agente y de la
+organización antes de hacerse y se anotan en el run, al precio del modelo del
+revisor. Una rechazada por el budget se omite, y un revisor que falla queda
+registrado; ninguna de las dos hace fallar el run. Un agente sin revisor no hace
+llamadas de modelo adicionales.
 
 ### Informes { #reporting }
 

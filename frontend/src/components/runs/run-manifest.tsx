@@ -104,6 +104,26 @@ export function RunManifest({ runId }: { runId: string }) {
         <RunWaterfall requests={manifest.requests} />
       </Section>
 
+      {/* What steered the run, and who: a correction the run's model received
+          mid-run reads as the agent changing its mind otherwise (#2106). */}
+      {!!manifest.reviews?.length && (
+        <Section title={t("reviewerCorrections", { count: manifest.reviews.length })}>
+          <ul className="space-y-1.5">
+            {manifest.reviews.map((review) => (
+              <li key={`${review.reviewer}-${review.after_request}`} className="text-sm">
+                <span className="text-muted-foreground text-xs">
+                  {t("reviewerCorrectionBy", {
+                    reviewer: review.reviewer,
+                    request: review.after_request,
+                  })}
+                </span>
+                <p>{review.steer}</p>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
       {manifest.messages.length > 0 && (
         <Section
           title={t("lastRequestContext")}

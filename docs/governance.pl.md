@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "ce18f8748e05"
 ---
 
 # Governance { #governance }
@@ -919,6 +919,22 @@ Drugi rodzaj rozbiegania to pętla narzędziowa: tania w przeliczeniu na wywoła
 i nigdy się nie kończy. Budżet tylko wystawia za nią rachunek. `max_steps`
 ogranicza, ile żądań do modelu może wykonać jeden run, i to on faktycznie ją
 zatrzymuje.
+
+### Recenzenci runu { #run-reviewers }
+
+Długi run dryfuje: instrukcje bledną, twierdzenia bez źródła się mnożą, agent
+odchodzi od prośby. Agent może mieć do pięciu recenzentów (`reviewers` w specu,
+*Recenzenci runu* w Builderze obok limitów), każdy to drugi, zwykle tańszy model z
+jednym zadaniem. Co `every` żądań do modelu recenzent czyta ostatnie `window`
+tokenów runu i albo zostawia go w spokoju, albo wysyła jedną krótką poprawkę,
+którą model runu dostaje przy następnym żądaniu, z nazwą recenzenta. Widok runu
+wymienia każdą poprawkę i to, kto ją wysłał.
+
+Wywołania recenzenta są sprawdzane z budżetem agenta i organizacji, zanim
+zostaną wykonane, i księgowane na runie po cenie modelu recenzenta. Wywołanie
+odrzucone z powodu budżetu jest pomijane, a recenzent, który zawiedzie, jest
+logowany; żadne z nich nie przerywa runu. Agent bez recenzenta nie wykonuje
+dodatkowych wywołań modelu.
 
 ### Raportowanie { #reporting }
 

@@ -150,7 +150,7 @@ from app.agents.connect_on_use import (
 from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
-from app.agents.manifest import as_payload, fit
+from app.agents.manifest import as_payload, carried_over, fit
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.spec import (
@@ -2469,6 +2469,30 @@ class AgentRunnerService:
             prepared.built.deps.on_compaction = on_compaction
         return prepared
 
+    async def _reviewer_models(
+        self, ctx: AuthContext, spec: AgentSpec
+    ) -> dict[UUID, ModelRequestSpec]:
+        """Each run reviewer's model, by profile id - those that still resolve (#2106).
+
+        A reviewer is optional to the run it watches: one whose profile was deleted
+        since publish, or whose key no longer unseals, is left out with a warning
+        rather than taking the agent offline.
+        """
+        models: dict[UUID, ModelRequestSpec] = {}
+        for reviewer in spec.reviewers:
+            profile_id = reviewer.model_profile_id
+            if profile_id is None or profile_id in models:
+                continue
+            try:
+                models[profile_id] = await self.models.resolve(ctx, profile_id=profile_id)
+            except AppException:
+                logger.warning(
+                    "Run reviewer %s cannot resolve its model; the run goes on without it",
+                    reviewer.name,
+                    exc_info=True,
+                )
+        return models
+
     async def _allowed_approval_mode(
         self, ctx: AuthContext, requested: ApprovalMode, *, surface: RunSurface
     ) -> ApprovalMode:
@@ -2653,6 +2677,11 @@ class AgentRunnerService:
         # here" are worse than none, because the model keeps trying.
         if channel_directory is not None:
             resources[CHANNEL_DIRECTORY_RESOURCE] = channel_directory
+        # Resolved here for the reason the browser's step model is: the vault and
+        # the session are here, and the factory has neither. Handed to it apart
+        # from `resources`, which every capability reads and a log line may carry:
+        # a resolved model holds its unsealed credential.
+        reviewer_models = await self._reviewer_models(ctx, spec)
         step_profile = _browser_step_profile(spec)
         if step_profile is not None:
             # Built here, where the vault and the session are: a fast model for
@@ -2959,6 +2988,7 @@ class AgentRunnerService:
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,
+            reviewer_models=reviewer_models,
             extra_toolsets=[*(extra_toolsets or []), *spec_toolsets],
             extra_capabilities=() if on_use is None else (on_use,),
             agent_period_spend=agent_period_spend,
@@ -3989,7 +4019,13 @@ class AgentRunnerService:
         if not recorder.requests and recorder.instructions is None:
             return
         try:
-            payload, truncated = fit(as_payload(recorder))
+            payload = as_payload(recorder)
+            previous = await run_manifest_repo.get_by_run(
+                self.db, prepared.run.id, prepared.run.organization_id
+            )
+            if previous is not None:
+                payload = carried_over(previous.payload, payload)
+            payload, truncated = fit(payload)
             async with self.db.begin_nested():
                 await run_manifest_repo.record(
                     self.db,
