@@ -166,13 +166,18 @@ async def _resolve_organization(db, owner_id: uuid.UUID, name: str):
 
     Whichever one a session without an organization named lands in - the
     deployment's default, the owner's personal one, or their only one - so the
-    demo is where a new operator will actually land after signing in. A
-    deployment with personal organizations off has none to reuse, and gets one.
+    demo is where a new operator will actually land after signing in, provided
+    the account owns it. Otherwise, and on a deployment with personal
+    organizations off, it gets one of its own.
     """
     landing = await OrganizationService(db).fallback_for(owner_id)
     if landing is not None:
-        info(f"Using organization {landing.name}")
-        return landing
+        membership = await member_repo.get(db, organization_id=landing.id, user_id=owner_id)
+        # Bootstrap acts as an owner. A default organization the account joined
+        # as a member is not one it may fill with credentials and agents.
+        if membership is not None and membership.role == OrgRoleName.OWNER.value:
+            info(f"Using organization {landing.name}")
+            return landing
 
     org = await organization_repo.create(
         db,

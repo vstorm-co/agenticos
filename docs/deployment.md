@@ -288,6 +288,13 @@ refused — so a newcomer registering with an invitation to the default organiza
 or with one pending for their address, does not join it at sign-up. They join when
 they accept, with the invitation's role.
 
+**Only the deployment's own rule joins somebody to it.** An account admitted by
+the sign-up mode itself — an open deployment, an address at an allowed domain —
+joins the default organization. One admitted only by another organization's
+invitation or directory mapping does not: that organization's managers vouched for
+the person to their own organization, and joining the default one would let them
+add people to an organization they cannot manage.
+
 **The default organization is also where a session lands.** A request with a
 session token and no `X-Organization-Id` acts in the default organization when the
 person belongs to it, then in their personal one, then in their only one. A person

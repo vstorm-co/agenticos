@@ -238,7 +238,7 @@ class UserService:
             )
 
         is_first_user = await self._is_first_user()
-        await check_may_register(
+        admission = await check_may_register(
             self.db,
             email=user_in.email,
             is_first_user=is_first_user,
@@ -254,7 +254,10 @@ class UserService:
             is_app_admin=is_first_user,
         )
         await OrganizationService(self.db).settle_new_account(
-            user.id, user_in.email, invitation_token=user_in.invitation_token
+            user.id,
+            user_in.email,
+            invitation_token=user_in.invitation_token,
+            admitted_by_policy=admission == "policy",
         )
         try:
             login_url = settings.FRONTEND_URL.rstrip("/") + "/login"
@@ -312,7 +315,7 @@ class UserService:
         # simply a check inside `register`: a deployment with Google sign-in and a
         # closed sign-up form is not closed at all if this branch is ungated, and
         # nothing about the OAuth callback looks like a registration.
-        await check_may_register(
+        admission = await check_may_register(
             self.db,
             email=email,
             is_first_user=await self._is_first_user(),
@@ -329,7 +332,10 @@ class UserService:
             oauth_id=provider_id,
         )
         await OrganizationService(self.db).settle_new_account(
-            user.id, user.email, invitation_token=invitation_token
+            user.id,
+            user.email,
+            invitation_token=invitation_token,
+            admitted_by_policy=admission == "policy",
         )
         try:
             login_url = settings.FRONTEND_URL.rstrip("/") + "/login"

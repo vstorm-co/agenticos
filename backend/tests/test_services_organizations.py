@@ -792,8 +792,10 @@ class TestWhereANewAccountStarts:
             *,
             invitation: MagicMock | None = None,
             pending: MagicMock | None = None,
+            live: bool = True,
         ):
             stack = ExitStack()
+            stack.enter_context(patch("app.services.organization.admits", return_value=live))
             stack.enter_context(
                 patch.object(
                     DeploymentSettingsService,
@@ -877,6 +879,36 @@ class TestWhereANewAccountStarts:
                 uuid.uuid4(), "ada@acme.com", invitation_token="tok" if by == "token" else None
             )
 
+        joined.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_invitation_that_can_no_longer_be_accepted_does_not_stand_in(
+        self, service, placed
+    ):
+        """Expired, used up or revoked: deferring to it would leave the account in
+        no organization at all."""
+        company = uuid.uuid4()
+        stack, _, joined = placed(
+            _placement(personal=False, default=company),
+            pending=MagicMock(organization_id=company),
+            live=False,
+        )
+        with stack:
+            await service.settle_new_account(uuid.uuid4(), "ada@acme.com")
+
+        assert joined.await_args.kwargs["organization_id"] == company
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_an_account_another_organization_vouched_for_is_not_joined(self, service, placed):
+        """Admitted only by another organization's invitation or directory mapping:
+        joining the default one would let that organization's managers add people
+        to an organization they cannot manage."""
+        stack, personal, joined = placed(_placement(default=uuid.uuid4()))
+        with stack:
+            await service.settle_new_account(uuid.uuid4(), "ada@acme.com", admitted_by_policy=False)
+
+        personal.assert_awaited_once()
         joined.assert_not_awaited()
 
     @pytest.mark.anyio

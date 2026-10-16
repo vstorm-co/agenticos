@@ -22,7 +22,8 @@ Two things are versioned separately from this file and worth knowing about:
 - **A default organization for new accounts, and personal organizations made
   optional** (#2156). Two settings under Admin → Deployment → New accounts: turn
   personal organizations off, and name the organization every new account joins,
-  with a role other than owner. A session request naming no organization now acts
+  with a role other than owner - an account admitted only by another
+  organization's invitation does not join it. A session request naming no organization now acts
   in the default organization first, then the personal one, then the only one,
   and is refused with a `400` naming `X-Organization-Id` rather than guessing
   between several. The console selects the default organization when nothing else

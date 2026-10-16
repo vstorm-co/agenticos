@@ -1,5 +1,5 @@
 ---
-source_sha: "e022965b85e0"
+source_sha: "090def62072a"
 ---
 
 # Das Deployment selbst { #the-deployment-itself }
@@ -326,6 +326,14 @@ Person schon angehört, wird abgelehnt — wer sich also mit einer Einladung in 
 Standardorganisation registriert oder für dessen Adresse eine aussteht, tritt ihr
 bei der Registrierung nicht bei. Der Beitritt erfolgt beim Annehmen, mit der Rolle
 der Einladung.
+
+**Nur die eigene Regel des Deployments lässt jemanden beitreten.** Ein Konto,
+das der Anmeldemodus selbst zulässt — ein offenes Deployment, eine Adresse unter
+einer erlaubten Domain — tritt der Standardorganisation bei. Eines, das nur durch
+die Einladung oder Verzeichniszuordnung einer anderen Organisation zugelassen
+wurde, nicht: Deren Manager haben für die Person bei ihrer eigenen Organisation
+gebürgt, und ein Beitritt zur Standardorganisation ließe sie Personen zu einer
+Organisation hinzufügen, die sie nicht verwalten.
 
 **Die Standardorganisation ist auch, wo eine Sitzung landet.** Eine Anfrage mit
 Sitzungs-Token und ohne `X-Organization-Id` handelt in der Standardorganisation,

@@ -1,5 +1,5 @@
 ---
-source_sha: "e022965b85e0"
+source_sha: "090def62072a"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -305,6 +305,13 @@ własną rolę, a przyjęcie go do organizacji, do której osoba już należy, j
 odrzucane — więc nowa osoba, która rejestruje się z zaproszeniem do domyślnej
 organizacji albo ma oczekujące zaproszenie na swój adres, nie dołącza do niej przy
 rejestracji. Dołącza, gdy je przyjmie, z rolą z zaproszenia.
+
+**Dołącza do niej tylko reguła samego wdrożenia.** Konto wpuszczone przez sam
+tryb rejestracji — otwarte wdrożenie, adres w dozwolonej domenie — dołącza do
+domyślnej organizacji. Konto wpuszczone wyłącznie przez zaproszenie albo
+mapowanie katalogu innej organizacji nie dołącza: menedżerowie tamtej organizacji
+poręczyli za tę osobę wobec własnej organizacji, a dołączenie do domyślnej
+pozwoliłoby im dodawać ludzi do organizacji, którą nie zarządzają.
 
 **Domyślna organizacja to także miejsce, w którym ląduje sesja.** Żądanie z tokenem
 sesji i bez `X-Organization-Id` działa w domyślnej organizacji, gdy osoba do niej

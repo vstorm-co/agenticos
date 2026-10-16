@@ -34,6 +34,7 @@ from app.schemas.organization import (
 from app.services import skill_library
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
+from app.services.invitation_admission import admits
 from app.services.skills import SkillService
 
 if TYPE_CHECKING:
@@ -250,7 +251,12 @@ class OrganizationService:
         return placement.default_organization_id
 
     async def settle_new_account(
-        self, user_id: UUID, email: str, *, invitation_token: str | None = None
+        self,
+        user_id: UUID,
+        email: str,
+        *,
+        invitation_token: str | None = None,
+        admitted_by_policy: bool = True,
     ) -> None:
         """Give an account created just now the organizations the deployment says it starts in.
 
@@ -258,11 +264,17 @@ class OrganizationService:
         the default organization when one is set (#2156). Both account-creation
         paths - the sign-up form and a first sign-in through a provider - end here,
         so neither can place a person somewhere the other would not.
+
+        The default organization only for an account the deployment's own rule
+        admitted. One admitted solely by another organization's invitation or
+        directory mapping was vouched for by that organization's managers, and
+        joining it to the default one would let them add people to an
+        organization they cannot manage.
         """
         placement = await DeploymentSettingsService(self.db).new_account_placement()
         if placement.personal:
             await self.create_personal_org(user_id, email)
-        if placement.default_organization_id is not None:
+        if placement.default_organization_id is not None and admitted_by_policy:
             await self._join_default(
                 user_id,
                 email,
@@ -288,12 +300,21 @@ class OrganizationService:
         that no longer works. The invitation wins: the person joins when they
         accept it.
         """
-        if invitation_token is not None:
-            invitation = await invitation_repo.get_by_token(self.db, invitation_token)
-            if invitation is not None and invitation.organization_id == organization_id:
-                return
-        if await invitation_repo.get_pending_for_org_email(
-            self.db, organization_id=organization_id, email=email
+        invitations = [
+            await invitation_repo.get_by_token(self.db, invitation_token)
+            if invitation_token is not None
+            else None,
+            await invitation_repo.get_pending_for_org_email(
+                self.db, organization_id=organization_id, email=email
+            ),
+        ]
+        # Only an invitation the person can still accept stands in for the join:
+        # one past its expiry, used up or revoked would leave them in nothing.
+        if any(
+            invitation is not None
+            and invitation.organization_id == organization_id
+            and admits(invitation, email=email)
+            for invitation in invitations
         ):
             return
         await member_repo.create(

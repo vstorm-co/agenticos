@@ -1,5 +1,5 @@
 ---
-source_sha: "e022965b85e0"
+source_sha: "090def62072a"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -311,6 +311,13 @@ nombra su propio rol, y aceptar una a una organización a la que la persona ya
 pertenece se rechaza; así que quien se registra con una invitación a la
 organización por defecto, o tiene una pendiente para su dirección, no se une a ella
 al registrarse. Se une al aceptarla, con el rol de la invitación.
+
+**Solo la regla propia del despliegue une a alguien a ella.** Una cuenta admitida
+por el propio modo de registro — un despliegue abierto, una dirección de un
+dominio permitido — se une a la organización por defecto. Una admitida solo por la
+invitación o el mapeo de directorio de otra organización, no: los responsables de
+esa organización avalaron a la persona ante su propia organización, y unirla a la
+por defecto les permitiría añadir personas a una organización que no gestionan.
 
 **La organización por defecto es también donde aterriza una sesión.** Una petición
 con token de sesión y sin `X-Organization-Id` actúa en la organización por defecto
