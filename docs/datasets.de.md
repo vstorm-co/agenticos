@@ -1,5 +1,5 @@
 ---
-source_sha: "947c5ceb8106"
+source_sha: "af5643bfba76"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -407,11 +407,14 @@ an denen der Bewerter mit einem Fehler scheiterte - nicht die, die er
 Seine Seite schickt weitere Scores, die Sie auswählen, alle auf einmal über
 `POST /datasets/{id}/scores/review` mit bis zu 500 Score-IDs - alle oder keine.
 
-Ein dorthin geschickter Score, von einem Eval-Run oder von Hand, ersetzt einen
-älteren Score seines Falls, der noch wartet: Dieser verlässt die Warteschlange
-unentschieden und bleibt ein Score. Ein wartender, der ebenso spät oder später
-bewertet wurde, behält seinen Platz, und der geschickte wird nicht eingereiht.
-Ein entschiedener Score wird nie angetastet.
+Ein dorthin geschickter Score, von einem Eval-Run oder von Hand, nimmt den Platz
+eines noch wartenden Scores seines Falls ein, wenn er höher rangiert oder gleich
+rangiert und neuer ist. Ein bewerteter Score - eine Regression oder ein von Hand
+geschicktes Fail - rangiert über einem, den nichts bewertet hat, etwa einem
+Fehler des Bewerters, sodass ein scheiternder Bewerter die Regression eines
+Falls nie verdrängt. Der ersetzte verlässt die Warteschlange unentschieden und
+bleibt ein Score; sonst behält der wartende seinen Platz, und der geschickte
+wird nicht eingereiht. Ein entschiedener Score wird nie angetastet.
 
 Ein Score, der von Hand aus Activity angefordert wurde, folgt der Einstellung
 **Prüfung durch eine Person** des Datasets: nichts, bis jemand einen schickt,

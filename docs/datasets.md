@@ -359,10 +359,13 @@ skipped, which waits to be scored again - one score per case. Its page sends any
 others you pick, all at once through `POST /datasets/{id}/scores/review` with up
 to 500 score ids - all of them or none.
 
-A score sent there, by an eval run or by hand, replaces an older score of its
-case that still waits: that one leaves the queue undecided and stays a score.
-One waiting that was scored as late or later keeps its place, and the one sent
-is not queued. A decided score is never touched.
+A score sent there, by an eval run or by hand, takes the place of one of its
+case that still waits when it ranks higher, or ranks the same and is newer. A
+graded score - a regression, or a fail sent by hand - ranks above one nothing
+graded, such as a judge's error, so a judge failing on a case never pushes its
+regression out. The one replaced leaves the queue undecided and stays a score;
+otherwise the one waiting keeps its place, and the one sent is not queued. A
+decided score is never touched.
 
 A score asked for by hand from Activity follows the dataset's **Review by a
 person** setting: nothing until somebody sends one, every result that did not
