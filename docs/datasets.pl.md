@@ -1,5 +1,5 @@
 ---
-source_sha: "af5643bfba76"
+source_sha: "dadd44638bc2"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -148,18 +148,23 @@ Są dwie drogi i obie tworzą taki sam przypadek:
   mówi, która połowa się nie udała. Późniejsze cofnięcie oceny zostawia
   przypadek na miejscu: to kopia, wersjonowana razem z datasetem. Konsola
   pamięta ostatnio użyty dataset, więc kolejne dodanie to jedno kliknięcie.
-- **W Aktywności** każda tura agenta ma przycisk **Dodaj do datasetu**. To
-  miejsce kuracji, więc dobrą odpowiedź równie łatwo zachować jako wzorcową,
-  jak złą jako kontrprzykład. Gdy nie ma jeszcze datasetu, do którego można
-  dodać, zakłada nowy, widoczny dla organizacji; otwarty z **Dodaj z
-  Aktywności** datasetu dodaje do tego datasetu i proponuje powrót do niego.
+- **W Aktywności** każda odpowiedź agenta ma przycisk **Dodaj do datasetu**,
+  raz, przy jej ostatnim kroku: odpowiedź napisana w krokach - wywołanie
+  narzędzia, a potem tekst - to jeden przypadek. To miejsce kuracji, więc dobrą
+  odpowiedź równie łatwo zachować jako wzorcową, jak złą jako kontrprzykład. Gdy
+  nie ma jeszcze datasetu, do którego można dodać, zakłada nowy, widoczny dla
+  organizacji; otwarty z **Dodaj z Aktywności** datasetu dodaje do tego datasetu
+  i proponuje powrót do niego.
 
 W obu przypadkach przypadek powstaje z tej tury:
 
 - pytanie staje się wejściem, a tury przed nim - rozmową przed wejściem;
-- odpowiedź staje się kontrprzykładem. Jeśli nikt nie ocenił jej łapką w dół,
-  domyślnie jest proponowana jako odpowiedź wzorcowa, a ty wybierasz jedno z
-  dwóch;
+- odpowiedzią jest cała odpowiedź agenta na pytanie - każdy krok, który napisał
+  przed następnym pytaniem - a jej tekst staje się kontrprzykładem. Jeśli nikt
+  nie ocenił jej łapką w dół, domyślnie jest proponowana jako odpowiedź
+  wzorcowa, a ty wybierasz jedno z dwóch; zachowana jako wzorcowa, narzędzia,
+  które wywołała, stają się oczekiwanymi wywołaniami przypadku, po nazwie, a
+  odpowiedź bez tekstu zostaje zachowana jako same te wywołania;
 - najnowszy komentarz zostawiony z łapką w dół staje się notatką.
 
 Obie drogi widzą tylko członkowie, którzy mogą edytować jakiś dataset.

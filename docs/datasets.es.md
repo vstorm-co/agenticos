@@ -1,5 +1,5 @@
 ---
-source_sha: "af5643bfba76"
+source_sha: "dadd44638bc2"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -151,20 +151,25 @@ Hay dos caminos y los dos crean el mismo caso:
   el mensaje dice qué mitad falló. Quitar la valoración más tarde deja el caso
   donde está: es una copia, versionada con su dataset. La consola recuerda el
   último dataset al que añadiste, así que el siguiente añadido es un clic.
-- **En Actividad**, cada turno del agent tiene un control **Añadir al
-  dataset**. Es donde se curan las respuestas, así que una buena respuesta se
-  guarda como referencia tan fácilmente como una mala como contraejemplo. Sin
-  ningún dataset al que añadir, crea uno, visible para la organización; abierto
-  desde **Add from Activity** de un dataset, añade a ese dataset y ofrece
-  volver a él.
+- **En Actividad**, cada respuesta de un agent tiene un control **Añadir al
+  dataset**, una vez, en su último paso: una respuesta escrita en pasos (una
+  llamada a herramienta y luego el texto) es un solo caso. Es donde se curan las
+  respuestas, así que una buena respuesta se guarda como referencia tan
+  fácilmente como una mala como contraejemplo. Sin ningún dataset al que añadir,
+  crea uno, visible para la organización; abierto desde **Add from Activity** de
+  un dataset, añade a ese dataset y ofrece volver a él.
 
 En ambos casos, el caso se crea a partir de ese turno:
 
 - la pregunta se convierte en la entrada, y los turnos anteriores en la
   conversación antes de la entrada;
-- la respuesta se convierte en el contraejemplo. Si nadie la valoró con un
-  pulgar abajo, se ofrece en su lugar como respuesta de referencia, y puedes
-  elegir cualquiera de las dos;
+- la respuesta es la respuesta entera del agent a la pregunta (cada paso que
+  escribió antes de la siguiente pregunta), y su texto se convierte en el
+  contraejemplo. Si nadie la valoró con un pulgar abajo, se ofrece en su lugar
+  como respuesta de referencia, y puedes elegir cualquiera de las dos; guardada
+  como referencia, las herramientas que llamó pasan a ser las llamadas esperadas
+  del caso, por nombre, y una respuesta sin texto se guarda solo como esas
+  llamadas;
 - el comentario más reciente dejado con un pulgar abajo se convierte en la
   nota.
 

@@ -141,18 +141,23 @@ There are two ways in, and both make the same case:
   says which half failed. Removing the rating later leaves the case where it
   is: it is a copy, versioned with its dataset. The console remembers the
   dataset you added to last, so the next add is one click.
-- **In Activity**, every agent turn has an **Add to dataset** control. This is
-  where answers are curated, so a good answer can be kept as a reference just
-  as easily as a bad one as a counter-example. With no dataset to add to yet,
-  it starts one, visible to the organization; opened from a dataset's **Add
-  from Activity**, it adds to that dataset and offers the way back to it.
+- **In Activity**, every reply of an agent has an **Add to dataset** control,
+  once, on its last step: a reply written in steps - a tool call, then the
+  answer - is one case. This is where answers are curated, so a good answer can
+  be kept as a reference just as easily as a bad one as a counter-example. With
+  no dataset to add to yet, it starts one, visible to the organization; opened
+  from a dataset's **Add from Activity**, it adds to that dataset and offers the
+  way back to it.
 
 Either way, the case is created from the turn:
 
 - the question becomes the input, and the turns before it become the
   conversation before the input;
-- the answer becomes the counter-example. If nobody rated it down, it is
-  offered as the reference answer instead, and you can choose either;
+- the agent's whole reply to the question - every step it wrote before the next
+  question - is the answer, and its text becomes the counter-example. If nobody
+  rated it down, it is offered as the reference answer instead, and you can
+  choose either; kept as a reference, the tools it called become the case's
+  expected tool calls, by name, and a reply with no text is kept as those alone;
 - the newest comment left with a thumbs-down becomes the note.
 
 Both are shown only to members who may edit a dataset. The message must belong
