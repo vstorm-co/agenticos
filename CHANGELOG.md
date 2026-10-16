@@ -935,6 +935,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- **The README's figures are sharper and name capabilities as the Toolbox
+  does.** Every figure renders at 2400 px for high-density screens; the
+  capability figure and the list under it say Subagents, Web browser, Sandbox,
+  Calculations and the rest by their Toolbox names, and the browser line no
+  longer mentions the dropped browser-use. The heading repeating the banner's
+  tagline is gone, and so is a second "AgenticOS is an MCP server".
+
 - **The repository's social card matches the banner.** `social-preview.png`
   is the README banner's composition at 1280x640: the Toolbox's cards, the
   blobs and Vstorm's mark beside the title. `render.mjs --social` builds it from

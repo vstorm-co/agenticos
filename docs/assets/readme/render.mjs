@@ -31,8 +31,9 @@ for (const section of await page.locator("section[data-figure]").all()) {
   if (only.size > 0 && !only.has(name)) continue;
   const png = join(scratch, `${name}.png`);
   await section.screenshot({ path: png });
-  // Down to 1600 wide, the size the README draws at full width.
-  execFileSync("magick", [png, "-filter", "Lanczos", "-resize", "1600x", "-quality", "86", join(here, `${name}.webp`)]);
+  // Down to 2400 wide: the README draws a figure about 880 px across, so a
+  // high-density screen wants some 1760, and 1600 went soft on one.
+  execFileSync("magick", [png, "-filter", "Lanczos", "-resize", "2400x", "-quality", "90", join(here, `${name}.webp`)]);
   console.log(`wrote ${name}.webp`);
 }
 await browser.close();

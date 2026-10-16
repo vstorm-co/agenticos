@@ -1,10 +1,8 @@
-<!-- source_sha: 665955a1eec4 -->
+<!-- source_sha: 66b4dad584b3 -->
 
 <div align="center">
 
 <img src="docs/assets/readme-banner.webp" alt="AgenticOS: compañeros de IA de código abierto para tu empresa. Los agentes, dibujados como blobs, trabajan con las capabilities de la Toolbox: búsqueda en el conocimiento, un navegador web, subagentes, un sandbox, gráficos, apps, skills y guardrails." width="100%">
-
-<h3>Compañeros de IA de código abierto para tu empresa</h3>
 
 <p>
   <b>La capa de agentes autoalojada: crea, ejecuta y gobierna agentes de IA en tu propia infraestructura.</b><br>
@@ -82,7 +80,7 @@ Un agente publica un dashboard o un informe como página con enlace estable y ve
 
 ### Más de 4.700 servidores MCP
 
-Conecta Notion, GitHub, Jira o tu propio servidor y elige qué herramientas puede usar cada agente. AgenticOS también es un servidor MCP - para Claude Code, Codex o Cursor.
+Conecta Notion, GitHub, Jira o tu propio servidor y elige qué herramientas puede usar cada agente.
 
 <a href="docs/assets/screens/light/mcp-servers.webp"><img src="docs/assets/screens/light/mcp-servers.webp" alt="La galería de servidores MCP con los servidores conectados y su método de inicio de sesión" width="100%"></a>
 
@@ -292,12 +290,12 @@ La seguridad funciona por capas. Las credenciales están en un vault con cifrado
 <details>
 <summary>Las 26 capabilities integradas, en texto</summary>
 
-- **Conocimiento y memoria:** búsqueda en el conocimiento con citas, skills, contexto, archivos de memoria, memoria mediante mem0, búsqueda en conversaciones.
-- **Web:** búsqueda web (DuckDuckGo por defecto; Tavily, Brave o Exa con una clave), descarga de páginas web, automatización del navegador y browser-use (integrado, aún no instalable).
-- **Archivos, código y resultados:** ejecución de Python, archivos y shell en una sandbox de contenedor, gráficos, generación de imágenes (OpenAI o Google), aplicaciones.
-- **Cómo trabaja:** delegación en otros agentes, planificación, razonamiento, búsqueda de herramientas, fecha y hora, recordatorios del sistema.
-- **Seguridad y límites:** guardrails que censuran secretos y datos personales, gestión del contexto, descarga de contenido multimedia, límites de salida de las herramientas.
-- **Canales de chat:** consulta de canales para bots de Slack, Telegram y Mattermost.
+- **Conocimiento y memoria:** búsqueda en el conocimiento con citas, skills, contexto, memoria, memoria mediante mem0, conversaciones anteriores.
+- **Web:** búsqueda web (DuckDuckGo por defecto; Tavily, Brave o Exa con una clave), lectura de páginas web y un navegador web que el agente maneja y que puedes tomar tú.
+- **Archivos, código y resultados:** cálculos en Python, una sandbox con archivos y shell, gráficos, generación de imágenes (OpenAI o Google), aplicaciones.
+- **Cómo trabaja:** subagentes, planificación, razonamiento, búsqueda de herramientas, fecha y hora, recordatorios de instrucciones, preguntas al usuario.
+- **Seguridad y límites:** guardrails que censuran secretos y datos personales, conversaciones largas, descarga de contenido multimedia, límites de salida de las herramientas.
+- **Canales de chat:** consulta de canales de chat para bots de Slack, Telegram y Mattermost.
 
 Además, cualquier herramienta de un servidor MCP conectado y las capabilities que tus ingenieros añadan en Python tipado. [Referencia de capabilities](https://vstorm-co.github.io/agenticos/es/reference/capabilities/)
 

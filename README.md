@@ -2,8 +2,6 @@
 
 <img src="docs/assets/readme-banner.webp" alt="AgenticOS: open-source AI teammates for your company. Agents, drawn as blobs, work with the Toolbox's capabilities: knowledge search, a web browser, subagents, a sandbox, charts, apps, skills and guardrails." width="100%">
 
-<h3>Open-source AI teammates for your company</h3>
-
 <p>
   <b>The self-hosted agent layer: build, run and govern AI agents on your own infrastructure.</b><br>
   Chat, apps, a real browser, MCP and an API in one place, with budgets, approvals and a recorded run.<br>
@@ -80,7 +78,7 @@ An agent publishes a dashboard or a report as a page with a stable link and vers
 
 ### 4,700+ MCP servers
 
-Connect Notion, GitHub, Jira or your own server, and choose which tools each agent may call. AgenticOS is an MCP server too - for Claude Code, Codex or Cursor.
+Connect Notion, GitHub, Jira or your own server, and choose which tools each agent may call.
 
 <a href="docs/assets/screens/light/mcp-servers.webp"><img src="docs/assets/screens/light/mcp-servers.webp" alt="The MCP server gallery with connected servers and their sign-in method" width="100%"></a>
 
@@ -290,12 +288,12 @@ Security is layered. Credentials sit in an envelope-encrypted vault. Code runs i
 <details>
 <summary>All 26 built-in capabilities, as text</summary>
 
-- **Knowledge and memory:** knowledge search with citations, skills, context, memory files, memory through mem0, conversation search.
-- **Web:** web search (DuckDuckGo by default; Tavily, Brave or Exa with a key), web fetch, browser automation, and browser-use (wired, not yet installable).
-- **Files, code and output:** run Python, files and shell in a container sandbox, charts, image generation (OpenAI or Google), apps.
-- **How it works:** delegation to other agents, planning, thinking, tool search, date and time, system reminders.
-- **Safety and limits:** guardrails that redact secrets and personal data, context management, media offload, tool output limits.
-- **Chat channels:** channel lookup for Slack, Telegram and Mattermost bots.
+- **Knowledge and memory:** knowledge search with citations, skills, context, memory, memory through mem0, past conversations.
+- **Web:** web search (DuckDuckGo by default; Tavily, Brave or Exa with a key), reading web pages, and a web browser the agent drives and you can take over.
+- **Files, code and output:** calculations in Python, a sandbox with files and a shell, charts, image generation (OpenAI or Google), apps.
+- **How it works:** subagents, planning, thinking, tool search, date and time, instruction reminders, asking the user.
+- **Safety and limits:** guardrails that redact secrets and personal data, long conversations, media offload, tool output limits.
+- **Chat channels:** chat channel lookup for Slack, Telegram and Mattermost bots.
 
 Plus any tool from a connected MCP server, and capabilities your engineers add in typed Python. [Capability reference](https://vstorm-co.github.io/agenticos/reference/capabilities/)
 

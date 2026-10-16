@@ -1,10 +1,8 @@
-<!-- source_sha: 665955a1eec4 -->
+<!-- source_sha: 66b4dad584b3 -->
 
 <div align="center">
 
-<img src="docs/assets/readme-banner.webp" alt="AgenticOS: Open-Source-KI-Teammates für Ihr Unternehmen. Agents, als Blobs gezeichnet, arbeiten mit den Capabilities der Toolbox: Wissenssuche, ein Webbrowser, Subagents, eine Sandbox, Diagramme, Apps, Skills und Guardrails." width="100%">
-
-<h3>Open-Source-KI-Teammates für dein Unternehmen</h3>
+<img src="docs/assets/readme-banner.webp" alt="AgenticOS: Open-Source-KI-Teammates für dein Unternehmen. Agents, als Blobs gezeichnet, arbeiten mit den Capabilities der Toolbox: Wissenssuche, ein Webbrowser, Subagents, eine Sandbox, Diagramme, Apps, Skills und Guardrails." width="100%">
 
 <p>
   <b>Die selbst gehostete Agent-Schicht: KI-Agenten auf deiner eigenen Infrastruktur bauen, betreiben und steuern.</b><br>
@@ -82,7 +80,7 @@ Ein Agent veröffentlicht ein Dashboard oder einen Bericht als Seite mit festem 
 
 ### Über 4.700 MCP-Server
 
-Verbinde Notion, GitHub, Jira oder deinen eigenen Server und wähle, welche Werkzeuge jeder Agent nutzen darf. AgenticOS ist selbst auch ein MCP-Server - für Claude Code, Codex oder Cursor.
+Verbinde Notion, GitHub, Jira oder deinen eigenen Server und wähle, welche Werkzeuge jeder Agent nutzen darf.
 
 <a href="docs/assets/screens/light/mcp-servers.webp"><img src="docs/assets/screens/light/mcp-servers.webp" alt="Die MCP-Server-Galerie mit verbundenen Servern und ihrer Anmeldeart" width="100%"></a>
 
@@ -292,12 +290,12 @@ Sicherheit ist geschichtet. Zugangsdaten liegen in einem Vault mit Envelope-Vers
 <details>
 <summary>Alle 26 integrierten Capabilities als Text</summary>
 
-- **Wissen und Gedächtnis:** Wissenssuche mit Quellenangaben, Skills, Kontext, Memory-Dateien, Memory über mem0, Suche in Unterhaltungen.
-- **Web:** Websuche (standardmäßig DuckDuckGo; Tavily, Brave oder Exa mit Schlüssel), Web-Abruf, Browserautomatisierung und browser-use (angebunden, aber noch nicht installierbar).
-- **Dateien, Code und Ausgabe:** Python ausführen, Dateien und Shell in einer Container-Sandbox, Diagramme, Bilderzeugung (OpenAI oder Google), Apps.
-- **Arbeitsweise:** Delegation an andere Agenten, Planung, Denken, Werkzeugsuche, Datum und Uhrzeit, Systemerinnerungen.
-- **Sicherheit und Limits:** Guardrails, die Secrets und personenbezogene Daten schwärzen, Kontextverwaltung, Auslagerung von Medien, Limits für Werkzeugausgaben.
-- **Chatkanäle:** Kanalsuche für Bots in Slack, Telegram und Mattermost.
+- **Wissen und Gedächtnis:** Wissenssuche mit Quellenangaben, Skills, Kontext, Memory, Memory über mem0, frühere Unterhaltungen.
+- **Web:** Websuche (standardmäßig DuckDuckGo; Tavily, Brave oder Exa mit Schlüssel), Webseiten lesen und ein Webbrowser, den der Agent steuert und den du übernehmen kannst.
+- **Dateien, Code und Ausgabe:** Berechnungen in Python, eine Sandbox mit Dateien und Shell, Diagramme, Bilderzeugung (OpenAI oder Google), Apps.
+- **Arbeitsweise:** Subagents, Planung, Denken, Werkzeugsuche, Datum und Uhrzeit, Erinnerungen an Anweisungen, Rückfragen an den Nutzer.
+- **Sicherheit und Limits:** Guardrails, die Secrets und personenbezogene Daten schwärzen, lange Unterhaltungen, Auslagerung von Medien, Limits für Werkzeugausgaben.
+- **Chatkanäle:** Suche nach Chatkanälen für Bots in Slack, Telegram und Mattermost.
 
 Dazu jedes Werkzeug eines verbundenen MCP-Servers und Capabilities, die deine Entwickler in typisiertem Python ergänzen. [Capability-Referenz](https://vstorm-co.github.io/agenticos/de/reference/capabilities/)
 
