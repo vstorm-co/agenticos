@@ -25,7 +25,7 @@ from app.agents.code_mode import (
     code_mode,
 )
 from app.agents.deps import AgentDeps
-from app.agents.manifest import RunRecorder, as_payload
+from app.agents.manifest import RECORDED_SCRIPTS, RunRecorder, as_payload
 from app.agents.mcp import NEEDS_APPROVAL
 
 pytestmark = pytest.mark.anyio
@@ -244,3 +244,15 @@ async def test_a_script_past_the_listed_calls_counts_the_rest() -> None:
     (run,) = as_payload(recorder)["code_runs"]
     assert len(run["calls"]) == RECORDED_CALLS
     assert run["omitted_calls"] == 5
+
+
+async def test_a_run_past_the_kept_scripts_still_runs_them_unrecorded() -> None:
+    offered: list[list[str]] = []
+    agent, recorder, updated = _agent(TEN_UPDATES, offered)
+    earlier = [{"tool_call_id": str(n), "code": "x", "calls": []} for n in range(RECORDED_SCRIPTS)]
+    recorder.code_runs.extend(earlier)
+
+    await agent.run("Update records 0 to 9.", deps=AgentDeps())
+
+    assert sorted(updated) == list(range(10))
+    assert recorder.code_runs == earlier
