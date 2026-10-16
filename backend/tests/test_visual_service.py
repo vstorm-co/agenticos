@@ -8,6 +8,7 @@ app are built from are the same ones.
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -22,7 +23,14 @@ from app.repositories.conversation import ToolCallArgs
 from app.schemas.visual import VisualPublish
 from app.services import visual as visuals
 from app.services.artifact import PublishedArtifact
-from app.services.visual import MAX_CHAIN, VisualError, VisualService
+from app.services.visual import (
+    MAX_CHAIN,
+    MAX_IMAGES,
+    SHARED_MAX_BYTES,
+    SHARED_MAX_VISUALS,
+    VisualError,
+    VisualService,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -74,7 +82,18 @@ class TestPictures:
     def test_pictures_live_under_the_thread_s_media_prefix(self) -> None:
         org, conversation = uuid.uuid4(), uuid.uuid4()
         path = visuals.image_path(org, conversation, "call-1", "logo")
-        assert path == f"media/{org}/{conversation}/visuals/call-1/logo"
+        folder = hashlib.sha256(b"call-1").hexdigest()[:32]
+        assert path == f"media/{org}/{conversation}/visuals/{folder}/logo"
+
+    @pytest.mark.security
+    def test_a_provider_s_call_id_cannot_climb_out_of_the_thread(self) -> None:
+        """The id is the model provider's to choose, and on local storage a `..`
+        written into the path would leave the conversation's prefix."""
+        org, conversation = uuid.uuid4(), uuid.uuid4()
+        path = visuals.image_path(org, conversation, "../../other/visuals/x", "logo")
+        assert path.startswith(f"media/{org}/{conversation}/visuals/")
+        assert ".." not in path
+        assert path.count("/") == 5
 
     async def test_a_picture_is_saved_and_read_back_with_its_type(self) -> None:
         storage = MagicMock(
@@ -141,10 +160,11 @@ class TestRebuild:
                 {
                     "title": "Flow",
                     "kind": "html",
-                    "content": "<p>one</p>",
+                    "content": "<p>one</p>{{image:logo}}{{image:bg}}",
                     "images": [
                         {"name": "logo", "source": "old.png"},
                         {"name": "bg", "source": "b"},
+                        {"name": "unused", "source": "c"},
                     ],
                 },
             ),
@@ -153,7 +173,7 @@ class TestRebuild:
 
         assert visual.id == "r2"
         assert visual.title == "Renamed"
-        assert visual.content == "<p>three</p>"
+        assert visual.content == "<p>three</p>{{image:logo}}{{image:bg}}"
         assert visual.agent_id == calls["r2"].agent_id
         assert visual.images == {"logo": "r2", "bg": "d"}
 
@@ -184,6 +204,33 @@ class TestRebuild:
     ) -> None:
         with pytest.raises(VisualError, match=said):
             await visuals.rebuild("x", _lookup(calls))
+
+    async def test_a_chain_cannot_gather_more_pictures_than_one_drawing_may_use(self) -> None:
+        """Each revision may add pictures, so without this a long chain gathered
+        hundreds - and every view read and inlined all of them."""
+        names = [f"p{i}" for i in range(MAX_IMAGES + 1)]
+        calls = {
+            "r": ToolCallArgs(
+                "r",
+                "revise_visual",
+                {
+                    "visual_id": "d",
+                    "edits": [{"old": "x", "new": "".join(f"{{{{image:{n}}}}}" for n in names)}],
+                    "images": [{"name": n, "source": "a.png"} for n in names[3:]],
+                },
+            ),
+            "d": ToolCallArgs(
+                "d",
+                "draw",
+                {
+                    "kind": "html",
+                    "content": "x",
+                    "images": [{"name": n, "source": "a.png"} for n in names[:3]],
+                },
+            ),
+        }
+        with pytest.raises(VisualError, match=f"more than {MAX_IMAGES} pictures"):
+            await visuals.rebuild("r", _lookup(calls))
 
     async def test_a_chain_that_does_not_end_is_cut_off(self) -> None:
         """The ids are the model's, so a revision that names itself must not loop."""
@@ -303,7 +350,9 @@ class TestPublish:
         return PublishedArtifact(**values)
 
     def _patches(self, calls: dict[str, ToolCallArgs]) -> Any:
-        async def lookup(_db: Any, *, conversation_id: Any, tool_call_id: str, names: Any):
+        async def lookup(
+            _db: Any, *, conversation_id: Any, tool_call_id: str, names: Any, result_prefixes: Any
+        ):
             return calls.get(tool_call_id)
 
         return (
@@ -520,8 +569,17 @@ class TestSharedThread:
             id=uuid.uuid4(), organization_id=uuid.uuid4(), messages=[said, drew]
         ), drew
 
-    def _call(self, call_id: str, name: str, args: dict[str, Any], status: str = "completed"):
-        return SimpleNamespace(tool_call_id=call_id, tool_name=name, args=args, status=status)
+    def _call(
+        self,
+        call_id: str,
+        name: str,
+        args: dict[str, Any],
+        status: str = "completed",
+        result: str | None = "Drew it as visual.",
+    ):
+        return SimpleNamespace(
+            tool_call_id=call_id, tool_name=name, args=args, status=status, result=result
+        )
 
     async def test_each_visual_is_sent_finished_with_its_pictures_inlined(self) -> None:
         conversation, drew = self._thread(
@@ -559,6 +617,58 @@ class TestSharedThread:
         assert revised["id"] == "r"
         assert revised["content"].endswith("<hr>")
         assert revised["content"].startswith('<img src="data:image/png;base64,')
+
+    @pytest.mark.security
+    async def test_a_drawing_that_was_refused_is_not_shown(self) -> None:
+        """A call refused with a retry prompt is stored completed too; showing it
+        would publish a drawing that never passed the checks."""
+        conversation, _ = self._thread(
+            self._call(
+                "d",
+                "draw",
+                {"kind": "html", "content": '<script src="https://evil.example/x.js"></script>'},
+                result="A drawing may not load a script from another site.",
+            )
+        )
+        assert await visuals.shared_visuals(conversation) == {}
+
+    @pytest.mark.security
+    async def test_a_shared_thread_shows_only_its_newest_visuals(self) -> None:
+        """Anybody holding the link can ask for it, so one view is bounded."""
+        calls = [
+            self._call(f"d{i}", "draw", {"kind": "svg", "content": SVG})
+            for i in range(SHARED_MAX_VISUALS + 3)
+        ]
+        conversation, drew = self._thread(*calls)
+
+        shared = await visuals.shared_visuals(conversation)
+
+        ids = [visual["id"] for visual in shared[drew.id]]
+        assert ids == [f"d{i}" for i in range(3, SHARED_MAX_VISUALS + 3)]
+
+    @pytest.mark.security
+    async def test_a_visual_past_the_byte_budget_is_left_out_unread(self) -> None:
+        big = "<svg>" + "x" * SHARED_MAX_BYTES + "</svg>"
+        conversation, drew = self._thread(
+            self._call("older", "draw", {"kind": "svg", "content": SVG}),
+            self._call("big", "draw", {"kind": "svg", "content": big}),
+            self._call(
+                "pictures",
+                "draw",
+                {
+                    "kind": "html",
+                    "content": "{{image:a}}",
+                    "images": [{"name": "a", "source": "a.png"}],
+                },
+            ),
+        )
+        load = AsyncMock(return_value=(PNG, "image/png"))
+        with patch("app.services.visual.load_image", new=load):
+            shared = await visuals.shared_visuals(conversation)
+
+        # The newest fits, the big one does not, and the oldest still does.
+        assert [visual["id"] for visual in shared[drew.id]] == ["older", "pictures"]
+        load.assert_awaited_once()
 
     async def test_a_thread_with_no_messages_shares_no_visuals(self) -> None:
         conversation = SimpleNamespace(id=uuid.uuid4(), organization_id=uuid.uuid4(), messages=None)
@@ -724,7 +834,8 @@ class TestThumbnailDrawnOnDemand:
             assert await VisualService(MagicMock()).thumbnail(ctx, uuid.uuid4()) == PNG
         assert render.await_args.kwargs["width"] == 640
         assert render.await_args.kwargs["aspect"] == 1.0
-        assert update.await_args.kwargs["thumbnail_path"].endswith("/visuals/d/_thumbnail")
+        folder = hashlib.sha256(b"d").hexdigest()[:32]
+        assert update.await_args.kwargs["thumbnail_path"].endswith(f"/visuals/{folder}/_thumbnail")
 
     async def test_no_browser_means_no_thumbnail(self) -> None:
         ctx = _ctx()

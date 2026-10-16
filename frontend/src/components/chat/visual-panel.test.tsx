@@ -108,6 +108,25 @@ describe("TurnVisuals", () => {
     vi.clearAllMocks();
   });
 
+  it("forgets the visuals' pictures when another conversation takes the screen", () => {
+    useVisualImagesStore.setState({ images: { call_0: { logo: "data:a" } } });
+    const { rerender } = show([]);
+    const provider = (conversationId: string | null) => (
+      <ConversationVisualsProvider messages={[]} conversationId={conversationId}>
+        <TurnVisuals calls={[]} />
+      </ConversationVisualsProvider>
+    );
+
+    // A new thread learning its id mid-turn keeps what the turn is drawing with.
+    rerender(provider(null));
+    useVisualImagesStore.setState({ images: { call_0: { logo: "data:b" } } });
+    rerender(provider("c2"));
+    expect(useVisualImagesStore.getState().images).toEqual({ call_0: { logo: "data:b" } });
+
+    rerender(provider("c3"));
+    expect(useVisualImagesStore.getState().images).toEqual({});
+  });
+
   it("draws nothing for a turn that drew nothing", () => {
     const { container } = show([]);
     expect(container).toBeEmptyDOMElement();

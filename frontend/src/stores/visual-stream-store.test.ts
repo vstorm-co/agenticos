@@ -5,6 +5,7 @@ import {
   appendVisualArgs,
   dropVisualArgs,
   rememberSavedVisual,
+  resetVisualState,
   useSavedVisualsStore,
   useVisualImagesStore,
   useVisualStreamStore,
@@ -78,5 +79,26 @@ describe("pictures and saved apps", () => {
     useSavedVisualsStore.setState({ saved: {} });
     rememberSavedVisual("v", { artifactId: "a", name: "flow", version: 2, url: "/apps/a" });
     expect(useSavedVisualsStore.getState().saved.v!.version).toBe(2);
+  });
+});
+
+describe("resetVisualState", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("forgets every call's arguments, pictures and saved app, pending text included", () => {
+    appendVisualArgs("call_0", "a");
+    vi.advanceTimersByTime(100);
+    appendVisualArgs("call_0", "b");
+    addVisualImages("call_0", { a: "data:a" });
+    rememberSavedVisual("call_0", { artifactId: "a", name: "flow", version: 1, url: "/apps/a" });
+
+    resetVisualState();
+    vi.advanceTimersByTime(100);
+
+    expect(useVisualStreamStore.getState().args).toEqual({});
+    expect(useVisualImagesStore.getState().images).toEqual({});
+    expect(useSavedVisualsStore.getState().saved).toEqual({});
+    resetVisualState();
   });
 });

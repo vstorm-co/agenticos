@@ -50,6 +50,7 @@ import {
 import { getVisualImage, putVisualThumbnail } from "@/lib/visuals-api";
 import {
   addVisualImages,
+  resetVisualState,
   useSavedVisualsStore,
   useVisualImagesStore,
   useVisualStreamStore,
@@ -103,6 +104,14 @@ export function ConversationVisualsProvider({
     () => ({ known, conversationId, onReport, onCompose }),
     [known, conversationId, onReport, onCompose],
   );
+  // Another thread on screen: the visual stores are keyed by the provider's call
+  // id, which that thread may reuse. Not on a new thread learning its id
+  // mid-turn, which would drop the pictures of the drawing being made.
+  const shownFor = useRef(conversationId);
+  useEffect(() => {
+    if (shownFor.current !== null && conversationId !== shownFor.current) resetVisualState();
+    shownFor.current = conversationId;
+  }, [conversationId]);
   return <ConversationVisuals.Provider value={value}>{children}</ConversationVisuals.Provider>;
 }
 

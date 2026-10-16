@@ -1,5 +1,5 @@
 ---
-source_sha: "0011f395bd1f"
+source_sha: "334e30b5b4f6"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1122,6 +1122,15 @@ rysunek nie został sprawdzony.
 jest osobnym wizualem pod wiadomością, która ją zrobiła. Rysunek za duży na aplikację
 (`ARTIFACT_MAX_BYTES`), SVG, które nie jest jednym elementem `<svg>`, albo rysunek,
 który ładuje cokolwiek z innej witryny, to ponowienie z informacją, co zmienić.
+
+**Obrazy.** `images` wnosi do rysunku do sześciu obrazów, każdy pod nazwą, której
+rysunek używa jako `{{image:NAME}}`: obraz załączony do rozmowy, plik w workspace
+albo adres `https://`. Adres działa tylko dla agenta, który już czyta sieć - z
+włączonym `web_fetch` albo `browser_use` - i tylko na hoście, który któryś z nich
+by przeczytał: ich `allowed_domains` i `blocked_domains` ograniczają też obrazy, a
+pobierania nie można przekierować na inny host. Każdy obraz ma najwyżej 2 MiB, a
+wizual niesie tylko obrazy, których jego rysunek wciąż używa, najwyżej sześć przez
+wszystkie rewizje.
 
 **Ma izolację aplikacji.** Ramka to sandbox aplikacji - nieprzezroczysty origin,
 `connect-src 'none'`, nic zdalnego poza zestawem bibliotek deploymentu, który zawiera

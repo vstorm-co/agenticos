@@ -14,6 +14,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal
+from urllib.parse import urlsplit
 from uuid import UUID
 
 import httpx2
@@ -26,6 +27,7 @@ from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.artifacts._toolset import ArtifactEdit, apply_edits
+from app.agents.capabilities.visuals._reach import WebReach
 from app.agents.deps import AgentDeps
 from app.core.config import settings
 from app.repositories.conversation import ToolCallArgs
@@ -153,11 +155,9 @@ def images_problem(images: list[VisualImage]) -> str | None:
 class VisualsToolset:
     """The three tools, and which of this run's drawings actually returned."""
 
-    fetches_web: bool = False
-    """Whether an image may come from an `https://` address - only for an agent that may
-    already read the web. A picture's address is a request the agent chooses, and a
-    prompt-injected one could carry what it read in the query string; drawing must
-    not open that door for an agent that has no other."""
+    web_reach: tuple[WebReach, ...] = ()
+    """Where the agent's web readers may go. An image comes from an `https://` address
+    only on a host one of them admits - see `_reach.py`."""
 
     drawn: set[str] = field(default_factory=set)
     """Ids of this run's calls that produced a visual, so a steered call is not one."""
@@ -298,6 +298,8 @@ class VisualsToolset:
         problem = content_problem(base.kind, content) or image_problem(
             content, set(base.images) | {image.name for image in added}
         )
+        if problem is None and len(set(IMAGE_TOKEN.findall(content))) > MAX_IMAGES:
+            problem = f"A drawing uses at most {MAX_IMAGES} images. Use fewer."
         if problem is not None:
             return steer(ctx, problem)
         revision_id = ctx.tool_call_id or ""
@@ -396,14 +398,26 @@ class VisualsToolset:
                 model can act on.
         """
         if source.lower().startswith(("http://", "https://")):
-            if not self.fetches_web:
+            if not self.web_reach:
                 raise VisualError(
                     "This agent cannot read the web, so it cannot fetch an image by address. "
                     "Use an image attached to the conversation or a file in your workspace."
                 )
+            host = urlsplit(source).hostname or ""
+            if not any(reach.admits(host) for reach in self.web_reach):
+                raise VisualError(
+                    f"This agent may not read {host!r}, so it cannot fetch an image from there. "
+                    "Use an image from a site it may read, one attached to the conversation, "
+                    "or a file in your workspace."
+                )
             try:
+                # Pinned to the host just admitted, so a redirect cannot carry the
+                # request somewhere the agent's readers may not go.
                 response = await safe_download(
-                    source, max_bytes=IMAGE_MAX_BYTES, timeout=IMAGE_DOWNLOAD_TIMEOUT
+                    source,
+                    max_bytes=IMAGE_MAX_BYTES,
+                    timeout=IMAGE_DOWNLOAD_TIMEOUT,
+                    allowed_domains=[host],
                 )
             except (ValueError, httpx2.HTTPError) as failed:
                 raise VisualError(f"{source!r} could not be downloaded: {failed}") from failed

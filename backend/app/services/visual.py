@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
 import re
@@ -59,6 +60,10 @@ DRAW = "draw"
 REVISE = "revise_visual"
 VISUAL_TOOLS = (DRAW, REVISE)
 """The calls that leave a visual behind. `read_visual` reads one and leaves none."""
+
+DREW = ("Drew ", "Revised ")
+"""How a `draw` or `revise_visual` call that made a visual answers. A call refused
+with a retry prompt, or steered away, answers otherwise - and made nothing."""
 
 _KINDS: tuple[VisualKind, ...] = ("svg", "html", "mermaid")
 
@@ -213,8 +218,13 @@ def image_path(organization_id: UUID, conversation_id: UUID, visual_id: str, nam
 
     So it goes when the conversation does, with the rest of the thread's media,
     and an organization's teardown takes it too.
+
+    The visual's id is the model provider's tool-call id, so it is hashed rather
+    than written into the path: a `..` or a `/` in it must not reach outside the
+    thread's prefix. `name` is held to :data:`IMAGE_NAME` before it gets here.
     """
-    return f"{prefix_for(organization_id, conversation_id)}/visuals/{visual_id}/{name}"
+    folder = hashlib.sha256(visual_id.encode("utf-8")).hexdigest()[:32]
+    return f"{prefix_for(organization_id, conversation_id)}/visuals/{folder}/{name}"
 
 
 async def save_image(
@@ -388,6 +398,15 @@ async def rebuild(visual_id: str, lookup: Lookup) -> Visual:
                 f"A revision of `{visual_id}` no longer applies: {missed}"
             ) from missed
         title = text_arg(call.args, "title") or title
+    # Only the pictures the drawing still uses: a long chain of revisions may have
+    # added many, and every one kept is one more file read and inlined each time
+    # the visual is shown.
+    used = set(IMAGE_TOKEN.findall(content))
+    images = {name: call_id for name, call_id in images.items() if name in used}
+    if len(images) > MAX_IMAGES:
+        raise VisualError(
+            f"Visual `{visual_id}` uses more than {MAX_IMAGES} pictures. Draw it again with fewer."
+        )
     return Visual(
         id=chain[0].tool_call_id,
         title=title,
@@ -409,7 +428,11 @@ async def stored_call(*, conversation_id: UUID, tool_call_id: str) -> ToolCallAr
     """A returned `draw` or `revise_visual` call in this conversation's transcript."""
     async with get_db_context() as db:
         return await conversation_repo.tool_call_in_conversation(
-            db, conversation_id=conversation_id, tool_call_id=tool_call_id, names=VISUAL_TOOLS
+            db,
+            conversation_id=conversation_id,
+            tool_call_id=tool_call_id,
+            names=VISUAL_TOOLS,
+            result_prefixes=DREW,
         )
 
 
@@ -454,7 +477,11 @@ async def earlier_visuals(*, conversation_id: UUID, limit: int) -> list[VisualSu
     """The conversation's latest visuals, oldest first, named but not read."""
     async with get_db_context() as db:
         calls = await conversation_repo.tool_calls_named(
-            db, conversation_id=conversation_id, names=VISUAL_TOOLS, limit=limit
+            db,
+            conversation_id=conversation_id,
+            names=VISUAL_TOOLS,
+            result_prefixes=DREW,
+            limit=limit,
         )
     titles = {call.tool_call_id: text_arg(call.args, "title") for call in calls}
     kinds = {call.tool_call_id: text_arg(call.args, "kind") for call in calls}
@@ -478,6 +505,13 @@ async def earlier_visuals(*, conversation_id: UUID, limit: int) -> list[VisualSu
     return summaries
 
 
+SHARED_MAX_VISUALS = 12
+"""How many visuals a thread shared by link shows - the newest ones."""
+
+SHARED_MAX_BYTES = 16 * 1024 * 1024
+"""How much drawing, pictures inlined, one view of a shared thread carries."""
+
+
 async def shared_visuals(conversation: Conversation) -> dict[UUID, list[dict[str, str]]]:
     """Each message's visuals as finished documents, for a thread shared by link.
 
@@ -485,35 +519,49 @@ async def shared_visuals(conversation: Conversation) -> dict[UUID, list[dict[str
     arguments can carry what the agent read - so a visual is rebuilt here, with
     its revisions applied and its pictures inlined, and the page gets only the
     drawing. One that cannot be rebuilt is left out rather than shown broken.
+
+    Bounded, because anybody holding the link can ask for it as often as they
+    like: the newest :data:`SHARED_MAX_VISUALS`, and no more than
+    :data:`SHARED_MAX_BYTES` of them between them. A turn past either keeps its
+    text and shows no drawing.
     """
     calls = {
         call.tool_call_id: ToolCallArgs(call.tool_call_id, call.tool_name, call.args)
         for message in conversation.messages or []
         for call in message.tool_calls or []
-        if call.tool_name in VISUAL_TOOLS and call.status == "completed"
+        if call.tool_name in VISUAL_TOOLS
+        and call.status == "completed"
+        and (call.result or "").startswith(DREW)
     }
 
     async def lookup(call_id: str) -> ToolCallArgs | None:
         return calls.get(call_id)
 
+    placed = [
+        (message.id, call.tool_call_id)
+        for message in conversation.messages or []
+        for call in message.tool_calls or []
+        if call.tool_call_id in calls
+    ]
     shared: dict[UUID, list[dict[str, str]]] = {}
-    for message in conversation.messages or []:
-        for call in message.tool_calls or []:
-            if call.tool_call_id not in calls:
-                continue
-            try:
-                visual = await rebuild(call.tool_call_id, lookup)
-            except VisualError:
-                continue
-            content = await inlined(visual, conversation.organization_id, conversation.id)
-            shared.setdefault(message.id, []).append(
-                {
-                    "id": visual.id,
-                    "title": visual.title,
-                    "kind": visual.kind,
-                    "content": content,
-                }
-            )
+    budget = SHARED_MAX_BYTES
+    for message_id, call_id in reversed(placed[-SHARED_MAX_VISUALS:]):
+        try:
+            visual = await rebuild(call_id, lookup)
+        except VisualError:
+            continue
+        # The most it could come to once its pictures are inlined, as base64 -
+        # judged before reading them, so a visual that does not fit costs nothing.
+        if (
+            len(visual.content.encode("utf-8")) + len(visual.images) * IMAGE_MAX_BYTES * 4 // 3
+            > budget
+        ):
+            continue
+        content = await inlined(visual, conversation.organization_id, conversation.id)
+        budget -= len(content.encode("utf-8"))
+        shared.setdefault(message_id, []).insert(
+            0, {"id": visual.id, "title": visual.title, "kind": visual.kind, "content": content}
+        )
     return shared
 
 
@@ -552,7 +600,11 @@ class VisualService:
 
         async def lookup(call_id: str) -> ToolCallArgs | None:
             return await conversation_repo.tool_call_in_conversation(
-                self.db, conversation_id=conversation_id, tool_call_id=call_id, names=VISUAL_TOOLS
+                self.db,
+                conversation_id=conversation_id,
+                tool_call_id=call_id,
+                names=VISUAL_TOOLS,
+                result_prefixes=DREW,
             )
 
         try:
@@ -631,7 +683,11 @@ class VisualService:
             include_favourite=False,
         )
         call = await conversation_repo.tool_call_in_conversation(
-            self.db, conversation_id=conversation_id, tool_call_id=visual_id, names=VISUAL_TOOLS
+            self.db,
+            conversation_id=conversation_id,
+            tool_call_id=visual_id,
+            names=VISUAL_TOOLS,
+            result_prefixes=DREW,
         )
         if call is None or name not in image_names(call.args):
             raise missing
@@ -697,6 +753,7 @@ class VisualService:
                 conversation_id=row.conversation_id,
                 tool_call_id=call_id,
                 names=VISUAL_TOOLS,
+                result_prefixes=DREW,
             )
 
         try:

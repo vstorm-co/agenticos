@@ -23,7 +23,8 @@ from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities import _registry as registry
 from app.agents.capabilities.artifacts._toolset import ArtifactEdit
-from app.agents.capabilities.visuals import BOUND_CAPABILITIES_RESOURCE, Visuals
+from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, Visuals, web_reach
+from app.agents.capabilities.visuals._reach import WebReach
 from app.agents.capabilities.visuals._toolset import (
     READ_LIMIT,
     VisualImage,
@@ -35,7 +36,7 @@ from app.agents.capabilities.visuals._toolset import (
 from app.agents.deps import AgentDeps
 from app.agents.visual_reports import MAX_ERRORS, VisualReport, VisualReports
 from app.repositories.conversation import ToolCallArgs
-from app.services.visual import VisualSummary
+from app.services.visual import MAX_IMAGES, VisualSummary
 
 pytestmark = pytest.mark.anyio
 
@@ -356,7 +357,7 @@ class TestPictures:
             ) as download,
             patch(f"{SERVICE}.save_image", new=AsyncMock()) as save,
         ):
-            await VisualsToolset(fetches_web=True).draw(
+            await VisualsToolset(web_reach=(WebReach(allowed=None),)).draw(
                 _ctx(),
                 title="T",
                 kind="html",
@@ -366,7 +367,29 @@ class TestPictures:
             )
         assert download.await_args.args == ("https://example.com/a.png",)
         assert download.await_args.kwargs["max_bytes"] == 2 * 1024 * 1024
+        # Pinned to the host, so a redirect cannot take the request elsewhere.
+        assert download.await_args.kwargs["allowed_domains"] == ["example.com"]
         save.assert_awaited_once()
+
+    async def test_a_host_the_agents_readers_may_not_reach_is_refused_before_any_request(
+        self,
+    ) -> None:
+        """An author's `allowed_domains` bounds the pictures too: a prompt-injected
+        address must not reach a host the agent's own `web_fetch` would refuse."""
+        with (
+            patch(f"{SERVICE}.conversation_of_run", new=AsyncMock(return_value=uuid.uuid4())),
+            patch("app.agents.capabilities.visuals._toolset.safe_download") as download,
+            pytest.raises(ModelRetry, match=r"may not read 'evil\.example'"),
+        ):
+            await VisualsToolset(web_reach=(WebReach(allowed=("docs.acme.com",)),)).draw(
+                _ctx(),
+                title="T",
+                kind="html",
+                height=1,
+                content=self._content(),
+                images=[VisualImage(name="photo", source="https://evil.example/a.png?q=secret")],
+            )
+        download.assert_not_called()
 
     @pytest.mark.parametrize(
         ("outcome", "said"),
@@ -389,7 +412,7 @@ class TestPictures:
             patch("app.agents.capabilities.visuals._toolset.safe_download", new=download),
             pytest.raises(ModelRetry, match=said),
         ):
-            await VisualsToolset(fetches_web=True).draw(
+            await VisualsToolset(web_reach=(WebReach(allowed=None),)).draw(
                 _ctx(),
                 title="T",
                 kind="html",
@@ -534,6 +557,29 @@ class TestRevise:
         assert "Revised" in result
         assert save.await_args.args[2:4] == ("rev", "team")
 
+    async def test_a_revision_may_not_use_more_pictures_than_a_drawing(self) -> None:
+        """Each revision may add pictures; the visual they make still carries at
+        most as many as one drawing may."""
+        tools = VisualsToolset()
+        names = [f"p{i}" for i in range(MAX_IMAGES + 1)]
+        base = _drawn_in_run(
+            tools,
+            "base",
+            title="F",
+            kind="html",
+            height=1,
+            content="<p>x</p>" + "".join(f"{{{{image:{n}}}}}" for n in names[:3]),
+            images=[{"name": n, "source": "a.png"} for n in names[:3]],
+        )
+        with pytest.raises(ModelRetry, match=f"at most {MAX_IMAGES} images"):
+            await tools.revise_visual(
+                _ctx(messages=[base], call_id="rev"),
+                visual_id="base",
+                edits=[ArtifactEdit(old="x", new="".join(f"{{{{image:{n}}}}}" for n in names[3:]))],
+                images=[VisualImage(name=n, source="a.png") for n in names[3:]],
+            )
+        assert "rev" not in tools.drawn
+
     async def test_a_revision_whose_picture_is_refused_keeps_nothing(self) -> None:
         tools = VisualsToolset()
         base = _drawn_in_run(tools, "base", title="F", kind="html", height=1, content="<p>x</p>")
@@ -669,15 +715,12 @@ class TestCapability:
         capability = Visuals()
         assert capability.get_toolset() is capability.get_toolset()
 
-    @pytest.mark.parametrize(
-        ("bound", "fetches"),
-        [(frozenset({"web_fetch"}), True), (frozenset({"browser_use"}), True), (None, False)],
-    )
-    def test_the_builder_lets_only_a_web_reader_fetch_pictures(
-        self, bound: frozenset[str] | None, fetches: bool
+    @pytest.mark.parametrize("reach", [(WebReach(allowed=None),), ()])
+    def test_the_builder_hands_the_toolset_the_agents_web_reach(
+        self, reach: tuple[WebReach, ...]
     ) -> None:
         registry.load_builtins()
-        resources = {} if bound is None else {BOUND_CAPABILITIES_RESOURCE: bound}
+        resources = {WEB_REACH_RESOURCE: reach} if reach else {}
         built = registry.REGISTRY["visuals"].builder(
             registry.CapabilityBuildContext(
                 binding=registry.CapabilityBinding(capability_id="visuals"),
@@ -686,7 +729,56 @@ class TestCapability:
             )
         )
         assert isinstance(built, Visuals)
-        assert built.fetches_web is fetches
+        assert built.web_reach == reach
+
+
+class TestWebReach:
+    """Where a picture may come from is where the agent's readers may go."""
+
+    def test_an_agent_with_no_web_reader_reaches_nowhere(self) -> None:
+        assert web_reach([registry.CapabilityBinding(capability_id="artifacts")]) == ()
+
+    def test_web_fetch_keeps_its_allow_and_block_lists(self) -> None:
+        (reach,) = web_reach(
+            [
+                registry.CapabilityBinding(
+                    capability_id="web_fetch",
+                    config={"allowed_domains": ["Docs.Acme.com"], "blocked_domains": None},
+                )
+            ]
+        )
+        assert reach.admits("docs.acme.com.")
+        assert not reach.admits("acme.com")
+        (blocking,) = web_reach(
+            [
+                registry.CapabilityBinding(
+                    capability_id="web_fetch", config={"blocked_domains": ["evil.example"]}
+                )
+            ]
+        )
+        assert blocking.admits("example.com")
+        assert not blocking.admits("EVIL.example")
+
+    def test_browser_use_matches_its_patterns(self) -> None:
+        (reach,) = web_reach(
+            [
+                registry.CapabilityBinding(
+                    capability_id="browser_use", config={"allowed_domains": ["*.Acme.com"]}
+                )
+            ]
+        )
+        assert reach.admits("shop.acme.com")
+        assert not reach.admits("acme.org")
+        (anywhere,) = web_reach([registry.CapabilityBinding(capability_id="browser_use")])
+        assert anywhere.admits("example.com")
+
+    def test_a_switched_off_reader_reaches_nowhere(self) -> None:
+        assert (
+            web_reach([registry.CapabilityBinding(capability_id="web_fetch", enabled=False)]) == ()
+        )
+
+    def test_a_host_with_no_idna_form_is_admitted_by_no_list(self) -> None:
+        assert not WebReach(allowed=None).admits("a" * 64 + ".com")
 
     async def test_a_run_outside_a_conversation_is_told_of_no_earlier_visuals(self) -> None:
         instructions = Visuals().get_instructions()

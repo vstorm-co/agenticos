@@ -346,8 +346,12 @@ under `artifacts/<organization>/<artifact>/`.
   inside another site's frame.
 - **Removed versions are gone.** A conversation that links to a version older
   than the kept window can only offer the latest one.
-- **A visual draws only in the web chat and a shared thread.** A chat channel,
-  the widget and an embed on another site show its title, not the drawing.
+- **A visual draws only in the web chat and a shared thread.** A chat app gets a
+  picture of it where `VISUAL_RENDER_CDP_URL` names a browser, and its title
+  otherwise; the widget and an embed on another site show its title.
+- **A shared thread shows its newest twelve visuals**, and no more than 16 MB of
+  them between them. Anybody holding the link can open it as often as they like,
+  so one view is bounded; a turn past either keeps its text and shows no drawing.
 
 ## Recap
 

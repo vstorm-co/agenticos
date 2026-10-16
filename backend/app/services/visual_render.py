@@ -132,10 +132,6 @@ async def render_png(
         return await _photograph(cdp_url, document, width=width, aspect=aspect)
 
 
-_DREW = ("Drew ", "Revised ")
-"""How a `draw` or `revise_visual` call that made a visual answers - a steered one does not."""
-
-
 async def picture_of_turn(
     called: list[tuple[str, str, dict[str, Any], str | None]],
     *,
@@ -153,7 +149,7 @@ async def picture_of_turn(
     in_turn = {
         call_id: ToolCallArgs(call_id, tool, args)
         for call_id, tool, args, result in called
-        if tool in VISUAL_TOOLS and result is not None and result.startswith(_DREW)
+        if tool in VISUAL_TOOLS and result is not None and result.startswith(visuals.DREW)
     }
     last = next((call_id for call_id, *_ in reversed(called) if call_id in in_turn), None)
     if last is None or not available():

@@ -11,8 +11,8 @@ import { create } from "zustand";
  * written per delta: the text gathers here outside React and is published at
  * most every `FLUSH_MS`, which is as often as the frame redraws anyway.
  *
- * Keyed by call id rather than scoped per chat: an id is the provider's and
- * unique, so two chats on one screen cannot collide.
+ * Keyed by call id rather than scoped per chat, and cleared whenever another
+ * conversation, tenant or account takes the screen - see `resetVisualState`.
  */
 interface VisualStreamState {
   /** The JSON text so far, or the object so far when a provider streams objects. */
@@ -108,4 +108,24 @@ export function addVisualImages(visualId: string, images: Record<string, string>
   useVisualImagesStore.setState((state) => ({
     images: { ...state.images, [visualId]: { ...state.images[visualId], ...images } },
   }));
+}
+
+/**
+ * Forget every visual's streamed arguments, pictures and saved app.
+ *
+ * All three are keyed by tool-call id, which is the model provider's to choose: a
+ * local model may number its calls `call_0`, `call_1` in every conversation, so
+ * what one thread - or another organization - held would otherwise be shown in
+ * the next. Called when the tenant or the account changes, and when another
+ * conversation takes the screen.
+ */
+export function resetVisualState(): void {
+  pending.clear();
+  if (timer !== null) {
+    clearTimeout(timer);
+    timer = null;
+  }
+  useVisualStreamStore.setState({ args: {} });
+  useSavedVisualsStore.setState({ saved: {} });
+  useVisualImagesStore.setState({ images: {} });
 }

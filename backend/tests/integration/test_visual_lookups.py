@@ -54,8 +54,18 @@ async def _thread(db) -> tuple[User, Message]:
     return owner, message
 
 
+DREW = ("Drew ", "Revised ")
+
+
 async def _call(
-    db, message: Message, call_id: str, *, name: str = "draw", status: str = "completed", at: int
+    db,
+    message: Message,
+    call_id: str,
+    *,
+    name: str = "draw",
+    status: str = "completed",
+    result: str = "Drew it.",
+    at: int,
 ) -> None:
     db.add(
         ToolCall(
@@ -65,6 +75,7 @@ async def _call(
             tool_name=name,
             args={"title": call_id},
             status=status,
+            result=result,
             started_at=datetime(2026, 10, 16, tzinfo=UTC) + timedelta(seconds=at),
         )
     )
@@ -79,9 +90,10 @@ class TestToolCalls:
         await _call(db, message, "c", at=3)
         await _call(db, message, "failed", status="failed", at=4)
         await _call(db, message, "other", name="web_fetch", at=5)
+        await _call(db, message, "refused", result="A drawing may not load a script.", at=6)
 
         calls = await conversation_repo.tool_calls_named(
-            db, conversation_id=message.conversation_id, names=NAMES, limit=2
+            db, conversation_id=message.conversation_id, names=NAMES, result_prefixes=DREW, limit=2
         )
 
         assert [call.tool_call_id for call in calls] == ["b", "c"]
@@ -92,13 +104,21 @@ class TestToolCalls:
         _, theirs = await _thread(db)
         await _call(db, theirs, "theirs", at=1)
         await _call(db, mine, "mine", at=1)
+        await _call(db, mine, "steered", result="`content` is empty. Pass the whole drawing.", at=2)
 
-        found = await conversation_repo.tool_call_in_conversation(
-            db, conversation_id=mine.conversation_id, tool_call_id="mine", names=NAMES
-        )
-        reached = await conversation_repo.tool_call_in_conversation(
-            db, conversation_id=mine.conversation_id, tool_call_id="theirs", names=NAMES
-        )
+        def find(call_id: str):
+            return conversation_repo.tool_call_in_conversation(
+                db,
+                conversation_id=mine.conversation_id,
+                tool_call_id=call_id,
+                names=NAMES,
+                result_prefixes=DREW,
+            )
+
+        found = await find("mine")
+        reached = await find("theirs")
+        # A call steered away is stored completed too, and drew nothing.
+        assert await find("steered") is None
 
         assert found is not None
         assert found.tool_name == "draw"

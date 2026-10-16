@@ -805,10 +805,28 @@ class ToolCallArgs(NamedTuple):
     agent_id: UUID | None = None
 
 
+def _succeeded(result_prefixes: Collection[str]) -> ColumnElement[bool]:
+    """A completed call whose result says it did its work.
+
+    `completed` alone does not: a call refused with a retry prompt, or steered
+    away with a sentence, is stored completed too.
+    """
+    return or_(*(ToolCall.result.startswith(prefix, autoescape=True) for prefix in result_prefixes))
+
+
 async def tool_calls_named(
-    db: AsyncSession, *, conversation_id: UUID, names: Collection[str], limit: int
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    names: Collection[str],
+    result_prefixes: Collection[str],
+    limit: int,
 ) -> list[ToolCallArgs]:
-    """The conversation's latest calls of these tools that returned, oldest first."""
+    """The conversation's latest calls of these tools that succeeded, oldest first.
+
+    A call succeeded when it completed with a result opening on one of
+    `result_prefixes` - see `_succeeded`.
+    """
     newest = (
         select(ToolCall.tool_call_id, ToolCall.tool_name, ToolCall.args, ToolCall.started_at)
         .join(Message, Message.id == ToolCall.message_id)
@@ -816,6 +834,7 @@ async def tool_calls_named(
             Message.conversation_id == conversation_id,
             ToolCall.tool_name.in_(names),
             ToolCall.status == "completed",
+            _succeeded(result_prefixes),
         )
         .order_by(ToolCall.started_at.desc())
         .limit(limit)
@@ -830,9 +849,16 @@ async def tool_calls_named(
 
 
 async def tool_call_in_conversation(
-    db: AsyncSession, *, conversation_id: UUID, tool_call_id: str, names: Collection[str]
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    tool_call_id: str,
+    names: Collection[str],
+    result_prefixes: Collection[str],
 ) -> ToolCallArgs | None:
-    """One returned call of these tools, by the provider's id, within one conversation.
+    """One succeeded call of these tools, by the provider's id, within one conversation.
+
+    Succeeded as `tool_calls_named` means it.
 
     The conversation is the boundary: the id is the model's to name, and a call in
     any other conversation is not one it may reach.
@@ -845,6 +871,7 @@ async def tool_call_in_conversation(
             ToolCall.tool_call_id == tool_call_id,
             ToolCall.tool_name.in_(names),
             ToolCall.status == "completed",
+            _succeeded(result_prefixes),
         )
         .order_by(ToolCall.started_at.desc())
         .limit(1)

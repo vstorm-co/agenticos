@@ -11,6 +11,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.toolsets import AbstractToolset
 
+from app.agents.capabilities.visuals._reach import WebReach
 from app.agents.capabilities.visuals._toolset import VisualsToolset
 from app.agents.deps import AgentDeps
 from app.services import visual as visuals
@@ -27,8 +28,8 @@ class Visuals(AbstractCapability[AgentDeps]):
     frame is the app sandbox, and why earlier visuals are named rather than replayed.
     """
 
-    fetches_web: bool = False
-    """Whether the agent may already read the web, so a drawing may use an image by address."""
+    web_reach: tuple[WebReach, ...] = ()
+    """Where the agent's web readers may go, and so where a picture may come from."""
 
     _tools: VisualsToolset = field(init=False, repr=False)
     _toolset: AbstractToolset[Any] | None = field(
@@ -37,7 +38,7 @@ class Visuals(AbstractCapability[AgentDeps]):
     _listed: dict[UUID, str] = field(default_factory=dict, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        self._tools = VisualsToolset(fetches_web=self.fetches_web)
+        self._tools = VisualsToolset(web_reach=self.web_reach)
 
     def get_toolset(self) -> AbstractToolset[Any]:
         if self._toolset is None:

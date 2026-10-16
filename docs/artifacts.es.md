@@ -1,5 +1,5 @@
 ---
-source_sha: "135c28e5be54"
+source_sha: "bf4446717e0f"
 ---
 
 # Aplicaciones { #artifacts }
@@ -377,8 +377,14 @@ del despliegue, bajo `artifacts/<organization>/<artifact>/`.
   miembros no pueden iniciar sesión dentro del frame de otro sitio.
 - **Las versiones eliminadas desaparecen.** Una conversación que enlaza a una
   versión más antigua que la ventana conservada solo puede ofrecer la última.
-- **Un visual solo se dibuja en el chat web y en un hilo compartido.** Un canal de
-  chat, el widget y una incrustación en otro sitio muestran su título, no el dibujo.
+- **Un visual solo se dibuja en el chat web y en un hilo compartido.** Una app de
+  chat recibe una imagen de él donde `VISUAL_RENDER_CDP_URL` nombra un navegador, y
+  su título en otro caso; el widget y una incrustación en otro sitio muestran su
+  título.
+- **Un hilo compartido muestra sus doce visuals más recientes**, y no más de 16 MB
+  entre todos. Cualquiera con el enlace puede abrirlo tantas veces como quiera, así
+  que una vista está acotada; un turno más allá de cualquiera de los dos límites
+  conserva su texto y no muestra el dibujo.
 
 ## Resumen { #recap }
 

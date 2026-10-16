@@ -1,5 +1,5 @@
 ---
-source_sha: "135c28e5be54"
+source_sha: "bf4446717e0f"
 ---
 
 # Apps { #artifacts }
@@ -395,9 +395,14 @@ Deployments, unter `artifacts/<organization>/<artifact>/`.
 - **Entfernte Versionen sind weg.** Eine Unterhaltung, die auf eine Version
   verlinkt, die älter als das aufbewahrte Fenster ist, kann nur die neueste
   anbieten.
-- **Ein Visual wird nur im Web-Chat und in einem geteilten Thread gezeichnet.** Ein
-  Chat-Kanal, das Widget und eine Einbettung auf einer anderen Website zeigen seinen
-  Titel, nicht die Zeichnung.
+- **Ein Visual wird nur im Web-Chat und in einem geteilten Thread gezeichnet.** Eine
+  Chat-App bekommt ein Bild davon, wo `VISUAL_RENDER_CDP_URL` einen Browser nennt,
+  sonst seinen Titel; das Widget und eine Einbettung auf einer anderen Website
+  zeigen seinen Titel.
+- **Ein geteilter Thread zeigt seine zwölf neuesten Visuals**, zusammen höchstens
+  16 MB. Wer den Link hat, kann ihn beliebig oft öffnen, also ist ein Aufruf
+  begrenzt; ein Turn jenseits einer der Grenzen behält seinen Text und zeigt keine
+  Zeichnung.
 
 ## Zusammenfassung { #recap }
 

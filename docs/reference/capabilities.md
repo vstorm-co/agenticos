@@ -1067,6 +1067,15 @@ and each is a visual of its own under the message that made it. A drawing too
 large for an app (`ARTIFACT_MAX_BYTES`), an SVG that is not one `<svg>` element,
 or one that loads anything from another site is a retry naming what to change.
 
+**Pictures.** `images` brings up to six pictures into a drawing, each by a name
+the drawing uses as `{{image:NAME}}`: an image attached to the conversation, a
+file in the workspace, or an `https://` address. An address works only for an
+agent that already reads the web - `web_fetch` or `browser_use` switched on - and
+only on a host one of them would read: their `allowed_domains` and
+`blocked_domains` bound the pictures too, and the download may not be redirected
+to another host. Each picture is at most 2 MiB, and a visual carries only the
+pictures its drawing still uses, six at most across its revisions.
+
 **It has an app's isolation.** The frame is the app sandbox - an opaque origin,
 `connect-src 'none'`, nothing remote but the deployment's library set, which now
 includes three.js and Mermaid. See [Visuals](../artifacts.md#visuals).

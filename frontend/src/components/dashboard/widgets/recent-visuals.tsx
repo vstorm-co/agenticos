@@ -57,16 +57,19 @@ function VisualTile({ visual }: { visual: VisualListItem }) {
   const tTime = useTranslations("time");
   const locale = useLocale();
   // A thumbnail the server cannot give - not made yet, or gone - falls back to
-  // the kind's mark rather than a broken image.
+  // the kind's mark rather than a broken image. A page's is asked for even when
+  // none is kept: asking is what has the deployment's browser draw it, and the
+  // console cannot.
   const [broken, setBroken] = useState(false);
   const Icon = KIND_ICON[visual.kind];
+  const pictured = visual.has_thumbnail || visual.kind === "html";
   return (
     <Link
       href={`${ROUTES.CHAT}?id=${visual.conversation_id}`}
       className="group hover:bg-accent/40 flex min-w-0 flex-col gap-1.5 rounded-xl p-1.5"
     >
       <span className="bg-foreground/[0.04] relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg">
-        {visual.has_thumbnail && !broken ? (
+        {pictured && !broken ? (
           // A same-origin address behind the console's session, which `next/image`
           // would only fetch a second time.
           // eslint-disable-next-line @next/next/no-img-element

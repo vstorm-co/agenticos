@@ -61,9 +61,21 @@ describe("RecentVisualsWidget", () => {
 
     expect(useRecentVisualsMock).toHaveBeenCalledWith(6);
     expect(screen.getByRole("link", { name: /Order flow/ })).toHaveAttribute("href", "/chat?id=c1");
-    const thumbnail = document.querySelector("img");
-    expect(thumbnail?.getAttribute("src")).toBe("/api/visuals/v1/thumbnail");
+    // A page with none kept yet is asked for too: asking is what draws it.
+    const thumbnails = [...document.querySelectorAll("img")].map((img) => img.getAttribute("src"));
+    expect(thumbnails).toEqual(["/api/visuals/v1/thumbnail", "/api/visuals/v2/thumbnail"]);
     expect(screen.getByText("App")).toBeInTheDocument();
+  });
+
+  it("shows the kind's mark for a diagram with no thumbnail yet", () => {
+    useRecentVisualsMock.mockReturnValue({
+      visuals: [visual({ kind: "mermaid", has_thumbnail: false })],
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    widget();
+    expect(document.querySelector("img")).toBeNull();
   });
 
   it("falls back to the kind's mark when the thumbnail will not load", () => {

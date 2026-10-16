@@ -1,5 +1,5 @@
 ---
-source_sha: "0011f395bd1f"
+source_sha: "334e30b5b4f6"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1136,6 +1136,16 @@ responde enseguida y dice que el dibujo no se comprobó.
 dibujo demasiado grande para una aplicación (`ARTIFACT_MAX_BYTES`), un SVG que no es un
 único elemento `<svg>`, o uno que carga algo de otro sitio es un reintento que dice qué
 cambiar.
+
+**Imágenes.** `images` lleva hasta seis imágenes a un dibujo, cada una con un
+nombre que el dibujo usa como `{{image:NAME}}`: una imagen adjunta a la
+conversación, un archivo del workspace o una dirección `https://`. Una dirección
+solo sirve a un agente que ya lee la web - con `web_fetch` o `browser_use`
+activados - y solo en un host que uno de ellos leería: sus `allowed_domains` y
+`blocked_domains` limitan también las imágenes, y la descarga no puede
+redirigirse a otro host. Cada imagen tiene como mucho 2 MiB, y un visual lleva
+solo las imágenes que su dibujo todavía usa, seis como máximo entre todas sus
+revisiones.
 
 **Tiene el aislamiento de una aplicación.** El marco es el sandbox de las aplicaciones
 - un origen opaco, `connect-src 'none'`, nada remoto salvo el conjunto de bibliotecas

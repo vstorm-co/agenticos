@@ -113,6 +113,7 @@ async def test_a_thread_opened_by_its_link_carries_its_drawings(mock_redis: Magi
                 tool_name="draw",
                 args={"title": "Flow", "kind": "svg", "content": "<svg/>", "secret": "x"},
                 status="completed",
+                result="Drew 'Flow' as visual `d`.",
             )
         ],
     )

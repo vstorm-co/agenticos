@@ -1,5 +1,5 @@
 ---
-source_sha: "0011f395bd1f"
+source_sha: "334e30b5b4f6"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1189,6 +1189,16 @@ geprüft wurde.
 hat. Eine Zeichnung, die für eine App zu groß ist (`ARTIFACT_MAX_BYTES`), ein SVG, das
 nicht ein einzelnes `<svg>`-Element ist, oder eine, die etwas von einer anderen Website
 lädt, ist ein Retry, der sagt, was zu ändern ist.
+
+**Bilder.** `images` bringt bis zu sechs Bilder in eine Zeichnung, jedes unter
+einem Namen, den die Zeichnung als `{{image:NAME}}` verwendet: ein an das Gespräch
+angehängtes Bild, eine Datei im Workspace oder eine `https://`-Adresse. Eine
+Adresse funktioniert nur für einen Agent, der das Web bereits liest - mit
+eingeschaltetem `web_fetch` oder `browser_use` - und nur auf einem Host, den einer
+von beiden lesen würde: ihre `allowed_domains` und `blocked_domains` begrenzen
+auch die Bilder, und der Download darf nicht auf einen anderen Host umgeleitet
+werden. Jedes Bild hat höchstens 2 MiB, und ein Visual trägt nur die Bilder, die
+seine Zeichnung noch verwendet, über alle Revisionen höchstens sechs.
 
 **Es hat die Isolation einer App.** Der Rahmen ist die App-Sandbox - ein opaker
 Origin, `connect-src 'none'`, nichts Entferntes außer dem Bibliothekssatz des

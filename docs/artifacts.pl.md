@@ -1,5 +1,5 @@
 ---
-source_sha: "135c28e5be54"
+source_sha: "bf4446717e0f"
 ---
 
 # Aplikacje { #artifacts }
@@ -359,8 +359,13 @@ wdrożenia, pod `artifacts/<organization>/<artifact>/`.
   zalogować się w ramce na cudzej witrynie.
 - **Usunięte wersje przepadają.** Rozmowa, która linkuje do wersji starszej niż
   przechowywane okno, może zaproponować tylko najnowszą.
-- **Wizual rysuje się tylko w czacie konsoli i w udostępnionym wątku.** Kanał czatu,
-  widget i osadzenie na innej witrynie pokazują jego tytuł, nie rysunek.
+- **Wizual rysuje się tylko w czacie konsoli i w udostępnionym wątku.** Aplikacja
+  czatu dostaje jego obraz, gdy `VISUAL_RENDER_CDP_URL` wskazuje przeglądarkę, a w
+  przeciwnym razie tytuł; widget i osadzenie na innej witrynie pokazują jego tytuł.
+- **Udostępniony wątek pokazuje dwanaście najnowszych wizuali** i nie więcej niż
+  16 MB łącznie. Każdy, kto ma link, może go otwierać dowolnie często, więc jedno
+  wyświetlenie jest ograniczone; tura poza którymś z limitów zachowuje tekst i nie
+  pokazuje rysunku.
 
 ## Podsumowanie { #recap }
 
