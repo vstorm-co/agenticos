@@ -1759,6 +1759,8 @@ async def test_the_judges_run_names_the_eval_case_it_graded(db) -> None:
     assert link is not None and link.graded
     assert (link.eval_run_id, link.case_id) == (run.id, score.case_id)
     assert await service.case_links(ctx, [judge_run]) == {judge_run: link}
+    # The judge's run is not kept (retention took it), so its price is missing.
+    assert (await service.get(ctx, run.id)).cost_is_partial is True
     # A score nobody's eval run produced names no eval run.
     score.eval_run_id = None
     await db.flush()
