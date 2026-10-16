@@ -813,7 +813,7 @@ class TestADatasetsOwnJudge:
 
         assert (saved.scoring.judge.agent_id, saved.judge_name) == (other.id, "Tone judge")
 
-    async def test_datasets_list_by_the_judge_that_grades_them(self, db, judge) -> None:
+    async def test_datasets_list_by_their_judge_picked_grading_or_not(self, db, judge) -> None:
         tenant = await _tenant(db)
         default = await SystemAgentService(db).ensure(
             organization_id=tenant.organization.id, key=JUDGE.key
@@ -826,6 +826,9 @@ class TestADatasetsOwnJudge:
         )
         own = made.scoring.judge.agent_id
         assert own is not None
+        paused, _ = await _dataset(
+            db, tenant, scoring=DatasetScoring(judge=JudgeScorer(agent_id=own))
+        )
         datasets = DatasetService(db)
 
         graded_by_default = await datasets.list_readable(tenant.ctx, judge_id=default.id)
@@ -833,12 +836,13 @@ class TestADatasetsOwnJudge:
         everything = await datasets.list_readable(tenant.ctx)
 
         assert [item.id for item in graded_by_default.items] == [by_default.id]
-        assert [item.id for item in graded_by_own.items] == [by_own.id]
+        assert {item.id for item in graded_by_own.items} == {by_own.id, paused.id}
         names = {item.id: item.judge_name for item in everything.items}
         assert names == {
             by_default.id: default.name,
             ungraded.id: default.name,
             by_own.id: "Refunds judge",
+            paused.id: "Refunds judge",
         }
 
 
