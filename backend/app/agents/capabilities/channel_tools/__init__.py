@@ -62,6 +62,7 @@ class ChannelToolsConfig(BaseModel):
 
 @register(
     id="channel_tools",
+    read_only=True,
     name="Chat channel lookup",
     category="channels",
     description=(

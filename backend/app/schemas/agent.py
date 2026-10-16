@@ -492,6 +492,14 @@ class CapabilityCatalogEntry(BaseSchema):
     side_effecting: bool = Field(
         description="The default answer for every tool below: gate it unless waived"
     )
+    read_only: bool = Field(
+        default=False,
+        description=(
+            "The default answer for every tool below in an eval: run it on the normal "
+            "connections. False means it writes, and an eval blocks it unless the "
+            "environment gives it a test connection"
+        ),
+    )
     tools: list[CapabilityToolInfo] = Field(
         description=(
             "The tools this capability contributes, with the name and description code "

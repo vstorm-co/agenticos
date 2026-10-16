@@ -655,7 +655,19 @@
     "eachPersonsOwnAccount": "Das eigene Konto jeder Person",
     "useEachPersonsOwnAccount": "Das eigene Konto jeder Person verwenden",
     "eachPersonsOwnAccountHint": "Wer mit diesem Agent spricht, verbindet sein eigenes Konto, und der Agent spricht als diese Person mit dem Dienst – im Dashboard, in Direktnachrichten und in Kanälen gleichermaßen. Nicht verfügbar für API-Schlüssel, das Widget, Zeitpläne und Trigger, wo niemand angemeldet ist.",
-    "everyToolThisServerOffers": "Jedes Tool, das er anbietet"
+    "everyToolThisServerOffers": "Jedes Tool, das er anbietet",
+    "testConnectionsFor": "Testverbindungen für {name}",
+    "testConnectionsHint": "Runs in diesem Environment, Evals eingeschlossen, beantworten jedes Binding unten mit seinem Testsystem. Ein hier abgeschaltetes Binding tut nichts - es fällt nie auf die Produktion zurück.",
+    "testConnectionKindLabel": "Was ersetzt wird",
+    "testConnectionKindMcp": "MCP-Server",
+    "testConnectionKindSecret": "Vault-Schlüssel",
+    "productionSide": "Produktion",
+    "testSide": "Testersatz",
+    "testSideFor": "Testersatz für {name}",
+    "bindingOffHere": "In diesem Environment aus",
+    "testSideUnusable": "Hier aus: Die Testverbindung ist deaktiviert oder nicht angemeldet",
+    "testConnectionsSaved": "Testverbindungen gespeichert",
+    "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -2594,6 +2606,8 @@
     "theOrganizations": "Die der Organisation",
     "toolSelectionSaved": "Tool-Auswahl gespeichert.",
     "tools": "Tools",
+    "trustReadOnlyHints": "Evals Tools aufrufen lassen, die dieser Server als nur lesend markiert",
+    "trustReadOnlyHintsHint": "Evals halten jeden Aufruf eines Produktionsservers an, solange Sie ihm nicht vertrauen: Die Markierung „nur lesend“ ist die eigene Angabe des Servers. {count, plural, =0 {Kein Tool hier beansprucht sie.} =1 {1 Tool hier beansprucht sie.} other {# Tools hier beanspruchen sie.}}",
     "toolsFrom": "Tools aus „{name}“",
     "toolsSelected": "{on} von {total} aktiv",
     "unreachable": "Nicht erreichbar",
@@ -2767,6 +2781,10 @@
       "agent-history": {
         "title": "Jede Version, aufbewahrt",
         "body": "Jede Veröffentlichung friert den Spec als Version ein, die Sie in ein Environment heben, auf die Sie zurückrollen oder gegen die Sie die Run-Historie lesen können."
+      },
+      "agent-test-connections": {
+        "title": "Testverbindungen",
+        "body": "Ein benanntes Environment kann die MCP-Server und Vault-Schlüssel des Agents durch Testversionen ersetzen - ein Sandbox-CRM, ein Testpostfach. Dort laufen Evals, und ein schreibendes Tool ohne Testverbindung wird angehalten und aufgezeichnet statt ausgeführt."
       },
       "agent-instructions": {
         "title": "Die Instruktionen sind das Verhalten",

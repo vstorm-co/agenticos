@@ -31,7 +31,11 @@ from app.db.models.mcp_registry_server import McpRegistryServer
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.embed_visitor import EmbedVisitor
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
-from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.agent_environment import (
+    AgentEnvironment,
+    AgentEnvironmentConnection,
+    ConnectionKind,
+)
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.sandbox_connection import SandboxConnection
 from app.db.models.sandbox_operation import SandboxOperation
@@ -39,6 +43,11 @@ from app.db.models.agent_exposure import AgentExposure, ExposureSurface
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
 from app.db.models.agent_trigger import AgentTrigger, ScheduleKind
 from app.db.models.run_manifest import RunManifest
+from app.db.models.intercepted_tool_call import (
+    InterceptedToolCall,
+    InterceptionOutcome,
+    InterceptionReason,
+)
 from app.db.models.ingestion_spend import IngestionSpend
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall
 from app.db.models.purged_run_spend import PurgedRunSpend
@@ -103,6 +112,8 @@ __all__ = [
     "AgentStatus",
     "AgentVersion",
     "AgentEnvironment",
+    "AgentEnvironmentConnection",
+    "ConnectionKind",
     "AgentWorkspace",
     "LocalService",
     "SandboxConnection",
@@ -113,6 +124,9 @@ __all__ = [
     "ScheduleKind",
     "AgentRun",
     "RunManifest",
+    "InterceptedToolCall",
+    "InterceptionOutcome",
+    "InterceptionReason",
     "IngestionSpend",
     "MLServiceCall",
     "MLCallStatus",

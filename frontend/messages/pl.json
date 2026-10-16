@@ -1508,6 +1508,10 @@
         "title": "Każda wersja zachowana",
         "body": "Każda publikacja zamraża specyfikację jako wersję, którą możesz wypromować do środowiska, cofnąć się do niej albo odczytać względem niej historię uruchomień."
       },
+      "agent-test-connections": {
+        "title": "Połączenia testowe",
+        "body": "Nazwane środowisko może zastąpić serwery MCP i klucze z vault agenta testowymi - sandboxowym CRM, testową skrzynką. Tam działają evale, a narzędzie, które zapisuje i nie ma połączenia testowego, jest wstrzymywane i zapisywane zamiast uruchamiane."
+      },
       "agent-instructions": {
         "title": "Instrukcje to zachowanie",
         "body": "Otwórz agenta, a trafisz do kreatora, gdzie składa się go zakładka po zakładce. Build jest pierwsza: instrukcje to jego zachowanie, pisane zwykłym Markdown, nie kodem."
@@ -2070,6 +2074,8 @@
     "stateDisabled": "Wyłączone",
     "storedEncryptedNeverShown": "Zapisane w postaci zaszyfrowanej i nigdy więcej niepokazywane.",
     "toolSelectionSaved": "Wybór narzędzi zapisany.",
+    "trustReadOnlyHints": "Pozwól evalom wywoływać narzędzia, które ten serwer oznacza jako tylko do odczytu",
+    "trustReadOnlyHintsHint": "Evale wstrzymują każde wywołanie serwera produkcyjnego, chyba że mu ufasz: oznaczenie „tylko do odczytu” to deklaracja samego serwera. {count, plural, =0 {Żadne narzędzie tutaj go nie deklaruje.} =1 {Deklaruje je 1 narzędzie.} few {Deklarują je # narzędzia.} many {Deklaruje je # narzędzi.} other {Deklaruje je # narzędzia.}}",
     "toolsFrom": "Narzędzia z „{name}”",
     "unreachable": "Nieosiągalny",
     "urlMustStartWithHttp": "URL musi zaczynać się od http:// lub https://",
@@ -3073,7 +3079,19 @@
     "youNotVisitorsWhich": "Dla Ciebie, nie dla odwiedzających - które to umiejscowienie.",
     "yourBackendSignsToken": "Twój backend podpisuje token, który weryfikujemy",
     "zoom": "Powiększ",
-    "zoomOut": "Pomniejsz"
+    "zoomOut": "Pomniejsz",
+    "testConnectionsFor": "Połączenia testowe dla {name}",
+    "testConnectionsHint": "Runy w tym środowisku, łącznie z evalami, odpowiadają na każdy binding poniżej jego systemem testowym. Binding wyłączony tutaj nic nie robi - nigdy nie wraca do produkcji.",
+    "testConnectionKindLabel": "Co zastąpić",
+    "testConnectionKindMcp": "Serwer MCP",
+    "testConnectionKindSecret": "Klucz z vault",
+    "productionSide": "Produkcja",
+    "testSide": "Zamiennik testowy",
+    "testSideFor": "Zamiennik testowy dla {name}",
+    "bindingOffHere": "Wyłączone w tym środowisku",
+    "testSideUnusable": "Wyłączone tutaj: połączenie testowe jest wyłączone albo niezalogowane",
+    "testConnectionsSaved": "Połączenia testowe zapisane",
+    "failedTestConnections": "Nie udało się zapisać połączeń testowych"
   },
   "steps": {
     "skills-gallery": {

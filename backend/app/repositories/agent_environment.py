@@ -1,12 +1,14 @@
 """Agent environment repository (PostgreSQL async)."""
 
+from collections.abc import Sequence
 from typing import Any
 from uuid import UUID
 
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.agent_environment import AgentEnvironment
+from app.db.models.agent_environment import AgentEnvironment, AgentEnvironmentConnection
 
 
 async def lock(db: AsyncSession, environment_id: UUID) -> None:
@@ -141,4 +143,47 @@ async def following_latest(
 
 async def delete(db: AsyncSession, *, environment: AgentEnvironment) -> None:
     await db.delete(environment)
+    await db.flush()
+
+
+async def list_connections(
+    db: AsyncSession, *, environment_ids: Sequence[UUID], organization_id: UUID
+) -> list[AgentEnvironmentConnection]:
+    """The connection overrides of several environments, in a stable order."""
+    if not environment_ids:
+        return []
+    result = await db.execute(
+        select(AgentEnvironmentConnection)
+        .where(
+            AgentEnvironmentConnection.environment_id.in_(list(environment_ids)),
+            AgentEnvironmentConnection.organization_id == organization_id,
+        )
+        .order_by(AgentEnvironmentConnection.kind, AgentEnvironmentConnection.created_at)
+    )
+    return list(result.scalars().all())
+
+
+async def replace_connections(
+    db: AsyncSession,
+    *,
+    environment_id: UUID,
+    organization_id: UUID,
+    connections: Sequence[AgentEnvironmentConnection],
+) -> None:
+    """Make `connections` the environment's whole set of overrides.
+
+    The set is edited as one list in the Builder, so it is written as one:
+    a partial update would have to say which override a row is, and the only
+    identity an override has is what it overrides.
+    """
+    await db.execute(
+        sql_delete(AgentEnvironmentConnection).where(
+            AgentEnvironmentConnection.environment_id == environment_id,
+            AgentEnvironmentConnection.organization_id == organization_id,
+        )
+    )
+    for connection in connections:
+        connection.environment_id = environment_id
+        connection.organization_id = organization_id
+        db.add(connection)
     await db.flush()

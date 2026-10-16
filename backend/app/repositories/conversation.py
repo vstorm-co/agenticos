@@ -1056,6 +1056,42 @@ async def get_open_tool_call_in_run(
     return result.scalar_one_or_none()
 
 
+async def list_tool_calls_for_run(
+    db: AsyncSession, *, run_id: UUID, organization_id: UUID
+) -> list[tuple[ToolCall, Message]]:
+    """Every call one run's transcript holds, with its turn, in the order made.
+
+    By start time, then turn. A turn writes every call it made with one
+    `started_at`, so inside a turn the order is the call's position in the
+    turn's `parts`, which record it as it happened. Only the chat writes
+    `parts`; a turn written without them - the API, a channel - falls back to
+    the provider's call id, which is stable but not the order the calls ran in.
+    """
+    result = await db.execute(
+        select(ToolCall, Message)
+        .join(Message, Message.id == ToolCall.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(Message.run_id == run_id, Conversation.organization_id == organization_id)
+        .order_by(ToolCall.started_at, Message.created_at, Message.id)
+    )
+    rows = [(row[0], row[1]) for row in result.all()]
+    turns = {message.id: index for index, (_, message) in reversed(list(enumerate(rows)))}
+    return sorted(rows, key=lambda row: _call_order(row, turns))
+
+
+def _call_order(
+    row: tuple[ToolCall, Message], turns: dict[UUID, int]
+) -> tuple[datetime, int, int, str]:
+    call, message = row
+    positions = [
+        part.get("tool_call_id") for part in message.parts or [] if part.get("type") == "tool"
+    ]
+    position = (
+        positions.index(call.tool_call_id) if call.tool_call_id in positions else len(positions)
+    )
+    return call.started_at, turns[message.id], position, call.tool_call_id
+
+
 async def create_tool_call(
     db: AsyncSession,
     *,

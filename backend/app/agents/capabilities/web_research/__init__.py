@@ -68,6 +68,7 @@ class WebResearchConfig(BaseModel):
 
 @register(
     id="web_research",
+    read_only=True,
     name="Web search",
     category="research",
     description="Look up current information on the public web.",

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, FlaskConical, Pencil, Plus, Trash2, X } from "lucide-react";
 
+import { EnvironmentConnections } from "@/components/agents/environment-connections";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,11 +97,20 @@ function VersionPin({
 export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
-  const { environments, isLoading, create, promote, setReleaseMode, rename, remove } =
-    useAgentEnvironments(agentId);
+  const {
+    environments,
+    isLoading,
+    create,
+    promote,
+    setReleaseMode,
+    rename,
+    remove,
+    setConnections,
+  } = useAgentEnvironments(agentId);
   const { versions } = useAllAgentVersions(agentId);
   const [name, setName] = useState("");
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [testing, setTesting] = useState<string | null>(null);
 
   if (isLoading || environments.length === 0) {
     // An unpublished agent has no environments and nothing to manage; the
@@ -130,113 +140,142 @@ export function EnvironmentsPanel({ agentId, canManage }: { agentId: string; can
     <div className="space-y-3">
       <div className="space-y-2">
         {environments.map((environment) => (
-          <div key={environment.id} className="flex items-center gap-3 rounded-md border p-3">
-            <div className="min-w-0 flex-1">
-              {renaming?.id === environment.id ? (
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={renaming.name}
-                    aria-label={tc("renameNamed", { name: environment.name })}
-                    maxLength={64}
-                    ref={(node) => node?.focus()}
-                    className="h-8 font-mono text-sm"
-                    onChange={(event) =>
-                      setRenaming({ id: environment.id, name: event.target.value })
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && renameOk) {
-                        void saveRename(environment, renaming.name);
+          <div key={environment.id} className="space-y-3 rounded-md border p-3">
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                {renaming?.id === environment.id ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={renaming.name}
+                      aria-label={tc("renameNamed", { name: environment.name })}
+                      maxLength={64}
+                      ref={(node) => node?.focus()}
+                      className="h-8 font-mono text-sm"
+                      onChange={(event) =>
+                        setRenaming({ id: environment.id, name: event.target.value })
                       }
-                      if (event.key === "Escape") setRenaming(null);
-                    }}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={tc("save")}
-                    disabled={!renameOk || rename.isPending}
-                    onClick={() => void saveRename(environment, renaming.name)}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={tc("cancel")}
-                    onClick={() => setRenaming(null)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <p className="truncate font-mono text-sm">{environment.name}</p>
-              )}
-              <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-xs">
-                <span>{t("servesVersion", { version: environment.version })}</span>
-                {/* What being pinned currently costs. Silent, the two states
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && renameOk) {
+                          void saveRename(environment, renaming.name);
+                        }
+                        if (event.key === "Escape") setRenaming(null);
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={tc("save")}
+                      disabled={!renameOk || rename.isPending}
+                      onClick={() => void saveRename(environment, renaming.name)}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label={tc("cancel")}
+                      onClick={() => setRenaming(null)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="truncate font-mono text-sm">{environment.name}</p>
+                )}
+                <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-xs">
+                  <span>{t("servesVersion", { version: environment.version })}</span>
+                  {/* What being pinned currently costs. Silent, the two states
                     that matter - held back on purpose, and forgotten - are the
                     same row. */}
-                {!environment.tracks_latest && environment.behind_by > 0 && (
-                  <span className="text-warning inline-flex items-center gap-1">
-                    <AlertTriangle className="h-3 w-3" aria-hidden />
-                    {t("behindBy", { count: environment.behind_by })}
-                  </span>
-                )}
+                  {!environment.tracks_latest && environment.behind_by > 0 && (
+                    <span className="text-warning inline-flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" aria-hidden />
+                      {t("behindBy", { count: environment.behind_by })}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-            {/* The release mode, on the row it governs rather than in a
+              {/* The release mode, on the row it governs rather than in a
                 settings dialog: which environments a publish moves is the first
                 thing somebody needs to know when they publish. The switch is
                 "Pinned", on for the safe default, so a new production reads as
                 held rather than as a switch somebody forgot to turn on. */}
-            {canManage && (
-              <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
-                <Switch
-                  checked={!environment.tracks_latest}
-                  disabled={setReleaseMode.isPending}
-                  aria-label={t("pinnedFor", { name: environment.name })}
-                  onCheckedChange={(pinned) =>
-                    setReleaseMode.mutate({
-                      environmentId: environment.id,
-                      tracksLatest: !pinned,
-                    })
+              {canManage && (
+                <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
+                  <Switch
+                    checked={!environment.tracks_latest}
+                    disabled={setReleaseMode.isPending}
+                    aria-label={t("pinnedFor", { name: environment.name })}
+                    onCheckedChange={(pinned) =>
+                      setReleaseMode.mutate({
+                        environmentId: environment.id,
+                        tracksLatest: !pinned,
+                      })
+                    }
+                  />
+                  {environment.tracks_latest ? t("followsLatest") : t("pinned")}
+                </label>
+              )}
+              {canManage && (
+                <VersionPin
+                  environment={environment}
+                  versions={versions}
+                  promoting={promote.isPending}
+                  onPromote={(versionId) =>
+                    promote.mutate({ environmentId: environment.id, versionId })
                   }
                 />
-                {environment.tracks_latest ? t("followsLatest") : t("pinned")}
-              </label>
-            )}
-            {canManage && (
-              <VersionPin
+              )}
+              {environment.is_default && <Badge variant="secondary">{t("default2")}</Badge>}
+              {canManage && !environment.is_default && renaming?.id !== environment.id && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={rename.isPending}
+                  aria-label={tc("renameNamed", { name: environment.name })}
+                  onClick={() => setRenaming({ id: environment.id, name: environment.name })}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
+              {/* The default is production, which runs what the spec binds. */}
+              {canManage && !environment.is_default && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-tour={
+                    environment.id === environments.find((other) => !other.is_default)?.id
+                      ? "environment-connections"
+                      : undefined
+                  }
+                  aria-expanded={testing === environment.id}
+                  aria-label={t("testConnectionsFor", { name: environment.name })}
+                  onClick={() => setTesting(testing === environment.id ? null : environment.id)}
+                >
+                  <FlaskConical className="h-4 w-4" />
+                  {environment.connections.length > 0 && environment.connections.length}
+                </Button>
+              )}
+              {canManage && !environment.is_default && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={remove.isPending}
+                  aria-label={tc("removeNamed", { name: environment.name })}
+                  onClick={() => remove.mutate(environment.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            {testing === environment.id && (
+              <EnvironmentConnections
                 environment={environment}
-                versions={versions}
-                promoting={promote.isPending}
-                onPromote={(versionId) =>
-                  promote.mutate({ environmentId: environment.id, versionId })
+                saving={setConnections.isPending}
+                onSave={(connections) =>
+                  setConnections.mutate({ environmentId: environment.id, connections })
                 }
               />
-            )}
-            {environment.is_default && <Badge variant="secondary">{t("default2")}</Badge>}
-            {canManage && !environment.is_default && renaming?.id !== environment.id && (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={rename.isPending}
-                aria-label={tc("renameNamed", { name: environment.name })}
-                onClick={() => setRenaming({ id: environment.id, name: environment.name })}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {canManage && !environment.is_default && (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={remove.isPending}
-                aria-label={tc("removeNamed", { name: environment.name })}
-                onClick={() => remove.mutate(environment.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
             )}
           </div>
         ))}
