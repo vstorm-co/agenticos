@@ -17,6 +17,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **An agent installed from a template is visible to the whole organization.**
+  It was installed private, so a colleague could not see it until somebody
+  shared it by hand. A template's instructions ship with the product, so there
+  is nothing private in them to protect; a clone or a promoted specialist
+  still starts private.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed
