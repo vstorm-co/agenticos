@@ -961,6 +961,18 @@ async def _watched(
 
 
 @pytest.fixture(autouse=True)
+def no_stored_plans(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No plan store unless a test brings one.
+
+    The store is a module-level client that the app's lifespan configures, so a
+    test that started the app earlier on the same worker left a client bound to
+    its own, closed event loop - and every browse here then failed reading it
+    (CI, seed 2602337408).
+    """
+    monkeypatch.setattr(browse_plans, "_redis", None)
+
+
+@pytest.fixture(autouse=True)
 def no_window_to_wait_for(monkeypatch: pytest.MonkeyPatch) -> None:
     """The first step looks once for a window's size; the tests that wait say so."""
     monkeypatch.setattr(_loop, "FIRST_FIT_WAIT", 0.0)
