@@ -37,6 +37,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.db.models.artifact import ArtifactMediaType
+from app.db.models.conversation import Conversation
 from app.db.session import get_db_context
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import chat_file as chat_file_repo
@@ -403,6 +404,49 @@ async def earlier_visuals(*, conversation_id: UUID, limit: int) -> list[VisualSu
             )
         )
     return summaries
+
+
+async def shared_visuals(conversation: Conversation) -> dict[UUID, list[dict[str, str]]]:
+    """Each message's visuals as finished documents, for a thread shared by link.
+
+    A shared thread shows the text of its turns and never their tool calls - the
+    arguments can carry what the agent read - so a visual is rebuilt here, with
+    its revisions applied and its pictures inlined, and the page gets only the
+    drawing. One that cannot be rebuilt is left out rather than shown broken.
+    """
+    calls = {
+        call.tool_call_id: ToolCallArgs(call.tool_call_id, call.tool_name, call.args)
+        for message in conversation.messages or []
+        for call in message.tool_calls or []
+        if call.tool_name in VISUAL_TOOLS and call.status == "completed"
+    }
+
+    async def lookup(call_id: str) -> ToolCallArgs | None:
+        return calls.get(call_id)
+
+    shared: dict[UUID, list[dict[str, str]]] = {}
+    for message in conversation.messages or []:
+        for call in message.tool_calls or []:
+            if call.tool_call_id not in calls:
+                continue
+            try:
+                visual = await rebuild(call.tool_call_id, lookup)
+            except VisualError:
+                continue
+            uris: dict[str, str] = {}
+            for name, owner in visual.images.items():
+                kept = await load_image(conversation.organization_id, conversation.id, owner, name)
+                if kept is not None:
+                    uris[name] = data_uri(*kept)
+            shared.setdefault(message.id, []).append(
+                {
+                    "id": visual.id,
+                    "title": visual.title,
+                    "kind": visual.kind,
+                    "content": inline_images(visual.content, uris),
+                }
+            )
+    return shared
 
 
 class VisualService:

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { partialArgs } from "./partial-args";
 import {
   appName,
+  framedElsewhere,
   applyEdits,
   clampHeight,
   imageNames,
@@ -203,5 +204,11 @@ describe("names for files and apps", () => {
     expect(visualFilename("Flow", "svg")).toBe("flow.svg");
     expect(visualFilename("Flow", "html")).toBe("flow.html");
     expect(visualFilename("Flow", "mermaid")).toBe("flow.mmd");
+  });
+});
+
+describe("framedElsewhere", () => {
+  it("is false for a console that is the whole window", () => {
+    expect(framedElsewhere()).toBe(false);
   });
 });

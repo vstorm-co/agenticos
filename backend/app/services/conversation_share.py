@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AlreadyExistsError, AuthorizationError, NotFoundError
 from app.repositories import conversation_repo, conversation_share_repo, member_repo, user_repo
+from app.services import visual as visuals
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +163,7 @@ class ConversationShareService:
         )
         if not conv:
             raise NotFoundError(message="Conversation not found")
+        drawn = await visuals.shared_visuals(conv)
         return {
             "conversation": {
                 "id": str(conv.id),
@@ -172,6 +174,7 @@ class ConversationShareService:
                         "role": m.role,
                         "content": m.content,
                         "created_at": m.created_at.isoformat() if m.created_at else None,
+                        "visuals": drawn.get(m.id, []),
                     }
                     for m in (conv.messages or [])
                 ],

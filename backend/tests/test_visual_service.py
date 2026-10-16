@@ -497,3 +497,56 @@ class TestDocuments:
         composer = text[text.index("var T = ") :]
         assert "</script>" not in composer.split("};\n")[0]
         assert "lib/idiomorph-0.8.0.min.js" in text
+
+
+class TestSharedThread:
+    def _thread(self, *calls: SimpleNamespace) -> SimpleNamespace:
+        drew = SimpleNamespace(id=uuid.uuid4(), tool_calls=list(calls))
+        said = SimpleNamespace(id=uuid.uuid4(), tool_calls=None)
+        return SimpleNamespace(
+            id=uuid.uuid4(), organization_id=uuid.uuid4(), messages=[said, drew]
+        ), drew
+
+    def _call(self, call_id: str, name: str, args: dict[str, Any], status: str = "completed"):
+        return SimpleNamespace(tool_call_id=call_id, tool_name=name, args=args, status=status)
+
+    async def test_each_visual_is_sent_finished_with_its_pictures_inlined(self) -> None:
+        conversation, drew = self._thread(
+            self._call(
+                "d",
+                "draw",
+                {
+                    "title": "Poster",
+                    "kind": "html",
+                    "content": '<img src="{{image:bg}}"><img src="{{image:gone}}">',
+                    "images": [{"name": "bg", "source": "a"}, {"name": "gone", "source": "b"}],
+                },
+            ),
+            self._call(
+                "r",
+                "revise_visual",
+                {"visual_id": "d", "edits": [{"old": '<img src="{{image:gone}}">', "new": "<hr>"}]},
+            ),
+            self._call("w", "web_fetch", {"url": "https://example.com"}),
+            self._call("f", "draw", {"kind": "svg", "content": SVG}, status="failed"),
+            self._call("b", "draw", {"kind": "pdf", "content": "x"}),
+        )
+        with patch(
+            "app.services.visual.load_image",
+            new=AsyncMock(side_effect=lambda *a: (PNG, "image/png") if a[-1] == "bg" else None),
+        ):
+            shared = await visuals.shared_visuals(conversation)
+
+        assert list(shared) == [drew.id]
+        first, revised = shared[drew.id]
+        assert first["id"] == "d"
+        assert first["title"] == "Poster"
+        assert first["content"].startswith('<img src="data:image/png;base64,')
+        assert "{{image:gone}}" in first["content"]
+        assert revised["id"] == "r"
+        assert revised["content"].endswith("<hr>")
+        assert revised["content"].startswith('<img src="data:image/png;base64,')
+
+    async def test_a_thread_with_no_messages_shares_no_visuals(self) -> None:
+        conversation = SimpleNamespace(id=uuid.uuid4(), organization_id=uuid.uuid4(), messages=None)
+        assert await visuals.shared_visuals(conversation) == {}

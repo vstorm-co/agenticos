@@ -1545,7 +1545,8 @@
       "savedToast": "Zapisano jako aplikację, wersja {version}",
       "savedUnchanged": "Aplikacja ma już dokładnie tę wersję",
       "savedBadge": "Zapisano · v{version}",
-      "openApp": "Otwórz"
+      "openApp": "Otwórz",
+      "openInConsole": "Widoczny w AgenticOS"
     }
   },
   "common": {

@@ -32,6 +32,7 @@ from app.schemas.conversation_share import (
     ConversationShareCreate,
     ConversationShareList,
     ConversationShareRead,
+    SharedConversationRead,
 )
 from app.schemas.message_rating import (
     MessageRatingCreate,
@@ -60,7 +61,7 @@ async def list_shared_with_me(
     return ConversationList(items=items, total=total)
 
 
-@router.get("/shared/{token}", response_model=ConversationReadWithMessages)
+@router.get("/shared/{token}", response_model=SharedConversationRead)
 async def get_shared_conversation(
     token: str,
     share_service: ConversationShareSvc,

@@ -92,3 +92,56 @@ async def test_a_picture_is_served_typed_and_inert(service: MagicMock) -> None:
     assert "sandbox" in response.headers["content-security-policy"]
     assert response.headers["x-content-type-options"] == "nosniff"
     assert service.image.await_args.args[1:] == (CONVERSATION_ID, "toolu_1", "logo")
+
+
+async def test_a_thread_opened_by_its_link_carries_its_drawings(mock_redis: MagicMock) -> None:
+    """The link answered 500 for every thread: the route promised a member's
+    conversation and returned the link's narrower shape. It now says what it
+    returns, and a drawing arrives finished rather than as the call that made it."""
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    message = SimpleNamespace(
+        id=uuid4(),
+        role="assistant",
+        content="Here it is.",
+        created_at=datetime(2026, 10, 16, tzinfo=UTC),
+        tool_calls=[
+            SimpleNamespace(
+                tool_call_id="d",
+                tool_name="draw",
+                args={"title": "Flow", "kind": "svg", "content": "<svg/>", "secret": "x"},
+                status="completed",
+            )
+        ],
+    )
+    conversation = SimpleNamespace(
+        id=uuid4(), organization_id=uuid4(), title="Shared", messages=[message]
+    )
+    share = SimpleNamespace(
+        id=uuid4(), conversation_id=conversation.id, permission="view", share_token="tok"
+    )
+    app.dependency_overrides[deps.get_redis] = lambda: mock_redis
+    app.dependency_overrides[deps.get_db_session] = lambda: AsyncMock()
+    try:
+        with (
+            patch(
+                "app.services.conversation_share.conversation_share_repo.get_by_token",
+                new=AsyncMock(return_value=share),
+            ),
+            patch(
+                "app.services.conversation_share.conversation_repo.get_conversation_by_id",
+                new=AsyncMock(return_value=conversation),
+            ),
+        ):
+            response = await _call("GET", f"{settings.API_V1_STR}/conversations/shared/tok")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["share"]["permission"] == "view"
+    shared = body["conversation"]["messages"][0]
+    assert shared["visuals"] == [{"id": "d", "title": "Flow", "kind": "svg", "content": "<svg/>"}]
+    assert "tool_calls" not in shared

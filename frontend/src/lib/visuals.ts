@@ -47,6 +47,15 @@ export function svgAspect(content: string): number | null {
   return width > 0 && height > 0 ? height / width : null;
 }
 
+/**
+ * Whether this console is itself framed by another site - the widget on a
+ * customer's page. A visual's frame allows only the console as its ancestor, so
+ * nested there it would be refused; the panel shows a card instead.
+ */
+export function framedElsewhere(): boolean {
+  return window.self !== window.top;
+}
+
 /** The renderer page on the content origin, beside the apps it shares a sandbox with. */
 export function visualFrameUrl(artifactUrl: string): string {
   return `${artifactUrl.replace(/\/+$/, "")}/api/v1/artifact-content/visual-frame`;

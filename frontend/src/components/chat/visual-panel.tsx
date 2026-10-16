@@ -14,7 +14,15 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { toast } from "sonner";
 
 import {
@@ -31,6 +39,7 @@ import { cn } from "@/lib/utils";
 import {
   DEFAULT_HEIGHT,
   REVISE,
+  framedElsewhere,
   inlineImages,
   isVisualTool,
   resolveVisual,
@@ -189,6 +198,9 @@ function useShown(call: ToolCall, known: KnownCalls): Shown | null | "missing" {
 
 const NO_IMAGES: Record<string, string> = {};
 
+/** Whether a page can change frames under it within its life: it cannot. */
+const subscribeToNothing = () => () => {};
+
 /** How many times a picture is asked for before the drawing is shown without it. */
 const IMAGE_ATTEMPTS = 3;
 
@@ -248,6 +260,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
   const t = useTranslations("chat.visuals");
   const { known, conversationId, onReport, onCompose } = useContext(ConversationVisuals);
   const shown = useShown(call, known);
+  const nested = useSyncExternalStore(subscribeToNothing, framedElsewhere, () => false);
   const pictures = useVisualImages(
     conversationId,
     shown !== null && shown !== "missing" ? shown.images : NO_IMAGES,
@@ -278,6 +291,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
       </div>
     );
   }
+  if (nested) return <VisualCard title={shown.title} kind={shown.kind} content={shown.content} />;
   const unfinished = call.status === "unfinished";
   // Held back until its pictures are here: once its scripts run, a drawing is
   // not written again, and one drawn without them would stay without them.
@@ -501,6 +515,44 @@ function VisualPanel({ call }: { call: ToolCall }) {
           updates={app?.name ?? null}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * A visual where its frame cannot be: its title, and an SVG as a picture.
+ *
+ * An SVG shown through `<img>` runs no script, so it is safe on any page; a page
+ * or a diagram needs the frame, and is named rather than drawn.
+ */
+function VisualCard({
+  title,
+  kind,
+  content,
+}: {
+  title: string;
+  kind: VisualKind;
+  content: string;
+}) {
+  const t = useTranslations("chat.visuals");
+  return (
+    <div className="border-border bg-background w-full max-w-2xl min-w-0 overflow-hidden rounded-2xl border">
+      {kind === "svg" && (
+        // A data URI the console made, which `next/image` has nothing to optimise.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`}
+          alt={title}
+          className="bg-background block max-h-[28rem] w-full object-contain"
+        />
+      )}
+      <div className="flex min-w-0 items-center gap-2 px-3 py-2">
+        <Shapes className="text-muted-foreground size-4 shrink-0" aria-hidden />
+        <span className="text-foreground min-w-0 truncate text-sm font-medium">{title}</span>
+        <span className="text-muted-foreground ml-auto shrink-0 text-xs">
+          {kind === "svg" ? t("drawnByAgent") : t("openInConsole")}
+        </span>
+      </div>
     </div>
   );
 }

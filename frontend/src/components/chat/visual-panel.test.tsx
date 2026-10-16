@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { VisualFrameProps } from "./visual-frame";
@@ -30,6 +31,12 @@ vi.mock("./visual-actions", () => ({ copySvgImage, downloadVisual }));
 
 const { getVisualImage } = vi.hoisted(() => ({ getVisualImage: vi.fn() }));
 vi.mock("@/lib/visuals-api", () => ({ getVisualImage }));
+
+const { nested } = vi.hoisted(() => ({ nested: { value: false } }));
+vi.mock("@/lib/visuals", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/visuals")>()),
+  framedElsewhere: () => nested.value,
+}));
 
 vi.mock("./visual-save-dialog", () => ({
   VisualSaveDialog: (props: { visualId: string; updates: string | null }) => (
@@ -356,5 +363,42 @@ describe("pictures", () => {
     unmount();
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(getVisualImage).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("inside another site's frame", () => {
+  beforeEach(() => {
+    frames.length = 0;
+    nested.value = true;
+  });
+
+  it("shows an SVG as a picture, with no frame", () => {
+    show([call()]);
+    expect(screen.queryByTestId("frame")).toBeNull();
+    const picture = screen.getByRole("img", { name: "Flow" });
+    expect(picture.getAttribute("src")).toMatch(/^data:image\/svg\+xml;charset=utf-8,/);
+    nested.value = false;
+  });
+
+  it("names a page it cannot draw here", () => {
+    show([call({ args: { title: "Explainer", kind: "html", content: "<p/>" } })]);
+    expect(screen.getByText("Explainer")).toBeInTheDocument();
+    expect(screen.getByText("Shown in AgenticOS")).toBeInTheDocument();
+    expect(screen.queryByRole("img")).toBeNull();
+    nested.value = false;
+  });
+});
+
+describe("on the server", () => {
+  it("renders the framed panel, since no server page is inside another site", () => {
+    const html = renderToString(<TurnVisuals calls={[call()]} />);
+    expect(html).toContain("Flow");
+    expect(html).toContain('data-testid="frame"');
+  });
+
+  it("lets go of the page when the panel goes", () => {
+    const { unmount } = show([call()]);
+    unmount();
+    expect(screen.queryByText("Flow")).toBeNull();
   });
 });

@@ -148,6 +148,7 @@ export default defineConfig({
         "src/components/chat/message-cost.tsx",
         "src/components/chat/turn-action.ts",
         "src/components/chat/turn-parts.tsx",
+        "src/components/chat/shared-visuals.tsx",
         "src/components/chat/visual-actions.ts",
         "src/components/chat/visual-frame.tsx",
         "src/components/chat/visual-panel.tsx",
