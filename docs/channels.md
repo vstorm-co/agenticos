@@ -1466,6 +1466,14 @@ agent that does well in the console and badly in Slack shows it.
   take effect immediately, for the same reason: the stream is reopened to match
   whatever the row now says. It is opened *after* the transaction commits, so a
   registration that fails leaves no connection behind.
+- **One connection per bot, however many API workers.** Telegram allows one
+  `getUpdates` per bot and two Mattermost sockets would each receive every
+  event, so the worker holding a bot's connection holds a lease on it in the
+  shared Redis and renews it every 10 seconds. The others leave that bot alone.
+  A worker that shuts down hands its bots to another within about 10 seconds,
+  and one that dies within about 40. An edit served by another worker opens the
+  new connection at once, and the old one closes at its holder's next renewal.
+  With Redis unreachable, every worker connects, as before.
 - **A binding's instructions may name what only the platform knows.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` - filled in when a run starts, from the same calls the channel

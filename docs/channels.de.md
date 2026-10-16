@@ -1,5 +1,5 @@
 ---
-source_sha: "6460bba9d44c"
+source_sha: "5fe9b526f262"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1618,6 +1618,16 @@ schlecht abschneidet, zeigt es.
   Grund: der Stream wird neu geöffnet, passend zu dem, was die Zeile jetzt sagt.
   Er wird geöffnet, *nachdem* die Transaktion committet, sodass eine
   fehlgeschlagene Registrierung keine Verbindung zurücklässt.
+- **Eine Verbindung pro Bot, egal wie viele API-Worker.** Telegram erlaubt ein
+  `getUpdates` pro Bot, und zwei Mattermost-Sockets bekämen jedes Ereignis
+  doppelt. Darum hält der Worker, der die Verbindung eines Bots hält, im
+  gemeinsamen Redis einen Lease darauf und erneuert ihn alle 10 Sekunden; die
+  anderen lassen diesen Bot in Ruhe. Ein Worker, der herunterfährt, übergibt
+  seine Bots innerhalb von etwa 10 Sekunden an einen anderen, einer, der
+  abstürzt, innerhalb von etwa 40. Eine Änderung, die ein anderer Worker
+  bedient, öffnet die neue Verbindung sofort, und die alte schließt sich bei der
+  nächsten Erneuerung ihres Halters. Ist Redis nicht erreichbar, verbindet sich
+  wie bisher jeder Worker.
 - **Die Instruktionen einer Bindung dürfen benennen, was nur die Plattform weiß.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` - eingesetzt, wenn ein Run startet, aus denselben Aufrufen, die

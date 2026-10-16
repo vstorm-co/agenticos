@@ -1,6 +1,8 @@
 # ruff: noqa: I001 - Imports structured for Jinja2 template conditionals
 """FastAPI application entry point."""
 
+import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -47,6 +49,7 @@ from app.services import trigger_dedupe
 from app.services.channels import dedupe as channel_dedupe
 from app.services.channels import connection_state as channel_connection_state
 from app.services.channels import membership as channel_membership
+from app.services.channels import stream_lease
 from app.services.channels.supervisor import allow_intake, begin_shutdown, open_inbound_stream
 
 logger = logging.getLogger(__name__)
@@ -96,8 +99,15 @@ async def _start_channel_polling(channel: str) -> None:
     """
     async with get_db_context() as _db:
         _bots = await get_active_polling_bots(_db, channel)
+    leases = stream_lease.leases()
     started = 0
     for _bot in _bots:
+        bot_id = str(_bot.id)
+        # Only a bot nobody serves: every worker runs this, at startup and on
+        # each pass of `_keep_channel_streams`, and a bot gets one stream per
+        # deployment - Telegram allows one `getUpdates` per bot (#2168).
+        if bot_id in leases.held or not await leases.claim(bot_id):
+            continue
         try:
             token = unseal_bot_token(_bot)
             app_token = unseal_slack_app_token(_bot)
@@ -108,6 +118,10 @@ async def _start_channel_polling(channel: str) -> None:
             await channel_connection_state.record_down(
                 _bot.id, _UNSEALABLE_TOKEN.format(exc.message)
             )
+            # Kept, with no stream: the next pass would otherwise claim it again
+            # and log the same refusal every few seconds. Entering the token
+            # again takes the lease and opens the stream.
+            leases.hold(bot_id, channel)
             continue
         await open_inbound_stream(
             bot_id=str(_bot.id),
@@ -117,9 +131,31 @@ async def _start_channel_polling(channel: str) -> None:
             app_token=app_token,
         )
         started += 1
-    logger.info(
-        "%s: polling started for %d of %d bot(s)", channel.capitalize(), started, len(_bots)
-    )
+    if started:
+        logger.info(
+            "%s: polling started for %d of %d bot(s)", channel.capitalize(), started, len(_bots)
+        )
+
+
+_POLLING_PLATFORMS = ("telegram", "mattermost", "slack")
+
+
+async def _keep_channel_streams() -> None:
+    """Renew this worker's stream leases, and claim the bots nobody serves.
+
+    Runs for the life of the lifespan. A bot whose holder stopped or died is
+    picked up here, by whichever worker passes first; a stream whose lease went
+    to another worker is closed here. One failed pass is logged and the next one
+    tries again: this loop going away would leave every bot it held to lapse.
+    """
+    while True:
+        await asyncio.sleep(stream_lease.RENEW_EVERY_SECONDS)
+        try:
+            await stream_lease.leases().renew()
+            for platform in _POLLING_PLATFORMS:
+                await _start_channel_polling(platform)
+        except Exception:
+            logger.exception("Could not renew this worker's channel streams")
 
 
 @asynccontextmanager
@@ -163,6 +199,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # only the supervisor holding that socket knows and which the channels
     # listing has to read from another worker entirely (#1351).
     channel_connection_state.configure(redis_client)
+    # And which worker holds each polling bot's stream, so a deployment runs one
+    # per bot however many workers it has (#2168).
+    stream_lease.configure(redis_client)
     # And an event trigger's delivery dedupe, so a provider's redelivery of one
     # webhook does not fire a second run - the fire runs in a dispatched flow,
     # outside any request the claim could read `request.state` from.
@@ -220,6 +259,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     except (OSError, ValueError, RuntimeError) as _slack_exc:
         logger.error("Slack: failed to start Socket Mode: %s", _slack_exc)
 
+    keeping_streams = asyncio.create_task(_keep_channel_streams(), name="keep_channel_streams")
+
     # Started once startup is done and stopped only at the very end, so it
     # covers serving and shutdown: a worker whose event loop stops turning is
     # invisible to every other recovery path this deployment has, and it kills
@@ -234,6 +275,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # its `start_polling` would reopen a stream after the stop loops - after intake
     # was meant to be closed (#1119).
     begin_shutdown()
+    keeping_streams.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await keeping_streams
     # The channel consumers stop first, and the engine goes after them (in
     # `close_db` below). Serving is already drained by the time this runs, but a
     # polling task is work this process owns: an inbound Telegram or Slack
@@ -245,6 +289,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
         await _slack_adapter.stop_polling(_sbid)
     for _mbid in list(_mattermost_adapter._socket_tasks.keys()):
         await _mattermost_adapter.stop_polling(_mbid)
+    # Given back now rather than left to run out, so another worker takes these
+    # bots over on its next pass instead of half a minute later.
+    await stream_lease.leases().release()
     # Intake has stopped and serving is already drained, so what is left is
     # in-flight fire-and-forget work - an ingestion or a sync a request or a
     # channel message handed off. It reads the stores and the session below, so
@@ -271,6 +318,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     rate_limit.configure(None)
     channel_membership.configure(None)
     channel_connection_state.configure(None)
+    stream_lease.configure(None)
     trigger_dedupe.configure(None)
     maintenance.configure(None)
     change_feed.configure(None)

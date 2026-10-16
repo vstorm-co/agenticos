@@ -155,3 +155,28 @@ class TestShutdown:
             await open_inbound_stream(bot_id="b-1", platform="telegram", token="tok")
 
         adapter.start_polling.assert_awaited_once()
+
+
+class TestTheLease:
+    """Which worker streams a bot is the lease's to say (#2168)."""
+
+    async def test_opening_takes_the_bots_lease(self):
+        leases = MagicMock(take=AsyncMock())
+        with (
+            patch("app.services.channels.supervisor.get_adapter", return_value=_adapter()),
+            patch("app.services.channels.supervisor.stream_lease.leases", return_value=leases),
+        ):
+            await open_inbound_stream(bot_id="b-1", platform="telegram", token="tok")
+
+        leases.take.assert_awaited_once_with("b-1", "telegram")
+
+    async def test_closing_withdraws_it_so_another_workers_copy_stops_too(self):
+        leases = MagicMock(withdraw=AsyncMock())
+        with (
+            patch("app.services.channels.supervisor.get_adapter", return_value=_adapter()),
+            patch("app.services.channels.supervisor.stream_lease.leases", return_value=leases),
+            patch("app.services.channels.supervisor.connection_state.forget", AsyncMock()),
+        ):
+            await close_inbound_stream(bot_id="b-1", platform="telegram")
+
+        leases.withdraw.assert_awaited_once_with("b-1")

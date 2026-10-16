@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **One connection per chat-app bot, however many API workers** (#2168). With
+  two workers, every polling bot had two connections: Telegram terminated one
+  `getUpdates` after the other about fourteen times a minute, and two Mattermost
+  sockets would each receive every event. A worker now holds a bot's connection
+  under a lease in the shared Redis; the others leave it alone and take it over
+  when its holder stops.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

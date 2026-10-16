@@ -7,6 +7,9 @@ the bot existed, looked correct in the Builder, and answered nothing until
 somebody restarted the API. Pausing had the mirror problem, with the worse
 shape - a bot switched off went on answering, so "stop it now" needed a deploy.
 
+Which worker holds each stream is `stream_lease`'s to say: opening takes the
+bot's lease and closing withdraws it (#2168).
+
 Two functions, and the lifespan uses the same ones the service does. It used to
 inline all of this, which is how "start a bot's stream" came to mean two
 different sequences: the singleton adapters have to be told a self-hosted bot's
@@ -23,7 +26,7 @@ from __future__ import annotations
 
 import logging
 
-from app.services.channels import connection_state, get_adapter
+from app.services.channels import connection_state, get_adapter, stream_lease
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +84,9 @@ async def open_inbound_stream(
         logger.info("Not opening inbound stream for bot %s: the server is shutting down", bot_id)
         return
 
+    # Taken whoever held it: this is called for a bot just registered, edited or
+    # found free, and the worker that held it closes its copy at its next renewal.
+    await stream_lease.leases().take(bot_id, platform)
     adapter = get_adapter(platform)
     adapter.prepare_connection(bot_id, api_base_url=api_base_url, app_token=app_token)
 
@@ -110,6 +116,9 @@ async def close_inbound_stream(*, bot_id: str, platform: str) -> None:
     # reporting a decision as a fault is the mirror of the defect this state was
     # added for (#1351).
     await connection_state.forget(bot_id)
+    # Withdrawn whoever held it, so a stream another worker holds closes too, at
+    # that worker's next renewal - a pause must reach every copy, not this one.
+    await stream_lease.leases().withdraw(bot_id)
     try:
         adapter = get_adapter(platform)
     except KeyError:

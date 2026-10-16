@@ -1,5 +1,5 @@
 ---
-source_sha: "6460bba9d44c"
+source_sha: "5fe9b526f262"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1510,6 +1510,15 @@ agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
   powodu: strumień jest otwierany ponownie, żeby pasował do tego, co wiersz teraz
   mówi. Jest otwierany *po* zatwierdzeniu transakcji, więc nieudana rejestracja
   nie zostawia za sobą żadnego połączenia.
+- **Jedno połączenie na bota, niezależnie od liczby workerów API.** Telegram
+  pozwala na jedno `getUpdates` na bota, a dwa sockety Mattermost dostawałyby
+  każde zdarzenie, więc worker, który trzyma połączenie bota, trzyma też na nie
+  dzierżawę we wspólnym Redis i odnawia ją co 10 sekund. Pozostałe workery tego
+  bota nie ruszają. Worker, który się zamyka, oddaje swoje boty innemu w ciągu
+  około 10 sekund, a taki, który padł, w ciągu około 40. Edycja obsłużona przez
+  inny worker od razu otwiera nowe połączenie, a stare zamyka się przy
+  najbliższym odnowieniu u jego właściciela. Gdy Redis jest nieosiągalny, łączy
+  się każdy worker, jak wcześniej.
 - **Instrukcje powiązania mogą wołać to, co wie tylko platforma.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` — wypełniane przy starcie runa, z tych samych wywołań, których

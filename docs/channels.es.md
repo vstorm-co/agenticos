@@ -1,5 +1,5 @@
 ---
-source_sha: "6460bba9d44c"
+source_sha: "5fe9b526f262"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1530,6 +1530,14 @@ Slack lo muestra.
   inmediato, por la misma razón: el stream se vuelve a abrir para coincidir con lo
   que la fila dice ahora. Se abre *después* de que la transacción confirme, así que
   un registro que falla no deja ninguna conexión detrás.
+- **Una conexión por bot, tenga los workers de API que tenga.** Telegram permite
+  un `getUpdates` por bot y dos sockets de Mattermost recibirían cada evento, así
+  que el worker que tiene la conexión de un bot tiene también un lease sobre ella
+  en el Redis compartido y lo renueva cada 10 segundos. Los demás no tocan ese
+  bot. Un worker que se apaga pasa sus bots a otro en unos 10 segundos, y uno que
+  cae, en unos 40. Una edición que atiende otro worker abre la conexión nueva al
+  momento, y la vieja se cierra en la siguiente renovación de quien la tenía. Con
+  Redis inalcanzable, se conecta cada worker, como antes.
 - **Las instrucciones de una vinculación pueden nombrar lo que solo sabe la
   plataforma.** `{channel_name}`, `{channel_purpose}`, `{channel_topic}`,
   `{member_count}`, `{member_list}` - rellenados cuando arranca un run, con las
