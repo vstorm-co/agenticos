@@ -1,5 +1,5 @@
 ---
-source_sha: "c070f50e41ec"
+source_sha: "23e048868171"
 ---
 
 # Governance { #governance }
@@ -466,6 +466,29 @@ delegował dalej, ma swoje wnuki odjęte przez siebie, raz — a zsumowane po ka
 wierszu dalej daje rachunek, bo koszt każdego dziecka jest dodawany przez jego
 własny wiersz i usuwany przez wiersz jego rodzica. Klucz działa tak samo i znaczy
 więcej: to klucz ktoś rotuje, gdy rachunek wygląda źle.
+
+### Budżet i minuty rozmowy głosowej { #a-voice-calls-budget-and-minutes }
+
+[Rozmowa głosowa](voice.md) jest runem, a jej wydatki liczą się do budżetów
+agenta i organizacji jak każde inne. Różnią się trzy rzeczy, bo rozmowy nie da
+się sprawdzić przed każdym żądaniem tak, jak sprawdza się run tekstowy:
+
+- **Zanim się zacznie**, najdłuższy możliwy czas rozmowy pomnożony przez
+  najgorszą cenę modelu za minutę jest porównywany z pozostałym budżetem.
+  Rozmowa, na którą nie byłoby stać, jest odrzucana, zamiast zacząć się i zostać
+  ucięta.
+- **W trakcie**, każda odpowiedź jest księgowana na runie, gdy się skończy, a
+  wydatki miesiąca są odczytywane na nowo co 15 sekund, więc widać runy, które w
+  tym czasie wydają. Budżet, który wyczerpie się w trakcie rozmowy, dostaje jedno
+  wypowiedziane zdanie i kończy rozmowę, zapisaną jako `budget_exceeded`.
+- **Rozmowy mają drugi, własny limit**: miesięczne minuty rozmów organizacji
+  (domyślnie 600, null oznacza tylko budżety), ustawiane przez tego, kto ma
+  `budgets:manage`. Liczy się je z wierszy rozmów, a nie z czasu trwania runów, a
+  rozmowa, która je osiągnie, jest kończona w ten sam sposób.
+
+Rozmowę, której proces umarł, zamyka przemiatanie rozmów głosowych z kosztem
+zapisanym przez jej ostatni heartbeat - inaczej niż run tekstowy, którego
+wydatki umierają razem z jego procesem.
 
 ### Co pokazuje historia runów { #what-run-history-shows }
 
@@ -1077,6 +1100,29 @@ narzędzia te nie są deklarowane przez capabilities. Listy dozwolonych narzędz
 na połączeniu i powiązaniu z agentem określają, co jest dostępne; same nie
 wymuszają zatwierdzenia. Domyślny tryb **Follow the agent** stosuje politykę
 capabilities agenta i nie dodaje bramki zatwierdzeń do tych narzędzi MCP.
+
+### Zatwierdzenie w trakcie rozmowy głosowej { #an-approval-inside-a-voice-call }
+
+[Rozmowa głosowa](voice.md#approvals-in-a-call) nie może się wstrzymać i czekać
+na kolejkę, więc jej zatwierdzenia rozstrzyga się w rozmowie, a decyduje osoba,
+która w niej jest:
+
+- Prośba trafia do kolejki od razu, a rozmowa pokazuje narzędzie, dokładne
+  argumenty, z którymi się wykona, i to, co według transkrypcji powiedział
+  rozmówca. Zatwierdzenie wykonuje te argumenty, raz.
+- Rozstrzyga się ją **wyłącznie przez rozmowę** i tylko wtedy, gdy rozmówca ma
+  `approvals:decide`. `POST /approvals/{id}` odrzuca prośbę, która należy do
+  trwającej rozmowy, a opisane niżej przemiatanie nieaktualnych zatwierdzeń
+  pomija runy głosowe.
+- **60 sekund** bez decyzji powoduje jej wygaśnięcie, bez decydenta - ten sam
+  null, który zapisuje przemiatanie. Rozmowa, która kończy się z dowolnego
+  powodu, powoduje wygaśnięcie wszystkiego, na co jeszcze czekała.
+- Członek bez `approvals:decide` słyszy to wprost, a narzędzie jest odrzucane.
+  Odwiedzający w widgecie albo na hostowanej stronie nigdy nie widzi narzędzia,
+  które wymaga zatwierdzenia: jest ono pomijane w jego rozmowie.
+
+`approval_mode` wynika ze speca agenta, tak jak w czacie tekstowym, a każda
+decyzja trafia do śladu audytowego jak każda inna.
 
 ### Decyzja, której nikt nie podejmuje { #a-decision-nobody-makes }
 

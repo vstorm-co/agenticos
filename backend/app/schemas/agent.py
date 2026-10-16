@@ -501,6 +501,12 @@ class CapabilityCatalogEntry(BaseSchema):
         )
     )
     scopes: list[str]
+    voice: bool = Field(
+        description=(
+            "Whether this capability can run in a voice call; the Builder lists the ones "
+            "that cannot"
+        )
+    )
     contracts: list[CapabilityToolContract] = Field(
         default_factory=list,
         description=(

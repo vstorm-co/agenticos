@@ -193,6 +193,37 @@ class SpeechToTextProviderList(BaseSchema):
     )
 
 
+class RealtimeModelRead(BaseSchema):
+    """One realtime model, for the Voice card's picker."""
+
+    id: str
+    name: str
+    description: str
+    transport: Literal["webrtc", "relay"]
+    voices: list[str]
+    default_voice: str
+    supports_thinking: bool
+    input_sample_rate: int
+    output_sample_rate: int
+
+
+class RealtimeProviderRead(BaseSchema):
+    """One provider that can hold a voice conversation, and what may be chosen on it."""
+
+    provider: str
+    name: str
+    secret_kind: str = Field(description="The vault kind a key for this provider must be")
+    deployment: bool = Field(
+        description="Whether the model is an Azure deployment name plus a base model"
+    )
+    models: list[RealtimeModelRead]
+
+
+class RealtimeProviderList(BaseSchema):
+    items: list[RealtimeProviderRead]
+    total: int
+
+
 class ProviderModelList(BaseSchema):
     items: list[ProviderModelRead]
     total: int

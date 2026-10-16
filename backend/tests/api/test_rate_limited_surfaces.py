@@ -229,7 +229,14 @@ class TestTheWidgetsAdmission:
         assert response.status_code == 429
 
     @pytest.mark.parametrize(
-        "path", ["some-key/config", "some-key/hosted", "some-key/logo", "some-key/widget.js"]
+        "path",
+        [
+            "some-key/config",
+            "some-key/hosted",
+            "some-key/logo",
+            "some-key/widget.js",
+            "some-key/voice.js",
+        ],
     )
     async def test_every_refusal_here_is_the_envelope_the_rest_of_the_api_answers(
         self, mock_redis: MagicMock, path: str

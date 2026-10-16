@@ -21,7 +21,12 @@ from typing import Any
 from uuid import UUID
 
 from pydantic_ai import Agent as PydanticAgent
-from pydantic_ai.capabilities import AbstractCapability, ReinjectSystemPrompt, ToolSearch
+from pydantic_ai.capabilities import (
+    AbstractCapability,
+    HandleDeferredToolCalls,
+    ReinjectSystemPrompt,
+    ToolSearch,
+)
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import AbstractToolset
@@ -29,6 +34,7 @@ from pydantic_ai.usage import UsageLimits
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities import build as build_capabilities
+from app.agents.capabilities import get as capability_def
 from app.agents.capabilities.approval import (
     ApprovalGate,
     approval_required_tools,
@@ -68,6 +74,13 @@ from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.spec import AgentSpec
+from app.agents.voice import (
+    AnswerUnknownTools,
+    VoiceOptions,
+    WithoutApprovalTools,
+    voice_configured,
+    voice_instructions,
+)
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
 logger = logging.getLogger(__name__)
@@ -169,6 +182,7 @@ def build_agent(
     shared_budget: BudgetGuard | None = None,
     recorded_overhead: int | None = None,
     recorded_reminder_state: dict[str, Any] | None = None,
+    voice: VoiceOptions | None = None,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
@@ -225,6 +239,11 @@ def build_agent(
             and the ceiling that matters is the one on the run somebody started.
             The delegate's own cap still governs runs of the delegate itself, and
             its run rows still accumulate against it - see `docs/governance.md`.
+        voice: Build for a realtime call: see `app/agents/voice.py`. The
+            capabilities a call cannot carry are left out, approvals resolve
+            inline through `voice.on_deferred`, and the instructions go in as
+            `instructions=`. The caller sets usage limits itself - `usage_limits`
+            on the result is a text run's and must not be passed to a session.
 
     Raises:
         BadRequestError: If the spec references an unknown tool, an invalid tool
@@ -234,6 +253,10 @@ def build_agent(
     """
     refuse_ungateable_approvals(spec)
     bindings = spec.bindings()
+    if voice is not None:
+        # Again here, though the runner already stripped the spec: a caller that
+        # builds a voice agent from an unstripped spec must still get none of them.
+        bindings = [binding for binding in bindings if capability_def(binding.capability_id).voice]
     # Built before the capabilities, not after: compaction reads it to decide
     # whether this window has room for a summary at all, and the reading is
     # filled by the capability appended at the end of the list below.
@@ -278,6 +301,8 @@ def build_agent(
     # request from the run's history in its own: reminders appended before it
     # would be dropped (see `SystemReminders.before_model_request`).
     configured.sort(key=lambda capability: isinstance(capability, SystemReminders))
+    if voice is not None:
+        configured = voice_configured(configured)
 
     # Which tools a human must approve before they act. Computed here, while the
     # registry metadata and the spec's overrides are both in hand, so a surface
@@ -350,6 +375,15 @@ def build_agent(
         ),
         *configured,
         *extra_capabilities,
+        *(
+            ()
+            if voice is None
+            else (
+                HandleDeferredToolCalls(handler=voice.on_deferred),
+                AnswerUnknownTools(),
+                *((WithoutApprovalTools(names=approval_required),) if voice.anonymous else ()),
+            )
+        ),
         # Every agent, not only one that compacts. The warning is most useful to
         # exactly the agent that will not: it is the one that reaches the ceiling
         # and gets refused by the provider.
@@ -380,13 +414,21 @@ def build_agent(
     agent = PydanticAgent[AgentDeps, str | DeferredToolRequests](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
-        system_prompt=spec.instructions or "",
+        # A realtime session reads only `instructions=` (#54), so a call carries
+        # the spec's instructions there and no system prompt at all.
+        system_prompt="" if voice is not None else spec.instructions or "",
+        instructions=None if voice is None else voice_instructions(spec.instructions, voice),
         # `str` first so the model answers in text; `DeferredToolRequests`
         # is not a shape the model can choose, it is what the run ends with when
         # the approval gate parks a call.
         output_type=[str, DeferredToolRequests],
         capabilities=capabilities,
-        toolsets=_defer_for_tool_search(configured, extra_toolsets or []),
+        # Undeferred in a call: tools are fixed at connect, and a deferred one is rejected.
+        toolsets=(
+            (extra_toolsets or [])
+            if voice is not None
+            else _defer_for_tool_search(configured, extra_toolsets or [])
+        ),
     )
 
     _instrument(agent, spec, secrets or {}, agent_id=agent_id)

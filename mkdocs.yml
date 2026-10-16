@@ -326,6 +326,7 @@ nav:
       - Put it in front of people:
           - environments.md
           - channels.md
+          - voice.md
           - artifacts.md
           - desktop.md
           - rollout.md

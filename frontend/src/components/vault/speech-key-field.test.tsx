@@ -89,6 +89,19 @@ describe("speechKeysFor", () => {
   });
 });
 
+describe("speechKeysFor, for another kind of key", () => {
+  it("offers only keys of that kind, and API keys by default", () => {
+    const keys = [
+      secret("azure-plain", { purpose: "azure" }),
+      secret("azure-deployment", { purpose: "azure", kind: "azure_openai" }),
+    ];
+    expect(speechKeysFor(keys, "azure", false, "azure_openai").map((key) => key.id)).toEqual([
+      "azure-deployment",
+    ]);
+    expect(speechKeysFor(keys, "azure", false).map((key) => key.id)).toEqual(["azure-plain"]);
+  });
+});
+
 describe("useSpeechKeyCheck", () => {
   it("says which providers have a key at this level", () => {
     state.secrets = [secret("mine-openai", { visibility: "private" })];
@@ -179,5 +192,32 @@ describe("the speech-to-text key field", () => {
     state.secrets = [secret("a"), secret("b")];
     mount({ error: "That key is for groq" });
     expect(screen.getByText("That key is for groq")).toBeInTheDocument();
+  });
+
+  it("names a key added from here as its caller asks", () => {
+    mount({ orgVisibleOnly: false, suggestedName: "OpenAI voice calls" });
+    expect(screen.getByRole("button", { name: "add OpenAI voice calls" })).toBeInTheDocument();
+  });
+
+  it("sends somebody to the vault for a key the inline form cannot take", () => {
+    state.secrets = [secret("plain", { purpose: "azure" })];
+    render(
+      <SpeechKeyField
+        id="key"
+        provider="azure"
+        providerName="Azure OpenAI"
+        value={null}
+        orgVisibleOnly={false}
+        kind="azure_openai"
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/No Azure OpenAI keys in the vault yet/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^add / })).toBeNull();
+    expect(screen.getByRole("link", { name: /vault/i })).toHaveAttribute("target", "_blank");
+    expect(screen.getByLabelText("Key").closest("[data-kind]")).toHaveAttribute(
+      "data-kind",
+      "azure_openai",
+    );
   });
 });

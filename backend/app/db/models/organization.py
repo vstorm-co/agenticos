@@ -142,6 +142,24 @@ class Organization(Base, TimestampMixin):
         Integer, nullable=False, default=300, server_default="300"
     )
 
+    # Voice conversations (#54). Off until an admin turns them on. The cap and
+    # the monthly minutes bound what a call can cost before any budget does:
+    # 600 s calls and 600 minutes a month by default, the minutes nullable to
+    # leave only the budgets. `voice_in_chat` is whether `/chat` offers a call
+    # once voice is on; the widget and the hosted page are switched per embed.
+    voice_conversations_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    voice_in_chat: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    voice_max_call_seconds: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=600, server_default="600"
+    )
+    voice_monthly_minutes: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, default=600, server_default="600"
+    )
+
     # How long this organization's data lives, per class, in days. `None` on the
     # column means it has never had an opinion and takes the deployment's
     # defaults; a class absent from the mapping means the same for that class
@@ -189,6 +207,15 @@ class Organization(Base, TimestampMixin):
         CheckConstraint(
             "speech_to_text_secret_id IS NULL OR speech_to_text_provider IS NOT NULL",
             name="ck_organization_speech_key_needs_pair",
+        ),
+        # 50 minutes at most: OpenAI ends a session at 60, and our cap must land first.
+        CheckConstraint(
+            "voice_max_call_seconds BETWEEN 60 AND 3000",
+            name="ck_organization_voice_max_call_seconds",
+        ),
+        CheckConstraint(
+            "voice_monthly_minutes IS NULL OR voice_monthly_minutes > 0",
+            name="ck_organization_voice_monthly_minutes",
         ),
     )
 

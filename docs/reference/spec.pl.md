@@ -1,5 +1,5 @@
 ---
-source_sha: "02ec08e2ff51"
+source_sha: "fe0087d9fc16"
 ---
 
 # Spec agenta { #the-agent-spec }
@@ -53,3 +53,45 @@ kolejność, w jakiej się rozwiązują. Speca z tym blokiem nie da się zaimpor
 do wdrożenia starszego niż ten blok: jego spec odrzuca pola, których nie zna.
 
 ::: app.agents.spec.SpeechToTextSpec
+
+## Głos { #voice }
+
+Jak agent prowadzi [rozmowę głosową](../voice.md): model realtime, klucz z
+vaultu, głos i własne limity rozmowy. Blok jest opcjonalny, a blok z samymi
+pustymi polami czyta się jak brak bloku, więc speci zapisane przed nim wczytują
+się bez zmian, a `SPEC_VERSION` się nie przesunął. Tak jak bloku mowy na tekst,
+speca z tym blokiem nie da się zaimportować do wdrożenia starszego niż ten blok.
+
+| Pole | Co zawiera |
+|---|---|
+| `provider` | Provider z katalogu realtime: `openai`, `azure`, `google` albo `xai` |
+| `model` | Model realtime tego providera. Dla Azure zostaw je puste i użyj dwóch pól poniżej |
+| `deployment` | Tylko Azure: nazwa wdrożenia, do którego trafiają rozmowy |
+| `base_model` | Tylko Azure: model z katalogu, który to wdrożenie uruchamia; od niego zależą głosy i cena |
+| `secret_id` | Klucz z vaultu, którym prowadzone są rozmowy - identyfikator, nigdy sam klucz |
+| `voice` | Jeden z głosów modelu; puste oznacza domyślny głos modelu |
+| `language` | Kod ISO-639-1 języka, w którym mówi agent; puste dostosowuje się do rozmówcy |
+| `max_call_seconds` | Najdłuższa rozmowa, od 60 do 3000, i nie dłuższa niż najdłuższa rozmowa organizacji |
+| `voice_note` | Do 1000 znaków dodawanych do instrukcji agenta tylko w rozmowach |
+
+Każda reguła obejmująca kilka pól jest sprawdzana przy publikacji wersji, a nie
+przy zapisie szkicu, bo Builder zapisuje automatycznie między wyborem providera
+a wyborem jego modelu. Publikacja jest odrzucana, ze wskazaniem sekcji głosu,
+gdy:
+
+- brakuje providera albo katalog tego wdrożenia nie ma takiego providera;
+- brakuje modelu albo nie jest on modelem realtime, który katalog oferuje dla
+  tego providera (dla Azure - modelem bazowym), albo sekcja Azure nie podaje
+  wdrożenia;
+- głos nie jest jednym z głosów modelu;
+- nie wybrano klucza albo klucz nie przechodzi wspólnego sprawdzenia: jego
+  przeznaczeniem nie jest ten provider, jego rodzaj nie jest rodzajem providera
+  (`api_key` albo `azure_openai` dla Azure), należy do innej organizacji albo
+  publikujący go nie widzi;
+- język nie jest kodem, który przyjmują rozmowy;
+- najdłuższa rozmowa przekracza najdłuższą rozmowę organizacji.
+
+Capabilities, których rozmowa nie może uruchomić, nie blokują publikacji; są
+pomijane w rozmowach, a Builder je wymienia.
+
+::: app.agents.spec.VoiceSpec

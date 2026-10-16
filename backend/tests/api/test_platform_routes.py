@@ -146,6 +146,7 @@ _SERVICE_DEPS = (
     deps.get_rag_document_service,
     deps.get_stats_service,
     deps.get_ml_service,
+    deps.get_voice_usage_service,
 )
 
 Provider = Callable[[], object]
@@ -341,6 +342,15 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/agents/mcp-servers", Perm.AGENTS_VIEW),
     Call("GET", "/providers/image-models", Perm.AGENTS_VIEW),
     Call("GET", "/providers/speech-to-text-models", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/realtime-models", Perm.AGENTS_VIEW),
+    # The organization's call minutes by agent, for the dashboard figure and the
+    # Voice card: what the organization spent time on, read like its runs.
+    Call(
+        "GET",
+        "/voice/usage",
+        Perm.RUNS_VIEW,
+        query="?start=2020-01-01T00:00:00Z&end=2020-01-02T00:00:00Z",
+    ),
     Call("GET", "/providers/model-profiles", Perm.AGENTS_VIEW),
     Call(
         "POST",
@@ -780,6 +790,9 @@ _PLATFORM_PREFIXES = (
     # rather than by a person in a browser, which is precisely why the sweep has
     # to see them: nobody would notice an ungated one from the console.
     "/ml",
+    # Call minutes (#54). The call socket itself is `/ws/voice`, outside this
+    # prefix, and an agent's readiness lives under `/agents`.
+    "/voice",
 )
 
 
@@ -1668,6 +1681,18 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # organization's provider, bounded per address, per link and, for a `jwt`
         # widget, per visitor.
         ("POST", f"{V1}/embed/{{public_key}}/dictation"),
+        # A visitor's voice call (#54). Admitted as the embed's own socket - a
+        # widget by its allow-list and token, a page by this deployment's origin
+        # and its continuity key - and only while that embed's voice switch is
+        # on. Each call is a paid realtime session: starts are bounded per address
+        # and per link, each call by the organization's call cap, monthly minutes
+        # and the agent's budget, and tools needing approval are left out.
+        ("WEBSOCKET", f"{V1}/embed/{{public_key}}/voice/ws"),
+        # The widget's call UI, fetched by `widget.js` when a visitor opens the
+        # panel of a widget whose calls are on. A script like `widget.js`: no
+        # secret, decides nothing, 404 unless that widget is active with its
+        # voice switch on; the socket above is where a call is admitted.
+        ("GET", f"{V1}/embed/{{public_key}}/voice.js"),
     }
 )
 

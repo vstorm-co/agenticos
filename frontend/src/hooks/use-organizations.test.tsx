@@ -265,6 +265,20 @@ describe("useOrganizations", () => {
     await waitFor(() => expect(result.current.orgs[0]?.chat_dictation_ready).toBe(true));
   });
 
+  it("sends the voice-call settings and caches the answer", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ voice_conversations_enabled: true }));
+
+    await act(() =>
+      result.current.setVoiceConversations("org-1", { voice_conversations_enabled: true }),
+    );
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", {
+      voice_conversations_enabled: true,
+    });
+    await waitFor(() => expect(result.current.orgs[0]?.voice_conversations_enabled).toBe(true));
+  });
+
   it("drops a deleted organization and clears the selection if it was the one", async () => {
     useOrgStore.setState({ activeOrgId: "org-1" });
     const result = await hook();

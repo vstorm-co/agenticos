@@ -307,6 +307,18 @@ class CapabilityDef:
     instructions.
     """
 
+    voice: bool = True
+    """Whether the capability can run inside a voice call (#54).
+
+    False for the four a realtime session cannot carry: `sandbox` (realtime sets
+    an unavailable workspace), `browser_use` and `browser_choice` (minutes long
+    and visual), and `subagents` (background delegations whose parked approvals
+    have no way to resume). Such a binding never blocks publishing; it is left
+    out of calls, and the Builder's Voice card lists it. Also false for
+    `channel_tools`, which a call never has a channel to describe for; no spec
+    binds it, so the Builder never lists it.
+    """
+
     scopes: frozenset[str] = frozenset()
     # The credential this capability needs, declared as a *kind* - never as an
     # instance. Code says "I need an API key"; configuration says which one.
@@ -402,6 +414,7 @@ def register(
     config_schema: type[BaseModel] | None = None,
     side_effecting: bool = False,
     selectable: bool = True,
+    voice: bool = True,
     scopes: Iterable[str] = (),
     secret: SecretRequirement | None = None,
     provider_executed: ProviderExecuted | None = None,
@@ -457,6 +470,7 @@ def register(
             config_schema=config_schema,
             side_effecting=side_effecting,
             selectable=selectable,
+            voice=voice,
             scopes=frozenset(scopes),
             secret=secret,
             provider_executed=provider_executed,

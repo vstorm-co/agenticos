@@ -1,5 +1,5 @@
 ---
-source_sha: "421b416a5a36"
+source_sha: "ba34a88c524a"
 ---
 
 # API HTTP { #the-http-api }
@@ -123,6 +123,105 @@ Dwa endpointy WebSocket, dla dwóch odbiorców.
 Oba strumieniują tokeny w miarę ich napływania (agent z guardrailem na wyjściu
 streamuje krok po kroku, zobacz [Guardrails](reference/capabilities.md#guardrails))
 i oba tworzą zwyczajny run, z tymi samymi księgami co wszystko inne.
+
+## Rozmowy głosowe { #voice-calls }
+
+[Rozmowa głosowa](voice.md) ma własny socket, bo rozmowa nie jest pętlą tur:
+**`/api/v1/ws/voice`** dla członka i
+**`/api/v1/embed/{public_key}/voice/ws`** dla odwiedzającego w widgecie albo na
+hostowanej stronie ([wpuszczanie](channels.md#the-call-socket)). Oba mówią tymi
+samymi ramkami, zdefiniowanymi w `backend/app/schemas/voice.py`.
+
+Socket konsoli uwierzytelnia się tak jak `/ws/agent`: token jako wpis
+`Sec-WebSocket-Protocol` `access_token.<JWT>` (albo ciasteczko z tego samego
+originu), nigdy w query stringu, a organizację jako `?organization_id=`.
+Zamyka się z kodem `4001` bez ważnej sesji i z `4003`, gdy wywołujący nie jest
+członkiem. Socket embeda zamyka się z `4029` po przekroczeniu rate limitu
+i z `4003` przy każdej odmowie dotyczącej embeda. Każdy heartbeat sprawdza
+sesję ponownie, więc rozmowa nie przetrwa wylogowania.
+
+**Klient wysyła** ramki JSON, a przez relay także binarne audio:
+
+| Ramka | Pola | Kiedy |
+|---|---|---|
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` i `resume_token` (ponowne połączenie), `context` (zmienne embeda) | Najpierw, w ciągu 10 sekund |
+| `approval` | `id`, `decision` (`approve` albo `deny`) | Rozstrzygnięcie zatwierdzenia, na które czeka rozmowa |
+| `mute` | `muted` | Relay: mikrofon wyciszony |
+| `played` | `bytes` | Relay: ile audio agenta zostało odtworzone |
+| `end` | - | Rozłączenie się |
+| *binarna* | 16-bitowy PCM z częstotliwością wejściową modelu | Relay: audio dzwoniącego |
+
+**Serwer wysyła:**
+
+| Ramka | Pola | Znaczy |
+|---|---|---|
+| `answer` | `sdp` | WebRTC: odpowiedź providera dla połączenia peer przeglądarki |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left`, `resume_token` | Rozmowa jest zestawiona. `resume_token` jest wysyłany tylko tutaj i tylko temu dzwoniącemu; ponowne połączenie odsyła go z powrotem |
+| `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Kto mówi albo co robi agent |
+| `caption` | `role`, `turn_id`, `part` oraz jedno z: `delta` (dopisz), `text` (zastąp dotychczasowym sprawdzonym tekstem) albo `final` | Napis na żywo |
+| `turn_saved` | `message` | Zakończona tura, jako wiadomość, w której została zapisana; zastępuje napisy niosące jej `turn_id` |
+| `tool` | `name`, `status` (`running` albo `done`) | Narzędzie, które agent uruchamia |
+| `approval_required` | `id`, `tool`, `args`, `said`, `timeout_seconds` | Zatwierdzenie dla osoby w rozmowie: dokładne argumenty i to, co według transkrypcji powiedziała |
+| `approval_unavailable` | `tool`, `args` | Wywołanie narzędzia, którego ten dzwoniący nie może zatwierdzić głosem |
+| `approval_settled` | `id`, `outcome` (`approved`, `denied` albo `expired`) | Jak zakończyło się zatwierdzenie |
+| `notice` | `kind`, `message` (opcjonalne) | Coś do powiedzenia słowami: trafienie guardraila, osiągany limit |
+| `limit` | `seconds_left` | Czas rozmowy prawie się skończył |
+| `clear_playback` | - | Relay: odrzuć zakolejkowane audio agenta |
+| `ended` | `reason`, `message` | Rozmowa się skończyła |
+| *binarna* | 16-bitowy PCM z częstotliwością wyjściową modelu | Relay: audio agenta |
+
+**Odwiedzający widget lub hostowaną stronę dowiaduje się mniej.** Jego `ready`
+nie zawiera `run_id`, a `minutes_left` przychodzi jako `null`. `cap_seconds` to
+limit samej rozmowy - najdłuższa rozmowa organizacji, agenta albo to, co
+zostało ze wznawianej rozmowy - a nie limit zdradzający minuty organizacji.
+Serwer i tak kończy rozmowę na prawdziwym limicie. Ramki narzędzi podlegają
+przełącznikom embeda `show_tool_steps` i `show_tool_results`, tak jak
+odpowiedź pisana. Bez kroków narzędzi nie jest wysyłana żadna ramka `tool`, a
+`tool_running` przychodzi jako `thinking`. Bez wyników narzędzi
+`approval_unavailable` przychodzi z pustym `args`. Niezależnie od przełączników
+`turn_saved` odwiedzającego zawiera tylko `id`, `role`, `content`,
+`interrupted` i `turn_id` wiadomości: nigdy identyfikatorów runa, agenta ani
+wersji, kosztu ani wywołań narzędzi.
+
+**Ponowne połączenie musi udowodnić, że rozmowa należy do niego.** `start` z
+`resume_of` musi zawierać także `resume_token` z ramki `ready` tamtego
+połączenia. Bez niego albo z błędnym ponowne połączenie jest odrzucane jako
+`resume_refused`, a wskazana rozmowa pozostaje nietknięta. Serwer przechowuje
+tylko skrót tokena. Rozmowa złożona już z 20 połączeń nie jest wznawiana
+ponownie: jej kolejne ponowne połączenie też jest odrzucane jako
+`resume_refused`.
+
+Socket, który w ciągu 10 sekund nie wyśle `start`, dostaje `ended` z `no_start`.
+Rozmowa, która się nie rozpocznie, odpowiada `ended` ze stałym `reason`:
+`voice_off`, `no_agent`, `forbidden`, `not_configured`, `bad_offer`,
+`data_channel`, `resume_refused`, `minutes_exhausted`, `call_limit`,
+`not_priced`, `budget`, `busy` albo `line_busy`, z `message`, który można
+bezpiecznie pokazać. Start, który nie powiedzie się z jakiegokolwiek innego
+powodu, odpowiada `ended` z `error`. Odwiedzający odrzucony jako
+`not_configured`, `not_priced`, `minutes_exhausted` albo `budget` dostaje ten
+sam powód z komunikatem "Calls are not available right now.", bo pełny
+komunikat jest pisany dla operatora agenta. Rozmowa w zarchiwizowanej
+konwersacji jest odrzucana jako `forbidden`, tak jak wiadomość pisana do niej.
+
+Rozmowa, która trwała, kończy się z `user`, `time_limit`, `budget`, `minutes`,
+`disconnected`, `revoked`, `shutdown` albo `error`. Kończy się z `minutes`, gdy
+jej limit wyznaczyły minuty miesiąca, a z `time_limit`, gdy wyznaczyło go
+ustawienie najdłuższej rozmowy. Rozmowa odwiedzającego kończy się z `revoked`, gdy jej
+embed zostanie wstrzymany, będzie miał wyłączone rozmowy albo zostanie
+skierowany na innego agenta. Żadna ramka nigdy nie niesie poświadczeń
+providera.
+
+Idą z tym cztery route'y HTTP:
+
+| Route | Bramka | Odpowiada |
+|---|---|---|
+| `GET /api/v1/agents/{agent_id}/voice?surface=web` | `agents:run` na tym agencie, łącznie z grantem; w przeciwnym razie `404` | Czy rozmowa by się rozpoczęła, dlaczego nie, transport, najdłuższa rozmowa i pozostałe minuty. `surface=embed` pyta o widget albo hostowaną stronę |
+| `GET /api/v1/providers/realtime-models` | `agents:view` | Katalog realtime, z którego wybiera sekcja głosu |
+| `GET /api/v1/voice/usage?start=…&end=…` | `runs:view` | Sekundy rozmów i liczba rozmów dla rozmów rozpoczętych w chwili `start` lub później i przed `end`, według agenta (rozmowy usuniętego agenta jako jeden wiersz bez id i nazwy), oraz sekundy z tego miesiąca wobec miesięcznych minut organizacji. `end`, który nie jest późniejszy niż `start`, jest odrzucany z `422` |
+| `GET /api/v1/runs?modality=voice` | `runs:view` | Tylko rozmowy (`text` tylko dla wpisanych runów); rozmowa, która połączyła się ponownie, to jeden wiersz z `voice_chain`, ze wszystkimi połączeniami zsumowanymi |
+
+Zatwierdzenie należące do trwającej rozmowy jest rozstrzygane w rozmowie:
+`POST /api/v1/approvals/{id}` odrzuca je z `400`.
 
 ## Błędy { #errors }
 

@@ -84,6 +84,14 @@ export interface Organization {
    * `true` here and is refused per recording as `not_configured`.
    */
   chat_dictation_ready: boolean;
+  /** Whether members may call agents (#54). Off by default. */
+  voice_conversations_enabled: boolean;
+  /** Whether `/chat` offers a call once voice is on; embeds are switched on their own. */
+  voice_in_chat: boolean;
+  /** The longest call in seconds (60-3000); an agent may set a shorter one. */
+  voice_max_call_seconds: number;
+  /** Call minutes a month across the organization, or null when only the budgets bound calls. */
+  voice_monthly_minutes: number | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -106,6 +114,21 @@ export type VoiceSettingsUpdate = Pick<
       "speech_to_text_provider" | "speech_to_text_model" | "speech_to_text_secret_id"
     >
   >;
+
+/**
+ * The voice-call settings one PATCH carries (#54). The server splits the
+ * permission: the monthly minutes need `budgets:manage`, the rest
+ * `org:settings`, so only the fields that changed are sent.
+ */
+export type VoiceConversationsUpdate = Partial<
+  Pick<
+    Organization,
+    | "voice_conversations_enabled"
+    | "voice_in_chat"
+    | "voice_max_call_seconds"
+    | "voice_monthly_minutes"
+  >
+>;
 
 export interface OrganizationMember {
   id: string;

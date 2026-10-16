@@ -84,6 +84,7 @@ const DELEGATION: CapabilityCatalogEntry = {
   category: "orchestration",
   description: "Hand part of a task to another agent.",
   side_effecting: false,
+  voice: true,
   scopes: ["agents:delegate"],
   tools: [{ id: "task", name: "task", description: "Delegate a task." }],
   contracts: [],

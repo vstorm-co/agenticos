@@ -66,6 +66,7 @@ from app.repositories import mcp_registry_server as mcp_registry_server_repo
 from app.repositories import organization_secret as organization_secret_repo
 
 from app.repositories import notification as notification_repo
+from app.repositories import voice_call as voice_call_repo
 
 __all__ = [
     "user_repo",
@@ -120,4 +121,5 @@ __all__ = [
     "context_repo",
     "memory_repo",
     "notification_repo",
+    "voice_call_repo",
 ]

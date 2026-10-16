@@ -139,6 +139,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // four seconds for a strip that never mounts.
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
   { id: "chat-model-picker", page: ROUTES.CHAT, target: "chat-model-picker" },
+  // The call button sits in the composer whenever an agent is selected - offered
+  // or crossed out - but readiness loads after the page, so the stop is optional:
+  // a slow read must not pin the caption to nothing (#54).
+  { id: "chat-voice-call", page: ROUTES.CHAT, target: "chat-voice-call", optional: true },
   // Inside the same popover as the model, so the walk opens it once. `optional`
   // because the control it names lives behind the trigger: the caption is
   // pinned to nothing on a walk that never opened it.
@@ -191,6 +195,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "agent-model",
     page: AGENT_BUILDER,
     target: "agent-model",
+    activate: "agent-tab-build",
+    permission: Perm.agentsView,
+  },
+  // The Voice card, right under the model: dictation and, below it, the
+  // realtime model, key and voice the agent takes calls with (#54).
+  {
+    id: "agent-voice",
+    page: AGENT_BUILDER,
+    target: "agent-voice",
     activate: "agent-tab-build",
     permission: Perm.agentsView,
   },
@@ -443,6 +456,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "org-voice",
     page: ORG_MEMBERS,
     target: "org-voice",
+    permission: Perm.orgSettings,
+  },
+  // Inside the Voice card, after its dictation half; gated like the card (#54).
+  {
+    id: "org-voice-conversations",
+    page: ORG_MEMBERS,
+    target: "org-voice-conversations",
     permission: Perm.orgSettings,
   },
   { id: "org-members", page: ORG_MEMBERS, target: "org-members" },

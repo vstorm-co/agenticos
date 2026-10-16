@@ -222,8 +222,13 @@ class TestWhichKeyALevelMayName:
 
     async def _problem(self, row: object, *, ctx: object = None, access: bool = True) -> str | None:
         with (
-            patch(f"{_MODULE}.organization_secret_repo.get", new=AsyncMock(return_value=row)),
-            patch(f"{_MODULE}.resolve_access", new=AsyncMock(return_value=access)) as checked,
+            patch(
+                "app.services.provider_keys.organization_secret_repo.get",
+                new=AsyncMock(return_value=row),
+            ),
+            patch(
+                "app.services.provider_keys.resolve_access", new=AsyncMock(return_value=access)
+            ) as checked,
         ):
             problem = await SpeechToTextSettingsService(MagicMock()).key_problem(
                 uuid.uuid4(), organization_id=_ORG_ID, provider="openai", ctx=ctx
@@ -249,7 +254,7 @@ class TestWhichKeyALevelMayName:
         problem = await self._problem(_secret(kind="azure_openai"))
 
         assert problem is not None
-        assert "needs an API key" in problem
+        assert "an API key is required for speech to text" in problem
 
     async def test_a_key_for_another_provider_is_refused(self):
         problem = await self._problem(_secret(purpose="groq"))

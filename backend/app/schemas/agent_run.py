@@ -2,13 +2,23 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
 
 from app.schemas.base import BaseSchema
 from app.schemas.conversation import MessageRead
+
+
+class VoiceChainRead(BaseSchema):
+    """One call as Activity shows it: every connection of it, summed (#54)."""
+
+    connections: int = Field(
+        description="How many connections the call took: 1, plus one per reconnect"
+    )
+    seconds: int
+    cost_usd: Decimal
 
 
 class AgentRunRead(BaseSchema):
@@ -90,6 +100,16 @@ class AgentRunRead(BaseSchema):
             "and a message names its run, so a run older than that stamping "
             "reads false. Set by the run reads; false on any other surface, "
             "which does not compute it."
+        ),
+    )
+    modality: Literal["text", "voice"] = Field(
+        default="text", description="`voice` for a call, `text` for everything typed (#54)"
+    )
+    voice_chain: VoiceChainRead | None = Field(
+        default=None,
+        description=(
+            "For a voice run on the run list: every connection of the call, summed. "
+            "Null for text runs and on other reads"
         ),
     )
     started_at: datetime | None = None

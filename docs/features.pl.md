@@ -1,5 +1,5 @@
 ---
-source_sha: "9b4efce78f27"
+source_sha: "e316c5cbceb6"
 ---
 
 # Funkcje { #features }
@@ -175,7 +175,15 @@ Zamiana mowy na tekst działa na nich na własnym providerze organizacji:
 dyktowanie w czacie webowym, na hostowanej stronie i w widgecie oraz
 transkrypcja wiadomości głosowych w Slacku, Telegramie i Mattermost.
 
-[Powierzchnie →](channels.md)
+**Rozmowy głosowe** pozwalają rozmawiać z opublikowanym agentem i mu przerywać,
+w czacie webowym, na hostowanej stronie albo w widgecie. Agent zachowuje swoje
+narzędzia, wiedzę, zatwierdzenia i budżety, każda tura jest zapisywana jako
+tekst w konwersacji, a żadne audio nie jest przechowywane. Rozmowy są
+wyłączone, dopóki organizacja ich nie włączy, i mają własne limity czasu
+i miesięcznych minut. Modele realtime OpenAI są przetestowane na żywo; Azure
+OpenAI, Gemini Live i xAI nie zostały jeszcze zweryfikowane na żywo.
+
+[Powierzchnie →](channels.md) · [Rozmowy głosowe →](voice.md)
 
 ## Budżety, które naprawdę zatrzymują run { #budgets-that-actually-stop-a-run }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "1d9bfa9904d4"
+source_sha: "bac8a98baeb9"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -889,6 +889,124 @@ Namen der Seite, auf der das Widget läuft, also blockiert sie eine Website, die
 `Permissions-Policy: microphone=()` sendet, ein `<iframe>` ohne
 `allow="microphone"` oder reines HTTP. Das Widget sagt das unter seinem Feld,
 statt stillschweigend zu scheitern.
+
+## Sprachanrufe im Widget oder auf einer gehosteten Seite { #voice-calls-on-a-widget-or-a-hosted-page }
+
+Ein Widget und eine gehostete Seite haben jeweils einen Schalter
+**Sprachanrufe (Voice calls)** (`voice_conversation`), standardmäßig aus und
+getrennt vom Diktat. Ist er an, können Besucher einen [Sprachanruf](voice.md) mit
+dem Agent führen: denselben Anruf, den ein Mitglied aus `/chat` führt, mit
+denselben Limits, ausgeführt im Kontext dessen, der veröffentlicht hat, und
+aufgezeichnet mit der Oberfläche `embed`.
+
+**Das Einschalten wird abgelehnt**, solange der Sprachschalter der Organisation
+aus ist oder der Agent keinen Abschnitt „Stimme“ hat, mit dem sich ein Anruf
+führen lässt. Geprüft wird nur der Schalter, sodass sich ein Embed, dessen Agent
+seine Stimme später verliert, weiterhin bearbeiten lässt. Solange ein Anruf
+nicht starten würde, sagt die öffentliche Konfiguration
+`voice_conversation: false`, und Besuchern wird kein Anruf angeboten; wenn er
+starten würde, sagt die Konfiguration außerdem, welchen Transport der Anruf
+benutzt (`voice_transport`).
+
+**Auf einer gehosteten Seite** erscheint im Eingabefeld eine Anruftaste, und der
+Anruf läuft in der [Anrufleiste](console.md#voice-calls) der Konsole selbst: der
+Status, die Zeit gemessen am Limit des Anrufs, die Wellenform, Stummschalten,
+Push-to-Talk und Beenden, mit Untertiteln in der Nachricht, die gerade gesprochen
+wird. Sie ist auf das beschränkt, was ein Besucher braucht: keine
+Freigabe-Bedienelemente, keine Anzeige der Minuten der Organisation, und das
+Ende eines Anrufs sowie Ablehnungen werden in Worten erklärt, die ein Besucher
+versteht. Jede gespeicherte Runde kommt in den Thread der Seite, sodass der
+Besucher tippend weitermachen kann; **Neuer Chat (New chat)** legt auf.
+
+**Im Widget** ist der Anruf ein eigenes Skript, `voice.js`, das erst geladen
+wird, wenn ein Besucher das Panel zum ersten Mal öffnet, und nur, wenn die
+öffentliche Konfiguration Anrufe anbietet - so bleibt das Skript, das jeder
+Besucher herunterlädt, klein. Es wird unter
+`/api/v1/embed/{public_key}/voice.js` ausgeliefert und auf den Zähler des
+Widget-Skripts angerechnet, und seine URL trägt einen Hash des Skripts, sodass
+eine zwischengespeicherte Kopie nie mit einem neueren Widget zusammentrifft.
+
+Die Eingabezeile des Widgets wird zu einer abgespeckten Anrufleiste - eine
+Pegelanzeige in der Akzentfarbe des Widgets, der Status, die Zeit gemessen am
+Limit, Stummschalten und Beenden - ohne Push-to-Talk und ohne Freigabekarte.
+Untertitel erscheinen in der Nachrichtenliste und machen den gespeicherten
+Runden Platz, und eine Ablehnung, ein Limit oder eine besetzte Leitung erscheint
+als eine Zeile unter der Leiste.
+
+Beenden, das Schließen des Panels, das Verlassen der Seite oder eine Verbindung,
+die sich nicht aufbauen lässt, beendet den Anruf und gibt Mikrofon, Audio und
+Verbindung frei; bricht die Verbindung mitten im Anruf ab, wird sie innerhalb
+von acht Sekunden einmal neu aufgebaut. Die Texte des Widgets zum Anruf sind auf
+Englisch, wie der Rest des Widgets.
+
+**Ein Besucher kann nichts freigeben.** Tools, die eine Freigabe brauchen,
+werden aus dem Anruf eines Besuchers ganz weggelassen, sodass der Agent nie zu
+einem greift; er sagt klar, wenn er dort etwas nicht tun kann. Ein Anruf bekommt
+außerdem den Platzierungshinweis des Embeds und die deklarierten Variablen der
+Seite, genau wie eine getippte Nachricht, sodass sich der Agent in beiden gleich
+verhält.
+
+**Ein Besucher erfährt nur, was ein Besucher braucht.** Die Schalter unter [was
+der Besucher von der Arbeit sieht](#what-the-visitor-sees-of-the-work) filtern
+die Frames eines Anrufs, wie sie getippte Antworten filtern: Ohne *Was der Agent
+gerade tut* erfährt ein Besucher nicht, dass ein Tool lief, und ohne *Was jeder
+Schritt zurückgegeben hat* trägt ein Schritt nicht mit, womit ein Tool
+aufgerufen wurde oder was zurückkam. Das Limit, das ein Besucher sieht, ist das
+eigene Limit des Anrufs, nie die verbleibenden Minuten der Organisation, und
+eine Ablehnung wegen Einrichtung, Preis, Minuten oder Budget des Betreibers sagt
+nur, dass Anrufe gerade nicht verfügbar sind. Das Embed zu pausieren, seine
+Anrufe abzuschalten oder es auf einen anderen Agent zu richten, beendet die
+Anrufe darauf innerhalb eines Heartbeats. Die Frames stehen auf [der
+API-Seite](api.md#voice-calls).
+
+### Das Anruf-Socket { #the-call-socket }
+
+`/api/v1/embed/{public_key}/voice/ws` spricht dieselben Frames wie
+`/api/v1/ws/voice` der Konsole ([API](api.md#voice-calls)). Die Zulassung folgt
+der Oberfläche, wie beim Chat-Socket. Ein **Widget** wird über seine Allow-Liste
+zugelassen und, im `jwt`-Modus, über das Token des Kunden in `?token=`. Eine
+**gehostete Seite** wird über den eigenen Origin dieses Deployments und den
+Kontinuitätsschlüssel in `?visitor=` zugelassen, und der Anruf landet in dem
+Thread, den dieser Schlüssel hält, sodass ein abgebrochener Anruf dort
+fortgesetzt werden kann. Ein **rohes Socket** hat nichts, aus dem es anrufen
+könnte.
+
+Das Socket schließt mit `4029` jenseits eines Rate-Limits und mit `4003` für
+alles, was das Embed betrifft - unbekannt, pausiert, ein rohes Socket, Anrufe
+ausgeschaltet, ein Origin, den es nicht erlaubt -, ohne zu sagen, was davon.
+Alles nach der Zulassung ist die eigene Ablehnung des Anrufs, gesendet als
+`ended`-Frame mit ihrem Grund.
+
+### Was ein Anruf einen öffentlichen Link kostet { #what-a-call-costs-a-public-link }
+
+Anrufe liegen innerhalb der Budgets: Jeder ist ein Run, wird auf die Budgets des
+Agents und der Organisation abgerechnet und auf die monatlichen Anrufminuten der
+Organisation angerechnet. Darüber hinaus hat ein öffentlicher Link eigene
+Limits:
+
+| Limit | Standard | Gezählt |
+|---|---|---|
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | 3 | Anrufstarts pro Adresse und, bei einem `jwt`-Widget, pro Token-Subject des Besuchers |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | 6 | Anrufstarts auf einer Seite oder einem Widget, von allen zusammen |
+| `VOICE_MAX_CALLS_PER_EMBED` | 3 | Gleichzeitig offene Anrufe auf einem Embed; der nächste Anrufer wird als `line_busy` abgelehnt |
+
+Das eigene `rate_limit_per_minute` des Embeds zählt **Nachrichten**, nicht
+Anrufstarts, und begrenzt Anrufe deshalb nicht. Die Startzähler werden
+verbraucht, bevor der Schlüssel nachgeschlagen wird, also zählt auch ein
+abgelehnter Start. Das Limit pro `jwt`-Subject ist eine Startrate, keine Obergrenze
+für offene Anrufe; die offenen Anrufe begrenzt das Limit des Embeds, zusammen
+mit denen aller anderen.
+
+!!! danger "Der schlimmste Fall für einen geleakten Link"
+
+    Drei gleichzeitig offene Anrufe, jeder höchstens so lang wie der längste
+    Anruf der Organisation - standardmäßig 10 Minuten, höchstens 50 -,
+    verbrauchen höchstens drei Anrufminuten pro Minute. Bei dieser Rate reichen
+    die standardmäßigen 600 Monatsminuten für mindestens drei Stunden und
+    zwanzig Minuten Missbrauch, und danach wird jeder Anruf in der
+    Organisation, auch die der Mitglieder, abgelehnt, bis der Monat wechselt.
+    Pausieren Sie das Embed, senken Sie die monatlichen Minuten der
+    Organisation oder schalten Sie ihre Anrufe aus, wenn das zu viel ist.
 
 ---
 

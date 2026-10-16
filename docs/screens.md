@@ -22,6 +22,12 @@ The agent thinking, then the shell commands it actually ran in the sandbox, each
 
 > **Screenshot pending — Chat, mid-run.**
 
+### A voice call
+
+The composer turned into a call bar: what the call is doing, its time against the limit, a waveform of both voices, mute, push to talk and End. The conversation goes on above it - captions inside the message being spoken, tool runs, and an approval card with the exact arguments and what you were heard to say.
+
+> **Screenshot pending — A voice call.**
+
 ## Building an agent
 
 ### Agents

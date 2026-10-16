@@ -1,0 +1,114 @@
+[
+  {
+    "provider": "openai",
+    "models": [
+      {
+        "id": "gpt-realtime",
+        "name": "GPT Realtime",
+        "description": "OpenAI's realtime speech model. Natural voices and reliable tool calls.",
+        "transport": "webrtc",
+        "input_sample_rate": 24000,
+        "output_sample_rate": 24000,
+        "voices": ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"],
+        "default_voice": "marin",
+        "supports_thinking": false,
+        "context_window": 32000,
+        "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.30"}
+      },
+      {
+        "id": "gpt-realtime-2.1",
+        "name": "GPT Realtime 2.1",
+        "description": "The newer realtime model, with reasoning and a longer context.",
+        "transport": "webrtc",
+        "input_sample_rate": 24000,
+        "output_sample_rate": 24000,
+        "voices": ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"],
+        "default_voice": "marin",
+        "supports_thinking": true,
+        "context_window": 128000,
+        "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.30"}
+      },
+      {
+        "id": "gpt-realtime-2.1-mini",
+        "name": "GPT Realtime 2.1 mini",
+        "description": "Cheaper and quicker. A sensible default for support and FAQ agents.",
+        "transport": "webrtc",
+        "input_sample_rate": 24000,
+        "output_sample_rate": 24000,
+        "voices": ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"],
+        "default_voice": "marin",
+        "supports_thinking": true,
+        "context_window": 32000,
+        "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.10"}
+      }
+    ]
+  },
+  {
+    "provider": "azure",
+    "deployment": true,
+    "models": [
+      {
+        "id": "gpt-realtime",
+        "name": "GPT Realtime (Azure deployment)",
+        "description": "Your Azure OpenAI deployment of gpt-realtime, through this deployment's relay. Not verified live.",
+        "transport": "relay",
+        "input_sample_rate": 24000,
+        "output_sample_rate": 24000,
+        "voices": ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"],
+        "default_voice": "marin",
+        "supports_thinking": false,
+        "context_window": 32000,
+        "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.30"}
+      }
+    ]
+  },
+  {
+    "provider": "google",
+    "models": [
+      {
+        "id": "gemini-2.5-flash-native-audio-latest",
+        "name": "Gemini 2.5 Flash native audio",
+        "description": "Gemini Live through this deployment's relay. Not verified live.",
+        "transport": "relay",
+        "input_sample_rate": 16000,
+        "output_sample_rate": 24000,
+        "voices": ["Puck", "Charon", "Kore", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr"],
+        "default_voice": "Puck",
+        "supports_thinking": true,
+        "context_window": 128000,
+        "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.06"}
+      },
+      {
+        "id": "gemini-3.1-flash-live-preview",
+        "name": "Gemini 3.1 Flash Live (preview)",
+        "description": "The newer Gemini Live model, through the relay. Preview. Not verified live.",
+        "transport": "relay",
+        "input_sample_rate": 16000,
+        "output_sample_rate": 24000,
+        "voices": ["Puck", "Charon", "Kore", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr"],
+        "default_voice": "Puck",
+        "supports_thinking": true,
+        "context_window": 128000,
+        "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.06"}
+      }
+    ]
+  },
+  {
+    "provider": "xai",
+    "models": [
+      {
+        "id": "grok-voice-latest",
+        "name": "Grok Voice",
+        "description": "xAI's voice agent, billed per connected minute, through the relay. Not verified live.",
+        "transport": "relay",
+        "input_sample_rate": 24000,
+        "output_sample_rate": 24000,
+        "voices": ["Ara", "Rex", "Sal", "Eve", "Leo"],
+        "default_voice": "Ara",
+        "supports_thinking": true,
+        "context_window": 128000,
+        "pricing": {"kind": "per_minute", "worst_case_usd_per_minute": "0.08", "usd_per_minute": "0.08"}
+      }
+    ]
+  }
+]

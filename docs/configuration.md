@@ -1043,6 +1043,26 @@ any flag (`ALLOW_INTERNAL_MODEL_ENDPOINTS` was removed), and the `run_python`
 sandbox limits are per-agent capability configuration
 (`CODE_EXECUTION_TIMEOUT_SECS` / `CODE_EXECUTION_MAX_MEMORY_MB` were removed).
 
+## Voice calls
+
+[Voice calls](voice.md) are switched on, capped and given their monthly minutes
+per organization, in the app. Two ceilings are the deployment's:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VOICE_MAX_CALLS_PER_USER` | `1` | Calls one person may hold at once. A second tab's call is almost always a mistake, and each is billed; a second start is refused as `busy` |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Calls one widget or hosted page may hold at once, from every visitor together; the next is refused as `line_busy`. Visitors have no account to count against, so this is what stops a leaked link from spending the organization's monthly minutes in parallel |
+
+Both count calls whose heartbeat is fresh, so a call whose process died stops
+counting within 45 seconds. Starting calls on an embed is also rate-limited
+(`RATE_LIMIT_EMBED_VOICE_*`, [below](#rate-limiting)). An embed's own
+`rate_limit_per_minute`, set in the Builder, counts a visitor's **messages**, not
+call starts, so it does not bound calls.
+
+The rest is fixed in code rather than configured: a call is never longer than
+50 minutes, heartbeats run every 15 seconds, and the voice sweep runs every
+minute and once at start-up, as the Prefect deployment `voice-call-sweep`.
+
 ## CORS
 
 | Variable | Default | Description |
@@ -1059,7 +1079,7 @@ Production validation: `CORS_ORIGINS` cannot contain `"*"` in
 
 Applied to the surfaces a stranger can reach, and only those: the public run API,
 the widget's script, its config, either surface's socket handshake, a hosted
-page's config and logo, and a visitor's upload and dictation. The console's own routes are
+page's config and logo, and a visitor's upload, dictation and voice call. The console's own routes are
 behind a session and are not metered — whether the whole API should carry a
 ceiling is a separate decision, not this one.
 
@@ -1074,6 +1094,8 @@ ceiling is a separate decision, not this one.
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Dictation in chat](ml-services.md#dictation-in-chat), per person, on its own counter so dictating and an integration calling the ML services do not spend each other's allowance. Each one is a call to the organization's paid provider |
 | `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Dictation on a widget or a hosted page](channels.md#dictation-on-a-widget-or-a-hosted-page), per address, and per visitor on a `jwt` widget. Each one is a call to the organization's paid provider, outside every model budget |
 | `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | The same, per page or widget, from every visitor together - the ceiling on what a leaked link costs: this many recordings a minute, each up to the organization's longest dictation |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Voice calls](channels.md#voice-calls-on-a-widget-or-a-hosted-page) started on a widget or a hosted page, per address, and per visitor's token subject on a `jwt` widget. Counted before the key is looked up; each call is a paid realtime session |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | The same, per page or widget, from every visitor together. With `VOICE_MAX_CALLS_PER_EMBED` above, the ceiling on what a leaked link costs |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Whether `X-Forwarded-For` names the caller |
 
 **What a refused caller gets** is this API's own error envelope with

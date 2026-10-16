@@ -288,6 +288,28 @@ async def set_speech_settings(
     return org
 
 
+async def set_voice_settings(
+    db: AsyncSession, org: Organization, *, enabled: bool, in_chat: bool, max_call_seconds: int
+) -> Organization:
+    """Write the voice switch, the chat switch and the call cap together (#54)."""
+    org.voice_conversations_enabled = enabled
+    org.voice_in_chat = in_chat
+    org.voice_max_call_seconds = max_call_seconds
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
+async def set_voice_monthly_minutes(
+    db: AsyncSession, org: Organization, *, minutes: int | None
+) -> Organization:
+    """The monthly call minutes; `None` leaves only the budgets (#54)."""
+    org.voice_monthly_minutes = minutes
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def delete(db: AsyncSession, org: Organization) -> None:
     await db.delete(org)
     await db.flush()

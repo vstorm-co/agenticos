@@ -1,5 +1,5 @@
 ---
-source_sha: "c070f50e41ec"
+source_sha: "23e048868171"
 ---
 
 # Governance { #governance }
@@ -501,6 +501,31 @@ es immer noch auf die Rechnung, weil die Kosten jedes Kindes von seiner eigenen
 Zeile addiert und von der seines Parents entfernt werden. Ein Schlüssel
 funktioniert genauso, und er zählt mehr: Ein Schlüssel ist das, was jemand
 rotiert, wenn eine Rechnung falsch aussieht.
+
+### Budget und Minuten eines Sprachanrufs { #a-voice-calls-budget-and-minutes }
+
+Ein [Sprachanruf](voice.md) ist ein Run, und seine Ausgaben zählen gegen die
+Budgets des Agents und der Organisation wie jede andere. Drei Dinge sind anders,
+weil sich ein Anruf nicht vor jeder Anfrage prüfen lässt, wie es bei einem
+Text-Run geschieht:
+
+- **Bevor er beginnt**, wird die längstmögliche Dauer des Anrufs mal der
+  Worst-Case-Minutenpreis des Modells gegen das verbleibende Budget geprüft. Ein
+  Anruf, der sich nicht bezahlen ließe, wird abgelehnt, statt begonnen und
+  abgeschnitten zu werden.
+- **Während er läuft**, wird jede Antwort beim Abschluss auf den Run gebucht,
+  und die Ausgaben des Monats werden alle 15 Sekunden neu gelesen, sodass
+  andere Runs, die inzwischen ausgeben, gesehen werden. Ein Budget, das mitten
+  im Anruf ausgeht, bekommt einen gesprochenen Satz und beendet den Anruf,
+  festgehalten als `budget_exceeded`.
+- **Anrufe haben ein zweites, eigenes Limit**: die monatlichen Anrufminuten der
+  Organisation (standardmäßig 600, null für nur Budgets), festgelegt von dem,
+  der `budgets:manage` hält. Sie werden aus den Anrufzeilen gezählt, nicht aus
+  Run-Dauern, und ein Anruf, der sie erreicht, wird auf dieselbe Weise beendet.
+
+Einen Anruf, dessen Prozess gestorben ist, schließt der Voice-Sweep zu den
+Kosten, die sein letzter Heartbeat festgehalten hat — anders als einen Text-Run,
+dessen Ausgaben mit seinem Prozess sterben.
 
 ### Was die Run-Historie zeigt { #what-run-history-shows }
 
@@ -1148,6 +1173,30 @@ werden. Erlaubnislisten an Verbindung und Agent-Bindung bestimmen, welche
 MCP-Tools verfügbar sind; sie fordern selbst keine Freigabe an. Der Standardmodus
 **Follow the agent** wendet die Capability-Regeln des Agenten an und ergänzt
 für diese MCP-Tools kein Freigabe-Gate.
+
+### Eine Freigabe innerhalb eines Sprachanrufs { #an-approval-inside-a-voice-call }
+
+Ein [Sprachanruf](voice.md#approvals-in-a-call) kann nicht pausieren und auf die
+Queue warten, also werden seine Freigaben im Anruf entschieden, von der Person
+im Anruf:
+
+- Die Anfrage wird sofort in die Queue geschrieben, und der Anruf zeigt das
+  Tool, die exakten Argumente, mit denen es laufen wird, und was vom Anrufer
+  verstanden wurde. Freigeben führt diese Argumente aus, einmal.
+- Entschieden wird sie **nur über den Anruf**, und nur von einem Anrufer, der
+  `approvals:decide` hält. `POST /approvals/{id}` weist eine Anfrage ab, die zu
+  einem laufenden Anruf gehört, und der Sweep für liegengebliebene Freigaben
+  unten überspringt Voice-Runs.
+- **60 Sekunden** ohne Entscheidung lassen sie ablaufen, ohne entscheidende
+  Person - dasselbe null, das der Sweep schreibt. Ein Anruf, der aus
+  irgendeinem Grund endet, lässt alles ablaufen, worauf er noch gewartet hat.
+- Ein Mitglied ohne `approvals:decide` bekommt das klar gesagt, und das Tool
+  wird abgelehnt. Ein Besucher auf einem Widget oder einer gehosteten Seite sieht
+  nie ein Tool, das eine Freigabe braucht: Es wird aus seinem Anruf
+  weggelassen.
+
+`approval_mode` folgt dem Spec des Agents, wie im Text-Chat, und jede
+Entscheidung erreicht den Audit-Trail wie jede andere.
 
 ### Eine Entscheidung, die niemand trifft { #a-decision-nobody-makes }
 

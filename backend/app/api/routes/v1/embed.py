@@ -44,12 +44,16 @@ from app.api.deps import (
 from app.api.embed_cors import allow_embed_origin
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.config import settings
+from app.core.exceptions import BadRequestError
+from app.core.logging import one_line
 from app.db.session import get_db_context
 from app.schemas.agent_embed import PublicEmbedConfig, PublicPageConfig, PublicUpload
 from app.schemas.ml import DictationRead
 from app.services import rate_limit, transcription
 from app.services.agent_embed import AgentEmbedService, EmbedDenied
 from app.services.embed_session import WIDGET_JS, EmbedSession, continuity_key
+from app.services.embed_voice_js import VOICE_JS, VOICE_JS_VERSION
+from app.services.voice import VoiceCallSession, embed_voice_caller
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +170,7 @@ async def hosted_logo(public_key: str, service: EmbedSvc) -> Any:
         raise HTTPException(status_code=404, detail="No logo")
     response = await stored_image_response(stored, headers={"X-Content-Type-Options": "nosniff"})
     if response is None:
-        logger.warning("hosted_logo_not_an_image", extra={"public_key": public_key})
+        logger.warning("hosted_logo_not_an_image", extra={"public_key": one_line(public_key)})
         raise HTTPException(status_code=404, detail="No logo")
     return response
 
@@ -200,8 +204,10 @@ async def embed_widget(public_key: str, db: DBSession) -> Response:
         # error page in a `<script>` is a syntax error in somebody's console.
         raise HTTPException(status_code=404, detail="Unknown widget")
 
-    body = WIDGET_JS.replace("__PUBLIC_KEY__", embed.public_key).replace(
-        "__BASE_URL__", settings.PUBLIC_BASE_URL.rstrip("/")
+    body = (
+        WIDGET_JS.replace("__PUBLIC_KEY__", embed.public_key)
+        .replace("__BASE_URL__", settings.PUBLIC_BASE_URL.rstrip("/"))
+        .replace("__VOICE_VERSION__", VOICE_JS_VERSION)
     )
     return Response(
         content=body,
@@ -211,6 +217,53 @@ async def embed_widget(public_key: str, db: DBSession) -> Response:
             # cache would make a colour change look like it did not save.
             "Cache-Control": "public, max-age=300",
         },
+    )
+
+
+@router.get(
+    "/{public_key}/voice.js",
+    response_class=Response,
+    dependencies=[Depends(limit_embed_script)],
+)
+async def embed_voice_script(
+    public_key: str,
+    service: EmbedSvc,
+    v: Annotated[
+        str | None,
+        Query(max_length=64, description="The script's content hash, as `widget.js` asks for it"),
+    ] = None,
+) -> Any:
+    """The widget's voice call UI (#54).
+
+    Fetched by `widget.js` the first time a visitor opens the panel, and only
+    when the public config offers calls, so the script every visitor downloads
+    stays small. Like `widget.js` it carries no secret and decides nothing: the
+    call's socket is where admission happens. 404 for a key that names no active
+    widget with calls switched on, for the reason `widget.js` gives - an error
+    page in a `<script>` is a syntax error in somebody's console.
+
+    On the script counter, with `widget.js`: a visitor who opens the panel
+    fetches both.
+
+    `widget.js` asks for `?v=<content hash>`, so the URL changes whenever the
+    script does and that response is cached for good: a browser can never pair
+    a cached call script with a newer widget. Any other `v` - a widget cached
+    from before a deploy - gets the current script with the short cache.
+    """
+    embed = await service.find_voice_widget(public_key)
+    if embed is None:
+        raise HTTPException(status_code=404, detail="Unknown widget")
+
+    body = VOICE_JS.replace("__PUBLIC_KEY__", embed.public_key).replace(
+        "__BASE_URL__", settings.PUBLIC_BASE_URL.rstrip("/")
+    )
+    cache = (
+        "public, max-age=31536000, immutable" if v == VOICE_JS_VERSION else "public, max-age=300"
+    )
+    return Response(
+        content=body,
+        media_type="application/javascript; charset=utf-8",
+        headers={"Cache-Control": cache},
     )
 
 
@@ -438,3 +491,62 @@ async def embed_socket(
         await session.fail("Something went wrong. Please try again.")
     finally:
         await session.close()
+
+
+@router.websocket("/{public_key}/voice/ws")
+async def embed_voice_socket(
+    websocket: WebSocket,
+    public_key: str,
+    token: str | None = Query(default=None),
+    visitor: str | None = Query(default=None, max_length=64),
+) -> None:
+    """A visitor's voice call with an embedded agent (#54).
+
+    Admitted as the embed's own socket is - a widget by its allow-list and, in
+    `jwt` mode, the customer's token; a hosted page by this deployment's origin and
+    its continuity key in `visitor`, whose thread the call lands in; a socket
+    integration not at all - and only while the embed's `voice_conversation` is
+    on. Then the call's own protocol and refusals, exactly as `/ws/voice`
+    speaks them (`app.schemas.voice`).
+
+    **Every call is a paid realtime session**, so starting one is counted per
+    address and per link before the key is looked up (`rate_limit.embed_voice_allowed`,
+    `4029` past it, and per visitor for a `jwt` widget once the token is verified),
+    at most `VOICE_MAX_CALLS_PER_EMBED` calls are open on one embed at once
+    (refused on the socket as `line_busy`), and each call is bounded by the
+    organization's call cap, its monthly minutes and the agent's budget. The
+    embed's own `rate_limit_per_minute` counts messages, not calls. A visitor cannot approve anything:
+    tools that need an approval are left out of their calls. Refusals about the
+    embed all close with `4003`, without saying which.
+    """
+    if not (await rate_limit.embed_voice_allowed(websocket, public_key=public_key)).allowed:
+        await websocket.accept()
+        await websocket.close(code=WS_TOO_MANY, reason="Too many calls. Try again shortly.")
+        return
+    visitor_key = continuity_key(visitor)
+    async with get_db_context() as db:
+        try:
+            admission = await AgentEmbedService(db).admit_voice(
+                public_key,
+                origin=websocket.headers.get("origin"),
+                token=token,
+                visitor_key=visitor_key,
+            )
+        except (EmbedDenied, BadRequestError):
+            await websocket.accept()
+            await websocket.close(code=WS_DENIED, reason="Calls are not available here")
+            return
+        if (
+            admission.visitor is not None
+            and not (
+                await rate_limit.embed_voice_visitor_allowed(
+                    public_key=public_key, visitor=admission.visitor
+                )
+            ).allowed
+        ):
+            await websocket.accept()
+            await websocket.close(code=WS_TOO_MANY, reason="Too many calls. Try again shortly.")
+            return
+        caller = await embed_voice_caller(db, admission, visitor_key=visitor_key)
+    await websocket.accept()
+    await VoiceCallSession(websocket, caller).run()

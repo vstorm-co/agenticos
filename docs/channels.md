@@ -809,6 +809,103 @@ of the page the widget runs on, so a site that sends
 or plain HTTP blocks it. The widget says so under its box rather than failing
 silently.
 
+## Voice calls on a widget or a hosted page
+
+A widget and a hosted page each have a **Voice calls** switch
+(`voice_conversation`), off by default and separate from dictation. With it on,
+visitors can hold a [voice call](voice.md) with the agent: the same call a member
+makes from `/chat`, with the same limits, run under the publisher's context and
+recorded with the `embed` surface.
+
+**Switching it on is refused** while the organization's voice switch is off or
+the agent has no Voice section a call can be held with. Only the switch is
+checked, so an embed whose agent loses its voice later can still be edited.
+While a call would not start, the public config says `voice_conversation: false`
+and visitors are offered no call; when it would, the config also says which
+transport the call uses (`voice_transport`).
+
+**On a hosted page**, a call button appears in the composer, and the call
+runs in the console's own [call bar](console.md#voice-calls): the state, the time
+against the call's limit, the waveform, mute, push to talk and End, with captions
+inside the message being spoken. It is cut to what a visitor needs: no approval
+controls, no count of the organization's minutes, and endings and refusals in a
+visitor's words. Each saved turn joins the page's thread, so the visitor can
+carry on typing; **New chat** hangs the call up.
+
+**In the widget**, the call is a separate script, `voice.js`, fetched the first
+time a visitor opens the panel and only when the public config offers calls, so
+the script every visitor downloads stays small. It is served at
+`/api/v1/embed/{public_key}/voice.js` on the widget script's counter, and its URL
+carries a hash of the script, so a cached copy never pairs with a newer widget.
+
+The widget's input row becomes a cut-down call bar - a level meter in the widget's
+accent, the state, the time against the limit, Mute and End - with no
+push-to-talk and no approval card. Captions land in the message list and give
+way to the saved turns, and a refusal, a limit or a busy line shows as one line
+under the bar. End, closing the panel, leaving the page or a connection that
+fails to set up ends the call and releases the microphone, the audio and the
+connection; a connection that drops mid-call is retried once, within eight
+seconds. The widget's call copy is English, like the rest of it.
+
+**A visitor cannot approve anything.** Tools that need an approval are left out
+of a visitor's call entirely, so the agent never reaches for one; it says
+plainly when it cannot do something there. A call also gets the embed's
+placement note and the page's declared variables, exactly as a typed message
+does, so the agent behaves the same in both.
+
+**A visitor is told only what a visitor needs.** The switches under [what the
+visitor sees of the work](#what-the-visitor-sees-of-the-work) filter a call's
+frames as they filter typed replies: without *What the agent is doing* a visitor
+is not told a tool ran, and without *What each step returned* a step does not
+carry what a tool was called with or what came back. The limit a visitor sees is
+the call's own, never the organization's minutes left, and a refusal about the
+operator's setup, price, minutes or budget says only that calls are not
+available right now. Pausing the embed, switching its calls off or pointing it
+at another agent ends the calls on it within a heartbeat. The frames are in [the
+API page](api.md#voice-calls).
+
+### The call socket
+
+`/api/v1/embed/{public_key}/voice/ws` speaks the same frames as the console's
+`/api/v1/ws/voice` ([API](api.md#voice-calls)). Admission follows the surface,
+as the chat socket's does. A **widget** is admitted by its allow-list and, in
+`jwt` mode, the customer's token in `?token=`. A **hosted page** is admitted by
+this deployment's own origin and the continuity key in `?visitor=`, and the call
+lands in the thread that key holds, so a dropped call can resume there. A **raw
+socket** has nothing to call from.
+
+The socket closes with `4029` past a rate limit and with `4003` for anything
+about the embed - unknown, paused, a raw socket, calls switched off, an origin
+it does not allow - without saying which. Everything after admission is the
+call's own refusal, sent as an `ended` frame with its reason.
+
+### What a call costs a public link
+
+Calls are inside the budgets: each is a run, metered on the agent's and the
+organization's budgets, and counted against the organization's monthly call
+minutes. On top of that, a public link has limits of its own:
+
+| Limit | Default | Counted |
+|---|---|---|
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | 3 | Call starts per address, and per visitor's token subject on a `jwt` widget |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | 6 | Call starts on one page or widget, from everybody together |
+| `VOICE_MAX_CALLS_PER_EMBED` | 3 | Calls open on one embed at once; the next caller is refused as `line_busy` |
+
+The embed's own `rate_limit_per_minute` counts **messages**, not call starts, so
+it does not bound calls. Start counters are spent before the key is looked up,
+so a refused start counts too. The `jwt` subject limit is a start rate, not a
+cap on open calls; the open calls are bounded with everybody's by the embed's.
+
+!!! danger "The worst case for a leaked link"
+
+    Three calls open at once, each at most the organization's longest call -
+    10 minutes by default, 50 at most - spends at most three call-minutes a
+    minute. At that rate the default 600 monthly minutes last at least three
+    hours and twenty minutes of abuse, and then every call in the organization,
+    members' included, is refused until the month turns. Pause the embed, lower
+    the organization's monthly minutes, or switch its calls off if that is too
+    much.
+
 ---
 
 ## The public API

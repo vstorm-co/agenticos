@@ -47,9 +47,13 @@ template-inherited subsystems have different coverage gates, described below.
   `DBSession`: its `scope="function"` commits after the route returns and before
   the response is written. A bare `Depends(get_db_session)` has different timing.
   The agent run paths in `AgentRunnerService._run` and `ChatAgentRunner.run`
-  explicitly commit before the model call and in terminal cleanup, and
-  `SessionService.detect_refresh_reuse` commits the security response its caller
-  is about to raise past. See `docs/architecture.md#the-requests-transaction`.
+  explicitly commit before the model call and in terminal cleanup;
+  `VoiceCallStarter.start` commits a call's row and its run before the call
+  connects and `VoiceCallSession` commits again in its teardown (per-turn
+  messages, heartbeats and approval writes use their own `get_db_context()`
+  sessions); and `SessionService.detect_refresh_reuse` commits the security
+  response its caller is about to raise past. See
+  `docs/architecture.md#the-requests-transaction`.
 - Dispatch background work needing rows written by the request with
   `spawn_after_commit`, so its own session can see those rows. See
   `docs/architecture.md#dispatching-background-work-from-a-request`.
@@ -216,6 +220,7 @@ retranslated is how a stale translation stops being visible.
 | Context files — standing knowledge bound to agents | `docs/context.md` |
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
+| Voice conversations: calls, realtime models, limits, hang-up | `docs/voice.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |
 | The desktop app: a Tauri shell around a deployment's console | `docs/desktop.md` |
 | Upload, parsing, ingestion | `docs/file-processing.md` |

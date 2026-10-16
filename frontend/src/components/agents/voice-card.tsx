@@ -1,9 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
 import { Info } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 
+import {
+  VoiceConversationFields,
+  type VoiceConversationProps,
+} from "@/components/agents/voice-conversation-fields";
 import { ChoiceGroup } from "@/components/settings/choice-group";
 import { SpeechKeyField, useSpeechKeyCheck } from "@/components/vault/speech-key-field";
 import {
@@ -20,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { useOrganizationList } from "@/hooks";
+import { useLanguageName } from "@/hooks/use-language-name";
 import { useSpeechToTextProviders, type SpeechToTextProvider } from "@/hooks/use-model-providers";
 import { useOrgStore } from "@/stores";
 import type { SpeechToTextSpec } from "@/types/agents";
@@ -29,10 +33,18 @@ const INHERIT = "inherit";
 
 type PairMode = "inherit" | "choose";
 
+/** The organization's longest call before its settings are read - the server's default. */
+const DEFAULT_MAX_CALL_SECONDS = 600;
+
 interface VoiceCardProps {
   value: SpeechToTextSpec | null | undefined;
   onChange: (next: SpeechToTextSpec | null) => void;
   disabled?: boolean;
+  /**
+   * The agent's voice conversations (#54), under the transcription settings.
+   * The organization's longest call is read here, beside its other settings.
+   */
+  conversation?: Omit<VoiceConversationProps, "disabled" | "orgMaxSeconds">;
 }
 
 /**
@@ -51,7 +63,7 @@ interface VoiceCardProps {
  * because the server stores it that way and the Builder compares the draft as
  * JSON: any other spelling would show as an unpublished change that is not one.
  */
-export function VoiceCard({ value, onChange, disabled }: VoiceCardProps) {
+export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCardProps) {
   const t = useTranslations("agents");
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { data: orgs } = useOrganizationList();
@@ -107,7 +119,7 @@ export function VoiceCard({ value, onChange, disabled }: VoiceCardProps) {
 
   return (
     // The anchor the composer's crossed-out microphone links to.
-    <Card id="agent-voice" className="scroll-mt-20">
+    <Card id="agent-voice" data-tour="agent-voice" className="scroll-mt-20">
       <CardHeader>
         <CardTitle>{t("voiceTitle")}</CardTitle>
         <CardDescription>{t("voiceDescription")}</CardDescription>
@@ -177,19 +189,24 @@ export function VoiceCard({ value, onChange, disabled }: VoiceCardProps) {
             </SelectContent>
           </Select>
         </FormField>
+        {conversation && (
+          <section
+            aria-labelledby="agent-voice-conversations"
+            className="border-border border-t pt-5"
+          >
+            <h3 id="agent-voice-conversations" className="mb-3 text-sm font-semibold">
+              {t("voiceConversationTitle")}
+            </h3>
+            <VoiceConversationFields
+              {...conversation}
+              orgMaxSeconds={org?.voice_max_call_seconds ?? DEFAULT_MAX_CALL_SECONDS}
+              disabled={disabled}
+            />
+          </section>
+        )}
       </CardContent>
     </Card>
   );
-}
-
-/** A language's name in the reader's own language, or its code where unnamed. */
-function useLanguageName(): (code: string) => string {
-  const locale = useLocale();
-  return useMemo(() => {
-    // `fallback: "code"` answers a code it cannot name with the code itself.
-    const names = new Intl.DisplayNames([locale], { type: "language", fallback: "code" });
-    return (code: string) => names.of(code)!;
-  }, [locale]);
 }
 
 interface NotesProps {

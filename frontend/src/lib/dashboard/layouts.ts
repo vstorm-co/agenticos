@@ -302,8 +302,11 @@ const DEFAULT_SECTIONS: SectionDef[] = [
       { widget: "outcomes", span: "s4", rows: "r3" },
       { widget: "surfaces", span: "s6", rows: "r3" },
       { widget: "agents", span: "s6", rows: "r3" },
-      { widget: "spend", span: "s6", rows: "r3" },
-      { widget: "model-mix", span: "s6", rows: "r3" },
+      // Three to a row: two s6 money cards beside an s6 voice card left a
+      // half-row gap, and each of the three reads at a third of the width.
+      { widget: "spend", span: "s4", rows: "r3" },
+      { widget: "voice-minutes", span: "s4", rows: "r3" },
+      { widget: "model-mix", span: "s4", rows: "r3" },
       // The heatmap takes a row to itself - it is seven rows by twenty-four,
       // and anything beside it is either dwarfed or forced to a height it has
       // no content for.

@@ -16,8 +16,10 @@ import pytest
 
 from app.services.embed_session import WIDGET_JS
 
-RENDERED = WIDGET_JS.replace("__PUBLIC_KEY__", "test-key").replace(
-    "__BASE_URL__", "https://api.example.test"
+RENDERED = (
+    WIDGET_JS.replace("__PUBLIC_KEY__", "test-key")
+    .replace("__BASE_URL__", "https://api.example.test")
+    .replace("__VOICE_VERSION__", "0123abcd")
 )
 
 
@@ -205,3 +207,27 @@ def test_reduced_motion_holds_the_level_still():
 
 def test_browser_mode_is_offered_only_where_the_browser_has_a_recogniser():
     assert 'if (mode === "browser" && !Recognition) return;' in RENDERED
+
+
+def test_the_call_script_is_fetched_only_for_an_embed_with_calls_on():
+    """`voice.js` is its own script so the bubble every visitor downloads stays
+    small (#54, Q8): requested when the panel opens, and only when the public
+    config offers calls."""
+    loader = RENDERED.split("function loadVoice")[1].split("function mount()")[0]
+    assert '"/api/v1/embed/" + KEY + "/voice.js?v=0123abcd"' in loader
+    assert "if (voiceRequested) return;" in loader
+    assert "window.AgenticOSVoice[KEY]" in loader
+    opening = RENDERED.split("launcher.onclick")[1].split("form.onsubmit")[0]
+    assert "if (open && config.voice_conversation) loadVoice(callParts);" in opening
+
+
+def test_a_failed_call_script_can_be_fetched_again():
+    loader = RENDERED.split("function loadVoice")[1].split("function mount()")[0]
+    assert "script.onerror = function () { voiceRequested = false; };" in loader
+
+
+def test_closing_the_panel_ends_a_call():
+    """A call with its End button hidden would go on billing out of sight."""
+    opening = RENDERED.split("launcher.onclick")[1].split("form.onsubmit")[0]
+    assert "if (!open && voiceCall) voiceCall.end();" in opening
+    assert "voiceCall = mountCall(parts, config)" in RENDERED

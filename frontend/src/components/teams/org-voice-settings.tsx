@@ -6,13 +6,13 @@ import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { SettingsSection } from "@/components/settings/settings-section";
+import { OrgVoiceConversations } from "@/components/teams/org-voice-conversations";
 import { OrgVoiceUsage } from "@/components/teams/org-voice-usage";
 import { SpeechKeyField, useSpeechKeyCheck } from "@/components/vault/speech-key-field";
 import {
   Alert,
   AlertDescription,
   AlertTitle,
-  Badge,
   Button,
   Input,
   Label,
@@ -89,8 +89,8 @@ function secondsOf(draft: Draft): number | null {
 }
 
 /**
- * How people in this organization talk to agents: dictation in the chat today,
- * voice conversations later.
+ * How people in this organization talk to agents: dictation in the chat, and
+ * voice conversations (#54, `OrgVoiceConversations`).
  *
  * Three engines, each saying where the audio goes, because that is the decision
  * an administrator is actually making - the browser vendor's speech service, or
@@ -299,7 +299,7 @@ function VoiceForm({ org }: { org: Organization }) {
             {t("voice.save")}
           </Button>
         </div>
-        <ComingSoon />
+        <OrgVoiceConversations org={org} />
       </SettingsSection>
     </div>
   );
@@ -644,20 +644,6 @@ function LengthField({ draft, failure, lengthInvalid, onChange }: FieldsProps) {
           {t("voice.maxLengthHint")}
         </p>
       )}
-    </div>
-  );
-}
-
-/** Where #54's voice conversations will be configured; nothing to set yet. */
-function ComingSoon() {
-  const t = useTranslations("teams");
-  return (
-    <div aria-disabled="true" className="border-border mt-6 border-t pt-5 opacity-60">
-      <h3 className="flex items-center gap-2 text-sm font-semibold">
-        {t("voice.conversationsTitle")}
-        <Badge variant="secondary">{t("voice.comingSoon")}</Badge>
-      </h3>
-      <p className="text-muted-foreground mt-0.5 text-sm">{t("voice.conversationsDescription")}</p>
     </div>
   );
 }

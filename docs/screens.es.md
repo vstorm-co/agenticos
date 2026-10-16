@@ -1,5 +1,5 @@
 ---
-source_sha: "760ca1f20862"
+source_sha: "8f6d065f4a25"
 ---
 
 # Todas las pantallas de la consola { #every-screen-in-the-console }
@@ -25,6 +25,12 @@ Widgets que puedes ordenar, primero todo el despliegue y después esta organizac
 El agent pensando, y después los comandos de shell que realmente ejecutó en la sandbox, cada uno desplegable. Aquí la transparencia es el producto: lo que hizo una herramienta está en pantalla, no en un log que pueda leer otra persona.
 
 > **Captura pendiente — Chat, a mitad de run.**
+
+### Una llamada de voz { #a-voice-call }
+
+El composer convertido en barra de llamada: lo que está haciendo la llamada, su tiempo frente al límite, una forma de onda de las dos voces, silenciar, push-to-talk y End. La conversación sigue por encima: subtítulos dentro del mensaje que se está diciendo, las herramientas que se ejecutan y una tarjeta de aprobación con los argumentos exactos y lo que se te oyó decir.
+
+> **Captura pendiente — Una llamada de voz.**
 
 ## Construir un agent { #building-an-agent }
 

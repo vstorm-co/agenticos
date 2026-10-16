@@ -19,6 +19,22 @@ function resampleAll(fromRate: number, chunks: Float32Array[]): number[] {
   return chunks.flatMap((chunk) => Array.from(resample(chunk)));
 }
 
+describe("createResampler's target rate", () => {
+  it("resamples 48 kHz to 24 kHz for a relay, keeping the 16 kHz default for dictation", () => {
+    expect(createResampler(48_000, 24_000)(new Float32Array(480))).toHaveLength(240);
+    expect(createResampler(48_000)(new Float32Array(480))).toHaveLength(160);
+  });
+
+  it("upsamples a 16 kHz context to a 24 kHz model by holding samples, at the right length", () => {
+    const resample = createResampler(16_000, 24_000);
+    const first = resample(Float32Array.from({ length: 160 }, (_, i) => i));
+    const second = resample(new Float32Array(160));
+    expect(first).toHaveLength(240);
+    expect(second).toHaveLength(240);
+    expect(Array.from(first.slice(0, 4))).toEqual([0, 0, 1, 2]);
+  });
+});
+
 describe("mixToMono", () => {
   it("averages the channels into one, sample by sample", () => {
     const left = Float32Array.from([1, 0.5, -1]);

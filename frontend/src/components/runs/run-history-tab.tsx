@@ -156,6 +156,7 @@ export function RunHistoryTab({
           ? PROBLEM_STATUSES
           : [filters.status],
     surface: filters.surface === "all" ? undefined : filters.surface,
+    modality: filters.modality === "all" ? undefined : filters.modality,
     modelLabel: filters.model === "all" ? undefined : filters.model,
     userId: filters.userId === "all" ? undefined : filters.userId,
     agentVersionId: filters.versionId === "all" ? undefined : filters.versionId,
@@ -179,6 +180,7 @@ export function RunHistoryTab({
       filters.status === "problems" ? PROBLEM_STATUSES.join(",") : filters.status;
   }
   if (filters.surface !== "all") exportParams.surface = filters.surface;
+  if (filters.modality !== "all") exportParams.modality = filters.modality;
   if (filters.model !== "all") exportParams.model_label = filters.model;
   if (filters.rated !== "all") exportParams.rated = filters.rated;
   if (filters.userId !== "all") exportParams.user_id = filters.userId;

@@ -1,5 +1,5 @@
 ---
-source_sha: "1d9bfa9904d4"
+source_sha: "bac8a98baeb9"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -835,6 +835,113 @@ strony, na której działa widget, więc strona wysyłająca
 `Permissions-Policy: microphone=()`, `<iframe>` bez `allow="microphone"` albo
 zwykły HTTP go blokuje. Widget mówi to pod swoim polem, zamiast zawodzić po
 cichu.
+
+## Rozmowy głosowe w widgecie lub na hostowanej stronie { #voice-calls-on-a-widget-or-a-hosted-page }
+
+Widget i hostowana strona mają każde przełącznik **Rozmowy głosowe (Voice
+calls)** (`voice_conversation`), domyślnie wyłączony i niezależny od dyktowania.
+Gdy jest włączony, odwiedzający mogą prowadzić z agentem
+[rozmowę głosową](voice.md): tę samą rozmowę, którą członek prowadzi z `/chat`,
+z tymi samymi limitami, uruchamianą w kontekście publikującego i zapisywaną
+z powierzchnią `embed`.
+
+**Włączenie go jest odrzucane**, dopóki przełącznik głosu organizacji jest
+wyłączony albo agent nie ma sekcji głosu, z którą można prowadzić rozmowę.
+Sprawdzane jest tylko samo przełączenie, więc embed, którego agent później
+straci głos, nadal można edytować. Dopóki rozmowa by się nie rozpoczęła,
+publiczna konfiguracja mówi `voice_conversation: false`, a odwiedzającym nie
+jest proponowana żadna rozmowa; gdy by się rozpoczęła, konfiguracja podaje też,
+jakiego transportu rozmowa używa (`voice_transport`).
+
+**Na hostowanej stronie** w polu wiadomości pojawia się przycisk rozmowy,
+a sama rozmowa toczy się w tym samym [pasku rozmowy](console.md#voice-calls) co
+w konsoli: stan, czas na tle limitu rozmowy, wykres fali dźwiękowej, wyciszenie,
+„naciśnij, aby mówić” i Zakończ, a napisy pojawiają się w wypowiadanej właśnie
+wiadomości. Pasek ma tylko to, czego potrzebuje odwiedzający: nie ma obsługi
+zatwierdzeń ani licznika minut organizacji, a zakończenia i odmowy są opisane
+słowami zrozumiałymi dla odwiedzającego. Każda zapisana tura trafia do wątku
+strony, więc odwiedzający może dalej pisać; **Nowy czat (New chat)** rozłącza
+rozmowę.
+
+**W widgecie** rozmowa to osobny skrypt, `voice.js`, pobierany dopiero wtedy,
+gdy odwiedzający pierwszy raz otworzy panel, i tylko wtedy, gdy publiczna
+konfiguracja oferuje rozmowy - dzięki temu skrypt, który pobiera każdy
+odwiedzający, pozostaje mały. Jest serwowany pod
+`/api/v1/embed/{public_key}/voice.js` na liczniku skryptu widgetu, a jego URL zawiera hash skryptu, więc kopia z pamięci podręcznej nigdy
+nie trafi do nowszego widgetu.
+
+Wiersz wpisywania w widgecie zamienia się w okrojony pasek rozmowy - wskaźnik
+poziomu w kolorze akcentu widgetu, stan, czas na tle limitu, Wycisz i Zakończ -
+bez „naciśnij, aby mówić” i bez karty zatwierdzenia. Napisy pojawiają się na
+liście wiadomości i ustępują miejsca zapisanym turom, a odmowa, limit albo zajęta
+linia wyświetla się jako jeden wiersz pod paskiem. Zakończ, zamknięcie panelu,
+opuszczenie strony albo połączenie, którego nie udało się nawiązać, kończy
+rozmowę i zwalnia mikrofon, dźwięk i połączenie; połączenie zerwane w trakcie
+rozmowy jest ponawiane raz, w ciągu ośmiu sekund. Teksty rozmowy w widgecie są
+po angielsku, tak jak reszta widgetu.
+
+**Odwiedzający nie może niczego zatwierdzić.** Narzędzia wymagające
+zatwierdzenia są całkowicie pomijane w rozmowie odwiedzającego, więc agent nigdy
+po nie nie sięga; mówi wprost, gdy czegoś nie może tam zrobić. Rozmowa dostaje
+też notatkę o umiejscowieniu embeda i zadeklarowane zmienne strony, dokładnie
+tak jak wpisana wiadomość, więc agent zachowuje się w obu przypadkach tak samo.
+
+**Odwiedzający dowiaduje się tylko tego, czego potrzebuje.** Przełączniki z
+sekcji [co odwiedzający widzi z tej pracy](#what-the-visitor-sees-of-the-work)
+filtrują ramki rozmowy tak, jak filtrują pisane odpowiedzi: bez *Co agent robi*
+odwiedzający nie dowiaduje się, że narzędzie zadziałało, a bez *Co zwrócił każdy
+krok* krok nie niesie tego, z czym narzędzie zostało wywołane ani co wróciło.
+Limit, który widzi odwiedzający, to własny limit rozmowy, nigdy pozostałe minuty
+organizacji, a odmowa dotycząca konfiguracji, ceny, minut albo budżetu operatora
+mówi tylko, że rozmowy nie są teraz dostępne. Wstrzymanie embeda, wyłączenie
+jego rozmów albo skierowanie go na innego agenta kończy toczące się na nim
+rozmowy w ciągu jednego heartbeatu. Ramki są opisane na [stronie
+API](api.md#voice-calls).
+
+### Socket rozmowy { #the-call-socket }
+
+`/api/v1/embed/{public_key}/voice/ws` mówi tymi samymi ramkami co konsolowy
+`/api/v1/ws/voice` ([API](api.md#voice-calls)). Wpuszczanie zależy od
+powierzchni, tak jak w sockecie czatu. **Widget** jest wpuszczany według swojej
+listy dozwolonych, a w trybie `jwt` według tokena klienta w `?token=`.
+**Hostowana strona** jest wpuszczana według własnego originu tego deploymentu
+i klucza ciągłości w `?visitor=`, a rozmowa ląduje w wątku, który ten klucz
+trzyma, więc przerwaną rozmowę można tam wznowić. **Surowy socket** nie ma
+z czego dzwonić.
+
+Socket zamyka się z kodem `4029` po przekroczeniu rate limitu i z `4003` przy
+wszystkim, co dotyczy embeda — nieznany, zapauzowany, surowy socket, rozmowy
+wyłączone, origin, na który nie pozwala — bez mówienia, co dokładnie. Wszystko
+po wpuszczeniu to już odmowa samej rozmowy, wysyłana jako ramka `ended`
+z powodem.
+
+### Ile rozmowa kosztuje publiczny link { #what-a-call-costs-a-public-link }
+
+Rozmowy mieszczą się w budżetach: każda jest runem, liczonym w budżecie agenta
+i organizacji, i wliczanym do miesięcznych minut rozmów organizacji. Do tego
+publiczny link ma własne limity:
+
+| Limit | Domyślnie | Co jest liczone |
+|---|---|---|
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | 3 | Rozpoczęcia rozmów na adres, a w widgecie `jwt` także na subject tokena odwiedzającego |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | 6 | Rozpoczęcia rozmów na jednej stronie albo w jednym widgecie, od wszystkich razem |
+| `VOICE_MAX_CALLS_PER_EMBED` | 3 | Rozmowy otwarte jednocześnie w jednym embedzie; następny dzwoniący jest odrzucany jako `line_busy` |
+
+Własny `rate_limit_per_minute` embeda liczy **wiadomości**, a nie rozpoczęcia
+rozmów, więc nie ogranicza rozmów. Liczniki rozpoczęć są zużywane, zanim klucz
+zostanie odnaleziony, więc odrzucone rozpoczęcie też się liczy. Limit na subject
+`jwt` to tempo rozpoczęć, a nie limit otwartych rozmów; otwarte rozmowy
+ogranicza, razem z rozmowami wszystkich, limit embeda.
+
+!!! danger "Najgorszy przypadek dla wyciekniętego linku"
+
+    Trzy rozmowy otwarte jednocześnie, każda co najwyżej tak długa jak
+    najdłuższa rozmowa organizacji — domyślnie 10 minut, najwyżej 50 — zużywają
+    najwyżej trzy minuty rozmów na minutę. W tym tempie domyślne 600 minut
+    miesięcznie wystarczy na co najmniej trzy godziny i dwadzieścia minut
+    nadużycia, a potem każda rozmowa w organizacji, łącznie z rozmowami
+    członków, jest odrzucana do końca miesiąca. Zapauzuj embed, obniż
+    miesięczne minuty organizacji albo wyłącz jej rozmowy, jeśli to za dużo.
 
 ---
 

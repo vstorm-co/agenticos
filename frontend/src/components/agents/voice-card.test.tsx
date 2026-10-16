@@ -7,6 +7,7 @@ import type { SpeechToTextSpec } from "@/types/agents";
 
 interface Org {
   id: string;
+  voice_max_call_seconds?: number;
   chat_dictation: "off" | "browser" | "server";
   speech_to_text_provider: string | null;
   speech_to_text_model: string | null;
@@ -46,6 +47,13 @@ vi.mock("@/components/vault/speech-key-field", () => ({
       </button>
     );
   },
+}));
+vi.mock("./voice-conversation-fields", () => ({
+  VoiceConversationFields: (props: { orgMaxSeconds: number; disabled?: boolean }) => (
+    <p data-testid="voice-conversation-fields">
+      {`max ${props.orgMaxSeconds} disabled ${String(props.disabled)}`}
+    </p>
+  ),
 }));
 vi.mock("@/stores", () => ({
   useOrgStore: (select: (s: { activeOrgId: string }) => unknown) =>
@@ -309,5 +317,34 @@ describe("the agent's Voice card", () => {
 
     expect(screen.getByRole("radio", { name: "Choose" })).toBeDisabled();
     expect(screen.getByLabelText("Language")).toBeDisabled();
+  });
+
+  describe("voice conversations", () => {
+    const conversation = {
+      value: null,
+      onChange: vi.fn(),
+      capabilityIds: [],
+      hasGuardrails: false,
+    };
+
+    it("are not shown where the page does not ask for them", () => {
+      mount();
+      expect(screen.queryByRole("heading", { name: "Voice conversations" })).toBeNull();
+    });
+
+    it("sit under the transcription settings, capped at the organization's longest call", () => {
+      state.org = { ...state.org!, voice_max_call_seconds: 900 };
+      render(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} disabled />);
+      expect(screen.getByRole("heading", { name: "Voice conversations" })).toBeInTheDocument();
+      expect(screen.getByTestId("voice-conversation-fields")).toHaveTextContent(
+        "max 900 disabled true",
+      );
+    });
+
+    it("use the server's default cap before the organization is read", () => {
+      state.org = null;
+      render(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} />);
+      expect(screen.getByTestId("voice-conversation-fields")).toHaveTextContent("max 600");
+    });
   });
 });

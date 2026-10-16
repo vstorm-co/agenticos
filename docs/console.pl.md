@@ -1,5 +1,5 @@
 ---
-source_sha: "f997129511b8"
+source_sha: "2943c67ea645"
 ---
 
 # Konsola { #the-console }
@@ -17,7 +17,7 @@ nie ma przewodnika do odtworzenia.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje trzydzieści sześć kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje trzydzieści osiem kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -31,7 +31,7 @@ Karty przychodzą pogrupowane w pasy:
 | *(bez tytułu, na górze)* | Podsumowanie, którego szczegółem jest reszta strony |
 | **Deployment** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
 | **Attention** | Co czeka: [zatwierdzenia](governance.md#approvals), ostatnie błędy, zapas w budżecie, kondycja MCP, nieaktualna wiedza, twoje najnowsze [powiadomienia](#the-bell) |
-| **Usage** | Runy, wyniki, powierzchnie, opóźnienia, wydatki, miks modeli, porównanie wersji |
+| **Usage** | Runy, wyniki, powierzchnie, opóźnienia, wydatki, [minuty rozmów](#voice-calls), miks modeli, porównanie wersji |
 | **People** | Członkowie, aktywni użytkownicy, oceny, kto co robi |
 | **Sandboxes** | [Pojemność, żywe sesje, polityka](sandbox.md) |
 | **Workspace** | Twoje: twoje agenty, twoje rozmowy, twoja aktywność, co zostało ci udostępnione |
@@ -220,8 +220,7 @@ albo klucz usunięto lub uczyniono prywatnym — karta to mówi i prosi o
 **wybranie klucza**, gdy to jego brakuje, bo każdy członek widzi wtedy
 przekreślony mikrofon.
 
-Server bez domyślnego providera to ustawienie, a nie usterka: karta zaznacza, że dyktować mogą tylko agenty z własnym providerem. **Rozmowy głosowe (Voice conversations)**, pod nią, nie jest jeszcze
-zbudowane.
+Server bez domyślnego providera to ustawienie, a nie usterka: karta zaznacza, że dyktować mogą tylko agenty z własnym providerem. **Rozmowy głosowe (Voice conversations)**, pod nią, zawiera ustawienia rozmów organizacji — zobacz [Rozmowy głosowe](#voice-calls).
 
 Komuś, kto ma także `runs:view`, karta zaczyna się jedną linijką o tym, ile
 organizacja przetranskrybowała w ostatnich 30 dniach — „42 min · 118 nagrań (30
@@ -252,6 +251,91 @@ Karta mówi, kiedy nadpisanie zmienia mniej, niż się wydaje: gdy silnik
 organizacji jest na Off albo Browser, dociera tylko do wiadomości głosowych z
 kanałów, a gdy organizacja nie ma providera, to na nim działa dyktowanie do tego
 agenta.
+
+### Rozmowy głosowe { #voice-calls }
+
+[Rozmowa głosowa](voice.md) to mówiona rozmowa z opublikowanym agentem: ty
+mówisz, on odpowiada na głos, a ty możesz mu przerwać. Konfigurują ją trzy
+miejsca w konsoli.
+
+- **Karta Głos (Voice) organizacji**, w sekcji **Rozmowy głosowe (Voice
+  conversations)**: **Zezwalaj na rozmowy głosowe (Allow voice conversations)**
+  (domyślnie wyłączone), **Oferuj rozmowy w czacie (Offer calls in chat)**,
+  **Najdłuższa rozmowa (minuty) (Longest call (minutes))**, od 1 do 50, oraz
+  **Miesięczne minuty rozmów (Monthly call minutes)** albo brak miesięcznego
+  limitu, by polegać tylko na budżetach. Pierwsze trzy wymagają `org:settings`;
+  minuty wymagają `budgets:manage`, a dla wszystkich innych są tylko do odczytu.
+  Posiadacz `runs:view` widzi też, ile minut z tego miesiąca zużyły rozmowy.
+- **Karta Głos (Voice) agenta**, w sekcji **Rozmowy głosowe (Voice
+  conversations)**: **Odbieraj rozmowy głosowe (Take voice calls)**, potem
+  provider i model rozmów (dla Azure nazwa wdrożenia i jej model bazowy), klucz,
+  głos, język mówiony (albo **Jak osoba dzwoniąca (Follow the caller)**),
+  najdłuższa rozmowa i uwagi do głosu. Karta wymienia, czego agent nie może
+  używać w rozmowach, mówi, że guardraile nie mogą odfiltrować wypowiedzianych
+  słów, zanim zostaną usłyszane, i że rozmowy są zapisywane jako tekst, bez
+  przechowywania dźwięku. Działa, gdy agent zostanie opublikowany.
+- **Przełącznik Rozmowy głosowe (Voice calls) embeda**, w formularzach widgetu
+  i hostowanej strony — zobacz
+  [Kanały](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+
+Zanim zaproponuje rozmowę, konsola pyta, czy ten agent może ją odebrać
+(`GET /agents/{id}/voice`), żeby nikt nie udzielał dostępu do mikrofonu tylko
+po to, by zostać odrzuconym. Odpowiedź mówi, czego brakuje: rozmowy wyłączone
+w organizacji albo w czacie, brak głosu skonfigurowanego u agenta, model, który
+nie jest już oferowany, brak klucza albo brak minut w tym miesiącu.
+
+**Przycisk rozmowy** jest w kompozytorze czatu, obok mikrofonu. Gdy rozmowy są
+wyłączone w organizacji albo w czacie, w ogóle go nie ma. Gdy ten agent nie może
+odebrać rozmowy, przycisk jest przekreślony, a po najechaniu na niego, ustawieniu
+na nim fokusu albo kliknięciu wyjaśnia dlaczego - a jeśli możesz skonfigurować
+rozmowy, także gdzie to zrobić.
+
+W trakcie rozmowy kompozytor zamienia się w **pasek rozmowy**: co się teraz
+dzieje w rozmowie, jej czas na tle limitu rozmowy i minut, które zostały w tym
+miesiącu, wykres fali dźwiękowej obu głosów, „naciśnij, aby mówić”, wyciszenie
+i **Zakończ (End)**. Z przycisków paska rozmowę kończy tylko Zakończ; rozłącza ją
+też otwarcie innej konwersacji albo nowego czatu. Domyślnie mówi się bez użycia
+rąk; **naciśnij, aby mówić (push-to-talk)** (przytrzymaj przycisk albo spację)
+to wybór zapamiętywany w twojej przeglądarce. Przy ograniczonym ruchu (reduced
+motion) zamiast wykresu fali pojawia się schodkowy wskaźnik poziomu.
+
+Rozmowa przechodzi przez stany, które pasek nazywa: łączenie, słuchanie, ty
+mówisz, myślenie, agent mówi, przerwano, praca nad narzędziem, oczekiwanie na
+twoje zatwierdzenie, zatwierdzenie, którego nie możesz udzielić, czas prawie się
+skończył i zakończona — przez ciebie, przez limit, zerwane połączenie albo błąd.
+
+Rozmowa toczy się w konwersacji: napisy pojawiają się słowo po słowie
+w wypowiadanej właśnie wiadomości, czytnik ekranu odczytuje każdą linię, gdy
+jest już ostateczna, a każda zakończona tura ustępuje miejsca wiadomości
+zapisanej w konwersacji, więc rozmowa zostaje potem w twojej historii i możesz
+dalej pisać. Gdy agent myśli albo uruchamia narzędzie, konwersacja pokazuje to
+tam, gdzie pojawi się jego odpowiedź.
+
+**Zatwierdzenia** są rozstrzygane w rozmowie: karta w konwersacji pokazuje
+narzędzie, jego dokładne argumenty i to, co według transkrypcji powiedziałeś,
+z 60-sekundowym odliczaniem. Decydują tylko jej przyciski; powiedzenie „tak”
+niczego nie zatwierdza. Bez `approvals:decide` karta informuje, że narzędzie
+wymaga zatwierdzenia, którego nie możesz udzielić głosem, i proponuje zakończyć
+rozmowę i pisać dalej. **Limity** są wypowiadane: minutę przed końcem
+najdłuższej rozmowy dostajesz ostrzeżenie, a gdy skończy się czas, budżet albo
+minuty miesiąca, agent mówi jedno zdanie i rozmowa się kończy.
+
+Pod paskiem rozmowy **wiersz z komunikatem** wskazuje to, co wymaga twojej
+uwagi: prośbę przeglądarki o dostęp do mikrofonu, zatwierdzenie czekające wyżej
+(z przyciskiem **Pokaż kartę (Show card)**), ostatnią minutę, limit kończący
+rozmowę, ponowne łączenie albo to, jak działa „naciśnij, aby mówić”. Po
+zakończeniu rozmowy karta w konwersacji podaje, jak długo trwała i ile tur
+zapisano, albo który limit ją zakończył, i ma przycisk **Zadzwoń ponownie (Call
+again)**. Gdy rozmowa w ogóle się nie rozpoczęła, pod kompozytorem pojawia się
+powód i przycisk **Spróbuj ponownie (Try again)**.
+
+W **Aktywności (Activity)** rozmowa to jeden wiersz z plakietką mikrofonu, a
+filtr rodzaju (**Tekst (Text)** albo **Rozmowy głosowe (Voice calls)**) zawęża
+listę do rozmów; rozmowa, która połączyła się ponownie, to nadal jeden wiersz,
+z czasem i kosztem wszystkich połączeń zsumowanymi. Karta dashboardu **Minuty
+rozmów (Voice minutes)**, w pasie Usage dla posiadacza `runs:view`, pokazuje
+minuty i liczbę rozmów w okresie, trzech najaktywniejszych agentów i minuty
+w tym miesiącu wobec limitu organizacji.
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 
@@ -290,7 +374,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **trzydzieści sześć widgetów**, które układasz sam, zapisywanych
+- Dashboard to **trzydzieści osiem widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

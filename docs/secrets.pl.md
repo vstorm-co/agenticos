@@ -1,5 +1,5 @@
 ---
-source_sha: "7bd19927933a"
+source_sha: "e0744f5a3d70"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -165,6 +165,22 @@ klucz agenta podlega regule pożyczania — publikujący musi go widzieć.
 klucz, z którym ją wysłano. Zobacz
 [do którego silnika trafia nagranie](ml-services.md#which-engine-a-recording-reaches).
 Lista agentów używających klucza nie pokazuje tego użycia.
+
+**Rozmowy głosowe.** Klucz, z którym prowadzona jest
+[rozmowa głosowa](voice.md), jest wskazany na karcie Głos (Voice) agenta, obok
+providera i modelu realtime. Jego przeznaczeniem musi być ten provider, a jego
+rodzajem rodzaj tego providera: `api_key` albo, dla Azure, sekret
+`azure_openai`, który niesie też endpoint i wersję API. Podlega regule
+pożyczania — publikujący musi go widzieć — i nic nie wyszukuje klucza w czasie
+działania. Klucz jest odpieczętowywany, by otworzyć rozmowę, i nigdy nie trafia
+do przeglądarki: serwer odpowiada na ofertę WebRTC i żaden sekret klienta nie
+jest wydawany.
+
+Aby rozłączyć rozmowę, której proces padł, sprzątanie rozmów głosowych czyta go
+przez `OrganizationSecretService.voice_call_key`, czytnik, którego tekst jawny
+trafia do endpointu rozłączania providera i nigdzie indziej. Wiersz rozmowy
+przechowuje tylko identyfikator klucza, a usunięty klucz sprawia, że agent nie
+może odbierać rozmów, dopóki nie zostanie wybrany inny.
 
 **Capabilities.** Capability deklaruje, że potrzebuje poświadczenia danego
 *rodzaju* — nigdy konkretnej instancji. Kod mówi „potrzebuję klucza API";

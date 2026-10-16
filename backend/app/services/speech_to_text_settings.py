@@ -43,21 +43,19 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import SpeechToTextSpec
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext
 from app.core.secret_kinds import SecretKind
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.organization import Organization
-from app.db.models.resource_grant import Visibility
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
     agent_repo,
-    organization_secret_repo,
 )
 from app.repositories import organization as organization_repo
-from app.services.access import SECRET, resolve_access
+from app.services import provider_keys
 
 PairSource = Literal["bot", "agent", "organization"]
 LanguageSource = Literal["agent", "organization"]
@@ -225,39 +223,19 @@ class SpeechToTextSettingsService:
 
         The one check every level saves through - the organization's settings,
         a channel bot, an agent's publish, a caller of the ML API - so the rules
-        cannot drift apart between them:
-
-        - the key is in this organization's vault. With `ctx`, the caller must
-          also be able to view it: an agent's key is lent to everyone who can
-          run the agent, so the publisher has to be able to reach it, as with
-          every other key a spec names. A key they cannot view reads like one
-          that does not exist, so a refusal cannot enumerate the vault.
-        - without `ctx`, the key is organization-visible. The organization's
-          default and a bot's key are spent by the platform for everybody, and
-          a member's private key must not pay for that - the rule
-          `github_oauth_app` follows.
-        - it is an API key, and its purpose is the provider: a key sent to a
-          service it was not issued by is refused there, and is somebody's
-          credential in somebody else's logs.
+        cannot drift apart between them. The rules themselves are
+        `provider_keys.key_problem`'s, shared with voice conversations; here the
+        key must be an API key.
         """
-        row = await organization_secret_repo.get(
-            self.db, secret_id, organization_id=organization_id
+        return await provider_keys.key_problem(
+            self.db,
+            secret_id,
+            organization_id=organization_id,
+            provider=provider,
+            kind=SecretKind.API_KEY,
+            feature="speech to text",
+            ctx=ctx,
         )
-        if row is None or (
-            ctx is not None
-            and not await resolve_access(self.db, ctx, row, Perm.SECRETS_VIEW, resource_type=SECRET)
-        ):
-            return "That key is not in this organization's vault"
-        if ctx is None and row.visibility != Visibility.ORG.value:
-            return (
-                f"'{row.name}' is not visible to the whole organization. A key used here "
-                "is spent for everybody, so only an organization-wide key can be chosen"
-            )
-        if row.kind != SecretKind.API_KEY.value:
-            return f"'{row.name}' holds a {row.kind}, and speech to text needs an API key"
-        if row.purpose != provider:
-            return f"'{row.name}' is a key for {row.purpose}, and this transcribes on {provider}"
-        return None
 
     async def _organization(self, organization_id: UUID) -> Organization | None:
         return await organization_repo.get_by_id(self.db, organization_id)

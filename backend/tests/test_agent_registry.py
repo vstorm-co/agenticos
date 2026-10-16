@@ -15,6 +15,7 @@ the run history keeps saying what was actually live at the time.
 """
 
 import uuid
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -30,6 +31,7 @@ from app.agents.spec import (
     OrgMcpServerRef,
     PersonalMcpServerRef,
     SpecialistSpec,
+    VoiceSpec,
 )
 from app.core.config import settings
 from app.core.exceptions import (
@@ -1917,6 +1919,157 @@ class TestSpeechToTextRefusedAtPublish:
         """The organization's provider, this agent's language - the Polish agent
         in an English organization the issue describes."""
         assert await self._problems(language="pl") == []
+
+
+class TestVoiceProblems:
+    """The agent's Voice conversations section, refused at publish (#54)."""
+
+    @pytest.mark.anyio
+    async def test_a_provider_without_realtime_models_is_refused(self, service, ctx):
+        problems = await service._voice_problems(
+            ctx, VoiceSpec(provider="anthropic", model="claude", secret_id=uuid4())
+        )
+        assert problems == ["Voice: anthropic cannot hold voice conversations on this deployment"]
+
+    @pytest.fixture
+    def service(self) -> AgentRegistryService:
+        return AgentRegistryService(_db())
+
+    @pytest.fixture
+    def ctx(self) -> AuthContext:
+        return _ctx()
+
+    @pytest.fixture
+    def keys_pass(self, monkeypatch):
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.provider_keys.key_problem", AsyncMock(return_value=None)
+        )
+
+    @pytest.mark.anyio
+    async def test_a_model_outside_the_realtime_catalog_is_refused(self, service, ctx):
+        problems = await service._voice_problems(
+            ctx, VoiceSpec(provider="openai", model="gpt-4o", secret_id=uuid4(), voice="marin")
+        )
+        assert problems == [
+            "Voice: 'gpt-4o' is not a realtime model this deployment offers for openai"
+        ]
+
+    @pytest.mark.anyio
+    @pytest.mark.usefixtures("keys_pass")
+    async def test_a_voice_the_model_does_not_have_is_refused(self, service, ctx):
+        problems = await service._voice_problems(
+            ctx, VoiceSpec(provider="openai", model="gpt-realtime", secret_id=uuid4(), voice="Puck")
+        )
+        assert problems == ["Voice: gpt-realtime has no voice called 'Puck'"]
+
+    @pytest.mark.anyio
+    async def test_a_pair_without_a_key_is_refused(self, service, ctx):
+        problems = await service._voice_problems(
+            ctx, VoiceSpec(provider="openai", model="gpt-realtime")
+        )
+        assert problems == ["Voice: choose a key for openai to hold calls with"]
+
+    @pytest.mark.anyio
+    @pytest.mark.usefixtures("keys_pass")
+    async def test_azure_needs_a_deployment_and_a_base_model(self, service, ctx):
+        problems = await service._voice_problems(
+            ctx, VoiceSpec(provider="azure", base_model="gpt-realtime", secret_id=uuid4())
+        )
+        assert "Voice: name the Azure deployment that runs gpt-realtime" in problems
+
+    @pytest.mark.anyio
+    async def test_a_key_of_the_wrong_kind_is_refused_by_the_shared_check(
+        self, service, ctx, monkeypatch
+    ):
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.provider_keys.key_problem",
+            AsyncMock(
+                return_value="'Prod' holds a api_key, and an Azure OpenAI key is required for voice conversations"
+            ),
+        )
+        problems = await service._voice_problems(
+            ctx,
+            VoiceSpec(
+                provider="azure", deployment="rt-prod", base_model="gpt-realtime", secret_id=uuid4()
+            ),
+        )
+        assert problems == [
+            "Voice: 'Prod' holds a api_key, and an Azure OpenAI key is required for voice conversations"
+        ]
+
+    @pytest.mark.anyio
+    @pytest.mark.usefixtures("keys_pass")
+    async def test_a_call_longer_than_the_organization_allows_is_refused(
+        self, service, ctx, monkeypatch
+    ):
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.organization_repo.get_by_id",
+            AsyncMock(return_value=SimpleNamespace(voice_max_call_seconds=600)),
+        )
+        problems = await service._voice_problems(
+            ctx,
+            VoiceSpec(
+                provider="openai", model="gpt-realtime", secret_id=uuid4(), max_call_seconds=900
+            ),
+        )
+        assert problems == [
+            "Voice: the longest call is 900 s, and this organization allows at most 600 s"
+        ]
+
+
+class TestVoiceProblemsAtTheEdges:
+    """The rest of the Voice section's publish refusals (#54)."""
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("block", "expected"),
+        [
+            ({}, ["Voice: choose a provider and a model, or remove the voice section"]),
+            (
+                {"provider": "anthropic"},
+                ["Voice: anthropic cannot hold voice conversations on this deployment"],
+            ),
+            ({"provider": "openai"}, ["Voice: choose a model for openai"]),
+        ],
+    )
+    async def test_a_half_chosen_or_unknown_provider_is_refused(self, block, expected):
+        assert (
+            await AgentRegistryService(_db())._voice_problems(_ctx(), VoiceSpec(**block))
+            == expected
+        )
+
+    @pytest.mark.anyio
+    async def test_a_language_calls_do_not_accept_is_refused(self, monkeypatch):
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.provider_keys.key_problem", AsyncMock(return_value=None)
+        )
+        problems = await AgentRegistryService(_db())._voice_problems(
+            _ctx(),
+            VoiceSpec(provider="openai", model="gpt-realtime", secret_id=uuid4(), language="xx"),
+        )
+        assert problems == ["Voice: 'xx' is not a language code calls accept"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("organization", "seconds"),
+        [(None, 3000), (SimpleNamespace(voice_max_call_seconds=600), 600)],
+    )
+    async def test_a_call_within_the_organizations_longest_passes(
+        self, monkeypatch, organization, seconds
+    ):
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.provider_keys.key_problem", AsyncMock(return_value=None)
+        )
+        monkeypatch.setattr(
+            f"{REGISTRY_PATH}.organization_repo.get_by_id", AsyncMock(return_value=organization)
+        )
+        problems = await AgentRegistryService(_db())._voice_problems(
+            _ctx(),
+            VoiceSpec(
+                provider="openai", model="gpt-realtime", secret_id=uuid4(), max_call_seconds=seconds
+            ),
+        )
+        assert problems == []
 
 
 class TestSkillValidation:

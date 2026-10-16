@@ -99,6 +99,29 @@ export interface SpeechToTextSpec {
   secret_id: string | null;
 }
 
+/**
+ * How an agent holds a spoken conversation (#54): a pick from the realtime
+ * catalog and the vault key it is held with. Azure names a `deployment` (free
+ * text) and the catalog `base_model` it runs; every other provider names a
+ * `model`. Written with all nine keys, in this order, and an all-null block is
+ * written as `null`, like `SpeechToTextSpec`.
+ */
+export interface VoiceSpec {
+  provider: string | null;
+  model: string | null;
+  deployment: string | null;
+  base_model: string | null;
+  secret_id: string | null;
+  /** One of the model's voices; null is its default. */
+  voice: string | null;
+  /** ISO-639-1; null follows the caller. */
+  language: string | null;
+  /** The longest call (60-3000 s); null is the organization's. */
+  max_call_seconds: number | null;
+  /** Extra spoken-style guidance appended in calls. */
+  voice_note: string | null;
+}
+
 /** The agent's half of the two budget levels; the organization's cap is the other. */
 export interface BudgetSpec {
   monthly_usd?: number | null;
@@ -325,6 +348,8 @@ export interface AgentSpec {
   observability?: ObservabilitySpec | null;
   /** Optional here and in `create`; the server answers with `null` for none. */
   speech_to_text?: SpeechToTextSpec | null;
+  /** Optional here and in `create`; the server answers with `null` for none. */
+  voice?: VoiceSpec | null;
 }
 
 /** The model an agent's published version runs on. Enough to prefill a picker. */
@@ -569,6 +594,8 @@ export interface CapabilityCatalogEntry {
    * catalog, the spec or the model; only the agent runner ever reads one.
    */
   requires_secret: SecretRequirement | null;
+  /** Whether it can run in a voice call; the Voice card lists the ones that cannot (#54). */
+  voice: boolean;
 }
 
 export interface CapabilityCatalog {

@@ -1118,6 +1118,7 @@ class TestAnExplicitNullOnAnEmbedUpdate:
             "welcome": "",
             "accent": "#4f46e5",
             "dictation": "off",
+            "voice_conversation": False,
             "allow_new_conversation": True,
             "allow_files": False,
             "show_thinking": False,

@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatContainer } from "./chat-container";
+import { initialCall } from "@/lib/voice/call-reducer";
 import {
   useAgentSelectionStore,
   useAuthStore,
@@ -108,6 +109,37 @@ vi.mock("@/components/ui/voice-glow", () => ({
       {children}
     </div>
   ),
+}));
+
+/**
+ * The voice call, as a session this test sets (#54). What is under test is what
+ * the container does with a call - where the bar goes, what the button starts,
+ * how saved turns reach the transcript - not the socket (`use-voice-session.test.tsx`).
+ */
+const voiceCall = vi.hoisted(() => ({
+  call: null as unknown,
+  start: vi.fn(),
+  end: vi.fn(),
+  dismiss: vi.fn(),
+  options: {} as { onTurnSaved?: () => void; onConversation?: (id: string) => void },
+}));
+vi.mock("@/hooks/use-voice-session", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-voice-session")>()),
+  useVoiceSession: (options: typeof voiceCall.options) => {
+    voiceCall.options = options;
+    return {
+      call: voiceCall.call,
+      localStream: null,
+      remoteStream: null,
+      start: voiceCall.start,
+      end: voiceCall.end,
+      setMuted: vi.fn(),
+      pressToTalk: vi.fn(),
+      decide: vi.fn(),
+      dismissUnavailable: vi.fn(),
+      dismiss: voiceCall.dismiss,
+    };
+  },
 }));
 
 /** The active organization, with server dictation set up unless told otherwise. */
@@ -229,6 +261,102 @@ beforeEach(() => {
   useAgentSelectionStore.setState({ selectedAgentId: null });
   useConversationStore.getState().reset();
   useChatStore.getState().clearMessages();
+  voiceCall.call = initialCall;
+});
+
+describe("the chat container - following the transcript", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("scrolls the transcript's own scroller to a new message, never the page around it", async () => {
+    const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+    mount();
+    await screen.findByRole("button", { name: "Voice input" });
+    scrollTo.mockClear();
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "m-1",
+        role: "user",
+        content: "Send the invoice",
+        timestamp: new Date(),
+      }),
+    );
+    // `scrollIntoView` scrolls every scrollable ancestor, and the page column
+    // around the chat is one: during a call it scrolled the whole chat up and out.
+    await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+    const scroller = scrollTo.mock.contexts.at(-1) as HTMLElement;
+    expect(scroller).toHaveClass("overflow-y-auto");
+    expect(scroller).toContainElement(await screen.findByText("Send the invoice"));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: scroller.scrollHeight, behavior: "smooth" });
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    scrollTo.mockRestore();
+    scrollIntoView.mockRestore();
+  });
+
+  /**
+   * Every ResizeObserver the chat makes, so a test can say an element changed
+   * size. The dock's height is padding under the transcript, not content, so
+   * the transcript's own observer never hears of it.
+   */
+  function observeSizes() {
+    const observers: { grew: () => void; targets: Element[] }[] = [];
+    class FakeResize {
+      private readonly seen: { grew: () => void; targets: Element[] };
+      constructor(callback: () => void) {
+        this.seen = { grew: callback, targets: [] };
+        observers.push(this.seen);
+      }
+      observe(element: Element) {
+        this.seen.targets.push(element);
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResize);
+    return observers;
+  }
+
+  /** The transcript's scroller, a screen long and scrolled to its end, and the dock over it. */
+  async function scrollerAndDock() {
+    mount();
+    await screen.findByRole("button", { name: "Voice input" });
+    const dock = screen.getByRole("textbox").closest(".absolute") as HTMLElement;
+    const scroller = dock.previousElementSibling as HTMLElement;
+    expect(scroller).toHaveClass("overflow-y-auto");
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 2000 });
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 500 });
+    return { dock, scroller };
+  }
+
+  function growDock(observers: ReturnType<typeof observeSizes>, dock: HTMLElement): void {
+    Object.defineProperty(dock, "offsetHeight", { configurable: true, value: 148 });
+    act(() => {
+      for (const observer of observers) if (observer.targets.includes(dock)) observer.grew();
+    });
+  }
+
+  it("keeps a reader at the bottom there when the dock grows, as when a call gives the composer back", async () => {
+    const observers = observeSizes();
+    const { dock, scroller } = await scrollerAndDock();
+    scroller.scrollTop = 1500;
+
+    growDock(observers, dock);
+
+    expect(scroller.style.paddingBottom).toBe("148px");
+    expect(scroller.scrollTop).toBe(2000);
+  });
+
+  it("leaves a reader who scrolled up where they are when the dock grows", async () => {
+    const observers = observeSizes();
+    const { dock, scroller } = await scrollerAndDock();
+    scroller.scrollTop = 200;
+    fireEvent.scroll(scroller);
+
+    growDock(observers, dock);
+
+    expect(scroller.style.paddingBottom).toBe("148px");
+    expect(scroller.scrollTop).toBe(200);
+  });
 });
 
 describe("the chat container - delegation panels across a conversation switch", () => {
@@ -476,5 +604,224 @@ describe("the chat container - server dictation", () => {
     expect(screen.getByTestId("voice-glow")).toHaveAttribute("data-active", "false");
     expect(screen.getByTestId("voice-glow")).toHaveAttribute("data-processing", "false");
     expect(screen.queryByText("0:42 of audio")).not.toBeInTheDocument();
+  });
+});
+
+describe("the chat container - a voice call (#54)", () => {
+  const READY_VOICE = {
+    available: true,
+    unavailable: null,
+    transport: "webrtc",
+    provider: "openai",
+    model: "gpt-realtime",
+    cap_seconds: 600,
+    minutes_left: 540,
+    unavailable_capabilities: [],
+  };
+  const LIVE_CALL = {
+    ...initialCall,
+    phase: "live",
+    activity: "listening",
+    callId: "c1",
+    conversationId: "c-a",
+    startedAt: Date.now(),
+    capSeconds: 600,
+    minutesLeft: 540,
+  };
+
+  /** The call button once the agent's readiness has said yes. */
+  async function offeredCall(): Promise<HTMLElement> {
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Start a voice call" })).not.toHaveAttribute(
+        "aria-disabled",
+      ),
+    );
+    return screen.getByRole("button", { name: "Start a voice call" });
+  }
+
+  beforeEach(() => {
+    const base = get.getMockImplementation() as (url: string) => Promise<unknown>;
+    get.mockImplementation((url: string) =>
+      /^\/agents\/[^/]+\/voice$/.test(url) ? Promise.resolve(READY_VOICE) : base(url),
+    );
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+  });
+
+  it("offers no call before an agent is chosen", async () => {
+    mount();
+    await screen.findByRole("button", { name: "Voice input" });
+    expect(screen.queryByRole("button", { name: "Start a voice call" })).toBeNull();
+  });
+
+  it("starts a call with the selected agent, in the conversation that is open", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    mount();
+    fireEvent.click(await offeredCall());
+    expect(voiceCall.start).toHaveBeenCalledWith({
+      kind: "console",
+      agentId: "a-1",
+      conversationId: "c-a",
+      transport: "webrtc",
+    });
+  });
+
+  it("crosses the button out, with the reason, for an agent that cannot take a call", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    const base = get.getMockImplementation() as (url: string) => Promise<unknown>;
+    get.mockImplementation((url: string) =>
+      /\/voice$/.test(url)
+        ? Promise.resolve({ ...READY_VOICE, available: false, unavailable: "no_voice" })
+        : base(url),
+    );
+    mount();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: "Start a voice call",
+          description: /This agent has no voice set up/,
+        }),
+      ).toHaveAttribute("aria-disabled", "true"),
+    );
+  });
+
+  it("turns the composer into the call bar while the call is on, so nothing is sent beside it", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    voiceCall.call = LIVE_CALL;
+    const { container } = mount();
+    expect(await screen.findByRole("group", { name: "Voice call" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End call" })).toBeInTheDocument();
+    // The composer is still mounted, so a draft survives the call - and closed.
+    expect(container.querySelector('button[type="submit"]')).toBeDisabled();
+    expect(screen.getByRole("textbox")).toBeDisabled();
+  });
+
+  it("reads the transcript again in place as each spoken turn is saved", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    mount();
+    fireEvent.click(await offeredCall());
+    get.mockClear();
+    const loading = vi.fn();
+    const stop = useConversationStore.subscribe((state) => loading(state.isLoading));
+    act(() => voiceCall.options.onTurnSaved?.());
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/conversations/c-a/messages"));
+    stop();
+    // Not the select path: nothing is cleared and no skeleton is drawn.
+    expect(loading).not.toHaveBeenCalledWith(true);
+  });
+
+  it("opens the conversation a call started, and keeps reading it", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+    fireEvent.click(await offeredCall());
+    act(() => voiceCall.options.onConversation?.("c-new"));
+    expect(useConversationStore.getState().currentConversationId).toBe("c-new");
+    get.mockClear();
+    act(() => voiceCall.options.onTurnSaved?.());
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/conversations/c-new/messages"));
+    expect(voiceCall.end).not.toHaveBeenCalled();
+  });
+
+  it("hangs a call up when another conversation is opened", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    useConversationStore.getState().setCurrentConversationId("c-a");
+    mount();
+    fireEvent.click(await offeredCall());
+    act(() => useConversationStore.getState().setCurrentConversationId("c-b"));
+    expect(voiceCall.end).toHaveBeenCalled();
+    expect(voiceCall.dismiss).toHaveBeenCalled();
+    // A saved turn from the old call no longer reloads the conversation on screen.
+    get.mockClear();
+    act(() => voiceCall.options.onTurnSaved?.());
+    expect(get).not.toHaveBeenCalledWith("/conversations/c-b/messages");
+  });
+
+  it("hangs up a call started in a new chat when another conversation is opened before it is named", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    mount();
+    fireEvent.click(await offeredCall());
+    act(() => useConversationStore.getState().setCurrentConversationId("c-b"));
+    expect(voiceCall.end).toHaveBeenCalled();
+    // The server naming the call's conversation afterwards does not pull the person back.
+    act(() => voiceCall.options.onConversation?.("c-new"));
+    expect(useConversationStore.getState().currentConversationId).toBe("c-b");
+  });
+
+  it("offers no call at all where the organization has calls off", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    const base = get.getMockImplementation() as (url: string) => Promise<unknown>;
+    get.mockImplementation((url: string) =>
+      /\/voice$/.test(url)
+        ? Promise.resolve({ ...READY_VOICE, available: false, unavailable: "org_off" })
+        : base(url),
+    );
+    mount();
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/agents/a-1/voice"));
+    await screen.findByRole("button", { name: "Voice input" });
+    await act(async () => {});
+    expect(screen.queryByRole("button", { name: "Start a voice call" })).toBeNull();
+  });
+
+  /** The container, and a way to draw it again once the test changed the call. */
+  function mountRedrawable() {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = () => (
+      <QueryClientProvider client={client}>
+        <ChatContainer />
+      </QueryClientProvider>
+    );
+    const view = render(tree());
+    return () => view.rerender(tree());
+  }
+
+  it("puts focus back on the call button when the call ends, if the bar took it with it", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    voiceCall.call = LIVE_CALL;
+    const redraw = mountRedrawable();
+    await offeredCall();
+    expect(await screen.findByRole("group", { name: "Voice call" })).toHaveFocus();
+    voiceCall.call = { ...LIVE_CALL, phase: "ended", endReason: "user", endedAt: Date.now() };
+    act(() => redraw());
+    expect(screen.getByRole("button", { name: "Start a voice call" })).toHaveFocus();
+  });
+
+  it("leaves focus where the person put it during the call", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    voiceCall.call = LIVE_CALL;
+    const redraw = mountRedrawable();
+    await offeredCall();
+    const elsewhere = document.createElement("input");
+    document.body.appendChild(elsewhere);
+    elsewhere.focus();
+    voiceCall.call = { ...LIVE_CALL, phase: "ended", endReason: "user", endedAt: Date.now() };
+    act(() => redraw());
+    expect(elsewhere).toHaveFocus();
+    elsewhere.remove();
+  });
+
+  it("goes to the message box after ending a call to continue in text", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    voiceCall.call = {
+      ...LIVE_CALL,
+      approvalUnavailable: { tool: "send_invoice", args: { customer: "Acme" } },
+    };
+    const redraw = mountRedrawable();
+    await offeredCall();
+    fireEvent.click(screen.getByRole("button", { name: "End call, continue in text" }));
+    expect(voiceCall.end).toHaveBeenCalled();
+    voiceCall.call = { ...LIVE_CALL, phase: "ended", endReason: "user", endedAt: Date.now() };
+    act(() => redraw());
+    expect(screen.getByRole("textbox")).toHaveFocus();
+  });
+
+  it("shows the call's turns as they are spoken, without an empty state behind them", async () => {
+    useAgentSelectionStore.setState({ selectedAgentId: "a-1" });
+    voiceCall.call = {
+      ...LIVE_CALL,
+      captions: [{ turnId: "c1:1:user", part: 0, role: "user", text: "Hello there", final: false }],
+    };
+    mount();
+    expect(await screen.findByTestId("voice-captions-visible")).toHaveTextContent("Hello there");
   });
 });

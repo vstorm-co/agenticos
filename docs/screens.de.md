@@ -1,5 +1,5 @@
 ---
-source_sha: "760ca1f20862"
+source_sha: "8f6d065f4a25"
 ---
 
 # Jeder Bildschirm in der Konsole { #every-screen-in-the-console }
@@ -25,6 +25,12 @@ Anordenbare Widgets, zuerst das ganze Deployment und dann diese Organisation. Ru
 Der Agent beim Denken, dann die Shell-Befehle, die er in der Sandbox tatsächlich ausgeführt hat, jeder davon aufklappbar. Transparenz ist hier das Produkt: Was ein Tool getan hat, steht auf dem Bildschirm und nicht in einem Log, das jemand anderes lesen kann.
 
 > **Screenshot ausstehend — Chat, mitten im Run.**
+
+### Ein Sprachanruf { #a-voice-call }
+
+Das Eingabefeld ist zur Anrufleiste geworden: was der Anruf gerade tut, seine Zeit gemessen am Limit, eine Wellenform beider Stimmen, Stummschalten, Push-to-Talk und Beenden. Darüber läuft die Unterhaltung weiter - Untertitel in der Nachricht, die gerade gesprochen wird, Tool-Ausführungen und eine Freigabekarte mit den exakten Argumenten und dem, was von Ihnen verstanden wurde.
+
+> **Screenshot ausstehend — Ein Sprachanruf.**
 
 ## Einen Agent bauen { #building-an-agent }
 

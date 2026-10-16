@@ -251,12 +251,13 @@ type Failure = DictationReason | "mic" | "mic_insecure" | "mic_busy";
  */
 export type MicFailure = "mic_insecure" | "mic_denied" | "mic_not_found" | "mic_busy";
 
-/** The browser's refusal, as one of the reasons above. */
-function micFailure(mic: UseMicrophoneResult): MicFailure {
-  const name = mic.error?.name;
-  if (mic.state === "denied" || name === "NotAllowedError" || name === "SecurityError") {
-    return "mic_denied";
-  }
+/**
+ * The browser's refusal to open the microphone, as one of the reasons above -
+ * for dictation and for a voice call (`use-voice-session.ts`) alike.
+ */
+export function micFailure(error: unknown): MicFailure {
+  const name = error instanceof Error ? error.name : undefined;
+  if (name === "NotAllowedError" || name === "SecurityError") return "mic_denied";
   if (name === "NotFoundError" || name === "OverconstrainedError") return "mic_not_found";
   return "mic_busy";
 }
@@ -607,7 +608,8 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
   useEffect(() => abandon, [abandon]);
 
   const remainingSeconds = maxSeconds - elapsed;
-  const reason: DictationState["reason"] = failure === "mic" ? micFailure(mic) : failure;
+  const reason: DictationState["reason"] =
+    failure !== "mic" ? failure : mic.state === "denied" ? "mic_denied" : micFailure(mic.error);
 
   // The strip says what to do; the console keeps what the browser actually said,
   // which is the one thing anybody debugging a microphone needs to see.

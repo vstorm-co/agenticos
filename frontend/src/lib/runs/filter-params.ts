@@ -27,6 +27,8 @@ export interface RunFilters {
   versionId: string;
   /** The model as a run recorded it - the label the dashboard's bars count. */
   model: string;
+  /** Text runs or voice calls (#54). */
+  modality: "all" | "text" | "voice";
 }
 
 export const DEFAULT_RUN_FILTERS: RunFilters = {
@@ -36,6 +38,7 @@ export const DEFAULT_RUN_FILTERS: RunFilters = {
   userId: "all",
   versionId: "all",
   model: "all",
+  modality: "all",
 };
 
 /** The URL name of each filter. `person` reads better in a pasted link than `userId`. */
@@ -46,9 +49,11 @@ const PARAM: Record<keyof RunFilters, string> = {
   userId: "person",
   versionId: "version",
   model: "model",
+  modality: "modality",
 };
 
 const RATINGS = new Set(["up", "down"]);
+const MODALITIES = new Set(["text", "voice"]);
 
 /** Activity's three tabs, in the order the strip draws them. */
 export const RUNS_TABS = ["runs", "approvals", "spend"] as const;
@@ -75,13 +80,14 @@ export function parseRunsTab(param: string | null, canDecide: boolean): RunsTab 
  *
  * Anything unrecognised falls back to "all" rather than to an error: a pasted
  * link with a status this build renamed should still open the page, narrowed by
- * whatever else it carried. `rated` is the one closed set worth checking here -
+ * whatever else it carried. `rated` and `modality` are the closed sets worth checking here -
  * the others are ids and free strings the backend answers for, and a status it
  * does not know is refused by name at the API rather than guessed at here.
  */
 export function parseRunFilters(params: URLSearchParams): RunFilters {
   const read = (key: keyof RunFilters) => params.get(PARAM[key])?.trim() || "all";
   const rated = read("rated");
+  const modality = read("modality");
   return {
     status: read("status") as RunFilters["status"],
     surface: read("surface"),
@@ -89,6 +95,7 @@ export function parseRunFilters(params: URLSearchParams): RunFilters {
     userId: read("userId"),
     versionId: read("versionId"),
     model: read("model"),
+    modality: MODALITIES.has(modality) ? (modality as RunFilters["modality"]) : "all",
   };
 }
 

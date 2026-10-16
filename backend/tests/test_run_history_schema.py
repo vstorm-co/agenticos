@@ -30,6 +30,8 @@ def _row(**overrides: object) -> AgentRun:
         "output_tokens": 5,
         "cost_usd": Decimal("0.000030"),
         "cost_is_partial": False,
+        # Set explicitly: a column default is applied on flush, and this row never is.
+        "modality": "text",
     }
     return AgentRun(**{**defaults, **overrides})
 

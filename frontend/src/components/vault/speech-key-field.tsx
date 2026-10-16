@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { TriangleAlert } from "lucide-react";
+import { ExternalLink, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -14,7 +14,15 @@ import {
 } from "@/components/ui";
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { useSecrets } from "@/hooks";
+import { ROUTES } from "@/lib/constants";
 import type { Secret } from "@/types/secrets";
+
+/**
+ * The vault kinds a key on this field may be: an opaque API key for every
+ * speech-to-text provider, and the Azure OpenAI shape (endpoint, deployment,
+ * version) for a voice conversation held on Azure (#54).
+ */
+export type SpeechKeyKind = "api_key" | "azure_openai";
 
 /**
  * The vault keys a speech-to-text pair on `provider` may be sent with.
@@ -29,10 +37,11 @@ export function speechKeysFor(
   secrets: readonly Secret[],
   provider: string,
   orgVisibleOnly: boolean,
+  kind: SpeechKeyKind = "api_key",
 ): Secret[] {
   return secrets.filter(
     (secret) =>
-      secret.kind === "api_key" &&
+      secret.kind === kind &&
       secret.purpose === provider &&
       (!orgVisibleOnly || secret.visibility === "org"),
   );
@@ -66,6 +75,10 @@ interface SpeechKeyFieldProps {
   disabled?: boolean;
   /** The server's refusal for this field. */
   error?: string;
+  /** The vault kind a key must be; `api_key` unless the provider takes another shape. */
+  kind?: SpeechKeyKind;
+  /** What a key added from here is called; the speech-to-text name by default. */
+  suggestedName?: string;
 }
 
 /**
@@ -91,10 +104,12 @@ export function SpeechKeyField({
   orgVisibleOnly,
   disabled,
   error,
+  kind = "api_key",
+  suggestedName,
 }: SpeechKeyFieldProps) {
   const t = useTranslations("vault");
   const { secrets, isLoading, listError } = useSecrets();
-  const keys = speechKeysFor(secrets, provider, orgVisibleOnly);
+  const keys = speechKeysFor(secrets, provider, orgVisibleOnly, kind);
   const only = keys.length === 1 ? keys[0]!.id : null;
 
   // A prop callback rather than state of this component: the key belongs to
@@ -117,7 +132,7 @@ export function SpeechKeyField({
   const description = orgVisibleOnly ? t("speechKey.orgHint") : t("speechKey.agentHint");
 
   return (
-    <div className="space-y-2 sm:col-span-2">
+    <div className="space-y-2 sm:col-span-2" data-kind={kind}>
       <FormField label={t("speechKey.label")} htmlFor={id} description={description} error={error}>
         {/* Controlled throughout: an empty string is how Radix is told "nothing
             chosen, show the placeholder". A stale id shows the placeholder too. */}
@@ -146,18 +161,34 @@ export function SpeechKeyField({
       )}
       {!isLoading && keys.length === 0 && (
         <p className="text-muted-foreground text-xs">
-          {orgVisibleOnly
-            ? t("speechKey.noneOrg", { provider: providerName })
-            : t("speechKey.none", { provider: providerName })}
+          {kind !== "api_key"
+            ? t("speechKey.noneInVault", { provider: providerName })
+            : orgVisibleOnly
+              ? t("speechKey.noneOrg", { provider: providerName })
+              : t("speechKey.none", { provider: providerName })}
         </p>
       )}
-      <InlineSecret
-        kind="api_key"
-        purpose={provider}
-        suggestedName={t("speechKey.suggestedName", { provider: providerName })}
-        onCreated={onChange}
-        disabled={disabled}
-      />
+      {kind === "api_key" ? (
+        <InlineSecret
+          kind="api_key"
+          purpose={provider}
+          suggestedName={suggestedName ?? t("speechKey.suggestedName", { provider: providerName })}
+          onCreated={onChange}
+          disabled={disabled}
+        />
+      ) : (
+        // The inline form stores one opaque value; an Azure key is an endpoint,
+        // a key and an API version, which only the vault's own form takes.
+        <a
+          href={ROUTES.VAULT}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
+        >
+          <ExternalLink className="h-3 w-3" aria-hidden />
+          {t("openVault")}
+        </a>
+      )}
     </div>
   );
 }

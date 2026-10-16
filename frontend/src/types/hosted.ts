@@ -1,5 +1,6 @@
 import type { EmbedDictation } from "@/types/embeds";
 import type { RecordingFormat } from "@/types/organization";
+import type { VoiceTransport } from "@/types/voice";
 
 /**
  * What a hosted page is told about itself before anybody says anything.
@@ -49,6 +50,14 @@ export interface HostedPageConfig {
   dictation_max_seconds: number;
   /** What to record in for `server`, from the backend's speech-to-text catalog. */
   dictation_format: RecordingFormat;
+  /**
+   * Whether the page offers a voice call (#54). True only while a call would
+   * start - the embed's switch on, the organization's voice on and the agent's
+   * voice resolving - so a visitor gets no call button rather than a broken one.
+   */
+  voice_conversation: boolean;
+  /** How a call carries audio; null whenever no call is offered. */
+  voice_transport: VoiceTransport | null;
   allow_new_conversation: boolean;
   /**
    * Whether the composer offers to attach a file.

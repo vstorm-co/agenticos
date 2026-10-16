@@ -54,6 +54,11 @@ _SPEECH_FIELDS = frozenset(
 )
 """The `/chat` dictation settings (#1797), validated together when any is named."""
 
+_VOICE_FIELDS = frozenset(
+    {"voice_conversations_enabled", "voice_in_chat", "voice_max_call_seconds"}
+)
+"""Voice conversations (#54), under `org:settings` with the metadata."""
+
 
 def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRead:
     """One organization as a member of it sees it.
@@ -79,6 +84,10 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
         speech_to_text_secret_id=org.speech_to_text_secret_id,
         speech_to_text_language=org.speech_to_text_language,
         dictation_max_seconds=org.dictation_max_seconds,
+        voice_conversations_enabled=org.voice_conversations_enabled,
+        voice_in_chat=org.voice_in_chat,
+        voice_max_call_seconds=org.voice_max_call_seconds,
+        voice_monthly_minutes=org.voice_monthly_minutes,
         chat_dictation_ready=speech_to_text.dictation_ready(
             engine=org.chat_dictation,
             provider=org.speech_to_text_provider,
@@ -305,13 +314,18 @@ class OrganizationService:
         The `/chat` dictation fields fall under `org:settings` with the metadata,
         and are validated only when one of them is named - so a rename never
         trips over a dictation setup that went stale (#1797).
+
+        `budgets:manage` also decides the monthly call minutes, which bound
+        spend; the other voice settings fall under `org:settings` (#54).
         """
         org, membership = await self.get_for_user(org_id, requester_id)
         wants_budget = "monthly_budget_usd" in data.model_fields_set
         wants_color = "avatar_color" in data.model_fields_set
         wants_waiver = "chat_may_waive_approvals" in data.model_fields_set
+        wants_minutes = "voice_monthly_minutes" in data.model_fields_set
         wants_metadata = bool(
-            data.model_fields_set - {"monthly_budget_usd", "chat_may_waive_approvals"}
+            data.model_fields_set
+            - {"monthly_budget_usd", "chat_may_waive_approvals", "voice_monthly_minutes"}
         )
         if wants_metadata and not role_has(membership.role, Perm.ORG_SETTINGS):
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
@@ -322,6 +336,10 @@ class OrganizationService:
         if wants_waiver and not role_has(membership.role, Perm.APPROVALS_DECIDE):
             raise AuthorizationError(
                 message="Changing whether chats may waive approvals requires 'approvals:decide'"
+            )
+        if wants_minutes and not role_has(membership.role, Perm.BUDGETS_MANAGE):
+            raise AuthorizationError(
+                message="Changing the monthly call minutes requires 'budgets:manage'"
             )
 
         if wants_budget:
@@ -343,6 +361,26 @@ class OrganizationService:
 
         if data.model_fields_set & _SPEECH_FIELDS:
             org = await self._apply_speech_settings(org, data)
+
+        if wants_minutes:
+            # Keyed on the field being named: `null` lifts the minutes cap.
+            org = await organization_repo.set_voice_monthly_minutes(
+                self.db, org, minutes=data.voice_monthly_minutes
+            )
+
+        if data.model_fields_set & _VOICE_FIELDS:
+            # `null` on a field that cannot be empty leaves the stored value.
+            org = await organization_repo.set_voice_settings(
+                self.db,
+                org,
+                enabled=(
+                    org.voice_conversations_enabled
+                    if data.voice_conversations_enabled is None
+                    else data.voice_conversations_enabled
+                ),
+                in_chat=org.voice_in_chat if data.voice_in_chat is None else data.voice_in_chat,
+                max_call_seconds=data.voice_max_call_seconds or org.voice_max_call_seconds,
+            )
 
         return await organization_repo.update(
             self.db,

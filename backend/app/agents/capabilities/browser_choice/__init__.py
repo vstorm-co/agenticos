@@ -266,6 +266,7 @@ def validate_cdp_url(config: BrowserChoiceConfig) -> None:
 
 @register(
     id="browser_choice",
+    voice=False,
     name="Browser automation (choose)",
     category="research",
     description="Work through a web page by choosing one of the actions it actually offers.",

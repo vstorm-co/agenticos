@@ -1,5 +1,5 @@
 ---
-source_sha: "f997129511b8"
+source_sha: "2943c67ea645"
 ---
 
 # Die Konsole { #the-console }
@@ -17,7 +17,7 @@ Seite, deren Kopfzeile kein "?" trägt, hat keinen Rundgang abzuspielen.
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
 Antwort auf die Frage "was passiert gerade", ohne fünf Seiten zu öffnen.
 
-Es gibt sechsunddreißig Karten. Sie werden nicht alle davon sehen: **eine Karte
+Es gibt achtunddreißig Karten. Sie werden nicht alle davon sehen: **eine Karte
 hängt an der Berechtigung, die ihre Daten verlangen**, also wird ein Widget, das
 Sie nicht lesen dürfen, nie eingehängt und seine Abfragen werden nie gestellt —
 außer Ihren eigenen Benachrichtigungen weiter unten, die nur verlangen, dass Sie
@@ -31,7 +31,7 @@ Sie kommen in Gruppen an:
 | *(ohne Titel, ganz oben)* | Die Zusammenfassung, deren Details der Rest der Seite ist |
 | **Deployment** | Nur für einen [Deployment-Admin](permissions.md) — Plattformsummen, Health, aktivste Tenants, Bewertungen |
 | **Attention** | Was wartet: [Freigaben](governance.md#approvals), jüngste Fehlschläge, Budget-Spielraum, MCP-Health, veraltetes Wissen, Ihre jüngsten [Benachrichtigungen](#the-bell) |
-| **Usage** | Runs, Ergebnisse, Oberflächen, Latenz, Ausgaben, Modellmix, Versionsvergleich |
+| **Usage** | Runs, Ergebnisse, Oberflächen, Latenz, Ausgaben, [Anrufminuten](#voice-calls), Modellmix, Versionsvergleich |
 | **People** | Mitglieder, aktive Nutzer, Bewertungen, wer was tut |
 | **Sandboxes** | [Kapazität, laufende Sessions, Policy](sandbox.md) |
 | **Workspace** | Ihrer: Ihre Agents, Ihre Unterhaltungen, Ihre Aktivität, was mit Ihnen geteilt wurde |
@@ -240,8 +240,8 @@ gelöscht oder privat gemacht —, sagt die Karte es und bittet, **einen Schlüs
 zu wählen**, wo dieser fehlt, denn dann sieht jedes Mitglied ein
 durchgestrichenes Mikrofon.
 
-Server ohne Standard-Provider ist eine Einstellung, kein Fehler: Die Karte weist darauf hin, dass nur Agents mit eigenem Provider diktieren. **Sprachgespräche (Voice conversations)** darunter ist
-noch nicht gebaut.
+Server ohne Standard-Provider ist eine Einstellung, kein Fehler: Die Karte weist darauf hin, dass nur Agents mit eigenem Provider diktieren. **Sprachgespräche (Voice conversations)** darunter enthält
+die Anrufeinstellungen der Organisation - siehe [Sprachanrufe](#voice-calls).
 
 Wer zusätzlich `runs:view` hat, sieht oben auf der Karte eine Zeile dazu, wie viel
 die Organisation in den letzten 30 Tagen transkribiert hat — „42 Min. · 118
@@ -277,6 +277,98 @@ Die Karte sagt, wann die Überschreibung weniger ändert, als es aussieht: steht
 die Engine der Organisation auf Off oder Browser, erreicht sie nur
 Sprachnachrichten aus Channels, und ohne Provider der Organisation ist sie das,
 worauf das Diktieren an diesen Agent läuft.
+
+### Sprachanrufe { #voice-calls }
+
+Ein [Sprachanruf](voice.md) ist ein gesprochenes Gespräch mit einem
+veröffentlichten Agent: Sie sprechen, er antwortet laut, und Sie können ihn
+unterbrechen. Drei Stellen in der Konsole richten ihn ein.
+
+- **Die Karte Stimme (Voice) der Organisation**, unter **Sprachgespräche (Voice
+  conversations)**: **Sprachgespräche erlauben (Allow voice conversations)**
+  (standardmäßig aus), **Anrufe im Chat anbieten (Offer calls in chat)**,
+  **Längster Anruf (Minuten) (Longest call (minutes))**, von 1 bis 50, und
+  **Monatliche Anrufminuten (Monthly call minutes)** oder kein monatliches Limit,
+  um sich allein auf Budgets zu verlassen. Die ersten drei brauchen
+  `org:settings`; die Minuten brauchen `budgets:manage` und sind für alle anderen
+  schreibgeschützt. Wer `runs:view` hat, sieht außerdem, wie viele der Minuten
+  dieses Monats Anrufe verbraucht haben.
+- **Die Karte Stimme (Voice) des Agents**, unter **Sprachgespräche (Voice
+  conversations)**: **Sprachanrufe annehmen (Take voice calls)**, dann Provider
+  und Modell für Anrufe (bei Azure der Name des Deployments und sein
+  Basismodell), der Schlüssel, die Stimme, die gesprochene Sprache (oder **Wie
+  die anrufende Person (Follow the caller)**), der längste Anruf und ein Hinweis
+  zur Stimme. Die Karte listet auf, was der Agent in Anrufen nicht benutzen kann,
+  sagt, dass Guardrails gesprochene Worte nicht filtern können, bevor sie zu
+  hören sind, und dass Anrufe als Text festgehalten werden, ohne dass Audio
+  gespeichert wird. Sie wird wirksam, sobald der Agent veröffentlicht ist.
+- **Der Schalter Sprachanrufe (Voice calls) eines Embeds**, in den Formularen für
+  Widget und gehostete Seite - siehe
+  [Kanäle](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+
+Bevor sie einen Anruf anbietet, fragt die Konsole, ob dieser Agent einen
+annehmen kann (`GET /agents/{id}/voice`), damit niemand das Mikrofon freigibt,
+nur um abgelehnt zu werden. Die Antwort nennt, was fehlt: Anrufe in der
+Organisation oder im Chat ausgeschaltet, keine Stimme für den Agent eingerichtet,
+das Modell wird nicht mehr angeboten, kein Schlüssel oder keine Minuten mehr in
+diesem Monat.
+
+Die **Anruftaste** sitzt im Eingabefeld des Chats, neben dem Mikrofon. Sind
+Anrufe für die Organisation oder im Chat ausgeschaltet, wird sie gar nicht
+angezeigt. Kann dieser Agent keinen Anruf annehmen, ist sie durchgestrichen, und
+beim Darüberfahren, Fokussieren oder Drücken erfahren Sie, warum - und, wenn Sie
+Anrufe einrichten dürfen, wo.
+
+Während eines Anrufs wird das Eingabefeld zur **Anrufleiste**: was der Anruf
+gerade tut, seine Zeit gemessen am Limit des Anrufs und die verbleibenden
+Minuten des Monats, eine Wellenform beider Stimmen, Push-to-Talk, Stummschalten
+und **Beenden (End)**. Nur Beenden beendet einen Anruf; wenn Sie eine andere
+Unterhaltung oder einen neuen Chat öffnen, wird aufgelegt. Gesprochen wird
+standardmäßig freihändig; **Push-to-Talk** (die Taste oder die Leertaste halten)
+ist eine Wahl, die sich Ihr Browser merkt. Bei reduzierter Bewegung ersetzt eine
+gestufte Pegelanzeige die Wellenform.
+
+Ein Anruf durchläuft Zustände, die die Leiste benennt: Verbindungsaufbau,
+Zuhören, Sie sprechen, Nachdenken, der Agent spricht, unterbrochen, Arbeit an
+einem Tool, Warten auf Ihre Freigabe, eine Freigabe, die Sie nicht erteilen
+können, die Zeit ist fast um, und beendet - durch Sie, durch ein Limit, eine
+abgebrochene Verbindung oder einen Fehler.
+
+Der Anruf findet in der Unterhaltung statt: Untertitel erscheinen Wort für Wort
+in der Nachricht, die gerade gesprochen wird, ein Screenreader liest jede Zeile
+vor, sobald sie feststeht, und jede abgeschlossene Runde macht der in der
+Unterhaltung gespeicherten Nachricht Platz, sodass der Anruf danach in Ihrem
+Verlauf steht und Sie tippend weitermachen können. Während der Agent nachdenkt
+oder ein Tool ausführt, zeigt die Unterhaltung das an der Stelle an, an der
+seine Antwort erscheinen wird.
+
+**Freigaben** werden im Anruf entschieden: Eine Karte in der Unterhaltung zeigt
+das Tool, seine exakten Argumente und was von Ihnen verstanden wurde, mit einem
+60-Sekunden-Countdown. Entschieden wird nur über ihre Schaltflächen; ein
+gesprochenes „Ja“ genügt nicht. Ohne `approvals:decide` sagt die Karte, dass das
+Tool eine Freigabe braucht, die Sie per Stimme nicht erteilen können, und bietet
+an, den Anruf zu beenden und schriftlich fortzufahren. **Limits** werden
+ausgesprochen: Eine Minute vor dem Ende des längsten Anrufs werden Sie gewarnt,
+und wenn die Zeit, das Budget oder die Minuten des Monats aufgebraucht sind,
+sagt der Agent einen Satz, und der Anruf endet.
+
+Ein **Hinweisstreifen unter der Leiste** zeigt, was gerade Ihre Aufmerksamkeit
+braucht: die Mikrofonabfrage, eine Freigabe, die weiter oben wartet (mit
+**Karte zeigen (Show card)**), die letzte Minute, ein Limit, das den Anruf
+beendet, das Wiederherstellen der Verbindung oder wie Push-to-Talk funktioniert.
+Endet der Anruf, nennt eine Karte in der Unterhaltung seine Dauer und die Zahl der
+gespeicherten Runden oder das Limit, das ihn beendet hat, mit einer Schaltfläche
+zum erneuten Anrufen. Ist ein Anruf gar nicht erst zustande gekommen, steht der
+Grund unter dem Eingabefeld, mit **Erneut versuchen (Try again)**.
+
+In **Aktivität (Activity)** ist ein Anruf eine Zeile mit einem Mikrofon-Abzeichen,
+und der Filter nach Art (**Text** oder **Sprachanrufe (Voice calls)**) grenzt auf
+Anrufe ein; ein Anruf, der sich neu verbunden hat, bleibt eine Zeile, mit
+summierter Zeit und summierten Kosten aller Verbindungen. Die Dashboard-Karte
+**Anrufminuten (Voice minutes)**, in der Gruppe Usage für jemanden mit
+`runs:view`, zeigt die Anrufminuten und Anrufe des Zeitraums, die drei
+häufigsten Agents und die Minuten dieses Monats gegenüber dem Limit der
+Organisation.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 
@@ -316,7 +408,7 @@ dem ein echtes Problem als ein stilles gelesen wird.
 
 ## Zusammenfassung { #recap }
 
-- Das Dashboard besteht aus **sechsunddreißig Widgets**, die Sie selbst
+- Das Dashboard besteht aus **achtunddreißig Widgets**, die Sie selbst
   anordnen, gespeichert pro Person und pro Organisation — alle außer Ihren
   eigenen Benachrichtigungen hängen an der Berechtigung, die ihre Daten
   verlangen.

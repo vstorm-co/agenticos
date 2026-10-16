@@ -1,5 +1,5 @@
 ---
-source_sha: "c34546b8f0ba"
+source_sha: "55ceaf417630"
 ---
 
 # Konfiguration { #configuration }
@@ -1138,6 +1138,29 @@ Profiles dürfen ohne jedes Flag auf lokale Endpunkte wie Ollama zeigen
 `run_python` sind Capability-Konfiguration je Agent
 (`CODE_EXECUTION_TIMEOUT_SECS` / `CODE_EXECUTION_MAX_MEMORY_MB` wurden entfernt).
 
+## Sprachanrufe { #voice-calls }
+
+[Sprachanrufe](voice.md) werden pro Organisation in der App eingeschaltet,
+begrenzt und mit ihren monatlichen Minuten versehen. Zwei Obergrenzen gehören
+dem Deployment:
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `VOICE_MAX_CALLS_PER_USER` | `1` | Anrufe, die eine Person gleichzeitig führen darf. Der Anruf eines zweiten Tabs ist fast immer ein Versehen, und jeder wird abgerechnet; ein zweiter Start wird als `busy` abgelehnt |
+| `VOICE_MAX_CALLS_PER_EMBED` | `3` | Anrufe, die ein Widget oder eine Hosted Page gleichzeitig führen darf, von allen Besuchenden zusammen; der nächste wird als `line_busy` abgelehnt. Besuchende haben kein Konto, auf das gezählt werden könnte, also ist das, was einen geleakten Link davon abhält, die monatlichen Minuten der Organisation parallel zu verbrauchen |
+
+Beide zählen Anrufe, deren Heartbeat frisch ist, sodass ein Anruf, dessen
+Prozess gestorben ist, innerhalb von 45 Sekunden nicht mehr zählt. Das Starten
+von Anrufen auf einem Embed ist außerdem rate-limitiert
+(`RATE_LIMIT_EMBED_VOICE_*`, [unten](#rate-limiting)). Das eigene
+`rate_limit_per_minute` eines Embeds, im Builder gesetzt, zählt die
+**Nachrichten** einer besuchenden Person, keine Anrufstarts, und begrenzt Anrufe
+deshalb nicht.
+
+Der Rest ist im Code festgelegt statt konfiguriert: Ein Anruf ist nie länger als
+50 Minuten, Heartbeats laufen alle 15 Sekunden, und der Voice-Sweep läuft jede
+Minute und einmal beim Start, als Prefect-Deployment `voice-call-sweep`.
+
 ## CORS { #cors }
 
 | Variable | Standard | Beschreibung |
@@ -1155,7 +1178,7 @@ Prüfung für die Produktion: `CORS_ORIGINS` darf bei `ENVIRONMENT=production` k
 Wird auf die Oberflächen angewandt, die eine fremde Person erreichen kann, und
 nur auf diese: die öffentliche Run-API, das Skript des Widgets, dessen Config, den
 Socket-Handshake beider Oberflächen, Config und Logo einer Hosted Page sowie den
-Upload und das Diktat einer besuchenden Person. Die Routen der Konsole selbst liegen hinter einer
+Upload, das Diktat und den Sprachanruf einer besuchenden Person. Die Routen der Konsole selbst liegen hinter einer
 Session und werden nicht gemessen — ob die ganze API eine Obergrenze tragen
 sollte, ist eine eigene Entscheidung und nicht diese.
 
@@ -1170,6 +1193,8 @@ sollte, ist eine eigene Entscheidung und nicht diese.
 | `RATE_LIMIT_DICTATION_PER_MINUTE` | `10` | [Diktieren im Chat](ml-services.md#dictation-in-chat), pro Person, auf einem eigenen Zähler, damit Diktieren und eine Integration, die die ML-Dienste aufruft, einander nicht das Kontingent verbrauchen. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation |
 | `RATE_LIMIT_EMBED_DICTATION_PER_MINUTE` | `6` | [Diktat in einem Widget oder auf einer Hosted Page](channels.md#dictation-on-a-widget-or-a-hosted-page), pro Adresse und bei einem `jwt`-Widget pro besuchender Person. Jedes Diktat ist ein Aufruf beim kostenpflichtigen Provider der Organisation, außerhalb jedes Modell-Budgets |
 | `RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE` | `10` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen - die Obergrenze dessen, was ein geleakter Link kostet: so viele Aufnahmen pro Minute, jede bis zum längsten Diktat der Organisation |
+| `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` | `3` | [Sprachanrufe](channels.md#voice-calls-on-a-widget-or-a-hosted-page), die in einem Widget oder auf einer Hosted Page gestartet werden, pro Adresse und bei einem `jwt`-Widget pro Token-Subject der besuchenden Person. Gezählt, bevor der Schlüssel nachgeschlagen wird; jeder Anruf ist eine kostenpflichtige Realtime-Session |
+| `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` | `6` | Dasselbe, pro Seite oder Widget, von allen Besuchenden zusammen. Zusammen mit `VOICE_MAX_CALLS_PER_EMBED` oben die Obergrenze dessen, was ein geleakter Link kostet |
 | `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` | Ob `X-Forwarded-For` die aufrufende Seite benennt |
 
 **Was eine abgelehnte aufrufende Seite bekommt**, ist der eigene Fehlerumschlag

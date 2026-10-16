@@ -36,6 +36,7 @@ const UNGATED_LAUNCH = [
 const BUILDER_STEPS = [
   "agent-instructions",
   "agent-model",
+  "agent-voice",
   "agent-toolbox",
   "agent-mcp",
   "agent-knowledge",
@@ -52,7 +53,13 @@ const KB_STEPS = ["kb-header", "kb-documents", "kb-ingestion", "kb-sync"];
 
 // The organization detail walk: the members page (profile, then the list), then
 // across into the roles matrix. None are inTour — orgs is a "?"-only section.
-const ORG_STEPS = ["org-profile", "org-voice", "org-members", "org-roles"];
+const ORG_STEPS = [
+  "org-profile",
+  "org-voice",
+  "org-voice-conversations",
+  "org-members",
+  "org-roles",
+];
 
 describe("pageKey", () => {
   it("collapses every concrete builder route onto the one builder identity", () => {
@@ -180,6 +187,7 @@ describe("stepsForPage", () => {
       "chat-composer",
       "chat-plan",
       "chat-model-picker",
+      "chat-voice-call",
       "chat-approval-mode",
       "chat-your-connections",
     ]);
@@ -398,5 +406,23 @@ describe("the Routines page", () => {
 
     expect(refused).toEqual(["routines-list"]);
     expect(allowed).toEqual(["routines-list", "routines-create"]);
+  });
+});
+
+describe("voice call stops (#54)", () => {
+  it("spotlights the composer's call button, optionally, because readiness loads late", () => {
+    const step = TOUR_STEPS.find((s) => s.id === "chat-voice-call");
+    expect(step).toMatchObject({ page: ROUTES.CHAT, target: "chat-voice-call", optional: true });
+    expect(step?.permission).toBeUndefined();
+  });
+
+  it.each([
+    ["org-voice-conversations", "org-voice-conversations", Perm.orgSettings, undefined],
+    ["agent-voice", "agent-voice", Perm.agentsView, "agent-tab-build"],
+  ])("%s spotlights %s, gated like its control", (id, target, permission, activate) => {
+    const step = TOUR_STEPS.find((s) => s.id === id);
+    expect(step).toMatchObject({ target });
+    expect(step?.permission).toBe(permission);
+    expect(step?.activate).toBe(activate);
   });
 });

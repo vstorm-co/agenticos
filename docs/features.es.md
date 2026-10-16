@@ -1,5 +1,5 @@
 ---
-source_sha: "9b4efce78f27"
+source_sha: "e316c5cbceb6"
 ---
 
 # Funciones { #features }
@@ -179,7 +179,16 @@ La transcripción de voz también funciona en ellas con el propio provider de la
 organización: dictado en el chat web, en una página alojada y en el widget, y
 notas de voz transcritas en Slack, Telegram y Mattermost.
 
-[Superficies →](channels.md)
+**Las llamadas de voz** permiten a una persona hablar con un agent publicado e
+interrumpirlo, en el chat web, en una página alojada o en el widget. El agent
+conserva sus herramientas, su conocimiento, sus aprobaciones y sus budgets,
+cada turno se guarda como texto en la conversación y no se almacena ningún
+audio. Las llamadas están apagadas hasta que una organización las enciende, y
+tienen sus propios límites de duración y de minutos mensuales. Los modelos en
+tiempo real de OpenAI están probados en vivo; Azure OpenAI, Gemini Live y xAI
+todavía no están verificados en vivo.
+
+[Superficies →](channels.md) · [Conversaciones de voz →](voice.md)
 
 ## Budgets que de verdad paran un run { #budgets-that-actually-stop-a-run }
 

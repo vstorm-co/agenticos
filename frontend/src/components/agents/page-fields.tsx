@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui";
 import { EmbedDictationField } from "@/components/agents/embed-dictation-field";
+import { EmbedVoiceField } from "@/components/agents/embed-voice-field";
 import type { EmbedVariable, HostedLogo, PageConfig } from "@/types/embeds";
 import { useRef } from "react";
 
@@ -27,6 +28,15 @@ export interface ServerDictationChoice {
   /** The readiness read failed, so `available` stays null and is not on its way. */
   unchecked: boolean;
   wasServer: boolean;
+}
+
+/** Whether a voice call would start from an embed of this agent, and whether calls are on already. */
+export interface EmbedVoiceChoice {
+  /** Null while the agent's readiness is still loading, or when it could not be read. */
+  available: boolean | null;
+  /** The readiness read failed, so `available` stays null and is not on its way. */
+  unchecked: boolean;
+  wasOn: boolean;
 }
 
 const MAX_TITLE = 80;
@@ -53,6 +63,7 @@ export function PageFields({
   hasCustomLogo,
   onUpload,
   serverDictation,
+  voiceCall,
   onChange,
 }: {
   config: PageConfig;
@@ -71,6 +82,8 @@ export function PageFields({
   onUpload?: (file: File) => void;
   /** What `EmbedDictationField` needs to offer `server` honestly. */
   serverDictation: ServerDictationChoice;
+  /** What `EmbedVoiceField` needs to offer calls honestly. */
+  voiceCall: EmbedVoiceChoice;
   onChange: (config: PageConfig) => void;
 }) {
   const t = useTranslations("agents");
@@ -180,6 +193,16 @@ export function PageFields({
         serverUnchecked={serverDictation.unchecked}
         wasServer={serverDictation.wasServer}
         onChange={(dictation) => onChange({ ...config, dictation })}
+      />
+
+      <EmbedVoiceField
+        name="page-voice"
+        value={config.voice_conversation}
+        disabled={disabled}
+        available={voiceCall.available}
+        unchecked={voiceCall.unchecked}
+        wasOn={voiceCall.wasOn}
+        onChange={(voice_conversation) => onChange({ ...config, voice_conversation })}
       />
 
       <div className="space-y-2">

@@ -1,5 +1,5 @@
 ---
-source_sha: "f997129511b8"
+source_sha: "2943c67ea645"
 ---
 
 # La consola { #the-console }
@@ -17,7 +17,7 @@ página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen treinta y seis tarjetas. No las verás todas: **cada tarjeta está
+Existen treinta y ocho tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -31,7 +31,7 @@ Llegan agrupadas en bandas:
 | *(sin título, arriba del todo)* | El resumen del que el resto de la página es el detalle |
 | **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
 | **Attention** | Lo que está esperando: [aprobaciones](governance.md#approvals), fallos recientes, margen de budget, salud de MCP, conocimiento obsoleto, tus [notificaciones](#the-bell) más recientes |
-| **Usage** | Runs, resultados, superficies, latencia, gasto, mezcla de modelos, comparación de versiones |
+| **Usage** | Runs, resultados, superficies, latencia, gasto, [minutos de voz](#voice-calls), mezcla de modelos, comparación de versiones |
 | **People** | Miembros, usuarios activos, valoraciones, quién hace qué |
 | **Sandboxes** | [Capacidad, sesiones en curso, política](sandbox.md) |
 | **Workspace** | Lo tuyo: tus agents, tus conversaciones, tu actividad, lo que han compartido contigo |
@@ -219,7 +219,7 @@ catálogo, o la clave se borró o se hizo privada—, la tarjeta lo dice y pide
 miembros ven un micrófono tachado.
 
 Server sin proveedor predeterminado es una configuración, no un fallo: la tarjeta indica que solo dictan los agents con su propio proveedor.
-**Voice conversations**, debajo, todavía no está construido.
+**Voice conversations**, debajo, guarda los ajustes de llamada de la organización - ver [Llamadas de voz](#voice-calls).
 
 Para quien además tiene `runs:view`, la tarjeta empieza con una línea sobre lo que
 la organización transcribió en los últimos 30 días — «42 min · 118 grabaciones
@@ -252,6 +252,89 @@ La tarjeta avisa cuando la anulación cambia menos de lo que parece: con el moto
 de la organización en Off o Browser solo alcanza a los mensajes de voz de los
 canales, y sin proveedor en la organización es aquello con lo que funciona el
 dictado a este agent.
+
+### Llamadas de voz { #voice-calls }
+
+Una [llamada de voz](voice.md) es una conversación hablada con un agent
+publicado: tú hablas, él responde en voz alta y puedes interrumpirlo. Tres
+lugares de la consola la configuran.
+
+- **La tarjeta Voice de la organización**, bajo **Voice conversations**: **Allow
+  voice conversations** (apagado por defecto), **Offer calls in chat**, **Longest
+  call (minutes)**, de 1 a 50, y **Monthly call minutes**, o sin límite mensual
+  para confiar solo en los budgets. Los tres primeros necesitan `org:settings`;
+  los minutos necesitan `budgets:manage` y son de solo lectura para cualquier
+  otro. Quien tiene `runs:view` ve además cuántos de los minutos de este mes han
+  usado las llamadas.
+- **La tarjeta Voice del agent**, bajo **Voice conversations**: **Take voice
+  calls**, y después el provider y el modelo de la llamada (en Azure, el nombre
+  del deployment y su modelo base), la clave, la voz, el idioma hablado (o
+  **Follow the caller**), la llamada más larga y una nota de voz. La tarjeta
+  enumera lo que el agent no puede usar en las llamadas, dice que las
+  salvaguardas no pueden filtrar las palabras habladas antes de que se oigan, y
+  que las llamadas se registran como texto sin conservar el audio. Entra en
+  vigor cuando se publica el agent.
+- **El interruptor Voice calls de un embed**, en los formularios del widget y de
+  la página alojada - ver
+  [Canales](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
+
+Antes de ofrecer una llamada, la consola pregunta si este agent puede atenderla
+(`GET /agents/{id}/voice`), para que nadie conceda el micrófono solo para que se
+lo rechacen. La respuesta nombra lo que falta: llamadas apagadas en la
+organización o en el chat, ninguna voz configurada en el agent, el modelo ya no
+ofrecido, ninguna clave, o ningún minuto restante este mes.
+
+El **botón de llamada** está en el composer del chat, junto al micrófono. Si las
+llamadas están apagadas en la organización o en el chat, ni siquiera aparece. Si
+este agent no puede atender una llamada, aparece tachado, y al pasar el ratón por
+encima, enfocarlo o pulsarlo te dice por qué y, si puedes configurar las
+llamadas, dónde hacerlo.
+
+Durante una llamada, el composer se convierte en una **barra de llamada**: lo que
+está haciendo la llamada, su tiempo frente al límite de la llamada y los minutos
+que quedan del mes, una forma de onda de las dos voces, push-to-talk, silenciar y
+**End**. Solo End termina una llamada; abrir otra conversación o un chat nuevo la
+cuelga. Hablar es manos libres por defecto; **push-to-talk** (mantén pulsado el
+botón o Espacio) es una opción que recuerda tu navegador. Con el movimiento
+reducido activado, un medidor de nivel escalonado sustituye a la forma de onda.
+
+Una llamada pasa por estados que la barra nombra: conectando, escuchando,
+hablas tú, pensando, habla el agent, interrumpido, trabajando con una
+herramienta, esperando tu aprobación, una aprobación que no puedes dar, casi sin
+tiempo, y terminada - por ti, por un límite, por una conexión caída o por un
+fallo.
+
+La llamada transcurre en la conversación: los subtítulos van apareciendo palabra
+a palabra dentro del mensaje que se está diciendo, un lector de pantalla anuncia
+cada línea en cuanto es definitiva, y cada turno terminado deja paso al mensaje
+guardado en la conversación, así que después la llamada está en tu historial y
+puedes seguir escribiendo. Mientras el agent piensa o ejecuta una herramienta, la
+conversación lo indica en el sitio donde aparecerá su respuesta.
+
+**Las aprobaciones** se deciden en la llamada: una tarjeta en la conversación
+muestra la herramienta, sus argumentos exactos y lo que se te oyó decir, con una
+cuenta atrás de 60 segundos. Solo deciden sus botones; decir «sí» no basta. Sin
+`approvals:decide` la tarjeta avisa de que la herramienta necesita una aprobación
+que no puedes dar por voz, y te ofrece terminar la llamada y seguir por escrito.
+**Los límites** se dicen en voz alta: un minuto antes de que acabe la llamada más
+larga se te avisa, y cuando se agotan el tiempo, el budget o los minutos del mes,
+el agent dice una frase y la llamada termina.
+
+Una **franja bajo la barra** señala lo que requiere tu atención: la petición de
+acceso al micrófono, una aprobación pendiente más arriba (con **Show card**), el
+último minuto, un límite que termina la llamada, una reconexión o cómo funciona
+push-to-talk. Cuando la llamada termina, una tarjeta en la conversación indica
+cuánto duró y cuántos turnos se guardaron, o qué límite la terminó, con un botón
+para volver a llamar. Una llamada que no llegó a empezar explica el motivo bajo
+el composer, con **Try again**.
+
+En **Activity**, una llamada es una fila con una insignia de micrófono, y el
+filtro de tipo (**Text** o **Voice calls**) la reduce a llamadas; una llamada que
+se reconectó sigue siendo una fila, con el tiempo y el coste de cada conexión
+sumados. La tarjeta **Voice minutes** del dashboard, en la banda Usage para
+quien tiene `runs:view`, muestra los minutos de llamada y las llamadas del
+periodo, los tres agents principales y los minutos de este mes frente al límite
+de la organización.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 
@@ -290,7 +373,7 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **treinta y seis widgets** que ordenas tú, guardados por
+- El dashboard son **treinta y ocho widgets** que ordenas tú, guardados por
   persona y por organización — todos menos tus propias notificaciones
   protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la

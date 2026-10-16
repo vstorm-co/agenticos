@@ -1,5 +1,5 @@
 ---
-source_sha: "9b4efce78f27"
+source_sha: "e316c5cbceb6"
 ---
 
 # Funktionen { #features }
@@ -183,7 +183,15 @@ Spracherkennung läuft auch hier über den eigenen Provider der Organisation:
 Diktieren im Web-Chat, auf einer gehosteten Seite und im Widget sowie
 transkribierte Sprachnachrichten in Slack, Telegram und Mattermost.
 
-[Oberflächen →](channels.md)
+**Sprachanrufe** lassen eine Person mit einem veröffentlichten Agent sprechen und
+ihn unterbrechen, im Web-Chat, auf einer gehosteten Seite oder im Widget. Der
+Agent behält seine Tools, sein Wissen, seine Freigaben und Budgets, jede Runde
+wird als Text in der Unterhaltung gespeichert, und kein Audio wird gespeichert.
+Anrufe sind aus, bis eine Organisation sie einschaltet, und haben eigene Limits
+für Dauer und monatliche Minuten. Die Realtime-Modelle von OpenAI sind live
+getestet; Azure OpenAI, Gemini Live und xAI sind noch nicht live verifiziert.
+
+[Oberflächen →](channels.md) · [Sprachgespräche →](voice.md)
 
 ## Budgets, die einen Run wirklich stoppen { #budgets-that-actually-stop-a-run }
 

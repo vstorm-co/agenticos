@@ -50,6 +50,7 @@ from starlette.requests import HTTPConnection
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
+from app.core.logging import one_line
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +150,9 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     limited at all", so it is a warning rather than a debug.
     """
     if _redis is None:
-        logger.warning("Rate limiting not configured - %s reached unmetered by %s", surface, caller)
+        logger.warning(
+            "Rate limiting not configured - %s reached unmetered by %s", surface, one_line(caller)
+        )
         return Decision(allowed=True, retry_after_seconds=0, metered=False)
 
     key = f"ratelimit:{surface}:{_bounded(caller)}"
@@ -373,6 +376,51 @@ async def embed_dictation_visitor_allowed(*, public_key: str, visitor: str) -> D
         surface="embed_dictation",
         caller=f"key:{public_key}:visitor:{visitor}",
         limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_MINUTE),
+    )
+
+
+async def embed_voice_allowed(connection: HTTPConnection, *, public_key: str) -> Decision:
+    """Whether this caller may start another voice call on this page or widget now (#54).
+
+    **Every call is a paid realtime session**, so this is the `embed_dictation_allowed`
+    shape with counters of its own: the address first, because a stranger cannot vary
+    it for free, then the link, which no visitor can vary at all. Whatever addresses a
+    script rotates through, one page or widget starts at most
+    `RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE` calls a minute, and that number times
+    the organization's call cap - all of it inside the organization's monthly minutes
+    and the agent's budget - is the worst a leaked link can cost.
+
+    Both counters are spent before the key is looked up, so a refused handshake spends
+    the link's allowance too; that costs the organization nothing, since no provider
+    is called.
+    """
+    by_address = await consume(
+        surface="embed_voice",
+        caller=f"ip:{caller_ip(connection)}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_MINUTE),
+    )
+    if not by_address.allowed:
+        return by_address
+    return await consume(
+        surface="embed_voice",
+        caller=f"key:{public_key}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE),
+    )
+
+
+async def embed_voice_visitor_allowed(*, public_key: str, visitor: str) -> Decision:
+    """Whether this verified `jwt` visitor may start another voice call now (#54).
+
+    Keyed on the token's subject, which the customer's backend signed and a
+    visitor cannot mint - so one signed-in visitor takes at most
+    `RATE_LIMIT_EMBED_VOICE_PER_MINUTE` of the link's starts, wherever they
+    connect from. Their open calls are bounded with everybody's by
+    `VOICE_MAX_CALLS_PER_EMBED`.
+    """
+    return await consume(
+        surface="embed_voice",
+        caller=f"key:{public_key}:visitor:{visitor}",
+        limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_MINUTE),
     )
 
 

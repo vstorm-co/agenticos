@@ -17,6 +17,7 @@ import { DEFAULT_PAGE_CONFIG, type EmbedVariable, type PageConfig } from "@/type
 
 const onChange = vi.fn();
 const READY = { available: true, unchecked: false, wasServer: false };
+const CALLS = { available: true, unchecked: false, wasOn: false };
 
 function fields(config: Partial<PageConfig> = {}, variables: EmbedVariable[] = []) {
   render(
@@ -27,12 +28,23 @@ function fields(config: Partial<PageConfig> = {}, variables: EmbedVariable[] = [
       hasCustomLogo={false}
       onUpload={vi.fn()}
       serverDictation={READY}
+      voiceCall={CALLS}
       onChange={onChange}
     />,
   );
 }
 
 beforeEach(() => onChange.mockClear());
+
+describe("calls on the page", () => {
+  it("carries the voice switch into the config", async () => {
+    fields();
+
+    await userEvent.click(screen.getByRole("switch", { name: "Voice calls" }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ voice_conversation: true }));
+  });
+});
 
 describe("what the operator writes on the page", () => {
   it("carries the title", async () => {
@@ -164,6 +176,7 @@ describe("the picture", () => {
         hasCustomLogo={false}
         onUpload={onUpload}
         serverDictation={READY}
+        voiceCall={CALLS}
         onChange={onChange}
       />,
     );
@@ -187,6 +200,7 @@ describe("the picture", () => {
         hasCustomLogo
         onUpload={vi.fn()}
         serverDictation={READY}
+        voiceCall={CALLS}
         onChange={onChange}
       />,
     );

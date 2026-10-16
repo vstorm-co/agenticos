@@ -2,12 +2,14 @@
 
 Everything above this deals in secret ids; everything below deals in ciphertext.
 There is deliberately no method that returns a plaintext to a caller who could
-keep one. Four methods unseal, and each hands what it opened straight to the thing
+keep one. Five methods unseal, and each hands what it opened straight to the thing
 that had to have it: :meth:`OrganizationSecretService.resolve_for_bindings`, called
 by the runner; :meth:`OrganizationSecretService.listing_key`, which returns a
 bearer token for one outbound catalog request;
 :meth:`OrganizationSecretService.transcription_key`, which returns the key a
-transcription request names; and :meth:`OrganizationSecretService.oauth_app`, which hands
+transcription request names; :meth:`OrganizationSecretService.voice_call_key`,
+which opens the key a voice call was held with only to hang that call up (#54);
+and :meth:`OrganizationSecretService.oauth_app`, which hands
 an OAuth client's secret to the provider's own token endpoint inside the connect
 flow and to nowhere else.
 """
@@ -444,6 +446,25 @@ class OrganizationSecretService:
         # `unseal_secret` refuses an envelope whose kind is not the one named,
         # so this is one - the cast says so.
         return cast(ApiKeySecret, value).api_key.get_secret_value()
+
+    async def voice_call_key(self, organization_id: UUID, secret_id: UUID) -> StorableSecret | None:
+        """The key a voice call is held with, to hang it up (#54).
+
+        A narrow reader: the plaintext goes to the provider's hang-up endpoint
+        and nowhere else. Takes an organization id because the reaper has no
+        caller to build a context for. `None` when the key is gone.
+        """
+        row = await organization_secret_repo.get(
+            self.db, secret_id, organization_id=organization_id
+        )
+        if row is None:
+            return None
+        return unseal_secret(
+            row.sealed_secret,
+            kind=SecretKind(row.kind),
+            scope=VaultScope.organization(organization_id),
+            key_version=row.key_version,
+        )
 
     async def oauth_app(self, ctx: AuthContext, *, kind: SecretKind) -> OAuthAppSecret:
         """Unseal the organization's OAuth client credentials for a token exchange.

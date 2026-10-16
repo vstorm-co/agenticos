@@ -38,6 +38,7 @@ from app.agents.spec import (
     AlertAudience,
     AlertSpec,
     NotificationSpec,
+    VoiceSpec,
 )
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret
@@ -902,3 +903,34 @@ class TestWhoHearsAboutAnAgent:
         )
 
         assert "@" not in spec.to_yaml()
+
+
+class TestVoiceSpec:
+    def test_a_spec_written_before_voice_existed_still_loads(self):
+        old = {"spec_version": 12, "name": "Support", "instructions": "Help.", "capabilities": []}
+        assert AgentSpec.model_validate(old).voice is None
+
+    def test_an_all_null_voice_block_is_stored_as_absent(self):
+        spec = AgentSpec(name="a", voice=VoiceSpec())
+        assert spec.voice is None
+
+    def test_voice_round_trips_through_yaml(self):
+        spec = AgentSpec(
+            name="a",
+            voice=VoiceSpec(
+                provider="openai",
+                model="gpt-realtime",
+                secret_id=uuid.uuid4(),
+                voice="marin",
+                max_call_seconds=300,
+                voice_note="Spell names back.",
+            ),
+        )
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    def test_a_call_longer_than_fifty_minutes_is_refused(self):
+        with pytest.raises(ValidationError):
+            VoiceSpec(max_call_seconds=3001)
+
+    def test_the_spec_version_did_not_move(self):
+        assert SPEC_VERSION == 12
