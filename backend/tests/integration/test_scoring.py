@@ -1241,7 +1241,7 @@ class TestGradingAgain:
         await _model(db, tenant)
         dataset, case = await _dataset(db, tenant, scoring=_rubric())
         run = await _scored_run(db, tenant)
-        eval_run_id = uuid.uuid4()
+        eval_run_id = await _eval_run(db, tenant, dataset, run)
         failed = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
 
         result = await ScoringService(db).rescore(
