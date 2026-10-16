@@ -1,5 +1,5 @@
 ---
-source_sha: "23c354f78b82"
+source_sha: "4c6dfd252452"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -59,14 +59,14 @@ Versionen geändert hat (History öffnet auf diesem Vergleich, gegen den
 getesteten Spec statt den jetzigen Draft), die kaputtgegangenen Fälle zeigen,
 zurück zu Build gehen oder den Draft veröffentlichen.
 
-Publish ist nur dann die Hauptaktion, wenn keine Regression bestätigt wurde
-und keine Antwort des Kandidaten unbewertet blieb,
-und der Run eines seitdem geänderten Drafts bietet stattdessen **Test again**
-an. Solange der Run antwortet, sagt die Seite, wie viele erste Antworten
-vorliegen, und der Vergleich wartet auf beide Seiten. Antworten, die der Judge
-nicht bewerten konnte, sagen, warum, und zählen weder als bestanden noch als
-nicht bestanden, und **Grade again** im Kopfbereich bewertet sie erneut, ohne
-den Agent zu fragen, für jeden, der das Dataset laufen lassen darf.
+Publish ist nur dann die Hauptaktion, wenn keine Regression bestätigt wurde und
+kein Fall des Kandidaten unbeantwortet oder unbewertet blieb, und der Run eines
+seitdem geänderten Drafts bietet stattdessen **Test again** an. Solange der Run
+antwortet, sagt die Seite, wie viele erste Antworten vorliegen, und der
+Vergleich wartet auf beide Seiten. Antworten, die der Judge nicht bewerten
+konnte, sagen, warum, und zählen weder als bestanden noch als nicht bestanden,
+und **Grade again** im Kopfbereich bewertet sie erneut, ohne den Agent zu
+fragen, für jeden, der das Dataset laufen lassen darf.
 
 Unter dem Urteil stehen die Seiten nebeneinander, wie die beiden abschneiden,
 und die Fälle - jede Zeile mit einem Punkt für bestanden oder nicht bestanden

@@ -6209,6 +6209,7 @@
     "back": "Back to the agent's evals",
     "cancelRun": "Stop",
     "progress": "Cases answered",
+    "comparisonFailed": "The verdict could not be read.",
     "compareArm": "Compare this model",
     "draft": "Draft",
     "proposed": "Proposed changes",

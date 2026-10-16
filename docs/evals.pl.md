@@ -1,5 +1,5 @@
 ---
-source_sha: "23c354f78b82"
+source_sha: "4c6dfd252452"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -56,13 +56,13 @@ run testował, a nie draftu w jego obecnym stanie), pokazać przypadki, które s
 zepsuły, wrócić do Build albo opublikować draft.
 
 Publish jest główną akcją tylko wtedy, gdy nie potwierdzono żadnej regresji i
-żadna odpowiedź kandydata nie została bez oceny, a
-run draftu, który od tego czasu się zmienił, proponuje zamiast tego **Test
-again**. Gdy run odpowiada, strona mówi, ile pierwszych odpowiedzi już jest, a
-porównanie czeka na obie strony. Odpowiedzi, których sędzia nie zdołał ocenić,
-mówią dlaczego i nie liczą się ani jako zaliczone, ani jako niezaliczone, a
-**Grade again** w nagłówku ocenia je ponownie bez pytania agenta, dla każdego,
-kto może uruchamiać dataset.
+żaden przypadek kandydata nie został bez odpowiedzi ani bez oceny, a run draftu,
+który od tego czasu się zmienił, proponuje zamiast tego **Test again**. Gdy run
+odpowiada, strona mówi, ile pierwszych odpowiedzi już jest, a porównanie czeka
+na obie strony. Odpowiedzi, których sędzia nie zdołał ocenić, mówią dlaczego i
+nie liczą się ani jako zaliczone, ani jako niezaliczone, a **Grade again** w
+nagłówku ocenia je ponownie bez pytania agenta, dla każdego, kto może uruchamiać
+dataset.
 
 Pod werdyktem są obie strony obok siebie, to, jak wypadają w porównaniu, i
 przypadki - każdy wiersz z kropką zaliczenia lub niezaliczenia dla każdej

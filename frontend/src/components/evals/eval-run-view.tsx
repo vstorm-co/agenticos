@@ -53,7 +53,11 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const cases = useRef<HTMLDivElement>(null);
   const focus = arm ?? candidates[0]?.id ?? null;
   const live = run !== undefined && isLive(run.status);
-  const { comparison, refetch: refetchComparison } = useEvalComparison(runId, {
+  const {
+    comparison,
+    error: comparisonError,
+    refetch: refetchComparison,
+  } = useEvalComparison(runId, {
     arm: focus,
     live,
   });
@@ -112,6 +116,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
             : undefined
         }
         onTestAgain={canTestAgain ? () => setTestingAgain(true) : undefined}
+        onRetryComparison={!live && comparisonError ? () => void refetchComparison() : undefined}
         onShowBroken={() => {
           setOnly(null);
           setBroken(true);

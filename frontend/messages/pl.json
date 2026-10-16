@@ -3830,6 +3830,7 @@
     "back": "Wróć do evali agenta",
     "cancelRun": "Zatrzymaj",
     "progress": "Odpowiedziane przypadki",
+    "comparisonFailed": "Nie udało się odczytać werdyktu.",
     "compareArm": "Porównaj ten model",
     "draft": "Draft",
     "proposed": "Proponowane zmiany",

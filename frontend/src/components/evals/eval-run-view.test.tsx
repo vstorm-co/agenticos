@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAuthStore } from "@/stores/auth-store";
 import type { User } from "@/types/auth";
+import type { EvalRun } from "@/types/eval-runs";
 import { FLIP, SUMMARY, arm, attempt, comparison, evalCase, evalRun } from "@/test-utils/eval-runs";
 import { ApiError } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
@@ -46,6 +47,7 @@ const state = vi.hoisted(() => ({
   comparisonArgs: [] as unknown[],
   refetchComparison: (() => undefined) as () => unknown,
   refetchCases: (() => undefined) as () => unknown,
+  comparisonError: null as Error | null,
 }));
 vi.mock("@/hooks/use-eval-runs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/use-eval-runs")>();
@@ -60,7 +62,11 @@ vi.mock("@/hooks/use-eval-runs", async (importOriginal) => {
     useRescoreRun: () => ({ mutate: review.rescore, isPending: false }),
     useEvalComparison: (...args: unknown[]) => {
       state.comparisonArgs.push(args);
-      return { comparison: state.comparison, refetch: state.refetchComparison };
+      return {
+        comparison: state.comparison,
+        error: state.comparisonError,
+        refetch: state.refetchComparison,
+      };
     },
   };
 });
@@ -108,6 +114,7 @@ beforeEach(() => {
   navigation.params = new URLSearchParams();
   access.allowed = new Set();
   useAuthStore.setState({ user: null });
+  state.comparisonError = null;
   state.casesArgs = [];
   state.comparisonArgs = [];
   state.run = { run: evalRun(), isLoading: false, error: null, refetch: vi.fn(), cancel };
@@ -225,6 +232,16 @@ describe("EvalRunView", () => {
     expect(screen.getByRole("link", { name: "Publish" }).className).toContain("bg-primary");
     unmount();
 
+    // A case the draft never finished answering is no reason to publish either.
+    const [draft, base] = (state.run.run as EvalRun).arms;
+    state.run = {
+      ...state.run,
+      run: evalRun({ arms: [{ ...draft!, summary: { ...SUMMARY, incomplete: 1 } }, base!] }),
+    };
+    const unfinished = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-primary");
+    unfinished.unmount();
+
     // A confirmed regression is a reason not to publish, beside any number of fixes.
     state.comparison = {
       ...(state.comparison as object),
@@ -238,6 +255,18 @@ describe("EvalRunView", () => {
       screen.getByRole("heading", { name: /Mixed: Draft breaks 3 cases and fixes 1 against v6/ }),
     ).toBeVisible();
     expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-primary");
+  });
+
+  it("says when the verdict could not be read, and reads it again", async () => {
+    const refetch = vi.fn();
+    state.refetchComparison = refetch;
+    state.comparison = undefined;
+    state.comparisonError = new Error("boom");
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("The verdict could not be read.");
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetch).toHaveBeenCalled();
   });
 
   it("says when the confirmed changes make it worse as a whole", () => {

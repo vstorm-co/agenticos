@@ -31,6 +31,7 @@ export function VerdictHeader({
   onCancel,
   onShowBroken,
   onTestAgain,
+  onRetryComparison,
 }: {
   agentId: string;
   run: EvalRun;
@@ -41,8 +42,11 @@ export function VerdictHeader({
   onShowBroken: () => void;
   /** Test the draft as it stands now, for a run of a draft that has moved on - for who may. */
   onTestAgain?: () => void;
+  /** Read the verdict again, when reading it failed. */
+  onRetryComparison?: () => void;
 }) {
   const t = useTranslations("evals");
+  const tc = useTranslations("common");
   const locale = useLocale();
   const { can } = usePermissions();
   const live = run.status === "queued" || run.status === "running";
@@ -76,6 +80,14 @@ export function VerdictHeader({
                   <VerdictHeadline run={run} candidate={candidate} comparison={comparison} />
                 </h1>
               </>
+            )}
+            {onRetryComparison && (
+              <p role="alert" className="text-warning flex flex-wrap items-center gap-2 text-sm">
+                {t("comparisonFailed")}
+                <Button size="sm" variant="outline" onClick={onRetryComparison}>
+                  {tc("retry")}
+                </Button>
+              </p>
             )}
             {comparison?.invalid_reason && (
               <p className="text-muted-foreground text-sm">{comparison.invalid_reason}</p>
@@ -168,6 +180,7 @@ export function VerdictHeader({
                   comparison &&
                   comparison.regressions_confirmed === 0 &&
                   comparison.overall !== "worse" &&
+                  candidate.summary.incomplete === 0 &&
                   candidate.ungraded_cases.length === 0
                     ? "default"
                     : "outline"
