@@ -2618,6 +2618,33 @@ class TestParking:
         assert [item["content"] for item in kept.await_args.args[1]] == ["Write the next fix"]
 
     @pytest.mark.anyio
+    async def test_a_run_outside_a_conversation_keeps_no_plan(self):
+        """An API call with no thread has nowhere to keep a checklist, and the
+        chat calls this for every turn - with or without one."""
+        prepared = _prepared()
+        await prepared.plan_store.set_items([PlanItem(content="Write the fix")])
+
+        with patch("app.services.agent_runner.ConversationService") as conversations:
+            await AgentRunnerService(_db()).keep_plan(prepared, status=RunStatus.COMPLETED)
+
+        conversations.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_an_interrupted_run_puts_down_the_step_it_kept(self):
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        await prepared.plan_store.set_items(
+            [PlanItem(content="Write the fix", status=TaskStatus.in_progress)]
+        )
+
+        with patch("app.services.agent_runner.ConversationService") as conversations:
+            conversations.return_value.keep_plan = AsyncMock()
+            await AgentRunnerService(_db()).keep_plan(prepared, status=RunStatus.CANCELLED)
+
+        kept = conversations.return_value.keep_plan.await_args.args
+        assert kept[0] == prepared.run.conversation_id
+        assert [item["status"] for item in kept[1]] == ["pending"]
+
+    @pytest.mark.anyio
     async def test_a_parked_runs_transcript_marks_the_call_that_is_waiting(self):
         """The transcript rows are the only account of the turn a reload has, and
         they used to say `running` for the very call somebody has to decide about -

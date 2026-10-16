@@ -17,6 +17,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **The web chat remembers the plan between messages** (#2162). A checklist an
+  agent wrote in the chat was gone by the next message, so asking it to start
+  step two got "No plan yet." The chat now keeps the plan a turn ended on, as
+  the API, chat apps and triggers already did, and a stopped turn hands its
+  step back as still to do.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed
