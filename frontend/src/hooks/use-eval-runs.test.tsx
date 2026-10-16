@@ -252,7 +252,7 @@ describe("useSendToReview", () => {
     vi.mocked(apiClient.get)
       .mockResolvedValueOnce({ items: [failed("c1", "s1"), failed("c2", null)], total: 101 })
       .mockResolvedValueOnce({ items: [failed("c3", "s3")], total: 101 });
-    vi.mocked(apiClient.post).mockResolvedValue({ queued: 2, already: 0 });
+    vi.mocked(apiClient.post).mockResolvedValue({ queued: 2, replaced: 1, already: 0 });
     const invalidate = vi.spyOn(client, "invalidateQueries");
     const { result } = renderHook(() => useSendToReview("run-1", "ds-1"), { wrapper });
 
@@ -268,7 +268,7 @@ describe("useSendToReview", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/datasets/ds-1/scores/review", {
       score_ids: ["s1", "s3"],
     });
-    expect(sent).toEqual({ queued: 2, already: 0 });
+    expect(sent).toEqual({ queued: 2, replaced: 1, already: 0 });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["datasets", "review-queue"] });
   });
 

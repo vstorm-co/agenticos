@@ -253,12 +253,12 @@ describe("EvalRunView", () => {
   it("says what it sent to review itself, and when its judge graded its own model", () => {
     state.run = {
       ...state.run,
-      run: evalRun({ routed_to_review: 3, judge_model_profile_id: "m1" }),
+      run: evalRun({ routed_to_review: 3, routed_replacing: 1, judge_model_profile_id: "m1" }),
     };
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
       screen.getByText(
-        "This run sent 3 answers to review itself: the regressions it confirmed and the answers the judge failed to grade.",
+        "This run sent 3 answers to review itself: the regressions it confirmed and the answers the judge failed to grade. That replaced 1 older answer still waiting on the same case.",
       ),
     ).toBeVisible();
     expect(screen.getByText(/The judge graded on gpt-4.1, the model that answered/)).toBeVisible();
@@ -397,14 +397,24 @@ describe("EvalRunView", () => {
   it("sends what failed to review, for who may edit the dataset", async () => {
     review.canEdit = true;
     review.mutate = vi.fn((_arm: unknown, options: { onSuccess: (sent: unknown) => void }) =>
-      options.onSuccess({ queued: 1, already: 0 }),
+      options.onSuccess({ queued: 1, replaced: 0, already: 0 }),
     );
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     await userEvent.click(screen.getByRole("button", { name: "Send the failed case to review" }));
 
     expect(review.mutate).toHaveBeenCalledWith("arm-1", expect.anything());
     expect(toastSuccess).toHaveBeenCalledWith("1 case sent to review.");
+    unmount();
+
+    review.mutate = vi.fn((_arm: unknown, options: { onSuccess: (sent: unknown) => void }) =>
+      options.onSuccess({ queued: 3, replaced: 2, already: 1 }),
+    );
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByRole("button", { name: "Send the failed case to review" }));
+    expect(toastSuccess).toHaveBeenLastCalledWith(
+      "3 cases sent to review, replacing 2 older ones that were waiting; 1 not sent: already waiting, decided or older than the one waiting.",
+    );
   });
 
   it("says when sending to review was refused", async () => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "979dc3bef53a"
+source_sha: "05394ed74a14"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -80,6 +80,11 @@ und seine Seite sagt, warum (`routing_error`).
 **Send failed to review** schickt die übrigen nicht bestandenen Antworten einer
 Seite, für jeden, der das Dataset bearbeiten darf, und ein Fall, dessen
 Bewertung eine Person überstimmt hat, wird als korrigiert markiert.
+
+In beiden Fällen nimmt eine Antwort den Platz einer älteren, noch wartenden
+Antwort desselben Falls ein, die die Warteschlange unentschieden verlässt - ein
+Run nennt deren Zahl als `routed_replacing` - und eine Antwort, die älter ist
+als die wartende, wird nicht gesendet.
 
 Der eigene Tab **Evals** eines Datasets listet jeden darauf gemessenen Agent,
 jeden mit seinem Verlauf und seinen Runs, und **Run evals** in seinem

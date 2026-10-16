@@ -1,5 +1,5 @@
 ---
-source_sha: "979dc3bef53a"
+source_sha: "05394ed74a14"
 title: "Eval runy"
 description: "Eval run odpowiada na każdy przypadek datasetu wersją agenta albo jego draftem, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -75,6 +75,11 @@ odrzucona, run i tak się kończy, a jego strona mówi dlaczego (`routing_error`
 resztę niezaliczonych odpowiedzi jednej strony, dla każdego, kto może edytować
 dataset, a przypadek, którego ocenę osoba uchyliła, jest oznaczany jako
 poprawiony.
+
+W obu przypadkach odpowiedź zajmuje miejsce starszej odpowiedzi tego samego
+przypadku, która jeszcze czeka, a ta opuszcza kolejkę bez decyzji - run podaje,
+ile ich było, jako `routed_replacing` - a odpowiedź starsza od czekającej nie
+jest wysyłana.
 
 Własna zakładka **Evals** datasetu wymienia każdego mierzonego na nim agenta,
 każdego ze swoim trendem i runami, a **Run evals** w jego nagłówku otwiera

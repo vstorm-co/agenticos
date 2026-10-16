@@ -6274,8 +6274,8 @@
     },
     "review": {
       "send": "{count, plural, =1 {Den nicht bestandenen Fall zur Prüfung senden} other {# nicht bestandene Fälle zur Prüfung senden}}",
-      "sent": "{queued, plural, =0 {Nichts Neues zur Prüfung gesendet} =1 {1 Fall zur Prüfung gesendet} other {# Fälle zur Prüfung gesendet}}{already, plural, =0 {} other {; # waren schon dort oder entschieden}}.",
-      "routed": "Dieser Run hat {count, plural, =1 {1 Antwort} other {# Antworten}} selbst zum Review geschickt: die bestätigten Regressionen und die Antworten, an deren Bewertung der Judge gescheitert ist.",
+      "sent": "{queued, plural, =0 {Nichts Neues zur Prüfung gesendet} =1 {1 Fall zur Prüfung gesendet} other {# Fälle zur Prüfung gesendet}}{replaced, plural, =0 {} =1 {, ersetzt 1 älteren, der wartete} other {, ersetzt # ältere, die warteten}}{already, plural, =0 {} other {; # nicht gesendet: schon wartend, entschieden oder älter als der wartende}}.",
+      "routed": "Dieser Run hat {count, plural, =1 {1 Antwort} other {# Antworten}} selbst zum Review geschickt: die bestätigten Regressionen und die Antworten, an deren Bewertung der Judge gescheitert ist.{replaced, plural, =0 {} =1 { Das ersetzte 1 ältere Antwort, die beim selben Fall noch wartete.} other { Das ersetzte # ältere Antworten, die bei denselben Fällen noch warteten.}}",
       "routingFailed": "Dieser Run konnte seine Antworten nicht selbst zum Review schicken, also schick die durchgefallenen von Hand. Grund: {reason}",
       "sendOther": "{count, plural, =1 {Den anderen durchgefallenen Fall senden} other {Die anderen # durchgefallenen Fälle senden}}"
     },

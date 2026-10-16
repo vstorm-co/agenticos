@@ -71,6 +71,7 @@ export function evalRun(overrides: Partial<EvalRun> = {}): EvalRun {
     first_total: 4,
     outcome: null,
     routed_to_review: 0,
+    routed_replacing: 0,
     judge_model_profile_id: null,
     routing_error: null,
     ungraded_score_ids: [],

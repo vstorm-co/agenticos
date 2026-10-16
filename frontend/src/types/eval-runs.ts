@@ -151,6 +151,8 @@ export interface EvalRun {
   outcome: EvalOutcome | null;
   /** How many of its scores the run sent to review itself - confirmed regressions and ungraded answers. */
   routed_to_review: number;
+  /** How many older scores of the same cases, still waiting, the run's own sending replaced. */
+  routed_replacing: number;
   /** The model the judge graded this run on; null when none did. */
   judge_model_profile_id: string | null;
   /** Why the run could not send its scores to review itself; null when it could. */

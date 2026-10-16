@@ -174,9 +174,9 @@ const RESCORE_BATCH = 10;
 const CASE_PAGE = 100;
 
 /**
- * Sending one side's failed answers to the dataset's review queue. An eval run
- * queues nothing itself, so this is a person's choice, made from the run's page:
- * every failed first answer of `arm`, read page by page, sent in batches.
+ * Sending one side's failed answers to the dataset's review queue from the
+ * run's page: every failed first answer of `arm`, read page by page, sent in
+ * batches. One newer than a case's answer still waiting takes its place.
  */
 export function useSendToReview(runId: string, datasetId: string) {
   const queryClient = useQueryClient();
@@ -194,16 +194,18 @@ export function useSendToReview(runId: string, datasetId: string) {
         }
       }
       let queued = 0;
+      let replaced = 0;
       let already = 0;
       for (let at = 0; at < ids.length; at += REVIEW_BATCH) {
-        const sent = await apiClient.post<{ queued: number; already: number }>(
+        const sent = await apiClient.post<{ queued: number; replaced: number; already: number }>(
           `/datasets/${datasetId}/scores/review`,
           { score_ids: ids.slice(at, at + REVIEW_BATCH) },
         );
         queued += sent.queued;
+        replaced += sent.replaced;
         already += sent.already;
       }
-      return { queued, already };
+      return { queued, replaced, already };
     },
     onSuccess: () =>
       Promise.all([

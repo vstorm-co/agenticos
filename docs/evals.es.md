@@ -1,5 +1,5 @@
 ---
-source_sha: "979dc3bef53a"
+source_sha: "05394ed74a14"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -75,6 +75,10 @@ se rechaza, el run termina igual y su página dice por qué (`routing_error`). *
 el resto de las respuestas fallidas de un lado, para quien pueda editar el
 dataset, y un caso cuya calificación anuló una persona queda marcado como
 corregido.
+
+En ambos casos una respuesta ocupa el lugar de una más antigua del mismo caso
+que aún espera, que sale de la cola sin decisión - un run dice cuántas como
+`routed_replacing` - y una respuesta más antigua que la que espera no se envía.
 
 La propia pestaña **Evals** de un dataset lista cada agent medido en él, cada
 uno con su tendencia y sus runs, y **Run evals** en su encabezado abre el

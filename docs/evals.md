@@ -67,6 +67,10 @@ run still completes and its page says why (`routing_error`). **Send failed to re
 side's failed answers, for whoever may edit the dataset, and a case whose grade
 a person overturned is marked as corrected.
 
+Either way an answer takes the place of an older one of its case still waiting,
+which leaves the queue undecided - a run says how many as `routed_replacing` -
+and an answer older than the one waiting is not sent.
+
 A dataset's own **Evals** tab lists every agent measured on it, each with its
 trend and runs, and its header's **Run evals** opens the start dialog on the
 dataset, asking which agent to test.
