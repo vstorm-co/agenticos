@@ -443,10 +443,14 @@ class EvalRunWorker:
         run's answers, which is asked the flipped cases again here. A past
         baseline from another run cannot be rerun, so only the candidate side
         confirms against it.
+
+        The run is locked while they are queued, as a cancel locks it: a cancel
+        landing between the status check and the insert would skip the pending
+        attempts it found and leave these pending in a cancelled run for good.
         """
         org = self.organization_id
         async with self.sessions() as db:
-            run = await eval_run_repo.get(db, self.eval_run_id, organization_id=org)
+            run = await eval_run_repo.lock(db, self.eval_run_id, organization_id=org)
             if run is None or run.status != EvalRunStatus.RUNNING.value or run.reruns == 0:
                 return False
             service = EvalRunService(db)

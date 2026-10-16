@@ -2018,3 +2018,30 @@ async def test_an_environment_with_an_eval_run_waiting_in_it_is_kept(db) -> None
 
     await _run_to_end(db, Model(db), started.id, ctx)
     await environments.delete(ctx, agent.id, staging.id)
+
+
+async def test_a_run_cancelled_before_its_reruns_queues_none(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    model = Model(db, answer=lambda prompt, call: _FAIL if prompt == "Question 0" else _PASS)
+    worker = EvalRunWorker(v7.id, ctx.organization_id, sessions=_sessions(db), sleep=AsyncMock())
+
+    async def execute(runner, *args, **kwargs):
+        return await model.execute(runner, *args, **kwargs)
+
+    with patch.object(AgentRunnerService, "execute", new=execute):
+        started = await worker._begin()
+        assert started is not None
+        await worker._wave(started)
+    await service.cancel(ctx, v7.id)
+
+    assert await worker._queue_reruns(started) is False
+    reruns = await db.scalars(
+        select(EvalRunCase).where(EvalRunCase.eval_run_id == v7.id, EvalRunCase.attempt > 0)
+    )
+    assert reruns.all() == []
