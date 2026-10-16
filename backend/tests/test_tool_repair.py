@@ -114,6 +114,7 @@ async def test_a_missing_field_still_fails_validation_and_retries() -> None:
     )
 
 
+@pytest.mark.security
 async def test_a_repaired_call_still_goes_through_the_approval_gate() -> None:
     """The gate is asked about the repaired call, with the arguments the tool will get."""
     asked: list[ApprovalRequest] = []

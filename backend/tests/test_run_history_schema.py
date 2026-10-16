@@ -28,6 +28,7 @@ def _row(**overrides: object) -> AgentRun:
         "status": RunStatus.COMPLETED.value,
         "input_tokens": 56,
         "output_tokens": 5,
+        "tool_args_repaired": 0,
         "cost_usd": Decimal("0.000030"),
         "cost_is_partial": False,
         "is_test": False,
