@@ -594,7 +594,7 @@ class EvalRunService:
         pinned = {
             (score.judge.get("agent_version_id"), score.judge.get("prompt_version") or 1)
             for score in scores.values()
-            if score.judge is not None
+            if score.judge is not None and not _judge_graded_nothing(score)
         }
         current = str(judge.current_version_id) if judge and judge.current_version_id else None
         now = {(current, JUDGE_PROMPT_VERSION)} if judged else set()
@@ -1812,13 +1812,14 @@ class EvalRunService:
         """Each case's judge pins across its attempts, for the cases a judge graded.
 
         A pin kept before the judge's prompt was versioned was graded by its
-        first version.
+        first version. A judge that failed on every criterion graded nothing, so
+        its pin says nothing about how the answer was graded.
         """
         scores = await self._scores(ctx, attempts)
         pins: dict[UUID, set[str]] = defaultdict(set)
         for attempt in attempts:
             score = scores.get(attempt.case_score_id)
-            if score is not None and score.judge is not None:
+            if score is not None and score.judge is not None and not _judge_graded_nothing(score):
                 pin = {**score.judge, "prompt_version": score.judge.get("prompt_version") or 1}
                 pins[attempt.case_id].add(json.dumps(pin, sort_keys=True))
         return pins
@@ -1849,6 +1850,12 @@ def _judge_failed(score: CaseScore) -> bool:
         and result.get("status") == "error"
         for result in score.results
     )
+
+
+def _judge_graded_nothing(score: CaseScore) -> bool:
+    """Whether the judge ran on a score and reached a verdict on none of its criteria."""
+    judged = [r for r in score.results if r.get("scorer") in ("judge", "reference")]
+    return bool(judged) and all(r.get("status") not in ("pass", "fail") for r in judged)
 
 
 def _unprompted(pins: set[str]) -> set[str]:
