@@ -1,5 +1,5 @@
 ---
-source_sha: "184d7b38042a"
+source_sha: "947c5ceb8106"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -281,6 +281,10 @@ política, una lista de precios), sobre el primer modelo de la organización o
 uno que elijas. El prompt se puede editar antes de crearlo (`GET
 /datasets/{id}/judge-template`). Crearlo requiere `agents:edit` además de
 `datasets:edit`.
+
+El modelo se elige en el mismo panel que el de un agent: un provider, su lista
+completa de modelos y una clave para quien puede añadir un modelo
+(`connections:manage`), y los modelos guardados para los demás.
 
 Donde la asistencia de IA está activada, crearlo también activa la
 calificación: el juez, con un criterio inicial para sustituir cuando el dataset

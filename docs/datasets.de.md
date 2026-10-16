@@ -1,5 +1,5 @@
 ---
-source_sha: "184d7b38042a"
+source_sha: "947c5ceb8106"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -293,6 +293,10 @@ Ihnen zum Bewerten wissen muss - einer Richtlinie, einer Preisliste -, auf dem
 ersten Modell der Organisation oder einem, das Sie wählen. Der Prompt lässt
 sich vor dem Anlegen bearbeiten (`GET /datasets/{id}/judge-template`). Dafür
 braucht es `agents:edit` und `datasets:edit`.
+
+Das Modell wird im selben Panel wie bei einem Agent gewählt: ein Provider, seine
+vollständige Modellliste und ein Schlüssel für alle, die ein Modell hinzufügen
+dürfen (`connections:manage`), und die gespeicherten Modelle für alle anderen.
 
 Wo die KI-Unterstützung eingeschaltet ist, schaltet das Anlegen die Bewertung
 gleich mit ein: den Bewerter, mit einem Startkriterium zum Ersetzen, wenn das

@@ -1,5 +1,5 @@
 ---
-source_sha: "184d7b38042a"
+source_sha: "947c5ceb8106"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -274,6 +274,10 @@ a po nim nazwa i opis datasetu oraz to, co według ciebie sędzia musi wiedzieć
 wybranym przez ciebie. Prompt można edytować przed utworzeniem (`GET
 /datasets/{id}/judge-template`). Utworzenie go wymaga `agents:edit` oraz
 `datasets:edit`.
+
+Model wybiera się w tym samym panelu co dla agenta: provider, pełna lista jego
+modeli i klucz dla kogoś, kto może dodać model (`connections:manage`), a
+zapisane modele dla pozostałych.
 
 Gdy wsparcie AI jest włączone, utworzenie go od razu włącza też ocenianie:
 sędziego, z kryterium startowym do zastąpienia, gdy dataset nie ma żadnego,

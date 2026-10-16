@@ -264,6 +264,10 @@ list - on the organization's first model or one you pick. The prompt is shown to
 edit before it is created (`GET /datasets/{id}/judge-template`). Creating it
 needs `agents:edit` as well as `datasets:edit`.
 
+The model is picked in the same panel as an agent's: a provider, its full list
+of models and a key for whoever may add a model (`connections:manage`), and the
+saved models for anyone else.
+
 Where AI assistance is on, creating it switches grading on as well: the judge,
 on a starting criterion to replace when the dataset has none, and the reference
 comparison when a case has a reference answer. The criteria, the scale and the
