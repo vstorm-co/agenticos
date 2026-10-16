@@ -96,6 +96,7 @@ async def test_ten_records_are_updated_in_one_script_and_the_run_lists_each_call
     assert {call["status"] for call in run["calls"]} == {"returned"}
 
 
+@pytest.mark.security
 async def test_a_tool_that_needs_approval_is_never_called_from_a_script() -> None:
     """It stays a tool the model calls directly, so the run parks on it for the
     person; a script has no way to park mid-line."""
