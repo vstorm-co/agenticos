@@ -80,6 +80,12 @@ describe("useDatasets", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/datasets?judge=j1&sort=name&skip=0&limit=3");
   });
 
+  it("narrows to the datasets the caller may edit", async () => {
+    renderHook(() => useDatasets({ editable: true, limit: 1 }), { wrapper });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
+    expect(apiClient.get).toHaveBeenCalledWith("/datasets?editable=true&sort=name&skip=0&limit=1");
+  });
+
   it("leaves the search out when there is none, and reads an empty answer as nothing", async () => {
     vi.mocked(apiClient.get).mockResolvedValue(undefined);
     const { result } = renderHook(() => useDatasets(), { wrapper });
