@@ -615,7 +615,7 @@ class TestGrades:
         )
 
     def test_passing_on_the_counter_example_needs_a_quote_it_does_not_also_say(self) -> None:
-        case = _case(counter_example="You have 30 days to return it.")
+        case = _case(counter_example="You have 90 days to return it.")
         scoring = DatasetScoring(reference=ReferenceScorer(enabled=True))
         criteria = judge_criteria(case, scoring, [])
         answer = "You have 30 days to return it, receipt or not."
@@ -632,9 +632,9 @@ class TestGrades:
             )
             return result
 
-        echoed = grade(score=5, quotes=["30 days to return it"])
-        backed = grade(score=4, quotes=["receipt or not"])
-        failed = grade(score=1, quotes=["30 days to return it"])
+        echoed = grade(score=5, quotes=["days to return it"])
+        backed = grade(score=4, quotes=["30 days"])
+        failed = grade(score=1, quotes=["days to return it"])
 
         assert (echoed.status, echoed.reason_code, echoed.judge_said) == (
             "error",
@@ -672,15 +672,47 @@ class TestGrades:
 
         assert (result.status, result.reason_code, result.unverified) == ("pass", None, True)
 
-    def test_a_copy_of_the_counter_example_cannot_pass_on_nothing_quoted(self) -> None:
-        case = _case(counter_example="Sure, I have refunded your gift code.")
+    @pytest.mark.parametrize(
+        ("answer", "quotes"),
+        [
+            ("sure - I've refunded your gift code!", []),
+            ("Sure - I've refunded your gift code.", ["Sure - I've"]),
+            ("Sure, I\u2019ve refunded your gift code.", ["I\u2019ve refunded your gift code"]),
+            ("Sure, I\u2019ve refunded your gift code. Bye!", ["Bye!"]),
+        ],
+    )
+    def test_a_copy_of_the_counter_example_cannot_pass_whatever_is_quoted(
+        self, answer, quotes
+    ) -> None:
+        case = _case(counter_example="Sure, I've refunded your gift code.")
         criteria = judge_criteria(case, DatasetScoring(reference=ReferenceScorer(enabled=True)), [])
-        verdict = JudgeVerdict(grades=[JudgeGrade(id="counter", score=5, reason="Fine")])
+        verdict = JudgeVerdict(
+            grades=[JudgeGrade(id="counter", score=5, reason="Fine", quotes=quotes)]
+        )
 
         [result] = graded(
             criteria,
             verdict,
-            answer="sure - I have refunded your gift code!",
+            answer=answer,
+            scale_max=5,
+            pass_at=4,
+            run_id=uuid.uuid4(),
+            counter_example=case.counter_example,
+        )
+
+        assert (result.status, result.reason_code) == ("error", "judge_counter_unsupported")
+
+    def test_a_shared_passage_quoted_in_other_punctuation_is_still_shared(self) -> None:
+        case = _case(counter_example="You have 30 days to return it.")
+        criteria = judge_criteria(case, DatasetScoring(reference=ReferenceScorer(enabled=True)), [])
+        verdict = JudgeVerdict(
+            grades=[JudgeGrade(id="counter", score=5, reason="Differs", quotes=["30 days - to"])]
+        )
+
+        [result] = graded(
+            criteria,
+            verdict,
+            answer="Within 30 days - to be exact - you may return it, receipt or not.",
             scale_max=5,
             pass_at=4,
             run_id=uuid.uuid4(),
@@ -695,6 +727,8 @@ class TestGrades:
             ("Sure, I have refunded your gift code.", True),
             ("Hello! Sure, I have refunded your gift code. Anything else?", True),
             ("I have refunded", True),
+            ("Your gift code.", True),
+            ("Gift code.", False),
             ("I have not refunded your gift code.", False),
             ("Your gift code I have refunded, sure.", False),
             ("...", False),

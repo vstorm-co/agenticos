@@ -457,6 +457,9 @@ _MAX_CALLS_SHOWN = 50
 _MAX_ARGS_SHOWN = 1_000
 # A reason this much made of the criterion's own words says nothing about the answer.
 _RESTATED_SHARE = 0.8
+# Fewer words than this, an answer inside the counter-example ("No.") is a
+# common phrase rather than a copy of it.
+_COPY_MIN_WORDS = 3
 
 REFERENCE_CRITERION = (
     "The answer agrees with the reference answer on every fact the question turns on. "
@@ -624,32 +627,40 @@ def _sequence(text: str) -> str:
     return " ".join(re.findall(r"\w+", text.casefold()))
 
 
+def _within(part: str, whole: str) -> bool:
+    return f" {part} " in f" {whole} "
+
+
 def copies(answer: str, counter_example: str) -> bool:
     """Whether the answer repeats the counter-example word for word, or is a part of it.
 
-    Case, spacing and punctuation aside. Words shared in another order are not
-    a copy: "I have not refunded your gift code" shares nearly every word of
-    "Sure, I have refunded your gift code" and says the opposite.
+    Case, spacing and punctuation aside, so a curly apostrophe or a dash for a
+    comma is still a copy. Words shared in another order are not: "I have not
+    refunded your gift code" shares nearly every word of "Sure, I have refunded
+    your gift code" and says the opposite. Nor is a part shorter than
+    `_COPY_MIN_WORDS` words.
     """
     said, bad = _sequence(answer), _sequence(counter_example)
     if not said or not bad:
         return False
-    return f" {bad} " in f" {said} " or f" {said} " in f" {bad} "
+    if _within(bad, said):
+        return True
+    return len(said.split()) >= _COPY_MIN_WORDS and _within(said, bad)
 
 
 def _counter_unsupported(quotes: Sequence[str], answer: str, counter_example: str) -> bool:
     """Whether a pass on not repeating the counter-example has nothing to stand on.
 
-    A quote the answer holds that the counter-example does not also say backs
-    it. Quoting only what the two share points at the mistake rather than
-    away from it. With nothing quoted, the answer itself decides: a copy of the
-    counter-example cannot pass on being unlike it.
+    A copy of the counter-example cannot pass on being unlike it, whatever is
+    quoted. Otherwise a quote the answer holds that the counter-example does
+    not also say backs the pass; quoting only what the two share points at the
+    mistake rather than away from it. Both compare words, as `copies` does.
     """
-    held = [quote for quote in quotes if quote in answer]
-    if not held:
-        return copies(answer, counter_example)
-    bad = counter_example.casefold()
-    return all(quote.casefold() in bad for quote in held)
+    if copies(answer, counter_example):
+        return True
+    held = [_sequence(quote) for quote in quotes if quote in answer and _sequence(quote)]
+    bad = _sequence(counter_example)
+    return bool(held) and all(_within(quote, bad) for quote in held)
 
 
 def graded(
