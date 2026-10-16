@@ -71,6 +71,8 @@ async def run_ambient_agent[OutputT](
     output_type: type[OutputT],
     user_prompt: str,
     instructions: str | None = None,
+    model: Model | None = None,
+    model_settings: ModelSettings | None = None,
 ) -> OutputT:
     """Run a one-shot auxiliary agent for `ctx`, metered and capped like the run.
 
@@ -82,6 +84,11 @@ async def run_ambient_agent[OutputT](
     (agenticos#1811). The nested run is held one request below the run's limit so
     the parent's already-approved request cannot be pushed past its cap.
 
+    `model` and `model_settings` run the call on a model of its own rather than
+    the run's - a run reviewer on a cheaper profile - with everything else the same:
+    the caps checked first, the run's tracing, and the spend booked on the run's
+    ledger, priced as that model.
+
     Raises:
         AmbientCallSkipped: The run has reached a budget cap; the caller falls back
             to its model-free path.
@@ -90,18 +97,18 @@ async def run_ambient_agent[OutputT](
     """
     if not await can_afford_ambient_call():
         raise AmbientCallSkipped("The run has reached a budget cap")
-    model = auxiliary_model(ctx)
-    if not isinstance(model, Model):
+    chosen = auxiliary_model(ctx, model)
+    if not isinstance(chosen, Model):
         raise TypeError(f"{type(ctx.model).__name__} cannot run an auxiliary agent")
-    # `ctx.model` is the request-response model `model` wraps (or is), so its
-    # `model_name` is what the nested spend prices against.
-    model_name = ctx.model.model_name or "unknown"
-    agent = Agent[None, OutputT](model, instructions=instructions, output_type=output_type)
+    # The request-response model `chosen` wraps (or is): its `model_name` is
+    # what the nested spend prices against.
+    model_name = (ctx.model if model is None else model).model_name or "unknown"
+    agent = Agent[None, OutputT](chosen, instructions=instructions, output_type=output_type)
     with metered_nested_run(ctx.usage, model_name) as usage:
         result = await agent.run(
             user_prompt,
             usage=usage,
             usage_limits=reserved_limits(ctx.usage_limits),
-            model_settings=run_model_settings(ctx),
+            model_settings=run_model_settings(ctx) if model is None else model_settings,
         )
     return result.output

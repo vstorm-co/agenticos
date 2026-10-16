@@ -138,6 +138,9 @@ class RunRecorder:
     #: the end of the run - retries, tool returns and reminders included, which
     #: the conversation transcript deliberately does not show.
     messages: list[dict[str, Any]] = field(default_factory=list)
+    #: Each correction a run reviewer sent, with its name and after which request
+    #: (#2106) - what steered the run, and who.
+    reviews: list[dict[str, Any]] = field(default_factory=list)
 
     def observe_request(
         self,
@@ -373,6 +376,7 @@ def as_payload(recorder: RunRecorder) -> dict[str, Any]:
             for request in recorder.requests
         ],
         "messages": recorder.messages,
+        "reviews": list(recorder.reviews),
     }
 
 

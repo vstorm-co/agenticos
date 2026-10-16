@@ -56,6 +56,7 @@ from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
+from app.agents.run_reviewer import REVIEWER_MODELS_RESOURCE
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -4347,6 +4348,20 @@ class TestTheBrowsersStepModel:
         resources, resolve = await self._built(spec)
 
         assert BROWSER_STEP_MODEL_RESOURCE in resources
+        assert profile in [call.kwargs.get("profile_id") for call in resolve.await_args_list]
+
+    @pytest.mark.anyio
+    async def test_each_reviewers_model_is_resolved_for_the_factory(self):
+        """Where the vault and the session are, for the reason the step model is (#2106)."""
+        profile = uuid.uuid4()
+        spec = AgentSpec(
+            name="Researcher",
+            reviewers=[{"name": "sources", "model_profile_id": str(profile), "instructions": "x"}],
+        )
+
+        resources, resolve = await self._built(spec)
+
+        assert set(resources[REVIEWER_MODELS_RESOURCE]) == {profile}
         assert profile in [call.kwargs.get("profile_id") for call in resolve.await_args_list]
 
     @pytest.mark.anyio

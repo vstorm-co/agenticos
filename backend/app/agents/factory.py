@@ -68,6 +68,7 @@ from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
+from app.agents.run_reviewer import REVIEWER_MODELS_RESOURCE, RunReviewer
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
@@ -341,6 +342,11 @@ def build_agent(
     # accident. The gate is attached even when nothing is gated, so that adding
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
+    # Wrapped, so what the provider is handed is written down as it is handed
+    # over. Reconstructing the prompt and the tool schemas from the spec
+    # afterwards would be a second implementation of everything above this line.
+    # Made before the capabilities, because a run reviewer writes onto it.
+    recorder = RunRecorder()
     capabilities: list[Any] = [
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
@@ -362,6 +368,7 @@ def build_agent(
         ),
         *configured,
         *extra_capabilities,
+        *_reviewers(spec, resources or {}, recorder),
         # Every agent, not only one that compacts. The warning is most useful to
         # exactly the agent that will not: it is the one that reaches the ceiling
         # and gets refused by the provider.
@@ -385,10 +392,6 @@ def build_agent(
         }
     )
 
-    # Wrapped, so what the provider is handed is written down as it is handed
-    # over. Reconstructing the prompt and the tool schemas from the spec
-    # afterwards would be a second implementation of everything above this line.
-    recorder = RunRecorder()
     agent = PydanticAgent[AgentDeps, str | DeferredToolRequests](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
@@ -416,6 +419,35 @@ def build_agent(
         approval_required_tools=approval_required,
         usage_limits=UsageLimits(request_limit=spec.max_steps or DEFAULT_MAX_STEPS),
     )
+
+
+def _reviewers(
+    spec: AgentSpec, resources: dict[str, Any], recorder: RunRecorder
+) -> list[RunReviewer]:
+    """The spec's run reviewers, each on the model the runner resolved for it (#2106).
+
+    A reviewer whose model was not resolved - a delegate assembled without them -
+    is left out with a warning rather than failing the run it was meant to watch.
+    """
+    models: dict[UUID, ModelRequestSpec] = resources.get(REVIEWER_MODELS_RESOURCE) or {}
+    reviewers: list[RunReviewer] = []
+    for reviewer in spec.reviewers:
+        model = models.get(reviewer.model_profile_id)
+        if model is None:
+            logger.warning("Run reviewer %s has no resolved model; not reviewing", reviewer.name)
+            continue
+        reviewers.append(
+            RunReviewer(
+                name=reviewer.name,
+                model=model.build(),
+                model_settings=ModelSettings(**model.params),
+                instructions=reviewer.instructions,
+                every=reviewer.every,
+                window=reviewer.window,
+                recorder=recorder,
+            )
+        )
+    return reviewers
 
 
 def _defer_for_tool_search(

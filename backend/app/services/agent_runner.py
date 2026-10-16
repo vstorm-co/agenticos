@@ -153,6 +153,7 @@ from app.agents.failures import run_failure_summary
 from app.agents.manifest import as_payload, fit
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
+from app.agents.run_reviewer import REVIEWER_MODELS_RESOURCE
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -2653,6 +2654,15 @@ class AgentRunnerService:
         # here" are worse than none, because the model keeps trying.
         if channel_directory is not None:
             resources[CHANNEL_DIRECTORY_RESOURCE] = channel_directory
+        if spec.reviewers:
+            # Resolved here for the reason the browser's step model is: the
+            # vault and the session are here, and the factory has neither.
+            resources[REVIEWER_MODELS_RESOURCE] = {
+                reviewer.model_profile_id: await self.models.resolve(
+                    ctx, profile_id=reviewer.model_profile_id
+                )
+                for reviewer in spec.reviewers
+            }
         step_profile = _browser_step_profile(spec)
         if step_profile is not None:
             # Built here, where the vault and the session are: a fast model for

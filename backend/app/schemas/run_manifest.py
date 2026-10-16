@@ -62,6 +62,21 @@ class ManifestRequest(BaseSchema):
     failed: str | None = None
 
 
+class ManifestReview(BaseSchema):
+    """One correction a run reviewer sent while the run went (#2106).
+
+    Attributes:
+        reviewer: The reviewer's name, as the spec gives it - what the run's model
+            was told the correction came from.
+        after_request: The model request the review read up to.
+        steer: The correction, as the run's model received it.
+    """
+
+    reviewer: str
+    after_request: int
+    steer: str
+
+
 class RunManifestRead(BaseSchema):
     """The whole record, as `GET /runs/{run_id}/manifest` answers it.
 
@@ -92,4 +107,5 @@ class RunManifestRead(BaseSchema):
     settings: dict[str, Any] = Field(default_factory=dict)
     requests: list[ManifestRequest] = Field(default_factory=list)
     messages: list[dict[str, Any]] = Field(default_factory=list)
+    reviews: list[ManifestReview] = Field(default_factory=list)
     truncated: bool = False

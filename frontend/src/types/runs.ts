@@ -251,8 +251,18 @@ export interface RunManifest {
   requests: ManifestRequest[];
   /** The last request's messages, dumped - what the model saw at the end. */
   messages: Record<string, unknown>[];
+  /** Each correction a run reviewer sent, and who sent it (#2106). */
+  reviews?: ManifestReview[];
   /** Whether the record was trimmed to fit its size ceiling. */
   truncated: boolean;
+}
+
+/** One correction a run reviewer sent while the run went. */
+export interface ManifestReview {
+  reviewer: string;
+  /** The model request the review read up to. */
+  after_request: number;
+  steer: string;
 }
 
 export interface ToolApproval {

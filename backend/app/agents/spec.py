@@ -380,6 +380,40 @@ class BudgetSpec(BaseModel):
     monthly_usd: float | None = Field(default=None, gt=0)
 
 
+class RunReviewerSpec(BaseModel):
+    """A second model that reads a run while it goes, and steers it (#2106).
+
+    Every `every` model requests it reads the most recent `window` tokens of the
+    run and either lets it be or sends one short correction, which the run's model
+    receives on its next request, attributed to the reviewer by `name`. Its calls
+    are checked against the budget and booked on the run like any other; one
+    refused for budget is skipped, never failing the run. See
+    `app/agents/run_reviewer.py`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(
+        pattern=r"^[a-z0-9][a-z0-9_-]{0,39}$",
+        description="What its steering is attributed to, in the run history and to the model.",
+    )
+    model_profile_id: UUID = Field(
+        description="The model it reviews with - usually a cheaper one than the agent's own."
+    )
+    instructions: str = Field(
+        min_length=1,
+        max_length=4000,
+        description="What to look for, such as claims without a source, or work nobody asked for.",
+    )
+    every: int = Field(default=10, ge=1, le=100, description="Review every N model requests.")
+    window: int = Field(
+        default=20_000,
+        ge=1_000,
+        le=200_000,
+        description="How many tokens of the most recent run each review reads.",
+    )
+
+
 class AlertAudience(StrEnum):
     """Who an agent's alert reaches.
 
@@ -1224,6 +1258,15 @@ class AgentSpec(BaseModel):
         ),
     )
 
+    reviewers: list[RunReviewerSpec] = Field(
+        default_factory=list,
+        max_length=5,
+        description=(
+            "Second models that review the run while it goes and steer it - one per "
+            "concern. Empty, so an agent without one makes no extra model calls."
+        ),
+    )
+
     budget: BudgetSpec | None = None
 
     notifications: NotificationSpec = Field(
@@ -1379,6 +1422,16 @@ class AgentSpec(BaseModel):
         if duplicates:
             raise ValueError(f"Capability bound more than once: {', '.join(duplicates)}")
         return capabilities
+
+    @field_validator("reviewers")
+    @classmethod
+    def _one_reviewer_per_name(cls, reviewers: list[RunReviewerSpec]) -> list[RunReviewerSpec]:
+        """Steering is attributed by name, so two reviewers cannot share one."""
+        counts = Counter(reviewer.name for reviewer in reviewers)
+        duplicates = sorted(name for name, count in counts.items() if count > 1)
+        if duplicates:
+            raise ValueError(f"Reviewer named more than once: {', '.join(duplicates)}")
+        return reviewers
 
     @field_validator("subagents")
     @classmethod

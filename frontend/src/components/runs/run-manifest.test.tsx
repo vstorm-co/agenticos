@@ -58,6 +58,25 @@ function renderManifest() {
 beforeEach(() => useRunManifestMock.mockReset());
 
 describe("what the model was told", () => {
+  it("lists each reviewer's correction, and who sent it, after which request (#2106)", () => {
+    serve({
+      manifest: record({
+        reviews: [{ reviewer: "sources", after_request: 6, steer: "Cite a source for 40%." }],
+      }),
+    });
+    renderManifest();
+
+    expect(screen.getByText("1 reviewer correction")).toBeInTheDocument();
+    expect(screen.getByText("sources, after request 6")).toBeInTheDocument();
+    expect(screen.getByText("Cite a source for 40%.")).toBeInTheDocument();
+  });
+
+  it("shows no reviewer section for a run nobody reviewed", () => {
+    serve({ manifest: record() });
+    renderManifest();
+    expect(screen.queryByText(/reviewer correction/)).toBeNull();
+  });
+
   it("shows the prompt as it was sent, and the system parts beside it", () => {
     serve({
       manifest: record({
