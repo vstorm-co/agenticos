@@ -15,6 +15,14 @@ export const VERDICT_TONE: Record<Verdict, "success" | "destructive" | "secondar
   invalid: "warning",
 };
 
+/**
+ * When a run with no change that held still says something moved: this many
+ * unconfirmed changes, or a pass rate this far apart. Past either, the model
+ * is more likely unsteady than the two sides alike.
+ */
+const UNSTEADY_CHANGES = 3;
+const UNSTEADY_GAP = 0.2;
+
 /** How long a quoted question may run in a sentence before it is cut. */
 const QUOTED = 120;
 
@@ -88,11 +96,19 @@ export function VerdictHeadline({
     tries: shown?.tries ?? 0,
     changes: comparison.regressions_unconfirmed + comparison.fixed_unconfirmed,
   };
+  const gap = Math.abs(
+    (comparison.candidate_summary.pass_rate ?? 0) - (comparison.baseline_summary?.pass_rate ?? 0),
+  );
+  const unsteady =
+    verdict === "no_difference" && (sentence.changes >= UNSTEADY_CHANGES || gap >= UNSTEADY_GAP);
   const firstTo = percent(comparison.candidate_summary.first_pass_rate, locale);
   const firstFrom = percent(comparison.baseline_summary?.first_pass_rate ?? null, locale);
   return (
     <>
       <span className="block">{t(verdict, sentence)}</span>
+      {unsteady && (
+        <span className="text-muted-foreground block text-sm font-normal">{t("unsteady")}</span>
+      )}
       {overall !== null && <span className="block">{t("overall", { ...sentence, overall })}</span>}
       {verdict !== "invalid" && (
         <span

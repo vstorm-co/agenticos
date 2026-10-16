@@ -6375,7 +6375,8 @@
       "mixed": "Mixed: {candidate} breaks {broke, plural, =1 {1 case} other {# cases}} and fixes {fixed, plural, =1 {1} other {#}} against {baseline}, every time they were asked. It breaks: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
       "overall": "{overall, select, worse {Worse overall: across every confirmed change, {candidate} does worse than {baseline}.} other {Better overall: across every confirmed change, {candidate} does better than {baseline}.}}",
       "passRate": "Pass rate {from} → {to}, each case as most of its tries came out",
-      "firstPassRate": "First answers alone: {from} → {to}"
+      "firstPassRate": "First answers alone: {from} → {to}",
+      "unsteady": "Run it again, or test on a steadier model: a model that answers differently each time cannot confirm a change."
     },
     "live": {
       "answering": "{done} of {total} first answers in. Cases whose result changes are then rerun to confirm it.",

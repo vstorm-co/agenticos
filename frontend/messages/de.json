@@ -6233,7 +6233,8 @@
       "mixed": "Gemischt: {candidate} macht gegenüber {baseline} {broke, plural, =1 {1 Fall} other {# Fälle}} kaputt und behebt {fixed}, bei jeder Frage. Kaputt: „{question}“ ({held} von {tries}){others, plural, =0 {} other { und # weitere}}.",
       "overall": "{overall, select, worse {Insgesamt schlechter: Über alle bestätigten Änderungen schneidet {candidate} schlechter ab als {baseline}.} other {Insgesamt besser: Über alle bestätigten Änderungen schneidet {candidate} besser ab als {baseline}.}}",
       "passRate": "Bestehensquote {from} → {to}, jeder Fall so, wie die meisten seiner Versuche ausfielen",
-      "firstPassRate": "Nur die ersten Antworten: {from} → {to}"
+      "firstPassRate": "Nur die ersten Antworten: {from} → {to}",
+      "unsteady": "Starte den Run erneut oder teste auf einem beständigeren Modell: Ein Modell, das jedes Mal anders antwortet, kann keine Änderung bestätigen."
     },
     "live": {
       "answering": "{done} von {total} ersten Antworten da. Fälle, deren Ergebnis sich ändert, werden danach wiederholt, um es zu bestätigen.",

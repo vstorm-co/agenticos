@@ -1,5 +1,5 @@
 ---
-source_sha: "9e37e23da2f8"
+source_sha: "2bc992e2ec41"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Draft, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -316,11 +316,16 @@ Wiederholungen heben die Latte, statt sie zu senken: Ein Kippen gilt nur als
 bestätigt, wenn es bei jeder Wiederholung hält, daher bestätigen mehr
 Wiederholungen weniger Kippen. Ein kleines oder günstiges Modell, das einen Fall
 von Versuch zu Versuch anders beantwortet, lässt seine Kippen unbestätigt, und
-das Urteil lautet `no_difference`, auch wenn sich die Bestehensquote bewegt hat -
-das heißt, das Modell ist bei diesen Fällen unbeständig, nicht dass sich nichts
-geändert hat. Helfen mehr Fälle im Dataset, ein beständigeres Modell oder eine
-niedrigere `temperature` in seinen [Model Settings](models.md#model-settings)
-und das Durchsehen der unbestätigten Fälle in der Tabelle.
+das Urteil lautet `no_difference`, auch wenn sich die Bestehensquote bewegt
+hat - das heißt, das Modell ist bei diesen Fällen unbeständig, nicht dass sich
+nichts geändert hat. Helfen mehr Fälle im Dataset, ein beständigeres Modell oder
+eine niedrigere `temperature` in seinen [Model
+Settings](models.md#model-settings) und das Durchsehen der unbestätigten Fälle
+in der Tabelle.
+
+Die Seite des Runs sagt es, wenn nichts hielt, aber drei oder mehr Fälle sich
+einmal änderten oder die beiden Bestehensquoten 20 Punkte oder mehr
+auseinanderliegen.
 
 ### Was das Urteil sagt { #what-the-verdict-says }
 

@@ -330,6 +330,7 @@ describe("EvalRunView", () => {
         name: /No change held: 2 cases changed once and came out differently when asked again, so any difference in pass rate between v7 and Draft on refunds is not a reproducible change\./,
       }),
     ).toBeVisible();
+    expect(screen.queryByText(/test on a steadier model/)).toBeNull();
     unmount();
 
     state.comparison = comparison({
@@ -345,6 +346,42 @@ describe("EvalRunView", () => {
         name: /No change held: v7 does as well as Draft on refunds\./,
       }),
     ).toBeVisible();
+  });
+
+  it("suggests a steadier model when much changed and nothing held", () => {
+    const unsteady = /Run it again, or test on a steadier model/;
+    state.comparison = comparison({
+      verdict: "no_difference",
+      regressions_unconfirmed: 4,
+      fixed_unconfirmed: 2,
+      cases: [],
+    });
+    const many = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText(unsteady)).toBeVisible();
+    many.unmount();
+
+    // One change, but the pass rate moved by more than a fifth.
+    state.comparison = comparison({
+      verdict: "no_difference",
+      regressions_unconfirmed: 1,
+      candidate_summary: { ...SUMMARY, pass_rate: 0.33 },
+      baseline_summary: { ...SUMMARY, pass_rate: 0.7 },
+      cases: [],
+    });
+    const far = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText(unsteady)).toBeVisible();
+    far.unmount();
+
+    // One change and no rates to set apart.
+    state.comparison = comparison({
+      verdict: "no_difference",
+      regressions_unconfirmed: 1,
+      candidate_summary: { ...SUMMARY, pass_rate: null },
+      baseline_summary: null,
+      cases: [],
+    });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.queryByText(unsteady)).toBeNull();
   });
 
   it("grades again the answers the judge left ungraded, for who may run the dataset", async () => {

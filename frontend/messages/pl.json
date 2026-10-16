@@ -3996,7 +3996,8 @@
       "mixed": "Mieszany: {candidate} psuje {broke, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}} i naprawia {fixed} względem {baseline}, za każdym razem. Psuje: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
       "overall": "{overall, select, worse {Gorszy ogólnie: po wszystkich potwierdzonych zmianach {candidate} wypada gorzej niż {baseline}.} other {Lepszy ogólnie: po wszystkich potwierdzonych zmianach {candidate} wypada lepiej niż {baseline}.}}",
       "passRate": "Zaliczone {from} → {to}, każdy case tak, jak wypadła większość jego prób",
-      "firstPassRate": "Same pierwsze odpowiedzi: {from} → {to}"
+      "firstPassRate": "Same pierwsze odpowiedzi: {from} → {to}",
+      "unsteady": "Uruchom run ponownie albo przetestuj na stabilniejszym modelu: model, który za każdym razem odpowiada inaczej, nie potwierdzi żadnej zmiany."
     },
     "live": {
       "answering": "Gotowe {done} z {total} pierwszych odpowiedzi. Case'y, których wynik się zmieni, zostaną potem powtórzone, żeby to potwierdzić.",

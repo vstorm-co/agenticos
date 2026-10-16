@@ -1,5 +1,5 @@
 ---
-source_sha: "9e37e23da2f8"
+source_sha: "2bc992e2ec41"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -305,6 +305,9 @@ modelo es inestable en esos casos, no que nada haya cambiado. Ayudan más casos
 en el dataset, un modelo más estable o una `temperature` más baja en sus
 [ajustes del modelo](models.md#model-settings), y revisar en la tabla los casos
 no confirmados.
+
+La página del run lo dice cuando nada se mantuvo pero tres o más casos cambiaron
+una vez, o las dos tasas de aprobados distan 20 puntos o más.
 
 ### Qué dice el veredicto { #what-the-verdict-says }
 
