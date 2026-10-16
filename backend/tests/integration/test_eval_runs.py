@@ -927,6 +927,34 @@ async def test_a_baseline_graded_by_the_judge_s_older_prompt_says_so(db) -> None
     assert (await service.get(ctx, v6.id)).judge_model_profile_id == profile
 
 
+async def test_a_judge_that_graded_nothing_leaves_the_comparison_standing(db) -> None:
+    """Its pin is kept for refusing to grade again, and may name a judge that
+    differs from the one that graded everything else."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=2)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+    await _run_to_end(db, Model(db), v7.id, ctx)
+    pin = {"agent_version_id": None, "rubric_hash": "a", "prompt_version": JUDGE_PROMPT_VERSION}
+    await _pin(db, v6.id, pin)
+    await _pin(db, v7.id, pin)
+    failed = await _errored(db, v7.id, scorer="judge", reason_code="judge_output_invalid")
+    failed.judge = {**pin, "agent_version_id": str(uuid.uuid4()), "rubric_hash": None}
+    await db.flush()
+
+    comparison = await service.compare(ctx, v7.id)
+    assert comparison.verdict == "no_difference"
+    assert comparison.invalid_reason is None
+
+    # One criterion it did grade is a grade by that judge.
+    failed.results = [*failed.results, {**failed.results[0], "status": "pass"}]
+    await db.flush()
+    assert (await service.compare(ctx, v7.id)).verdict == "invalid"
+
+
 async def test_cases_with_their_own_judge_checks_still_compare(db) -> None:
     """A rubric fingerprint covers a case's own judge checks, so two cases of one
     side are pinned differently; only the same case on the two sides must match."""
@@ -1075,7 +1103,7 @@ async def test_a_cached_baseline_must_have_been_graded_by_the_judge_that_grades_
     ctx = await _owner(db)
     await _assist(db, ctx, on=True)
     agent, _ = await _agent(db, ctx)
-    dataset = await _dataset(db, ctx, cases=1)
+    dataset = await _dataset(db, ctx, cases=2)
     dataset.scoring = {
         "judge": {"enabled": True, "criteria": [{"name": "Tone", "description": "Polite"}]}
     }
@@ -1089,6 +1117,12 @@ async def test_a_cached_baseline_must_have_been_graded_by_the_judge_that_grades_
         estimate = await service.estimate(ctx, agent.id, request)
         return next(arm.basis for arm in estimate.arms if arm.role == "baseline")
 
+    for score in (
+        await db.execute(select(CaseScore).where(CaseScore.eval_run_id == first.id))
+    ).scalars():
+        score.results = [
+            {**r, "status": "pass"} if r["scorer"] == "judge" else r for r in score.results
+        ]
     # No judge is published in this organization, so that is the judge now.
     now = {"agent_version_id": None, "rubric_hash": "a", "prompt_version": JUDGE_PROMPT_VERSION}
     await _pin(db, first.id, now)
@@ -1098,6 +1132,24 @@ async def test_a_cached_baseline_must_have_been_graded_by_the_judge_that_grades_
     assert await baseline_basis() == "history"
     await _pin(db, first.id, {**now, "agent_version_id": str(uuid.uuid4())})
     assert await baseline_basis() == "history"
+    # A judge that graded nothing on one answer does not stand for the run's judge.
+    await _pin(db, first.id, now)
+    baseline = (
+        await db.execute(
+            select(CaseScore)
+            .join(EvalRunCase, EvalRunCase.case_score_id == CaseScore.id)
+            .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
+            .where(EvalRunArm.eval_run_id == first.id, EvalRunArm.role == "baseline")
+            .limit(1)
+        )
+    ).scalar_one()
+    baseline.results = [
+        {**r, "scorer": "judge", "status": "error", "reason_code": "judge_output_invalid"}
+        for r in baseline.results
+    ]
+    baseline.judge = {**now, "agent_version_id": str(uuid.uuid4())}
+    await db.flush()
+    assert await baseline_basis() == "cached"
     # Graded by no judge at all, where a judge would grade now.
     await _pin(db, first.id, None)
     assert await baseline_basis() == "history"
