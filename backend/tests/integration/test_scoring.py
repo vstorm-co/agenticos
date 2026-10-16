@@ -1221,6 +1221,37 @@ class TestGradingAgain:
             await scoring.rescore(tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id]))
         assert len(await _eval_runs(db, tenant)) == before
 
+    async def test_an_eval_runs_score_is_graded_again_by_the_judge_that_failed_on_it(
+        self, db, monkeypatch
+    ) -> None:
+        judging = Judge()
+        answers = iter(["It is fine."])
+
+        def model(self) -> FunctionModel:
+            async def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+                text = next(answers, None)
+                if text is not None:
+                    return ModelResponse(parts=[TextPart(text)])
+                return await judging.model().function(messages, info)  # type: ignore[misc]
+
+            return FunctionModel(respond)
+
+        monkeypatch.setattr(ModelRequestSpec, "build", model)
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        dataset, case = await _dataset(db, tenant, scoring=_rubric())
+        run = await _scored_run(db, tenant)
+        eval_run_id = uuid.uuid4()
+        failed = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
+
+        result = await ScoringService(db).rescore(
+            tenant.ctx, dataset.id, RescoreRequest(score_ids=[failed.id])
+        )
+
+        [again] = result.rescored
+        assert (again.id, again.eval_run_id) == (failed.id, eval_run_id)
+        assert (again.passed, again.unscored_reason) == (True, None)
+
     async def test_an_answer_graded_on_its_own_is_graded_by_the_judge_published_since(
         self, db, monkeypatch
     ) -> None:
