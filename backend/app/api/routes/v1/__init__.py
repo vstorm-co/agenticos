@@ -44,6 +44,7 @@ from app.api.routes.v1 import workspaces as agent_workspaces
 from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
 from app.api.routes.v1 import context as context_files
+from app.api.routes.v1 import datasets
 from app.api.routes.v1 import memory as memory_files
 from app.api.routes.v1 import browser_sign_ins
 from app.api.routes.v1 import permissions
@@ -102,6 +103,7 @@ v1_router.include_router(agent_runs.router, tags=["runs"])
 v1_router.include_router(stats.router, tags=["stats"])
 v1_router.include_router(agent_skills.router, prefix="/skills", tags=["skills"])
 v1_router.include_router(context_files.router, prefix="/context", tags=["context"])
+v1_router.include_router(datasets.router, prefix="/datasets", tags=["datasets"])
 # Apps were called artifacts until #2071. The old paths stay as deprecated
 # aliases for the v1 policy's 90 days (docs/api.md), so a script written against
 # them keeps working while it is moved.
@@ -127,6 +129,9 @@ v1_router.include_router(sharing.agent_sharing_router, prefix="/agents", tags=["
 v1_router.include_router(sharing.skill_sharing_router, prefix="/skills", tags=["skills:sharing"])
 v1_router.include_router(
     sharing.context_sharing_router, prefix="/context", tags=["context:sharing"]
+)
+v1_router.include_router(
+    sharing.dataset_sharing_router, prefix="/datasets", tags=["datasets:sharing"]
 )
 v1_router.include_router(sharing.secret_sharing_router, prefix="/secrets", tags=["secrets:sharing"])
 v1_router.include_router(sharing.artifact_sharing_router, prefix="/apps", tags=["apps:sharing"])

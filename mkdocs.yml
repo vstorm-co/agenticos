@@ -324,6 +324,7 @@ nav:
           - models.md
           - skills.md
           - context.md
+          - datasets.md
           - file-processing.md
           - mcp.md
           - sandbox.md

@@ -19,7 +19,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.core.exceptions import NotFoundError
-from app.repositories import channel_bot_repo, conversation_repo
+from app.repositories import (
+    agent_environment_repo,
+    channel_bot_repo,
+    conversation_repo,
+    dataset_repo,
+    intercepted_tool_call_repo,
+    personal_data_repo,
+)
 from app.services.conversation import ConversationService
 
 # (module, function name) pairs whose tenant argument must be required.
@@ -27,12 +34,33 @@ TENANT_REQUIRED = [
     (conversation_repo, "get_conversations_by_user"),
     (conversation_repo, "count_conversations"),
     (conversation_repo, "create_conversation"),
+    (conversation_repo, "list_tool_calls_for_run"),
     (channel_bot_repo, "get_for_org"),
     (channel_bot_repo, "get_by_platform"),
     (channel_bot_repo, "list_for_org"),
     (channel_bot_repo, "count"),
     (channel_bot_repo, "create"),
     (channel_bot_repo, "delete"),
+    (agent_environment_repo, "list_connections"),
+    (agent_environment_repo, "replace_connections"),
+    (intercepted_tool_call_repo, "add_many"),
+    (intercepted_tool_call_repo, "list_for_run"),
+    (dataset_repo, "get"),
+    (dataset_repo, "get_by_name"),
+    (dataset_repo, "lock"),
+    (dataset_repo, "list_visible"),
+    (dataset_repo, "create"),
+    (dataset_repo, "get_version"),
+    (dataset_repo, "list_versions"),
+    (dataset_repo, "create_version"),
+    (dataset_repo, "list_cases"),
+    (dataset_repo, "case_stats"),
+    (dataset_repo, "version_rows"),
+    (dataset_repo, "find_case"),
+    (dataset_repo, "last_position"),
+    (dataset_repo, "copy_membership"),
+    (conversation_repo, "get_messages_before"),
+    (personal_data_repo, "unlink_dataset_cases_from_conversation"),
 ]
 
 # Deliberately unscoped, each documented at its definition.
@@ -40,6 +68,7 @@ CROSS_TENANT_BY_DESIGN = [
     (channel_bot_repo, "get_for_inbound"),
     (channel_bot_repo, "get_active_polling_bots"),
     (conversation_repo, "get_conversation_by_id"),
+    (personal_data_repo, "unlink_dataset_cases_of"),
 ]
 
 

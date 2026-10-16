@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "5fd44f11df69"
 ---
 
 # La consola { #the-console }
@@ -17,7 +17,7 @@ página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen treinta y ocho tarjetas. No las verás todas: **cada tarjeta está
+Existen cuarenta y una tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -29,7 +29,7 @@ puedes abrir. Todos empiezan en **Me**:
 
 | Vista | Responde a |
 |---|---|
-| **Me** | Un saludo y tu periodo en una frase; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, tus agents y lo que han compartido contigo |
+| **Me** | Un saludo y tu periodo en una frase; tus runs, cuántos terminaron, lo que te espera y lo que costó; después las llamadas que te esperan, tus conversaciones, tus agents, lo que han compartido contigo y tus [datasets](datasets.md) con aquello contra lo que prueban sus casos |
 | **Organization** | La página que se ordena, descrita abajo |
 | **Group** | Los miembros de un [grupo](departments.md) - sus runs, gasto, modelos, cuándo trabajan y quién lo usa más. El grupo se elige junto al selector. Un grupo cuyos miembros no ejecutaron nada en el periodo lo dice una vez, con un enlace al grupo, en lugar de una página de tarjetas vacías |
 | **Deployment** | Solo para un [administrador del despliegue](permissions.md) — totales de la plataforma, salud, inquilinos más activos, valoraciones |
@@ -335,6 +335,7 @@ cualquier página que le pertenezca, y se queda como lo dejaste.
 | **Knowledge** | Colecciones, documentos, fuentes de sincronización, ajustes de ingesta | [Procesamiento de archivos](file-processing.md) |
 | **Skills** | Procedimientos escritos que un agent carga cuando hacen falta | [Skills](skills.md) |
 | **Context** | Conocimiento permanente ligado a muchos agents | [Archivos de contexto](context.md) |
+| **Datasets** | Casos de prueba versionados, importados, exportados o añadidos desde una respuesta valorada | [Datasets](datasets.md) |
 | **Routines** | Horarios y disparadores por evento | [Disparadores](triggers.md) |
 | **Runs** | Qué se ejecutó, cuánto costó, qué tocó, si falló | [Governance](governance.md#audit) |
 | **Documents** | Todos los archivos que los agents guardan para ti: lo que adjuntaste y lo que escribieron | [La sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -381,7 +382,7 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **treinta y seis widgets** que ordenas tú, guardados por
+- El dashboard son **cuarenta y un widgets** que ordenas tú, guardados por
   persona y por organización — todos menos tus propias notificaciones
   protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la

@@ -13,7 +13,7 @@ header — it replays that page's walkthrough, and a page whose header carries n
 The landing page is an **arrangeable grid of widgets**, and it is the answer to
 "what is happening" without opening five pages.
 
-Thirty-eight cards exist. You will not see all of them: **a card is gated on the
+Forty-one cards exist. You will not see all of them: **a card is gated on the
 permission its data needs**, so a widget you may not read is never mounted and
 its queries are never issued — except your own notifications, below, which need
 only that you are signed in. An empty band disappears with its heading rather
@@ -24,7 +24,7 @@ may open. Everybody opens on **Me**:
 
 | View | Answers |
 |---|---|
-| **Me** | A greeting and your period in one sentence; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, your agents and what was shared with you |
+| **Me** | A greeting and your period in one sentence; your runs, how many finished, what is waiting on you and what it cost; then the calls waiting on you, your conversations, your agents, what was shared with you, and your [datasets](datasets.md) with what their cases test against |
 | **Organization** | The arrangeable page below |
 | **Group** | One [group](departments.md)'s members - their runs, spend, models, when they work and who uses it most. Choose the group beside the switch. A group whose members ran nothing in the period says so once, with a way to the group, rather than showing a page of empty cards |
 | **Deployment** | Only for a [deployment admin](permissions.md) — platform totals, health, busiest tenants, ratings |
@@ -315,6 +315,7 @@ page inside it, and stays the way you left it.
 | **Knowledge** | Collections, documents, sync sources, ingestion settings | [File processing](file-processing.md) |
 | **Skills** | Written procedures an agent loads on demand | [Skills](skills.md) |
 | **Context** | Standing knowledge bound to many agents | [Context files](context.md) |
+| **Datasets** | Versioned test cases, imported, exported or added from a rated answer | [Datasets](datasets.md) |
 | **Routines** | Schedules and event triggers | [Triggers](triggers.md) |
 | **Runs** | What ran, what it cost, what it touched, whether it failed | [Governance](governance.md#audit) |
 | **Documents** | Every file agents are keeping for you, what you attached and what they wrote | [The sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -359,7 +360,7 @@ quiet one.
 
 ## Recap
 
-- The dashboard is **thirty-six widgets** you arrange yourself, saved per
+- The dashboard is **forty-one widgets** you arrange yourself, saved per
   person and per organization — all but your own notifications gated on the
   permission their data needs.
 - A saved arrangement **can hide and reorder but never reveal** — the gate runs

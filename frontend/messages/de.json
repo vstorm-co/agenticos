@@ -775,7 +775,19 @@
     "capabilityShelfEnabled": "{enabled} von {total} an",
     "capabilityShelfPrevious": "Zurück in {shelf}",
     "capabilityShelfNext": "Mehr in {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Eingebaut, keine Werkzeuge} =1 {1 Werkzeug} other {# Werkzeuge}}"
+    "capabilityToolCount": "{count, plural, =0 {Eingebaut, keine Werkzeuge} =1 {1 Werkzeug} other {# Werkzeuge}}",
+    "testConnectionsFor": "Testverbindungen für {name}",
+    "testConnectionsHint": "Runs in diesem Environment, Evals eingeschlossen, beantworten jedes Binding unten mit seinem Testsystem. Ein hier abgeschaltetes Binding tut nichts - es fällt nie auf die Produktion zurück.",
+    "testConnectionKindLabel": "Was ersetzt wird",
+    "testConnectionKindMcp": "MCP-Server",
+    "testConnectionKindSecret": "Vault-Schlüssel",
+    "productionSide": "Produktion",
+    "testSide": "Testersatz",
+    "testSideFor": "Testersatz für {name}",
+    "bindingOffHere": "In diesem Environment aus",
+    "testSideUnusable": "Hier aus: Die Testverbindung ist deaktiviert oder nicht angemeldet",
+    "testConnectionsSaved": "Testverbindungen gespeichert",
+    "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -2107,6 +2119,27 @@
           "description": "Hier erscheinen Berichte und Dashboards, die ein Agent veröffentlicht."
         }
       },
+      "datasets": {
+        "title": "Datasets",
+        "description": "Die zuletzt geänderten Datasets und woran ihre Fälle die Antwort messen.",
+        "cases": "{count, plural, =1 {1 Fall} other {# Fälle}} · v{version}",
+        "empty": {
+          "title": "Noch keine Datasets",
+          "description": "Testfälle, die Sie für Evals sammeln, erscheinen hier."
+        },
+        "stat": {
+          "reference": "{count, plural, =1 {1 Referenz} other {# Referenzen}}",
+          "counter": "{count, plural, =1 {1 Gegenbeispiel} other {# Gegenbeispiele}}",
+          "toolCalls": "{count, plural, =1 {1 mit Tool-Aufrufen} other {# mit Tool-Aufrufen}}",
+          "checks": "{count, plural, =1 {1 mit Prüfungen} other {# mit Prüfungen}}"
+        },
+        "source": {
+          "conversation": "{count} aus dem Chat",
+          "import": "{count} importiert",
+          "manual": "{count} von Hand",
+          "synthetic": "{count} generiert"
+        }
+      },
       "department-spend": {
         "title": "Ausgaben nach Abteilung",
         "description": "Was die Mitglieder jeder Abteilung diesen Monat ausgeführt haben, gemessen an ihrem Limit. Wer in zwei Abteilungen ist, zählt in beiden.",
@@ -2939,6 +2972,8 @@
     "theOrganizations": "Die der Organisation",
     "toolSelectionSaved": "Tool-Auswahl gespeichert.",
     "tools": "Tools",
+    "trustReadOnlyHints": "Evals Tools aufrufen lassen, die dieser Server als nur lesend markiert",
+    "trustReadOnlyHintsHint": "Evals halten jeden Aufruf eines Produktionsservers an, solange Sie ihm nicht vertrauen: Die Markierung „nur lesend“ ist die eigene Angabe des Servers. {count, plural, =0 {Kein Tool hier beansprucht sie.} =1 {1 Tool hier beansprucht sie.} other {# Tools hier beanspruchen sie.}}",
     "toolsFrom": "Tools aus „{name}“",
     "toolsSelected": "{on} von {total} aktiv",
     "unreachable": "Nicht erreichbar",
@@ -3062,6 +3097,7 @@
     "collapseSidebar": "Seitenleiste einklappen",
     "expandSidebar": "Seitenleiste ausklappen",
     "artifacts": "Apps",
+    "datasets": "Datasets",
     "assistant": "Assistent",
     "groups": "Gruppen",
     "api": "API",
@@ -3122,6 +3158,10 @@
       "explore-chat": {
         "title": "Eine kurze Tour durch den Chat?",
         "body": "Sehen Sie, wie Sie eine Unterhaltung beginnen, den antwortenden Agent wechseln und Modell oder Denkaufwand für einen einzelnen Chat ändern. Möchten Sie eine kurze geführte Runde?"
+      },
+      "create-dataset": {
+        "title": "Ein Dataset anlegen?",
+        "body": "Ein Dataset enthält die Fragen, an denen Ihre Agents getestet werden. Möchten Sie jetzt Ihr erstes anlegen und gemeinsam einen ersten guten Fall schreiben? Wir führen Sie durch."
       }
     },
     "steps": {
@@ -3148,6 +3188,10 @@
       "agent-history": {
         "title": "Jede Version, aufbewahrt",
         "body": "Jede Veröffentlichung friert den Spec als Version ein, die Sie in ein Environment heben, auf die Sie zurückrollen oder gegen die Sie die Run-Historie lesen können."
+      },
+      "agent-test-connections": {
+        "title": "Testverbindungen",
+        "body": "Ein benanntes Environment kann die MCP-Server und Vault-Schlüssel des Agents durch Testversionen ersetzen - ein Sandbox-CRM, ein Testpostfach. Dort laufen Evals, und ein schreibendes Tool ohne Testverbindung wird angehalten und aufgezeichnet statt ausgeführt."
       },
       "agent-instructions": {
         "title": "Die Instruktionen sind das Verhalten",
@@ -3592,6 +3636,62 @@
       "artifacts-list": {
         "title": "Veröffentlichte Seiten",
         "body": "Berichte und Dashboards, die Ihre Agents veröffentlicht haben. Öffnen Sie eines, wählen Sie eine frühere Version, teilen Sie es mit Kolleginnen und Kollegen oder geben Sie ihm einen öffentlichen Link."
+      },
+      "datasets-new": {
+        "title": "Testfälle sammeln",
+        "body": "Ein Dataset enthält die Fragen, an denen ein Agent getestet wird. Legen Sie hier eines an und fügen Sie Fälle von Hand, aus einer Datei, aus einer im Chat bewerteten Antwort oder aus einem Schritt in der Aktivität hinzu."
+      },
+      "datasets-list": {
+        "title": "Ihre Datasets",
+        "body": "Jede Änderung an den Fällen erzeugt eine neue Version, sodass ein Eval-Run immer auf Fragen zeigt, die sich nicht ändern."
+      },
+      "flow-dataset-create": {
+        "title": "Dataset anlegen",
+        "body": "Wählen Sie „Neues Dataset“ - das Formular öffnet sich und wir füllen es gemeinsam aus."
+      },
+      "flow-dataset-field-name": {
+        "title": "Benennen",
+        "body": "Sagen Sie, was es testet, etwa Fragen zu Erstattungen. Dann Weiter wählen."
+      },
+      "flow-dataset-field-create": {
+        "title": "Anlegen",
+        "body": "Wählen Sie Erstellen. Wir machen weiter, sobald es gespeichert ist."
+      },
+      "flow-dataset-open": {
+        "title": "Öffnen Sie Ihr Dataset",
+        "body": "Es ist die erste Karte - die zuletzt geänderte. Öffnen Sie sie, um den ersten Fall hinzuzufügen."
+      },
+      "flow-dataset-add-case": {
+        "title": "Fügen Sie Ihren ersten Fall hinzu",
+        "body": "Wählen Sie Fall hinzufügen. Ein Fall ist eine Frage und die Beschreibung einer guten Antwort darauf."
+      },
+      "flow-dataset-case-question": {
+        "title": "Was der Agent gefragt wird",
+        "body": "Die Eingabe ist die Nachricht, auf die der Agent antwortet. Fügen Sie das Gespräch davor nur hinzu, wenn die Frage von früheren Zügen abhängt. Dann wählen Sie Weiter."
+      },
+      "flow-dataset-case-answers": {
+        "title": "Eine gute Antwort und eine schlechte",
+        "body": "Die Referenzantwort sagt, was eine gute Antwort enthält; ein Judge vergleicht die Antwort des Agents damit. Das Gegenbeispiel ist eine Antwort, die bekanntermaßen falsch ist - oft die negativ bewertete. Meist genügt eines von beiden."
+      },
+      "flow-dataset-case-tools": {
+        "title": "Die Tools, die er aufrufen soll",
+        "body": "Listen Sie die Tools auf, die der Agent aufrufen muss, mit den Argumenten, die übereinstimmen müssen. Wählen Sie den Abgleich: in beliebiger Reihenfolge, in dieser Reihenfolge mit anderen dazwischen oder genau diese und keine anderen."
+      },
+      "flow-dataset-case-checks": {
+        "title": "Regeln für die Antwort",
+        "body": "Eine Prüfung ist eine Regel, nach der die Antwort bewertet wird, etwa dass sie 30 Tage nennt. Jede nennt ihren Typ und die Parameter dieser Regel."
+      },
+      "flow-dataset-case-labels": {
+        "title": "Tags und eine Notiz",
+        "body": "Tags gruppieren Ergebnisse, etwa billing oder refusal. Die Notiz sagt, wozu der Fall da ist - was schiefging oder was er absichert."
+      },
+      "flow-dataset-case-save": {
+        "title": "Speichern Sie den Fall",
+        "body": "Ein Fall muss sagen, woran die Antwort gemessen wird: eine Referenzantwort, ein Gegenbeispiel, ein Tool-Aufruf oder eine Prüfung. Solange keines davon da ist, bleibt Fall speichern aus und sagt, was fehlt."
+      },
+      "flow-dataset-sources": {
+        "title": "Woher die nächsten Fälle kommen",
+        "body": "Schreiben Sie sie hier, oder importieren Sie hier eine CSV- oder JSONL-Datei. Bewerten Sie im Chat eine Antwort positiv oder negativ und fügen Sie sie hinzu - ein Daumen nach oben behält sie als Referenz, einer nach unten als Gegenbeispiel. In der Aktivität fügen Sie einen beliebigen Agent-Zug eines Runs hinzu."
       },
       "settings-api-keys": {
         "title": "Ihre API-Schlüssel",
@@ -5199,11 +5299,11 @@
     "share": "Freigeben",
     "sharingUpdated": "Freigabe aktualisiert",
     "visibilityOrg": "Alle in der Organisation",
-    "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Apps} context {Kontextdateien} mcp_connection {MCP-Server} other {Secrets}} überhaupt ansehen dürfen.",
+    "visibilityOrgReaches": "Alle in der Organisation, die {resource, select, agent {Agents} skill {Skills} collection {Collections} artifact {Apps} dataset {Datasets} context {Kontextdateien} mcp_connection {MCP-Server} other {Secrets}} überhaupt ansehen dürfen.",
     "visibilityPrivate": "Nur Personen mit Zugriff",
-    "visibilityPrivateReaches": "Nur die oben aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} context {diese Kontextdatei} mcp_connection {diesen MCP-Server} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
+    "visibilityPrivateReaches": "Nur die oben aufgeführten Personen. Sonst findet niemand {resource, select, agent {diesen Agent} skill {diesen Skill} collection {diese Collection} artifact {diese App} dataset {dieses Dataset} context {diese Kontextdatei} mcp_connection {diesen MCP-Server} other {dieses Secret}} in seiner Liste – und wenn es noch keinen Besitzer hat, wird es Ihres.",
     "visibilityTeam": "Team (wird nicht mehr angeboten)",
-    "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Apps} context {Team-Kontextdateien} mcp_connection {Team-MCP-Server} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
+    "visibilityTeamReaches": "Jeder, dessen Rolle {resource, select, agent {Team-Agents} skill {Team-Skills} collection {Team-Collections} artifact {Team-Apps} dataset {Team-Datasets} context {Team-Kontextdateien} mcp_connection {Team-MCP-Server} other {Team-Secrets}} erreicht. Diese Organisation hat keine Teams – wählen Sie eine der beiden Optionen darüber.",
     "visibilityUpdated": "Sichtbarkeit aktualisiert",
     "groupsHeading": "Gruppen",
     "membersHeading": "Mitglieder",
@@ -6106,6 +6206,112 @@
     "add": "Hinzufügen",
     "mappingAdded": "Zuordnung hinzugefügt",
     "mappingDeleted": "Zuordnung gelöscht"
+  },
+  "datasets": {
+    "title": "Datasets",
+    "pageDescription": "Die Fragen, an denen Ihre Agents getestet werden. Jede Änderung an den Fällen eines Datasets erzeugt eine neue Version, sodass zwei Eval-Runs auf einer Version dieselben Fragen gesehen haben.",
+    "newDataset": "Neues Dataset",
+    "newDatasetBody": "Ein leeres Dataset, privat, bis Sie es freigeben. Fügen Sie Fälle von Hand hinzu, importieren Sie eine CSV- oder JSONL-Datei oder übernehmen Sie eine Antwort aus einem Gespräch.",
+    "noAccess": "Sie können die Datasets dieser Organisation nicht sehen",
+    "noAccessBody": "Bitten Sie einen Administrator um Zugriff auf Datasets.",
+    "datasetCount": "{count, plural, =1 {1 Dataset} other {# Datasets}}",
+    "search": "Datasets durchsuchen",
+    "noMatches": "Kein Dataset passt",
+    "noMatchesBody": "Durchsucht werden Namen und Beschreibungen.",
+    "empty": "Noch keine Datasets",
+    "emptyBody": "Ein Dataset enthält die Testfälle, an denen ein Agent geprüft wird.",
+    "deleteBody": "Alle Versionen und Fälle dieses Datasets werden gelöscht. Eval-Runs, die es verwendet haben, verlieren die Fragen, die sie beantwortet haben.",
+    "created": "{name} erstellt",
+    "deleted": "Dataset gelöscht",
+    "name": "Name",
+    "description": "Beschreibung",
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "create": "Erstellen",
+    "add": "Hinzufügen",
+    "versionNumber": "v{number}",
+    "caseCount": "{count, plural, =1 {1 Fall} other {# Fälle}}",
+    "version": "Version",
+    "newestVersion": "Neueste Version",
+    "versionChange": "v{number} · {count, plural, =1 {1 Fall} other {# Fälle}} {change, select, add {hinzugefügt} edit {bearbeitet} remove {entfernt} import {importiert} other {geändert}}",
+    "importFile": "CSV- oder JSONL-Datei zum Importieren wählen",
+    "import": "Importieren",
+    "exportCsv": "CSV exportieren",
+    "exportJsonl": "JSONL exportieren",
+    "imported": "{count, plural, =1 {1 Fall} other {# Fälle}} als Version {version} importiert",
+    "caseAdded": "Fall als neue Version hinzugefügt",
+    "caseSaved": "Fall als neue Version gespeichert",
+    "caseRemoved": "Fall in einer neuen Version entfernt",
+    "turnsBefore": "{count, plural, =1 {1 früherer Zug} other {# frühere Züge}}",
+    "hasReference": "Referenzantwort",
+    "hasCounterExample": "Gegenbeispiel",
+    "expectedCalls": "{count, plural, =1 {1 erwarteter Aufruf} other {# erwartete Aufrufe}}",
+    "addCase": "Fall hinzufügen",
+    "cases": "Fälle",
+    "case": "Fall",
+    "noCases": "Keine Fälle in dieser Version",
+    "noCasesBody": "Fügen Sie einen Fall hinzu, importieren Sie eine Datei oder nutzen Sie „Zum Dataset hinzufügen“ an einer Antwort im Gespräch oder in Aktivität.",
+    "caseReadOnly": "Schreibgeschützt: eine ältere Version, oder Sie dürfen dieses Dataset nicht ändern.",
+    "caseSavesVersion": "Speichern erzeugt eine neue Version. Die Version davor behält diesen Fall, wie er war.",
+    "notJson": "Das ist kein gültiges JSON.",
+    "notList": "Das muss eine JSON-Liste sein.",
+    "saveCase": "Fall speichern",
+    "needsInput": "Schreiben Sie die Eingabe, auf die der Agent antwortet.",
+    "needsExpectation": "Fügen Sie eine Referenzantwort, ein Gegenbeispiel, einen erwarteten Tool-Aufruf oder eine Prüfung hinzu: Ein Fall braucht etwas, woran die Antwort gemessen wird.",
+    "addToDataset": "Zum Dataset hinzufügen",
+    "addToDatasetBody": "Mit der Antwort kommen die Frage, das Gespräch davor und der Kommentar zum Daumen nach unten.",
+    "addAsReferenceBody": "Sie haben diese Antwort positiv bewertet, daher wird sie als Referenzantwort behalten. Die Frage und das Gespräch davor kommen mit.",
+    "noDatasetToAddTo": "Es gibt kein Dataset, zu dem Sie hinzufügen dürfen. <link>Legen Sie zuerst eines an</link>.",
+    "dataset": "Dataset",
+    "keepAnswerAs": "Antwort behalten als",
+    "addedTo": "Zu {name} hinzugefügt",
+    "alsoAddToDataset": "Diese Antwort zu einem Dataset hinzufügen",
+    "addAfterRatingFailed": "Die Bewertung wurde gespeichert, aber die Antwort wurde keinem Dataset hinzugefügt: {reason}",
+    "field": {
+      "input": "Eingabe",
+      "reference_answer": "Referenzantwort",
+      "counter_example": "Gegenbeispiel",
+      "note": "Notiz",
+      "history": "Gespräch vor der Eingabe",
+      "expected_tool_calls": "Erwartete Tool-Aufrufe",
+      "checks": "Prüfungen",
+      "tags": "Tags",
+      "order_mode": "Wie erwartete Aufrufe abgeglichen werden"
+    },
+    "hint": {
+      "input": "Die Nachricht, die der Agent beantwortet.",
+      "reference_answer": "Was eine gute Antwort sagt. Ein Judge vergleicht die Antwort des Agents damit.",
+      "counter_example": "Eine Antwort, die bekanntermaßen falsch ist, damit ein Judge einen Vergleich hat.",
+      "note": "Warum es den Fall gibt - was schiefging oder was er absichert.",
+      "history": "Frühere Züge, älteste zuerst, als JSON-Liste von Objekten mit Rolle (user oder assistant) und Inhalt. Für eine einzelne Nachricht leer lassen.",
+      "expected_tool_calls": "Tools, die der Agent aufrufen soll, als JSON-Liste von Objekten mit dem Tool-Namen und den Argumenten, die passen müssen. Nicht genannte Argumente werden ignoriert.",
+      "checks": "Prüfungen der Antwort, als JSON-Liste - zum Beispiel, dass sie eine Phrase enthält oder einem Muster entspricht.",
+      "tags": "Durch Kommas getrennt, zum Gruppieren von Ergebnissen."
+    },
+    "source": {
+      "manual": "Geschrieben",
+      "import": "Importiert",
+      "conversation": "Aus einem Gespräch",
+      "synthetic": "Generiert"
+    },
+    "orderMode": {
+      "any": "Beliebige Reihenfolge",
+      "anyHint": "Jeder erwartete Aufruf muss erfolgen; Reihenfolge und andere Aufrufe spielen keine Rolle.",
+      "in_order": "In dieser Reihenfolge",
+      "in_orderHint": "Die erwarteten Aufrufe müssen in der angegebenen Reihenfolge erfolgen; andere Aufrufe dürfen dazwischen liegen.",
+      "exact": "Genau diese, in dieser Reihenfolge",
+      "exactHint": "Der Agent muss genau die erwarteten Aufrufe machen, in der angegebenen Reihenfolge, und keine anderen."
+    },
+    "importRowProblem": "Zeile {row}: {message}",
+    "importRowFieldProblem": "Zeile {row}, {field}: {message}",
+    "checkCount": "{count, plural, =1 {1 Prüfung} other {# Prüfungen}}",
+    "hasNote": "Notiz",
+    "editDetails": "Details bearbeiten",
+    "editDetailsBody": "Wie das Dataset heißt und wofür es da ist. Eine Änderung erzeugt keine neue Version, weil sich kein Fall ändert.",
+    "saveDetails": "Speichern",
+    "detailsSaved": "Gespeichert",
+    "olderVersion": "Ältere Version Nr.",
+    "findDataset": "Dataset suchen"
   },
   "apiKeys": {
     "title": "API-Schlüssel",

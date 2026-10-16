@@ -18,7 +18,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
@@ -29,6 +29,7 @@ from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
+from app.db.models.dataset import DatasetCase
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.message_rating import MessageRating
 from app.db.models.notification import Notification
@@ -252,6 +253,68 @@ async def purge_identities_of(db: AsyncSession, user_id: UUID) -> int:
         How many identities were removed, for the audit entry.
     """
     result = await db.execute(sa_delete(ChannelIdentity).where(ChannelIdentity.user_id == user_id))
+    await db.flush()
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+_NO_SOURCE: dict[str, None] = {
+    "source_run_id": None,
+    "source_conversation_id": None,
+    "source_message_id": None,
+}
+
+
+async def unlink_dataset_cases_from_conversation(
+    db: AsyncSession, conversation_id: UUID, *, organization_id: UUID
+) -> int:
+    """Cut every dataset case taken from this conversation loose from it.
+
+    A case keeps the question and answer it copied, which is the point of
+    taking one, but not where they came from: the run outlives a deleted
+    conversation, and a link to it would still lead back to who asked. Run
+    *before* the conversation goes, while `source_conversation_id` still names
+    it.
+
+    Returns:
+        How many case revisions were unlinked.
+    """
+    result = await db.execute(
+        update(DatasetCase)
+        .where(
+            DatasetCase.source_conversation_id == conversation_id,
+            DatasetCase.organization_id == organization_id,
+        )
+        .values(**_NO_SOURCE)
+    )
+    await db.flush()
+    return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def unlink_dataset_cases_of(db: AsyncSession, user_id: UUID) -> int:
+    """Cut every dataset case taken from this person's conversations or runs loose.
+
+    Unscoped by organization on purpose: an erasure is about one person, in
+    every organization they were in. The case text stays - it was copied to
+    outlive the transcript - and whatever personal data somebody typed into it
+    stays with it; what goes is every link from the case back to the person.
+
+    Returns:
+        How many case revisions were unlinked.
+    """
+    result = await db.execute(
+        update(DatasetCase)
+        .where(
+            or_(
+                DatasetCase.source_conversation_id.in_(
+                    select(Conversation.id).where(Conversation.user_id == user_id)
+                ),
+                DatasetCase.source_run_id.in_(
+                    select(AgentRun.id).where(AgentRun.user_id == user_id)
+                ),
+            )
+        )
+        .values(**_NO_SOURCE)
+    )
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
 

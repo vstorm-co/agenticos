@@ -471,6 +471,20 @@ export interface DelegationTree {
   nodes: DelegationTreeNode[];
 }
 
+/**
+ * One binding a named environment answers with a test system instead.
+ *
+ * `production_id` is the MCP connection or vault key the spec binds; `test_id`
+ * is what runs in its place here. Null means the binding is off in this
+ * environment - set on purpose, or left behind when the test side was deleted -
+ * and never that production answers.
+ */
+export interface EnvironmentConnection {
+  kind: "mcp" | "secret";
+  production_id: string;
+  test_id: string | null;
+}
+
 /** One named environment of an agent, pinned to one published version. */
 export interface AgentEnvironment {
   id: string;
@@ -498,6 +512,8 @@ export interface AgentEnvironment {
   /** Which vault key this environment's traces are written with; null = the spec's. */
   logfire_token_secret_id: string | null;
   service_name: string | null;
+  /** Bindings this environment answers with test systems. Empty on the default. */
+  connections: EnvironmentConnection[];
   created_at: string;
 }
 

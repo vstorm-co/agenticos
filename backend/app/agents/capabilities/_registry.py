@@ -225,6 +225,17 @@ class CapabilityToolInfo(BaseModel):
     and beats the code's.
     """
 
+    read_only: bool | None = None
+    """Whether calling *this tool* changes nothing outside the run.
+
+    `None` defers to `CapabilityDef.read_only`. Separate from `side_effecting`
+    because the two are read by different gates with opposite defaults:
+    approval asks about what was declared dangerous, and an isolated run - an
+    eval - executes only what was declared safe. An eval blocks a tool that
+    declares nothing, so `side_effecting`'s default of "not gated" cannot stand
+    in for "reads".
+    """
+
     @model_validator(mode="before")
     @classmethod
     def _name_defaults_to_id(cls, data: Any) -> Any:
@@ -312,6 +323,23 @@ class CapabilityDef:
     # instance. Code says "I need an API key"; configuration says which one.
     secret: SecretRequirement | None = None
     provider_executed: ProviderExecuted | None = None
+    read_only: bool = False
+    """Whether this capability's tools change nothing outside the run.
+
+    What an isolated run (an eval) reads to decide whether a tool may execute
+    against the normal connections. False - the default - means "writes", so a
+    capability nobody classified is blocked in an eval rather than allowed to
+    send the e-mail it was written to send. A tool may override it either way.
+    """
+    test_key_isolates: bool = False
+    """Whether a test key alone moves this capability's writes off production.
+
+    True only where the vault key *is* the target - a provider's test account,
+    as with Stripe's test keys - and no URL, host or endpoint in the config also
+    names one. An isolated run lets the writing tools of a binding whose key the
+    environment swapped execute only under this declaration; otherwise a swapped
+    key stands in for the credential while the writes are still recorded, not run.
+    """
 
     def needs_secret(self, config: BaseModel | None) -> bool:
         """Whether a binding with this configuration must name a secret.
@@ -354,9 +382,18 @@ class CapabilityDef:
                 # one call worth gating, which is the exact failure `id` exists
                 # to prevent.
                 side_effecting=tool.side_effecting,
+                read_only=tool.read_only,
             )
             for tool in self.tools
         )
+
+    def tool_is_read_only(self, tool: CapabilityToolInfo) -> bool:
+        """Whether one of this capability's tools may run in an isolated run.
+
+        The tool's own declaration wins over the capability's, and a capability
+        that declares nothing writes.
+        """
+        return self.read_only if tool.read_only is None else tool.read_only
 
     def validate_config(self, raw: dict[str, Any]) -> BaseModel | None:
         """Parse a spec's config blob against this capability's schema.
@@ -405,6 +442,8 @@ def register(
     scopes: Iterable[str] = (),
     secret: SecretRequirement | None = None,
     provider_executed: ProviderExecuted | None = None,
+    read_only: bool = False,
+    test_key_isolates: bool = False,
 ) -> Callable[[CapabilityBuilder], CapabilityBuilder]:
     """Register a capability builder.
 
@@ -429,6 +468,15 @@ def register(
     only hold a call this deployment executes, so a binding that gates one of
     those is refused at publish rather than given a gate that never fires; see
     :class:`ProviderExecuted` for why the capability owns that statement.
+
+    `read_only` declares that the tools change nothing outside the run, which is
+    what lets them execute in an eval; see :attr:`CapabilityDef.read_only`. A
+    tool that delegates to other tools counts as read-only, because each of
+    those tools is held to its own declaration.
+
+    `test_key_isolates` declares that swapping the binding's vault key for a test
+    one moves every write to a test system; see
+    :attr:`CapabilityDef.test_key_isolates`.
 
     `tools` has no default on purpose. It is what the Builder offers per-tool
     approval for and what the approval gate matches on, so a capability that
@@ -460,6 +508,8 @@ def register(
             scopes=frozenset(scopes),
             secret=secret,
             provider_executed=provider_executed,
+            read_only=read_only,
+            test_key_isolates=test_key_isolates,
         )
         existing = REGISTRY.get(definition.id)
         if existing is not None and existing is not definition:

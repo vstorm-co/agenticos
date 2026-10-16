@@ -11,6 +11,7 @@ import {
 } from "@/lib/onboarding/flows";
 import {
   AGENT_BUILDER,
+  DATASET_DETAIL,
   KB_DETAIL,
   ORG_DIRECTORY,
   ORG_GROUPS,
@@ -211,6 +212,51 @@ describe("FLOWS", () => {
   });
 });
 
+describe("create-dataset", () => {
+  it("goes on past the empty dataset into its first case, field group by field group", () => {
+    const steps = FLOWS["create-dataset"].steps;
+    const ids = steps.map((step) => step.id);
+    expect(ids.slice(0, 3)).toEqual([
+      "flow-dataset-create",
+      "flow-dataset-field-name",
+      "flow-dataset-field-create",
+    ]);
+    const open = steps[3];
+    expect(open?.target).toBe("dataset-card-open");
+    expect(open?.page).toBeUndefined();
+    expect(open?.signal).toEqual({ kind: "arrived", page: DATASET_DETAIL });
+    expect(steps[4]).toMatchObject({
+      target: "datasets-add-case",
+      signal: { kind: "opened" },
+    });
+
+    const groups = steps.slice(5, -2);
+    expect(groups.map((step) => step.target)).toEqual([
+      "case-group-question",
+      "case-group-answers",
+      "case-group-tools",
+      "case-group-checks",
+      "case-group-labels",
+    ]);
+    for (const step of groups) {
+      expect(step).toMatchObject({
+        page: DATASET_DETAIL,
+        inOverlay: true,
+        blockSubmit: "case-save",
+      });
+      expect(step.signal).toBeUndefined();
+    }
+    const [save, sources] = steps.slice(-2);
+    expect(save).toMatchObject({
+      target: "case-save",
+      signal: { kind: "created", resource: "case" },
+    });
+    expect(save?.blockSubmit).toBeUndefined();
+    expect(sources?.target).toBe("dataset-file-actions");
+    expect(sources?.signal).toBeUndefined();
+  });
+});
+
 describe("flowForPage", () => {
   it("maps each section, collapsing its detail routes onto the same flow", () => {
     expect(flowForPage(ROUTES.AGENTS)).toBe("create-agent");
@@ -221,6 +267,7 @@ describe("flowForPage", () => {
     expect(flowForPage(KB_DETAIL)).toBe("create-kb");
     expect(flowForPage(ROUTES.MCP_SERVERS)).toBe("create-mcp");
     expect(flowForPage(ROUTES.ROUTINES)).toBe("create-routine");
+    expect(flowForPage(ROUTES.DATASETS)).toBe("create-dataset");
     expect(flowForPage(ROUTES.ORGS)).toBe("create-org");
     expect(flowForPage(ORG_MEMBERS)).toBe("create-org");
     expect(flowForPage(ORG_ROLES)).toBe("create-org");

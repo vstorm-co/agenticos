@@ -1,5 +1,5 @@
 ---
-source_sha: "012b6efb6435"
+source_sha: "9eb3fc8f6ed6"
 ---
 
 # Środowiska { #environments }
@@ -23,6 +23,7 @@ obsługuje zwykłą powierzchnię, gdy nikt nie powiedział inaczej.
 | **Wersja** | Która opublikowana wersja tu odpowiada. Nie ma stanu bez przypięcia |
 | **Tracks latest** | Czy publikacja sama przekierowuje to środowisko. Domyślnie wyłączone |
 | **Ślady** | Token zapisu Logfire z vaulta, żeby runy tego środowiska lądowały we własnym projekcie |
+| **Połączenia testowe** | Serwery MCP i klucze z vault, które to środowisko zastępuje testowymi — sandboxowym CRM, testową skrzynką. Tylko środowiska nazwane |
 
 !!! info "Nie ma środowiska bez wersji"
 
@@ -84,6 +85,78 @@ cotygodniowym raporcie nigdy nie publikuje ponownie strony, którą otwierają
 czytelnicy produkcji. Środowiska z runem, który wciąż pracuje albo czeka na
 akceptację, nie da się usunąć, dopóki run się nie skończy: usunięcie przekazałoby ten run domyślnemu środowisku, a jego
 strony — produkcji.
+
+## Połączenia testowe { #test-connections }
+
+Wersja to ten sam spec, gdziekolwiek działa, więc `staging` sięgałby inaczej do
+tego samego CRM i tej samej skrzynki co `production`. Nazwane środowisko może
+zamiast tego odpowiedzieć na binding **połączeniem testowym**: organizacyjny
+[serwer MCP](mcp.md) — sandboxowym, a klucz capability z vault — kluczem
+testowym. Spec się nie zmienia, więc promocja wersji nie przenosi żadnego
+testowego poświadczenia.
+
+| Binding | Zastępowany przez | Co widzi model |
+|---|---|---|
+| Organizacyjne połączenie MCP | Inne organizacyjne połączenie MCP | Nazwy narzędzi połączenia produkcyjnego, więc staging i produkcja są porównywalne |
+| Klucz capability z vault | Inny klucz tego samego rodzaju i przeznaczenia | Nic: capability nigdy nie wie, jaki klucz dostała |
+
+Używa ich każdy run w tym środowisku: bot Slack podpięty do `staging`, wywołanie
+API, które je nazywa, harmonogram i każdy delegat, którego te runy wywołują.
+Narzędzia, które oferuje połączenie testowe, są zawężane przez allowlistę
+połączenia produkcyjnego, własną allowlistę połączenia testowego i allowlistę
+bindingu.
+
+!!! warning "Wyłączone, nigdy produkcja"
+
+    Binding można w środowisku wyłączyć zamiast zastępować. Tak samo dzieje się
+    z bindingiem, którego strona testowa została usunięta, wyłączona albo straciła
+    poświadczenia: binding gaśnie tam, dopóki ktoś nie wybierze innego połączenia
+    testowego. Strona produkcyjna nigdy nie jest awaryjnym zastępstwem. Capability,
+    której testowy klucz usunięto, odmawia runu, zamiast działać bez klucza.
+
+Środowisko domyślne nie ma połączeń testowych — to ono obsługuje powierzchnię,
+która nie nazywa środowiska, czyli produkcję. Obie strony zastąpienia muszą
+należeć do organizacji, a klucz testowy musi być widoczny dla osoby, która go
+ustawia. Zapisywane są tylko identyfikatory; klucz testowy zostaje w
+[vault](secrets.md), a wpis audytu zapisuje, ile jest zastąpień, nie to, co
+zawierają.
+
+### W evalu { #in-an-eval }
+
+Eval uruchamia agenta naprawdę, więc jego narzędzia działałyby naprawdę: agent,
+który wysyła e-maile, wysłałby jeden na każdy przypadek. Run uruchomiony w
+**izolacji** — a tak działa eval — wykonuje narzędzie tylko wtedy, gdy jest to
+bezpieczne:
+
+| Narzędzie | Co się dzieje |
+|---|---|
+| Sięga do testowego połączenia MCP środowiska | Działa, na systemie testowym |
+| Tylko czyta | Działa na zwykłym połączeniu |
+| Zapisuje, na testowym kluczu z vault | Działa tylko wtedy, gdy jego capability deklaruje, że sam klucz wyznacza cel; inaczej **nie jest wykonywane** i jest zapisywane |
+| Zapisuje i nie ma połączenia testowego | **Nie jest wykonywane.** Zapisywane jako zamierzone wywołanie, z argumentami |
+
+Klucz testowy zastępuje poświadczenie, ale URL albo host w konfiguracji
+capability nadal może kierować zapisy na produkcję. Dlatego podmieniony klucz
+pozwala capability zapisywać w evalu tylko wtedy, gdy deklaruje ona
+`test_key_isolates`, a [katalog](reference/capabilities.md#what-an-eval-runs)
+wymienia, które to robią.
+
+Narzędzie MCP liczy się jako czytające tylko wtedy, gdy serwer oznacza je
+`readOnlyHint`, a połączenie ma włączone zaufanie do tego oznaczenia. Domyślnie
+nie ma, bo oznaczenie to deklaracja samego serwera. Narzędzie capability deklaruje to w rejestrze, a
+[katalog](reference/capabilities.md#what-an-eval-runs) wymienia, które to robią.
+**Narzędzie, które niczego nie deklaruje, zapisuje.** Model dowiaduje się, że
+wywołanie nie zostało wysłane, a zamierzone wywołanie zostaje zachowane z runem
+do oceny.
+
+Run w izolacji może też dostawać odpowiedzi z nagrania runu, z którego wzięto
+przypadek — z wywołań, które zachował jego transkrypt. Wywołanie jest
+dopasowywane po narzędziu, argumentach i kolejności wśród identycznych wywołań i
+dostaje oryginalny wynik; wywołanie, którego nagranie nie zawiera, nie jest
+wykonywane i zostaje zapisane jako rozbieżne. Run, którego transkrypt zgubił
+wywołanie, nie jest odtwarzany wcale. Run w izolacji nie ma kogo zapytać o
+zatwierdzenie, więc wywołanie objęte bramką też nie jest wykonywane i zostaje
+zapisane jako wymagające zatwierdzenia.
 
 ## Testowanie z poziomu Buildera { #trying-it-from-the-builder }
 
@@ -148,5 +221,9 @@ spotykający wersję, której nikt nie wydał.
   publiczny widget mogą serwować różne wersje jednego agenta.
 - **Rollback to przekierowanie**, bo stare wersje pozostają czytelne i
   uruchamialne.
+- Nazwane środowisko może zastąpić bindingi **połączeniami testowymi**; binding
+  bez takiego połączenia jest tam wyłączony, nigdy nie trafia na produkcję. W evalu
+  narzędzie, które zapisuje i nie ma połączenia testowego, jest **zapisywane, a nie
+  uruchamiane**.
 - Środowisko domyślne jest zarządzane przez publikację i celowo nie da się go tu
   edytować.

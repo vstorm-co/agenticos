@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api-error";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import type { AgentEnvironment, AgentEnvironmentList } from "@/types/agents";
+import type { AgentEnvironment, AgentEnvironmentList, EnvironmentConnection } from "@/types/agents";
 
 /**
  * An agent's named environments - which published version answers under which
@@ -83,6 +83,22 @@ export function useAgentEnvironments(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors, t("failedRenameEnvironment"))),
   });
 
+  /** Replace an environment's whole set of test connections. */
+  const setConnections = useMutation({
+    mutationFn: ({
+      environmentId,
+      connections,
+    }: {
+      environmentId: string;
+      connections: EnvironmentConnection[];
+    }) => apiClient.patch<AgentEnvironment>(`${base}/${environmentId}`, { connections }),
+    onSuccess: () => {
+      invalidate();
+      toast.success(t("testConnectionsSaved"));
+    },
+    onError: (error) => toast.error(getErrorMessage(error, tErrors, t("failedTestConnections"))),
+  });
+
   const remove = useMutation({
     mutationFn: (environmentId: string) => apiClient.delete<void>(`${base}/${environmentId}`),
     onSuccess: invalidate,
@@ -97,5 +113,6 @@ export function useAgentEnvironments(agentId: string | null) {
     setReleaseMode,
     rename,
     remove,
+    setConnections,
   };
 }

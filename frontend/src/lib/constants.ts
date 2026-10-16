@@ -52,6 +52,7 @@ export const ROUTES = {
   DOCUMENT_FOLDER: (id: string) => `/documents/${id}`,
   SKILLS: "/skills",
   CONTEXT: "/context",
+  DATASETS: "/datasets",
   ARTIFACTS: "/apps",
   ARTIFACT_DETAIL: (id: string) => `/apps/${id}`,
   ORG_SETTINGS: (id: string) => `/orgs/${id}/settings`,

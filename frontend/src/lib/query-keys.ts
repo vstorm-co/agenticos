@@ -322,6 +322,20 @@ export const qk = {
       ["artifacts", id, "view", versionId ?? "current"] as const,
     public: (key: string) => ["artifacts", "public", key] as const,
   },
+  datasets: {
+    all: () => ["datasets"] as const,
+    list: (query: {
+      search: string;
+      sort: string;
+      skip: number;
+      limit: number;
+      editable: boolean;
+    }) => ["datasets", "list", query] as const,
+    detail: (id: string) => ["datasets", id] as const,
+    versions: (id: string) => ["datasets", id, "versions"] as const,
+    cases: (id: string, query: { version: number | null; skip: number; limit: number }) =>
+      ["datasets", id, "cases", query] as const,
+  },
   context: {
     all: () => ["context"] as const,
     list: (query: { search: string; sort: string; skip: number; limit: number; groupId: string }) =>

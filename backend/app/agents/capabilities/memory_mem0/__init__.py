@@ -84,6 +84,7 @@ class MemoryMem0Config(BaseModel):
         CapabilityToolInfo(
             id="recall",
             description="Recall facts relevant to a question, by meaning rather than exact words.",
+            read_only=True,
         ),
     ),
     config_schema=MemoryMem0Config,

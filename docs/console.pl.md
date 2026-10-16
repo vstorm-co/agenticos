@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "5fd44f11df69"
 ---
 
 # Konsola { #the-console }
@@ -17,7 +17,7 @@ nie ma przewodnika do odtworzenia.
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
 "co się dzieje" bez otwierania pięciu stron.
 
-Istnieje trzydzieści osiem kart. Nie zobaczysz wszystkich: **karta jest
+Istnieje czterdzieści jeden kart. Nie zobaczysz wszystkich: **karta jest
 bramkowana uprawnieniem, którego wymagają jej dane**, więc widget, którego nie
 możesz odczytać, nigdy się nie montuje, a jego zapytania nigdy nie wychodzą —
 poza twoimi własnymi powiadomieniami, niżej, które wymagają tylko tego, żebyś
@@ -29,7 +29,7 @@ możesz otworzyć. Każdy zaczyna od widoku **Ja**:
 
 | Widok | Odpowiada na |
 |---|---|
-| **Ja** | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci i co Ci udostępniono |
+| **Ja** | Powitanie i Twój okres w jednym zdaniu; Twoje runy, ile się skończyło, co na Ciebie czeka i ile to kosztowało; potem wywołania czekające na Ciebie, Twoje rozmowy, Twoi agenci, co Ci udostępniono, i Twoje [datasety](datasets.md) z tym, z czym porównują odpowiedź ich przypadki |
 | **Organizacja** | Układalna strona opisana niżej |
 | **Grupa** | Członkowie jednej [grupy](departments.md) - ich runy, wydatki, modele, kiedy pracują i kto korzysta najwięcej. Grupę wybierasz obok przełącznika. Grupa, której członkowie nic nie uruchomili w okresie, mówi to raz, z przejściem do grupy, zamiast strony pustych kart |
 | **Wdrożenie** | Tylko dla [admina deploymentu](permissions.md) — sumy platformy, kondycja, najbardziej obciążeni najemcy, oceny |
@@ -329,6 +329,7 @@ każdej stronie, która do niej należy, i zostaje tak, jak ją zostawisz.
 | **Knowledge** | Kolekcje, dokumenty, źródła synchronizacji, ustawienia ingestii | [Przetwarzanie plików](file-processing.md) |
 | **Skills** | Spisane procedury, które agent wczytuje na żądanie | [Skille](skills.md) |
 | **Context** | Stała wiedza przypięta do wielu agentów | [Pliki kontekstowe](context.md) |
+| **Datasets** | Wersjonowane przypadki testowe, importowane, eksportowane albo dodawane z ocenionej odpowiedzi | [Datasety](datasets.md) |
 | **Routines** | Harmonogramy i wyzwalacze zdarzeń | [Wyzwalacze](triggers.md) |
 | **Runs** | Co się uruchomiło, ile kosztowało, czego dotknęło, czy zakończyło się błędem | [Nadzór](governance.md#audit) |
 | **Documents** | Wszystkie pliki, które agenci trzymają dla ciebie: to, co załączyłeś, i to, co napisali | [Sandbox](sandbox.md#what-the-file-browser-shows-and-what-it-leaves-out) |
@@ -374,7 +375,7 @@ problem zostaje odczytany jako cisza.
 
 ## Podsumowanie { #recap }
 
-- Dashboard to **trzydzieści sześć widgetów**, które układasz sam, zapisywanych
+- Dashboard to **czterdzieści jeden widgetów**, które układasz sam, zapisywanych
   per osoba i per organizacja — wszystkie poza twoimi własnymi powiadomieniami
   bramkowane uprawnieniem, którego wymagają ich dane.
 - Zapisany układ **może ukrywać i zmieniać kolejność, ale nigdy nie odsłania** —

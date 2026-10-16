@@ -1,7 +1,7 @@
 """Per-resource row loaders for the sharing routers.
 
 Loading a row is the only thing that differs between sharing an agent, a
-collection, a skill, a vault secret, an artifact and an MCP server, so each loader is injected into
+collection, a skill, a vault secret, an artifact, a dataset and an MCP server, so each loader is injected into
 `build_sharing_router`. They live here - beside the factory, not in an endpoint
 module and not in `SharingService`, which stays agnostic about what it is
 sharing.
@@ -15,6 +15,7 @@ from app.core.exceptions import NotFoundError
 from app.db.models.agent import Agent
 from app.db.models.artifact import Artifact
 from app.db.models.context import ContextFile
+from app.db.models.dataset import Dataset
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
@@ -65,6 +66,13 @@ async def load_artifact(db: AsyncSession, artifact_id: UUID, organization_id: UU
     if artifact is None or artifact.organization_id != organization_id:
         raise NotFoundError(message="App not found", details={"artifact_id": str(artifact_id)})
     return artifact
+
+
+async def load_dataset(db: AsyncSession, dataset_id: UUID, organization_id: UUID) -> Dataset:
+    dataset = await db.get(Dataset, dataset_id)
+    if dataset is None or dataset.organization_id != organization_id:
+        raise NotFoundError(message="Dataset not found", details={"dataset_id": str(dataset_id)})
+    return dataset
 
 
 async def load_mcp_connection(

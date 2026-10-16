@@ -20,7 +20,12 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.permissions import AuthContext, OrgRoleName
-from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
+from app.db.models.agent_environment import AgentEnvironmentConnection
+from app.schemas.agent_environment import (
+    EnvironmentConnectionWrite,
+    EnvironmentCreate,
+    EnvironmentUpdate,
+)
 from app.services.agent_environment import AgentEnvironmentService
 
 pytestmark = pytest.mark.anyio
@@ -106,6 +111,7 @@ class TestListing:
             patch(f"{_AGENTS}.count_versions", new=AsyncMock(return_value=9)),
         ):
             environments.list_for_agent = AsyncMock(return_value=[environment])
+            environments.list_connections = AsyncMock(return_value=[])
             items = await service.list_for_agent(_ctx(), agent.id)
 
         assert [(item.name, item.version, item.is_default) for item in items] == [
@@ -128,6 +134,7 @@ class TestListing:
             patch(f"{_AGENTS}.count_versions", new=AsyncMock(return_value=0)),
         ):
             environments.list_for_agent = AsyncMock(return_value=[environment])
+            environments.list_connections = AsyncMock(return_value=[])
             items = await service.list_for_agent(_ctx(), agent.id)
 
         assert items[0].version == 0
@@ -516,6 +523,353 @@ class TestObservabilityOverride:
         created = environments.create.call_args.kwargs
         assert created["logfire_token_secret_id"] == secret_id
         assert created["service_name"] == "acme-support"
+
+
+_MCP = "app.services.agent_environment.mcp_connection_repo.get_org_scoped_by_ids"
+_SECRETS = "app.services.agent_environment.organization_secret_repo.get"
+_ACCESS = "app.services.agent_environment.resolve_access"
+
+
+def _secret(*, name: str, kind: str = "api_key", purpose: str = "custom") -> MagicMock:
+    return _named(id=uuid.uuid4(), name=name, kind=kind, purpose=purpose)
+
+
+class TestConnectionOverrides:
+    """An environment can answer a binding with a test system instead."""
+
+    async def test_the_listing_carries_each_environments_overrides(self):
+        agent = _agent()
+        staging = _environment(agent_id=agent.id, name="staging")
+        production_id, test_id = uuid.uuid4(), uuid.uuid4()
+        override = AgentEnvironmentConnection(
+            environment_id=staging.id,
+            kind="mcp",
+            production_id=production_id,
+            test_connection_id=test_id,
+        )
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(f"{_AGENTS}.get_versions_by_ids", new=AsyncMock(return_value={})),
+            patch(f"{_AGENTS}.count_versions", new=AsyncMock(return_value=0)),
+        ):
+            environments.list_for_agent = AsyncMock(return_value=[staging])
+            environments.list_connections = AsyncMock(return_value=[override])
+            (item,) = await service.list_for_agent(_ctx(), agent.id)
+
+        assert [(c.kind, c.production_id, c.test_id) for c in item.connections] == [
+            ("mcp", production_id, test_id)
+        ]
+
+    async def test_a_deleted_test_side_lists_as_off_rather_than_vanishing(self):
+        """Null is the binding switched off here; hiding the row would read as
+        "production answers", which is exactly what does not happen."""
+        override = AgentEnvironmentConnection(
+            kind="secret", production_id=uuid.uuid4(), test_secret_id=None
+        )
+
+        assert override.test_id is None
+
+    async def test_an_mcp_override_is_written_with_the_environment(self):
+        agent = _agent()
+        production, test = _named(id=uuid.uuid4()), _named(id=uuid.uuid4())
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(
+                f"{_AGENTS}.get_version", new=AsyncMock(return_value=_version(agent_id=agent.id))
+            ),
+            patch(_MCP, new=AsyncMock(return_value={production.id: production, test.id: test})),
+            patch(_AUDIT, new=AsyncMock()) as audit,
+        ):
+            environments.get_by_name = AsyncMock(return_value=None)
+            environments.create = AsyncMock(return_value=_environment(agent_id=agent.id))
+            environments.replace_connections = AsyncMock()
+            await service.create(
+                _ctx(),
+                agent.id,
+                EnvironmentCreate(
+                    name="staging",
+                    connections=[
+                        EnvironmentConnectionWrite(
+                            kind="mcp", production_id=production.id, test_id=test.id
+                        )
+                    ],
+                ),
+            )
+
+        (row,) = environments.replace_connections.call_args.kwargs["connections"]
+        assert (row.kind, row.production_id, row.test_connection_id, row.test_secret_id) == (
+            "mcp",
+            production.id,
+            test.id,
+            None,
+        )
+        assert audit.call_args.kwargs["details"]["connections"] == 1
+
+    async def test_a_personal_or_foreign_connection_is_refused_on_either_side(self):
+        """Both sides must be the organization's: a member's own connection behind
+        an environment would answer for everybody who reaches it."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id)
+        production = _named(id=uuid.uuid4())
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(_MCP, new=AsyncMock(return_value={production.id: production})),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+
+            with pytest.raises(BadRequestError, match="not shared with this organization"):
+                await service.update(
+                    _ctx(),
+                    agent.id,
+                    environment.id,
+                    EnvironmentUpdate(
+                        connections=[
+                            EnvironmentConnectionWrite(
+                                kind="mcp", production_id=production.id, test_id=uuid.uuid4()
+                            )
+                        ]
+                    ),
+                )
+
+    async def test_two_overrides_of_one_binding_are_refused(self):
+        agent = _agent()
+        environment = _environment(agent_id=agent.id)
+        production_id = uuid.uuid4()
+        service = _service(agent)
+
+        with patch(_REPO) as environments:
+            environments.get = AsyncMock(return_value=environment)
+
+            with pytest.raises(BadRequestError, match="one test replacement"):
+                await service.update(
+                    _ctx(),
+                    agent.id,
+                    environment.id,
+                    EnvironmentUpdate(
+                        connections=[
+                            EnvironmentConnectionWrite(
+                                kind="mcp", production_id=production_id, test_id=uuid.uuid4()
+                            ),
+                            EnvironmentConnectionWrite(
+                                kind="mcp", production_id=production_id, test_id=uuid.uuid4()
+                            ),
+                        ]
+                    ),
+                )
+
+    async def test_an_override_onto_itself_is_refused(self):
+        agent = _agent()
+        environment = _environment(agent_id=agent.id)
+        same = uuid.uuid4()
+        service = _service(agent)
+
+        with patch(_REPO) as environments:
+            environments.get = AsyncMock(return_value=environment)
+
+            with pytest.raises(BadRequestError, match="different"):
+                await service.update(
+                    _ctx(),
+                    agent.id,
+                    environment.id,
+                    EnvironmentUpdate(
+                        connections=[
+                            EnvironmentConnectionWrite(
+                                kind="secret", production_id=same, test_id=same
+                            )
+                        ]
+                    ),
+                )
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("missing", ["production", "test", "unreadable"])
+    async def test_a_secret_the_caller_cannot_lend_reads_as_not_in_the_vault(self, missing):
+        """Miss and refusal read alike, so the vault cannot be enumerated."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id)
+        production, test = _secret(name="CRM"), _secret(name="CRM sandbox")
+        found = {
+            production.id: None if missing == "production" else production,
+            test.id: None if missing == "test" else test,
+        }
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(_MCP, new=AsyncMock(return_value={})),
+            patch(_SECRETS, new=AsyncMock(side_effect=lambda _db, sid, **_: found[sid])),
+            patch(_ACCESS, new=AsyncMock(return_value=missing != "unreadable")),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+
+            with pytest.raises(BadRequestError, match="vault"):
+                await service.update(
+                    _ctx(),
+                    agent.id,
+                    environment.id,
+                    EnvironmentUpdate(
+                        connections=[
+                            EnvironmentConnectionWrite(
+                                kind="secret", production_id=production.id, test_id=test.id
+                            )
+                        ]
+                    ),
+                )
+
+    async def test_a_test_key_for_another_service_is_refused(self):
+        """A Tavily key standing in for a CRM key fails hours later, far from here."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id)
+        production = _secret(name="CRM", purpose="custom")
+        test = _secret(name="Search", purpose="tavily")
+        found = {production.id: production, test.id: test}
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(_MCP, new=AsyncMock(return_value={})),
+            patch(_SECRETS, new=AsyncMock(side_effect=lambda _db, sid, **_: found[sid])),
+            patch(_ACCESS, new=AsyncMock(return_value=True)),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+
+            with pytest.raises(BadRequestError, match="cannot stand in") as refused:
+                await service.update(
+                    _ctx(),
+                    agent.id,
+                    environment.id,
+                    EnvironmentUpdate(
+                        connections=[
+                            EnvironmentConnectionWrite(
+                                kind="secret", production_id=production.id, test_id=test.id
+                            )
+                        ]
+                    ),
+                )
+
+        # Neither name: the caller may hold no grant on the production key.
+        assert "CRM" not in refused.value.message and "Search" not in refused.value.message
+
+    async def test_replacing_only_the_overrides_is_a_change_and_is_audited(self):
+        agent = _agent()
+        environment = _environment(agent_id=agent.id)
+        production, test = _secret(name="CRM"), _secret(name="CRM sandbox")
+        found = {production.id: production, test.id: test}
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(_MCP, new=AsyncMock(return_value={})),
+            patch(_SECRETS, new=AsyncMock(side_effect=lambda _db, sid, **_: found[sid])),
+            patch(_ACCESS, new=AsyncMock(return_value=True)),
+            patch(_AUDIT, new=AsyncMock()) as audit,
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.update = AsyncMock()
+            environments.replace_connections = AsyncMock()
+            await service.update(
+                _ctx(),
+                agent.id,
+                environment.id,
+                EnvironmentUpdate(
+                    connections=[
+                        EnvironmentConnectionWrite(
+                            kind="secret", production_id=production.id, test_id=test.id
+                        )
+                    ]
+                ),
+            )
+
+        environments.update.assert_not_awaited()
+        (row,) = environments.replace_connections.call_args.kwargs["connections"]
+        assert row.test_secret_id == test.id
+        assert audit.call_args.kwargs["details"]["fields"] == ["connections"]
+        # Ids, never a value: the audit trail is not a second copy of the vault.
+        assert str(test.id) not in str(audit.call_args.kwargs["details"])
+
+    async def test_the_default_environment_keeps_the_specs_connections(self):
+        """The default is what every surface naming no environment runs - production."""
+        agent = _agent()
+        default = _environment(agent_id=agent.id, name="production", is_default=True)
+        service = _service(agent)
+
+        with patch(_REPO) as environments:
+            environments.get = AsyncMock(return_value=default)
+
+            with pytest.raises(BadRequestError, match="named environment"):
+                await service.update(
+                    _ctx(),
+                    agent.id,
+                    default.id,
+                    EnvironmentUpdate(
+                        connections=[
+                            EnvironmentConnectionWrite(
+                                kind="mcp", production_id=uuid.uuid4(), test_id=uuid.uuid4()
+                            )
+                        ]
+                    ),
+                )
+
+    async def test_a_binding_can_be_switched_off_without_a_test_side(self):
+        """Re-saving the list must keep an override whose test side was deleted:
+        dropping it would quietly put staging back on production."""
+        agent = _agent()
+        environment = _environment(agent_id=agent.id)
+        production = _named(id=uuid.uuid4())
+        live_key = uuid.uuid4()
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(_MCP, new=AsyncMock(return_value={production.id: production})) as lookup,
+            patch(_SECRETS, new=AsyncMock()) as secrets,
+            patch(_AUDIT, new=AsyncMock()),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.replace_connections = AsyncMock()
+            await service.update(
+                _ctx(),
+                agent.id,
+                environment.id,
+                EnvironmentUpdate(
+                    connections=[
+                        EnvironmentConnectionWrite(
+                            kind="mcp", production_id=production.id, test_id=None
+                        ),
+                        EnvironmentConnectionWrite(
+                            kind="secret", production_id=live_key, test_id=None
+                        ),
+                    ]
+                ),
+            )
+
+        assert lookup.await_args.kwargs["connection_ids"] == [production.id]
+        secrets.assert_not_awaited()
+        rows = environments.replace_connections.call_args.kwargs["connections"]
+        assert [(row.kind, row.test_id) for row in rows] == [("mcp", None), ("secret", None)]
+
+    async def test_an_empty_list_clears_the_overrides(self):
+        agent = _agent()
+        environment = _environment(agent_id=agent.id)
+        service = _service(agent)
+
+        with (
+            patch(_REPO) as environments,
+            patch(_MCP, new=AsyncMock(return_value={})),
+            patch(_AUDIT, new=AsyncMock()),
+        ):
+            environments.get = AsyncMock(return_value=environment)
+            environments.replace_connections = AsyncMock()
+            await service.update(
+                _ctx(), agent.id, environment.id, EnvironmentUpdate(connections=[])
+            )
+
+        assert environments.replace_connections.call_args.kwargs["connections"] == []
 
 
 class TestDelete:

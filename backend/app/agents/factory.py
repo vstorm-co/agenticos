@@ -65,6 +65,7 @@ from app.agents.capabilities.system_reminders import (
 )
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
+from app.agents.isolation import IsolationGuard, RunIsolation, capability_tools
 from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
@@ -173,6 +174,8 @@ def build_agent(
     shared_budget: BudgetGuard | None = None,
     recorded_overhead: int | None = None,
     recorded_reminder_state: dict[str, Any] | None = None,
+    isolation: RunIsolation | None = None,
+    test_bindings: frozenset[str] = frozenset(),
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
@@ -232,6 +235,13 @@ def build_agent(
             and the ceiling that matters is the one on the run somebody started.
             The delegate's own cap still governs runs of the delegate itself, and
             its run rows still accumulate against it - see `docs/governance.md`.
+        isolation: Run this agent isolated - an eval: only reads and calls to the
+            environment's test connections execute, and everything else is
+            recorded instead (see :mod:`app.agents.isolation`). An isolated agent
+            has no approval channel, so a gated call is refused, never parked.
+        test_bindings: The capability bindings whose vault key the run's
+            environment swapped for a test one. Their tools may write in an
+            isolated run only where the capability declares `test_key_isolates`.
 
     Raises:
         BadRequestError: If the spec references an unknown tool, an invalid tool
@@ -311,7 +321,7 @@ def build_agent(
         # Read from `resources` rather than a parameter of its own: two sources
         # for one list is how they drift apart.
         kb_collection_names=list((resources or {}).get("kb_collection_names") or []),
-        request_approval=request_approval,
+        request_approval=None if isolation is not None else request_approval,
     )
 
     # A child spends against the run's ledger and under the run's caps, but
@@ -341,6 +351,15 @@ def build_agent(
     # accident. The gate is attached even when nothing is gated, so that adding
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
+    gate = ApprovalGate(
+        required_tool_names=approval_required,
+        gate_every_tool=gate_every_tool,
+        asking_tool_names=(
+            frozenset({CONNECT_ACCOUNT})
+            if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
+            else frozenset()
+        ),
+    )
     capabilities: list[Any] = [
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
@@ -351,15 +370,19 @@ def build_agent(
         # request from that history must find them there.
         Steering(),
         budget,
-        ApprovalGate(
-            required_tool_names=approval_required,
-            gate_every_tool=gate_every_tool,
-            asking_tool_names=(
-                frozenset({CONNECT_ACCOUNT})
-                if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
-                else frozenset()
-            ),
+        *(
+            ()
+            if isolation is None
+            else (
+                IsolationGuard(
+                    isolation=isolation,
+                    tools=capability_tools(spec, test_bindings=test_bindings),
+                    agent_id=agent_id,
+                    approval=gate,
+                ),
+            )
         ),
+        gate,
         *configured,
         *extra_capabilities,
         # Every agent, not only one that compacts. The warning is most useful to

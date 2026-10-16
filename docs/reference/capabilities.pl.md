@@ -1,5 +1,5 @@
 ---
-source_sha: "60dde7e73718"
+source_sha: "d61d0d68830c"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -102,6 +102,39 @@ model.** Delegowanie jest jedynym miejscem, w którym jedno różni się od drug
 osobno dla każdego powiązanego bota, w sekcji *Where this agent is available*, a
 publikacja odrzuca spec, który próbuje ją nieść — zobacz
 [Podgląd kanału czatu](#chat-channel-lookup).
+
+## Co uruchamia eval { #what-an-eval-runs }
+
+Eval uruchamia agenta naprawdę, więc wykonuje narzędzie tylko wtedy, gdy nie
+zmienia ono niczego poza runem albo sięga do połączenia testowego
+[środowiska](../environments.md#in-an-eval). Każda capability deklaruje, które z
+jej narzędzi tylko czytają — `read_only`, obok `side_effecting` — a narzędzie,
+które niczego nie deklaruje, zapisuje. Oto narzędzia, które zapisują i które eval
+wstrzymuje i zapisuje:
+
+| id | Narzędzia, które zapisują |
+|---|---|
+| `artifacts` | `publish_artifact` |
+| `ask_user` | `ask_user_question` |
+| `browser_use` | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `image_generation` | `generate_image` |
+| `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
+| `memory_mem0` | `remember` |
+| `sandbox` | `write_file`, `edit_file`, `execute` |
+
+Każde inne narzędzie powyżej tylko czyta. Delegowanie liczy się jako czytanie:
+narzędzia delegata podlegają jego własnym deklaracjom. `side_effecting` i
+`read_only` odpowiadają na różne pytania: pierwsze mówi, o co domyślnie pyta
+zatwierdzanie, drugie — co może uruchomić eval, a niezadeklarowane narzędzie
+pierwsze przepuszcza bez bramki, a drugie blokuje.
+
+Środowisko może podmienić klucz z vault capability na testowy, ale sam
+podmieniony klucz nie czyni zapisu bezpiecznym: klucz `browser_use` służy
+hostowanej przeglądarce albo jej proxy, a jej `cdp_url` nadal wskazuje
+przeglądarkę, która klika. Capability deklaruje `test_key_isolates` tylko wtedy, gdy sam klucz
+wyznacza, dokąd trafiają jej zapisy, i nigdy z URL-em, hostem ani endpointem w
+konfiguracji. Żadna dostarczana capability tego nie deklaruje, więc w evalu
+każdy zapis powyżej jest zapisywany, a nie wykonywany, niezależnie od klucza.
 
 ## Wyszukiwanie wiedzy { #knowledge-search }
 
