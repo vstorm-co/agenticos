@@ -1200,7 +1200,8 @@ class TestGradingAgain:
         dataset, case = await _dataset(db, tenant, scoring=_rubric())
         run = await _scored_run(db, tenant)
         scoring = ScoringService(db)
-        failed = await _score_for_an_eval(db, tenant, dataset, case, run, uuid.uuid4())
+        eval_run_id = await _eval_run(db, tenant, dataset, run)
+        failed = await _score_for_an_eval(db, tenant, dataset, case, run, eval_run_id)
         before = len(await _eval_runs(db, tenant))
         tenant.organization.ai_assistance_enabled = False
         await db.flush()
