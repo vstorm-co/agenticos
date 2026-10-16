@@ -127,6 +127,11 @@ class Evaluation:
     judge: JudgePin | None = None
 
 
+def _rank(score: CaseScore) -> tuple[bool, datetime]:
+    """Which of a case's scores the review queue keeps: a graded one, then the newest."""
+    return score.passed is not None, score.created_at
+
+
 def ungraded(score: CaseScore) -> bool:
     """Whether some scorer on a score reached no verdict, and could be asked again."""
     return any(result.get("status") in ("skipped", "error") for result in score.results)
@@ -969,13 +974,16 @@ class ScoringService:
         For the eval run's own worker, which has already decided what deserves a
         person - its confirmed regressions and the scores its judge failed on -
         and for the routes, which check `datasets:edit` first; no permission is
-        checked here. Of the scores sent for one case only the newest is queued,
-        the first given among those scored at the same moment. A score of the
-        case waiting already and scored earlier leaves the queue undecided and
-        stays a score; one scored as late or later keeps its place, and the one
-        sent is not queued. A decided score is never touched, and one already
-        waiting or decided is not queued again. Ids of another dataset are
-        ignored.
+        checked here. A graded score - a regression, or a fail sent by hand -
+        outranks one no scorer reached a verdict on, such as a judge's error, so
+        a judge failing on a case never pushes its regression out of the queue.
+        Of the scores sent for one case the highest ranked is queued, the newest
+        of those, and the first given among those scored at the same moment. A
+        waiting score of the case ranked no higher and scored earlier leaves the
+        queue undecided and stays a score; one ranked higher, or scored as late
+        or later, keeps its place, and the one sent is not queued. A decided
+        score is never touched, and one already waiting or decided is not queued
+        again. Ids of another dataset are ignored.
         """
         scores = await case_score_repo.get_many(
             self.db, score_ids, organization_id=ctx.organization_id, dataset_id=dataset_id
@@ -986,7 +994,7 @@ class ScoringService:
             if score is None or score.review_state != "none":
                 continue
             held = newest.get(score.case_id)
-            if held is None or score.created_at > held.created_at:
+            if held is None or _rank(score) > _rank(held):
                 newest[score.case_id] = score
         waiting = await case_score_repo.waiting_for_cases(
             self.db, list(newest), organization_id=ctx.organization_id, dataset_id=dataset_id
@@ -994,7 +1002,7 @@ class ScoringService:
         chosen, older = [], []
         for case_id, score in newest.items():
             others = [other for other in waiting if other.case_id == case_id]
-            if any(other.created_at >= score.created_at for other in others):
+            if any(_rank(other) >= _rank(score) for other in others):
                 continue
             chosen.append(score.id)
             older.extend(other.id for other in others)

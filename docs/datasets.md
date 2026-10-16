@@ -264,6 +264,10 @@ list - on the organization's first model or one you pick. The prompt is shown to
 edit before it is created (`GET /datasets/{id}/judge-template`). Creating it
 needs `agents:edit` as well as `datasets:edit`.
 
+The model is picked in the same panel as an agent's: a provider, its full list
+of models and a key for whoever may add a model (`connections:manage`), and the
+saved models for anyone else.
+
 Where AI assistance is on, creating it switches grading on as well: the judge,
 on a starting criterion to replace when the dataset has none, and the reference
 comparison when a case has a reference answer. The criteria, the scale and the
@@ -355,10 +359,13 @@ skipped, which waits to be scored again - one score per case. Its page sends any
 others you pick, all at once through `POST /datasets/{id}/scores/review` with up
 to 500 score ids - all of them or none.
 
-A score sent there, by an eval run or by hand, replaces an older score of its
-case that still waits: that one leaves the queue undecided and stays a score.
-One waiting that was scored as late or later keeps its place, and the one sent
-is not queued. A decided score is never touched.
+A score sent there, by an eval run or by hand, takes the place of one of its
+case that still waits when it ranks higher, or ranks the same and is newer. A
+graded score - a regression, or a fail sent by hand - ranks above one nothing
+graded, such as a judge's error, so a judge failing on a case never pushes its
+regression out. The one replaced leaves the queue undecided and stays a score;
+otherwise the one waiting keeps its place, and the one sent is not queued. A
+decided score is never touched.
 
 A score asked for by hand from Activity follows the dataset's **Review by a
 person** setting: nothing until somebody sends one, every result that did not

@@ -28,7 +28,38 @@ const models = vi.hoisted(() => ({
   profiles: [] as { id: string; label: string; created_at?: string }[],
 }));
 vi.mock("@/hooks/use-model-providers", () => ({
-  useModelProviders: () => ({ profiles: models.profiles }),
+  useModelProviders: () => ({ profiles: models.profiles, profilesStatus: "ready" }),
+}));
+const picker = vi.hoisted(() => ({ allowAdd: undefined as boolean | undefined }));
+vi.mock("@/components/agents/model-profile-picker", () => ({
+  ModelProfilePicker: (props: {
+    profiles: { id: string; label: string }[];
+    value: string | null;
+    onChange: (id: string | null) => void;
+    allowAdd?: boolean;
+  }) => {
+    picker.allowAdd = props.allowAdd;
+    return (
+      <div role="radiogroup" aria-label="Models">
+        {props.profiles.map((profile) => (
+          <button
+            key={profile.id}
+            type="button"
+            role="radio"
+            aria-checked={props.value === profile.id}
+            onClick={() => props.onChange(profile.id)}
+          >
+            {profile.label}
+          </button>
+        ))}
+        {props.allowAdd && (
+          <button type="button" onClick={() => props.onChange("p-new")}>
+            Add a model
+          </button>
+        )}
+      </div>
+    );
+  },
 }));
 const ai = vi.hoisted(() => ({ enabled: true as boolean | null }));
 vi.mock("@/hooks/use-organizations", () => ({
@@ -326,11 +357,9 @@ describe("GradingPanel", () => {
       within(dialog).getByRole("textbox", { name: "What must the judge know?" }),
       "  Refunds last 30 days.  ",
     );
-    expect(within(dialog).getByRole("combobox", { name: "Judge's model" })).toHaveTextContent(
-      "Claude (prod)",
-    );
-    await userEvent.click(within(dialog).getByRole("combobox", { name: "Judge's model" }));
-    await userEvent.click(screen.getByRole("option", { name: "GPT (staging)" }));
+    const choices = within(dialog).getByRole("group", { name: "Judge's model" });
+    expect(within(choices).getByRole("radio", { name: "Claude (prod)" })).toBeChecked();
+    await userEvent.click(within(choices).getByRole("radio", { name: "GPT (staging)" }));
     await userEvent.click(within(dialog).getByRole("button", { name: "Create judge" }));
 
     await waitFor(() =>
@@ -387,8 +416,57 @@ describe("GradingPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create a judge for this dataset" }));
 
     expect(
-      within(screen.getByRole("dialog")).getByRole("combobox", { name: "Judge's model" }),
-    ).toHaveTextContent("First by id");
+      within(screen.getByRole("dialog")).getByRole("radio", { name: "First by id" }),
+    ).toBeChecked();
+  });
+
+  it("picks a judge's model as an agent's is, a new one included, for whoever may add one", async () => {
+    state.perms = new Set(["agents:edit", "connections:manage"]);
+    state.create.mockResolvedValue(dataset({ ...DEFAULT_SCORING }));
+    panel();
+
+    await userEvent.click(screen.getByRole("button", { name: "Create a judge for this dataset" }));
+    const dialog = screen.getByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Add a model" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: "Create judge" }));
+
+    expect(picker.allowAdd).toBe(true);
+    await waitFor(() =>
+      expect(state.create).toHaveBeenCalledWith(
+        expect.objectContaining({ model_profile_id: "p-new" }),
+      ),
+    );
+  });
+
+  it("says beside the models when the one picked was refused", async () => {
+    state.create.mockRejectedValue(
+      new ApiError(400, "Refused", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "Refused",
+          details: { fields: [{ field: "model_profile_id", message: "That model has no key" }] },
+        },
+      }),
+    );
+    panel();
+
+    await userEvent.click(screen.getByRole("button", { name: "Create a judge for this dataset" }));
+    const dialog = screen.getByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Create judge" }));
+
+    const choices = within(dialog).getByRole("group", { name: "Judge's model" });
+    expect(await within(choices).findByText("That model has no key")).toBeInTheDocument();
+  });
+
+  it("lists only the models there are to somebody who may not add one", async () => {
+    panel();
+
+    await userEvent.click(screen.getByRole("button", { name: "Create a judge for this dataset" }));
+
+    expect(picker.allowAdd).toBe(false);
+    expect(
+      within(screen.getByRole("dialog")).queryByRole("button", { name: "Add a model" }),
+    ).toBeNull();
   });
 
   it("creates a judge as a draft where the organization has no model yet", async () => {
@@ -399,7 +477,6 @@ describe("GradingPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create a judge for this dataset" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText(/has no model yet/)).toBeInTheDocument();
-    expect(within(dialog).getByRole("combobox", { name: "Judge's model" })).toBeDisabled();
     await userEvent.click(within(dialog).getByRole("button", { name: "Create judge" }));
 
     await waitFor(() =>
