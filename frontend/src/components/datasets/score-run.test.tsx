@@ -16,7 +16,18 @@ type Kase = {
 };
 
 const state = vi.hoisted(() => ({
-  datasets: [] as { id: string; name: string; scoring?: DatasetScoring }[],
+  datasets: [] as {
+    id: string;
+    name: string;
+    scoring?: DatasetScoring;
+    judge_name?: string | null;
+  }[],
+  judges: [] as {
+    id: string;
+    name: string;
+    system_key: string | null;
+    published_model?: { label: string } | null;
+  }[],
   datasetTotal: null as number | null,
   datasetsError: null as Error | null,
   refetchDatasets: vi.fn(),
@@ -71,6 +82,9 @@ vi.mock("@/hooks/use-datasets", () => ({
     };
   },
 }));
+vi.mock("@/hooks/use-agents", () => ({
+  useJudges: () => ({ agents: state.judges }),
+}));
 vi.mock("@/hooks/use-scoring", () => ({
   useScoreRun: () => ({ mutateAsync: state.score, isPending: state.pending }),
 }));
@@ -120,6 +134,7 @@ async function open() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.judges = [];
   state.datasets = [
     { id: "d1", name: "refunds" },
     { id: "d2", name: "returns" },
@@ -182,6 +197,81 @@ describe("Score against a case", () => {
         "Runs Checks, Expected tool calls, and Reference answer. The judge's grading is a run of the eval judge, charged to its budget.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("names the judge that will grade and its model, and where each is changed", async () => {
+    state.datasets = [
+      {
+        id: "d1",
+        name: "refunds",
+        judge_name: "Refunds judge",
+        scoring: {
+          ...DEFAULT_SCORING,
+          judge: { ...DEFAULT_SCORING.judge, enabled: true, agent_id: "j1" },
+        },
+      },
+    ];
+    state.judges = [
+      { id: "j0", name: "Eval judge", system_key: "eval_judge" },
+      { id: "j1", name: "Refunds judge", system_key: null, published_model: { label: "GPT-4.1" } },
+    ];
+    render(<RunMoreMenu runId="run-1" />);
+
+    await open();
+
+    expect(screen.getByText("Graded by Refunds judge on GPT-4.1.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Change the dataset's judge" })).toHaveAttribute(
+      "href",
+      "/datasets/d1?tab=grading",
+    );
+    expect(screen.getByRole("link", { name: "Change the judge's model" })).toHaveAttribute(
+      "href",
+      "/agents/j1",
+    );
+  });
+
+  it("names the default judge, unpublished, or only by name when judges cannot be read", async () => {
+    state.datasets = [
+      {
+        id: "d1",
+        name: "refunds",
+        judge_name: "Eval judge",
+        scoring: { ...DEFAULT_SCORING, reference: { enabled: true, required: true } },
+      },
+    ];
+    state.judges = [{ id: "j0", name: "Eval judge", system_key: "eval_judge" }];
+    const { unmount } = render(<RunMoreMenu runId="run-1" />);
+    await open();
+    expect(
+      screen.getByText("Graded by Eval judge, which is not published on a model yet."),
+    ).toBeInTheDocument();
+    unmount();
+
+    state.judges = [];
+    render(<RunMoreMenu runId="run-1" />);
+    await open();
+    expect(screen.getByText("Graded by Eval judge.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Change the judge's model" })).toBeNull();
+  });
+
+  it("names no judge for a dataset that grades without one, or one nobody can name", async () => {
+    state.datasets = [
+      { id: "d1", name: "refunds", judge_name: "Eval judge", scoring: DEFAULT_SCORING },
+      {
+        id: "d2",
+        name: "returns",
+        judge_name: null,
+        scoring: { ...DEFAULT_SCORING, judge: { ...DEFAULT_SCORING.judge, enabled: true } },
+      },
+    ];
+    render(<RunMoreMenu runId="run-1" />);
+
+    await open();
+    expect(screen.queryByText(/Graded by/)).toBeNull();
+    await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
+    await userEvent.click(screen.getByRole("option", { name: "returns" }));
+
+    expect(screen.queryByText(/Graded by/)).toBeNull();
   });
 
   it("warns of the judge's cost when only the case's own judge check calls it", async () => {

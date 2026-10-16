@@ -29,7 +29,7 @@ from app.core.permissions import AuthContext, OrgRoleName, Scope
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
-from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion, DatasetVersionCase
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
@@ -596,13 +596,106 @@ async def test_only_an_answer_with_a_question_before_it_can_become_a_case(db) ->
         await service.add_from_message(
             ctx, dataset.id, DatasetCaseFromMessage(message_id=lonely.id)
         )
-    blank = Message(
-        id=uuid.uuid4(), conversation_id=answer.conversation_id, role="assistant", content="  "
-    )
-    db.add(blank)
+    silent = Conversation(id=uuid.uuid4(), user_id=ctx.user_id, organization_id=ctx.organization_id)
+    db.add(silent)
     await db.flush()
-    with pytest.raises(BadRequestError, match="no text"):
+    for role, content in (("user", "Anything?"), ("assistant", "  ")):
+        db.add(Message(id=uuid.uuid4(), conversation_id=silent.id, role=role, content=content))
+        await db.flush()
+    blank = await db.scalar(
+        select(Message).where(Message.conversation_id == silent.id, Message.role == "assistant")
+    )
+    assert blank is not None
+    with pytest.raises(BadRequestError, match="no text to keep as a counter-example"):
         await service.add_from_message(ctx, dataset.id, DatasetCaseFromMessage(message_id=blank.id))
+    with pytest.raises(BadRequestError, match="no text to keep as a case"):
+        await service.add_from_message(
+            ctx,
+            dataset.id,
+            DatasetCaseFromMessage(message_id=blank.id, answer_as="reference_answer"),
+        )
+
+
+async def _reply_in_steps(db, ctx: AuthContext, *, text: str | None) -> list[Message]:
+    """A question, then a reply written as a step that called `write_memory`, then `text`."""
+    conversation = Conversation(
+        id=uuid.uuid4(), user_id=ctx.user_id, organization_id=ctx.organization_id
+    )
+    db.add(conversation)
+    await db.flush()
+    turns = [("user", "Remember I prefer email"), ("assistant", "")]
+    if text is not None:
+        turns.append(("assistant", text))
+    messages = []
+    for role, content in turns:
+        message = Message(
+            id=uuid.uuid4(), conversation_id=conversation.id, role=role, content=content
+        )
+        db.add(message)
+        await db.flush()
+        messages.append(message)
+    db.add(
+        ToolCall(
+            message_id=messages[1].id,
+            tool_call_id="call-1",
+            tool_name="write_memory",
+            args={"text": "prefers email"},
+            started_at=_START,
+            status="completed",
+        )
+    )
+    await db.flush()
+    return messages
+
+
+async def test_a_reply_in_steps_is_one_case_whichever_step_is_added(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="steps"))
+    bad = await service.create(ctx, DatasetCreate(name="bad steps"))
+    _, step, said = await _reply_in_steps(db, ctx, text="Noted - email it is.")
+
+    case = await service.add_from_message(
+        ctx,
+        dataset.id,
+        DatasetCaseFromMessage(message_id=step.id, answer_as="reference_answer"),
+    )
+    with pytest.raises(AlreadyExistsError):
+        await service.add_from_message(
+            ctx,
+            dataset.id,
+            DatasetCaseFromMessage(message_id=said.id, answer_as="reference_answer"),
+        )
+    countered = await service.add_from_message(
+        ctx, bad.id, DatasetCaseFromMessage(message_id=step.id)
+    )
+
+    assert case.input == "Remember I prefer email"
+    assert case.reference_answer == "Noted - email it is."
+    assert [call.model_dump() for call in case.expected_tool_calls] == [
+        {"tool": "write_memory", "args": {}}
+    ]
+    assert case.source_message_id == said.id
+    assert (countered.counter_example, countered.expected_tool_calls) == (
+        "Noted - email it is.",
+        [],
+    )
+
+
+async def test_a_reply_with_only_tool_calls_is_kept_as_the_calls_it_expects(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="calls only"))
+    _, step = await _reply_in_steps(db, ctx, text=None)
+
+    case = await service.add_from_message(
+        ctx,
+        dataset.id,
+        DatasetCaseFromMessage(message_id=step.id, answer_as="reference_answer"),
+    )
+
+    assert case.reference_answer is None
+    assert [call.tool for call in case.expected_tool_calls] == ["write_memory"]
 
 
 async def test_a_conversation_too_long_to_keep_is_refused(db) -> None:

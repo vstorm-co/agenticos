@@ -174,32 +174,34 @@ async def test_the_listing_filters_reach_the_service(
         "outcome": None,
         "agent_id": None,
         "eval_run_id": None,
+        "judge_id": None,
         "tag": None,
         "skip": 5,
         "limit": 10,
     }
 
 
-async def test_the_outcome_agent_eval_run_and_tag_filters_reach_the_service(
+async def test_the_outcome_agent_eval_run_judge_and_tag_filters_reach_the_service(
     client: OpenClient, service: MagicMock
 ) -> None:
-    agent_id, eval_run_id = uuid.uuid4(), uuid.uuid4()
+    agent_id, eval_run_id, judge_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     async with client() as http:
         await http.get(
             _url(
                 f"/{_DATASET.id}/scores?outcome=failed&agent_id={agent_id}"
-                f"&eval_run_id={eval_run_id}&tag=billing"
+                f"&eval_run_id={eval_run_id}&judge={judge_id}&tag=billing"
             )
         )
         refused = await http.get(_url(f"/{_DATASET.id}/scores?outcome=maybe"))
 
     _, kwargs = service.list_scores.call_args
-    assert (kwargs["outcome"], kwargs["agent_id"], kwargs["eval_run_id"], kwargs["tag"]) == (
-        "failed",
-        agent_id,
-        eval_run_id,
-        "billing",
-    )
+    assert (
+        kwargs["outcome"],
+        kwargs["agent_id"],
+        kwargs["eval_run_id"],
+        kwargs["judge_id"],
+        kwargs["tag"],
+    ) == ("failed", agent_id, eval_run_id, judge_id, "billing")
     assert refused.status_code == 422
 
 

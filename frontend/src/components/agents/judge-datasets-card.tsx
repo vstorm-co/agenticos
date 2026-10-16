@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { FlaskConical } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -13,10 +12,10 @@ import {
   CardTitle,
   ListCardEmpty,
 } from "@/components/ui";
+import { JudgeDatasetRow } from "@/components/agents/judge-dataset-row";
 import { useDatasets } from "@/hooks/use-datasets";
 import { useJudgeAgreement } from "@/hooks/use-scoring";
 import { getErrorMessage } from "@/lib/api-error";
-import { ROUTES } from "@/lib/constants";
 
 /** How often people agreed with the judge, once anybody decided what it graded. */
 function JudgeAgreementLine({ judgeId }: { judgeId: string }) {
@@ -36,8 +35,9 @@ function JudgeAgreementLine({ judgeId }: { judgeId: string }) {
 const SHOWN = 100;
 
 /**
- * The datasets a judge grades, as far as the caller may see them, each a link to
- * its Grading tab - where a dataset changes which judge it uses.
+ * The datasets of a judge, as far as the caller may see them: the ones that
+ * picked it, grading or not. Each links to its Grading tab - where a dataset
+ * changes which judge it uses - and opens on what the judge graded there.
  */
 export function JudgeDatasetsCard({ judgeId }: { judgeId: string }) {
   const t = useTranslations("agents");
@@ -61,13 +61,8 @@ export function JudgeDatasetsCard({ judgeId }: { judgeId: string }) {
         ) : (
           <ul className="divide-y">
             {datasets.map((dataset) => (
-              <li key={dataset.id} className="py-2">
-                <Link
-                  href={`${ROUTES.DATASET_DETAIL(dataset.id)}?tab=grading`}
-                  className="text-sm font-medium hover:underline"
-                >
-                  {dataset.name}
-                </Link>
+              <li key={dataset.id}>
+                <JudgeDatasetRow dataset={dataset} judgeId={judgeId} />
               </li>
             ))}
           </ul>
