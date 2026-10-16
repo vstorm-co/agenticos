@@ -73,20 +73,67 @@ describe("VoiceApprovalCard", () => {
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
   });
 
-  it("approves and denies by button, never by voice", () => {
+  it.each([
+    ["Approve", true],
+    ["Deny", false],
+  ] as const)("decides by button, never by voice: %s", (button, approve) => {
     const onDecide = vi.fn();
     render(<VoiceApprovalCard approval={APPROVAL} now={1_000} canDecide onDecide={onDecide} />);
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-    fireEvent.click(screen.getByRole("button", { name: "Deny" }));
-    expect(onDecide.mock.calls).toEqual([[true], [false]]);
+    fireEvent.click(screen.getByRole("button", { name: button }));
+    expect(onDecide.mock.calls).toEqual([[approve]]);
     expect(screen.getByText(/Saying “yes” to the agent doesn't approve/)).toBeInTheDocument();
   });
 
-  it("brings itself into view when it appears", () => {
+  it("sends one decision, and holds both buttons until the server settles it", () => {
+    // A second frame for the same approval - a double click, or Approve then
+    // Deny - could be answered `expired` before the first is answered
+    // `approved`, and the card would then say "expired" for a tool that ran.
+    const onDecide = vi.fn();
+    const { rerender } = render(
+      <VoiceApprovalCard approval={APPROVAL} now={1_000} canDecide onDecide={onDecide} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deny" }));
+    expect(onDecide.mock.calls).toEqual([[true]]);
+    expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Deny" })).toBeDisabled();
+    // The next approval the call puts is a decision of its own.
+    rerender(
+      <VoiceApprovalCard
+        approval={{ ...APPROVAL, id: "a2" }}
+        now={1_000}
+        canDecide
+        onDecide={onDecide}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Deny" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Deny" }));
+    expect(onDecide.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it("brings itself into view in the chat's scroller, never by dragging the page", () => {
+    // `scrollIntoView` scrolls every scrollable ancestor, and the page column
+    // around the chat is one.
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
-    render(<VoiceApprovalCard approval={APPROVAL} now={1_000} canDecide onDecide={vi.fn()} />);
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+    const scroller = document.createElement("div");
+    scroller.style.overflowY = "auto";
+    Object.defineProperty(scroller, "clientHeight", { get: () => 400 });
+    scroller.getBoundingClientRect = () => ({ top: 0 }) as DOMRect;
+    const scrollTo = vi.fn();
+    scroller.scrollTo = scrollTo as unknown as typeof scroller.scrollTo;
+    document.body.append(scroller);
+    const below = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ top: 1000, bottom: 1300, height: 300 } as DOMRect);
+    render(<VoiceApprovalCard approval={APPROVAL} now={1_000} canDecide onDecide={vi.fn()} />, {
+      container: scroller,
+    });
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(scrollTo).toHaveBeenCalledWith({ top: 900, behavior: "auto" });
+    below.mockRestore();
+    scroller.remove();
     delete (Element.prototype as Partial<Element>).scrollIntoView;
   });
 

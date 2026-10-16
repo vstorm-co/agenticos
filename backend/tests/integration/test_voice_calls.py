@@ -103,6 +103,7 @@ async def _call(db, ctx_rows, *, started=None, resume_of=None, user_id=None):
         secret_id=None,
         worker_id="host:1",
         resume_of=resume_of,
+        resume_token_hash="0" * 64,
         started_at=started or datetime.now(UTC),
     )
 
@@ -226,6 +227,18 @@ async def test_a_second_end_keeps_the_first_reason_and_the_larger_figures(db, vo
     assert call.ended_at == now
 
 
+async def test_a_second_hang_up_keeps_the_first_stamp(db, voice_rows):
+    """A reconnect from another worker hangs the connection up at its close; the
+    holding worker's later teardown must not move the resume window's start."""
+    call = await _call(db, voice_rows)
+    now = datetime.now(UTC)
+    await voice_call_repo.mark_hung_up(db, call.id, at=now)
+    await voice_call_repo.mark_hung_up(db, call.id, at=now + timedelta(seconds=20))
+
+    await db.refresh(call)
+    assert call.hung_up_at == now
+
+
 async def test_an_unknown_end_reason_is_refused(db, voice_rows):
     call = await _call(db, voice_rows)
     with pytest.raises(IntegrityError):
@@ -258,3 +271,24 @@ async def test_an_agent_in_another_organization_cannot_be_called(
     )
     with pytest.raises(NotFoundError):
         await AgentRegistryService(db).get(ctx, agent.id, perm=Perm.AGENTS_RUN)
+
+
+async def test_every_column_a_lookup_or_a_parent_delete_filters_on_leads_an_index(db):
+    """The embed's open-call count runs under its advisory lock on every visitor's
+    start, Activity walks `resume_of`, and each `ON DELETE SET NULL` parent looks its
+    rows up by the column - none of them may scan the table (RR-q04)."""
+    from sqlalchemy import inspect
+
+    indexes = await db.run_sync(lambda sync: inspect(sync.connection()).get_indexes("voice_calls"))
+    leading = {index["column_names"][0] for index in indexes}
+
+    assert {
+        "organization_id",
+        "agent_id",
+        "run_id",
+        "user_id",
+        "conversation_id",
+        "embed_id",
+        "secret_id",
+        "resume_of",
+    } <= leading

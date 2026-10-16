@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatContainer } from "./chat-container";
 import { initialCall } from "@/lib/voice/call-reducer";
@@ -265,6 +265,8 @@ beforeEach(() => {
 });
 
 describe("the chat container - following the transcript", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("scrolls the transcript's own scroller to a new message, never the page around it", async () => {
     const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
     const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
@@ -289,6 +291,71 @@ describe("the chat container - following the transcript", () => {
     expect(scrollIntoView).not.toHaveBeenCalled();
     scrollTo.mockRestore();
     scrollIntoView.mockRestore();
+  });
+
+  /**
+   * Every ResizeObserver the chat makes, so a test can say an element changed
+   * size. The dock's height is padding under the transcript, not content, so
+   * the transcript's own observer never hears of it.
+   */
+  function observeSizes() {
+    const observers: { grew: () => void; targets: Element[] }[] = [];
+    class FakeResize {
+      private readonly seen: { grew: () => void; targets: Element[] };
+      constructor(callback: () => void) {
+        this.seen = { grew: callback, targets: [] };
+        observers.push(this.seen);
+      }
+      observe(element: Element) {
+        this.seen.targets.push(element);
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("ResizeObserver", FakeResize);
+    return observers;
+  }
+
+  /** The transcript's scroller, a screen long and scrolled to its end, and the dock over it. */
+  async function scrollerAndDock() {
+    mount();
+    await screen.findByRole("button", { name: "Voice input" });
+    const dock = screen.getByRole("textbox").closest(".absolute") as HTMLElement;
+    const scroller = dock.previousElementSibling as HTMLElement;
+    expect(scroller).toHaveClass("overflow-y-auto");
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, value: 2000 });
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 500 });
+    return { dock, scroller };
+  }
+
+  function growDock(observers: ReturnType<typeof observeSizes>, dock: HTMLElement): void {
+    Object.defineProperty(dock, "offsetHeight", { configurable: true, value: 148 });
+    act(() => {
+      for (const observer of observers) if (observer.targets.includes(dock)) observer.grew();
+    });
+  }
+
+  it("keeps a reader at the bottom there when the dock grows, as when a call gives the composer back", async () => {
+    const observers = observeSizes();
+    const { dock, scroller } = await scrollerAndDock();
+    scroller.scrollTop = 1500;
+
+    growDock(observers, dock);
+
+    expect(scroller.style.paddingBottom).toBe("148px");
+    expect(scroller.scrollTop).toBe(2000);
+  });
+
+  it("leaves a reader who scrolled up where they are when the dock grows", async () => {
+    const observers = observeSizes();
+    const { dock, scroller } = await scrollerAndDock();
+    scroller.scrollTop = 200;
+    fireEvent.scroll(scroller);
+
+    growDock(observers, dock);
+
+    expect(scroller.style.paddingBottom).toBe("148px");
+    expect(scroller.scrollTop).toBe(200);
   });
 });
 

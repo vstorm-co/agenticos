@@ -40,6 +40,14 @@ class StartFrame(BaseSchema):
     resume_of: UUID | None = Field(
         default=None, description="The call this connection continues after a drop, within 10 s"
     )
+    resume_token: str | None = Field(
+        default=None,
+        max_length=128,
+        description=(
+            "With `resume_of`: the `resume_token` the `ready` frame of that connection carried. "
+            "A resume without it is refused"
+        ),
+    )
     context: dict[str, str | int | float | bool | None] | None = Field(
         default=None,
         max_length=64,
@@ -57,13 +65,6 @@ class ApprovalFrame(BaseSchema):
     type: Literal["approval"]
     id: str
     decision: Literal["approve", "deny"]
-
-
-class PttFrame(BaseSchema):
-    """Push-to-talk held down or let go."""
-
-    type: Literal["ptt"]
-    state: Literal["down", "up"]
 
 
 class MuteFrame(BaseSchema):
@@ -87,7 +88,7 @@ class PlayedFrame(BaseSchema):
 
 
 ClientFrame = Annotated[
-    StartFrame | ApprovalFrame | PttFrame | MuteFrame | EndFrame | PlayedFrame,
+    StartFrame | ApprovalFrame | MuteFrame | EndFrame | PlayedFrame,
     Field(discriminator="type"),
 ]
 
@@ -104,13 +105,21 @@ class ReadyFrame(BaseSchema):
 
     type: Literal["ready"]
     call_id: UUID
-    run_id: UUID
+    run_id: UUID | None = Field(
+        default=None, description="The call's run; left out for a visitor, as a text embed does"
+    )
     conversation_id: UUID
     transport: Literal["webrtc", "relay"]
     input_sample_rate: int
     output_sample_rate: int
     cap_seconds: int
     minutes_left: int | None = None
+    resume_token: str = Field(
+        description=(
+            "What a reconnect of this connection sends as `start.resume_token`. Sent only "
+            "here, to this caller; the server keeps its hash"
+        )
+    )
 
 
 class StateFrame(BaseSchema):

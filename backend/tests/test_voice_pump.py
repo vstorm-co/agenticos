@@ -14,6 +14,7 @@ from pydantic_ai.messages import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    RetryPromptPart,
     SpeechPart,
     SpeechPartDelta,
     ToolCallPart,
@@ -57,8 +58,11 @@ class _Writer:
 def _pump(*, guard=None, affordable=True, relay=None):
     frames: list[tuple[str, dict]] = []
 
-    async def send(kind, payload):
-        frames.append((kind, payload))
+    async def send(frame):
+        # As the wire carries it: the kind, then only the fields the frame was built with.
+        frames.append(
+            (frame.type, frame.model_dump(mode="json", exclude_unset=True, exclude={"type"}))
+        )
 
     started = SimpleNamespace(
         call_id=uuid4(),
@@ -282,11 +286,73 @@ async def test_an_answer_the_provider_marks_interrupted_is_trimmed_to_its_mark()
     assert started.writer.assistant_turn.await_args.kwargs["interrupted"] is True
 
 
-async def test_the_agent_stopping_sets_the_event_spoken_notices_wait_on():
+async def test_the_agent_stopping_after_the_notices_response_sets_the_event_it_waits_on():
+    """An earlier answer's playback ending is not the notice said; the end after its response is."""
     pump, _, _, _ = _pump()
-    await pump.handle(RealtimeOutputSpeechStartEvent(), _SESSION)
+    done = pump.arm_output_done()
+
     await pump.handle(RealtimeOutputSpeechEndEvent(), _SESSION)
-    assert pump.output_done.is_set()
+    assert not done.is_set()
+
+    await pump.handle(RealtimeOutputSpeechStartEvent(), _SESSION)
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+    await pump.handle(RealtimeOutputSpeechEndEvent(), _SESSION)
+    assert done.is_set() and pump.output_done is done
+
+
+async def test_a_notice_asked_for_while_an_answer_is_still_coming_waits_past_that_answer():
+    """RR-c06's last case: an answer still being generated when the notice is armed
+    completes after arming, so its playback end is not the notice heard either."""
+    pump, _, _, _ = _pump()
+    await pump.handle(
+        PartStartEvent(index=1, part=SpeechPart(speaker="assistant", transcript="")), _SESSION
+    )
+    await pump.handle(
+        PartEndEvent(index=1, part=SpeechPart(speaker="assistant", transcript="Your order left.")),
+        _SESSION,
+    )
+    done = pump.arm_output_done()
+
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+    await pump.handle(RealtimeOutputSpeechEndEvent(), _SESSION)
+    assert not done.is_set()
+
+    await pump.handle(RealtimeOutputSpeechStartEvent(), _SESSION)
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+    await pump.handle(RealtimeOutputSpeechEndEvent(), _SESSION)
+    assert done.is_set()
+
+
+@pytest.mark.security
+async def test_a_tool_that_asked_for_a_retry_is_saved_as_failed_without_its_raw_text():
+    """A retry is a failed call, and its text is whatever raised - a vendor's URL and
+    query string included - so the row holds the shared notice, as a text run's does."""
+    pump, _, started, _ = _pump()
+    await pump.handle(
+        FunctionToolCallEvent(
+            part=ToolCallPart(tool_name="web_search", args={"q": "x"}, tool_call_id="c1")
+        ),
+        _SESSION,
+    )
+    await pump.handle(
+        FunctionToolResultEvent(
+            part=RetryPromptPart(
+                tool_name="web_search",
+                content="401 Unauthorized for url 'https://api.example.com/search?key=k'",
+                tool_call_id="c1",
+            )
+        ),
+        _SESSION,
+    )
+    await pump.handle(
+        PartEndEvent(index=2, part=SpeechPart(speaker="assistant", transcript="No luck.")),
+        _SESSION,
+    )
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+
+    (tool,) = started.writer.assistant_turn.await_args.kwargs["tools"]
+    assert tool.success is False
+    assert tool.result is not None and "api.example.com" not in tool.result
 
 
 async def test_an_ended_call_still_saves_the_answer_in_progress():
@@ -523,6 +589,26 @@ async def test_a_response_with_nothing_said_and_no_tools_saves_nothing():
     started.writer.assistant_turn.assert_not_awaited()
 
 
+async def test_a_notice_after_a_silent_answer_waits_only_for_its_own_response():
+    """An answer that started but said nothing completes and saves nothing; it is
+    over, so a notice armed after it is ended by the next response, not the one after."""
+    pump, _, started, _ = _pump()
+    await pump.handle(
+        PartStartEvent(index=1, part=SpeechPart(speaker="assistant", transcript="")), _SESSION
+    )
+    await pump.handle(
+        PartEndEvent(index=1, part=SpeechPart(speaker="assistant", transcript="")), _SESSION
+    )
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+    started.writer.assistant_turn.assert_not_awaited()
+    done = pump.arm_output_done()
+
+    await pump.handle(RealtimeOutputSpeechStartEvent(), _SESSION)
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+    await pump.handle(RealtimeOutputSpeechEndEvent(), _SESSION)
+    assert done.is_set()
+
+
 _ANSWER = "It is eighteen degrees and cloudy in Warsaw, with rain expected by the evening."
 
 
@@ -597,8 +683,11 @@ def _real_relay(**profile):
         sent.append(data)
         return True
 
-    async def send(kind, payload):
-        frames.append((kind, payload))
+    async def send(frame):
+        # As the wire carries it: the kind, then only the fields the frame was built with.
+        frames.append(
+            (frame.type, frame.model_dump(mode="json", exclude_unset=True, exclude={"type"}))
+        )
 
     relay = AudioRelay(
         send_bytes=send_bytes, send=send, input_sample_rate=24000, output_sample_rate=24000

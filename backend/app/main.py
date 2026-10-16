@@ -121,8 +121,7 @@ async def _start_channel_polling(channel: str) -> None:
 
 async def _reap_voice_calls() -> None:
     """Hang up the calls a previous life of this worker left on the provider's bill (#54)."""
-    async with get_db_context() as db:
-        await VoiceCallReaper(db).reap()
+    await VoiceCallReaper(get_db_context).reap()
 
 
 async def _shutdown_voice_then_drain() -> None:

@@ -70,6 +70,7 @@ import * as stats from "./stats/[[...path]]/route";
 import * as triggerPortals from "./trigger-portals/[[...path]]/route";
 import * as triggers from "./triggers/[[...path]]/route";
 import * as users from "./users/[userId]/route";
+import * as voice from "./voice/[[...path]]/route";
 
 /**
  * Every mount of the shared forwarder.
@@ -142,6 +143,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["trigger-portals", triggerPortals],
   ["triggers", triggers],
   ["users/[userId]", users],
+  ["voice", voice],
   ["me/permissions", permissions],
   ["me/dashboard-layout", dashboardLayout],
   ["me/dashboard-layout/presets", dashboardPresets],

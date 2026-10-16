@@ -22,15 +22,21 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from pydantic_ai.capabilities import AbstractCapability, Capability, ToolSearch
+from pydantic_ai.capabilities import AbstractCapability, Capability, CapabilityOrdering, ToolSearch
+from pydantic_ai.capabilities.abstract import RawToolArgs
+from pydantic_ai.exceptions import ToolFailed
+from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.settings import ThinkingEffort
 from pydantic_ai.tools import DeferredToolRequests, DeferredToolResults, RunContext, ToolDefinition
+from pydantic_ai.toolsets import AbstractToolset, WrapperToolset
+from pydantic_ai.toolsets.abstract import ToolsetTool
+from pydantic_core import SchemaValidator, core_schema
 
 from app.agents.capabilities import get as capability_def
 from app.agents.capabilities.skills import Skills
 from app.agents.capabilities.thinking import ThinkingConfig
 from app.agents.deps import AgentDeps
-from app.agents.spec import AgentSpec
+from app.agents.spec import AgentSpec, CapabilityBindingSpec
 
 DeferredHandler = Callable[
     [RunContext[AgentDeps], DeferredToolRequests], Awaitable[DeferredToolResults]
@@ -40,12 +46,27 @@ SPOKEN_STYLE = """You are speaking with a person on a live voice call. Everythin
 - Use short sentences. Never read out markdown, lists, tables, headings, links or code; say what they mean instead.
 - Say numbers, dates, times and amounts the way a person would say them aloud.
 - Before you act on a name, an amount, an address or a date, read it back and wait for a yes.
-- When a tool needs approval, say that you are asking for it and wait. Never say an action is done until its result arrives.
-- If a decision is denied or times out, say so plainly.
+{actions}
 - If something you would normally do cannot be done on a call, say so plainly and suggest continuing in text chat."""
 """Appended to every agent's instructions in a call (Q12). Hearing is not reading:
 a bullet list read aloud is noise, and a misheard amount acted on unread back is
-the spike's 'Acme heard as Ahmad'."""
+the spike's 'Acme heard as Ahmad'. `{actions}` is `MEMBER_ACTIONS` or
+`VISITOR_ACTIONS`."""
+
+MEMBER_ACTIONS = """- When a tool needs approval, say that you are asking for it and wait. Never say an action is done until its result arrives.
+- If a decision is denied or times out, say so plainly."""
+"""How a member's call speaks about acting: a member can approve a gated tool."""
+
+VISITOR_ACTIONS = """- If you cannot do something on this call, say so plainly and do not offer to do it. Never say an action is done until its result arrives."""
+"""How a visitor's call speaks about acting. A visitor's session carries no gated
+tool (`WithoutApprovalTools`), so told about approval, gpt-realtime asked a
+visitor out loud to approve an action they had no way to approve."""
+
+UNAVAILABLE_TOOL = (
+    "The tool {name!r} is not available on this call. Do not try it again; tell the person "
+    "plainly that you cannot do that here."
+)
+"""What a call's model is told when it calls a tool the session does not have."""
 
 CALL_BRIEFING = (
     "About this call: the person you are speaking with is calling from a web page, and the notes "
@@ -86,7 +107,8 @@ class VoiceOptions:
 def voice_instructions(instructions: str, options: VoiceOptions) -> str:
     """The complete instructions a call is given: the spec's, the spoken style, an embed's
     briefing, the agent's note."""
-    parts = [instructions.strip(), SPOKEN_STYLE]
+    actions = VISITOR_ACTIONS if options.anonymous else MEMBER_ACTIONS
+    parts = [instructions.strip(), SPOKEN_STYLE.format(actions=actions)]
     if options.language:
         parts.append(
             f"Speak in the language with ISO-639-1 code '{options.language}' unless the person asks otherwise."
@@ -146,6 +168,83 @@ class WithoutApprovalTools(AbstractCapability[AgentDeps]):
         return [tool for tool in tool_defs if tool.name not in self.names]
 
 
+_UNAVAILABLE = "agenticos_unavailable"
+"""The metadata key that marks a tool standing in for a name the session does not have."""
+
+
+_NO_ARGUMENTS = SchemaValidator(core_schema.dict_schema())
+"""Never run: a stand-in is refused before its arguments are validated."""
+
+
+class _ToolsOrUnavailable(dict[str, ToolsetTool[AgentDeps]]):
+    """A session's tools that answer any other name with a stand-in that `AnswerUnknownTools` refuses.
+
+    pydantic-ai settles an unknown name with `ModelRetry` against a budget that
+    never refills for a name that never succeeds, so the second call to one ends
+    the session with `UnexpectedModelBehavior` - and the call with it. Its tool
+    manager looks a called name up with `tools.get`, and that is the only seam:
+    no capability or toolset hook sees an unknown name. Iteration stays a plain
+    dict's, so the tools the model is shown are only the real ones.
+    """
+
+    def __init__(
+        self, tools: dict[str, ToolsetTool[AgentDeps]], toolset: AbstractToolset[AgentDeps]
+    ) -> None:
+        super().__init__(tools)
+        self._toolset = toolset
+
+    def get(self, key: object, _default: object = None, /) -> ToolsetTool[AgentDeps]:
+        tool = super().get(key)
+        if tool is not None:
+            return tool
+        return ToolsetTool(
+            toolset=self._toolset,
+            tool_def=ToolDefinition(name=str(key), metadata={_UNAVAILABLE: True}),
+            max_retries=0,
+            args_validator=_NO_ARGUMENTS,
+        )
+
+
+@dataclass
+class _UnknownToolsAnswered(WrapperToolset[AgentDeps]):
+    async def get_tools(self, ctx: RunContext[AgentDeps]) -> dict[str, ToolsetTool[AgentDeps]]:
+        return _ToolsOrUnavailable(await super().get_tools(ctx), self)
+
+
+@dataclass
+class AnswerUnknownTools(AbstractCapability[AgentDeps]):
+    """Tells a call's model that a tool it called is not available, rather than ending the call.
+
+    gpt-realtime calls tools it was never given: a visitor's session leaves gated
+    tools out, and asked to open a page, it called `web_fetch` anyway - twice,
+    which ended the call. A text run is not given this: an unknown name there
+    costs one run, not a live conversation.
+    """
+
+    def get_ordering(self) -> CapabilityOrdering:
+        # Outermost, so no other wrapper rebuilds the tools into a plain dict.
+        return CapabilityOrdering(position="outermost")
+
+    def get_wrapper_toolset(
+        self, toolset: AbstractToolset[AgentDeps]
+    ) -> AbstractToolset[AgentDeps]:
+        return _UnknownToolsAnswered(toolset)
+
+    async def before_tool_validate(
+        self,
+        ctx: RunContext[AgentDeps],
+        *,
+        call: ToolCallPart,
+        tool_def: ToolDefinition,
+        args: RawToolArgs,
+    ) -> RawToolArgs:
+        # `ToolFailed` reaches the model without spending a retry, and before any
+        # execution hook - an approval gate - could ask about a tool that is not there.
+        if tool_def.metadata and tool_def.metadata.get(_UNAVAILABLE):
+            raise ToolFailed(UNAVAILABLE_TOOL.format(name=call.tool_name))
+        return args
+
+
 def voice_configured(configured: list[AbstractCapability[Any]]) -> list[AbstractCapability[Any]]:
     """The spec's built capabilities as a call can carry them: no tool search, toolless skills."""
     carried: list[AbstractCapability[Any]] = []
@@ -156,9 +255,14 @@ def voice_configured(configured: list[AbstractCapability[Any]]) -> list[Abstract
     return carried
 
 
+def enabled_binding(spec: AgentSpec, capability_id: str) -> CapabilityBindingSpec | None:
+    """The spec's binding of this capability while it is switched on, else `None`."""
+    return next((b for b in spec.capabilities if b.id == capability_id and b.enabled), None)
+
+
 def thinking_effort(spec: AgentSpec) -> ThinkingEffort | Literal[True] | None:
     """The `thinking` binding as a realtime setting: its effort, `True` for the provider default, `None` unbound."""
-    binding = next((b for b in spec.capabilities if b.id == "thinking" and b.enabled), None)
+    binding = enabled_binding(spec, "thinking")
     if binding is None:
         return None
     effort = ThinkingConfig.model_validate(binding.config).effort

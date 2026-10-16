@@ -12,7 +12,10 @@ from app.services.voice.meter import UsageMeter
 def test_each_response_books_only_what_it_added():
     ledger = SpendLedger()
     meter = UsageMeter(
-        ledger, entry=realtime_models.offered("openai", "gpt-realtime"), model_name="gpt-realtime"
+        ledger,
+        entry=realtime_models.offered("openai", "gpt-realtime"),
+        model_name="gpt-realtime",
+        provider="openai",
     )
 
     meter.book_response(RunUsage(input_tokens=100, output_tokens=50, cost=Decimal("0.02")))
@@ -26,7 +29,10 @@ def test_each_response_books_only_what_it_added():
 def test_a_response_with_no_new_cost_books_nothing():
     ledger = SpendLedger()
     meter = UsageMeter(
-        ledger, entry=realtime_models.offered("openai", "gpt-realtime"), model_name="gpt-realtime"
+        ledger,
+        entry=realtime_models.offered("openai", "gpt-realtime"),
+        model_name="gpt-realtime",
+        provider="openai",
     )
     meter.book_response(RunUsage(cost=Decimal("0.02")))
     meter.book_response(RunUsage(cost=Decimal("0.02")))
@@ -39,6 +45,7 @@ def test_a_per_minute_model_is_billed_by_duration_not_tokens():
         ledger,
         entry=realtime_models.offered("xai", "grok-voice-latest"),
         model_name="grok-voice-latest",
+        provider="xai",
     )
 
     meter.book_response(RunUsage(input_tokens=500, output_tokens=500, cost=Decimal(0)))
@@ -52,7 +59,10 @@ def test_a_per_minute_model_is_billed_by_duration_not_tokens():
 def test_elapsed_time_books_nothing_on_a_token_priced_model():
     ledger = SpendLedger()
     UsageMeter(
-        ledger, entry=realtime_models.offered("openai", "gpt-realtime"), model_name="gpt-realtime"
+        ledger,
+        entry=realtime_models.offered("openai", "gpt-realtime"),
+        model_name="gpt-realtime",
+        provider="openai",
     ).book_elapsed(600)
     assert ledger.entries == []
 
@@ -62,7 +72,8 @@ def _azure_meter(ledger: SpendLedger) -> UsageMeter:
         ledger,
         entry=realtime_models.offered("azure", "gpt-realtime"),
         model_name="gpt-realtime",
-        price_as="openai",
+        provider="openai",
+        price_here=True,
     )
 
 
@@ -116,7 +127,46 @@ def test_a_session_priced_by_the_library_is_left_as_it_is():
         SpendLedger(),
         entry=realtime_models.offered("openai", "gpt-realtime"),
         model_name="gpt-realtime",
+        provider="openai",
     )
     usage = RunUsage()
     meter.attach(usage)
     assert usage.cost is None
+
+
+def test_a_response_the_session_could_not_price_is_priced_here_and_its_limit_sees_it():
+    """The server can report a model name the price list lacks; tokens are never booked as $0."""
+    from app.agents.capabilities.budget import price_request
+
+    ledger = SpendLedger()
+    meter = UsageMeter(
+        ledger,
+        entry=realtime_models.offered("openai", "gpt-realtime"),
+        model_name="gpt-realtime",
+        provider="openai",
+    )
+    usage = RunUsage(input_tokens=1000, output_tokens=1000)  # the session's cost: None
+
+    booked = meter.book_response(usage)
+
+    expected = price_request(
+        RunUsage(input_tokens=1000, output_tokens=1000), "gpt-realtime", "openai"
+    )
+    assert expected and booked == expected and ledger.total_usd == expected
+    assert usage.cost == expected
+    assert all(entry.priced for entry in ledger.entries)
+
+
+def test_a_response_priced_by_neither_is_booked_as_unpriced(monkeypatch):
+    monkeypatch.setattr("app.services.voice.meter.price_request", lambda *a: None)
+    ledger = SpendLedger()
+    meter = UsageMeter(
+        ledger,
+        entry=realtime_models.offered("openai", "gpt-realtime"),
+        model_name="gpt-realtime",
+        provider="openai",
+    )
+
+    meter.book_response(RunUsage(input_tokens=1000, output_tokens=1000))
+
+    assert ledger.has_unpriced_models and ledger.total_usd == 0

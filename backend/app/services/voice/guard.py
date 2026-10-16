@@ -13,6 +13,7 @@ from app.agents.capabilities.guardrails import (
     transcript_screens,
 )
 from app.agents.spec import AgentSpec
+from app.agents.voice import enabled_binding
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class TranscriptGuard:
     @classmethod
     def for_spec(cls, spec: AgentSpec) -> TranscriptGuard:
         """The screens the agent's `guardrails` binding configures, or none without one."""
-        binding = next((b for b in spec.capabilities if b.id == "guardrails" and b.enabled), None)
+        binding = enabled_binding(spec, "guardrails")
         if binding is None:
             return cls(None)
         return cls(transcript_screens(GuardrailsConfig.model_validate(binding.config)))

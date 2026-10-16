@@ -1,5 +1,5 @@
 """Call rows (#54). Writes flush, never commit; every reader is tenant-scoped
-except :func:`list_unhung`, which belongs to the reaper."""
+except :func:`list_unhung` and :func:`claim_unhung`, which belong to the reaper."""
 
 from __future__ import annotations
 
@@ -8,8 +8,9 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import extract, func, or_, select, update
+from sqlalchemy import ColumnElement, and_, extract, func, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.db.models.agent import Agent
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
@@ -43,6 +44,7 @@ async def create(
     secret_id: UUID | None,
     worker_id: str,
     resume_of: UUID | None,
+    resume_token_hash: str,
     started_at: datetime,
 ) -> VoiceCall:
     call = VoiceCall(
@@ -59,6 +61,7 @@ async def create(
         secret_id=secret_id,
         worker_id=worker_id,
         resume_of=resume_of,
+        resume_token_hash=resume_token_hash,
         started_at=started_at,
         heartbeat_at=started_at,
     )
@@ -80,6 +83,19 @@ async def get(db: AsyncSession, call_id: UUID, *, organization_id: UUID) -> Voic
 async def set_provider_call_id(db: AsyncSession, call_id: UUID, *, provider_call_id: str) -> None:
     await db.execute(
         update(VoiceCall).where(VoiceCall.id == call_id).values(provider_call_id=provider_call_id)
+    )
+    await db.flush()
+
+
+async def start_clock(db: AsyncSession, call_id: UUID, *, at: datetime) -> None:
+    """Start the call's clock at `at`: its `started_at`, with its heartbeat.
+
+    The month's minutes count from `started_at`, so it is the moment the call is
+    ready - where its caller's timer, its cap and its seconds start - and, until
+    then, it moves with each beat of the setup: no path counts setup as call time.
+    """
+    await db.execute(
+        update(VoiceCall).where(VoiceCall.id == call_id).values(started_at=at, heartbeat_at=at)
     )
     await db.flush()
 
@@ -131,7 +147,14 @@ async def end(
 
 
 async def mark_hung_up(db: AsyncSession, call_id: UUID, *, at: datetime) -> None:
-    await db.execute(update(VoiceCall).where(VoiceCall.id == call_id).values(hung_up_at=at))
+    """Record the provider's hang-up. The first stamp stands: the resume window runs
+    from it, and a later teardown or sweep hanging the same call up again must not
+    move that window's start."""
+    await db.execute(
+        update(VoiceCall)
+        .where(VoiceCall.id == call_id, VoiceCall.hung_up_at.is_(None))
+        .values(hung_up_at=at)
+    )
     await db.flush()
 
 
@@ -236,66 +259,93 @@ async def is_live_run(db: AsyncSession, run_id: UUID) -> bool:
     return int(result.scalar_one()) > 0
 
 
+def _unhung(stale_before: datetime) -> ColumnElement[bool]:
+    """Not hung up, and quiet since `stale_before`.
+
+    An ended row qualifies the same way: `end` moves the heartbeat up to the end,
+    so a teardown still hanging up after recording its end gets the same grace as
+    a live call, and the sweep does not close a run its teardown is finishing.
+    """
+    return and_(VoiceCall.hung_up_at.is_(None), VoiceCall.heartbeat_at < stale_before)
+
+
 async def list_unhung(
     db: AsyncSession, *, stale_before: datetime, limit: int = 200
 ) -> list[VoiceCall]:
-    """Calls the provider may still be holding: ended without a hang-up, or gone quiet.
+    """Calls the provider may still be holding: gone quiet, or ended without a hang-up.
 
     **Not scoped to an organization**, like `agent_run.list_stale_approvals`: its
     only caller is the reaper, a schedule with no tenant. Nothing returned here
     reaches a caller who could read it. Do not copy this shape into anything a
-    route can reach.
+    route can reach. A listing, not a claim: the reaper claims each row in a
+    transaction of its own (:func:`claim_unhung`).
     """
     result = await db.execute(
         select(VoiceCall)
-        .where(
-            VoiceCall.hung_up_at.is_(None),
-            or_(VoiceCall.ended_at.is_not(None), VoiceCall.heartbeat_at < stale_before),
-        )
+        .where(_unhung(stale_before))
         .order_by(VoiceCall.heartbeat_at.asc())
         .limit(limit)
     )
     return list(result.scalars().all())
 
 
+async def claim_unhung(
+    db: AsyncSession, call_id: UUID, *, stale_before: datetime
+) -> VoiceCall | None:
+    """Lock one row :func:`list_unhung` found, if it still qualifies.
+
+    `None` when it no longer does (hung up or heartbeated since), or when another
+    sweep holds it: `SKIP LOCKED`, so a start-up sweep and the scheduled one never
+    hang up the same call twice or wait on each other's provider calls. Unscoped
+    for the reason :func:`list_unhung` is.
+    """
+    result = await db.execute(
+        select(VoiceCall)
+        .where(VoiceCall.id == call_id, _unhung(stale_before))
+        .with_for_update(skip_locked=True)
+    )
+    return result.scalar_one_or_none()
+
+
 async def chains_for_runs(
     db: AsyncSession, run_ids: list[UUID], *, organization_id: UUID
 ) -> dict[UUID, VoiceChain]:
-    """For each run that opened a call, the call it is the first connection of, summed."""
-    if not run_ids:
-        return {}
-    roots = (
-        await db.execute(
-            select(VoiceCall.id, VoiceCall.run_id).where(
-                VoiceCall.run_id.in_(run_ids),
-                VoiceCall.organization_id == organization_id,
-                VoiceCall.resume_of.is_(None),
-            )
+    """For each run that opened a call, the call it is the first connection of, summed.
+
+    One recursive query for the whole page, down the `resume_of` links to
+    `_CHAIN_DEPTH` connections, rather than a round trip per hop per call. Its
+    caller (`voice_chains`) does not ask for a page with no calls on it.
+    """
+    chain = (
+        select(
+            VoiceCall.run_id.label("root_run_id"),
+            VoiceCall.id,
+            VoiceCall.seconds,
+            VoiceCall.cost_usd,
+            literal(1).label("depth"),
         )
-    ).all()
-    chains: dict[UUID, VoiceChain] = {}
-    for root_id, run_id in roots:
-        # Selected by `run_id IN run_ids`, so never null here.
-        assert run_id is not None
-        connections, seconds, cost = 0, 0, Decimal(0)
-        frontier = [root_id]
-        for _ in range(_CHAIN_DEPTH):
-            if not frontier:
-                break
-            rows = (
-                await db.execute(
-                    select(VoiceCall.id, VoiceCall.seconds, VoiceCall.cost_usd).where(
-                        VoiceCall.id.in_(frontier)
-                    )
-                )
-            ).all()
-            connections += len(rows)
-            seconds += sum(row.seconds for row in rows)
-            cost += sum((row.cost_usd for row in rows), Decimal(0))
-            frontier = list(
-                (
-                    await db.execute(select(VoiceCall.id).where(VoiceCall.resume_of.in_(frontier)))
-                ).scalars()
-            )
-        chains[run_id] = VoiceChain(connections=connections, seconds=seconds, cost_usd=cost)
-    return chains
+        .where(
+            VoiceCall.run_id.in_(run_ids),
+            VoiceCall.organization_id == organization_id,
+            VoiceCall.resume_of.is_(None),
+        )
+        .cte("voice_chain", recursive=True)
+    )
+    hop = aliased(VoiceCall)
+    chain = chain.union_all(
+        select(chain.c.root_run_id, hop.id, hop.seconds, hop.cost_usd, chain.c.depth + 1)
+        .join(chain, hop.resume_of == chain.c.id)
+        .where(hop.organization_id == organization_id, chain.c.depth < _CHAIN_DEPTH)
+    )
+    rows = await db.execute(
+        select(
+            chain.c.root_run_id,
+            func.count(),
+            func.sum(chain.c.seconds),
+            func.sum(chain.c.cost_usd),
+        ).group_by(chain.c.root_run_id)
+    )
+    return {
+        run_id: VoiceChain(connections=int(connections), seconds=int(seconds), cost_usd=cost)
+        for run_id, connections, seconds, cost in rows.all()
+    }

@@ -128,7 +128,7 @@ function onFrame(state: CallState, frame: VoiceServerFrame, now: number): CallSt
         phase: "live",
         activity: "listening",
         callId: frame.call_id,
-        runId: frame.run_id,
+        runId: frame.run_id ?? null,
         conversationId: frame.conversation_id,
         transport: frame.transport,
         capSeconds: frame.cap_seconds,

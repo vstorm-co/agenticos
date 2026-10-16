@@ -29,6 +29,7 @@ const READY: VoiceServerFrame = {
   output_sample_rate: 24000,
   cap_seconds: 600,
   minutes_left: 540,
+  resume_token: "tok1",
 };
 
 const APPROVAL: VoiceServerFrame = {
@@ -478,12 +479,27 @@ describe("the call view", () => {
 
 describe("showVoiceApproval", () => {
   it("brings the waiting card into view and puts focus on Approve", () => {
-    render(<View session={fake(live(frame(APPROVAL)))} />);
+    // In the chat's own scroller: `scrollIntoView` scrolls every scrollable
+    // ancestor, and the page column around the chat is one.
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
+    const scroller = document.createElement("div");
+    scroller.style.overflowY = "auto";
+    Object.defineProperty(scroller, "clientHeight", { get: () => 400 });
+    scroller.getBoundingClientRect = () => ({ top: 0 }) as DOMRect;
+    const scrollTo = vi.fn();
+    scroller.scrollTo = scrollTo as unknown as typeof scroller.scrollTo;
+    document.body.append(scroller);
+    const below = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ top: 1000, bottom: 1300, height: 300 } as DOMRect);
+    render(<View session={fake(live(frame(APPROVAL)))} />, { container: scroller });
     act(() => showVoiceApproval());
-    expect(scrollIntoView).toHaveBeenCalled();
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 950, behavior: "smooth" });
+    expect(scrollIntoView).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Approve" })).toHaveFocus();
+    below.mockRestore();
+    scroller.remove();
     delete (Element.prototype as Partial<Element>).scrollIntoView;
   });
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "285bab48c7ff"
+source_sha: "9c9b30a42443"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y minutos, redes de seguridad y transcripciones."
@@ -161,7 +161,9 @@ instrucciones del agent: frases cortas; nada de markdown, listas, tablas ni
 enlaces leídos en voz alta; números y fechas dichos como los dice una persona;
 nombres, importes, direcciones y fechas repetidos en voz alta antes de actuar
 sobre ellos; y decir que está esperando una aprobación, en vez de afirmar antes
-un resultado. La nota de voz propia del agent va a continuación.
+un resultado. En la llamada de un visitante no se habla de aprobaciones; en su
+lugar, el agent debe decir con claridad lo que no puede hacer en la llamada. La
+nota de voz propia del agent va a continuación.
 
 Sobre WebRTC el agent se resuelve dos veces, una para responder a la oferta y
 otra para el sideband. Los servidores MCP se conectan dos veces y las
@@ -179,7 +181,8 @@ llamada una tarjeta: la herramienta, **los argumentos exactos con los que se
 ejecutará** y lo que se oyó decir a quien llama. El riesgo aquí es un nombre mal
 oído («Acme» oído como «Ahmad»), y la tarjeta es la comprobación. Aprobar ejecuta
 exactamente esos argumentos, una vez; la misma herramienta llamada de nuevo
-necesita una aprobación nueva.
+necesita una aprobación nueva. Una segunda decisión en la misma tarjeta, enviada
+antes de que llegue la primera, no cambia nada: vale la primera.
 
 - **60 segundos** sin decisión caducan la solicitud, sin nadie que decida, y el
   agent lo dice.
@@ -194,6 +197,11 @@ necesita una aprobación nueva.
   herramienta que necesite aprobación: esas herramientas se dejan fuera de la
   llamada por completo.
 
+Cuando el modelo llama a una herramienta que la llamada no tiene, ya sea una que
+se dejó fuera para un visitante o un nombre que se ha inventado, la herramienta
+no se ejecuta. Al modelo se le dice que esa herramienta no está disponible en
+esta llamada, el agent dice que no puede hacerlo y la llamada sigue.
+
 Una llamada que termina, por el motivo que sea, caduca todo lo que todavía
 estuviera esperando.
 
@@ -201,9 +209,18 @@ estuviera esperando.
 
 **Tiempo.** Una llamada dura como mucho la llamada más larga del agent, la
 llamada más larga de la organización o 50 minutos, lo que sea más corto, y nunca
-más que los minutos que le quedan al mes. Un minuto antes del final se avisa a la
-vista de llamada. Al final el agent dice una frase corta sobre el motivo y la
-llamada se detiene.
+más que los minutos que le quedan al mes. Su reloj empieza cuando la llamada
+está lista, igual que el temporizador de la vista de llamada, así que el tiempo
+de establecimiento no cuenta ni para su tiempo, ni para su límite, ni para los
+minutos del mes. Un minuto antes del final se avisa a la vista de llamada.
+Al final el agent dice una frase corta sobre el motivo y la llamada se detiene.
+Termina como `time_limit`, o como `minutes` cuando los minutos del mes fijaron
+su límite.
+
+A un visitante de un widget o de una página alojada no se le dicen los minutos
+de la organización. Su vista de llamada muestra el límite propio de la llamada,
+y una llamada que los minutos del mes acortan más termina en el límite real sin
+aviso. El agent dice entonces solo que las llamadas no están disponibles ahora.
 
 **Minutos.** Los minutos mensuales de la organización se cuentan a partir de las
 filas de llamada (`voice_calls`): cada llamada hasta su fin, o hasta su último
@@ -219,10 +236,16 @@ organización, como los runs de texto:
   el precio por minuto del peor caso del modelo se comprueba contra el budget
   restante. Una llamada que no se podría pagar se rechaza, en vez de empezar y
   cortarse a medias.
-- Durante la llamada, cada respuesta se anota en el run cuando termina, y el
-  budget se vuelve a leer en cada heartbeat. El límite de coste de la sesión
-  puede sobrepasarse como mucho en una respuesta (dos en Azure, cuyo deployment
-  se tarifa aquí como su modelo base).
+- Durante la llamada, cada respuesta se mide cuando termina, y el budget se
+  vuelve a leer en cada heartbeat. El límite de coste de la sesión puede
+  sobrepasarse como mucho en una respuesta (dos en Azure, cuyo deployment se
+  tarifa aquí como su modelo base).
+- Cada heartbeat escribe además el coste de la llamada hasta ese momento en su
+  run, así que las comprobaciones de budget de otros runs y llamadas ven el gasto
+  de una llamada en curso en 15 segundos, no solo cuando termina.
+- Una respuesta que la sesión realtime deja sin precio se tarifa aquí a partir
+  de sus tokens, y el límite de coste de la sesión la cuenta. Una que no se puede
+  tarifar de ninguna forma se registra como sin precio.
 - xAI se factura por minuto conectado, a la tarifa del catálogo.
 - Un modelo cuyo precio no se puede calcular se rechaza al configurarlo, así que
   un budget nunca queda sin aplicar en silencio.
@@ -250,13 +273,19 @@ trabajo del servidor, en cada camino:
    servidor cierra su socket hacia el provider) y después termina el run con su
    coste.
 2. **Heartbeats.** El proceso que mantiene una llamada escribe su coste y sus
-   segundos cada 15 segundos. Cada heartbeat vuelve a comprobar además la sesión
-   de quien llama, su membresía, el estado publicado del agent y el interruptor
-   de la organización, y termina la llamada cuando falla cualquiera de ellos.
+   segundos cada 15 segundos, desde el inicio del establecimiento, para que un
+   arranque lento no se tome por una llamada perdida. Cada heartbeat vuelve a
+   comprobar además la sesión de quien llama, su membresía, el estado publicado
+   del agent y el interruptor de la organización, y termina la llamada cuando
+   falla cualquiera de ellos. La llamada de un visitante necesita además que su
+   embed siga activo, con las llamadas activadas y apuntando al mismo agent.
 3. **El barrido.** Un trabajo programado, cada minuto y una vez al arrancar,
    cuelga toda llamada cuyo heartbeat tenga más de 45 segundos, o cuyo fin se
-   registró pero cuyo colgado falló. Solo necesita el id de la llamada y la
-   clave.
+   registró hace más de 45 segundos pero cuyo colgado falló. Solo necesita el id
+   de la llamada y la clave, y cierra cada llamada por separado, así que una que
+   no puede cerrar no retiene a las demás. Una llamada que no puede colgar, como
+   una cuya clave ya no se puede leer, se retira como abandonada cuando cumple
+   una hora, momento en el que el provider ya la ha terminado.
 4. **Apagado.** Un servidor al que se le ordena parar cuelga sus propias llamadas
    antes de irse.
 5. **El navegador** cierra su conexión peer cuando la pestaña se oculta
@@ -275,9 +304,12 @@ trabajo del servidor, en cada camino:
 
 Una conexión caída recibe **un reintento automático en 10 segundos**. La conexión
 nueva solo se acepta para la misma persona, el mismo agent y la misma
-conversación, y solo dentro de los 10 segundos posteriores al fin de la
-anterior; termina la anterior si sigue medio abierta. El tiempo y el budget se
-arrastran: una reconexión continúa el reloj de la llamada en vez de reiniciarlo.
+conversación, solo con el token de reanudación que la conexión anterior recibió
+al establecerse, y solo dentro de los 10 segundos posteriores al cierre de la
+anterior. El servidor guarda solo un hash de ese token. Una reconexión termina
+la anterior si sigue medio abierta, y la cuenta como terminada en su último
+heartbeat. El tiempo y el budget se arrastran: una reconexión continúa el reloj
+de la llamada en vez de reiniciarlo.
 
 La sesión nueva empieza desde los turnos guardados hasta ese momento, como
 **texto**, así que no se repite nada, ninguna herramienta se ejecuta dos veces y
@@ -300,7 +332,9 @@ cadena como una sola llamada, con el tiempo y el coste de cada conexión sumados
 Cada turno se guarda en el momento en que termina, como un mensaje normal de la
 conversación: las palabras de quien llama a partir de la transcripción de
 entrada, las del agent a partir de lo que dijo. Las llamadas a herramientas
-aparecen en línea, como en el chat de texto. Un fallo pierde como mucho el turno
+aparecen en línea, como en el chat de texto; una herramienta que pidió al modelo
+volver a intentarlo se guarda como fallida, con un aviso genérico en lugar del
+texto de error de la propia herramienta. Un fallo pierde como mucho el turno
 en curso, y una reconexión no puede guardar un turno dos veces.
 
 Cuando hablas por encima del agent, su respuesta se corta hasta lo que oíste y se

@@ -56,7 +56,7 @@ import asyncio
 import logging
 from collections import Counter
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -174,7 +174,7 @@ from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatu
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
 from app.db.models.run_manifest import RunManifest
-from app.db.session import get_worker_db_context
+from app.db.session import get_db_context, get_worker_db_context
 from app.repositories import (
     agent_environment_repo,
     agent_exposure_repo,
@@ -2453,8 +2453,24 @@ class AgentRunnerService:
         # against a $10 cap and refused a run with $4 of headroom (#15). On a
         # fresh run the row is there too, at zero, so this changes nothing and
         # needs no branch.
+        # A call reads them again at every heartbeat (#54), so those re-reads take
+        # the pooled session rather than an engine and connection of their own
+        # each time - a call runs on the API worker's own loop, where that pool
+        # lives, and a heartbeat reads them holding no other connection. Each
+        # lookup's first read stays on the worker context: it is the call's start
+        # check, made while the starter's own transaction holds a pooled
+        # connection, and a second checkout from the same pool there waits on a
+        # pool the concurrent starts themselves have taken.
+        read_before: set[str] = set()
+
+        def spend_session(lookup: str) -> Callable[[], AbstractAsyncContextManager[AsyncSession]]:
+            if voice is None or lookup not in read_before:
+                read_before.add(lookup)
+                return get_worker_db_context
+            return get_db_context
+
         async def agent_period_spend() -> Decimal:
-            async with get_worker_db_context() as db:
+            async with spend_session("agent")() as db:
                 return await agent_run_repo.sum_cost_since(
                     db,
                     organization_id=ctx.organization_id,
@@ -2465,7 +2481,7 @@ class AgentRunnerService:
                 )
 
         async def org_period_spend() -> Decimal:
-            async with get_worker_db_context() as db:
+            async with spend_session("organization")() as db:
                 return await organization_monthly_spend(
                     db, ctx.organization_id, exclude_run_id=run.id
                 )

@@ -150,8 +150,9 @@ that on a call and to suggest text chat.
 instructions: short sentences; no markdown, lists, tables or links read aloud;
 numbers and dates said the way a person says them; names, amounts, addresses and
 dates read back before acting on them; and saying so when it is waiting for an
-approval, rather than claiming a result first. The agent's own voice note
-follows it.
+approval, rather than claiming a result first. A visitor's call is told nothing
+about approvals; the agent is told instead to say plainly what it cannot do on
+the call. The agent's own voice note follows it.
 
 Over WebRTC the agent is resolved twice, once to answer the offer and once for
 the sideband. MCP servers are connected twice and dynamic instructions run
@@ -166,7 +167,8 @@ approval row at once and shows the person on the call a card: the tool, **the
 exact arguments it will run with**, and what the caller was heard to say. A
 misheard name is the risk here ("Acme" heard as "Ahmad"), and the card is the
 check on it. Approving runs exactly those arguments, once; the same tool called
-again needs a new approval.
+again needs a new approval. A second decision on the same card, sent before the
+first one lands, changes nothing: the first decision stands.
 
 - **60 seconds** without a decision expires the request, with no decider, and
   the agent says so.
@@ -179,14 +181,28 @@ again needs a new approval.
 - An **anonymous visitor** on a widget or a hosted page never sees a tool that
   needs an approval: those tools are left out of the call entirely.
 
+When the model calls a tool the call does not have, whether one left out for a
+visitor or a name it made up, the tool does not run. The model is told the tool
+is not available on this call, the agent says it cannot do that, and the call
+goes on.
+
 A call ending, for any reason, expires whatever it was still waiting on.
 
 ## Limits and cost
 
 **Time.** A call runs at most the agent's longest call, the organization's
 longest call, or 50 minutes, whichever is shortest, and never longer than the
-month's minutes left. A minute before the end the call view is warned. At the
-end the agent says one short sentence about why and the call stops.
+month's minutes left. Its clock starts when the call is ready, as the call
+view's timer does, so setup time counts toward neither its time, its limit nor
+the month's minutes. A minute before the end
+the call view is warned. At the end the agent says one short sentence about why
+and the call stops. It ends as `time_limit`, or as `minutes` when the month's
+minutes set its limit.
+
+A visitor on a widget or a hosted page is not told the organization's minutes.
+Their call view shows the call's own limit, and a call that the month's minutes
+cut shorter ends at the real limit with no warning. The agent then says only
+that calls are not available right now.
 
 **Minutes.** The organization's monthly minutes are counted from the call rows
 (`voice_calls`): each call to its end, or to its last heartbeat while it is
@@ -200,10 +216,16 @@ text runs do:
 - Before a call starts, its longest possible length times the model's
   worst-case price per minute is checked against the budget left. A call that
   could not be afforded is refused, rather than started and cut short.
-- During the call, each response is booked on the run as it finishes, and the
-  budget is re-read at every heartbeat. The session's cost limit can overshoot
-  by at most one response (two on Azure, whose deployment is priced here as its
-  base model).
+- During the call, each response is metered as it finishes, and the budget is
+  re-read at every heartbeat. The session's cost limit can overshoot by at most
+  one response (two on Azure, whose deployment is priced here as its base
+  model).
+- Every heartbeat also writes the call's cost so far onto its run, so the budget
+  checks of other runs and calls see a live call's spend within 15 seconds, not
+  only once it ends.
+- A response the realtime session leaves unpriced is priced here from its token
+  counts, and the session's cost limit counts it. One that cannot be priced
+  either way is recorded as unpriced.
 - xAI is billed per connected minute, at the catalog's rate.
 - A model whose price cannot be computed is refused at setup, so a budget is
   never silently unenforced.
@@ -229,12 +251,18 @@ server's job, on every path:
    when the server closes its upstream socket), then finishes the run with its
    cost.
 2. **Heartbeats.** The process holding a call writes its cost and seconds every
-   15 seconds. Each heartbeat also re-checks the caller's session, their
+   15 seconds, from the start of setup, so a slow start is not mistaken for a
+   lost call. Each heartbeat also re-checks the caller's session, their
    membership, the agent's published state and the organization's switch, and
-   ends the call when any of them fails.
+   ends the call when any of them fails. A visitor's call also needs its embed
+   still active, with calls on and pointed at the same agent.
 3. **The sweep.** A scheduled job, every minute and once at start-up, hangs up
    any call whose heartbeat is older than 45 seconds, or whose end was recorded
-   but whose hang-up failed. It needs only the call id and the key.
+   more than 45 seconds ago but whose hang-up failed. It needs only the call id
+   and the key, and closes each call on its own, so one call it cannot close
+   does not hold up the others. A call it cannot hang up, such as one whose key
+   can no longer be read, is retired as abandoned once it is an hour old, by
+   which time the provider has ended it.
 4. **Shutdown.** A server told to stop hangs up its own calls before it goes.
 5. **The browser** closes its peer connection when the tab is hidden for good
    (`pagehide`) or the socket closes. That is a convenience; the four above are
@@ -250,10 +278,12 @@ server's job, on every path:
 ## Reconnecting
 
 A dropped connection gets **one automatic retry within 10 seconds**. The new
-connection is accepted only for the same person, agent and conversation, and
-only within 10 seconds of the previous one ending; it ends the previous one if
-it is still half-open. Time and budget carry over: a reconnect continues the
-call's clock rather than restarting it.
+connection is accepted only for the same person, agent and conversation, only
+with the resume token the previous connection was given when it was set up, and
+only within 10 seconds of the previous one being closed. The server keeps only
+a hash of that token. A reconnect ends the previous connection if it is still
+half-open, and counts it as ending at its last heartbeat. Time and budget carry
+over: a reconnect continues the call's clock rather than restarting it.
 
 The new session starts from the turns saved so far, as **text**, so nothing is
 repeated, no tool runs twice and the audio is not billed again. When those turns
@@ -274,8 +304,10 @@ chain as one call, with every connection's time and cost summed.
 
 Each turn is saved the moment it finishes, as an ordinary message in the
 conversation: the caller's words from the input transcript, the agent's from
-what it said. Tool calls appear inline, as in text chat. A crash loses at most
-the turn in progress, and a reconnect cannot save a turn twice.
+what it said. Tool calls appear inline, as in text chat; a tool that asked the
+model to try again is saved as failed, with a generic notice rather than the
+tool's own error text. A crash loses at most the turn in progress, and a
+reconnect cannot save a turn twice.
 
 When you talk over the agent, its answer is cut to what you heard and marked as
 interrupted. Over the relay the server knows exactly what was played. Over

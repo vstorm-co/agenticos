@@ -1,5 +1,6 @@
 """Calls a dead process left on the provider's bill (#54, Q3)."""
 
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
@@ -36,18 +37,43 @@ def _row(**overrides):
     return SimpleNamespace(**values)
 
 
-async def _reap(rows, *, hung=True):
+class _Sessions:
+    """A session factory that counts what each session did: committed, or rolled back."""
+
+    def __init__(self) -> None:
+        self.committed = 0
+        self.rolled_back = 0
+
+    @asynccontextmanager
+    async def __call__(self):
+        try:
+            yield MagicMock()
+        except Exception:
+            self.rolled_back += 1
+            raise
+        self.committed += 1
+
+
+async def _reap(rows, *, hung=True, claimed=None, sessions=None):
+    by_id = {row.id: row for row in rows}
     with (
         patch(f"{_M}.voice_call_repo.list_unhung", AsyncMock(return_value=rows)),
+        patch(
+            f"{_M}.voice_call_repo.claim_unhung",
+            AsyncMock(side_effect=claimed or (lambda db, call_id, **kw: by_id[call_id])),
+        ),
         patch(f"{_M}.voice_call_repo.end", AsyncMock()) as ended,
         patch(f"{_M}.voice_call_repo.mark_hung_up", AsyncMock()) as marked,
-        patch(f"{_M}.hang_up_row", AsyncMock(return_value=hung)) as hang,
+        patch(
+            f"{_M}.hang_up_row",
+            AsyncMock(side_effect=hung if callable(hung) else lambda db, row: hung),
+        ) as hang,
         patch(f"{_M}.agent_run_repo.close_voice_run", AsyncMock(return_value=True)) as closed,
         patch(
             f"{_M}.agent_run_repo.expire_pending_approvals", AsyncMock(return_value=1)
         ) as expired,
     ):
-        count = await VoiceCallReaper(MagicMock()).reap(now=_NOW)
+        count = await VoiceCallReaper(sessions or _Sessions()).reap(now=_NOW)
     return count, SimpleNamespace(
         ended=ended, marked=marked, hang=hang, closed=closed, expired=expired
     )
@@ -114,18 +140,17 @@ async def test_a_call_that_cannot_be_hung_up_yet_is_retried_within_the_hour():
 
 
 @pytest.mark.parametrize("reaped", [0, 2])
-async def test_the_sweep_runs_the_reaper_on_a_session_of_its_own(reaped):
+async def test_the_sweep_runs_the_reaper_on_sessions_of_its_own(reaped):
     from app.worker.tasks.voice_tasks import voice_call_sweep_flow
 
     reaper = MagicMock(reap=AsyncMock(return_value=reaped))
     with (
         patch("app.worker.tasks.voice_tasks.get_worker_db_context") as ctx,
-        patch("app.worker.tasks.voice_tasks.VoiceCallReaper", return_value=reaper),
+        patch("app.worker.tasks.voice_tasks.VoiceCallReaper", return_value=reaper) as made,
     ):
-        ctx.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
-        ctx.return_value.__aexit__ = AsyncMock(return_value=False)
         assert await voice_call_sweep_flow() == reaped
 
+    assert made.call_args.args == (ctx,)
     reaper.reap.assert_awaited_once()
 
 
@@ -134,3 +159,34 @@ async def test_a_call_with_no_run_left_is_still_ended_and_hung_up():
     assert count == 1
     seen.ended.assert_awaited_once()
     seen.closed.assert_not_awaited()
+
+
+async def test_a_row_that_cannot_be_closed_does_not_stop_the_sweep_or_undo_the_others():
+    """Each row commits on its own: a raise on one rolls back that row only, and the
+    rows after it are still hung up (RR-c01)."""
+    broken, first, last = _row(), _row(), _row()
+
+    def hang(db, row):
+        if row is broken:
+            raise RuntimeError("the database went away mid-row")
+        return True
+
+    sessions = _Sessions()
+    count, seen = await _reap([first, broken, last], hung=hang, sessions=sessions)
+
+    assert count == 2
+    assert {call.args[1] for call in seen.marked.await_args_list} == {first.id, last.id}
+    # The listing's session, the two closed rows' - and the broken row's, rolled back.
+    assert (sessions.committed, sessions.rolled_back) == (3, 1)
+
+
+async def test_a_row_another_sweep_holds_is_skipped():
+    held, free = _row(), _row()
+
+    async def claim(db, call_id, **kw):
+        return None if call_id == held.id else free
+
+    count, seen = await _reap([held, free], claimed=claim)
+
+    assert count == 1
+    assert [call.args[1] for call in seen.hang.await_args_list] == [free]

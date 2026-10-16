@@ -23,6 +23,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import (
@@ -109,6 +110,10 @@ async def finish_run(
     run.cost_is_partial = cost_is_partial
     run.ended_at = ended_at
     run.error = error
+    # Written even when unchanged in memory: another writer may have set it since
+    # the run was loaded - the voice sweep's error on a call whose teardown was
+    # still finishing - and an unchanged attribute is left out of the UPDATE.
+    flag_modified(run, "error")
     # Written on every finish, not only when parking: a run that ended must not
     # keep the state it was parked with, or it can be resumed a second time.
     run.paused_state = paused_state
@@ -1879,10 +1884,12 @@ async def close_voice_run(
     ended_at: datetime,
     error: str | None,
 ) -> bool:
-    """End a voice run the reaper found still running, at the cost its call row recorded (#54).
+    """End a voice run no live process will finish, at the cost its call row recorded (#54).
 
-    Unscoped like `fail_stale_runs`: the reaper has no tenant. Only a run still
-    `running` is touched, so a run its own `finish` closed is never rewritten.
+    The sweep's, for a call whose process died, and a reconnect's, for the
+    connection it took over (`close_orphaned`). Unscoped like `fail_stale_runs`:
+    the sweep has no tenant. Only a run still `running` is touched, so a run its
+    own `finish` closed is never rewritten.
     """
     result = await db.execute(
         sql_update(AgentRun)
@@ -1894,10 +1901,28 @@ async def close_voice_run(
     return result.first() is not None
 
 
-async def expire_pending_approvals(db: AsyncSession, *, run_id: UUID, decided_at: datetime) -> int:
-    """Expire, with no decider, every approval a dead call left pending (#54).
+async def record_live_cost(db: AsyncSession, *, run_id: UUID, cost_usd: Decimal) -> None:
+    """Write a live call's spend so far onto its run, for every other run's budget baseline (#54).
 
-    Unscoped for the same reason as :func:`close_voice_run`; `run_id` names one run.
+    Baselines sum `agent_runs.cost_usd`, and a text run writes it only at its
+    end - seconds later. A call lasts up to fifty minutes, so its heartbeat
+    writes it as it goes. Only while the run is `running`: the run's `finish`
+    writes the final figure, and a heartbeat landing after it must not undo that.
+    """
+    await db.execute(
+        sql_update(AgentRun)
+        .where(AgentRun.id == run_id, AgentRun.status == RunStatus.RUNNING.value)
+        .values(cost_usd=cost_usd)
+    )
+    await db.flush()
+
+
+async def expire_pending_approvals(db: AsyncSession, *, run_id: UUID, decided_at: datetime) -> int:
+    """Expire, with no decider, every approval an ended call left pending (#54).
+
+    The call's teardown, the sweep and a reconnect's takeover each call it once
+    nothing is left to decide them. Unscoped for the same reason as
+    :func:`close_voice_run`; `run_id` names one run.
     """
     result = await db.execute(
         sql_update(ToolApproval)

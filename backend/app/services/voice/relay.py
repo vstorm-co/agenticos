@@ -39,6 +39,7 @@ from collections.abc import Awaitable, Callable
 
 from pydantic_ai.realtime import RealtimeSession
 
+from app.schemas.voice import ClearPlaybackFrame
 from app.services.voice.approvals import SendFrame
 
 MAX_FRAME_BYTES = 32_768
@@ -162,7 +163,7 @@ class AudioRelay:
             await session.interrupt(played_ms=self._ms(played - self._part_start))
         elif profile.get("supports_interruption", False):
             await session.interrupt()
-        await self._send("clear_playback", {})
+        await self._send(ClearPlaybackFrame(type="clear_playback"))
         # The browser drops everything it was sent so far: from its side all of
         # it is behind the playhead now, and its next report says so too.
         self.played_bytes = self._forwarded

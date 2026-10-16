@@ -254,7 +254,7 @@ class TestWhichKeyALevelMayName:
         problem = await self._problem(_secret(kind="azure_openai"))
 
         assert problem is not None
-        assert "needs an API key" in problem
+        assert "an API key is required for speech to text" in problem
 
     async def test_a_key_for_another_provider_is_refused(self):
         problem = await self._problem(_secret(purpose="groq"))

@@ -1772,12 +1772,16 @@ class AgentRegistryService:
         if voice.language is not None and voice.language not in speech_to_text.LANGUAGES:
             problems.append(f"Voice: '{voice.language}' is not a language code calls accept")
         if voice.max_call_seconds is not None:
+            # The platform's own ceiling is the spec field's bound; this is the
+            # organization's, which may be lower.
             organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
-            ceiling = organization.voice_max_call_seconds if organization is not None else 3000
-            if voice.max_call_seconds > ceiling:
+            if (
+                organization is not None
+                and voice.max_call_seconds > organization.voice_max_call_seconds
+            ):
                 problems.append(
                     f"Voice: the longest call is {voice.max_call_seconds} s, and this organization "
-                    f"allows at most {ceiling} s"
+                    f"allows at most {organization.voice_max_call_seconds} s"
                 )
         return problems
 

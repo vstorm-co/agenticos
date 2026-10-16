@@ -4,12 +4,8 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { getAudioContext } from "voice-glow";
 
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
-import {
-  callReducer,
-  initialCall,
-  type CallState,
-  type MicFailure,
-} from "@/lib/voice/call-reducer";
+import { micFailure } from "@/hooks/use-dictation";
+import { callReducer, initialCall, type CallState } from "@/lib/voice/call-reducer";
 import {
   createPcmCapture,
   createPcmPlayer,
@@ -60,8 +56,9 @@ export const RECONNECT_DELAY_MS = 1500;
 
 /**
  * How long after a drop the retry keeps trying to open the resumed socket. The
- * server accepts `resume_of` for 10 s after the previous connection ended; this
- * stops short of it, so the last attempt still lands inside that window.
+ * server accepts `resume_of`, with that connection's `resume_token`, for 10 s
+ * after the previous connection was closed; this stops short of it, so the last
+ * attempt still lands inside that window.
  */
 export const RESUME_WINDOW_MS = 8000;
 
@@ -69,21 +66,16 @@ const MIC_CONSTRAINTS: MediaStreamConstraints = {
   audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
 };
 
-/** The browser's refusal, told apart the way dictation tells it (`use-dictation.ts`). */
-function micFailure(error: unknown): MicFailure {
-  const name = error instanceof Error ? error.name : "";
-  if (name === "NotAllowedError" || name === "SecurityError") return "mic_denied";
-  if (name === "NotFoundError" || name === "OverconstrainedError") return "mic_not_found";
-  return "mic_busy";
-}
-
 /** One connection of a call: a fresh one, or the one automatic retry resuming it. */
 interface Attempt {
   target: VoiceTarget;
   /** Which `start` this belongs to; a later `start` makes every older attempt stale. */
   generation: number;
-  /** The call this connection resumes, and until when the retry keeps trying. */
-  resume: { of: string; until: number } | null;
+  /**
+   * The call this connection resumes, the token its `ready` gave this caller,
+   * and until when the retry keeps trying.
+   */
+  resume: { of: string; token: string; until: number } | null;
 }
 
 export interface VoiceSession {
@@ -138,7 +130,8 @@ export function useVoiceSession(
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const relayRef = useRef<RelayMedia | null>(null);
   const micRef = useRef<MediaStream | null>(null);
-  const callIdRef = useRef<string | null>(null);
+  // What resumes this call after a drop: its id and the token its `ready` gave.
+  const resumableRef = useRef<{ of: string; token: string } | null>(null);
   const conversationRef = useRef<string | null>(null);
   // Cancels the retry waiting to run - its timer and its `online` listener.
   const cancelRetryRef = useRef<(() => void) | null>(null);
@@ -189,18 +182,23 @@ export function useVoiceSession(
     }
   }, []);
 
+  /** Stop the call's media and the microphone: what every way a call ends lets go of. */
+  const releaseMedia = useCallback(() => {
+    closeMedia();
+    micRef.current?.getTracks().forEach((track) => track.stop());
+    micRef.current = null;
+    setLocalStream(null);
+    setRemoteStream(null);
+  }, [closeMedia]);
+
   /** Close the socket without its close handler deciding anything, and the media with it. */
   const closeAll = useCallback(() => {
     cancelRetry();
     const socket = socketRef.current;
     socketRef.current = null;
     socket?.close();
-    closeMedia();
-    micRef.current?.getTracks().forEach((track) => track.stop());
-    micRef.current = null;
-    setLocalStream(null);
-    setRemoteStream(null);
-  }, [cancelRetry, closeMedia]);
+    releaseMedia();
+  }, [cancelRetry, releaseMedia]);
 
   const giveUp = useCallback(() => {
     liveRef.current = false;
@@ -322,7 +320,7 @@ export function useVoiceSession(
             ? { agent_id: target.agentId, conversation_id: conversationRef.current }
             : {}),
           ...(target.kind === "embed" && target.context ? { context: target.context } : {}),
-          ...(resume ? { resume_of: resume.of } : {}),
+          ...(resume ? { resume_of: resume.of, resume_token: resume.token } : {}),
         };
         socket.send(JSON.stringify(start));
         applyTrack(false);
@@ -352,7 +350,7 @@ export function useVoiceSession(
           }
           ready = true;
           if (relayed && relayRef.current === null && !startRelay(socket, frame)) return;
-          callIdRef.current = frame.call_id;
+          resumableRef.current = { of: frame.call_id, token: frame.resume_token };
           // A resumed connection starts unmuted on the server; a caller who
           // muted before the drop is still muted here.
           if (mutedRef.current) {
@@ -369,11 +367,7 @@ export function useVoiceSession(
           // turns still being saved, until the server closes it.
           liveRef.current = false;
           cancelRetry();
-          closeMedia();
-          micRef.current?.getTracks().forEach((track) => track.stop());
-          micRef.current = null;
-          setLocalStream(null);
-          setRemoteStream(null);
+          releaseMedia();
         }
         dispatch({ type: "frame", frame, now: Date.now() });
       };
@@ -390,15 +384,15 @@ export function useVoiceSession(
           scheduleResume(attempt, RECONNECT_DELAY_MS);
           return;
         }
-        const callId = callIdRef.current;
-        if (callId === null || retriedRef.current) {
+        const resumable = resumableRef.current;
+        if (resumable === null || retriedRef.current) {
           giveUp();
           return;
         }
         retriedRef.current = true;
         dispatch({ type: "socket_lost", willRetry: true });
         scheduleResume(
-          { target, generation, resume: { of: callId, until: Date.now() + RESUME_WINDOW_MS } },
+          { target, generation, resume: { ...resumable, until: Date.now() + RESUME_WINDOW_MS } },
           RECONNECT_DELAY_MS,
         );
       };
@@ -411,6 +405,7 @@ export function useVoiceSession(
       closeMedia,
       giveUp,
       mediaFailed,
+      releaseMedia,
       scheduleResume,
       startRelay,
       wsUrl,
@@ -429,17 +424,13 @@ export function useVoiceSession(
     if (socket?.readyState === WebSocket.OPEN) {
       // The server ends the call and closes the socket; its `ended` frame follows.
       socket.send(JSON.stringify({ type: "end" } satisfies VoiceClientFrame));
-      closeMedia();
-      micRef.current?.getTracks().forEach((track) => track.stop());
-      micRef.current = null;
-      setLocalStream(null);
-      setRemoteStream(null);
+      releaseMedia();
     } else {
       // Still connecting: never let it open and start a call nobody is on.
       closeAll();
     }
     dispatch({ type: "frame", frame: { type: "ended", reason: "user" }, now: Date.now() });
-  }, [cancelRetry, closeAll, closeMedia]);
+  }, [cancelRetry, closeAll, releaseMedia]);
 
   const start = useCallback(
     async (target: VoiceTarget) => {
@@ -453,7 +444,7 @@ export function useVoiceSession(
       liveRef.current = true;
       retriedRef.current = false;
       mutedRef.current = false;
-      callIdRef.current = null;
+      resumableRef.current = null;
       conversationRef.current = target.kind === "console" ? target.conversationId : null;
       dispatch({ type: "connecting" });
       // No `mediaDevices` at all is a page the browser will not let ask (plain
@@ -504,13 +495,7 @@ export function useVoiceSession(
     [applyTrack, send],
   );
 
-  const pressToTalk = useCallback(
-    (down: boolean) => {
-      applyTrack(down);
-      send({ type: "ptt", state: down ? "down" : "up" });
-    },
-    [applyTrack, send],
-  );
+  const pressToTalk = useCallback((down: boolean) => applyTrack(down), [applyTrack]);
 
   const decide = useCallback(
     (approvalId: string, approve: boolean) =>

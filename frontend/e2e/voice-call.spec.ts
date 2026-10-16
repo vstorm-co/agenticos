@@ -44,6 +44,7 @@ const READY = {
   output_sample_rate: 24000,
   cap_seconds: 600,
   minutes_left: 540,
+  resume_token: "tok1",
 };
 
 type Probe = { __dc?: boolean; __closed?: boolean };
@@ -214,6 +215,61 @@ test("a call shows captions, an approval with the exact arguments, a warning and
   await expect(bar).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "Type a message..." })).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as Probe).__closed)).toBe(true);
+});
+
+test("the end of a call stays above the composer that comes back", async ({ page }) => {
+  await stubPeerConnection(page);
+  await readiness(page, READINESS);
+  await page.route(`**/api/conversations/${READY.conversation_id}/messages`, (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items: [], total: 0, cost: null }),
+    }),
+  );
+  let socket: WebSocketRoute | null = null;
+  await page.routeWebSocket(/\/api\/v1\/ws\/voice/, (ws) => {
+    socket = ws;
+    ws.onMessage(() => {});
+  });
+
+  await chatWithSeededAgent(page);
+  await page.getByRole("button", { name: "Start a voice call" }).click();
+  await expect.poll(() => socket !== null).toBe(true);
+  const send = (frame: object) => (socket as unknown as WebSocketRoute).send(JSON.stringify(frame));
+  send({ type: "answer", sdp: "v=0" });
+  send(READY);
+  const bar = page.getByRole("group", { name: "Voice call" });
+  await expect(bar.getByText("Listening")).toBeVisible();
+  // Longer than the screen, so the transcript is scrolled to its end.
+  for (let turn = 1; turn <= 8; turn++) {
+    send({
+      type: "caption",
+      role: "assistant",
+      turn_id: `c1:${turn}:assistant`,
+      part: 0,
+      final: `Answer ${turn}. `.repeat(60),
+    });
+  }
+  await expect(page.getByTestId("voice-captions-visible")).toContainText("Answer 8.");
+
+  await bar.getByRole("button", { name: "End call" }).first().click();
+  send({ type: "ended", reason: "user" });
+  (socket as unknown as WebSocketRoute).close();
+  const callAgain = page.getByRole("button", { name: "Call again" });
+  await expect(callAgain).toBeVisible();
+
+  // The composer is taller than the call bar it replaces. The transcript makes
+  // room for it and stays at its end: measured 42px short before, with the
+  // summary under the composer.
+  await expect
+    .poll(() =>
+      callAgain.evaluate((button) => {
+        const scroller = button.closest(".overflow-y-auto") as HTMLElement;
+        return Math.round(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight);
+      }),
+    )
+    .toBeLessThanOrEqual(1);
 });
 
 test("an agent without a voice offers the button crossed out with the reason", async ({ page }) => {

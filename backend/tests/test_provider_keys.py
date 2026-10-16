@@ -52,7 +52,9 @@ async def test_an_api_key_is_refused_where_azure_needs_an_azure_key():
         provider="azure",
         feature="voice conversations",
     )
-    assert problem == "'Prod' holds a api_key, and voice conversations need an Azure OpenAI key"
+    assert problem == (
+        "'Prod' holds a api_key, and an Azure OpenAI key is required for voice conversations"
+    )
 
 
 async def test_the_refusal_names_the_feature_and_the_provider():
@@ -62,7 +64,10 @@ async def test_the_refusal_names_the_feature_and_the_provider():
         provider="openai",
         feature="voice conversations",
     )
-    assert problem == "'Prod' is a key for groq, and voice conversations run on openai"
+    assert (
+        problem
+        == "'Prod' is a key for groq, and a key for openai is required for voice conversations"
+    )
 
 
 async def test_a_private_key_is_refused_without_a_publisher():

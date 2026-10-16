@@ -2,10 +2,11 @@
 
 import { Check, Clock, Lock, MessageSquare, Mic, ShieldAlert, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { toolDisplayName } from "@/lib/agent-step-captions";
+import { scrollWithin } from "@/lib/scroll-within";
 import { cn } from "@/lib/utils";
 import type { PendingVoiceApproval, SettledVoiceApproval } from "@/lib/voice/call-reducer";
 import { clock } from "@/lib/voice/clock";
@@ -94,8 +95,19 @@ export function VoiceApprovalCard({
   const tTools = useTranslations("chat.tools");
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
-    ref.current?.scrollIntoView?.({ block: "nearest" });
+    // The section always renders, so the effect always finds it.
+    scrollWithin(ref.current!, "nearest", "auto");
   }, [approval.id]);
+  // The approval a decision was sent for. A second frame for it - a double
+  // click, or Approve then Deny - can be answered `expired` before the first is
+  // answered `approved`, which would settle the card as expired for a tool
+  // that ran.
+  const [sentFor, setSentFor] = useState<string | null>(null);
+  const sent = sentFor === approval.id;
+  const decide = (approve: boolean) => {
+    setSentFor(approval.id);
+    onDecide(approve);
+  };
   const left = Math.max(0, Math.ceil((approval.deadline - now) / 1000));
   return (
     <section
@@ -147,7 +159,8 @@ export function VoiceApprovalCard({
             type="button"
             variant="outline"
             className="min-w-[104px]"
-            onClick={() => onDecide(false)}
+            disabled={sent}
+            onClick={() => decide(false)}
           >
             <X aria-hidden />
             {t("deny")}
@@ -156,7 +169,8 @@ export function VoiceApprovalCard({
             type="button"
             className="min-w-[104px]"
             data-voice-approve
-            onClick={() => onDecide(true)}
+            disabled={sent}
+            onClick={() => decide(true)}
           >
             <Check aria-hidden />
             {t("approve")}

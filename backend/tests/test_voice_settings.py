@@ -188,3 +188,48 @@ def test_a_refusal_carries_its_reason_for_the_client():
         {"reason": "org_off"},
         400,
     )
+
+
+async def test_an_organization_with_no_minutes_cap_is_not_summed_on_every_heartbeat(monkeypatch):
+    """The month's seconds are a SUM over every call; without a cap there is nothing to count against."""
+    summed = AsyncMock(return_value=1234)
+    monkeypatch.setattr("app.services.voice.settings.voice_call_repo.seconds_since", summed)
+    organization = SimpleNamespace(id=uuid4(), voice_monthly_minutes=None)
+
+    left = await VoiceSettingsService(MagicMock()).minutes_left_seconds(organization)
+
+    assert left is None
+    summed.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    ("enabled", "in_chat", "surface", "on"),
+    [
+        (True, True, "web", True),
+        (True, False, "web", False),
+        (True, False, "embed", True),
+        (False, True, "web", False),
+        (False, True, "embed", False),
+    ],
+)
+def test_one_switch_check_decides_the_button_the_start_and_the_heartbeat(
+    enabled, in_chat, surface, on
+):
+    """Written once, so the entry button, a start and a mid-call revocation cannot disagree."""
+    from app.services.voice.settings import voice_switched_on
+
+    organization = SimpleNamespace(voice_conversations_enabled=enabled, voice_in_chat=in_chat)
+    assert voice_switched_on(organization, surface) is on
+    assert voice_switched_on(None, surface) is False
+
+
+@pytest.mark.parametrize(
+    ("version", "status", "runs"),
+    [(uuid4(), "published", True), (None, "published", False), (uuid4(), "archived", False)],
+)
+def test_one_check_decides_whether_an_agent_can_take_a_call(version, status, runs):
+    from app.services.voice.settings import agent_takes_calls
+
+    agent = SimpleNamespace(current_version_id=version, status=status)
+    assert agent_takes_calls(agent) is runs
+    assert agent_takes_calls(None) is False

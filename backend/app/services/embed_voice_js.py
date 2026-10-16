@@ -20,7 +20,8 @@ failing, on the visitor closing the panel and on `pagehide`** - the peer
 connection, the microphone, the audio context and the socket. A peer
 connection left open is an OpenAI call still billing; the server hangs up
 too, but the page does not lean on that. One dropped connection is retried once,
-as `resume_of` the call it continues, within the server's ten-second window.
+as `resume_of` the call it continues, with the `resume_token` its `ready` gave,
+within the server's ten-second window.
 
 `__PUBLIC_KEY__` and `__BASE_URL__` are substituted when it is served. It
 registers itself under its own key, so two widgets on one page each mount their
@@ -77,8 +78,9 @@ VOICE_JS = r"""(function () {
     user: COPY.ended,
     time_limit: "The call reached its time limit.",
     call_limit: "The call reached its time limit.",
-    minutes: "No call minutes are left this month. Please type your message instead.",
-    minutes_exhausted: "No call minutes are left this month. Please type your message instead.",
+    // The organization's monthly minutes are not the visitor's to know about.
+    minutes: "This assistant can't take calls right now. Please type your message instead.",
+    minutes_exhausted: "This assistant can't take calls right now. Please type your message instead.",
     budget: "This assistant can't take calls right now. Please type your message instead.",
     line_busy: "All lines are busy. Try again in a few minutes, or type your message.",
     voice_off: "Calls are switched off here.",
@@ -515,6 +517,8 @@ VOICE_JS = r"""(function () {
       if (frame.transport !== c.transport) { fail(c); return; }
       if (frame.transport === "relay" && !startRelay(c, frame)) { hangUp(c, false); say(COPY.unsupported, true); return; }
       c.callId = frame.call_id;
+      // What a reconnect of this connection must present: the call id alone is not proof.
+      c.resumeToken = frame.resume_token;
       c.reconnecting = false;
       if (!c.startedAt) c.startedAt = Date.now();
       // On a resumed call the server sends what is left of the call's time.
@@ -585,7 +589,7 @@ VOICE_JS = r"""(function () {
         socket.onopen = function () {
           var start = { type: "start" };
           if (sdp) start.sdp_offer = sdp;
-          if (resumeOf) start.resume_of = resumeOf;
+          if (resumeOf) { start.resume_of = resumeOf; start.resume_token = c.resumeToken; }
           var context = pageContext();
           if (context) start.context = context;
           socket.send(JSON.stringify(start));

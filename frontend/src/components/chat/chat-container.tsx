@@ -55,6 +55,7 @@ import { useConversations } from "@/hooks";
 import { useSlashCommands } from "@/hooks";
 import { useFollowContent } from "@/hooks/use-follow-content";
 import { useChanged } from "@/hooks/use-changed";
+import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
 import { Beam } from "@/components/ui/beam";
 import { useMicrophone, VoiceGlow } from "@/components/ui/voice-glow";
 import {
@@ -475,6 +476,7 @@ export function ChatContainer() {
       onCancelQueued={cancelQueued}
       transcriptRef={transcriptRef}
       scrollContainerRef={scrollContainerRef}
+      userScrolledUpRef={userScrolledUpRef}
       pendingApproval={pendingApproval}
       onResumeDecisions={sendResumeDecisions}
       pendingQuestions={pendingQuestions}
@@ -550,6 +552,8 @@ interface ChatUIProps {
   /** The transcript's content, whose growth the scroller follows. */
   transcriptRef: React.RefObject<HTMLDivElement | null>;
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+  /** Whether the reader scrolled up, and the scroller should stay where they left it. */
+  userScrolledUpRef: React.RefObject<boolean>;
   pendingApproval?: PendingApproval | null;
   onResumeDecisions?: (decisions: Decision[]) => void;
   pendingQuestions?: AskUserQuestion[] | null;
@@ -595,6 +599,7 @@ function ChatUI({
   onCancelQueued,
   transcriptRef,
   scrollContainerRef,
+  userScrolledUpRef,
   pendingApproval,
   onResumeDecisions,
   pendingQuestions,
@@ -716,18 +721,12 @@ function ChatUI({
   // button - but only if it was lost with the bar, never taken from where the
   // person has since put it.
   const callButtonRef = useRef<HTMLSpanElement>(null);
-  const wasOnCall = useRef(false);
   const continueInText = useRef(false);
-  useEffect(() => {
-    if (wasOnCall.current && !onCall) {
-      if (continueInText.current) dockRef.current?.querySelector("textarea")?.focus();
-      else if (document.activeElement === document.body || document.activeElement === null) {
-        callButtonRef.current?.querySelector("button")?.focus();
-      }
-      continueInText.current = false;
-    }
-    wasOnCall.current = onCall;
-  }, [onCall]);
+  useFocusAfterCall(onCall, (lost) => {
+    if (continueInText.current) dockRef.current?.querySelector("textarea")?.focus();
+    else if (lost) callButtonRef.current?.querySelector("button")?.focus();
+    continueInText.current = false;
+  });
   const endForText = () => {
     continueInText.current = true;
     voice.end();
@@ -806,6 +805,15 @@ function ChatUI({
     setDockHeight(dock.offsetHeight);
     return () => observer.disconnect();
   }, []);
+  // A taller dock is more padding under the last message, and padding is not
+  // content, so nothing follows it: when the call bar gave way to the composer
+  // at the end of a call, the last message was left under the composer. A reader
+  // at the bottom stays there; one who scrolled up is left where they are.
+  useLayoutEffect(() => {
+    const scroller = scrollContainerRef.current;
+    if (scroller === null || userScrolledUpRef.current) return;
+    scroller.scrollTop = scroller.scrollHeight;
+  }, [dockHeight, scrollContainerRef, userScrolledUpRef]);
   return (
     <div className="flex h-full w-full">
       {/* The column no longer carries the width. The scroller does, and the

@@ -1,5 +1,5 @@
 ---
-source_sha: "289ca2672118"
+source_sha: "4f30765a1a54"
 ---
 
 # La API HTTP { #the-http-api }
@@ -147,9 +147,8 @@ la sesión, así que una llamada no sobrevive a un cierre de sesión.
 
 | Frame | Campos | Cuándo |
 |---|---|---|
-| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` (una reconexión), `context` (las variables de un embed) | Primero, en 10 segundos como mucho |
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` y `resume_token` (una reconexión), `context` (las variables de un embed) | Primero, en 10 segundos como mucho |
 | `approval` | `id`, `decision` (`approve` o `deny`) | Al decidir una aprobación que la llamada está esperando |
-| `ptt` | `state` (`down` o `up`) | Push-to-talk |
 | `mute` | `muted` | El relay: el micrófono silenciado |
 | `played` | `bytes` | El relay: cuánto audio del agent se ha reproducido |
 | `end` | - | Colgar |
@@ -160,7 +159,7 @@ la sesión, así que una llamada no sobrevive a un cierre de sesión.
 | Frame | Campos | Significa |
 |---|---|---|
 | `answer` | `sdp` | WebRTC: la respuesta del provider para la conexión peer del navegador |
-| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left` | La llamada está establecida |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left`, `resume_token` | La llamada está establecida. `resume_token` se envía solo aquí, solo a quien llama; una reconexión lo devuelve |
 | `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Quién habla, o qué está haciendo el agent |
 | `caption` | `role`, `turn_id`, `part`, y uno de `delta` (añadir), `text` (sustituir por el texto revisado hasta ese momento) o `final` | Un subtítulo en vivo |
 | `turn_saved` | `message` | Un turno terminado, como el mensaje con el que se guardó; sustituye a los subtítulos que llevan su `turn_id` |
@@ -174,14 +173,41 @@ la sesión, así que una llamada no sobrevive a un cierre de sesión.
 | `ended` | `reason`, `message` | La llamada ha terminado |
 | *binario* | PCM de 16 bits a la frecuencia de salida del modelo | El relay: el audio del agent |
 
+**A un visitante de un widget o de una página alojada se le dice menos.** Su
+`ready` no incluye `run_id`, `minutes_left` llega como `null`, y `cap_seconds`
+es el límite propio de la llamada - la llamada más larga de la organización, la
+del agent o lo que queda de una llamada que se reanuda - en lugar de uno que
+revele los minutos de la organización. El servidor sigue terminando la llamada
+en el límite real. Los frames de herramientas siguen los interruptores
+`show_tool_steps` y `show_tool_results` del embed, como los de una respuesta
+escrita. Sin pasos de herramientas no se envía ningún frame `tool`,
+`tool_running` llega como `thinking` y `turn_saved` no lleva llamadas a
+herramientas. Sin resultados de herramientas, cada llamada a herramienta de
+`turn_saved` tiene `args` vacíos y un `result` `null`, y `approval_unavailable`
+llega con `args` vacíos.
+
+**Una reconexión demuestra que la llamada es suya.** Un `start` con `resume_of`
+debe llevar también el `resume_token` del `ready` de esa conexión. Sin él, o
+con uno incorrecto, la reconexión se rechaza como `resume_refused` y la llamada
+que nombra no se toca. El servidor guarda solo un hash del token.
+
 Un socket que no envía `start` en 10 segundos recibe `ended` con `no_start`.
 Una llamada que no va a empezar responde con `ended` y un `reason` estable:
 `voice_off`, `no_agent`, `forbidden`, `not_configured`, `bad_offer`,
 `data_channel`, `resume_refused`, `minutes_exhausted`, `call_limit`,
 `not_priced`, `budget`, `busy` o `line_busy`, con un `message` que se puede
-mostrar. Una llamada que se llegó a mantener termina con `user`, `time_limit`,
-`budget`, `minutes`, `disconnected`, `revoked`, `shutdown` o `error`. Ningún
-frame lleva nunca una credencial del provider.
+mostrar. Un inicio que falla por cualquier otro motivo responde con `ended` y
+`error`. Un visitante rechazado como `not_configured`, `not_priced`,
+`minutes_exhausted` o `budget` recibe el mismo motivo con el mensaje "Calls are
+not available right now.", porque el mensaje completo está escrito para el
+operador del agent.
+
+Una llamada que se llegó a mantener termina con `user`, `time_limit`, `budget`,
+`minutes`, `disconnected`, `revoked`, `shutdown` o `error`. Termina con
+`minutes` cuando los minutos del mes fijaron su límite, y con `time_limit`
+cuando lo fijó el ajuste de la llamada más larga. La llamada de un visitante termina con
+`revoked` cuando su embed se pausa, se le desactivan las llamadas o se apunta a
+otro agent. Ningún frame lleva nunca una credencial del provider.
 
 La acompañan cuatro rutas HTTP:
 

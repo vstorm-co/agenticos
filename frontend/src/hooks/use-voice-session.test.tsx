@@ -137,6 +137,7 @@ const READY: VoiceServerFrame = {
   output_sample_rate: 24000,
   cap_seconds: 600,
   minutes_left: 540,
+  resume_token: "tok1",
 };
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -350,12 +351,14 @@ describe("useVoiceSession", () => {
     const second = FakeSocket.last();
     expect(second).not.toBe(first);
     act(() => second.open());
+    // The call's id alone proves nothing: the token its `ready` gave this caller does.
     expect(second.sent[0]).toMatchObject({
       type: "start",
       resume_of: "c1",
+      resume_token: "tok1",
       conversation_id: "conv1",
     });
-    act(() => second.receive({ ...READY, call_id: "c2" }));
+    act(() => second.receive({ ...READY, call_id: "c2", resume_token: "tok2" }));
     expect(result.current.call.phase).toBe("live");
 
     // One logical retry: a resumed call that drops again is over.
@@ -476,6 +479,9 @@ describe("useVoiceSession", () => {
     for (let tries = 0; tries < 3; tries++) {
       await act(() => vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS));
       expect(FakeSocket.last().protocols).toEqual(["access_token.jwt", "voice"]);
+      // Every try resumes with the token of the connection that dropped.
+      act(() => FakeSocket.last().open());
+      expect(FakeSocket.last().sent[0]).toMatchObject({ resume_of: "c1", resume_token: "tok1" });
       act(() => FakeSocket.last().drop());
       expect(viewState(result.current.call)).toBe("reconnecting");
     }
@@ -1038,12 +1044,13 @@ describe("useVoiceSession", () => {
     );
     act(() => FakeSocket.last().open());
     expect(micTrack.enabled).toBe(false);
+    const before = FakeSocket.last().sent.length;
     act(() => result.current.pressToTalk(true));
     expect(micTrack.enabled).toBe(true);
-    expect(FakeSocket.last().sent.at(-1)).toEqual({ type: "ptt", state: "down" });
     act(() => result.current.pressToTalk(false));
     expect(micTrack.enabled).toBe(false);
-    expect(FakeSocket.last().sent.at(-1)).toEqual({ type: "ptt", state: "up" });
+    // The browser alone gates the microphone; the server has nothing to hear.
+    expect(FakeSocket.last().sent.slice(before)).toEqual([]);
     // Switching back to hands-free opens it again.
     act(() => useVoiceCallStore.setState({ pushToTalk: false }));
     expect(micTrack.enabled).toBe(true);

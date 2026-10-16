@@ -193,3 +193,51 @@ async def test_a_voice_run_never_opens_a_sandbox(runner_with_mocks):
 
     opened_spec = runner_with_mocks.opened.call_args.args[0]
     assert opened_spec.capabilities == []
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("voice", "contexts"),
+    [
+        (True, ["worker", "worker", "pooled", "pooled"]),
+        (False, ["worker", "worker", "worker", "worker"]),
+    ],
+)
+async def test_a_calls_start_reads_its_baselines_off_the_pool_and_its_heartbeats_on_it(
+    runner_with_mocks, voice, contexts
+):
+    """A call re-reads them every heartbeat: a new engine and connection each time does not
+    scale. Its first read is the start's, made while the starter's own transaction holds a
+    pooled connection: a second checkout from that pool there waits on a pool the starts
+    themselves exhaust (RR-q14)."""
+    opened: list[str] = []
+
+    def _context(name: str):
+        @asynccontextmanager
+        async def context():
+            opened.append(name)
+            yield MagicMock()
+
+        return context
+
+    with (
+        patch("app.services.agent_runner.get_db_context", _context("pooled")),
+        patch("app.services.agent_runner.get_worker_db_context", _context("worker")),
+        patch(
+            "app.services.agent_runner.agent_run_repo.sum_cost_since",
+            new=AsyncMock(return_value=Decimal("1")),
+        ),
+        patch(
+            "app.services.agent_runner.organization_monthly_spend",
+            new=AsyncMock(return_value=Decimal("2")),
+        ),
+    ):
+        await runner_with_mocks.service.prepare(
+            _ctx(), uuid.uuid4(), voice=_voice() if voice else None
+        )
+        kwargs = runner_with_mocks.build_agent.call_args.kwargs
+        for _ in range(2):  # the start's read, then a heartbeat's
+            assert await kwargs["agent_period_spend"]() == Decimal("1")
+            assert await kwargs["org_period_spend"]() == Decimal("2")
+
+    assert opened == contexts

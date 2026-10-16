@@ -48,7 +48,7 @@ async def voice_readiness(
     readiness = await voice.readiness(
         organization_id=ctx.organization_id, agent=agent, surface=surface
     )
-    return VoiceReadinessRead(**readiness.__dict__)
+    return VoiceReadinessRead.model_validate(readiness)
 
 
 @router.get(

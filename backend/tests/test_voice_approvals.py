@@ -52,8 +52,11 @@ def _requests(tool_call_id: str, args: dict) -> DeferredToolRequests:
 def _bridge(channel, *, decider=SimpleNamespace(), timeout=5.0):
     frames: list[tuple[str, dict]] = []
 
-    async def send(kind, payload):
-        frames.append((kind, payload))
+    async def send(frame):
+        # As the wire carries it: the kind, then only the fields the frame was built with.
+        frames.append(
+            (frame.type, frame.model_dump(mode="json", exclude_unset=True, exclude={"type"}))
+        )
 
     bridge = VoiceApprovalBridge(
         sessions=_sessions,
@@ -167,8 +170,11 @@ async def test_hanging_up_while_waiting_expires_the_approval(_rows):
 async def test_a_bridge_that_was_never_attached_runs_nothing():
     frames: list[tuple[str, dict]] = []
 
-    async def send(kind, payload):
-        frames.append((kind, payload))
+    async def send(frame):
+        # As the wire carries it: the kind, then only the fields the frame was built with.
+        frames.append(
+            (frame.type, frame.model_dump(mode="json", exclude_unset=True, exclude={"type"}))
+        )
 
     bridge = VoiceApprovalBridge(
         sessions=_sessions, decider=SimpleNamespace(), send=send, heard=lambda: None
@@ -278,3 +284,29 @@ async def test_hanging_up_while_a_decision_is_being_written_leaves_it_to_the_dec
         await handler
     assert await decision is True
     _rows.decided.assert_awaited_once()
+
+
+async def test_a_second_decision_on_one_this_call_is_deciding_is_taken_as_said_not_expired(_rows):
+    """A double click, or approve then deny: the first decision wins, and nothing calls it expired."""
+
+    async def slow_write(*args, **kwargs):
+        await asyncio.sleep(0.05)
+
+    _rows.decided.side_effect = slow_write
+    channel = _channel()
+    await _park(channel, "call_1", {"a": 1})
+    bridge, frames = _bridge(channel)
+    handler = asyncio.create_task(bridge(MagicMock(), _requests("call_1", {"a": 1})))
+    await asyncio.sleep(0)
+    approval_id = frames[0][1]["id"]
+
+    first = asyncio.create_task(bridge.decide(approval_id, approve=True))
+    await asyncio.sleep(0)
+    again = await bridge.decide(approval_id, approve=False)
+    results = await handler
+
+    assert again is True and await first is True
+    assert isinstance(results.approvals["call_1"], ToolApproved)
+    _rows.decided.assert_awaited_once()
+    settled = [payload["outcome"] for kind, payload in frames if kind == "approval_settled"]
+    assert settled == ["approved"]

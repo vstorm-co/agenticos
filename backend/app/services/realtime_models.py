@@ -92,14 +92,14 @@ class RealtimeProvider:
     models: tuple[RealtimeModelEntry, ...]
 
 
-def providers() -> tuple[RealtimeProvider, ...]:
-    """Every provider the catalog offers that this deployment can reach.
+def providers_in(entries: tuple[_CatalogEntry, ...]) -> tuple[RealtimeProvider, ...]:
+    """Every provider in these catalog entries that this deployment can reach.
 
     An entry is dropped where the platform does not know the provider or it
     lists no models; a GPT-Live model is dropped by name.
     """
     found: list[RealtimeProvider] = []
-    for entry in CATALOG:
+    for entry in entries:
         spec = PROVIDERS.get(entry.provider)
         models = tuple(m for m in entry.models if not m.id.startswith(_EXCLUDED_PREFIXES))
         if spec is None or not models:
@@ -114,6 +114,15 @@ def providers() -> tuple[RealtimeProvider, ...]:
             )
         )
     return tuple(found)
+
+
+_OFFERED = providers_in(CATALOG)
+"""Built once: the catalog file and the platform's providers are fixed for the process."""
+
+
+def providers() -> tuple[RealtimeProvider, ...]:
+    """Every provider the catalog offers that this deployment can reach."""
+    return _OFFERED
 
 
 def by_provider(provider: str) -> RealtimeProvider | None:

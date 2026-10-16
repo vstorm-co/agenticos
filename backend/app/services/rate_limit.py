@@ -50,6 +50,7 @@ from starlette.requests import HTTPConnection
 
 from app.clients.redis import RedisClient
 from app.core.config import settings
+from app.core.logging import one_line
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +150,9 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     limited at all", so it is a warning rather than a debug.
     """
     if _redis is None:
-        logger.warning("Rate limiting not configured - %s reached unmetered by %s", surface, caller)
+        logger.warning(
+            "Rate limiting not configured - %s reached unmetered by %s", surface, one_line(caller)
+        )
         return Decision(allowed=True, retry_after_seconds=0, metered=False)
 
     key = f"ratelimit:{surface}:{_bounded(caller)}"

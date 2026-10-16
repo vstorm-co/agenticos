@@ -89,6 +89,7 @@ async def _call(
         secret_id=None,
         worker_id="host:1",
         resume_of=resume_of,
+        resume_token_hash="0" * 64,
         started_at=started,
     )
     if heartbeat is not None:

@@ -1,5 +1,5 @@
 ---
-source_sha: "06c2216f05dc"
+source_sha: "bac8a98baeb9"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -883,11 +883,13 @@ medidor de nivel en el color de acento del widget, el estado, el tiempo frente a
 límite, Mute y End -, sin push-to-talk ni tarjeta de aprobación. Los subtítulos
 aparecen en la lista de mensajes y dejan paso a los turnos guardados, y un
 rechazo, un límite alcanzado o la línea ocupada se muestran en una sola línea
-bajo la barra. End, cerrar el panel, salir de la página o una conexión que no
-llega a establecerse terminan la llamada y liberan el micrófono, el audio y la
-conexión; si la conexión se cae a mitad de llamada, se reintenta una vez, en un
-plazo de ocho segundos. Los textos de llamada del widget están en inglés, como el
-resto del widget.
+bajo la barra.
+
+End, cerrar el panel, salir de la página o una conexión que no llega a
+establecerse terminan la llamada y liberan el micrófono, el audio y la conexión;
+si la conexión se cae a mitad de llamada, se reintenta una vez, en un plazo de
+ocho segundos. Los textos de llamada del widget están en inglés, como el resto
+del widget.
 
 **Un visitante no puede aprobar nada.** Las herramientas que necesitan una aprobación
 quedan fuera por completo de la llamada de un visitante, así que el agent nunca
@@ -895,6 +897,19 @@ recurre a una; dice claramente cuándo no puede hacer algo ahí. Una llamada
 recibe también la nota de ubicación del embed y las variables declaradas de la
 página, exactamente igual que un mensaje escrito, así que el agent se comporta
 igual en ambos casos.
+
+**A un visitante se le dice solo lo que un visitante necesita.** Los
+interruptores de [qué ve el visitante del
+trabajo](#what-the-visitor-sees-of-the-work) filtran los frames de una llamada
+igual que filtran las respuestas escritas: sin *Qué está haciendo el agent* un
+visitante no sabe que se ejecutó una herramienta, y sin *Qué devolvió cada paso*
+un paso no lleva con qué se llamó a la herramienta ni lo que volvió. El límite
+que ve un visitante es el límite propio de la llamada, nunca los minutos que le
+quedan a la organización, y un rechazo por la configuración, el precio, los
+minutos o el budget del operador dice solo que las llamadas no están disponibles
+ahora. Pausar el embed, desactivar sus llamadas o apuntarlo a otro agent termina
+las llamadas en él en un heartbeat. Los frames están en [la página de la
+API](api.md#voice-calls).
 
 ### El socket de llamada { #the-call-socket }
 

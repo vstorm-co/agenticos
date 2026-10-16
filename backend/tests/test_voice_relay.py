@@ -48,8 +48,11 @@ def _relay(*, socket_open=True, clock=None):
             out.append(data)
         return socket_open
 
-    async def send(kind, payload):
-        frames.append((kind, payload))
+    async def send(frame):
+        # As the wire carries it: the kind, then only the fields the frame was built with.
+        frames.append(
+            (frame.type, frame.model_dump(mode="json", exclude_unset=True, exclude={"type"}))
+        )
 
     relay = AudioRelay(
         send_bytes=send_bytes,

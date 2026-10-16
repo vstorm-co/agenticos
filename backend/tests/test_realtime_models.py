@@ -98,17 +98,20 @@ def test_a_model_outside_the_catalog_is_not_offered():
     assert realtime_models.offered("anthropic", "gpt-realtime") is None
 
 
-def test_a_provider_the_platform_does_not_know_or_with_only_gpt_live_is_not_offered(monkeypatch):
+def test_a_provider_the_platform_does_not_know_or_with_only_gpt_live_is_not_offered():
     from dataclasses import replace
 
     openai = next(entry for entry in realtime_models.CATALOG if entry.provider == "openai")
     gpt_live = replace(openai.models[0], id="gpt-live-1")
-    monkeypatch.setattr(
-        realtime_models,
-        "CATALOG",
-        (
-            replace(openai, provider="nobody"),
-            replace(openai, models=(gpt_live,)),
-        ),
+    assert (
+        realtime_models.providers_in(
+            (replace(openai, provider="nobody"), replace(openai, models=(gpt_live,)))
+        )
+        == ()
     )
-    assert realtime_models.providers() == ()
+
+
+def test_the_offering_is_read_from_the_catalog_once_not_on_every_lookup():
+    """Every key check, readiness read and call start looks a provider up; the catalog
+    and the platform's providers are fixed for the process, so neither is re-read."""
+    assert realtime_models.providers() is realtime_models.providers()

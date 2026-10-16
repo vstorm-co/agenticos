@@ -67,7 +67,7 @@ class VoiceCall(Base, TimestampMixin):
     # SET NULL, not CASCADE: deleting an agent must neither give back the month's
     # minutes its calls used nor hide a live call from the reaper.
     agent_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="SET NULL"), nullable=True
+        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="SET NULL"), nullable=True, index=True
     )
     # SET NULL: the run is the money's record, the call row the minutes'. Either outlives the other.
     run_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -80,10 +80,18 @@ class VoiceCall(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
+        UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
+    # Indexed whole, not only its open calls: the embed's open-call count needs
+    # the open ones, and an embed's delete (SET NULL) needs every one.
     embed_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("agent_embeds.id", ondelete="SET NULL"), nullable=True
+        UUID(as_uuid=True),
+        ForeignKey("agent_embeds.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     surface: Mapped[str] = mapped_column(String(8), nullable=False)
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -94,11 +102,18 @@ class VoiceCall(Base, TimestampMixin):
         UUID(as_uuid=True),
         ForeignKey("organization_secrets.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
     worker_id: Mapped[str] = mapped_column(String(128), nullable=False)
     resume_of: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("voice_calls.id", ondelete="SET NULL"), nullable=True
+        UUID(as_uuid=True),
+        ForeignKey("voice_calls.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
+    # The hash of the token this connection's `ready` gave its caller, which a
+    # reconnect must present: the call id alone is not proof of being on the call.
+    resume_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

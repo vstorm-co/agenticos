@@ -44,5 +44,7 @@ async def test_a_worker_reaps_what_its_previous_life_left_on_start():
         reaper_cls.return_value.reap = AsyncMock(return_value=2)
         await _reap_voice_calls()
 
-    assert reaper_cls.call_args.args == (session,)
+    # A session per row, not one for the pass: one row that cannot be closed
+    # must not roll back the rows before it (RR-c01).
+    assert reaper_cls.call_args.args == (context,)
     reaper_cls.return_value.reap.assert_awaited_once()

@@ -37,18 +37,19 @@ class UsageMeter:
         *,
         entry: RealtimeModelEntry,
         model_name: str,
-        price_as: str | None = None,
+        provider: str,
+        price_here: bool = False,
     ) -> None:
-        """`price_as` names the provider whose price list prices `model_name` when the
-        session cannot (an Azure deployment: `"openai"`)."""
+        """`provider` names the price list that prices `model_name` (`"openai"` for an
+        Azure deployment). `price_here` prices every response here rather than by the
+        session, which cannot price a deployment named by its owner."""
         self._ledger = ledger
         self._entry = entry
         self._model_name = model_name
-        self._price_as = price_as
+        self._provider = provider
+        self._price_here = price_here
         self._last = RunUsage()
         self._cost = Decimal(0)
-        self._input = 0
-        self._output = 0
         self._seconds = 0.0
         self._per_minute = entry.pricing.kind == "per_minute"
 
@@ -57,27 +58,45 @@ class UsageMeter:
         return self._ledger.total_usd
 
     def book_response(self, usage: RunUsage) -> Decimal:
-        """Book what the session added since the last booking; returns that cost."""
-        if self._price_as is not None:
-            return self._book_priced_here(usage)
-        cost = Decimal(0) if self._per_minute else (usage.cost or Decimal(0)) - self._cost
-        input_tokens = (usage.input_tokens or 0) - self._input
-        output_tokens = (usage.output_tokens or 0) - self._output
-        if cost <= 0 and input_tokens <= 0 and output_tokens <= 0:
+        """Book what the session added since the last booking; returns that cost.
+
+        A token-priced response the session left unpriced - the server can report
+        serving a model by a name the price list lacks - is priced here, and the
+        price written back to the session's usage so its `cost_limit` sees it; one
+        neither can price is booked as unpriced, which marks the run's total as a
+        floor. Tokens are never booked as a priced $0.
+        """
+        added = usage - self._last
+        if added.input_tokens <= 0 and added.output_tokens <= 0 and not added.cost:
             return Decimal(0)
-        self._cost = usage.cost or Decimal(0)
-        self._input = usage.input_tokens or 0
-        self._output = usage.output_tokens or 0
+        priced = True
+        if self._per_minute:
+            cost = Decimal(0)
+        elif not self._price_here and added.cost is not None and added.cost > 0:
+            cost = added.cost
+        else:
+            price = price_request(added, self._model_name, self._provider)
+            cost = price or Decimal(0)
+            priced = price is not None
+            # What was priced here is what the session's `cost_limit` must see. An
+            # Azure session priced the deployment at nothing (or by a name it
+            # guessed), so its total is replaced; another's misses only this response.
+            if self._price_here:
+                self._cost += cost
+                usage.cost = self._cost
+            else:
+                usage.cost = (usage.cost or Decimal(0)) + cost
+        self._last = deepcopy(usage)
         self._ledger.book(
             SpendEntry(
                 model_name=self._model_name,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                cost_usd=max(cost, Decimal(0)),
-                priced=True,
+                input_tokens=max(added.input_tokens, 0),
+                output_tokens=max(added.output_tokens, 0),
+                cost_usd=cost,
+                priced=priced,
             )
         )
-        return max(cost, Decimal(0))
+        return cost
 
     def attach(self, usage: RunUsage) -> None:
         """Start a session's cost at what this meter has booked, when it prices here.
@@ -87,33 +106,8 @@ class UsageMeter:
         enforced. It is - from the first booking on - so the session starts
         from a known zero instead.
         """
-        if self._price_as is not None and usage.cost is None:
+        if self._price_here and usage.cost is None:
             usage.cost = self._cost
-
-    def _book_priced_here(self, usage: RunUsage) -> Decimal:
-        added = usage - self._last
-        if added.input_tokens <= 0 and added.output_tokens <= 0:
-            return Decimal(0)
-        price = price_request(added, self._model_name, self._price_as)
-        # The starter refuses a model it cannot price; a price list that lost it
-        # since is booked as unpriced, which marks the run's total as a floor.
-        cost = price or Decimal(0)
-        self._last = deepcopy(usage)
-        self._cost += cost
-        # The session priced the deployment at nothing (or by a name it guessed);
-        # the total priced here is what its `cost_limit` must see.
-        usage.cost = self._cost
-        self._last.cost = self._cost
-        self._ledger.book(
-            SpendEntry(
-                model_name=self._model_name,
-                input_tokens=added.input_tokens,
-                output_tokens=added.output_tokens,
-                cost_usd=cost,
-                priced=price is not None,
-            )
-        )
-        return cost
 
     def book_elapsed(self, seconds: float) -> Decimal:
         """For a per-minute model, book the connected time since the last booking."""

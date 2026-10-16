@@ -1,5 +1,5 @@
 ---
-source_sha: "289ca2672118"
+source_sha: "4f30765a1a54"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -152,9 +152,8 @@ Abmeldung nicht überdauert.
 
 | Frame | Felder | Wann |
 |---|---|---|
-| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` (eine Wiederverbindung), `context` (die Variablen eines Embeds) | Zuerst, innerhalb von 10 Sekunden |
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` und `resume_token` (eine Wiederverbindung), `context` (die Variablen eines Embeds) | Zuerst, innerhalb von 10 Sekunden |
 | `approval` | `id`, `decision` (`approve` oder `deny`) | Entscheidung über eine Freigabe, auf die der Anruf wartet |
-| `ptt` | `state` (`down` oder `up`) | Push-to-Talk |
 | `mute` | `muted` | Das Relay: das Mikrofon stummgeschaltet |
 | `played` | `bytes` | Das Relay: wie viel vom Audio des Agents abgespielt wurde |
 | `end` | - | Auflegen |
@@ -165,7 +164,7 @@ Abmeldung nicht überdauert.
 | Frame | Felder | Bedeutet |
 |---|---|---|
 | `answer` | `sdp` | WebRTC: die Antwort des Providers für die Peer-Verbindung des Browsers |
-| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left` | Der Anruf ist eingerichtet |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left`, `resume_token` | Der Anruf ist eingerichtet. `resume_token` wird nur hier gesendet, nur an diesen Anrufer; eine Wiederverbindung schickt es zurück |
 | `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Wer spricht oder was der Agent gerade tut |
 | `caption` | `role`, `turn_id`, `part` und eines von `delta` (anhängen), `text` (durch den bisher geprüften Text ersetzen) oder `final` | Ein Live-Untertitel |
 | `turn_saved` | `message` | Eine abgeschlossene Runde, als die Nachricht, als die sie gespeichert wurde; sie ersetzt die Untertitel mit ihrer `turn_id` |
@@ -179,14 +178,43 @@ Abmeldung nicht überdauert.
 | `ended` | `reason`, `message` | Der Anruf ist vorbei |
 | *binär* | 16-Bit-PCM mit der Ausgangsrate des Modells | Das Relay: das Audio des Agents |
 
+**Ein Besucher eines Widgets oder einer gehosteten Seite erfährt weniger.** Sein
+`ready` enthält kein `run_id`, `minutes_left` kommt als `null`, und
+`cap_seconds` ist das eigene Limit des Anrufs - der längste Anruf der
+Organisation, der des Agents oder was von einem fortgesetzten Anruf übrig ist -
+statt eines Limits, das die Minuten der Organisation verrät. Der Server beendet
+den Anruf trotzdem am echten Limit. Die Tool-Frames folgen den Schaltern
+`show_tool_steps` und `show_tool_results` des Embeds, wie die einer getippten
+Antwort. Ohne Tool-Schritte wird kein `tool`-Frame gesendet, `tool_running`
+kommt als `thinking`, und `turn_saved` enthält keine Tool-Aufrufe. Ohne
+Tool-Ergebnisse hat jeder Tool-Aufruf in `turn_saved` leere `args` und ein
+`result` von `null`, und `approval_unavailable` kommt mit leeren `args`.
+
+**Eine Wiederverbindung muss beweisen, dass ihr der Anruf gehört.** Ein `start`
+mit `resume_of` muss auch das `resume_token` aus dem `ready` jener Verbindung
+mitschicken. Ohne es oder mit einem falschen wird die Wiederverbindung als
+`resume_refused` abgelehnt, und der genannte Anruf bleibt unberührt. Der Server
+speichert nur einen Hash des Tokens.
+
 Ein Socket, das innerhalb von 10 Sekunden kein `start` sendet, bekommt `ended`
 mit `no_start`. Ein Anruf, der nicht startet, antwortet mit `ended` und einem
 stabilen `reason`: `voice_off`, `no_agent`, `forbidden`, `not_configured`,
 `bad_offer`, `data_channel`, `resume_refused`, `minutes_exhausted`,
 `call_limit`, `not_priced`, `budget`, `busy` oder `line_busy`, mit einer
-`message`, die sich gefahrlos anzeigen lässt. Ein Anruf, der gelaufen ist,
-endet mit `user`, `time_limit`, `budget`, `minutes`, `disconnected`, `revoked`,
-`shutdown` oder `error`. Kein Frame trägt je Zugangsdaten eines Providers.
+`message`, die sich gefahrlos anzeigen lässt. Ein Start, der aus irgendeinem
+anderen Grund scheitert, antwortet mit `ended` und `error`. Ein Besucher, der
+als `not_configured`, `not_priced`, `minutes_exhausted` oder `budget` abgelehnt
+wird, bekommt denselben Grund mit der Meldung "Calls are not available right
+now.", denn die vollständige Meldung ist für den Betreiber des Agents
+geschrieben.
+
+Ein Anruf, der gelaufen ist, endet mit `user`, `time_limit`, `budget`,
+`minutes`, `disconnected`, `revoked`, `shutdown` oder `error`. Er endet mit
+`minutes`, wenn die Minuten des Monats sein Limit gesetzt haben, und mit
+`time_limit`, wenn die Einstellung für den längsten Anruf es gesetzt hat. Der Anruf eines Besuchers
+endet mit `revoked`, wenn sein Embed pausiert wird, seine Anrufe abgeschaltet
+werden oder es auf einen anderen Agent zeigt. Kein Frame trägt je Zugangsdaten
+eines Providers.
 
 Vier HTTP-Routen gehören dazu:
 

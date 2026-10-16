@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import json
-from collections.abc import Mapping
-
 from fastapi import WebSocket, WebSocketDisconnect
 
+from app.schemas.voice import ServerFrame
 from app.services.voice.exceptions import VoiceRefused
 
 MAX_SDP_BYTES = 20_000
@@ -28,10 +26,14 @@ def refuse_data_channel(sdp: str) -> None:
         raise VoiceRefused("bad_offer", "The call could not be set up.")
 
 
-async def send_frame(websocket: WebSocket, kind: str, payload: Mapping[str, object]) -> bool:
-    """Send one JSON frame. `False` when the socket is already gone - never an exception."""
+async def send_frame(websocket: WebSocket, frame: ServerFrame) -> bool:
+    """Send one JSON frame. `False` when the socket is already gone - never an exception.
+
+    Only the fields the frame was built with: an optional one left out is absent
+    on the wire, as the call view reads it, rather than `null`.
+    """
     try:
-        await websocket.send_text(json.dumps({"type": kind, **payload}, default=str))
+        await websocket.send_text(frame.model_dump_json(exclude_unset=True))
     except (WebSocketDisconnect, RuntimeError):
         return False
     return True

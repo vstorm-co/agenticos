@@ -9,6 +9,7 @@ import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import type { VoiceSession } from "@/hooks/use-voice-session";
 import { toolCaption } from "@/lib/agent-step-captions";
 import { glideOrJump } from "@/lib/motion";
+import { scrollWithin } from "@/lib/scroll-within";
 import { viewState } from "@/lib/voice/call-reducer";
 import type { Agent } from "@/types/agents";
 
@@ -30,8 +31,9 @@ export { callActive, VoiceCallBar } from "./voice-call-bar";
  */
 export function showVoiceApproval(): void {
   const card = document.querySelector<HTMLElement>("[data-voice-approval]");
-  card?.scrollIntoView?.({ block: "center", behavior: glideOrJump() });
-  card?.querySelector<HTMLElement>("[data-voice-approve]")?.focus({ preventScroll: true });
+  if (card === null) return;
+  scrollWithin(card, "center", glideOrJump());
+  card.querySelector<HTMLElement>("[data-voice-approve]")?.focus({ preventScroll: true });
 }
 
 /** A row in the agent's column of the conversation, under its avatar's gutter. */

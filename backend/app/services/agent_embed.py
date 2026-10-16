@@ -45,6 +45,7 @@ from app.core.exceptions import (
     RateLimitError,
 )
 from app.core.field_errors import refused_field
+from app.core.logging import one_line
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, current_key_version, seal_fields, unseal
 from app.db.models.agent import Agent, AgentStatus
@@ -432,7 +433,7 @@ class AgentEmbedService:
             # operator wondering why their embed is silent, not the caller.
             logger.info(
                 "embed_origin_refused",
-                extra={"embed_id": str(embed.id), "kind": embed.kind, "origin": origin},
+                extra={"embed_id": str(embed.id), "kind": embed.kind, "origin": one_line(origin)},
             )
             raise EmbedDenied("origin not allowed")
 

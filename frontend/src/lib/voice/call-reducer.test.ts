@@ -12,6 +12,7 @@ const ready = {
   output_sample_rate: 24000,
   cap_seconds: 600,
   minutes_left: 540,
+  resume_token: "tok1",
 } as const;
 
 function live(): CallState {
@@ -28,6 +29,14 @@ describe("callReducer", () => {
     expect(call.callId).toBe("c1");
     expect(call.startedAt).toBe(1000);
     expect(viewState(call)).toBe("listening");
+  });
+
+  it("holds no run for a visitor's call, whose ready names none", () => {
+    const { run_id: _run, ...visitors } = ready;
+    const connecting = callReducer(initialCall, { type: "connecting" });
+    const call = callReducer(connecting, { type: "frame", frame: visitors, now: 1000 });
+    expect(call.runId).toBeNull();
+    expect(call.callId).toBe("c1");
   });
 
   it.each([

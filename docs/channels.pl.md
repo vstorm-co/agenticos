@@ -1,5 +1,5 @@
 ---
-source_sha: "06c2216f05dc"
+source_sha: "bac8a98baeb9"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -885,6 +885,18 @@ zatwierdzenia są całkowicie pomijane w rozmowie odwiedzającego, więc agent n
 po nie nie sięga; mówi wprost, gdy czegoś nie może tam zrobić. Rozmowa dostaje
 też notatkę o umiejscowieniu embeda i zadeklarowane zmienne strony, dokładnie
 tak jak wpisana wiadomość, więc agent zachowuje się w obu przypadkach tak samo.
+
+**Odwiedzający dowiaduje się tylko tego, czego potrzebuje.** Przełączniki z
+sekcji [co odwiedzający widzi z tej pracy](#what-the-visitor-sees-of-the-work)
+filtrują ramki rozmowy tak, jak filtrują pisane odpowiedzi: bez *Co agent robi*
+odwiedzający nie dowiaduje się, że narzędzie zadziałało, a bez *Co zwrócił każdy
+krok* krok nie niesie tego, z czym narzędzie zostało wywołane ani co wróciło.
+Limit, który widzi odwiedzający, to własny limit rozmowy, nigdy pozostałe minuty
+organizacji, a odmowa dotycząca konfiguracji, ceny, minut albo budżetu operatora
+mówi tylko, że rozmowy nie są teraz dostępne. Wstrzymanie embeda, wyłączenie
+jego rozmów albo skierowanie go na innego agenta kończy toczące się na nim
+rozmowy w ciągu jednego heartbeatu. Ramki są opisane na [stronie
+API](api.md#voice-calls).
 
 ### Socket rozmowy { #the-call-socket }
 

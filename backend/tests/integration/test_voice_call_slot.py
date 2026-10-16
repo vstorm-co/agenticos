@@ -97,6 +97,7 @@ async def test_two_starts_at_once_leave_one_call(engine):
                     secret_id=None,
                     worker_id="host:1",
                     resume_of=None,
+                    resume_token_hash="0" * 64,
                     started_at=now,
                 )
                 await db.commit()
@@ -156,6 +157,7 @@ async def test_two_visitors_at_once_on_an_embed_at_its_limit_leave_one_call(engi
                     secret_id=None,
                     worker_id="host:1",
                     resume_of=None,
+                    resume_token_hash="0" * 64,
                     started_at=now,
                 )
                 await db.commit()

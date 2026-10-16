@@ -137,9 +137,8 @@ not outlive a sign-out.
 
 | Frame | Fields | When |
 |---|---|---|
-| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` (a reconnect), `context` (an embed's variables) | First, within 10 seconds |
+| `start` | `agent_id`, `conversation_id`, `sdp_offer` (WebRTC), `resume_of` and `resume_token` (a reconnect), `context` (an embed's variables) | First, within 10 seconds |
 | `approval` | `id`, `decision` (`approve` or `deny`) | Deciding an approval the call is waiting on |
-| `ptt` | `state` (`down` or `up`) | Push-to-talk |
 | `mute` | `muted` | The relay: the microphone muted |
 | `played` | `bytes` | The relay: how much of the agent's audio has been played |
 | `end` | - | Hanging up |
@@ -150,7 +149,7 @@ not outlive a sign-out.
 | Frame | Fields | Means |
 |---|---|---|
 | `answer` | `sdp` | WebRTC: the provider's answer for the browser's peer connection |
-| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left` | The call is set up |
+| `ready` | `call_id`, `run_id`, `conversation_id`, `transport`, `input_sample_rate`, `output_sample_rate`, `cap_seconds`, `minutes_left`, `resume_token` | The call is set up. `resume_token` is sent only here, to this caller; a reconnect sends it back |
 | `state` | `state`: `connecting`, `listening`, `user_speaking`, `thinking`, `agent_speaking`, `interrupted`, `tool_running`, `awaiting_approval` | Who is talking, or what the agent is doing |
 | `caption` | `role`, `turn_id`, `part`, and one of `delta` (append), `text` (replace with the screened text so far) or `final` | A live caption |
 | `turn_saved` | `message` | A finished turn, as the message it was saved as; it replaces the captions carrying its `turn_id` |
@@ -164,14 +163,38 @@ not outlive a sign-out.
 | `ended` | `reason`, `message` | The call is over |
 | *binary* | 16-bit PCM at the model's output rate | The relay: the agent's audio |
 
+**A visitor on a widget or a hosted page is told less.** `ready` leaves out
+`run_id` and sends `minutes_left` as `null`, and its `cap_seconds` is the call's
+own limit - the organization's longest call, the agent's, or what is left of a
+call being resumed - rather than one that gives away the organization's minutes.
+The server still ends the call at the real limit. The tool frames follow the
+embed's `show_tool_steps` and `show_tool_results` switches, as a typed reply's
+do. Without tool steps no `tool` frame is sent, `tool_running` is sent as
+`thinking`, and `turn_saved` carries no tool calls. Without tool results, each
+tool call in `turn_saved` has empty `args` and a `null` `result`, and
+`approval_unavailable` is sent with empty `args`.
+
+**A reconnect proves it holds the call.** A `start` with `resume_of` must also
+carry the `resume_token` from that connection's `ready`. Without it, or with a
+wrong one, the reconnect is refused as `resume_refused` and the call it names
+is not touched. The server keeps only a hash of the token.
+
 A socket that sends no `start` within 10 seconds gets `ended` with `no_start`.
 A call that will not start answers with `ended` and a stable `reason`:
 `voice_off`, `no_agent`, `forbidden`, `not_configured`, `bad_offer`,
 `data_channel`, `resume_refused`, `minutes_exhausted`, `call_limit`,
 `not_priced`, `budget`, `busy` or `line_busy`, with a `message` safe to show. A
-call that ran ends with `user`, `time_limit`, `budget`, `minutes`,
-`disconnected`, `revoked`, `shutdown` or `error`. No frame ever carries a
-provider credential.
+start that fails for any other reason answers `ended` with `error`. A visitor
+refused as `not_configured`, `not_priced`, `minutes_exhausted` or `budget` gets
+the same reason with the message "Calls are not available right now.", because
+the full message is written for the agent's operator.
+
+A call that ran ends with `user`, `time_limit`, `budget`, `minutes`,
+`disconnected`, `revoked`, `shutdown` or `error`. It ends as `minutes` when the
+month's minutes set its limit, and as `time_limit` when a longest call did. A
+visitor's call ends as `revoked` when its embed is paused, has its calls
+switched off or is pointed at another agent. No frame ever carries a provider
+credential.
 
 Four HTTP routes go with it:
 

@@ -853,6 +853,17 @@ plainly when it cannot do something there. A call also gets the embed's
 placement note and the page's declared variables, exactly as a typed message
 does, so the agent behaves the same in both.
 
+**A visitor is told only what a visitor needs.** The switches under [what the
+visitor sees of the work](#what-the-visitor-sees-of-the-work) filter a call's
+frames as they filter typed replies: without *What the agent is doing* a visitor
+is not told a tool ran, and without *What each step returned* a step does not
+carry what a tool was called with or what came back. The limit a visitor sees is
+the call's own, never the organization's minutes left, and a refusal about the
+operator's setup, price, minutes or budget says only that calls are not
+available right now. Pausing the embed, switching its calls off or pointing it
+at another agent ends the calls on it within a heartbeat. The frames are in [the
+API page](api.md#voice-calls).
+
 ### The call socket
 
 `/api/v1/embed/{public_key}/voice/ws` speaks the same frames as the console's

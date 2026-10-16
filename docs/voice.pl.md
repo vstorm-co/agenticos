@@ -1,5 +1,5 @@
 ---
-source_sha: "285bab48c7ff"
+source_sha: "9c9b30a42443"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i minut, bezpieczne rozłączanie i transkrypcje."
@@ -157,8 +157,9 @@ tego zrobić w rozmowie, i zaproponować czat tekstowy.
 wskazówki: krótkie zdania; żadnego markdownu, list, tabel ani linków czytanych na
 głos; liczby i daty wypowiadane tak, jak mówi je człowiek; nazwy, kwoty, adresy i
 daty powtarzane rozmówcy przed działaniem na nich; i mówienie, że czeka na
-zatwierdzenie, zamiast najpierw ogłaszać wynik. Po nich następują własne uwagi
-do głosu agenta.
+zatwierdzenie, zamiast najpierw ogłaszać wynik. W rozmowie odwiedzającego o
+zatwierdzeniach nie ma ani słowa; agent ma za to wprost mówić, czego w tej
+rozmowie nie może zrobić. Po nich następują własne uwagi do głosu agenta.
 
 Przez WebRTC agent jest rozwiązywany dwa razy: raz, żeby odpowiedzieć na ofertę,
 i raz dla połączenia sideband. Serwery MCP są łączone dwa razy, a dynamiczne
@@ -176,6 +177,8 @@ zapisuje wiersz zatwierdzenia i pokazuje osobie w rozmowie kartę: narzędzie,
 powiedział rozmówca. Ryzykiem jest tu źle usłyszana nazwa („Acme” usłyszane jako
 „Ahmad”), a karta jest jego kontrolą. Zatwierdzenie wykonuje dokładnie te
 argumenty, raz; to samo narzędzie wywołane ponownie wymaga nowego zatwierdzenia.
+Druga decyzja na tej samej karcie, wysłana, zanim dotrze pierwsza, niczego nie
+zmienia: obowiązuje pierwsza.
 
 - **60 sekund** bez decyzji powoduje wygaśnięcie prośby, bez decydenta, a agent
   to mówi.
@@ -190,6 +193,11 @@ argumenty, raz; to samo narzędzie wywołane ponownie wymaga nowego zatwierdzeni
   widzi narzędzia, które wymaga zatwierdzenia: takie narzędzia są całkowicie
   pomijane w rozmowie.
 
+Gdy model wywoła narzędzie, którego rozmowa nie ma, czy to pominięte dla
+odwiedzającego, czy wymyślone, narzędzie się nie uruchamia. Model dowiaduje się,
+że w tej rozmowie to narzędzie nie jest dostępne, agent mówi, że nie może tego
+zrobić, a rozmowa toczy się dalej.
+
 Zakończenie rozmowy, z dowolnego powodu, powoduje wygaśnięcie wszystkiego, na co
 jeszcze czekała.
 
@@ -197,9 +205,17 @@ jeszcze czekała.
 
 **Czas.** Rozmowa trwa najwyżej tyle, ile najdłuższa rozmowa agenta, najdłuższa
 rozmowa organizacji albo 50 minut, w zależności od tego, co najkrótsze, i nigdy
-dłużej niż pozostałe minuty miesiąca. Minutę przed końcem widok rozmowy dostaje
-ostrzeżenie. Na końcu agent mówi jedno krótkie zdanie o tym, dlaczego, i rozmowa
-się zatrzymuje.
+dłużej niż pozostałe minuty miesiąca. Jej zegar rusza, gdy rozmowa jest gotowa,
+razem z licznikiem w widoku rozmowy, więc czas zestawiania nie liczy się ani do
+jej czasu, ani do limitu, ani do minut miesiąca. Minutę przed końcem widok
+rozmowy dostaje ostrzeżenie. Na końcu agent mówi jedno
+krótkie zdanie o tym, dlaczego, i rozmowa się zatrzymuje. Kończy się jako
+`time_limit` albo jako `minutes`, gdy jej limit wyznaczyły minuty miesiąca.
+
+Odwiedzający widget albo hostowaną stronę nie poznaje minut organizacji. Jego
+widok rozmowy pokazuje limit samej rozmowy, a rozmowa, którą minuty miesiąca
+skracają bardziej, kończy się na prawdziwym limicie bez ostrzeżenia. Agent mówi
+wtedy tylko, że rozmowy nie są teraz dostępne.
 
 **Minuty.** Miesięczne minuty organizacji są liczone z wierszy rozmów
 (`voice_calls`): każda rozmowa do swojego końca albo, póki jeszcze trwa, do
@@ -215,10 +231,16 @@ tekstowe:
   najgorszą cenę modelu za minutę jest porównywany z pozostałym budżetem.
   Rozmowa, na którą nie byłoby stać, jest odrzucana, zamiast zacząć się i zostać
   ucięta.
-- W trakcie rozmowy każda odpowiedź jest księgowana na runie, gdy się skończy, a
-  budżet jest odczytywany na nowo przy każdym heartbeacie. Limit kosztu sesji
-  może zostać przekroczony najwyżej o jedną odpowiedź (o dwie na Azure, którego
-  wdrożenie jest tu wyceniane jak jego model bazowy).
+- W trakcie rozmowy każda odpowiedź jest liczona, gdy się skończy, a budżet jest
+  odczytywany na nowo przy każdym heartbeacie. Limit kosztu sesji może zostać
+  przekroczony najwyżej o jedną odpowiedź (o dwie na Azure, którego wdrożenie
+  jest tu wyceniane jak jego model bazowy).
+- Każdy heartbeat zapisuje też dotychczasowy koszt rozmowy na jej runie, więc
+  sprawdzenia budżetu innych runów i rozmów widzą wydatki trwającej rozmowy w
+  ciągu 15 sekund, a nie dopiero po jej końcu.
+- Odpowiedź, której sesja realtime nie wyceniła, jest wyceniana tutaj z liczby
+  jej tokenów, a limit kosztu sesji ją uwzględnia. Taka, której nie da się
+  wycenić żadnym sposobem, jest zapisywana jako niewyceniona.
 - xAI jest rozliczany za każdą minutę połączenia, według stawki z katalogu.
 - Model, którego ceny nie da się obliczyć, jest odrzucany przy konfiguracji, więc
   budżet nigdy nie przestaje być po cichu egzekwowany.
@@ -245,13 +267,20 @@ Dlatego rozłączanie jest zadaniem serwera, na każdej ścieżce:
    OpenAI; rozmowa przez relay kończy się, gdy serwer zamyka swoje gniazdo do
    providera), a potem kończy run z jego kosztem.
 2. **Heartbeaty.** Proces, który trzyma rozmowę, co 15 sekund zapisuje jej koszt
-   i sekundy. Każdy heartbeat sprawdza też na nowo sesję rozmówcy, jego
+   i sekundy, już od początku zestawiania, więc powolny start nie zostaje wzięty
+   za utraconą rozmowę. Każdy heartbeat sprawdza też na nowo sesję rozmówcy, jego
    członkostwo, stan publikacji agenta i przełącznik organizacji i kończy
-   rozmowę, gdy którekolwiek z nich zawiedzie.
+   rozmowę, gdy którekolwiek z nich zawiedzie. Rozmowa odwiedzającego wymaga
+   ponadto, by jej embed był nadal aktywny, miał włączone rozmowy i wskazywał
+   tego samego agenta.
 3. **Przemiatanie.** Zaplanowane zadanie, co minutę i raz przy starcie, rozłącza
    każdą rozmowę, której heartbeat jest starszy niż 45 sekund albo której koniec
-   został zapisany, ale rozłączenie się nie udało. Potrzebuje tylko id rozmowy i
-   klucza.
+   został zapisany ponad 45 sekund temu, ale rozłączenie się nie udało.
+   Potrzebuje tylko id rozmowy i klucza i zamyka każdą rozmowę osobno, więc
+   jedna, której nie da się zamknąć, nie wstrzymuje pozostałych. Rozmowa, której
+   nie da się rozłączyć, na przykład taka, której klucza nie można już odczytać,
+   jest wycofywana jako porzucona, gdy ma godzinę - do tego czasu provider już
+   ją zakończył.
 4. **Zamknięcie.** Serwer, któremu kazano się zatrzymać, rozłącza swoje rozmowy,
    zanim odejdzie.
 5. **Przeglądarka** zamyka swoje połączenie peer, gdy karta zostaje ukryta na
@@ -269,9 +298,12 @@ Dlatego rozłączanie jest zadaniem serwera, na każdej ścieżce:
 
 Zerwane połączenie dostaje **jedną automatyczną ponowną próbę w ciągu 10
 sekund**. Nowe połączenie jest przyjmowane tylko dla tej samej osoby, tego samego
-agenta i tej samej konwersacji i tylko w ciągu 10 sekund od końca poprzedniego;
-kończy poprzednie, jeśli to jest jeszcze półotwarte. Czas i budżet przechodzą
-dalej: ponowne połączenie kontynuuje zegar rozmowy, zamiast go restartować.
+agenta i tej samej konwersacji, tylko z tokenem wznowienia, który poprzednie
+połączenie dostało przy zestawieniu, i tylko w ciągu 10 sekund od zamknięcia
+poprzedniego. Serwer przechowuje tylko skrót tego tokena. Ponowne połączenie
+kończy poprzednie, jeśli to jest jeszcze półotwarte, i liczy je jako zakończone
+przy jego ostatnim heartbeacie. Czas i budżet przechodzą dalej: ponowne
+połączenie kontynuuje zegar rozmowy, zamiast go restartować.
 
 Nowa sesja startuje od zapisanych dotąd tur, jako **tekst**, więc nic nie jest
 powtarzane, żadne narzędzie nie wykonuje się dwa razy, a za dźwięk nie płaci się
@@ -293,8 +325,9 @@ połączenia.
 
 Każda tura jest zapisywana w chwili, gdy się kończy, jako zwykła wiadomość w
 konwersacji: słowa rozmówcy z transkrypcji wejścia, słowa agenta z tego, co
-powiedział. Wywołania narzędzi pojawiają się w treści, jak w czacie tekstowym.
-Awaria traci najwyżej turę w toku, a ponowne połączenie nie może zapisać tury
+powiedział. Wywołania narzędzi pojawiają się w treści, jak w czacie tekstowym;
+narzędzie, które poprosiło model o ponowną próbę, jest zapisywane jako nieudane,
+z ogólnym komunikatem zamiast własnego tekstu błędu narzędzia. Awaria traci najwyżej turę w toku, a ponowne połączenie nie może zapisać tury
 dwa razy.
 
 Gdy wchodzisz agentowi w słowo, jego odpowiedź jest ucinana do tego, co

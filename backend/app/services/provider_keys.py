@@ -54,10 +54,14 @@ async def key_problem(
             f"'{row.name}' is not visible to the whole organization. A key used here "
             "is spent for everybody, so only an organization-wide key can be chosen"
         )
+    # `feature` is the object, never the subject, so its number never decides a verb.
     if row.kind != kind.value:
-        verb = "need" if feature.endswith("s") else "needs"
-        return f"'{row.name}' holds a {row.kind}, and {feature} {verb} {_KIND_PHRASE[kind]}"
+        return (
+            f"'{row.name}' holds a {row.kind}, and {_KIND_PHRASE[kind]} is required for {feature}"
+        )
     if row.purpose != provider:
-        verb = "run" if feature.endswith("s") else "runs"
-        return f"'{row.name}' is a key for {row.purpose}, and {feature} {verb} on {provider}"
+        return (
+            f"'{row.name}' is a key for {row.purpose}, and a key for {provider} is required for "
+            f"{feature}"
+        )
     return None

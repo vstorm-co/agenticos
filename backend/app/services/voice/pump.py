@@ -21,6 +21,7 @@ from pydantic_ai.messages import (
     PartDeltaEvent,
     PartEndEvent,
     PartStartEvent,
+    RetryPromptPart,
     SpeechPart,
     SpeechPartDelta,
 )
@@ -35,6 +36,9 @@ from pydantic_ai.realtime import (
     RealtimeTurnCompleteEvent,
 )
 
+from app.schemas.conversation import MessageRead
+from app.schemas.voice import CaptionFrame, NoticeFrame, StateFrame, ToolFrame, TurnSavedFrame
+from app.services.transcript import tool_result_text, tool_retry_notice
 from app.services.voice.approvals import SendFrame
 from app.services.voice.guard import WITHHELD
 from app.services.voice.transcript import SpeechClock, SpokenToolCall, trim_to_played
@@ -81,7 +85,24 @@ class EventPump:
         self._response_turn: str | None = None
         self.heard: str | None = None
         self.output_done = anyio.Event()
+        self._completes_to_notice = 1
         self.budget_exhausted = False
+
+    def arm_output_done(self) -> anyio.Event:
+        """A fresh `output_done`, set when the agent stops speaking after a response that
+        completes from now on.
+
+        A limit notice waits on it for its own sentence. Over WebRTC the speech end
+        is the browser's playback stopping, and an answer generated before the
+        notice can still be playing when it is asked for: that answer's end must
+        not end the call before the notice is heard. Nor must the end of one still
+        being generated, whose response completes after this: the notice's is then
+        the second to complete. (A response that has not spoken yet is not seen
+        here; its turn starts with its speech.)
+        """
+        self.output_done = anyio.Event()
+        self._completes_to_notice = 1 if self._response_turn is None else 2
+        return self.output_done
 
     def _turn(self, index: int, role: Literal["user", "assistant"]) -> str:
         """The saved message's `turn_id` for a speech part, allocated when it is first seen.
@@ -104,12 +125,28 @@ class EventPump:
         return turn_id
 
     def _caption(
-        self, index: int, role: Literal["user", "assistant"], **text: str
-    ) -> dict[str, object]:
-        return {"role": role, "turn_id": self._turn(index, role), "part": index, **text}
+        self,
+        index: int,
+        role: Literal["user", "assistant"],
+        *,
+        delta: str | None = None,
+        text: str | None = None,
+        final: str | None = None,
+    ) -> CaptionFrame:
+        caption = CaptionFrame(
+            type="caption", role=role, turn_id=self._turn(index, role), part=index
+        )
+        # Exactly one of the three is set, and only that one is sent.
+        if delta is not None:
+            caption.delta = delta
+        if text is not None:
+            caption.text = text
+        if final is not None:
+            caption.final = final
+        return caption
 
     async def _state(self, state: VoiceState) -> None:
-        await self._send("state", {"state": state})
+        await self._send(StateFrame(type="state", state=state))
 
     def note_played_ms(self, played_ms: int) -> None:
         """How much of the answer in progress was heard; trims it when it is saved.
@@ -184,7 +221,8 @@ class EventPump:
             await self._state("agent_speaking")
         elif isinstance(event, RealtimeOutputSpeechEndEvent):
             self._clock.output_ended()
-            self.output_done.set()
+            if self._completes_to_notice <= 0:
+                self.output_done.set()
             await self._state("listening")
         elif isinstance(event, RealtimeResponseInterruptedEvent):
             # Gemini's barge-in: it reports no speech start, only that it stopped.
@@ -200,19 +238,26 @@ class EventPump:
                 started_at=datetime.now(UTC),
             )
             await self._state("tool_running")
-            await self._send("tool", {"name": part.tool_name, "status": "running"})
+            await self._send(ToolFrame(type="tool", name=part.tool_name, status="running"))
         elif isinstance(event, FunctionToolResultEvent):
             tool = self._tools.get(event.part.tool_call_id)
             if tool is not None:
-                tool.result = str(event.part.content)
+                # As a text run stores it (`transcript._result_text`): a retry is a
+                # failed call, and its text is whatever raised, so the row holds the
+                # shared notice rather than a vendor's error and URL.
+                if isinstance(event.part, RetryPromptPart):
+                    tool.result, tool.success = tool_retry_notice(event.part), False
+                else:
+                    tool.result = tool_result_text(event.part.content)
                 tool.completed_at = datetime.now(UTC)
-                await self._send("tool", {"name": tool.tool_name, "status": "done"})
+                await self._send(ToolFrame(type="tool", name=tool.tool_name, status="done"))
         elif isinstance(event, DeferredToolRequestsEvent):
             await self._state("awaiting_approval")
         elif isinstance(event, RealtimeTurnCompleteEvent):
+            self._completes_to_notice -= 1
             await self._finish_response(session)
         elif isinstance(event, RealtimeSessionErrorEvent):
-            await self._send("notice", {"kind": "provider_error"})
+            await self._send(NoticeFrame(type="notice", kind="provider_error"))
 
     async def _delta(self, index: int, delta: SpeechPartDelta, session: RealtimeSession) -> None:
         piece = delta.transcript_delta
@@ -236,11 +281,11 @@ class EventPump:
             if screened.blocked:
                 self._withheld.add(index)
                 await session.interrupt()
-                await self._send("notice", {"kind": "guardrail"})
+                await self._send(NoticeFrame(type="notice", kind="guardrail"))
                 return
-            await self._send("caption", self._caption(index, "assistant", text=screened.text))
+            await self._send(self._caption(index, "assistant", text=screened.text))
             return
-        await self._send("caption", self._caption(index, role, delta=piece))
+        await self._send(self._caption(index, role, delta=piece))
 
     async def _part_end(self, index: int, part: SpeechPart) -> None:
         self._live_text.pop(index, None)
@@ -249,12 +294,12 @@ class EventPump:
             text = WITHHELD
         else:
             text = self._started.guard.screen(part.transcript or "", speaker=part.speaker).text
-        await self._send("caption", self._caption(index, part.speaker, final=text))
+        await self._send(self._caption(index, part.speaker, final=text))
         if part.speaker == "user":
             self.heard = text
             saved = await self._started.writer.user_turn(text, turn_id=self._turn(index, "user"))
             if saved is not None:
-                await self._send("turn_saved", {"message": saved.model_dump(mode="json")})
+                await self._send(_saved(saved))
         else:
             if part.interrupted_at_ms is not None:
                 # The provider says where the answer stopped: exact, so it wins over
@@ -276,7 +321,9 @@ class EventPump:
             text = trim_to_played(text, self._played_ms or 0)
         tools = list(self._tools.values())
         if not text and not tools:
-            self._spoken, self._played_ms = [], None
+            # Nothing to save, but the answer is still over: a notice armed after
+            # it must not count it as one still coming.
+            self._spoken, self._played_ms, self._response_turn = [], None, None
             return
         turn_id = self._response_turn or self._started.writer.next_turn_id("assistant")
         self._spoken, self._tools, self._played_ms, self._response_turn = [], {}, None, None
@@ -284,4 +331,8 @@ class EventPump:
             text, turn_id=turn_id, interrupted=interrupted, tools=tools
         )
         if saved is not None:
-            await self._send("turn_saved", {"message": saved.model_dump(mode="json")})
+            await self._send(_saved(saved))
+
+
+def _saved(message: MessageRead) -> TurnSavedFrame:
+    return TurnSavedFrame(type="turn_saved", message=message.model_dump(mode="json"))

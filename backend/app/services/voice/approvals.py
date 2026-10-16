@@ -26,7 +26,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
 from uuid import UUID
 
 import anyio
@@ -42,13 +41,20 @@ from pydantic_ai.tools import (
 from app.agents.approval import ApprovalGranted
 from app.agents.deps import AgentDeps
 from app.core.permissions import AuthContext
+from app.schemas.voice import (
+    ApprovalRequiredFrame,
+    ApprovalSettledFrame,
+    ApprovalUnavailableFrame,
+    ServerFrame,
+)
 from app.services.agent_runner import ApprovalChannel, ParkedApproval
 from app.services.approvals import ApprovalService
 from app.services.voice.transcript import SessionFactory
 
 APPROVAL_TIMEOUT_SECONDS = 60
 
-SendFrame = Callable[[str, dict[str, Any]], Awaitable[None]]
+SendFrame = Callable[[ServerFrame], Awaitable[None]]
+"""How the call's parts send a frame to the caller: the session's, which filters it first."""
 
 _DENIED = "The person on the call declined this action. Say so and do not claim it happened."
 _EXPIRED = "Nobody approved this action within a minute, so it did not run. Say so plainly."
@@ -140,7 +146,9 @@ class VoiceApprovalBridge:
         if self._decider is None:
             await self._expire(channel, parked, note=_NOT_POSSIBLE_NOTE)
             await self._send(
-                "approval_unavailable", {"tool": parked.tool_name, "args": parked.tool_args}
+                ApprovalUnavailableFrame(
+                    type="approval_unavailable", tool=parked.tool_name, args=parked.tool_args
+                )
             )
             return ToolDenied(_NOT_POSSIBLE)
         future: asyncio.Future[bool | None] = asyncio.get_running_loop().create_future()
@@ -148,14 +156,14 @@ class VoiceApprovalBridge:
         self._waiting[approval_id] = waiting
         try:
             await self._send(
-                "approval_required",
-                {
-                    "id": approval_id,
-                    "tool": parked.tool_name,
-                    "args": parked.tool_args,
-                    "said": self._heard(),
-                    "timeout_seconds": int(self._timeout),
-                },
+                ApprovalRequiredFrame(
+                    type="approval_required",
+                    id=approval_id,
+                    tool=parked.tool_name,
+                    args=parked.tool_args,
+                    said=self._heard(),
+                    timeout_seconds=int(self._timeout),
+                )
             )
             try:
                 approved = await asyncio.wait_for(asyncio.shield(future), self._timeout)
@@ -176,10 +184,16 @@ class VoiceApprovalBridge:
             self._waiting.pop(approval_id, None)
         if approved is None:
             await self._expire(channel, parked)
-            await self._send("approval_settled", {"id": approval_id, "outcome": "expired"})
+            await self._send(
+                ApprovalSettledFrame(type="approval_settled", id=approval_id, outcome="expired")
+            )
             return ToolDenied(_EXPIRED)
         await self._send(
-            "approval_settled", {"id": approval_id, "outcome": "approved" if approved else "denied"}
+            ApprovalSettledFrame(
+                type="approval_settled",
+                id=approval_id,
+                outcome="approved" if approved else "denied",
+            )
         )
         if approved:
             channel.decided[call.tool_call_id] = ApprovalGranted(parked.tool_args)
@@ -195,9 +209,18 @@ class VoiceApprovalBridge:
             )
 
     async def decide(self, approval_id: str, *, approve: bool) -> bool:
-        """A decision from this call's socket. `False` for an approval this call is not waiting on."""
+        """A decision from this call's socket. `False` for an approval this call is not waiting on.
+
+        `True` as well for one this call has already taken a decision on - a double
+        click, or approve then deny: the first decision stands, and its
+        `approval_settled` is still to come, so the second must not be told as expired.
+        """
         waiting = self._waiting.get(approval_id)
-        if waiting is None or waiting.future.done() or waiting.deciding or self._decider is None:
+        if waiting is not None and (
+            waiting.deciding or (waiting.future.done() and waiting.future.result() is not None)
+        ):
+            return True
+        if waiting is None or waiting.future.done() or self._decider is None:
             return False
         waiting.deciding = True
         try:

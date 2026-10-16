@@ -95,3 +95,37 @@ async def test_a_call_is_hung_up_from_its_row_with_its_own_organizations_key():
         assert await hang_up_row(MagicMock(), row)
     key.assert_awaited_once_with(row.organization_id, row.secret_id)
     assert hung.await_args.args[0].provider_call_id == "rtc_9"
+
+
+async def test_a_key_that_cannot_be_unsealed_reads_as_not_hung_up_rather_than_raising(caplog):
+    """After a master-key rotation one row's envelope will not open. A raise here
+    aborted the whole sweep and, at the head of its oldest-first queue, every
+    sweep after it; `False` lets the reaper's one-hour rule retire the row (RR-c01)."""
+    from types import SimpleNamespace
+    from uuid import uuid4
+
+    from app.core.exceptions import BadRequestError
+    from app.services.voice.hangup import hang_up_row
+
+    row = SimpleNamespace(
+        id=uuid4(),
+        organization_id=uuid4(),
+        secret_id=uuid4(),
+        transport="webrtc",
+        provider="openai",
+        provider_call_id="rtc_9",
+    )
+    unreadable = BadRequestError(message="Failed to decrypt secret - wrong master key or owner")
+    with (
+        patch(
+            "app.services.voice.hangup.OrganizationSecretService.voice_call_key",
+            AsyncMock(side_effect=unreadable),
+        ),
+        patch("app.services.voice.hangup.hang_up", AsyncMock(return_value=True)) as hung,
+    ):
+        assert not await hang_up_row(MagicMock(), row)
+    hung.assert_not_awaited()
+    assert "voice_hangup_key_unreadable" in caplog.text
+    (record,) = [r for r in caplog.records if r.getMessage() == "voice_hangup_key_unreadable"]
+    assert record.call_id == str(row.id)
+    assert not hasattr(record, "secret_id")

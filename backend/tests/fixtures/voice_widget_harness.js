@@ -86,7 +86,7 @@ const callButton = form.children[1];
 const bar = form.children[3];
 const notice = panel.children.find((n) => n.attrs.role === "status");
 const frame = (socket, f) => socket.onmessage({ data: JSON.stringify(f) });
-const ready = (socket, callId) => frame(socket, { type: "ready", transport, call_id: callId, input_sample_rate: 24000, output_sample_rate: 24000, cap_seconds: 600 });
+const ready = (socket, callId) => frame(socket, { type: "ready", transport, call_id: callId, input_sample_rate: 24000, output_sample_rate: 24000, cap_seconds: 600, resume_token: `secret-of-${callId}` });
 const frames = (socket) => socket.sent.filter((d) => typeof d === "string").map((d) => JSON.parse(d));
 const bubbles = () => log.children.map((row) => row.children[0].role + ": " + row.children[0].textContent + (row.children[0].children.length ? " [" + row.children[0].children[0].textContent + "]" : ""));
 async function call() {
@@ -101,6 +101,7 @@ function state(extra) {
   return Object.assign({
     sockets: sockets.length,
     starts: sockets.map((s) => (frames(s)[0] || {}).resume_of || null),
+    startSecrets: sockets.map((s) => (frames(s)[0] || {}).resume_token || null),
     notice: notice.textContent,
     barShown: bar.style.display === "flex",
     inputShown: input.style.display === "",

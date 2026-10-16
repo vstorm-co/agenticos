@@ -23,7 +23,8 @@ import {
 } from "@/components/voice/voice-call-view";
 import { useChanged } from "@/hooks/use-changed";
 import { useDictation } from "@/hooks/use-dictation";
-import { useVoiceSession, type VoiceSession } from "@/hooks/use-voice-session";
+import { useFocusAfterCall } from "@/hooks/use-focus-after-call";
+import { useVoiceSession } from "@/hooks/use-voice-session";
 import { dictateOnPage, type DictationSend } from "@/lib/dictation-api";
 import { cn } from "@/lib/utils";
 import type { MessagePart } from "@/types";
@@ -582,9 +583,6 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
     },
     [dictationIdle, cancelServerDictation, startVoice, config.public_key, config.variables],
   );
-  // The call as a visitor sees it. What is left of the organization's month
-  // is the operator's business, like what a turn cost.
-  const visitorCall: VoiceSession = { ...voice, call: { ...voice.call, minutesLeft: null } };
   // Why a call did not start, in the visitor's words (`hosted.voice` holds the
   // keys `chat.voice` does): nobody here to ask, and no setup to point at.
   const voiceHint =
@@ -604,13 +602,9 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
   }, [onCall]);
   // The bar took focus when the call started, and goes with it when it ends:
   // back to the box, unless the visitor has since put focus somewhere else.
-  const wasOnCall = useRef(false);
-  useEffect(() => {
-    if (wasOnCall.current && !onCall && document.activeElement === document.body) {
-      draftRef.current?.focus();
-    }
-    wasOnCall.current = onCall;
-  }, [onCall]);
+  useFocusAfterCall(onCall, (lost) => {
+    if (lost) draftRef.current?.focus();
+  });
 
   const startFresh = useCallback(() => {
     // A call belongs to its thread: a new thread hangs it up.
@@ -769,7 +763,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
               out of their calls. */}
           {callTransport !== null && (
             <VoiceCallFeed
-              session={visitorCall}
+              session={voice}
               agentName={config.agent_name}
               canDecide={false}
               hidden={spokenSaved}
@@ -839,7 +833,7 @@ export function HostedChat({ config }: { config: HostedPageConfig }) {
       {onCall && (
         <div className="@container mb-4">
           <VoiceCallBar
-            session={visitorCall}
+            session={voice}
             agentName={config.agent_name}
             canDecide={false}
             onShowApproval={showVoiceApproval}

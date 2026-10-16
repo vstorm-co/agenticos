@@ -30,6 +30,29 @@ VoiceUnavailable = Literal[
 ]
 
 
+def voice_switched_on(organization: Organization | None, surface: Literal["web", "embed"]) -> bool:
+    """Whether the organization's switches let a call run on `surface`.
+
+    The one copy of the rule: readiness (the entry button, the embed form and the
+    public config), a start and the heartbeat's mid-call revocation all read it,
+    and must agree. The `/chat` switch binds the console's calls only.
+    """
+    return (
+        organization is not None
+        and organization.voice_conversations_enabled
+        and (surface != "web" or organization.voice_in_chat)
+    )
+
+
+def agent_takes_calls(agent: Agent | None) -> bool:
+    """Whether an agent has a published default version and is not archived."""
+    return (
+        agent is not None
+        and agent.current_version_id is not None
+        and agent.status != AgentStatus.ARCHIVED.value
+    )
+
+
 @dataclass(frozen=True)
 class ResolvedVoice:
     """A published Voice section a call can be built from."""
@@ -87,6 +110,12 @@ def resolve_voice(block: VoiceSpec | None) -> ResolvedVoice | None:
 
 @dataclass(frozen=True)
 class VoiceReadiness:
+    """Whether a call to an agent would start and, if not, the first reason why.
+
+    What the call button reads before it is offered. `cap_seconds` and
+    `minutes_left` are as a new call would get them, before any reconnect.
+    """
+
     available: bool
     unavailable: VoiceUnavailable | None
     transport: Transport | None
@@ -103,7 +132,8 @@ class VoiceSettingsService:
 
     async def published_spec(self, agent: Agent) -> AgentSpec | None:
         """The spec `/chat` would run: the default version, or `None` for none or archived."""
-        if agent.current_version_id is None or agent.status == AgentStatus.ARCHIVED.value:
+        # The second test only narrows the type: `agent_takes_calls` has made it.
+        if not agent_takes_calls(agent) or agent.current_version_id is None:
             return None
         version = await agent_repo.get_version(
             self.db, agent.current_version_id, organization_id=agent.organization_id
@@ -111,6 +141,13 @@ class VoiceSettingsService:
         return None if version is None else AgentSpec.model_validate(version.spec)
 
     async def minutes_left_seconds(self, organization: Organization) -> int | None:
+        """Seconds left in this month's call minutes, or `None` when only budgets bind.
+
+        Read on every heartbeat and every public config fetch, so the month's SUM
+        is not run for an organization with no minutes cap to measure it against.
+        """
+        if organization.voice_monthly_minutes is None:
+            return None
         used = await voice_call_repo.seconds_since(
             self.db, organization_id=organization.id, since=month_start()
         )
@@ -125,7 +162,9 @@ class VoiceSettingsService:
 
         The caller has already decided the person may run this agent. Never
         opens the vault: a key deleted since resolves its column to null and
-        reads as `no_key`; a key made private since is refused at start.
+        reads as `no_key`; one that no longer unseals is refused at start. A
+        key's visibility is not read here or at start: once bound, a key is lent
+        to whoever may run the agent, as a text run's is.
         """
         organization = await organization_repo.get_by_id(self.db, organization_id)
         spec = await self.published_spec(agent)
@@ -142,10 +181,12 @@ class VoiceSettingsService:
             )
         )
         reason: VoiceUnavailable | None = None
-        if organization is None or not organization.voice_conversations_enabled:
-            reason = "org_off"
-        elif surface == "web" and not organization.voice_in_chat:
-            reason = "not_in_chat"
+        if not voice_switched_on(organization, surface):
+            reason = (
+                "org_off"
+                if organization is None or not organization.voice_conversations_enabled
+                else "not_in_chat"
+            )
         elif spec is None or spec.voice is None:
             reason = "no_voice"
         elif spec.voice.secret_id is None:

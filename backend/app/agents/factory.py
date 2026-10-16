@@ -75,6 +75,7 @@ from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.spec import AgentSpec
 from app.agents.voice import (
+    AnswerUnknownTools,
     VoiceOptions,
     WithoutApprovalTools,
     voice_configured,
@@ -379,6 +380,7 @@ def build_agent(
             if voice is None
             else (
                 HandleDeferredToolCalls(handler=voice.on_deferred),
+                AnswerUnknownTools(),
                 *((WithoutApprovalTools(names=approval_required),) if voice.anonymous else ()),
             )
         ),

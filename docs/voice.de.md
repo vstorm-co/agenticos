@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Minutenlimits, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "285bab48c7ff"
+source_sha: "9c9b30a42443"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -165,8 +165,10 @@ Anweisungen des Agents an: kurze Sätze; kein Markdown, keine Listen, Tabellen
 oder Links, die laut vorgelesen werden; Zahlen und Daten so gesagt, wie ein
 Mensch sie sagt; Namen, Beträge, Adressen und Daten zur Bestätigung
 wiederholt, bevor danach gehandelt wird; und es zu sagen, wenn er auf eine
-Freigabe wartet, statt zuerst ein Ergebnis zu behaupten. Der eigene Hinweis zur
-Stimme des Agents folgt darauf.
+Freigabe wartet, statt zuerst ein Ergebnis zu behaupten. Im Anruf eines
+Besuchers ist von Freigaben keine Rede; stattdessen soll der Agent klar sagen,
+was er in diesem Anruf nicht kann. Der eigene Hinweis zur Stimme des Agents
+folgt darauf.
 
 Über WebRTC wird der Agent zweimal aufgelöst, einmal, um das Angebot zu
 beantworten, und einmal für die Sideband-Verbindung. MCP-Server werden zweimal
@@ -184,7 +186,8 @@ sofort die Freigabezeile und zeigt der Person im Anruf eine Karte: das Tool,
 verstanden wurde. Ein falsch verstandener Name ist hier das Risiko („Acme“
 verstanden als „Ahmad“), und die Karte ist die Prüfung dagegen. Freigeben führt
 genau diese Argumente aus, einmal; dasselbe Tool, erneut aufgerufen, braucht
-eine neue Freigabe.
+eine neue Freigabe. Eine zweite Entscheidung auf derselben Karte, gesendet,
+bevor die erste ankommt, ändert nichts: Die erste gilt.
 
 - **60 Sekunden** ohne Entscheidung lassen die Anfrage ablaufen, ohne
   entscheidende Person, und der Agent sagt das.
@@ -199,6 +202,11 @@ eine neue Freigabe.
   ein Tool, das eine Freigabe braucht: Diese Tools werden ganz aus dem Anruf
   weggelassen.
 
+Ruft das Modell ein Tool auf, das der Anruf nicht hat, ob für einen Besucher
+weggelassen oder frei erfunden, läuft das Tool nicht. Das Modell erfährt, dass
+das Tool in diesem Anruf nicht verfügbar ist, der Agent sagt, dass er das nicht
+kann, und der Anruf geht weiter.
+
 Endet ein Anruf, aus welchem Grund auch immer, läuft alles ab, worauf er noch
 gewartet hat.
 
@@ -206,9 +214,17 @@ gewartet hat.
 
 **Zeit.** Ein Anruf läuft höchstens so lange wie der längste Anruf des Agents,
 der längste Anruf der Organisation oder 50 Minuten, je nachdem, was am kürzesten
-ist, und nie länger als die verbleibenden Minuten des Monats. Eine Minute vor dem
-Ende wird die Anrufansicht gewarnt. Am Ende sagt der Agent einen kurzen Satz
-dazu, warum, und der Anruf endet.
+ist, und nie länger als die verbleibenden Minuten des Monats. Seine Uhr startet,
+sobald der Anruf bereit ist, zusammen mit dem Timer der Anrufansicht. Die
+Einrichtungszeit zählt also weder zu seiner Zeit noch zu seinem Limit noch zu
+den Minuten des Monats. Eine Minute vor dem Ende wird die Anrufansicht gewarnt. Am Ende sagt der Agent einen kurzen Satz
+dazu, warum, und der Anruf endet. Er endet als `time_limit`, oder als
+`minutes`, wenn die Minuten des Monats sein Limit gesetzt haben.
+
+Ein Besucher eines Widgets oder einer gehosteten Seite erfährt die Minuten der
+Organisation nicht. Seine Anrufansicht zeigt das eigene Limit des Anrufs, und
+ein Anruf, den die Minuten des Monats stärker kürzen, endet ohne Warnung am
+echten Limit. Der Agent sagt dann nur, dass Anrufe gerade nicht verfügbar sind.
 
 **Minuten.** Die monatlichen Minuten der Organisation werden aus den Anrufzeilen
 (`voice_calls`) gezählt: jeder Anruf bis zu seinem Ende oder, solange er noch
@@ -224,10 +240,16 @@ Text-Runs:
   Worst-Case-Minutenpreis des Modells gegen das verbleibende Budget geprüft. Ein
   Anruf, der sich nicht bezahlen ließe, wird abgelehnt, statt begonnen und
   abgeschnitten zu werden.
-- Während des Anrufs wird jede Antwort beim Abschluss auf den Run gebucht, und
-  das Budget wird bei jedem Heartbeat neu gelesen. Das Kostenlimit der Sitzung
-  kann um höchstens eine Antwort überschritten werden (zwei bei Azure, dessen
+- Während des Anrufs wird jede Antwort beim Abschluss erfasst, und das Budget
+  wird bei jedem Heartbeat neu gelesen. Das Kostenlimit der Sitzung kann um
+  höchstens eine Antwort überschritten werden (zwei bei Azure, dessen
   Deployment hier wie sein Basismodell bepreist wird).
+- Jeder Heartbeat schreibt außerdem die bisherigen Kosten des Anrufs auf seinen
+  Run, sodass die Budgetprüfungen anderer Runs und Anrufe die Ausgaben eines
+  laufenden Anrufs innerhalb von 15 Sekunden sehen, nicht erst nach seinem Ende.
+- Eine Antwort, die die Realtime-Sitzung nicht bepreist, wird hier anhand ihrer
+  Token-Zahlen bepreist, und das Kostenlimit der Sitzung zählt sie mit. Eine,
+  die sich auf keinem Weg bepreisen lässt, wird als unbepreist erfasst.
 - xAI wird pro verbundener Minute abgerechnet, zum Satz des Katalogs.
 - Ein Modell, dessen Preis sich nicht berechnen lässt, wird bei der Einrichtung
   abgelehnt, sodass ein Budget nie stillschweigend nicht durchgesetzt wird.
@@ -256,14 +278,21 @@ Das Auflegen ist also Aufgabe des Servers, auf jedem Pfad:
    Relay-Anruf endet, wenn der Server sein Upstream-Socket schließt) und
    schließt dann den Run mit seinen Kosten ab.
 2. **Heartbeats.** Der Prozess, der einen Anruf hält, schreibt alle 15 Sekunden
-   dessen Kosten und Sekunden. Jeder Heartbeat prüft außerdem erneut die Sitzung
-   des Anrufers, seine Mitgliedschaft, den veröffentlichten Zustand des Agents
-   und den Schalter der Organisation und beendet den Anruf, wenn eines davon
-   nicht mehr gilt.
+   dessen Kosten und Sekunden, schon ab Beginn der Einrichtung, damit ein
+   langsamer Start nicht für einen verlorenen Anruf gehalten wird. Jeder
+   Heartbeat prüft außerdem erneut die Sitzung des Anrufers, seine
+   Mitgliedschaft, den veröffentlichten Zustand des Agents und den Schalter der
+   Organisation und beendet den Anruf, wenn eines davon nicht mehr gilt. Der
+   Anruf eines Besuchers braucht außerdem sein Embed weiterhin aktiv, mit
+   eingeschalteten Anrufen und auf denselben Agent zeigend.
 3. **Der Sweep.** Ein geplanter Job, jede Minute und einmal beim Start, legt
    jeden Anruf auf, dessen Heartbeat älter als 45 Sekunden ist oder dessen Ende
-   festgehalten wurde, dessen Auflegen aber fehlschlug. Er braucht nur die ID
-   des Anrufs und den Schlüssel.
+   vor mehr als 45 Sekunden festgehalten wurde, dessen Auflegen aber
+   fehlschlug. Er braucht nur die ID des Anrufs und den Schlüssel und schließt
+   jeden Anruf für sich, sodass einer, der sich nicht schließen lässt, die
+   anderen nicht aufhält. Ein Anruf, den er nicht auflegen kann, etwa weil sich
+   sein Schlüssel nicht mehr lesen lässt, wird als aufgegeben ausgemustert,
+   sobald er eine Stunde alt ist - bis dahin hat der Provider ihn beendet.
 4. **Herunterfahren.** Ein Server, der angewiesen wird anzuhalten, legt seine
    eigenen Anrufe auf, bevor er geht.
 5. **Der Browser** schließt seine Peer-Verbindung, wenn der Tab endgültig
@@ -282,10 +311,13 @@ Das Auflegen ist also Aufgabe des Servers, auf jedem Pfad:
 
 Eine abgebrochene Verbindung bekommt **einen automatischen Neuversuch innerhalb
 von 10 Sekunden**. Die neue Verbindung wird nur für dieselbe Person, denselben
-Agent und dieselbe Unterhaltung angenommen, und nur innerhalb von 10 Sekunden
-nach dem Ende der vorigen; sie beendet die vorige, wenn diese noch halb offen
-ist. Zeit und Budget werden übernommen: Eine Wiederverbindung setzt die Uhr des
-Anrufs fort, statt sie neu zu starten.
+Agent und dieselbe Unterhaltung angenommen, nur mit dem Fortsetzungs-Token, das
+die vorige Verbindung bei ihrer Einrichtung bekommen hat, und nur innerhalb von
+10 Sekunden, nachdem die vorige geschlossen wurde. Der Server speichert nur
+einen Hash dieses Tokens. Eine Wiederverbindung beendet die vorige, wenn diese
+noch halb offen ist, und zählt sie als bei ihrem letzten Heartbeat beendet. Zeit
+und Budget werden übernommen: Eine Wiederverbindung setzt die Uhr des Anrufs
+fort, statt sie neu zu starten.
 
 Die neue Sitzung beginnt mit den bisher gespeicherten Zügen, als **Text**, also
 wird nichts wiederholt, kein Tool läuft zweimal, und das Audio wird nicht noch
@@ -310,7 +342,9 @@ aufsummiert.
 Jeder Zug wird gespeichert, sobald er fertig ist, als gewöhnliche Nachricht in
 der Unterhaltung: die Worte des Anrufers aus dem Eingabetranskript, die des
 Agents aus dem, was er gesagt hat. Tool-Aufrufe erscheinen inline, wie im
-Text-Chat. Ein Absturz verliert höchstens den laufenden Zug, und eine
+Text-Chat; ein Tool, das das Modell um einen neuen Versuch gebeten hat, wird als
+fehlgeschlagen gespeichert, mit einem allgemeinen Hinweis statt des eigenen
+Fehlertexts des Tools. Ein Absturz verliert höchstens den laufenden Zug, und eine
 Wiederverbindung kann einen Zug nicht zweimal speichern.
 
 Wenn Sie dem Agent ins Wort fallen, wird seine Antwort auf das gekürzt, was Sie

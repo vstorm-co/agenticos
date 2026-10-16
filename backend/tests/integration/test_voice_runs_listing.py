@@ -82,6 +82,7 @@ async def _call(db, org, agent, user, run, *, resume_of=None, at: datetime):
         secret_id=None,
         worker_id="host:1",
         resume_of=resume_of,
+        resume_token_hash="0" * 64,
         started_at=at,
     )
 
@@ -180,3 +181,57 @@ async def test_deleting_an_agent_keeps_its_calls_minutes(db):
         )
         == 60
     )
+
+
+async def test_a_page_of_calls_reads_its_chains_in_a_bounded_number_of_queries(db, engine):
+    """Activity lists up to a hundred runs a page. A query pair per hop per call made
+    that page about two hundred round trips (RR-q03)."""
+    from sqlalchemy import event
+
+    org, agent, user = await _world(db)
+    now = datetime.now(UTC)
+    roots = []
+    for index in range(12):
+        root_run = await _run(db, org, agent, modality="voice", at=now - timedelta(minutes=30))
+        first = await _call(db, org, agent, user, root_run, at=now - timedelta(minutes=30))
+        await voice_call_repo.heartbeat(db, first.id, at=now, cost_usd=Decimal("0.01"), seconds=10)
+        previous = first
+        # Every third call reconnected twice: chains of one and of three connections.
+        for _ in range(2 if index % 3 == 0 else 0):
+            hop_run = await _run(db, org, agent, modality="voice", at=now - timedelta(minutes=20))
+            previous = await _call(db, org, agent, user, hop_run, resume_of=previous.id, at=now)
+            await voice_call_repo.heartbeat(
+                db, previous.id, at=now, cost_usd=Decimal("0.02"), seconds=20
+            )
+        roots.append((root_run.id, index % 3 == 0))
+    statements: list[str] = []
+
+    def count(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine.sync_engine, "before_cursor_execute", count)
+    try:
+        chains = await voice_call_repo.chains_for_runs(
+            db, [run_id for run_id, _ in roots], organization_id=org.id
+        )
+    finally:
+        event.remove(engine.sync_engine, "before_cursor_execute", count)
+
+    assert len(statements) <= 2
+    for run_id, reconnected in roots:
+        chain = chains[run_id]
+        if reconnected:
+            assert (chain.connections, chain.seconds, chain.cost_usd) == (3, 50, Decimal("0.05"))
+        else:
+            assert (chain.connections, chain.seconds, chain.cost_usd) == (1, 10, Decimal("0.01"))
+
+
+async def test_a_chain_is_read_only_within_the_callers_organization(db):
+    org, agent, user = await _world(db)
+    now = datetime.now(UTC)
+    run = await _run(db, org, agent, modality="voice", at=now)
+    await _call(db, org, agent, user, run, at=now)
+    other, _, _ = await _world(db)
+
+    assert await voice_call_repo.chains_for_runs(db, [run.id], organization_id=other.id) == {}
+    assert await voice_call_repo.chains_for_runs(db, [], organization_id=org.id) == {}

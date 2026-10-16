@@ -968,7 +968,9 @@ describe("a voice call on the page (#54)", () => {
     transport: "webrtc",
     startedAt: Date.now(),
     capSeconds: 600,
-    minutesLeft: 540,
+    // The server sends a visitor no month's minutes: the operator's business,
+    // like what a turn cost (`ready.minutes_left`).
+    minutesLeft: null,
   };
   const saved = (overrides: Partial<VoiceSavedTurn> = {}): VoiceSavedTurn => ({
     id: "m1",
@@ -1275,14 +1277,6 @@ describe("a voice call on the page (#54)", () => {
     const reopened = socket();
     act(() => voiceCall.options.onConversation?.("conv-2"));
     expect(socket()).toBe(reopened);
-  });
-
-  it("keeps the organization's minutes out of the visitor's call bar", () => {
-    // What is left of the month's minutes is the operator's business, like a turn's cost.
-    voiceCall.call = LIVE;
-    render(<HostedChat config={voice()} />);
-
-    expect(screen.queryByText(/left this month/)).toBeNull();
   });
 
   it("says why a call did not start in words for a visitor, with a way to try again", async () => {

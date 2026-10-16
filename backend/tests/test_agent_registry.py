@@ -1984,7 +1984,7 @@ class TestVoiceProblems:
         monkeypatch.setattr(
             f"{REGISTRY_PATH}.provider_keys.key_problem",
             AsyncMock(
-                return_value="'Prod' holds a api_key, and voice conversations need an Azure OpenAI key"
+                return_value="'Prod' holds a api_key, and an Azure OpenAI key is required for voice conversations"
             ),
         )
         problems = await service._voice_problems(
@@ -1994,7 +1994,7 @@ class TestVoiceProblems:
             ),
         )
         assert problems == [
-            "Voice: 'Prod' holds a api_key, and voice conversations need an Azure OpenAI key"
+            "Voice: 'Prod' holds a api_key, and an Azure OpenAI key is required for voice conversations"
         ]
 
     @pytest.mark.anyio

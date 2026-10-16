@@ -1,5 +1,5 @@
 ---
-source_sha: "06c2216f05dc"
+source_sha: "bac8a98baeb9"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -931,11 +931,13 @@ Pegelanzeige in der Akzentfarbe des Widgets, der Status, die Zeit gemessen am
 Limit, Stummschalten und Beenden - ohne Push-to-Talk und ohne Freigabekarte.
 Untertitel erscheinen in der Nachrichtenliste und machen den gespeicherten
 Runden Platz, und eine Ablehnung, ein Limit oder eine besetzte Leitung erscheint
-als eine Zeile unter der Leiste. Beenden, das Schließen des Panels, das
-Verlassen der Seite oder eine Verbindung, die sich nicht aufbauen lässt, beendet
-den Anruf und gibt Mikrofon, Audio und Verbindung frei; bricht die Verbindung
-mitten im Anruf ab, wird sie innerhalb von acht Sekunden einmal neu aufgebaut.
-Die Texte des Widgets zum Anruf sind auf Englisch, wie der Rest des Widgets.
+als eine Zeile unter der Leiste.
+
+Beenden, das Schließen des Panels, das Verlassen der Seite oder eine Verbindung,
+die sich nicht aufbauen lässt, beendet den Anruf und gibt Mikrofon, Audio und
+Verbindung frei; bricht die Verbindung mitten im Anruf ab, wird sie innerhalb
+von acht Sekunden einmal neu aufgebaut. Die Texte des Widgets zum Anruf sind auf
+Englisch, wie der Rest des Widgets.
 
 **Ein Besucher kann nichts freigeben.** Tools, die eine Freigabe brauchen,
 werden aus dem Anruf eines Besuchers ganz weggelassen, sodass der Agent nie zu
@@ -943,6 +945,19 @@ einem greift; er sagt klar, wenn er dort etwas nicht tun kann. Ein Anruf bekommt
 außerdem den Platzierungshinweis des Embeds und die deklarierten Variablen der
 Seite, genau wie eine getippte Nachricht, sodass sich der Agent in beiden gleich
 verhält.
+
+**Ein Besucher erfährt nur, was ein Besucher braucht.** Die Schalter unter [was
+der Besucher von der Arbeit sieht](#what-the-visitor-sees-of-the-work) filtern
+die Frames eines Anrufs, wie sie getippte Antworten filtern: Ohne *Was der Agent
+gerade tut* erfährt ein Besucher nicht, dass ein Tool lief, und ohne *Was jeder
+Schritt zurückgegeben hat* trägt ein Schritt nicht mit, womit ein Tool
+aufgerufen wurde oder was zurückkam. Das Limit, das ein Besucher sieht, ist das
+eigene Limit des Anrufs, nie die verbleibenden Minuten der Organisation, und
+eine Ablehnung wegen Einrichtung, Preis, Minuten oder Budget des Betreibers sagt
+nur, dass Anrufe gerade nicht verfügbar sind. Das Embed zu pausieren, seine
+Anrufe abzuschalten oder es auf einen anderen Agent zu richten, beendet die
+Anrufe darauf innerhalb eines Heartbeats. Die Frames stehen auf [der
+API-Seite](api.md#voice-calls).
 
 ### Das Anruf-Socket { #the-call-socket }
 

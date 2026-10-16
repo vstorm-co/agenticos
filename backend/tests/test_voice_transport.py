@@ -68,13 +68,16 @@ async def test_shutdown_ends_every_live_call_and_waits_for_it():
 async def test_a_frame_is_one_json_object_with_its_type():
     from unittest.mock import AsyncMock, MagicMock
 
+    from app.schemas.voice import EndedFrame, StateFrame
     from app.services.voice.transport import send_frame
 
     websocket = MagicMock(send_text=AsyncMock())
 
-    assert await send_frame(websocket, "state", {"state": "listening", "call_id": uuid4()})
-    sent = websocket.send_text.await_args.args[0]
-    assert sent.startswith('{"type": "state", "state": "listening"')
+    assert await send_frame(websocket, StateFrame(type="state", state="listening"))
+    assert await send_frame(websocket, EndedFrame(type="ended", reason="user"))
+    sent = [call.args[0] for call in websocket.send_text.await_args_list]
+    # An optional field the frame was not built with is absent, not `null`.
+    assert sent == ['{"type":"state","state":"listening"}', '{"type":"ended","reason":"user"}']
 
 
 @pytest.mark.anyio
@@ -83,11 +86,12 @@ async def test_sending_to_a_socket_that_is_gone_is_not_an_error():
 
     from fastapi import WebSocketDisconnect
 
+    from app.schemas.voice import StateFrame
     from app.services.voice.transport import send_frame
 
     for gone in (WebSocketDisconnect(), RuntimeError("closed")):
         websocket = MagicMock(send_text=AsyncMock(side_effect=gone))
-        assert await send_frame(websocket, "state", {}) is False
+        assert await send_frame(websocket, StateFrame(type="state", state="listening")) is False
 
 
 @pytest.mark.anyio

@@ -79,13 +79,16 @@ export type VoiceServerFrame =
   | {
       type: "ready";
       call_id: string;
-      run_id: string;
+      /** The call's run; left out for a visitor, as a text embed does. */
+      run_id?: string;
       conversation_id: string;
       transport: VoiceTransport;
       input_sample_rate: number;
       output_sample_rate: number;
       cap_seconds: number;
       minutes_left: number | null;
+      /** What a reconnect of this connection sends as `start.resume_token`; only this caller gets it. */
+      resume_token: string;
     }
   | { type: "state"; state: VoiceActivity }
   | {
@@ -130,11 +133,12 @@ export type VoiceClientFrame =
       conversation_id?: string | null;
       sdp_offer?: string;
       resume_of?: string;
+      /** With `resume_of`: that connection's `ready.resume_token`; a resume without it is refused. */
+      resume_token?: string;
       /** An embed's call only: the page's supplied variables (`StartFrame.context`). */
       context?: VoiceStartContext;
     }
   | { type: "approval"; id: string; decision: "approve" | "deny" }
-  | { type: "ptt"; state: "down" | "up" }
   | { type: "mute"; muted: boolean }
   | { type: "end" }
   | { type: "played"; bytes: number };

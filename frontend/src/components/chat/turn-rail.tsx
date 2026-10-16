@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { AvatarFace } from "@/components/ui/avatar-face";
+import { scrollWithin } from "@/lib/scroll-within";
 import { cn } from "@/lib/utils";
 
 /** One tick on the rail: a message, and enough of it to recognise. */
@@ -82,21 +83,9 @@ function jumpTo(id: string) {
   anchorOf(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
-/**
- * Scrolls the transcript so a message starts at the top of it.
- *
- * Only the message's nearest scrollable ancestor moves. `scrollIntoView` moves
- * every scrollable ancestor it has, so a page column that can scroll at all
- * would be dragged along with the chat.
- */
+/** Scrolls the transcript, and only the transcript, so a message starts at the top of it. */
 function alignTop(anchor: HTMLElement) {
-  for (let node = anchor.parentElement; node; node = node.parentElement) {
-    const { overflowY } = getComputedStyle(node);
-    if (overflowY !== "auto" && overflowY !== "scroll") continue;
-    const top = node.scrollTop + anchor.getBoundingClientRect().top;
-    node.scrollTo({ top: top - node.getBoundingClientRect().top, behavior: "smooth" });
-    return;
-  }
+  scrollWithin(anchor, "start", "smooth");
 }
 
 /**

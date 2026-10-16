@@ -45,6 +45,7 @@ from app.api.embed_cors import allow_embed_origin
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.config import settings
 from app.core.exceptions import BadRequestError
+from app.core.logging import one_line
 from app.db.session import get_db_context
 from app.schemas.agent_embed import PublicEmbedConfig, PublicPageConfig, PublicUpload
 from app.schemas.ml import DictationRead
@@ -169,7 +170,7 @@ async def hosted_logo(public_key: str, service: EmbedSvc) -> Any:
         raise HTTPException(status_code=404, detail="No logo")
     response = await stored_image_response(stored, headers={"X-Content-Type-Options": "nosniff"})
     if response is None:
-        logger.warning("hosted_logo_not_an_image", extra={"public_key": public_key})
+        logger.warning("hosted_logo_not_an_image", extra={"public_key": one_line(public_key)})
         raise HTTPException(status_code=404, detail="No logo")
     return response
 

@@ -11,10 +11,12 @@ reaper can see them.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from secrets import compare_digest, token_urlsafe
 from typing import Literal
 from uuid import UUID
 
@@ -27,19 +29,14 @@ from app.agents.capabilities.budget import price_request
 from app.agents.realtime import build_realtime_model, realtime_settings
 from app.agents.voice import VoiceOptions, thinking_effort
 from app.core.config import settings
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import AppException, AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import StorableSecret
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent_embed import AgentEmbed
-from app.db.models.agent_run import RunStatus, RunSurface
+from app.db.models.agent_run import RunSurface
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
-from app.repositories import (
-    agent_run_repo,
-    conversation_repo,
-    embed_visitor_repo,
-    voice_call_repo,
-)
+from app.repositories import conversation_repo, embed_visitor_repo, voice_call_repo
 from app.repositories import organization as organization_repo
 from app.schemas.voice import StartFrame
 from app.services.agent_registry import AgentRegistryService
@@ -47,16 +44,24 @@ from app.services.agent_runner import AgentRunnerService, PreparedRun, VoiceRun
 from app.services.conversation import ConversationService
 from app.services.embed_session import placement_preamble
 from app.services.organization_secret import OrganizationSecretService
+from app.services.session import hash_token
 from app.services.voice import limits
 from app.services.voice.approvals import SendFrame, VoiceApprovalBridge
 from app.services.voice.exceptions import VoiceRefused
 from app.services.voice.guard import TranscriptGuard
-from app.services.voice.hangup import hang_up_row
 from app.services.voice.meter import UsageMeter
+from app.services.voice.reaper import close_orphaned
 from app.services.voice.registry import LIVE_CALLS, WORKER_ID
-from app.services.voice.settings import ResolvedVoice, VoiceSettingsService, resolve_voice
+from app.services.voice.settings import (
+    ResolvedVoice,
+    VoiceSettingsService,
+    resolve_voice,
+    voice_switched_on,
+)
 from app.services.voice.transcript import SessionFactory, TurnWriter
 from app.services.voice.transport import refuse_data_channel
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -92,7 +97,14 @@ class StartedCall:
     model: RealtimeModel
     cost_limit: Decimal | None
     cap_seconds: int
+    """When the server ends the call: the tightest of its time cap and the month's minutes."""
+    cap_reason: VoiceEndReason
+    """Which of the two `cap_seconds` is, and so what the call ends as when it is reached."""
+    shown_cap_seconds: int
+    """The cap the caller is told. A visitor's leaves the month's minutes out."""
     minutes_left: int | None
+    resume_token: str
+    """What this connection's caller must present to resume it; the row holds its hash."""
     conversation_id: UUID
     bridge: VoiceApprovalBridge
     guard: TranscriptGuard
@@ -122,21 +134,19 @@ class VoiceCallStarter:
 
         Raises:
             VoiceRefused: With a stable `reason`; whatever was flushed is rolled back.
+            AppException: Any other refusal on the way (a key that cannot be
+                unsealed, a run that cannot be prepared), rolled back the same way.
         """
         try:
             return await self._start(caller, frame)
-        except VoiceRefused:
+        except AppException:
             await self.db.rollback()
             raise
 
     async def _start(self, caller: VoiceCaller, frame: StartFrame) -> StartedCall:
         ctx = caller.ctx
         organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
-        if (
-            organization is None
-            or not organization.voice_conversations_enabled
-            or (caller.surface == "web" and not organization.voice_in_chat)
-        ):
+        if organization is None or not voice_switched_on(organization, caller.surface):
             raise VoiceRefused("voice_off", "Voice conversations are switched off here.")
         agent_id = caller.agent_id or frame.agent_id
         if agent_id is None:
@@ -162,12 +172,13 @@ class VoiceCallStarter:
             caller, frame, agent_id=agent.id, conversation_id=conversation_id
         )
         left = await voice_settings.minutes_left_seconds(organization)
-        cap = limits.call_cap_seconds(
+        time_cap = limits.call_cap_seconds(
             org_max=organization.voice_max_call_seconds,
             agent_max=resolved.max_call_seconds,
             chain_elapsed=chain_elapsed,
-            minutes_left=left,
+            minutes_left=None,
         )
+        cap = time_cap if left is None else min(time_cap, left)
         if cap < limits.MIN_CALL_SECONDS:
             if left is not None and left < limits.MIN_CALL_SECONDS:
                 raise VoiceRefused(
@@ -196,6 +207,8 @@ class VoiceCallStarter:
             raise VoiceRefused(
                 "not_priced", "This model's price is unknown, so its budget could not be enforced."
             )
+
+        await self._refuse_when_full(caller, now=datetime.now(UTC))
 
         bridge = VoiceApprovalBridge(
             sessions=self._sessions,
@@ -253,6 +266,7 @@ class VoiceCallStarter:
             ) from None
 
         now = datetime.now(UTC)
+        resume_token = token_urlsafe(32)
         if caller.user_id is not None:
             await self._claim_slot(caller.user_id, now=now)
         elif caller.embed_id is not None:
@@ -272,6 +286,7 @@ class VoiceCallStarter:
             secret_id=resolved.secret_id,
             worker_id=WORKER_ID,
             resume_of=frame.resume_of,
+            resume_token_hash=hash_token(resume_token),
             started_at=now,
         )
         # The first commit (amendment 5). It also releases the slot lock, after the
@@ -286,7 +301,17 @@ class VoiceCallStarter:
             model=model,
             cost_limit=headroom,
             cap_seconds=cap,
-            minutes_left=None if left is None else left // 60,
+            cap_reason=(
+                VoiceEndReason.MINUTES
+                if left is not None and left < time_cap
+                else VoiceEndReason.TIME_LIMIT
+            ),
+            # A visitor is told the call's own cap, never the organization's
+            # remaining minutes; the server still ends the call at `cap_seconds`.
+            shown_cap_seconds=time_cap if caller.anonymous else cap,
+            # The organization's monthly allowance is not a visitor's to read.
+            minutes_left=None if left is None or caller.anonymous else left // 60,
+            resume_token=resume_token,
             conversation_id=conversation_id,
             bridge=bridge,
             guard=TranscriptGuard.for_spec(prepared.spec),
@@ -294,7 +319,8 @@ class VoiceCallStarter:
                 prepared.built.ledger,
                 entry=resolved.entry,
                 model_name=resolved.model,
-                price_as=price_provider if resolved.provider == "azure" else None,
+                provider=price_provider,
+                price_here=resolved.provider == "azure",
             ),
             writer=TurnWriter(
                 sessions=self._sessions,
@@ -330,7 +356,10 @@ class VoiceCallStarter:
                 ) from None
             return conversation.id
         conversation = await conversation_repo.create_conversation(
-            self.db, organization_id=organization_id, user_id=caller.user_id, title="Voice call"
+            self.db,
+            organization_id=organization_id,
+            user_id=caller.user_id,
+            title=caller.conversation_title,
         )
         return conversation.id
 
@@ -357,6 +386,7 @@ class VoiceCallStarter:
             )
             if (
                 previous is not None
+                and _holds_resume_token(previous, frame)
                 and previous.conversation_id is not None
                 and previous.embed_id is not None
                 and previous.embed_id == caller.embed_id
@@ -386,76 +416,63 @@ class VoiceCallStarter:
     ) -> int:
         """The chain's elapsed seconds for a reconnect, or 0 for a new call.
 
-        Only the same person, agent and conversation, and only within ten seconds
-        of the previous connection ending (Q13, amendment 9). A previous connection
+        Only the same person, agent and conversation, holding the token the
+        previous connection's `ready` gave them, and only within ten seconds of
+        that connection ending (Q13, amendment 9). A previous connection
         still open is the normal case after a real network drop - the server keeps
         the old socket half-open until its ping times out, 20-40 s, while the
         client retries after 1.5 s - so it is ended here rather than refused.
         """
         if frame.resume_of is None:
             return 0
+        refused = VoiceRefused("resume_refused", "The call could not be resumed. Start a new one.")
         previous = await voice_call_repo.get(
             self.db, frame.resume_of, organization_id=caller.ctx.organization_id
         )
         if (
             previous is None
+            or not _holds_resume_token(previous, frame)
             or previous.user_id != caller.user_id
             or previous.embed_id != caller.embed_id
             or previous.agent_id != agent_id
             or previous.conversation_id != conversation_id
         ):
-            raise VoiceRefused("resume_refused", "The call could not be resumed. Start a new one.")
+            raise refused
         if previous.ended_at is None:
             # Still open: this reconnect ends it, so it ended just now, for this
             # reconnect - the ten-second window is about a connection that ended
             # on its own, and does not apply.
             previous = await self._end_previous(previous)
             if previous.ended_at is None:
-                raise VoiceRefused(
-                    "resume_refused", "The call could not be resumed. Start a new one."
-                )
-        elif (datetime.now(UTC) - previous.ended_at).total_seconds() > limits.RESUME_WINDOW_SECONDS:
-            raise VoiceRefused("resume_refused", "The call could not be resumed. Start a new one.")
+                raise refused
+        elif (
+            datetime.now(UTC) - _closed_at(previous, ended_at=previous.ended_at)
+        ).total_seconds() > limits.RESUME_WINDOW_SECONDS:
+            raise refused
         return await voice_call_repo.chain_seconds(self.db, previous.id)
 
     async def _end_previous(self, previous: VoiceCall) -> VoiceCall:
         """End a connection the server still holds open, and wait (bounded) until it reads ended.
 
         On this worker, through the live registry: the holder's own teardown hangs
-        up and records the final cost. On another worker - or a dead one - by
-        recording its end from the last heartbeat and hanging it up the reaper's
-        way (`hang_up_row`); that worker's next heartbeat finds its row ended and
-        stops (Task 19), and its teardown's figures win (`voice_call_repo.end`).
-        Its run is closed as `cancelled` here - continued by this reconnect, not
-        failed - in case that worker is dead and nothing else would close it; a
-        live worker's own `finish` still writes the final figures over it.
+        up and records the final cost. On another worker - or a dead one - the
+        sweep's way (`close_orphaned`): hung up, ended from its last heartbeat,
+        and its run closed as `cancelled` - continued by this reconnect, not
+        failed - in case that worker is dead and nothing else would close it.
+        That worker's next heartbeat finds its row ended and stops (Task 19), and
+        its teardown's figures win (`voice_call_repo.end`); its own `finish`
+        still writes the final figures over the run. A failure here is logged and
+        leaves the row as it was, so the wait below runs out and the reconnect is
+        refused rather than crashing.
         """
         if not LIVE_CALLS.request_end_for(previous.id, VoiceEndReason.DISCONNECTED):
-            async with self._sessions() as own:
-                now = datetime.now(UTC)
-                await voice_call_repo.end(
-                    own,
-                    previous.id,
-                    at=now,
-                    reason=VoiceEndReason.DISCONNECTED,
-                    cost_usd=previous.cost_usd,
-                    seconds=previous.seconds,
-                    guardrail_hits=previous.guardrail_hits,
-                )
-                if previous.run_id is not None:
-                    await agent_run_repo.close_voice_run(
-                        own,
-                        run_id=previous.run_id,
-                        status=RunStatus.CANCELLED.value,
-                        cost_usd=previous.cost_usd,
-                        ended_at=now,
-                        error=None,
+            try:
+                async with self._sessions() as own:
+                    await close_orphaned(
+                        own, previous, reason=VoiceEndReason.DISCONNECTED, now=datetime.now(UTC)
                     )
-                    await agent_run_repo.expire_pending_approvals(
-                        own, run_id=previous.run_id, decided_at=now
-                    )
-                if await hang_up_row(own, previous):
-                    await voice_call_repo.mark_hung_up(own, previous.id, at=now)
+            except Exception:
+                logger.exception("voice_previous_close_failed", extra={"call_id": str(previous.id)})
         with anyio.move_on_after(limits.RESUME_WAIT_SECONDS):
             while True:
                 async with self._sessions() as own:
@@ -476,6 +493,41 @@ class VoiceCallStarter:
         parallel. The same lock-then-count as `_claim_slot`.
         """
         await hold_subject(self.db, LockScope.VOICE_CALLS_PER_EMBED, embed_id)
+        await self._refuse_embed_when_full(embed_id, now=now)
+
+    async def _claim_slot(self, user_id: UUID, *, now: datetime) -> None:
+        """Refuse a call past the person's concurrent-call limit, one start at a time.
+
+        The advisory lock is transaction-scoped and taken before the count, so two
+        starts at once cannot both count zero open calls: the second waits until
+        the first has committed its row, then counts it.
+        """
+        await hold_subject(self.db, LockScope.VOICE_CALLS_PER_USER, user_id)
+        await self._refuse_user_when_full(user_id, now=now)
+
+    async def _refuse_when_full(self, caller: VoiceCaller, *, now: datetime) -> None:
+        """The same counts without the lock: a look before the run is assembled.
+
+        A line already full is refused without paying for an agent's assembly - a
+        sandbox, delegates, tools - only to refuse it after. Never the decision
+        between two starts racing for the last place: the claim's locked count,
+        after, is.
+        """
+        if caller.user_id is not None:
+            await self._refuse_user_when_full(caller.user_id, now=now)
+        elif caller.embed_id is not None:
+            await self._refuse_embed_when_full(caller.embed_id, now=now)
+
+    async def _refuse_user_when_full(self, user_id: UUID, *, now: datetime) -> None:
+        open_calls = await voice_call_repo.count_open_for_user(
+            self.db,
+            user_id=user_id,
+            fresh_since=now - timedelta(seconds=limits.STALE_AFTER_SECONDS),
+        )
+        if open_calls >= settings.VOICE_MAX_CALLS_PER_USER:
+            raise VoiceRefused("busy", "You are already on a call. End it before starting another.")
+
+    async def _refuse_embed_when_full(self, embed_id: UUID, *, now: datetime) -> None:
         open_calls = await voice_call_repo.count_open_for_embed(
             self.db,
             embed_id=embed_id,
@@ -486,31 +538,58 @@ class VoiceCallStarter:
                 "line_busy", "Too many calls are open here right now. Try again in a few minutes."
             )
 
-    async def _claim_slot(self, user_id: UUID, *, now: datetime) -> None:
-        """Refuse a call past the person's concurrent-call limit, one start at a time.
 
-        The advisory lock is transaction-scoped and taken before the count, so two
-        starts at once cannot both count zero open calls: the second waits until
-        the first has committed its row, then counts it.
-        """
-        await hold_subject(self.db, LockScope.VOICE_CALLS_PER_USER, user_id)
-        open_calls = await voice_call_repo.count_open_for_user(
-            self.db,
-            user_id=user_id,
-            fresh_since=now - timedelta(seconds=limits.STALE_AFTER_SECONDS),
-        )
-        if open_calls >= settings.VOICE_MAX_CALLS_PER_USER:
-            raise VoiceRefused("busy", "You are already on a call. End it before starting another.")
+def _holds_resume_token(previous: VoiceCall, frame: StartFrame) -> bool:
+    """Whether a resume presents the token the previous connection's `ready` gave its caller.
+
+    The call id alone is not proof of being on the call. A connection with no
+    token on record (opened before there was one) cannot be resumed, and a
+    client that sends none is refused rather than failing.
+    """
+    return (
+        previous.resume_token_hash is not None
+        and frame.resume_token is not None
+        and compare_digest(previous.resume_token_hash, hash_token(frame.resume_token))
+    )
+
+
+def _closed_at(previous: VoiceCall, *, ended_at: datetime) -> datetime:
+    """When an ended connection stopped being held, which the resume window runs from.
+
+    Its end, as a rule. A reconnect that closed it from another worker
+    (`close_orphaned`) stamps the end at its last heartbeat, so the minutes stop
+    where the connection was last alive - up to a heartbeat and more before the
+    close - and that reconnect's own retry, after it failed before `ready`, would
+    be refused by a window it is still inside. Its hang-up, recorded at the close,
+    says when that was.
+    """
+    if previous.end_reason == VoiceEndReason.DISCONNECTED.value and previous.hung_up_at is not None:
+        return max(ended_at, previous.hung_up_at)
+    return ended_at
+
+
+MAX_BRIEFED_VALUE_CHARS = 200
+"""The longest a page-supplied value is carried into a call's instructions.
+
+Longer than any order number, plan or name a page describes a visitor with, and
+short enough that a value a visitor pasted does not inflate instructions that
+are billed again on every response of the call."""
 
 
 def _briefing(caller: VoiceCaller, frame: StartFrame) -> str | None:
     """What a text turn on the caller's embed would prepend, or `None` off an embed.
 
     The same preamble and the same narrowing (`placement_preamble`): only
-    variables the embed declares, only URL-safe ones on a hosted page, and as
-    unverified data about the visitor rather than instructions.
+    variables the embed declares (at most twenty), only URL-safe ones on a hosted
+    page, and as unverified data about the visitor rather than instructions. In
+    the call's instructions rather than its history on purpose (`CALL_BRIEFING`),
+    so each value is bounded first.
     """
     if caller.embed is None:
         return None
-    parts = placement_preamble(caller.embed, frame.context or {})
+    supplied = {
+        name: value[:MAX_BRIEFED_VALUE_CHARS] if isinstance(value, str) else value
+        for name, value in (frame.context or {}).items()
+    }
+    parts = placement_preamble(caller.embed, supplied)
     return "\n\n".join(parts) if parts else None

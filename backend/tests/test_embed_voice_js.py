@@ -102,7 +102,12 @@ def test_end_tells_the_server_before_closing():
 
 def test_the_start_frame_carries_the_offer_the_resume_and_the_pages_variables():
     onopen = RENDERED.split("socket.onopen")[1].split("socket.onmessage")[0]
-    for field in ("start.sdp_offer = sdp", "start.resume_of = resumeOf", "start.context = context"):
+    for field in (
+        "start.sdp_offer = sdp",
+        "start.resume_of = resumeOf",
+        "start.resume_token = c.resumeToken",
+        "start.context = context",
+    ):
         assert field in onopen
 
 
@@ -232,6 +237,8 @@ class TestACallInThePage:
 
         assert result["label"] == "Reconnecting…"
         assert result["starts"] == [None, "c1"]
+        # The resume proves it is this visitor's call with the secret `ready` gave them.
+        assert result["startSecrets"] == [None, "secret-of-c1"]
         assert {"type": "mute", "muted": True} in result["resumedFrames"]
         # Muted reads as a crossed-out microphone, one icon, not a red one.
         assert "m2 2 20 20" in result["muteIcon"]
