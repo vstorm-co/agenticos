@@ -364,26 +364,13 @@ export function useChat(options: UseChatOptions = {}) {
     }
   }, [activeConversationId, setCurrentCost, conversationApi]);
 
-  // A call whose arguments were still streaming when the turn ended never became a
-  // call: the model was stopped or failed mid-way. `unfinished` rather than left
-  // `pending`, which animates under a turn that is over.
-  const abandonStreamingCalls = useCallback(
-    (messageId: string) => {
-      const message = chatApi.getState().messages.find((m) => m.id === messageId);
-      for (const id of streamingCallsRef.current.values()) {
-        const call = message?.toolCalls?.find((c) => c.id === id);
-        if (call?.status === "pending") {
-          updateToolCallPart(messageId, id, { status: "unfinished" });
-        }
-      }
-      streamingCallsRef.current.clear();
-    },
-    [updateToolCallPart, chatApi],
-  );
-
-  // A stopped turn ends every call still out, not only the ones whose arguments
-  // were streaming: a colleague asked a moment before the stop is `running`, and
-  // left so it keeps spinning "Asking …" under a turn that is over.
+  // A turn that ended is running nothing, so every call still out ends with it.
+  // Not only the ones whose arguments were streaming: a call whose `tool_call`
+  // arrived and whose `tool_result` never did is `running`, and left so it spun
+  // "Running…" under a finished answer until a reload (#2149) - a colleague asked
+  // a moment before a stop, a planning step in a turn that failed. A parked call
+  // is `awaiting_approval` by now, and a question answered on this socket has its
+  // result, so neither is touched.
   const abandonOpenCalls = useCallback(
     (messageId: string) => {
       streamingCallsRef.current.clear();
@@ -705,7 +692,7 @@ export function useChat(options: UseChatOptions = {}) {
               `\n\n${t("streamError", { message: message || t("unknownError") })}`,
             );
             updateMessage(id, (msg) => ({ ...msg, isStreaming: false }));
-            abandonStreamingCalls(id);
+            abandonOpenCalls(id);
           }
           setIsProcessing(false);
           // The turn is over and no `subagent_complete` is coming for whatever was
@@ -817,8 +804,7 @@ export function useChat(options: UseChatOptions = {}) {
             // now the frontend never read this field at all.
             if (stopped) setDelegations(closeOpenDelegations);
             if (currentMessageIdRef.current) {
-              if (stopped) abandonOpenCalls(currentMessageIdRef.current);
-              else abandonStreamingCalls(currentMessageIdRef.current);
+              abandonOpenCalls(currentMessageIdRef.current);
             }
             // Whatever else this turn did, it is not summarising any more.
             setCompacting(null);
@@ -867,7 +853,6 @@ export function useChat(options: UseChatOptions = {}) {
       appendThinkingDelta,
       addToolCallPart,
       updateToolCallPart,
-      abandonStreamingCalls,
       abandonOpenCalls,
       setCurrentConversationId,
       setCurrentMessageId,

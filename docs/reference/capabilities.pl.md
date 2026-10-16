@@ -1,5 +1,5 @@
 ---
-source_sha: "3f8a2aa5c5d2"
+source_sha: "60dde7e73718"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1494,6 +1494,14 @@ nadal w wiadomościach powyżej, gdzie czyta się jak to, co zrobiono, a nie jak
 jest robione. Krok `blocked` to praca zaległa, więc plan, który go zawiera, jest
 zasiewany: coś musi go jeszcze odblokować. Wznowienie zasiewa z `paused_state` i
 jest nietknięte, będąc z konstrukcji w środku planu.
+
+**Run, który kończy się bez dokończenia, odkłada swój krok.** Run, który zawiódł,
+został zatrzymany albo przekroczył budżet, niczego już nie robi, więc plan, który
+zapisuje, nie ma kroku `in_progress`: ten krok wraca do `pending` — nadal do
+zrobienia, ale nikt go nie robi. Zachowany bez zmian sprawiał, że przypomnienie
+następnej tury mówiło świeżemu runowi, że już go wykonuje (agenticos#2149). Tura,
+która celowo kończy się w środku planu — pytaniem do osoby — oraz zaparkowany run
+zachowują swój krok w toku.
 
 Agent, który nie wiąże tej capability, nie płaci nic: żadnych narzędzi, żadnego
 przypomnienia i nic zapisanego, bo pusta lista kontrolna wobec kolumny, która jest

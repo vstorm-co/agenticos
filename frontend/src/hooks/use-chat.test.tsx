@@ -514,12 +514,14 @@ describe("useChat - failures and interruptions", () => {
     expect(streaming()?.content).toContain("Unknown error");
   });
 
+  // Every ending ends the call that was already out too, not only the one still
+  // being written: a colleague asked a moment before a stop kept spinning
+  // "Asking …", and a planning call kept "Running…" under a finished turn (#2149).
   it.each([
-    ["the turn failed", () => receive("error", { message: "Timed out" }), "running"],
-    // A stopped run ends the call that was already out too: a colleague asked a
-    // moment before the stop kept spinning "Asking …" under a finished turn.
-    ["the run was cancelled", () => receive("complete", { stopped: true }), "unfinished"],
-  ])("marks a call still being written unfinished when %s", (_, end, sent) => {
+    ["the turn failed", () => receive("error", { message: "Timed out" })],
+    ["the run was cancelled", () => receive("complete", { stopped: true })],
+    ["the turn finished", () => receive("complete", {})],
+  ])("marks every call still out unfinished when %s", (_, end) => {
     renderHook(() => useChat(), { wrapper });
     receive("model_request_start", {});
     receive("part_start", {
@@ -542,7 +544,7 @@ describe("useChat - failures and interruptions", () => {
 
     const calls = useChatStore.getState().messages.find((m) => m.id === id)?.toolCalls;
     expect(calls?.map((call) => [call.id, call.status])).toEqual([
-      ["tc-0", sent],
+      ["tc-0", "unfinished"],
       ["tc-1", "unfinished"],
     ]);
   });

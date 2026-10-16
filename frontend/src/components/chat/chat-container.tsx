@@ -922,7 +922,7 @@ function ChatUI({
                 transcript because a plan is written in one turn and worked through
                 over the next several: as a step it scrolls away under the work it
                 describes, and what somebody wants is where the agent is now. */}
-            <PlanStrip plan={plan} />
+            <PlanStrip plan={plan} live={isProcessing} />
             {/* What is attached, above the composer rather than inside it. The
                 slot is here because the box below is drawn here; `ChatInput`
                 portals its row into it and keeps the upload state. */}

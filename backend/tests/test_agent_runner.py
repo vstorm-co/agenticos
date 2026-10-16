@@ -36,7 +36,7 @@ from pydantic_ai.usage import RequestUsage
 from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace, WorkspaceRef
 from pydantic_ai_backends import StateBackend
 from pydantic_ai_harness.ask_user import DECLINED
-from pydantic_ai_harness.planning import PlanItem
+from pydantic_ai_harness.planning import PlanItem, TaskStatus
 
 from app.agents.ask_user import park_the_question
 from app.agents.audience import RunAudience
@@ -2503,6 +2503,66 @@ class TestParking:
         kept = conversations.return_value.keep_plan
         assert kept.await_args.args[0] == prepared.run.conversation_id
         assert [item["content"] for item in kept.await_args.args[1]] == ["Write the fix"]
+
+    @pytest.mark.anyio
+    async def test_a_failed_turn_records_its_plan_with_nothing_in_progress(self):
+        """The step the failed turn was on reached the next turn as work under way,
+        and the reminder told a fresh run it was already doing it (#2149)."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        await prepared.plan_store.set_items(
+            [
+                PlanItem(content="Read the code", status=TaskStatus.completed),
+                PlanItem(content="Write the fix", status=TaskStatus.in_progress),
+            ]
+        )
+        prepared.built.agent.run = AsyncMock(side_effect=RuntimeError("provider down"))
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+            pytest.raises(RuntimeError),
+        ):
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
+
+        kept = conversations.return_value.keep_plan.await_args.args[1]
+        assert [(item["content"], item["status"]) for item in kept] == [
+            ("Read the code", "completed"),
+            ("Write the fix", "pending"),
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_finished_turn_keeps_the_step_it_left_in_progress(self):
+        """A turn that ended on purpose mid-plan - a question back, a pause for
+        the person - is still on that step when the next message arrives."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        await prepared.plan_store.set_items(
+            [PlanItem(content="Write the fix", status=TaskStatus.in_progress)]
+        )
+        result = MagicMock(output="Which branch?")
+        result.all_messages = MagicMock(return_value=[])
+        result.new_messages = MagicMock(return_value=[])
+        prepared.built.agent.run = AsyncMock(return_value=result)
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()),
+            patch.object(service.transcript, "record", new=AsyncMock()),
+            patch("app.services.agent_runner.ConversationService") as conversations,
+        ):
+            conversations.return_value.keep_overhead = AsyncMock()
+            conversations.return_value.keep_reminder_state = AsyncMock()
+            conversations.return_value.keep_plan = AsyncMock()
+            await service.execute(_ctx(), uuid.uuid4(), "fix the bug")
+
+        kept = conversations.return_value.keep_plan.await_args.args[1]
+        assert [item["status"] for item in kept] == ["in_progress"]
 
     @pytest.mark.anyio
     async def test_a_turn_that_was_not_seeded_a_finished_plan_does_not_delete_it(self):

@@ -23,6 +23,7 @@ from app.agents.capabilities.planning import (
     dump_plan,
     new_plan_store,
     open_plan_store,
+    put_down,
     still_open,
 )
 from app.agents.capabilities.planning._capability import (
@@ -346,3 +347,36 @@ class TestAFinishedPlanIsHistory:
         store = await open_plan_store(still_open(finished))
 
         assert await store.get_items() == []
+
+
+class TestAnInterruptedRunPutsItsPlanDown:
+    """A run that failed or was stopped is working nothing, so the plan it leaves
+    says so: a step it had in progress is still to do, not being done (#2149)."""
+
+    def test_the_step_in_progress_goes_back_to_pending(self):
+        items = [
+            PlanItem(id="a", content="Read", status=TaskStatus.completed).model_dump(mode="json"),
+            PlanItem(id="b", content="Write", status=TaskStatus.in_progress).model_dump(
+                mode="json"
+            ),
+        ]
+
+        put = put_down(items)
+
+        assert [item["status"] for item in put] == ["completed", "pending"]
+        assert put[1]["content"] == "Write"
+
+    def test_every_other_status_is_the_plans_own(self):
+        """Blocked waits on something, cancelled was dropped, done is done - none
+        of them claims anybody is working, so none of them moves."""
+        items = [
+            PlanItem(id=name, content=name, status=status).model_dump(mode="json")
+            for name, status in [
+                ("p", TaskStatus.pending),
+                ("c", TaskStatus.completed),
+                ("x", TaskStatus.cancelled),
+                ("b", TaskStatus.blocked),
+            ]
+        ]
+
+        assert put_down(items) == items

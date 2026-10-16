@@ -1414,6 +1414,13 @@ what is being done. A `blocked` step is work outstanding, so a plan holding one 
 seeded: something still has to unblock it. A resume seeds from `paused_state` and
 is untouched, being mid-plan by construction.
 
+**A run that ends without finishing puts its step down.** A failed, stopped or
+over-budget run is working nothing, so the plan it writes back has no step
+`in_progress`: that step returns to `pending`, still to do and not being done.
+Kept as it was, the next turn's reminder told a fresh run it was already doing it
+(agenticos#2149). A turn that ends mid-plan on purpose — a question back to the
+person — and a parked run keep their step in progress.
+
 An agent that does not bind the capability pays nothing: no tools, no reminder, and
 nothing stored, because an empty checklist against a column that is null is not a
 change to write.

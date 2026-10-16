@@ -1,5 +1,5 @@
 ---
-source_sha: "3f8a2aa5c5d2"
+source_sha: "60dde7e73718"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1519,6 +1519,14 @@ encima, donde se lee como lo hecho y no como lo que se está haciendo. Un paso
 `blocked` es trabajo pendiente, así que un plan que tenga uno sí se siembra: algo
 tiene que desbloquearlo. Una reanudación se siembra desde `paused_state` y queda
 intacta: está a mitad de plan por construcción.
+
+**Un run que termina sin acabar deja su paso.** Un run que falló, se detuvo o
+superó el presupuesto ya no trabaja en nada, así que el plan que escribe de vuelta
+no tiene ningún paso `in_progress`: ese paso vuelve a `pending`, pendiente pero sin
+nadie haciéndolo. Conservado tal cual, el recordatorio del siguiente turno le decía
+a un run nuevo que ya lo estaba haciendo (agenticos#2149). Un turno que termina a
+mitad de plan a propósito —con una pregunta a la persona— y un run aparcado
+conservan su paso en curso.
 
 Un agent que no vincula la capability no paga nada: ni herramientas, ni recordatorio,
 ni nada almacenado, porque una lista de comprobación vacía contra una columna que es

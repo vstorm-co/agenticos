@@ -134,6 +134,7 @@ from app.agents.capabilities.planning import (
     dump_plan,
     new_plan_store,
     open_plan_store,
+    put_down,
     still_open,
 )
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE, WorkspaceIdentity
@@ -1466,6 +1467,18 @@ def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> Agent
 
 
 _CHANNEL_SURFACES = frozenset({RunSurface.SLACK, RunSurface.TELEGRAM, RunSurface.MATTERMOST})
+
+_INTERRUPTED = frozenset(
+    {
+        RunStatus.FAILED,
+        RunStatus.CANCELLED,
+        RunStatus.BUDGET_EXCEEDED,
+        RunStatus.GUARDRAIL_BLOCKED,
+    }
+)
+"""The endings that leave the plan with nobody working it - see `put_down`. A
+completed turn and a parked one keep their step in progress: one chose to stop
+there, the other resumes on it."""
 
 
 _SKILLS_BRIEFING = (
@@ -5016,6 +5029,8 @@ class AgentRunnerService:
                     # opened empty over a finished plan: it did nothing to the
                     # checklist, and `[]` would delete the row #1221 keeps.
                     checklist = await dump_plan(prepared.plan_store)
+                    if status in _INTERRUPTED:
+                        checklist = put_down(checklist)
                     if checklist or not prepared.finished_plan_withheld:
                         await conversations.keep_plan(prepared.run.conversation_id, checklist)
                 await self.db.commit()

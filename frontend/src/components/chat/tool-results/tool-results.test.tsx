@@ -853,4 +853,16 @@ describe("what a planning call shows", () => {
 
     expect(screen.getByText("Tool failed.")).toBeInTheDocument();
   });
+
+  it.each([
+    ["unfinished", "Did not finish"],
+    ["awaiting_approval", "Waiting for approval"],
+  ] as const)("says a %s planning call is not running", (status, said) => {
+    // A call the turn ended without answering kept "Running…" under the
+    // finished answer, and after a reload as well (#2149).
+    render(<PlanToolResult toolCall={toolCall({ status })} resultText="" />);
+
+    expect(screen.getByText(said)).toBeInTheDocument();
+    expect(screen.queryByText("Running…")).toBeNull();
+  });
 });

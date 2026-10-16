@@ -20,8 +20,8 @@ const STEPS: PlanStep[] = [
   { id: "c", content: "Push it", status: "pending" },
 ];
 
-function strip(steps: PlanStep[] | null) {
-  return render(<PlanStrip plan={steps === null ? null : progressOf(steps)} />);
+function strip(steps: PlanStep[] | null, live = true) {
+  return render(<PlanStrip plan={steps === null ? null : progressOf(steps)} live={live} />);
 }
 
 describe("the plan above the composer", () => {
@@ -90,6 +90,24 @@ describe("the plan above the composer", () => {
 
     expect(screen.getByLabelText("Blocked")).toBeInTheDocument();
     expect(screen.getByLabelText("Cancelled")).toBeInTheDocument();
+  });
+
+  it("stops spinning once the turn has ended", async () => {
+    // The run finished, failed or was stopped with a step still in progress:
+    // nobody is working it, so the strip says where it stopped and stays still
+    // rather than spinning until a reload (#2149).
+    const { container } = strip(STEPS, false);
+    await userEvent.click(screen.getByRole("button"));
+
+    expect(screen.getByRole("button")).toHaveTextContent("Write the test");
+    expect(container.querySelector(".animate-spin")).toBeNull();
+  });
+
+  it("spins the step in flight while the turn works it", async () => {
+    const { container } = strip(STEPS, true);
+    await userEvent.click(screen.getByRole("button"));
+
+    expect(container.querySelector(".animate-spin")).not.toBeNull();
   });
 
   it("falls back to naming itself when nothing is in flight yet", () => {

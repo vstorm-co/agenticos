@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, CircleDashed, Loader2, OctagonAlert } from "lucide-react";
+import { Ban, CircleDashed, CircleDot, Loader2, OctagonAlert } from "lucide-react";
 import { motion, useReducedMotion, type Transition } from "motion/react";
 import { useTranslations } from "next-intl";
 import type { ComponentType, CSSProperties } from "react";
@@ -25,7 +25,7 @@ const LOOK: Record<
   { icon: ComponentType<{ className?: string }> | null; tint: string; labelKey: string }
 > = {
   pending: { icon: CircleDashed, tint: "text-muted-foreground", labelKey: "statusPending" },
-  in_progress: { icon: Loader2, tint: "text-brand", labelKey: "statusInProgress" },
+  in_progress: { icon: CircleDot, tint: "text-brand", labelKey: "statusInProgress" },
   completed: { icon: null, tint: "text-success", labelKey: "statusCompleted" },
   cancelled: { icon: Ban, tint: "text-muted-foreground", labelKey: "statusCancelled" },
   blocked: { icon: OctagonAlert, tint: "text-amber-600", labelKey: "statusBlocked" },
@@ -119,11 +119,11 @@ function TaskCheck({ timing }: { timing: (t: Transition) => Transition }) {
 /**
  * The plan, one step per row.
  *
- * The step in flight is the one the eye should land on, so it keeps full contrast
- * and a turning spinner while everything settled goes quiet - struck through once
- * it is done, dimmed once it is cancelled. That ranking is the whole point of
- * drawing the checklist rather than printing the tool's text: a plan is read to
- * find out where the agent is.
+ * The step in flight is the one the eye should land on, so it keeps full contrast,
+ * and a turning spinner while a turn works it, while everything settled goes quiet -
+ * struck through once it is done, dimmed once it is cancelled. That ranking is the
+ * whole point of drawing the checklist rather than printing the tool's text: a plan
+ * is read to find out where the agent is.
  *
  * Nothing here reorders. A completed step stays where the agent put it, because
  * the order *is* the plan - sinking finished rows to the bottom, which is what an
@@ -131,9 +131,14 @@ function TaskCheck({ timing }: { timing: (t: Transition) => Transition }) {
  */
 export function PlanChecklist({
   steps,
+  live = false,
   className,
 }: {
   steps: readonly PlanStep[];
+  /** Whether a turn is working this plan now. Only then does the step in flight
+   *  spin: a plan whose run has ended - finished, failed or stopped - is worked by
+   *  nobody, and a spinner under it says otherwise until a reload (#2149). */
+  live?: boolean;
   className?: string;
 }) {
   const t = useTranslations("chat.plan");
@@ -144,7 +149,7 @@ export function PlanChecklist({
     <ol className={cn("space-y-1.5", className)}>
       {steps.map((step, index) => {
         const look = LOOK[step.status];
-        const Icon = look.icon;
+        const Icon = step.status === "in_progress" && live ? Loader2 : look.icon;
         const done = step.status === "completed";
         const struck = done || step.status === "cancelled";
         return (
@@ -163,9 +168,7 @@ export function PlanChecklist({
               {Icon === null ? (
                 <TaskCheck timing={timing} />
               ) : (
-                <Icon
-                  className={cn("h-3.5 w-3.5", step.status === "in_progress" && "animate-spin")}
-                />
+                <Icon className={cn("h-3.5 w-3.5", Icon === Loader2 && "animate-spin")} />
               )}
             </span>
             <motion.span

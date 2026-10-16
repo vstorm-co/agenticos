@@ -1,5 +1,5 @@
 ---
-source_sha: "3f8a2aa5c5d2"
+source_sha: "60dde7e73718"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1601,6 +1601,15 @@ gerade getan wird. Ein `blocked`-Schritt ist ausstehende Arbeit, deshalb wird ei
 Plan, der einen hält, übernommen: Irgendetwas muss ihn noch entsperren. Eine
 Fortsetzung wird aus `paused_state` befüllt und bleibt unangetastet, da sie
 konstruktionsbedingt mitten im Plan steht.
+
+**Ein Run, der endet, ohne fertig zu werden, legt seinen Schritt ab.** Ein
+fehlgeschlagener, gestoppter oder über das Budget gelaufener Run arbeitet an
+nichts mehr, also hat der Plan, den er zurückschreibt, keinen Schritt
+`in_progress`: Dieser Schritt geht zurück auf `pending` — noch zu tun, aber nicht
+in Arbeit. Unverändert behalten, sagte die Erinnerung des nächsten Zuges einem
+frischen Run, er erledige ihn bereits (agenticos#2149). Ein Zug, der absichtlich
+mitten im Plan endet — mit einer Rückfrage an die Person —, und ein geparkter Run
+behalten ihren Schritt in Arbeit.
 
 Ein Agent, der die Capability nicht bindet, zahlt nichts: keine Tools, keine
 Erinnerung und nichts Gespeichertes, denn eine leere Checkliste gegen eine Spalte,

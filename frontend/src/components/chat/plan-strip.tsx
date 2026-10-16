@@ -24,7 +24,7 @@ import { PlanChecklist, PlanMeter } from "./plan-checklist";
  * conversation needed - beside a page, under a question, most of the window.
  * `null` is "nobody has decided".
  */
-export function PlanStrip({ plan }: { plan: PlanProgress | null }) {
+export function PlanStrip({ plan, live }: { plan: PlanProgress | null; live: boolean }) {
   const t = useTranslations("chat.plan");
   const [choice, setChoice] = useState<boolean | null>(null);
 
@@ -56,7 +56,7 @@ export function PlanStrip({ plan }: { plan: PlanProgress | null }) {
       </button>
       {open && (
         <div className="border-foreground/8 max-h-56 scrollbar-thin overflow-y-auto border-t px-3 py-2.5">
-          <PlanChecklist steps={plan.steps} />
+          <PlanChecklist steps={plan.steps} live={live} />
         </div>
       )}
     </div>
