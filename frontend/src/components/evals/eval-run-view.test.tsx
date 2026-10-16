@@ -2,6 +2,8 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useAuthStore } from "@/stores/auth-store";
+import type { User } from "@/types/auth";
 import { FLIP, SUMMARY, arm, attempt, comparison, evalCase, evalRun } from "@/test-utils/eval-runs";
 import { ApiError } from "@/lib/api-error";
 import { Perm } from "@/types/permissions";
@@ -105,6 +107,7 @@ beforeEach(() => {
   loaded.agent = { can_run: true };
   navigation.params = new URLSearchParams();
   access.allowed = new Set();
+  useAuthStore.setState({ user: null });
   state.casesArgs = [];
   state.comparisonArgs = [];
   state.run = { run: evalRun(), isLoading: false, error: null, refetch: vi.fn(), cancel };
@@ -683,6 +686,8 @@ describe("EvalRunView", () => {
     cancel.mutate.mockImplementation((_: unknown, options: { onError: (e: Error) => void }) =>
       options.onError(new Error("Only whoever started this eval can stop it")),
     );
+    // Whoever started it may stop it.
+    useAuthStore.setState({ user: { id: "u1" } as User });
     render(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(screen.getByText(/1 of 4 first answers in/)).toBeInTheDocument();
@@ -698,6 +703,16 @@ describe("EvalRunView", () => {
     // A live run's table and its verdict are read again while it answers.
     expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ live: true })]);
     expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-1", live: true }]);
+    cleanup();
+
+    // Somebody else may not, unless they may edit the agent.
+    useAuthStore.setState({ user: { id: "u2" } as User });
+    const other = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+    other.unmount();
+    access.allowed = new Set([Perm.agentsEdit]);
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByRole("button", { name: "Stop" })).toBeVisible();
   });
 
   it("reads the verdict and the cases once more when the run ends, after its last reruns", () => {

@@ -14,6 +14,7 @@ import { isLive, useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
+import { useAuthStore } from "@/stores/auth-store";
 import { Perm } from "@/types/permissions";
 import { ArmsTable } from "./arms-table";
 import { ALL, CaseTable, FilterSelect } from "./case-table";
@@ -38,6 +39,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const { run, isLoading, error, refetch, cancel } = useEvalRun(runId);
   const { can } = usePermissions();
   const { agent } = useAgent(agentId);
+  const me = useAuthStore((state) => state.user?.id);
   // Testing the draft again starts a run of it, which these three decide.
   const canTestAgain = agent?.can_run === true && can(Perm.datasetsRun) && can(Perm.agentsEdit);
   const candidates = run?.arms.filter((arm) => arm.role === "candidate") ?? [];
@@ -101,7 +103,8 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         candidate={candidate}
         comparison={live ? undefined : comparison}
         onCancel={
-          live
+          // Who started the run may stop it, and so may an editor of the agent.
+          live && (run.created_by_user_id === me || can(Perm.agentsEdit))
             ? () =>
                 cancel.mutate(undefined, {
                   onError: (failure) => toast.error(getErrorMessage(failure, tErrors)),
