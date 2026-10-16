@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
   linkedError: null as Error | null,
   push: vi.fn(),
   remove: vi.fn(),
+  runsView: true,
   findTwin: vi.fn(),
 }));
 vi.mock("next/navigation", async (original) => ({
@@ -63,6 +64,13 @@ vi.mock("@/hooks/use-datasets", () => ({
   },
 }));
 vi.mock("@/components/sharing/sharing-panel", () => ({ SharingPanel: () => null }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => state.runsView }),
+}));
+vi.mock("@/components/evals/dataset-evals-panel", () => ({
+  DatasetEvalsPanel: ({ datasetId }: { datasetId: string }) => <p>evals of {datasetId}</p>,
+  DatasetRunEvalsButton: () => <button>run evals</button>,
+}));
 vi.mock("@/hooks/use-agents", () => ({ useCapabilityCatalog: () => ({ capabilities: [] }) }));
 vi.mock("@/components/datasets/grading-panel", () => ({
   GradingPanel: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => (
@@ -113,6 +121,7 @@ async function mount() {
 
 describe("the dataset page", () => {
   beforeEach(() => {
+    state.runsView = true;
     state.total = 0;
     state.cases = [];
     state.skips = [];
@@ -245,10 +254,18 @@ describe("the dataset page", () => {
     expect(screen.getByRole("img", { name: "Unsaved" })).toBeInTheDocument();
   });
 
-  it("holds a place for the dataset's eval runs", async () => {
+  it("shows the dataset's eval runs, and starts one from its header", async () => {
     state.tab = "evals";
     await mount();
-    expect(screen.getByText("No eval run yet")).toBeInTheDocument();
+    expect(screen.getByText("evals of d1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "run evals" })).toBeInTheDocument();
+  });
+
+  it("offers no eval runs to who may not read runs", async () => {
+    state.runsView = false;
+    await mount();
+    expect(screen.queryByRole("tab", { name: "Evals" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "run evals" })).toBeNull();
   });
 
   it("opens the tab the address names, in reading order", async () => {

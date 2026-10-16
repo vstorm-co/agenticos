@@ -357,6 +357,7 @@ const DEFAULT_SECTIONS: SectionDef[] = [
       // their own ratings and deciding the scores they send for review.
       { widget: "datasets", span: "s6", rows: "r4" },
       { widget: "review-queue", span: "s6", rows: "r4" },
+      { widget: "eval-runs", span: "s6", rows: "r4" },
     ],
   },
 ];

@@ -57,17 +57,21 @@ export function SpendWidget({ title, hint, period, seeAll, options }: DashboardW
                     <DeltaChip delta={delta} label={t("delta")} rising="bad" />
                   ) : undefined
                 }
-                // The two halves of the bill, and only when indexing spent
+                // The parts of the bill, and only when evals or indexing spent
                 // anything: a deployment with no knowledge base should not
                 // read a line about a subsystem it does not use. The bars
-                // below break down the model half, so the split rides the
+                // below break down the model part, so the split rides the
                 // headline rather than joining them - two denominators in one
                 // list read as one.
                 caption={
-                  Number(cost?.ingestion_usd ?? 0) > 0
+                  Number(cost?.ingestion_usd ?? 0) > 0 || Number(cost?.eval_usd ?? 0) > 0
                     ? t("split", {
                         models: formatUsd(cost?.model_usd),
-                        ingestion: formatUsd(cost?.ingestion_usd),
+                        evals: Number(cost?.eval_usd ?? 0) > 0 ? formatUsd(cost?.eval_usd) : "none",
+                        ingestion:
+                          Number(cost?.ingestion_usd ?? 0) > 0
+                            ? formatUsd(cost?.ingestion_usd)
+                            : "none",
                       })
                     : undefined
                 }

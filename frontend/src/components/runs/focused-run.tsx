@@ -2,12 +2,14 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import {
   Activity,
   ArrowLeft,
   ArrowRight,
   ExternalLink,
+  FlaskConical,
   MessageSquare,
   Play,
   X,
@@ -35,7 +37,7 @@ import { ApiError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { cn, formatDateTime, formatRunDuration } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
-import type { AgentRun } from "@/types/runs";
+import type { AgentRun, EvalCaseLink } from "@/types/runs";
 import { RunTable } from "./run-table";
 
 /**
@@ -90,6 +92,8 @@ export function FocusedRun({
   const { can } = usePermissions();
   const meId = useAuthStore((state) => state.user?.id ?? null);
   const { run, isLoading, error } = useRun(runId);
+  // `?view=input` opens on what went in - how an eval case links to what its model saw.
+  const view = useSearchParams().get("view");
   const { runs: delegated } = useDelegatedRuns(runId);
   const resume = useResumeRun();
   // What is on screen is the answer being held, which during a step is the run
@@ -164,7 +168,7 @@ export function FocusedRun({
     // to the header that stays and the panels belong to the part that scrolls -
     // and Radix is happy for its list and its content to sit in different rows.
     <Tabs
-      defaultValue="timeline"
+      defaultValue={view === "input" ? "input" : "timeline"}
       className="flex h-full min-h-0 flex-col gap-0"
       aria-busy={settling}
     >
@@ -191,6 +195,17 @@ export function FocusedRun({
               <SurfaceIcon surface={run.surface} />
               {surfaceLabel(run.surface, t)}
             </span>
+            {run.eval_case && (
+              <Link
+                href={evalCaseHref(run.eval_case)}
+                className="text-muted-foreground hover:text-foreground max-w-md truncate text-sm underline-offset-4 hover:underline"
+              >
+                {t(run.eval_case.graded ? "evalCaseGraded" : "evalCase", {
+                  dataset: run.eval_case.dataset_name,
+                  input: run.eval_case.case_input,
+                })}
+              </Link>
+            )}
             <span className="flex items-center gap-1.5 font-mono text-xs">
               {run.provider !== null && (
                 <ProviderIcon provider={run.provider} className="h-3.5 w-3.5" />
@@ -328,7 +343,22 @@ export function FocusedRun({
           push the header off a flex parent that has no room to give. */}
       <div className="min-h-0 flex-1 scrollbar-thin space-y-6 overflow-y-auto px-4 py-4">
         <TabsContent value="timeline">
-          <RunTimeline runId={runId} />
+          {/* An eval case keeps no conversation: its answer and grade live on
+              the eval run, so the timeline says where rather than that nothing
+              was recorded. */}
+          {run.eval_case ? (
+            <EmptyState
+              icon={FlaskConical}
+              title={t(run.eval_case.graded ? "evalCaseGradedTitle" : "evalCaseTitle")}
+              description={t(run.eval_case.graded ? "evalCaseGradedBody" : "evalCaseBody")}
+              cta={{
+                label: t("evalCaseOpen"),
+                href: evalCaseHref(run.eval_case),
+              }}
+            />
+          ) : (
+            <RunTimeline runId={runId} />
+          )}
         </TabsContent>
         <TabsContent value="input">
           <RunManifest runId={runId} />
@@ -349,6 +379,11 @@ export function FocusedRun({
 }
 
 /** The agent's face and name, linking to its Builder page. */
+/** The eval run a case belongs to, opened on that case. */
+function evalCaseHref(link: EvalCaseLink): string {
+  return `${ROUTES.AGENTS}/${link.agent_id}/evals/${link.eval_run_id}?case=${link.case_id}`;
+}
+
 function AgentIdentity({ agentId }: { agentId: string }) {
   const t = useTranslations("pages.runs");
   const { agent } = useAgent(agentId);

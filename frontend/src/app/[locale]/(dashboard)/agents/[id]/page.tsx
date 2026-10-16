@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   Archive,
@@ -54,6 +54,10 @@ import { PublishState } from "@/components/agents/publish-state";
 import { ModelSettingsForm } from "@/components/agents/model-settings-form";
 import { ThinkingSetting } from "@/components/agents/thinking-setting";
 import { EnvironmentsPanel } from "@/components/agents/environments-panel";
+import { DraftEvalNote } from "@/components/evals/draft-eval-note";
+import { EvalsPanel } from "@/components/evals/evals-panel";
+import { useEvalArmSpec } from "@/hooks/use-eval-runs";
+import { StartEvalDialog } from "@/components/evals/start-eval-dialog";
 import { VersionHistory } from "@/components/agents/version-history";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { SharingPanel } from "@/components/sharing/sharing-panel";
@@ -170,6 +174,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const tErrors = useTranslations("errors");
   const { id } = use(params);
   const router = useRouter();
+  // A link from an eval run lands on the tab it names: its Evals, the History
+  // comparing the two versions it measured, or Build with the publish asked for.
+  const searchParams = useSearchParams();
+  const openTab = searchParams.get("tab") ?? "build";
+  const compareFrom = Number(searchParams.get("from")) || null;
+  const testedRun = searchParams.get("run");
+  const testedArm = searchParams.get("arm");
+  const compareTo = testedRun ? "tested" : Number(searchParams.get("to")) || "draft";
+  const { spec: testedSpec } = useEvalArmSpec(testedRun, testedArm);
+  const publishAsked = searchParams.get("publish") === "1";
   const { agent, isLoading, saveDraft, validate, publish, rollback, setAvatar, setColor } =
     useAgent(id);
   const { environments, promote } = useAgentEnvironments(id);
@@ -259,9 +273,14 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
+  const canViewRuns = can(Perm.runsView);
   // Only the platform runs a judge - nobody chats with it, gives it tools or
   // exposes it - so its page holds what changes how it grades, and nothing else.
   const isJudge = agent?.kind === "judge";
+  // Testing the draft runs it - the editors' work in progress - on a dataset.
+  const canTestDraft =
+    !isJudge && canViewRuns && canEdit && !!agent?.can_run && can(Perm.datasetsRun);
+  const [testingDraft, setTestingDraft] = useState(false);
 
   // The stale-reference check reads a reference as dead when its id is absent
   // from a list, so it must not run until every list it consults has *succeeded*:
@@ -336,6 +355,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
     }, 1200);
     return () => clearTimeout(timer);
   }, [spec, agent?.draft_spec, isDirty, canEdit, storeDraft, storing]);
+
+  // Asked once per visit, and only of someone who may publish: the dialog still
+  // validates first and still asks before anything goes live.
+  const publishOffered = useRef(false);
+  useEffect(() => {
+    if (!publishAsked || publishOffered.current || !agent || !spec || !canPublish) return;
+    publishOffered.current = true;
+    void handlePublish();
+  });
 
   // Names, never ids: the map exists to be read, and a row of uuids is the
   // thing it replaces. Anything the spec references but the organization no
@@ -762,6 +790,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               agentId={id}
               currentVersionId={agent.current_version_id}
               draftSpec={agent.draft_spec}
+              onTest={canTestDraft ? () => setTestingDraft(true) : undefined}
             />
             {/* And this one: is my edit stored. The draft saves itself; this
                 says where that stands. Quiet when everything is stored -
@@ -991,7 +1020,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         open={publishOpen}
         onOpenChange={setPublishOpen}
         version={nextVersion}
-        environments={environments}
+        environments={isJudge ? null : environments}
         publishing={publish.isPending}
         onConfirm={async () => {
           try {
@@ -1002,7 +1031,20 @@ export default function AgentBuilderPage({ params }: PageProps) {
             // the retry is one click rather than a re-run of validation.
           }
         }}
-      />
+      >
+        {canViewRuns && !isJudge && (
+          <DraftEvalNote
+            agentId={id}
+            onTest={() => {
+              setPublishOpen(false);
+              setTestingDraft(true);
+            }}
+          />
+        )}
+      </PublishDialog>
+      {testingDraft && (
+        <StartEvalDialog agentId={id} target="compare" onOpenChange={setTestingDraft} />
+      )}
 
       {confirming === "archive" && (
         <ConfirmDialog
@@ -1072,7 +1114,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         disabled={!canEdit}
       />
 
-      <Tabs defaultValue="build">
+      <Tabs defaultValue={openTab}>
         <TabsList>
           <TabsTrigger value="build" data-tour="agent-tab-build">
             {t("build")}
@@ -1093,6 +1135,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
           {!isJudge && (
             <TabsTrigger value="availability" data-tour="agent-tab-availability">
               {t("availability")}
+            </TabsTrigger>
+          )}
+          {canViewRuns && !isJudge && (
+            <TabsTrigger value="evals" data-tour="agent-tab-evals">
+              {t("evals")}
             </TabsTrigger>
           )}
           <TabsTrigger value="history" data-tour="agent-tab-history">
@@ -1446,11 +1493,19 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   promote.mutate({ environmentId, versionId })
                 }
                 promoting={promote.isPending}
+                compareFrom={compareFrom}
+                compareTo={compareTo}
+                testedSpec={testedSpec ? { spec: testedSpec, label: t("draftAsTested") } : null}
               />
             </CardContent>
           </Card>
         </TabsContent>
 
+        {canViewRuns && !isJudge && (
+          <TabsContent value="evals" className="mt-6 space-y-6">
+            <EvalsPanel agentId={id} canStart={agent.can_run && can(Perm.datasetsRun)} />
+          </TabsContent>
+        )}
         {isJudge && (
           <TabsContent value="datasets" className="mt-6 space-y-6">
             <JudgeDatasetsCard judgeId={id} />
@@ -1465,7 +1520,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
  * The Builder's own skeleton.
  *
  * None of the shared variants fit: this page is a breadcrumbed header with four
- * actions, a seven-tab strip, and a card whose body is dominated by a ten-row
+ * actions, an eight-tab strip, and a card whose body is dominated by a ten-row
  * textarea. Approximating that with a card grid would move the tab strip the
  * moment the agent arrived, which is the jump the skeleton exists to prevent.
  * `ConversationSkeleton` in `chat-container.tsx` is the same argument.
@@ -1496,7 +1551,7 @@ function BuilderSkeleton() {
           Keyed by position rather than by the width class: the classes repeat,
           which React reported as duplicate keys on every load of this page. */}
       <div className="bg-muted inline-flex h-9 items-center gap-1 rounded-lg p-1">
-        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16"].map((width, index) => (
+        {["w-12", "w-20", "w-28", "w-16", "w-24", "w-16", "w-12"].map((width, index) => (
           <div key={index} className={cn("bg-foreground/10 h-7 animate-pulse rounded-md", width)} />
         ))}
       </div>

@@ -25,6 +25,9 @@ const useRunsMock = vi.fn();
 // filter controls, so the holder is given everything - except the no-access
 // case, which flips this off.
 const holdsEverything = vi.hoisted(() => ({ value: true }));
+vi.mock("@/hooks/use-agents", () => ({
+  useJudges: () => ({ agents: [{ id: "judge-1", slug: "eval-judge", name: "Eval judge" }] }),
+}));
 vi.mock("@/hooks", () => ({
   useRuns: (agentId?: string, options?: unknown) => useRunsMock(agentId, options),
   usePermissions: () => ({ can: () => holdsEverything.value }),
@@ -158,6 +161,8 @@ describe("run history controls", () => {
       rated: undefined,
       statuses: undefined,
       surface: undefined,
+      // The eval traffic is left out until asked for.
+      excludeSurface: "eval",
       userId: undefined,
       agentVersionId: undefined,
       skip: 0,
@@ -247,6 +252,30 @@ describe("run history controls", () => {
     await userEvent.click(screen.getByRole("option", { name: "Problems" }));
 
     expect(lastOptions()).toMatchObject({ statuses: ["failed", "budget_exceeded"] });
+  });
+
+  it("names the judge on its grading runs, which other agent lists leave out", () => {
+    useRunsMock.mockReturnValue({
+      runs: [{ ...aRun(), agent_id: "judge-1", surface: "eval" }],
+      total: 1,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    renderTab();
+    expect(screen.getByText("Eval judge")).toBeInTheDocument();
+  });
+
+  it("puts the eval traffic back, or shows it alone, when asked", async () => {
+    renderTab();
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
+    await userEvent.click(screen.getByRole("option", { name: "Every surface, evals included" }));
+    expect(lastOptions()).toMatchObject({ surface: undefined, excludeSurface: undefined });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Filter by surface" }));
+    await userEvent.click(screen.getByRole("option", { name: "Eval" }));
+    expect(lastOptions()).toMatchObject({ surface: "eval", excludeSurface: undefined });
   });
 
   it("narrows to one surface", async () => {

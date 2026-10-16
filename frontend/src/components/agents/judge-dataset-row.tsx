@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { EvalRunVerdict } from "@/components/evals/eval-run-verdict";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Badge, Button } from "@/components/ui";
 import { useScores } from "@/hooks/use-scoring";
@@ -28,15 +29,19 @@ function Outcome({ score }: { score: CaseScore }) {
 }
 
 /** The eval runs among a judge's latest grades, newest first, each once. */
-function evalRuns(scores: CaseScore[]): CaseScore[] {
-  const seen = new Set<string>();
-  return scores.filter((score) => {
-    if (score.eval_run_id === null || score.agent_id === null || seen.has(score.eval_run_id)) {
-      return false;
+function evalRuns(scores: CaseScore[]): { id: string; agentId: string; at: string }[] {
+  const runs = new Map<string, { id: string; agentId: string; at: string }>();
+  for (const score of scores) {
+    if (score.eval_run_id === null || score.agent_id === null || runs.has(score.eval_run_id)) {
+      continue;
     }
-    seen.add(score.eval_run_id);
-    return true;
-  });
+    runs.set(score.eval_run_id, {
+      id: score.eval_run_id,
+      agentId: score.agent_id,
+      at: score.created_at,
+    });
+  }
+  return [...runs.values()];
 }
 
 /** What one judge graded in one dataset: its latest grades and the eval runs they came from. */
@@ -58,14 +63,15 @@ function JudgeDatasetGrades({ datasetId, judgeId }: { datasetId: string; judgeId
     <div className="space-y-3">
       {runs.length > 0 && (
         <ul aria-label={t("judgeDatasetEvalRuns")} className="flex flex-wrap gap-x-3 gap-y-1">
-          {runs.map((score) => (
-            <li key={score.eval_run_id}>
+          {runs.map((run) => (
+            <li key={run.id} className="flex items-center gap-1.5">
               <Link
-                href={`${ROUTES.AGENTS}/${score.agent_id}/evals/${score.eval_run_id}`}
+                href={`${ROUTES.AGENTS}/${run.agentId}/evals/${run.id}`}
                 className="text-xs underline"
               >
-                {tScoring("groupEvalRun", { when: formatDateTime(score.created_at, locale) })}
+                {tScoring("groupEvalRun", { when: formatDateTime(run.at, locale) })}
               </Link>
+              <EvalRunVerdict runId={run.id} />
             </li>
           ))}
         </ul>

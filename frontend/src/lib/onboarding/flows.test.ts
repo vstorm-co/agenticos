@@ -230,7 +230,7 @@ describe("create-dataset", () => {
       signal: { kind: "opened" },
     });
 
-    const groups = steps.slice(5, -2);
+    const groups = steps.slice(5, -3);
     expect(groups.map((step) => step.target)).toEqual([
       "case-group-question",
       "case-group-answers",
@@ -246,7 +246,7 @@ describe("create-dataset", () => {
       });
       expect(step.signal).toBeUndefined();
     }
-    const [save, sources] = steps.slice(-2);
+    const [save, sources, next] = steps.slice(-3);
     expect(save).toMatchObject({
       target: "case-save",
       signal: { kind: "created", resource: "case" },
@@ -254,6 +254,7 @@ describe("create-dataset", () => {
     expect(save?.blockSubmit).toBeUndefined();
     expect(sources?.target).toBe("datasets-menu");
     expect(sources?.signal).toBeUndefined();
+    expect(next).toMatchObject({ target: "datasets-scoring-tab", page: DATASET_DETAIL });
   });
 });
 
@@ -261,7 +262,8 @@ describe("flowForPage", () => {
   it("maps each section, collapsing its detail routes onto the same flow", () => {
     expect(flowForPage(ROUTES.AGENTS)).toBe("create-agent");
     // An Agents "?" that walked into the builder still offers the agent flow.
-    expect(flowForPage(AGENT_BUILDER)).toBe("create-agent");
+    // Already in an agent, the builder's walk ends on testing a change to it.
+    expect(flowForPage(AGENT_BUILDER)).toBe("test-change");
     expect(flowForPage(ROUTES.SKILLS)).toBe("create-skill");
     expect(flowForPage(ROUTES.RAG)).toBe("create-kb");
     expect(flowForPage(KB_DETAIL)).toBe("create-kb");
@@ -295,6 +297,19 @@ describe("create-routine", () => {
     expect(stepsForFlow(FLOWS["create-routine"], STOCKED, allow, NO_CHOICES)).toHaveLength(2);
     const noRunnable = { ...STOCKED, hasRunnableAgent: false };
     expect(stepsForFlow(FLOWS["create-routine"], noRunnable, allow, NO_CHOICES)).toHaveLength(0);
+  });
+
+  it("tests a change only where something is published to test it against", () => {
+    const ids = (state: OrgState) =>
+      stepsForFlow(FLOWS["test-change"], state, allow, NO_CHOICES).map((step) => step.id);
+    expect(ids(STOCKED)).toEqual([
+      "flow-test-draft",
+      "flow-test-target",
+      "flow-test-run",
+      "flow-test-verdict",
+    ]);
+    // With nothing published there is no Test draft button to start from.
+    expect(ids(EMPTY)[0]).toBe("flow-test-target");
   });
 });
 

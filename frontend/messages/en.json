@@ -672,6 +672,7 @@
     "testSideUnusable": "Off here: the test connection is disabled or not signed in",
     "testConnectionsSaved": "Test connections saved",
     "failedTestConnections": "The test connections could not be saved",
+    "testDraft": "Test draft",
     "judgesCount": "{count, plural, =1 {Judges (1)} other {Judges (#)}}",
     "judgesHint": "Judges grade eval answers: the default one, and each dataset's own. The platform runs them, so nobody chats with one, puts it on a channel, schedules it or delegates to it; open one to change its instructions, model or budget.",
     "defaultJudge": "Default judge",
@@ -1770,7 +1771,7 @@
         "title": "Spend",
         "unit": "in this period",
         "description": "What the period cost, and this calendar month to date. The month figure reconciles with the invoice, so it deliberately ignores the period filter.",
-        "split": "{models} on models · {ingestion} on indexing",
+        "split": "{models} on models{evals, select, none {} other { · {evals} on evals}}{ingestion, select, none {} other { · {ingestion} on indexing}}",
         "spentLabel": "{amount} spent"
       },
       "surfaces": {
@@ -1959,6 +1960,21 @@
           "manual": "{count} by hand",
           "synthetic": "{count} generated"
         }
+      },
+      "eval-runs": {
+        "title": "Eval runs",
+        "description": "The latest runs of agents over their datasets, with pass rates.",
+        "empty": {
+          "title": "No eval runs yet",
+          "description": "Runs started from an agent's Evals tab appear here."
+        },
+        "count": {
+          "running": "{count} running",
+          "completed": "{count} completed",
+          "failed": "{count} failed",
+          "budget_exceeded": "{count} out of budget"
+        },
+        "seeAll": "See the eval traffic in Activity"
       }
     },
     "edit": {
@@ -2925,6 +2941,10 @@
       "create-dataset": {
         "title": "Create a dataset?",
         "body": "A dataset holds the questions your agents are tested on. Want to make your first one and write a first good case together? We'll walk you through it."
+      },
+      "test-change": {
+        "title": "Test a change before it goes live?",
+        "body": "Run the draft against the live version on a dataset and read the verdict: which cases broke, which were fixed, and whether it is worth publishing. We'll walk you through it."
       }
     },
     "steps": {
@@ -3460,6 +3480,38 @@
         "title": "Where the next cases come from",
         "body": "Write them here, or import a CSV or JSONL file from this menu. In chat, rate an answer up or down and add it - a thumbs-up keeps it as the reference, a thumbs-down as the counter-example. In Activity, add any agent turn of a run."
       },
+      "agent-evals": {
+        "title": "Evals",
+        "body": "Run the agent over a dataset to see which cases it passes, what it costs, and whether a change made it better or worse than the version before."
+      },
+      "agent-test-draft": {
+        "title": "Test the draft",
+        "body": "Before you publish, run the draft against the live version on a dataset. The verdict says whether the change made the agent better or worse."
+      },
+      "eval-verdict": {
+        "title": "The verdict",
+        "body": "Which side did better, by how many confirmed cases, and the pass rate before and after. From here, see what changed between the versions, open the cases that broke, or publish."
+      },
+      "flow-test-draft": {
+        "title": "Test the draft",
+        "body": "This draft differs from the live version. Test it on a dataset before publishing."
+      },
+      "flow-test-target": {
+        "title": "What you are testing",
+        "body": "The draft against the live version is already chosen: both answer the same cases now, so whatever changed is the draft's doing."
+      },
+      "flow-test-run": {
+        "title": "Run it for the price shown",
+        "body": "The cost is worked out as you choose and says what the budgets keep afterwards. Nothing runs before you press this."
+      },
+      "flow-test-verdict": {
+        "title": "Read the verdict",
+        "body": "Once both sides finish, this says whether the draft did better or worse, by how many confirmed cases. From here open the cases that broke, see what changed, or publish."
+      },
+      "flow-dataset-next": {
+        "title": "Next: grading, then an eval",
+        "body": "Decide here how answers to these cases are graded. Then run an agent over them - from the agent's Evals tab, or from this dataset - and read how it did."
+      },
       "dataset-grading": {
         "title": "How cases are graded",
         "body": "When a case passes: the rules every answer is checked against and the tools a case expects. Mark which ones a case must pass. Each card saves on its own."
@@ -3823,8 +3875,10 @@
       "categoriesHint": "Broad groups - support, finance, internal. The catalog filters by these.",
       "tagsHint": "Anything narrower you want to search by later.",
       "labelCount": "{used} of {max}",
+      "evals": "Evals",
       "agentsCount": "{count, plural, =1 {Agents (1)} other {Agents (#)}}",
-      "judgeDatasets": "Datasets"
+      "judgeDatasets": "Datasets",
+      "draftAsTested": "Draft as the run tested it"
     },
     "auth": {
       "backSign": "Back to sign in",
@@ -4182,7 +4236,7 @@
       "anyPerson": "Anyone",
       "anyRating": "Any rating",
       "anyStatus": "Any status",
-      "anySurface": "Any surface",
+      "anySurface": "Any surface but evals",
       "anyVersion": "Any version",
       "approvalCount": "{count, plural, =1 {1 request} other {# requests}}",
       "approvals": "Approvals",
@@ -4356,7 +4410,16 @@
       "whereTheMoneyWent": "Where the money went",
       "whoIsSpendingCouldNotBeRead": "Who is spending could not be read.",
       "widenTheWindowAbove": "Nothing ran in the window above. Widen it, or run an agent.",
-      "moreRunActions": "More actions for this run"
+      "everySurface": "Every surface, evals included",
+      "evalCase": "Eval case: {dataset} · {input}",
+      "evalCaseTitle": "A case from an eval run",
+      "evalCaseBody": "This run answered one case of an eval run, which keeps no conversation. Its answer and how it was graded are on the eval run.",
+      "evalCaseOpen": "Open the eval run",
+      "moreRunActions": "More actions for this run",
+      "evalCaseGraded": "Grading an eval case: {dataset} · {input}",
+      "evalCaseGradedTitle": "The judge grading a case of an eval run",
+      "evalCaseGradedBody": "This run is the judge grading one answer of an eval run, which keeps no conversation. The answer, the grade and the judge's reasons are on the eval run.",
+      "grading": "Grading: {input}"
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -6080,8 +6143,6 @@
     "caseOpened": "Edit it to change it; saving makes a new version.",
     "editCase": "Edit",
     "evals": "Evals",
-    "noEvals": "No eval run yet",
-    "noEvalsBody": "An eval runs an agent - a version or its draft - through this dataset's cases and says whether it got better or worse than before.",
     "linkedCaseGone": "The case this link names is not in the newest version of the dataset.",
     "argKey": "Call {number}, argument {arg}: name",
     "argValue": "Call {number}, argument {arg}: value",
@@ -6110,5 +6171,289 @@
     "newDatasetHere": "You have no dataset to add to yet, so this answer starts one, visible to the whole organization.",
     "newDatasetFromActivity": "Answers from Activity",
     "backToDataset": "Back to {name}"
+  },
+  "evals": {
+    "title": "Evals",
+    "description": "How the agent's pass rate moved, version after version, and every run with its verdict.",
+    "start": "Run evals",
+    "startTitle": "Run evals",
+    "startBody": "Pick what to test and on which dataset. The cost shows before anything runs.",
+    "cancel": "Cancel",
+    "aiSettings": "Open the organization's settings",
+    "estimate": {
+      "basis": {
+        "fallback": "no history on this model, a rough guess",
+        "cached": "reused from a recent run",
+        "cachedAt": "answers from the run of {date}, same model - a case that changes is asked of both sides again"
+      },
+      "judge": "Eval judge",
+      "total": "{count, plural, =1 {1 case} other {# cases}} in total",
+      "reruns": "Cases that flip are rerun to confirm, which can add up to {amount}.",
+      "after": "After this run the agent keeps <b>{agent}</b> and the organization <b>{org}</b> of this month's budget.",
+      "noCap": "no cap",
+      "unaffordable": "This is more than a budget has left. Run fewer cases or models, or raise the budget.",
+      "side": "{name} · {model}",
+      "gradedBy": "Graded by {graders}.",
+      "grader": {
+        "checks": "checks",
+        "trajectory": "expected tool calls",
+        "reference": "the reference answer",
+        "judge": "{name}",
+        "judgeRubric": "{name} on {criteria}"
+      },
+      "judgeSameModel": "The judge grades on {model}, the model being tested, and may favour answers like its own. Give the judge another model on its page."
+    },
+    "runFor": "Run for {amount}",
+    "runTitle": "{dataset} v{version} · {candidate}",
+    "runMeta": "{date} · spent {cost} of an estimated {estimate}{ceiling, select, none {} other {, plus up to {ceiling} for confirming reruns}}",
+    "back": "Back to the agent's evals",
+    "cancelRun": "Stop",
+    "progress": "Cases answered",
+    "compareArm": "Compare this model",
+    "draft": "Draft",
+    "proposed": "Proposed changes",
+    "version": "v{version}",
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "completed": "Completed",
+      "cancelled": "Stopped",
+      "failed": "Failed",
+      "budget_exceeded": "Out of budget"
+    },
+    "empty": {
+      "noDatasetTitle": "Create a dataset first",
+      "noDatasetBody": "An eval runs the agent over the cases of a dataset. Add the questions it should answer well, then come back to run them.",
+      "createDataset": "Go to datasets",
+      "title": "No evals yet",
+      "body": "Run the agent over a dataset to see which cases it passes, what it costs, and how it compares with an earlier version."
+    },
+    "fields": {
+      "dataset": "Dataset",
+      "datasetPlaceholder": "Choose a dataset",
+      "datasetOption": "{name} · {count, plural, =1 {1 case} other {# cases}} · v{version}",
+      "environment": "Environment",
+      "noEnvironment": "None",
+      "environmentHint": "Tools reach this environment's test connections. A tool that would write data without one is not executed.",
+      "fromRecordings": "Replay tool results from the original conversation",
+      "fromRecordingsHint": "A case taken from a conversation gets the tool results that conversation got, instead of calling the tools again.",
+      "agent": "Agent",
+      "agentPlaceholder": "Choose an agent",
+      "target": "What are you testing",
+      "targetOption": {
+        "compare": "The draft against v{version}",
+        "version": "v{version} alone",
+        "draft": "The draft"
+      },
+      "targetHint": {
+        "compare": "Both sides answer the same cases on the same model. Answers v{version} gave today may be reused; a case that changes is asked of both sides again, so a change is the draft's doing, not the provider's.",
+        "version": "How the version people are talking to does on the dataset.",
+        "draft": "Nothing is published yet, so this is the first result. Later versions are compared with it."
+      },
+      "noTarget": "This agent has no published version, and running its draft takes the right to edit it.",
+      "advanced": "Advanced",
+      "reruns": "Confirming reruns",
+      "rerunsDefault": "Default",
+      "rerunsCount": "{count, plural, =0 {None} =1 {1 rerun} other {# reruns}}",
+      "rerunsHint": "A case whose result changes is answered again this many times, and the change counts as confirmed only if it holds every time. More reruns make a change harder to confirm, not easier: a model that answers differently each time rarely confirms anything. None skips the check."
+    },
+    "comparison": {
+      "title": "How the two compare",
+      "candidate": "Tested",
+      "baselinePaired": "Compared with, in the same run",
+      "baselinePast": "Compared with, an earlier run",
+      "side": "{candidate} · {model} · dataset v{dataset} · {date}",
+      "unfinished": "not finished",
+      "verdict": {
+        "better": "Fixes cases",
+        "worse": "Breaks cases",
+        "no_difference": "No reproducible change",
+        "invalid": "Not comparable",
+        "mixed": "Mixed"
+      },
+      "regressionsConfirmed": "Confirmed regressions",
+      "regressionsUnconfirmed": "Unconfirmed regressions",
+      "fixedConfirmed": "Confirmed fixes",
+      "fixedUnconfirmed": "Unconfirmed fixes",
+      "compared": "{compared, plural, =1 {1 case} other {# cases}} compared, {skipped} answered on one side only",
+      "comparedTag": "{compared, plural, =1 {1 case} other {# cases}} tagged #{tag} compared. The verdict and the efficiency are over every case.",
+      "metric": {
+        "cost_per_pass": "Cost per passed case",
+        "avg_tokens": "Tokens",
+        "p50_ms": "Median latency",
+        "p95_ms": "p95 latency"
+      },
+      "trend": {
+        "better": "better",
+        "worse": "worse",
+        "unchanged": "unchanged",
+        "unknown": "unknown"
+      },
+      "confirmedHint": "Confirmed: the change held on every rerun.",
+      "unconfirmedHint": "Unconfirmed: on a rerun it came out one way, then the other.",
+      "glossary": "Confirmed: the change held on every rerun. Unconfirmed: on a rerun it came out one way, then the other.",
+      "overall": {
+        "worse": "Worse overall",
+        "better": "Better overall"
+      }
+    },
+    "arms": {
+      "title": "Side by side",
+      "titleTag": "Side by side on #{tag}",
+      "passRate": "Pass rate",
+      "undecided": "Undecided",
+      "costPerPass": "Cost per pass",
+      "tokens": "Tokens per case",
+      "latency": "Latency p50 / p95",
+      "reused": "reused",
+      "p50p95": "{p50} / {p95}",
+      "side": "Side",
+      "pending": "Pending",
+      "reusedFrom": "result from the run of {date}"
+    },
+    "cases": {
+      "title": "{count, plural, =1 {1 case} other {# cases}}",
+      "outcomeFilter": "Outcome",
+      "tagFilter": "Tag",
+      "allTags": "All tags",
+      "outcome": {
+        "all": "All outcomes",
+        "passed": "Passed",
+        "failed": "Failed",
+        "undecided": "Undecided"
+      },
+      "flip": {
+        "regression": "{confirmed, select, true {Confirmed regression} other {Regression, unconfirmed}}",
+        "fixed": "{confirmed, select, true {Confirmed fix} other {Fixed, unconfirmed}}",
+        "incomplete": "Not graded on {side}"
+      },
+      "dot": "{side}: {state, select, passed {passed} failed {failed} undecided {undecided} other {pending}}",
+      "brokenOnly": "{count, plural, =1 {Showing the case that broke.} other {Showing the # cases that broke.}}",
+      "showAll": "Show every case",
+      "corrected": "Corrected by a person",
+      "askedOnly": "Showing the one case you opened."
+    },
+    "case": {
+      "firstAnswer": "Answer",
+      "rerun": "Rerun {n}",
+      "outcome": {
+        "true": "passed",
+        "false": "failed",
+        "null": "undecided"
+      },
+      "call": {
+        "executed": "ran",
+        "replayed": "from recording",
+        "blocked": "not executed (would have written data)",
+        "divergent": "not in recording"
+      },
+      "scorer": {
+        "pass": "pass",
+        "fail": "fail",
+        "skipped": "skipped",
+        "error": "error"
+      },
+      "expect": {
+        "title": "What the case expects",
+        "reference": "Reference:",
+        "counterExample": "Not like this:",
+        "calls": "Expected calls, {order}:",
+        "checks": "Checks:",
+        "openDataset": "Open this case in its dataset"
+      },
+      "notGraded": "not graded: {reason}",
+      "whatTheModelSaw": "See what the model saw"
+    },
+    "estimating": "Estimating…",
+    "sideModel": "{name} · {model}",
+    "headline": {
+      "first": "This is the first result of {candidate} on {dataset}: {rate} of cases pass. Later versions are compared with it.",
+      "worse": "{candidate} breaks {broke, plural, =1 {1 case} other {# cases}} that passed on {baseline}, every time it was asked: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
+      "better": "{candidate} fixes {fixed, plural, =1 {1 case} other {# cases}} that failed on {baseline}, every time it was asked: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
+      "no_difference": "No change held: {changes, plural, =0 {{candidate} does as well as {baseline} on {dataset}.} =1 {1 case changed once and came out differently when asked again, so any difference in pass rate between {candidate} and {baseline} on {dataset} is not a reproducible change.} other {# cases changed once and came out differently when asked again, so any difference in pass rate between {candidate} and {baseline} on {dataset} is not a reproducible change.}}",
+      "invalid": "{candidate} and {baseline} cannot be compared: the two sides were graded by a different judge or rubric.",
+      "mixed": "Mixed: {candidate} breaks {broke, plural, =1 {1 case} other {# cases}} and fixes {fixed, plural, =1 {1} other {#}} against {baseline}, every time they were asked. It breaks: “{question}” ({held} of {tries}){others, plural, =0 {} other { and # more}}.",
+      "overall": "{overall, select, worse {Worse overall: across every confirmed change, {candidate} does worse than {baseline}.} other {Better overall: across every confirmed change, {candidate} does better than {baseline}.}}",
+      "passRate": "Pass rate {from} → {to}, each case as most of its tries came out",
+      "firstPassRate": "First answers alone: {from} → {to}"
+    },
+    "live": {
+      "answering": "{done} of {total} first answers in. Cases whose result changes are then rerun to confirm it.",
+      "comparisonLater": "The comparison appears when both sides finish.",
+      "confirming": "Every first answer is in. Confirming the cases that changed: {done} of {total} reruns in."
+    },
+    "answers": "{cases, plural, =1 {1 case} other {# cases}} · {first, plural, =1 {1 answer} other {# answers}} + {reruns, plural, =0 {no confirming reruns} =1 {1 confirming rerun} other {# confirming reruns}}",
+    "actions": {
+      "whatChanged": "See what changed",
+      "showBroken": "{count, plural, =1 {Show the case that broke} other {Show the # cases that broke}}",
+      "backToBuild": "Back to Build",
+      "publish": "Publish",
+      "testAgain": "Test again",
+      "showBrokenOnce": "{count, plural, =1 {Show the case that broke at least once} other {Show the # cases that broke at least once}}"
+    },
+    "group": "{name} · {count, plural, =1 {1 run} other {# runs}}",
+    "trend": {
+      "label": "Pass rate by run",
+      "single": "One run so far. Run another to see a trend.",
+      "legend": "Each point is a run, oldest on the left; hover one for what ran, against what and when, and click it to open the run. Drag the handles under the chart to show more runs or fewer.",
+      "range": "Runs shown",
+      "draftTick": "D",
+      "comparedWith": "compared with {name}",
+      "rate": "Pass rate {rate}",
+      "verdict": "{verdict, select, better {Fixes cases} worse {Breaks cases} mixed {Breaks some cases, fixes others} no_difference {No reproducible change} invalid {Not comparable} other {First result}}",
+      "key": {
+        "worse": "Breaks cases",
+        "better": "Fixes cases",
+        "mixed": "Mixed",
+        "draft": "Draft"
+      }
+    },
+    "chip": {
+      "pending": "Pending",
+      "first": "First result",
+      "better": "Fixes {fixed}",
+      "worse": "Breaks {broke}",
+      "no_difference": "No reproducible change",
+      "invalid": "Not comparable",
+      "mixed": "Mixed · {broke} broke, {fixed} fixed",
+      "overall": "{overall, select, worse {Worse overall} other {Better overall}} · {broke} broke, {fixed} fixed"
+    },
+    "row": {
+      "against": "{candidate} vs {baseline}",
+      "agent": "{agent} · {title}",
+      "rate": "{model} {rate}",
+      "firstRate": "First answers alone: {rate}"
+    },
+    "dataset": {
+      "counted": "{runs, plural, =0 {No runs yet} =1 {1 run of 1 agent} other {# runs of {agents, plural, =1 {1 agent} other {# agents}}}}",
+      "emptyTitle": "No agent has been tested on this dataset yet",
+      "emptyBody": "Run an agent over these cases to see which it passes, how it compares with its earlier versions, and what it costs.",
+      "unnamedAgent": "An agent you cannot see"
+    },
+    "draftNote": {
+      "untested": "This draft was not tested since it last changed.",
+      "test": "Test it",
+      "running": "This draft is being tested now.",
+      "result": "{verdict, select, worse {Last test of this draft: it breaks {broke} against {baseline}.} better {Last test of this draft: it fixes {fixed} against {baseline}.} mixed {Last test of this draft: mixed against {baseline}, {broke} broke and {fixed} fixed.} no_difference {Last test of this draft: no change held against {baseline}.} invalid {The last test of this draft could not be compared with {baseline}.} other {Last test of this draft: the first result, with nothing to compare it with.}}",
+      "ungraded": "{count, plural, =1 {1 case of this draft was not graded} other {# cases of this draft were not graded}}: “{question}”{others, plural, =0 {} other { and # more}}. Grade again on the run before publishing."
+    },
+    "review": {
+      "send": "{count, plural, =1 {Send the failed case to review} other {Send # failed cases to review}}",
+      "sent": "{queued, plural, =0 {Nothing new sent to review} =1 {1 case sent to review} other {# cases sent to review}}{replaced, plural, =0 {} =1 {, replacing 1 older one that was waiting} other {, replacing # older ones that were waiting}}{already, plural, =0 {} other {; # not sent: already waiting, decided or older than the one waiting}}.",
+      "routed": "This run sent {count, plural, =1 {1 answer} other {# answers}} to review itself: the regressions it confirmed and the answers the judge failed to grade.{replaced, plural, =0 {} =1 { That replaced 1 older answer still waiting on the same case.} other { That replaced # older answers still waiting on the same cases.}}",
+      "routingFailed": "This run couldn't send its answers to review itself, so send the failed ones by hand. Why: {reason}",
+      "sendOther": "{count, plural, =1 {Send the other failed case} other {Send the other # failed cases}}"
+    },
+    "draftChanged": "The draft changed after this run.",
+    "ungraded": {
+      "count": "{count, plural, =1 {1 answer was not graded: the judge failed or was skipped, so it counts as neither passed nor failed.} other {# answers were not graded: the judge failed or was skipped, so they count as neither passed nor failed.}}",
+      "again": "Grade again",
+      "done": "{count, plural, =0 {Nothing was graded again} =1 {1 answer graded again} other {# answers graded again}}",
+      "side": "{count, plural, =1 {1 case of {side} was not graded} other {# cases of {side} were not graded}}: “{question}”{others, plural, =0 {} other { and # more}}. Grade again before deciding."
+    },
+    "noAccess": {
+      "title": "You can't open this eval run",
+      "body": "Reading eval runs needs permission to view runs, and access to the agent and the dataset. Ask an admin of the organization."
+    }
   }
 }

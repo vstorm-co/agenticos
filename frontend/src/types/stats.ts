@@ -60,13 +60,15 @@ export interface ProviderCost {
 
 export interface CostBlock {
   /**
-   * Serialised Decimals. `period_usd` is the whole bill - models plus
-   * ingestion - and the two halves below sum to it; the calendar
+   * Serialised Decimals. `period_usd` is the whole bill - models, evals and
+   * ingestion - and the three parts below sum to it; the calendar
    * month-to-date figure still lives on GET /spend.
    */
   period_usd: string;
   previous_period_usd: string;
   model_usd: string;
+  /** What eval runs and their judge cost: inside the bill, outside `model_usd`. */
+  eval_usd: string;
   /** Zero at scope=own: a document is indexed by a worker, for nobody. */
   ingestion_usd: string;
   by_provider: ProviderCost[];

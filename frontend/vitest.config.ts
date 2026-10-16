@@ -68,6 +68,8 @@ export default defineConfig({
         "src/components/dashboard/widgets/artifacts.tsx",
         "src/components/dashboard/widgets/datasets.tsx",
         "src/components/dashboard/widgets/review-queue.tsx",
+        "src/components/dashboard/widgets/eval-runs.tsx",
+        "src/components/evals/**/*.{ts,tsx}",
         "src/components/datasets/**/*.{ts,tsx}",
         "src/components/artifacts/**/*.tsx",
         "src/components/orgs/**/*.tsx",

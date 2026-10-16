@@ -35,10 +35,11 @@ export interface PromoteSpecialist {
  * The organization's judges - the default eval judge and each dataset's own - which
  * every other agent list leaves out. Opened and edited like any agent; never run by hand.
  */
-export function useJudges() {
+export function useJudges({ enabled = true } = {}) {
   const { data, isLoading, error } = useQuery({
     queryKey: qk.agents.judges(),
     queryFn: () => apiClient.get<AgentList>("/agents", { params: { kind: "judge", limit: "100" } }),
+    enabled,
   });
   return { agents: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
 }
