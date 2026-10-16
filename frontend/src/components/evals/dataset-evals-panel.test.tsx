@@ -61,7 +61,6 @@ describe("DatasetEvalsPanel", () => {
       "href",
       "/agents/agent-1/evals/run-2",
     );
-    // The agent's face beside its name; none for one the reader cannot see.
     expect(desk.querySelector("summary .rounded-full")).not.toBeNull();
     const other = screen.getByText("An agent you cannot see · 1 run").closest("details")!;
     expect(other).not.toHaveAttribute("open");
