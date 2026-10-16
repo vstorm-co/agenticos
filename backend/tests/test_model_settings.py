@@ -23,7 +23,7 @@ from pydantic_ai.capabilities import Thinking
 from app.agents.capabilities import CapabilityBinding, build, get, load_builtins
 from app.agents.capabilities.thinking import ThinkingConfig
 from app.agents.factory import build_agent
-from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
+from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec, ResolvedCredential
 from app.agents.spec import SPEC_VERSION, AgentSpec, ModelSettingsSpec
 from app.core.secret_kinds import ApiKeySecret
 
@@ -84,7 +84,7 @@ class TestUnsetStaysUnset:
         """The same `null` read the other way round: as an override of the profile."""
         settings = _built_settings(AgentSpec(name="x"), {"temperature": 0.1, "max_tokens": 100})
 
-        assert settings == {"temperature": 0.1, "max_tokens": 100}
+        assert settings == {**PROMPT_CACHE, "temperature": 0.1, "max_tokens": 100}
 
     def test_the_agent_is_the_more_specific_statement_of_intent(self):
         settings = _built_settings(
@@ -92,7 +92,7 @@ class TestUnsetStaysUnset:
             {"temperature": 0.1, "max_tokens": 100},
         )
 
-        assert settings == {"temperature": 0.9, "max_tokens": 100}
+        assert settings == {**PROMPT_CACHE, "temperature": 0.9, "max_tokens": 100}
 
     def test_every_setting_reaches_the_model_under_its_own_name(self):
         """Names mirror `ModelSettings`, so a mistyped one would be dropped silently."""
@@ -104,7 +104,11 @@ class TestUnsetStaysUnset:
             "timeout": 30.0,
         }
 
-        assert _built_settings(AgentSpec(name="x", model_settings=chosen)) == chosen
+        # Beside prompt caching, which every model is asked for unless a profile says not.
+        assert _built_settings(AgentSpec(name="x", model_settings=chosen)) == {
+            **PROMPT_CACHE,
+            **chosen,
+        }
 
     def test_a_setting_set_to_zero_is_not_mistaken_for_unset(self):
         """`temperature: 0` is the most deliberate value there is."""
