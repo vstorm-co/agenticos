@@ -13,6 +13,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import httpx2
+
+# Imported before any test here patches `mcp.client.streamable_http`, and for that
+# reason only. It loads FastMCP's HTTP transport, which binds
+# `streamable_http_client` by name at import: first imported lazily inside one of
+# the patches below, it kept the fake for the rest of the worker, and every real
+# MCP client after it opened two strings as streams (`test_platform_mcp`).
+import pydantic_ai.mcp  # noqa: F401
 import pytest
 from mcp.shared.auth import OAuthMetadata, OAuthToken
 from pydantic import AnyUrl, SecretStr, ValidationError
