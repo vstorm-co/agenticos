@@ -4,7 +4,13 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { preferredOrg, useOrganizationList, useOrganizations } from "./use-organizations";
+import {
+  preferredOrg,
+  serverFallbackOrg,
+  useOrganizationList,
+  useOrganizations,
+  useTenantId,
+} from "./use-organizations";
 import { apiClient } from "@/lib/api-client";
 import { useOrgStore } from "@/stores";
 import type { Organization } from "@/types";
@@ -67,6 +73,12 @@ describe("preferredOrg", () => {
     expect(preferredOrg([org({ id: "a" }), org({ id: "b", is_personal: true })])?.id).toBe("b");
   });
 
+  it("prefers the deployment's default organization over a personal one (#2156)", () => {
+    expect(
+      preferredOrg([org({ id: "a", is_personal: true }), org({ id: "b", is_default: true })])?.id,
+    ).toBe("b");
+  });
+
   it("takes the first one when none is personal", () => {
     expect(preferredOrg([org({ id: "a" }), org({ id: "b" })])?.id).toBe("a");
   });
@@ -82,6 +94,51 @@ describe("preferredOrg", () => {
       "b",
     );
     expect(preferredOrg([org({ id: "a" })], ["a"])).toBeNull();
+  });
+});
+
+describe("serverFallbackOrg", () => {
+  // Where the backend acts for a request with no organization header - the same
+  // order as `OrganizationService.fallback_for` (#2156).
+  it("is the default organization, then the personal one", () => {
+    const personal = org({ id: "p", is_personal: true });
+    expect(serverFallbackOrg([personal, org({ id: "d", is_default: true })])?.id).toBe("d");
+    expect(serverFallbackOrg([org({ id: "a" }), personal])?.id).toBe("p");
+  });
+
+  it("is the only organization when there is one, and nothing when there is a choice", () => {
+    expect(serverFallbackOrg([org({ id: "a" })])?.id).toBe("a");
+    expect(serverFallbackOrg([org({ id: "a" }), org({ id: "b" })])).toBeNull();
+    expect(serverFallbackOrg([])).toBeNull();
+  });
+});
+
+describe("useTenantId", () => {
+  it("is the selection when there is one", () => {
+    useOrgStore.setState({ activeOrgId: "chosen" });
+    serve([org({ id: "d", is_default: true })]);
+
+    const { result } = renderHook(() => useTenantId(), { wrapper });
+
+    expect(result.current).toBe("chosen");
+  });
+
+  it("is where the server falls back to while nothing is selected", async () => {
+    useOrgStore.setState({ activeOrgId: null });
+    serve([org({ id: "p", is_personal: true }), org({ id: "d", is_default: true })]);
+
+    const { result } = renderHook(() => useTenantId(), { wrapper });
+
+    await waitFor(() => expect(result.current).toBe("d"));
+  });
+
+  it("cannot tell before the list arrives", () => {
+    useOrgStore.setState({ activeOrgId: null });
+    vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() => useTenantId(), { wrapper });
+
+    expect(result.current).toBeNull();
   });
 });
 

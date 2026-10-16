@@ -512,7 +512,7 @@ class TestBothPathsThatMintAnAccountAreGated:
         ):
             repo.get_by_email = AsyncMock(return_value=None)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
-            orgs.return_value.create_personal_org = AsyncMock()
+            orgs.return_value.settle_new_account = AsyncMock()
 
             await service.register(UserCreate(email="new@acme.com", password="password123"))
 
@@ -559,7 +559,7 @@ class TestBothPathsThatMintAnAccountAreGated:
             repo.get_by_oauth = AsyncMock(return_value=None)
             repo.get_by_email = AsyncMock(return_value=None)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
-            orgs.return_value.create_personal_org = AsyncMock()
+            orgs.return_value.settle_new_account = AsyncMock()
 
             await service.get_or_create_oauth_user(
                 provider="google", provider_id="g1", email="new@acme.com"
@@ -590,7 +590,7 @@ class TestBothPathsThatMintAnAccountAreGated:
             repo.get_by_oauth = AsyncMock(return_value=None)
             repo.get_by_email = AsyncMock(return_value=None)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
-            orgs.return_value.create_personal_org = AsyncMock()
+            orgs.return_value.settle_new_account = AsyncMock()
 
             await service.get_or_create_oauth_user(
                 provider="google",
@@ -786,7 +786,7 @@ class TestTheTokenReachesThePolicyFromTheRequest:
         ):
             repo.get_by_email = AsyncMock(return_value=None)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
-            orgs.return_value.create_personal_org = AsyncMock()
+            orgs.return_value.settle_new_account = AsyncMock()
 
             await service.register(
                 UserCreate(email="new@acme.com", password="password123", invitation_token="tok")
@@ -820,7 +820,7 @@ class TestTheTokenReachesThePolicyFromTheRequest:
         ):
             repo.get_by_email = AsyncMock(return_value=None)
             repo.create = AsyncMock(return_value=MagicMock(id=uuid4(), email="new@acme.com"))
-            orgs.return_value.create_personal_org = AsyncMock()
+            orgs.return_value.settle_new_account = AsyncMock()
 
             await service.register(UserCreate(email="new@acme.com", password="password123"))
 

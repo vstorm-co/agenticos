@@ -122,7 +122,7 @@ class TestUserServicePostgresql:
         ):
             mock_repo.get_by_email = AsyncMock(return_value=None)
             mock_repo.create = AsyncMock(return_value=mock_user)
-            mock_org_svc.return_value.create_personal_org = AsyncMock()
+            mock_org_svc.return_value.settle_new_account = AsyncMock()
             mock_email.return_value.send_welcome = AsyncMock()
 
             user_in = UserCreate(

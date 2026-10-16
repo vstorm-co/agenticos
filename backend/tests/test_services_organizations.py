@@ -1,6 +1,7 @@
 """Tests for OrganizationService."""
 
 import uuid
+from contextlib import ExitStack
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -18,8 +19,15 @@ from app.db.models.organization import Organization, OrgRole
 from app.schemas.deployment_settings import DeploymentLimits
 from app.schemas.organization import OrganizationCreate, OrganizationUpdate
 from app.schemas.user import UserCreate
+from app.services.deployment_settings import DeploymentSettingsService, NewAccountPlacement
 from app.services.organization import OrganizationService
 from app.services.user import UserService
+
+
+def _placement(
+    *, personal: bool = True, default: uuid.UUID | None = None, role: str = "member"
+) -> NewAccountPlacement:
+    return NewAccountPlacement(personal=personal, default_organization_id=default, role=role)
 
 
 def _org_row(*, name: str) -> Organization:
@@ -581,6 +589,33 @@ class TestOrganizationResponses:
     def service(self, mock_db):
         return OrganizationService(mock_db)
 
+    @pytest.fixture(autouse=True)
+    def default_organization(self):
+        """No default organization unless a test sets one."""
+        with patch.object(
+            DeploymentSettingsService,
+            "new_account_placement",
+            new=AsyncMock(return_value=_placement()),
+        ) as placement:
+            yield placement
+
+    @pytest.mark.anyio
+    async def test_the_listing_marks_the_deployments_default_organization(
+        self, service, default_organization
+    ):
+        """The console selects it when nothing else is selected (#2156)."""
+        company, personal = _org_row(name="Acme"), _org_row(name="Personal")
+        default_organization.return_value = _placement(default=company.id)
+        rows = [
+            {"org": personal, "role": OrgRole.OWNER.value, "member_count": 1},
+            {"org": company, "role": OrgRole.MEMBER.value, "member_count": 40},
+        ]
+
+        with patch.object(OrganizationService, "list_for_user", new=AsyncMock(return_value=rows)):
+            listing = await service.list_readable_for_user(uuid.uuid4())
+
+        assert [item.is_default for item in listing.items] == [False, True]
+
     @pytest.mark.anyio
     async def test_a_single_organization_carries_the_callers_own_role(self, service):
         """Not the row's role - there is none - but the membership row's.
@@ -739,3 +774,187 @@ class TestTeardownWiring:
             if hasattr(meta, "dependency")
         ]
         assert get_organization_teardown_service in wired
+
+
+class TestWhereANewAccountStarts:
+    """Personal organizations on or off, and a default organization (#2156)."""
+
+    @pytest.fixture
+    def service(self):
+        return OrganizationService(MagicMock())
+
+    @pytest.fixture
+    def placed(self):
+        """Patch the reads `settle_new_account` makes; yields the two writes."""
+
+        def place(
+            placement: NewAccountPlacement,
+            *,
+            invitation: MagicMock | None = None,
+            pending: MagicMock | None = None,
+        ):
+            stack = ExitStack()
+            stack.enter_context(
+                patch.object(
+                    DeploymentSettingsService,
+                    "new_account_placement",
+                    new=AsyncMock(return_value=placement),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "app.services.organization.invitation_repo.get_by_token",
+                    new=AsyncMock(return_value=invitation),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "app.services.organization.invitation_repo.get_pending_for_org_email",
+                    new=AsyncMock(return_value=pending),
+                )
+            )
+            personal = stack.enter_context(
+                patch.object(OrganizationService, "create_personal_org", new=AsyncMock())
+            )
+            joined = stack.enter_context(
+                patch("app.services.organization.member_repo.create", new=AsyncMock())
+            )
+            return stack, personal, joined
+
+        return place
+
+    @pytest.mark.anyio
+    async def test_an_unconfigured_deployment_gives_an_organization_of_ones_own(
+        self, service, placed
+    ):
+        stack, personal, joined = placed(_placement())
+        with stack:
+            await service.settle_new_account(uuid.uuid4(), "ada@acme.com")
+
+        personal.assert_awaited_once()
+        joined.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_company_deployment_joins_the_default_organization_only(self, service, placed):
+        company = uuid.uuid4()
+        user = uuid.uuid4()
+        stack, personal, joined = placed(_placement(personal=False, default=company, role="viewer"))
+        with stack:
+            await service.settle_new_account(user, "ada@acme.com")
+
+        personal.assert_not_awaited()
+        assert joined.await_args.kwargs == {
+            "organization_id": company,
+            "user_id": user,
+            "role": "viewer",
+        }
+
+    @pytest.mark.anyio
+    async def test_personal_organizations_off_and_no_default_joins_nothing(self, service, placed):
+        stack, personal, joined = placed(_placement(personal=False))
+        with stack:
+            await service.settle_new_account(uuid.uuid4(), "ada@acme.com")
+
+        personal.assert_not_awaited()
+        joined.assert_not_awaited()
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("by", ["token", "email"])
+    async def test_an_invitation_to_the_default_organization_joins_it_instead(
+        self, service, placed, by
+    ):
+        """The invitation names its own role, and accepting into an organization the
+        person already joined is refused - so the default stands aside for it."""
+        company = uuid.uuid4()
+        invitation = MagicMock(organization_id=company)
+        stack, _, joined = placed(
+            _placement(default=company),
+            invitation=invitation if by == "token" else None,
+            pending=invitation if by == "email" else None,
+        )
+        with stack:
+            await service.settle_new_account(
+                uuid.uuid4(), "ada@acme.com", invitation_token="tok" if by == "token" else None
+            )
+
+        joined.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_an_invitation_elsewhere_still_joins_the_default(self, service, placed):
+        company = uuid.uuid4()
+        stack, _, joined = placed(
+            _placement(default=company), invitation=MagicMock(organization_id=uuid.uuid4())
+        )
+        with stack:
+            await service.settle_new_account(uuid.uuid4(), "ada@acme.com", invitation_token="tok")
+
+        assert joined.await_args.kwargs["organization_id"] == company
+
+
+@pytest.mark.security
+class TestWhereARequestNamingNoOrganizationLands:
+    """A session without `X-Organization-Id` acts somewhere; this is where (#2156)."""
+
+    @pytest.fixture
+    def service(self):
+        return OrganizationService(MagicMock())
+
+    def _patches(self, *, default=None, member_of_default=False, personal=None, memberships=()):
+        stack = ExitStack()
+        stack.enter_context(
+            patch.object(
+                DeploymentSettingsService,
+                "new_account_placement",
+                new=AsyncMock(return_value=_placement(default=default.id if default else None)),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "app.services.organization.member_repo.get",
+                new=AsyncMock(return_value=MagicMock() if member_of_default else None),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "app.services.organization.organization_repo.get_by_id",
+                new=AsyncMock(return_value=default),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "app.services.organization.organization_repo.get_personal_for_user",
+                new=AsyncMock(return_value=personal),
+            )
+        )
+        stack.enter_context(
+            patch(
+                "app.services.organization.organization_repo.list_for_user",
+                new=AsyncMock(return_value=[(org, "member") for org in memberships]),
+            )
+        )
+        return stack
+
+    @pytest.mark.anyio
+    async def test_the_default_organization_comes_before_a_personal_one(self, service):
+        company, personal = _org_row(name="Acme"), _org_row(name="Personal")
+        with self._patches(default=company, member_of_default=True, personal=personal):
+            assert await service.fallback_for(uuid.uuid4()) is company
+
+    @pytest.mark.anyio
+    async def test_a_default_the_person_is_not_in_is_passed_over(self, service):
+        company, personal = _org_row(name="Acme"), _org_row(name="Personal")
+        with self._patches(default=company, personal=personal):
+            assert await service.fallback_for(uuid.uuid4()) is personal
+
+    @pytest.mark.anyio
+    async def test_with_no_personal_organization_the_only_one_is_used(self, service):
+        only = _org_row(name="Acme")
+        with self._patches(memberships=[only]):
+            assert await service.fallback_for(uuid.uuid4()) is only
+
+    @pytest.mark.anyio
+    async def test_a_choice_is_never_guessed(self, service):
+        """Two organizations, neither default nor personal: a script that forgot the
+        header must not quietly act in one of them."""
+        with self._patches(memberships=[_org_row(name="A"), _org_row(name="B")]):
+            assert await service.fallback_for(uuid.uuid4()) is None

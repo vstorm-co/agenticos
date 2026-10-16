@@ -253,8 +253,9 @@ class UserService:
             full_name=user_in.full_name,
             is_app_admin=is_first_user,
         )
-        org_service = OrganizationService(self.db)
-        await org_service.create_personal_org(user.id, user_in.email)
+        await OrganizationService(self.db).settle_new_account(
+            user.id, user_in.email, invitation_token=user_in.invitation_token
+        )
         try:
             login_url = settings.FRONTEND_URL.rstrip("/") + "/login"
             await get_email_service().send_welcome(
@@ -327,8 +328,9 @@ class UserService:
             oauth_provider=provider,
             oauth_id=provider_id,
         )
-        org_service = OrganizationService(self.db)
-        await org_service.create_personal_org(user.id, user.email)
+        await OrganizationService(self.db).settle_new_account(
+            user.id, user.email, invitation_token=invitation_token
+        )
         try:
             login_url = settings.FRONTEND_URL.rstrip("/") + "/login"
             await get_email_service().send_welcome(

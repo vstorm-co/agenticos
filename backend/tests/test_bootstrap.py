@@ -49,11 +49,11 @@ class TestProviderDefaults:
 
 class TestOrganization:
     @pytest.mark.anyio
-    async def test_an_existing_personal_org_is_reused(self):
+    async def test_the_organization_the_owner_lands_in_is_reused(self):
         """It is where a new operator lands after signing in."""
         existing = MagicMock(name="Personal")
         with patch(
-            "app.commands.bootstrap.organization_repo.get_personal_for_user",
+            "app.commands.bootstrap.OrganizationService.fallback_for",
             new=AsyncMock(return_value=existing),
         ):
             assert await _resolve_organization(MagicMock(), uuid.uuid4(), "Acme") is existing
@@ -63,7 +63,7 @@ class TestOrganization:
         created = MagicMock(id=uuid.uuid4())
         with (
             patch(
-                "app.commands.bootstrap.organization_repo.get_personal_for_user",
+                "app.commands.bootstrap.OrganizationService.fallback_for",
                 new=AsyncMock(return_value=None),
             ),
             patch(

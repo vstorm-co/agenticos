@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { qk } from "@/lib/query-keys";
+import { useOrgStore } from "@/stores/org-store";
 
 /**
  * The confirm-and-join card both invitation paths render.
@@ -16,15 +19,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
  * cookie. The wording, the four states and where a success or a refusal lands are
  * the same, so they live here once rather than in two components that drift.
  */
-export function InvitationAcceptCard({ accept }: { accept: () => Promise<void> }) {
+export function InvitationAcceptCard({ accept }: { accept: () => Promise<string> }) {
   const t = useTranslations("pages.invitations");
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const setActiveOrgId = useOrgStore((state) => state.setActiveOrgId);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   const handleAccept = async () => {
     setStatus("loading");
     try {
-      await accept();
+      const organizationId = await accept();
+      // The person accepted an invitation to work there, so that is where the
+      // console now is - not still in whichever organization it had selected
+      // (#2156). The list is refetched first, so the switcher can name it.
+      await queryClient.invalidateQueries({ queryKey: qk.organizations.list() });
+      setActiveOrgId(organizationId);
       setStatus("success");
       setTimeout(() => router.push("/orgs"), 2000);
     } catch {

@@ -79,6 +79,13 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     name: str
     slug: str
     is_personal: bool
+    is_default: bool = Field(
+        default=False,
+        description=(
+            "Whether this is the deployment's default organization: the one every new "
+            "account joins, and where a request naming no organization acts."
+        ),
+    )
     avatar_url: str | None = None
     avatar_color: int | None = None
     member_count: int = 0
@@ -246,6 +253,12 @@ class InvitationStageRequest(BaseSchema):
     """The token an invitee holds, offered for the server-side exchange (#1414)."""
 
     token: str = Field(min_length=1, max_length=64)
+
+
+class InvitationAccepted(BaseSchema):
+    """The organization an accepted invitation joined, for the console to switch to."""
+
+    organization_id: UUID
 
 
 class InvitationStaged(BaseSchema):

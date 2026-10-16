@@ -28,6 +28,7 @@ from app.api.public_api import PUBLIC
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.schemas.organization import (
+    InvitationAccepted,
     InvitationCreate,
     InvitationCreated,
     InvitationList,
@@ -211,16 +212,14 @@ async def stage_invitation(
     return InvitationStaged(handle=handle)
 
 
-@token_router.post(
-    "/invitations/staged/accept", status_code=status.HTTP_204_NO_CONTENT, response_model=None
-)
+@token_router.post("/invitations/staged/accept", response_model=InvitationAccepted)
 async def accept_staged_invitation(
     request: Request,
     service: InvitationSvc,
     staging: InvitationStagingSvc,
     user: CurrentUser,
     handle: Annotated[str, Header(alias="X-Invitation-Handle")],
-) -> None:
+) -> Any:
     """Redeem a staged handle and accept the invitation as the signed-in user.
 
     The other half of the exchange, once the round trip is over. The handle
@@ -235,19 +234,23 @@ async def accept_staged_invitation(
     token = await staging.redeem(handle)
     if token is None:
         raise NotFoundError(message="Invitation not found or already used")
-    await service.accept(token, accepting_user_id=user.id)
+    invite = await service.accept(token, accepting_user_id=user.id)
+    return InvitationAccepted(organization_id=invite.organization_id)
 
 
-@token_router.post(
-    "/invitations/{token}/accept", status_code=status.HTTP_204_NO_CONTENT, response_model=None
-)
+@token_router.post("/invitations/{token}/accept", response_model=InvitationAccepted)
 async def accept_invitation(
     token: str,
     service: InvitationSvc,
     user: CurrentUser,
-) -> None:
-    """Accept an invitation token. Adds the current user to the organization."""
-    await service.accept(token, accepting_user_id=user.id)
+) -> Any:
+    """Accept an invitation token. Adds the current user to the organization.
+
+    Answers with the organization joined, so the console can switch to it: the
+    person accepted an invitation to work there (#2156).
+    """
+    invite = await service.accept(token, accepting_user_id=user.id)
+    return InvitationAccepted(organization_id=invite.organization_id)
 
 
 @token_router.delete(

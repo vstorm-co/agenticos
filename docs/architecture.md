@@ -402,7 +402,7 @@ inside the request's own transaction:
   visibility first, so the null the cascade writes is legal and the key stays
   reachable by the organization rather than stranded.
 - **A creator's organizations.** `organizations.created_by_user_id` is
-  `RESTRICT`, and every signup creates a personal org, so a bare `DELETE users`
+  `RESTRICT`, and a signup creates a personal org by default, so a bare `DELETE users`
   never worked for a real account. The personal org is removed with its owner; a
   shared one is handed to another owner, or the delete is refused when there is
   none to hand it to.

@@ -39,6 +39,7 @@ from app.services.agent_registry import AgentRegistryService, slugify
 from app.services.assistant import AssistantService
 from app.services.mcp_registry import seed_entries
 from app.services.model_profile import ModelProfileService
+from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.user import UserService
@@ -163,13 +164,15 @@ async def _resolve_mcp_mirror(db) -> None:
 async def _resolve_organization(db, owner_id: uuid.UUID, name: str):
     """The owner's organization, created if this is a fresh install.
 
-    Registration already creates a personal organization; reusing it keeps the
-    demo in the place a new operator will actually land after signing in.
+    Whichever one a session without an organization named lands in - the
+    deployment's default, the owner's personal one, or their only one - so the
+    demo is where a new operator will actually land after signing in. A
+    deployment with personal organizations off has none to reuse, and gets one.
     """
-    personal = await organization_repo.get_personal_for_user(db, owner_id)
-    if personal is not None:
-        info(f"Using organization {personal.name}")
-        return personal
+    landing = await OrganizationService(db).fallback_for(owner_id)
+    if landing is not None:
+        info(f"Using organization {landing.name}")
+        return landing
 
     org = await organization_repo.create(
         db,
