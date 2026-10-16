@@ -1400,7 +1400,12 @@ class AgentRegistryService:
         # And each reviewer's, refused here rather than when a run first reaches
         # its cadence and finds nothing to review with.
         for reviewer in spec.reviewers:
-            problems.add(await self._model_profile_problems(ctx, reviewer.model_profile_id))
+            if reviewer.model_profile_id is None:
+                problems.add([f"Reviewer '{reviewer.name}': pick the model it reviews with"])
+            else:
+                problems.add(await self._model_profile_problems(ctx, reviewer.model_profile_id))
+            if not reviewer.instructions.strip():
+                problems.add([f"Reviewer '{reviewer.name}': say what it looks for"])
 
         problems.add(await self._collection_problems(ctx, spec.collection_ids))
         problems.add(await self._skill_problems(ctx, spec.skill_ids))

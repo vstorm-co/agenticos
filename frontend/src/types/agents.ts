@@ -71,8 +71,9 @@ export type TraceContent = "full" | "none";
 export interface RunReviewerSpec {
   /** What its corrections are attributed to. `^[a-z0-9][a-z0-9_-]{0,39}$`. */
   name: string;
-  model_profile_id: string;
-  /** What to look for. */
+  /** Null in a draft; publish requires one. */
+  model_profile_id: string | null;
+  /** What to look for. Empty in a draft; publish requires it. */
   instructions: string;
   /** Review every N model requests. */
   every: number;

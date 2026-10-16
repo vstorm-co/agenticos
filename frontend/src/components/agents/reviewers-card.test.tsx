@@ -66,9 +66,18 @@ describe("ReviewersCard", () => {
     fireEvent.change(screen.getByLabelText("Tokens it reads"), { target: { value: "" } });
     expect(onChange).toHaveBeenLastCalledWith([{ ...SOURCES, window: 1000 }]);
     await userEvent.click(screen.getByText("pick-model"));
-    expect(onChange).toHaveBeenLastCalledWith([{ ...SOURCES, model_profile_id: "" }]);
+    expect(onChange).toHaveBeenLastCalledWith([{ ...SOURCES, model_profile_id: null }]);
     await userEvent.click(screen.getByRole("button", { name: "Remove reviewer sources" }));
     expect(onChange).toHaveBeenLastCalledWith([]);
+  });
+
+  it("names a new reviewer after the first number nobody has", async () => {
+    const onChange = show([
+      { ...SOURCES, name: "reviewer-2" },
+      { ...SOURCES, name: "reviewer-1" },
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: "Add a reviewer" }));
+    expect(onChange.mock.calls[0]![0][2].name).toBe("reviewer-3");
   });
 
   it("offers no more than the spec allows", () => {

@@ -14,7 +14,7 @@ just another client" true rather than aspirational.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -26,6 +26,7 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import UsageLimits
+from pydantic_ai_harness.guardrails import GuardrailResult
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities import build as build_capabilities
@@ -50,6 +51,7 @@ from app.agents.capabilities.compaction import (
     build_gauge,
 )
 from app.agents.capabilities.conversation_search import CONVERSATION_SEARCH_CAPABILITY_ID
+from app.agents.capabilities.guardrails import GuardrailsConfig, input_screen
 from app.agents.capabilities.media import (
     CONVERSATION_RESOURCE as MEDIA_CONVERSATION_RESOURCE,
 )
@@ -68,7 +70,7 @@ from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
-from app.agents.run_reviewer import REVIEWER_MODELS_RESOURCE, RunReviewer
+from app.agents.run_reviewer import RunReviewer
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
@@ -163,6 +165,7 @@ def build_agent(
     granted_scopes: frozenset[str] | None = None,
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
+    reviewer_models: Mapping[UUID, ModelRequestSpec] | None = None,
     extra_toolsets: list[AbstractToolset[Any]] | None = None,
     extra_capabilities: Sequence[AbstractCapability[AgentDeps]] = (),
     agent_period_spend: PeriodSpendLookup | None = None,
@@ -368,7 +371,7 @@ def build_agent(
         ),
         *configured,
         *extra_capabilities,
-        *_reviewers(spec, resources or {}, recorder),
+        *_reviewers(spec, reviewer_models or {}, recorder),
         # Every agent, not only one that compacts. The warning is most useful to
         # exactly the agent that will not: it is the one that reaches the ceiling
         # and gets refused by the provider.
@@ -422,20 +425,32 @@ def build_agent(
 
 
 def _reviewers(
-    spec: AgentSpec, resources: dict[str, Any], recorder: RunRecorder
+    spec: AgentSpec, models: Mapping[UUID, ModelRequestSpec], recorder: RunRecorder
 ) -> list[RunReviewer]:
     """The spec's run reviewers, each on the model the runner resolved for it (#2106).
 
-    A reviewer whose model was not resolved - a delegate assembled without them -
-    is left out with a warning rather than failing the run it was meant to watch.
+    A reviewer still a draft - no model or nothing to look for - or whose model did
+    not resolve is left out with a warning rather than failing the run it was meant
+    to watch. Its window is held to what its own model can read, with room left for
+    its instructions and its answer, so a cheap model's smaller context does not
+    turn every review into a refused request.
+
+    Its corrections pass through the agent's input guardrail before they reach the
+    model, as a person's mid-run words do: past the first request the input edge no
+    longer looks, and a reviewer quotes the run it read.
     """
-    models: dict[UUID, ModelRequestSpec] = resources.get(REVIEWER_MODELS_RESOURCE) or {}
+    screen = _input_screen(spec)
     reviewers: list[RunReviewer] = []
     for reviewer in spec.reviewers:
-        model = models.get(reviewer.model_profile_id)
-        if model is None:
-            logger.warning("Run reviewer %s has no resolved model; not reviewing", reviewer.name)
+        model = None if reviewer.model_profile_id is None else models.get(reviewer.model_profile_id)
+        if model is None or not reviewer.instructions.strip():
+            logger.warning(
+                "Run reviewer %s is incomplete or unresolved; not reviewing", reviewer.name
+            )
             continue
+        window = reviewer.window
+        if model.context_length:
+            window = max(1_000, min(window, model.context_length * 3 // 4))
         reviewers.append(
             RunReviewer(
                 name=reviewer.name,
@@ -443,11 +458,19 @@ def _reviewers(
                 model_settings=ModelSettings(**model.params),
                 instructions=reviewer.instructions,
                 every=reviewer.every,
-                window=reviewer.window,
+                window=window,
                 recorder=recorder,
+                screen=screen,
             )
         )
     return reviewers
+
+
+def _input_screen(spec: AgentSpec) -> Callable[[str], GuardrailResult] | None:
+    for binding in spec.capabilities:
+        if binding.id == "guardrails" and binding.enabled:
+            return input_screen(GuardrailsConfig.model_validate(binding.config))
+    return None
 
 
 def _defer_for_tool_search(

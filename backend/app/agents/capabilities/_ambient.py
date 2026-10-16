@@ -28,6 +28,7 @@ from __future__ import annotations
 from typing import Any, cast
 
 from pydantic_ai import Agent
+from pydantic_ai.messages import ModelResponse
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import RunContext
@@ -35,6 +36,7 @@ from pydantic_ai.tools import RunContext
 from app.agents.capabilities.budget import (
     can_afford_ambient_call,
     metered_nested_run,
+    record_ambient_usage,
     reserved_limits,
 )
 from app.agents.observability import auxiliary_model
@@ -100,15 +102,22 @@ async def run_ambient_agent[OutputT](
     chosen = auxiliary_model(ctx, model)
     if not isinstance(chosen, Model):
         raise TypeError(f"{type(ctx.model).__name__} cannot run an auxiliary agent")
-    # The request-response model `chosen` wraps (or is): its `model_name` is
-    # what the nested spend prices against.
-    model_name = (ctx.model if model is None else model).model_name or "unknown"
     agent = Agent[None, OutputT](chosen, instructions=instructions, output_type=output_type)
-    with metered_nested_run(ctx.usage, model_name) as usage:
+    # The run's own model prices under its name. A model of the call's own may sit
+    # behind fallbacks, whose composite name no price list knows, so each response
+    # is booked as the model and provider that actually answered it.
+    run_model_name = (ctx.model.model_name or "unknown") if model is None else None
+    with metered_nested_run(ctx.usage, run_model_name) as usage:
         result = await agent.run(
             user_prompt,
             usage=usage,
             usage_limits=reserved_limits(ctx.usage_limits),
             model_settings=run_model_settings(ctx) if model is None else model_settings,
         )
+    if model is not None:
+        for message in result.new_messages():
+            if isinstance(message, ModelResponse):
+                record_ambient_usage(
+                    message.model_name or "unknown", message.usage, message.provider_name
+                )
     return result.output

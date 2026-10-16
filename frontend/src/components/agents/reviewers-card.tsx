@@ -43,12 +43,15 @@ export function ReviewersCard({ value, onChange, disabled }: ReviewersCardProps)
     onChange(
       reviewers.map((reviewer, at) => (at === index ? { ...reviewer, ...patch } : reviewer)),
     );
+  // Saved as a draft straight away - the spec takes a reviewer with no model
+  // or focus yet, and publishing says what is missing - under a name no other
+  // reviewer has, since corrections are attributed by it.
   const add = () =>
     onChange([
       ...reviewers,
       {
-        name: `reviewer-${reviewers.length + 1}`,
-        model_profile_id: profiles[0]?.id ?? "",
+        name: unusedName(reviewers),
+        model_profile_id: profiles[0]?.id ?? null,
         instructions: "",
         every: 10,
         window: 20_000,
@@ -89,9 +92,9 @@ export function ReviewersCard({ value, onChange, disabled }: ReviewersCardProps)
               <ModelProfilePicker
                 profiles={profiles}
                 profilesStatus={profilesStatus}
-                value={reviewer.model_profile_id || null}
+                value={reviewer.model_profile_id}
                 disabled={disabled}
-                onChange={(id) => update(index, { model_profile_id: id ?? "" })}
+                onChange={(id) => update(index, { model_profile_id: id })}
               />
             </div>
             <div className="space-y-1.5">
@@ -135,6 +138,14 @@ export function ReviewersCard({ value, onChange, disabled }: ReviewersCardProps)
       </CardContent>
     </Card>
   );
+}
+
+/** `reviewer-N` for the smallest N no reviewer is already called. */
+function unusedName(reviewers: RunReviewerSpec[]): string {
+  const taken = new Set(reviewers.map((reviewer) => reviewer.name));
+  let n = 1;
+  while (taken.has(`reviewer-${n}`)) n += 1;
+  return `reviewer-${n}`;
 }
 
 function NumberField(props: {

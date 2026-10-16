@@ -32,6 +32,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -41,20 +42,19 @@ from pydantic_ai.messages import ModelResponse
 from pydantic_ai.models import Model
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import RunContext
+from pydantic_ai_harness.guardrails import GuardrailResult
 from pydantic_ai_harness.trajectory_judge._capability import _judge_prompt
 
 from app.agents.capabilities._ambient import AmbientCallSkipped, run_ambient_agent
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.deps import AgentDeps
-from app.agents.manifest import RunRecorder
+from app.agents.manifest import MAX_RECORDED_REVIEWS, RunRecorder
 
 if TYPE_CHECKING:
     from pydantic_ai.agent import AgentRunResult
     from pydantic_ai.models import ModelRequestContext
 
 logger = logging.getLogger(__name__)
-
-REVIEWER_MODELS_RESOURCE = "reviewer_models"
-"""Where the runner puts each reviewer's resolved model, by model profile id."""
 
 _INSTRUCTIONS = (
     "You review another AI agent's run while it is still going. You are shown the most "
@@ -64,6 +64,11 @@ _INSTRUCTIONS = (
     "agent can act on at once. A correction interrupts the agent, so send one only when it "
     "is worth that."
 )
+
+
+MAX_STEER_CHARS = 1_000
+"""How long a correction may be. One or two sentences is what the reviewer is asked
+for; a longer one is cut, so a verbose reviewer cannot fill the run's prompt."""
 
 
 class ReviewVerdict(BaseModel):
@@ -86,6 +91,8 @@ class RunReviewer(AbstractCapability[AgentDeps]):
     every: int = 10
     window: int = 20_000
     model_settings: ModelSettings | None = None
+    screen: Callable[[str], GuardrailResult] | None = None
+    """The agent's input guardrail, which a correction passes before the model reads it."""
     _steps: int = field(default=0, init=False, repr=False)
     _task: asyncio.Task[None] | None = field(default=None, init=False, repr=False)
 
@@ -104,8 +111,10 @@ class RunReviewer(AbstractCapability[AgentDeps]):
         self._steps += 1
         if self._steps % self.every == 0 and (self._task is None or self._task.done()):
             prompt = _judge_prompt([*request_context.messages, response], self.window, ctx.run_id)
+            # The request it reads up to, fixed now: by the time it answers the run
+            # may have moved on.
             self._task = asyncio.create_task(
-                self._review(ctx, prompt), name=f"run-reviewer:{self.name}"
+                self._review(ctx, prompt, self._steps), name=f"run-reviewer:{self.name}"
             )
         return response
 
@@ -121,7 +130,7 @@ class RunReviewer(AbstractCapability[AgentDeps]):
                 with contextlib.suppress(asyncio.CancelledError):
                     await self._task
 
-    async def _review(self, ctx: RunContext[AgentDeps], prompt: str) -> None:
+    async def _review(self, ctx: RunContext[AgentDeps], prompt: str, after_request: int) -> None:
         try:
             verdict = await run_ambient_agent(
                 ctx,
@@ -140,7 +149,20 @@ class RunReviewer(AbstractCapability[AgentDeps]):
             return
         if verdict.on_track or not verdict.steer:
             return
-        ctx.enqueue(f"Steering from run reviewer {self.name!r}: {verdict.steer}")
-        self.recorder.reviews.append(
-            {"reviewer": self.name, "after_request": self._steps, "steer": verdict.steer}
-        )
+        steer = verdict.steer[:MAX_STEER_CHARS]
+        if self.screen is not None:
+            try:
+                screened = self.screen(steer)
+            except GuardrailBlocked:
+                # A correction the guardrail refuses is dropped, never the run.
+                logger.info(
+                    "Run reviewer %s sent a correction the input guardrail refused", self.name
+                )
+                return
+            if screened.action == "replace":
+                steer = str(screened.replacement)
+        ctx.enqueue(f"Steering from run reviewer {self.name!r}: {steer}")
+        if len(self.recorder.reviews) < MAX_RECORDED_REVIEWS:
+            self.recorder.reviews.append(
+                {"reviewer": self.name, "after_request": after_request, "steer": steer}
+            )

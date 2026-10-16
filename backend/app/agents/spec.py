@@ -397,13 +397,20 @@ class RunReviewerSpec(BaseModel):
         pattern=r"^[a-z0-9][a-z0-9_-]{0,39}$",
         description="What its steering is attributed to, in the run history and to the model.",
     )
-    model_profile_id: UUID = Field(
-        description="The model it reviews with - usually a cheaper one than the agent's own."
+    model_profile_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The model it reviews with - usually a cheaper one than the agent's own. "
+            "Optional in a draft, required to publish."
+        ),
     )
     instructions: str = Field(
-        min_length=1,
+        default="",
         max_length=4000,
-        description="What to look for, such as claims without a source, or work nobody asked for.",
+        description=(
+            "What to look for, such as claims without a source, or work nobody asked "
+            "for. Optional in a draft, required to publish."
+        ),
     )
     every: int = Field(default=10, ge=1, le=100, description="Review every N model requests.")
     window: int = Field(

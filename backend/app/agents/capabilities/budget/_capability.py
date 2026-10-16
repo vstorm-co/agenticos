@@ -546,7 +546,7 @@ def reserved_limits(limits: UsageLimits | None) -> UsageLimits | None:
 
 
 @contextmanager
-def metered_nested_run(usage: RunUsage, model_name: str) -> Generator[RunUsage, None, None]:
+def metered_nested_run(usage: RunUsage, model_name: str | None) -> Generator[RunUsage, None, None]:
     """A private usage for a nested ambient run, booked concurrency-safely.
 
     Yields a *copy* of `usage` for the nested `Agent.run` to spend into, and folds
@@ -561,7 +561,8 @@ def metered_nested_run(usage: RunUsage, model_name: str) -> Generator[RunUsage, 
     request, token and cost caps still meter the nested run against where the run
     already is rather than from zero. On exit the own-spend is added to the shared
     `usage` and booked once through :func:`record_ambient_usage`; a run that spent
-    nothing books nothing.
+    nothing books nothing. With `model_name` `None` the caller books each response
+    itself - a model behind fallbacks has no one name a price is found under.
     """
     private = copy(usage)
     start = copy(private)
@@ -571,7 +572,8 @@ def metered_nested_run(usage: RunUsage, model_name: str) -> Generator[RunUsage, 
         own = private - start
         if own != RunUsage():
             usage.incr(own)
-            record_ambient_usage(model_name, own)
+            if model_name is not None:
+                record_ambient_usage(model_name, own)
 
 
 def usage_counts(usage: RunUsage) -> tuple[int, int, int, int]:

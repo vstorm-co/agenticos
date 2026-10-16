@@ -41,11 +41,13 @@ from sqlalchemy.dialects import postgresql
 
 from app.agents.manifest import (
     MAX_PAYLOAD_BYTES,
+    MAX_RECORDED_REVIEWS,
     RecordedRequest,
     RecordingModel,
     RunRecorder,
     _size,
     as_payload,
+    carried_over,
     fit,
 )
 from app.db.models.agent_run import RunStatus
@@ -550,6 +552,7 @@ class TestTheRunnerWritesItHoweverTheRunEnded:
             patch.object(service, "_write_delegations", new=AsyncMock()),
             patch.object(service, "_notify", new=AsyncMock()),
             patch.object(service.workspaces, "close", new=AsyncMock()),
+            patch(f"{_MODULE}.run_manifest_repo.get_by_run", new=AsyncMock(return_value=None)),
         ):
             stack.enter_context(patched)
 
@@ -603,3 +606,29 @@ class TestTheRunnerWritesItHoweverTheRunEnded:
                 )
             )
             await service.finish(prepared, status=RunStatus.FAILED)
+
+
+class TestAResumedRunKeepsItsCorrections:
+    """A parked run is recorded twice, and the second recording replaces the first;
+    a run reviewer's corrections from before the park must survive it (#2106)."""
+
+    def test_earlier_corrections_go_in_front_of_this_segments(self) -> None:
+        earlier = {"reviews": [{"reviewer": "a", "after_request": 3, "steer": "x"}]}
+        payload = {
+            "instructions": "y",
+            "reviews": [{"reviewer": "a", "after_request": 6, "steer": "z"}],
+        }
+
+        merged = carried_over(earlier, payload)
+
+        assert [review["after_request"] for review in merged["reviews"]] == [3, 6]
+        assert merged["instructions"] == "y"
+
+    def test_a_record_with_none_changes_nothing(self) -> None:
+        payload = {"reviews": []}
+        assert carried_over({}, payload) is payload
+
+    def test_the_kept_corrections_stay_bounded(self) -> None:
+        many = [{"reviewer": "a", "after_request": n, "steer": "x"} for n in range(80)]
+        merged = carried_over({"reviews": many}, {"reviews": many})
+        assert len(merged["reviews"]) == MAX_RECORDED_REVIEWS

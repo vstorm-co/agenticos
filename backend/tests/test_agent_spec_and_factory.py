@@ -32,7 +32,7 @@ from app.agents.capabilities.compaction import ReportContextSize
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
 from app.agents.factory import _AUDIENCE_AWARE, DEFAULT_MAX_STEPS, BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
-from app.agents.run_reviewer import REVIEWER_MODELS_RESOURCE, RunReviewer
+from app.agents.run_reviewer import RunReviewer
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
@@ -673,9 +673,9 @@ class TestRunReviewers:
         with pytest.raises(ValidationError, match="Reviewer named more than once"):
             AgentSpec(name="Clerk", reviewers=[reviewer, reviewer])
 
-    def _reviewers(self, spec: AgentSpec, resources: dict | None = None) -> list[RunReviewer]:
+    def _reviewers(self, spec: AgentSpec, models: dict | None = None) -> list[RunReviewer]:
         built = build_agent(
-            spec, _model_spec(), organization_id=uuid.uuid4(), resources=resources or {}
+            spec, _model_spec(), organization_id=uuid.uuid4(), reviewer_models=models or {}
         )
         attached: list[object] = []
         built.agent.root_capability.apply(attached.append)
@@ -686,7 +686,7 @@ class TestRunReviewers:
 
     def test_each_reviewer_runs_on_the_model_resolved_for_it(self, caplog):
         resolved, missing = uuid.uuid4(), uuid.uuid4()
-        model = MagicMock(params={"temperature": 0.0})
+        model = MagicMock(params={"temperature": 0.0}, context_length=None)
         spec = AgentSpec(
             name="Clerk",
             reviewers=[
@@ -697,14 +697,48 @@ class TestRunReviewers:
                     "every": 4,
                 },
                 {"name": "scope", "model_profile_id": str(missing), "instructions": "y"},
+                {"name": "draft", "model_profile_id": str(resolved)},
             ],
         )
 
-        (reviewer,) = self._reviewers(spec, {REVIEWER_MODELS_RESOURCE: {resolved: model}})
+        (reviewer,) = self._reviewers(spec, {resolved: model})
 
         assert (reviewer.name, reviewer.every, reviewer.model) == ("sources", 4, model.build())
         assert reviewer.model_settings == {"temperature": 0.0}
-        assert "scope has no resolved model" in caplog.text
+        assert reviewer.screen is None
+        assert "scope is incomplete or unresolved" in caplog.text
+        assert "draft is incomplete or unresolved" in caplog.text
+
+    def test_the_window_is_held_to_what_the_reviewers_model_can_read(self):
+        profile = uuid.uuid4()
+        small = MagicMock(params={}, context_length=8_000)
+        spec = AgentSpec(
+            name="Clerk",
+            reviewers=[
+                {
+                    "name": "a",
+                    "model_profile_id": str(profile),
+                    "instructions": "x",
+                    "window": 20_000,
+                }
+            ],
+        )
+
+        (reviewer,) = self._reviewers(spec, {profile: small})
+
+        assert reviewer.window == 6_000
+
+    def test_corrections_are_screened_by_the_agents_input_guardrail(self):
+        profile = uuid.uuid4()
+        spec = AgentSpec(
+            name="Clerk",
+            capabilities=[{"id": "guardrails", "config": {"redact_secrets_in": True}}],
+            reviewers=[{"name": "a", "model_profile_id": str(profile), "instructions": "x"}],
+        )
+
+        (reviewer,) = self._reviewers(spec, {profile: MagicMock(params={}, context_length=None)})
+
+        assert reviewer.screen is not None
 
 
 class TestAskingAboutEveryTool:

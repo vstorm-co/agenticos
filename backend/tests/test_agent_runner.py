@@ -56,7 +56,6 @@ from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
-from app.agents.run_reviewer import REVIEWER_MODELS_RESOURCE
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -4329,6 +4328,31 @@ class TestTheBrowsersStepModel:
             await service.prepare(_ctx(), agent.id)
         return build.call_args.kwargs["resources"], resolve
 
+    async def _built_call(self, spec: AgentSpec, *, resolve: Any = None) -> tuple[Any, AsyncMock]:
+        """The whole `build_agent` call, for a test about an argument beside `resources`."""
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        resolver = AsyncMock(
+            side_effect=resolve
+            or (lambda ctx, profile_id=None: MagicMock(label="m", build=MagicMock()))
+        )
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(service.models, "resolve", new=resolver),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            await service.prepare(_ctx(), agent.id)
+        return build.call_args, resolver
+
     @pytest.mark.anyio
     async def test_a_named_step_model_is_resolved_and_handed_to_the_browser(self):
         profile = uuid.uuid4()
@@ -4351,18 +4375,41 @@ class TestTheBrowsersStepModel:
         assert profile in [call.kwargs.get("profile_id") for call in resolve.await_args_list]
 
     @pytest.mark.anyio
-    async def test_each_reviewers_model_is_resolved_for_the_factory(self):
-        """Where the vault and the session are, for the reason the step model is (#2106)."""
+    async def test_each_reviewers_model_is_resolved_and_kept_out_of_resources(self):
+        """Where the vault and the session are, for the reason the step model is; and
+        not in `resources`, which every capability reads - it holds a credential (#2106)."""
         profile = uuid.uuid4()
         spec = AgentSpec(
             name="Researcher",
             reviewers=[{"name": "sources", "model_profile_id": str(profile), "instructions": "x"}],
         )
 
-        resources, resolve = await self._built(spec)
+        built, resolve = await self._built_call(spec)
 
-        assert set(resources[REVIEWER_MODELS_RESOURCE]) == {profile}
+        assert set(built.kwargs["reviewer_models"]) == {profile}
+        assert not any("reviewer" in key for key in built.kwargs["resources"])
         assert profile in [call.kwargs.get("profile_id") for call in resolve.await_args_list]
+
+    @pytest.mark.anyio
+    async def test_a_reviewer_whose_model_no_longer_resolves_is_left_out(self):
+        """An optional reviewer must not take a healthy agent offline."""
+        gone = uuid.uuid4()
+        spec = AgentSpec(
+            name="Researcher",
+            reviewers=[
+                {"name": "sources", "model_profile_id": str(gone), "instructions": "x"},
+                {"name": "draft"},
+            ],
+        )
+
+        def resolve(ctx, profile_id=None):
+            if profile_id == gone:
+                raise NotFoundError(message="Model profile not found")
+            return MagicMock(label="m", build=MagicMock())
+
+        built, _ = await self._built_call(spec, resolve=resolve)
+
+        assert built.kwargs["reviewer_models"] == {}
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(

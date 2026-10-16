@@ -22,16 +22,19 @@ from pydantic_ai.messages import (
     ToolCallPart,
     UserPromptPart,
 )
+from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai_harness.guardrails import GuardrailResult
 
 from app.agents.capabilities.budget import SpendLedger, metered_by
+from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.deps import AgentDeps
 from app.agents.manifest import RunRecorder, as_payload
-from app.agents.run_reviewer import RunReviewer
+from app.agents.run_reviewer import MAX_STEER_CHARS, RunReviewer
 
 pytestmark = pytest.mark.anyio
 
-STEPS = 8
+MAX_STEPS = 12
 
 
 def _steered(messages: list[ModelMessage]) -> list[str]:
@@ -45,14 +48,17 @@ def _steered(messages: list[ModelMessage]) -> list[str]:
 
 
 def _working(seen: list[list[ModelMessage]]):
-    """The run's model: looks something up STEPS times, then answers."""
+    """The run's model: looks something up until a correction reaches it, then answers.
+
+    Waiting on the correction rather than counting requests is what keeps this
+    from depending on how fast a review started beside the run comes back.
+    """
 
     async def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
         seen.append(messages)
-        # Long enough for a review started beside the run to come back.
-        await asyncio.sleep(0.02)
+        await asyncio.sleep(0.01)
         step = sum(isinstance(message, ModelResponse) for message in messages)
-        if step >= STEPS:
+        if _steered(messages) or step >= MAX_STEPS:
             return ModelResponse(parts=[TextPart("The market grew 40%.")])
         return ModelResponse(parts=[ToolCallPart("lookup", {"q": f"market {step}"})])
 
@@ -76,7 +82,9 @@ def _reviewing(asked: list[str], *, on_track: bool = False, fails: bool = False)
     return respond
 
 
-async def _run(reviewer_model: FunctionModel) -> tuple[Any, RunRecorder, list[list[ModelMessage]]]:
+async def _run(
+    reviewer_model: FunctionModel, *, screen: Any = None
+) -> tuple[Any, RunRecorder, list[list[ModelMessage]]]:
     recorder = RunRecorder()
     seen: list[list[ModelMessage]] = []
     agent = Agent[AgentDeps, str](
@@ -88,6 +96,7 @@ async def _run(reviewer_model: FunctionModel) -> tuple[Any, RunRecorder, list[li
                 instructions="Flag claims without a source.",
                 every=3,
                 recorder=recorder,
+                screen=screen,
             )
         ],
     )
@@ -182,4 +191,56 @@ async def test_the_reviewers_spend_is_booked_on_the_run_as_its_own_model() -> No
         await _run(FunctionModel(_reviewing(asked), model_name="claude-haiku-5-5"))
 
     assert asked
+    assert {entry.model_name for entry in ledger.entries} == {"claude-haiku-5-5"}
+
+
+async def test_a_correction_passes_the_agents_input_guardrail_first() -> None:
+    """Past the first request the input edge no longer looks, and a reviewer quotes
+    the run it read - so its words are screened like a person's mid-run steer."""
+    asked: list[str] = []
+
+    def redact(text: str) -> Any:
+        return GuardrailResult.replace(text.replace("40%", "[REDACTED]"))
+
+    _, recorder, seen = await _run(FunctionModel(_reviewing(asked)), screen=redact)
+
+    assert _steered(seen[-1])[0].endswith("Cite a source for [REDACTED].")
+    assert recorder.reviews[0]["steer"] == "Cite a source for [REDACTED]."
+
+
+async def test_a_correction_the_guardrail_refuses_is_dropped_not_the_run() -> None:
+    asked: list[str] = []
+
+    def block(_text: str) -> Any:
+        raise GuardrailBlocked(edge="input", message="blocked")
+
+    result, recorder, seen = await _run(FunctionModel(_reviewing(asked)), screen=block)
+
+    assert result.output == "The market grew 40%."
+    assert recorder.reviews == []
+    assert _steered(seen[-1]) == []
+
+
+async def test_a_long_correction_is_cut() -> None:
+    def verbose(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        return ModelResponse(
+            parts=[
+                ToolCallPart(info.output_tools[0].name, {"on_track": False, "steer": "x" * 5000})
+            ]
+        )
+
+    _, recorder, _ = await _run(FunctionModel(verbose))
+
+    assert len(recorder.reviews[0]["steer"]) == MAX_STEER_CHARS
+
+
+async def test_a_reviewer_behind_fallbacks_is_priced_as_the_model_that_answered() -> None:
+    """A fallback model's composite name is in no price list; booked under it, a
+    review would cost nothing against the budget."""
+    asked: list[str] = []
+    ledger = SpendLedger()
+    reviewer = FallbackModel(FunctionModel(_reviewing(asked), model_name="claude-haiku-5-5"))
+    with metered_by(ledger):
+        await _run(reviewer)
+
     assert {entry.model_name for entry in ledger.entries} == {"claude-haiku-5-5"}

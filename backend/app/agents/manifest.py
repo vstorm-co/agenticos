@@ -380,6 +380,27 @@ def as_payload(recorder: RunRecorder) -> dict[str, Any]:
     }
 
 
+MAX_RECORDED_REVIEWS = 50
+"""How many run-reviewer corrections a run's manifest keeps, so it stays within
+its size ceiling (#2106)."""
+
+
+def carried_over(previous: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    """This segment's payload with what earlier segments of the run recorded and it cannot.
+
+    A parked run is recorded twice - at the park, and when the resumed run ends -
+    and the second recording replaces the first. Most of a payload describes the
+    whole run either way: the requests and messages a resumed run replays. A run
+    reviewer's corrections do not; they happened in the segment that is being
+    replaced, so they are carried over in front of this segment's own.
+    """
+    earlier = previous.get("reviews") or []
+    if not earlier:
+        return payload
+    reviews = [*earlier, *payload.get("reviews", [])][:MAX_RECORDED_REVIEWS]
+    return {**payload, "reviews": reviews}
+
+
 #: How large a stored manifest may be, as JSON bytes.
 #:
 #: A run of a hundred steps carrying a long context ends with a message list of
