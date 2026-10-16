@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { ImageResponse } from "next/og";
 
-import { AMIGO_HEAD_DATA_URI } from "@/lib/amigo-head.generated";
+import { LOGO_DATA_URI } from "@/lib/logo.generated";
 import { readBranding } from "@/lib/branding-server";
 import { SITE } from "@/lib/seo";
 
@@ -11,9 +11,11 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 /**
- * Default Open Graph image - what a link to a deployment unfurls as. Black
- * background, oversized title with a lime highlight on a key word, plus the brand
- * mark and the tagline.
+ * Default Open Graph image - what a link to a deployment unfurls as. The mark's
+ * deep violet, an oversized title with its key word in the blob's own blue, the
+ * mark beside it, and the tagline - the same card as the repository's
+ * `docs/assets/social-preview.png`, so a link to the product and a link to a
+ * deployment of it look like one thing.
  *
  * No longer `force-static`: the name, tagline and description are the settings
  * row's, so a build-time render would freeze whatever they were when the image was
@@ -32,17 +34,17 @@ export default async function OpengraphImage() {
         flexDirection: "column",
         justifyContent: "space-between",
         padding: "64px 80px",
-        backgroundColor: "#0E0E0C",
+        backgroundColor: "#100E18",
         backgroundImage:
-          "radial-gradient(ellipse 80% 60% at 80% 0%, rgba(197,249,74,0.18), transparent 60%)",
-        color: "#F2F1EB",
+          "radial-gradient(circle at 82% 50%, rgba(129,112,214,0.30), transparent 45%)",
+        color: "#F4F2FB",
         fontFamily: "sans-serif",
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {/* The same mark as the favicon and the sidebar, from the same data URI. */}
-          <img src={AMIGO_HEAD_DATA_URI} alt="" width={32} height={32} />
+          <img src={LOGO_DATA_URI} alt="" width={44} height={44} />
           <span style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.01em" }}>{appName}</span>
         </div>
         <span
@@ -58,9 +60,10 @@ export default async function OpengraphImage() {
         </span>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div
           style={{
+            maxWidth: 760,
             fontSize: 110,
             fontWeight: 800,
             lineHeight: 1.0,
@@ -69,27 +72,18 @@ export default async function OpengraphImage() {
             flexWrap: "wrap",
           }}
         >
-          {/* One message with two tags rather than a head and a tail: the lime
-              underline falls on the last word, and which word that is changes with
+          {/* One message with two tags rather than a head and a tail: the blue
+              falls on the last word, and which word that is changes with
               the language. The lead keeps its own span because Satori lays this out
               as a flex row - a bare string beside an element is not a box it can
               measure. */}
           {t.rich("ogHeadline", {
             lead: (chunks) => <span>{chunks}&#160;</span>,
-            mark: (chunks) => (
-              <span
-                style={{
-                  background:
-                    "linear-gradient(transparent 50%, #C5F94A 50%, #C5F94A 90%, transparent 90%)",
-                  paddingLeft: 8,
-                  paddingRight: 8,
-                }}
-              >
-                {chunks}
-              </span>
-            ),
+            mark: (chunks) => <span style={{ color: "#BBD1FF" }}>{chunks}</span>,
           })}
         </div>
+        {/* The mark, large: what the link is a link to, before anybody reads it. */}
+        <img src={LOGO_DATA_URI} alt="" width={210} height={210} />
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -102,8 +96,8 @@ export default async function OpengraphImage() {
             fontWeight: 600,
             padding: "14px 28px",
             borderRadius: 9999,
-            background: "#F2F1EB",
-            color: "#0E0E0C",
+            background: "#BBD1FF",
+            color: "#15121F",
             display: "flex",
             alignItems: "center",
             gap: 10,

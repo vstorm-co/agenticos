@@ -3,6 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import pytest
 
@@ -13,8 +14,20 @@ from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.resource_grant import GrantLevel, Visibility
 from app.repositories.rag_document import CollectionCounts
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
+from app.services.collection_access import in_knowledge_base
 from app.services.ingestion_config import deployment_defaults
 from app.services.knowledge_base import KnowledgeBaseService, _with_counts
+
+
+@pytest.fixture(autouse=True)
+def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No agent binds anything here; `test_resource_usage` covers the query."""
+
+    async def nowhere(*_args: object, resource_ids: list[UUID], **_kwargs: object):
+        return {resource_id: [] for resource_id in resource_ids}
+
+    monkeypatch.setattr("app.services.knowledge_base.agents_using", nowhere)
+    monkeypatch.setattr("app.services.knowledge_base.groups_sharing", nowhere)
 
 
 @pytest.fixture(autouse=True)
@@ -1558,3 +1571,33 @@ class TestCollectionCounts:
         assert listing.total == 2
         assert [item.document_count for item in listing.items] == [0, 3]
         assert [item.chunk_count for item in listing.items] == [0, 90]
+
+
+class TestWhatIsAKnowledgeBasesOwn:
+    """Codex on #2062: documents and sources were matched on the collection's name alone."""
+
+    ORG = uuid.uuid4()
+
+    def _kb(self, organization_id: UUID | None) -> KnowledgeBase:
+        return KnowledgeBase(collection_name="handbook", organization_id=organization_id)
+
+    @pytest.mark.parametrize(
+        ("kb_org", "row_collection", "row_org", "own"),
+        [
+            (ORG, "handbook", ORG, True),
+            # The same name in another tenant is another collection.
+            (ORG, "handbook", uuid.uuid4(), False),
+            (ORG, "handbook", None, False),
+            (ORG, "manuals", ORG, False),
+            # A deployment-wide one holds rows whichever organization added them.
+            (None, "handbook", uuid.uuid4(), True),
+            (None, "manuals", None, False),
+        ],
+    )
+    @pytest.mark.security
+    def test_a_row_is_its_own_only_in_its_collection_and_organization(
+        self, kb_org: UUID | None, row_collection: str, row_org: UUID | None, own: bool
+    ) -> None:
+        row = MagicMock(collection_name=row_collection, organization_id=row_org)
+
+        assert in_knowledge_base(row, self._kb(kb_org)) is own

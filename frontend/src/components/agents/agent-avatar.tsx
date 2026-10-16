@@ -1,8 +1,10 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui";
+import { ArchitectMark } from "@/components/assistant/architect-mark";
 import { AvatarFace } from "@/components/ui/avatar-face";
 import { cn } from "@/lib/utils";
+import { useArchitectMarkStore } from "@/stores/architect-mark-store";
 
 const SIZES = {
   sm: "h-6 w-6 text-[11px]",
@@ -10,6 +12,9 @@ const SIZES = {
   lg: "h-14 w-14 text-base",
   xl: "h-20 w-20 text-lg",
 } as const;
+
+/** How long an uploaded picture has to load before the generated face stands in. */
+const FALLBACK_DELAY_MS = 600;
 
 export interface AgentAvatarProps {
   /** Which agent's uploaded picture to fetch, when it has one. */
@@ -68,6 +73,8 @@ export function AgentAvatar({
   thinking,
   className,
 }: AgentAvatarProps) {
+  const wearsMark = useArchitectMarkStore((state) => state.agentId === agentId);
+  if (wearsMark) return <ArchitectMark className={cn(SIZES[size], className)} />;
   return (
     <Avatar className={cn(SIZES[size], "border-border shrink-0 border", className)}>
       {hasAvatar && (
@@ -77,8 +84,15 @@ export function AgentAvatar({
         />
       )}
       {/* No fill of its own: the face brings its own disc, and a colour behind
-          it would show as a ring wherever the two discs disagree. */}
-      <AvatarFallback className="bg-transparent">
+          it would show as a ring wherever the two discs disagree. Held back
+          while an uploaded picture loads: shown at once, the generated face
+          flashed in every place the picture was about to appear - the
+          Architect's mark was a blob for a beat on every new message. A
+          picture that fails to load still gets the face, a moment later. */}
+      <AvatarFallback
+        className="bg-transparent"
+        delayMs={hasAvatar ? FALLBACK_DELAY_MS : undefined}
+      >
         <AvatarFace seed={slug} colorSlot={colorSlot} thinking={thinking} />
       </AvatarFallback>
     </Avatar>

@@ -21,18 +21,28 @@ describe("ProviderIcon", () => {
     expect(mark.style.backgroundColor).toBe("currentcolor");
   });
 
-  it("draws every mark monochrome, never in brand colours", () => {
-    // The console's brand marks are `currentColor` everywhere - MCP catalog,
-    // connectors, sign-in. One provider re-imported as `Color` would put a
-    // four-colour Gemini in a column of ink and read as a different UI.
+  it("draws every mark in one colour - its brand's, or the text colour", () => {
+    // A mark is one shape in one fill: the brand's own colour where it reads on
+    // both themes, the text colour for a black or white brand. Never a
+    // multi-colour import - a four-colour Gemini beside one-colour marks reads
+    // as a different UI.
     for (const provider of MARKED_PROVIDERS) {
       const { container } = render(<ProviderIcon provider={provider} />);
+      const fill = container.querySelector("svg")?.getAttribute("fill") ?? "";
+      expect(fill === "currentColor" || /^#[0-9A-F]{6}$/.test(fill), provider).toBe(true);
       expect(container.querySelector('svg [fill^="#"]'), provider).toBeNull();
       expect(
         container.querySelector("svg linearGradient, svg radialGradient"),
         provider,
       ).toBeNull();
     }
+  });
+
+  it("colours a brand that reads on both themes, and leaves a black one to the text", () => {
+    const anthropic = render(<ProviderIcon provider="anthropic" />);
+    expect(anthropic.container.querySelector("svg")).toHaveAttribute("fill", "#D97757");
+    const openai = render(<ProviderIcon provider="openai" />);
+    expect(openai.container.querySelector("svg")).toHaveAttribute("fill", "currentColor");
   });
 
   it("renders a brand mark for every provider the set carries", () => {
@@ -45,12 +55,20 @@ describe("ProviderIcon", () => {
   });
 
   it("renders a monogram for one it does not, rather than nothing", () => {
-    // Heroku, OVHcloud and a LiteLLM proxy have no mark anywhere, and a
-    // deployment gains a provider whenever Pydantic AI does - so this is the
-    // normal case. A blank gap would read as a logo that failed to load.
-    const { container } = render(<ProviderIcon provider="litellm" />);
+    // A deployment gains a provider whenever Pydantic AI does, so one with no
+    // mark is the normal case. A blank gap would read as a logo that failed to
+    // load.
+    const { container } = render(<ProviderIcon provider="newcomer" />);
     expect(container.querySelector("svg")).toBeNull();
-    expect(container.textContent).toBe("l");
+    expect(container.textContent).toBe("n");
+  });
+
+  it("draws every provider the vault offers with a mark, not an initial", () => {
+    for (const provider of ["xai", "cohere", "huggingface", "heroku", "ovhcloud", "litellm"]) {
+      const { container, unmount } = render(<ProviderIcon provider={provider} />);
+      expect(container.querySelector("svg")).not.toBeNull();
+      unmount();
+    }
   });
 
   it("stays out of the accessibility tree either way", () => {

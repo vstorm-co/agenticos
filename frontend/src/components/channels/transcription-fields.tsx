@@ -8,7 +8,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { ProviderIcon } from "@/components/vault/provider-icon";
 import { useSpeechToTextProviders } from "@/hooks/use-model-providers";
+import { MicOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 /** The value the picker edits: both halves, or neither. */
@@ -80,11 +82,17 @@ export function TranscriptionFields({ value, onChange, idPrefix }: Transcription
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={TRANSCRIPTION_OFF} textValue={t("transcriptionOff")}>
-              {t("transcriptionOff")}
+              <span className="flex items-center gap-2">
+                <MicOff className="text-muted-foreground h-3.5 w-3.5 shrink-0" aria-hidden />
+                {t("transcriptionOff")}
+              </span>
             </SelectItem>
             {providers.map((entry) => (
               <SelectItem key={entry.provider} value={entry.provider} textValue={entry.name}>
-                {entry.name}
+                <span className="flex items-center gap-2">
+                  <ProviderIcon provider={entry.provider} className="h-3.5 w-3.5" />
+                  {entry.name}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>

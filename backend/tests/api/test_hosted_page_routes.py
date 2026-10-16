@@ -126,3 +126,35 @@ class TestTheHostedLogo:
         assert response.status_code == 200
         assert response.headers["content-type"] == "image/png"
         assert response.headers["x-content-type-options"] == "nosniff"
+
+
+class TestTheWidgetsPicture:
+    """`/avatar` hands out the agent's uploaded picture for a widget (#2006), on the
+    same terms `/logo` hands out a page's: typed from the bytes, 404 otherwise."""
+
+    async def test_a_widget_with_no_picture_answers_404(self, client_and_service):
+        client_and_service.widget_avatar_path = AsyncMock(return_value=None)
+
+        assert (await _get("/api/v1/embed/some-key/avatar")).status_code == 404
+
+    async def test_a_stored_file_that_is_not_an_image_is_not_served(
+        self, client_and_service, tmp_path, monkeypatch
+    ):
+        client_and_service.widget_avatar_path = AsyncMock(
+            return_value=_store(monkeypatch, tmp_path, "avatars/a/face.html", b"<script></script>")
+        )
+
+        assert (await _get("/api/v1/embed/some-key/avatar")).status_code == 404
+
+    async def test_an_image_is_served_with_its_type_pinned(
+        self, client_and_service, tmp_path, monkeypatch
+    ):
+        client_and_service.widget_avatar_path = AsyncMock(
+            return_value=_store(monkeypatch, tmp_path, "avatars/a/face.png", b"\x89PNG\r\n\x1a\n")
+        )
+
+        response = await _get("/api/v1/embed/some-key/avatar")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/png"
+        assert response.headers["x-content-type-options"] == "nosniff"

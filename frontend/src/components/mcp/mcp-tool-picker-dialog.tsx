@@ -132,7 +132,16 @@ export function McpToolPickerDialog({
                   aria-label={tool.name}
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="text-foreground block font-mono text-xs">{tool.name}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-foreground font-mono text-xs">{tool.name}</span>
+                    {/* What the `writes` approval policy reads: a tool the server
+                        does not mark read-only waits for a person to approve it. */}
+                    {tool.read_only !== undefined && (
+                      <span className="text-muted-foreground border-foreground/15 rounded border px-1 text-[10px] leading-4">
+                        {tool.read_only ? t("toolReadsOnly") : t("toolWrites")}
+                      </span>
+                    )}
+                  </span>
                   {tool.description && (
                     <span className="text-muted-foreground mt-0.5 block truncate text-xs">
                       {tool.description}
@@ -178,7 +187,7 @@ export function McpToolPickerDialog({
               <span className="text-foreground block">{t("trustReadOnlyHints")}</span>
               <span className="text-muted-foreground block">
                 {t("trustReadOnlyHintsHint", {
-                  count: tools.filter((tool) => tool.read_only_hint === true).length,
+                  count: tools.filter((tool) => tool.read_only === true).length,
                 })}
               </span>
             </span>

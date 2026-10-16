@@ -1,11 +1,20 @@
 "use client";
 
+import { Building2, Lock } from "lucide-react";
+import { useTranslations } from "next-intl";
+
 import { LoadingState } from "@/components/states";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Label } from "@/components/ui";
+import {
+  EntityAvatar,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
 import { useGroups, useMembers, useSharing } from "@/hooks";
 import { useOrgStore } from "@/stores";
 import type { SharingResourceType, Visibility } from "@/types/sharing";
-import { useTranslations } from "next-intl";
 import { AddShare } from "./add-share";
 import { GrantRow } from "./grant-row";
 
@@ -61,7 +70,15 @@ const RUNTIME_NOTE: Partial<Record<SharingResourceType, string>> = {
 };
 
 /**
- * Who reaches one agent, skill, collection or vault secret.
+ * Who reaches one agent, skill, collection or vault secret - drawn the way a
+ * document's share box is, because that is the one permission screen most
+ * people have already learned.
+ *
+ * Three parts, top to bottom: add somebody, the people and groups who have
+ * access (the owner first, then each share at its level), and the general
+ * access that reaches everybody else. It used to be two cards of radio buttons
+ * and paragraphs, which asked a reader to understand the model before they
+ * could share one agent with one colleague.
  *
  * Parameterised by resource type rather than built for agents: the backend
  * generates the same endpoints per type, and a second copy of this panel would
@@ -74,14 +91,7 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
   const { groups } = useGroups(activeOrgId);
   const { sharing, isLoading, share, revoke, setVisibility } = useSharing(resourceType, resourceId);
 
-  // Two cards, visibility then people - the same two this renders once loaded.
-  if (isLoading || !sharing)
-    return (
-      <div className="space-y-6">
-        <LoadingState variant="skeleton-panel" rows={3} />
-        <LoadingState variant="skeleton-panel" rows={2} />
-      </div>
-    );
+  if (isLoading || !sharing) return <LoadingState variant="skeleton-panel" rows={3} />;
 
   const shared = new Set(
     sharing.grants.map((grant) => grant.subject_user_id ?? grant.subject_group_id),
@@ -92,84 +102,94 @@ export function SharingPanel({ resourceType, resourceId, canManage }: SharingPan
     (member) => !shared.has(member.user_id) && member.user_id !== sharing.owner_user_id,
   );
   const groupCandidates = groups.filter((group) => !shared.has(group.id));
-  const ownerEmail = members.find((member) => member.user_id === sharing.owner_user_id)?.email;
+  const owner = members.find((member) => member.user_id === sharing.owner_user_id);
   const runtimeNote = RUNTIME_NOTE[resourceType];
+  const options = [...VISIBILITY_OPTIONS, ...(sharing.visibility === "team" ? [LEGACY_TEAM] : [])];
+  const current = options.find((option) => option.value === sharing.visibility) ?? options[0]!;
+  const AccessIcon = sharing.visibility === "private" ? Lock : Building2;
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("visibility")}</CardTitle>
-          <CardDescription>{t("visibilityReaches", { resource: resourceType })}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {[...VISIBILITY_OPTIONS, ...(sharing.visibility === "team" ? [LEGACY_TEAM] : [])].map(
-            (option) => {
-              const id = `visibility-${option.value}`;
-              return (
-                <div key={option.value} className="flex items-start gap-3 rounded-md border p-3">
-                  <input
-                    type="radio"
-                    id={id}
-                    name="visibility"
-                    className="mt-1"
-                    checked={sharing.visibility === option.value}
-                    disabled={!canManage || setVisibility.isPending}
-                    onChange={() => setVisibility.mutate(option.value)}
-                  />
-                  <div className="space-y-1">
-                    <Label htmlFor={id}>{t(option.words)}</Label>
-                    <p className="text-muted-foreground text-sm">
-                      {t(`${option.words}Reaches`, { resource: resourceType })}
-                    </p>
-                  </div>
-                </div>
-              );
-            },
-          )}
-        </CardContent>
-      </Card>
+    <div className="space-y-5">
+      {canManage && (
+        <AddShare
+          members={memberCandidates}
+          groups={groupCandidates}
+          pending={share.isPending}
+          onShare={(input) => share.mutate(input)}
+        />
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("peopleAndGroups")}</CardTitle>
-          <CardDescription>{t("peopleReaches", { resource: resourceType })}</CardDescription>
-          {runtimeNote && (
-            <p className="text-muted-foreground border-border mt-2 border-l-2 pl-3 text-sm">
-              {t(runtimeNote)}
-            </p>
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">{t("peopleWithAccess")}</h3>
+        <ul className="divide-border divide-y rounded-xl border">
+          {owner && (
+            <li className="flex items-center gap-3 px-3 py-2.5">
+              <EntityAvatar
+                seed={owner.user_id}
+                name={owner.full_name || owner.email}
+                imageSrc={`/api/users/avatar/${owner.user_id}`}
+                className="size-8 shrink-0"
+                ariaHidden
+              />
+              <span className="min-w-0 flex-1 truncate text-sm">
+                {owner.full_name || owner.email}
+              </span>
+              <span className="text-muted-foreground px-2.5 text-sm">{t("owner")}</span>
+            </li>
           )}
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {ownerEmail && (
-            <p className="text-muted-foreground text-sm">{t("ownedBy", { email: ownerEmail })}</p>
-          )}
-
-          {sharing.grants.length === 0 && (
-            <p className="text-muted-foreground text-sm">{t("notSharedWithAnyone")}</p>
-          )}
-
           {sharing.grants.map((grant) => (
             <GrantRow
               key={grant.id}
               grant={grant}
+              groupIcon={groups.find((group) => group.id === grant.subject_group_id)?.icon ?? null}
               canManage={canManage}
               revoking={revoke.isPending}
               onShare={(input) => share.mutate(input)}
               onRevoke={(subject) => revoke.mutate(subject)}
             />
           ))}
-
-          {canManage && (
-            <AddShare
-              members={memberCandidates}
-              groups={groupCandidates}
-              pending={share.isPending}
-              onShare={(input) => share.mutate(input)}
-            />
+          {!owner && sharing.grants.length === 0 && (
+            <li className="text-muted-foreground px-3 py-2.5 text-sm">
+              {t("notSharedWithAnyone")}
+            </li>
           )}
-        </CardContent>
-      </Card>
+        </ul>
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">{t("generalAccess")}</h3>
+        <div className="flex items-start gap-3 rounded-xl border px-3 py-2.5">
+          <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
+            <AccessIcon className="size-4" aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1">
+            <Select
+              value={sharing.visibility}
+              disabled={!canManage || setVisibility.isPending}
+              onValueChange={(value) => setVisibility.mutate(value as Visibility)}
+            >
+              <SelectTrigger
+                aria-label={t("generalAccess")}
+                className="-ml-2.5 h-8 w-auto gap-1.5 border-transparent bg-transparent px-2.5 font-medium shadow-none"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {t(option.words)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              {t(`${current.words}Reaches`, { resource: resourceType })}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {runtimeNote && <p className="text-muted-foreground text-xs">{t(runtimeNote)}</p>}
     </div>
   );
 }

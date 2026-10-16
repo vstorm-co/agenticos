@@ -1,5 +1,5 @@
 ---
-source_sha: "74107fac73b3"
+source_sha: "79a1554f42b0"
 title: "AgenticOS vs OpenAI Codex"
 seo_title: "AgenticOS vs OpenAI Codex: agents de empresa o de código"
 description: "OpenAI Codex: agent de código para desarrolladores. AgenticOS: plataforma open source y autoalojada de agents de empresa gobernados. Compáralos y combínalos."
@@ -43,7 +43,7 @@ La CLI de Codex puede usar otros providers, pero sus tareas en la nube, la revis
 
 ### La ejecución de código como capability gobernada { #code-execution-as-a-governed-capability }
 
-Codex ejecuta comandos en una sandbox del sistema operativo en la máquina del desarrollador o en un contenedor en la nube. AgenticOS da a los agents [Run Python](../reference/capabilities.md#run-python), un intérprete Monty sin red ni sistema de archivos, y un workspace de [Files & shell](../reference/capabilities.md#files-shell) en [contenedores hermanos](../sandbox.md#isolation-plainly). Ambos se activan por agent, con límites y un ajuste de aprobación.
+Codex ejecuta comandos en una sandbox del sistema operativo en la máquina del desarrollador o en un contenedor en la nube. AgenticOS da a los agents [Calculations](../reference/capabilities.md#run-python), un intérprete Monty sin red ni sistema de archivos, y un workspace de [Sandbox](../reference/capabilities.md#files-shell) en [contenedores hermanos](../sandbox.md#isolation-plainly). Ambos se activan por agent, con límites y un ajuste de aprobación.
 
 ## Cuándo Codex es la herramienta adecuada { #when-codex-is-the-right-tool }
 
@@ -75,7 +75,7 @@ Sí. Un ingeniero puede usar Codex para escribir y revisar una nueva capability 
 
 ### ¿Los agents de AgenticOS pueden ejecutar código? { #can-agenticos-agents-run-code }
 
-Sí. Run Python ejecuta código sin red ni sistema de archivos, y Files & shell da a un agent un workspace en contenedores aislados. Ambas se activan por agent.
+Sí. Cálculos ejecuta Python sin red ni sistema de archivos, y Sandbox da a un agent un workspace en contenedores aislados. Ambas se activan por agent.
 
 ## Comparativas relacionadas { #related-comparisons }
 

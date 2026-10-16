@@ -1,5 +1,5 @@
 ---
-source_sha: "59a130434689"
+source_sha: "db0c4a5cc081"
 ---
 
 # Configuración { #configuration }
@@ -59,8 +59,9 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `ML_MAX_UPLOAD_SIZE_MB` | `25` | Lo que puede enviar una llamada a los [servicios de ML](ml-services.md) — un documento a parsear, un escaneo a reconocer, una grabación a transcribir. Un ajuste propio porque los bytes se parsean o se mandan a un motor dentro de una petición en vez de escribirse a disco, así que el techo trata de lo que puede ocupar una sola llamada síncrona. Está en los 25 MB del cliente de transcripción, el menor techo de motor detrás de esa superficie |
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Cuántos documentos parsea a la vez un worker para los [servicios de ML](ml-services.md). Un límite de tasa cuenta arranques y no ve lo que sigue en marcha, así que sin esto la asignación de un minuto de llamadas OCR son otros tantos reconocimientos en vuelo. Por encima, el llamante recibe un rechazo con `Retry-After` en lugar de una cola |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnames a los que puede apuntar un servicio de memoria mem0 autoalojado. Un `base_url` viene del spec de un agent, así que sin una lista de permitidos un Builder que puede vincular (pero no leer) una clave mem0 compartida podría apuntarla a su propio servidor y capturar la clave desde la cabecera de la petición. Vacío rechaza mem0 autoalojado y solo permite la nube gestionada; añade un hostname de confianza para habilitar un despliegue autoalojado. Ver [secretos](secrets.md) |
-| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames en los que un agent que navega puede dirigir un Chromium. Un `cdp_url` viene del spec de un agent, que escribe cualquiera con permiso `edit` sobre él, así que la dirección la controla el tenant y la petición es de este deployment: la misma forma para la que existe `MEM0_ALLOWED_HOSTS`, y la razón de que aquí haya una lista de permitidos y no la protección SSRF por la que pasa cualquier otra URL suministrada por un tenant. Esa protección solo admite direcciones *públicas*, de modo que rechaza el servicio de navegador aislado en la propia red del deployment que [la capability](reference/capabilities.md#browser-automation-choose) pide ejecutar, y acepta un depurador CDP expuesto a internet, que es peor. La coincidencia es exacta y sin distinguir mayúsculas, sin globs. Vacío rechaza la automatización del navegador por completo |
-| `DECISION_MODEL_ALLOWED_HOSTS` | `[]` (empty) | Hosts en los que puede ejecutarse el modelo de decisión de un agent que navega, más allá del endpoint del proveedor. `decision_base_url` viene del spec de un agent y la clave del vault se desprecinta en una cabecera de petición hacia lo que ese campo nombre, así que sin lista de permitidos un autor que puede *vincular* una clave TypeSafe compartida (vincular no es leer, y la API nunca devuelve el valor) podría apuntarla a un servidor propio y recogerla. La aprobación no ayuda: el mismo autor publica el vínculo. Vacío permite solo el endpoint del proveedor y es lo de partida. Ver [secretos](secrets.md) |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnames en los que un agent que navega puede dirigir un Chromium. Un `cdp_url` viene del spec de un agent, que escribe cualquiera con permiso `edit` sobre él, así que la dirección la controla el tenant y la petición es de este deployment: la misma forma para la que existe `MEM0_ALLOWED_HOSTS`, y la razón de que aquí haya una lista de permitidos y no la protección SSRF por la que pasa cualquier otra URL suministrada por un tenant. Esa protección solo admite direcciones *públicas*, de modo que rechaza el servicio de navegador aislado en la propia red del deployment que [la capability](reference/capabilities.md#browser-automation) pide ejecutar, y acepta un depurador CDP expuesto a internet, que es peor. La coincidencia es exacta y sin distinguir mayúsculas, sin globs. Vacío rechaza la automatización del navegador por completo |
+| `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | El navegador con el que una persona inicia sesión en un sitio desde **Ajustes → Inicios de sesión**, donde ningún agent lo indica - el servicio `browser` de compose es `http://browser:9222`. Su host tiene que estar en `BROWSER_CDP_ALLOWED_HOSTS`. El sitio debe ser una dirección pública y solo la persona que lo abrió puede verlo. Vacío oculta la opción |
+| `BROWSER_EGRESS_PROXY` | `""` (empty); compose fija `http://browser-egress:3128` | El proxy a través del cual el navegador del despliegue llega a cada sitio. El servicio `browser-egress` de compose es `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): resuelve cada host por sí mismo, rechaza direcciones privadas, de loopback, link-local y de metadatos y se conecta a la dirección que comprobó, así que ni una redirección ni un DNS rebinding llevan una página dentro de la red. Lo usa todo recorrido sin proxy de la organización y que no esté en un navegador alojado. Una herramienta interna que un agent deba navegar necesita una excepción en `docker/browser-egress/squid.conf`. Vacío deja salir al navegador directamente: pon `BROWSER_EGRESS_PROXY=` en el `.env` raíz solo para un navegador fuera de compose que no alcance el proxy. Sin proxy cada sitio se comprueba en su primera petición en una pestaña y luego el navegador resuelve su nombre por sí mismo, así que un nombre que más tarde en la misma pestaña apunte a una dirección privada no se detecta |
 | `FILE_IO_MAX_WORKERS` | `8` | Tamaño del pool de hilos dedicado que ejecuta el trabajo bloqueante con archivos — parsear una subida y leer o escribir sus bytes. Se mantiene fuera del executor por defecto compartido de `asyncio`, que también ejecuta `bcrypt` y el DNS de hosts fijados, para que una ráfaga de subidas no deje el inicio de sesión y las peticiones salientes en cola detrás de ella ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Súbelo en una máquina que parsea muchas subidas a la vez. Tiene que ser un entero positivo — un `0` o un valor negativo se rechaza al arrancar |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Cuánto puede durar una conversión de DOC a texto con LibreOffice antes de ser terminada. Muy por debajo de los 600s de la base de conocimiento porque esto es una subida interactiva |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | Cuántas conversiones de LibreOffice pueden ejecutarse a la vez. El subproceso evita `FILE_IO_MAX_WORKERS`, así que se acota por separado |
@@ -472,6 +473,7 @@ permanente para el otro, así que cada definición de servicio lleva la suya.
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
 | `APPROVAL_EXPIRY_HOURS` | `72` | Cuánto espera una llamada a herramienta aparcada antes de que el barrido horario la deniegue por tiempo |
+| `QUESTION_EXPIRY_HOURS` | `24` | Cuánto espera un run la respuesta a una pregunta del agent antes de que el mismo barrido lo termine |
 
 Tres días porque tiene que abarcar un fin de semana: la aprobación que llega el
 viernes por la tarde es la que nadie decide, y caducarla el sábado sería caducarla
@@ -492,6 +494,17 @@ media ejecución la deja en `running` sin nada que la termine. El techo no tiene
 ser exacto — un run vivo que el barrido marque igualmente lo devuelve su propia
 escritura terminal — así que ponlo bastante por encima de tu run legítimo más largo y
 no más cerca. Ver [Gobernanza](governance.md#a-run-whose-process-died).
+
+### Un turno de chat que se deja en marcha { #a-chat-turn-left-running }
+
+| Variable | Predeterminado | Descripción |
+|----------|---------|-------------|
+| `CHAT_DETACHED_TURN_MINUTES` | `60` | Cuánto sigue un turno de chat después de que la persona que preguntó se fue - pestaña cerrada, app cerrada, conexión perdida - antes de detenerse; como máximo `120`, porque después la lista de conversaciones deja de mostrar el turno como en curso |
+
+La respuesta llega a la conversación y se avisa a su persona, así que esto limita
+el gasto en una respuesta que quizá nadie lea, en lugar de apagar nada. Debe cubrir
+tu turno de investigación o navegación más largo; un run sigue sujeto al
+presupuesto de su agente. Ver [Consola](console.md#chat).
 
 ## Modelos de IA — se configuran en la aplicación, no aquí { #ai-models-configured-in-the-app-not-here }
 
@@ -693,16 +706,16 @@ igual que una `gdrive` nombra una cuenta de servicio. El endpoint y la región s
 recurriendo a estos ajustes porque ninguno nombra a un principal: dicen dónde está el
 almacén, no quién pregunta.
 
-## Artefactos publicados { #published-artifacts }
+## Aplicaciones publicadas { #published-artifacts }
 
 Páginas que los agents publican con la capability `artifacts`. Sus bytes viven en
 el almacenamiento de ficheros de arriba; estos ajustes los acotan y dicen desde
-dónde se sirven. Consulta [Artefactos](artifacts.md).
+dónde se sirven. Consulta [Aplicaciones](artifacts.md).
 
 | Variable | Por defecto | Descripción |
 |----------|-------------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Una versión de una página. Una publicación que lo supere se rechaza con un mensaje que lee el modelo |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por artefacto. La más antigua se elimina cuando llega una más nueva, salvo que el enlace público esté fijado a ella |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Versiones conservadas por aplicación. La más antigua se elimina cuando llega una más nueva, salvo que el enlace público esté fijado a ella |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Cuánto tiempo abre una dirección de contenido firmada, como máximo 3600. También cuánto sobrevive una página abierta a un grant o un enlace revocado |
 | `ARTIFACT_ORIGIN` | (vacío) | Desde dónde se sirve el contenido: las páginas, su [conjunto de bibliotecas](artifacts.md#the-library-set) y el documento para incrustar. Vacío lo sirve desde `PUBLIC_BASE_URL`, aislado por su política `sandbox`. Fíjalo en un host de un dominio registrable aparte, enrutado a esta API, para poner además la página en otro sitio |
 

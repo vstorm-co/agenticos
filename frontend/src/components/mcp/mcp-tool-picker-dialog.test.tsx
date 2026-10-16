@@ -65,6 +65,22 @@ const list = () => within(screen.getByRole("dialog")).queryAllByRole("checkbox")
  * thing a person is deciding here was the one thing the dialog would not say.
  */
 describe("McpToolPickerDialog", () => {
+  it("says which tools only read and which write, where the server said (#2103)", () => {
+    render(
+      <Harness
+        tools={[
+          { name: "search", description: "", read_only: true },
+          { name: "create", description: "", read_only: false },
+          { name: "older", description: "" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("reads")).toBeInTheDocument();
+    expect(screen.getByText("writes")).toBeInTheDocument();
+    expect(screen.getAllByText(/^(reads|writes)$/)).toHaveLength(2);
+  });
+
   it("says how many of how many are on", () => {
     render(<Harness checked={["notion-search"]} />);
 
@@ -194,7 +210,7 @@ describe("whether evals believe the server's read-only mark", () => {
     (typeof TOOLS)[number],
     (typeof TOOLS)[number],
   ];
-  const MARKED = [{ ...search, read_only_hint: true }, { ...fetch, read_only_hint: true }, upload];
+  const MARKED = [{ ...search, read_only: true }, { ...fetch, read_only: true }, upload];
   const trust = "Let evals call tools this server marks read-only";
 
   it("is offered only where the connection carries the choice", () => {

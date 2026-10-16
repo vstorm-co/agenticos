@@ -1,5 +1,5 @@
 ---
-source_sha: "5b846962a129"
+source_sha: "4f6ac46ddef7"
 title: "Einen Excel-Bericht und ein Deck aus Daten bauen"
 description: "Hängen Sie eine kleine synthetische CSV an und lassen Sie einen Agent in einer Sandbox eine Arbeitsmappe mit Formeln und einem Diagramm sowie ein dreiteiliges Deck erzeugen, dann öffnen Sie beides und prüfen Sie die Zahlen."
 ---
@@ -42,7 +42,7 @@ Referenzsummen, von Hand berechnet: North 54.000, South 39.000, East 66.000, Wes
 ## Den Agent bauen { #build-the-agent }
 
 1. Erstellen Sie unter **Agents → New agent** einen Agent und wählen Sie Ihr Modellprofil.
-2. Aktivieren Sie unter **Toolbox** **Files & shell**. Wählen Sie **Container**, wählen Sie Ihre Sandbox-Verbindung und die Runtime `workbench`, und behalten Sie den Konversations-Scope bei.
+2. Aktivieren Sie unter **Toolbox** **Sandbox**. Wählen Sie **Container**, wählen Sie Ihre Sandbox-Verbindung und die Runtime `workbench`, und behalten Sie den Konversations-Scope bei.
 3. Setzen Sie ein Budget für den Versuch, setzen Sie dann die folgenden Instruktionen und **Publish**.
 
 ```text
@@ -106,4 +106,4 @@ Eine Person prüft, dass die Formeln echte Formeln sind, dass die Achse des Diag
 
 ## Nächste Schritte { #next-steps }
 
-Für einen Bericht, der jede Woche statt einmal laufen muss, fahren Sie fort mit [einen Wochenbericht planen](scheduled-report.md), das seine Ausgabe als stabiles, teilbares Artefakt statt als Workspace-Datei veröffentlicht.
+Für einen Bericht, der jede Woche statt einmal laufen muss, fahren Sie fort mit [einen Wochenbericht planen](scheduled-report.md), das seine Ausgabe als stabile, teilbare App statt als Workspace-Datei veröffentlicht.

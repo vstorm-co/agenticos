@@ -1,5 +1,5 @@
 ---
-source_sha: "34c34d991836"
+source_sha: "6829acd99f72"
 ---
 
 # Añade un servidor al catálogo MCP { #add-a-server-to-the-mcp-catalog }
@@ -97,6 +97,10 @@ falta: todo conjunto de iconos es finito y este catálogo no lo es.
    igual que uno que simplemente va lento.
 4. Comprueba que el nombre no choca con el
    [prefijo de herramientas](../mcp.md#name-collisions) de una entrada existente.
+5. Ejecuta `uv run agenticos cmd mcp-catalog-check --source catalog` y confirma
+   que el informe marca la entrada como verificada; después actualiza el snapshot
+   incluido con una ejecución completa y `--snapshot` - consulta
+   [cómo se mantiene el catálogo](../mcp.md#how-the-catalog-is-kept).
 
 ## Qué no hace falta cambiar { #what-does-not-need-changing }
 

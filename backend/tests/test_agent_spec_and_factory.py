@@ -27,7 +27,7 @@ from pydantic_ai.usage import RequestUsage, RunUsage
 from app.agents.audience import RunAudience
 from app.agents.capabilities import all_capabilities, load_builtins
 from app.agents.capabilities.approval._capability import ApprovalGate
-from app.agents.capabilities.budget import BudgetScope
+from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.agents.capabilities.compaction import ReportContextSize
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
 from app.agents.factory import _AUDIENCE_AWARE, DEFAULT_MAX_STEPS, BuiltAgent, build_agent
@@ -84,6 +84,22 @@ class TestSpecContract:
             capabilities=[{"id": "knowledge", "config": {"default_top_k": 8}}],
         )
         assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    def test_several_accounts_of_one_server_round_trip(self):
+        """Two of the organization's Outlook connections and each person's own
+        accounts survive export and import (#2125)."""
+        spec = AgentSpec(
+            name="Inbox",
+            mcp_servers=[
+                {"account": "organization", "connection_id": str(uuid.uuid4())},
+                {"account": "organization", "connection_id": str(uuid.uuid4())},
+                {"account": "personal", "catalog_key": "outlook"},
+            ],
+        )
+
+        loaded = AgentSpec.from_yaml(spec.to_yaml())
+
+        assert loaded == spec
 
     def test_a_tool_cannot_be_bound_twice(self):
         """A duplicate would silently shadow itself in the toolset."""
@@ -575,6 +591,22 @@ class TestBudgetComposition:
         )
         assert self._limits(tightening) == [
             (BudgetScope.AGENT, Decimal("10")),
+            (BudgetScope.ORGANIZATION, Decimal("40")),
+        ]
+
+    def test_a_departments_cap_sits_between_the_agents_and_the_organizations(self):
+        """Narrowest first: the agent's author, then the department's lead, then everyone (#2072)."""
+        finance = SpendLimit(scope=BudgetScope.GROUP, limit_usd=Decimal("20"))
+        built = build_agent(
+            AgentSpec(name="x", budget={"monthly_usd": 10}),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            org_monthly_budget_usd=Decimal("40"),
+            group_limits=[finance],
+        )
+        assert self._limits(built) == [
+            (BudgetScope.AGENT, Decimal("10")),
+            (BudgetScope.GROUP, Decimal("20")),
             (BudgetScope.ORGANIZATION, Decimal("40")),
         ]
 

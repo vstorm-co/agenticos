@@ -1,5 +1,5 @@
 ---
-source_sha: "bbb1801a8c80"
+source_sha: "111d48326705"
 ---
 
 # Conceptos { #concepts }
@@ -169,36 +169,52 @@ presta su **identidad**. Nadie escucha un run desatendido, así que no responde 
 ninguna persona identificada, igual que un visitante de un widget embebido. Estos
 almacenes que se guardan por persona le están cerrados:
 
-- [Archivos de memoria](reference/capabilities.md#memory-files) y
+- [Memoria](reference/capabilities.md#memory-files) y
   [mem0](reference/capabilities.md#memory-mem0): cada herramienta responde que la
   conversación no tiene memoria.
-- [Búsqueda de conversaciones](reference/capabilities.md#conversation-search):
+- [Conversaciones anteriores](reference/capabilities.md#conversation-search):
   ambas herramientas se niegan.
 - Una [vinculación MCP personal](mcp.md#whose-account-a-binding-speaks-through):
   el Notion o el buzón propio del creador no está, y al agent se le dice por qué.
-- [Artefactos](reference/capabilities.md#artifacts): `publish_artifact` sigue publicando, y la página es
+- [Aplicaciones](reference/capabilities.md#artifacts): `publish_artifact` sigue publicando, y la página es
   privada para el creador, pero `read_artifact` se niega, así que un disparo
   vuelve a publicar una página entera en lugar de editarla.
 
 Es deliberado. Un almacén que se guarda para una persona se lee a esa persona, y
-un disparo que nadie inició no debe escribir en él en su nombre. Hoy ningún
-ajuste lo cambia.
+un disparo que nadie inició no debe escribir en él en su nombre. Una
+[sandbox](sandbox.md) con `session_scope: user` sigue la misma regla: un disparo
+no tiene allí un workspace propio.
 
-!!! warning "Una sandbox con alcance de usuario es la excepción"
+### Salvo que su creador le deje ejecutarse como él { #unless-its-creator-lets-it-run-as-them }
 
-    Una [sandbox](sandbox.md) con `session_scope: user` no está cerrada. Un
-    disparo abre el workspace propio del creador para ese agent, y puede leer y
-    escribir allí los archivos del creador. Un miembro sin `agents:edit` no puede
-    editar ni disparar un trigger que creó otro miembro, porque un prompt
-    cambiado podría copiar esos archivos fuera en el siguiente disparo.
+**Ejecutar como yo**, un ajuste del trigger, es la única excepción, y solo el
+creador puede activarlo, para sí mismo. Un disparo alcanza entonces su memoria y
+sus propias conexiones MCP como lo hace su propio chat — el matinal *dime qué
+importa en mi buzón* que el valor por defecto no puede hacer — en estas
+condiciones:
+
+- **Un horario lee y escribe la memoria; un evento solo la lee.** El prompt de un
+  evento lleva un correo o el cuerpo de un webhook que nadie revisó, y una nota
+  escrita a partir de él la leería cada chat posterior como propia del creador.
+- **Las conversaciones anteriores siguen cerradas** en ambos casos.
+- **La edición de otra persona lo desactiva.** Cambiar el mensaje, el entorno o el
+  filtro de un trigger que no creaste lo desactiva, así que nadie reescribe lo que
+  se ejecuta como tú. Un administrador que actúa como tú mediante suplantación, o
+  un script con tu clave de API, no puede activarlo.
+- **También una versión nueva que no publicaste tú.** Una publicación, una
+  promoción o una reversión de cualquier otra persona lo desactiva, y también una
+  hecha con tu clave de API o por un administrador que te suplanta.
+- **El registro lo dice.** El run nombra el trigger que lo disparó, y cada entrada
+  de auditoría que registra el disparo lleva `via_trigger` con el miembro como el
+  que actuó.
 
 La regla decide cómo diseñas un agent que se ejecuta con un trigger:
 
 | Un run desatendido necesita | Usa |
 |---|---|
-| Hechos o preferencias permanentes | El propio prompt del trigger, o un [archivo de contexto](context.md) vinculado al agent |
+| Hechos o preferencias permanentes | El propio prompt del trigger, un [archivo de contexto](context.md) vinculado al agent, o la memoria del creador con **Ejecutar como yo** |
 | Estado que se conserva de un disparo al siguiente | Una [sandbox](sandbox.md) con `session_scope: conversation`: cada disparo de un trigger se añade a la misma conversación de registro de runs |
-| Un buzón u otro servicio externo | Una conexión vinculada con la cuenta de la organización, no con la de cada persona |
+| Un buzón u otro servicio externo | Una conexión vinculada con la cuenta de la organización, o la propia del creador con **Ejecutar como yo** |
 
 [Vigilar páginas web en busca de cambios](howto/competitor-monitoring.md) y
 [un asistente personal](howto/personal-assistant.md) se encuentran ambos con
@@ -443,7 +459,7 @@ La aprobación se resuelve de lo más específico a lo menos:
 
 1. el override de la propia tool, luego
 2. el modo de la capability, luego
-3. si la capability es `side_effecting`.
+3. ninguna aprobación, cuando ninguno de los dos dice nada.
 
 El Builder enuncia el *resultado* con palabras en lugar de describir la regla,
 porque una regla que quien lee tiene que ejecutar en su cabeza es un ajuste que

@@ -1,0 +1,126 @@
+<!doctype html>
+<!--
+  The source of docs/assets/release-1.0.webp, the banner of the 1.0.0 release
+  notes, kept for the same reason social-preview.html is: a finished picture
+  nobody can redraw goes stale with the first change of mark.
+
+  The blobs are the mark's own shape in the film's palette, glossed with a
+  radial gradient. Render it with:
+
+    screenshot the .card at 1280x640, dpr 2, after document.fonts.ready
+    save as WebP, quality 90
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ground: #100e18;
+    --tile: #2b2547;
+    --ink: #f4f2fb;
+    --dim: #a19cb8;
+    --blob: #bbd1ff;
+  }
+  html, body { margin: 0; background: var(--ground); }
+  .card {
+    position: relative; width: 1280px; height: 640px; overflow: hidden;
+    background: var(--ground);
+    font-family: Inter, system-ui, sans-serif; color: var(--ink);
+  }
+  .dots {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,0.07) 1.2px, transparent 1.2px);
+    background-size: 28px 28px;
+  }
+  .glow {
+    position: absolute; width: 900px; height: 900px; right: -220px; top: -160px;
+    background: radial-gradient(closest-side, rgba(120,110,220,0.32), rgba(120,110,220,0) 70%);
+  }
+  .left { position: absolute; left: 80px; top: 0; bottom: 0; width: 560px; display: flex; flex-direction: column; justify-content: center; gap: 22px; }
+  .kicker { font-family: "Geist Mono", monospace; font-size: 15px; letter-spacing: 0.18em; color: var(--dim); text-transform: uppercase; }
+  .brand { display: flex; align-items: center; gap: 18px; }
+  .brand svg { width: 72px; height: 72px; }
+  .brand span { font-size: 64px; font-weight: 800; letter-spacing: -0.035em; }
+  .tag { font-size: 34px; line-height: 1.22; font-weight: 500; color: #d9d5ec; letter-spacing: -0.015em; }
+  .tag b { color: var(--blob); font-weight: 700; }
+  .new { font-family: "Geist Mono", monospace; font-size: 15px; line-height: 1.75; color: var(--dim); }
+  .new i { font-style: normal; color: var(--ink); }
+  .foot { position: absolute; left: 80px; bottom: 44px; font-family: "Geist Mono", monospace; font-size: 16px; color: var(--ink); }
+  .foot em { font-style: normal; color: var(--dim); }
+  .stage { position: absolute; right: 30px; top: 0; width: 640px; height: 640px; }
+  .num {
+    position: absolute; right: 10px; top: 118px; padding: 0 40px 0 10px;
+    font-size: 400px; font-weight: 900; letter-spacing: -0.06em; line-height: 1;
+    background: linear-gradient(180deg, #f4f2fb 0%, #c9c2f0 55%, #8f86c9 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 30px 60px rgba(0,0,0,0.45));
+  }
+  .b { position: absolute; }
+  .b svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 14px 22px rgba(0,0,0,0.45)); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="dots"></div>
+  <div class="glow"></div>
+
+  <div class="left">
+    <div class="kicker">Release · October 2026</div>
+    <div class="brand">
+      <svg viewBox="0 0 104 104"><rect width="104" height="104" rx="30" fill="#2b2547"/><g transform="translate(10 10) scale(0.84)"><path fill="#bbd1ff" d="M84.91 51.44C84.91 71.47 72.07 83.63 50.89 83.63C29.72 83.63 16.87 71.47 16.87 51.44C16.87 31.41 29.72 19.26 50.89 19.26C72.07 19.26 84.91 31.41 84.91 51.44Z"/><g fill="#0b0f18"><path d="M47.24 45.43C47.13 52.95 46.91 53.47 43.77 53.42C40.64 53.37 40.43 52.85 40.54 45.34C40.65 37.82 40.87 37.3 44.01 37.35C47.14 37.4 47.35 37.92 47.24 45.43Z"/><path d="M65.15 45.55C65.37 54.87 65.14 55.52 61.7 55.6C58.26 55.68 58 55.04 57.79 45.72C57.57 36.41 57.79 35.76 61.24 35.68C64.68 35.59 64.93 36.24 65.15 45.55Z"/></g></g></svg>
+      <span>AgenticOS</span>
+    </div>
+    <div class="tag">Open-source <b>AI teammates</b><br>for your company.</div>
+    <div class="new">
+      <i>New in 1.0</i> · Claude Code &amp; Codex over MCP<br>
+      AI Architect · departments · a real browser
+    </div>
+  </div>
+
+  <div class="foot">github.com/<em>vstorm-co/agenticos</em> &nbsp;·&nbsp; Apache-2.0</div>
+
+  <div class="stage">
+    <div class="num">1.0</div>
+    <!-- blobs: x, y, size, colour, eyes offset -->
+    <div id="blobs"></div>
+  </div>
+</div>
+
+<script>
+// Glossy blobs in the film's palette, sitting on and peeking around the numerals.
+const BLOBS = [
+  // [left, top, size, base, light, dark, look]
+  [70, 70, 112, "#f28ab8", "#ffd0e4", "#c25587", 1],     // pink, on the 1
+  [420, 30, 92, "#2fc39a", "#a3f2d6", "#16805f", -1],     // green, over the 0
+  [520, 420, 120, "#5b6cf0", "#b5bdff", "#3442b8", -1],   // indigo, front right
+  [-10, 430, 104, "#f3a93c", "#ffe0a3", "#bf7414", 1],    // orange, front left
+  [300, 470, 78, "#5cc9f5", "#c5ecff", "#2a8fc0", 0],     // sky, bottom
+  [250, 92, 64, "#9b7cf2", "#d6c8ff", "#6a4bc4", 1],      // violet, between
+];
+const path = "M84.91 51.44C84.91 71.47 72.07 83.63 50.89 83.63C29.72 83.63 16.87 71.47 16.87 51.44C16.87 31.41 29.72 19.26 50.89 19.26C72.07 19.26 84.91 31.41 84.91 51.44Z";
+const host = document.getElementById("blobs");
+BLOBS.forEach(([x, y, s, base, light, dark, look], i) => {
+  const dx = look * 3;
+  host.insertAdjacentHTML("beforeend", `
+  <div class="b" style="left:${x}px;top:${y}px;width:${s}px;height:${s}px">
+    <svg viewBox="16 18 70 67">
+      <defs>
+        <radialGradient id="g${i}" cx="38%" cy="30%" r="80%">
+          <stop offset="0" stop-color="${light}"/>
+          <stop offset="0.45" stop-color="${base}"/>
+          <stop offset="1" stop-color="${dark}"/>
+        </radialGradient>
+      </defs>
+      <path d="${path}" fill="url(#g${i})"/>
+      <ellipse cx="37" cy="31" rx="9" ry="6" fill="#fff" opacity="0.55" transform="rotate(-25 37 31)"/>
+      <g fill="#1d1a2b" transform="translate(${dx} 2)">
+        <rect x="40.5" y="40" width="7" height="15" rx="3.5"/>
+        <rect x="56.5" y="40" width="7" height="15" rx="3.5"/>
+      </g>
+    </svg>
+  </div>`);
+});
+</script>
+</body>
+</html>

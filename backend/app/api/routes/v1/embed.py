@@ -167,6 +167,30 @@ async def hosted_logo(public_key: str, service: EmbedSvc) -> Any:
 
 
 @router.get(
+    "/{public_key}/avatar",
+    response_class=Response,
+    dependencies=[Depends(limit_hosted_logo)],
+)
+async def widget_avatar(public_key: str, service: EmbedSvc) -> Any:
+    """The agent's uploaded picture, for the widget's header and its answers (#2006).
+
+    Public for the reason `/logo` is: what makes it so is this embed being an
+    active widget, and the authenticated avatar route stays authenticated. Typed
+    from the file's bytes like `/logo`, and refused when they are not an image.
+    """
+    stored = await service.widget_avatar_path(public_key)
+    if stored is None:
+        raise HTTPException(status_code=404, detail="No avatar")
+    response = await stored_image_response(stored, headers={"X-Content-Type-Options": "nosniff"})
+    if response is None:
+        # The stored path, not the key from the address: the key reached the log
+        # as typed, and the path is the server's own and names the same file.
+        logger.warning("widget_avatar_not_an_image", extra={"stored": stored})
+        raise HTTPException(status_code=404, detail="No avatar")
+    return response
+
+
+@router.get(
     "/{public_key}/widget.js",
     response_class=Response,
     dependencies=[Depends(limit_embed_script)],

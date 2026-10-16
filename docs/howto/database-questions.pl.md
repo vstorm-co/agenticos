@@ -1,5 +1,5 @@
 ---
-source_sha: "c51412640202"
+source_sha: "351588808d86"
 title: "Odpowiadaj na pytania z bazy danych"
 description: "Podłącz samodzielnie hostowany serwer MCP dla Postgresa za rolą tylko do odczytu i schematem zawierającym wyłącznie widoki, a potem pozwól agentowi go odpytywać."
 ---
@@ -16,7 +16,7 @@ Podłącz serwer MCP dla Postgresa, żeby agent mógł odpowiadać na pytania z 
 
 ## Dlaczego rola tylko do odczytu i schemat z samymi widokami { #why-a-read-only-role-and-a-views-only-schema }
 
-**Narzędzia MCP są poza bramką zatwierdzeń.** Narzędzia capability mogą czekać na zatwierdzenie przez człowieka, narzędzia serwera MCP nie. Nie ma przeglądu SQL-a, który uruchamia narzędzie zapytań agenta, przy każdym wywołaniu. Cokolwiek może podłączony serwer, agent może bez pytania. Zobacz [narzędzia MCP są poza bramką zatwierdzeń](../governance.md#an-approval-inside-a-delegation). Granicą musi być samo poświadczenie do bazy, a nie ustawienie agenta.
+**Zatwierdzenie nie przeczyta za ciebie SQL-a.** Polityka `approval` powiązania może zatrzymać każde zapytanie dla człowieka - `all`, z dokładnym SQL-em na karcie - ale agent zadający dziesiątki pytań zamienia to w odruchowe klikanie, a `writes` ufa, że serwer oznaczy swoje narzędzie zapytań jako tylko do odczytu. Zobacz [które wywołania czekają na człowieka](../mcp.md#which-calls-wait-for-a-person). Granicą musi być samo poświadczenie do bazy, a nie ustawienie agenta.
 
 Robią to dwie decyzje:
 

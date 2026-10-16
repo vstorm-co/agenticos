@@ -27,6 +27,7 @@ import {
   LITEPARSE_OUTPUT_FORMATS,
   LLAMAPARSE_TIERS,
   PDF_PARSERS,
+  settleHiddenFields,
   THINKING_EFFORTS,
   toNumber,
 } from "@/lib/ingestion-config";
@@ -41,6 +42,8 @@ import type {
 } from "@/types";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
+
+import { cn } from "@/lib/utils";
 
 export interface IngestionSettingsProps {
   value: IngestionConfig;
@@ -60,6 +63,11 @@ export interface IngestionSettingsProps {
    */
   errors?: Readonly<Record<string, string>>;
   disabled?: boolean;
+  /**
+   * Leave the parser out, for a form that asks for it above as `ParserCards`
+   * and folds the rest of these settings away.
+   */
+  withoutParser?: boolean;
 }
 
 /**
@@ -86,6 +94,7 @@ export function IngestionSettings({
   idPrefix,
   errors = {},
   disabled,
+  withoutParser = false,
 }: IngestionSettingsProps) {
   const t = useTranslations("kb");
   const { secrets } = useSecrets();
@@ -95,12 +104,20 @@ export function IngestionSettings({
   const { services } = useLocalServices(value.pdf_parser === "liteparse");
   const ocrServers = services.filter((service) => service.kind === "ocr" && service.is_active);
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
+  // Every change goes through `settleHiddenFields`, so turning a setting off
+  // cannot leave a refused value behind a field that is no longer on screen.
   const set = <K extends keyof IngestionConfig>(key: K, next: IngestionConfig[K]) =>
-    onChange({ ...value, [key]: next });
+    onChange(settleHiddenFields({ ...value, [key]: next }, t));
   const setImage = <K extends keyof ImageDescriptionConfig>(
     key: K,
     next: ImageDescriptionConfig[K],
-  ) => onChange({ ...value, image_description: { ...value.image_description, [key]: next } });
+  ) =>
+    onChange(
+      settleHiddenFields(
+        { ...value, image_description: { ...value.image_description, [key]: next } },
+        t,
+      ),
+    );
 
   const parser = PDF_PARSERS.find((choice) => choice.value === value.pdf_parser);
 
@@ -116,40 +133,42 @@ export function IngestionSettings({
         {/* The parser and its tier are one decision, so they share a row; the
             toggles below are yes/no sentences and read better at full width. */}
         <div className="grid gap-4 sm:grid-cols-2">
-          <OptionalSetting
-            htmlFor={id("parser")}
-            label={t("pdfParser")}
-            description={`${parser === undefined ? "" : t(parser.hintKey)} ${t("builtInReadersRegardless")}`}
-            error={errors.pdf_parser}
-            disabled={disabled}
-          >
-            <Select
-              value={value.pdf_parser}
+          {!withoutParser && (
+            <OptionalSetting
+              htmlFor={id("parser")}
+              label={t("pdfParser")}
+              description={`${parser === undefined ? "" : t(parser.hintKey)} ${t("builtInReadersRegardless")}`}
+              error={errors.pdf_parser}
               disabled={disabled}
-              onValueChange={(next) => set("pdf_parser", next as PdfParser)}
             >
-              <SelectTrigger id={id("parser")} aria-invalid={errors.pdf_parser !== undefined}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PDF_PARSERS.map((choice) => (
-                  <SelectItem
-                    key={choice.value}
-                    value={choice.value}
-                    textValue={t(choice.labelKey)}
-                  >
-                    {/* `textValue` because the child is no longer a bare string:
+              <Select
+                value={value.pdf_parser}
+                disabled={disabled}
+                onValueChange={(next) => set("pdf_parser", next as PdfParser)}
+              >
+                <SelectTrigger id={id("parser")} aria-invalid={errors.pdf_parser !== undefined}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PDF_PARSERS.map((choice) => (
+                    <SelectItem
+                      key={choice.value}
+                      value={choice.value}
+                      textValue={t(choice.labelKey)}
+                    >
+                      {/* `textValue` because the child is no longer a bare string:
                         the trigger and the type-ahead both read it, and without
                         it a Radix item renders its own markup into the trigger. */}
-                    <span className="flex items-center gap-2">
-                      {choice.Icon && <choice.Icon className="text-foreground/60 h-4 w-4" />}
-                      <span>{t(choice.labelKey)}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </OptionalSetting>
+                      <span className="flex items-center gap-2">
+                        {choice.Icon && <choice.Icon className="text-foreground/60 h-4 w-4" />}
+                        <span>{t(choice.labelKey)}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </OptionalSetting>
+          )}
 
           {value.pdf_parser === "llamaparse" && (
             <OptionalSetting
@@ -641,6 +660,59 @@ function ImageModelField({
 }
 
 /** A named run of related settings. */
+/**
+ * The parser, as the three choices it is - for a form where it is the one
+ * parsing decision most people make, and the rest of these settings wait folded.
+ *
+ * Cards rather than a select because the difference is the point: one reads
+ * the text a PDF already carries, one is a paid service that rebuilds layout,
+ * one runs its own OCR. A select shows a name and hides the sentence that
+ * decides between them.
+ */
+export function ParserCards({
+  value,
+  onChange,
+  disabled,
+  error,
+}: {
+  value: IngestionConfig;
+  onChange: (value: IngestionConfig) => void;
+  disabled?: boolean;
+  error?: string;
+}) {
+  const t = useTranslations("kb");
+  return (
+    <div className="space-y-1.5">
+      <div role="radiogroup" aria-label={t("pdfParser")} className="grid gap-2 sm:grid-cols-3">
+        {PDF_PARSERS.map((choice) => (
+          <button
+            key={choice.value}
+            type="button"
+            role="radio"
+            aria-checked={value.pdf_parser === choice.value}
+            disabled={disabled}
+            onClick={() => onChange(settleHiddenFields({ ...value, pdf_parser: choice.value }, t))}
+            className={cn(
+              "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors disabled:opacity-50",
+              value.pdf_parser === choice.value
+                ? "border-foreground/40 bg-accent"
+                : "hover:bg-accent/50",
+            )}
+          >
+            <span className="flex items-center gap-1.5 text-sm font-medium">
+              {choice.Icon && <choice.Icon className="h-4 w-4 shrink-0" aria-hidden />}
+              {t(choice.labelKey)}
+            </span>
+            <span className="text-muted-foreground text-xs">{t(choice.hintKey)}</span>
+          </button>
+        ))}
+      </div>
+      {error && <p className="text-destructive text-xs">{error}</p>}
+      <p className="text-muted-foreground text-xs">{t("builtInReadersRegardless")}</p>
+    </div>
+  );
+}
+
 function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section role="group" aria-label={label} className="space-y-4">

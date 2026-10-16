@@ -667,6 +667,20 @@ describe("the catalog, read the other way round", () => {
     expect(unreadKeys(catalog, files)).toEqual([]);
   });
 
+  it("reads a key read through raw, built from a template", () => {
+    // A capability setting's description shows `{messages}` to the person editing
+    // the prompt, so it is read unformatted - and keyed on the field it describes.
+    const catalog = {
+      capabilityConfig: { compaction: { summary_prompt: { title: "Summary prompt" } } },
+    };
+    const files = source(
+      "copy.ts",
+      'const t = useTranslations("capabilityConfig");\nt.raw(`${capability}.${field}.title`);\n',
+    );
+
+    expect(unreadKeys(catalog, files)).toEqual([]);
+  });
+
   it("reports a key a component reads that the catalog does not hold", () => {
     const catalog = { agents: { used: "Used" } };
     const found = missingKeys(

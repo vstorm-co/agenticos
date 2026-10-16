@@ -33,7 +33,7 @@ Fix: $ARGUMENTS
    gate needs `tests/api/`.
 
 7. **Verify** with the tests covering the fix, then the applicable lint and coverage
-   gates from `CLAUDE.md`. Use frontend checks for frontend defects. Run `make check`
+   gates from `AGENTS.md`. Use frontend checks for frontend defects. Run `make check`
    before a PR.
 
 8. **Report** what was wrong, why it happened, and what now prevents it. If you found a

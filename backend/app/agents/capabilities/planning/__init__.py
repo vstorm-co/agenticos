@@ -31,6 +31,7 @@ from app.agents.capabilities.planning._capability import (
     dump_plan,
     new_plan_store,
     open_plan_store,
+    put_down,
     still_open,
 )
 
@@ -42,6 +43,7 @@ __all__ = [
     "dump_plan",
     "new_plan_store",
     "open_plan_store",
+    "put_down",
     "still_open",
 ]
 
@@ -54,18 +56,19 @@ class PlanningConfig(BaseModel):
     nothing gets exactly that.
     """
 
+    # Adds `add_subtask`, `set_dependency` and `get_available_tasks` and a `blocked`
+    # status; a flat checklist is the smaller prompt.
     enable_subtasks: bool = Field(
+        title="Subtasks and dependencies",
         default=False,
         description=(
-            "Add dependency-aware planning: three more tools (`add_subtask`, "
-            "`set_dependency`, `get_available_tasks`) and a `blocked` status. A step "
-            "with an unresolved prerequisite is held `blocked` until the prerequisite "
-            "completes or is cancelled, and the agent asks which steps are free to "
-            "start. Off by default: a flat checklist is the smaller prompt, and most "
-            "work does not need a dependency graph to track it."
+            "Adds subtasks and dependencies: a step waits as blocked until the steps "
+            "before it finish. Off by default, because a flat checklist is enough for "
+            "most work."
         ),
     )
     cache_ttl: Literal["5m", "1h"] = Field(
+        title="Prompt cache lifetime",
         default="5m",
         description=(
             "How long the provider may cache the prompt prefix that sits before the "
@@ -73,6 +76,7 @@ class PlanningConfig(BaseModel):
             "behind this breakpoint so the stable prefix stays cacheable; a longer TTL "
             "suits a conversation that stays open, the shorter one a burst of turns."
         ),
+        json_schema_extra={"x-advanced": True},
     )
 
 

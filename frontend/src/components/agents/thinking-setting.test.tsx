@@ -6,6 +6,7 @@ import { ThinkingSetting } from "./thinking-setting";
 import type { CapabilityBindingSpec, CapabilityCatalogEntry } from "@/types/agents";
 
 const THINKING: CapabilityCatalogEntry = {
+  recommended: null,
   id: "thinking",
   name: "Reasoning",
   category: "model",

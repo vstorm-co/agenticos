@@ -69,6 +69,18 @@ describe("useUsageStats", () => {
     });
   });
 
+  it("narrows to a group's members on the group view", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ total_runs: 1 });
+    const { result } = renderHook(() => useUsageStats(PERIOD, { filter: { groupId: "g-1" } }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/stats/usage", {
+      params: { from: PERIOD.from, to: PERIOD.to, scope: "org", group_id: "g-1" },
+    });
+  });
+
   it("asks the hourly grid for one agent when a card is pinned to it", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ by_hour: [] });
     const { result } = renderHook(
@@ -152,6 +164,26 @@ describe("usePeopleUsage", () => {
         scope: "org",
         group_by: "user",
         limit: "6",
+      },
+    });
+  });
+
+  it("keeps a group's narrowing on the person rows", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ by_user: [] });
+    const { result } = renderHook(
+      () => usePeopleUsage(PERIOD, { filter: { groupId: "g-1", userId: "ignored" } }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/stats/usage", {
+      params: {
+        from: PERIOD.from,
+        to: PERIOD.to,
+        scope: "org",
+        group_by: "user",
+        limit: "6",
+        group_id: "g-1",
       },
     });
   });

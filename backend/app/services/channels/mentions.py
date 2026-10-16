@@ -61,6 +61,7 @@ from app.services.access import publisher_context
 from app.services.agent_runner import AgentRunnerService, RunStream
 from app.services.channels.base import ROOM_HANDLES, OutgoingAttachment, channel_key
 from app.services.channels.chart_png import render_chart_png
+from app.services.channels.steering import current_steering, is_asked_aside
 from app.services.transcript import RecordedToolCall
 from app.services.usage_report import (
     UsageReportService,
@@ -73,6 +74,9 @@ from app.services.usage_report import (
 # at the start on purpose: a slug appearing mid-sentence is someone talking
 # *about* an agent, not to it.
 _MENTION = re.compile(r"^\s*@([a-z0-9][a-z0-9-]{0,63})\b[:,]?\s*(.*)$", re.DOTALL)
+
+# What a channel turn can end waiting on that the chat itself can settle.
+_PARKED = (RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value)
 
 # Which surface a run is stamped with, so run history can be filtered by where
 # it came from. Anything else is recorded as an API run rather than guessed at -
@@ -206,6 +210,13 @@ class AnsweredTurn:
     on a product they reach through a bot - which is most of the way to not
     telling them at all.
     """
+
+    parked_run_id: UUID | None = None
+    """The run, when it stopped for somebody in this chat - a decision or a question -
+    so the chat is offered the choices as buttons (#2064, #2067)."""
+
+    run_id: UUID | None = None
+    """The run that answered, so the thumbs under the answer can rate it (#2084)."""
 
     image_png: bytes | None = None
     """A chart the turn drew, rendered for a surface that cannot run Recharts.
@@ -357,7 +368,16 @@ class ChannelAgentRouter:
             tool_calls=called,
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
-            conversation_id=conversation_id,
+            # A question is asked here as buttons and answered later (#2064) - of
+            # a linked member. An unlinked sender's turn runs as the publisher,
+            # and a question parked for them could be answered only by the
+            # publisher, never by the stranger who was asked; it is declined.
+            parks_questions=sender is not None,
+            # A `/btw` answer is not part of the thread's transcript (#2087).
+            conversation_id=None if is_asked_aside() else conversation_id,
+            # What the sender adds while this runs, and the side question (#2087).
+            steering=current_steering(),
+            aside=is_asked_aside(),
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
             memory_room_key=memory_room_key,
             channel_directory=channel_directory,
@@ -387,7 +407,9 @@ class ChannelAgentRouter:
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
             ),
+            parked_run_id=run.id if run.status in _PARKED else None,
             status=run.status,
+            run_id=run.id,
         )
 
     async def answer_default(
@@ -463,7 +485,16 @@ class ChannelAgentRouter:
             tool_calls=called,
             stream=stream,
             surface=_SURFACES.get(platform, RunSurface.API),
-            conversation_id=conversation_id,
+            # A question is asked here as buttons and answered later (#2064) - of
+            # a linked member. An unlinked sender's turn runs as the publisher,
+            # and a question parked for them could be answered only by the
+            # publisher, never by the stranger who was asked; it is declined.
+            parks_questions=sender is not None,
+            # A `/btw` answer is not part of the thread's transcript (#2087).
+            conversation_id=None if is_asked_aside() else conversation_id,
+            # What the sender adds while this runs, and the side question (#2087).
+            steering=current_steering(),
+            aside=is_asked_aside(),
             channel_key=(None if platform_chat_id is None else channel_key(platform_chat_id)),
             memory_room_key=memory_room_key,
             channel_directory=channel_directory,
@@ -487,7 +518,9 @@ class ChannelAgentRouter:
             awaiting_approval_run_id=(
                 run.id if run.status == RunStatus.AWAITING_APPROVAL else None
             ),
+            parked_run_id=run.id if run.status in _PARKED else None,
             status=run.status,
+            run_id=run.id,
         )
 
     async def _with_usage(

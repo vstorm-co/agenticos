@@ -2,8 +2,9 @@ import { getLocale } from "next-intl/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BUILT_IN_BRANDING } from "@/lib/branding";
+import { LOGO_VERSION } from "@/lib/logo.generated";
 
-import RootLayout from "./layout";
+import RootLayout, { generateMetadata } from "./layout";
 
 vi.mock("next-intl/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next-intl/server")>()),
@@ -52,5 +53,21 @@ describe("RootLayout", () => {
     const element = await RootLayout({ children: null });
 
     expect(element.props.lang).toBe("en");
+  });
+});
+
+/**
+ * The built-in favicon's address changes with the mark. A browser keeps a
+ * favicon long past its cache header, so a new logo under an unchanged `/icon`
+ * went on showing the old one in every tab that had opened the console.
+ */
+describe("generateMetadata", () => {
+  it("versions the built-in favicon and home-screen icon by the mark", async () => {
+    const { icons } = await generateMetadata();
+
+    expect(icons).toMatchObject({
+      icon: [{ url: `/icon?v=${LOGO_VERSION}` }],
+      apple: [{ url: `/apple-icon?v=${LOGO_VERSION}` }],
+    });
   });
 });

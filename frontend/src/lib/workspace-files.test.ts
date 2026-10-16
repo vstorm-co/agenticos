@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { bytesKey, readFileBytes, readFileText, textKey } from "./workspace-files";
+import { bytesKey, documentName, readFileBytes, readFileText, textKey } from "./workspace-files";
 import { apiClient } from "./api-client";
 
 vi.mock("./api-client", () => ({
@@ -47,5 +47,20 @@ describe("addressing a file", () => {
     expect(bytesKey({ kind: "conversation", id: "x" }, "/a")).not.toEqual(
       textKey({ kind: "conversation", id: "x" }, "/a"),
     );
+  });
+});
+
+describe("documentName - a file as a person calls it", () => {
+  it("drops the folders and an attachment's filing prefix", () => {
+    expect(documentName("/uploads/0d7d5756-handbook.pdf", true)).toBe("handbook.pdf");
+  });
+
+  it("keeps an agent's own name whole, prefix-like or not", () => {
+    expect(documentName("/reports/0d7d5756-q3.csv", false)).toBe("0d7d5756-q3.csv");
+    expect(documentName("notes.md", false)).toBe("notes.md");
+  });
+
+  it("keeps a name that is nothing but the prefix", () => {
+    expect(documentName("/uploads/0d7d5756-", true)).toBe("0d7d5756-");
   });
 });

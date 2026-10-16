@@ -671,6 +671,14 @@ class SecretRequirement(BaseModel):
             "for DuckDuckGo, and both the Builder and publish validation read this."
         ),
     )
+    optional_when: SecretCondition | None = Field(
+        default=None,
+        description=(
+            "Configurations that may use a secret without needing one, so the Builder "
+            "offers the picker with a 'none' choice. A browser's proxy may sign in "
+            "with a username and password or be reached without one."
+        ),
+    )
 
     @model_validator(mode="after")
     def _a_requirement_is_for_a_real_secret(self) -> SecretRequirement:

@@ -40,7 +40,7 @@ export function McpOAuthClientFields({
   const redirectUrl = `${siteUrl}/api/me/mcp-connections/oauth/callback`;
 
   return (
-    <div className="space-y-3 rounded-md border border-dashed p-3">
+    <div className="space-y-3">
       <div>
         <p className="text-sm font-medium">{t("oauthOwnClient")}</p>
         <p className="text-muted-foreground mt-1 text-xs">{t("oauthOwnClientHint")}</p>
@@ -52,29 +52,31 @@ export function McpOAuthClientFields({
         </code>
         <p className="text-muted-foreground mt-1 text-xs">{t("oauthRedirectUrlHint")}</p>
       </div>
-      <div>
-        <Label htmlFor="mcp-client-id">{t("oauthClientId")}</Label>
-        <Input
-          id="mcp-client-id"
-          value={clientId}
-          onChange={(event) => onClientIdChange(event.target.value)}
-          maxLength={512}
-          autoComplete="off"
-          className="mt-1.5 font-mono text-sm"
-        />
-      </div>
-      <div>
-        <Label htmlFor="mcp-client-secret">{t("oauthClientSecret")}</Label>
-        <Input
-          id="mcp-client-secret"
-          type="password"
-          value={clientSecret}
-          onChange={(event) => onClientSecretChange(event.target.value)}
-          maxLength={4096}
-          autoComplete="new-password"
-          className="mt-1.5 font-mono text-sm"
-        />
-        <p className="text-muted-foreground mt-1 text-xs">{t("oauthClientSecretHint")}</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="mcp-client-id">{t("oauthClientId")}</Label>
+          <Input
+            id="mcp-client-id"
+            value={clientId}
+            onChange={(event) => onClientIdChange(event.target.value)}
+            maxLength={512}
+            autoComplete="off"
+            className="mt-1.5 font-mono text-sm"
+          />
+        </div>
+        <div>
+          <Label htmlFor="mcp-client-secret">{t("oauthClientSecret")}</Label>
+          <Input
+            id="mcp-client-secret"
+            type="password"
+            value={clientSecret}
+            onChange={(event) => onClientSecretChange(event.target.value)}
+            maxLength={4096}
+            autoComplete="new-password"
+            className="mt-1.5 font-mono text-sm"
+          />
+          <p className="text-muted-foreground mt-1 text-xs">{t("oauthClientSecretHint")}</p>
+        </div>
       </div>
     </div>
   );

@@ -1,7 +1,10 @@
 "use client";
-import { Globe, Link } from "lucide-react";
+import { Globe, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { hostOf } from "@/lib/link-brands";
 import { cn } from "@/lib/utils";
+
+import { SourceMark } from "../source-mark";
 
 interface WebHit {
   title: string;
@@ -29,14 +32,14 @@ export function parseWebSearch(result: string): WebSearchPayload | null {
   return null;
 }
 
-function domainOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-
+/**
+ * What a web search found, as cards: the site first - its own logo where it has
+ * one - then the page's title and a line of what it says.
+ *
+ * Cards in a grid rather than a numbered list, because what a reader scans a
+ * search for is *where* the answer came from, and a column of identical rows
+ * with a link icon in each made every site look the same.
+ */
 export function WebSearchResults({
   data,
   detailed = false,
@@ -56,50 +59,48 @@ export function WebSearchResults({
   }
 
   return (
-    <div className="space-y-3 py-1">
-      <div className="text-muted-foreground flex items-center gap-2 font-mono text-[11px] tracking-wider uppercase">
-        <Globe className="h-3 w-3" />
-        <span>{t("webResultCount", { count: data.results.length })}</span>
-        {detailed && data.query && (
-          <span className="text-muted-foreground truncate normal-case">· “{data.query}”</span>
-        )}
+    <div className="space-y-2.5 py-1">
+      <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
+        <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        {data.query ? (
+          <span className="text-foreground/80 truncate font-medium">{data.query}</span>
+        ) : null}
+        <span aria-hidden>·</span>
+        <span className="shrink-0">{t("webResultCount", { count: data.results.length })}</span>
       </div>
 
-      <div className="border-foreground/10 divide-foreground/8 divide-y overflow-hidden rounded-xl border">
+      <div className="grid gap-2 sm:grid-cols-2">
         {data.results.map((hit, i) => (
           <a
             key={`${hit.url}-${i}`}
             href={hit.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:bg-foreground/[0.03] block px-3 py-2.5 transition-colors"
+            className="border-foreground/10 hover:border-foreground/25 hover:bg-foreground/[0.02] flex min-w-0 flex-col gap-1.5 rounded-xl border p-3 transition-colors"
           >
-            <div className="flex items-center gap-2">
-              <span className="bg-foreground/8 text-foreground/65 inline-flex h-5 min-w-[1.5rem] shrink-0 items-center justify-center rounded px-1 font-mono text-[11px] tabular-nums">
-                {i + 1}
+            <span className="flex min-w-0 items-center gap-2">
+              <SourceMark type="web" title={hit.title} url={hit.url} className="size-5 ring-0" />
+              <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs">
+                {hostOf(hit.url) ?? hit.url}
               </span>
-              <p className="text-foreground min-w-0 flex-1 truncate text-xs font-medium">
-                {hit.title}
-              </p>
               {detailed && typeof hit.score === "number" && (
-                <span className="bg-brand/10 text-brand shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] tabular-nums">
+                <span className="bg-foreground/8 text-foreground/70 shrink-0 rounded px-1.5 py-0.5 font-mono text-xs tabular-nums">
                   {(hit.score * 100).toFixed(0)}%
                 </span>
               )}
-            </div>
-            <div className="text-primary mt-1 flex items-center gap-1 truncate pl-[calc(1.5rem+0.5rem)] text-[11px]">
-              <Link className="h-2.5 w-2.5 shrink-0" />
-              {domainOf(hit.url)}
-            </div>
+            </span>
+            <span className="text-foreground line-clamp-2 text-[13px] leading-snug font-medium">
+              {hit.title || hostOf(hit.url) || hit.url}
+            </span>
             {hit.content && (
-              <p
+              <span
                 className={cn(
-                  "text-muted-foreground mt-1 pl-[calc(1.5rem+0.5rem)] text-xs leading-relaxed",
+                  "text-muted-foreground text-xs leading-relaxed",
                   detailed ? "whitespace-pre-wrap" : "line-clamp-2",
                 )}
               >
                 {hit.content}
-              </p>
+              </span>
             )}
           </a>
         ))}

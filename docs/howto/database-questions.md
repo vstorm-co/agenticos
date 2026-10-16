@@ -24,13 +24,12 @@ end to end against a live agent.
 
 ## Why a read-only role and a views-only schema
 
-**MCP tools are outside the approval gate.** A capability's tools can be held
-for a person to approve; an MCP server's cannot; there is no per-call review of
-the SQL an agent's query tool runs. Whatever the connected server can do, the
-agent can do without asking - see
-[MCP tools are outside the approval gate](../governance.md#an-approval-inside-a-delegation).
-The database credential itself has to be the boundary, not a setting on the
-agent.
+**An approval does not read the SQL for you.** The binding's `approval` policy
+can hold every query for a person - `all`, with the exact SQL on the card - but
+an agent asking dozens of questions makes that a rubber stamp, and `writes`
+trusts the server to mark its query tool read-only. See
+[which calls wait for a person](../mcp.md#which-calls-wait-for-a-person). The
+database credential itself has to be the boundary, not a setting on the agent.
 
 Two decisions do that work:
 

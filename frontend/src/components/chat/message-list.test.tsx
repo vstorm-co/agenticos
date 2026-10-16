@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MessageList, continuesTurn, endsTurn, lastToolTurnIndex, turnUsage } from "./message-list";
 import type { ChatMessage } from "@/types";
@@ -450,5 +450,49 @@ describe("where a turn's time and cost belong", () => {
     ];
 
     expect(turnUsage(messages, 1)).toBeUndefined();
+  });
+});
+
+describe("where the transcript crosses into another day", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 13, 15, 0));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("marks each new day, and the first one unless it is today", () => {
+    render(
+      <MessageList
+        messages={[
+          message({ id: "a", timestamp: new Date(2026, 9, 5, 9, 0) }),
+          message({ id: "b", timestamp: new Date(2026, 9, 5, 9, 5) }),
+          message({ id: "c", timestamp: new Date(2026, 9, 12, 18, 0) }),
+          message({ id: "d", timestamp: new Date(2026, 9, 13, 8, 0) }),
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByRole("separator").map((pill) => pill.textContent)).toEqual([
+      "Monday, October 5",
+      "Yesterday",
+      "Today",
+    ]);
+  });
+
+  it("says nothing over a thread that is wholly from today", () => {
+    render(<MessageList messages={[message({ timestamp: new Date(2026, 9, 13, 9, 0) })]} />);
+    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
+  });
+
+  it("does not split one run that crossed midnight", () => {
+    render(
+      <MessageList
+        messages={[
+          message({ id: "a", runId: "r1", timestamp: new Date(2026, 9, 12, 23, 59) }),
+          message({ id: "b", runId: "r1", timestamp: new Date(2026, 9, 13, 0, 1) }),
+        ]}
+      />,
+    );
+    expect(screen.getAllByRole("separator").map((pill) => pill.textContent)).toEqual(["Yesterday"]);
   });
 });

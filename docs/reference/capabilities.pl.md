@@ -1,5 +1,5 @@
 ---
-source_sha: "b770e9d03e5d"
+source_sha: "d61d0d68830c"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -23,36 +23,60 @@ obejmują też rzeczy, które nie są narzędziami w ogóle — dlatego `thinkin
     strony. Builder rysuje swój wybór i formularze konfiguracji z tej odpowiedzi.
     Jeśli oba źródła się różnią, rację ma API.
 
+Builder nazywa każdą capability w języku konsoli i objaśnia ją prostymi słowami:
+co pozwala zrobić agentowi, dwa lub trzy przykłady użycia, czego wymaga i czego
+nigdy nie robi. Poniższe nazwy są polskimi odpowiednikami nazw z konsoli. Pięć
+capability, które dostrajają sposób prowadzenia runu - długie rozmowy, odciążenie
+z obrazów, przypomnienia instrukcji, limity wyników narzędzi i wyszukiwanie
+narzędzi - jest zwiniętych w grupie **Zaawansowane**, dopóki ktoś jej nie otworzy,
+nie zacznie szukać albo nie włączy jednej z nich.
+
+W ustawieniach capability limity, czasy życia cache, prompty i inne strojenie są
+zwinięte pod **Ustawieniami zaawansowanymi**, które otwierają się same, gdy
+któreś z nich zostało ustawione.
+
+Capabilities, które ma agent startowy - szablon **Claude Code like**, który świeża
+organizacja dostaje przy pierwszym uruchomieniu - mają odznakę **Polecane**, a
+agent utworzony przez **New agent** startuje dokładnie z nimi włączonymi i
+skonfigurowanymi tak, jak konfiguruje je szablon. Jego autor wyłącza to, czego
+agent nie powinien robić.
+
+Dwie z nich zależą od tego, co uruchamia wdrożenie. Przestrzeń robocza to
+kontener w usłudze sandbox samego wdrożenia, którą bootstrap i pierwsza publikacja
+rejestrują jako domyślną dla organizacji; bez niej przechowuje tylko pliki.
+Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
+(`BROWSER_SIGN_IN_CDP_URL`) i pomijana, gdy jej nie ma.
+
 ## Co jest dostarczane { #what-ships }
 
 | id | Nazwa | Kategoria | Narzędzia | Zakres | Klucz |
 |---|---|---|---|---|---|
-| `knowledge` | Wyszukiwanie w bazie wiedzy | wiedza | `search_documents` | `knowledge:read` | — |
+| `knowledge` | Wyszukiwanie wiedzy | wiedza | `search_documents` | `knowledge:read` | — |
 | `skills` | Skille | wiedza | `read_skill_resource` | `knowledge:read` | — |
 | `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — |
-| `memory_files` | Pliki pamięci | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
+| `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory` | — | — |
 | `memory_mem0` | Pamięć (mem0) | wiedza | `remember`, `recall` | — | wymagany |
-| `conversation_search` | Wyszukiwanie w rozmowach | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — |
-| `web_research` | Wyszukiwanie w sieci | badania | `web_search` | `web:read` | dla usług płatnych |
-| `web_fetch` | Pobieranie stron | badania | `web_fetch` | `web:fetch` | — |
-| `browser_choice` | Automatyzacja przeglądarki (wybór) | badania | `browse_page` | `web:browse` | przez dodatek `browser` |
-| `browser_use` | Automatyzacja przeglądarki | badania | `browse_web` | `web:browse` | przez dodatek `browser-use` |
-| `code_execution` | Uruchamianie Pythona | analiza | `run_python` | `code:execute` | — |
-| `sandbox` | Pliki i powłoka | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
+| `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — |
+| `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych |
+| `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — |
+| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` |
+| `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — |
+| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
 | `charts` | Wykresy | analiza | `create_chart` | — | — |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany |
-| `subagents` | Delegowanie | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
+| `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Myślenie | rozumowanie | brak, celowo | — | — |
-| `system_reminders` | Przypomnienia systemowe | rozumowanie | brak, celowo | — | — |
+| `system_reminders` | Przypomnienia instrukcji | rozumowanie | brak, celowo | — | — |
 | `tool_search` | Wyszukiwanie narzędzi | użytkowe | brak, celowo | — | — |
 | `clock` | Data i godzina | użytkowe | brak, celowo | — | — |
-| `guardrails` | Guardrails | użytkowe | brak, celowo | — | — |
-| `compaction` | Zarządzanie kontekstem | użytkowe | brak, celowo | — | — |
-| `media` | Odciążanie mediów | użytkowe | brak, celowo | — | — |
-| `tool_output_limits` | Limity wyjścia narzędzi | użytkowe | `read_tool_result` | — | — |
-| `artifacts` | Artefakty | użytkowe | `publish_artifact`, `read_artifact` | — | — |
-| `channel_tools` | Podgląd kanału czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `guardrails` | Zabezpieczenia | użytkowe | brak, celowo | — | — |
+| `compaction` | Długie rozmowy | użytkowe | brak, celowo | — | — |
+| `media` | Odciążenie z obrazów | użytkowe | brak, celowo | — | — |
+| `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — |
+| `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact` | — | — |
+| `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — |
+| `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
@@ -91,8 +115,8 @@ wstrzymuje i zapisuje:
 | id | Narzędzia, które zapisują |
 |---|---|
 | `artifacts` | `publish_artifact` |
-| `browser_choice` | `browse_page` |
-| `browser_use` | `browse_web` |
+| `ask_user` | `ask_user_question` |
+| `browser_use` | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
 | `image_generation` | `generate_image` |
 | `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
 | `memory_mem0` | `remember` |
@@ -105,14 +129,14 @@ zatwierdzanie, drugie — co może uruchomić eval, a niezadeklarowane narzędzi
 pierwsze przepuszcza bez bramki, a drugie blokuje.
 
 Środowisko może podmienić klucz z vault capability na testowy, ale sam
-podmieniony klucz nie czyni zapisu bezpiecznym: klucz `browser_choice` służy
-modelowi, który decyduje, a jej `cdp_url` nadal wskazuje przeglądarkę, która
-klika. Capability deklaruje `test_key_isolates` tylko wtedy, gdy sam klucz
+podmieniony klucz nie czyni zapisu bezpiecznym: klucz `browser_use` służy
+hostowanej przeglądarce albo jej proxy, a jej `cdp_url` nadal wskazuje
+przeglądarkę, która klika. Capability deklaruje `test_key_isolates` tylko wtedy, gdy sam klucz
 wyznacza, dokąd trafiają jej zapisy, i nigdy z URL-em, hostem ani endpointem w
 konfiguracji. Żadna dostarczana capability tego nie deklaruje, więc w evalu
 każdy zapis powyżej jest zapisywany, a nie wykonywany, niezależnie od klucza.
 
-## Wyszukiwanie w bazie wiedzy { #knowledge-search }
+## Wyszukiwanie wiedzy { #knowledge-search }
 
 `search_documents` — *Search the organization's documents for passages relevant to
 a question.*
@@ -276,7 +300,7 @@ dołączana, tak samo jak `knowledge` powiązane z zerem kolekcji. Plikami zarz�
 się pod `/api/v1/context`, a wiąże się je z agentem po id
 (`AgentSpec.context_ids`).
 
-## Pliki pamięci { #memory-files }
+## Pamięć { #memory-files }
 
 `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`
 
@@ -301,21 +325,25 @@ dotyka dokładnie jednego magazynu: tego, który należy do rozmowy.** Który to
 wynika po stronie serwera z tego, kto usłyszy odpowiedź, a nigdy z modelu — więc
 żadne narzędzie nie przyjmuje zakresu i agent nie ma tu czego pomylić.
 
-- Jeden na jeden — czat webowy, HTTP API, wiadomość prywatna — notatki należą do
-  tej osoby i nikt inny ich nie czyta. Ta sama osoba sięga z wszystkich trzech
-  miejsc do jednego magazynu: powiązane konto czatu rozwiązuje się na jej konto,
+- Jeden na jeden — czat webowy, wiadomość prywatna — notatki należą do tej osoby
+  i nikt inny ich nie czyta. Ta sama osoba sięga z obu miejsc do jednego
+  magazynu: powiązane konto czatu rozwiązuje się na jej konto,
   a nie na powierzchnię, przez którą przyszła.
 - Na czacie grupowym notatki należą do czatu i czytają je wszyscy jego
   uczestnicy. Własne notatki mówiącego **nie** są tam osiągalne: tego, co
   zapisano w rozmowie w cztery oczy, nie odczytuje się na głos tam, gdzie widzi
   to cały kanał.
 - Na publicznym widgecie albo w embedzie nie ma komu niczego przypisać, więc nie
-  ma magazynu, a narzędzia mówią to wprost, zamiast zapisywać gdziekolwiek.
+  ma magazynu, a narzędzia mówią to wprost, zamiast zapisywać gdziekolwiek. Run
+  uruchomiony [kluczem API](../api.md#organization-api-keys) też go nie ma: klucz
+  działa w imieniu wystawcy, ale ten, kto go trzyma, nie jest tą osobą.
 - W harmonogramie albo przy triggerze zdarzenia też nie ma magazynu, chociaż run
   wykonuje się jako twórca triggera. Twórca pożycza runowi swoje uprawnienia, a
   nie tożsamość, więc nikt nie słucha i narzędzia odmawiają. Fakt potrzebny
   runowi z harmonogramu umieść w prompcie triggera albo w podpiętym pliku
-  kontekstowym. Zobacz [Trigger](../concepts.md#it-is-not-that-persons-conversation).
+  kontekstowym - albo pozwól triggerowi [działać jako jego
+  twórca](../concepts.md#unless-its-creator-lets-it-run-as-them): harmonogram
+  czyta wtedy i zapisuje magazyn twórcy, a zdarzenie tylko go czyta.
 
 Nie ma magazynu obejmującego całą organizację. Taki istniał i został usunięty:
 był drugim mechanizmem dla tego, co robią już [pliki kontekstu](../context.md) —
@@ -419,7 +447,7 @@ w całości i jest to celowe: klucz podróżuje w nagłówku `Authorization`, wi
 twórca, który może wiązać współdzielony klucz, ale nie może go odczytać, nie może
 mieć możliwości skierowania go na własny serwer.
 
-## Wyszukiwanie w rozmowach { #conversation-search }
+## Poprzednie rozmowy { #conversation-search }
 
 `search_conversations`, `read_conversation`
 
@@ -452,7 +480,10 @@ niego w kanale odczytywałoby prywatne rozmowy jednej osoby wszystkim w pokoju. 
 ta sama linia, którą rysuje indeks pamięci, tylko o warstwę dalej.
 
 Harmonogram ani trigger zdarzenia nie odpowiada nikomu, więc tam oba narzędzia
-też odmawiają, z tego samego powodu co [pliki pamięci](#whose-notes-and-who-may-hear-them).
+też odmawiają, z tego samego powodu co [pliki pamięci](#whose-notes-and-who-may-hear-them)
+— i odmawiają nadal przy triggerze, który [działa jako jego
+twórca](../concepts.md#unless-its-creator-lets-it-run-as-them): ten otwiera pamięć
+i osobiste połączenia, ale nigdy rozmów danej osoby.
 
 ### Jak działa dopasowanie { #how-it-matches }
 
@@ -475,7 +506,7 @@ Operator, który w ogóle nie chce, by agenci czytali rozmowy, wstrzymuje zakres
 `conversations:read`, co wyłącza to w całym deploymencie. Nie ma ustawienia,
 które poszerzałoby korpus.
 
-## Wyszukiwanie w sieci { #web-search }
+## Wyszukiwanie w internecie { #web-search }
 
 `web_search` — *Search the public web for current information.*
 
@@ -515,7 +546,7 @@ Wyszukiwanie znajduje stronę; nie czyta jej. Czytanie to
 [Pobieranie stron](#web-fetch) poniżej i jest osobną capability z osobnym
 zakresem.
 
-## Pobieranie stron { #web-fetch }
+## Czytanie stron { #web-fetch }
 
 `web_fetch` — *Read the full page at a URL, as Markdown.*
 
@@ -571,6 +602,12 @@ odmowa w kształcie wyniku to taka, którą model obchodzi w odpowiedzi, nie mó
 że musiał. Bibliotece można kazać dopuszczać adresy lokalne; nic tutaj tego nie
 wystawia.
 
+Każda z tych porażek, jak każda inna (403, przekroczony czas), jest ponowieniem
+tylko dopóki narzędziu zostało podejście. Pydantic AI liczy ponowienia per
+narzędzie, a nie per URL, więc druga strona, która odmówiła agentowi, kończyłaby
+cały run; przy ostatnim podejściu ta sama wiadomość wraca więc jako wynik
+narzędzia, a model przechodzi do innego źródła albo odpowiada bez niego.
+
 !!! warning "Filtry domen nie są granicą bezpieczeństwa — jest nią `safe_download`"
 
     Dopasowują nazwę hosta dokładnie, bez symboli wieloznacznych i bez domyślnych
@@ -620,155 +657,196 @@ Strona przychodzi jako Markdown, przycięta na `max_content_chars`; PDF albo obr
 przychodzą jako treść binarna, którą model czyta natywnie. Nic tego nie streszcza
 — to, co zrobić ze stroną, należy do instrukcji agenta.
 
-## Automatyzacja przeglądarki (wybór) { #browser-automation-choose }
+## Przeglądarka { #browser-automation }
 
-`browse_page` — *Work through a web page towards a goal, one chosen action at a time.*
+`browse_web` — *Wykonaj zadanie w prawdziwej przeglądarce, krok po kroku.*
 
-Cel i adres startowy. Capability otwiera stronę w Chromium, które uruchamiasz u
-siebie, i powtarza trzy rzeczy: czyta stronę do ponumerowanej tabeli elementów, na
-których człowiek mógłby coś zrobić, pyta model decyzyjny o operację i o element, po
-czym to wykonuje. Tylko wpisanie wartości pola trafia do modelu językowego.
+Zadanie i adres startowy. Otwiera stronę w Chromium, które uruchamiasz, i powtarza
+trzy rzeczy: czyta stronę do ponumerowanej tabeli elementów, na których człowiek
+mógłby coś zrobić, prosi model tego runu o jeden krok, wykonuje ten krok. Krok ocenia,
+czy poprzednia akcja zadziałała, zapisuje krótką pamięć na resztę zadania, mówi, po co
+jest następna akcja, i wskazuje jedną akcję: kliknij, wpisz, wybierz, przewiń, otwórz
+adres, wróć, poczekaj, zakończ z odpowiedzią, poproś człowieka albo zgłoś, że strona
+blokuje.
 
-Sięgnij po nie, gdy stronę trzeba *obsłużyć* — formularz, filtr, zgoda na cookies,
-przepływ wielokrokowy, wyszukiwarka, której wyniki wymagają kliknięcia. Do strony,
-którą wystarczy przeczytać, [web fetch](#web-fetch) jest szybszy i nie ma efektów
-ubocznych.
+Sięgnij po nią, gdy stronę trzeba *obsłużyć* — formularz, filtr, logowanie, do którego
+masz dane, wyszukiwanie, którego wyniki trzeba kliknąć, przejście przez kilka stron. Do
+strony, którą wystarczy przeczytać, [pobieranie stron](#web-fetch) jest szybsze i nie
+ma skutków ubocznych.
 
-**Wybiera, nie układa.** Agent przeglądarkowy, który pisze swoją następną akcję, może
-wygenerować dowolny ciąg znaków, więc tekst strony jest kanałem instrukcji do modelu,
-a jedyną obroną jest powiedzenie modelowi, żeby nie słuchał. Ten odpowiada na pytanie
-jednokrotnego wyboru, którego opcje powstają na serwerze z żywego DOM — strona nie
-może więc zaproponować akcji, opisując ją.
+**Albo agent prowadzi ją sam.** `browser_open`, `browser_read`, `browser_click`,
+`browser_type`, `browser_select`, `browser_scroll` i `browser_back` to ta sama karta
+w rękach samego agenta: jedna akcja na wywołanie, wybrana przez model runa w jego
+własnej turze, a każda odpowiada stroną po akcji - adresem, ponumerowanymi elementami
+i tekstem. Bez drugiego zapytania na krok, a agent mówi w czacie, co robi, między
+akcjami. Kroki rysują się w jednym oknie na żywo pod wiadomością agenta, tym, które otworzył
+pierwszy `browser_open`, a człowiek może przejąć kartę między dowolnymi dwoma z nich.
+Zmierzone na Claude przez OpenRouter: krok `browse_web` trwa 3,5-5 s, prawie w całości
+osobne zapytanie do modelu; zadanie z dwoma kliknięciami, które agent poprowadził sam,
+zajęło 13 s, a `browse_web` około 20. Narzędzia są lepsze do krótkiego zadania albo
+takiego, które ktoś chce oglądać, `browse_web` do długiego zadania przekazanego w całości.
 
-To nie to samo co bezpieczeństwo. „Usuń konto" to akcja, którą strona naprawdę
-oferuje, więc capability jest **`side_effecting`**, a `browse_page` można postawić za
-[zatwierdzeniem](../governance.md).
+**Akcja wskazuje wiersz, nigdy selektor.** Każdy element, na którym model może działać,
+jest wierszem tabeli zbudowanej na serwerze z żywego DOM, więc strona nie może
+zaproponować akcji, opisując ją. To nie to samo co bezpieczeństwo: „Usuń konto” to
+akcja, którą strona naprawdę oferuje, dlatego capability jest **`side_effecting`**, a
+`browse_web` można objąć [zatwierdzaniem](../governance.md).
 
-**Domyślnie nie jest wstrzymywane do zatwierdzenia** — i to jedyne miejsce, gdzie
-flaga narzędzia nie zgadza się z flagą capability. Zatwierdzenie przeglądania
-przychodzi *przed* pobraniem pierwszej strony, na cel w języku naturalnym i adres —
-czyli prosi człowieka o zgodę na akcje, których nikt jeszcze nie widzi, a to zgoda
-bez informacji. Zastępuje ją obserwacja: konsola rysuje przeglądanie w trakcie, każdy
-krok mówi, co wybrano i z jaką pewnością, a `allowed_domains` ogranicza, gdzie może
-w ogóle pójść. Operator, który chce bramki, ustawia `tool_approval` na powiązaniu, co
-wygrywa z tym ustawieniem; `min_confidence` to automatyczna wersja tego samego
-odruchu.
+**Domyślnie nie czeka na zatwierdzenie**, jak każde narzędzie. Zatwierdzenie przeglądania przychodzi, zanim zostanie
+pobrana pierwsza strona, na zadanie opisane słowami, więc prosi kogoś o zgodę na akcje,
+których nikt jeszcze nie widzi. W zamian jest podgląd: konsola rysuje przeglądanie na
+bieżąco, każdy krok mówi, co nacisnął i po co, a `allowed_domains` ogranicza, dokąd w
+ogóle może wejść. Operator, który chce bramki, ustawia `tool_approval` na bindingu.
 
-**Zgłasza, że jest zablokowane.** Ściana logowania, zgoda na cookies, captcha,
-strona, która nie zawiera tego, o co pytano: silnik mówi to wprost, a przeglądanie
-kończy się wynikiem, a nie ciszą na limicie kroków. Cztery wyniki i wszystkie cztery
-są zwyczajne — zakończone, zablokowane przez stronę, zatrzymane na limicie kroków
-oraz nie udało się połączyć z przeglądarką.
+**Limit kroków to pauza, nie koniec.** Karta zostaje otwarta do końca tury.
+Przeglądanie, które dojdzie do `max_steps`, mówi o tym razem z tym, czego się
+dowiedziało, a agent kontynuuje, wywołując `browse_web` ponownie bez `start_url` — na
+tej samej stronie, zalogowany, z tą samą pamięcią. Wywołanie ze `start_url` zaczyna
+nowe zadanie w tej samej karcie. Cztery wyniki, wszystkie zwyczajne: skończone,
+zablokowane przez stronę, wstrzymane na limicie kroków i brak połączenia z przeglądarką.
+Ostatni to odpowiedź, a nie nieudany run: agent dowiaduje się, że przeglądarka nie
+odpowiada, i mówi o tym, razem z tym, kto może to naprawić.
 
-| Ustawienie | Domyślnie | Wartości |
-|---|---|---|
-| `cdp_url` | jedyny dozwolony host, jeśli jest jeden | endpoint Chromium DevTools; wymagany, a jego host musi być na `BROWSER_CDP_ALLOWED_HOSTS`. Przy dokładnie jednym dozwolonym hoście formularz przychodzi wypełniony |
-| `allowed_domains` | null | hosty, na których przeglądarka może być; globy jak `*.example.com` dozwolone; null oznacza brak ograniczeń |
-| `decision_model` | `jev-latest` | lista wyboru z `app/core/catalog/decision_models.json`; przypiętą wersję, np. `jev-1.13.0`, można wpisać, bo agent z progiem pewności wytarowanym na konkretnej wersji jej potrzebuje |
-| `decision_base_url` | null | gdzie ten model działa. Puste oznacza własny `https://api.typesafe.ai` dostawcy, i tam idzie treść strony, o ile to pole nie mówi inaczej |
-| `max_steps` | 25 | 1–100; każdy krok to jedno zapytanie decyzyjne |
-| `candidate_cap` | 60 | 2–200; ile elementów może zostać zaproponowanych do wyboru w jednym kroku |
-| `min_confidence` | 0.0 | 0–1; odmów działania na wyborze ocenionym poniżej tej wartości, kończąc przeglądanie jako zablokowane |
-| `preview` | `true` | wysyłaj widok strony na czat w trakcie przeglądania |
-| `preview_width` | 1024 | 320–1920; szerokość tych klatek |
+**Człowiek może przejąć przeglądarkę.** Każde przeglądanie runu ma podgląd na żywo w
+konsoli pod `/browse/{run_id}/{call_id}`: stronę taką, jaka jest teraz, i dotychczasowe
+kroki. Karta w czacie do niego linkuje, a w Slacku, Telegramie i Mattermost krok
+publikuje link. Osoba, w imieniu której działa run, albo ktoś, kto może edytować
+agenta, może przejąć przeglądarkę: agent zatrzymuje się po bieżącym kroku, a strona
+należy do tej osoby — klika, pisze, przewija — dopóki jej nie odda, a agent kontynuuje
+od strony w stanie, w jakim ją zostawiła. Członkowie, którzy mogą oglądać runy, mogą
+patrzeć, ale nie sterować. To, co ktoś wpisze, trafia do strony i nie jest nigdzie
+zapisywane; historia runu mówi tylko, że ktoś przejął przeglądarkę.
 
-**Przeglądarka jest twoja, a operator mówi która.** Nie ma trybu lokalnego ani
-Chromium w obrazie API: `cdp_url` wskazuje na usługę przeglądarki, którą operator
-uruchamia i izoluje. Host musi być na liście
-[`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), a pusta allowlista — domyślna —
-odrzuca automatyzację przeglądarki całkowicie. Sprawdzane **przy publikacji**, przy
-zapisie spec, a nie przy każdym runie.
+**Strona przyjmuje rozmiar okna, które ją ogląda.** Gdy ktoś, kto może sterować
+przeglądaniem, ma je otwarte, przeglądarka między krokami układa stronę pod to okno -
+własny układ strony dla tej szerokości, w gęstości tego ekranu - więc podgląd na żywo to
+strona, a nie pomniejszony ekran laptopa w kolumnie. Model widzi wtedy tę samą stronę w
+tym rozmiarze.
 
-To allowlista, a nie kontrola SSRF, przez którą przechodzi każdy inny adres podany
-przez tenanta, i powodem jest to, czym jest `cdp_url`: leży w spec, który pisze
-każdy z uprawnieniem `edit` na agencie, więc adres jest kontrolowany przez tenanta,
-a żądanie wykonuje to wdrożenie. Guard SSRF jest tu zły w obie strony — dopuszcza
-wyłącznie adresy *publiczne*, więc odrzuca izolowaną usługę w twojej własnej sieci,
-którą ta strona każe uruchomić, i przyjmuje debugger CDP wystawiony do internetu,
-co jest gorszą z tych dwóch postaw. Zweryfikowany host nie potrzebuje sprawdzania
-adresu; niezweryfikowany jest odrzucany niezależnie od tego, na co się rozwiązuje.
+**Zadanie zrobione wcześniej idzie szybciej za drugim razem, dla tej samej osoby.**
+Gdy przeglądanie działające w imieniu jednej osoby - jej własny czat, wiadomość
+prywatna, jej własny harmonogram - się zakończy, kroki, które do tego doprowadziły,
+są zapamiętywane tylko dla niej: adres i etykieta każdej naciśniętej rzeczy, nigdy to,
+co wpisała (nagrywanie zatrzymuje się na pierwszym wypełnianym polu). Gdy następnym
+razem poprosi o to samo zadanie z tego samego `start_url`, te kroki są wykonywane bez
+modelu, dopóki strona wciąż je oferuje, a model przejmuje przy pierwszej różnicy.
+Powtórka, która się nie zakończy, jest usuwana. Nikt inny w organizacji ich nie czyta,
+a Redis trzyma je dwa tygodnie od ostatniego wykonania zadania.
 
-**Każdy krok wysyła stronę do modelu decyzyjnego.** Jej adres, tytuł, etykiety
-elementów i ograniczony fragment widocznego tekstu — co na publicznym endpoincie
-dostawcy jest stroną trzecią i może być zawartością systemu wewnętrznego. Tekst jest
-tam, bo bez niego silnik nie umie stwierdzić, że *skończył*: cena, potwierdzenie czy
-„brak wyników" to zwykły tekst, a nie kontrolki, więc `DONE` byłoby zgadywaniem.
-Wartość, którą agent wpisuje, celowo nie jest wysyłana — krok zapisuje się jako
-„wypełniono" bez niej, więc hasło nie podróżuje do tego endpointu. Dwie rzeczy czynią z tego decyzję, a nie przypadek:
-capability wymaga klucza API z vault tego wdrożenia, więc nie zadziała, dopóki
-operator go nie doda, a `decision_base_url` kieruje model decyzyjny gdzie indziej —
-na host z listy [`DECISION_MODEL_ALLOWED_HOSTS`](../configuration.md), bo to pole
-leży w spec, a klucz jest odszyfrowywany do nagłówka pod wskazany adres. Pusta
-allowlista, czyli domyślna, dopuszcza wyłącznie endpoint dostawcy.
-Zobacz [co opuszcza wdrożenie](../data-protection.md#what-leaves-the-deployment).
-
-**Oba modele są liczone, żaden nie jest wyceniany.** Model decyzyjny działa raz na
-krok, a model runa raz na wpisane pole; oba księgują tokeny w budżecie runa. Cena to
-inna sprawa: dołączona migawka cen nie zna modelu decyzyjnego, więc przeglądanie
-pokazuje zużycie bez kosztu, a budżet wyrażony w dolarach go nie ogranicza. To
-`max_steps` ogranicza przeglądanie.
-
-**`cdp-use` i SDK TypeSafe przychodzą z dodatkiem `browser`**, którego domyślna
-instalacja nie ma. Operator, który chce tej capability, instaluje
-`agenticos[browser]`; związany z nią agent na wdrożeniu bez dodatku głośno zawodzi na
-tym jednym narzędziu, podając polecenie instalacji.
-
-**Strumieniuje w trakcie.** Konsola rysuje widok strony, adres, na którym jest, i
-każdy krok z prawdopodobieństwem, z jakim silnik go znalazł — zobacz
-[konsolę](../console.md). `preview` wyłączone zostawia narrację i usuwa obrazy.
-
-## Automatyzacja przeglądarki { #browser-automation }
-
-`browse_web` — *Delegate an open-ended web task to an autonomous browser agent.*
-
-Jeden cel w języku naturalnym, przekazany agentowi
-[browser-use](https://github.com/browser-use/browser-use), który steruje prawdziwym
-Chromium — nawiguje, czyta, klika, wyciąga dane — i zwraca wynik tekstowy. Sięgaj
-po to, gdy układ strony jest nieznany albo zadanie wymaga oceny, a nie do
-skryptowego przepływu, który załatwiłoby zwykłe żądanie.
-
-To największa powierzchnia ataku, jaką otwiera capability: przeglądarka robi to,
-co każe jej strona, strona jest niezaufana, więc `browse_web` zamienia treść z
-sieci w narzędzie ze skutkami ubocznymi. Z tego powodu jest **`side_effecting` i
-da się je bramkować** — postaw je za [zatwierdzeniem](../governance.md), a
-wstrzyknięta strona trafi do człowieka, a nie do działania.
+**Gdy tylko człowiek przejdzie dalej** — logowanie, do którego agent nie ma danych,
+captcha, wybór należący do kogoś — model prosi o człowieka, zamiast się poddać. Karta
+i wątek w kanale mówią, że agent potrzebuje człowieka, i po co. Przeglądanie czeka do dziesięciu
+minut, aż ktoś przejmie przeglądarkę, i kończy się zablokowane, jeśli nikt nie
+przyjdzie; człowiek trzyma przeglądarkę najwyżej piętnaście minut. Podgląd na żywo
+jest trzymany w Redisie, więc go wymaga, i trwa godzinę od ostatniej akcji
+przeglądania.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
-| `mode` | `playwright` | `playwright`, `remote` |
-| `cdp_url` | null | punkt końcowy Chromium DevTools; wymagany przy `remote` (i tylko tam dozwolony) |
-| `allowed_domains` | null | domeny, do których agent może sięgać; wzorce w rodzaju `*.example.com` dozwolone; null oznacza brak ograniczeń |
-| `max_steps` | 25 | 1–100; każdy krok to jedno żądanie do modelu |
-| `use_vision` | `true` | wysyłaj zrzuty strony do modelu agenta przeglądarkowego |
-| `headless` | `true` | uruchamiaj lokalnie startowaną przeglądarkę bez okna (tylko `playwright`) |
+| `cdp_url` | pusty | endpoint DevTools Chromium; wymagany, a jego host musi być na `BROWSER_CDP_ALLOWED_HOSTS` |
+| `allowed_domains` | null | hosty, na których może być przeglądarka; wzorce typu `*.example.com` dozwolone; null to brak ograniczeń w sieci. Każde żądanie, które wskazuje do wnętrza sieci wdrożenia (adres prywatny, loopback, link-local albo metadanych, także po przekierowaniu), jest odrzucane, chyba że jego host jest tu wpisany - wpisz wewnętrzne narzędzie, żeby je przeglądać (a za `BROWSER_EGRESS_PROXY` dodaj je też do wyjątków proxy) |
+| `max_steps` | 50 | 1–200; kroki na wywołanie, każdy to jedno zapytanie do modelu |
+| `vision` | `false` | wysyłaj modelowi także zrzut ekranu z każdego kroku; model musi czytać obrazy |
+| `candidate_cap` | 60 | 2–200; ile elementów można zaproponować w jednym kroku |
+| `preview` | `true` | wysyłaj widok przeglądarki do czatu w trakcie przeglądania |
+| `preview_width` | 1024 | 320–1920; szerokość widoku, a więc i klatek |
+| `step_model_profile_id` | puste | profil modelu, o który `browse_web` pyta w każdym kroku zamiast modelu agenta - tańszy model obniża koszt długiego browse, a przyspiesza go tylko tam, gdzie jego dostawca odpowiada szybko (Claude Haiku przez OpenRouter był na krok tak samo wolny jak Sonnet); puste to model agenta, a własne narzędzia przeglądarki agenta zawsze go używają |
+| `connection` | `built_in` | `built_in`, `proxy` albo `hosted`: jak przeglądarka wychodzi do sieci |
+| `proxy_url` | puste | przy `proxy`: `http://`, `https://` albo `socks5://` z hostem i portem; sekret bindingu, jeśli jest, to jego `username:password` |
+| `hosted_url` | puste | przy `hosted`: adres CDP usługi, `wss://`; sekret bindingu to jej klucz i jest wymagany |
+| `hosted_key_param` | `apiKey` | jak hostowana przeglądarka nazywa swój klucz w zapytaniu adresu |
+| `timezone` | puste | strefa IANA, którą podaje przeglądarka - ustaw ją na region proxy |
+| `locale` | puste | tag języka, np. `pl-PL`, wysyłany jako `Accept-Language` i `navigator.language` |
 
-**`mode` decyduje, gdzie działa przeglądarka.** `playwright` uruchamia bezgłowe
-Chromium obok agenta; `remote` podłącza się przez CDP do przeglądarki, którą
-operator uruchamia gdzie indziej. Deployment self-hosted kieruje `remote` na
-utwardzoną, odizolowaną usługę przeglądarkową, zamiast dawać procesowi przeglądarki
-miejsce w kontenerze aplikacji. `cdp_url` przy `remote` to URL, z którym ten
-deployment łączy się po stronie serwera, więc jest sprawdzany pod kątem SSRF —
-adres pętli zwrotnej, prywatny, zarezerwowany albo metadanych zostaje odrzucony
-**przy publikacji**, w momencie zapisu speca, a nie przy każdym runie (sprawdzenie
-rozwiązuje DNS, co nie może blokować pętli zdarzeń, na której składany jest run).
+**Przeglądarkę uruchamiasz ty, a operator mówi którą.** W obrazie API nie ma Chromium:
+`cdp_url` wskazuje usługę przeglądarki, którą operator uruchamia i izoluje. Pliki
+compose mają ją za profilem `browser` — `docker compose --profile browser up -d
+browser`, osiągalną jako `http://browser:9222`. Host musi być na
+[`BROWSER_CDP_ALLOWED_HOSTS`](../configuration.md), a pusta lista — domyślna — odrzuca
+automatyzację przeglądarki całkowicie, przy publikacji.
 
-**Wydatki modelu agenta przeglądarkowego są mierzone.** Podagent działa na modelu
-runa nadrzędnego — tym, którego poświadczenie zostało rozwiązane z vaulta — a każdy
-jego krok to jedno żądanie do modelu, księgowane w budżecie runa przez ten sam
-rejestr zużycia otoczkowego, z którego korzysta streszczenie kompaktujące. To nie
-jest własny hostowany model browser-use i nie są to wydatki niewidoczne dla
-strażnika budżetu. Każdy krok sprawdza budżet przed wysłaniem, więc gdy budżet
-runa jest wyczerpany, kolejny krok agenta przeglądarkowego zostaje odrzucony, a nie
-opłacony.
+Przeglądarka z compose działa we własnej sieci Dockera, do której dołączają tylko
+API i runner, żeby się z nią połączyć: strona, którą otwiera albo na którą zostaje
+przekierowana, nie dosięgnie bazy, Redisa, Prefecta ani MinIO. Nadal sięga tam,
+dokąd pozwala sieć hosta, np. do adresu metadanych chmury, więc tam, gdzie to ważne,
+zablokuj go na hoście.
 
-**`browser-use` jest dodatkiem opcjonalnym.** Ciągnie za sobą ciężkie drzewo
-zależności (Chromium przez Playwright) i przypina zależności o wersję niższą niż
-reszta platformy, więc nie jest instalowany domyślnie. Operator, który chce tę
-capability, instaluje `agenticos[browser-use]` i dostarcza Chromium; powiązany
-agent, którego deployment tego nie ma, głośno zawodzi na tym jednym narzędziu,
-podając polecenie instalacji.
+**Agent wybiera, jak jego przeglądanie wychodzi do sieci** (#2130), w ustawieniach
+samej przeglądarki, z tym samym `edit` na agencie co reszta. `connection` to
+`built_in` - przeglądarka wskazana w `cdp_url`, z adresu samego wdrożenia - `proxy`
+albo `hosted`, a `timezone` i `locale` mówią, jaką strefę czasową i język przeglądarka
+podaje, niezależnie od trybu.
 
-## Uruchamianie Pythona { #run-python }
+Proxy (`proxy_url`) puszcza ruch tej przeglądarki przez adres `http://`, `https://`
+albo `socks5://` - domowy albo z wybranego kraju - i loguje się sekretem bindingu jako
+`username:password`, jeśli binding go ma.
+
+Proxy `http://` albo `socks5://`
+przeglądarka dostaje pod adresem, który sprawdzono, więc nazwa zmieniona między
+sprawdzeniem a połączeniem nie skieruje jej do wnętrza sieci; proxy `https://`
+zachowuje nazwę, na którą wystawiono jego certyfikat.
+
+Przeglądarka hostowana (`hosted_url`)
+zamiast tego podłącza się przez `wss://` do usługi przeglądarki - Browserbase, Steel
+albo własnej - z sekretem bindingu jako kluczem, dopisywanym do zapytania w adresie
+pod `hosted_key_param` (domyślnie `apiKey`).
+
+Przeglądarka hostowana nigdy nie
+startuje z zapisanymi logowaniami osoby: jej adres wybiera autor agenta, a nie
+operator. Tam też każde przeglądanie dostaje własny kontekst przeglądarki, a usługa,
+która go odmawia, jest odrzucana: jej domyślnego profilu nie uznajemy za prywatny,
+a to, co przeglądanie w nim zapisze - ciasteczka, local storage - przetrwałoby je.
+
+Adres wewnątrz sieci wdrożenia jest odrzucany przy publikacji i ponownie przy starcie
+przeglądania, chyba że operator dopisał host do `BROWSER_CDP_ALLOWED_HOSTS`. Chromium
+nie umie zalogować się do proxy SOCKS, więc proxy z hasłem musi być HTTP. Strona,
+która prosi o hasło, nigdy nie dostaje hasła proxy. Przeglądarka do logowania zawsze
+działa we własnej przeglądarce wdrożenia.
+
+**Przeglądarka z compose wygląda jak desktopowa.** To pełny Chromium z oknem na
+wirtualnym ekranie (`docker/browser`), z fontami jak na pulpicie i bez flag, które
+mówią stronie, że jest sterowana - headless shell, który zastępuje, miał
+`HeadlessChrome` w user agencie, a strony odrzucające boty odrzucały go od razu.
+Capability usuwa też to, co strona mogłaby jeszcze odczytać przez CDP: nigdy nie
+włącza domeny `Runtime`, a `Headless` w user agencie, `navigator.webdriver` i renderer
+WebGL `SwiftShader` zastępuje tam, gdzie przeglądarka je pokazuje - więc headless
+shell, który operator zostawi, też wygląda jak desktopowy.
+
+Sprawdzone na wykrywaniu
+botów BrowserScan (*Normal* w każdej pozycji) i w tabeli Sannysoft (wszystko zaliczone).
+`BROWSER_TZ` i `BROWSER_LANG` w środowisku ustawiają, gdzie i w jakim języku się
+przedstawia; domyślnie `UTC` i `en-US`. Test botów to nie regulamin: co strona pozwala
+automatyzować, operator czyta, zanim skieruje tam agenty.
+
+To lista dozwolonych, a nie kontrola SSRF, przez którą przechodzą inne adresy podane
+przez najemcę, bo `cdp_url` jest w specu, który pisze każdy z prawem `edit`, a ochrona
+SSRF jest tu błędna w obie strony: odrzuca izolowaną usługę w twojej sieci i przepuszcza
+debugger wystawiony do internetu. Chromium odpowiada na DevTools tylko pod adresem IP,
+więc zwykły endpoint `http` lub `ws` podany nazwą jest raz rozwiązywany i osiągany pod
+adresem; endpoint TLS zachowuje nazwę dla certyfikatu.
+
+**Każde przeglądanie dostaje własny kontekst przeglądarki**, usuwany na koniec runu. Na
+przeglądarce dzielonej przez wielu wywołujących domyślny kontekst trzymałby ciasteczko
+ustawione przez agenta jednej osoby, a następny wywołujący przyszedłby zalogowany jako
+ona.
+
+**Każdy krok idzie do modelu tego agenta.** Adres strony, tytuł, etykiety elementów i
+do 4000 znaków widocznego tekstu, plus zrzut ekranu przy włączonym `vision` — do tego
+samego dostawcy co rozmowa i nigdzie indziej. Wartość wpisana przez agenta nie jest
+powtarzana: historia zapisuje, że pole wypełniono, a nie czym. Każdy krok jest liczony
+w budżecie runu, zanim zostanie wysłany, więc wyczerpany budżet zatrzymuje przeglądanie,
+zamiast płacić za kolejny krok.
+
+**`cdp-use` przychodzi z dodatkiem `browser`**, którego domyślna instalacja nie ma.
+Operator, który chce tej capability, instaluje `agenticos[browser]`; agent na wdrożeniu
+bez niego kończy to jedno narzędzie głośnym błędem z poleceniem instalacji.
+
+Spece zapisane przed wersją 13, które wiązały przeglądarkę krok po kroku
+(`browser_choice`), ładują się jako ta capability, a zatwierdzenie i zmiana nazwy
+`browse_page` przechodzą na `browse_web`; ustawienia modelu decyzyjnego i klucz TypeSafe
+są usuwane.
+
+## Obliczenia { #run-python }
 
 `run_python` — *Run a small Python program to compute something.*
 
@@ -786,7 +864,7 @@ jedynymi limitami wartymi ustawienia.
     powinien potrzebować operatora ani ponownego wdrożenia — a górne granice są
     ograniczone, a nie otwarte.
 
-## Pliki i powłoka { #files-shell }
+## Sandbox { #files-shell }
 
 `ls`, `read_file`, `glob`, `grep` — *odczyt.*
 `write_file`, `edit_file`, `execute` — *zapis i uruchamianie.*
@@ -808,6 +886,15 @@ Nie ma backendu `docker` ani `daytona` do wyboru. *Gdzie* działa sandbox, jest
 własnością połączenia, które zarejestrował operator — Sandboxes w aplikacji — więc
 wskazanie połączenia jest wskazaniem rodzaju. Wybieranie ich osobno pozwalało
 wybrać dwie rzeczy, które się ze sobą nie zgadzają.
+
+Wdrożenie, które ma własną usługę sandboksa - `sandboxd` uruchomiony z pliku
+compose tego projektu, z tokenem wygenerowanym przez `make sandbox-token` - nie
+wymaga żadnej rejestracji. Gdy organizacja bez domyślnego połączenia pierwszy raz
+otwiera listę sandboksów albo uruchamia agenta, który go potrzebuje, platforma sama
+rejestruje *This deployment's sandbox* jako domyślne połączenie, w imieniu
+właściciela organizacji, z tokenem w jego sejfie i wpisem w dzienniku audytu jak
+każde inne połączenie. Tak samo Architekt dostaje pliki i kod, gdy jest
+instalowany na takim wdrożeniu.
 
 **`backend` to infrastruktura; `session_scope` to polityka współdzielenia danych.**
 Pomyłka w pierwszym kosztuje funkcję. Pomyłka w drugim pokazuje jednej osobie pliki
@@ -875,13 +962,14 @@ to połączenie nie ma poświadczenia — każdy przypadek z nazwy, bo wszystkie
 stany, do których deployment dochodzi *po* opublikowaniu agenta i naprawa należy do
 operatora, a nie do autora.
 
-**Pyta tylko `execute`.** Skutki uboczne deklaruje się per narzędzie, a z siedmiu
-tylko uruchomienie polecenia je ma: workspace to brudnopis usuwany razem z rozmową,
+**Tylko `execute` jest zadeklarowane jako mające skutki uboczne**, a nic nie pyta,
+dopóki autor nie obejmie go bramką. Z siedmiu tylko uruchomienie polecenia działa
+na świat: workspace to brudnopis usuwany razem z rozmową,
 do której należy, więc zapisanie w nim pliku nie jest tą klasą czynu co wysłanie
 maila — a agent, który musi pytać przed każdym `write_file`, nie jest w stanie
 wykonać pracy wieloetapowej w ogóle, i tak właśnie autor kończy z bramką wyłączoną
 w całości, tracąc tę jedną, która miała znaczenie. `execute` uruchamia dowolne
-polecenia na czyimś hoście.
+polecenia na czyimś hoście, więc to ono jest warte bramki.
 
 Powiązanie, które chce surowszego zachowania, ustawia je per narzędzie:
 `tool_approval: {"write_file": "required"}`. Zobacz
@@ -1032,7 +1120,7 @@ też workspace (capability `sandbox`), ten sam obraz jest zapisywany w nim pod
 slajd, stronę. Agent bez workspace'u nadal generuje i pokazuje obrazy; po prostu
 nie ma gdzie niczego z nich zbudować.
 
-## Artefakty { #artifacts }
+## Aplikacje { #artifacts }
 
 `publish_artifact` — *Opublikuj gotową stronę — raport, mały dashboard,
 podsumowanie — pod stałym linkiem.*
@@ -1040,13 +1128,13 @@ podsumowanie — pod stałym linkiem.*
 agenta, taką, jaką ją napisano.*
 
 Publikuje jeden samodzielny dokument HTML albo Markdown jako
-[artefakt](../artifacts.md): współdzielony zasób z właścicielem, widocznością i
+[aplikację](../artifacts.md): współdzielony zasób z właścicielem, widocznością i
 grantami, otwierany w przeglądarce pod linkiem, który się nie zmienia. Bez
 konfiguracji.
 
 **Nazwa jest tożsamością.** `(organization, agent, environment, name)` wybiera
-artefakt, więc następny run tego samego agenta, który publikuje `weekly-report` — z
-czatu, z harmonogramu albo z API — dodaje wersję do tego samego artefaktu, zamiast
+aplikację, więc następny run tego samego agenta, który publikuje `weekly-report` — z
+czatu, z harmonogramu albo z API — dodaje wersję do tej samej aplikacji, zamiast
 tworzyć drugi link. Środowisko pochodzi z runa, więc run w `staging` publikuje
 własną stronę. Identyczne bajty nie dodają wersji i odpowiadają `unchanged`.
 
@@ -1243,8 +1331,8 @@ nic.
 dołączana, tak samo jak `knowledge` nie jest dołączane bez kolekcji. Dziesięć
 narzędzi, które mogą tylko odmówić, to dziesięć narzędzi w kontekście każdej tury.
 
-**O zatwierdzenie proszą tylko te trzy, które działają:**
-`send_message_to_subagent`, `soft_cancel_task` i `hard_cancel_task`. Sterowanie
+**Trzy są zadeklarowane jako działające**, a autor obejmuje je bramką przez
+`tool_approval`: `send_message_to_subagent`, `soft_cancel_task` i `hard_cancel_task`. Sterowanie
 zmienia to, co delegat robi w trakcie runa, a każde z anulowań niszczy pracę, która
 została opłacona i niedostarczona. `task` celowo nie wywołuje skutków ubocznych, co
 przez chwilę czyta się źle: to, co delegat *robi*, jest bramkowane jego własnym
@@ -1440,6 +1528,14 @@ jest robione. Krok `blocked` to praca zaległa, więc plan, który go zawiera, j
 zasiewany: coś musi go jeszcze odblokować. Wznowienie zasiewa z `paused_state` i
 jest nietknięte, będąc z konstrukcji w środku planu.
 
+**Run, który kończy się bez dokończenia, odkłada swój krok.** Run, który zawiódł,
+został zatrzymany albo przekroczył budżet, niczego już nie robi, więc plan, który
+zapisuje, nie ma kroku `in_progress`: ten krok wraca do `pending` — nadal do
+zrobienia, ale nikt go nie robi. Zachowany bez zmian sprawiał, że przypomnienie
+następnej tury mówiło świeżemu runowi, że już go wykonuje (agenticos#2149). Tura,
+która celowo kończy się w środku planu — pytaniem do osoby — oraz zaparkowany run
+zachowują swój krok w toku.
+
 Agent, który nie wiąże tej capability, nie płaci nic: żadnych narzędzi, żadnego
 przypomnienia i nic zapisanego, bo pusta lista kontrolna wobec kolumny, która jest
 nullem, nie jest zmianą do zapisania.
@@ -1448,6 +1544,26 @@ nullem, nie jest zmianą do zapisania.
 żadnego żądania do modelu ani do embeddingów, więc w przeciwieństwie do wiedzy czy
 delegowania nie ma tu zużycia otoczkowego do mierzenia. Rundy, które model odbywa,
 żeby je wywołać, są jego własne, a strażnik budżetu już je liczy.
+
+## Praca w trakcie narzędzi { #background-tools }
+
+Bez własnych narzędzi. Gdy jest włączona, wolne narzędzie oznaczone przez inną
+capability - dziś `browse_web` z [przeglądarki](#browser-automation) - dostaje
+wybór `run_in_background`, a model decyduje przy każdym wywołaniu: na przeglądanie,
+bez którego nie może nic powiedzieć, czeka; takie, które da się obejść, działa
+dalej, gdy agent odpowiada na resztę prośby, a jego wynik przychodzi jako
+wiadomość, gdy jest gotowy. Zbudowana na `BackgroundTools` z pydantic-ai-harness.
+
+- **Sprawdzane tak samo.** Wynik z tła przechodzi przez reguły wyników narzędzi
+  agenta - [guardraile](#guardrails), [limity wyników narzędzi](#tool-output-limits)
+  - dokładnie tak jak wynik z pierwszego planu; sama biblioteka dostarczyłaby go
+  z ich pominięciem.
+- **Najpierw zatwierdzenie.** Narzędzie, które czeka na człowieka, parkuje do
+  zatwierdzenia, zanim cokolwiek ruszy w tle.
+- **Budżet runu, czas życia runu.** To, co wyda narzędzie w tle, liczy się do
+  runu, a zatrzymanie runu je zatrzymuje. Run, który parkuje - zatwierdzenie,
+  pytanie - anuluje narzędzia w tle, które jeszcze pracują, i ich wyniki nie
+  przychodzą po wznowieniu.
 
 ## Myślenie { #thinking }
 
@@ -1461,7 +1577,7 @@ przy pracy wymagającej utrzymania w głowie kilku kroków naraz.
 Nieustawione oznacza własny domyślny wysiłek providera. Poziom, którego provider
 nie ma, mapuje się na najbliższy, więc spec pozostaje przenośny przy zmianie modelu.
 
-## Przypomnienia systemowe { #system-reminders }
+## Przypomnienia instrukcji { #system-reminders }
 
 Bez narzędzi. Powtarza wskazówki sterujące w trakcie runa, żeby długa sesja
 przestała dryfować od swoich instrukcji — porażką, którą to naprawia, jest zanik
@@ -1524,7 +1640,7 @@ kwartale" na podstawie daty odcięcia swojego treningu.
 |---|---|---|
 | `timezone` | `UTC` | dowolna nazwa IANA, np. `Europe/Warsaw` |
 
-## Zarządzanie kontekstem { #context-management }
+## Długie rozmowy { #context-management }
 
 Bez narzędzi. Przycina historię wiadomości długiego runa przed każdym żądaniem, więc
 run, który uderzyłby w limit modelu, pracuje dalej. Strategie pochodzą z
@@ -1614,7 +1730,7 @@ raportuje każdy agent, niezależnie od tego, czy kompaktuje — zobacz
 Ostrzeżenie ma największe znaczenie dla agenta, który *nie* będzie kompaktował,
 bo to on dochodzi do sufitu i dostaje odmowę.
 
-## Odciążanie mediów { #media-offload }
+## Odciążenie z obrazów { #media-offload }
 
 Brak narzędzi. Zapisuje duże części skompaktowanej rozmowy do magazynu i zostawia
 w zapisanej historii referencję `media+sha256://…`. Magazyny adresowane treścią
@@ -1657,7 +1773,7 @@ wysłaniem żądania, i właśnie to utrzymuje poprawność runa. Przepisanie ic
 który model pobiera sam, to inna funkcja i wymagałaby publicznego URL-a, którego
 ten magazyn świadomie nie wystawia.
 
-## Limity wyjścia narzędzi { #tool-output-limits }
+## Limity wyników narzędzi { #tool-output-limits }
 
 Jedno narzędzie, `read_tool_result`. Tam gdzie `compaction` przycina historię
 *wewnątrz* okna między żądaniami, to powstrzymuje przerośnięty zwrot narzędzia przed
@@ -1758,6 +1874,12 @@ oznacza zestawy narzędzi podłączonych serwerów do odroczonego ładowania —
 narzędzia rejestru zostają widoczne, będąc nieliczne i wybrane per agent. Agent,
 który tego nie wiąże, nie płaci nic i widzi wszystkie narzędzia jak wcześniej.
 
+**Builder mówi, kiedy warto.** Gdy powiązania MCP agenta dają razem więcej niż 30
+narzędzi - według listy dozwolonych narzędzi powiązania, a bez niej według tego, co
+serwer wymienił przy ostatnim sprawdzeniu - zakładka MCP pokazuje ostrzeżenie z
+przybliżoną liczbą tokenów i przycisk, który wiąże wyszukiwanie narzędzi. Nigdy nie
+wiąże go sam: odraczanie zmienia to, co widzi model, więc decyzja należy do edytora.
+
 **Odraczanie zmienia to, co widzi model, nigdy tożsamość narzędzia.** Odnalezione
 narzędzie MCP przychodzi pod swoją prawdziwą, prefiksowaną nazwą, więc
 [bramka zatwierdzeń](#what-a-binding-may-change) nadal paruje się z nim, a zmiana
@@ -1771,9 +1893,9 @@ zwykłe żądania do modelu, opakowane przez tego samego strażnika. Jedyny kszt
 który by mu umknął — własna funkcja wyszukująca, która sama woła model albo
 embeddingi — celowo nie jest wystawiony.
 
-## Guardrails { #guardrails }
+## Zabezpieczenia { #guardrails }
 
-Bez narzędzi. Bada tekst płynący przez run na trzech krawędziach i albo
+Bez narzędzi. Bada tekst płynący przez run na czterech krawędziach i albo
 **redaguje** trafienie, albo **blokuje** run. Sprawdzenia to gotowe detektory z
 `pydantic-ai-harness` oraz detektor numerów telefonu, którego harness nie dostarcza;
 agent jest danymi, więc konfiguracja wybiera je i parametryzuje, zamiast nieść
@@ -1784,6 +1906,7 @@ pythonowego strażnika.
 | wejście | prompt użytkownika | `redact_secrets_in`, `redact_pii_in` | `blocked_keywords_in` |
 | wyjście | odpowiedź agenta | `redact_secrets_out`, `redact_pii_out` | `blocked_keywords_out` |
 | wynik narzędzia | to, co zwróciło narzędzie, zanim przeczyta to model | `redact_secrets_tool`, `redact_pii_tool` | `blocked_keywords_tool` |
+| argumenty narzędzia | to, co agent przekazuje narzędziu, zanim narzędzie zadziała | `redact_secrets_args`, `redact_pii_args` | `blocked_keywords_args` |
 
 | Konfiguracja | Domyślnie | |
 |---|---|---|
@@ -1841,13 +1964,26 @@ pokazana lub zapisana. Rozumowanie nie jest odpowiedzią, więc zablokowane sło
 kluczowe w rozumowaniu nie kończy runu: ten krok rozumowania pokazuje wtedy
 `[reasoning withheld by the output guardrail]`.
 
-**Czego ekran streamu jeszcze nie obejmuje.** Dwie streamowane ścieżki nie są
-sprawdzane: argumenty wywołania narzędzia w trakcie streamowania i własna
-streamowana odpowiedź delegata w panelu delegacji ([#2000](https://github.com/vstorm-co/agenticos/issues/2000)). Ekran streamu
-dziedziczy limity rozmiaru detektora numerów telefonów, więc część odpowiedzi za
-długa dla niego kończy run tak, jak zakończyłaby go odpowiedź końcowa. Ponieważ ekran
-podpina się pod strumień zdarzeń runu, żądania do modelu agenta z guardrailem są
-streamowane nawet przez HTTP API, więc jego model musi obsługiwać streaming.
+**Argumenty narzędzi to osobna krawędź.** Każdy tekst, który agent przekazuje
+narzędziu, jest sprawdzany, gdy przychodzi odpowiedź modelu, zanim narzędzie
+zadziała. Zredagowaną wartość dostaje narzędzie, zapisuje transkrypt i pokazuje
+stream, a zablokowane słowo kończy run, zanim jakiekolwiek narzędzie zostanie
+wywołane. To osobna krawędź, a nie część kontroli wyjścia, bo redakcja argumentu
+zmienia to, co robi narzędzie: e-mail wychodzi z zamiennikiem w miejscu klucza.
+Gdy jest włączona, argumenty wywołania są wstrzymywane, aż wywołanie będzie
+kompletne, tak jak odpowiedź.
+
+**Delegat streamuje pod kontrolą wyjścia runu, który go wywołał.** Tekst i
+rozumowanie, które delegat pisze w panelu delegacji, przechodzą tę samą kontrolę co
+odpowiedź runu, na każdym poziomie delegacji. Zablokowane słowo kończy tę delegację,
+zanim cokolwiek z niej zostanie pokazane, a agent, który delegował, dowiaduje się,
+że się nie powiodła.
+
+Ekran streamu dziedziczy limity rozmiaru detektora numerów telefonów, więc część
+odpowiedzi za długa dla niego kończy run tak, jak zakończyłaby go odpowiedź końcowa.
+Ponieważ ekran podpina się pod strumień zdarzeń runu, żądania do modelu agenta z
+guardrailem są streamowane nawet przez HTTP API, więc jego model musi obsługiwać
+streaming.
 
 **Krawędź wejścia zmienia to, co czyta model, a nie transkrypt.** Zredagowany prompt
 dociera do modelu wyczyszczony, ale rozmowa przechowuje wiadomość tak, jak wpisała ją
@@ -1865,7 +2001,7 @@ narzędzi harnessu nie jest przeniesiony: [zatwierdzenia](../governance.md) już
 parkują run per narzędzie na decyzję człowieka, a druga, sterowana regułami droga do
 tego samego mechanizmu to dokładnie to, czego unika się jednymi drzwiami.
 
-## Podgląd kanału czatu { #chat-channel-lookup }
+## Informacje o kanale czatu { #chat-channel-lookup }
 
 `get_channel_info` — *Describe the channel this conversation is happening in.*
 `list_channel_members` — *List the people in this channel.*
@@ -1905,6 +2041,30 @@ Trzy własności obowiązują na każdej platformie:
   żadnego katalogu, więc capability nie jest w ogóle dołączana — z tego samego
   powodu, dla którego nie jest dołączane `knowledge` bez kolekcji.
 
+## Pytania do użytkownika { #ask-the-user }
+
+Gdy agent potrzebuje decyzji, którą może podjąć tylko człowiek, pyta zamiast
+zgadywać: `ask_user_question` przyjmuje od jednego do dziesięciu pytań
+wielokrotnego wyboru, każde z krótkim nagłówkiem, od dwóch do sześciu opcji z
+opisem, co każda oznacza, i informacją, czy można wybrać kilka. Konsola pokazuje je
+jako kartę, jedno pytanie naraz, z miejscem na własną odpowiedź i podsumowaniem
+przed wysłaniem; agent dostaje wybory według nagłówka albo informację, że osoba
+odmówiła, i działa dalej.
+
+Narzędzie i jego schemat pochodzą z `AskUser` z pydantic-ai-harness. Jest
+domyślnie włączone w każdym nowym agencie i każdym szablonie, a autor może je
+wyłączyć. Tam, gdzie na razie nikt nie odpowie — harmonogram, webhook, API — agent
+dowiaduje się, że osoba odmówiła.
+
+Pytanie bez odpowiedzi nie przerywa pracy agenta na dobre. Jeśli osoba odejdzie z
+otwartą kartą, run parkuje się na niej — w historii runów jako **Oczekuje na
+odpowiedź** — a karta wraca, gdy ta osoba ponownie otworzy rozmowę, na dowolnym
+urządzeniu. Odpowiedź wznawia run od miejsca, w którym się zatrzymał. Odpowiedzieć
+może tylko osoba, której zadano pytanie, przez `POST /runs/{run_id}/answers`;
+`GET /runs/{run_id}/questions` odczytuje kartę. Po dobie
+(`QUESTION_EXPIRY_HOURS`, 24) run kończy się jako anulowany, a krok zapisuje, że
+osoba nie odpowiedziała na czas.
+
 ## Co może zmienić powiązanie { #what-a-binding-may-change }
 
 Katalog jest odpowiedzią deploymentu na pytanie „co istnieje". Wpis w
@@ -1923,8 +2083,8 @@ korzystam" i może zmienić cztery rzeczy:
 Zatwierdzanie jest powodem, dla którego capability w ogóle deklaruje swoje
 narzędzia. „Czy ten agent może zapisywać pliki" i „czy może je czytać" to dwie
 decyzje, mimo że odpowiada na nie jedna capability, więc włączanie pozostaje per
-capability, a zatwierdzanie dzieje się per narzędzie. `default` idzie za własną flagą
-`side_effecting` tej capability.
+capability, a zatwierdzanie dzieje się per narzędzie. `default` nie pyta
+nikogo; `side_effecting` mówi Builderowi tylko, które narzędzia działają na świat.
 
 !!! tip "Opis narzędzia jest promptem o największej dźwigni w tym produkcie"
 
@@ -1952,7 +2112,7 @@ sprawdzane w chwili składania agenta:
 | `conversations:read` | `conversation_search` |
 | `web:read` | `web_research` |
 | `web:fetch` | `web_fetch` |
-| `web:browse` | `browser_choice`, `browser_use` |
+| `web:browse` | `browser_use` |
 | `code:execute` | `code_execution` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |

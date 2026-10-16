@@ -17,10 +17,13 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
+from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
+
 from app.agents.approval import ApprovalDecision, ApprovalRequest
 from app.agents.audience import RunAudience
 from app.agents.browser_events import BrowserEventSink
 from app.agents.compaction_events import CompactionEvent
+from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
 
 AskUserCallback = Callable[[str, list[str]], Awaitable[str]]
@@ -32,6 +35,16 @@ tool and nothing here calls it otherwise. A surface that batches its elicitation
 (the WebSocket asks a whole list at once) adapts that to this one-question shape at
 its edge; a surface that cannot hold a question open leaves it `None`, and a
 delegate that would ask is told a person could not be reached.
+"""
+
+QuestionsCallback = Callable[[AskUserRequest], Awaitable[AskUserResponse]]
+"""How the `ask_user` capability puts a batch of multiple-choice questions to the
+person running the agent, and gets their picks back (#2064).
+
+Distinct from :data:`AskUserCallback`, which is one free-text question for a
+delegate: these carry a header, options with descriptions and multi-select, and
+the answer is the picked labels or a custom answer per question. A surface that
+cannot put questions to anybody leaves it `None`, and the tool is not offered.
 """
 
 ApprovalCallback = Callable[[ApprovalRequest], Awaitable[ApprovalDecision]]
@@ -71,6 +84,21 @@ class AgentDeps:
     # Set when the surface can ask the user something mid-run (WebSocket chat);
     # None on surfaces that cannot, so tools must handle its absence.
     ask_user: AskUserCallback | None = None
+
+    # Set when somebody is watching the run and may add to it mid-way (#2087):
+    # what they send lands here and reaches the model at its next request. None on
+    # every surface where nobody can, and on a delegate - a correction is to the
+    # task the person asked for, which is the parent's.
+    steering: SteeringInbox | None = None
+
+    # Set when the surface can show a card of multiple-choice questions and wait
+    # for the picks (#2064); `None` hides the `ask_user` capability's tool.
+    ask_questions: QuestionsCallback | None = None
+    # Whether `ask_questions` parks the run rather than asking live - a channel's,
+    # answered later through buttons. Not handed to a delegate: its park surfaces
+    # as a deferral of the parent's `task` call with nothing to decide, and the run
+    # would wait for ever, so a delegate's question is declined instead.
+    parks_questions: bool = False
 
     # Set when the surface can hold a run for human approval. A tool that needs
     # approval and finds this None must refuse rather than proceed unattended.
@@ -117,7 +145,7 @@ class AgentDeps:
         supposed to save. A delegation's *own* run row records its identity; deps
         are about what its tools can reach.
 
-        `ask_user` and `request_approval` - the parent's channels. A specialist
+        `ask_user`, `ask_questions` and `request_approval` - the parent's channels. A specialist
         that needs a person needs the person who is already waiting.
 
         `subagent_events` - so a specialist's own delegation still narrates,
@@ -157,6 +185,7 @@ class AgentDeps:
             agent_id=self.agent_id,
             run_id=self.run_id,
             ask_user=self.ask_user,
+            ask_questions=None if self.parks_questions else self.ask_questions,
             request_approval=self.request_approval,
             subagent_events=self.subagent_events,
             browser_events=self.browser_events,

@@ -1,12 +1,11 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { Download, FileDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { CopyButton } from "@/components/chat/copy-button";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Button } from "@/components/ui";
-import { GeneratedImage } from "@/components/ui/generated-image";
 import { codeLanguage, isRenderSafeImage, type FileKind } from "@/lib/file-kinds";
 import { parseDelimited } from "@/lib/delimited";
 
@@ -70,8 +69,9 @@ export function FileTextView({ kind, name, text, asSource = false }: FileTextVie
       // with its own language rather than this growing a second highlighter.
       return <MarkdownContent content={`\`\`\`${codeLanguage(name)}\n${text}\n\`\`\``} />;
     default:
-      // `text`, and anything whose bytes turned out to be characters after all.
-      return <PlainText text={text} />;
+      // `text`, and anything whose bytes turned out to be characters after all:
+      // prose and pastes, read down rather than across, so wrapped.
+      return <PlainText text={text} wrap />;
   }
 }
 
@@ -104,16 +104,15 @@ export function FileBytesView({ name, url, mediaType, onDownload }: FileBytesVie
     // Gated on the render-safe allowlist, not `image/` alone: the server sends a
     // TIFF with `media_type=image/tiff` (only its disposition forced to attachment),
     // so `startsWith("image/")` would still draw a broken `<img>` for it (#1591).
-    // The picture condenses out of a churning mosaic rather than replacing a
-    // spinner, so the moment a file first appears has no cut in it. A browser
-    // without WebGL gets the plain image; the WebGL half is imported on demand,
-    // because it carries `three` and no other page needs it.
+    // The plain picture, not the mosaic a generated image condenses out of: the
+    // effect takes its size from a box this viewer does not give it, and drew
+    // nothing - a stored file is shown, not revealed.
     return (
-      <GeneratedImage
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
         src={url}
         alt={name}
-        borderRadius={12}
-        className="max-h-[70vh] w-full object-contain"
+        className="mx-auto max-h-[70vh] max-w-full rounded-xl object-contain"
       />
     );
 
@@ -162,8 +161,13 @@ export function FileUnavailable({
   const t = useTranslations("files");
 
   return (
-    <div className="space-y-2 py-4 text-center">
-      <p className="text-muted-foreground text-sm">{reason}</p>
+    // In the middle of the viewer, with the file's mark over it: one line and a
+    // button at the top of an empty window read as the page failing to load.
+    <div className="flex h-full min-h-64 flex-col items-center justify-center gap-3 py-8 text-center">
+      <span className="bg-muted text-muted-foreground flex h-14 w-14 items-center justify-center rounded-2xl">
+        <FileDown className="h-6 w-6" aria-hidden />
+      </span>
+      <p className="text-muted-foreground max-w-md text-sm text-balance">{reason}</p>
       <Button variant="outline" size="sm" onClick={onDownload}>
         <Download className="h-3.5 w-3.5" />
         {t("download")}
@@ -175,14 +179,6 @@ export function FileUnavailable({
   );
 }
 
-/**
- * The characters, as they are.
- *
- * `whitespace-pre` and a scroll rather than `pre-wrap`: source read as source is
- * read by its indentation, and wrapping a 200-character line into four rows at the
- * left margin destroys exactly the thing somebody switched to this view for. Prose
- * in a `.txt` loses nothing by scrolling, and gains not being reflowed.
- */
 /** Past this, the gutter costs more than it is worth: one element per line. */
 const NUMBERED_UP_TO = 5000;
 
@@ -200,13 +196,44 @@ const NUMBERED_UP_TO = 5000;
  * that has to be cleaned up by hand - which is the thing the copy button exists
  * to avoid.
  *
- * Lines are not wrapped, deliberately. A wrapped line and its number stop lining
- * up, and a CSV row is a record rather than a paragraph: sideways is the direction
- * it is read in.
+ * Source and JSON are not wrapped: a line of code is read across, and a
+ * record is a record. Plain text - prose, a paste - is (`wrap`): one 2,000
+ * character line ran off the side of the viewer as a single unreadable row.
+ * Wrapped, each line is its own row with its number beside it, so a number
+ * stays with the line it counts however many rows the line takes.
  */
-function PlainText({ text }: { text: string }) {
+function PlainText({ text, wrap = false }: { text: string; wrap?: boolean }) {
   const lines = text.split("\n");
   const numbered = lines.length <= NUMBERED_UP_TO;
+
+  if (wrap) {
+    return (
+      <div className="bg-muted/40 relative h-full min-h-64 overflow-hidden rounded-md border">
+        <CopyButton text={text} className="absolute top-1 right-1 z-10" />
+        <div className="h-full overflow-auto py-3 pr-10 font-mono text-xs leading-[1.6]">
+          {numbered ? (
+            <div className="grid grid-cols-[auto_minmax(0,1fr)]">
+              {lines.map((line, index) => (
+                <div key={index} className="contents">
+                  <span
+                    aria-hidden
+                    className="text-muted-foreground px-3 text-right tabular-nums select-none"
+                  >
+                    {index + 1}
+                  </span>
+                  <span className="text-foreground/90 break-all whitespace-pre-wrap">
+                    {line === "" ? "\u00a0" : line}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <pre className="text-foreground/90 px-3 break-all whitespace-pre-wrap">{text}</pre>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-muted/40 relative h-full min-h-64 overflow-hidden rounded-md border">
@@ -265,7 +292,7 @@ function DelimitedTable({ text }: { text: string }) {
               {header.map((cell, index) => (
                 <th
                   key={index}
-                  className="border-border border-b px-2.5 py-1.5 text-left font-mono text-[11px] font-semibold tracking-wider uppercase"
+                  className="border-border border-b px-2.5 py-1.5 text-left font-mono text-xs font-semibold tracking-wider uppercase"
                 >
                   {cell}
                 </th>
@@ -289,7 +316,7 @@ function DelimitedTable({ text }: { text: string }) {
         </table>
       </div>
       {body.length > MAX_ROWS && (
-        <p className="text-muted-foreground text-center text-[11px] tracking-wider uppercase">
+        <p className="text-muted-foreground text-center text-xs tracking-wider uppercase">
           {t("truncatedRows", { shown: MAX_ROWS, total: body.length })}
         </p>
       )}

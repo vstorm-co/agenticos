@@ -18,21 +18,25 @@ client of it, and a client's own scripts are another. There is deliberately no
 private variant, which is what keeps "the Builder is just another client" true.
 """
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 
 from app.agents.capabilities import all_capabilities
+from app.agents.prompt_variables import SYSTEM_VARIABLES
 from app.agents.spec import AgentSpec
 from app.api.deps import (
     AgentRegistrySvc,
     AgentRunnerSvc,
     Auth,
+    ConversationSvc,
     DBSession,
+    KnowledgeReachSvc,
     limit_agent_run,
     require,
 )
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -43,6 +47,7 @@ from app.schemas.agent import (
     AgentCreate,
     AgentDetail,
     AgentDraftUpdate,
+    AgentKnowledgeReach,
     AgentList,
     AgentMetadataRequest,
     AgentPublish,
@@ -61,15 +66,32 @@ from app.schemas.agent import (
     DelegationTree,
     McpCatalog,
     McpCatalogEntry,
+    PromptVariableCatalog,
+    PromptVariableRead,
     SpecialistPromote,
     TemplateInstallRequest,
     TemplateInstallResult,
 )
-from app.services import mcp_catalog, mcp_listing
+from app.services import agent_templates, mcp_listing
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
+
+
+@router.get(
+    "/prompt-variables",
+    response_model=PromptVariableCatalog,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_prompt_variables() -> Any:
+    """The system variables any agent's instructions may use, in the order to offer them."""
+    return PromptVariableCatalog(
+        items=[
+            PromptVariableRead(name=item.name, description=item.description, example=item.example)
+            for item in SYSTEM_VARIABLES
+        ]
+    )
 
 
 @router.get(
@@ -80,6 +102,7 @@ router = APIRouter()
 async def list_capability_catalog() -> Any:
     """Every capability an agent can be given, with the schema its form is built from."""
     contracts = await tool_contracts()
+    starter = agent_templates.starter_capabilities()
     items = [
         CapabilityCatalogEntry(
             id=definition.id,
@@ -100,6 +123,7 @@ async def list_capability_catalog() -> Any:
             ],
             config_schema=definition.config_json_schema(),
             requires_secret=definition.secret,
+            recommended=starter.get(definition.id),
         )
         # `selectable` only. A capability a spec may not bind is a switch the
         # Toolbox cannot honestly offer: `channel_tools` is chosen per bound bot
@@ -155,20 +179,7 @@ async def list_mcp_catalog(db: DBSession) -> Any:
     auth flow works and the description is honest. `registry_total` says how many
     the mirror holds beside them, so a count line can say what searching reaches.
     """
-    items = [
-        McpCatalogEntry(
-            key=entry.key,
-            name=entry.name,
-            description=entry.description,
-            category=entry.category,
-            auth=entry.auth.value,
-            url=entry.url or None,
-            docs_url=entry.docs_url or None,
-            token_hint=entry.token_hint or None,
-            icon=entry.icon or None,
-        )
-        for entry in mcp_catalog.CATALOG
-    ]
+    items = [McpCatalogEntry(**vars(server)) for server in await mcp_listing.curated(db)]
     return McpCatalog(
         items=items,
         total=len(items),
@@ -185,6 +196,9 @@ async def list_mcp_servers(
     db: DBSession,
     q: str = Query("", max_length=100, description="Filter by name, description, host or category"),
     category: str = Query("", max_length=32, description="One catalog category, or blank for all"),
+    auth: Literal["", "none", "token", "oauth"] = Query(
+        "", description="What the server asks for, or blank for any"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -197,11 +211,14 @@ async def list_mcp_servers(
     the list needs, so the join happens in `mcp_listing.page` and the client
     renders rows.
 
-    A registry row carries `reviewed: false`, the only thing separating it from a
-    curated one: nobody here checked it, the description is the publisher's, and
-    there is no token hint because the registry has no such field.
+    A registry row carries `reviewed: false`: nobody here wrote it, the description
+    is the publisher's, and there is no token hint because the registry has no such
+    field. `verified` and `check` say what the last catalog check found, for either
+    kind; a registry listing it found dead or duplicated is not on the list.
     """
-    found = await mcp_listing.page(db, query=q, category=category, skip=skip, limit=limit)
+    found = await mcp_listing.page(
+        db, query=q, category=category, auth=auth, skip=skip, limit=limit
+    )
     return McpCatalog(
         items=[McpCatalogEntry(**vars(server)) for server in found.items],
         total=found.total,
@@ -259,6 +276,8 @@ async def create_agent(data: AgentCreate, service: AgentRegistrySvc, ctx: Auth) 
         visibility=data.visibility,
         categories=data.categories,
         tags=data.tags,
+        group_ids=data.group_ids,
+        user_ids=data.user_ids,
     )
 
 
@@ -279,6 +298,16 @@ async def promote_specialist(data: SpecialistPromote, service: AgentRegistrySvc,
     return await service.promote_specialist(
         ctx, data.specialist, fallback_model_profile_id=data.fallback_model_profile_id
     )
+
+
+@router.get("/{agent_id}/knowledge-reach", response_model=AgentKnowledgeReach)
+async def get_knowledge_reach(agent_id: UUID, service: KnowledgeReachSvc, ctx: Auth) -> Any:
+    """Which groups the agent's knowledge bases, skills and context come from (#2072).
+
+    Each source says whether the agent reaches people it is not shared with - who
+    are answered from it all the same. Sources the caller may not see are left out.
+    """
+    return await service.for_agent(ctx, agent_id)
 
 
 @router.get("/{agent_id}", response_model=AgentDetail)
@@ -533,14 +562,34 @@ async def unarchive_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) 
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
 )
-async def delete_agent(agent_id: UUID, service: AgentRegistrySvc, ctx: Auth) -> None:
+async def delete_agent(
+    agent_id: UUID,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+    draft_only: bool = Query(
+        False,
+        description=(
+            "Delete only a never-published draft the caller created; refused "
+            "otherwise, checked on the locked row so a publish in between is seen."
+        ),
+    ),
+) -> None:
     """Permanently remove an agent, its versions and its shares."""
-    await service.delete(ctx, agent_id)
+    await service.delete(ctx, agent_id, draft_only=draft_only)
 
 
 @router.post(
     "/{agent_id}/run",
     response_model=AgentRunResult,
+    # Answered in the error envelope with `details.run_id` (#2121); the public
+    # document draws them as it draws every other refusal.
+    openapi_extra={
+        "x-error-responses": {
+            "500": "The run started and failed. `details.run_id` names it, and `message` says why.",
+            "502": "The model provider refused or failed the run's request. "
+            "`details.run_id` names the run, which is recorded as failed.",
+        }
+    },
     # Not a permission gate - see the boundary about `require(...)` on
     # per-resource routes. A rate limit is about the caller, not about the row,
     # and this is the one route on this surface a stranger with a token reaches.
@@ -550,6 +599,7 @@ async def run_agent(
     agent_id: UUID,
     data: AgentRunRequest,
     service: AgentRunnerSvc,
+    conversations: ConversationSvc,
     db: DBSession,
     ctx: Auth,
 ) -> Any:
@@ -568,6 +618,12 @@ async def run_agent(
     the one that could not send a document, and a caller whose run stopped for an
     approval got an empty string and a status.
     """
+    # The caller's own conversation, checked - an unknown id was a foreign-key
+    # 500, and somebody else's would have handed this run its workspace and its
+    # plan (#1796) - or a new one, so the next call can continue it (#2122).
+    conversation_id, history = await conversations.for_api_run(
+        ctx, data.conversation_id, prompt=data.prompt
+    )
     attachments = await load_attached_files(
         db,
         [str(file_id) for file_id in data.file_ids],
@@ -581,12 +637,15 @@ async def run_agent(
         agent_id,
         data.prompt,
         surface=RunSurface.API,
-        conversation_id=data.conversation_id,
+        conversation_id=conversation_id,
+        message_history=history,
         environment_id=data.environment_id,
         attachments=attachments,
+        reports_failure=True,
     )
     return AgentRunResult(
         run_id=run.id,
+        conversation_id=conversation_id,
         output=output,
         status=run.status,
         cost_usd=run.cost_usd,

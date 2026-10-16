@@ -76,17 +76,17 @@ class RAGDocumentService:
         self.db = db
 
     async def list_documents(
-        self, *, collections: list[str], skip: int = 0, limit: int = 50
+        self, *, scopes: list[tuple[str, UUID | None]], skip: int = 0, limit: int = 50
     ) -> RAGTrackedDocumentList:
-        """List a page of tracked RAG documents belonging to the named collections.
+        """List a page of tracked RAG documents in the given collections.
 
-        The `collections` argument is required and takes no default on purpose:
-        the caller decides which collections it is entitled to see, and there is
-        no way to ask for "all of them" by forgetting to say. An empty list is an
-        empty answer.
+        `scopes` - (collection, organization) pairs, see `rag_document_repo.get_all`
+        - is required and takes no default on purpose: the caller decides which
+        collections it is entitled to see, and there is no way to ask for "all of
+        them" by forgetting to say. An empty list is an empty answer.
         """
         rows, total = await rag_document_repo.get_all(
-            self.db, collections=collections, skip=skip, limit=limit
+            self.db, scopes=scopes, skip=skip, limit=limit
         )
         return RAGTrackedDocumentList(
             items=[_tracked_item(d) for d in rows],
@@ -94,10 +94,12 @@ class RAGDocumentService:
         )
 
     async def list_for_kb(
-        self, *, kb_id: UUID, skip: int = 0, limit: int = 50
+        self, *, kb_id: UUID, skip: int = 0, limit: int = 50, filename: str | None = None
     ) -> RAGTrackedDocumentList:
-        """List documents ingested into a Knowledge Base, paginated."""
-        rows, total = await rag_document_repo.get_for_kb(self.db, kb_id, skip=skip, limit=limit)
+        """List documents ingested into a Knowledge Base, paginated, optionally by name."""
+        rows, total = await rag_document_repo.get_for_kb(
+            self.db, kb_id, skip=skip, limit=limit, filename=filename
+        )
         return RAGTrackedDocumentList(
             items=[_tracked_item(d) for d in rows],
             total=total,

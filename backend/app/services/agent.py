@@ -11,7 +11,7 @@ Framework-specific concerns (multimodal input, streaming events) stay in the rou
 
 import json
 import logging
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -292,6 +292,7 @@ async def persist_assistant_turn(
     usage: UsageReport | None = None,
     run_id: UUID | None = None,
     parked_tool_call_ids: Collection[str] = (),
+    mcp_origins: Mapping[str, UUID] | None = None,
 ) -> str | None:
     """Persist the assistant message and any tool calls. Returns the saved message id.
 
@@ -331,6 +332,9 @@ async def persist_assistant_turn(
     conversation read the one call somebody has to decide about as a step that
     ran (#601). The resume settles the row through the transcript service, and an
     expiry settles it with the timeout notice.
+
+    `mcp_origins` stores each call to an organization MCP connection against it,
+    as the transcript service does for every other surface (#2072).
     """
     try:
         async with get_db_context() as db:
@@ -394,6 +398,7 @@ async def persist_assistant_turn(
                             started_at=datetime.now(UTC),
                         ),
                         parked=tc["tool_call_id"] in parked_tool_call_ids,
+                        mcp_connection_id=(mcp_origins or {}).get(tc["tool_name"]),
                     )
                     if tc.get("result"):
                         await conv_service.complete_tool_call(

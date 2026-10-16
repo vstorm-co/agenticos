@@ -27,13 +27,15 @@ def _migration() -> ModuleType:
     return module
 
 
-def test_every_snapshot_row_names_a_catalog_entry_and_its_url() -> None:
-    """A typo here is silent: those connections keep a null key, the agent
-    reports the service as not connected, and the person connects a second
-    account for a service they already had."""
-    live = {entry.key: entry.url for entry in CATALOG if entry.url}
+def test_every_snapshot_row_names_a_catalog_entry() -> None:
+    """A key that is not a catalog entry is silent: those connections carry a key
+    nothing resolves, the agent reports the service as not connected, and the
+    person connects a second account for a service they already had.
 
-    assert dict(_migration().CATALOG_URLS) == live
+    The URLs are not compared with today's catalog. They were the catalog's on
+    the day the migration ran, and a server moving since (#2103 moved Linear,
+    Pipedrive and others) is the catalog's change, not the snapshot's error."""
+    assert set(dict(_migration().CATALOG_URLS)) <= {entry.key for entry in CATALOG}
 
 
 def test_the_snapshot_holds_each_service_once() -> None:

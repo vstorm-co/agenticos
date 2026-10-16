@@ -1,5 +1,5 @@
 ---
-source_sha: "74107fac73b3"
+source_sha: "79a1554f42b0"
 title: "AgenticOS vs OpenAI Codex"
 seo_title: "AgenticOS vs OpenAI Codex: Firmen-Agents oder Coding-Agent"
 description: "OpenAI Codex ist ein Coding-Agent für Entwickler, AgenticOS eine selbst gehostete Open-Source-Plattform für kontrollierte Firmen-Agents. Beide im Vergleich."
@@ -43,7 +43,7 @@ Die Codex-CLI kann andere Provider nutzen, aber ihre Cloud-Aufgaben, das Code-Re
 
 ### Codeausführung als kontrollierte Capability { #code-execution-as-a-governed-capability }
 
-Codex führt Befehle in einer Betriebssystem-Sandbox auf dem Rechner des Entwicklers oder in einem Cloud-Container aus. AgenticOS gibt Agents [Run Python](../reference/capabilities.md#run-python), einen Monty-Interpreter ohne Netzwerk oder Dateisystem, und einen Workspace [Files & shell](../reference/capabilities.md#files-shell) in [Geschwister-Containern](../sandbox.md#isolation-plainly). Beide werden pro Agent eingeschaltet, mit Limits und einer Freigabeeinstellung.
+Codex führt Befehle in einer Betriebssystem-Sandbox auf dem Rechner des Entwicklers oder in einem Cloud-Container aus. AgenticOS gibt Agents [Calculations](../reference/capabilities.md#run-python), einen Monty-Interpreter ohne Netzwerk oder Dateisystem, und einen Workspace [Sandbox](../reference/capabilities.md#files-shell) in [Geschwister-Containern](../sandbox.md#isolation-plainly). Beide werden pro Agent eingeschaltet, mit Limits und einer Freigabeeinstellung.
 
 ## Wann Codex das richtige Werkzeug ist { #when-codex-is-the-right-tool }
 
@@ -75,7 +75,7 @@ Ja. Ein Entwickler kann mit Codex eine neue Capability in typisiertem Python sch
 
 ### Können AgenticOS-Agents Code ausführen? { #can-agenticos-agents-run-code }
 
-Ja. Run Python führt Code ohne Netzwerk oder Dateisystem aus, und Files & shell gibt einem Agent einen Workspace in isolierten Containern. Beide werden pro Agent eingeschaltet.
+Ja. Berechnungen führt Python ohne Netzwerk oder Dateisystem aus, und die Sandbox gibt einem Agent einen Workspace in isolierten Containern. Beide werden pro Agent eingeschaltet.
 
 ## Verwandte Vergleiche { #related-comparisons }
 

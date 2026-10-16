@@ -165,6 +165,27 @@ describe("the plan a conversation now stands at", () => {
     ]);
   });
 
+  it.each(["unfinished", "error"] as const)(
+    "does not take a %s write's arguments for the plan",
+    (status) => {
+      // The turn ended before the write landed, so the store never held it.
+      // Drawing its arguments kept a step "in progress" that nobody wrote (#2149).
+      const plan = planProgress([
+        turn(
+          call({ result: WRITTEN }),
+          call({
+            status,
+            result: undefined,
+            args: { items: [{ content: "Something else", status: "in_progress" }] },
+          }),
+        ),
+      ]);
+
+      expect(plan?.total).toBe(3);
+      expect(plan?.active?.content).toBe("Write the test");
+    },
+  );
+
   it("reads a replayed turn's calls off its parts, and counts each call once", () => {
     const message: ChatMessage = {
       ...turn(call({ result: WRITTEN })),

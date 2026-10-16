@@ -2,7 +2,7 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { Code2 } from "lucide-react";
 import type { ToolCall } from "@/types";
-import { cn, formatBytes } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { toolStep } from "@/lib/tool-steps";
 import { toolEntry } from "@/lib/tool-catalog";
 import { AgentStep } from "./agent-step";
@@ -14,8 +14,12 @@ import { GeneratedImageResult, parseGeneratedImage } from "./tool-results/genera
 import { LoadSkillResult, LoadedSkillResult } from "./tool-results/skills";
 import { ContextListResult, SkillListResult } from "./tool-results/catalogs";
 import { PlanToolResult } from "./tool-results/plan";
+import { AskedResult, parseAsked } from "./tool-results/asked";
 import { GenericToolResult, RawToolView } from "./tool-results/generic";
 import { RunPythonResult } from "./tool-results/run-python";
+import { DelegationResult } from "./tool-results/delegation";
+import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { delegateNamed, type DelegateRef } from "@/lib/delegations";
 import { WorkspaceToolResult } from "./tool-results/workspace";
 import type { McpServerRef } from "@/lib/tool-steps";
 import { useTranslations } from "next-intl";
@@ -48,6 +52,13 @@ interface ToolCallCardProps {
    * is a line they can open if they want it.
    */
   startOpen?: boolean;
+  /**
+   * The agents the reader can see, for naming the one a delegation asked.
+   *
+   * Passed like `mcpServers` and for the same reason; a surface with none still
+   * names the delegate from its slug.
+   */
+  agents?: readonly DelegateRef[];
 }
 
 /**
@@ -70,6 +81,7 @@ export function ToolCallCard({
   conversationId,
   mcpServers,
   startOpen = false,
+  agents = [],
 }: ToolCallCardProps) {
   const t = useTranslations("chat.tools");
   // What this side knows about the tool: its icon, its wording, and which renderer
@@ -94,6 +106,11 @@ export function ToolCallCard({
         ? parseChartResult(toolCall.result)
         : null,
     [renderer, toolCall.status, toolCall.result],
+  );
+  // The questions an `ask_user_question` call put, beside the answers it got.
+  const asked = useMemo(
+    () => (renderer === "asked" ? parseAsked(toolCall) : null),
+    [renderer, toolCall],
   );
   // A chart is the one entry whose payoff can fail to arrive: `create_chart` that
   // came back as an error string has nothing to show, so opening it would put a
@@ -148,7 +165,7 @@ export function ToolCallCard({
   const isRunning = toolCall.status === "running" || toolCall.status === "pending";
   // Its own state, not a kind of running: a parked call produces no result until
   // somebody decides, so a spinner here is a lie that never resolves.
-  const isParked = toolCall.status === "awaiting_approval";
+  const isParked = toolCall.status === "awaiting_approval" || toolCall.status === "awaiting_answer";
   const isError = toolCall.status === "error";
   // The servers are what turn `linear_create_issue` into "Linear · Create issue".
   // Nothing on a tool call says where it came from, so the prefix is matched against
@@ -168,20 +185,47 @@ export function ToolCallCard({
     }
   }
 
-  // While the model is still writing the arguments, how far it has got is the only
-  // sign the step is moving - a report handed to `write_file` streams for minutes.
-  const streamed =
-    toolCall.status === "pending" && toolCall.argsChars
-      ? t("argumentsStreamed", { size: formatBytes(toolCall.argsChars) })
+  // One agent asking another reads as that, with the delegate's own face.
+  const delegate =
+    renderer === "delegation" && typeof toolCall.args?.subagent_type === "string"
+      ? delegateNamed(toolCall.args.subagent_type, agents)
+      : null;
+  const brief =
+    delegate !== null && typeof toolCall.args?.description === "string"
+      ? toolCall.args.description
       : null;
 
   return (
     <AgentStep
-      label={step.label}
-      detail={isRunning ? streamed : step.detail}
+      label={
+        delegate === null
+          ? step.label
+          : t(
+              isRunning
+                ? "askingAgent"
+                : toolCall.status === "unfinished"
+                  ? "stoppedAskingAgent"
+                  : "askedAgent",
+              { name: delegate.name },
+            )
+      }
+      detail={isRunning || delegate !== null ? null : step.detail}
       kind={step.kind}
       logoDomain={step.logoDomain}
+      mark={
+        delegate === null ? undefined : (
+          <AgentAvatar
+            agentId={delegate.id ?? delegate.slug}
+            slug={delegate.slug}
+            hasAvatar={delegate.has_avatar}
+            colorSlot={delegate.avatar_color}
+            size="sm"
+            className="-my-1 h-5 w-5"
+          />
+        )
+      }
       state={isParked ? "parked" : isRunning ? "running" : isError ? "error" : "done"}
+      parkedOn={toolCall.status === "awaiting_answer" ? "answer" : "approval"}
       expanded={expanded}
       onToggle={() =>
         setExpanded((prev) => {
@@ -232,6 +276,10 @@ export function ToolCallCard({
         <ContextListResult resultText={resultText} />
       ) : renderer === "plan" ? (
         <PlanToolResult toolCall={toolCall} resultText={resultText} />
+      ) : asked !== null ? (
+        <AskedResult asked={asked} />
+      ) : delegate !== null ? (
+        <DelegationResult brief={brief} answer={resultText} />
       ) : renderer === "workspace" ? (
         <WorkspaceToolResult
           toolCall={toolCall}

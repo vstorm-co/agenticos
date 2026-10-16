@@ -77,6 +77,29 @@ describe("ChatInput paste", () => {
     expect(await file.text()).toBe(LONG);
   });
 
+  it("attaches a pasted picture, which Ctrl+V used to drop", async () => {
+    state.upload.mockResolvedValue(
+      uploaded({ filename: "image.png", mime_type: "image/png", file_type: "image", size: 4 }),
+    );
+    render(<ChatInput onSend={vi.fn()} />);
+    const textarea = screen.getByRole("textbox");
+    const picture = new File([new Uint8Array([137, 80, 78, 71])], "image.png", {
+      type: "image/png",
+    });
+
+    await userEvent.click(textarea);
+    await userEvent.paste({
+      files: [picture],
+      items: [],
+      getData: () => "",
+      types: ["Files"],
+    } as unknown as DataTransfer);
+
+    await waitFor(() => expect(state.upload).toHaveBeenCalledOnce());
+    expect(state.upload.mock.calls[0]![0]).toBe(picture);
+    expect(textarea).toHaveValue("");
+  });
+
   it("leaves a short paste alone - somebody who pastes a paragraph meant to send it", async () => {
     render(<ChatInput onSend={vi.fn()} />);
     const textarea = screen.getByRole("textbox");
@@ -276,5 +299,77 @@ describe("ChatInput attachments", () => {
 
     expect(toast.error).toHaveBeenCalledWith("export.csv: File too large. Maximum 1MB.");
     expect(state.upload).not.toHaveBeenCalled();
+  });
+
+  it("attaches files handed in from outside once per hand-off, as if picked", async () => {
+    // The AI Architect's screenshot of the page arrives this way (#2063).
+    const shot = new File(["png"], "screenshot.png", { type: "image/png" });
+    const { rerender } = render(<ChatInput onSend={vi.fn()} incoming={{ id: 1, files: [shot] }} />);
+    await waitFor(() => expect(state.upload).toHaveBeenCalledWith(shot));
+
+    rerender(<ChatInput onSend={vi.fn()} incoming={{ id: 1, files: [shot] }} />);
+    rerender(<ChatInput onSend={vi.fn()} incoming={{ id: 2, files: [shot] }} />);
+
+    await waitFor(() => expect(state.upload).toHaveBeenCalledTimes(2));
+  });
+
+  it("writes words handed in after what is already typed", async () => {
+    // A comment pointed at the browser's page arrives with its note.
+    const shot = new File(["png"], "browser-comment.png", { type: "image/png" });
+    const { rerender } = render(<ChatInput onSend={vi.fn()} />);
+    await userEvent.type(screen.getByRole("textbox"), "Two things.");
+
+    rerender(
+      <ChatInput onSend={vi.fn()} incoming={{ id: 1, files: [shot], text: "This button" }} />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("textbox")).toHaveValue("Two things.\nThis button"),
+    );
+    rerender(<ChatInput onSend={vi.fn()} incoming={{ id: 2, files: [shot], text: "And this" }} />);
+    await waitFor(() =>
+      expect(screen.getByRole("textbox")).toHaveValue("Two things.\nThis button\nAnd this"),
+    );
+  });
+
+  it("starts the message with words handed in to an empty box", async () => {
+    render(<ChatInput onSend={vi.fn()} incoming={{ id: 1, files: [], text: "This button" }} />);
+
+    await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue("This button"));
+  });
+
+  it("sends on Enter at a desk, and starts a new line on a touch keyboard", async () => {
+    // A phone's keyboard has no Shift to hold for a line break, and the send
+    // button is a thumb away (#2066).
+    const onSend = vi.fn();
+    const { unmount } = render(<ChatInput onSend={onSend} />);
+    const box = screen.getByRole("textbox");
+    expect(box).toHaveAttribute("enterkeyhint", "send");
+    await userEvent.type(box, "hi{Enter}");
+    expect(onSend).toHaveBeenCalledOnce();
+    unmount();
+
+    const desk = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: true, media: query })) as never;
+    onSend.mockClear();
+    render(<ChatInput onSend={onSend} />);
+    const touch = screen.getByRole("textbox");
+    expect(touch).toHaveAttribute("enterkeyhint", "enter");
+    await userEvent.type(touch, "one{Enter}two");
+    expect(onSend).not.toHaveBeenCalled();
+    expect(touch).toHaveValue("one\ntwo");
+    window.matchMedia = desk;
+  });
+
+  it("starts a command from the `+`, the same as typing a slash", async () => {
+    const context = { clearChat: vi.fn(), regenerateLast: vi.fn(), openSettings: vi.fn() };
+    render(<ChatInput onSend={vi.fn()} slashContext={context} />);
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Add to message" })[0]!);
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Commands/ }));
+
+    const box = screen.getByRole("textbox");
+    expect(box).toHaveValue("/");
+    expect(box).toHaveFocus();
   });
 });

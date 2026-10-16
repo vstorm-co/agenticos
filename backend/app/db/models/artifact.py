@@ -210,3 +210,36 @@ class ArtifactVersion(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<ArtifactVersion(artifact={self.artifact_id}, number={self.number})>"
+
+
+class ArtifactFollower(Base, TimestampMixin):
+    """A person who asked to hear when an artifact gets a new version (#1977).
+
+    Following is a subscription, not a grant: it reaches nobody who could not
+    already read the page. Who is told is decided again when a version lands and
+    again when the notification is read, so a follower who lost access is simply
+    not told - the row stays, and access coming back resumes it.
+    """
+
+    __tablename__ = "artifact_followers"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    artifact_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("artifacts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    __table_args__ = (UniqueConstraint("artifact_id", "user_id", name="uq_artifact_follower"),)
+
+    def __repr__(self) -> str:
+        return f"<ArtifactFollower(artifact={self.artifact_id}, user={self.user_id})>"

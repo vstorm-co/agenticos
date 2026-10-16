@@ -9,6 +9,11 @@ until an agent reaches for the server mid-conversation, in front of whoever
 asked the question.
 
 This finds it first, and writes it down where the UI already looks.
+
+The same sweep dials every organization server (#2100): a server that stopped
+answering is otherwise found the same way, by an agent mid-conversation, and an
+outage is something its managers are told about rather than something they
+discover.
 """
 
 import logging
@@ -16,20 +21,26 @@ import logging
 from prefect import flow
 
 from app.db.session import get_db_context
-from app.services.mcp_connection import sweep_oauth_connections
+from app.services.mcp_connection import check_organization_servers, sweep_oauth_connections
 
 logger = logging.getLogger(__name__)
 
 
 @flow(name="mcp-connection-sweep")
 async def mcp_connection_sweep_flow() -> dict[str, int]:
-    """Renew OAuth tokens near expiry; mark the connections that cannot be renewed.
+    """Renew OAuth tokens near expiry, mark those that cannot be, and check servers answer.
 
     Returns the per-outcome counts so a run's result says what it found without
     anybody reading the logs.
     """
     async with get_db_context() as db:
         counts = await sweep_oauth_connections(db)
+    # Its own transaction, after the renewals have committed: a server whose
+    # token was just refreshed is dialled with the new one.
+    async with get_db_context() as db:
+        reached = await check_organization_servers(db)
+    if reached["unreachable"]:
+        logger.warning("MCP check: %d organization server(s) not answering", reached["unreachable"])
 
     if counts["needs_authorization"]:
         # Worth a warning rather than an info: somebody has to go and reconnect
@@ -41,4 +52,4 @@ async def mcp_connection_sweep_flow() -> dict[str, int]:
         )
     else:
         logger.info("MCP sweep: %s", counts)
-    return counts
+    return {**counts, **reached}

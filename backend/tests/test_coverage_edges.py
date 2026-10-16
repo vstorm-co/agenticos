@@ -189,13 +189,22 @@ def _ctx() -> AuthContext:
     return AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
 
 
+def _notifier() -> MagicMock:
+    """`NotificationService` with its every-run department check awaited, not called."""
+    service = MagicMock()
+    service.return_value.department_budget_warnings = AsyncMock()
+    return service
+
+
 class TestRunNotifications:
     @pytest.mark.anyio
     async def test_a_budget_stop_is_reported_with_the_reason_it_gave(self):
         """A run stopped from Slack or a schedule ends silently otherwise, and
         the first anybody hears of the ceiling is somebody asking why the agent
         went quiet."""
-        with patch("app.services.agent_runner.NotificationService") as notifications:
+        with patch(
+            "app.services.agent_runner.NotificationService", new=_notifier()
+        ) as notifications:
             notifications.return_value.budget_exceeded = AsyncMock()
             await AgentRunnerService(MagicMock())._notify(
                 MagicMock(),
@@ -225,7 +234,9 @@ class TestRunNotifications:
                 "app.services.agent_runner.agent_run_repo.list_approvals_for_run",
                 new=AsyncMock(return_value=approvals),
             ),
-            patch("app.services.agent_runner.NotificationService") as notifications,
+            patch(
+                "app.services.agent_runner.NotificationService", new=_notifier()
+            ) as notifications,
         ):
             notifications.return_value.approval_requested = AsyncMock()
             await AgentRunnerService(MagicMock())._notify(
@@ -249,7 +260,9 @@ class TestRunNotifications:
         that would otherwise stop silently."""
         run = MagicMock(surface=RunSurface.WEB.value)
         for status in (RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED):
-            with patch("app.services.agent_runner.NotificationService") as notifications:
+            with patch(
+                "app.services.agent_runner.NotificationService", new=_notifier()
+            ) as notifications:
                 await AgentRunnerService(MagicMock())._notify(
                     run,
                     agent=MagicMock(),
@@ -269,7 +282,9 @@ class TestRunNotifications:
         """Cancellation is a person's own decision, not a silent stop - there
         is nobody left uninformed the way a schedule's failure would leave."""
         run = MagicMock(surface=RunSurface.SLACK.value)
-        with patch("app.services.agent_runner.NotificationService") as notifications:
+        with patch(
+            "app.services.agent_runner.NotificationService", new=_notifier()
+        ) as notifications:
             await AgentRunnerService(MagicMock())._notify(
                 run,
                 agent=MagicMock(),
@@ -286,7 +301,9 @@ class TestRunNotifications:
     async def test_a_completed_run_off_web_notifies_its_initiator(self):
         agent = MagicMock()
         run = MagicMock(surface=RunSurface.SCHEDULE.value)
-        with patch("app.services.agent_runner.NotificationService") as notifications:
+        with patch(
+            "app.services.agent_runner.NotificationService", new=_notifier()
+        ) as notifications:
             notifications.return_value.run_completed = AsyncMock()
             await AgentRunnerService(MagicMock())._notify(
                 run,
@@ -303,7 +320,9 @@ class TestRunNotifications:
     async def test_a_failed_run_off_web_carries_its_error(self):
         agent = MagicMock()
         run = MagicMock(surface=RunSurface.API.value)
-        with patch("app.services.agent_runner.NotificationService") as notifications:
+        with patch(
+            "app.services.agent_runner.NotificationService", new=_notifier()
+        ) as notifications:
             notifications.return_value.run_failed = AsyncMock()
             await AgentRunnerService(MagicMock())._notify(
                 run,

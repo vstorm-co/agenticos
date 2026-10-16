@@ -74,7 +74,7 @@ describe("OrgSpendingLimit", () => {
 
   it("sets a ceiling the whole workspace runs under", async () => {
     serve("owner");
-    vi.mocked(apiClient.patch).mockResolvedValue(org({ monthly_budget_usd: 500 }));
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ monthly_budget_usd: "500" }));
     render(<OrgSpendingLimit org={org()} />, { wrapper });
 
     const input = await screen.findByLabelText("Limit (USD)");
@@ -93,7 +93,7 @@ describe("OrgSpendingLimit", () => {
     // clearing the box sent nothing, the limit would be impossible to remove.
     serve("owner");
     vi.mocked(apiClient.patch).mockResolvedValue(org());
-    render(<OrgSpendingLimit org={org({ monthly_budget_usd: 500 })} />, { wrapper });
+    render(<OrgSpendingLimit org={org({ monthly_budget_usd: "500" })} />, { wrapper });
 
     await userEvent.clear(await screen.findByLabelText("Limit (USD)"));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -105,9 +105,16 @@ describe("OrgSpendingLimit", () => {
     );
   });
 
+  it("shows the limit as typed, not as the API's six decimal places (#2075)", async () => {
+    serve("owner", "0");
+    render(<OrgSpendingLimit org={org({ monthly_budget_usd: "100.000000" })} />, { wrapper });
+
+    expect(await screen.findByDisplayValue("100")).toBeInTheDocument();
+  });
+
   it("shows what the month has spent against the limit in force", async () => {
     serve("owner", "12.5");
-    render(<OrgSpendingLimit org={org({ monthly_budget_usd: 500 })} />, { wrapper });
+    render(<OrgSpendingLimit org={org({ monthly_budget_usd: "500" })} />, { wrapper });
 
     expect(await screen.findByText("$12.50 of $500.00 spent this month.")).toBeInTheDocument();
   });
@@ -138,7 +145,7 @@ describe("OrgSpendingLimit", () => {
     // section that could only report a refusal is worse than no section, and
     // the figure beside it comes from an endpoint the same roles gate.
     serve("member");
-    render(<OrgSpendingLimit org={org({ monthly_budget_usd: 500 })} />, { wrapper });
+    render(<OrgSpendingLimit org={org({ monthly_budget_usd: "500" })} />, { wrapper });
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/permissions"));
     expect(screen.queryByText("Monthly spending limit")).not.toBeInTheDocument();

@@ -2,6 +2,7 @@
 
 import { ArrowUpCircle, Plus, Trash2 } from "lucide-react";
 
+import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { DelegationModeField } from "@/components/agents/delegation-mode-field";
 import {
   Badge,
@@ -143,6 +144,13 @@ function AddDelegate({
       <DropdownMenuContent align="end" className="max-h-72 scrollbar-thin overflow-y-auto">
         {eligible.map((agent) => (
           <DropdownMenuItem key={agent.id} onSelect={() => onAdd(agent)}>
+            <AgentAvatar
+              agentId={agent.id}
+              slug={agent.slug}
+              hasAvatar={agent.has_avatar}
+              colorSlot={agent.avatar_color}
+              size="sm"
+            />
             <span className="truncate">{agent.name}</span>
             <span className="text-muted-foreground font-mono text-xs">{agent.slug}</span>
           </DropdownMenuItem>
@@ -205,17 +213,29 @@ function DelegateRow({
       className="space-y-2 p-3"
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{agent?.name ?? t("delegateUnreachable")}</p>
-          <p className="text-muted-foreground font-mono text-xs">
-            {agent?.slug ?? reference.agent_id}
-          </p>
+        <div className="flex min-w-0 items-center gap-3">
+          {agent !== undefined && (
+            <AgentAvatar
+              agentId={agent.id}
+              slug={agent.slug}
+              hasAvatar={agent.has_avatar}
+              colorSlot={agent.avatar_color}
+            />
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">
+              {agent?.name ?? t("delegateUnreachable")}
+            </p>
+            <p className="text-muted-foreground font-mono text-xs">
+              {agent?.slug ?? reference.agent_id}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <PinBadge status={status} />
           <Button
             variant="ghost"
-            size="sm"
+            size="icon-sm"
             disabled={disabled}
             aria-label={t("removeDelegate", { name: agent?.name ?? reference.agent_id })}
             onClick={onRemove}

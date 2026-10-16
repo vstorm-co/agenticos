@@ -62,12 +62,14 @@ function connection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpConn
     has_auth_token: true,
     allowed_tools: null,
     is_enabled: true,
+    include_instructions: false,
     auth_type: "bearer",
     oauth_authorized: false,
     authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
+    visibility: "org",
     catalog_key: "github",
     is_default: false,
     trust_read_only_hints: false,
@@ -122,16 +124,19 @@ function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
       // for" a test of the mock.
       const params = new URLSearchParams(path.split("?")[1] ?? "");
       const needle = (params.get("q") ?? "").toLowerCase();
+      const auth = params.get("auth") ?? "";
       const skip = Number(params.get("skip") ?? 0);
       const limit = Number(params.get("limit") ?? 50);
       const all = [...CATALOG.items, ...registryResults];
-      const matched = needle
-        ? all.filter(
-            (entry) =>
-              entry.name.toLowerCase().includes(needle) ||
-              (entry.description ?? "").toLowerCase().includes(needle),
-          )
-        : all;
+      const matched = (
+        needle
+          ? all.filter(
+              (entry) =>
+                entry.name.toLowerCase().includes(needle) ||
+                (entry.description ?? "").toLowerCase().includes(needle),
+            )
+          : all
+      ).filter((entry) => !auth || entry.auth === auth);
       return {
         items: matched.slice(skip, skip + limit),
         total: matched.length,
@@ -146,7 +151,9 @@ function serve(org: OrgMcpConnectionRecord[], own: McpConnectionRecord[]) {
 
 /** Open the connections modal for GitHub, where every account is listed. */
 async function openConnections() {
-  await userEvent.click(within(githubRow()).getByRole("button", { name: /Manage connections on/ }));
+  await userEvent.click(
+    within(githubRow()).getByRole("button", { name: /^Manage \d+ connections? on/ }),
+  );
   return within(await screen.findByRole("dialog"));
 }
 
@@ -178,9 +185,10 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     expect(row.getByRole("button", { name: "Connect" })).toBeInTheDocument();
-    // Labelled for a screen reader, and counted for everybody else.
-    expect(row.getByRole("button", { name: "Manage connections on GitHub" })).toHaveTextContent(
-      "1 connection",
+    expect(row.getByRole("button", { name: "Configure GitHub before connecting" })).toBeVisible();
+    // Whose accounts it holds, as the foot's one line; its name says what it opens.
+    expect(row.getByRole("button", { name: "Manage 1 connection on GitHub" })).toHaveTextContent(
+      "The organization's account",
     );
   });
 
@@ -205,6 +213,12 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
+    // Your own account is the default; the shared one is chosen on purpose.
+    expect(screen.getByRole("radio", { name: /^My own account/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await userEvent.click(screen.getByRole("radio", { name: /^One shared account/ }));
     await userEvent.type(screen.getByLabelText("Access token"), "ghp-secret-9876");
     await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
 
@@ -214,6 +228,9 @@ describe("McpServerList", () => {
         url: "https://api.githubcopilot.com/mcp/",
         auth_token: "ghp-secret-9876",
         catalog_key: "github",
+        visibility: "org",
+        group_ids: [],
+        user_ids: [],
       }),
     );
   });
@@ -227,7 +244,8 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
-    await userEvent.click(screen.getByRole("radio", { name: "You" }));
+    await userEvent.click(screen.getByRole("radio", { name: /^My own account/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
 
     expect(screen.getByRole("radio", { name: "OAuth" })).toBeInTheDocument();
   });
@@ -241,7 +259,8 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
-    await userEvent.click(screen.getByRole("radio", { name: "Organization" }));
+    await userEvent.click(screen.getByRole("radio", { name: /^One shared account/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
 
     expect(screen.getByRole("radio", { name: "OAuth" })).toBeInTheDocument();
   });
@@ -263,7 +282,8 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
-    await userEvent.click(screen.getByRole("radio", { name: "You" }));
+    await userEvent.click(screen.getByRole("radio", { name: /^My own account/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
     await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
 
@@ -277,6 +297,7 @@ describe("McpServerList", () => {
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
     expect(screen.queryByLabelText("Client ID")).toBeNull();
 
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
     expect(screen.getByLabelText("Client ID")).toBeInTheDocument();
     expect(screen.getByLabelText("Client secret")).toBeInTheDocument();
@@ -292,7 +313,8 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
-    await userEvent.click(screen.getByRole("radio", { name: "You" }));
+    await userEvent.click(screen.getByRole("radio", { name: /^My own account/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
     await userEvent.type(screen.getByLabelText("Client ID"), "app-1");
     await userEvent.type(screen.getByLabelText("Client secret"), "shh");
@@ -314,6 +336,7 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
     await userEvent.type(screen.getByLabelText("Client secret"), "shh");
     await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
@@ -334,7 +357,7 @@ describe("McpServerList", () => {
 
     const row = within(githubRow());
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
-    await userEvent.click(screen.getByRole("radio", { name: "You" }));
+    await userEvent.click(screen.getByRole("radio", { name: /^My own account/ }));
     await userEvent.click(screen.getByRole("button", { name: "Connect & check" }));
 
     await waitFor(() =>
@@ -353,12 +376,50 @@ describe("McpServerList", () => {
     // refusal made it impossible instead of informed.
     await mount();
 
+    // Through Configure: Connect on a server that signs in goes to the provider.
+    const linear = within(screen.getByRole("group", { name: "Linear" }));
+    await userEvent.click(
+      linear.getByRole("button", { name: "Configure Linear before connecting" }),
+    );
+    await userEvent.click(screen.getByRole("radio", { name: /^One shared account/ }));
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
+
+    expect(screen.getByRole("radio", { name: "OAuth" })).toBeChecked();
+    expect(screen.getByText(/use an account the organization controls/)).toBeInTheDocument();
+  });
+
+  it("goes straight to the provider when a catalog server signs in", async () => {
+    // Its address, its sign-in and its prefix are the catalog's: a form of
+    // pre-filled fields with one button under them was a click spent reading.
+    vi.mocked(apiClient.post).mockResolvedValue({ authorization_url: "https://consent.example" });
+    await mount();
+
     const linear = within(screen.getByRole("group", { name: "Linear" }));
     await userEvent.click(linear.getByRole("button", { name: "Connect" }));
-    await userEvent.click(screen.getByRole("radio", { name: "Organization" }));
-    await userEvent.click(screen.getByRole("radio", { name: "OAuth" }));
 
-    expect(screen.getByText(/use an account the organization controls/)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/me/mcp-connections/oauth/start",
+        expect.objectContaining({ name: "linear", catalog_key: "linear" }),
+      ),
+    );
+  });
+
+  it("opens the form from Configure with its catalog settings folded away", async () => {
+    // Who connects and who may use it are the decisions; the address and the
+    // names under the fold are the catalog's, and only asked for on request.
+    await mount();
+
+    await userEvent.click(
+      within(githubRow()).getByRole("button", { name: "Configure GitHub before connecting" }),
+    );
+    expect(screen.queryByLabelText("Server URL")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
+    expect(await screen.findByLabelText("Server URL")).toHaveValue(
+      "https://api.githubcopilot.com/mcp/",
+    );
   });
 
   it("lets a member without connections:manage read the organization column, not write it", async () => {
@@ -371,8 +432,7 @@ describe("McpServerList", () => {
     // Readable - an agent author has to see what the Builder will offer.
     expect(dialog.getByText("gh-org")).toBeInTheDocument();
     // But nothing that writes it. A button that always 403s is worse than none.
-    expect(dialog.queryByRole("button", { name: "Disconnect" })).toBeNull();
-    expect(dialog.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(dialog.queryByRole("button", { name: "More for gh-org" })).toBeNull();
   });
 
   it("shows a server nobody curated rather than hiding it", async () => {
@@ -389,7 +449,9 @@ describe("McpServerList", () => {
     await mount({ own: [crm] });
 
     expect(screen.getByText("internal-crm")).toBeInTheDocument();
-    expect(screen.getByText("not in the catalog")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("group", { name: "internal-crm" })).getByText("Your account"),
+    ).toBeInTheDocument();
   });
 
   it("marks each card with the service's own logo", async () => {
@@ -399,12 +461,12 @@ describe("McpServerList", () => {
     // class name, because that is the property a reader actually depends on.
     await mount();
 
-    const glyph = (server: string) =>
-      screen.getByRole("group", { name: server }).querySelector("svg path")?.getAttribute("d");
+    const mark = (server: string) =>
+      screen.getByRole("group", { name: server }).querySelector("img")?.getAttribute("src");
 
-    expect(glyph("GitHub")).toBeTruthy();
-    expect(glyph("Linear")).toBeTruthy();
-    expect(glyph("GitHub")).not.toBe(glyph("Linear"));
+    expect(mark("GitHub")).toBeTruthy();
+    expect(mark("Linear")).toBeTruthy();
+    expect(mark("GitHub")).not.toBe(mark("Linear"));
   });
 
   it("falls back to a monogram for a server the catalog has never heard of", async () => {
@@ -434,10 +496,11 @@ describe("McpServerList", () => {
     // test above would pass against a page with no logos at all.
     await mount();
 
-    const mark = screen.getByRole("group", { name: "GitHub" }).querySelector("[aria-hidden]");
-
-    expect(mark?.tagName).toBe("svg");
-    expect(mark?.textContent).not.toBe("G");
+    // GitHub's address has a baked logo, so it is drawn in its own colours.
+    const logo = screen.getByRole("group", { name: "GitHub" }).querySelector("[aria-hidden]");
+    expect(logo?.tagName).toBe("IMG");
+    expect(logo?.getAttribute("src")).toMatch(/^data:image\//);
+    expect(logo?.textContent).not.toBe("G");
   });
 
   it("narrows the grid to what was searched for", async () => {
@@ -450,6 +513,19 @@ describe("McpServerList", () => {
 
     expect(screen.getByRole("group", { name: "GitHub" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Linear" })).toBeNull();
+  });
+
+  it("narrows to servers asking for one kind of sign-in (#2103)", async () => {
+    await mount();
+    const tokenOnly = CATALOG.items.find((entry) => entry.auth === "token");
+    const oauthOnly = CATALOG.items.find((entry) => entry.auth === "oauth");
+    expect(tokenOnly && oauthOnly).toBeTruthy();
+
+    await userEvent.click(screen.getByLabelText("Sign-in"));
+    await userEvent.click(screen.getByRole("option", { name: "OAuth" }));
+
+    expect(await screen.findByRole("group", { name: oauthOnly!.name })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: tokenOnly!.name })).toBeNull();
   });
 
   it("filters to what somebody has actually connected", async () => {
@@ -472,7 +548,8 @@ describe("McpServerList", () => {
     await mount({ org: [connection()] });
 
     const connections = await openConnections();
-    await userEvent.click(connections.getByRole("button", { name: "Disconnect" }));
+    await userEvent.click(connections.getByRole("button", { name: /^More for / }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Disconnect" }));
 
     // A real dialog, not window.confirm, and its description names the server.
     // Two are open by now - the connections modal underneath it - so the confirm
@@ -503,7 +580,10 @@ describe("McpServerList", () => {
     // looked at. The favicon-service fallback this replaces did both.
     await mount({ org: [connection()] });
 
-    expect(document.querySelectorAll("img")).toHaveLength(0);
+    // The colour logos are baked into the bundle as data URIs.
+    const sources = [...document.querySelectorAll("img")].map((img) => img.getAttribute("src"));
+    expect(sources.length).toBeGreaterThan(0);
+    for (const src of sources) expect(src).toMatch(/^data:image\//);
   });
 });
 
@@ -534,8 +614,8 @@ describe("several accounts on one server", () => {
     // One card, whatever it holds.
     expect(screen.getAllByRole("group", { name: "GitHub" })).toHaveLength(1);
     expect(
-      within(githubRow()).getByRole("button", { name: /Manage connections/ }),
-    ).toHaveTextContent("2 connections");
+      within(githubRow()).getByRole("button", { name: "Manage 2 connections on GitHub" }),
+    ).toHaveTextContent("2");
 
     const dialog = await openConnections();
     expect(dialog.getByText("gh-readonly")).toBeInTheDocument();
@@ -547,8 +627,9 @@ describe("several accounts on one server", () => {
 
     const dialog = await openConnections();
     // The organization's section, where `github` is already taken.
-    await userEvent.click(dialog.getByRole("button", { name: "Connect another" }));
+    await userEvent.click(dialog.getByRole("button", { name: "Add account" }));
 
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     expect(await screen.findByLabelText("Tool prefix")).toHaveValue("github-2");
   });
 
@@ -561,6 +642,7 @@ describe("several accounts on one server", () => {
     const row = within(screen.getByRole("group", { name: "Some Thing" }));
     await userEvent.click(row.getByRole("button", { name: "Connect" }));
 
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     expect(await screen.findByLabelText("Tool prefix")).toHaveValue("thing");
   });
 
@@ -571,7 +653,7 @@ describe("several accounts on one server", () => {
 
     expect(dialog.getByText("The only kind an agent can be bound to.")).toBeInTheDocument();
     expect(
-      dialog.getByText("Yours alone — your chat, and your direct messages in a channel."),
+      dialog.getByText("Yours alone - your chat, and your direct messages in a channel."),
     ).toBeInTheDocument();
   });
 });
@@ -591,7 +673,7 @@ describe("which of a member's own accounts an agent speaks as", () => {
     await mount({ own: TWO });
     const dialog = await openConnections();
 
-    expect(dialog.getAllByLabelText("Agents speak as this one")).toHaveLength(2);
+    expect(dialog.getAllByLabelText("Main account for agents")).toHaveLength(2);
   });
 
   it("offers nothing where there is no choice to make", async () => {
@@ -600,7 +682,7 @@ describe("which of a member's own accounts an agent speaks as", () => {
     await mount({ own: [connection({ id: "p1", name: "notion" })] });
     const dialog = await openConnections();
 
-    expect(dialog.queryByLabelText("Agents speak as this one")).toBeNull();
+    expect(dialog.queryByLabelText("Main account for agents")).toBeNull();
   });
 
   it("offers nothing for a connection with no catalog key", async () => {
@@ -615,7 +697,7 @@ describe("which of a member's own accounts an agent speaks as", () => {
     });
     const dialog = await openConnections();
 
-    expect(dialog.getAllByLabelText("Agents speak as this one")).toHaveLength(1);
+    expect(dialog.getAllByLabelText("Main account for agents")).toHaveLength(1);
   });
 
   it("records the nomination against the account it is beside", async () => {
@@ -625,7 +707,7 @@ describe("which of a member's own accounts an agent speaks as", () => {
     vi.mocked(apiClient.patch).mockResolvedValue({ ...TWO[1], is_default: true });
     const dialog = await openConnections();
 
-    const [, side] = dialog.getAllByLabelText("Agents speak as this one");
+    const [, side] = dialog.getAllByLabelText("Main account for agents");
     await userEvent.click(side!);
 
     await waitFor(() =>
@@ -644,7 +726,7 @@ describe("which of a member's own accounts an agent speaks as", () => {
     });
     const dialog = await openConnections();
 
-    const boxes = dialog.getAllByLabelText("Agents speak as this one");
+    const boxes = dialog.getAllByLabelText("Main account for agents");
     expect(boxes[0]).toBeChecked();
     expect(boxes[1]).not.toBeChecked();
   });
@@ -686,6 +768,8 @@ describe("naming a connection something a person can read", () => {
 
     await within(githubRow()).getByRole("button", { name: "Connect" }).click();
     const form = within(await screen.findByRole("dialog"));
+    await userEvent.click(form.getByRole("radio", { name: /^One shared account/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     await userEvent.type(form.getByLabelText("Name"), "  Marketing workspace  ");
     await userEvent.click(form.getByRole("button", { name: /Connect/ }));
 
@@ -723,6 +807,7 @@ describe("naming a connection something a person can read", () => {
 
     await userEvent.click(within(githubRow()).getByRole("button", { name: "Connect" }));
     const form = within(await screen.findByRole("dialog"));
+    await userEvent.click(await screen.findByRole("button", { name: "More options" }));
     await userEvent.type(form.getByLabelText("Name"), "Company Wiki");
 
     expect(form.getByLabelText("Tool prefix")).toHaveValue("github");
@@ -736,6 +821,7 @@ describe("naming a connection something a person can read", () => {
 
     await within(githubRow()).getByRole("button", { name: "Connect" }).click();
     const form = within(await screen.findByRole("dialog"));
+    await userEvent.click(form.getByRole("radio", { name: /^One shared account/ }));
     await userEvent.click(form.getByRole("button", { name: /Connect/ }));
 
     // The create, not the probe `handleTools` fires straight after it.
@@ -757,7 +843,8 @@ describe("naming a connection something a person can read", () => {
     vi.mocked(apiClient.patch).mockResolvedValue(connection({ id: "p1", name: "notion" }));
     const dialog = await openConnections();
 
-    await userEvent.click(dialog.getByRole("button", { name: "Edit" }));
+    await userEvent.click(dialog.getByRole("button", { name: "More for Marketing workspace" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
     const form = within(await screen.findByRole("dialog"));
     await userEvent.clear(form.getByLabelText("Name"));
     await userEvent.click(form.getByRole("button", { name: "Save" }));
@@ -776,7 +863,8 @@ describe("naming a connection something a person can read", () => {
     });
     const dialog = await openConnections();
 
-    await userEvent.click(dialog.getByRole("button", { name: "Edit" }));
+    await userEvent.click(dialog.getByRole("button", { name: "More for Marketing workspace" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
 
     const form = within(await screen.findByRole("dialog"));
     expect(form.getByLabelText("Name")).toHaveValue("Marketing workspace");
@@ -882,7 +970,7 @@ describe("arriving with ?connect=<catalog key>", () => {
     await mount();
 
     const dialog = within(await screen.findByRole("dialog"));
-    expect(dialog.getByRole("radio", { name: "You" })).toBeChecked();
+    expect(dialog.getByRole("radio", { name: /^My own account/ })).toBeChecked();
     expect(window.location.search).toBe("");
   });
 

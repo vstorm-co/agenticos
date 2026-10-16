@@ -4,9 +4,12 @@ import { useState } from "react";
 import { CalendarClock, Zap } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import type { TriggerTemplate } from "@/types/trigger-templates";
+
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ScheduledTab } from "@/components/runs/scheduled-tab";
 import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-dialog";
+import { RoutineIdeas } from "@/components/triggers/routine-ideas";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { Button } from "@/components/ui";
 import { useCanCreateTrigger } from "@/hooks";
@@ -28,6 +31,7 @@ export default function RoutinesPage() {
   const tt = useTranslations("triggers");
   const canCreate = useCanCreateTrigger();
   const [creatingSchedule, setCreatingSchedule] = useState(false);
+  const [idea, setIdea] = useState<TriggerTemplate | null>(null);
   const [creatingEvent, setCreatingEvent] = useState(false);
 
   return (
@@ -59,12 +63,26 @@ export default function RoutinesPage() {
         <ScheduledTab />
       </div>
 
+      {canCreate && (
+        <RoutineIdeas
+          onPick={(template) => {
+            setIdea(template);
+            setCreatingSchedule(true);
+          }}
+        />
+      )}
+
       {creatingSchedule && (
         <TriggerFormDialog
           agentId={null}
           open
           initialType="schedule"
-          onOpenChange={(next) => !next && setCreatingSchedule(false)}
+          initialTemplate={idea}
+          onOpenChange={(next) => {
+            if (next) return;
+            setCreatingSchedule(false);
+            setIdea(null);
+          }}
         />
       )}
 

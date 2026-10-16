@@ -59,7 +59,7 @@ Read the change in the context of the system, not as a diff. For each file, chec
 `python3 scripts/docs_drift.py`; it names the pages owed. A refactor with no
 behaviour change owes nothing — say so rather than editing a page for the sake of
 it. The trigger map is in `scripts/docs_drift.py`; the topic index is in
-`CLAUDE.md` under *Documentation*.
+`AGENTS.md` under *Documentation*.
 
 Run checks relevant to the changed code and any suspected defects. Use frontend
 checks for frontend changes and backend checks for backend changes; do not treat a

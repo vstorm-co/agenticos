@@ -1,5 +1,5 @@
 ---
-source_sha: "854111718543"
+source_sha: "e32baf02f7e8"
 ---
 
 # Context-Dateien { #context-files }
@@ -93,6 +93,11 @@ Die Capability hat eine Einstellung, die zu kennen lohnt. Das Lese-Tool
 **abzuschalten** heißt, dass nur injizierte Dateien das Modell erreichen und
 nichts auf Anforderung gelesen wird — eine vernünftige Wahl, wenn Sie die Eingaben
 eines Agents vollständig vorhersehbar haben wollen.
+
+Man kann auch bei der Datei anfangen: **Zu einem Agenten hinzufügen** auf ihrer
+Karte fügt sie dem Entwurf des Agenten hinzu, mit eingeschalteter
+Kontext-Capability, und die Karte sagt, welche Agents sie schon tragen. Eine
+Wissensdatenbank hat dieselbe Aktion auf ihrer eigenen Seite.
 
 ## Zugriff { #access }
 

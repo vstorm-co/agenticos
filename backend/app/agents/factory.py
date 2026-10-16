@@ -35,6 +35,7 @@ from app.agents.capabilities.approval import (
     refuse_ungateable_approvals,
 )
 from app.agents.capabilities.artifacts import ARTIFACTS_CAPABILITY_ID
+from app.agents.capabilities.browser_use import BROWSER_CAPABILITY_ID
 from app.agents.capabilities.budget import (
     BudgetGuard,
     BudgetScope,
@@ -69,6 +70,7 @@ from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.spec import AgentSpec
+from app.agents.steering import Steering
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
 logger = logging.getLogger(__name__)
@@ -81,6 +83,7 @@ logger = logging.getLogger(__name__)
 _AUDIENCE_AWARE = frozenset(
     {
         ARTIFACTS_CAPABILITY_ID,
+        BROWSER_CAPABILITY_ID,
         MEMORY_FILES_CAPABILITY_ID,
         MEMORY_MEM0_CAPABILITY_ID,
         CONVERSATION_SEARCH_CAPABILITY_ID,
@@ -165,6 +168,7 @@ def build_agent(
     agent_period_spend: PeriodSpendLookup | None = None,
     org_period_spend: PeriodSpendLookup | None = None,
     org_monthly_budget_usd: Decimal | None = None,
+    group_limits: Sequence[SpendLimit] = (),
     request_approval: ApprovalCallback | None = None,
     gate_every_tool: bool = False,
     shared_budget: BudgetGuard | None = None,
@@ -211,6 +215,9 @@ def build_agent(
             its neighbours' spending.
         org_monthly_budget_usd: The organization-wide cap, which applies on top
             of whatever the agent's own spec asks for.
+        group_limits: The monthly caps of the departments the person running
+            this is in (#2072), each metering its own members' spend. Built by
+            the caller, which knows who that person is; a spec does not.
         request_approval: How to put a gated tool call to a human. Omitted on a
             surface that cannot ask anyone, where the gate refuses instead.
         shared_budget: The guard - and therefore the ledger - of the run this
@@ -332,6 +339,7 @@ def build_agent(
                 agent_period_spend=agent_period_spend,
                 org_period_spend=org_period_spend,
                 org_monthly_budget_usd=org_monthly_budget_usd,
+                group_limits=group_limits,
             ),
         )
     )
@@ -357,6 +365,10 @@ def build_agent(
         # system prompt is cheap insurance for an agent whose behaviour *is* its
         # instructions.
         ReinjectSystemPrompt(),
+        # Before every configured capability: it writes the person's mid-run
+        # words into the history, and a compaction strategy that rebuilds the
+        # request from that history must find them there.
+        Steering(),
         budget,
         *(
             ()
@@ -475,6 +487,7 @@ def _spend_limits(
     agent_period_spend: PeriodSpendLookup | None,
     org_period_spend: PeriodSpendLookup | None,
     org_monthly_budget_usd: Decimal | None,
+    group_limits: Sequence[SpendLimit] = (),
 ) -> list[SpendLimit]:
     """Every ceiling this run is under, narrowest first.
 
@@ -499,7 +512,8 @@ def _spend_limits(
     the one nearest the person reading it. The organization's is deliberately
     last: it is the one an agent's author cannot raise, and hearing about it
     first would send them to somebody else for a limit they could have fixed
-    themselves.
+    themselves. A department's caps sit between the two: an author cannot
+    raise one either, but it binds fewer people than the organization's.
     """
     limits: list[SpendLimit] = []
     if spec.budget is not None and spec.budget.monthly_usd is not None:
@@ -510,6 +524,7 @@ def _spend_limits(
                 period_spend=agent_period_spend,
             )
         )
+    limits.extend(group_limits)
     if org_monthly_budget_usd is not None:
         limits.append(
             SpendLimit(

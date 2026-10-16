@@ -301,7 +301,7 @@ deps-upgrade-all:
 #
 # The frontend half was missing entirely until #143: `make lint` ran ruff, ty and
 # the guard scripts, while CI additionally ran eslint, prettier and tsc - so
-# `make lint` passed on a branch with a type error in a `.tsx`, and CLAUDE.md's
+# `make lint` passed on a branch with a type error in a `.tsx`, and AGENTS.md's
 # "ruff + ty + eslint + tsc" described a command that ran half of that.
 lint: lint-backend lint-frontend lint-spelling lint-precommit
 
@@ -411,9 +411,11 @@ format:
 # === Testing ===
 # `test` is the gate: it fails if platform-layer coverage drops below 100%.
 #
-# CI overrides the report because Codecov wants XML and a terminal diff is no use
-# in a log nobody reads when it is green. Same run, same gate, either way.
+# CI overrides the report because Codecov wants XML. The terminal list of
+# uncovered lines is kept beside it, files at 100% skipped: a red gate that says
+# only "99.99%" sends whoever reads it hunting through every module by hand.
 COV_REPORT ?= term-missing
+COV_TERM := $(if $(findstring term,$(COV_REPORT)),,--cov-report=term-missing:skip-covered)
 
 # `-n auto --maxprocesses 4`: run across worker processes. The integration
 # suite is I/O-bound on one Postgres and roughly halves; the unit suite is
@@ -423,7 +425,7 @@ COV_REPORT ?= term-missing
 # per-worker data, so the 100% gate holds unchanged. A scoped `pytest <file>`
 # stays serial: worker startup is not worth paying for one file.
 test:
-	uv run --directory backend pytest tests/ -v --cov --cov-report=$(COV_REPORT) -n auto --maxprocesses 4
+	uv run --directory backend pytest tests/ -v --cov --cov-report=$(COV_REPORT) $(COV_TERM) -n auto --maxprocesses 4
 
 # Fast loop while writing code — no coverage, no gate.
 test-fast:

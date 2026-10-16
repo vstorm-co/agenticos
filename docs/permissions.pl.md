@@ -1,5 +1,5 @@
 ---
-source_sha: "0f2e647408d7"
+source_sha: "cf1f7216bba3"
 ---
 
 # Uprawnienia { #permissions }
@@ -92,10 +92,15 @@ wartość z `OrgRoleName`. To tutaj zapada zdecydowana większość decyzji.
 
 Dwa rodzaje uprawnień, i zachowują się różnie.
 
-**Globalne** uprawnienia są binarne i obejmują całą organizację: `members:manage`,
+**Globalne** uprawnienia są binarne i obejmują całą organizację: `members:view`, `members:manage`,
 `roles:manage`, `org:settings`, `org:delete`, `budgets:manage`,
-`approvals:decide`, `connections:view`, `connections:manage`, `mcp:manage`,
-`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`.
+`approvals:decide`, `connections:view`, `connections:manage`,
+`channels:manage`, `runs:view`, `audit:read`, `ml:invoke`, `api_keys:create`, `api_keys:manage`.
+
+`api_keys:create` pozwala członkowi wydawać [klucze
+API](api.md#organization-api-keys) dla siebie; `api_keys:manage` pokazuje i
+unieważnia klucze wszystkich. Klucz trzyma podzbiór tych uprawnień, nigdy
+więcej, niż jego wydający ma teraz.
 
 !!! example "Dlaczego `ml:invoke` to nie `agents:run`"
 
@@ -124,6 +129,11 @@ Dwa rodzaje uprawnień, i zachowują się różnie.
 Uprawnienia **zasobowe** niosą `Scope`, ponieważ odpowiadają na drugie pytanie,
 na które rola nie potrafi: nie „czy ta rola może ruszać agentów?”, lecz *których*
 agentów.
+
+Jednym z nich jest `mcp:manage`: serwer MCP organizacji można zawęzić do grup lub
+osób, tak jak skill ([Działy](departments.md#a-departments-mcp-servers)). Rola z
+nim na poziomie `SHARED` widzi serwery organizacji, własne i te jej udostępnione;
+`ALL` widzi każdy.
 
 ### Scope { #scope }
 
@@ -154,10 +164,10 @@ własnych.
 |---|---|---|---|---|
 | `owner` | jest właścicielem organizacji | wszystko `ALL` | `ALL` | wszystko, łącznie z `org:delete` |
 | `admin` | prowadzi ją na co dzień | wszystko `ALL` | `ALL` | wszystko **poza** `org:delete` |
-| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke` |
-| `operator` | utrzymuje działający system w zdrowiu | `view`/`run` `ALL`, bez edycji | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke` |
-| `member` | codzienny użytkownik | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke` |
-| `viewer` | czyta | `view` `SHARED` | żadne | żadne |
+| `builder` | buduje i uczy się od całej organizacji | `view`/`run` `ALL`, `edit`/`publish` `SHARED` | `view` `SHARED`, `edit` `OWN` | `mcp:manage` `SHARED`, `connections:view`+`connections:manage`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `operator` | utrzymuje działający system w zdrowiu | `view`/`run` `ALL`, bez edycji | `view` `SHARED` | `approvals:decide`, `connections:view`, `runs:view`, `ml:invoke`, `api_keys:create`, `members:view` |
+| `member` | codzienny użytkownik | `view`/`run` `SHARED`, `edit` `OWN` | `view` `SHARED`, `edit` `OWN` | `ml:invoke`, `api_keys:create`, `members:view` |
+| `viewer` | czyta | `view` `SHARED` | żadne | `members:view` |
 
 Rozróżnienie między `builder` a `admin` jest tym ciekawym: builder widzi całą
 organizację, żeby się od niej uczyć, ale edytuje tylko to, co jego albo co z nim
@@ -258,6 +268,12 @@ robi.
 | `read` | zobaczyć konfigurację |
 | `use` | dodatkowo uruchomić go albo podpiąć |
 | `edit` | dodatkowo go zmienić |
+
+W konsoli to jeden dialog, tak jak udostępnia się dokument: przycisk **Share**
+przy agencie, skillu, bazie wiedzy lub pliku kontekstu - w dowolnej chwili po
+utworzeniu, nie tylko przy tworzeniu - dodaje osobę lub grupę na danym poziomie, pokazuje, kto ma dostęp, z
+właścicielem na początku, i ustawia **Dostęp ogólny** - *Tylko osoby z dostępem*
+to `private`, *Wszyscy w organizacji* to `org`.
 
 Grant dla grupy sięga do każdego, kto jest w grupie w chwili sprawdzania dostępu,
 więc dołączenie do grupy oznacza zyskanie dostępu, a odejście z niej — jego

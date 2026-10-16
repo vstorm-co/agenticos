@@ -318,15 +318,20 @@ class TestTheScheduledSweep:
     """The flow around the service. Thin on purpose - what it must not do is
     swallow the count, since that is all a Prefect run reports."""
 
-    async def test_the_flow_answers_with_what_it_expired(self):
+    @pytest.mark.parametrize("unanswered", [0, 2])
+    async def test_the_flow_answers_with_what_it_expired(self, unanswered: int):
+        service = MagicMock(
+            expire_stale=AsyncMock(return_value=3),
+            expire_unanswered=AsyncMock(return_value=unanswered),
+        )
         with (
             patch("app.worker.tasks.approval_tasks.get_db_context") as db_context,
-            patch(
-                "app.worker.tasks.approval_tasks.ApprovalService",
-                return_value=MagicMock(expire_stale=AsyncMock(return_value=3)),
-            ),
+            patch("app.worker.tasks.approval_tasks.ApprovalService", return_value=service),
         ):
             db_context.return_value.__aenter__ = AsyncMock(return_value=_db())
             db_context.return_value.__aexit__ = AsyncMock(return_value=False)
 
             assert await approval_expiry_sweep_flow() == 3
+
+        # The unanswered questions are swept in the same pass (#2064).
+        service.expire_unanswered.assert_awaited_once()

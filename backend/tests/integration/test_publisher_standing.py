@@ -13,6 +13,7 @@ recorded, and no longer able to sign in.
 
 from __future__ import annotations
 
+import re
 import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -123,6 +124,11 @@ async def test_a_publisher_context_is_always_flagged_a_fallback() -> None:
     assert ctx.role == OrgRoleName.VIEWER.value
 
 
+# A site that *decides* the flag - to a constant, or from a row - rather than one
+# passing an existing context's value along.
+_SETS_THE_FLAG = r"subject_is_publisher_fallback=(True|not [^,\n)]+)"
+
+
 def test_only_publisher_context_sets_the_fallback_flag() -> None:
     """The N1 guarantee that per-user memory never leaks into the owner's store
     rests on `subject_is_publisher_fallback` being set `True` only where the id in
@@ -136,12 +142,19 @@ def test_only_publisher_context_sets_the_fallback_flag() -> None:
     Two sites are legitimate: `services/access.py` mints the publisher-standing
     context for a hosted/widget run, and `services/agent_trigger.py` mints the
     fired-run context whose `user_id` is the trigger *creator* (the authority an
-    unattended run executes under), which must not become a memory end-user (#788).
+    unattended run executes under), which must not become a memory end-user (#788)
+    - unless the creator let that trigger act as them, which is why the trigger
+    site sets it from the row rather than to a constant (#2027).
     """
     app_root = Path(__file__).resolve().parents[2] / "app"
-    setters = sorted(
-        path.relative_to(app_root).as_posix()
+    setters = {
+        path.relative_to(app_root).as_posix(): sorted(
+            set(re.findall(_SETS_THE_FLAG, path.read_text(encoding="utf-8")))
+        )
         for path in app_root.rglob("*.py")
-        if "subject_is_publisher_fallback=True" in path.read_text(encoding="utf-8")
-    )
-    assert setters == ["services/access.py", "services/agent_trigger.py"], setters
+        if re.search(_SETS_THE_FLAG, path.read_text(encoding="utf-8"))
+    }
+    assert setters == {
+        "services/access.py": ["True"],
+        "services/agent_trigger.py": ["not trigger.runs_as_creator"],
+    }, setters

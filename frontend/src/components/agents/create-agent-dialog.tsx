@@ -1,13 +1,16 @@
 "use client";
 
+import {
+  AudiencePicker,
+  EVERYONE,
+  audiencePayload,
+  type Audience,
+} from "@/components/sharing/audience-picker";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { AgentStatusBadge } from "@/components/agents/status-badge";
 import { ChipsInput } from "@/components/agents/chips-input";
-import { AvatarFace } from "@/components/ui/avatar-face";
 import {
-  Badge,
   Button,
   Dialog,
   DialogContent,
@@ -18,27 +21,21 @@ import {
   FormField,
   Input,
   Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  MoreOptions,
   Textarea,
 } from "@/components/ui";
-import { useAgents } from "@/hooks";
+import { useAgents, useCapabilityCatalog } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import type { Agent } from "@/types/agents";
-import type { Visibility } from "@/types/sharing";
 import { useTranslations } from "next-intl";
-import { DIALOG_COLUMN, DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
+import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
 
 /** What the backend will accept, so a longer name is refused before it is sent. */
 const MAX_NAME = 128;
 const MAX_DESCRIPTION = 1000;
-/** The caps the server enforces, so a chip too many is refused before it is sent. */
-const MAX_CATEGORIES = 10;
-const MAX_TAGS = 20;
+/** The longest label the server stores, so a longer chip is refused before it is sent. */
 const MAX_LABEL = 32;
 
 /**
@@ -79,13 +76,20 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const tAgents = useTranslations("pages.agents");
-  const { create } = useAgents();
+  const { create, categoryOptions, tagOptions } = useAgents();
+  // A new agent starts with what the starter agent has - the Claude Code like
+  // template - so it can ask, plan, search, work in a sandbox and delegate from
+  // its first run; its author switches off what it should not do.
+  const { capabilities: catalog, isLoading: catalogLoading } = useCapabilityCatalog();
+  const starter = catalog.flatMap((entry) =>
+    entry.recommended ? [{ ...entry.recommended, enabled: true }] : [],
+  );
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   // Organization by default. An agent is a thing a company builds, and one
   // nobody else can find is the exception - it used to be the rule, so every
   // agent was made invisible and then shared by hand.
-  const [visibility, setVisibility] = useState<Visibility>("org");
+  const [audience, setAudience] = useState<Audience>(EVERYONE);
   const [categories, setCategories] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
@@ -108,20 +112,20 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           instructions: "",
           model_profile_id: null,
           model_settings: {},
-          capabilities: [],
+          capabilities: starter,
           collection_ids: [],
           skill_ids: [],
           context_ids: [],
           mcp_servers: [],
           budget: null,
         },
-        visibility,
+        ...audiencePayload(audience),
         categories,
         tags,
       });
       setName("");
       setDescription("");
-      setVisibility("org");
+      setAudience(EVERYONE);
       setCategories([]);
       setTags([]);
       setErrors({});
@@ -149,7 +153,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
           editors and a preview that gets taller with every tag, which on a phone
           or a short window pushed the header and the Create button off the
           screen with nothing to scroll - a dialog you cannot submit. */}
-      <DialogContent className={cn(DIALOG_CONFIRM, DIALOG_COLUMN)}>
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("newAgent")}</DialogTitle>
           <DialogDescription>{t("startsAsDraftNothing")}</DialogDescription>
@@ -158,7 +162,7 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
             how the body grows past the dialog's own ceiling instead of scrolling
             inside it. The side padding keeps a focus ring off the scroller's
             edge, where it would be sliced. */}
-        <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-1">
+        <div className={cn(DIALOG_BODY, "space-y-4")}>
           <FormField
             label={t("name4")}
             htmlFor="agent-name"
@@ -179,121 +183,72 @@ export function CreateAgentDialog({ open, onOpenChange, onCreated }: CreateAgent
               maxLength={MAX_NAME}
             />
           </FormField>
-          <FormField
-            label={t("description")}
-            htmlFor="agent-description"
-            error={errors.description}
-          >
-            <Textarea
-              value={description}
-              onChange={(event) => edit("description", event.target.value)}
-              placeholder={t("answersCustomerQuestionsFrom")}
-              maxLength={MAX_DESCRIPTION}
-              rows={2}
-            />
-          </FormField>
           <div className="space-y-1.5">
-            <Label htmlFor="agent-visibility">{t("whoCanFindIt")}</Label>
-            <Select
-              value={visibility}
-              onValueChange={(value) => setVisibility(value as Visibility)}
+            <Label>{t("whoCanFindIt")}</Label>
+            <AudiencePicker value={audience} onChange={setAudience} />
+          </div>
+
+          {/* Optional, and folded: a draft needs a name and an audience, and the
+              catalog details can wait for the detail page - which changes them
+              later without a publish. */}
+          <MoreOptions label={t("moreOptions")}>
+            <FormField
+              label={t("description")}
+              htmlFor="agent-description"
+              error={errors.description}
             >
-              <SelectTrigger id="agent-visibility">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="org">{t("visibilityOrg")}</SelectItem>
-                <SelectItem value="private">{t("visibilityPrivate")}</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-muted-foreground text-xs">
-              {t(visibility === "org" ? "visibilityOrgHint" : "visibilityPrivateHint")}
-            </p>
-          </div>
-
-          {/* Side by side, because they are two halves of one question - and the
-              preview below shows what they look like on the row, which is where
-              somebody will read them back. Optional: the detail page changes
-              them later without a publish. */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>{tAgents("categories")}</Label>
-              <ChipsInput
-                values={categories}
-                onChange={setCategories}
-                inputLabel={tAgents("addCategory")}
-                removeLabel={(value) => tAgents("removeCategory", { value })}
-                placeholder={tAgents("addCategoryPlaceholder")}
-                maxItems={MAX_CATEGORIES}
-                maxLength={MAX_LABEL}
+              <Textarea
+                value={description}
+                onChange={(event) => edit("description", event.target.value)}
+                placeholder={t("answersCustomerQuestionsFrom")}
+                maxLength={MAX_DESCRIPTION}
+                rows={2}
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>{tAgents("tags")}</Label>
-              <ChipsInput
-                values={tags}
-                onChange={setTags}
-                inputLabel={tAgents("addTag")}
-                removeLabel={(value) => tAgents("removeTag", { value })}
-                placeholder={tAgents("addTagPlaceholder")}
-                maxItems={MAX_TAGS}
-                maxLength={MAX_LABEL}
-              />
-            </div>
-          </div>
-
-          {/* The row this is about to become, drawn from what has been typed.
-              The handle and the description are what a colleague scanning the
-              catalog reads, and they are easier to judge as a row than as three
-              fields - a name that looked fine in an input is the one that
-              truncates here. */}
-          <div className="space-y-1.5">
-            <Label>{t("preview")}</Label>
-            <div className="border-border bg-card rounded-xl border p-3">
-              <div className="flex items-start justify-between gap-2">
-                {/* The real face, not a placeholder: an agent's is drawn from its
-                    handle, and the handle is derived from the name on every
-                    keystroke - so this is the picture the agent will actually
-                    wear, changing as somebody types their way to it. */}
-                <span className="mr-3 h-9 w-9 shrink-0 overflow-hidden rounded-full">
-                  <AvatarFace seed={deriveHandle(name || t("handlePlaceholder"))} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-foreground truncate font-medium">
-                    {name.trim() || t("supportCopilot")}
-                  </p>
-                  <p className="text-muted-foreground truncate font-mono text-xs">
-                    @{deriveHandle(name || t("handlePlaceholder"))}
-                  </p>
-                </div>
-                <AgentStatusBadge status="draft" />
+            </FormField>
+            {/* Side by side: two halves of one question. */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>{tAgents("categories")}</Label>
+                <ChipsInput
+                  values={categories}
+                  onChange={setCategories}
+                  inputLabel={tAgents("addCategory")}
+                  removeLabel={(value) => tAgents("removeCategory", { value })}
+                  placeholder={tAgents("addCategoryPlaceholder")}
+                  suggestions={categoryOptions}
+                  suggestionsLabel={tAgents("inCategoryUse")}
+                  maxItems={MAX_AGENT_CATEGORIES}
+                  maxLength={MAX_LABEL}
+                />
               </div>
-              <p className="text-muted-foreground mt-2 line-clamp-2 min-h-[2.5rem] text-sm">
-                {description.trim() || t("answersCustomerQuestionsFrom")}
-              </p>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                <Badge variant="outline">
-                  {t(visibility === "org" ? "visibilityOrg" : "visibilityPrivate")}
-                </Badge>
-                {categories.map((value) => (
-                  <Badge key={value} variant="secondary">
-                    {value}
-                  </Badge>
-                ))}
-                {tags.map((value) => (
-                  <span key={value} className="text-muted-foreground text-xs">
-                    #{value}
-                  </span>
-                ))}
+              <div className="space-y-1.5">
+                <Label>{tAgents("tags")}</Label>
+                <ChipsInput
+                  values={tags}
+                  onChange={setTags}
+                  inputLabel={tAgents("addTag")}
+                  removeLabel={(value) => tAgents("removeTag", { value })}
+                  placeholder={tAgents("addTagPlaceholder")}
+                  suggestions={tagOptions}
+                  suggestionsLabel={tAgents("inTagUse")}
+                  maxItems={MAX_AGENT_TAGS}
+                  maxLength={MAX_LABEL}
+                />
               </div>
             </div>
-          </div>
+          </MoreOptions>
         </div>
-        <DialogFooter>
+        <DialogFooter className="items-center">
+          <p className="text-muted-foreground mr-auto hidden text-xs sm:block">
+            {t("startsWithRecommended", { count: starter.length })}
+          </p>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel2")}
           </Button>
-          <Button onClick={handleCreate} disabled={!name.trim() || create.isPending}>
+          <Button
+            onClick={handleCreate}
+            disabled={!name.trim() || create.isPending || catalogLoading}
+          >
             {t("create")}
           </Button>
         </DialogFooter>

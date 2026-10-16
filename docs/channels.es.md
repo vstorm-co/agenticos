@@ -1,5 +1,5 @@
 ---
-source_sha: "c0858ab0af15"
+source_sha: "6460bba9d44c"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -105,6 +105,11 @@ En el Builder, abre el agent → **Availability** → *Website widget*. Eliges:
   vacía, lo que dice el botón lanzador, el color de acento y en qué esquina se
   coloca. Los siete, y el saludo lo dibuja el widget en vez de enviarlo al modelo:
   un saludo en el historial del modelo es un turno que el agent cree haber dado.
+- **Mensajes sugeridos** — hasta cuatro primeros mensajes como botones bajo el
+  saludo; un clic envía uno como el visitante.
+- **Fuentes** — desactivadas por defecto. Activadas, una respuesta apoyada en la
+  base de conocimiento nombra esos documentos debajo: solo los nombres de archivo,
+  nunca los pasajes, en un frame `sources` propio.
 - **Contexto** — una nota añadida al primer mensaje del visitante: *«Estás en la
   página de precios»*, *«Responde en alemán»*. Nunca sustituye a las instrucciones
   propias del agent, que pertenecen a la versión publicada.
@@ -287,6 +292,7 @@ Cada frame lleva `{ "type": …, "data": { … } }`.
 | `tool_call` | `tool_call_id`, `tool_name`, `args` | Un paso. `args` solo cuando el operador muestra los resultados. |
 | `tool_call_delta` | `index`, `args_delta` | Los argumentos de una llamada según llegan. |
 | `tool_result` | `tool_call_id`, `content` | Lo que devolvió el paso. |
+| `sources` | `names` | Los documentos que devolvió una búsqueda en la base de conocimiento, por nombre. **Solo en un widget cuyo operador activó las fuentes**, y nunca los pasajes. |
 | `final_result_start` | `tool_name` | La respuesta la está produciendo una output tool. |
 | `final_result` | `output` | Con qué terminó el run. Vacío en un turno que quedó aparcado. |
 | `complete` | — | El turno ha terminado. **No lleva uso**: lo que costó un run es asunto del operador, no del visitante. |
@@ -310,10 +316,12 @@ llama (`app/agents/ask_user.py`) y el modelo sigue adelante y responde sin esa
 entrada — una respuesta degradada, no un run aparcado.
 
 **Un cliente ignora lo que no dibuja**, y `widget.js` es el ejemplo resuelto: lee
-`model_request_start`, `text_delta`, `final_result`, `complete` y `error`, e
-ignora el razonamiento y los pasos a propósito — una respuesta que llega palabra a
-palabra merece la pena en una burbuja en la esquina de una página, y una narración
-de llamadas a herramientas no. La página alojada los dibuja todos.
+`model_request_start`, `text_delta`, `final_result`, `complete` y `error` para la
+respuesta, `tool_call` y `tool_result` para mostrar cada paso como una etiqueta
+(*Buscando en la base de conocimiento*), y `sources` para los documentos que
+nombró una respuesta. Ignora el razonamiento a propósito. Lleva la cara del agent,
+convierte la respuesta de Markdown en nodos y no en HTML, sigue el tema claro u
+oscuro del visitante y ocupa toda la pantalla de un teléfono.
 
 **Códigos de cierre**
 
@@ -837,6 +845,65 @@ solo llamante — con `RATE_LIMIT_RUN_PER_MINUTE`.
     rangos de IP y la Enterprise-Managed Authorization de esa página tampoco se
     usan — déjalos en paz.
 
+### La app de Slack desde un manifiesto { #the-slack-app-from-one-manifest }
+
+Los pasos de arriba construyen la app a mano. Los ajustes del bot aquí también
+ofrecen **Copy Slack app manifest**: en Slack elige *Create New App → From a
+manifest*, pega, instala y vuelve a pegar aquí el token del bot y el signing
+secret. El manifiesto dirige cada petición a este despliegue y activa lo que hace
+del bot una app:
+
+- **El panel del asistente.** Un hilo nuevo en la vista de IA de Slack recibe tres
+  prompts sugeridos, y el hilo muestra *is thinking…* mientras el agent trabaja.
+- **App Home.** La pestaña propia del bot nombra su agent, dice cuántos runs de la
+  persona esperan una aprobación y enlaza a la consola y al Architect.
+- **`/agent <pregunta>`** pregunta al agent donde se escribió, y el atajo de
+  mensaje **Ask the agent about this** pregunta por un mensaje en su propio hilo.
+  Ambos se ejecutan exactamente como una mención: la misma comprobación de enlace,
+  los mismos límites y la misma auditoría.
+- **Botones** en aprobaciones y preguntas — ver
+  [Aprobaciones y preguntas como botones](#approvals-and-questions-as-buttons).
+- **Unfurls.** Un enlace de la consola a un agent de la organización muestra su
+  nombre.
+
+Un bot sirve a exactamente un agent, así que en un mensaje directo no hay selector
+de agent; un segundo agent es un segundo bot.
+
+El manifest es **org-ready**, así que un administrador de Enterprise Grid puede
+instalar la app una vez para todos los workspaces de la organización; un workspace
+corriente la instala como antes. Cada respuesta nombra el workspace de quien
+pregunta, que es lo que Slack necesita para transmitirla bajo Grid.
+
+### En qué sentido va la conexión { #which-way-the-connection-runs }
+
+Los ajustes del bot preguntan **cómo llega Slack a AgenticOS**:
+
+- **Slack llama a este deployment.** Slack envía cada mensaje a la dirección
+  pública de este deployment, verificada con el signing secret. El manifest nombra
+  las URLs.
+- **AgenticOS se conecta a Slack.** El deployment abre la conexión por sí mismo
+  (Socket Mode) con el token `xapp-` de nivel de app, así que no necesita dirección
+  pública - la opción para un deployment detrás de un firewall u on-premise. El
+  manifest activa Socket Mode y no nombra ninguna URL, porque nada respondería en
+  ella.
+
+El formulario pide solo la credencial que usa el sentido elegido.
+
+### Respuestas que Slack dibuja solo { #answers-slack-draws-itself }
+
+Las apps de IA de Slack dibujan una respuesta mientras se escribe en vez de
+editarla en su sitio. La respuesta se transmite bajo la pregunta, y cada cosa que
+hace el agent por el camino - una búsqueda web, una consulta al conocimiento, un
+cálculo - es una fila que pasa de en curso a hecha o fallida. Un paso que leyó
+páginas web las enlaza. Los ajustes del bot muestran los pasos como una **línea de
+tiempo** o como un **plan** encabezado por la pregunta, o desactivan la
+transmisión, que vuelve a una respuesta editada una vez por segundo. Lo mismo
+ocurre solo si Slack se niega a empezarla.
+
+Una tabla Markdown en la respuesta se dibuja como una tabla de Slack, y un gráfico
+llega como imagen, como siempre. Si la respuesta terminada no es lo transmitido -
+un guardrail de salida redactó algo -, el mensaje se reescribe entero.
+
 ### Scopes y events { #scopes-and-events }
 
 Trece bot token scopes, y cada uno se gana su sitio con una llamada que hace el
@@ -963,6 +1030,13 @@ que a un bot que se pasa de polling a modo webhook hay que registrarle el webhoo
 antes de que responda a nada: el secreto se acuña cuando cambia el modo, y Telegram
 solo se entera de él cuando se registra el webhook.
 
+El bot define su menú de comandos — `/agents` dice qué agent responde y qué hace,
+junto a `/new`, `/link` y `/help` —, muestra *escribiendo…* mientras trabaja y
+nombra el paso en el que está, envía las respuestas como HTML de Telegram
+convertido desde el Markdown del agent para que los bloques de código y los
+enlaces sobrevivan, y responde en el tema de un grupo con temas dentro de ese
+tema.
+
 ## Mattermost { #mattermost }
 
 Mattermost es autoalojado, así que un bot lleva **la URL de tu servidor** además de
@@ -1072,6 +1146,20 @@ justo el despliegue para el que existe esto. Las direcciones de metadatos de
 instancia son la excepción y se rechazan. La frontera que realmente sostiene esto
 es el permiso para gestionar bots de canal, no esta comprobación.
 
+Las aprobaciones y las preguntas llegan como botones. Mattermost llama a cada botón
+en `https://your-api.example.com/api/v1/mattermost/BOT_ID/actions`, así que el
+servidor de Mattermost tiene que alcanzar la API; en una red privada, añade el
+host de la API en *System Console → Developer → Allow untrusted internal
+connections to*.
+
+### `/agent` en Mattermost { #agent-in-mattermost }
+
+Un slash command pregunta al agent donde se escribió, como `/agent` en Slack. En
+Mattermost: *Integrations → Slash Commands → Add Slash Command*: palabra
+`agent`, método `POST` y la URL de solicitud que muestran los ajustes del bot.
+Mattermost muestra entonces un token; pégalo en el campo **Slash command token**
+del bot. Cada solicitud lo lleva, y un bot sin él las rechaza todas.
+
 ## Un bot que no puede arrancar se detiene, en vez de reintentar { #a-bot-that-cannot-start-stops-rather-than-retrying }
 
 El polling de Telegram, el Socket Mode de Slack y el stream de events de Mattermost
@@ -1101,7 +1189,95 @@ así que la política no puede desviarse entre ellas.
 
 ---
 
+## Aprobaciones y preguntas como botones { #approvals-and-questions-as-buttons }
+
+Un run iniciado en Slack, Telegram o Mattermost puede detenerse por una persona:
+una llamada a herramienta con aprobación espera una decisión, o el agent hace una
+pregunta `ask_user`. El chat recibe las opciones donde está — un mensaje por
+aprobación con **Approve** y **Reject**, un mensaje por pregunta con sus opciones
+y **Skip**. Pulsar uno decide o responde, el run continúa y su respuesta se
+publica en el mismo chat; el mensaje pulsado conserva la pregunta y muestra lo
+elegido.
+
+Una pregunta que admite varias respuestas queda abierta: cada pulsación añade o
+quita una opción, el chat recibe lo elegido hasta ahora y **Done** las envía. La ejecución sigue
+cuando todo aquello por lo que se detuvo está resuelto - cada aprobación decidida,
+cada pregunta que hizo respondida, en cuantos mensajes sea - y la última respuesta
+las envía todas juntas.
+
+Una pregunta que admite una respuesta con palabras propias — y una sin ninguna
+opción — lo dice debajo: el siguiente mensaje de esa persona en ese chat es la
+respuesta, no un turno nuevo junto a una ejecución que sigue esperando. Solo
+cuenta un mensaje de la persona a quien se hizo, y va a la pregunta más antigua.
+
+Una pregunta solo puede hacerse a un miembro vinculado. Un remitente sin cuenta
+vinculada se ejecuta como el publicador del binding, así que una pregunta que el
+agent le haga se rechaza y el turno sigue sin la respuesta, en vez de esperar a
+botones que solo el publicador podría pulsar.
+
+Una aprobación se lee como una petición del agent, con su propia voz: lo que quiere
+hacer y el único argumento que dice de qué trata — *I need your approval to
+**search in Notion**: “what's new in releases”*. Una herramienta de un servidor MCP
+se nombra por su servicio y su acción, no por su identificador con prefijo, y el
+resto de los argumentos se queda en **Approvals** de la consola, donde la misma
+petición empieza por esa línea y pliega lo demás tras **Details**.
+
+Una pulsación actúa como la persona que pulsó, mediante su cuenta enlazada:
+decidir requiere `approvals:decide`, y solo la persona a quien se preguntó puede
+responder. A quien no tiene cuenta enlazada se le pide `/link`. Un run espera una
+respuesta durante `QUESTION_EXPIRY_HOURS` y una decisión durante
+`APPROVAL_EXPIRY_HOURS`, como en cualquier otro sitio. Slack firma sus
+pulsaciones; Mattermost no firma nada, así que cada botón lleva la firma propia
+de este despliegue sobre su valor y una pulsación sin ella se rechaza.
+
+Quién pulsó
+tampoco se toma del cuerpo de la pulsación: el trigger id que el servidor de
+Mattermost firma en cada pulsación nombra a la persona y se comprueba con la clave
+pública que el servidor publica, así que una pulsación que nadie puede probar
+también se rechaza.
+
+**Una navegación que necesita a una persona.** Un agente con el
+[navegador web](reference/capabilities.md#browser-automation) publica en su paso el
+enlace a la vista en directo de la navegación — *Watch or take over* — en Slack,
+Telegram y Mattermost por igual. Cuando la página necesita a alguien, un inicio de
+sesión o un captcha, el paso cambia a *Needs you* y dice para qué, y nombra quién tiene
+el navegador mientras una persona lo maneja. El enlace abre la consola, así que tomar
+el control necesita una cuenta en ella: la persona para la que actúa el run, o quien
+puede editar el agente.
+
+## Reacciones y valoraciones { #reactions-and-ratings }
+
+Dos detalles que comparte cada plataforma de chat aquí, ambos en los ajustes del
+bot:
+
+- **Una reacción a la pregunta.** El bot reacciona en cuanto llega una pregunta
+  que va a responder, con el emoji nombrado en sus ajustes - `eyes`, por ejemplo -
+  para que quien pregunta vea que se le ha oído. Slack y Mattermost aceptan el
+  nombre de cualquier emoji; Telegram permite un conjunto fijo, y los nombres que
+  acepta son `eyes`, `+1`, `ok_hand`, `fire`, `thinking_face`, `writing_hand`,
+  `zap` y `hourglass`.
+- **Pulgares bajo una respuesta.** Una respuesta terminada lleva un pulgar arriba y
+  otro abajo. Pulsar uno es la valoración de la respuesta de ese run por quien
+  pulsa, la misma que registra la consola, y pulsar de nuevo la cambia. Un pulgar
+  abajo pregunta luego **¿qué estuvo mal?** en un modal de Slack o un diálogo de
+  Mattermost; la respuesta queda como comentario de la valoración. Telegram acepta
+  los pulgares sin la pregunta.
+
+Una valoración necesita un miembro vinculado, como pulsar en una aprobación; los
+pulgares de una persona sin vincular no cuentan. La tarjeta *Answer quality* del
+dashboard reparte el porcentaje de buenas respuestas por superficie en cuanto hay
+valoraciones en más de una, así que un agent que va bien en la consola y mal en
+Slack lo muestra.
+
 ## Qué comparte cada canal { #what-every-channel-shares }
+
+- **Un mensaje enviado mientras el agent trabaja se suma a su tarea.** De la
+  persona cuyo turno es, un mensaje normal en el mismo chat llega al turno en curso
+  en su siguiente paso en lugar de esperar un turno propio; uno que llega después
+  del último paso del agent se responde como el siguiente mensaje. `/btw` seguido de
+  una pregunta pregunta aparte: se responde al momento a partir del hilo hasta
+  ahora, sin herramientas, mientras el turno sigue. El mensaje de un colega en un
+  chat de grupo es siempre un turno propio.
 
 - **Al modelo se le recuerdan los turnos más recientes, no los primeros.** Un hilo
   de canal se indexa por el chat y nunca pasa página, así que un canal de soporte
@@ -1494,6 +1670,17 @@ Qué herramientas cuentan como de ese tipo es `opensOnSight` en
 `lib/tool-catalog.ts`, la misma fila que lee el paso para decidir si se abre solo,
 así que el raíl y el paso no pueden discrepar. Nada marca un paso que simplemente
 funcionó, así que una marca significa lo que dice.
+
+En cuanto el turno ha respondido, **el trabajo sobre la respuesta se pliega en una
+línea** — *Worked for 12s · 3 steps* —, con el razonamiento, las llamadas y la breve
+narración entre ellas detrás, a un clic. La duración es la del run, de su inicio a
+su fin, así que incluye cualquier espera por una aprobación. Mientras el turno sigue
+trabajando, en el mismo sitio se lee *Working for 5s…* con una luz que pasa por
+encima.
+
+Lo que nunca se pliega se queda en la página: los tres tipos de tramo de
+arriba, una pregunta que hizo el agente, lo que la persona añadió a mitad del turno
+y un pasaje lo bastante largo como para ser una respuesta por sí mismo.
 
 **Lo que se abre solo sigue a lo que alguien está mirando, salvo cuando el resultado
 es lo importante.**

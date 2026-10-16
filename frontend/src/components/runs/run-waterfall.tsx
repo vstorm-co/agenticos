@@ -46,13 +46,13 @@ export function RunWaterfall({ requests }: { requests: ManifestRequest[] }) {
               )}
               style={{ width: `${Math.max((request.duration_ms / slowest) * 100, 4)}%` }}
             >
-              <span className="truncate font-mono text-[11px] whitespace-nowrap">
+              <span className="truncate font-mono text-xs whitespace-nowrap">
                 {request.failed ?? request.tool_calls.join(", ")}
               </span>
             </div>
           </div>
           <span
-            className="text-muted-foreground font-mono text-[11px] tabular-nums"
+            className="text-muted-foreground font-mono text-xs tabular-nums"
             title={t("requestDetail", {
               input: request.input_tokens,
               output: request.output_tokens,

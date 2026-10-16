@@ -159,10 +159,15 @@ function fold(steps: readonly PlanStep[], call: ToolCall): readonly PlanStep[] {
   const whole = parsePlan(text);
   if (whole !== null) return whole;
 
-  // A call still in flight, or one whose result was never written down. Its
-  // arguments are the plan it is in the middle of writing, which is what makes the
-  // strip appear as the agent plans rather than a turn later.
-  if (text === "" && call.name === "write_plan") return stepsFromArgs(call.args) ?? steps;
+  // A call still in flight. Its arguments are the plan it is in the middle of
+  // writing, which is what makes the strip appear as the agent plans rather than
+  // a turn later. Only in flight: a write the turn ended without answering, or
+  // one that failed, never reached the store, and its arguments are a plan that
+  // does not exist (#2149).
+  if (text === "" && call.name === "write_plan") {
+    const inFlight = call.status === "running" || call.status === "pending";
+    return inFlight ? (stepsFromArgs(call.args) ?? steps) : steps;
+  }
 
   const one = ONE_STATUS.exec(text);
   if (one !== null) {

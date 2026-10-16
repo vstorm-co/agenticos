@@ -1,8 +1,10 @@
 "use client";
 
+import { UsedBy } from "@/components/agents/used-by";
+import { AudienceChip } from "@/components/sharing/audience-chip";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Database, Lock, Plus, Sparkles, Users } from "lucide-react";
+import { ArrowUpRight, Database, Plus, Sparkles, UserRound, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { CreateKBDialog, LocalServices, ReusableIntegrations } from "@/components/kb";
@@ -20,7 +22,10 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui";
-import { useKnowledgeBases, usePermissions, useUrlState } from "@/hooks";
+import { AddToAgent } from "@/components/agents/add-to-agent";
+import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
+import { useGroups, useKnowledgeBases, usePermissions, useUrlState } from "@/hooks";
+import { useOrgStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
 import type { KBScope, KnowledgeBase } from "@/types";
 import { Perm } from "@/types/permissions";
@@ -33,7 +38,9 @@ import { useTranslations } from "next-intl";
  * translator to call - `KBCard` reads `t(labelKey)` at the point of use.
  */
 const SCOPE_META: Record<KBScope, { labelKey: string; icon: LucideIcon }> = {
-  personal: { labelKey: "scopePersonal", icon: Lock },
+  // A person, not a lock: the lock is the audience chip's "Private", and one
+  // mark for two different facts read as the same fact twice.
+  personal: { labelKey: "scopePersonal", icon: UserRound },
   org: { labelKey: "scopeOrg", icon: Users },
   app: { labelKey: "scopeApp", icon: Sparkles },
 };
@@ -68,6 +75,18 @@ export default function RAGPage() {
     if (a.is_default !== b.is_default) return a.is_default ? -1 : 1;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
+
+  // The whole list arrives at once, so a group is a filter here rather than a
+  // query - group names are unique in an organization, and the cards carry
+  // them. The search tab still searches every base.
+  const [groupId, setGroupId] = useUrlState("group");
+  const orgId = useOrgStore((state) => state.activeOrgId) ?? "";
+  const { groups } = useGroups(orgId);
+  const groupName = groups.find((entry) => entry.id === groupId)?.name;
+  const shown =
+    groupId === null
+      ? sorted
+      : sorted.filter((kb) => groupName !== undefined && kb.shared_groups?.includes(groupName));
 
   const loading = isLoading && kbs.length === 0;
 
@@ -124,10 +143,17 @@ export default function RAGPage() {
 
         <TabsContent value="bases">
           <ListCard
+            namedByPage
             title={t("bases")}
             counted={loading || listError ? null : t("storedCount", { count: kbs.length })}
+            empty={!loading && !listError && kbs.length === 0}
             contentClassName="p-4"
           >
+            {!loading && !listError && kbs.length > 0 && (
+              <div className="mb-4">
+                <GroupFilter value={groupId} onChange={setGroupId} />
+              </div>
+            )}
             {loading ? (
               // The same tiles the populated grid draws, as skeletons - a skeleton
               // that draws a different shape is a layout jump on every load.
@@ -149,6 +175,8 @@ export default function RAGPage() {
                 description={t("listFailedDescription")}
                 cta={{ label: t("retry"), onClick: () => fetchKBs() }}
               />
+            ) : groupId !== null && shown.length === 0 ? (
+              <NothingSharedWithGroup groupId={groupId} />
             ) : kbs.length === 0 ? (
               <ListCardEmpty
                 icon={Database}
@@ -170,7 +198,7 @@ export default function RAGPage() {
               />
             ) : (
               <div className="rise-in grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {sorted.map((kb) => (
+                {shown.map((kb) => (
                   <KBCard key={kb.id} kb={kb} />
                 ))}
               </div>
@@ -202,6 +230,8 @@ export default function RAGPage() {
 
 function KBCard({ kb }: { kb: KnowledgeBase }) {
   const t = useTranslations("pages.kb");
+  const { can } = usePermissions();
+  const canAdd = can(Perm.agentsEdit);
   const meta = SCOPE_META[kb.scope];
 
   // The class list below is a class list, not a message. It was in
@@ -224,8 +254,10 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
 
       <div className="pointer-events-none flex h-full flex-col p-5">
         <div className="flex items-start justify-between gap-2">
+          {/* The card's mark is what it is - a knowledge base, as the page's own
+              icon says - and the scope is said once, in its footer. */}
           <span className="bg-muted text-foreground inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
-            <meta.icon className="h-4 w-4" />
+            <Database className="h-4 w-4" />
           </span>
 
           {kb.is_default && (
@@ -248,12 +280,29 @@ function KBCard({ kb }: { kb: KnowledgeBase }) {
           )}
         </div>
 
-        <div className="text-muted-foreground mt-5 flex items-center justify-between gap-2 text-xs">
+        <AudienceChip
+          visibility={kb.visibility ?? "private"}
+          groups={kb.shared_groups}
+          className="mt-4"
+        />
+        <UsedBy agents={kb.used_by} className="mt-2" />
+
+        <div className="text-muted-foreground mt-3 flex items-center justify-between gap-2 text-xs">
           <span className="inline-flex items-center gap-1.5 truncate">
             <meta.icon className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{t(meta.labelKey)}</span>
           </span>
-          <ArrowUpRight className="h-4 w-4 shrink-0" />
+          {/* Above the card's link, and in the arrow's place for whoever may give
+              it to an agent - the next step after filling a base (#2075). */}
+          {canAdd ? (
+            <AddToAgent
+              resource={{ kind: "collection", id: kb.id }}
+              name={kb.name}
+              className="pointer-events-auto relative z-10 -my-1 h-8 text-xs"
+            />
+          ) : (
+            <ArrowUpRight className="h-4 w-4 shrink-0" />
+          )}
         </div>
       </div>
     </div>

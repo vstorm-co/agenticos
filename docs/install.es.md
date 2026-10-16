@@ -1,5 +1,5 @@
 ---
-source_sha: "c27849d0d0ef"
+source_sha: "fcddf28be3f1"
 ---
 
 # Instalación { #install }
@@ -184,33 +184,32 @@ esto recorre esa cadena una vez:
 | Un propietario | `admin@example.com` / `admin123`, o `--email` / `--password` |
 | Una entrada en el vault | Tu clave de provider, sellada para esa organización |
 | Un perfil de modelo | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` o `openai/gpt-4.1`, según de qué provider sea la clave |
-| Un archivo de contexto | `AGENTS.md`, que explica qué es esta plataforma |
-| Un agent | `@getting-started`, publicado si hay una clave |
+| Dos agents | El **Architect**, en la esquina de cada página, y **Claude Code like**, ambos publicados si hay una clave |
 
 Ahora abre <http://localhost:3000>, inicia sesión como `admin@example.com` /
-`admin123` y ve a **Agents → Getting Started → Test**.
+`admin123` y pregunta algo a cualquiera de los dos: a **Claude Code like** en
+**Chat**, o al **Architect** desde la esquina de cualquier página.
 
-Ya tienes un agent que funciona. Y no es un esbozo: puede buscar en la web y
-traer una página, ejecutar Python, dibujar un gráfico, llevar archivos y una
-shell, planificar un trabajo, recordar algo más allá de una conversación,
-buscar lo que se dijo antes, leer las skills distribuidas y `AGENTS.md`, y pasar
-las partes independientes a sub-agents que se inventa sobre la marcha. Todo con
-la única clave que acabas de pegar — la sandbox corre en el almacén de la propia
-ejecución y la búsqueda usa DuckDuckGo por defecto, así que no hay una segunda
-credencial ni un servicio que levantar.
+Claude Code like es un agent de uso general: lee antes de actuar, planifica un
+trabajo de varios pasos, edita archivos y ejecuta comandos en su sandbox, investiga
+en la web, delega en sus especialistas y comprueba lo que hizo. El Architect conoce
+esta plataforma: encuentra agents, runs y bases de conocimiento, explica por qué
+falló un run y cuánto costó, y prepara un agent o una base de conocimiento para que
+lo apruebes.
 
-Ábrelo en el Builder para ver cómo: cada una de esas cosas es una capability que
-alguien encendió, y las instrucciones del agent son un campo de texto que puedes
-cambiar.
+Abre cualquiera de los dos en el Builder para ver cómo: cada una de esas cosas es
+una capability que alguien encendió, y las instrucciones del agent son un campo de
+texto que puedes cambiar.
 
 !!! tip "¿Todavía sin clave de provider?"
 
-    Deja `BOOTSTRAP_API_KEY` fuera. Todo se crea igualmente y el agent de
-    demostración se guarda como **draft** en vez de publicado — un agent sin
-    modelo no puede responder, y publicar uno que falla en su primer mensaje es
-    peor que no publicarlo.
+    Deja `BOOTSTRAP_API_KEY` fuera. Todo se crea igualmente y los dos agents se
+    guardan como **drafts** en vez de publicados — un agent sin modelo no puede
+    responder, y publicar uno que falla en su primer mensaje es peor que no
+    publicarlo.
 
-    Añade una clave en **Settings → AI providers** y después publícalo.
+    Añade una clave en **Settings → AI providers** y después publica Claude Code
+    like. El Architect se publica solo con el primer modelo de la organización.
 
 !!! note "`make seed` es otra cosa"
 

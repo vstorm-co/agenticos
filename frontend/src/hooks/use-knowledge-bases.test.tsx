@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
-import { useKBDetail, useKnowledgeBases } from "./use-knowledge-bases";
+import { useKBDetail, useKnowledgeBaseFor, useKnowledgeBases } from "./use-knowledge-bases";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { parseErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
@@ -142,6 +142,21 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+describe("the base a citation's collection belongs to", () => {
+  it("finds the base by its collection, and nothing for one the caller cannot read", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      items: [{ id: "kb-1", name: "Support handbook", collection_name: "support_aa" }],
+      total: 1,
+    });
+
+    const { result } = renderHook(() => useKnowledgeBaseFor(), { wrapper });
+
+    await waitFor(() => expect(result.current("support_aa")?.name).toBe("Support handbook"));
+    expect(result.current("someone_elses")).toBeUndefined();
+    expect(result.current(undefined)).toBeUndefined();
+  });
 });
 
 describe("the list of knowledge bases", () => {

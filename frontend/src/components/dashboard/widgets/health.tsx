@@ -89,7 +89,7 @@ export function HealthWidget({ title, hint, seeAll, options }: DashboardWidgetPr
           }))}
         />
       ) : (
-        <ul className="grid flex-1 auto-rows-min grid-cols-4 content-center gap-x-2 gap-y-4">
+        <ul className="grid flex-1 auto-rows-min grid-cols-[repeat(auto-fit,minmax(4.25rem,1fr))] content-center gap-x-2 gap-y-4">
           {health.checks.map((check) => (
             <ServiceTile key={check.key} check={check} />
           ))}

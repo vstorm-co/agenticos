@@ -169,6 +169,9 @@ if (inBrowser && !Element.prototype.hasPointerCapture) {
 if (inBrowser && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+if (inBrowser && !Element.prototype.scrollTo) {
+  Element.prototype.scrollTo = () => {};
+}
 
 /**
  * `useTranslations` backed by the real English catalog.
