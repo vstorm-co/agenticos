@@ -68,7 +68,6 @@ vi.mock("@/hooks", () => ({
   useAgentVersion: (_: string | null, versionId: string | null) => ({
     version: versionId === null ? undefined : { version: 7, spec: agentState.liveSpec },
   }),
-  useAgents: () => ({ agents: agentList.items }),
 }));
 
 const hooks = vi.hoisted(() => ({
@@ -80,6 +79,7 @@ const hooks = vi.hoisted(() => ({
 vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalRuns: () => ({ runs: hooks.runs, estimate: hooks.estimate, start: hooks.start }),
   useDatasetEvalRuns: () => ({ runs: hooks.datasetRuns }),
+  useEveryAgent: () => ({ agents: agentList.items }),
 }));
 const datasets = vi.hoisted(() => ({ items: [] as unknown[] }));
 vi.mock("@/hooks/use-datasets", () => ({
@@ -268,6 +268,27 @@ describe("StartEvalDialog", () => {
 
     expect(screen.getByRole("radio", { name: /The draft against v7/ })).toBeChecked();
     await waitFor(() => expect(estimated()).toHaveBeenCalledWith(COMPARE));
+  });
+
+  it("drops the environment picked for one agent when another is chosen", async () => {
+    open({ agentId: null, datasetId: "ds-1" });
+    await userEvent.click(screen.getByRole("combobox", { name: "Agent" }));
+    await userEvent.click(screen.getByRole("option", { name: "Refund desk" }));
+    await userEvent.click(screen.getByText("Advanced"));
+    await choose("Environment", "staging");
+    await waitFor(() =>
+      expect(estimated()).toHaveBeenLastCalledWith(
+        expect.objectContaining({ environment_id: "env-1" }),
+      ),
+    );
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Agent" }));
+    await userEvent.click(screen.getByRole("option", { name: "Shipping desk" }));
+    await waitFor(() =>
+      expect(estimated()).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ environment_id: "env-1" }),
+      ),
+    );
   });
 
   it("offers the agent last measured on the dataset it starts from", () => {

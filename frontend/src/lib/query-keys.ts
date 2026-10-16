@@ -37,6 +37,8 @@ export const qk = {
   },
   agents: {
     all: () => ["agents"] as const,
+    /** Every agent the caller sees, all pages read - the eval start dialog's picker. */
+    every: () => ["agents", "every"] as const,
     /**
      * `includeArchived` is part of the key: the two lists are different rows.
      * So is the discovery facet - the server applies it, so two category/tag

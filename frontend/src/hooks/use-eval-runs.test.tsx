@@ -14,6 +14,7 @@ import {
   useEvalArmSpec,
   useEvalRun,
   useEvalRuns,
+  useEveryAgent,
   useRecentEvalRuns,
   useRescoreRun,
   useSendToReview,
@@ -280,6 +281,20 @@ describe("useSendToReview", () => {
       await result.current.mutateAsync("arm-1");
     });
     expect(apiClient.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("useEveryAgent", () => {
+  it("reads every page of the agents, not the first alone", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [{ id: "a1" }], total: 101 })
+      .mockResolvedValueOnce({ items: [{ id: "a2" }], total: 101 });
+    const { result } = renderHook(() => useEveryAgent(), { wrapper });
+
+    await waitFor(() => expect(result.current.agents).toHaveLength(2));
+    expect(apiClient.get).toHaveBeenLastCalledWith("/agents", {
+      params: { skip: "100", limit: "100" },
+    });
   });
 });
 

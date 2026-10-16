@@ -20,9 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useAgents } from "@/hooks";
 import { useDatasets } from "@/hooks/use-datasets";
-import { useDatasetEvalRuns, useEvalRuns } from "@/hooks/use-eval-runs";
+import { useDatasetEvalRuns, useEvalRuns, useEveryAgent } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -80,7 +79,7 @@ export function StartEvalDialog({
     ...BLANK,
     dataset_id: givenDataset ?? "",
   });
-  const { agents } = useAgents({ enabled: givenAgent === null });
+  const { agents } = useEveryAgent({ enabled: givenAgent === null });
   const { runs: datasetRuns } = useDatasetEvalRuns(givenDataset ?? "", {
     enabled: givenAgent === null && givenDataset !== undefined,
   });
@@ -155,6 +154,8 @@ export function StartEvalDialog({
                 onValueChange={(id) => {
                   setChosenAgent(id);
                   setChosenTarget(null);
+                  // An environment is one agent's: another agent's would be refused.
+                  setRequest(({ environment_id: _theirs, ...rest }) => rest);
                 }}
               >
                 <SelectTrigger aria-label={t("fields.agent")}>

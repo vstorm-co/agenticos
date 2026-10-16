@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import type { AgentSpec } from "@/types/agents";
+import type { Agent, AgentList, AgentSpec } from "@/types/agents";
 import type {
   CaseOutcomeFilter,
   EvalCaseList,
@@ -178,6 +178,32 @@ const CASE_PAGE = 100;
  * run's page: every failed first answer of `arm`, read page by page, sent in
  * batches. One newer than a case's answer still waiting takes its place.
  */
+/** As many agents as the API lists in one page. */
+const AGENT_PAGE = 100;
+
+/**
+ * Every agent the caller sees, page by page - the start dialog offers any of
+ * them, and the listing's first page alone would hide the rest.
+ */
+export function useEveryAgent({ enabled = true }: { enabled?: boolean } = {}) {
+  const query = useQuery({
+    queryKey: qk.agents.every(),
+    queryFn: async () => {
+      const agents: Agent[] = [];
+      for (let skip = 0, total = 1; skip < total; skip += AGENT_PAGE) {
+        const page = await apiClient.get<AgentList>("/agents", {
+          params: { skip: String(skip), limit: String(AGENT_PAGE) },
+        });
+        total = page.total;
+        agents.push(...page.items);
+      }
+      return agents;
+    },
+    enabled,
+  });
+  return { agents: query.data ?? [] };
+}
+
 export function useSendToReview(runId: string, datasetId: string) {
   const queryClient = useQueryClient();
   return useMutation({
