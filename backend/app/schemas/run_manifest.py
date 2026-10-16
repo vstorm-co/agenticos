@@ -57,6 +57,7 @@ class ManifestRequest(BaseSchema):
     input_tokens: int = 0
     output_tokens: int = 0
     cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
     tool_calls: list[str] = Field(default_factory=list)
     finish_reason: str | None = None
     failed: str | None = None

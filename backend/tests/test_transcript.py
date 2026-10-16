@@ -35,6 +35,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
+from app.repositories.conversation import Attributed
 from app.services.transcript import (
     RecordedToolCall,
     TranscriptService,
@@ -304,7 +305,7 @@ class TestWritingTheTranscript:
             # What this run's earlier turns already claim of its cost. Zero on an
             # ordinary turn; the subtraction is what stops a resumed run counting
             # its parked half twice.
-            repo.attributed_to_run = AsyncMock(return_value=(0, 0, Decimal(0)))
+            repo.attributed_to_run = AsyncMock(return_value=Attributed())
             yield repo
 
     @pytest.fixture
@@ -421,6 +422,22 @@ class TestWritingTheTranscript:
         )
         assert (answer["role"], answer["content"], answer["run_id"]) == ("assistant", "two", run.id)
         assert answer["model_name"] == "gpt-4.1"
+
+    async def test_a_resumed_turn_records_only_its_own_cache_split(self, conversations):
+        """The row is cumulative across a park, so the continuation is written
+        with what it added - the cache counts as much as the tokens (#2170)."""
+        run = _run()
+        run.input_tokens, run.output_tokens, run.cost_usd = 900, 90, Decimal("0.9")
+        run.cache_read_tokens, run.cache_write_tokens = 700, 150
+        conversations.attributed_to_run = AsyncMock(
+            return_value=Attributed(400, 40, Decimal("0.4"), 300, 100)
+        )
+
+        await TranscriptService(_session()).record(run, prompt=None, answer="done")
+
+        answer = conversations.create_message.await_args_list[-1].kwargs
+        assert (answer["cache_read_tokens"], answer["cache_write_tokens"]) == (400, 50)
+        assert answer["input_tokens"] == 500
 
     async def test_the_answer_records_the_size_of_the_request_it_came_out_of(self, conversations):
         """Not the run's totals beside it: those sum every request of a tool loop,

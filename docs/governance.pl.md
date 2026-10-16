@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "bfb05b4c817f"
 ---
 
 # Governance { #governance }
@@ -925,6 +925,19 @@ zatrzymuje.
 Run, którego nie dało się wycenić — model, którego `genai-prices` nie zna — jest
 zapisywany na zero z ostrzeżeniem, a suma jest oznaczana jako **dolna granica**,
 zamiast być zgadywana. UI pokazuje to jako `+` obok liczby.
+
+**Odczyty i zapisy cache są liczone osobno.** Tokeny wejściowe runa obejmują te,
+które dostawca podał z cache promptu, i te, które do niego zapisał, a wszystkie
+trzy są wyceniane osobno - na Claude Sonnet 5.5 odczyt z cache kosztuje 5% stawki
+wejściowej, a zapis 125%. Każdy run i każda odpowiedź zapisują
+`cache_read_tokens` i `cache_write_tokens` obok sumy, koszt jest liczony z tego
+podziału, a widok runa i koszt pod każdą odpowiedzią go pokazują - i to pozwala
+uzgodnić run z konsolą dostawcy.
+
+**Koszt runa obejmuje jego delegacje.** Run, który ktoś uruchomił, niesie cały
+ledger, łącznie z delegatami; własny wiersz delegacji dzieli te same pieniądze
+według agenta, a widok runa mówi, że jego delegacje są już w liczbie nad nimi.
+Dodanie obu liczy delegacje dwa razy.
 
 ## Zatwierdzenia { #approvals }
 

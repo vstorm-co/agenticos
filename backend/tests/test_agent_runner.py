@@ -89,6 +89,7 @@ from app.services.agent_runner import (
     _answer_only,
     _classify_output,
     _connect_on_use,
+    _spend_already_booked,
     _with_account_notes,
     _with_personal_service_gaps,
     month_start,
@@ -1635,6 +1636,40 @@ class TestSkillChangesARunProposed:
     follows, so an agent editing one directly would rewrite what another agent
     does inside a conversation nobody reviewed.
     """
+
+    @pytest.mark.anyio
+    async def test_the_run_row_keeps_the_cache_split_its_cost_came_from(self):
+        """`input_tokens` includes the cache reads and writes, priced apart - the
+        row keeps how many of each, so a run can be reconciled with the provider's
+        console (#2170)."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.ledger.record(
+            "claude-sonnet-5-5",
+            RequestUsage(input_tokens=1000, cache_read_tokens=700, cache_write_tokens=200),
+            "anthropic",
+        )
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+        ) as finish_run:
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        finished = finish_run.await_args.kwargs
+        assert (finished["cache_read_tokens"], finished["cache_write_tokens"]) == (700, 200)
+
+    def test_a_resumed_runs_opening_balance_carries_its_cache_split(self):
+        run = MagicMock(
+            model_label="claude-sonnet-5-5",
+            input_tokens=1000,
+            output_tokens=10,
+            cache_read_tokens=700,
+            cache_write_tokens=200,
+            cost_usd=Decimal("1"),
+            cost_is_partial=False,
+        )
+        entry = _spend_already_booked(run)
+        assert (entry.cache_read_tokens, entry.cache_write_tokens) == (700, 200)
 
     @pytest.mark.anyio
     async def test_what_the_agent_changed_becomes_a_proposal(self):

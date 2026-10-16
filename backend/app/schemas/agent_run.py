@@ -34,8 +34,27 @@ class AgentRunRead(BaseSchema):
             "change under the same label"
         ),
     )
-    input_tokens: int
+    input_tokens: int = Field(
+        description=(
+            "Prompt tokens, cache reads and writes included - Pydantic AI's convention. "
+            "The two cache fields say how many of them were priced at the cache rates"
+        )
+    )
     output_tokens: int
+    cache_read_tokens: int = Field(
+        default=0,
+        description=(
+            "Of `input_tokens`, those served from the provider's cache, priced at a "
+            "fraction of the input rate. With `cache_write_tokens`, what reconciles a "
+            "run with the provider's console. Like `cost_usd`, a parent's figure "
+            "includes its delegations' requests; their own rows divide the same tokens "
+            "by agent"
+        ),
+    )
+    cache_write_tokens: int = Field(
+        default=0,
+        description="Of `input_tokens`, those written to the provider's cache, priced above it",
+    )
     cost_usd: Decimal
     cost_is_partial: bool = Field(
         description="True when a model in this run had no price - the cost is a floor"

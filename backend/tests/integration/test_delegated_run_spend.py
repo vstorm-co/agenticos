@@ -886,3 +886,75 @@ class TestDeletingTheParent:
 
         assert (child.parent_run_id, child.cost_usd) == (None, Decimal("0.40"))
         assert await organization_monthly_spend(db, org.id) == Decimal("0.40")
+
+
+class TestTheCacheSplit:
+    """Each row keeps how much of its input was cache reads and writes (#2170)."""
+
+    async def test_a_run_and_its_delegation_keep_their_own_split(self, db):
+        org = await _org(db)
+        orchestrator = await _agent(db, org, slug="orchestrator")
+        researcher = await _agent(db, org, slug="researcher")
+        parent = await _run(db, org=org, agent=orchestrator, cost=Decimal("1.00"))
+        parent = await agent_run_repo.finish_run(
+            db,
+            run=parent,
+            status=RunStatus.COMPLETED.value,
+            input_tokens=1000,
+            output_tokens=100,
+            cost_usd=Decimal("1.00"),
+            cost_is_partial=False,
+            ended_at=datetime.now(UTC),
+            cache_read_tokens=700,
+            cache_write_tokens=200,
+        )
+        moment = datetime.now(UTC)
+        child = await agent_run_repo.record_delegated_run(
+            db,
+            run_id=uuid.uuid4(),
+            organization_id=org.id,
+            agent_id=researcher.id,
+            agent_version_id=(await _version(db, researcher)).id,
+            parent_run_id=parent.id,
+            subagent_task_id="t-1",
+            user_id=None,
+            conversation_id=None,
+            exposure_id=None,
+            surface="api",
+            model_label="claude-sonnet-5-5",
+            provider="anthropic",
+            secret_id=None,
+            status=RunStatus.COMPLETED.value,
+            input_tokens=500,
+            output_tokens=50,
+            cost_usd=Decimal("0.40"),
+            cost_is_partial=False,
+            started_at=moment,
+            ended_at=moment,
+            cache_read_tokens=300,
+            cache_write_tokens=0,
+        )
+
+        assert (parent.cache_read_tokens, parent.cache_write_tokens) == (700, 200)
+        assert (child.cache_read_tokens, child.cache_write_tokens) == (300, 0)
+
+    async def test_a_finish_that_names_no_split_keeps_the_one_recorded(self, db):
+        """An expired approval finishes the run without running a model, and must
+        not zero what its first segment recorded."""
+        org = await _org(db)
+        run = await _run(db, org=org, agent=await _agent(db, org, slug="a"), cost=Decimal("1"))
+        run.cache_read_tokens = 640
+        await db.flush()
+
+        finished = await agent_run_repo.finish_run(
+            db,
+            run=run,
+            status=RunStatus.CANCELLED.value,
+            input_tokens=run.input_tokens,
+            output_tokens=run.output_tokens,
+            cost_usd=run.cost_usd,
+            cost_is_partial=False,
+            ended_at=datetime.now(UTC),
+        )
+
+        assert finished.cache_read_tokens == 640

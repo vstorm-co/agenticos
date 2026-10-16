@@ -41,6 +41,22 @@ describe("what a stored message says it cost", () => {
     expect(usage?.cost_is_partial).toBe(false);
   });
 
+  it("reads the cache split back, and none where the row recorded none (#2170)", () => {
+    const warm = storedUsage(
+      message({
+        input_tokens: 1200,
+        output_tokens: 3,
+        cost_usd: "0.001",
+        cache_read_tokens: 900,
+        cache_write_tokens: 100,
+      }),
+    );
+    const old = storedUsage(message({ input_tokens: 10, output_tokens: 2, cost_usd: "0.0001" }));
+
+    expect([warm?.cache_read_tokens, warm?.cache_write_tokens]).toEqual([900, 100]);
+    expect([old?.cache_read_tokens, old?.cache_write_tokens]).toEqual([null, null]);
+  });
+
   it("reads the split and the money off the row", () => {
     const usage = storedUsage(
       message({ input_tokens: 1200, output_tokens: 300, cost_usd: "0.012500" }),

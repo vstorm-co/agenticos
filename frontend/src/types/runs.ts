@@ -28,6 +28,10 @@ export interface AgentRun {
   provider: string | null;
   input_tokens: number;
   output_tokens: number;
+  /** Of `input_tokens`, those read from the provider's cache (#2170). */
+  cache_read_tokens?: number;
+  /** Of `input_tokens`, those written to the provider's cache (#2170). */
+  cache_write_tokens?: number;
   /** Serialised Decimal - never parse into a float for arithmetic. */
   cost_usd: string;
   /** True when a model in this run had no price; the cost is a floor. */
@@ -487,6 +491,10 @@ export interface ResumedRun {
   cost_is_partial: boolean;
   input_tokens: number;
   output_tokens: number;
+  /** Of `input_tokens`, those read from the provider's cache. */
+  cache_read_tokens?: number;
+  /** Of `input_tokens`, those written to the provider's cache. */
+  cache_write_tokens?: number;
 }
 
 /** One question as the server carries it, before the card's own shape (#2064). */
