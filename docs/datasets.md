@@ -275,9 +275,9 @@ checked, it is checked against its own budget and the organization's before the
 model is called, and its run appears in Activity under the `eval` surface.
 
 The judge is handed the case's note, as why the case exists, its earlier turns
-and question, the reference answer when it is graded, the counter-example, every
-tool call the agent made - its arguments, and whether an isolated run blocked it
-- and the answer.
+and question, the reference answer when it is graded, the counter-example,
+every tool call the agent made - its arguments, and whether an isolated run
+blocked it - and the answer.
 
 A case with a counter-example is always graded on a required **counter-example**
 criterion as well: the answer must not repeat the known bad answer, and the

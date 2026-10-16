@@ -1,5 +1,5 @@
 ---
-source_sha: "a051ae7d5e71"
+source_sha: "34ffb9ee0669"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
