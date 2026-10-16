@@ -8,7 +8,7 @@ organization: Telegram sends it back in `X-Telegram-Bot-Api-Secret-Token`, and a
 Mattermost outgoing webhook carries it in the body, where it is the whole of the
 authentication because Mattermost does not sign payloads.
 
-CLAUDE.md: every secret at rest goes through `app/core/vault.py`, and there is no
+AGENTS.md: every secret at rest goes through `app/core/vault.py`, and there is no
 second mechanism. This was the second mechanism.
 
 The rows are re-sealed rather than dropped. A `NULL` here is not a bot that

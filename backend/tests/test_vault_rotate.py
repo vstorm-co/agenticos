@@ -22,6 +22,7 @@ from app.commands import vault_rotate as sweep
 from app.commands.vault_rotate import SEALED_TABLES, Report, _rotate_table, _run, vault_rotate
 from app.core.config import settings
 from app.core.vault import VaultScope, seal, unseal
+from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
@@ -253,7 +254,7 @@ class TestRotateTable:
         assert bot.token_encrypted == sealed
 
     async def test_a_personal_connection_is_rewrapped_under_its_member(self, monkeypatch):
-        """The one table whose scope is not the organization: a personal MCP
+        """A table whose scope is not the organization: a personal MCP
         connection belongs to its member, and rotating it under any org scope
         would write an envelope nobody can open."""
         monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A})
@@ -281,6 +282,35 @@ class TestRotateTable:
         assert report.rotated == 1
         assert unseal(conn.auth_token, scope=scope, key_version=2) == "ghp-token"
 
+    async def test_a_saved_browser_sign_in_is_rewrapped_under_its_member(self, monkeypatch):
+        """The other: a sign-in is the person's session, sealed under them (#2129)."""
+        monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A})
+        user_id = uuid.uuid4()
+        scope = VaultScope.user(user_id)
+        sign_in = BrowserSignIn(
+            id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            user_id=user_id,
+            site="linkedin.com",
+            sealed_state=seal('{"site": "linkedin.com"}', scope=scope).ciphertext,
+            secret_key_version=1,
+        )
+
+        monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A, 2: KEY_B})
+        report = Report()
+        await _rotate_table(
+            _db_returning([sign_in]),
+            _spec("browser_sign_ins"),
+            target=2,
+            dry_run=False,
+            report=report,
+        )
+
+        assert report.rotated == 1
+        assert unseal(sign_in.sealed_state, scope=scope, key_version=2) == (
+            '{"site": "linkedin.com"}'
+        )
+
 
 class TestRun:
     @staticmethod
@@ -307,7 +337,7 @@ class TestRun:
             hint="abcd",
             key_version=1,
         )
-        db = _db_returning([secret], [], [], [], [])
+        db = _db_returning([secret], [], [], [], [], [])
 
         with patch.object(sweep, "get_db_context", self._db_context(db)):
             report = await _run(dry_run=False)

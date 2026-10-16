@@ -39,13 +39,16 @@ export type WidgetId =
   | "approvals"
   | "recent-failures"
   | "budget-headroom"
+  | "department-spend"
   | "mcp-health"
   | "knowledge-freshness"
   | "members"
   | "org-ratings"
+  | "department-quality"
   | "my-agents"
   | "conversations"
   | "my-activity"
+  | "my-summary"
   | "my-top-agents"
   | "my-quality"
   | "shared-with-you"
@@ -442,6 +445,13 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r2",
     category: "attention",
   },
+  "department-spend": {
+    id: "department-spend",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s4",
+    defaultRows: "r2",
+    category: "attention",
+  },
   "mcp-health": {
     id: "mcp-health",
     gate: holds(Perm.mcpManage),
@@ -475,6 +485,15 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     category: "usage",
     options: { period: true },
   },
+  "department-quality": {
+    id: "department-quality",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s6",
+    defaultRows: "r3",
+    category: "usage",
+    seeAll: ROUTES.GROUPS,
+    options: { period: true },
+  },
   "my-agents": {
     id: "my-agents",
     gate: holds(Perm.agentsView),
@@ -491,6 +510,14 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r3",
     category: "workspace",
     seeAll: ROUTES.CHAT,
+  },
+  "my-summary": {
+    id: "my-summary",
+    gate: holds(Perm.agentsRun),
+    defaultSpan: "s12",
+    defaultRows: "r3",
+    category: "workspace",
+    options: { period: true },
   },
   "my-activity": {
     id: "my-activity",
@@ -517,7 +544,7 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     options: { period: true },
   },
   // The pages agents published that the caller may open, newest first. What
-  // `GET /artifacts` itself asks, and nothing more.
+  // `GET /apps` itself asks, and nothing more.
   artifacts: {
     id: "artifacts",
     gate: holds(Perm.artifactsView),

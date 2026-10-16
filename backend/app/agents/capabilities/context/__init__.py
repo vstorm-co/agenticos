@@ -21,6 +21,7 @@ class ContextConfig(BaseModel):
     """How the agent uses its bound context files."""
 
     expose_read_tool: bool = Field(
+        title="Let the agent open linked files",
         default=True,
         description=(
             "Whether link-mode files are reachable through a read tool. Off means "

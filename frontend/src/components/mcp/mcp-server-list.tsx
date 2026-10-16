@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, ExternalLink, Plug, Plus } from "lucide-react";
+import { Plug, Plus, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   Badge,
   Button,
-  Card,
-  CardContent,
   ConfirmDialog,
   ListCard,
   Pager,
@@ -19,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
+import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
 import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
 import { ServerConnectionsDialog } from "@/components/mcp/server-connections-dialog";
 import { McpToolPickerDialog } from "@/components/mcp/mcp-tool-picker-dialog";
@@ -30,8 +28,8 @@ import {
   type ToolPickerState,
 } from "@/components/mcp/mcp-server-list-types";
 import { useMcpServers } from "@/hooks";
+import { useCreatedToast } from "@/hooks/use-created-toast";
 import { MCP_PAGE_SIZE, useMcpCatalog, useMcpCatalogPage } from "@/hooks/use-mcp-servers";
-import { cn } from "@/lib/utils";
 import { getErrorMessage } from "@/lib/api-error";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
@@ -40,7 +38,9 @@ import {
   connectionState,
   CUSTOM_CATEGORY,
   matchingCustomRows,
+  categoryLabel,
   customRows,
+  freePrefix,
   isReviewed,
   MCP_AUTH_LABEL,
   MCP_STATE_LABEL,
@@ -48,6 +48,8 @@ import {
   slugForPrefix,
 } from "@/lib/mcp-servers";
 import type { McpServerRow } from "@/lib/mcp-servers";
+import type { McpAuthKind } from "@/types/mcp";
+import type { AudiencePayload } from "@/types/sharing";
 import { useTranslations } from "next-intl";
 
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
@@ -65,17 +67,6 @@ const CONNECT_PARAM = "connect";
 type StateFilter = "all" | "connected" | "not-connected";
 
 /**
- * A backend category slug as a heading.
- *
- * The catalog's categories are identifiers - `project-management`,
- * `observability` - and uppercasing one in CSS turns the hyphen into a visible
- * seam that reads as a machine field rather than a section of a catalogue.
- */
-function categoryLabel(category: string): string {
-  return category.replace(/-/g, " ");
-}
-
-/**
  * A name nothing in this scope holds yet, for a second account on one server.
  *
  * A slug of the entry's key first (the name, not the namespace it lives in - so
@@ -89,12 +80,7 @@ function freeName(row: McpServerRow, taken: Set<string>): string | undefined {
   if (key === undefined) return undefined;
   const base = slugForPrefix(key);
   if (base === "") return undefined;
-  if (!taken.has(base)) return base;
-  for (let n = 2; ; n += 1) {
-    const suffix = `-${n}`;
-    const candidate = `${base.slice(0, 32 - suffix.length)}${suffix}`;
-    if (!taken.has(candidate)) return candidate;
-  }
+  return freePrefix(base, taken);
 }
 
 /** The row's sentence, from whichever side wrote it. */
@@ -131,14 +117,23 @@ interface McpServerListProps {
  * access and lose it the day their account closed. There is no endpoint for it,
  * so the row says why rather than showing a button that cannot work.
  */
+/** Whether `scope` already holds an account on this server. */
+function hasAccount(scope: Scope, row: McpServerRow): boolean {
+  return (scope === "organization" ? row.organizations : row.personals).length > 0;
+}
+
 export function McpServerList({ canManageOrganization }: McpServerListProps) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
   const { organization, personal, recordTools } = useMcpServers();
+  const createdToast = useCreatedToast();
   // The whole curated catalog, for the category filter alone - see below.
   const catalog = useMcpCatalog();
   const [category, setCategory] = useState<string>("all");
   const [state, setState] = useState<StateFilter>("all");
+  // What a server asks for, asked of the server like the category: the mirror's
+  // rows say it only where the catalog check found it out (#2103).
+  const [auth, setAuth] = useState<McpAuthKind | "all">("all");
   // The query, the category and the page all go to the server, because the list
   // is a request now rather than a filter over what the client holds. It held
   // the curated hundred and filtered them locally, which was right until 5,703
@@ -146,7 +141,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   // whatever that page happened to contain, and so is ranking one.
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(0);
-  const listing = useMcpCatalogPage(query, category === "all" ? "" : category, page);
+  const listing = useMcpCatalogPage(
+    query,
+    category === "all" ? "" : category,
+    auth === "all" ? "" : auth,
+    page,
+  );
 
   // The page's catalog entries with their connections folded on. Custom rows are
   // *not* built from a page: whether a connection is "not in the catalog" is a
@@ -236,7 +236,29 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
       row,
       existing,
       suggestedName: existing ? undefined : freeName(row, takenNames(scope)),
+      needsLabel: existing === null && hasAccount(scope, row),
     });
+  };
+
+  /**
+   * **Connect**: straight to the provider's sign-in for a catalog server that
+   * signs in - its address, sign-in and prefix are the catalog's, so the form
+   * had nothing left to ask - and the form for everything else. **Configure**
+   * is the way to that form for the first kind.
+   */
+  const connect = (scope: Scope, row: McpServerRow) => {
+    const name = freeName(row, takenNames(scope));
+    // A second account goes through the form, where it is named.
+    if (
+      row.auth === "oauth" &&
+      row.entry !== null &&
+      name !== undefined &&
+      !hasAccount(scope, row)
+    ) {
+      void handleOAuth(row, name, scope);
+      return;
+    }
+    openDraft(scope, row, null);
   };
 
   /** The names this scope already holds, which a new connection cannot take. */
@@ -288,11 +310,20 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     name: string,
     scope: Scope = "personal",
     client?: McpOAuthClient,
+    audience?: AudiencePayload,
+    label?: string,
   ) => {
     setBusyId(row.key);
     try {
       const { authorization_url } = await startMcpOAuth(
-        { name, url: row.url ?? "", catalog_key: row.entry?.key, ...client },
+        {
+          name,
+          url: row.url ?? "",
+          catalog_key: row.entry?.key,
+          ...(label ? { label } : {}),
+          ...client,
+          ...audience,
+        },
         scope,
       );
       // `assign`, not a write to `href`: the React compiler reads a property
@@ -333,6 +364,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           row: requestedRow,
           existing: null,
           suggestedName: freeName(requestedRow, takenNames("personal")),
+          needsLabel: hasAccount("personal", requestedRow),
         }
       : null;
   const activeDraft = draft ?? requestedDraft;
@@ -400,6 +432,8 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         name,
         scope,
         mcpOAuthClient(values.clientId, values.clientSecret),
+        scope === "organization" ? values.audience : undefined,
+        label,
       );
       return;
     }
@@ -416,12 +450,16 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           // and a personal connection without it can never be matched to a
           // binding to each person's own account.
           ...(row.entry ? { catalog_key: row.entry.key } : {}),
+          ...(scope === "organization" ? values.audience : {}),
         });
-        toast.success(
-          scope === "organization"
-            ? t("connectedForOrg", { name })
-            : t("connectedForYou", { name }),
-        );
+        // The organization's account is what an agent binds, so its toast offers
+        // to add it to one (#2075); a member's own is reached through bindings
+        // to each person's account, never added by id.
+        if (scope === "organization") {
+          createdToast(t("connectedForOrg", { name }), { kind: "mcp", id: created.id }, name);
+        } else {
+          toast.success(t("connectedForYou", { name }));
+        }
         closeDraft();
         void handleTools(scope, created);
       } else {
@@ -435,6 +473,9 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
           ...(label !== (existing.label ?? "") ? { label } : {}),
           ...(url !== existing.url ? { url } : {}),
           ...(token ? { auth_token: token } : values.clearToken ? { auth_token: "" } : {}),
+          ...(values.includeInstructions !== existing.include_instructions
+            ? { include_instructions: values.includeInstructions }
+            : {}),
         });
         toast.success(t("serverUpdated", { name }));
         closeDraft();
@@ -469,7 +510,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
     setBusyId(connection.id);
     try {
       await api("personal").update(connection.id, { is_default: use });
-      toast.success(use ? t("agentsSpeakAsThis") : t("agentsNoLongerSpeak"));
+      toast.success(use ? t("nowMainAccount") : t("noLongerMainAccount"));
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors));
     } finally {
@@ -501,7 +542,8 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
   return (
     <>
       <ListCard
-        data-tour="mcp-catalog"
+        namedByPage
+        headerTour="mcp-catalog"
         title={t("servers")}
         counted={t("serverCount", { count: listing.total + customs.length })}
         controls={<SearchInput value={query} onChange={ask} placeholder={t("searchServers")} />}
@@ -517,6 +559,25 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
               {categories.map((entry) => (
                 <SelectItem key={entry} value={entry}>
                   {categoryLabel(entry)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={auth}
+            onValueChange={(value) => {
+              setAuth(value as McpAuthKind | "all");
+              setPage(0);
+            }}
+          >
+            <SelectTrigger className="w-auto min-w-36" aria-label={t("authFilter")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("anyAuth")}</SelectItem>
+              {(["oauth", "token", "none"] as const).map((kind) => (
+                <SelectItem key={kind} value={kind}>
+                  {t(MCP_AUTH_LABEL[kind])}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -580,145 +641,51 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
          */}
         <div className="rise-in grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {visible.map((row, index) => (
-            <Card
+            <McpServerCard
               key={row.key}
-              role="group"
-              aria-label={row.name}
-              className="h-full"
-              data-tour={index === 0 ? "mcp-connect" : undefined}
-            >
-              {/* No hover state, unlike the agents grid: there a card is a link and
-                the border lighting up says so. Here the actions are inside the
-                card, and a card that responds to a hover but does nothing when
-                clicked is a worse lie than a flat one. */}
-              <CardContent className="flex h-full flex-col gap-3 p-4">
-                <div className="flex items-start gap-2.5">
-                  <McpServerIcon
-                    icon={row.entry?.icon ?? null}
-                    name={row.name}
-                    className="mt-0.5 h-6 w-6"
-                  />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="truncate text-sm font-medium">{row.name}</span>
-                      {/* One list holds both kinds, so the difference has to be
-                          on the row rather than in a heading over half of it.
-                          Nobody here checked a registry server: the description
-                          is the publisher's and there is no token hint, which is
-                          worth knowing before pasting a credential into it. */}
-                      {isReviewed(row) ? (
-                        <Badge variant="outline" className="shrink-0">
-                          {t(MCP_AUTH_LABEL[row.auth])}
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="secondary"
-                          className="shrink-0"
-                          title={t("fromRegistryHint")}
-                        >
-                          {t("fromRegistry")}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                      {row.category === CUSTOM_CATEGORY
-                        ? t("notCatalog")
-                        : categoryLabel(row.category)}
-                    </p>
-                    <p className="text-muted-foreground line-clamp-2 text-sm">
-                      {rowDescription(row, t)}
-                    </p>
-                    {row.url === null ? (
-                      // Prose, so it is set as prose. Monospacing this sentence
-                      // and then truncating it produced "Self-hosted - you supply
-                      // the…", which reads as a URL that got cut off.
-                      <p className="text-muted-foreground text-xs">{t("selfHostedYouSupply")}</p>
-                    ) : (
-                      // Truncated rather than wrapped: spelled out, the URL is the
-                      // tallest thing on the card, and the full editable copy is
-                      // one click away in the dialog.
-                      <p
-                        className="text-muted-foreground truncate font-mono text-xs"
-                        title={row.url}
-                      >
-                        {/* A query string may carry a key - never render one. */}
-                        {`${row.url.split("?")[0]}${row.url.includes("?") ? "?…" : ""}`}
-                      </p>
-                    )}
-                    {row.docsUrl && (
-                      <a
-                        href={row.docsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs underline underline-offset-4"
-                      >
-                        {t("documentation")}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                {/* Pushed to the foot, and the rule above it is why that reads as
-                  a decision rather than a hole. An earlier version kept the
-                  actions directly under the description to avoid a void in the
-                  middle of the card - but cards in a row are the same height and
-                  their descriptions are not, so the buttons landed at a
-                  different height in every column. Consistent placement is worth
-                  more than tight spacing: a separator turns the slack into an
-                  action bar. */}
-                <div className="mt-auto">
-                  {/* One row, always, and always at the foot of the card.
-                    The block above takes the slack, so a description that runs
-                    to four lines and one that runs to two put their actions in
-                    the same place - which is the whole reason a grid of cards
-                    is scannable. State rides on the trigger rather than on a
-                    chip of its own, because a chip on some cards and not others
-                    is the misalignment again, one row up. */}
-                  {/* `min-w-0` so the row can shrink rather than overflow. Every
-                      `Button` is `whitespace-nowrap` and nothing here could give
-                      way, so the two controls took the full width, `ml-auto`
-                      collapsed to nothing, and the `shrink-0` dot was pushed
-                      past the card's right edge - visibly outside it on a card
-                      with three connections. */}
-                  <div className="border-border mt-3 flex min-w-0 items-center gap-1.5 border-t pt-3">
-                    {/* Exactly two controls, whatever the card holds. The row
-                        used to grow one chip per connection, so a server with
-                        three accounts stood taller than its neighbours and the
-                        grid went ragged - the misalignment this footer exists
-                        to prevent, reintroduced one row down. */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="shrink-0"
-                      onClick={() => openDraft(defaultScope(row, canManageOrganization), row, null)}
-                      disabled={busyId === row.key}
-                    >
-                      <Plug className="mr-1 h-3.5 w-3.5" />
-                      {busyId === row.key ? t("redirecting") : t("connectAction")}
-                    </Button>
-                    {connectionCount(row) > 0 && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        // The one control allowed to give way: the count is the
-                        // least important thing on the row, and something has to
-                        // shrink or the dot leaves the card.
-                        className="min-w-0"
-                        onClick={() => setManaging(row)}
-                        aria-label={t("manageConnectionsOn", { name: row.name })}
-                      >
-                        <span className="truncate">
-                          {t("connectionCount", { count: connectionCount(row) })}
-                        </span>
-                        <ChevronRight className="ml-1 h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    <StateDot row={row} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              name={row.name}
+              icon={row.entry?.icon ?? null}
+              url={row.url}
+              // Nobody here checked a registry server: the description is the
+              // publisher's and there is no token hint, which is worth knowing
+              // before pasting a credential into it.
+              badge={
+                isReviewed(row) ? null : (
+                  <Badge variant="secondary" className="shrink-0" title={t("fromRegistryHint")}>
+                    {t("fromRegistry")}
+                  </Badge>
+                )
+              }
+              description={rowDescription(row, t)}
+              dataTour={index === 0 ? "mcp-connect" : undefined}
+              status={<RowStatus row={row} onManage={() => setManaging(row)} />}
+              // A server somebody holds an account on opens its accounts.
+              onOpen={connectionCount(row) > 0 ? () => setManaging(row) : undefined}
+              // The same two controls on every card, whatever it holds.
+              actions={
+                <>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    onClick={() => openDraft(defaultScope(row, canManageOrganization), row, null)}
+                    disabled={busyId === row.key}
+                    title={t("configureNamed", { name: row.name })}
+                    aria-label={t("configureNamed", { name: row.name })}
+                  >
+                    <Settings2 aria-hidden />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => connect(defaultScope(row, canManageOrganization), row)}
+                    disabled={busyId === row.key}
+                  >
+                    <Plug className="mr-1 h-3.5 w-3.5" />
+                    {busyId === row.key ? t("redirecting") : t("connectAction")}
+                  </Button>
+                </>
+              }
+            />
           ))}
         </div>
 
@@ -739,7 +706,7 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
         onClose={() => setManaging(null)}
         onConnect={(scope, row) => {
           setManaging(null);
-          openDraft(scope, row, null);
+          connect(scope, row);
         }}
         onEdit={(scope, row, connection) => {
           setManaging(null);
@@ -794,11 +761,12 @@ export function McpServerList({ canManageOrganization }: McpServerListProps) {
  * which is what somebody adding one on this page is usually after.
  */
 function defaultScope(row: McpServerRow, canManageOrganization: boolean): Scope {
-  // The empty side first, then the organization's - which is the one an agent
-  // can actually be bound to, so it is the right default for a second account.
-  if (canManageOrganization && row.organizations.length === 0) return "organization";
-  if (row.personals.length === 0) return "personal";
-  return canManageOrganization ? "organization" : "personal";
+  // Your own account first: it is what most people connecting a server mean, and
+  // a shared one deserves a deliberate choice, since every agent in the
+  // organization then acts through it. Once you hold your own, a second account
+  // is the organization's - where an administrator can make one.
+  if (row.personals.length === 0 || !canManageOrganization) return "personal";
+  return "organization";
 }
 
 /**
@@ -822,29 +790,35 @@ function connectionCount(row: McpServerRow): number {
  * says so, because "mostly working" is not what somebody scanning a grid of
  * sixty servers for a broken one needs to see.
  */
-function StateDot({ row }: { row: McpServerRow }) {
+function RowStatus({ row, onManage }: { row: McpServerRow; onManage: () => void }) {
   const t = useTranslations("mcp");
   const states = [...row.organizations, ...row.personals].map((c) => connectionState(c));
-  if (states.length === 0) return null;
-  const worst = states.includes("error")
-    ? "error"
-    : states.includes("needs-authorization")
-      ? "needs-authorization"
-      : states.includes("disabled")
-        ? "disabled"
-        : "connected";
-
+  if (states.length === 0) return <CardStatus tone="off">{t("cardNotConnected")}</CardStatus>;
+  const trouble = states.find((state) => state === "error" || state === "needs-authorization");
+  if (trouble) {
+    return (
+      <CardStatus
+        tone="error"
+        onClick={onManage}
+        label={t("manageConnectionsOn", { name: row.name, count: states.length })}
+      >
+        {t(MCP_STATE_LABEL[trouble])}
+      </CardStatus>
+    );
+  }
+  const yours = row.personals.length;
+  const theirs = row.organizations.length;
   return (
-    <span
-      className={cn(
-        "ml-auto inline-block h-2 w-2 shrink-0 rounded-full",
-        worst === "connected"
-          ? "bg-success"
-          : worst === "error"
-            ? "bg-destructive"
-            : "bg-muted-foreground/50",
-      )}
-      title={t(MCP_STATE_LABEL[worst])}
-    />
+    <CardStatus
+      tone="live"
+      onClick={onManage}
+      label={t("manageConnectionsOn", { name: row.name, count: yours + theirs })}
+    >
+      {yours > 0 && theirs > 0
+        ? t("cardYoursAndOrganizations")
+        : yours > 0
+          ? t("cardYours", { count: yours })
+          : t("cardOrganizations", { count: theirs })}
+    </CardStatus>
   );
 }

@@ -3,7 +3,7 @@
 `sync_sources.config` held the credential: a Google service account JSON or an
 AWS key pair, pasted into a JSONB column and encrypted by `app/core/crypto.py` -
 one deployment-wide Fernet key for every tenant, which is exactly the weakness
-the vault exists to remove. `CLAUDE.md` says "every secret at rest goes through
+the vault exists to remove. `AGENTS.md` says "every secret at rest goes through
 `app/core/vault.py`. There is no second mechanism", and this table was the one
 place that was untrue.
 

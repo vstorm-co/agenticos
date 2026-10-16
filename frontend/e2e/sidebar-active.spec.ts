@@ -30,10 +30,8 @@ test.use({ storageState: AUTH_STATE });
 /**
  * The primary nav column.
  *
- * The mobile tab bar carries the same label but is display:none at this
- * viewport, so it is not in the accessibility tree — `toHaveCount(1)` below
- * turns any future ambiguity into a readable failure rather than a locator that
- * silently picks the wrong nav.
+ * `toHaveCount(1)` below turns any second nav carrying the same label into a
+ * readable failure rather than a locator that silently picks the wrong one.
  */
 function sidebar(page: Page) {
   return page.getByRole("navigation", { name: "Primary" });

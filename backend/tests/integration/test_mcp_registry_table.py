@@ -14,11 +14,14 @@ hundred and hid the rest behind a query - which reads as a catalog of a hundred.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 
 import anyio
 import pytest
 
+from app.db.models.mcp_server_check import CheckOutcome
 from app.repositories import mcp_registry_server_repo as repo
+from app.repositories import mcp_server_check_repo as checks
 
 pytestmark = pytest.mark.anyio
 
@@ -35,6 +38,29 @@ def _row(key: str, name: str, *, description: str = "", host: str = "mcp.example
 
 async def _seed(db, *rows: dict[str, str]) -> None:
     await repo.upsert_many(db, list(rows))
+
+
+def _servers(page):
+    """The mirrored rows of a page, without the check each one carries."""
+    return [server for server, _check in page]
+
+
+async def _check(db, key: str, outcome: CheckOutcome, auth: str | None = None) -> None:
+    await checks.upsert_many(
+        db,
+        [
+            {
+                "key": key,
+                "source": "registry",
+                "outcome": outcome.value,
+                "auth": auth,
+                "tools": None,
+                "read_only_tools": None,
+                "duplicate_of": None,
+                "checked_at": datetime.now(UTC),
+            }
+        ],
+    )
 
 
 class TestWritingTheMirror:
@@ -95,7 +121,7 @@ class TestReadingIt:
         second, _ = await repo.search(db, skip=10, limit=10)
         third, _ = await repo.search(db, skip=20, limit=10)
 
-        ids = [row.id for row in first + second + third]
+        ids = [row.id for row in _servers(first + second + third)]
         assert len(ids) == 30
         assert len(set(ids)) == 30
 
@@ -130,6 +156,55 @@ class TestReadingIt:
         assert total == 75
 
 
+class TestWhatTheCheckFound:
+    """The catalog check's findings, applied in SQL so a page is never left short (#2103)."""
+
+    async def test_a_listing_found_dead_broken_or_repeated_is_not_offered(self, db):
+        await _seed(db, *[_row(f"k/{n}", f"Server {n}") for n in range(5)])
+        await _check(db, "k/0", CheckOutcome.UNREACHABLE)
+        await _check(db, "k/1", CheckOutcome.BROKEN)
+        await _check(db, "k/2", CheckOutcome.DUPLICATE)
+        await _check(db, "k/3", CheckOutcome.SIGN_IN, auth="oauth")
+
+        page, total = await repo.search(db)
+
+        assert total == 2
+        assert {server.id for server in _servers(page)} == {"k/3", "k/4"}
+        found = {server.id: check for server, check in page}
+        assert found["k/3"] is not None and found["k/3"].outcome == "sign_in"
+        assert found["k/4"] is None, "never checked is not dead"
+
+    async def test_an_auth_filter_keeps_listings_found_asking_for_it(self, db):
+        await _seed(db, _row("a/1", "Alpha"), _row("b/1", "Bravo"), _row("c/1", "Charlie"))
+        await _check(db, "a/1", CheckOutcome.SIGN_IN, auth="oauth")
+        await _check(db, "b/1", CheckOutcome.TOKEN, auth="token")
+
+        page, total = await repo.search(db, auth="oauth")
+
+        assert total == 1
+        assert [server.id for server in _servers(page)] == ["a/1"]
+
+    async def test_a_category_narrows_the_mirror(self, db):
+        await _seed(
+            db,
+            {**_row("p/1", "Payments"), "category": "finance"},
+            {**_row("t/1", "Tasks"), "category": "project-management"},
+        )
+
+        page, total = await repo.search(db, category="finance")
+
+        assert total == 1
+        assert _servers(page)[0].id == "p/1"
+
+    async def test_listings_are_every_row_with_its_address(self, db):
+        await _seed(db, _row("b/1", "Bravo", host="b.test"), _row("a/1", "Alpha", host="a.test"))
+
+        assert await repo.listings(db) == [
+            ("a/1", "https://a.test/mcp"),
+            ("b/1", "https://b.test/mcp"),
+        ]
+
+
 class TestTheRanking:
     async def test_the_server_actually_called_that_comes_first(self, db):
         """A single "contains" pass answered "linear" with somebody's
@@ -142,7 +217,7 @@ class TestTheRanking:
 
         page, _ = await repo.search(db, query="linear")
 
-        assert page[0].name == "Linear"
+        assert _servers(page)[0].name == "Linear"
 
     async def test_a_name_match_beats_a_description_match(self, db):
         await _seed(
@@ -153,14 +228,14 @@ class TestTheRanking:
 
         page, _ = await repo.search(db, query="linear")
 
-        assert [row.name for row in page] == ["Linear Sync", "Some Aggregator"]
+        assert [row.name for row in _servers(page)] == ["Linear Sync", "Some Aggregator"]
 
     async def test_the_shorter_name_wins_inside_a_band(self, db):
         await _seed(db, _row("a/1", "Sweden Payments (Stripe)"), _row("b/1", "Stripe"))
 
         page, _ = await repo.search(db, query="stripe")
 
-        assert page[0].name == "Stripe"
+        assert _servers(page)[0].name == "Stripe"
 
     async def test_the_order_is_total_so_a_page_boundary_is_stable(self, db):
         """Two rows with the same band and the same name length must still order
@@ -170,7 +245,7 @@ class TestTheRanking:
         first, _ = await repo.search(db, query="a", limit=2)
         again, _ = await repo.search(db, query="a", limit=2)
 
-        assert [row.id for row in first] == [row.id for row in again]
+        assert [row.id for row in _servers(first)] == [row.id for row in _servers(again)]
 
 
 class TestWhatBootstrapDoes:
@@ -187,6 +262,21 @@ class TestWhatBootstrapDoes:
         await _resolve_mcp_mirror(db)
 
         assert await repo.count(db) > 1000
+
+    async def test_it_seeds_the_catalog_checks_the_release_shipped(self, db, monkeypatch):
+        """So a fresh console marks what answered and hides dead listings before
+        anybody has run the check here (#2103)."""
+        from app.commands import bootstrap
+
+        seeded = AsyncMock(return_value=3)
+        monkeypatch.setattr(bootstrap.mcp_audit, "seed_snapshot", seeded)
+        await _seed(db, _row("mine/1", "Only Mine"))
+
+        await bootstrap._resolve_mcp_mirror(db)
+        seeded.return_value = 0
+        await bootstrap._resolve_mcp_mirror(db)
+
+        assert seeded.await_count == 2
 
     async def test_it_leaves_a_filled_one_alone(self, db):
         """A re-run of bootstrap must not spend seconds rewriting five thousand

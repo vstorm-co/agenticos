@@ -69,8 +69,8 @@ question to tell which team it belongs to before delegating anything.
 Relay the specialist's answer; do not add facts of your own.
 ```
 
-`task` is not side-effecting, so neither delegation asks for approval by
-default - the specialist's own tools are what a person would approve, on the
+Neither delegation asks for approval - no tool does until its author says so -
+and the specialist's own tools are what a person would approve, on the
 specialist's own spec.
 
 ## Who pays, and what the user sees

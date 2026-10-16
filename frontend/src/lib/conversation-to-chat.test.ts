@@ -300,6 +300,20 @@ describe("a replayed turn whose run was stopped", () => {
   });
 });
 
+describe("how long a replayed turn's run took", () => {
+  it("carries the run's span, which folds the work into one line", () => {
+    expect(conversationMessageToChatMessage(raw({ run_duration_ms: 12_400 })).runDurationMs).toBe(
+      12_400,
+    );
+  });
+
+  it("says nothing for a run with no end", () => {
+    expect(conversationMessageToChatMessage(raw({ run_duration_ms: null })).runDurationMs).toBe(
+      undefined,
+    );
+  });
+});
+
 describe("a stored tool call that never finished", () => {
   it("stops looking like it is running", () => {
     // Nothing on this screen can finish it: the frames that would have are long

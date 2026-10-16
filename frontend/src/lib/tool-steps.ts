@@ -125,10 +125,27 @@ function hostOf(url: string): string | null {
   }
 }
 
-/** "create_issue" -> "Create issue": a sentence, not a title. */
+/** "create_issue" or "create-issue" -> "Create issue": a sentence, not a title. */
 function sentence(value: string): string {
-  const words = value.split("_").filter(Boolean).join(" ");
+  const words = value.split(/[_-]/).filter(Boolean).join(" ");
   return words === "" ? value : words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * What a server's tool does, without the server's name it repeats.
+ *
+ * Notion's own server names its tools `notion-search` and `notion-fetch`, so the
+ * step read "notion · Notion-search" - the service twice, the verb last.
+ */
+function actionOf(action: string, server: string): string {
+  const prefix = mcpToolPrefix(server);
+  const bare = action.replace(new RegExp(`^${prefix}[-_]`, "i"), "");
+  return bare === "" ? action : bare;
+}
+
+/** A connection named in lower case reads as the service: "notion" is Notion. */
+function serverLabel(name: string): string {
+  return name === name.toLowerCase() ? name.charAt(0).toUpperCase() + name.slice(1) : name;
 }
 
 /** Words, title-cased: a tool's name, a skill's name, anything snake_cased. */
@@ -161,7 +178,7 @@ export function toolStep(
     // where the side effect landed, and `linear_create_issue` says it in a way
     // nobody reads.
     return {
-      label: `${fromMcp.server} · ${sentence(fromMcp.action)}`,
+      label: `${serverLabel(fromMcp.server)} · ${sentence(actionOf(fromMcp.action, fromMcp.server))}`,
       detail: null,
       kind: "mcp",
       logoDomain: fromMcp.domain,

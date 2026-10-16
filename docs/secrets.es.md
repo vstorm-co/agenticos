@@ -1,5 +1,5 @@
 ---
-source_sha: "475a17c3180b"
+source_sha: "11255bcc5d61"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -200,7 +200,6 @@ organización puede traer su propia clave:
 | Exa | `web_research` |
 | Logfire | [Observabilidad](reference/spec.md#observability) por agent — trazas a un proyecto propio |
 | LlamaParse | Parseo de PDF, facturado a la clave propia de la organización |
-| TypeSafe | [`browser_choice`](reference/capabilities.md#browser-automation-choose) — el modelo que elige la operación y el elemento en cada paso de un recorrido. No es un proveedor de modelos: responde preguntas con tipo en lugar de generar texto, así que no se ofrece como modelo para ejecutar un agent |
 | mem0 | [`memory_mem0`](reference/capabilities.md#memory-mem0) — la capability entera, que guarda las memorias semánticas de un agent en un servicio mem0 (en la nube o autoalojado) en vez de aquí. En este despliegue no se guarda nada, así que mem0 factura su propio embedding por fuera y enviar memorias a la nube de mem0 es una decisión de residencia de datos que nombra el Builder. Una `base_url` autoalojada tiene que ser https y estar en la lista de permitidos `MEM0_ALLOWED_HOSTS`, para que la clave del vault nunca se envíe a un origen controlado por el agent. No hay consola de operador para estas memorias: mem0 tiene su propio almacén, su propio listado y su propio borrado. |
 
 ## Lo que nunca ocurre { #what-never-happens }

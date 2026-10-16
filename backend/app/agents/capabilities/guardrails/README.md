@@ -7,7 +7,7 @@ made executable.
 
 ## What it does
 
-Three edges, each configured independently:
+Four edges, each configured independently:
 
 - **input** — the user's prompt, before the first model request.
 - **output** — the agent's final answer, and everything a streaming surface shows
@@ -15,11 +15,17 @@ Three edges, each configured independently:
   it is complete and runs the same detector over it, so a redacted key never reaches the screen or the transcript's parts (#1900).
   A refused reasoning part is withheld rather than ending the run. Two copies of
   the raw messages remain: a run parked on an approval, and a conversation's
-  summarised history. Streamed tool arguments and a delegate's own streamed text are
-  not screened yet (#2000). Such an agent streams a step at a time.
+  summarised history. A delegate's streamed text and reasoning pass the same check
+  in its delegation panel (`SubagentRuntime.output_screen`, #2000). Such an agent
+  streams a step at a time.
 - **tool result** — what a tool returned, before the model reads it. This is the
   only guard on untrusted content entering the loop: a fetched page, a file, an MCP
   server's response.
+- **tool arguments** — what the agent passes a tool. `ScreenedToolArgs` screens
+  every string in a call's arguments as the model's response arrives, so the tool,
+  the transcript and the stream all hold the screened value, and holds a streamed
+  call back until it is complete (#2000). Its own edge, because redacting an
+  argument changes what the tool does.
 
 On each edge, two kinds of check, drawn from `pydantic-ai-harness`'s ready-made
 detectors:

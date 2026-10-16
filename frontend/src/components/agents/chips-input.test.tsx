@@ -17,12 +17,14 @@ function Harness({
   disabled = false,
   maxItems = 5,
   maxLength = 32,
+  suggestions,
   onChange,
 }: {
   initial?: string[];
   disabled?: boolean;
   maxItems?: number;
   maxLength?: number;
+  suggestions?: string[];
   onChange?: (values: string[]) => void;
 }) {
   const [values, setValues] = useState(initial);
@@ -38,6 +40,8 @@ function Harness({
       placeholder="Add a tag"
       maxItems={maxItems}
       maxLength={maxLength}
+      suggestions={suggestions}
+      suggestionsLabel="Tags already in use"
       disabled={disabled}
     />
   );
@@ -176,5 +180,59 @@ describe("ChipsInput", () => {
     fireEvent.change(box(), { target: { value: "😀😀" } });
 
     expect((box() as HTMLInputElement).value).toBe("😀");
+  });
+
+  describe("suggestions", () => {
+    const IN_USE = ["Support", "Sales", "Internal"];
+    const offered = () => screen.queryByRole("group", { name: "Tags already in use" });
+
+    it("offers the labels in use only while the box has focus", async () => {
+      render(<Harness suggestions={IN_USE} />);
+      expect(offered()).not.toBeInTheDocument();
+
+      await userEvent.click(box());
+
+      expect(offered()).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Sales" })).toBeInTheDocument();
+    });
+
+    it("narrows them by what is typed and leaves out the ones already chosen", async () => {
+      render(<Harness initial={["Sales"]} suggestions={IN_USE} />);
+
+      await userEvent.type(box(), "s");
+
+      expect(screen.getByRole("button", { name: "Support" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Sales" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Internal" })).not.toBeInTheDocument();
+    });
+
+    it("adds a suggestion on a click and keeps the box focused", async () => {
+      const onChange = vi.fn();
+      render(<Harness suggestions={IN_USE} onChange={onChange} />);
+
+      await userEvent.type(box(), "Su");
+      await userEvent.click(screen.getByRole("button", { name: "Support" }));
+
+      expect(onChange).toHaveBeenLastCalledWith(["Support"]);
+      expect(box()).toHaveFocus();
+      expect((box() as HTMLInputElement).value).toBe("");
+    });
+
+    it("takes a label typed in another case as the one in use", async () => {
+      const onChange = vi.fn();
+      render(<Harness suggestions={IN_USE} onChange={onChange} />);
+
+      await userEvent.type(box(), "support{Enter}");
+
+      expect(onChange).toHaveBeenLastCalledWith(["Support"]);
+    });
+
+    it("offers nothing once the list is full", async () => {
+      render(<Harness initial={["a"]} maxItems={1} suggestions={IN_USE} />);
+
+      fireEvent.focus(box());
+
+      expect(offered()).not.toBeInTheDocument();
+    });
   });
 });

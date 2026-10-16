@@ -1,5 +1,5 @@
 ---
-source_sha: "d510b0c748f8"
+source_sha: "eaed0d094904"
 title: "Obserwuj strony internetowe pod kątem zmian według harmonogramu"
 description: "Pobieraj dwie strony według harmonogramu, porównuj każdą z tym, co zapisano ostatnio, i zgłaszaj tylko to, co się zmieniło."
 ---
@@ -36,8 +36,8 @@ Workspace [sandboksa](../sandbox.md) zakresowany na **conversation** przetrwa ka
 ## Zbuduj agenta { #build-the-agent }
 
 1. Utwórz agenta w **Agents → New agent** i wybierz swój profil modelu.
-2. W **Toolbox** włącz **Web fetch**. Ogranicz `allowed_domains` do `github.com` i `example.com`, żeby nie dało się poprosić agenta o pobranie czegokolwiek innego.
-3. Włącz **Files & shell**. Zostaw backend na **Files** (backend `state` - bez powłoki, bez połączenia sandboksa) i zakres na **This conversation** - domyślne ustawienia to dokładnie to, czego potrzebuje ten przepis.
+2. W **Toolbox** włącz **Read web pages**. Ogranicz `allowed_domains` do `github.com` i `example.com`, żeby nie dało się poprosić agenta o pobranie czegokolwiek innego.
+3. Włącz **Sandbox**. Zostaw backend na **Files** (backend `state` - bez powłoki, bez połączenia sandboksa) i zakres na **This conversation** - domyślne ustawienia to dokładnie to, czego potrzebuje ten przepis.
 4. Ustaw budżet i limit kroków na czas próby. Każde zapisane odpalenie kosztowało około 0,07-0,14 USD.
 5. Wpisz poniższe instrukcje, a potem **Publish**.
 

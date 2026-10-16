@@ -225,9 +225,10 @@ function AlertRow({
           {/* Checkboxes with real labels rather than a row of pills. Four pills
               with their hints hidden in `title` attributes was the odd one out in
               this app - nothing else picks several things that way - and a
-              `title` is invisible on a touch screen and to a keyboard. */}
-          <fieldset disabled={disabled} className="space-y-2">
-            <legend className="text-muted-foreground text-xs font-medium">
+              `title` is invisible on a touch screen and to a keyboard. Two
+              columns, so four audiences take two rows rather than four. */}
+          <fieldset disabled={disabled} className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
+            <legend className="text-muted-foreground mb-2 text-xs font-medium">
               {t("whoHearsAbout")}
             </legend>
             {meta.audiences.map((audience) => {

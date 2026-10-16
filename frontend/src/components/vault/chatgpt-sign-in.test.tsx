@@ -287,7 +287,7 @@ describe("adding a ChatGPT sign-in to the vault", () => {
     const onSubmit = open();
 
     await userEvent.type(await screen.findByLabelText("Address ChatGPT sent you to"), CALLBACK);
-    await userEvent.click(screen.getByRole("button", { name: "Store secret" }));
+    await userEvent.click(screen.getByRole("button", { name: "Store key" }));
 
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith("/secrets/openai-codex", {
@@ -305,7 +305,7 @@ describe("adding a ChatGPT sign-in to the vault", () => {
     open();
 
     await userEvent.type(await screen.findByLabelText("Address ChatGPT sent you to"), "nope");
-    await userEvent.click(screen.getByRole("button", { name: "Store secret" }));
+    await userEvent.click(screen.getByRole("button", { name: "Store key" }));
 
     expect(await screen.findByText("Paste the whole address")).toBeVisible();
   });

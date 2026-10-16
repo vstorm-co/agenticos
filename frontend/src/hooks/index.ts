@@ -1,5 +1,8 @@
 export { useAuth } from "./use-auth";
 export { useCopyToClipboard } from "./use-copy-to-clipboard";
+export { useApiKeys } from "./use-api-keys";
+export { usePublicOpenApi } from "./use-public-openapi";
+export { useConnectedApps, useConsentRequest } from "./use-mcp-oauth";
 export { useAdminUsers } from "./use-admin-users";
 export {
   useAdminOrganizations,
@@ -11,7 +14,7 @@ export { useAdminOrganizationDetail } from "./use-admin-organization-detail";
 export { useWebSocket } from "./use-websocket";
 export { useChat } from "./use-chat";
 export { useConversationWorkspace } from "./use-conversation-workspace";
-export { useConversations } from "./use-conversations";
+export { useConversationSearch, useConversations } from "./use-conversations";
 export { useConversationShares } from "./use-conversation-shares";
 export { useOrganizations, useOrganizationList, preferredOrg } from "./use-organizations";
 export { useActiveOrganizationRecovery } from "./use-active-organization";
@@ -19,7 +22,7 @@ export { useMembers } from "./use-members";
 export { useMounted } from "./use-mounted";
 export { useUrlState } from "./use-url-state";
 export { useInvitations } from "./use-invitations";
-export { useKnowledgeBases, useKBDetail } from "./use-knowledge-bases";
+export { useKnowledgeBaseFor, useKnowledgeBases, useKBDetail } from "./use-knowledge-bases";
 export { useSlashCommands, isBuiltinEnabled, BUILTIN_COMMAND_LIST } from "./use-slash-commands";
 export { useNotificationPreferences } from "./use-notification-preferences";
 export { useNotificationInbox, useUnreadNotificationCount } from "./use-notifications";
@@ -28,12 +31,21 @@ export { useDashboardPresets } from "./use-dashboard-presets";
 export { useReusableIntegrations } from "./use-reusable-integrations";
 export { useLocalServices } from "./use-local-services";
 export { useMcpConnections } from "./use-mcp-connections";
-export { useOrgMcpConnections } from "./use-org-mcp-connections";
+export { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
 export { useMyMemory } from "./use-my-memory";
 export { usePermissions, useRoleCatalog, useAssignableRoles } from "./use-permissions";
 export { useRetention } from "./use-retention";
-export { useGroups, useGroupMembers } from "./use-groups";
+export {
+  useAddDepartments,
+  useGroups,
+  useGroupMembers,
+  useGroupResources,
+  useGroupSharing,
+  useGroupSpend,
+  useGroupQuality,
+  useGroupsQuality,
+} from "./use-groups";
 export { useDirectoryMappings } from "./use-directory-mappings";
 export { useCanCreateTrigger } from "./use-can-create-trigger";
 export { useOnboardingTour, type OnboardingTourState } from "./use-onboarding";
@@ -45,7 +57,9 @@ export {
   useAllAgentVersions,
   VERSIONS_PAGE_SIZE,
   useCapabilityCatalog,
+  useAddToAgent,
   useDelegationTree,
+  usePromptVariables,
 } from "./use-agents";
 export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
 export { useMcpOAuthOutcome } from "./use-mcp-oauth-outcome";
@@ -58,7 +72,7 @@ export {
 export { usePortalTargets } from "./use-portal-targets";
 export { useTriggerTemplates } from "./use-trigger-templates";
 export { useUrlSort, type UrlSort } from "./use-url-sort";
-export { useModelProviders, useProviderModels } from "./use-model-providers";
+export { useModelProviders, useProviderCatalog, useProviderModels } from "./use-model-providers";
 export { useDeploymentSettings } from "./use-deployment-settings";
 export { useBrandingNotice } from "./use-branding-notice";
 export {
@@ -102,11 +116,7 @@ export {
   useSystemHealth,
   type SharedWithMeCounts,
 } from "./use-dashboard-data";
-export {
-  useAllWorkspaceFiles,
-  useSandboxWorkspaces,
-  useWorkspaceFiles,
-} from "./use-sandbox-workspaces";
+export { useAllWorkspaceFiles, useWorkspaceFiles } from "./use-sandbox-workspaces";
 export { useFileActions, useFileBytes, useFileText } from "./use-file-content";
 export { useSkillChanges } from "./use-skill-changes";
 export { useSkill, useSkillResource, useSkills } from "./use-skills";

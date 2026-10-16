@@ -5,12 +5,15 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, case, func, select, type_coerce
+from sqlalchemy import ColumnElement, and_, case, func, or_, select, type_coerce
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.db.models.agent import Agent
+from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.conversation import Conversation, Message
+from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
 
 
@@ -181,6 +184,33 @@ async def list_ratings(
     return items, total
 
 
+async def _by_surface(
+    db: AsyncSession, conditions: Sequence[ColumnElement[bool]], *, scoped: bool
+) -> list[dict[str, Any]]:
+    """Likes and dislikes per surface the rated answer was given on (#2084).
+
+    Read off the run that produced the message; an answer with no run - a
+    console turn from before runs were recorded - counts as the web chat.
+    """
+    surface = func.coalesce(AgentRun.surface, RunSurface.WEB.value)
+    query = (
+        select(
+            surface.label("surface"),
+            func.sum(case((MessageRating.rating == 1, 1), else_=0)).label("likes"),
+            func.sum(case((MessageRating.rating == -1, 1), else_=0)).label("dislikes"),
+        )
+        .join(Message, Message.id == MessageRating.message_id)
+        .outerjoin(AgentRun, AgentRun.id == Message.run_id)
+    )
+    if scoped:
+        query = query.join(Conversation, Conversation.id == Message.conversation_id)
+    query = query.where(*conditions).group_by(surface).order_by(surface)
+    return [
+        {"surface": row.surface, "likes": row.likes or 0, "dislikes": row.dislikes or 0}
+        for row in await db.execute(query)
+    ]
+
+
 async def get_rating_summary(
     db: AsyncSession,
     *,
@@ -234,6 +264,7 @@ async def get_rating_summary(
         "average_rating": float(row.avg_rating) if row.avg_rating else 0.0,
         "with_comments": row.with_comments or 0,
         "ratings_by_day": ratings_by_day,
+        "ratings_by_surface": await _by_surface(db, conditions, scoped=False),
     }
 
 
@@ -249,9 +280,8 @@ async def get_rating_summary_scoped(
 
     Ratings carry no organization of their own, so the tenant bound is a
     two-hop join: rating -> message -> conversation. `user_id` narrows to the
-    caller's own conversations, which is what scope=own means - a rating can
-    only ever be given by a conversation's owner, so "my conversations" and
-    "ratings I gave" are the same set.
+    caller's own: their conversations, and the answers they rated in a chat
+    channel, whose conversation belongs to nobody (#2084).
     """
     conditions = [
         Conversation.organization_id == organization_id,
@@ -259,7 +289,7 @@ async def get_rating_summary_scoped(
         MessageRating.created_at < end,
     ]
     if user_id is not None:
-        conditions.append(Conversation.user_id == user_id)
+        conditions.append(or_(Conversation.user_id == user_id, MessageRating.user_id == user_id))
 
     counts_query = (
         select(
@@ -305,6 +335,7 @@ async def get_rating_summary_scoped(
         "average_rating": float(row.avg_rating) if row.avg_rating else 0.0,
         "with_comments": row.with_comments or 0,
         "ratings_by_day": ratings_by_day,
+        "ratings_by_surface": await _by_surface(db, conditions, scoped=True),
     }
 
 
@@ -339,3 +370,88 @@ async def rating_counts_by_version(
         .group_by(Message.agent_version_id)
     )
     return {row[0]: (int(row[1] or 0), int(row[2] or 0)) for row in result.all()}
+
+
+async def ratings_by_group(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    group_id: UUID | None = None,
+) -> list[tuple[UUID, int, int]]:
+    """How each department's people rated answers in a window (#2101).
+
+    Returns (group_id, likes, dislikes) rows, only for departments whose members
+    rated something. A rating counts for the department of whoever gave it - the
+    question is how well agents answer *its* people - and for every department
+    that person is in, so the rows are not a partition. Bounded to the
+    organization through the rated message's conversation, as every rating read
+    is.
+    """
+    conditions = [
+        Group.organization_id == organization_id,
+        Conversation.organization_id == organization_id,
+        MessageRating.created_at >= start,
+        MessageRating.created_at < end,
+    ]
+    if group_id is not None:
+        conditions.append(GroupMember.group_id == group_id)
+    result = await db.execute(
+        select(
+            GroupMember.group_id,
+            func.sum(case((MessageRating.rating > 0, 1), else_=0)),
+            func.sum(case((MessageRating.rating < 0, 1), else_=0)),
+        )
+        .join(GroupMember, GroupMember.user_id == MessageRating.user_id)
+        .join(Group, Group.id == GroupMember.group_id)
+        .join(Message, Message.id == MessageRating.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(*conditions)
+        .group_by(GroupMember.group_id)
+    )
+    return [(group, int(likes), int(dislikes)) for group, likes, dislikes in result.all()]
+
+
+async def group_down_rated(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    group_id: UUID,
+    start: datetime,
+    end: datetime,
+    limit: int,
+) -> list[tuple[datetime, str | None, UUID | None, UUID | None, str | None]]:
+    """The latest answers a department's people rated down, newest first (#2101).
+
+    Returns (rated_at, comment, run_id, agent_id, agent_name) rows. The run and
+    agent are absent for an answer from before messages named their run. What
+    was asked and answered is not read - the run holds it, behind its own gate.
+    """
+    result = await db.execute(
+        select(
+            MessageRating.created_at,
+            MessageRating.comment,
+            AgentRun.id,
+            Agent.id,
+            Agent.name,
+        )
+        .join(GroupMember, GroupMember.user_id == MessageRating.user_id)
+        .join(Message, Message.id == MessageRating.message_id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .outerjoin(AgentRun, AgentRun.id == Message.run_id)
+        .outerjoin(Agent, Agent.id == AgentRun.agent_id)
+        .where(
+            GroupMember.group_id == group_id,
+            Conversation.organization_id == organization_id,
+            MessageRating.rating < 0,
+            MessageRating.created_at >= start,
+            MessageRating.created_at < end,
+        )
+        .order_by(MessageRating.created_at.desc())
+        .limit(limit)
+    )
+    return [
+        (rated_at, comment, run_id, agent_id, agent_name)
+        for rated_at, comment, run_id, agent_id, agent_name in result.all()
+    ]

@@ -37,6 +37,10 @@ export interface DonutLegendRow {
  * never show a colour the ring does not draw. A row at zero is dimmed rather
  * than dropped, and every row prints its count: colour separates the arcs,
  * it never carries the value.
+ *
+ * Side by side when the card is wide enough for the names, and the key under
+ * the ring when it is not: beside a ring in a third of the page, "Awaiting
+ * approval" and "Budget exceeded" were cut to their first word.
  */
 export function DonutChart({
   segments,
@@ -55,45 +59,49 @@ export function DonutChart({
   const locale = useLocale();
   const rows: DonutLegendRow[] = legend ?? segments;
   return (
-    <div className={cn("flex items-center gap-5", className)}>
-      <div className="size-32 shrink-0 sm:size-36">
-        <DonutChartImpl segments={segments} centerLabel={centerLabel} centerSub={centerSub} />
-      </div>
-      <ul className="min-w-0 flex-1 space-y-2">
-        {rows.map((row) => (
-          <li
-            key={row.name}
-            className={cn("flex items-center gap-2 text-xs", row.value === 0 && "opacity-45")}
-          >
-            <span
-              className="size-2.5 shrink-0 rounded-[3px]"
-              style={{ background: row.color }}
-              aria-hidden
-            />
-            {/* A row with runs behind it is a link to them; one with none is
+    // The container is the outer box and the layout the inner one: a container
+    // query reads an ancestor, never the element it is written on.
+    <div className={cn("@container flex flex-col justify-center", className)}>
+      <div className="flex flex-col items-center gap-4 @[26rem]:flex-row @[26rem]:gap-5">
+        <div className="size-32 shrink-0 sm:size-36">
+          <DonutChartImpl segments={segments} centerLabel={centerLabel} centerSub={centerSub} />
+        </div>
+        <ul className="w-full min-w-0 space-y-2 @[26rem]:flex-1">
+          {rows.map((row) => (
+            <li
+              key={row.name}
+              className={cn("flex items-center gap-2 text-xs", row.value === 0 && "opacity-45")}
+            >
+              <span
+                className="size-2.5 shrink-0 rounded-[3px]"
+                style={{ background: row.color }}
+                aria-hidden
+              />
+              {/* A row with runs behind it is a link to them; one with none is
                 text, because a link to an empty list is a dead end dressed as
                 an answer. */}
-            {row.href && row.value > 0 ? (
-              <Link
-                href={row.href}
-                className="text-muted-foreground hover:text-foreground min-w-0 flex-1 truncate underline-offset-4 hover:underline"
-              >
-                {row.name}
-              </Link>
-            ) : (
-              <span className="text-muted-foreground min-w-0 flex-1 truncate">{row.name}</span>
-            )}
-            {row.share !== undefined ? (
-              <span className="text-muted-foreground shrink-0 tabular-nums">
-                {formatShare(row.share, locale)}
+              {row.href && row.value > 0 ? (
+                <Link
+                  href={row.href}
+                  className="text-muted-foreground hover:text-foreground min-w-0 flex-1 truncate underline-offset-4 hover:underline"
+                >
+                  {row.name}
+                </Link>
+              ) : (
+                <span className="text-muted-foreground min-w-0 flex-1 truncate">{row.name}</span>
+              )}
+              {row.share !== undefined ? (
+                <span className="text-muted-foreground shrink-0 tabular-nums">
+                  {formatShare(row.share, locale)}
+                </span>
+              ) : null}
+              <span className="text-foreground w-8 shrink-0 text-right font-medium tabular-nums">
+                {row.value.toLocaleString(locale)}
               </span>
-            ) : null}
-            <span className="text-foreground w-8 shrink-0 text-right font-medium tabular-nums">
-              {row.value.toLocaleString(locale)}
-            </span>
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

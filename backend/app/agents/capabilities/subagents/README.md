@@ -382,11 +382,12 @@ parent-intersected, author-chosen, publish-checked allowlist** — populating it
 from anything less is the ungranted-scope failure wearing a new hat, and half of
 it would be worse than none.
 
-**Creating one needs approval, by default.** This is the one place delegation and
-*dynamic* delegation part company. `task` is not side-effecting because what a
-delegate does is gated by the delegate's own reviewed spec; there is no reviewed
-spec here, so the specialist itself is the thing worth a person's eye. An author
-who wants an agent to run unattended clears it with `tool_approval`.
+**Creating one is the call worth gating.** Nothing is gated by default, but this
+is where delegation and *dynamic* delegation part company. `task` is not
+side-effecting because what a delegate does is gated by the delegate's own
+reviewed spec; there is no reviewed spec here, so the specialist itself is the
+thing worth a person's eye. An author who wants to see it sets `tool_approval` on
+`create_agent` and `delegate`.
 
 **Nothing is persisted across turns, but a kept one survives a park.** The
 registry `create_agent` writes into belongs to the *built agent*, and a run that

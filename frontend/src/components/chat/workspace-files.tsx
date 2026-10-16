@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { AlertTriangle, FolderOpen, Info, X } from "lucide-react";
 
@@ -31,6 +32,8 @@ interface WorkspaceFilesProps {
    * gets nothing, and before this the panel had nothing to show either.
    */
   attachments: ChatMessageFile[];
+  /** Where the closed panel's button is drawn - among the composer's controls. */
+  buttonSlot: HTMLElement | null;
 }
 
 /**
@@ -38,8 +41,9 @@ interface WorkspaceFilesProps {
  *
  * **Closed by default, and that is the change.** A permanent third column took
  * space from the transcript in every conversation, including the ones where the
- * agent keeps nothing — so closed it is a strip holding one icon, and the count on
- * that icon is what says there is something to open.
+ * agent keeps nothing — so closed it is one icon among the composer's controls,
+ * and the count on that icon is what says there is something to open. A strip
+ * of its own down the right edge cost the conversation a margin for one button.
  *
  * `owner_label` is shown and is not decoration. Under `agent` scope one workspace is
  * shared by everybody who talks to that agent, so somebody opens a chat and finds a
@@ -51,7 +55,12 @@ interface WorkspaceFilesProps {
  * chart or a PDF, and the panel used to answer "open this" with the first 60
  * characters of a line.
  */
-export function WorkspaceFiles({ conversationId, revision, attachments }: WorkspaceFilesProps) {
+export function WorkspaceFiles({
+  conversationId,
+  revision,
+  attachments,
+  buttonSlot,
+}: WorkspaceFilesProps) {
   const t = useTranslations("chat.files");
   const { workspace, error, refresh } = useConversationWorkspace(conversationId);
   const openAttachment = useFilePreviewStore((state) => state.open);
@@ -88,8 +97,7 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
   // gap swallowed uploads, which are written into the workspace before the agent
   // has done anything at all.
   //
-  // A strip holding one icon costs 44 pixels and answers "does this agent keep
-  // files" the moment somebody wonders. Flicker is solved where it belongs: the
+  // One icon answers "does this agent keep files" the moment somebody wonders. Flicker is solved where it belongs: the
   // count only appears once there is something to count, so the button itself never
   // changes shape.
   const files = workspace?.items.filter((file) => !file.is_dir) ?? [];
@@ -112,16 +120,18 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
   const count = files.length + unstored.length;
 
   if (!open)
+    // Drawn where the composer keeps its controls rather than in the row: a
+    // strip in the row cost the transcript a margin for one icon, and a button
+    // floating over the row sat on whichever side panel was open.
     return (
-      // A strip in the flow rather than something absolutely positioned over the
-      // row: the sources and file-preview panels are columns on this same right
-      // edge, and a floating button would sit on top of whichever one was open.
-      <div className="border-border flex w-11 shrink-0 flex-col items-center border-l pt-3">
+      buttonSlot &&
+      createPortal(
         <button
           type="button"
           aria-label={count === 0 ? t("show") : t("showWithCount", { count })}
+          title={count === 0 ? t("show") : t("showWithCount", { count })}
           onClick={() => setOpen(true)}
-          className="text-muted-foreground hover:text-foreground hover:bg-accent/60 relative rounded-md p-2"
+          className="text-muted-foreground hover:text-foreground hover:bg-accent/60 relative inline-flex h-8 w-8 items-center justify-center rounded-full"
         >
           <FolderOpen className="h-4 w-4" />
           {count > 0 && (
@@ -129,8 +139,9 @@ export function WorkspaceFiles({ conversationId, revision, attachments }: Worksp
               {count}
             </span>
           )}
-        </button>
-      </div>
+        </button>,
+        buttonSlot,
+      )
     );
 
   return (

@@ -1,5 +1,5 @@
 ---
-source_sha: "ff4961c85112"
+source_sha: "51103c7b1def"
 ---
 
 # Acerca de AgenticOS { #about-agenticos }
@@ -83,8 +83,7 @@ Para una empresa que quiere más de tres agents, y los quiere gobernados.
 - **Quien construye el agent** no escribe Python. Escribe instrucciones, activa
   capabilities, apunta a una colección de conocimiento y fija un budget.
 - **Quien responde de la factura** obtiene budgets que detienen un run,
-  aprobaciones para todo lo que tenga efectos secundarios y un rastro de
-  auditoría.
+  aprobaciones para las herramientas que elija y un rastro de auditoría.
 - **El ingeniero** obtiene un spec que se exporta como YAML a su propio
   repositorio git, una API HTTP y una plataforma cuyo código fuente puede leer.
 

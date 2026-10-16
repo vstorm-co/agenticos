@@ -53,6 +53,11 @@ export interface SecretRequirement {
    */
   required_when: SecretCondition | null;
   /**
+   * Configurations that may use a key without needing one - a browser's proxy
+   * that may or may not sign in. The picker is offered with a "none" choice.
+   */
+  optional_when?: SecretCondition | null;
+  /**
    * Which service in the catalog the key is for - a `services.json` id such as
    * `mem0` - or null where `required_when` already names it.
    *
@@ -79,6 +84,18 @@ export function secretIsRequired(
   const condition = requirement.required_when;
   if (!condition) return true;
   return condition.equals.includes(String(config[condition.field]));
+}
+
+/** Whether the picker belongs on the form: the key is needed, or merely usable. */
+export function secretIsOffered(
+  requirement: SecretRequirement,
+  config: Record<string, unknown>,
+): boolean {
+  const optional = requirement.optional_when;
+  return (
+    secretIsRequired(requirement, config) ||
+    (optional != null && optional.equals.includes(String(config[optional.field])))
+  );
 }
 
 /**

@@ -1,10 +1,12 @@
 import { act, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   activateTab,
   isTypingTarget,
+  keepClearOf,
   onlyHiddenMatches,
+  prefersReducedMotion,
   pulse,
   revealDisclosures,
   spotlightPath,
@@ -207,5 +209,56 @@ describe("waitForElement", () => {
     host.style.visibility = "visible";
     expect(onlyHiddenMatches('[data-tour="tucked-away"]')).toBe(false);
     host.remove();
+  });
+});
+
+describe("keepClearOf", () => {
+  function boxed(box: { x: number; y: number; width: number; height: number }): HTMLElement {
+    const element = document.createElement("div");
+    element.getBoundingClientRect = () =>
+      ({
+        left: box.x,
+        top: box.y,
+        right: box.x + box.width,
+        bottom: box.y + box.height,
+      }) as DOMRect;
+    element.scrollIntoView = vi.fn();
+    return element;
+  }
+
+  it("scrolls a control out from under the caption pinned over it", () => {
+    // The builder's Knowledge row sat low in the capability list, on screen —
+    // so driver.js did not scroll it — and half under the caption describing it.
+    const control = boxed({ x: 280, y: 810, width: 300, height: 70 });
+    keepClearOf(control, boxed({ x: 500, y: 710, width: 450, height: 165 }));
+    expect(control.scrollIntoView).toHaveBeenCalledWith({ block: "center", inline: "nearest" });
+  });
+
+  it("leaves a control the caption does not cover where it is", () => {
+    const control = boxed({ x: 280, y: 100, width: 300, height: 70 });
+    keepClearOf(control, boxed({ x: 500, y: 710, width: 450, height: 165 }));
+    expect(control.scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when there is no caption to keep clear of", () => {
+    const control = boxed({ x: 0, y: 0, width: 10, height: 10 });
+    keepClearOf(control, null);
+    expect(control.scrollIntoView).not.toHaveBeenCalled();
+  });
+});
+
+describe("prefersReducedMotion", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reads the reader's motion preference", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
+    expect(prefersReducedMotion()).toBe(true);
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    expect(prefersReducedMotion()).toBe(false);
+  });
+
+  it("answers no where the browser cannot be asked", () => {
+    vi.stubGlobal("matchMedia", undefined);
+    expect(prefersReducedMotion()).toBe(false);
   });
 });

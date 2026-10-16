@@ -2,24 +2,37 @@
 import asyncio
 import contextlib
 import logging
-from typing import Any
+from typing import Any, NamedTuple
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
+from pydantic_ai.exceptions import CallDeferred, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage
+from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
 
-from app.agents.ask_user import QuestionItem, asking_delegate, render_answer
+from app.agents.ask_user import (
+    QuestionChoice,
+    QuestionItem,
+    answers_to_response,
+    asking_delegate,
+    render_answer,
+    wire_questions,
+)
 from app.agents.browser_events import BrowserEvent
 from app.agents.capabilities.budget import BudgetExceeded
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
 from app.agents.connect_on_use import ConnectionRequest
+from app.agents.failures import run_failure_summary
+from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
+from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
+from app.repositories import agent_repo, agent_run_repo
 from app.schemas.conversation import MessagePart
 from app.services.agent import (
     persist_assistant_turn,
@@ -34,11 +47,14 @@ from app.services.agent_chat import (
     requested_approval_mode,
     requested_environment_id,
     requested_model_profile_id,
+    requested_testing,
+    requested_time_zone,
 )
 from app.services.agent_runner import PersonalServiceGap
 from app.services.attachments import load_turn_attachments
 from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
+from app.services.notifications import NotificationService
 from app.services.run_stream import RunFrames
 from app.services.usage_report import usage_frame
 from app.services.ws_auth import authenticate_socket_token
@@ -70,25 +86,28 @@ This is a count of messages, not of tokens, and nothing here compacts it: the
 is replayed as text.
 """
 
-DETACHED_TURN_GRACE_S = 600.0
-"""How long a turn may go on after the socket watching it has gone.
 
-A dropped socket is not a decision to abandon the answer. `send_event` already
-answers a closed socket with `False` rather than raising, which is the contract
-`run_stream.FrameSink` states - *a visitor who closed the tab must not take the
-run with them* - and `process_message`'s own `finally` writes down whatever the
-model produced either way. So a turn allowed to reach its end is a `COMPLETED`
-run with its answer in the transcript, which is what the reader finds when they
-come back. Cancelling on the disconnect instead wrote `CANCELLED` against a
-half-finished reply and labelled it *stopped*, for a browser that had done
-nothing but refresh its access token.
+def _detached_grace_s() -> float:
+    """How long a turn may go on after the socket watching it has gone.
 
-Bounded, because nobody is watching any more: an agent left iterating spends the
-organization's budget on an answer no one will read. Ten minutes is above the
-longest turn measured on a small deployment (416 s) with room to spare, and far
-below the cost of an afternoon. The budget capability is the real ceiling; this
-is the one that applies when the reason to stop is that the reader has gone.
-"""
+    A dropped socket is not a decision to abandon the answer. `send_event` already
+    answers a closed socket with `False` rather than raising, which is the contract
+    `run_stream.FrameSink` states - *a visitor who closed the tab must not take the
+    run with them* - and `process_message`'s own `finally` writes down whatever the
+    model produced either way. So a turn allowed to reach its end is a `COMPLETED`
+    run with its answer in the transcript, which is what the reader finds when they
+    come back. Cancelling on the disconnect instead wrote `CANCELLED` against a
+    half-finished reply and labelled it *stopped*, for a browser that had done
+    nothing but refresh its access token.
+
+    Bounded, because an agent left iterating spends the organization's budget on an
+    answer that may never be read. It was ten minutes, which cut off exactly the
+    turns somebody walks away from - a research task, a long browse - and an hour
+    by default now that the person is told when it lands (#2108):
+    `CHAT_DETACHED_TURN_MINUTES`. The budget capability is the real ceiling; this
+    is the one that applies when the reason to stop is that the reader has gone.
+    """
+    return settings.CHAT_DETACHED_TURN_MINUTES * 60
 
 
 def _turn_failed(exc: Exception) -> str:
@@ -108,10 +127,35 @@ def _turn_failed(exc: Exception) -> str:
     `GuardrailBlocked` are caught above and passed through whole, because their
     messages are written in this repository.
     """
+    # A provider that answered with a status says something the reader can act
+    # on - a key out of credit, a refused credential, a rate limit - and
+    # `run_failure_summary` is where that sentence is written for the run's row,
+    # so the chat says the same thing rather than only the class name.
+    cause: BaseException = exc
+    while isinstance(cause, BaseExceptionGroup):
+        cause = cause.exceptions[0]
+    if isinstance(cause, ModelHTTPError | UsageLimitExceeded):
+        return run_failure_summary(cause)
     return (
         f"The agent could not finish this turn ({type(exc).__name__}). "
         "Try again; the server log has the full error."
     )
+
+
+_ANSWER_NOT_SAVED = "the answer could not be saved."
+"""What the away notice says when the run finished and its answer's write failed."""
+
+
+class _Outcome(NamedTuple):
+    """How a turn ended, for telling somebody who was not there to see it."""
+
+    run_id: UUID
+    agent_id: UUID
+    error: str | None
+
+
+class _LeftUnanswered(Exception):
+    """The socket went away while the run's own question card was open."""
 
 
 class AgentSession:
@@ -142,15 +186,20 @@ class AgentSession:
         # question and its answer as a part of the turn it happened in (#502).
         # None between turns; set and cleared by `process_message`.
         self._current_timeline: TurnTimeline | None = None
-        # The question awaiting an answer, so the frame handler can record the
-        # answered pair the moment it arrives - before a `stop` frame behind it
-        # can cancel the turn and lose it (#502). One at a time, under `_ask_lock`.
-        self._pending_question: str | None = None
+        # The questions awaiting answers, so the frame handler can record each
+        # answered pair the moment they arrive - before a `stop` frame behind them
+        # can cancel the turn and lose them (#502). One round at a time, under
+        # `_ask_lock`: a delegate's single question, or an `ask_user` card.
+        self._pending_questions: list[str] | None = None
         # Which delegate that question came from, read where the question is put
         # rather than where its answer lands: the delegation's state is bound for
         # the duration of the delegation, so it is bound inside `_ask_one` and
         # gone by the time the answer arrives on the receive loop (#1042).
         self._pending_asked_by: str | None = None
+        # Whether the open round is the run's own `ask_user` card, which outlives
+        # the socket: left unanswered, it parks the run rather than being read as
+        # declined (#2064). A delegate's question has no such afterlife.
+        self._round_parks = False
         # One question round on the wire at a time. The client renders a single
         # `ask_user` form and its `ask_user_response` carries no correlation, and
         # `_ask_user_future` is one slot - so two delegates asking at once (a
@@ -159,6 +208,14 @@ class AgentSession:
         # holds each round until its answer arrives, so questions queue rather
         # than collide.
         self._ask_lock = asyncio.Lock()
+        # What the person adds to the running turn (#2087). Set for the length of
+        # a turn by `process_message`, None between turns.
+        self._steering: SteeringInbox | None = None
+        # The running turn's agent and run, and how the turn ended - read by
+        # `shutdown` to tell a person who left before the answer came (#2108).
+        self._turn_agent_id: UUID | None = None
+        self._turn_runs: list[OpenedRun] = []
+        self._outcome: _Outcome | None = None
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
@@ -200,12 +257,28 @@ class AgentSession:
             # the next frame, so completing the pair now is what keeps a turn
             # cancelled a microtask later from losing the answered question
             # (#502).
-            if self._pending_question is not None and self._current_timeline is not None:
-                self._current_timeline.add_ask_user(
-                    self._pending_question,
-                    render_answer(answers[0] if answers else None),
-                    asked_by=self._pending_asked_by,
-                )
+            if self._pending_questions is not None and self._current_timeline is not None:
+                for index, question in enumerate(self._pending_questions):
+                    self._current_timeline.add_ask_user(
+                        question,
+                        render_answer(answers[index] if index < len(answers) else None),
+                        asked_by=self._pending_asked_by,
+                    )
+            return
+
+        if msg_type == "steer":
+            text = str(data.get("text") or "").strip()
+            if not text:
+                return
+            inbox = self._steering
+            if inbox is None or self._turn_task is None or self._turn_task.done():
+                # The turn ended between the click and the frame: nothing left to
+                # steer, so the client sends it as an ordinary message instead.
+                await send_event(self.websocket, "steer_unapplied", {"texts": [text]})
+                return
+            if not await self._reauthorize():
+                return
+            inbox.add(text)
             return
 
         if msg_type == "connect_account_response":
@@ -315,7 +388,7 @@ class AgentSession:
         Nobody is waiting on the frames any more, but the answer is still worth
         having: it is written to the transcript by `process_message`, not to the
         socket, so the reader who comes back finds a finished turn rather than a
-        half-written one marked *stopped*. See `DETACHED_TURN_GRACE_S`.
+        half-written one marked *stopped*. See `_detached_grace_s`.
 
         `stop` is untouched. `handle_frame` still cancels immediately there,
         because somebody asked.
@@ -331,7 +404,10 @@ class AgentSession:
         # wait ends.
         fut = self._ask_user_future
         if fut is not None and not fut.done():
-            fut.set_result([])
+            if self._round_parks:
+                fut.set_exception(_LeftUnanswered())
+            else:
+                fut.set_result([])
         # The same for a run waiting on a connection: nobody is there to make it.
         waiting = self._connect_future
         if waiting is not None and not waiting.done():
@@ -341,19 +417,35 @@ class AgentSession:
         # explicit cancellation below - the path every existing test covers, and
         # the one that unwinds delegations - would never run.
         try:
-            await asyncio.wait_for(asyncio.shield(task), DETACHED_TURN_GRACE_S)
+            await asyncio.wait_for(asyncio.shield(task), _detached_grace_s())
         except TimeoutError:
             logger.info("Turn ran past its detached grace with nobody watching; stopping it")
             await self._cancel_turn()
+            if self._turn_runs and self._turn_agent_id is not None:
+                minutes = round(settings.CHAT_DETACHED_TURN_MINUTES)
+                await self._tell_the_absent(
+                    _Outcome(
+                        self._turn_runs[0].run_id,
+                        self._turn_agent_id,
+                        f"it was still working after {minutes} minutes with nobody "
+                        "watching, so it was stopped",
+                    )
+                )
+            return
         except asyncio.CancelledError:
             # This session's own task tree is being torn down - a redeploy, or
             # uvicorn draining. Stop the turn, then let the cancellation carry on
             # unwinding rather than swallowing it here.
             await self._cancel_turn()
             raise
+        # The turn reached its end with nobody watching: say how, where they
+        # will see it. A turn that parked on an approval or a question has
+        # already told them through `approval_requested` or the question's park.
+        await self._tell_the_absent(self._outcome)
 
     async def process_message(self, data: dict[str, Any]) -> None:
         """Process one user turn: persist input, run the agent, stream events, persist output."""
+        self._outcome = None
         user_message = data.get("message", "")
         file_ids = data.get("file_ids", [])
 
@@ -370,6 +462,14 @@ class AgentSession:
         if agent_id is None:
             await send_event(self.websocket, "error", {"message": _PICK_AN_AGENT})
             return
+        # `conversation_id: null` is the console's new chat, and it starts one. The
+        # session used to read it as "no id given" and carry on in the conversation
+        # this socket had open, so after New chat - or after deleting the open
+        # conversation - the next message was written into the old thread, or
+        # refused because that thread no longer existed. A frame without the key
+        # still continues the session's conversation.
+        if "conversation_id" in data and data["conversation_id"] is None:
+            self.current_conversation_id = None
         try:
             prompt = await persist_user_turn(
                 self.user,
@@ -410,10 +510,20 @@ class AgentSession:
         # half-written answer on exactly the runs somebody opens afterwards.
         timeline = TurnTimeline()
         self._current_timeline = timeline
+
+        async def steered(text: str) -> None:
+            # Where it reached the model is where the transcript shows it.
+            timeline.add_steer(text)
+            await send_event(self.websocket, "steer_applied", {"text": text})
+
+        steering = SteeringInbox(on_applied=steered)
+        self._steering = steering
         # The run row, as soon as `prepare` opens one. A list because the
         # callback is `list.append` and a turn opens at most one run - it is
         # empty when the run was refused before it existed.
         opened: list[OpenedRun] = []
+        self._turn_agent_id = agent_id
+        self._turn_runs = opened
         # Whether the assistant turn reached the database. Read by the `finally`,
         # which exists for the paths where `turn` was never assigned and so
         # cannot be consulted.
@@ -459,6 +569,7 @@ class AgentSession:
                     ),
                     prompt_message_id=prompt.message_id,
                     ask_user=self._ask_one,
+                    ask_questions=self._ask_questions,
                     stream=frames.drive,
                     on_run_open=opened.append,
                     subagent_events=self._subagent_event,
@@ -476,6 +587,11 @@ class AgentSession:
                     # organization's ceiling, and *refused* there rather than
                     # downgraded (#925).
                     approval_mode=requested_approval_mode(data),
+                    person_time_zone=requested_time_zone(data),
+                    # The Builder's test panel: the draft, or a version, marked
+                    # as a test either way (#2074).
+                    testing=requested_testing(data),
+                    steering=steering,
                 )
             # `turn.output` is what the run *ended* with; a turn that parked ended
             # with nothing, so its words are on the timeline (#509).
@@ -500,13 +616,22 @@ class AgentSession:
                     # Stored as `awaiting_approval`, so reloading the page keeps
                     # saying the step is waiting on a person (#601). The frame
                     # below carries the same calls to whoever is watching live.
-                    parked_tool_call_ids={parked.tool_call_id for parked in turn.parked},
+                    parked_tool_call_ids={parked.tool_call_id for parked in turn.parked}
+                    | set(turn.questions),
+                    mcp_origins=turn.mcp_origins,
                 )
                 # Written, so the `finally` below has nothing left to save. It
                 # cannot read `turn` to work that out - the whole point of it is
                 # the paths where `turn` was never assigned.
                 answered = True
                 await self._remember_context(turn)
+                if turn.run_id is not None and not turn.parked and not turn.questions:
+                    # Only an answer that is there to come back to. A write that
+                    # failed returns no id, and "answered while you were away"
+                    # would link to a conversation ending in the question.
+                    self._outcome = _Outcome(
+                        turn.run_id, agent_id, None if assistant_msg_id else _ANSWER_NOT_SAVED
+                    )
 
             if assistant_msg_id:
                 await send_event(
@@ -533,6 +658,7 @@ class AgentSession:
                                 "tool_call_id": parked.tool_call_id,
                                 "tool_name": parked.tool_name,
                                 "args": parked.tool_args,
+                                "account": parked.account,
                             }
                             for parked in turn.parked
                         ],
@@ -567,11 +693,23 @@ class AgentSession:
             # in the named agent's place.
             logger.info("Agent turn refused: %s", exc)
             await send_event(self.websocket, "error", {"message": str(exc)})
+            if opened:
+                self._outcome = _Outcome(opened[0].run_id, agent_id, str(exc))
         except Exception as exc:
             logger.exception("Error processing agent request")
             await send_event(self.websocket, "error", {"message": _turn_failed(exc)})
+            if opened:
+                self._outcome = _Outcome(opened[0].run_id, agent_id, _turn_failed(exc))
         finally:
             self._current_timeline = None
+            self._steering = None
+            late = steering.unapplied()
+            if late:
+                # Sent after the agent's last request, so no request carried them.
+                # Handed back rather than dropped: the client sends them as the
+                # next message.
+                with contextlib.suppress(Exception):
+                    await send_event(self.websocket, "steer_unapplied", {"texts": late})
             if not answered:
                 await self._persist_partial_turn(
                     opened,
@@ -581,6 +719,28 @@ class AgentSession:
                     thinking=timeline.thinking,
                     parts=timeline.stored(),
                 )
+
+    async def _tell_the_absent(self, outcome: _Outcome | None) -> None:
+        """Notify the person a turn ended without, in the inbox and by email (#2108).
+
+        Nothing when the turn ended with nothing to say - refused before its run
+        existed, or parked waiting on somebody - or outside a conversation.
+        """
+        if outcome is None or self.current_conversation_id is None:
+            return
+        async with get_db_context() as db:
+            run = await agent_run_repo.get_run(
+                db, outcome.run_id, organization_id=self.organization_id
+            )
+            agent = await agent_repo.get(db, outcome.agent_id, organization_id=self.organization_id)
+            if run is None or agent is None:  # pragma: no cover - the turn just wrote both
+                return
+            await NotificationService(db).answered_while_away(
+                run,
+                agent=agent,
+                conversation_id=UUID(self.current_conversation_id),
+                error=outcome.error,
+            )
 
     async def _persist_partial_turn(
         self,
@@ -632,6 +792,7 @@ class AgentSession:
             agent_id=agent_id,
             agent_version_id=run.agent_version_id,
             run_id=run.run_id,
+            mcp_origins=run.mcp_origins,
         )
 
     async def _ask_one(self, question: str, options: list[str]) -> str:
@@ -648,7 +809,9 @@ class AgentSession:
         inside it, and unbound again by the time the answer comes back on the
         receive loop. `None` is the main agent asking the question itself (#1042).
         """
-        item = QuestionItem(question=question, options=options)
+        item = QuestionItem(
+            question=question, options=[QuestionChoice(label=option) for option in options]
+        )
         asked_by = asking_delegate()
         # **Under the lock, with the round it belongs to.** The frame handler
         # records the answered pair onto the turn's timeline the moment the
@@ -659,14 +822,38 @@ class AgentSession:
         # the second's name. The lock already held the wire round; it holds what
         # names it now too.
         async with self._ask_lock:
-            self._pending_question = question
+            self._pending_questions = [question]
             self._pending_asked_by = asked_by
             try:
                 answers = await self._send_and_wait([item.model_dump()])
             finally:
-                self._pending_question = None
+                self._pending_questions = None
                 self._pending_asked_by = None
         return render_answer(answers[0] if answers else None)
+
+    async def _ask_questions(self, request: AskUserRequest) -> AskUserResponse:
+        """Put an `ask_user` card to the client and return the picks (#2064).
+
+        The same frame and the same lock as a delegate's question, so a card and a
+        delegate asking at once queue rather than draw over each other, and the
+        answered pairs land on the turn's timeline the moment they arrive.
+        """
+        async with self._ask_lock:
+            self._pending_questions = [question.question for question in request.questions]
+            self._pending_asked_by = asking_delegate()
+            self._round_parks = self._pending_asked_by is None
+            try:
+                answers = await self._send_and_wait(wire_questions(request))
+            except _LeftUnanswered:
+                # The person went away with the card open: the run parks on the
+                # call, and answering it later - here or on another device -
+                # continues it.
+                raise CallDeferred from None
+            finally:
+                self._pending_questions = None
+                self._pending_asked_by = None
+                self._round_parks = False
+        return answers_to_response(request, answers)
 
     async def _ask_user(self, questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Pause the run: ask the client questions and block until they answer.

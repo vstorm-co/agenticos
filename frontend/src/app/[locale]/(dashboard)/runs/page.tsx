@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -24,6 +24,21 @@ import {
 import { cn, setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import { useTranslations } from "next-intl";
+
+/**
+ * Pinned beside the other column, from `lg`, to the window less 8px a side.
+ *
+ * The offset cancels `main`'s top padding - a sticky top is measured from the
+ * scroll container's padding edge, so a plain `top-4` sat 48px down the window -
+ * and adds 8px back. A definite height rather than a cap, because the run panel
+ * is `h-full` over one scrolling column: with only a `max-height` the chain
+ * grows past it and clips instead of scrolling.
+ */
+const PINNED_COLUMN = "lg:sticky lg:top-[calc(0.5rem-2rem)] lg:h-[calc(100dvh-1rem)] lg:self-start";
+
+/** The list as the master beside an open run: pinned with it, scrolling itself. */
+// i18n-exempt: Tailwind classes, not copy.
+const LIST_BESIDE_RUN = `${PINNED_COLUMN} lg:overflow-y-auto lg:rounded-xl lg:pb-0 scrollbar-thin`;
 
 /**
  * What the agents did: three figures, and the tabs that each answer separately -
@@ -123,12 +138,25 @@ export default function RunsPage() {
   // badge says, and the height mattered - the three of them cost about 380px, so
   // a 900px viewport left the table three rows deep under them.
   const range = { from: periodStart(period), to: periodEnd(period) };
+  // One control, drawn first among the open tab's filters: the window narrows
+  // every tab, so each carries it where its other filters are.
+  const periodControl = <PeriodControl period={period} onChange={changePeriod} variant="menu" />;
   const { total: runCount } = useRuns(undefined, {
     startedFrom: range.from,
     startedTo: range.to,
     enabled: canView,
   });
   const { spend } = useSpend(range, { enabled: canView });
+  const listColumn = useRef<HTMLDivElement>(null);
+  // The list scrolls inside its own column while a run is open, so the row
+  // that opened it is brought into that column's view rather than left where
+  // the page's scroll had it.
+  useEffect(() => {
+    if (focusedRunId === null) return;
+    listColumn.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView?.({ block: "nearest" });
+  }, [focusedRunId]);
   const spent = (spend?.by_agent ?? []).reduce((sum, row) => sum + Number(row.cost_usd), 0);
 
   return (
@@ -138,16 +166,7 @@ export default function RunsPage() {
     // 900px viewport left a run history three rows deep inside its own scroll
     // box - a second scrollbar to reach what the page had room for all along.
     <div className="flex flex-col">
-      {/* `mb-4` rather than the header's own `mb-6 md:mb-8`: the window control
-          belongs *to* the heading above it - everything below is what it filters -
-          and two centimetres of white between a title and its own filter reads as
-          two unrelated bands. The room goes below the dates instead, where the
-          break actually is. */}
-      <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} className="mb-4" />
-
-      <div className="mb-6">
-        <PeriodControl period={period} onChange={changePeriod} />
-      </div>
+      <PageHeader title={t("activity2")} description={t("whatYourAgentsDid2")} />
 
       {/* Not until the permission set has answered. The strip's *shape* depends
           on this permission - whether there is an Approvals tab at all - so
@@ -225,7 +244,15 @@ export default function RunsPage() {
                   // the row still ends at the viewport (#1206).
                   PAGE_CLEARANCE,
                   focusedRunId !== null && "hidden lg:block",
+                  // With a run open the two columns are one master-detail
+                  // pair: pinned at the same top, the same height, each
+                  // scrolling inside itself. Before, the panel pinned while the
+                  // list slid under the window's edge, so a moment's scroll left
+                  // the two out of line - a card floating beside rows cut off
+                  // mid-table.
+                  focusedRunId !== null && LIST_BESIDE_RUN,
                 )}
+                ref={listColumn}
               >
                 {canDecide && (
                   <TabsContent
@@ -233,7 +260,11 @@ export default function RunsPage() {
                     data-tour="activity-approvals"
                     className="mt-0 min-h-0 flex-1 overflow-y-auto"
                   >
-                    <ApprovalsTab period={period} onFocusRun={focusRun} />
+                    <ApprovalsTab
+                      period={period}
+                      onFocusRun={focusRun}
+                      periodControl={periodControl}
+                    />
                   </TabsContent>
                 )}
 
@@ -241,6 +272,7 @@ export default function RunsPage() {
                   {/* The export lives on the tab's control row, beside the
                       filters it exports the result of - see RunHistoryTab. */}
                   <RunHistoryTab
+                    periodControl={periodControl}
                     agentId={agentId}
                     period={period}
                     filters={filters}
@@ -253,7 +285,7 @@ export default function RunsPage() {
                 </TabsContent>
 
                 <TabsContent value="spend" data-tour="activity-spend" className="mt-0">
-                  <SpendTab period={period} />
+                  <SpendTab period={period} periodControl={periodControl} />
                 </TabsContent>
               </div>
 
@@ -298,7 +330,11 @@ export default function RunsPage() {
                 <div
                   className={cn(
                     PAGE_CLEARANCE,
-                    "lg:sticky lg:top-[calc(0.5rem-2rem)] lg:-mr-4 lg:h-[calc(100dvh-1rem)] lg:self-start lg:pb-0",
+                    // The only column below `lg`, so it takes the row's width: a
+                    // flex item with no width of its own shrank to its content,
+                    // and the panel's content is clipped by `overflow-hidden` -
+                    // it collapsed to its 2px border and a phone saw a blank page.
+                    `w-full lg:-mr-4 lg:w-auto lg:pb-0 ${PINNED_COLUMN}`,
                   )}
                 >
                   <RunDetailPanel runId={focusedRunId} onFocusRun={focusRun} />

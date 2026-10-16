@@ -1,5 +1,5 @@
 ---
-source_sha: "6b7bf33f4020"
+source_sha: "d1faa4de619f"
 title: "Wyciągnij dane z faktur do arkusza"
 description: "Załącz trzy syntetyczne faktury PDF, niech agent przeczyta je w sandboksie i zapisze CSV ze stałymi kolumnami, a potem sprawdź, czy fakturę z brakującym polem oznaczył, zamiast je uzupełnić."
 ---
@@ -104,7 +104,7 @@ Każda suma brutto to netto plus 21% podatku, więc błędną sumę da się spra
 ## Zbuduj agenta { #build-the-agent }
 
 1. Utwórz agenta w **Agents → New agent** i wybierz swój profil modelu.
-2. W **Toolbox** włącz **Files & shell**. Wybierz **Container**, swoje połączenie sandboksa i runtime `workbench`.
+2. W **Toolbox** włącz **Sandbox**. Wybierz **Container**, swoje połączenie sandboksa i runtime `workbench`.
 3. Ustaw budżet i limit kroków. Przeczytanie trzech krótkich PDF-ów i zapisanie jednego CSV to kilka wywołań narzędzi.
 4. Wpisz poniższe instrukcje, a potem **Publish**.
 

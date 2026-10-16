@@ -3,24 +3,36 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
-from app.api.deps import CurrentUser, FileUploadSvc
+from app.api.deps import CurrentUser, FileUploadSvc, key_needs
+from app.api.public_api import PUBLIC
 from app.api.routes.v1._chat_file_bytes import chat_file_response
 from app.core.exceptions import NotFoundError
+from app.core.permissions import Perm
 from app.schemas.file import FileInfo, FileUploadResponse
 from app.services.file_upload import make_preview
 
 router = APIRouter(prefix="/files", tags=["files"])
 
 
-@router.post("/upload", response_model=FileUploadResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload",
+    response_model=FileUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+    # Public, for `file_ids` on `POST /agents/{id}/run`: the id this returns is
+    # the only way an integration attaches a file to a run.
+    dependencies=[PUBLIC, Depends(key_needs(Perm.AGENTS_RUN))],
+)
 async def upload_file(
     file_upload_svc: FileUploadSvc,
     current_user: CurrentUser,
     file: UploadFile = File(...),
 ) -> Any:
-    """Upload a file for use in chat."""
+    """Upload a file to attach to a chat message or an agent run.
+
+    The returned `id` goes in `file_ids`. With an API key, needs `agents:run`.
+    """
     data = await file.read()
     chat_file = await file_upload_svc.upload(
         user_id=current_user.id,

@@ -24,23 +24,28 @@ vi.mock("@/lib/locale-navigation", () => ({
 }));
 // The dialog is tested on its own; here it only has to be opened for the right
 // entry, so it renders a marker naming the one it was given.
-vi.mock("@/components/agents/connect-server-dialog", () => ({
-  ConnectOwnServerDialog: ({
-    entry,
-    onClose,
-  }: {
-    entry: McpCatalogEntry | null;
-    onClose: () => void;
-  }) =>
-    entry ? (
-      <div role="dialog">
-        connecting {entry.name}
-        <button type="button" onClick={onClose}>
-          close
+// The button and its dialog are tested on their own; here it only has to be
+// offered for the right entry, so clicking it renders a marker naming that one.
+vi.mock("@/components/agents/connect-server-dialog", async () => {
+  const { useState } = await import("react");
+  return {
+    ConnectOwnButton: ({ entry, label }: { entry: McpCatalogEntry; label: string }) => {
+      const [open, setOpen] = useState(false);
+      return open ? (
+        <div role="dialog">
+          connecting {entry.name}
+          <button type="button" onClick={() => setOpen(false)}>
+            close
+          </button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)}>
+          {label}
         </button>
-      </div>
-    ) : null,
-}));
+      );
+    },
+  };
+});
 
 const NOTION: McpCatalogEntry = {
   key: "notion",
@@ -71,12 +76,14 @@ function own(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRecord 
     has_auth_token: true,
     allowed_tools: null,
     is_enabled: true,
+    include_instructions: false,
     auth_type: "oauth",
     oauth_authorized: true,
     authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
+    visibility: "org",
     catalog_key: "notion",
     is_default: false,
     label: null,
@@ -103,15 +110,12 @@ describe("ConnectServicesCard", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("connecting Notion");
   });
 
-  it("sends a person who already holds accounts to the servers page instead", () => {
-    // `?connect=` would mint a third Notion; choosing between two is done there.
+  it("sends a person who already holds an account to the servers page instead", () => {
+    // `?connect=` would mint a second Notion; authorizing the first is done there.
     // Navigated to in the app, so the path keeps the viewer's locale prefix.
     state.push.mockClear();
-    render(<ConnectServicesCard gaps={[gap({ gap: "undecided" })]} />);
+    render(<ConnectServicesCard gaps={[gap({ gap: "unauthorized" })]} />);
 
-    expect(
-      screen.getByText("You hold several connections to it and none is marked as default."),
-    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Connect" })).toBeNull();
     screen.getByRole("button", { name: "Open MCP servers" }).click();
 

@@ -84,6 +84,13 @@ class TestSchemeValidation:
         with pytest.raises((SSRFBlockedError, ValueError)):
             validate_webhook_url("://example.com/hook")
 
+    def test_a_caller_may_name_its_own_schemes(self):
+        """The git connector admits https alone; the default admits http too."""
+        pinned = resolve_pinned_url("https://8.8.8.8/repo.git", frozenset({"https"}))
+        assert pinned.ips == ("8.8.8.8",)
+        with pytest.raises(SSRFBlockedError):
+            resolve_pinned_url("http://8.8.8.8/repo.git", frozenset({"https"}))
+
 
 # validate_webhook_url - IP-literal URLs
 

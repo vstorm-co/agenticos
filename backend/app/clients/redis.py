@@ -99,6 +99,33 @@ class RedisClient:
             raise RuntimeError("Redis client not connected")
         return await self.client.getdel(key)  # ty: ignore[invalid-return-type]
 
+    async def pop_left(self, key: str) -> str | None:
+        """Take the first item of a list, or `None` when it is empty (Redis LPOP)."""
+        if not self.client:
+            raise RuntimeError("Redis client not connected")
+        # `bytes` to the stubs, `str` at runtime - see `get`.
+        return await self.client.lpop(key)  # ty: ignore[invalid-return-type]
+
+    async def wait_pop_left(self, key: str, timeout: float) -> str | None:
+        """Take the first item of a list, waiting up to `timeout` seconds (BLPOP).
+
+        Holds one pooled connection while it waits, so callers keep the timeout
+        short and call again.
+        """
+        if not self.client:
+            raise RuntimeError("Redis client not connected")
+        # The stubs union a sync and an async return; this client is the async one.
+        popped = await self.client.blpop([key], timeout=timeout)  # ty: ignore[invalid-await]
+        return None if popped is None else str(popped[1])
+
+    async def list_range(self, key: str) -> list[str]:
+        """Every item of a list, oldest first (Redis LRANGE 0 -1)."""
+        if not self.client:
+            raise RuntimeError("Redis client not connected")
+        # The stubs union a sync and an async return; this client is the async one.
+        items = await self.client.lrange(key, 0, -1)  # ty: ignore[invalid-await]
+        return [str(item) for item in items]
+
     async def exists(self, key: str) -> bool:
         """Check if key exists."""
         if not self.client:

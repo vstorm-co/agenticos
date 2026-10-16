@@ -15,6 +15,9 @@ import {
   VERSION_HISTORY_LIMIT,
   withCapability,
   withContextFiles,
+  withResource,
+  hasResource,
+  KNOWLEDGE_ID,
   withSkills,
 } from "./agent-spec";
 import type { AgentSpec, AgentVersion, CapabilityBindingSpec } from "@/types/agents";
@@ -170,6 +173,25 @@ describe("readSubagentsConfig", () => {
   it("reads an unbound capability as the defaults rather than throwing", () => {
     expect(readSubagentsConfig(undefined).inline).toEqual([]);
   });
+
+  it("completes a specialist stored with only the fields its template set", () => {
+    // The Claude Code template's specialists carry a name, a description,
+    // instructions and a step limit; opening Delegation on such an agent read
+    // `capabilities` of one and took the whole page down.
+    const stored = binding(SUBAGENTS_ID, {
+      config: { inline: [{ name: "explore", description: "d", instructions: "i", max_steps: 40 }] },
+    });
+
+    const [specialist] = readSubagentsConfig(stored).inline;
+
+    expect(specialist).toEqual({
+      ...newSpecialist(),
+      name: "explore",
+      description: "d",
+      instructions: "i",
+      max_steps: 40,
+    });
+  });
 });
 
 describe("specialistNameError", () => {
@@ -323,5 +345,45 @@ describe("capabilityConfigErrors", () => {
 
   it("says nothing for the ordinary case, where no problem names an input", () => {
     expect(capabilityConfigErrors([], "knowledge")).toEqual({});
+  });
+});
+
+describe("withResource", () => {
+  it.each([
+    ["skill", "skill_ids", SKILLS_ID],
+    ["context", "context_ids", CONTEXT_ID],
+    ["collection", "collection_ids", KNOWLEDGE_ID],
+  ] as const)(
+    "binds a %s and switches on the capability that reads it",
+    (kind, field, capability) => {
+      const bound = withResource(spec(), { kind, id: "r1" });
+
+      expect(bound[field]).toEqual(["r1"]);
+      expect(bound.capabilities.map((binding) => binding.id)).toContain(capability);
+      expect(hasResource(bound, { kind, id: "r1" })).toBe(true);
+    },
+  );
+
+  it("does not bind the same resource twice", () => {
+    const once = withResource(spec(), { kind: "collection", id: "kb" });
+
+    expect(withResource(once, { kind: "collection", id: "kb" }).collection_ids).toEqual(["kb"]);
+    expect(hasResource(once, { kind: "skill", id: "kb" })).toBe(false);
+  });
+
+  it("binds one of the organization's MCP servers once, with every tool it allows", () => {
+    const personal = { account: "personal" as const, catalog_key: "c1", allowed_tools: null };
+    const bound = withResource({ ...spec(), mcp_servers: [personal] }, { kind: "mcp", id: "c1" });
+
+    expect(bound.mcp_servers).toEqual([
+      personal,
+      { account: "organization", connection_id: "c1", allowed_tools: null },
+    ]);
+    expect(hasResource(bound, { kind: "mcp", id: "c1" })).toBe(true);
+    expect(withResource(bound, { kind: "mcp", id: "c1" })).toBe(bound);
+    // A personal binding to a service is not the organization's connection.
+    expect(hasResource({ ...spec(), mcp_servers: [personal] }, { kind: "mcp", id: "c1" })).toBe(
+      false,
+    );
   });
 });

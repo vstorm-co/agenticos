@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from typing import Any, cast
 from uuid import UUID
 
+from sqlalchemy import and_, exists, func, literal, or_, select, tuple_
 from sqlalchemy import delete as sql_delete
-from sqlalchemy import exists, func, literal, select, tuple_
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -43,25 +43,37 @@ async def get_by_id(db: AsyncSession, doc_id: UUID) -> RAGDocument | None:
 async def get_all(
     db: AsyncSession,
     *,
-    collections: list[str],
+    scopes: list[tuple[str, UUID | None]],
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[RAGDocument], int]:
-    """A page of documents tracked in the named collections, newest first.
+    """A page of documents tracked in the given collections, newest first.
 
     Returns `(rows, total)`, the same shape as `get_for_kb`: without a bound this
     selected and serialized every row across the caller's collections, which grows
     without limit with tenant data (#27).
 
-    Filtering on `organization_id` would be the obvious alternative and is not
-    equivalent: the column is nullable and a document ingested by a sync task
-    has no organization stamped on it, so an org filter silently hides those
-    while a collection filter does not. The collection is what the
-    `knowledge_bases` row authorized, so the collection is what this asks for.
+    Each scope is a collection and the organization of the knowledge base that
+    authorized it, because a collection's name is not unique across tenants. A
+    document is stamped with that organization - an upload with the uploader's,
+    a sync with its knowledge base's - and `None` (a deployment-wide knowledge
+    base) matches on the collection alone.
     """
-    if not collections:
+    if not scopes:
         return [], 0
-    base = select(RAGDocument).where(RAGDocument.collection_name.in_(collections))
+    base = select(RAGDocument).where(
+        or_(
+            *(
+                RAGDocument.collection_name == name
+                if organization_id is None
+                else and_(
+                    RAGDocument.collection_name == name,
+                    RAGDocument.organization_id == organization_id,
+                )
+                for name, organization_id in scopes
+            )
+        )
+    )
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
     rows = (
         (
@@ -87,9 +99,16 @@ async def get_for_kb(
     *,
     skip: int = 0,
     limit: int = 50,
+    filename: str | None = None,
 ) -> tuple[list[RAGDocument], int]:
-    """Page through documents linked to a Knowledge Base. Returns (rows, total)."""
+    """Page through documents linked to a Knowledge Base. Returns (rows, total).
+
+    `filename` narrows to documents with exactly that name - how a citation,
+    which names a file and not a row, finds the document it came from.
+    """
     base = select(RAGDocument).where(RAGDocument.knowledge_base_id == kb_id)
+    if filename is not None:
+        base = base.where(RAGDocument.filename == filename)
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
     rows = (
         (

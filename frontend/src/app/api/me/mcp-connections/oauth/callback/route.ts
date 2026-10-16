@@ -61,6 +61,8 @@ export async function GET(request: NextRequest) {
     const result = await backendFetch<{
       ok: boolean;
       connection_name: string | null;
+      connection_id: string | null;
+      scope: "user" | "org" | null;
       error: string | null;
     }>("/api/v1/me/mcp-connections/oauth/callback", {
       method: "POST",
@@ -73,7 +75,14 @@ export async function GET(request: NextRequest) {
           : mcpOAuthRefused("AUTHORIZATION_FAILED"),
       );
     }
-    return servers(mcpOAuthConnected(result.connection_name ?? ""));
+    // The id only for the organization's: that is the account an agent binds,
+    // so its return offers "Add to an agent" (#2075).
+    return servers(
+      mcpOAuthConnected(
+        result.connection_name ?? "",
+        result.scope === "org" ? result.connection_id : null,
+      ),
+    );
   } catch {
     return servers(mcpOAuthRefused("AUTHORIZATION_FAILED"));
   }

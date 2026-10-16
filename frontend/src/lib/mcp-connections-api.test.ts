@@ -146,3 +146,16 @@ describe("the organization's connections", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/mcp-connections/c-1/test");
   });
 });
+
+describe("probeMcpSignIn", () => {
+  it("asks the personal endpoint whether a server supports sign-in", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ sign_in: true, registers_clients: false });
+
+    const probed = await personal.probeMcpSignIn("https://mcp.example.com/mcp");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/me/mcp-connections/probe", {
+      url: "https://mcp.example.com/mcp",
+    });
+    expect(probed).toEqual({ sign_in: true, registers_clients: false });
+  });
+});

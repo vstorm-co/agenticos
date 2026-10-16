@@ -30,7 +30,7 @@ import logging
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 from uuid import UUID
 
 import jwt
@@ -45,6 +45,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.core.vault import VaultScope, current_key_version, seal_fields, unseal
+from app.db.models.agent import Agent
 from app.db.models.agent_embed import AgentEmbed
 from app.db.models.chat_file import ChatFile
 from app.db.updates import cleared, writable
@@ -556,6 +557,7 @@ class AgentEmbedService:
             raise EmbedDenied("not a widget")
         agent = await agent_repo.get(self.db, embed.agent_id, organization_id=embed.organization_id)
         config = WidgetConfig.model_validate(embed.config)
+        avatar_url, avatar_thinking_url = await self._widget_faces(embed, agent)
         return PublicEmbedConfig(
             title=config.title,
             subtitle=config.subtitle,
@@ -564,9 +566,50 @@ class AgentEmbedService:
             accent=config.accent,
             position=config.position,
             launcher_label=config.launcher_label,
+            quick_replies=config.quick_replies,
             requires_token=embed.auth_mode == "jwt",
             agent_name=agent.name if agent else "Assistant",
+            avatar_url=avatar_url,
+            avatar_thinking_url=avatar_thinking_url,
         )
+
+    async def _widget_faces(self, embed: AgentEmbed, agent: Agent | None) -> tuple[str, str | None]:
+        """The widget's avatar, at rest and mid-thought.
+
+        An uploaded picture is served by this API, through `widget_avatar_path`,
+        because the authenticated avatar route is the agent's and a stranger has no
+        session. Without one, the face the console draws from the agent's handle,
+        which the console serves as an image - the generator is a JavaScript
+        library, and a widget that loaded it would be shipping a dependency onto
+        somebody else's page. The handle is the agent's public name in another
+        spelling; no id leaves.
+        """
+        if agent is not None and await self._stored(agent.avatar_url):
+            base = settings.PUBLIC_BASE_URL.rstrip("/")
+            return f"{base}/api/v1/embed/{embed.public_key}/avatar", None
+        face = f"{settings.FRONTEND_URL.rstrip('/')}/api/public/face?" + urlencode(
+            {"seed": agent.slug if agent else embed.public_key}
+            | ({"slot": str(agent.avatar_color)} if agent and agent.avatar_color else {})
+        )
+        return face, f"{face}&thinking=1"
+
+    @staticmethod
+    async def _stored(path: str | None) -> bool:
+        return bool(path) and await get_file_storage().exists(path)
+
+    async def widget_avatar_path(self, public_key: str) -> str | None:
+        """The storage path of a widget's agent picture, or `None` when it has none.
+
+        The widget's one image, for the reason `page_logo_path` is a page's: it
+        adds a way to *read* an avatar already uploaded and no way to write one.
+        """
+        embed = await self.find_public(public_key)
+        if embed is None or not embed.is_active:
+            return None
+        agent = await agent_repo.get(self.db, embed.agent_id, organization_id=embed.organization_id)
+        if agent is None or not await self._stored(agent.avatar_url):
+            return None
+        return agent.avatar_url
 
     def _origin_allowed(self, embed: AgentEmbed, origin: str | None) -> bool:
         """Whether the site this visitor arrived from may use this embed.

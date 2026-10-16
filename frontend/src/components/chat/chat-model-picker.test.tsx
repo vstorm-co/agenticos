@@ -78,6 +78,13 @@ async function pickProvider(label: string) {
   await userEvent.click(screen.getByRole("option", { name: new RegExp(label) }));
 }
 
+/** An id the provider's catalog does not list, through the Builder's own picker. */
+async function typeModel(id: string) {
+  await userEvent.click(screen.getByLabelText("Model"));
+  await userEvent.type(screen.getByPlaceholderText("Search models…"), id);
+  await userEvent.click(screen.getByText("not in the list"));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   listedProfiles.mockReturnValue([]);
@@ -128,7 +135,7 @@ describe("the chat's two-step model picker", () => {
     render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
 
     await pickProvider("OpenAI");
-    await userEvent.type(screen.getByLabelText("Model"), "gpt-5");
+    await typeModel("gpt-5");
     await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
 
     expect(onChange).toHaveBeenCalledWith("p1");
@@ -142,7 +149,7 @@ describe("the chat's two-step model picker", () => {
     render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
 
     await pickProvider("OpenAI");
-    await userEvent.type(screen.getByLabelText("Model"), "gpt-6");
+    await typeModel("gpt-6");
     await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
 
     expect(mutateAsync).toHaveBeenCalledWith({
@@ -161,7 +168,7 @@ describe("the chat's two-step model picker", () => {
     render(<ChatModelPicker value={null} agentModel={null} onChange={onChange} />);
 
     await pickProvider("OpenAI");
-    await userEvent.type(screen.getByLabelText("Model"), "gpt-6");
+    await typeModel("gpt-6");
     await userEvent.click(screen.getByRole("button", { name: "Run on this model" }));
 
     expect(screen.getByText(/No OpenAI key in the vault yet/)).toBeInTheDocument();
@@ -215,22 +222,23 @@ describe("the chat's two-step model picker", () => {
     render(<ChatModelPicker value={null} agentModel={null} onChange={vi.fn()} />);
 
     await pickProvider("OpenRouter");
-    await userEvent.type(screen.getByLabelText("Model"), "gpt-5");
+    await typeModel("gpt-5");
 
     expect(screen.getByRole("button", { name: "Run on this model" })).toBeDisabled();
   });
 
-  it("suggests the provider's published models without constraining the field", async () => {
+  it("offers the provider's published models, and still takes one it does not list", async () => {
     listedModels.mockReturnValue([{ id: "gpt-5", name: "GPT-5" }]);
     render(<ChatModelPicker value={null} agentModel={null} onChange={vi.fn()} />);
 
     await pickProvider("OpenAI");
+    await userEvent.click(screen.getByLabelText("Model"));
+    expect(screen.getByText("GPT-5")).toBeInTheDocument();
 
-    const input = screen.getByLabelText("Model");
-    expect(input).toHaveAttribute("list", "chat-model-suggestions");
     // Free text still allowed - the list is suggestions, not a constraint.
-    await userEvent.type(input, "gpt-6-preview");
-    expect(input).toHaveValue("gpt-6-preview");
+    await userEvent.type(screen.getByPlaceholderText("Search models…"), "gpt-6-preview");
+    await userEvent.click(screen.getByText("not in the list"));
+    expect(screen.getByLabelText("Model")).toHaveTextContent("gpt-6-preview");
   });
 
   it("names the profile the conversation currently runs on", () => {

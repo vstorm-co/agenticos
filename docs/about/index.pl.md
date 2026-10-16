@@ -1,5 +1,5 @@
 ---
-source_sha: "ff4961c85112"
+source_sha: "51103c7b1def"
 ---
 
 # O AgenticOS { #about-agenticos }
@@ -82,7 +82,7 @@ Dla firmy, która chce więcej niż trzech agentów i chce mieć nad nimi nadzó
 - **Osoba, która buduje agenta**, nie pisze Pythona. Pisze instrukcje, włącza
   capabilities, wskazuje kolekcję wiedzy i ustawia budżet.
 - **Osoba odpowiadająca za rachunek** dostaje budżety, które zatrzymują run,
-  approvale dla wszystkiego, co ma skutki uboczne, i ślad audytowy.
+  approvale dla wybranych przez siebie narzędzi i ślad audytowy.
 - **Inżynier** dostaje spec eksportowany jako YAML do własnego repozytorium git,
   HTTP API i platformę, której źródła może przeczytać.
 

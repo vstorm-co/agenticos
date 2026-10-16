@@ -1,5 +1,5 @@
 ---
-source_sha: "0ceb552b4aa0"
+source_sha: "de38073f9286"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -283,8 +283,8 @@ docker compose --env-file backend/.env -f docker-compose-prod.yml \
   --org 'Your Company' --provider anthropic --api-key sk-ant-...
 ```
 
-Klucz providera tutaj jest tym, na czym działa demonstracyjny agent. Bez niego
-agent zostaje utworzony i nie potrafi odpowiedzieć; każdy inny provider dodawany
+Klucz providera tutaj jest tym, na czym działają dwaj startowi agenci. Bez niego
+zostają utworzeni i nie potrafią odpowiedzieć; każdy inny provider dodawany
 jest w produkcie, per organizacja, z vaulta.
 
 !!! tip "Sprawdź to z zewnątrz, nie z hosta"
@@ -298,7 +298,7 @@ jest w produkcie, per organizacja, z vaulta.
     albo certyfikat — trzy rzeczy, których health check wewnątrz hosta nie widzi.
 
 Potem, raz, ręcznie: zaloguj się, zaproś kogoś (co dowodzi, że działa `SMTP_*`) i
-wyślij demonstracyjnemu agentowi wiadomość (co dowodzi klucza providera i
+wyślij wiadomość do Claude Code like (co dowodzi klucza providera i
 WebSocketa). Każda z tych czynności ćwiczy ścieżkę, której nic innego tutaj nie
 sprawdza.
 

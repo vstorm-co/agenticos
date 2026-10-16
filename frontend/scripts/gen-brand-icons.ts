@@ -75,10 +75,17 @@ const BRANDS: Readonly<Record<string, Source>> = {
   calendly: simple("calendly"),
   canva: simple("canva"),
   circleci: simple("circleci"),
+  // The MCP clients Settings → MCP clients shows a setup for. VS Code has no
+  // mark in any of the three sets (Simple Icons dropped it), so it takes a
+  // lucide glyph at the call site instead.
+  claude: lobehub("claude"),
+  claudecode: lobehub("claudecode"),
   clerk: simple("clerk"),
   clickup: simple("clickup"),
+  codex: lobehub("codex"),
   cloudflare: simple("cloudflare"),
   contentful: simple("contentful"),
+  cursor: lobehub("cursor"),
   databricks: simple("databricks"),
   datadog: simple("datadog"),
   deepl: simple("deepl"),
@@ -97,6 +104,8 @@ const BRANDS: Readonly<Record<string, Source>> = {
   gitlab: simple("gitlab"),
   gmail: simple("gmail"),
   google: simple("google"),
+  googleads: simple("googleads"),
+  googleanalytics: simple("googleanalytics"),
   grafana: simple("grafana"),
   hubspot: simple("hubspot"),
   huggingface: simple("huggingface"),
@@ -109,6 +118,7 @@ const BRANDS: Readonly<Record<string, Source>> = {
   make: simple("make"),
   mattermost: simple("mattermost"),
   mcp: simple("modelcontextprotocol"),
+  meta: simple("meta"),
   microsoft: fontawesome("microsoft"),
   miro: simple("miro"),
   mixpanel: simple("mixpanel"),
@@ -166,12 +176,15 @@ const PROVIDERS: Readonly<Record<string, Source>> = {
   azure: lobehub("azure"),
   bedrock: lobehub("bedrock"),
   cerebras: lobehub("cerebras"),
+  cohere: lobehub("cohere"),
   deepseek: lobehub("deepseek"),
   fireworks: lobehub("fireworks"),
   github: lobehub("github"),
   google: lobehub("gemini"),
   google_cloud: lobehub("vertexai"),
   groq: lobehub("groq"),
+  heroku: simple("heroku"),
+  huggingface: lobehub("huggingface"),
   mistral: lobehub("mistral"),
   moonshotai: lobehub("moonshot"),
   nebius: lobehub("nebius"),
@@ -179,9 +192,11 @@ const PROVIDERS: Readonly<Record<string, Source>> = {
   openai: lobehub("openai"),
   openai_codex: lobehub("codex"),
   openrouter: lobehub("openrouter"),
+  ovhcloud: simple("ovh"),
   sambanova: lobehub("sambanova"),
   together: lobehub("together"),
   vercel: lobehub("vercel"),
+  xai: lobehub("xai"),
   zai: lobehub("zai"),
 };
 
@@ -194,6 +209,69 @@ interface Glyph {
   readonly viewBox: string;
   readonly fillRule?: "evenodd";
   readonly paths: readonly GlyphPath[];
+  readonly color?: string;
+}
+
+/**
+ * The brand colour of each mark whose set publishes none - Font Awesome and
+ * lobehub ship shapes only. Taken from each brand's own guidelines; a mark
+ * missing here is drawn in the surrounding text colour, which is also what a
+ * black or white brand gets (below).
+ */
+const MANUAL_COLORS: Readonly<Record<string, string>> = {
+  aws: "#FF9900",
+  claude: "#D97757",
+  claudecode: "#D97757",
+  exa: "#1F40ED",
+  microsoft: "#00A4EF",
+  s3: "#FF9900",
+  slack: "#E01E5A",
+  alibaba: "#FF6A00",
+  anthropic: "#D97757",
+  azure: "#0078D4",
+  bedrock: "#FF9900",
+  cerebras: "#F15A29",
+  cohere: "#39594D",
+  deepseek: "#4D6BFE",
+  fireworks: "#6720FF",
+  google: "#3186FF",
+  google_cloud: "#4285F4",
+  groq: "#F55036",
+  huggingface: "#FFB000",
+  mistral: "#FA520F",
+  openrouter: "#6467F2",
+  sambanova: "#EE7624",
+  together: "#0F6FFF",
+};
+
+/**
+ * Whether a brand colour reads on both themes. A near-black mark vanishes on
+ * the dark surface and a near-white one on the light, so GitHub, OpenAI,
+ * Notion and the like keep the text colour, which is what their own
+ * guidelines ask of a mark on an arbitrary background anyway.
+ */
+function readsOnBothThemes(hex: string): boolean {
+  const channel = (offset: number) => {
+    const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+  return luminance > 0.035 && luminance < 0.8;
+}
+
+/** Simple Icons' published colour for each slug, read once from its data file. */
+async function simpleColors(): Promise<Map<string, string>> {
+  const url = "https://cdn.jsdelivr.net/npm/simple-icons@15/data/simple-icons.json";
+  const res = await fetch(url, { redirect: "follow" });
+  if (!res.ok) throw new GlyphError(`${url} answered ${res.status}`);
+  const icons = (await res.json()) as { slug: string; hex: string }[];
+  return new Map(icons.map((icon) => [icon.slug, `#${icon.hex.toUpperCase()}`]));
+}
+
+/** The colour a mark is drawn in, or none for the text colour. */
+function colorFor(name: string, source: Source): string | undefined {
+  const hex = source.set === "simple" ? SIMPLE_COLORS.get(source.slug) : MANUAL_COLORS[name];
+  return hex !== undefined && readsOnBothThemes(hex) ? hex : undefined;
 }
 
 const SVG_OPEN = /<svg\b[^>]*>/;
@@ -282,7 +360,9 @@ async function fetchGlyph(name: string, source: Source): Promise<Glyph> {
   const url = SOURCES[source.set](source.slug);
   const res = await fetch(url, { redirect: "follow" });
   if (!res.ok) throw new GlyphError(`${name}: ${url} answered ${res.status}`);
-  return parseGlyph(name, await res.text());
+  const glyph = parseGlyph(name, await res.text());
+  const color = colorFor(name, source);
+  return color === undefined ? glyph : { ...glyph, color };
 }
 
 /** Every mark in a table, fetched together, sorted by the product's own name. */
@@ -305,8 +385,9 @@ function renderPath(path: GlyphPath): string {
 
 function renderGlyph(glyph: Glyph): string {
   const rule = glyph.fillRule === undefined ? "" : `\n    fillRule: "evenodd",`;
+  const color = glyph.color === undefined ? "" : `\n    color: ${JSON.stringify(glyph.color)},`;
   const paths = glyph.paths.map((path) => `      ${renderPath(path)},`).join("\n");
-  return `{\n    viewBox: ${JSON.stringify(glyph.viewBox)},${rule}\n    paths: [\n${paths}\n    ],\n  }`;
+  return `{\n    viewBox: ${JSON.stringify(glyph.viewBox)},${rule}${color}\n    paths: [\n${paths}\n    ],\n  }`;
 }
 
 function renderTable(name: string, type: string, glyphs: Map<string, Glyph>): string {
@@ -333,16 +414,23 @@ export interface GlyphPath {
   readonly fillOpacity?: number;
 }
 
-/** A brand mark, drawn in \`currentColor\` at whatever size the caller asks for. */
+/** A brand mark, drawn at whatever size the caller asks for. */
 export interface Glyph {
   readonly viewBox: string;
   /** Set where the mark's holes depend on it; \`nonzero\` is SVG's default. */
   readonly fillRule?: "evenodd";
   readonly paths: readonly GlyphPath[];
+  /**
+   * The brand's own colour, where it reads on both themes. Absent for a black
+   * or white brand and for one whose set publishes no colour, which then takes
+   * the surrounding text colour.
+   */
+  readonly color?: string;
 }
 
 `;
 
+const SIMPLE_COLORS = await simpleColors();
 const brands = await fetchAll(BRANDS);
 const providers = await fetchAll(PROVIDERS);
 

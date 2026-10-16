@@ -57,6 +57,6 @@ Create in this order:
    platform layer, add it to **both** lists in `pyproject.toml`.
 
 10. **Docs** — if this changes behaviour a page describes, update it. See the table in
-    `CLAUDE.md`.
+    `AGENTS.md`.
 
 11. `make lint && make test-fast`, then `make check` before opening a PR.

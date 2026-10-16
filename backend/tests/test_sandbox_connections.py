@@ -333,8 +333,10 @@ class TestResolvingForARun:
         assert resolved.kind == "docker"
 
     async def test_an_organization_with_no_connection_is_told_what_to_do(self, monkeypatch):
+        """On a deployment running no sandbox service of its own to set up."""
         service = _service(monkeypatch)
         monkeypatch.setattr(sandbox_connection_repo, "get_default", AsyncMock(return_value=None))
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "")
 
         with pytest.raises(BadRequestError) as refused:
             await service.resolve(_ctx(), None)
@@ -1493,3 +1495,77 @@ def _serve(monkeypatch, answer: _Response | Exception | list[_Response]) -> dict
 
     monkeypatch.setattr(httpx, "AsyncClient", lambda **_: _Client())
     return seen
+
+
+class TestTheDeploymentsOwnSandbox:
+    """A deployment that runs `sandboxd` sets the connection up itself (#2070)."""
+
+    def _setup(self, monkeypatch, *, url: str | None, owner: Any = "owner") -> tuple[Any, Any, Any]:
+        service = _service(monkeypatch)
+        monkeypatch.setattr(settings, "SANDBOXD_TOKEN", "sbx-token")
+        made = SimpleNamespace(id=uuid.uuid4())
+        defaults = [None, made]
+        monkeypatch.setattr(
+            sandbox_connection_repo,
+            "get_default",
+            AsyncMock(side_effect=lambda *a, **k: defaults.pop(0)),
+        )
+        monkeypatch.setattr(
+            "app.services.sandbox_connection.member_repo.first_owner_id",
+            AsyncMock(return_value=uuid.uuid4() if owner else None),
+        )
+        monkeypatch.setattr(
+            SandboxConnectionService, "_first_answering", AsyncMock(return_value=url)
+        )
+        store = AsyncMock(return_value=SimpleNamespace(secret_id=uuid.uuid4()))
+        create = AsyncMock()
+        monkeypatch.setattr(service, "store_local_credential", store)
+        monkeypatch.setattr(service, "create", create)
+        return service, made, create
+
+    async def test_it_is_registered_as_the_owner_and_becomes_the_default(self, monkeypatch):
+        service, made, create = self._setup(monkeypatch, url="http://sandboxd:8080")
+
+        assert await service.ensure_local_connection(uuid.uuid4()) is made
+
+        owner, data = create.await_args.args
+        assert owner.role == OrgRoleName.OWNER
+        assert (data.base_url, data.kind, data.is_default) == (
+            "http://sandboxd:8080",
+            "docker",
+            True,
+        )
+
+    async def test_nothing_is_set_up_without_a_service_answering_or_an_owner(self, monkeypatch):
+        service, _made, create = self._setup(monkeypatch, url=None)
+        assert await service.ensure_local_connection(uuid.uuid4()) is None
+
+        service, _made, create = self._setup(monkeypatch, url="http://sandboxd:8080", owner=None)
+        assert await service.ensure_local_connection(uuid.uuid4()) is None
+        create.assert_not_awaited()
+
+    async def test_a_race_for_the_name_uses_the_row_the_other_request_made(self, monkeypatch):
+        service, made, create = self._setup(monkeypatch, url="http://sandboxd:8080")
+        create.side_effect = AlreadyExistsError(message="taken")
+
+        assert await service.ensure_local_connection(uuid.uuid4()) is made
+
+    async def test_an_existing_default_is_left_alone(self, monkeypatch):
+        service = _service(monkeypatch)
+        existing = SimpleNamespace(id=uuid.uuid4())
+        monkeypatch.setattr(
+            sandbox_connection_repo, "get_default", AsyncMock(return_value=existing)
+        )
+
+        assert await service.ensure_local_connection(uuid.uuid4()) is existing
+
+    async def test_the_list_sets_it_up_before_listing(self, monkeypatch):
+        service = _service(monkeypatch)
+        ensure = AsyncMock(return_value=None)
+        monkeypatch.setattr(service, "ensure_local_connection", ensure)
+        monkeypatch.setattr(
+            sandbox_connection_repo, "list_for_organization", AsyncMock(return_value=[])
+        )
+
+        assert await service.list_connections(_ctx()) == []
+        ensure.assert_awaited_once()

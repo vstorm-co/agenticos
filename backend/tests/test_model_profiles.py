@@ -18,6 +18,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from pydantic import ValidationError
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIResponsesModel
+from pydantic_ai.models.openrouter import OpenRouterModel
 
 from app.agents.model_resolver import (
     PROVIDERS,
@@ -283,6 +284,22 @@ class TestProviderCatalog:
             provider="openai", secret=ApiKeySecret(api_key="sk-test-key"), api="responses"
         )
         assert build_model(credential, "gpt-6-luna").settings == {"openai_store": False}
+
+    def test_a_claude_model_through_openrouter_names_no_cache_ttl(self):
+        """Bedrock, one of the hosts OpenRouter routes Claude to, refuses `ttl`.
+
+        Sent, the Architect failed with "cache_control.ephemeral.ttl: Extra inputs
+        are not permitted" whenever OpenRouter picked Bedrock. The breakpoint
+        itself stays: the prompt is still cached, for the default five minutes.
+        """
+        credential = ResolvedCredential(
+            provider="openrouter", secret=ApiKeySecret(api_key="sk-or-test")
+        )
+        model = build_model(credential, "anthropic/claude-opus-4.1")
+
+        assert isinstance(model, OpenRouterModel)
+        assert model.profile.get("openrouter_supports_cache_control") is True
+        assert model._build_cache_control("5m") == {"type": "ephemeral"}
 
     @pytest.mark.parametrize(
         ("provider_id", "base_url", "expected"),

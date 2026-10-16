@@ -1,11 +1,12 @@
 "use client";
 
 import { Clock } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Figure } from "@/components/ui";
 
 import { useUsageStats } from "@/hooks";
+import { bucketLabeller, timelineOf } from "@/lib/dashboard/timeline";
 import { TrendChart } from "../primitives/trend-chart";
 import { CHART_MIN_HEIGHT } from "@/lib/dashboard/system";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ export function MyActivityWidget({ title, hint, period, seeAll, options }: Dashb
     { from: period.from, to: period.to },
     { scope: "own" },
   );
+  const label = bucketLabeller(usage, useLocale());
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
@@ -49,9 +51,9 @@ export function MyActivityWidget({ title, hint, period, seeAll, options }: Dashb
           />
           <TrendChart
             className={cn(CHART_MIN_HEIGHT, "flex-1")}
-            data={(usage.by_day ?? []).map((day) => ({
-              label: day.date.slice(5),
-              value: day.runs,
+            data={timelineOf(usage).map((step) => ({
+              label: label(step),
+              value: step.runs,
             }))}
           />
         </div>

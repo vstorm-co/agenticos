@@ -38,7 +38,7 @@ from app.agents.mcp import tool_prefix
 CONNECT_ACCOUNT = "connect_account"
 """The tool's name, which the approval gate leaves ungated where this is attached."""
 
-OwnAccountGap = Literal["not_connected", "undecided", "unauthorized"]
+OwnAccountGap = Literal["not_connected", "unauthorized"]
 """Why a signed-in person's own account on a service cannot be used - each one
 something they can put right while the run waits."""
 
@@ -74,16 +74,11 @@ class PendingService:
 
 _WHY = {
     "not_connected": "they have not connected it",
-    "undecided": "they hold several connections to it and none is marked as the one agents use",
     "unauthorized": "their connection to it no longer authorizes",
 }
 
 _STILL = {
     "not_connected": "is still not connected - the sign-in may not have finished",
-    "undecided": (
-        "still has several connections with none marked as the one agents use - "
-        "they mark one as default on the MCP servers page, under You"
-    ),
     "unauthorized": (
         "still does not authorize - they authorize it again on the MCP servers page, under You"
     ),

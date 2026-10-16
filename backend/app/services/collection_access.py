@@ -22,6 +22,7 @@ another's collection while the listing looked perfectly scoped.
 
 from __future__ import annotations
 
+from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -65,7 +66,8 @@ async def readable_kb(db: AsyncSession, ctx: AuthContext, kb: KnowledgeBase) -> 
     if kb.scope == KBScope.APP.value:
         return True
     if kb.scope == KBScope.PERSONAL.value:
-        return ctx.user_id is not None and kb.owner_user_id == ctx.user_id
+        # The owner's, and through a key only one issued to read collections.
+        return _owns(ctx, kb) and ctx.key_allows(Perm.COLLECTIONS_VIEW)
     return await resolve_access(db, ctx, kb, Perm.COLLECTIONS_VIEW, resource_type=COLLECTION)
 
 
@@ -81,8 +83,12 @@ async def writable_kb(db: AsyncSession, ctx: AuthContext, kb: KnowledgeBase) -> 
     if kb.scope == KBScope.APP.value:
         return ctx.is_app_admin
     if kb.scope == KBScope.PERSONAL.value:
-        return ctx.user_id is not None and kb.owner_user_id == ctx.user_id
+        return _owns(ctx, kb) and ctx.key_allows(Perm.COLLECTIONS_EDIT)
     return await resolve_access(db, ctx, kb, Perm.COLLECTIONS_EDIT, resource_type=COLLECTION)
+
+
+def _owns(ctx: AuthContext, kb: KnowledgeBase) -> bool:
+    return ctx.user_id is not None and kb.owner_user_id == ctx.user_id
 
 
 def _as_uuid(value: str) -> UUID | None:
@@ -165,17 +171,34 @@ class CollectionAccessService:
         Deduplicated because several knowledge bases may point at one
         collection, and a listing should name it once.
         """
+        return list(dict.fromkeys(kb.collection_name for kb in await self._readable_kbs(ctx)))
+
+    async def _readable_kbs(self, ctx: AuthContext) -> list[KnowledgeBase]:
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=COLLECTION, perm=Perm.COLLECTIONS_VIEW
         )
-        accessible = await knowledge_base_repo.get_accessible(
+        return await knowledge_base_repo.get_accessible(
             self.db,
             user_id=ctx.subject_id,
             organization_id=ctx.organization_id,
             see_all_org=shared is None,
             shared_org_ids=shared or [],
         )
-        return list(dict.fromkeys(kb.collection_name for kb in accessible))
+
+    async def readable_scopes_for(
+        self, ctx: AuthContext, name: str | None
+    ) -> list[tuple[str, UUID | None]]:
+        """The (collection, organization) pairs a document listing may include.
+
+        The organization rides with the name because the name is not unique
+        across tenants: a document is listed when it is in a collection this
+        caller reads *and* belongs to that knowledge base's organization. `None`
+        is a deployment-wide knowledge base, whose rows any organization added.
+        """
+        kbs = (
+            [await self.readable(ctx, name)] if name is not None else await self._readable_kbs(ctx)
+        )
+        return list(dict.fromkeys((kb.collection_name, kb.organization_id) for kb in kbs))
 
     async def readable_names_for(self, ctx: AuthContext, name: str | None) -> list[str]:
         """What a listing may include: the collection asked for, or all of theirs.
@@ -259,16 +282,20 @@ class CollectionAccessService:
         id exists.
         """
         doc = await self._document(doc_id)
-        if await self._first_readable(ctx, doc.collection_name) is None:
-            raise _no_document(doc_id)
-        return doc
+        for kb in await knowledge_base_repo.list_by_collection_name(self.db, doc.collection_name):
+            # The knowledge base the document is in, not merely one by the same
+            # name: a collection's name is not unique across tenants.
+            if in_knowledge_base(doc, kb) and await readable_kb(self.db, ctx, kb):
+                return doc
+        raise _no_document(doc_id)
 
     async def writable_document(self, ctx: AuthContext, doc_id: str) -> RAGDocument:
         """A tracked document this caller may delete or re-ingest."""
         doc = await self._document(doc_id)
-        if await self._first_writable(ctx, doc.collection_name) is None:
-            raise _no_document(doc_id)
-        return doc
+        for kb in await knowledge_base_repo.list_by_collection_name(self.db, doc.collection_name):
+            if in_knowledge_base(doc, kb) and await writable_kb(self.db, ctx, kb):
+                return doc
+        raise _no_document(doc_id)
 
     async def sync_source(self, ctx: AuthContext, source_id: str) -> SyncSource:
         """The integration with this id inside the caller's organization.
@@ -296,3 +323,27 @@ class CollectionAccessService:
         if log is None or await self._first_writable(ctx, log.collection_name) is None:
             raise NotFoundError(message="Sync log not found", details={"sync_id": sync_id})
         return log
+
+
+class _InCollection(Protocol):
+    """A document or a sync source: a row a collection's name points at."""
+
+    @property
+    def collection_name(self) -> str | None: ...
+
+    @property
+    def organization_id(self) -> UUID | None: ...
+
+
+def in_knowledge_base(row: _InCollection, kb: KnowledgeBase) -> bool:
+    """Whether a document or sync source loaded by id is this knowledge base's.
+
+    By organization as well as by collection: a collection's name is not unique
+    across tenants, so a row matched on the name alone could be another
+    organization's - downloaded, or deleted, through a key for this one. A
+    deployment-wide (app) knowledge base has no organization, and its rows carry
+    whichever one added them, so only the collection decides there.
+    """
+    if row.collection_name != kb.collection_name:
+        return False
+    return kb.organization_id is None or row.organization_id == kb.organization_id

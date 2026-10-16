@@ -1,5 +1,5 @@
 ---
-source_sha: "7588e57ff61c"
+source_sha: "63ed58260c3c"
 title: "Revisa un cambio en un repositorio"
 description: "Haz que un agent monte un pequeño repositorio git en su sandbox, revise un diff con la skill code-review incluida y comprueba que encuentra los dos errores plantados en las líneas correctas."
 ---
@@ -78,7 +78,7 @@ Referencia: el diff entre las dos versiones tiene exactamente dos defectos reale
 ## Construye el agent { #build-the-agent }
 
 1. Crea un agent en **Agents → New agent** y selecciona tu perfil de modelo.
-2. En **Toolbox**, activa **Files & shell**. Elige **Container**, selecciona tu conexión de sandbox y el runtime `workbench`, y mantén el alcance de conversación.
+2. En **Toolbox**, activa **Sandbox**. Elige **Container**, selecciona tu conexión de sandbox y el runtime `workbench`, y mantén el alcance de conversación.
 3. Activa **Skills** y vincula `code-review`.
 4. Fija un budget para la prueba. El run registrado usó unos 40 pasos y costó unos 0,18 USD, sobre todo por las aprobaciones repetidas de la shell.
 5. Escribe las instrucciones de abajo y luego pulsa **Publish**.

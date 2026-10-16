@@ -57,6 +57,14 @@ class McpRegistryServer(Base, TimestampMixin):
     `LIKE` against a parsed-out substring of `url` could not use an index.
     """
 
+    category: Mapped[str] = mapped_column(String(32), nullable=False, server_default="other")
+    """The curated catalog's category this listing reads as, from its own words.
+
+    The registry has no categories, so `app.services.mcp_registry.categorise`
+    infers one at sync - which is what lets a category filter reach the mirror
+    rather than narrowing to the hundred curated entries alone. `other` when no
+    rule matched, never a guess."""
+
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

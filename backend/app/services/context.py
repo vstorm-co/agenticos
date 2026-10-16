@@ -30,6 +30,8 @@ from app.schemas.context import (
     ContextModeLiteral,
 )
 from app.services.access import CONTEXT, resolve_access, visible_resource_ids
+from app.services.resource_usage import agents_using, groups_sharing, shared_with_group
+from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,7 @@ def _summary(file: ContextFile) -> ContextFileSummary:
         format=file.format,
         mode=cast(ContextModeLiteral, file.mode),
         enabled=file.enabled,
+        visibility=file.visibility,
         size_bytes=len(file.content.encode("utf-8")),
         excerpt=excerpt(file.content),
     )
@@ -76,6 +79,7 @@ class ContextService:
         *,
         shared_with_me: bool = False,
         search: str | None = None,
+        group_id: UUID | None = None,
         sort: ContextSort = "name",
         skip: int = 0,
         limit: int = 50,
@@ -85,7 +89,8 @@ class ContextService:
         Scoped like every shared resource: a role that reaches the whole
         organization lists everything, anyone else lists their own files, the
         org-visible ones and those explicitly shared with them - the same set
-        :func:`resolve_access` admits one row at a time.
+        :func:`resolve_access` admits one row at a time. `group_id` narrows to
+        the files shared with one group.
         """
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=CONTEXT, perm=Perm.CONTEXT_VIEW
@@ -109,6 +114,9 @@ class ContextService:
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
             search=search,
+            only_ids=await shared_with_group(
+                self.db, ctx, resource_type=CONTEXT, group_id=group_id
+            ),
             sort=sort,
             skip=skip,
             limit=limit,
@@ -120,6 +128,7 @@ class ContextService:
         *,
         shared_with_me: bool = False,
         search: str | None = None,
+        group_id: UUID | None = None,
         sort: ContextSort = "name",
         skip: int = 0,
         limit: int = 50,
@@ -129,11 +138,26 @@ class ContextService:
             ctx,
             shared_with_me=shared_with_me,
             search=search,
+            group_id=group_id,
             sort=sort,
             skip=skip,
             limit=limit,
         )
-        return ContextFileList(items=[_summary(file) for file in items], total=total)
+        used = await agents_using(
+            self.db, ctx, field="context_ids", resource_ids=[file.id for file in items]
+        )
+        groups = await groups_sharing(
+            self.db, ctx, resource_type=CONTEXT, resource_ids=[file.id for file in items]
+        )
+        return ContextFileList(
+            items=[
+                _summary(file).model_copy(
+                    update={"used_by": used[file.id], "shared_groups": groups[file.id]}
+                )
+                for file in items
+            ],
+            total=total,
+        )
 
     async def resolve_for_agent(
         self, ctx: AuthContext, context_ids: list[UUID]
@@ -182,6 +206,8 @@ class ContextService:
         content_format: str = "md",
         mode: str = "inject",
         visibility: Visibility = Visibility.PRIVATE,
+        group_ids: list[UUID] | None = None,
+        user_ids: list[UUID] | None = None,
     ) -> ContextFile:
         """Create a context file.
 
@@ -218,6 +244,14 @@ class ContextService:
             target_id=str(file.id),
             details={"name": name, "mode": mode},
         )
+        if group_ids or user_ids:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                file,
+                resource_type=CONTEXT,
+                group_ids=group_ids or [],
+                user_ids=user_ids or [],
+            )
         return file
 
     async def update(

@@ -1,9 +1,11 @@
 "use client";
 
-import { create } from "zustand";
+import { create, createStore, type StateCreator } from "zustand";
+
+import { scopedStore } from "./chat-scope-context";
 import type { ConversationCost, ConversationMessage } from "@/types";
 
-interface ConversationState {
+export interface ConversationState {
   // UI state only. The conversations LIST is owned by React Query
   // (qk.conversations.list). This store holds the current selection, the
   // loaded messages for that selection, and the fetch/select status.
@@ -48,7 +50,7 @@ const initialState = {
   error: null,
 };
 
-export const useConversationStore = create<ConversationState>((set) => ({
+const conversationState: StateCreator<ConversationState> = (set) => ({
   ...initialState,
 
   setCurrentConversationId: (id) => set({ currentConversationId: id }),
@@ -71,4 +73,12 @@ export const useConversationStore = create<ConversationState>((set) => ({
   setError: (error) => set({ error }),
 
   reset: () => set(initialState),
-}));
+});
+
+/** A copy of its own, for a conversation in a scope - see `ChatScope`. */
+export const createConversationStore = () => createStore<ConversationState>()(conversationState);
+
+export const useConversationStore = scopedStore(
+  create<ConversationState>()(conversationState),
+  (scope) => scope.conversation,
+);

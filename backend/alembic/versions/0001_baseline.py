@@ -38,7 +38,7 @@ autogenerate's noise.
 
 The decisions those revisions recorded are prose now rather than files - the vault
 replacing three encryption mechanisms, `users.role` giving way to the permission
-catalog, the Tesseract language codes. `docs/` and `CLAUDE.md` cite them by number,
+catalog, the Tesseract language codes. `docs/` and `AGENTS.md` cite them by number,
 and the numbers resolve in git history before this commit.
 
 **A database already stamped with an old revision cannot read this chain.** Its

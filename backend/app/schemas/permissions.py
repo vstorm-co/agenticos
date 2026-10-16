@@ -18,6 +18,7 @@ class MyPermissions(BaseSchema):
     """
 
     organization_id: str
+    user_id: str
     role: str
     is_app_admin: bool
     permissions: list[PermissionEntry]

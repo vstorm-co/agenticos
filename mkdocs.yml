@@ -33,14 +33,13 @@ exclude_docs: |
 theme:
   name: material
   language: en
-  # Amigo's head, cropped square from the mascot by `scripts/gen_amigo_assets.py`
-  # and never drawn twice - the same bargain
-  # `frontend/src/lib/brand-glyphs.generated.ts` takes with every other mark this
-  # product draws. The console's built-in glyph is that same crop as a data URI,
-  # so the site header, the browser tab and the app's sidebar show one face; the
-  # page heroes and the README show the whole character it was cut from.
-  logo: assets/amigo-head.svg
-  favicon: assets/amigo-head.svg
+  # The AgenticOS mark, written by `frontend/scripts/gen-logo.ts` and never drawn
+  # twice - the same bargain `frontend/src/lib/brand-glyphs.generated.ts` takes
+  # with every other mark this product draws. The console's built-in glyph is the
+  # same drawing as a data URI, so the site header, the browser tab, the app's
+  # sidebar, the page heroes and the README show one face.
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   palette:
     # A theme per system preference, with a manual override - the same bargain
     # the app itself makes.
@@ -301,6 +300,12 @@ nav:
       - about/dify.md
       - about/n8n.md
       - about/viktor.md
+      - about/openai-dots.md
+      - about/grok-bot.md
+      - about/openai-frontier.md
+      - about/microsoft-agent-365.md
+      - about/claude-managed-agents.md
+      - about/openclaw.md
       - about/wonderful.md
       - about/claude-code.md
       - about/codex.md
@@ -334,6 +339,7 @@ nav:
       - Keep it under control:
           - permissions.md
           - directory.md
+          - departments.md
           - governance.md
           - secrets.md
           - data-protection.md
@@ -353,6 +359,7 @@ nav:
       - reference/capabilities.md
       - reference/permissions.md
       - reference/components.md
+      - reference/glossary.md
   - Resources:
       - resources/index.md
       - Development - contributing:

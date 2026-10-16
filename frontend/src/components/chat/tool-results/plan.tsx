@@ -27,19 +27,25 @@ export function PlanToolResult({
   resultText: string;
 }) {
   const t = useTranslations("chat.tools");
+  const tState = useTranslations("pages.runs");
   const steps = parsePlan(resultText);
 
   if (steps === null) {
     return (
       <p className="text-foreground/80 py-1 text-[13px] leading-relaxed whitespace-pre-wrap">
-        {resultText === ""
-          ? toolCall.status === "error"
-            ? t("toolFailed")
-            : t("running")
-          : resultText}
+        {resultText === "" ? emptyResult(toolCall.status) : resultText}
       </p>
     );
   }
 
   return <PlanChecklist steps={steps} className="py-1" />;
+
+  /** What a call with no result says, by where it got to. "Running…" only while
+   *  it is: a call the turn ended without answering is `unfinished`, and saying
+   *  "Running…" under it outlived the run and even a reload (#2149). */
+  function emptyResult(status: ToolCall["status"]): string {
+    if (status === "running" || status === "pending") return t("running");
+    if (status === "error") return t("toolFailed");
+    return tState("toolState", { status });
+  }
 }

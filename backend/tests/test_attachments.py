@@ -101,6 +101,39 @@ class TestWithoutAWorkspace:
         assert await AttachmentRouter().build_prompt("hello", []) == "hello"
 
 
+class TestWhatTheNextTurnIsTold:
+    """`context` is what a later turn's history replays after the person's words.
+
+    The defect: the paste reached the first request and nothing else, so a
+    follow-up about the file went to a model that had never been told of it.
+    """
+
+    async def test_a_pasted_file_is_kept_for_the_next_turn(self, storage):
+        router = AttachmentRouter()
+
+        prompt = await router.build_prompt("what changed?", [_file()])
+
+        assert prompt == "what changed?" + router.context
+        assert "month,total" in router.context
+
+    async def test_a_picture_is_named_not_repeated(self, storage):
+        router = AttachmentRouter()
+
+        await router.build_prompt(
+            "what is this?", [_file(filename="shot.png", file_type="image", mime_type="image/png")]
+        )
+
+        assert "Attached image: shot.png" in router.context
+        assert "not repeated" in router.context
+
+    async def test_a_turn_without_files_leaves_nothing_to_keep(self):
+        router = AttachmentRouter()
+
+        await router.build_prompt("hello", [])
+
+        assert router.context == ""
+
+
 class TestWithAWorkspace:
     async def test_the_file_is_written_and_referenced_rather_than_pasted(self, storage):
         """The whole point: a large file stops costing its weight every turn."""

@@ -36,6 +36,8 @@ export interface Artifact {
   environment_name: string | null;
   /** The "anyone with the link" address, when one is on. */
   public_url: string | null;
+  /** The groups it is shared with, by name (#2124). Only the listing carries it. */
+  shared_groups?: string[];
   published_at: string;
   current_version: ArtifactVersion | null;
   created_at: string;
@@ -59,6 +61,8 @@ export interface ArtifactPublicLink {
 /** One artifact as its own page reads it: with what the caller may do, decided by the server. */
 export interface ArtifactDetail extends Artifact {
   can_edit: boolean;
+  /** Whether the caller is told in their inbox when a new version is published. */
+  following: boolean;
   public_link: ArtifactPublicLink;
 }
 
@@ -77,6 +81,9 @@ export interface ArtifactPublicLinkUpdate {
 export interface ArtifactAgent {
   id: string;
   name: string;
+  slug: string;
+  has_avatar: boolean;
+  avatar_color: number | null;
 }
 
 export interface ArtifactList {
