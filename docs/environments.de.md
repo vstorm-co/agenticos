@@ -1,5 +1,5 @@
 ---
-source_sha: "ad3053f2dd89"
+source_sha: "f78eef126f29"
 ---
 
 # Umgebungen { #environments }
@@ -89,8 +89,10 @@ einer benannten Umgebung veröffentlicht ein eigenes
 [Artefakt](artifacts.md#one-name-one-link), sodass ein Versuch mit `dev` am
 Wochenbericht nie die Seite neu veröffentlicht, die Leser in Produktion öffnen.
 Eine Umgebung mit einem Run, der noch läuft oder auf eine Freigabe wartet, lässt
-sich erst entfernen, wenn der Run endet: Das Löschen würde diesen Run der Standardumgebung übergeben und seine
-Seiten denen von Produktion.
+sich erst entfernen, wenn der Run endet: Das Löschen würde diesen Run der
+Standardumgebung übergeben und seine Seiten denen von Produktion. Dasselbe gilt,
+solange ein Eval-Run darin wartet oder läuft, der sonst gegen die Verbindungen
+der Produktion weiterliefe.
 
 ## Testverbindungen { #test-connections }
 
