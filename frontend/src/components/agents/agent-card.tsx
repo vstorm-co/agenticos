@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ArchiveRestore,
   Archive,
@@ -75,11 +75,15 @@ export function AgentCard({
   canEdit,
   actions,
   busy,
+  footer,
 }: {
   agent: Agent;
   canEdit: boolean;
-  actions: AgentCardActions;
+  /** The card's menu - duplicate, archive, delete. Absent for an agent the platform owns. */
+  actions?: AgentCardActions;
   busy?: boolean;
+  /** A line under the labels, such as the datasets a judge grades. */
+  footer?: ReactNode;
 }) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
@@ -137,6 +141,11 @@ export function AgentCard({
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <AccessChip agent={agent} />
+                {agent.system_key && (
+                  <Badge variant="secondary" className="font-normal" title={t("defaultJudgeHint")}>
+                    {t("defaultJudge")}
+                  </Badge>
+                )}
                 {(agent.channels ?? []).map((channel) => (
                   <Badge
                     key={channel}
@@ -165,6 +174,7 @@ export function AgentCard({
                   </Badge>
                 ))}
               </div>
+              {footer !== undefined && <div className="mt-2">{footer}</div>}
             </div>
           </div>
 
@@ -186,42 +196,44 @@ export function AgentCard({
                   // of many still returns to the right one.
                   agentId={agent.id}
                 />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label={t("moreActionsFor", { name: agent.name })}
-                      className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={actions.onDuplicate}>
-                      <Copy className="h-4 w-4" />
-                      {t("duplicate")}
-                    </DropdownMenuItem>
-                    {archived ? (
-                      <DropdownMenuItem onSelect={actions.onRestore}>
-                        <ArchiveRestore className="h-4 w-4" />
-                        {t("restore")}
+                {actions && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={t("moreActionsFor", { name: agent.name })}
+                        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors outline-none focus-visible:ring-2"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onSelect={actions.onDuplicate}>
+                        <Copy className="h-4 w-4" />
+                        {t("duplicate")}
                       </DropdownMenuItem>
-                    ) : (
-                      <DropdownMenuItem onSelect={actions.onArchive}>
-                        <Archive className="h-4 w-4" />
-                        {t("archive")}
+                      {archived ? (
+                        <DropdownMenuItem onSelect={actions.onRestore}>
+                          <ArchiveRestore className="h-4 w-4" />
+                          {t("restore")}
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem onSelect={actions.onArchive}>
+                          <Archive className="h-4 w-4" />
+                          {t("archive")}
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onSelect={actions.onDelete}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {t("deletePermanently")}
                       </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onSelect={actions.onDelete}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {t("deletePermanently")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             )}
           </div>

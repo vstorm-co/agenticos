@@ -65,7 +65,7 @@ from app.core.exceptions import (
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_subject
-from app.db.models.agent import Agent, AgentStatus, AgentVersion
+from app.db.models.agent import Agent, AgentKind, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
 from app.db.models.resource_grant import Visibility
 from app.repositories import (
@@ -779,7 +779,12 @@ class AgentRegistryService:
         return True, grant_ids
 
     async def list_labels(
-        self, ctx: AuthContext, *, shared_with_me: bool = False, include_archived: bool = False
+        self,
+        ctx: AuthContext,
+        *,
+        shared_with_me: bool = False,
+        include_archived: bool = False,
+        kind: AgentKind = AgentKind.AGENT,
     ) -> tuple[list[str], list[str]]:
         """The categories and tags the listing can be filtered to, for the caller.
 
@@ -794,6 +799,7 @@ class AgentRegistryService:
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
             include_archived=include_archived,
+            kind=kind,
         )
 
     async def list_agents(
@@ -802,6 +808,7 @@ class AgentRegistryService:
         *,
         shared_with_me: bool = False,
         include_archived: bool = False,
+        kind: AgentKind = AgentKind.AGENT,
         categories: Sequence[str] = (),
         tags: Sequence[str] = (),
         skip: int = 0,
@@ -810,7 +817,8 @@ class AgentRegistryService:
         """Agents visible to the caller under their role scope and grants.
 
         `shared_with_me` narrows to what was deliberately shared with them -
-        org-visible or explicitly granted, and not their own.
+        org-visible or explicitly granted, and not their own. One `kind` is
+        listed at a time: the agents people use, or the judges.
 
         `categories`/`tags` are the raw discovery-filter query params. They are
         folded once here with the tolerant query normalizer (over-length items
@@ -836,6 +844,7 @@ class AgentRegistryService:
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
             include_archived=include_archived,
+            kind=kind,
             categories=norm_categories,
             tags=norm_tags,
             skip=skip,
@@ -880,6 +889,8 @@ class AgentRegistryService:
                 visibility=agent.visibility,
                 owner_user_id=agent.owner_user_id,
                 current_version_id=agent.current_version_id,
+                system_key=agent.system_key,
+                kind=AgentKind(agent.kind),
                 has_avatar=agent.has_avatar,
                 avatar_color=agent.avatar_color,
                 categories=agent.categories,
@@ -1788,6 +1799,11 @@ class AgentRegistryService:
             if delegate.status == AgentStatus.ARCHIVED.value:
                 problems.append(
                     f"Agent '{delegate.name}' is archived, so nothing can delegate to it"
+                )
+                continue
+            if delegate.kind != AgentKind.AGENT.value:
+                problems.append(
+                    f"Agent '{delegate.name}' is a {delegate.kind}, so nothing can delegate to it"
                 )
                 continue
             resolved = await self._resolve_pin(ctx, ref)

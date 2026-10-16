@@ -353,9 +353,10 @@ const DEFAULT_SECTIONS: SectionDef[] = [
       { widget: "my-quality", span: "s3", rows: "r3" },
       { widget: "shared-with-you", span: "s3", rows: "r3" },
       { widget: "artifacts", span: "s6", rows: "r4" },
-      // Every role reads datasets, and a member collecting cases from their own
-      // ratings is who this band is for.
+      // Every role reads datasets; the band is for a member collecting cases from
+      // their own ratings and deciding the scores they send for review.
       { widget: "datasets", span: "s6", rows: "r4" },
+      { widget: "review-queue", span: "s6", rows: "r4" },
     ],
   },
 ];

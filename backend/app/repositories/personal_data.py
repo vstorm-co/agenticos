@@ -14,15 +14,17 @@ runs on. `docs/security.md` has the table, with the reason for each.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, or_, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.case_score import CaseScore
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Conversation, Message, ToolCall
@@ -113,6 +115,29 @@ async def ratings_of(db: AsyncSession, user_id: UUID) -> list[MessageRating]:
         select(MessageRating)
         .where(MessageRating.user_id == user_id)
         .order_by(MessageRating.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def verdicts_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
+    """Eval scores they decided, whose verdict and note are an opinion they expressed."""
+    result = await db.execute(
+        select(CaseScore)
+        .where(CaseScore.reviewed_by_user_id == user_id)
+        .order_by(CaseScore.reviewed_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def scored_answers_of(db: AsyncSession, user_id: UUID) -> list[CaseScore]:
+    """Eval scores of runs they started, each holding a copy of the answer it scored."""
+    result = await db.execute(
+        select(CaseScore)
+        .where(
+            CaseScore.answer.is_not(None),
+            CaseScore.run_id.in_(select(AgentRun.id).where(AgentRun.user_id == user_id)),
+        )
+        .order_by(CaseScore.created_at.desc())
     )
     return list(result.scalars().all())
 
@@ -285,6 +310,31 @@ async def unlink_dataset_cases_of(db: AsyncSession, user_id: UUID) -> int:
     )
     await db.flush()
     return result.rowcount or 0  # ty: ignore[unresolved-attribute]
+
+
+async def purge_scored_answers_of(db: AsyncSession, user_id: UUID) -> int:
+    """Clear the answer copied into every eval score of a run this person started.
+
+    Unscoped by organization, as every erasure is. The score stays - what the
+    scorers and a reviewer concluded is the organization's - and its run link
+    already goes when the run does; the copy of the answer goes now.
+
+    Returns:
+        How many scores lost their answer.
+    """
+    result = cast(
+        CursorResult[Any],
+        await db.execute(
+            update(CaseScore)
+            .where(
+                CaseScore.answer.is_not(None),
+                CaseScore.run_id.in_(select(AgentRun.id).where(AgentRun.user_id == user_id)),
+            )
+            .values(answer=None)
+        ),
+    )
+    await db.flush()
+    return result.rowcount or 0
 
 
 async def attachment_paths_in(db: AsyncSession, conversation_id: UUID) -> list[str]:

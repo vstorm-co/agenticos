@@ -29,7 +29,7 @@ from app.core.permissions import AuthContext, OrgRoleName, Scope
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
-from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion, DatasetVersionCase
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization import Organization, OrganizationMember
@@ -157,6 +157,28 @@ async def _rated_down_turn(
     return run, answer
 
 
+async def test_a_question_already_asked_is_found_whatever_its_case_and_spacing(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="refunds"))
+    asked = await service.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="\nHow long is the\nreturn window?", reference_answer="30"),
+    )
+    await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="Lost receipt?", reference_answer="yes")
+    )
+
+    twins = await service.list_cases(
+        ctx, dataset.id, same_input="  how LONG is the return   window? "
+    )
+    none = await service.list_cases(ctx, dataset.id, same_input="How long is the return window")
+
+    assert [case.case_id for case in twins.items] == [asked.case_id]
+    assert (twins.total, none.total) == (1, 0)
+
+
 async def test_editing_a_case_mints_a_version_and_the_old_one_stays_readable(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)
@@ -252,6 +274,12 @@ async def test_stats_count_what_the_newest_version_tests_against(db) -> None:
         stats.with_checks,
     ) == (1, 3, 1, 0)
     assert stats.by_source == {"manual": 2, "import": 2, "conversation": 0, "synthetic": 0}
+    # q1 kept only its reference; q2 expects a call and has a counter-example,
+    # and the two imported have only a counter-example, which the reference
+    # comparison grades as it grades a reference answer.
+    assert {
+        (mix.checks, mix.tool_calls, mix.reference): mix.cases for mix in stats.expectation_mix
+    } == {(False, False, True): 3, (False, True, True): 1}
     assert [(tag.tag, tag.cases) for tag in stats.top_tags] == [
         ("returns", 2),
         ("billing", 1),
@@ -451,6 +479,32 @@ async def test_a_rated_down_answer_becomes_a_case_linked_to_its_run(db) -> None:
     assert case.note == "Wrong refund window"
 
 
+async def test_an_answer_already_a_case_is_not_added_twice(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="from activity"))
+    elsewhere = await service.create(ctx, DatasetCreate(name="another"))
+    _, answer = await _rated_down_turn(db, ctx)
+    first = await service.add_from_message(
+        ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+    )
+
+    with pytest.raises(AlreadyExistsError) as refused:
+        await service.add_from_message(
+            ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+        )
+    other = await service.add_from_message(
+        ctx, elsewhere.id, DatasetCaseFromMessage(message_id=answer.id)
+    )
+    await service.remove_case(ctx, dataset.id, first.case_id)
+    again = await service.add_from_message(
+        ctx, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+    )
+
+    assert refused.value.details == {"case_id": first.case_id}
+    assert other.source_message_id == again.source_message_id == answer.id
+
+
 async def test_a_good_answer_can_be_kept_as_the_reference(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)
@@ -542,13 +596,106 @@ async def test_only_an_answer_with_a_question_before_it_can_become_a_case(db) ->
         await service.add_from_message(
             ctx, dataset.id, DatasetCaseFromMessage(message_id=lonely.id)
         )
-    blank = Message(
-        id=uuid.uuid4(), conversation_id=answer.conversation_id, role="assistant", content="  "
-    )
-    db.add(blank)
+    silent = Conversation(id=uuid.uuid4(), user_id=ctx.user_id, organization_id=ctx.organization_id)
+    db.add(silent)
     await db.flush()
-    with pytest.raises(BadRequestError, match="no text"):
+    for role, content in (("user", "Anything?"), ("assistant", "  ")):
+        db.add(Message(id=uuid.uuid4(), conversation_id=silent.id, role=role, content=content))
+        await db.flush()
+    blank = await db.scalar(
+        select(Message).where(Message.conversation_id == silent.id, Message.role == "assistant")
+    )
+    assert blank is not None
+    with pytest.raises(BadRequestError, match="no text to keep as a counter-example"):
         await service.add_from_message(ctx, dataset.id, DatasetCaseFromMessage(message_id=blank.id))
+    with pytest.raises(BadRequestError, match="no text to keep as a case"):
+        await service.add_from_message(
+            ctx,
+            dataset.id,
+            DatasetCaseFromMessage(message_id=blank.id, answer_as="reference_answer"),
+        )
+
+
+async def _reply_in_steps(db, ctx: AuthContext, *, text: str | None) -> list[Message]:
+    """A question, then a reply written as a step that called `write_memory`, then `text`."""
+    conversation = Conversation(
+        id=uuid.uuid4(), user_id=ctx.user_id, organization_id=ctx.organization_id
+    )
+    db.add(conversation)
+    await db.flush()
+    turns = [("user", "Remember I prefer email"), ("assistant", "")]
+    if text is not None:
+        turns.append(("assistant", text))
+    messages = []
+    for role, content in turns:
+        message = Message(
+            id=uuid.uuid4(), conversation_id=conversation.id, role=role, content=content
+        )
+        db.add(message)
+        await db.flush()
+        messages.append(message)
+    db.add(
+        ToolCall(
+            message_id=messages[1].id,
+            tool_call_id="call-1",
+            tool_name="write_memory",
+            args={"text": "prefers email"},
+            started_at=_START,
+            status="completed",
+        )
+    )
+    await db.flush()
+    return messages
+
+
+async def test_a_reply_in_steps_is_one_case_whichever_step_is_added(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="steps"))
+    bad = await service.create(ctx, DatasetCreate(name="bad steps"))
+    _, step, said = await _reply_in_steps(db, ctx, text="Noted - email it is.")
+
+    case = await service.add_from_message(
+        ctx,
+        dataset.id,
+        DatasetCaseFromMessage(message_id=step.id, answer_as="reference_answer"),
+    )
+    with pytest.raises(AlreadyExistsError):
+        await service.add_from_message(
+            ctx,
+            dataset.id,
+            DatasetCaseFromMessage(message_id=said.id, answer_as="reference_answer"),
+        )
+    countered = await service.add_from_message(
+        ctx, bad.id, DatasetCaseFromMessage(message_id=step.id)
+    )
+
+    assert case.input == "Remember I prefer email"
+    assert case.reference_answer == "Noted - email it is."
+    assert [call.model_dump() for call in case.expected_tool_calls] == [
+        {"tool": "write_memory", "args": {}}
+    ]
+    assert case.source_message_id == said.id
+    assert (countered.counter_example, countered.expected_tool_calls) == (
+        "Noted - email it is.",
+        [],
+    )
+
+
+async def test_a_reply_with_only_tool_calls_is_kept_as_the_calls_it_expects(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="calls only"))
+    _, step = await _reply_in_steps(db, ctx, text=None)
+
+    case = await service.add_from_message(
+        ctx,
+        dataset.id,
+        DatasetCaseFromMessage(message_id=step.id, answer_as="reference_answer"),
+    )
+
+    assert case.reference_answer is None
+    assert [call.tool for call in case.expected_tool_calls] == ["write_memory"]
 
 
 async def test_a_conversation_too_long_to_keep_is_refused(db) -> None:
@@ -570,7 +717,7 @@ async def test_a_member_the_dataset_was_not_shared_with_cannot_read_or_change_it
     owner = await _owner(db)
     org = Organization(id=owner.organization_id)
     service = DatasetService(db)
-    dataset = await service.create(owner, DatasetCreate(name="private"))
+    dataset = await service.create(owner, DatasetCreate(name="private", visibility="private"))
     await service.add_case(owner, dataset.id, DatasetCaseCreate(input="q", reference_answer="yes"))
 
     for role in (OrgRoleName.MEMBER, OrgRoleName.VIEWER):
@@ -601,8 +748,8 @@ async def test_a_grant_widens_access_to_one_dataset_without_promoting_the_member
     owner = await _owner(db)
     viewer = await _member(db, Organization(id=owner.organization_id), OrgRoleName.VIEWER)
     service = DatasetService(db)
-    shared = await service.create(owner, DatasetCreate(name="shared"))
-    other = await service.create(owner, DatasetCreate(name="other"))
+    shared = await service.create(owner, DatasetCreate(name="shared", visibility="private"))
+    other = await service.create(owner, DatasetCreate(name="other", visibility="private"))
     db.add(
         ResourceGrant(
             organization_id=owner.organization_id,
@@ -700,6 +847,7 @@ async def test_a_version_number_is_unique_within_its_dataset(db) -> None:
         owner_user_id=ctx.user_id,
         name="x",
         description=None,
+        visibility="private",
     )
     for _ in range(2):
         db.add(
@@ -724,6 +872,7 @@ async def test_a_case_source_outside_the_vocabulary_is_refused(db) -> None:
         owner_user_id=ctx.user_id,
         name="x",
         description=None,
+        visibility="private",
     )
     db.add(
         DatasetCase(
@@ -771,15 +920,14 @@ async def test_the_editable_listing_reaches_a_granted_dataset_however_old(db) ->
     member = await _member(db, org, OrgRoleName.MEMBER)
     builder = await _member(db, org, OrgRoleName.BUILDER)
     service = DatasetService(db)
-    granted = await service.create(owner, DatasetCreate(name="granted long ago"))
-    read_only = await service.create(owner, DatasetCreate(name="read only"))
+    granted = await service.create(
+        owner, DatasetCreate(name="granted long ago", visibility="private")
+    )
+    read_only = await service.create(owner, DatasetCreate(name="read only", visibility="private"))
     for number in range(101):
-        await service.create(owner, DatasetCreate(name=f"newer {number:03}"))
-    org_wide = await service.create(owner, DatasetCreate(name="org wide"))
-    shared_row = await db.get(Dataset, org_wide.id)
-    assert shared_row is not None
-    shared_row.visibility = "org"
-    await service.create(member, DatasetCreate(name="the member's own"))
+        await service.create(owner, DatasetCreate(name=f"newer {number:03}", visibility="private"))
+    await service.create(owner, DatasetCreate(name="org wide"))
+    await service.create(member, DatasetCreate(name="the member's own", visibility="private"))
     for dataset_id, level in ((granted.id, GrantLevel.EDIT), (read_only.id, GrantLevel.READ)):
         db.add(
             ResourceGrant(
@@ -914,6 +1062,7 @@ async def test_an_order_mode_outside_the_three_is_refused_by_the_table(db) -> No
         owner_user_id=ctx.user_id,
         name="x",
         description=None,
+        visibility="private",
     )
     db.add(
         DatasetCase(
@@ -948,20 +1097,73 @@ async def test_a_version_read_with_another_tenant_finds_no_cases(db) -> None:
     assert await dataset_repo.last_position(db, version.id, organization_id=other) == -1
 
 
-async def test_a_check_keeps_parameters_scoring_has_not_defined_yet(db) -> None:
+async def test_a_check_keeps_the_parameters_scoring_reads(db) -> None:
     ctx = await _owner(db)
     service = DatasetService(db)
     dataset = await service.create(ctx, DatasetCreate(name="checks"))
+    schema = {"type": "object", "required": ["days"]}
     await service.add_case(
         ctx,
         dataset.id,
-        DatasetCaseCreate(
-            input="q",
-            checks=[{"type": "rubric", "criteria": ["tone", "policy"], "scale": 5}],
-        ),
+        DatasetCaseCreate(input="q", checks=[{"type": "json_schema", "schema": schema}]),
     )
     stored = (await service.list_cases(ctx, dataset.id)).items[0].checks[0]
-    assert stored.model_dump() == {"type": "rubric", "criteria": ["tone", "policy"], "scale": 5}
+    assert stored.model_dump() == {"type": "json_schema", "schema": schema}
+
+
+async def _case_with_an_older_check(db) -> tuple[AuthContext, DatasetService, uuid.UUID, uuid.UUID]:
+    """A case whose stored check scoring no longer accepts, as one written earlier holds."""
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="older checks"))
+    case = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="q", reference_answer="a")
+    )
+    row = await db.get(DatasetCase, case.id)
+    assert row is not None
+    row.checks = [{"type": "rubric", "criteria": ["tone"], "scale": 5}]
+    await db.flush()
+    return ctx, service, dataset.id, case.case_id
+
+
+async def test_a_stored_check_scoring_no_longer_knows_is_still_read(db) -> None:
+    ctx, service, dataset_id, _ = await _case_with_an_older_check(db)
+
+    stored = (await service.list_cases(ctx, dataset_id)).items[0].checks[0]
+
+    assert stored.model_dump() == {"type": "rubric", "criteria": ["tone"], "scale": 5}
+
+
+async def test_a_stored_check_scoring_no_longer_knows_still_exports(db) -> None:
+    ctx, service, dataset_id, _ = await _case_with_an_older_check(db)
+
+    exported = await service.export(ctx, dataset_id, version=None, fmt="jsonl")
+
+    assert '"type": "rubric"' in exported.content
+
+
+async def test_editing_another_field_keeps_a_check_scoring_no_longer_knows(db) -> None:
+    ctx, service, dataset_id, case_id = await _case_with_an_older_check(db)
+
+    edited = await service.update_case(ctx, dataset_id, case_id, DatasetCaseUpdate(note="n"))
+
+    assert edited.note == "n"
+    assert edited.checks[0].type == "rubric"
+
+
+async def test_a_check_scoring_no_longer_knows_still_counts_as_what_a_case_expects(db) -> None:
+    ctx, service, dataset_id, case_id = await _case_with_an_older_check(db)
+    row = await db.scalar(select(DatasetCase).where(DatasetCase.case_id == case_id))
+    assert row is not None
+    row.reference_answer = None
+    await db.flush()
+
+    kept = await service.update_case(ctx, dataset_id, case_id, DatasetCaseUpdate(note="n"))
+    assert (kept.reference_answer, kept.checks[0].type) == (None, "rubric")
+
+    with pytest.raises(InvalidCaseError) as refused:
+        await service.update_case(ctx, dataset_id, case_id, DatasetCaseUpdate(checks=[]))
+    assert [problem["field"] for problem in refused.value.details["fields"]] == ["reference_answer"]
 
 
 async def _case_from_someone(db) -> tuple[AuthContext, AuthContext, uuid.UUID]:
@@ -1026,7 +1228,7 @@ async def test_erasing_the_author_of_a_case_clears_who_wrote_it(db) -> None:
     owner = await _owner(db)
     builder = await _member(db, Organization(id=owner.organization_id), OrgRoleName.BUILDER)
     service = DatasetService(db)
-    dataset = await service.create(owner, DatasetCreate(name="shared"))
+    dataset = await service.create(owner, DatasetCreate(name="shared", visibility="private"))
     db.add(
         ResourceGrant(
             organization_id=owner.organization_id,
@@ -1055,3 +1257,36 @@ async def test_erasing_the_author_of_a_case_clears_who_wrote_it(db) -> None:
         None,
         None,
     )
+
+
+async def test_a_new_dataset_is_the_organization_s_unless_it_starts_private(db) -> None:
+    """Datasets are shared test material: a team member finds one without being sent it."""
+    owner = await _owner(db)
+    member = await _member(db, Organization(id=owner.organization_id), OrgRoleName.MEMBER)
+    service = DatasetService(db)
+    shared = await service.create(owner, DatasetCreate(name="refunds"))
+    kept = await service.create(owner, DatasetCreate(name="drafts", visibility="private"))
+
+    listed = {item.id for item in (await service.list_readable(member)).items}
+
+    assert shared.visibility == "org"
+    assert (shared.id in listed, kept.id in listed) == (True, False)
+
+
+async def test_a_link_opens_one_case_as_its_version_holds_it(db) -> None:
+    ctx = await _owner(db)
+    service = DatasetService(db)
+    dataset = await service.create(ctx, DatasetCreate(name="refunds"))
+    first = await service.add_case(
+        ctx, dataset.id, DatasetCaseCreate(input="Return window?", reference_answer="yes")
+    )
+    await service.update_case(
+        ctx, dataset.id, first.case_id, DatasetCaseUpdate(input="How long?", reference_answer="30")
+    )
+
+    newest = await service.read_case(ctx, dataset.id, first.case_id)
+    older = await service.read_case(ctx, dataset.id, first.case_id, version=1)
+
+    assert (newest.input, older.input) == ("How long?", "Return window?")
+    with pytest.raises(NotFoundError):
+        await service.read_case(ctx, dataset.id, uuid.uuid4())

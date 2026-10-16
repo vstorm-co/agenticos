@@ -42,6 +42,12 @@ class PersonalDataExport(BaseModel):
         description="Which organizations they belong to, as what, and since when."
     )
     ratings: list[dict[str, Any]] = Field(description="Answers they marked good or bad.")
+    case_verdicts: list[dict[str, Any]] = Field(
+        description="Eval scores they passed or failed by hand, with the note they left."
+    )
+    scored_answers: list[dict[str, Any]] = Field(
+        description="Answers to their runs that an eval score kept, with when it was scored."
+    )
     sessions: list[dict[str, Any]] = Field(
         description="Where and when they signed in. Never the credential; the row holds a hash."
     )
@@ -77,4 +83,7 @@ class PersonalDataPurge(BaseModel):
     )
     dataset_cases: int = Field(
         description="Dataset cases taken from their conversations, kept but unlinked from them."
+    )
+    scored_answers: int = Field(
+        description="Eval scores of their runs, kept but without the answer they scored."
     )

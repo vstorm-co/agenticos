@@ -1148,7 +1148,8 @@ the same write, which is why one can fail - a bounced address, a down SMTP relay
 Both channels are switched independently, per event, at **Settings →
 Notifications** - a person can keep the in-app row for approvals and turn its
 email off, or the other way round. The same page also carries every other
-event the inbox delivers: a run finishing or failing unattended, a document's
+event the inbox delivers: a run finishing or failing unattended - an `eval` run,
+one of the many an eval starts, sends neither - a document's
 ingestion **failing**, a connector sync's own whole-attempt figure, and an app
 admin's own broadcast - `POST /admin/announcements`, not yet a console page -
 addressed by organization and, optionally, role, and restricted to one or both
@@ -1339,6 +1340,34 @@ than no report, because both numbers look authoritative.
 
 Sending never blocks and never raises into the caller: a run that has already
 ended must not fail again because SMTP was down.
+
+## AI assistance { #ai-assistance }
+
+One switch, in the organization's settings on its members page, decides whether
+models assist the organization's evals and authoring: the eval judge that
+grades [dataset scores](datasets.md#judge), and the case generator, the
+authoring assistant and the knowledge-gap drafts that come after it. It is off
+by default, for an organization that existed before the switch as for a new
+one: whether models judge and draft is the organization's decision, and
+whoever holds `org:settings` turns it on. Each change is recorded in the
+[audit trail](#audit) as `organization.ai_assistance`, with who made it.
+
+When it is off, the service that would start such a run refuses it, whichever
+client asks - a hidden control is not the boundary. Scoring still runs its
+rule-based checks and tool-call matching, records the judge's criteria as
+skipped with the reason, and leaves a case whose judge was required unscored
+rather than passed. People's verdicts stay available.
+
+These features run as [judges](concepts.md#system-agents). Each run is an
+ordinary run: it is budget-checked against the judge's own monthly budget and
+the organization's before every model call, its cost is recorded, and it is
+listed in Activity under the `eval` surface. A judge starts with a budget of its
+own - $5 a month - which can be changed like any agent's.
+
+A judge is never exposed: no channel, embed, public page or schedule can be
+attached to it, no agent can delegate to it, and a run of it on any surface but
+`eval` is refused. Its spend therefore stays the platform's own, started only by
+the features above.
 
 ## Audit
 

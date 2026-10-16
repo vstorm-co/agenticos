@@ -118,7 +118,7 @@ export function ListCardEmpty({
 }: {
   icon: LucideIcon;
   title: string;
-  description?: string;
+  description?: ReactNode;
   cta?: { label: ReactNode; onClick: () => void };
 }) {
   return (

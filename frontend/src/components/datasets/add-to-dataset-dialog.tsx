@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -14,9 +15,11 @@ import {
   DialogTitle,
 } from "@/components/ui";
 import { useAddToDataset } from "@/hooks/use-datasets";
+import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
+import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM } from "@/lib/dialog-sizes";
-import type { Dataset } from "@/types/datasets";
+import { Perm } from "@/types/permissions";
 import { DatasetTargetFields, type AnswerAs } from "./dataset-target-fields";
 import { useDatasetTarget } from "./use-dataset-target";
 
@@ -32,6 +35,8 @@ interface AddToDatasetDialogProps {
    * rating; false after a thumbs-up in chat, where the rating already said.
    */
   askAnswerAs: boolean;
+  /** Whether the answer was rated down, so the rating's comment comes with it. */
+  ratedDown?: boolean;
 }
 
 /**
@@ -46,18 +51,35 @@ export function AddToDatasetDialog({
   messageId,
   answerAs: initial,
   askAnswerAs,
+  ratedDown = false,
 }: AddToDatasetDialogProps) {
   const t = useTranslations("datasets");
   const tErrors = useTranslations("errors");
-  const { editable, isLoading, search, target, choose, remember } = useDatasetTarget();
+  const router = useRouter();
+  const { can } = usePermissions();
+  const { editable, isLoading, search, target, returnTo, choose, remember, create } =
+    useDatasetTarget();
   const add = useAddToDataset();
   const [answerAs, setAnswerAs] = useState<AnswerAs>(initial);
+  const [newName, setNewName] = useState(t("newDatasetFromActivity"));
+  const making = !isLoading && editable.length === 0 && can(Perm.datasetsEdit);
 
-  async function submit(into: Dataset) {
+  async function submit() {
     try {
+      const into =
+        target ??
+        (await create.mutateAsync({ name: newName.trim(), description: null, visibility: "org" }));
       await add.mutateAsync({ datasetId: into.id, messageId, answerAs });
       remember(into);
-      toast.success(t("addedTo", { name: into.name }));
+      const added = t("addedTo", { name: into.name });
+      if (returnTo === undefined) toast.success(added);
+      else
+        toast.success(added, {
+          action: {
+            label: t("backToDataset", { name: returnTo.name }),
+            onClick: () => router.push(`${ROUTES.DATASET_DETAIL(returnTo.id)}?tab=cases`),
+          },
+        });
       onOpenChange(false);
     } catch (error) {
       toast.error(getErrorMessage(error, tErrors));
@@ -70,7 +92,13 @@ export function AddToDatasetDialog({
         <DialogHeader>
           <DialogTitle>{t("addToDataset")}</DialogTitle>
           <DialogDescription>
-            {t(askAnswerAs ? "addToDatasetBody" : "addAsReferenceBody")}
+            {t(
+              !askAnswerAs
+                ? "addAsReferenceBody"
+                : ratedDown
+                  ? "addToDatasetBody"
+                  : "addToDatasetBodyPlain",
+            )}
           </DialogDescription>
         </DialogHeader>
         <DatasetTargetFields
@@ -81,14 +109,19 @@ export function AddToDatasetDialog({
           search={search}
           answerAs={askAnswerAs ? { value: answerAs, onChange: setAnswerAs } : undefined}
           idPrefix="add-to-dataset"
+          create={making ? { name: newName, onChange: setNewName } : undefined}
         />
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
           <Button
-            disabled={add.isPending || target === undefined}
-            onClick={() => target && void submit(target)}
+            disabled={
+              add.isPending ||
+              create.isPending ||
+              (target === undefined && !(making && newName.trim() !== ""))
+            }
+            onClick={() => void submit()}
           >
             {t("add")}
           </Button>

@@ -21,6 +21,7 @@ import { ErrorState } from "@/components/states";
 import {
   InviteLinkDialog,
   InviteMemberDialog,
+  OrgAiAssistance,
   OrgApprovalWaiver,
   OrgSpendingLimit,
 } from "@/components/teams";
@@ -462,6 +463,8 @@ export default function OrgMembersPage({ params }: PageProps) {
           ceiling above it, and hidden from anybody who may not decide an
           approval in the first place. */}
       {org && <OrgApprovalWaiver org={org} />}
+
+      {org && <OrgAiAssistance org={org} />}
 
       {/* The table draws its own skeleton from the same column definitions, so
           the header and every column width are already right while it loads -

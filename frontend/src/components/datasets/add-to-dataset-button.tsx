@@ -44,6 +44,7 @@ export function AddToDatasetButton({ messageId, ratedDown }: AddToDatasetButtonP
           messageId={messageId}
           answerAs={ratedDown ? "counter_example" : "reference_answer"}
           askAnswerAs
+          ratedDown={ratedDown}
         />
       )}
     </>

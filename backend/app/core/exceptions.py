@@ -5,6 +5,7 @@ These exceptions are caught by exception handlers and converted to proper HTTP r
 """
 
 from typing import Any
+from uuid import UUID
 
 
 class AppException(Exception):
@@ -190,3 +191,105 @@ class InternalError(AppException):
     message = "Internal server error"
     code = "INTERNAL_ERROR"
     status_code = 500
+
+
+class AiAssistanceDisabledError(AuthorizationError):
+    """The organization has switched AI assistance off (403).
+
+    Raised by the service that would start a model-backed eval or authoring run -
+    the judge, the case generator, the authoring assistant - so the switch holds
+    whichever client asks. Its own `code`, so a caller that degrades rather than
+    refuses tells it apart from a missing permission.
+    """
+
+    message = "AI assistance is switched off for this organization"
+    code = "AI_ASSISTANCE_OFF"
+
+
+class SystemAgentUnavailableError(BadRequestError):
+    """A system agent cannot run for this caller (400).
+
+    `reason` says why - `not_seeded`, `missing` (the agent picked for the job is
+    gone), `unpublished`, `archived`, `no_access` or `no_model` - because each has
+    a different fix, and a person told only "unavailable" cannot tell whether to
+    pick a model or ask for a grant.
+    """
+
+    message = "This system agent cannot run"
+    code = "SYSTEM_AGENT_UNAVAILABLE"
+
+    def __init__(self, message: str, *, key: str, reason: str) -> None:
+        super().__init__(message=message, details={"key": key, "reason": reason})
+        self.reason = reason
+
+
+class SystemAgentRestrictedError(BadRequestError):
+    """A system agent was asked to do what only an ordinary agent does (400).
+
+    A system agent runs for the platform - the eval judge grades scores - and
+    only through the system agent runner. It is never chatted with, exposed on a
+    channel, embedded, scheduled or delegated to. `action` names what was refused.
+    """
+
+    message = "This is a system agent"
+    code = "SYSTEM_AGENT_RESTRICTED"
+
+    def __init__(self, *, name: str, agent_id: UUID, action: str) -> None:
+        super().__init__(
+            message=(
+                f"'{name}' is a system agent: the platform runs it, so it cannot be "
+                f"used for {action}."
+            ),
+            details={"agent_id": agent_id, "action": action},
+        )
+        self.action = action
+
+
+class SystemAgentRunError(BadRequestError):
+    """A system agent's run ended without an answer to read (400).
+
+    The run is recorded either way - a budget refusal, a guardrail block, a
+    failure - and `run_id` names it, so the spend and the error stay in Activity.
+    `status` is the run's terminal status.
+    """
+
+    message = "The system agent's run did not complete"
+    code = "SYSTEM_AGENT_RUN_FAILED"
+
+    def __init__(self, message: str, *, run_id: UUID, status: str) -> None:
+        super().__init__(message=message, details={"run_id": run_id, "status": status})
+        self.run_id = run_id
+        self.status = status
+
+
+class SystemAgentOutputError(BadRequestError):
+    """A system agent answered, but not in the shape its caller asked for (400).
+
+    Not retried: a second call costs as much as the first and an edited prompt
+    that broke the format breaks it again. `run_id` names the recorded run;
+    `answer` is what the agent answered, for the caller to show, never placed in
+    `details`.
+    """
+
+    message = "The system agent's answer could not be read"
+    code = "SYSTEM_AGENT_OUTPUT_INVALID"
+
+    def __init__(self, message: str, *, run_id: UUID, answer: str = "") -> None:
+        super().__init__(message=message, details={"run_id": run_id})
+        self.run_id = run_id
+        self.answer = answer
+
+
+class NothingToScoreError(BadRequestError):
+    """No configured scorer has anything to check on a case (400).
+
+    Raised before anything is kept or the judge is called, so an eval run can
+    count the case as undecided rather than failed.
+    """
+
+    message = "Nothing to score: the dataset's scorers check nothing this case expects"
+    code = "NOTHING_TO_SCORE"
+
+    def __init__(self, *, case_id: UUID) -> None:
+        super().__init__(details={"case_id": case_id})
+        self.case_id = case_id
