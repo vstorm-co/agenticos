@@ -270,6 +270,7 @@ describe("useSendToReview", () => {
     });
     expect(sent).toEqual({ queued: 2, replaced: 1, already: 0 });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["datasets", "review-queue"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["eval-runs", "run-1"] });
   });
 
   it("sends nothing when no failed answer was scored", async () => {

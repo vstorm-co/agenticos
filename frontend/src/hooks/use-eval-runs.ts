@@ -211,6 +211,8 @@ export function useSendToReview(runId: string, datasetId: string) {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: qk.datasets.allScores(datasetId) }),
         queryClient.invalidateQueries({ queryKey: qk.datasets.allReviewQueue() }),
+        // The run counts what is left to send; read it again, or the same go twice.
+        queryClient.invalidateQueries({ queryKey: qk.evalRuns.detail(runId) }),
       ]),
   });
 }
