@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Tool-call loops are stopped early, with the reason** (#2086). A run that
+  calls one tool with the same arguments again and again, or goes round a short
+  cycle of calls, is told it is looping; if it goes on, it ends as
+  `loop_stopped` and says which tools - before the step limit or the budget runs
+  out. On for every agent; the Builder sets the thresholds or switches it off
+  beside "Max steps". Chat apps, embeds and run notifications say why too.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

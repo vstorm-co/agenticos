@@ -853,6 +853,15 @@ The other kind of runaway is a tool loop: cheap per call, and it never finishes.
 budget only bills for that. `max_steps` caps how many model requests one run may
 make and is what actually stops it.
 
+The loop guard stops most loops sooner, and says why. Every agent has it, on by
+default. When a run calls one tool with the same arguments four times in a row,
+or goes round a cycle of two or three calls three times, the model is told it is
+looping and to change approach. If the calls after that warning loop again, the
+run ends as `loop_stopped`, with a reason naming the tools - never their
+arguments. Calls with different arguments are never a loop, and only the run's
+own calls count. The Builder sets both thresholds, or switches the guard off,
+beside `max_steps` (`loop_guard` in the spec).
+
 ### Reporting
 
 A run that could not be priced - a model `genai-prices` does not know - is

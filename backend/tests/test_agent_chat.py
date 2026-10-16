@@ -38,6 +38,7 @@ from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.media import MediaOffload
 from app.agents.deps import AgentDeps
+from app.agents.loop_guard import ToolLoopStopped
 from app.agents.steering import SteeringInbox
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import OrgRoleName
@@ -699,6 +700,16 @@ class TestRecordingTheRun:
         finished = runner.finish.call_args.kwargs
         assert finished["status"] is RunStatus.GUARDRAIL_BLOCKED
         assert finished["error"] == "This request was blocked."
+
+    async def test_a_run_stopped_for_looping_is_recorded_as_such_and_raised_on(self):
+        stopped = ToolLoopStopped("Stopped: the agent called `search` 4 times in a row.")
+
+        with _runner(_prepared()) as runner, pytest.raises(ToolLoopStopped):
+            await _run(_db(), stream=AsyncMock(side_effect=stopped))
+
+        finished = runner.finish.call_args.kwargs
+        assert finished["status"] is RunStatus.LOOP_STOPPED
+        assert finished["error"] == str(stopped)
 
     async def test_a_run_that_ends_with_nothing_at_all_fails_loudly(self):
         """An empty answer persisted as the agent's reply would be a lie about it."""

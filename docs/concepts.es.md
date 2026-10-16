@@ -1,5 +1,5 @@
 ---
-source_sha: "111d48326705"
+source_sha: "efe226528843"
 ---
 
 # Conceptos { #concepts }
@@ -316,6 +316,7 @@ correctamente:
 | `failed` | se rompió |
 | `budget_exceeded` | alcanzó un tope — un límite de gasto haciendo su trabajo |
 | `guardrail_blocked` | lo rechazó un [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | siguió repitiendo las mismas llamadas tras el aviso y se [detuvo](governance.md#step-limits) |
 | `cancelled` | se detuvo: el botón de parar del compositor, un socket que se fue, una delegación cancelada desde arriba. En todas las superficies, no solo en la de streaming |
 | `awaiting_approval` | quedó aparcado en una aprobación, y es **reanudable** — su historial de mensajes está guardado, así que la decisión se aplica a la conversación a la que pertenece |
 

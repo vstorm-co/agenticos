@@ -24,6 +24,7 @@ from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.failures import run_failure_summary
+from app.agents.loop_guard import ToolLoopStopped
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
 from app.core.config import settings
@@ -686,7 +687,7 @@ class AgentSession:
             )
         except WebSocketDisconnect:
             raise
-        except (AppException, BudgetExceeded, GuardrailBlocked) as exc:
+        except (AppException, BudgetExceeded, GuardrailBlocked, ToolLoopStopped) as exc:
             # A refusal - an agent that is unpublished, archived, or not theirs
             # to see - a budget stop, and a guardrail block are the platform
             # working, not a crash. The client is told plainly; nothing answers

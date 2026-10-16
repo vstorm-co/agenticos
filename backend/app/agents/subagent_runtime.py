@@ -292,6 +292,9 @@ class DelegationOutcome:
     input_tokens: int
     output_tokens: int
     cost_is_partial: bool = False
+    loop_stopped: bool = False
+    """The delegate was stopped by the loop guard - recorded as `loop_stopped`,
+    which `status` (the library's three outcomes) cannot say."""
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     error: str | None = None

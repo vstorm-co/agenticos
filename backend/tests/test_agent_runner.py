@@ -56,6 +56,7 @@ from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
+from app.agents.loop_guard import ToolLoopStopped
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -1854,6 +1855,27 @@ class TestRunAccounting:
         assert output == ""
         assert finish.call_args.kwargs["status"] == RunStatus.GUARDRAIL_BLOCKED.value
         assert finish.call_args.kwargs["error"] == "This request was blocked by an input guardrail."
+
+    @pytest.mark.anyio
+    async def test_a_run_stopped_for_looping_is_its_own_outcome_and_says_why(self):
+        """Not a failure: the guard warned the model and stopped it when it looped
+        again (#2086). The reason names the tools, never their arguments."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(
+            side_effect=ToolLoopStopped("Stopped: the agent called `search` 4 times in a row.")
+        )
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+            patch.object(service, "_notify", new=AsyncMock()),
+        ):
+            output, _ = await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert output == ""
+        assert finish.call_args.kwargs["status"] == RunStatus.LOOP_STOPPED.value
+        assert "`search`" in finish.call_args.kwargs["error"]
 
     @pytest.mark.anyio
     async def test_a_successful_run_returns_its_answer(self):

@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "7b0c3bd45bee"
 ---
 
 # Governance { #governance }
@@ -919,6 +919,16 @@ Drugi rodzaj rozbiegania to pętla narzędziowa: tania w przeliczeniu na wywoła
 i nigdy się nie kończy. Budżet tylko wystawia za nią rachunek. `max_steps`
 ogranicza, ile żądań do modelu może wykonać jeden run, i to on faktycznie ją
 zatrzymuje.
+
+Strażnik pętli zatrzymuje większość pętli wcześniej i mówi dlaczego. Ma go każdy
+agent, domyślnie włączony. Gdy run wywoła jedno narzędzie z tymi samymi
+argumentami cztery razy z rzędu albo trzy razy obejdzie cykl dwóch lub trzech
+wywołań, model dostaje informację, że się zapętlił i ma zmienić podejście. Jeśli
+wywołania po tym ostrzeżeniu znowu się zapętlą, run kończy się jako
+`loop_stopped`, z powodem wymieniającym narzędzia - nigdy ich argumenty.
+Wywołania z różnymi argumentami nigdy nie są pętlą i liczą się tylko wywołania
+tego runa. Builder ustawia oba progi albo wyłącza strażnika obok `max_steps`
+(`loop_guard` w specu).
 
 ### Raportowanie { #reporting }
 

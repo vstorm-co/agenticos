@@ -137,7 +137,7 @@ describe("the export beside the filters", () => {
     expect(params.started_to).toBe("2026-08-14T23:59:59.999Z");
   });
 
-  it("sends the problems narrowing as the two statuses it stands for", async () => {
+  it("sends the problems narrowing as the statuses it stands for", async () => {
     render(<ControlledTab />, { wrapper });
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
@@ -148,6 +148,6 @@ describe("the export beside the filters", () => {
     await waitFor(() => expect(apiClient.raw).toHaveBeenCalledTimes(1));
     const call = vi.mocked(apiClient.raw).mock.calls.at(-1);
     const params = (call?.[1] as { params: Record<string, string> }).params;
-    expect(params.status).toBe("failed,budget_exceeded");
+    expect(params.status).toBe("failed,budget_exceeded,loop_stopped");
   });
 });

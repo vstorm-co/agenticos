@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "7b0c3bd45bee"
 ---
 
 # Governance { #governance }
@@ -900,6 +900,18 @@ mira, y quien lo jubiló no se enteraría nunca.
 La otra clase de desbocamiento es un bucle de herramientas: barato por llamada, y no
 termina nunca. Un budget solo factura eso. `max_steps` limita cuántas peticiones al
 modelo puede hacer un run y es lo que de verdad lo detiene.
+
+El guardián de bucles detiene la mayoría antes, y dice por qué. Lo tiene cada
+agente, activado por defecto. Cuando un run llama a una herramienta con los
+mismos argumentos cuatro veces seguidas, o recorre tres veces un ciclo de dos o
+tres llamadas, se le dice al modelo que está en un bucle y que cambie de enfoque.
+Si las llamadas tras ese aviso vuelven a entrar en bucle, el run termina como
+`loop_stopped`, con un motivo que nombra las herramientas - nunca sus
+argumentos.
+
+Llamadas con argumentos distintos nunca son un bucle, y solo cuentan
+las llamadas del propio run. El Builder fija ambos umbrales, o apaga el
+guardián, junto a `max_steps` (`loop_guard` en el spec).
 
 ### Informes { #reporting }
 
