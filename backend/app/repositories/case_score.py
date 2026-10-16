@@ -99,21 +99,19 @@ async def existing_ids(
     return set(result.scalars().all())
 
 
-async def cases_waiting(
+async def waiting_for_cases(
     db: AsyncSession, case_ids: list[UUID], *, organization_id: UUID, dataset_id: UUID
-) -> set[UUID]:
-    """Which of `case_ids` already have a score of this dataset waiting for a person."""
+) -> list[CaseScore]:
+    """The scores of this dataset waiting for a person on any of `case_ids`."""
     result = await db.execute(
-        select(CaseScore.case_id)
-        .where(
+        select(CaseScore).where(
             CaseScore.case_id.in_(case_ids),
             CaseScore.organization_id == organization_id,
             CaseScore.dataset_id == dataset_id,
             CaseScore.review_state == "pending",
         )
-        .distinct()
     )
-    return set(result.scalars().all())
+    return list(result.scalars().all())
 
 
 async def queue_for_review(
@@ -131,7 +129,7 @@ async def queue_for_review(
                 CaseScore.review_state == "none",
             )
             .values(review_state="pending")
-            .execution_options(synchronize_session=False)
+            .execution_options(synchronize_session="fetch")
         ),
     )
     await db.flush()
@@ -153,7 +151,7 @@ async def dequeue(
                 CaseScore.review_state == "pending",
             )
             .values(review_state="none")
-            .execution_options(synchronize_session=False)
+            .execution_options(synchronize_session="fetch")
         ),
     )
     await db.flush()

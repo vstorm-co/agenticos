@@ -76,6 +76,7 @@ _RUN = EvalRunRead(
     first_total=1,
     outcome=None,
     routed_to_review=0,
+    routed_replacing=0,
     error=None,
     created_by_user_id=None,
     created_at=_NOW,

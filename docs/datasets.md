@@ -319,12 +319,15 @@ anew, with the configuration it was first graded with (`POST
 run again, and the score keeps its eval run and any decision a person made on
 it; one every scorer reached a verdict on is left as it is.
 
-A cause still there - AI assistance off, the judge unpublished - is refused as it
-stands, and so is an eval run's judge published anew since it failed, or a score
-of one pinned to an earlier judge prompt, whose grade would not compare with the
-rest of the run; nothing is graded then. An answer
-graded on its own, from the chat or from Activity, has no run to compare with: it
-is graded by the version published now, and its pin names that version.
+A cause still there - AI assistance off, the judge unpublished - is refused as
+it stands, and so is an eval run's judge published anew since it failed, or a
+score of one pinned to an earlier judge prompt, whose grade would not compare
+with the rest of the run; nothing is graded then.
+
+An answer graded on its own, from the chat or from Activity, has no run to
+compare with: it is graded by the version published now, and its pin names that
+version. A score is pinned whether its judge graded or failed, so a failed one
+is held to the version and prompt it failed with.
 
 A grade may quote the answer, up to 12 passages; a quote the answer does not
 contain word for word is kept beside the grade as unverified, shown on its own
@@ -348,10 +351,14 @@ before will not compare with the ones graded after.
 A score waits in the **review queue** when somebody sends it there, or an eval
 run does. Once it has rerun what flipped, an eval run sends the regressions it
 confirmed and the answers the judge failed on with an error - not one it
-skipped, which waits to be scored again - one score per case, and none for a
-case already waiting. Its page sends any others you pick, all at once through
-`POST /datasets/{id}/scores/review` with up to 500 score ids - all of them or
-none.
+skipped, which waits to be scored again - one score per case. Its page sends any
+others you pick, all at once through `POST /datasets/{id}/scores/review` with up
+to 500 score ids - all of them or none.
+
+A score sent there, by an eval run or by hand, replaces an older score of its
+case that still waits: that one leaves the queue undecided and stays a score.
+One waiting that was scored as late or later keeps its place, and the one sent
+is not queued. A decided score is never touched.
 
 A score asked for by hand from Activity follows the dataset's **Review by a
 person** setting: nothing until somebody sends one, every result that did not

@@ -511,7 +511,11 @@ class EvalRunWorker:
                     values={"routing_error": {"code": exc.code, "message": exc.message}},
                 )
                 return
-            await eval_run_repo.update_run(db, run=run, values={"routed_to_review": routed})
+            await eval_run_repo.update_run(
+                db,
+                run=run,
+                values={"routed_to_review": routed.queued, "routed_replacing": routed.replaced},
+            )
 
     async def _close(self, status: EvalRunStatus, *, only_from: EvalRunStatus) -> None:
         async with self.sessions() as db:

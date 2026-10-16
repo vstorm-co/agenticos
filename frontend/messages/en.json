@@ -5846,6 +5846,7 @@
       "verdictWithdrawn": "Decision withdrawn",
       "sendToReview": "Send to review",
       "sentToReview": "Sent to the review queue",
+      "newerWaits": "A newer answer to this case already waits for review, so this one was not sent.",
       "reason": {
         "aiAssistanceOff": "AI assistance is switched off for this organization, so the judge did not run.",
         "judgeUnpublished": "The eval judge has no published version. Pick its model and publish it.",
