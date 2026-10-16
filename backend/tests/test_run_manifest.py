@@ -632,3 +632,27 @@ class TestAResumedRunKeepsItsCorrections:
         many = [{"reviewer": "a", "after_request": n, "steer": "x"} for n in range(80)]
         merged = carried_over({"reviews": many}, {"reviews": many})
         assert len(merged["reviews"]) == MAX_RECORDED_REVIEWS
+
+    @pytest.mark.anyio
+    async def test_the_runner_writes_the_merged_record(self) -> None:
+        recorder = RunRecorder()
+        recorder.instructions = "Be brief."
+        recorder.reviews.append({"reviewer": "a", "after_request": 6, "steer": "z"})
+        service = AgentRunnerService(MagicMock(commit=AsyncMock(), begin_nested=MagicMock()))
+        service.db.begin_nested.return_value.__aenter__ = AsyncMock()
+        service.db.begin_nested.return_value.__aexit__ = AsyncMock(return_value=False)
+        prepared = MagicMock()
+        prepared.built.recorder = recorder
+        earlier = MagicMock(
+            payload={"reviews": [{"reviewer": "a", "after_request": 3, "steer": "x"}]}
+        )
+        written = AsyncMock()
+
+        with (
+            patch(f"{_MODULE}.run_manifest_repo.get_by_run", new=AsyncMock(return_value=earlier)),
+            patch(f"{_MODULE}.run_manifest_repo.record", new=written),
+        ):
+            await service._record_manifest(prepared)
+
+        reviews = written.await_args.kwargs["payload"]["reviews"]
+        assert [review["after_request"] for review in reviews] == [3, 6]

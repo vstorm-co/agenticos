@@ -29,7 +29,7 @@ from pydantic_ai_harness.guardrails import GuardrailResult
 from app.agents.capabilities.budget import SpendLedger, metered_by
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.deps import AgentDeps
-from app.agents.manifest import RunRecorder, as_payload
+from app.agents.manifest import MAX_RECORDED_REVIEWS, RunRecorder, as_payload
 from app.agents.run_reviewer import MAX_STEER_CHARS, RunReviewer
 
 pytestmark = pytest.mark.anyio
@@ -208,6 +208,17 @@ async def test_a_correction_passes_the_agents_input_guardrail_first() -> None:
     assert recorder.reviews[0]["steer"] == "Cite a source for [REDACTED]."
 
 
+async def test_a_correction_the_guardrail_passes_goes_in_unchanged() -> None:
+    asked: list[str] = []
+
+    _, recorder, seen = await _run(
+        FunctionModel(_reviewing(asked)), screen=lambda _text: GuardrailResult.allow()
+    )
+
+    assert _steered(seen[-1])[0].endswith("Cite a source for 40%.")
+    assert recorder.reviews[0]["steer"] == "Cite a source for 40%."
+
+
 async def test_a_correction_the_guardrail_refuses_is_dropped_not_the_run() -> None:
     asked: list[str] = []
 
@@ -219,6 +230,38 @@ async def test_a_correction_the_guardrail_refuses_is_dropped_not_the_run() -> No
     assert result.output == "The market grew 40%."
     assert recorder.reviews == []
     assert _steered(seen[-1]) == []
+
+
+async def test_a_run_past_the_kept_corrections_is_still_steered() -> None:
+    asked: list[str] = []
+    recorder = RunRecorder()
+    earlier = [
+        {"reviewer": "sources", "after_request": n, "steer": "x"}
+        for n in range(MAX_RECORDED_REVIEWS)
+    ]
+    recorder.reviews.extend(earlier)
+    seen: list[list[ModelMessage]] = []
+    agent = Agent[AgentDeps, str](
+        FunctionModel(_working(seen)),
+        capabilities=[
+            RunReviewer(
+                name="sources",
+                model=FunctionModel(_reviewing(asked)),
+                instructions="Flag claims without a source.",
+                every=3,
+                recorder=recorder,
+            )
+        ],
+    )
+
+    @agent.tool_plain
+    def lookup(q: str) -> str:
+        return "no figures found"
+
+    await agent.run("How fast did the market grow?", deps=AgentDeps())
+
+    assert _steered(seen[-1])
+    assert recorder.reviews == earlier
 
 
 async def test_a_long_correction_is_cut() -> None:
