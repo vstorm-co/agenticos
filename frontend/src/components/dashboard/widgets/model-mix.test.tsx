@@ -33,13 +33,36 @@ function renderWidget(byModel: UsageStats["by_model"]) {
 }
 
 describe("ModelMixWidget", () => {
-  it("says how many tool calls a model needed repaired, beside its runs (#2105)", () => {
+  it("says how many tool calls a model needed repaired, beside its name (#2105)", () => {
     renderWidget([
       { model_label: "qwen3:32b", provider: "ollama", runs: 9, tool_args_repaired: 4 },
       { model_label: "claude-sonnet-5-5", provider: "anthropic", runs: 3, tool_args_repaired: 0 },
     ]);
 
-    expect(screen.getByText("9 · 4 repaired")).toBeInTheDocument();
-    expect(screen.queryByText(/3 · /)).toBeNull();
+    expect(screen.getByText("qwen3:32b · 4 repaired")).toBeInTheDocument();
+    expect(screen.getByText("claude-sonnet-5-5")).toBeInTheDocument();
+  });
+});
+
+describe("ModelMixWidget as a donut", () => {
+  it("keeps the repair count in the legend, where the donut puts the names", () => {
+    useUsageStatsMock.mockReturnValue({
+      usage: {
+        total_runs: 9,
+        by_model: [{ model_label: "qwen3:32b", provider: null, runs: 9, tool_args_repaired: 4 }],
+      } as UsageStats,
+      isLoading: false,
+      isStale: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <TooltipProvider>
+          <ModelMixWidget title="Models" hint="" period={PERIOD} options={{ style: "donut" }} />
+        </TooltipProvider>
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByText("qwen3:32b · 4 repaired")).toBeInTheDocument();
   });
 });

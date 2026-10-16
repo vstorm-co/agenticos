@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from pydantic_ai import RunContext
-from pydantic_ai.capabilities import RawToolArgs
+from pydantic_ai.capabilities import RawToolArgs, ValidatedToolArgs
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai_harness.repair_tool_arguments import RepairToolArguments
@@ -37,9 +37,15 @@ class RepairTally:
 
 @dataclass
 class CountedRepair(RepairToolArguments[AgentDeps]):
-    """`RepairToolArguments`, counting each call it changed on the run's tally."""
+    """`RepairToolArguments`, counting each repaired call that then validated.
+
+    Counted once validation passes, not when the syntax is fixed: a call whose
+    repaired arguments still miss a field is retried anyway, and counting it
+    would claim a retry saved that was not.
+    """
 
     tally: RepairTally = field(default_factory=RepairTally)
+    _repaired: set[str] = field(default_factory=set, init=False, repr=False)
 
     async def before_tool_validate(
         self,
@@ -51,5 +57,18 @@ class CountedRepair(RepairToolArguments[AgentDeps]):
     ) -> RawToolArgs:
         repaired = await super().before_tool_validate(ctx, call=call, tool_def=tool_def, args=args)
         if repaired != args:
-            self.tally.count += 1
+            self._repaired.add(call.tool_call_id)
         return repaired
+
+    async def after_tool_validate(
+        self,
+        ctx: RunContext[AgentDeps],
+        *,
+        call: ToolCallPart,
+        tool_def: ToolDefinition,
+        args: ValidatedToolArgs,
+    ) -> ValidatedToolArgs:
+        if call.tool_call_id in self._repaired:
+            self._repaired.discard(call.tool_call_id)
+            self.tally.count += 1
+        return args

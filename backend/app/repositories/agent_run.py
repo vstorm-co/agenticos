@@ -105,14 +105,17 @@ async def finish_run(
     error: str | None = None,
     logfire_trace_id: str | None = None,
     paused_state: dict[str, Any] | None = None,
-    tool_args_repaired: int = 0,
+    tool_args_repaired: int | None = None,
 ) -> AgentRun:
     run.status = status
     run.input_tokens = input_tokens
     run.output_tokens = output_tokens
     run.cost_usd = cost_usd
     run.cost_is_partial = cost_is_partial
-    run.tool_args_repaired = tool_args_repaired
+    # Left alone by a path that ran no model - an approval that expired - so it
+    # does not wipe what the run's earlier segments counted.
+    if tool_args_repaired is not None:
+        run.tool_args_repaired = tool_args_repaired
     run.ended_at = ended_at
     run.error = error
     # Written on every finish, not only when parking: a run that ended must not

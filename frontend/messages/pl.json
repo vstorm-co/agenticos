@@ -1744,7 +1744,7 @@
           "description": "Podział modeli pojawi się z pierwszym uruchomieniem.",
           "title": "Brak uruchomień w tym okresie"
         },
-        "runsRepaired": "{runs} · naprawione: {repaired}",
+        "modelRepaired": "{model} · naprawione: {repaired}",
         "notRecorded": "nie zarejestrowano",
         "title": "Modele za uruchomieniami",
         "description": "Które modele stoją za runami - tak, jak zapisał to każdy run.",

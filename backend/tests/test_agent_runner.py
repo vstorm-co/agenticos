@@ -1643,6 +1643,8 @@ class TestSkillChangesARunProposed:
         broken JSON (#2105)."""
         service = AgentRunnerService(_db())
         prepared = _prepared()
+        # A resumed run is the same row: what its earlier segment counted stays.
+        prepared.run.tool_args_repaired = 3
         prepared.built.repairs = RepairTally(count=2)
 
         with patch(
@@ -1650,7 +1652,7 @@ class TestSkillChangesARunProposed:
         ) as finish_run:
             await service.finish(prepared, status=RunStatus.COMPLETED)
 
-        assert finish_run.await_args.kwargs["tool_args_repaired"] == 2
+        assert finish_run.await_args.kwargs["tool_args_repaired"] == 5
 
     @pytest.mark.anyio
     async def test_what_the_agent_changed_becomes_a_proposal(self):

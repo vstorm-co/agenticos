@@ -105,6 +105,8 @@ async def test_a_missing_field_still_fails_validation_and_retries() -> None:
     result = await agent.run("mail Ada", deps=AgentDeps())
 
     assert sent == []
+    # Repaired, but retried anyway: no retry was saved, so none is counted.
+    assert tally.count == 0
     assert any(
         isinstance(part, RetryPromptPart)
         for message in result.all_messages()

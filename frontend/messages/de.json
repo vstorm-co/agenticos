@@ -1744,7 +1744,7 @@
           "description": "Die Modellverteilung erscheint mit dem ersten Run.",
           "title": "Keine Runs in diesem Zeitraum"
         },
-        "runsRepaired": "{runs} · {repaired} repariert",
+        "modelRepaired": "{model} · {repaired} repariert",
         "notRecorded": "nicht erfasst",
         "title": "Modelle hinter den Runs",
         "description": "Welche Modelle hinter den Runs stehen, so wie jeder Run sein eigenes erfasst hat.",
