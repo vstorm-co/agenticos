@@ -81,6 +81,25 @@ describe("what the model was told", () => {
     expect(screen.getByText('{"n": 2}')).toBeInTheDocument();
   });
 
+  it("counts the calls a long script made past the listed ones", () => {
+    serve({
+      manifest: record({
+        code_runs: [
+          {
+            tool_call_id: "c1",
+            code: "loop()",
+            calls: [{ tool: "update_record", args: '{"n": 1}', status: "returned" }],
+            omitted_calls: 250,
+          },
+        ],
+      }),
+    });
+    renderManifest();
+
+    expect(screen.getByText("It made 251 tool calls")).toBeInTheDocument();
+    expect(screen.getByText("and 250 more calls, not listed")).toBeInTheDocument();
+  });
+
   it("shows the prompt as it was sent, and the system parts beside it", () => {
     serve({
       manifest: record({

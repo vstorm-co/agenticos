@@ -8,16 +8,25 @@ records are exactly what the run did. The script runs in the real Monty sandbox.
 from __future__ import annotations
 
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic_ai import Agent
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.tools import ToolDefinition
 
-from app.agents.code_mode import ARGS_PREVIEW_CHARS, CodeCalls, _preview, code_mode
+from app.agents.code_mode import (
+    ARGS_PREVIEW_CHARS,
+    RECORDED_CALLS,
+    CodeCalls,
+    _preview,
+    code_mode,
+)
 from app.agents.deps import AgentDeps
 from app.agents.manifest import RunRecorder, as_payload
+from app.agents.mcp import NEEDS_APPROVAL
 
 pytestmark = pytest.mark.anyio
 
@@ -183,3 +192,55 @@ async def test_a_direct_call_is_not_mistaken_for_a_scripts() -> None:
 
     assert deleted == [True]
     assert recorder.code_runs == []
+
+
+@pytest.mark.parametrize(
+    ("tool", "folded"),
+    [
+        (ToolDefinition(name="update_record"), True),
+        (ToolDefinition(name="delete_everything"), False),
+        (ToolDefinition(name="ask_user_question", capability_id="ask_user"), False),
+        (ToolDefinition(name="task", capability_id="subagents"), False),
+        (ToolDefinition(name="connect_account"), False),
+        (ToolDefinition(name="linear_delete", metadata={NEEDS_APPROVAL: True}), False),
+    ],
+)
+def test_a_tool_that_can_park_the_run_stays_out_of_scripts(
+    tool: ToolDefinition, folded: bool
+) -> None:
+    """A question to the person and a delegation park the run too, and a script
+    cannot stop mid-line to wait for anyone."""
+    mode = code_mode(
+        approval_required=frozenset({"delete_everything"}),
+        asking=frozenset({"connect_account"}),
+        max_tool_calls=5,
+    )
+    assert callable(mode.tools)
+    assert mode.tools(MagicMock(), tool) is folded
+
+
+async def test_a_script_past_the_listed_calls_counts_the_rest() -> None:
+    offered: list[list[str]] = []
+    script = (
+        "import asyncio\n"
+        f"await asyncio.gather(*[update_record(n=i) for i in range({RECORDED_CALLS + 5})])"
+    )
+    recorder = RunRecorder()
+    agent = Agent[AgentDeps, str](
+        FunctionModel(_writes(script, offered)),
+        capabilities=[
+            code_mode(approval_required=frozenset(), asking=frozenset(), max_tool_calls=200),
+            CodeCalls(recorder=recorder),
+        ],
+    )
+
+    @agent.tool_plain
+    def update_record(n: int) -> str:
+        """Update one record."""
+        return "ok"
+
+    await agent.run("Update them all.", deps=AgentDeps())
+
+    (run,) = as_payload(recorder)["code_runs"]
+    assert len(run["calls"]) == RECORDED_CALLS
+    assert run["omitted_calls"] == 5

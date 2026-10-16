@@ -380,6 +380,28 @@ def as_payload(recorder: RunRecorder) -> dict[str, Any]:
     }
 
 
+RECORDED_SCRIPTS = 30
+"""How many code-mode scripts one run's manifest keeps, so it stays within its
+size ceiling (#2107)."""
+
+
+def carried_over(previous: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    """This segment's payload with what earlier segments of the run recorded and it cannot.
+
+    A parked run is recorded twice - at the park, and when the resumed run ends -
+    and the second recording replaces the first. Most of a payload describes the
+    whole run either way: the requests and messages a resumed run replays. The
+    scripts code mode ran do not; they happened in the segment being replaced, and
+    their calls may have changed things, so they are carried over in front of this
+    segment's own.
+    """
+    earlier = previous.get("code_runs") or []
+    if not earlier:
+        return payload
+    scripts = [*earlier, *payload.get("code_runs", [])][:RECORDED_SCRIPTS]
+    return {**payload, "code_runs": scripts}
+
+
 #: How large a stored manifest may be, as JSON bytes.
 #:
 #: A run of a hundred steps carrying a long context ends with a message list of

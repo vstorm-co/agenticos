@@ -114,7 +114,7 @@ export function RunManifest({ runId }: { runId: string }) {
                   {run.code}
                 </pre>
                 <p className="text-muted-foreground text-xs">
-                  {t("codeRunCalls", { count: run.calls.length })}
+                  {t("codeRunCalls", { count: run.calls.length + (run.omitted_calls ?? 0) })}
                 </p>
                 <ol className="space-y-0.5">
                   {run.calls.map((call, index) => (
@@ -126,6 +126,11 @@ export function RunManifest({ runId }: { runId: string }) {
                     </li>
                   ))}
                 </ol>
+                {!!run.omitted_calls && (
+                  <p className="text-muted-foreground text-xs">
+                    {t("codeRunOmittedCalls", { count: run.omitted_calls })}
+                  </p>
+                )}
               </li>
             ))}
           </ul>

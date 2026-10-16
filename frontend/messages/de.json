@@ -4517,6 +4517,7 @@
       "requestDetail": "{input} ein, {output} aus · {messages} Nachrichten mitgeführt · beendet {finish}",
       "codeRuns": "{count, plural, =1 {1 Skript} other {# Skripte}}",
       "codeRunCalls": "{count, plural, =0 {Es hat kein Tool aufgerufen} =1 {Es hat 1 Tool aufgerufen} other {Es hat # Tools aufgerufen}}",
+      "codeRunOmittedCalls": "{count, plural, =1 {und 1 weiterer Aufruf, nicht aufgeführt} other {und # weitere Aufrufe, nicht aufgeführt}}",
       "requestIndex": "#{index}",
       "requests": "{count, plural, =0 {Anfragen} =1 {1 Anfrage} other {# Anfragen}}",
       "resizeRunDetail": "Die Größe der Run-Details ändern",

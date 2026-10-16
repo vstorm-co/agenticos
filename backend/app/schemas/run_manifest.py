@@ -82,12 +82,15 @@ class ManifestCodeRun(BaseSchema):
     Attributes:
         tool_call_id: The `run_code` call it was, in the transcript.
         code: The script, as the model wrote it.
-        calls: Every tool call the script made, in the order they started.
+        calls: The tool calls the script made, in the order they started - the
+            first hundred.
+        omitted_calls: How many more it made beyond those listed.
     """
 
     tool_call_id: str
     code: str
     calls: list[ManifestCodeCall] = Field(default_factory=list)
+    omitted_calls: int = 0
 
 
 class RunManifestRead(BaseSchema):

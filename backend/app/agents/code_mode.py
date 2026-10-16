@@ -9,11 +9,13 @@ dispatched through Pydantic AI to the real tool.
 
 **Every governed path still applies**, because a call from a script goes through
 the same tool hooks a direct call does: the guardrails, the budget, and the
-permission checks inside each tool. Approval is the one a script cannot wait for -
-the run parks on it, and a script has no way to park mid-line - so a tool that
-needs approval is never folded in. It stays a tool the model calls directly, and
-the run stops for the person exactly as it does without code mode. With a session
-that asks before every tool, nothing is folded and code mode is not added at all.
+permission checks inside each tool. A tool that can *park* the run is the one a
+script cannot call - a script has no way to stop mid-line and resume tomorrow - so
+none is folded in: one that needs approval, a question to the person
+(`ask_user`), and a delegation (`subagents`), whose delegate may itself park.
+Each stays a tool the model calls directly, and the run stops for the person
+exactly as it does without code mode. With a session that asks before every tool,
+nothing is folded and code mode is not added at all.
 
 **What it did is written down.** :class:`CodeCalls` keeps each script and every
 call it made on the run's manifest, so a reviewer sees what the agent actually did
@@ -35,14 +37,24 @@ from pydantic_ai.tools import ToolDefinition
 from pydantic_ai_harness import CodeMode
 
 from app.agents.deps import AgentDeps
-from app.agents.manifest import RunRecorder
+from app.agents.manifest import RECORDED_SCRIPTS, RunRecorder
 from app.agents.mcp import NEEDS_APPROVAL
 
 CODE_TOOL = "run_code"
 """The one tool code mode offers the model, as `CodeMode` names it."""
 
-ARGS_PREVIEW_CHARS = 500
+PARKING_CAPABILITIES = frozenset({"ask_user", "subagents"})
+"""Capabilities whose tools can end the run waiting on a person, so stay out of scripts."""
+
+ARGS_PREVIEW_CHARS = 200
 """How much of a nested call's arguments the manifest keeps."""
+
+CODE_CHARS = 20_000
+"""How much of one script the manifest keeps."""
+
+RECORDED_CALLS = 100
+"""How many of one script's calls the manifest lists; the rest are counted."""
+
 
 _script: ContextVar[dict[str, Any] | None] = ContextVar("code_mode_script", default=None)
 """The script a tool call is being made from, if it is being made from one."""
@@ -55,6 +67,8 @@ def code_mode(
 
     def foldable(_ctx: RunContext[AgentDeps], tool: ToolDefinition) -> bool:
         if tool.name in approval_required or tool.name in asking:
+            return False
+        if tool.capability_id in PARKING_CAPABILITIES:
             return False
         return (tool.metadata or {}).get(NEEDS_APPROVAL) is not True
 
@@ -79,10 +93,12 @@ class CodeCalls(AbstractCapability[AgentDeps]):
         if tool_def.name == CODE_TOOL:
             script: dict[str, Any] = {
                 "tool_call_id": call.tool_call_id,
-                "code": str(args.get("code", "")),
+                "code": str(args.get("code", ""))[:CODE_CHARS],
                 "calls": [],
+                "omitted_calls": 0,
             }
-            self.recorder.code_runs.append(script)
+            if len(self.recorder.code_runs) < RECORDED_SCRIPTS:
+                self.recorder.code_runs.append(script)
             token = _script.set(script)
             try:
                 return await handler(args)
@@ -92,7 +108,10 @@ class CodeCalls(AbstractCapability[AgentDeps]):
         if script is None:
             return await handler(args)
         made: dict[str, Any] = {"tool": tool_def.name, "args": _preview(args), "status": "failed"}
-        script["calls"].append(made)
+        if len(script["calls"]) < RECORDED_CALLS:
+            script["calls"].append(made)
+        else:
+            script["omitted_calls"] += 1
         result = await handler(args)
         made["status"] = "returned"
         return result

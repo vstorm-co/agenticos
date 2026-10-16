@@ -4405,6 +4405,7 @@
       "requestDetail": "{input} na wejściu, {output} na wyjściu · {messages} wiadomości w kontekście · zakończenie {finish}",
       "codeRuns": "{count, plural, one {1 skrypt} few {# skrypty} many {# skryptów} other {# skryptu}}",
       "codeRunCalls": "{count, plural, =0 {Nie wywołał żadnego narzędzia} one {Wywołał 1 narzędzie} few {Wywołał # narzędzia} many {Wywołał # narzędzi} other {Wywołał # narzędzia}}",
+      "codeRunOmittedCalls": "{count, plural, one {i jeszcze 1 wywołanie, niewymienione} few {i jeszcze # wywołania, niewymienione} many {i jeszcze # wywołań, niewymienionych} other {i jeszcze # wywołania, niewymienione}}",
       "requestIndex": "#{index}",
       "requests": "{count, plural, =0 {Żądania} one {1 żądanie} few {# żądania} many {# żądań} other {# żądania}}",
       "resizeRunDetail": "Zmień rozmiar szczegółów runu",

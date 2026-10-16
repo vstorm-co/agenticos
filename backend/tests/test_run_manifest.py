@@ -41,11 +41,13 @@ from sqlalchemy.dialects import postgresql
 
 from app.agents.manifest import (
     MAX_PAYLOAD_BYTES,
+    RECORDED_SCRIPTS,
     RecordedRequest,
     RecordingModel,
     RunRecorder,
     _size,
     as_payload,
+    carried_over,
     fit,
 )
 from app.db.models.agent_run import RunStatus
@@ -550,6 +552,7 @@ class TestTheRunnerWritesItHoweverTheRunEnded:
             patch.object(service, "_write_delegations", new=AsyncMock()),
             patch.object(service, "_notify", new=AsyncMock()),
             patch.object(service.workspaces, "close", new=AsyncMock()),
+            patch(f"{_MODULE}.run_manifest_repo.get_by_run", new=AsyncMock(return_value=None)),
         ):
             stack.enter_context(patched)
 
@@ -603,3 +606,50 @@ class TestTheRunnerWritesItHoweverTheRunEnded:
                 )
             )
             await service.finish(prepared, status=RunStatus.FAILED)
+
+
+class TestAResumedRunKeepsItsScripts:
+    """A parked run is recorded twice, and the second recording replaces the first;
+    the scripts code mode ran before the park - and the calls they made - must
+    survive it (#2107)."""
+
+    def test_earlier_scripts_go_in_front_of_this_segments(self) -> None:
+        earlier = {"code_runs": [{"tool_call_id": "a", "code": "x", "calls": []}]}
+        payload = {"code_runs": [{"tool_call_id": "b", "code": "y", "calls": []}]}
+
+        merged = carried_over(earlier, payload)
+
+        assert [run["tool_call_id"] for run in merged["code_runs"]] == ["a", "b"]
+
+    def test_a_record_with_none_changes_nothing(self) -> None:
+        payload = {"code_runs": []}
+        assert carried_over({}, payload) is payload
+
+    def test_the_kept_scripts_stay_bounded(self) -> None:
+        many = [{"tool_call_id": str(n), "code": "x", "calls": []} for n in range(40)]
+        merged = carried_over({"code_runs": many}, {"code_runs": many})
+        assert len(merged["code_runs"]) == RECORDED_SCRIPTS
+
+    @pytest.mark.anyio
+    async def test_the_runner_writes_the_merged_record(self) -> None:
+        recorder = RunRecorder()
+        recorder.instructions = "Be brief."
+        recorder.code_runs.append({"tool_call_id": "b", "code": "y", "calls": []})
+        service = AgentRunnerService(MagicMock(commit=AsyncMock(), begin_nested=MagicMock()))
+        service.db.begin_nested.return_value.__aenter__ = AsyncMock()
+        service.db.begin_nested.return_value.__aexit__ = AsyncMock(return_value=False)
+        prepared = MagicMock()
+        prepared.built.recorder = recorder
+        earlier = MagicMock(
+            payload={"code_runs": [{"tool_call_id": "a", "code": "x", "calls": []}]}
+        )
+        written = AsyncMock()
+
+        with (
+            patch(f"{_MODULE}.run_manifest_repo.get_by_run", new=AsyncMock(return_value=earlier)),
+            patch(f"{_MODULE}.run_manifest_repo.record", new=written),
+        ):
+            await service._record_manifest(prepared)
+
+        codes = [run["tool_call_id"] for run in written.await_args.kwargs["payload"]["code_runs"]]
+        assert codes == ["a", "b"]
