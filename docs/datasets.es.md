@@ -1,5 +1,5 @@
 ---
-source_sha: "c346ef291de8"
+source_sha: "3833476f43e5"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -299,8 +299,9 @@ contraejemplo, cada llamada a herramienta que hizo el agent (con sus
 argumentos, y si un run aislado la bloqueó) y la respuesta. Un caso con
 contraejemplo se califica siempre también con un criterio obligatorio
 **counter-example**: la respuesta no debe repetir la respuesta mala conocida, y
-aprobarlo requiere una cita de la respuesta que el contraejemplo no diga
-también.
+se pide al juez que cite lo que distingue la respuesta de ella. Un aprobado es
+un error cuando solo cita lo que ambas dicen, o cuando la respuesta copia el
+contraejemplo; uno sin nada citado se mantiene, marcado como no verificado.
 
 Los jueces empiezan con temperatura 0, para que la misma respuesta se califique
 igual dos veces; un modelo que no acepta temperatura, como un modelo de

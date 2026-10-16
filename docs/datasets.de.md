@@ -1,5 +1,5 @@
 ---
-source_sha: "c346ef291de8"
+source_sha: "3833476f43e5"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -313,8 +313,10 @@ das Gegenbeispiel, jeden Tool-Aufruf des Agenten - mit seinen Argumenten und ob
 ein isolierter Run ihn blockiert hat - und die Antwort. Ein Fall mit
 Gegenbeispiel wird immer auch nach dem erforderlichen Kriterium
 **counter-example** bewertet: Die Antwort darf die bekannte schlechte Antwort
-nicht wiederholen, und um es zu bestehen, braucht es ein Zitat aus der Antwort,
-das das Gegenbeispiel nicht auch enthält.
+nicht wiederholen, und der Bewerter soll zitieren, was die Antwort von ihr
+unterscheidet. Ein Bestehen ist ein Fehler, wenn es nur zitiert, was beide
+sagen, oder wenn die Antwort das Gegenbeispiel kopiert; eines ohne Zitat bleibt
+stehen, als nicht belegt markiert.
 
 Bewerter starten mit Temperatur 0, damit dieselbe Antwort zweimal gleich
 bewertet wird; ein Modell, das keine Temperatur annimmt, etwa ein

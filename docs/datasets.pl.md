@@ -1,5 +1,5 @@
 ---
-source_sha: "c346ef291de8"
+source_sha: "3833476f43e5"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -292,8 +292,9 @@ kontrprzykład, każde wywołanie narzędzia wykonane przez agenta - z argumenta
 informacją, czy izolowany run je zablokował - oraz odpowiedź. Przypadek z
 kontrprzykładem jest zawsze oceniany także według wymaganego kryterium
 **counter-example**: odpowiedź nie może powtarzać znanej złej odpowiedzi, a
-zaliczenie go wymaga cytatu z odpowiedzi, którego kontrprzykład też nie
-zawiera.
+sędzia ma zacytować to, co odróżnia od niej odpowiedź. Zaliczenie jest błędem,
+gdy cytuje tylko to, co obie mówią, albo gdy odpowiedź kopiuje kontrprzykład;
+zaliczenie bez żadnego cytatu zostaje, oznaczone jako niezweryfikowane.
 
 Sędziowie startują z temperaturą 0, więc ta sama odpowiedź jest oceniana dwa
 razy tak samo; model, który nie przyjmuje temperatury, na przykład model

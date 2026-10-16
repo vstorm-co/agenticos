@@ -446,7 +446,7 @@ class JudgeVerdict(BaseModel):
 
 # Bumped whenever what `judge_prompt` hands the judge changes, so a score graded
 # from one prompt is never compared as like for like with one graded from another.
-JUDGE_PROMPT_VERSION = 3
+JUDGE_PROMPT_VERSION = 4
 
 COUNTER_ID = "counter"
 COUNTER_CRITERION = (
@@ -570,6 +570,14 @@ def judge_prompt(
         f"not restate the criterion. A top grade with nothing quoted from the answer is "
         f"treated as unverified.\n{listed}"
     )
+    if any(criterion.id == COUNTER_ID for criterion in criteria):
+        parts.append(
+            f"For {COUNTER_ID}, quote what sets the answer apart from the counter-example: a "
+            "passage of the answer the counter-example does not say. If the counter-example "
+            'is "Your order shipped today." and the answer is "Your order has not shipped '
+            'yet; it leaves on Friday.", quote "has not shipped yet". Never quote a passage '
+            "the two share."
+        )
     return "\n\n".join(parts)
 
 
@@ -612,10 +620,36 @@ def restates(reason: str, criterion: str) -> bool:
     return sum(word in asked for word in said) / len(said) >= _RESTATED_SHARE
 
 
-def _differs(quotes: Sequence[str], answer: str, counter_example: str) -> bool:
-    """Whether a quote the answer holds is something the counter-example does not say."""
+def _sequence(text: str) -> str:
+    return " ".join(re.findall(r"\w+", text.casefold()))
+
+
+def copies(answer: str, counter_example: str) -> bool:
+    """Whether the answer repeats the counter-example word for word, or is a part of it.
+
+    Case, spacing and punctuation aside. Words shared in another order are not
+    a copy: "I have not refunded your gift code" shares nearly every word of
+    "Sure, I have refunded your gift code" and says the opposite.
+    """
+    said, bad = _sequence(answer), _sequence(counter_example)
+    if not said or not bad:
+        return False
+    return f" {bad} " in f" {said} " or f" {said} " in f" {bad} "
+
+
+def _counter_unsupported(quotes: Sequence[str], answer: str, counter_example: str) -> bool:
+    """Whether a pass on not repeating the counter-example has nothing to stand on.
+
+    A quote the answer holds that the counter-example does not also say backs
+    it. Quoting only what the two share points at the mistake rather than
+    away from it. With nothing quoted, the answer itself decides: a copy of the
+    counter-example cannot pass on being unlike it.
+    """
+    held = [quote for quote in quotes if quote in answer]
+    if not held:
+        return copies(answer, counter_example)
     bad = counter_example.casefold()
-    return any(quote in answer and quote.casefold() not in bad for quote in quotes)
+    return all(quote.casefold() in bad for quote in held)
 
 
 def graded(
@@ -635,9 +669,10 @@ def graded(
     whose reason is mostly the criterion's own words, with no quote the answer
     holds, is an error: nothing shows the judge read the answer; its words are
     kept as `judge_said`. A grade at the top of the scale with no such quote
-    stands, marked `unverified`. Passing the answer on not repeating
-    `counter_example` needs a quote the counter-example does not also hold - a
-    passage it shares with the bad answer is the mistake, not evidence against it.
+    stands, marked `unverified`. A pass on not repeating `counter_example` with
+    nothing quoted is unverified at any grade, and an error when the answer
+    copies the counter-example, or when every quote is a passage the two
+    share - that is the mistake, not evidence against it.
     """
     grades = {grade.id: grade for grade in verdict.grades}
     shown = answer[:MAX_MATCH_TEXT]
@@ -673,19 +708,16 @@ def graded(
                 )
             )
             continue
-        if (
-            criterion.id == COUNTER_ID
-            and grade.score >= pass_at
-            and not _differs(grade.quotes, shown, counter_example or "")
-        ):
+        countered = criterion.id == COUNTER_ID and grade.score >= pass_at
+        if countered and _counter_unsupported(grade.quotes, shown, counter_example or ""):
             results.append(
                 ScorerResult(
                     scorer=criterion.scorer,
                     name=criterion.name,
                     required=criterion.required,
                     status="error",
-                    reason="The judge passed the answer as unlike the counter-example without "
-                    "quoting anything in it the counter-example does not also say",
+                    reason="The judge passed the answer as unlike the counter-example, though "
+                    "the answer repeats it or the judge quoted only what the two share",
                     reason_code="judge_counter_unsupported",
                     judge_said=grade.reason[:MAX_REASON],
                     judge_run_id=run_id,
@@ -701,7 +733,7 @@ def graded(
                 score=grade.score / scale_max,
                 reason=f"{grade.score}/{scale_max}: {grade.reason}"[:MAX_REASON],
                 rule=grade.rule.strip() or None,
-                unverified=grade.score == scale_max and not quoted,
+                unverified=(grade.score == scale_max or countered) and not quoted,
                 unverified_quotes=_unverified(grade.quotes, shown),
                 judge_run_id=run_id,
             )
