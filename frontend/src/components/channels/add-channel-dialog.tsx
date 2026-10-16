@@ -32,12 +32,14 @@ import type { AnswerStyle, ChannelBotCreate, ChannelPlatform } from "@/types/cha
 import { useTranslations } from "next-intl";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
 
-const PLATFORMS: readonly ChannelPlatform[] = ["mattermost", "slack", "telegram"];
+const PLATFORMS: readonly ChannelPlatform[] = ["mattermost", "slack", "teams", "telegram"];
 
 const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   telegram: "Telegram",
   slack: "Slack",
   mattermost: "Mattermost",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  teams: "Microsoft Teams",
 };
 
 /** Where each platform's token comes from - the one thing people get stuck on. */
@@ -45,7 +47,11 @@ const TOKEN_HINT: Record<ChannelPlatform, string> = {
   telegram: "botTokenHintTelegram",
   slack: "botTokenHintSlack",
   mattermost: "botTokenHintMattermost",
+  teams: "botTokenHintTeams",
 };
+
+/** An Entra app or tenant id - what the backend accepts for either. */
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 255;
@@ -94,6 +100,8 @@ export function AddChannelDialog({
   const [signingSecret, setSigningSecret] = useState("");
   const [appToken, setAppToken] = useState("");
   const [slackWebhook, setSlackWebhook] = useState(true);
+  const [teamsAppId, setTeamsAppId] = useState("");
+  const [teamsTenantId, setTeamsTenantId] = useState("");
   const [answerStyle, setAnswerStyle] = useState<AnswerStyle>(DEFAULT_ANSWER_STYLE);
   const [transcription, setTranscription] = useState<TranscriptionChoice>({
     provider: null,
@@ -105,10 +113,17 @@ export function AddChannelDialog({
   // cannot open its event stream and cannot fetch an attachment, so the backend
   // refuses to save one. Said here rather than after the round trip.
   const missingServerUrl = platform === "mattermost" && serverUrl.trim() === "";
+  // A Teams bot cannot sign in, nor recognise a token meant for it, without both.
+  const missingTeamsIds =
+    platform === "teams" && !(GUID.test(teamsAppId.trim()) && GUID.test(teamsTenantId.trim()));
   const badReaction =
     answerStyle.ack_reaction !== null && !REACTION_PATTERN.test(answerStyle.ack_reaction);
   const complete =
-    name.trim().length > 0 && token.trim().length >= MIN_TOKEN && !missingServerUrl && !badReaction;
+    name.trim().length > 0 &&
+    token.trim().length >= MIN_TOKEN &&
+    !missingServerUrl &&
+    !missingTeamsIds &&
+    !badReaction;
 
   function reset() {
     setPlatform(initialPlatform);
@@ -119,6 +134,8 @@ export function AddChannelDialog({
     setSigningSecret("");
     setAppToken("");
     setSlackWebhook(true);
+    setTeamsAppId("");
+    setTeamsTenantId("");
     setAnswerStyle(DEFAULT_ANSWER_STYLE);
     setTranscription({ provider: null, model: null });
     setErrors({});
@@ -131,6 +148,8 @@ export function AddChannelDialog({
     setWebhookSecret("");
     setSigningSecret("");
     setAppToken("");
+    setTeamsAppId("");
+    setTeamsTenantId("");
     setErrors({});
   }
 
@@ -157,6 +176,9 @@ export function AddChannelDialog({
         ...(platform === "slack" && !slackWebhook && appToken.trim()
           ? { slack_app_token: appToken.trim() }
           : {}),
+        ...(platform === "teams"
+          ? { teams_app_id: teamsAppId.trim(), teams_tenant_id: teamsTenantId.trim() }
+          : {}),
         ...answerStyle,
         // Both halves or neither - the schema refuses one alone as a setting
         // that cannot run - and absent entirely for a bot that does not listen.
@@ -173,7 +195,14 @@ export function AddChannelDialog({
       const failure = submitFailure(
         error,
         {
-          fields: ["name", "token", "api_base_url", "webhook_secret"],
+          fields: [
+            "name",
+            "token",
+            "api_base_url",
+            "webhook_secret",
+            "teams_app_id",
+            "teams_tenant_id",
+          ],
           identifiedBy: "name",
         },
         tErrors,
@@ -206,7 +235,11 @@ export function AddChannelDialog({
             <p id="channel-platform" className="text-sm leading-none font-medium">
               {t("platform")}
             </p>
-            <div role="group" aria-labelledby="channel-platform" className="grid grid-cols-3 gap-2">
+            <div
+              role="group"
+              aria-labelledby="channel-platform"
+              className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+            >
               {PLATFORMS.map((option) => (
                 <button
                   key={option}
@@ -292,6 +325,41 @@ export function AddChannelDialog({
                   onChange={(event) => setWebhookSecret(event.target.value)}
                   autoComplete="off"
                   maxLength={MAX_NAME}
+                />
+              </FormField>
+            </div>
+          )}
+
+          {platform === "teams" && (
+            <div className="space-y-5">
+              <FormField
+                label={t("teamsAppId")}
+                htmlFor="channel-teams-app-id"
+                error={errors.teams_app_id}
+                description={t("teamsAppIdHint")}
+                required
+              >
+                <Input
+                  id="channel-teams-app-id"
+                  value={teamsAppId}
+                  onChange={(event) => setTeamsAppId(event.target.value)}
+                  placeholder="00000000-0000-0000-0000-000000000000"
+                  autoComplete="off"
+                />
+              </FormField>
+              <FormField
+                label={t("teamsTenantId")}
+                htmlFor="channel-teams-tenant-id"
+                error={errors.teams_tenant_id}
+                description={t("teamsTenantIdHint")}
+                required
+              >
+                <Input
+                  id="channel-teams-tenant-id"
+                  value={teamsTenantId}
+                  onChange={(event) => setTeamsTenantId(event.target.value)}
+                  placeholder="00000000-0000-0000-0000-000000000000"
+                  autoComplete="off"
                 />
               </FormField>
             </div>

@@ -219,7 +219,8 @@ It is stamped the `schedule` surface, so *how is this agent used* can tell an
 unattended run from a person's. Each fire is its own run in Activity, and its
 answers accumulate in one run-log conversation the trigger opens once — eagerly,
 the moment the trigger is created, so it is a clickable item before it has ever
-fired.
+fired. A trigger can also post each answer to a Teams channel or group chat its
+organization's bot is in ([Microsoft Teams](channels.md#microsoft-teams)).
 
 ### Two ways to fire
 

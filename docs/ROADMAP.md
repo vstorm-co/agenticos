@@ -18,7 +18,7 @@ Updated: 2026-08-27.
 | Runs, budgets, approvals | Done, resume included |
 | Skills and collections | Done, backend and UI |
 | MCP | Catalog, per-user **and** org-scoped connections, agent bindings resolved at run time |
-| Surfaces | Web chat, Playground, API, an embeddable widget, a raw WebSocket, a hosted page, Slack, Telegram and Mattermost — one run path, one set of books |
+| Surfaces | Web chat, Playground, API, an embeddable widget, a raw WebSocket, a hosted page, Slack, Teams, Telegram and Mattermost — one run path, one set of books |
 | Ingestion | Per-collection parser, chunking, OCR and image-description model; overridable per upload. Embedding model fixed at creation |
 | Frontend | Agents, Builder, Skills, Sharing, Providers, MCP catalog, Activity, Roles, ingestion settings |
 | Tests | Four layers plus Playwright. The platform layer is at **100%, enforced in CI**; the frontend gate is 100% lines/statements/functions and 97.5% branches |

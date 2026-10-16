@@ -363,18 +363,20 @@ the differences were decisions.
 They are now. Every "no" below has a reason, and a reason is either "this would
 be wrong here" or "this is not built yet" — never silence.
 
-| | `/chat` (dashboard) | Raw WebSocket | The public API |
-|---|---|---|---|
-| Streaming | yes | yes, filtered by what the operator shows | **no** — the POST is the non-streaming path; an SSE variant is a separate question |
-| Attachments | yes | yes (`file_ids`) **on a hosted page** — the upload endpoint resolves the key through `find_page`, so a widget or a raw socket has no route that would produce an id | yes (`file_ids`), and they route the way they do everywhere else |
-| Conversation continuity | yes | yes (`continuity_key`), on a hosted page with an anonymous visitor | yes (`conversation_id`) |
-| `environment_id` | yes | **no, deliberately** — see below | yes |
-| Model override | yes | **no, deliberately**: a public surface must not let its visitor choose what they are spending | **no**: the request carries no `model_profile_id`. Which version runs is still the caller's through `environment_id`, and an environment can pin one that was never the default |
-| `ask_user` | yes | **no, not yet** — see below | **no, correctly**: nobody is waiting on an HTTP request to answer a question |
-| Compaction notice | yes | yes | n/a — nothing is streaming to tell |
-| Delegation frames | yes | **no, deliberately**: attaching a sink makes the library open a *streamed* request per child, so a delegate whose provider cannot stream breaks the moment somebody watches it |
-| Approvals: parks the run | yes | yes | yes |
-| Approvals: a path to the decision | yes (`/runs`) | one sentence, deliberately: a stranger holding a link is not shown a URL into somebody's console | yes — the result carries `parked`, naming what is waiting and the approval to post to |
+The last column is Teams (#1985), standing for the chat platforms beside them.
+
+| | `/chat` (dashboard) | Raw WebSocket | The public API | Teams |
+|---|---|---|---|---|
+| Streaming | yes | yes, filtered by what the operator shows | **no** — the POST is the non-streaming path; an SSE variant is a separate question | a message rewritten as the answer arrives |
+| Attachments | yes | yes (`file_ids`) **on a hosted page** — the upload endpoint resolves the key through `find_page`, so a widget or a raw socket has no route that would produce an id | yes (`file_ids`), and they route the way they do everywhere else | yes, from a personal chat; a file goes back through Teams' consent card |
+| Conversation continuity | yes | yes (`continuity_key`), on a hosted page with an anonymous visitor | yes (`conversation_id`) | a chat, or a channel thread |
+| `environment_id` | yes | **no, deliberately** — see below | yes | **no** — the binding decides, as on every chat platform |
+| Model override | yes | **no, deliberately**: a public surface must not let its visitor choose what they are spending | **no**: the request carries no `model_profile_id`. Which version runs is still the caller's through `environment_id`, and an environment can pin one that was never the default | **no**, as on every chat platform |
+| `ask_user` | yes | **no, not yet** — see below | **no, correctly**: nobody is waiting on an HTTP request to answer a question | yes, as an Adaptive Card |
+| Compaction notice | yes | yes | n/a — nothing is streaming to tell | no — the answer arrives when it is done |
+| Delegation frames | yes | **no, deliberately**: attaching a sink makes the library open a *streamed* request per child, so a delegate whose provider cannot stream breaks the moment somebody watches it | | no |
+| Approvals: parks the run | yes | yes | yes | yes |
+| Approvals: a path to the decision | yes (`/runs`) | one sentence, deliberately: a stranger holding a link is not shown a URL into somebody's console | yes — the result carries `parked`, naming what is waiting and the approval to post to | yes — an Adaptive Card, decided by the member who presses it |
 
 ### `environment_id` on the socket, and why it is the publisher's
 
@@ -1117,6 +1119,54 @@ Mattermost, *Integrations → Slash Commands → Add Slash Command*: trigger wor
 then shows a token; paste it into the bot's **Slash command token**. Every
 request carries it, and a bot without one refuses them all.
 
+## Microsoft Teams
+
+A Teams bot is an **Azure Bot** resource, created **single-tenant** in your Entra
+tenant — Microsoft stopped creating multi-tenant bot resources in July 2025 — and
+reached over the Bot Connector's own protocol rather than an SDK (#1985).
+
+1. In the Azure portal, create an **Azure Bot**, type *Single Tenant*. Under
+   *Configuration*, copy the **Microsoft App ID** and the tenant, and under the
+   app registration's *Certificates & secrets*, create a **client secret**.
+2. Register it: **Channels → Add channel**, platform `teams`, with the secret as
+   the token and the app and tenant IDs beside it.
+3. Paste the **messaging endpoint** the bot's settings show into the Azure Bot's
+   configuration, and turn on its **Microsoft Teams** channel.
+4. **Download the app package** from the bot's settings — the manifest and its two
+   icons, built for this bot — and upload it to your tenant's Teams app catalog.
+   Add the app to a personal chat, a group chat or a team.
+
+**Every activity is verified before it is read.** The Connector signs each one
+with a JWT: its signature is checked against the keys the issuer publishes, the
+issuer must be the Bot Framework or your own tenant, the audience must be this
+bot's app ID, it must not have expired, and the service it names must be the
+activity's own. A request that fails any of these is a 401. The bot is
+single-tenant, so an activity from another tenant is refused as well, and the
+bot's token is only ever sent to a Bot Connector address.
+
+| Where | When it answers |
+|---|---|
+| A personal chat | Every message. The chat is one conversation |
+| A group chat | When it is @mentioned |
+| A channel | When it is @mentioned, in the thread it was asked in — each thread its own conversation |
+
+**Who is speaking** is the member's Entra object ID, which is the same in every
+chat of the tenant. Where this deployment signs people in with Entra in the same
+tenant, an unlinked Teams account is linked to the member who signs in with the
+address Teams' roster gives it, with no link to click; anywhere else the link
+flow applies as on every platform, and `require_link` decides as it does there.
+
+**Approvals and questions are Adaptive Cards.** A press is decided as the member
+who pressed it, and the card is replaced with what was chosen. A file the agent
+sends reaches a personal chat through Teams' consent card; in a group chat or a
+channel the answer names it instead, because Teams does not take a file from a
+bot there. A chart is drawn into the message.
+
+**A trigger can post its answer into Teams.** Each conversation the bot is in is
+remembered, and a trigger can name one of the organization's team channels or
+group chats: every fire's answer is then posted there as a new message, under the
+trigger's name. A personal chat is never offered — it is somebody's own.
+
 ## A bot that cannot start stops, rather than retrying
 
 Telegram polling, Slack Socket Mode and the Mattermost event stream all run
@@ -1145,7 +1195,7 @@ serves all three platforms, so the policy cannot drift between them.
 
 ## Approvals and questions as buttons
 
-A run started in Slack, Telegram or Mattermost can stop for a person: a gated
+A run started in Slack, Telegram, Mattermost or Teams can stop for a person: a gated
 tool call waits for a decision, or the agent asks an `ask_user` question. The
 chat is offered the choices where it is — a message per approval with
 **Approve** and **Reject**, a message per question with its options and **Skip**.
@@ -1873,6 +1923,7 @@ why an attachment arrives as a handle rather than as content:
 | Slack | The private URL on the event, fetched with the bot token. Slack answers **200 with a sign-in page** rather than 401 when the token cannot read a file, so the content type is checked — otherwise a login page would be stored as the user's spreadsheet |
 | Telegram | `getFile` resolves a `file_id` to a path that expires, then the file API. A photo arrives as several sizes; the largest is the one kept |
 | Mattermost | `/files/{id}` on that bot's own server. A bot whose server is not recorded says so rather than guessing which company's server to send a token to |
+| Teams | A file in a personal chat carries a download URL Teams has already authorised; a picture pasted into a message is fetched from the Bot Connector with the bot's token, which goes nowhere else |
 
 **Recordings are not supported yet.** Telegram puts each kind of media in its own
 field, so a voice note arrives with no text at all — and until this change it parsed
@@ -2030,12 +2081,12 @@ answer by guessing.
 Four tools change that, and each is granted **per binding**, under
 *Where this agent is available*:
 
-| Tool | Answers | Slack | Telegram | Mattermost |
-|---|---|:-:|:-:|:-:|
-| `get_channel_info` | Name, purpose, topic, size | ✅ | ✅ | ✅ |
-| `list_channel_members` | Who is here | ✅ | admins only | ✅ |
-| `search_channels` | Which other channels exist | ✅ | — | ✅ |
-| `read_channel_history` | What was said recently, **in the thread it is answering in** | ✅ | — | ✅ |
+| Tool | Answers | Slack | Telegram | Mattermost | Teams |
+|---|---|:-:|:-:|:-:|:-:|
+| `get_channel_info` | Name, purpose, topic, size | ✅ | ✅ | ✅ | ✅ |
+| `list_channel_members` | Who is here | ✅ | admins only | ✅ | ✅ |
+| `search_channels` | Which other channels exist | ✅ | — | ✅ | — |
+| `read_channel_history` | What was said recently, **in the thread it is answering in** | ✅ | — | ✅ | — |
 
 Per binding rather than per agent, because an organization can bind one agent to
 two Mattermost servers and three Slack workspaces — and *"may it read what was
@@ -2078,7 +2129,7 @@ pasted into the instructions, is a prompt injection with a public edit button.
 flowchart TD
     A{a site of your own?} -->|no| L{a link will do?}
     L -->|yes| H[a hosted page]
-    L -->|no| T[Slack, Telegram or Mattermost]
+    L -->|no| T[Slack, Teams, Telegram or Mattermost]
     A -->|yes| U{your own interface?}
     U -->|yes| WS[the raw WebSocket]
     U -->|no| P{visitors signed in to your product?}
@@ -2091,7 +2142,7 @@ flowchart TD
 - Inside your product, per-user → **widget, `jwt` mode**.
 - Your own interface entirely → **WebSocket**.
 - No site of your own, and a link will do → **a hosted page**.
-- Where the team already talks → **Slack, Telegram or Mattermost**.
+- Where the team already talks → **Slack, Teams, Telegram or Mattermost**.
 - Another system entirely → the REST API (`POST /api/v1/agents/{id}/run`).
 
 !!! success "The first four are one object"
@@ -2104,8 +2155,8 @@ flowchart TD
 ## Recap
 
 - **One runner behind every surface.** Web chat, a hosted page, a widget, the API,
-  Slack, Telegram and Mattermost all reach the same code, so governance is not
-  something a caller can route around.
+  Slack, Teams, Telegram and Mattermost all reach the same code, so governance is
+  not something a caller can route around.
 - A bot answers as **one agent**, and a mention runs as **the sender** — never as
   the bot.
 - What a **stranger** may do, they may do at a rate: the public surfaces carry

@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Microsoft Teams as a channel** (#1985). An agent answers in a personal chat,
+  in a group chat and in a team channel's thread when it is @mentioned, through a
+  single-tenant Azure Bot reached over the Bot Connector's own protocol. Every
+  activity's JWT is checked - signature, issuer, this bot's app ID, expiry and the
+  service it names - before anything runs. Approvals and questions are Adaptive
+  Cards decided by whoever pressed them; files reach a personal chat through
+  Teams' consent card; the console builds the Teams app package. Where the
+  deployment signs people in with Entra in the same tenant, a Teams account is
+  linked to its member without a link. A trigger can post each answer to a Teams
+  channel or group chat.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

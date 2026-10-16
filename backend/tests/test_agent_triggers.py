@@ -112,6 +112,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "created_by_user_id": _CALLER,
         "is_active": True,
         "environment_id": None,
+        "teams_conversation_id": None,
         "trigger_type": "schedule",
         "schedule_kind": "interval",
         "interval_seconds": 300,
@@ -3369,3 +3370,94 @@ class TestRunningAsTheCreator:
     def test_an_explicit_null_is_refused_at_the_schema(self):
         with pytest.raises(PydanticValidationError):
             TriggerUpdate.model_validate({"runs_as_creator": None})
+
+
+class TestPostingTheAnswerToTeams:
+    """A fire's answer also goes to a Teams channel or group chat, when one is chosen (#1985)."""
+
+    @staticmethod
+    async def _fire(trigger: MagicMock, *, status: str = RunStatus.COMPLETED.value) -> AsyncMock:
+        agent = _agent(name="Nightly")
+        service = _service(agent)
+        run = MagicMock(id=uuid.uuid4(), status=status)
+        post = AsyncMock(return_value=True)
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.member_repo") as members,
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch("app.services.agent_trigger.post_to_teams", new=post),
+            patch("app.services.agent_runner.AgentRunnerService") as runner_cls,
+        ):
+            repo.get_by_id = AsyncMock(return_value=trigger)
+            members.get_active = AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER))
+            conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            runner_cls.return_value.execute = AsyncMock(return_value=("Three PRs merged.", run))
+            await service.fire(trigger.id)
+        return post
+
+    async def test_a_completed_fire_posts_its_answer_under_the_triggers_name(self):
+        target = uuid.uuid4()
+        trigger = _trigger(teams_conversation_id=target)
+        # `name` is MagicMock's own constructor argument, so it is set afterwards.
+        trigger.name = "Daily digest"
+        post = await self._fire(trigger)
+
+        _db, conversation_id, text = post.await_args.args
+        assert conversation_id == target
+        assert text == "**Daily digest**\n\nThree PRs merged."
+
+    async def test_a_failed_fire_posts_nothing(self):
+        post = await self._fire(
+            _trigger(teams_conversation_id=uuid.uuid4()), status=RunStatus.FAILED.value
+        )
+        post.assert_not_awaited()
+
+    async def test_a_trigger_with_no_target_posts_nothing(self):
+        post = await self._fire(_trigger())
+        post.assert_not_awaited()
+
+    async def test_the_target_is_checked_when_a_trigger_is_made(self):
+        agent = _agent()
+        service = _service(agent)
+        target = uuid.uuid4()
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.conversation_repo") as conversations,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch(
+                "app.services.agent_trigger.teams_conversation_repo.get_shared",
+                new=AsyncMock(return_value=MagicMock()),
+            ) as shared,
+        ):
+            repo.create = AsyncMock(return_value=_trigger(teams_conversation_id=target))
+            conversations.create_conversation = AsyncMock(return_value=MagicMock(id=uuid.uuid4()))
+            await service.create(
+                _ctx(),
+                agent.id,
+                TriggerCreate(prompt="Digest", interval_seconds=3600, teams_conversation_id=target),
+            )
+
+        assert shared.await_args.args[1] == target
+        assert repo.create.call_args.kwargs["teams_conversation_id"] == target
+
+    @pytest.mark.security
+    async def test_an_edit_to_a_target_that_is_not_the_organizations_is_refused(self):
+        trigger = _trigger()
+        service = _service(_agent(agent_id=trigger.agent_id))
+        with (
+            patch("app.services.agent_trigger.agent_trigger_repo") as repo,
+            patch("app.services.agent_trigger.record_audit", new=AsyncMock()),
+            patch(
+                "app.services.agent_trigger.teams_conversation_repo.get_shared",
+                new=AsyncMock(return_value=None),
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            repo.get = AsyncMock(return_value=trigger)
+            await service.update(
+                _ctx(),
+                trigger.agent_id,
+                trigger.id,
+                TriggerUpdate(teams_conversation_id=uuid.uuid4()),
+            )

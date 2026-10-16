@@ -1,5 +1,5 @@
 ---
-source_sha: "111d48326705"
+source_sha: "4077e0439d0a"
 ---
 
 # Koncepcje { #concepts }
@@ -227,6 +227,8 @@ używany* potrafi odróżnić run bez nadzoru od runa człowieka. Każde odpalen
 osobny run w Activity, a jego odpowiedzi zbierają się w jednej rozmowie będącej
 dziennikiem runów, którą trigger otwiera raz — zawczasu, w momencie utworzenia
 triggera, więc jest klikalną pozycją, zanim jeszcze kiedykolwiek się odpali.
+Trigger może też publikować każdą odpowiedź na kanale albo w czacie grupowym Teams,
+w którym jest bot jego organizacji ([Microsoft Teams](channels.md#microsoft-teams)).
 
 ### Dwa sposoby odpalania { #two-ways-to-fire }
 

@@ -1601,6 +1601,10 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # deployment's signature over its state - neither has a session.
         ("POST", f"{V1}/mattermost/{{bot_id}}/commands"),
         ("POST", f"{V1}/mattermost/{{bot_id}}/dialogs"),
+        # Teams (#1985): every activity carries a Bot Connector JWT, verified
+        # against the issuer's published keys, this bot's app id as audience and
+        # the activity's own service before anything in the body is used.
+        ("POST", f"{V1}/teams/{{bot_id}}/messages"),
         # An event trigger's inbound webhook. Same arrangement as Slack: GitHub
         # and the email relay sign the body with the trigger's own secret, and the
         # service verifies that HMAC against the trigger named in the path. A

@@ -14,6 +14,8 @@ const PLATFORM_LABEL: Record<ChannelPlatform, string> = {
   telegram: "Telegram",
   slack: "Slack",
   mattermost: "Mattermost",
+  // i18n-exempt: a product\'s own name, written the same in every language
+  teams: "Microsoft Teams",
 };
 
 interface ChannelBotsTableProps {

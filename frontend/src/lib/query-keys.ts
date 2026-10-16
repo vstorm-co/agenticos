@@ -93,6 +93,8 @@ export const qk = {
   },
   channelBots: {
     list: () => ["channel-bots"] as const,
+    /** The Teams channels and group chats a trigger can post into (#1985). */
+    teamsConversations: () => ["channel-bots", "teams-conversations"] as const,
   },
   catalog: {
     icons: () => ["catalog", "icons"] as const,
