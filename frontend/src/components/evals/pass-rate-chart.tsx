@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import type { PassRateLine, PassRatePoint } from "@/components/charts/pass-rate-lines.impl";
 import { ROUTES } from "@/lib/constants";
-import { CHART_MIN_HEIGHT, seriesColor } from "@/lib/dashboard/system";
+import { CHART_MIN_HEIGHT, LINE_WIDTH } from "@/lib/dashboard/system";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { EvalRun, Verdict } from "@/types/eval-runs";
 import { percent } from "./format";
@@ -22,12 +22,22 @@ const PassRateLinesImpl = dynamic(
 /** How many of the newest runs the trend shows until its range is dragged wider. */
 export const RECENT_RUNS = 12;
 
-/** A verdict worth a colour of its own: what the run did to the cases. */
+/**
+ * A verdict worth a colour of its own: what the run did to the cases. These
+ * three colours belong to verdicts alone, so lines are told apart by their dash
+ * and a run with no verdict is drawn in the lines' own neutral ink.
+ */
 const VERDICT_COLOR: Partial<Record<Verdict, string>> = {
   worse: "var(--color-destructive)",
   better: "var(--color-success)",
   mixed: "var(--color-warning)",
 };
+
+/** The lines' ink, and a run's when it has no verdict to colour it. */
+const NEUTRAL = "var(--color-muted-foreground)";
+
+/** One dash per line, so a second dataset never borrows a verdict's colour. */
+const DASHES = [undefined, "6 4", "2 3", "10 3 2 3", "1 5"];
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
@@ -55,7 +65,13 @@ export function passRateLines(
       run.arms.find((item) => item.role === "candidate");
     if (arm === undefined || arm.summary.pass_rate === null) continue;
     const { key, name } = group(run);
-    const line = lines.get(key) ?? { key, name, color: seriesColor(lines.size), points: [] };
+    const line = lines.get(key) ?? {
+      key,
+      name,
+      color: NEUTRAL,
+      dash: DASHES[lines.size % DASHES.length],
+      points: [],
+    };
     lines.set(key, line);
     const verdict = run.outcome?.verdict ?? null;
     const draft = arm.source !== "version";
@@ -66,7 +82,7 @@ export function passRateLines(
       tick: draft ? t("trend.draftTick") : sideName(arm, t),
       when: formatDateTime(run.created_at, locale),
       draft,
-      color: (verdict && VERDICT_COLOR[verdict]) ?? line.color,
+      color: (verdict && VERDICT_COLOR[verdict]) ?? NEUTRAL,
       href: `${ROUTES.AGENTS}/${run.agent_id}/evals/${run.id}`,
       title: t("sideModel", { name: sideName(arm, t), model: arm.model_label }),
       details: [
@@ -101,11 +117,17 @@ export function PassRateChart({
         {lines.length > 1 &&
           lines.map((line) => (
             <li key={line.key} className="flex items-center gap-1.5">
-              <span
-                className="h-0.5 w-4 shrink-0 rounded-full"
-                style={{ background: line.color }}
-                aria-hidden
-              />
+              <svg className="h-2 w-5 shrink-0" viewBox="0 0 20 8" aria-hidden>
+                <line
+                  x1="0"
+                  y1="4"
+                  x2="20"
+                  y2="4"
+                  stroke={line.color}
+                  strokeWidth={LINE_WIDTH}
+                  strokeDasharray={line.dash}
+                />
+              </svg>
               {line.name}
             </li>
           ))}

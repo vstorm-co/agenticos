@@ -20,11 +20,12 @@ the same run, so the two meet the same provider on the same day.
 ## In the console { #in-the-console }
 
 An agent's **Evals** tab opens on a line chart of its pass rate run by run,
-oldest on the left, a line per dataset. A point is red where the run broke
-cases, green where it fixed them, amber where it did both, and hollow for a
-draft; hovering it says what ran, against what and when, and clicking it opens
-the run. The chart starts on the last 12 runs; drag the handles of the range
-under it, or move them with the arrow keys, to see more or fewer.
+oldest on the left, a line per dataset, each with its own dash. A point is red
+where the run broke cases, green where it fixed them, amber where it did both,
+and hollow for a draft; hovering it says what ran, against what and when, and
+clicking it opens the run. The chart starts on the last 12 runs; drag the
+handles of the range under it, or move them with the arrow keys, to see more or
+fewer.
 
 Below it are its runs, grouped by dataset, each naming what was tested against
 what, its verdict (Breaks 2, Worse overall · 4 broke, First result, Pending) and

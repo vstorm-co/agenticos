@@ -123,7 +123,7 @@ describe("passRateLines", () => {
   const t = (key: string, values?: Record<string, string | number>) =>
     values ? `${key}:${Object.values(values).join("|")}` : key;
 
-  it("puts finished runs in order, a line per group, each point in its verdict's colour", () => {
+  it("puts finished runs in order, a line per group by its dash, each point in its verdict's colour", () => {
     const lines = passRateLines(
       [
         worse({ id: "late", created_at: "2026-10-15T10:00:00Z" }),
@@ -142,16 +142,20 @@ describe("passRateLines", () => {
       "en",
     );
 
-    expect(lines.map((line) => [line.name, line.color])).toEqual([
-      ["refunds", "var(--series-1)"],
-      ["shipping", "var(--series-2)"],
+    // Verdict colours are the verdicts' alone: lines share a neutral ink and differ by dash.
+    expect(lines.map((line) => [line.name, line.color, line.dash])).toEqual([
+      ["refunds", "var(--color-muted-foreground)", undefined],
+      ["shipping", "var(--color-muted-foreground)", "6 4"],
     ]);
     const [refunds, shipping] = lines;
     expect(refunds?.points.map((p) => [p.index, p.tick, p.draft, p.color])).toEqual([
       [0, "trend.draftTick", true, "var(--color-success)"],
       [2, "version:7", false, "var(--color-destructive)"],
     ]);
-    expect(shipping?.points.map((p) => [p.index, p.color])).toEqual([[1, "var(--series-2)"]]);
+    // A first result has no verdict, so nothing to colour it with.
+    expect(shipping?.points.map((p) => [p.index, p.color])).toEqual([
+      [1, "var(--color-muted-foreground)"],
+    ]);
     const late = refunds?.points[1];
     expect(late?.href).toBe("/agents/agent-1/evals/late");
     expect(late?.title).toBe("sideModel:version:7|gpt-4.1");
@@ -188,11 +192,17 @@ describe("PassRateChart", () => {
   });
 
   it("starts on the newest runs over a range to drag, and keys its lines and colours", async () => {
-    render(<PassRateChart lines={[line("a", "refunds", 10), line("b", "shipping", 4, 10)]} />);
+    render(
+      <PassRateChart
+        lines={[line("a", "refunds", 10), { ...line("b", "shipping", 4, 10), dash: "6 4" }]}
+      />,
+    );
 
     expect(await screen.findByText("Runs shown, last 12: a×10 b×4")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Pass rate by run" })).toBeInTheDocument();
     expect(screen.getByText("refunds")).toBeInTheDocument();
+    const shipping = screen.getByText("shipping").closest("li")!;
+    expect(shipping.querySelector("line")).toHaveAttribute("stroke-dasharray", "6 4");
     expect(screen.getByText("Breaks cases")).toBeInTheDocument();
     expect(screen.getByText("Draft")).toBeInTheDocument();
     expect(screen.getByText(/Drag the handles under the chart/)).toBeInTheDocument();

@@ -38,6 +38,8 @@ export interface PassRateLine {
   key: string;
   name: string;
   color: string;
+  /** The line's dash, which tells it from the others; none draws it solid. */
+  dash?: string;
   points: PassRatePoint[];
 }
 
@@ -158,6 +160,7 @@ export function PassRateLinesImpl({
             name={line.name}
             stroke={line.color}
             strokeWidth={LINE_WIDTH}
+            strokeDasharray={line.dash}
             connectNulls
             isAnimationActive={false}
             dot={(props: { cx?: number; cy?: number; payload?: Row }) => dot(props, line, 5)}
@@ -183,6 +186,7 @@ export function PassRateLinesImpl({
                   dataKey={line.key}
                   stroke={line.color}
                   strokeWidth={1}
+                  strokeDasharray={line.dash}
                   dot={false}
                   connectNulls
                   isAnimationActive={false}
