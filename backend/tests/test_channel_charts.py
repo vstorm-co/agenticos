@@ -344,11 +344,11 @@ class TestTheTurnsPicture:
     """A reply carries one picture: the last a turn made, chart or visual."""
 
     @pytest.mark.anyio
-    async def test_the_last_chart_is_the_picture(self) -> None:
+    async def test_a_visual_that_failed_leaves_the_chart_before_it_as_the_picture(self) -> None:
         from app.services.channels.mentions import drawn_picture
 
         png = await drawn_picture(
-            [_call(None, name="draw"), _call(_spec().model_dump_json())],
+            [_call(_spec().model_dump_json()), _call(None, name="draw")],
             organization_id=uuid.uuid4(),
             conversation_id=None,
         )
