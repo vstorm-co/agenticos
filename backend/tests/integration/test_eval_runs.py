@@ -52,7 +52,7 @@ from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.user import User
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.eval_run import EvalRunRequest
-from app.schemas.scoring import RescoreRequest
+from app.schemas.scoring import CaseVerdict, RescoreRequest
 from app.services.agent_registry import (
     AgentRegistryService,
     PublishedCandidate,
@@ -1386,6 +1386,24 @@ async def test_a_finished_run_keeps_its_verdict_until_a_person_decides_a_score(d
     assert decided.outcome.regressions_confirmed == 0
     assert decided.outcome.candidate_pass_rate == 1.0
     assert stored.outcome_at > kept_at
+
+    # Withdrawn, the verdict is gone and the regression is back.
+    revision = await db.scalar(select(DatasetCase).where(DatasetCase.input == "Question 0"))
+    assert revision is not None
+    attempt = await db.scalar(
+        select(EvalRunCase).where(
+            EvalRunCase.eval_run_id == v7.id,
+            EvalRunCase.case_id == revision.case_id,
+            EvalRunCase.attempt == 0,
+        )
+    )
+    assert attempt is not None and attempt.case_score_id is not None
+    await ScoringService(db).set_verdict(
+        ctx, dataset.id, attempt.case_score_id, CaseVerdict(passed=None)
+    )
+    withdrawn = await service.get(ctx, v7.id)
+    assert withdrawn.outcome is not None
+    assert withdrawn.outcome.regressions_confirmed == 1
 
 
 async def test_runs_of_the_draft_as_it_stands_now(db) -> None:
