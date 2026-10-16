@@ -105,12 +105,14 @@ async def finish_run(
     error: str | None = None,
     logfire_trace_id: str | None = None,
     paused_state: dict[str, Any] | None = None,
+    tool_args_repaired: int = 0,
 ) -> AgentRun:
     run.status = status
     run.input_tokens = input_tokens
     run.output_tokens = output_tokens
     run.cost_usd = cost_usd
     run.cost_is_partial = cost_is_partial
+    run.tool_args_repaired = tool_args_repaired
     run.ended_at = ended_at
     run.error = error
     # Written on every finish, not only when parking: a run that ended must not
@@ -1346,7 +1348,7 @@ class WindowBreakdown:
     by_day: list[tuple[date, int, int, Decimal]]
     by_surface: list[tuple[str | None, int]]
     by_status: list[tuple[str | None, int]]
-    by_model: list[tuple[str | None, str | None, int]]
+    by_model: list[tuple[str | None, str | None, int, int]]
     by_provider: list[tuple[str | None, Decimal]]
 
 
@@ -1372,6 +1374,7 @@ async def window_breakdown(
     runs = func.count(AgentRun.id)
     completed = func.count(AgentRun.id).filter(AgentRun.status == RunStatus.COMPLETED.value)
     cost = func.coalesce(func.sum(AgentRun.cost_usd), 0)
+    repaired = func.coalesce(func.sum(AgentRun.tool_args_repaired), 0)
     result = await db.execute(
         select(
             func.grouping(day),
@@ -1387,6 +1390,7 @@ async def window_breakdown(
             runs,
             completed,
             cost,
+            repaired,
         )
         .where(*conditions)
         .group_by(
@@ -1402,12 +1406,12 @@ async def window_breakdown(
     by_day: list[tuple[date, int, int, Decimal]] = []
     by_surface: list[tuple[str | None, int]] = []
     by_status: list[tuple[str | None, int]] = []
-    by_model: list[tuple[str | None, str | None, int]] = []
+    by_model: list[tuple[str | None, str | None, int, int]] = []
     by_provider: list[tuple[str | None, Decimal]] = []
     for row in result.all():
         g_day, g_surface, g_status, g_model, g_provider = row[0], row[1], row[2], row[3], row[4]
         day_value, surface, status, model_label, provider = row[5], row[6], row[7], row[8], row[9]
-        run_count, completed_count, cost_usd = row[10], row[11], row[12]
+        run_count, completed_count, cost_usd, repaired_count = row[10], row[11], row[12], row[13]
         if g_day == 0:
             by_day.append((day_value, run_count, completed_count, Decimal(cost_usd)))
         elif g_surface == 0:
@@ -1415,7 +1419,7 @@ async def window_breakdown(
         elif g_status == 0:
             by_status.append((status, run_count))
         elif g_model == 0:
-            by_model.append((model_label, provider, run_count))
+            by_model.append((model_label, provider, run_count, int(repaired_count)))
         elif g_provider == 0:
             by_provider.append((provider, Decimal(cost_usd)))
     # Largest group first, ties broken by the label so the order is the same

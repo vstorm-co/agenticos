@@ -40,6 +40,15 @@ class AgentRunRead(BaseSchema):
     cost_is_partial: bool = Field(
         description="True when a model in this run had no price - the cost is a floor"
     )
+    tool_args_repaired: int = Field(
+        default=0,
+        description=(
+            "Tool calls whose arguments arrived as malformed JSON - a trailing comma, "
+            "single quotes, an object cut short - and were repaired before validation "
+            "rather than retried. Each one is a model request saved; a model that "
+            "needs many is one to reconsider"
+        ),
+    )
     logfire_trace_id: str | None = Field(
         default=None,
         description=(

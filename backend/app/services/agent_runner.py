@@ -3938,6 +3938,7 @@ class AgentRunnerService:
             error=error,
             logfire_trace_id=current_trace_id(),
             paused_state=None if parked is None else parked.model_dump(mode="json"),
+            tool_args_repaired=prepared.built.repairs.count,
         )
         # After the parent's row and on every path out of the run, for the reason
         # the parent's row is written on every path: a delegation that spent money

@@ -65,6 +65,7 @@ from app.agents.spec import (
 )
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_runtime import DelegationSpend, DelegationStash, ParkedDelegation
+from app.agents.tool_repair import RepairTally
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
@@ -1635,6 +1636,21 @@ class TestSkillChangesARunProposed:
     follows, so an agent editing one directly would rewrite what another agent
     does inside a conversation nobody reviewed.
     """
+
+    @pytest.mark.anyio
+    async def test_the_run_records_how_many_tool_calls_it_repaired(self):
+        """So run history - and the per-model breakdown - shows which models send
+        broken JSON (#2105)."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.repairs = RepairTally(count=2)
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+        ) as finish_run:
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        assert finish_run.await_args.kwargs["tool_args_repaired"] == 2
 
     @pytest.mark.anyio
     async def test_what_the_agent_changed_becomes_a_proposal(self):

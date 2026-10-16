@@ -39,6 +39,7 @@ from app.agents.spec import (
     AlertSpec,
     NotificationSpec,
 )
+from app.agents.tool_repair import CountedRepair
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret
 
@@ -658,6 +659,21 @@ class TestBudgetComposition:
         )
 
         assert self._lookups(built)[BudgetScope.AGENT] is None
+
+
+class TestRepairingToolArguments:
+    """Every agent repairs malformed tool-call arguments, first of all (#2105)."""
+
+    def test_the_repair_runs_before_every_other_hook_and_counts_on_the_built_agent(self):
+        built = build_agent(AgentSpec(name="Clerk"), _model_spec(), organization_id=uuid.uuid4())
+        attached: list[object] = []
+        built.agent.root_capability.apply(attached.append)
+
+        repair = next(one for one in attached if isinstance(one, CountedRepair))
+        gate = next(one for one in attached if isinstance(one, ApprovalGate))
+        assert attached.index(repair) < attached.index(gate)
+        assert repair.tally is built.repairs
+        assert built.repairs.count == 0
 
 
 class TestAskingAboutEveryTool:

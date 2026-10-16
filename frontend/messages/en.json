@@ -1744,6 +1744,7 @@
           "description": "The model mix appears with the first run.",
           "title": "No runs in this period"
         },
+        "runsRepaired": "{runs} · {repaired} repaired",
         "notRecorded": "not recorded",
         "title": "Models behind the runs",
         "description": "Which models are behind the runs, as each run recorded its own.",
@@ -4583,6 +4584,7 @@
       "model": "Model",
       "modelFilter": "Filter by model",
       "modelRunHadNo": "A model in this run had no price, so this is a floor",
+      "toolArgsRepaired": "{count, plural, =1 {Repaired one tool call's malformed arguments instead of retrying it} other {Repaired # tool calls' malformed arguments instead of retrying them}}",
       "modelSettings": "Model settings",
       "monthToDate": "Month to date",
       "narrowedToOneAgent": "Narrowed to one agent, including what it did as somebody's delegate.",

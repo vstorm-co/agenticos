@@ -11,6 +11,7 @@ import {
   ExternalLink,
   MessageSquare,
   Play,
+  Wrench,
   X,
 } from "lucide-react";
 
@@ -290,6 +291,13 @@ export function FocusedRun({
           </Fact>
           <Fact label={t("took")}>{formatRunDuration(run.started_at, run.ended_at)}</Fact>
         </dl>
+
+        {!!run.tool_args_repaired && (
+          <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+            <Wrench className="size-3.5 shrink-0" aria-hidden />
+            {t("toolArgsRepaired", { count: run.tool_args_repaired })}
+          </p>
+        )}
 
         {/* Hidden when it holds none of the three, rather than repeating all
             three conditions around it. */}

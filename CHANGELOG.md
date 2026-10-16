@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Malformed tool calls are repaired instead of retried** (#2105). A model
+  that sends a tool call with broken JSON - a trailing comma, single quotes, an
+  object cut short - no longer pays for a retry: every agent repairs the syntax
+  before validation, and the call still goes through approval and guardrails.
+  Open-weight models on Ollama or vLLM do this most. Each run counts its
+  repairs, shown on the run and per model on the dashboard's model card.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

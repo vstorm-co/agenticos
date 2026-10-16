@@ -314,6 +314,11 @@ class AgentRun(Base, TimestampMixin):
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     # True when some model in the run had no price - the cost is then a floor.
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
+    # Tool calls whose arguments arrived as malformed JSON and were repaired
+    # before validation (#2105) - how often a model needed it.
+    tool_args_repaired: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
     # The trace lives in Logfire; we keep the id so the UI can deep-link into it
     # instead of duplicating spans into our database.

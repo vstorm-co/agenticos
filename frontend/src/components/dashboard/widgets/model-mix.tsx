@@ -23,6 +23,14 @@ export function ModelMixWidget({ title, hint, period, seeAll, options }: Dashboa
           const rows = (usage.by_model ?? []).map((row) => ({
             label: row.model_label ?? t("notRecorded"),
             value: row.runs,
+            // How often this model sent broken JSON that had to be repaired - a
+            // signal for picking models, said only where it happened.
+            display: row.tool_args_repaired
+              ? t("runsRepaired", {
+                  runs: row.runs.toLocaleString(locale),
+                  repaired: row.tool_args_repaired.toLocaleString(locale),
+                })
+              : undefined,
             // The provider's mark beside the model, as Spend draws it, so
             // `claude-sonnet-4-5` and `google/gemini-2.5-flash` read at a glance.
             icon: row.provider ? (
