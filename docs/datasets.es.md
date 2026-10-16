@@ -1,5 +1,5 @@
 ---
-source_sha: "cfeaa395be88"
+source_sha: "f7c49ae25823"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -168,8 +168,9 @@ En ambos casos, el caso se crea a partir de ese turno:
   contraejemplo. Si nadie la valoró con un pulgar abajo, se ofrece en su lugar
   como respuesta de referencia, y puedes elegir cualquiera de las dos; guardada
   como referencia, las herramientas que llamó pasan a ser las llamadas esperadas
-  del caso, por nombre, y una respuesta sin texto se guarda solo como esas
-  llamadas;
+  del caso, por nombre (las que salieron bien y cambian algo, no una llamada
+  fallida ni una que su agent declara de solo lectura), y una respuesta sin
+  texto se guarda solo como esas llamadas;
 - el comentario más reciente dejado con un pulgar abajo se convierte en la
   nota.
 

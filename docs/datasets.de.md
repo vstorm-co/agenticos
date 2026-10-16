@@ -1,5 +1,5 @@
 ---
-source_sha: "cfeaa395be88"
+source_sha: "f7c49ae25823"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -175,8 +175,10 @@ In beiden Fällen entsteht der Fall aus diesem Zug:
   nächsten Frage schrieb - ist die Antwort, und ihr Text wird zum Gegenbeispiel.
   Hat niemand sie negativ bewertet, wird sie stattdessen als Referenzantwort
   angeboten, und Sie wählen eines von beiden; als Referenz behalten, werden die
-  Tools, die sie aufrief, zu den erwarteten Tool-Aufrufen des Falls, nach Namen,
-  und eine Antwort ohne Text wird als diese allein behalten;
+  Tools, die sie aufrief, zu den erwarteten Tool-Aufrufen des Falls, nach Namen
+  (die erfolgreichen, die etwas ändern, kein gescheiterter Aufruf und keiner,
+  den ihr Agent als nur lesend deklariert), und eine Antwort ohne Text wird als
+  diese allein behalten;
 - der neueste Kommentar zu einem Daumen nach unten wird zur Notiz.
 
 Beide Wege sehen nur Mitglieder, die ein Dataset bearbeiten dürfen. Die

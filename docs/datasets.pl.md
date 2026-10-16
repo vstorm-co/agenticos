@@ -1,5 +1,5 @@
 ---
-source_sha: "cfeaa395be88"
+source_sha: "f7c49ae25823"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -163,8 +163,10 @@ W obu przypadkach przypadek powstaje z tej tury:
   przed następnym pytaniem - a jej tekst staje się kontrprzykładem. Jeśli nikt
   nie ocenił jej łapką w dół, domyślnie jest proponowana jako odpowiedź
   wzorcowa, a ty wybierasz jedno z dwóch; zachowana jako wzorcowa, narzędzia,
-  które wywołała, stają się oczekiwanymi wywołaniami przypadku, po nazwie, a
-  odpowiedź bez tekstu zostaje zachowana jako same te wywołania;
+  które wywołała, stają się oczekiwanymi wywołaniami przypadku, po nazwie - te,
+  które się udały i coś zmieniają, a nie nieudane ani te, które jej agent
+  deklaruje jako tylko do odczytu - a odpowiedź bez tekstu zostaje zachowana
+  jako same te wywołania;
 - najnowszy komentarz zostawiony z łapką w dół staje się notatką.
 
 Obie drogi widzą tylko członkowie, którzy mogą edytować jakiś dataset.

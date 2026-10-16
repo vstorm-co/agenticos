@@ -157,7 +157,9 @@ Either way, the case is created from the turn:
   question - is the answer, and its text becomes the counter-example. If nobody
   rated it down, it is offered as the reference answer instead, and you can
   choose either; kept as a reference, the tools it called become the case's
-  expected tool calls, by name, and a reply with no text is kept as those alone;
+  expected tool calls, by name - those that succeeded and change something, not
+  a failed call nor one its agent declares read-only - and a reply with no text
+  is kept as those alone;
 - the newest comment left with a thumbs-down becomes the note.
 
 Both are shown only to members who may edit a dataset. The message must belong
