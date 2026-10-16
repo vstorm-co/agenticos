@@ -39,6 +39,7 @@ from app.agents.audience import RunAudience
 from app.agents.browser_events import BrowserCommand, BrowserEvent, BrowserKey
 from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, get
+from app.agents.capabilities.background_tools import BACKGROUND
 from app.agents.capabilities.browser_use import (
     BROWSER_STEP_MODEL_RESOURCE,
     WebBrowser,
@@ -1691,6 +1692,15 @@ async def _call_as(deps: AgentDeps, opener: _Opener | None = None) -> str:
     tools = await toolset.get_tools(ctx)
     args = {"task": "find the price", "start_url": "https://example.test/"}
     return str(await toolset.call_tool("browse_web", args, ctx, tools["browse_web"]))
+
+
+class TestALongBrowseMayRunInTheBackground:
+    async def test_browse_web_is_marked_for_the_background_tools_capability(self):
+        """#2108: the browse is the slow tool `background_tools` lets run on."""
+        toolset = _toolset(_Opener())
+        tools = await toolset.get_tools(_tool_context(_browsing_model(DONE_ARGS), None))
+
+        assert tools["browse_web"].tool_def.metadata == BACKGROUND
 
 
 class TestEveryBrowseIsAlsoLive:

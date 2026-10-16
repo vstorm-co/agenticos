@@ -45,6 +45,7 @@ from app.agents.browser_events import (
     BrowserEventSink,
 )
 from app.agents.capabilities._metered import MeteredModel
+from app.agents.capabilities.background_tools._capability import BACKGROUND
 from app.agents.capabilities.browser_use._decision import (
     INSTRUCTIONS,
     Action,
@@ -641,7 +642,8 @@ def build_toolset(
         """
         return await drive(ctx, GoBack(action="back"))
 
-    toolset.add_function(browse_web, takes_ctx=True)
+    # A long browse is the slow tool `background_tools` exists for (#2108).
+    toolset.add_function(browse_web, takes_ctx=True, metadata=BACKGROUND)
     for direct in (
         browser_open,
         browser_read,

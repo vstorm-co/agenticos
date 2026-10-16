@@ -1423,6 +1423,25 @@ or embedding request behind them, so unlike knowledge or delegation there is no
 ambient usage to meter. The round trips the model makes to call them are its own, and
 the budget guard already counts those.
 
+## Work while tools run { #background-tools }
+
+No tools of its own. With it bound, a slow tool another capability marks - today
+the [web browser](#browser-automation)'s `browse_web` - gains a `run_in_background`
+choice, and the model decides per call: a browse it needs the answer of before it
+can say anything is waited for, one it can work around runs on while the agent
+answers the rest of the request, and its result arrives as a message when it is
+ready. Built on `BackgroundTools` from pydantic-ai-harness.
+
+- **Screened all the same.** A background result passes the agent's tool-result
+  rules - [guardrails](#guardrails), [tool output limits](#tool-output-limits) -
+  exactly as a foreground one does; the library alone would deliver it past them.
+- **Approval first.** A tool that waits for a person parks for its approval
+  before anything runs in the background.
+- **The run's budget, the run's lifetime.** What a background tool spends is the
+  run's, and stopping the run stops it. A run that parks - an approval, a question
+  - cancels the background tools still going, and their results are not delivered
+  after the resume.
+
 ## Thinking
 
 No tools. Asks the model to reason before it answers: slower and dearer, better on

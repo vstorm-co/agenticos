@@ -6590,6 +6590,13 @@
       "needs": "Nothing extra.",
       "never": "Never gives the agent permission to do anything; a plan is only a list."
     },
+    "background_tools": {
+      "name": "Work while tools run",
+      "does": "Lets the agent start a slow tool - a long browse - and carry on with the rest of the request, using the result when it arrives.",
+      "example1": "Check three suppliers' portals and draft the email while the browses run",
+      "needs": "A capability with a slow tool, such as the web browser.",
+      "never": "Never runs anything after the run ends; stopping the run stops its background tools."
+    },
     "sandbox": {
       "name": "Sandbox",
       "does": "Gives the agent its own small computer: it creates and edits files and runs code, and the files are still there next time.",

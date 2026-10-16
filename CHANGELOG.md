@@ -34,6 +34,15 @@ Two things are versioned separately from this file and worth knowing about:
   without reloading. The list of conversations marks a thread as working the
   moment you ask in it, rather than when the server's next listing arrives.
 
+- **Work while tools run.** A new `background_tools` capability lets an agent
+  send a slow tool - today a long `browse_web` - to the background, the model
+  deciding per call, and answer the rest of the request while it runs; the
+  result arrives as a message. Built on pydantic-ai-harness `BackgroundTools`,
+  with one difference that matters: a background result passes the agent's
+  guardrails and tool output limits like a foreground one, where the library
+  alone would deliver it past them. Approval still comes first, the spend is
+  the run's, and stopping the run stops the tool (#2108).
+
 - **An approval says which account is acting.** A call through a labelled MCP
   connection, or one of several accounts on one service, carries the account's
   name to the approval - the chat card, Activity, the dashboard widget, the Slack

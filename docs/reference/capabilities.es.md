@@ -1,5 +1,5 @@
 ---
-source_sha: "e63a2a127bff"
+source_sha: "3f8a2aa5c5d2"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1529,6 +1529,27 @@ comprobación sin ninguna petición a un modelo o a un embedding detrás, así q
 diferencia del conocimiento o la delegación, no hay uso ambiental que contabilizar.
 Las idas y vueltas que hace el modelo para llamarlas son suyas, y el guardián de
 budget ya las cuenta.
+
+## Trabajar mientras corren las herramientas { #background-tools }
+
+Sin herramientas propias. Con ella activada, una herramienta lenta que otra
+capability marca - hoy `browse_web` del [navegador web](#browser-automation) -
+recibe la opción `run_in_background`, y el modelo decide en cada llamada: espera
+una navegación sin cuya respuesta no puede decir nada; deja corriendo otra que
+puede rodear mientras responde al resto de la petición, y su resultado llega como
+mensaje cuando está listo. Construida sobre `BackgroundTools` de
+pydantic-ai-harness.
+
+- **Revisado igual.** Un resultado en segundo plano pasa por las reglas de
+  resultados de herramientas del agente - [guardrails](#guardrails),
+  [límites de salida de herramientas](#tool-output-limits) - igual que uno en
+  primer plano; la biblioteca sola lo entregaría saltándoselas.
+- **Primero la aprobación.** Una herramienta que espera a una persona se detiene
+  para su aprobación antes de que nada corra en segundo plano.
+- **El presupuesto y la vida del run.** Lo que gasta una herramienta en segundo
+  plano es del run, y detener el run la detiene. Un run que se pausa - una
+  aprobación, una pregunta - cancela las herramientas en segundo plano que siguen
+  en marcha, y sus resultados no llegan tras reanudar.
 
 ## Razonamiento { #thinking }
 

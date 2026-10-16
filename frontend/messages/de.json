@@ -6473,6 +6473,13 @@
       "needs": "Nichts weiter.",
       "never": "Gibt dem Agenten nie eine Berechtigung; ein Plan ist nur eine Liste."
     },
+    "background_tools": {
+      "name": "Weiterarbeiten, während Tools laufen",
+      "does": "Der Agent startet ein langsames Tool - einen langen Browser-Durchlauf - und erledigt den Rest der Anfrage, bis das Ergebnis eintrifft.",
+      "example1": "Die Portale von drei Lieferanten prüfen und die E-Mail entwerfen, während die Browser laufen",
+      "needs": "Eine Capability mit einem langsamen Tool, etwa der Webbrowser.",
+      "never": "Läuft nie nach dem Ende des Runs weiter; wer den Run stoppt, stoppt auch seine Tools im Hintergrund."
+    },
     "sandbox": {
       "name": "Sandbox",
       "does": "Der Agent bekommt einen eigenen kleinen Computer: Er erstellt und bearbeitet Dateien und führt Code aus, und die Dateien sind beim nächsten Mal noch da.",

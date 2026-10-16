@@ -6364,6 +6364,13 @@
       "needs": "Nic dodatkowego.",
       "never": "Nigdy nie daje agentowi żadnych uprawnień; plan to tylko lista."
     },
+    "background_tools": {
+      "name": "Praca w trakcie narzędzi",
+      "does": "Agent uruchamia wolne narzędzie - długie przeglądanie - i zajmuje się resztą prośby, a wynik wykorzystuje, gdy przyjdzie.",
+      "example1": "Sprawdzić portale trzech dostawców i napisać maila, gdy przeglądarki pracują",
+      "needs": "Capability z wolnym narzędziem, np. przeglądarka.",
+      "never": "Nigdy nie działa po zakończeniu runu; zatrzymanie runu zatrzymuje jego narzędzia w tle."
+    },
     "sandbox": {
       "name": "Sandbox",
       "does": "Agent dostaje własny mały komputer: tworzy i edytuje pliki, uruchamia kod, a pliki zostają na następny raz.",

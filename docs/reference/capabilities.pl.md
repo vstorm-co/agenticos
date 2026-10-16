@@ -1,5 +1,5 @@
 ---
-source_sha: "e63a2a127bff"
+source_sha: "3f8a2aa5c5d2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1503,6 +1503,26 @@ nullem, nie jest zmianą do zapisania.
 żadnego żądania do modelu ani do embeddingów, więc w przeciwieństwie do wiedzy czy
 delegowania nie ma tu zużycia otoczkowego do mierzenia. Rundy, które model odbywa,
 żeby je wywołać, są jego własne, a strażnik budżetu już je liczy.
+
+## Praca w trakcie narzędzi { #background-tools }
+
+Bez własnych narzędzi. Gdy jest włączona, wolne narzędzie oznaczone przez inną
+capability - dziś `browse_web` z [przeglądarki](#browser-automation) - dostaje
+wybór `run_in_background`, a model decyduje przy każdym wywołaniu: na przeglądanie,
+bez którego nie może nic powiedzieć, czeka; takie, które da się obejść, działa
+dalej, gdy agent odpowiada na resztę prośby, a jego wynik przychodzi jako
+wiadomość, gdy jest gotowy. Zbudowana na `BackgroundTools` z pydantic-ai-harness.
+
+- **Sprawdzane tak samo.** Wynik z tła przechodzi przez reguły wyników narzędzi
+  agenta - [guardraile](#guardrails), [limity wyników narzędzi](#tool-output-limits)
+  - dokładnie tak jak wynik z pierwszego planu; sama biblioteka dostarczyłaby go
+  z ich pominięciem.
+- **Najpierw zatwierdzenie.** Narzędzie, które czeka na człowieka, parkuje do
+  zatwierdzenia, zanim cokolwiek ruszy w tle.
+- **Budżet runu, czas życia runu.** To, co wyda narzędzie w tle, liczy się do
+  runu, a zatrzymanie runu je zatrzymuje. Run, który parkuje - zatwierdzenie,
+  pytanie - anuluje narzędzia w tle, które jeszcze pracują, i ich wyniki nie
+  przychodzą po wznowieniu.
 
 ## Myślenie { #thinking }
 

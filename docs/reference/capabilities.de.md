@@ -1,5 +1,5 @@
 ---
-source_sha: "e63a2a127bff"
+source_sha: "3f8a2aa5c5d2"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1611,6 +1611,27 @@ Checkliste, hinter denen keine Modell- oder Embedding-Anfrage steht, deshalb gib
 es anders als bei Wissen oder Delegation keinen Umgebungsverbrauch zu erfassen. Die
 Runden, die das Modell macht, um sie aufzurufen, sind seine eigenen, und die zählt
 der Budget-Guard bereits.
+
+## Weiterarbeiten, während Tools laufen { #background-tools }
+
+Keine eigenen Tools. Ist sie gebunden, bekommt ein langsames Tool, das eine andere
+Capability markiert - heute `browse_web` des [Webbrowsers](#browser-automation) -,
+die Wahl `run_in_background`, und das Modell entscheidet pro Aufruf: Auf einen
+Durchlauf, ohne dessen Ergebnis es nichts sagen kann, wartet es; einer, um den es
+herumarbeiten kann, läuft weiter, während der Agent den Rest der Anfrage
+beantwortet, und sein Ergebnis kommt als Nachricht, sobald es fertig ist. Gebaut
+auf `BackgroundTools` aus pydantic-ai-harness.
+
+- **Genauso geprüft.** Ein Ergebnis aus dem Hintergrund durchläuft die Regeln des
+  Agenten für Tool-Ergebnisse - [Guardrails](#guardrails),
+  [Tool-Ausgabelimits](#tool-output-limits) - genau wie eines im Vordergrund; die
+  Bibliothek allein würde es an ihnen vorbei zustellen.
+- **Erst die Freigabe.** Ein Tool, das auf einen Menschen wartet, parkt für seine
+  Freigabe, bevor irgendetwas im Hintergrund läuft.
+- **Budget und Lebensdauer des Runs.** Was ein Hintergrund-Tool ausgibt, gehört
+  dem Run, und wer den Run stoppt, stoppt es. Ein Run, der parkt - eine Freigabe,
+  eine Frage -, bricht die noch laufenden Hintergrund-Tools ab, und ihre
+  Ergebnisse kommen nach dem Fortsetzen nicht an.
 
 ## Nachdenken { #thinking }
 

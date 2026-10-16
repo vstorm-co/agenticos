@@ -73,6 +73,7 @@ in [Capabilities](capabilities.md).
 | Memory | `memory_files` |
 | Memory (mem0) | `memory_mem0` |
 | Planning | `planning` |
+| Work while tools run | `background_tools` |
 | Sandbox | `sandbox` |
 | Skills | `skills` |
 | Subagents | `subagents` |
