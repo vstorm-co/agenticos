@@ -327,7 +327,7 @@ describe("EvalRunView", () => {
     expect(screen.getByText("No reproducible change")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: /No change held: 2 cases changed once and came out differently when asked again, so the pass rates of v7 and Draft on refunds do not tell the two apart\./,
+        name: /No change held: 2 cases changed once and came out differently when asked again, so any difference in pass rate between v7 and Draft on refunds is not a reproducible change\./,
       }),
     ).toBeVisible();
     unmount();
