@@ -520,16 +520,17 @@ class ScoringService:
 
         The cause a judge was skipped for - AI assistance off, the judge gone or
         unpublished - is refused as it stands rather than recorded again. A judge
-        published anew since its run failed would grade with other instructions,
-        so a score of an eval run would no longer compare with the rest of it. A
-        score graded on its own has no run to compare with, and is graded by the
-        version published now, which its pin then names.
+        published anew since its run failed, or a judge prompt changed since the
+        score was pinned, would grade with other instructions, so a score of an
+        eval run would no longer compare with the rest of it. A score graded on
+        its own has no run to compare with, and is graded by the version
+        published now, which its pin then names.
 
         Raises:
             AiAssistanceDisabledError: AI assistance is off.
             SystemAgentUnavailableError: The judge cannot run, and why.
-            BadRequestError: An eval run's judge has a newer version than the one
-                that failed.
+            BadRequestError: An eval run's judge has a newer version, or a newer
+                prompt, than the one that graded it.
         """
         judged = [r for r in score.results if r.get("scorer") in ("judge", "reference")]
         if not judged:
@@ -540,6 +541,15 @@ class ScoringService:
         )
         if score.eval_run_id is None:
             return
+        asked = (score.judge or {}).get("prompt_version")
+        if score.judge is not None and asked != JUDGE_PROMPT_VERSION:
+            raise BadRequestError(
+                message=(
+                    "The judge has been asked differently since it graded this answer, so a new "
+                    "grade would not compare with the rest. Run the eval again."
+                ),
+                details={"score_id": score.id, "prompt_version": asked},
+            )
         for run_id in {r["judge_run_id"] for r in judged if r.get("judge_run_id")}:
             run = await agent_run_repo.get_run(
                 self.db, UUID(run_id), organization_id=ctx.organization_id

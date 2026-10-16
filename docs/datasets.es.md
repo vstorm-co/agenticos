@@ -1,5 +1,5 @@
 ---
-source_sha: "3833476f43e5"
+source_sha: "3ac601e35275"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -341,7 +341,8 @@ evaluador llegó a un veredicto se queda como está.
 
 Una causa que sigue ahí (la asistencia de IA desactivada, el juez sin publicar)
 se rechaza tal cual, igual que el juez de un run de evaluación publicado de nuevo
-desde que falló, cuya calificación no sería comparable con el resto del run;
+desde que falló, o una puntuación de ese run fijada a un prompt de juez anterior,
+cuya calificación no sería comparable con el resto del run;
 entonces no se califica nada. Una respuesta calificada por sí sola, desde el chat
 o desde Activity, no tiene un run con el que compararse: la califica la versión
 publicada ahora, y su pin nombra esa versión.

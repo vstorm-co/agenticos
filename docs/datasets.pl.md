@@ -1,5 +1,5 @@
 ---
-source_sha: "3833476f43e5"
+source_sha: "3ac601e35275"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -334,7 +334,8 @@ zostaje bez zmian.
 
 Przyczyna, która nadal trwa - wyłączone wsparcie AI, nieopublikowany sędzia -
 jest odrzucana tak, jak jest, podobnie jak sędzia runu ewaluacji opublikowany na
-nowo od czasu, gdy zawiódł, bo jego ocena nie byłaby porównywalna z resztą runu;
+nowo od czasu, gdy zawiódł, albo wynik takiego runu przypięty do wcześniejszego
+promptu sędziego, bo jego ocena nie byłaby porównywalna z resztą runu;
 wtedy nic nie jest oceniane. Odpowiedź oceniona osobno, z czatu albo z Activity,
 nie ma runu, z którym trzeba ją porównać: ocenia ją wersja opublikowana teraz, a
 jej pin wskazuje tę wersję.
