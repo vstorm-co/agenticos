@@ -305,6 +305,7 @@ export const qk = {
         pending: boolean;
         outcome: string | null;
         agentId: string | null;
+        judgeId: string | null;
         tag: string | null;
         skip: number;
         limit: number;

@@ -395,6 +395,10 @@ class TestScoringARun:
         assert (first.judge_model, first.run_model) == ("Default", "gpt-4.1")
         assert again.judge == first.judge
         assert narrower.judge.rubric_hash != first.judge.rubric_hash
+        graded = await scoring.list_scores(tenant.ctx, dataset.id, judge_id=judge_agent.id)
+        elsewhere = await scoring.list_scores(tenant.ctx, dataset.id, judge_id=uuid.uuid4())
+        assert {score.id for score in graded.items} == {first.id, again.id, narrower.id}
+        assert elsewhere.total == 0
 
     async def test_a_judge_model_gone_or_never_pinned_is_named_as_nothing(self, db, judge) -> None:
         tenant = await _tenant(db)

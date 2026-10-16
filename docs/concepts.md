@@ -561,8 +561,9 @@ apart, in a folded **Judges** band under **Agents**, each card saying which
 datasets it grades and the seeded one marked **Default judge**; agent pickers
 leave them out. Whoever holds `agents:edit` opens one to change its
 instructions, model and budget - its page holds those, its limits, its history
-and the datasets it grades, with how often people agreed with it on the results
-it graded and they decided, and nothing else.
+and the datasets that picked it, grading or not - each opening on its latest
+grades there and the eval runs they came from - with how often people agreed
+with it on the results it graded and they decided, and nothing else.
 
 Its runs are budget-checked and recorded like any other, and send no run
 notification. A judge starts with a small monthly budget of its own, so a new
