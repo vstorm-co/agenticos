@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.repositories import agent_run_repo
+from app.repositories import agent_run_repo, eval_run_repo
 
 logger = logging.getLogger(__name__)
 
@@ -79,3 +79,18 @@ class RunReaperService:
         for run_id in reaped:
             logger.warning("stale_run_reaped", extra={"run_id": str(run_id)})
         return len(reaped)
+
+    async def reap_abandoned_evals(self) -> int:
+        """Fail every eval run whose worker stopped moving, and free its slots.
+
+        A worker that dies leaves its run live and its claimed cases running,
+        and the organization's eval concurrency counts running cases - so
+        without this, a crash would hold those slots for good.
+        """
+        minutes = settings.EVAL_ABANDONED_AFTER_MINUTES
+        if minutes <= 0:
+            return 0
+        now = datetime.now(UTC)
+        return await eval_run_repo.fail_abandoned(
+            self.db, idle_since=now - timedelta(minutes=minutes), now=now
+        )

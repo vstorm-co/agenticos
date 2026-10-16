@@ -127,6 +127,16 @@ simultaneous runs.
 A deployment that needs a strict cap runs its agents through one queue rather than
 in parallel.
 
+### Evals spend from the same budgets { #evals-spend-from-the-same-budgets }
+
+An [eval run](evals.md) is made of ordinary runs, so every case is checked
+against the agent's and the organization's caps before each model request, and
+what it spends counts against both - there is no separate eval budget. A large
+dataset can therefore use up the month's budget that production traffic needs.
+Starting a run shows what each cap keeps once it has spent its estimate, and is
+refused before anything runs when the estimate is more than either has left;
+see [The budget it leaves](evals.md#the-budget-it-leaves).
+
 ### A run costs more than its model requests
 
 A knowledge search embeds the question before it can search it, and that embedding

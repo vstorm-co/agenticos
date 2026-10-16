@@ -63,9 +63,12 @@ class CaseScore(Base):
         index=True,
     )
     run: Mapped[AgentRun | None] = relationship(lazy="selectin")
-    # Eval runs are created by a later migration, which adds the foreign key.
+    # The eval run that scored the answer; null for a score asked for by hand.
     eval_run_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), nullable=True, index=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("eval_runs.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     # The answer as scored, capped and with secrets redacted: a reviewer reads it
     # beside the case, and the score outlives the run it came from.

@@ -1,5 +1,5 @@
 ---
-source_sha: "07ffc670b572"
+source_sha: "045d8e4f6e3b"
 ---
 
 # Governance { #governance }
@@ -134,6 +134,17 @@ petición sí acota. Es la razón de que el tope sea un techo sobre el gasto
 
 Un deployment que necesite un tope estricto ejecuta sus agents por una sola cola en
 vez de en paralelo.
+
+### Los evals gastan de los mismos budgets { #evals-spend-from-the-same-budgets }
+
+Un [eval run](evals.md) está hecho de runs normales, así que cada caso se
+comprueba contra los límites del agent y de la organización antes de cada
+petición al modelo, y lo que gasta cuenta contra ambos: no hay un budget aparte
+para evals. Un dataset grande puede por tanto agotar el budget del mes que
+necesita el tráfico de producción. Iniciar un run muestra lo que conserva cada
+límite una vez gastada su estimación, y se rechaza antes de que nada se ejecute
+cuando la estimación supera lo que queda en cualquiera de los dos; consulta
+[El budget que deja](evals.md#the-budget-it-leaves).
 
 ### Un run cuesta más que sus peticiones al modelo { #a-run-costs-more-than-its-model-requests }
 

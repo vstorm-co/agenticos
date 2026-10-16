@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @flow(name="stale-run-sweep")
 async def stale_run_sweep_flow() -> int:
-    """Fail every run left `running` past `STALE_RUN_REAPED_AFTER_HOURS`.
+    """Fail every run left `running` past `STALE_RUN_REAPED_AFTER_HOURS`, and abandoned evals.
 
     On the worker context, not the pooled one: successive flow runs do not
     share an event loop, and a pooled connection made on one loop breaks
@@ -27,7 +27,12 @@ async def stale_run_sweep_flow() -> int:
     what it found without anybody reading the logs.
     """
     async with get_worker_db_context() as db:
-        reaped = await RunReaperService(db).reap_stale()
+        reaper = RunReaperService(db)
+        reaped = await reaper.reap_stale()
+        evals = await reaper.reap_abandoned_evals()
+
+    if evals:
+        logger.warning("Stale-run sweep: %d abandoned eval run(s) failed", evals)
 
     if reaped:
         # A warning rather than an info: each one is a process that died with

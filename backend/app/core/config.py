@@ -294,6 +294,27 @@ class Settings(BaseSettings):
     # flipped back by its own terminal write, which lands later and wins.
     # Zero or below switches the sweep off.
     STALE_RUN_REAPED_AFTER_HOURS: float = 6.0
+    # An eval case is an ordinary run on live traffic's caps and providers, so how
+    # many run at once is bounded per run and per organization across its runs.
+    EVAL_RUN_CONCURRENCY: int = 3
+    EVAL_ORG_CONCURRENCY: int = 6
+    # Reruns of a case that flipped against its baseline; zero confirms nothing.
+    EVAL_RERUNS: int = 2
+    # How old a matching baseline arm may be and still be reused - providers drift,
+    # so an old one would compare against a different provider.
+    EVAL_BASELINE_CACHE_HOURS: float = 24.0
+    # A p-value of the test on confirmed flips at or above this is noise, not a verdict.
+    EVAL_SIGNIFICANCE: float = 0.05
+    # A relative change in cost, tokens or latency within this is "unchanged".
+    EVAL_EFFICIENCY_TOLERANCE: float = 0.05
+    # With no history on a model, a case is priced as this many tokens at the
+    # model's own price; one with no known price falls back to a flat guess.
+    EVAL_FALLBACK_INPUT_TOKENS: int = 2000
+    EVAL_FALLBACK_OUTPUT_TOKENS: int = 400
+    EVAL_FALLBACK_CASE_COST_USD: Decimal = Decimal("0.05")
+    EVAL_ESTIMATE_SAMPLE: int = 50
+    # A live eval run with nothing started or finished for this long lost its worker.
+    EVAL_ABANDONED_AFTER_MINUTES: float = 30.0
     ALGORITHM: str = "HS256"
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"

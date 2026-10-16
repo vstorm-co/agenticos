@@ -195,6 +195,7 @@ from app.services.agent_registry import (
     DEFAULT_GRANTED_SCOPES,
     DELEGATION_CAPABILITY_ID,
     AgentRegistryService,
+    Candidate,
     delegation_binding,
 )
 from app.services.approvals import ApprovalService
@@ -239,6 +240,15 @@ if TYPE_CHECKING:
     from pydantic_ai_harness.planning import PlanStore
 
 logger = logging.getLogger(__name__)
+
+_PREVIEW_CHARS = 80
+
+
+def _preview(text: str) -> str:
+    """A question as one line of a list: whitespace folded, cut at 80 characters."""
+    flat = " ".join(text.split())
+    return flat if len(flat) <= _PREVIEW_CHARS else f"{flat[: _PREVIEW_CHARS - 1].rstrip()}…"
+
 
 _DELEGATION_RUN_STATUS: Mapping[DelegationStatus, RunStatus] = {
     "completed": RunStatus.COMPLETED,
@@ -2061,6 +2071,7 @@ class AgentRunnerService:
         on_compaction: CompactionSink | None = None,
         request_connection: ConnectionCallback | None = None,
         isolation: RunIsolation | None = None,
+        candidate: Candidate | None = None,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -2109,6 +2120,12 @@ class AgentRunnerService:
                 environment's test connections execute, everything else is held
                 and recorded, and a recording - when given - answers calls
                 instead. See :mod:`app.agents.isolation`.
+            candidate: Run this instead of the version the environment pins -
+                how an eval runs a given version, or a draft. The environment
+                then supplies only the connections and the tracing. An
+                unpublished candidate is validated against the caller's access
+                and the run is attributed to no version, so a draft's answers
+                never count as a published version's.
 
         Raises:
             BadRequestError: If the agent is unpublished, archived, or its spec
@@ -2117,9 +2134,15 @@ class AgentRunnerService:
         effective_environment_id = environment_id or (
             exposure.environment_id if exposure is not None else None
         )
-        agent, spec, version_id = await self.registry.get_runnable_spec(
-            ctx, agent_id, environment_id=effective_environment_id
-        )
+        version_id: UUID | None
+        if candidate is None:
+            agent, spec, version_id = await self.registry.get_runnable_spec(
+                ctx, agent_id, environment_id=effective_environment_id
+            )
+        else:
+            agent, spec, version_id = await self.registry.get_candidate_spec(
+                ctx, agent_id, candidate, environment_id=effective_environment_id
+            )
         spec = await self._with_environment_observability(
             ctx, spec, environment_id=effective_environment_id
         )
@@ -2426,7 +2449,7 @@ class AgentRunnerService:
                 self.db,
                 organization_id=ctx.organization_id,
                 agent_id=agent.id,
-                agent_version_id=version_id or agent.current_version_id,
+                agent_version_id=version_id,
                 user_id=ctx.user_id,
                 initiated_by_publisher_fallback=initiated_by_publisher_fallback,
                 conversation_id=conversation_id,
@@ -3868,6 +3891,7 @@ class AgentRunnerService:
         on_compaction: CompactionSink | None = None,
         model_profile_id: UUID | None = None,
         isolation: RunIsolation | None = None,
+        candidate: Candidate | None = None,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -3877,7 +3901,8 @@ class AgentRunnerService:
         `environment_id` runs the version that environment pins - the API's way
         of exercising a dev environment before promoting it. With `isolation` it
         is how an eval runs: on that environment's test connections, with every
-        other write held and recorded.
+        other write held and recorded. `candidate` names what the eval runs
+        instead of the version the environment pins; see :meth:`prepare`.
 
         `model_profile_id` runs it on another model, as :meth:`prepare` describes.
 
@@ -3919,6 +3944,7 @@ class AgentRunnerService:
             on_compaction=on_compaction,
             model_profile_id=model_profile_id,
             isolation=isolation,
+            candidate=candidate,
         )
         # `str | list[Any]`, not `str`: an attached image is folded in as
         # `BinaryContent` beside the text, and narrowing that back to a string
@@ -4630,6 +4656,24 @@ class AgentRunnerService:
         return await agent_run_repo.down_rated_run_ids(
             self.db, organization_id=ctx.organization_id, run_ids=run_ids
         )
+
+    async def previews(
+        self, run_ids: Sequence[UUID], *, questions: Mapping[UUID, str]
+    ) -> dict[UUID, str]:
+        """What each of these runs was asked, as a list shows it beside the run.
+
+        `questions` holds what is already known for some of them - an eval case's
+        question, for a run that answered or graded one. The rest show the first
+        user turn they recorded - the transcript's own text, read under the
+        `runs:view` the transcript is. A run that kept no conversation has none.
+        The ids come from a listing already narrowed to the caller's organization.
+        """
+        turns = await conversation_repo.first_user_turns(
+            self.db,
+            [run_id for run_id in run_ids if run_id not in questions],
+            chars=_PREVIEW_CHARS * 4,
+        )
+        return {run_id: _preview(text) for run_id, text in {**turns, **questions}.items()}
 
     async def get_run(self, ctx: AuthContext, run_id: UUID) -> AgentRun:
         """One run in the caller's organization.

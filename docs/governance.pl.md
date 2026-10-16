@@ -1,5 +1,5 @@
 ---
-source_sha: "07ffc670b572"
+source_sha: "045d8e4f6e3b"
 ---
 
 # Governance { #governance }
@@ -135,6 +135,17 @@ przed żądaniem faktycznie ogranicza. Dlatego limit jest pułapem na
 
 Wdrożenie, które potrzebuje ścisłego limitu, przepuszcza swoich agentów przez
 jedną kolejkę, zamiast równolegle.
+
+### Evale wydają z tych samych budżetów { #evals-spend-from-the-same-budgets }
+
+[Eval run](evals.md) składa się ze zwykłych runów, więc każdy przypadek jest
+sprawdzany względem limitów agenta i organizacji przed każdym żądaniem do
+modelu, a to, co wyda, liczy się do obu - nie ma osobnego budżetu na evale.
+Duży dataset może więc zużyć miesięczny budżet, którego potrzebuje ruch
+produkcyjny. Start runa pokazuje, ile każdy limit zachowa po wydaniu szacunku,
+i jest odrzucany, zanim cokolwiek się uruchomi, gdy szacunek przekracza to, co
+zostało w którymkolwiek z nich; zob.
+[Budżet, który zostaje](evals.md#the-budget-it-leaves).
 
 ### Run kosztuje więcej niż jego żądania do modelu { #a-run-costs-more-than-its-model-requests }
 
