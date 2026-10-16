@@ -1,5 +1,5 @@
 ---
-source_sha: "0b5ae075ae8b"
+source_sha: "a05656e86cf3"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -62,12 +62,16 @@ Per profil, nadpisywalne per agent przez `model_settings` w specu:
 `temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Zobacz
 [referencję speca](reference/spec.md#model-settings).
 
-**Cache'owanie promptu jest domyślnie włączone** dla profili Anthropic i
-OpenRouter. Każde żądanie runu wysyła ponownie instrukcje, schematy narzędzi i całą
-historię, więc każde żądanie oznacza instrukcje, narzędzia i swoją ostatnią
-wiadomość jako punkty cache i czyta poprzednie żądanie z cache. Profil wyłącza
-dowolny z nich, ustawiając go na `false` - `anthropic_cache_messages`,
-`openrouter_cache_instructions` i tak dalej.
+**Cache'owanie promptu jest domyślnie włączone**, przez neutralne wobec dostawcy
+ustawienie `cache` z Pydantic AI. Każde żądanie runu wysyła ponownie instrukcje,
+schematy narzędzi i całą historię, więc stały prefiks i rozmowa są oznaczane jako
+punkty cache, a każde żądanie czyta poprzednie z cache. Działa wszędzie, gdzie
+dostawca przyjmuje jawne cache'owanie - Anthropic, modele Anthropic i Nova w
+Bedrock, modele Anthropic i Gemini w OpenRouter, OpenAI od GPT-5.6 - i niczego
+nie zmienia u dostawcy, który cache'uje sam, jak Google. Profil wyłącza je
+ustawieniem `cache: false` albo cache'uje tylko instrukcje i narzędzia przez
+`cache: {"messages": false}`. Flaga konkretnego dostawcy, którą profil już
+ustawia, np. `anthropic_cache_messages`, nadal ma dla niego pierwszeństwo.
 
 Nakładu rozumowania **nie** ma tutaj. Jest nim
 [capability `thinking`](reference/capabilities.md#thinking), bo „myśl mocniej” to

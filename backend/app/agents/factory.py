@@ -66,7 +66,7 @@ from app.agents.capabilities.system_reminders import (
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.manifest import RecordingModel, RunRecorder
-from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
+from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
@@ -369,8 +369,8 @@ def build_agent(
     ]
 
     # Profile settings first, agent overrides second - the agent is the more
-    # specific statement of intent. Under both, the provider's prompt caching,
-    # which a profile can still turn off by setting it false.
+    # specific statement of intent. Under both, prompt caching, which a profile
+    # can still turn off with `cache: false`.
     #
     # A setting the author never chose is absent from the dump rather than
     # present as `None`, which is what keeps this merge honest in both
@@ -379,7 +379,7 @@ def build_agent(
     # parameter however it is spelled. See `ModelSettingsSpec`.
     model_settings = ModelSettings(
         **{
-            **PROMPT_CACHE_DEFAULTS.get(model_spec.provider, {}),
+            **PROMPT_CACHE,
             **model_spec.params,
             **spec.model_settings.model_dump(),
         }

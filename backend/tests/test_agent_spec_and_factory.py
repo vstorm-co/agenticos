@@ -290,36 +290,42 @@ class TestFactory:
         assert settings["temperature"] == 0.9
         assert settings["max_tokens"] == 100
 
-    @pytest.mark.parametrize(
-        ("provider", "setting"),
-        [("anthropic", "anthropic_cache_messages"), ("openrouter", "openrouter_cache_messages")],
-    )
-    def test_a_provider_that_caches_prompts_is_asked_to_by_default(
-        self, provider: str, setting: str
-    ):
+    @pytest.mark.parametrize("provider", ["anthropic", "openrouter", "bedrock", "openai", "google"])
+    def test_every_provider_is_asked_to_cache_prompts_by_default(self, provider: str):
         """A long history re-sent uncached on every request is what drained an
-        OpenRouter account mid-run; a profile can still switch it off."""
-        on = build_agent(
+        OpenRouter account mid-run. The setting is provider-neutral, so Bedrock and
+        OpenAI are cached too, and a provider that caches implicitly ignores it (#2169)."""
+        built = build_agent(
             AgentSpec(name="x"),
             replace(_model_spec(), provider=provider),
             organization_id=uuid.uuid4(),
         )
-        off = build_agent(
+
+        assert built.agent.model_settings is not None
+        assert built.agent.model_settings.get("cache") is True
+        assert not [key for key in built.agent.model_settings if key.endswith("_cache_messages")]
+
+    @pytest.mark.parametrize(
+        ("params", "setting", "value"),
+        [
+            ({"cache": False}, "cache", False),
+            ({"cache": {"messages": False}}, "cache", {"messages": False}),
+            # A profile written against the old per-provider flags keeps them; Pydantic
+            # AI lets a provider-specific flag override the neutral setting.
+            ({"anthropic_cache_messages": False}, "anthropic_cache_messages", False),
+        ],
+    )
+    def test_a_profile_still_decides_its_own_caching(
+        self, params: dict[str, object], setting: str, value: object
+    ):
+        built = build_agent(
             AgentSpec(name="x"),
-            replace(_model_spec({setting: False}), provider=provider),
+            replace(_model_spec(params), provider="anthropic"),
             organization_id=uuid.uuid4(),
         )
 
-        assert on.agent.model_settings is not None
-        assert on.agent.model_settings.get(setting) is True
-        assert off.agent.model_settings is not None
-        assert off.agent.model_settings.get(setting) is False
-
-    def test_a_provider_without_prompt_caching_is_sent_none_of_it(self):
-        built = build_agent(AgentSpec(name="x"), _model_spec(), organization_id=uuid.uuid4())
-
         assert built.agent.model_settings is not None
-        assert not [key for key in built.agent.model_settings if "cache" in key]
+        assert built.agent.model_settings.get(setting) == value
 
     def test_ungranted_scope_stops_the_build(self):
         spec = AgentSpec(name="x", capabilities=[{"id": "knowledge"}])

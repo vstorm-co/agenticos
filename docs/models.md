@@ -56,12 +56,16 @@ Per profile, and overridable per agent through the spec's `model_settings`:
 `temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. See
 [the spec reference](reference/spec.md#model-settings).
 
-**Prompt caching is on by default** for Anthropic and OpenRouter profiles. Every
-request of a run re-sends the instructions, the tool schemas and the whole
-history, so each request marks the instructions, the tools and its last message
-as cache breakpoints and reads the one before it from cache. A profile turns any
-of them off by setting it to `false` - `anthropic_cache_messages`,
-`openrouter_cache_instructions` and so on.
+**Prompt caching is on by default**, through Pydantic AI's provider-neutral
+`cache` setting. Every request of a run re-sends the instructions, the tool
+schemas and the whole history, so the stable prefix and the conversation are
+marked as cache breakpoints and each request reads the one before it from cache.
+It applies wherever a provider takes explicit caching - Anthropic, Bedrock's
+Anthropic and Nova models, OpenRouter's Anthropic and Gemini models, OpenAI from
+GPT-5.6 - and changes nothing on one that caches by itself, such as Google. A
+profile turns it off with `cache: false`, or caches only the instructions and
+tools with `cache: {"messages": false}`. A provider-specific flag a profile
+already sets, such as `anthropic_cache_messages`, still wins for that profile.
 
 Reasoning effort is **not** here. It is the
 [`thinking` capability](reference/capabilities.md#thinking), because "reason
