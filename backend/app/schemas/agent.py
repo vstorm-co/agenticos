@@ -736,6 +736,12 @@ class AgentRunResult(BaseSchema):
     )
     input_tokens: int
     output_tokens: int
+    cache_read_tokens: int = Field(
+        default=0, description="Of `input_tokens`, those read from the provider's cache"
+    )
+    cache_write_tokens: int = Field(
+        default=0, description="Of `input_tokens`, those written to the provider's cache"
+    )
     steps: list[RunStep] = Field(
         default_factory=list,
         description=(

@@ -491,6 +491,10 @@ export interface ResumedRun {
   cost_is_partial: boolean;
   input_tokens: number;
   output_tokens: number;
+  /** Of `input_tokens`, those read from the provider's cache. */
+  cache_read_tokens?: number;
+  /** Of `input_tokens`, those written to the provider's cache. */
+  cache_write_tokens?: number;
 }
 
 /** One question as the server carries it, before the card's own shape (#2064). */

@@ -26,6 +26,8 @@ async def run_result(
         cost_is_partial=run.cost_is_partial,
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
+        cache_read_tokens=run.cache_read_tokens,
+        cache_write_tokens=run.cache_write_tokens,
         # What the continuation actually did. Nothing else carries it: the run
         # executes inside this request rather than on the socket the conversation
         # streams, so a caller given only the answer had to draw the second half
