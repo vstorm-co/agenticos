@@ -110,7 +110,8 @@ class TestDraw:
         result = await tools.draw(_ctx(), title="Flow", kind="svg", height=480, content=SVG)
 
         assert "Drew 'Flow' as visual `call-1`" in result
-        assert "refer to it, do not repeat it" in result
+        assert "Refer to it, do not repeat it." in result
+        assert "kept with the conversation" in result
         assert tools.drawn == {"call-1"}
 
     @pytest.mark.parametrize(

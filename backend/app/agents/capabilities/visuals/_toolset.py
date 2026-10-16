@@ -469,7 +469,12 @@ async def _checked(ctx: RunContext[AgentDeps], call_id: str) -> str:
     """What the person's browser said about the drawing, for the end of the tool's answer."""
     reports = ctx.deps.visual_reports
     if reports is None:
-        return "It is shown under your message; refer to it, do not repeat it."
+        # Not "under your message": where nobody watches the web chat, the person
+        # sees it later, or as a picture in a chat app.
+        return (
+            "It is kept with the conversation and shown where the person reads it. "
+            "Refer to it, do not repeat it."
+        )
     report = await reports.wait(call_id, REPORT_TIMEOUT)
     if report is None:
         return (

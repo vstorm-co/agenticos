@@ -691,3 +691,68 @@ class TestTheIndex:
         artifact = uuid.uuid4()
         await visual_repo.update(db, db_visual=row, artifact_id=artifact)
         assert (row.artifact_id, row.thumbnail_path) == (artifact, "media/t")
+
+
+class TestThumbnailDrawnOnDemand:
+    def _row(self, ctx: AuthContext) -> SimpleNamespace:
+        return SimpleNamespace(
+            user_id=ctx.user_id,
+            thumbnail_path=None,
+            organization_id=ctx.organization_id,
+            conversation_id=uuid.uuid4(),
+            tool_call_id="d",
+        )
+
+    async def test_a_page_is_drawn_by_the_browser_once_and_kept(self) -> None:
+        ctx = _ctx()
+        row = self._row(ctx)
+        call = ToolCallArgs("d", "draw", {"title": "P", "kind": "svg", "content": SVG})
+        storage = MagicMock(save_at=AsyncMock())
+        with (
+            patch("app.services.visual.visual_repo.get", new=AsyncMock(return_value=row)),
+            patch(
+                "app.services.visual.conversation_repo.tool_call_in_conversation",
+                new=AsyncMock(return_value=call),
+            ),
+            patch("app.services.visual_render.available", return_value=True),
+            patch(
+                "app.services.visual_render.render_png", new=AsyncMock(return_value=PNG)
+            ) as render,
+            patch("app.services.visual.get_file_storage", return_value=storage),
+            patch("app.services.visual.visual_repo.update", new=AsyncMock()) as update,
+        ):
+            assert await VisualService(MagicMock()).thumbnail(ctx, uuid.uuid4()) == PNG
+        assert render.await_args.kwargs["width"] == 640
+        assert render.await_args.kwargs["aspect"] == 1.0
+        assert update.await_args.kwargs["thumbnail_path"].endswith("/visuals/d/_thumbnail")
+
+    async def test_no_browser_means_no_thumbnail(self) -> None:
+        ctx = _ctx()
+        with (
+            patch(
+                "app.services.visual.visual_repo.get", new=AsyncMock(return_value=self._row(ctx))
+            ),
+            patch("app.services.visual_render.available", return_value=False),
+            pytest.raises(NotFoundError),
+        ):
+            await VisualService(MagicMock()).thumbnail(ctx, uuid.uuid4())
+
+    async def test_a_drawing_that_will_not_render_has_no_thumbnail(self) -> None:
+        ctx = _ctx()
+        with (
+            patch(
+                "app.services.visual.visual_repo.get", new=AsyncMock(return_value=self._row(ctx))
+            ),
+            patch(
+                "app.services.visual.conversation_repo.tool_call_in_conversation",
+                new=AsyncMock(return_value=None),
+            ),
+            patch("app.services.visual_render.available", return_value=True),
+            pytest.raises(NotFoundError),
+        ):
+            await VisualService(MagicMock()).thumbnail(ctx, uuid.uuid4())
+
+    def test_svg_aspect_reads_the_view_box(self) -> None:
+        assert visuals.svg_aspect('<svg viewBox="0 0 200 100">') == 0.5
+        assert visuals.svg_aspect("<svg>") is None
+        assert visuals.svg_aspect('<svg viewBox="0 0 0 1">') is None

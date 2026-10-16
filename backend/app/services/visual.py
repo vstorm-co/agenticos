@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import logging
 import re
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -49,6 +50,8 @@ from app.services import artifact as artifacts
 from app.services.artifact import PLATFORM_SCRIPT
 from app.services.conversation import ConversationService
 from app.services.file_storage import get_file_storage
+
+logger = logging.getLogger(__name__)
 
 VisualKind = Literal["svg", "html", "mermaid"]
 
@@ -79,6 +82,9 @@ MAX_IMAGES = 6
 THUMBNAIL = "_thumbnail"
 """The name a visual's thumbnail is kept under, beside its pictures - one no
 picture can take, since a picture's name starts with a letter or a digit."""
+
+THUMBNAIL_WIDTH = 640
+"""How wide a thumbnail is drawn, in CSS pixels - the console's own width for one."""
 
 THUMBNAIL_MAX_BYTES = 512 * 1024
 """A thumbnail's ceiling: a small PNG for a dashboard tile, not the drawing."""
@@ -246,6 +252,31 @@ def image_names(args: Mapping[str, Any]) -> list[str]:
 def inline_images(content: str, uris: Mapping[str, str]) -> str:
     """The visual with each `{{image:NAME}}` it has an image for replaced by its URI."""
     return IMAGE_TOKEN.sub(lambda match: uris.get(match.group(1), match.group(0)), content)
+
+
+_VIEW_BOX = re.compile(
+    r"<svg\b[^>]*?\bviewBox\s*=\s*[\"']\s*[-+\d.eE]+[\s,]+[-+\d.eE]+[\s,]+([\d.eE+]+)[\s,]+([\d.eE+]+)",
+    re.IGNORECASE,
+)
+
+
+def svg_aspect(content: str) -> float | None:
+    """Height over width of an SVG drawing, from its `viewBox`; `None` when it has none."""
+    found = _VIEW_BOX.search(content[:4000])
+    if found is None:
+        return None
+    width, height = float(found.group(1)), float(found.group(2))
+    return height / width if width > 0 and height > 0 else None
+
+
+async def inlined(visual: Visual, organization_id: UUID, conversation_id: UUID) -> str:
+    """The visual with every picture it has kept put in as a `data:` URI."""
+    uris: dict[str, str] = {}
+    for name, owner in visual.images.items():
+        kept = await load_image(organization_id, conversation_id, owner, name)
+        if kept is not None:
+            uris[name] = data_uri(*kept)
+    return inline_images(visual.content, uris)
 
 
 def data_uri(data: bytes, media_type: str) -> str:
@@ -474,17 +505,13 @@ async def shared_visuals(conversation: Conversation) -> dict[UUID, list[dict[str
                 visual = await rebuild(call.tool_call_id, lookup)
             except VisualError:
                 continue
-            uris: dict[str, str] = {}
-            for name, owner in visual.images.items():
-                kept = await load_image(conversation.organization_id, conversation.id, owner, name)
-                if kept is not None:
-                    uris[name] = data_uri(*kept)
+            content = await inlined(visual, conversation.organization_id, conversation.id)
             shared.setdefault(message.id, []).append(
                 {
                     "id": visual.id,
                     "title": visual.title,
                     "kind": visual.kind,
-                    "content": inline_images(visual.content, uris),
+                    "content": content,
                 }
             )
     return shared
@@ -543,12 +570,7 @@ class VisualService:
                 details={"visual_id": visual_id},
             )
         title = (data.title or "").strip() or visual.title or data.name
-        uris: dict[str, str] = {}
-        for name, owner in visual.images.items():
-            kept = await load_image(ctx.organization_id, conversation_id, owner, name)
-            if kept is not None:
-                uris[name] = data_uri(*kept)
-        content = inline_images(visual.content, uris)
+        content = await inlined(visual, ctx.organization_id, conversation_id)
         document = visual_document(visual.kind, content, title=title).encode("utf-8")
         problem = artifacts.publish_problem(
             name=data.name, media_type=ArtifactMediaType.HTML, data=document
@@ -646,21 +668,54 @@ class VisualService:
     async def thumbnail(self, ctx: AuthContext, visual_id: UUID) -> bytes:
         """A drawing's thumbnail, for the person it was drawn for.
 
+        One the console kept is read back. A drawing it could not photograph - a
+        page, whose pixels its frame does not hand over - is drawn by the
+        deployment's browser the first time it is asked for, and kept.
+
         Raises:
-            NotFoundError: No such drawing of theirs, or it has no thumbnail yet -
+            NotFoundError: No such drawing of theirs, or no thumbnail to be had -
                 one answer for both, so an id says nothing about anybody else's.
         """
+        missing = NotFoundError(
+            message="There is no such thumbnail", details={"visual_id": visual_id}
+        )
         row = await visual_repo.get(self.db, visual_id, organization_id=ctx.organization_id)
-        if (
-            row is None
-            or row.user_id is None
-            or row.user_id != ctx.user_id
-            or not row.thumbnail_path
-        ):
-            raise NotFoundError(
-                message="There is no such thumbnail", details={"visual_id": visual_id}
+        if row is None or row.user_id is None or row.user_id != ctx.user_id:
+            raise missing
+        if row.thumbnail_path:
+            return await get_file_storage().load(row.thumbnail_path)
+        # Imported here: the renderer reaches the browser capability's endpoint
+        # helpers, which a request that never draws has no reason to load.
+        from app.services import visual_render
+
+        if not visual_render.available():
+            raise missing
+
+        async def lookup(call_id: str) -> ToolCallArgs | None:
+            return await conversation_repo.tool_call_in_conversation(
+                self.db,
+                conversation_id=row.conversation_id,
+                tool_call_id=call_id,
+                names=VISUAL_TOOLS,
             )
-        return await get_file_storage().load(row.thumbnail_path)
+
+        try:
+            visual = await rebuild(row.tool_call_id, lookup)
+            content = await inlined(visual, row.organization_id, row.conversation_id)
+            png = await visual_render.render_png(
+                visual.kind,
+                content,
+                title=visual.title,
+                width=THUMBNAIL_WIDTH,
+                aspect=svg_aspect(content) if visual.kind == "svg" else None,
+            )
+        except (VisualError, visual_render.RenderUnavailableError, TimeoutError) as failed:
+            logger.warning("visual_thumbnail_not_drawn", extra={"visual_id": str(visual_id)})
+            raise missing from failed
+        path = image_path(row.organization_id, row.conversation_id, row.tool_call_id, THUMBNAIL)
+        await get_file_storage().save_at(path, png)
+        await visual_repo.update(self.db, db_visual=row, thumbnail_path=path)
+        return png
 
     async def save_thumbnail(
         self, ctx: AuthContext, conversation_id: UUID, visual_id: str, data: bytes
