@@ -615,7 +615,7 @@ class TestGrades:
         )
 
     def test_passing_on_the_counter_example_needs_a_quote_it_does_not_also_say(self) -> None:
-        case = _case(counter_example="You have 90 days to return it.")
+        case = _case(counter_example="You have 30 days to return it.")
         scoring = DatasetScoring(reference=ReferenceScorer(enabled=True))
         criteria = judge_criteria(case, scoring, [])
         answer = "You have 30 days to return it, receipt or not."
@@ -632,9 +632,10 @@ class TestGrades:
             )
             return result
 
-        echoed = grade(score=5, quotes=["days to return it"])
-        backed = grade(score=4, quotes=["30 days"])
-        failed = grade(score=1, quotes=["days to return it"])
+        echoed = grade(score=5, quotes=["30 days to return it"])
+        backed = grade(score=4, quotes=["receipt or not"])
+        cut = grade(score=4, quotes=["eceipt or not"])
+        failed = grade(score=1, quotes=["30 days to return it"])
 
         assert (echoed.status, echoed.reason_code, echoed.judge_said) == (
             "error",
@@ -642,6 +643,7 @@ class TestGrades:
             "Differs",
         )
         assert (backed.status, backed.unverified) == ("pass", False)
+        assert (cut.status, cut.reason_code) == ("error", "judge_counter_unsupported")
         assert failed.status == "fail"
 
     def test_a_pass_on_the_counter_example_with_nothing_quoted_stands_unverified(self) -> None:
@@ -678,7 +680,7 @@ class TestGrades:
             ("sure - I've refunded your gift code!", []),
             ("Sure - I've refunded your gift code.", ["Sure - I've"]),
             ("Sure, I\u2019ve refunded your gift code.", ["I\u2019ve refunded your gift code"]),
-            ("Sure, I\u2019ve refunded your gift code. Bye!", ["Bye!"]),
+            ("Sure, I\u2019ve refunded your gift code. Bye!", ["I\u2019ve refunded"]),
         ],
     )
     def test_a_copy_of_the_counter_example_cannot_pass_whatever_is_quoted(

@@ -1,5 +1,5 @@
 ---
-source_sha: "3ac601e35275"
+source_sha: "a051ae7d5e71"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -289,12 +289,15 @@ organizacji, a jego run pojawia się w Activity pod powierzchnią `eval`.
 Sędzia dostaje notatkę przypadku jako powód, dla którego przypadek istnieje,
 jego wcześniejsze tury i pytanie, odpowiedź wzorcową, gdy jest oceniana,
 kontrprzykład, każde wywołanie narzędzia wykonane przez agenta - z argumentami i
-informacją, czy izolowany run je zablokował - oraz odpowiedź. Przypadek z
-kontrprzykładem jest zawsze oceniany także według wymaganego kryterium
-**counter-example**: odpowiedź nie może powtarzać znanej złej odpowiedzi, a
-sędzia ma zacytować to, co odróżnia od niej odpowiedź. Zaliczenie jest błędem,
-gdy cytuje tylko to, co obie mówią, albo gdy odpowiedź kopiuje kontrprzykład;
-zaliczenie bez żadnego cytatu zostaje, oznaczone jako niezweryfikowane.
+informacją, czy izolowany run je zablokował - oraz odpowiedź.
+
+Przypadek z kontrprzykładem jest zawsze oceniany także według wymaganego
+kryterium **counter-example**: odpowiedź nie może powtarzać znanej złej
+odpowiedzi, a sędzia ma zacytować to, co odróżnia od niej odpowiedź. Zaliczenie
+jest błędem, gdy cytuje tylko to, co obie mówią, albo nie cytuje niczego z
+odpowiedzi, która kopiuje kontrprzykład; każde inne bez cytatu zostaje,
+oznaczone jako niezweryfikowane. Odpowiedź, która zachowuje kontrprzykład i
+dopisuje to, czego mu brakowało, zalicza się na cytacie z dopisku.
 
 Sędziowie startują z temperaturą 0, więc ta sama odpowiedź jest oceniana dwa
 razy tak samo; model, który nie przyjmuje temperatury, na przykład model

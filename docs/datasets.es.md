@@ -1,5 +1,5 @@
 ---
-source_sha: "3ac601e35275"
+source_sha: "a051ae7d5e71"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -295,13 +295,16 @@ de llamar al modelo, y su run aparece en Activity bajo la superficie `eval`.
 
 El juez recibe la nota del caso, como el motivo por el que existe, sus turnos
 anteriores y la pregunta, la respuesta de referencia cuando se califica, el
-contraejemplo, cada llamada a herramienta que hizo el agent (con sus
-argumentos, y si un run aislado la bloqueó) y la respuesta. Un caso con
-contraejemplo se califica siempre también con un criterio obligatorio
-**counter-example**: la respuesta no debe repetir la respuesta mala conocida, y
-se pide al juez que cite lo que distingue la respuesta de ella. Un aprobado es
-un error cuando solo cita lo que ambas dicen, o cuando la respuesta copia el
-contraejemplo; uno sin nada citado se mantiene, marcado como no verificado.
+contraejemplo, cada llamada a herramienta que hizo el agent (con sus argumentos,
+y si un run aislado la bloqueó) y la respuesta.
+
+Un caso con contraejemplo se califica siempre también con un criterio
+obligatorio **counter-example**: la respuesta no debe repetir la respuesta mala
+conocida, y se pide al juez que cite lo que distingue la respuesta de ella. Un
+aprobado es un error cuando solo cita lo que ambas dicen, o no cita nada de una
+respuesta que copia el contraejemplo; cualquier otro sin nada citado se
+mantiene, marcado como no verificado. Una respuesta que conserva el
+contraejemplo y añade lo que le faltaba aprueba con una cita de lo añadido.
 
 Los jueces empiezan con temperatura 0, para que la misma respuesta se califique
 igual dos veces; un modelo que no acepta temperatura, como un modelo de

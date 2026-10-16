@@ -1,5 +1,5 @@
 ---
-source_sha: "3ac601e35275"
+source_sha: "a051ae7d5e71"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -307,16 +307,19 @@ auf ihn wird geprüft, er wird vor dem Modellaufruf gegen sein eigenes Budget un
 das der Organisation geprüft, und sein Run erscheint in Activity unter der
 Oberfläche `eval`.
 
-Der Bewerter erhält die Notiz des Falls als Grund, warum es den Fall gibt,
-seine früheren Züge und die Frage, die Referenzantwort, wenn sie bewertet wird,
-das Gegenbeispiel, jeden Tool-Aufruf des Agenten - mit seinen Argumenten und ob
-ein isolierter Run ihn blockiert hat - und die Antwort. Ein Fall mit
-Gegenbeispiel wird immer auch nach dem erforderlichen Kriterium
+Der Bewerter erhält die Notiz des Falls als Grund, warum es den Fall gibt, seine
+früheren Züge und die Frage, die Referenzantwort, wenn sie bewertet wird, das
+Gegenbeispiel, jeden Tool-Aufruf des Agenten - mit seinen Argumenten und ob ein
+isolierter Run ihn blockiert hat - und die Antwort.
+
+Ein Fall mit Gegenbeispiel wird immer auch nach dem erforderlichen Kriterium
 **counter-example** bewertet: Die Antwort darf die bekannte schlechte Antwort
 nicht wiederholen, und der Bewerter soll zitieren, was die Antwort von ihr
 unterscheidet. Ein Bestehen ist ein Fehler, wenn es nur zitiert, was beide
-sagen, oder wenn die Antwort das Gegenbeispiel kopiert; eines ohne Zitat bleibt
-stehen, als nicht belegt markiert.
+sagen, oder nichts aus einer Antwort zitiert, die das Gegenbeispiel kopiert;
+jedes andere ohne Zitat bleibt stehen, als nicht belegt markiert. Eine Antwort,
+die das Gegenbeispiel behält und ergänzt, was ihm fehlte, besteht mit einem
+Zitat der Ergänzung.
 
 Bewerter starten mit Temperatur 0, damit dieselbe Antwort zweimal gleich
 bewertet wird; ein Modell, das keine Temperatur annimmt, etwa ein

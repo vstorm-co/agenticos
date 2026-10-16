@@ -651,16 +651,18 @@ def copies(answer: str, counter_example: str) -> bool:
 def _counter_unsupported(quotes: Sequence[str], answer: str, counter_example: str) -> bool:
     """Whether a pass on not repeating the counter-example has nothing to stand on.
 
-    A copy of the counter-example cannot pass on being unlike it, whatever is
-    quoted. Otherwise a quote the answer holds that the counter-example does
-    not also say backs the pass; quoting only what the two share points at the
-    mistake rather than away from it. Both compare words, as `copies` does.
+    A quote of the answer the counter-example does not also say backs it, so
+    an answer that keeps the counter-example and adds what it lacked passes on
+    the addition. Quoting only what the two share points at the mistake rather
+    than away from it. With nothing quoted, a copy of the counter-example
+    cannot pass on being unlike it. Quotes compare by whole words, as `copies`
+    does, so a quote cut mid-word sets nothing apart.
     """
-    if copies(answer, counter_example):
-        return True
-    held = [_sequence(quote) for quote in quotes if quote in answer and _sequence(quote)]
-    bad = _sequence(counter_example)
-    return bool(held) and all(_within(quote, bad) for quote in held)
+    said, bad = _sequence(answer), _sequence(counter_example)
+    held = [words for words in map(_sequence, quotes) if words and _within(words, said)]
+    if any(not _within(words, bad) for words in held):
+        return False
+    return bool(held) or copies(answer, counter_example)
 
 
 def graded(
@@ -682,8 +684,8 @@ def graded(
     kept as `judge_said`. A grade at the top of the scale with no such quote
     stands, marked `unverified`. A pass on not repeating `counter_example` with
     nothing quoted is unverified at any grade, and an error when the answer
-    copies the counter-example, or when every quote is a passage the two
-    share - that is the mistake, not evidence against it.
+    copies the counter-example; so is one whose every quote is a passage the
+    two share - that is the mistake, not evidence against it.
     """
     grades = {grade.id: grade for grade in verdict.grades}
     shown = answer[:MAX_MATCH_TEXT]
