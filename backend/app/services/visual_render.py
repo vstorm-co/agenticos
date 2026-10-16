@@ -35,7 +35,7 @@ RENDER_TIMEOUT = 20.0
 MAX_HEIGHT = 2400
 """The tallest picture taken, in CSS pixels; a longer page is cut there."""
 
-_LEAD = re.compile(r"\A(?:﻿)?(?:\s+|<!--.*?-->)*(?:<!doctype\b[^>]*>)?", re.I | re.S)
+_LEAD = re.compile(r"\A(?:﻿)?(?:\s+|<!--(?:[^-]|-(?!->))*-->)*(?:<!doctype\b[^>]*>)?", re.I)
 
 # Set by the drawing's own runtime when it has loaded and run for a moment - the
 # message it posts to its parent, which a top-level page posts to itself.

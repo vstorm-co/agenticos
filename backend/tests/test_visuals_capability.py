@@ -657,6 +657,12 @@ class TestChecks:
     def test_an_svg_may_lead_with_a_declaration_and_comments(self) -> None:
         assert content_problem("svg", '<?xml version="1.0"?>\n<!-- x -->\n' + SVG) is None
 
+    def test_a_run_of_comment_closers_is_refused_without_backtracking(self) -> None:
+        """`<!--.*?-->` repeated could split `--><!--` between repetitions in
+        exponentially many ways, so a model's malformed lead stalled the worker
+        (CodeQL). The comment body now matches one way only."""
+        assert content_problem("svg", "<!--" + "--><!--" * 60) is not None
+
 
 class TestCapability:
     def test_the_toolset_is_built_once(self) -> None:

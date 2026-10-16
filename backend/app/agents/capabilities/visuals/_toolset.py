@@ -46,9 +46,12 @@ READ_LIMIT = 100_000
 """How much of a visual `read_visual` returns, in characters - `read_artifact`'s cut."""
 
 
-# Leading XML declaration, comments and whitespace, then the element itself.
+# Leading XML declaration, comments and whitespace, then the element itself. A
+# comment's body is matched one way only - a non-dash, or a dash not opening `-->`
+# - so a run of `--><!--` cannot be split between repetitions in exponentially
+# many ways.
 _SVG_START = re.compile(
-    r"\A\s*(?:<\?xml[^>]*\?>\s*)?(?:<!--.*?-->\s*)*<svg[\s>]", re.DOTALL | re.IGNORECASE
+    r"\A\s*(?:<\?xml[^>]*\?>\s*)?(?:<!--(?:[^-]|-(?!->))*-->\s*)*<svg[\s>]", re.IGNORECASE
 )
 
 # A script, stylesheet, image or font loaded from another site, which the frame

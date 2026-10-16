@@ -786,7 +786,7 @@ def _composer() -> str:
     return f"""<script>(function () {{
   "use strict";
   var T = {data};
-  var LEAD = /^(?:\\uFEFF)?(?:\\s+|<!--[\\s\\S]*?-->)*(?:<!doctype\\b[^>]*>)?/i;
+  var LEAD = /^(?:\\uFEFF)?(?:\\s+|<!--(?:[^-]|-(?!->))*-->)*(?:<!doctype\\b[^>]*>)?/i;
   function esc(text, attribute) {{
     var out = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     return attribute ? out.replace(/"/g, "&quot;").replace(/'/g, "&#x27;") : out;

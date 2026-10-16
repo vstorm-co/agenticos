@@ -40,10 +40,6 @@ html, body, #stage { height: 100%; }
     return matchMedia("(prefers-color-scheme: dark)").matches;
   }
 
-  function escapeHtml(text) {
-    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
-
   // Markup as it is being written, made inert: no script runs and no handler
   // fires until the drawing is complete, so a half-written scene never starts.
   function inert(markup) {
