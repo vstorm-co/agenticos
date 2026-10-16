@@ -315,6 +315,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_constraint(op.f("case_scores_eval_run_id_fkey"), "case_scores", type_="foreignkey")
+    # The scores outlive their runs as scores asked for by hand; an id naming a
+    # run that is gone would refuse the key when this migration is applied again.
+    op.execute("UPDATE case_scores SET eval_run_id = NULL WHERE eval_run_id IS NOT NULL")
     op.drop_index("ix_eval_run_cases_run_status", table_name="eval_run_cases")
     op.drop_index(
         "ix_eval_run_cases_org_running",
