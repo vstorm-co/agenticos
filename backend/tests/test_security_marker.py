@@ -83,6 +83,7 @@ EXEMPT: dict[str, str] = {
     "tests/test_agent_chat.py::TestWhatTheTurnCost::test_an_agent_whose_budget_block_names_no_amount_has_no_cap": "reports no cap when the budget names no amount, reporting, no refusal",
     "tests/test_agent_chat.py::TestWhatTheTurnCost::test_an_agent_with_no_budget_block_reports_no_cap_of_its_own": "reports no agent cap when the budget block is absent, reporting, no refusal",
     "tests/test_agent_observability.py::TestInstrumentation::test_a_secret_deleted_after_publish_leaves_the_agent_running": "a deleted tracing secret degrades gracefully, resilience, no refusal/masking",
+    "tests/test_agent_session.py::TestTellingThePersonWhoLeft::test_a_turn_that_parked_on_an_approval_says_nothing_more": "a parked turn sends no away notice; notification wording, no approval decision",
     "tests/test_agent_session.py::TestATurnThatDidNotFinish::test_a_budget_stop_says_why_the_answer_stopped": "surfaces an error frame explaining the budget stop, display, no enforcement",
     "tests/test_agent_spec_and_factory.py::TestBudgetComposition::test_an_agent_with_no_budget_under_an_uncapped_org_is_unlimited": "no budget under an uncapped org yields no limit, config, no refusal",
     "tests/test_agent_spec_and_factory.py::TestBudgetComposition::test_budgets_are_decimal_not_float": "budgets are stored as exact Decimal, precision, no refusal",

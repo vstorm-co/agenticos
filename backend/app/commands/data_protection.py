@@ -123,6 +123,9 @@ CAPABILITIES_STAYING_INSIDE = frozenset(
         # Questions go to the person running the agent, on the surface they are
         # already using.
         "ask_user",
+        # Runs the agent's own tools later in the same process; whatever a tool
+        # reaches is that tool's capability's destination, listed under it.
+        "background_tools",
         "channel_tools",
         "charts",
         "clock",
