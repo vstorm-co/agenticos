@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.db.models.voice_call import VoiceCall
 from app.services.voice.reaper import VoiceCallReaper
 
 pytestmark = pytest.mark.anyio
@@ -190,3 +191,10 @@ async def test_a_row_another_sweep_holds_is_skipped():
 
     assert count == 1
     assert [call.args[1] for call in seen.hang.await_args_list] == [free]
+
+
+def test_a_call_row_names_itself_in_logs_by_id_provider_and_end():
+    call_id = uuid4()
+    row = VoiceCall(id=call_id, provider="openai", ended_at=None)
+
+    assert repr(row) == f"<VoiceCall(id={call_id}, provider=openai, ended_at=None)>"
