@@ -307,9 +307,11 @@ judged by someone running a deployment, not by the size of the diff:
   `backend/pyproject.toml`, `backend/uv.lock` and `frontend/package.json`. Feature
   PRs write their changelog entries under `[Unreleased]`; the cut does not add new
   ones.
-- After the cut merges, tag that commit `vX.Y.Z` and publish a GitHub release whose
-  notes are its changelog section. The tag publishes the images (`images.yml`);
-  production deploys wait for approval (`deploy.yml`).
+- After the cut merges, publish the release and its tag in one step:
+  `gh release create vX.Y.Z --target <cut merge commit> --notes-file <its changelog
+  section>`. Never push the tag first: it starts `images.yml` at once, and that
+  attaches the release SBOMs only to a release that already exists. Production
+  deploys wait for approval (`deploy.yml`).
 - One release per merged change, or one for a train merged together, numbered by
   the largest change in it. Stacked PRs are released in merge order, each with its
   own number.
