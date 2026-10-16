@@ -1,5 +1,5 @@
 ---
-source_sha: "d6268bc1d2ed"
+source_sha: "dac87a53bbc5"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -275,6 +275,10 @@ wybranym przez ciebie. Prompt można edytować przed utworzeniem (`GET
 /datasets/{id}/judge-template`). Utworzenie go wymaga `agents:edit` oraz
 `datasets:edit`.
 
+Model wybiera się w tym samym panelu co dla agenta: provider, pełna lista jego
+modeli i klucz dla kogoś, kto może dodać model (`connections:manage`), a
+zapisane modele dla pozostałych.
+
 Gdy wsparcie AI jest włączone, utworzenie go od razu włącza też ocenianie:
 sędziego, z kryterium startowym do zastąpienia, gdy dataset nie ma żadnego,
 oraz porównanie z odpowiedzią wzorcową, gdy któryś przypadek ją ma. Kryteria,
@@ -374,11 +378,14 @@ przypadek. Jego strona wysyła inne wybrane przez ciebie wyniki, wszystkie naraz
 przez `POST /datasets/{id}/scores/review`, do 500 identyfikatorów wyników -
 wszystkie albo żaden.
 
-Wynik wysłany do kolejki, przez run ewaluacji albo ręcznie, zastępuje starszy
-wynik swojego przypadku, który jeszcze czeka: tamten wychodzi z kolejki
-nierozstrzygnięty i zostaje zwykłym wynikiem. Czekający wynik oceniony równie
-późno albo później zostaje na miejscu, a wysłany nie trafia do kolejki. Wyniku
-rozstrzygniętego nic nie rusza.
+Wynik wysłany do kolejki, przez run ewaluacji albo ręcznie, zajmuje miejsce
+wyniku swojego przypadku, który jeszcze czeka, gdy jest od niego ważniejszy albo
+tak samo ważny i nowszy. Wynik oceniony - regresja albo fail wysłany ręcznie -
+jest ważniejszy od nieocenionego, takiego jak błąd sędziego, więc błąd sędziego
+nigdy nie wypycha regresji z kolejki. Zastąpiony wychodzi z kolejki
+nierozstrzygnięty i zostaje zwykłym wynikiem; w przeciwnym razie czekający
+zostaje na miejscu, a wysłany nie trafia do kolejki. Wyniku rozstrzygniętego nic
+nie rusza.
 
 Wynik, o który poproszono ręcznie z Activity, podlega ustawieniu **Przegląd
 przez człowieka** datasetu: nic, dopóki ktoś czegoś nie wyśle, każdy wynik,

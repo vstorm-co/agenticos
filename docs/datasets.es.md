@@ -1,5 +1,5 @@
 ---
-source_sha: "d6268bc1d2ed"
+source_sha: "dac87a53bbc5"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -282,6 +282,10 @@ uno que elijas. El prompt se puede editar antes de crearlo (`GET
 /datasets/{id}/judge-template`). Crearlo requiere `agents:edit` además de
 `datasets:edit`.
 
+El modelo se elige en el mismo panel que el de un agent: un provider, su lista
+completa de modelos y una clave para quien puede añadir un modelo
+(`connections:manage`), y los modelos guardados para los demás.
+
 Donde la asistencia de IA está activada, crearlo también activa la
 calificación: el juez, con un criterio inicial para sustituir cuando el dataset
 no tiene ninguno, y la comparación con la respuesta de referencia cuando algún
@@ -384,11 +388,13 @@ por caso. Su página envía otras puntuaciones que elijas, todas a la vez median
 `POST /datasets/{id}/scores/review` con hasta 500 identificadores de puntuación:
 todas o ninguna.
 
-Una puntuación enviada allí, por un run de eval o a mano, sustituye a una
-puntuación más antigua de su caso que aún espera: esa sale de la cola sin
-decidir y sigue siendo una puntuación. Una que espera y se puntuó igual de tarde
-o más tarde conserva su lugar, y la enviada no entra en la cola. Una puntuación
-decidida nunca se toca.
+Una puntuación enviada allí, por un run de eval o a mano, ocupa el lugar de una
+de su caso que aún espera cuando tiene más rango, o el mismo y es más reciente.
+Una puntuación calificada (una regresión, o un fail enviado a mano) tiene más
+rango que una que nada calificó, como un error del juez, así que un juez que
+falla en un caso nunca saca su regresión de la cola. La sustituida sale de la
+cola sin decidir y sigue siendo una puntuación; si no, la que espera conserva su
+lugar y la enviada no entra en la cola. Una puntuación decidida nunca se toca.
 
 Una puntuación pedida a mano desde Activity sigue el ajuste **Review by a
 person** del dataset: nada hasta que alguien envíe una, cada resultado que no

@@ -14,19 +14,18 @@ import {
   DialogTitle,
   FormField,
   Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Label,
   Textarea,
 } from "@/components/ui";
+import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { useModelProviders } from "@/hooks/use-model-providers";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useCreateJudge, useJudgeTemplate } from "@/hooks/use-scoring";
 import { submitFailure } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { Dataset } from "@/types/datasets";
+import { Perm } from "@/types/permissions";
 import type { ModelProfile } from "@/types/providers";
 
 /** The model a judge is offered first: the organization's oldest, which the server would pick. */
@@ -55,7 +54,8 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
   const t = useTranslations("datasets.scoring");
   const tErrors = useTranslations("errors");
   const create = useCreateJudge(dataset.id);
-  const { profiles } = useModelProviders();
+  const { profiles, profilesStatus } = useModelProviders();
+  const { can } = usePermissions();
   const [name, setName] = useState(t("judgeNameFor", { name: dataset.name }));
   const template = useJudgeTemplate(dataset.id);
   // The template arrives after the dialog opens; it fills the field once, and an
@@ -135,25 +135,26 @@ export function CreateJudgeDialog({ dataset, onOpenChange, onCreated }: CreateJu
               onChange={(event) => setKnowledge(event.target.value)}
             />
           </FormField>
-          <FormField
-            htmlFor="judge-model"
-            label={t("judgeModel")}
-            description={model === null ? t("judgeNoModelYet") : undefined}
-            error={errors.model_profile_id}
-          >
-            <Select value={model ?? ""} onValueChange={setChosen} disabled={model === null}>
-              <SelectTrigger id="judge-model">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent position="popper" className="max-h-64">
-                {profiles.map((profile) => (
-                  <SelectItem key={profile.id} value={profile.id}>
-                    {profile.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
+          <div role="group" aria-labelledby="judge-model" className="space-y-2">
+            <Label id="judge-model">{t("judgeModel")}</Label>
+            {model === null && (
+              <p className="text-muted-foreground text-xs">{t("judgeNoModelYet")}</p>
+            )}
+            {/* Adding a model is `connections:manage`, which a dataset editor need not
+                hold; without it the picker lists the saved models. */}
+            <ModelProfilePicker
+              allowAdd={can(Perm.connectionsManage)}
+              profiles={profiles}
+              profilesStatus={profilesStatus}
+              value={model}
+              onChange={setChosen}
+            />
+            {errors.model_profile_id && (
+              <p role="alert" className="text-destructive text-xs">
+                {errors.model_profile_id}
+              </p>
+            )}
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

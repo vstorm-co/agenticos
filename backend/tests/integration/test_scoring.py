@@ -1501,6 +1501,74 @@ class TestVerdicts:
             newer.id: ("pending", None),
         }
 
+    async def test_a_judge_error_never_takes_the_place_of_a_regression_waiting(
+        self, db, judge
+    ) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        run = await _scored_run(db, tenant)
+        service = ScoringService(db)
+        regression = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
+        await case_score_repo.update(
+            db,
+            score=regression,
+            update_data={"passed": False, "created_at": datetime.now(UTC) - timedelta(days=1)},
+        )
+        await service.route_to_review(tenant.ctx, dataset_id=dataset.id, score_ids=[regression.id])
+        ungraded = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
+        await case_score_repo.update(db, score=ungraded, update_data={"passed": None})
+        older_error = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
+        await case_score_repo.update(
+            db,
+            score=older_error,
+            update_data={"passed": None, "created_at": datetime.now(UTC) - timedelta(days=2)},
+        )
+
+        routed = await service.route_to_review(
+            tenant.ctx, dataset_id=dataset.id, score_ids=[ungraded.id]
+        )
+        sent = await service.request_reviews(
+            tenant.ctx, dataset.id, ReviewRequest(score_ids=[ungraded.id, older_error.id])
+        )
+
+        assert (routed.queued, routed.replaced, routed.already) == (0, 0, 1)
+        assert (sent.queued, sent.replaced, sent.already) == (0, 0, 2)
+        waiting = (await service.list_scores(tenant.ctx, dataset.id, pending=True)).items
+        assert [score.id for score in waiting] == [regression.id]
+
+    async def test_a_regression_takes_the_place_of_a_judge_error_waiting(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        dataset, case = await _dataset(db, tenant, scoring=DatasetScoring())
+        run = await _scored_run(db, tenant)
+        service = ScoringService(db)
+        error = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
+        await case_score_repo.update(db, score=error, update_data={"passed": None})
+        await service.route_to_review(tenant.ctx, dataset_id=dataset.id, score_ids=[error.id])
+        regression = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
+        another_error = await _score_for_an_eval(
+            db, tenant, dataset, case, run, await _eval_run(db, tenant, dataset, run)
+        )
+        await case_score_repo.update(db, score=regression, update_data={"passed": False})
+        await case_score_repo.update(db, score=another_error, update_data={"passed": None})
+
+        routed = await service.route_to_review(
+            tenant.ctx, dataset_id=dataset.id, score_ids=[another_error.id, regression.id]
+        )
+
+        assert (routed.queued, routed.replaced, routed.already) == (1, 1, 1)
+        waiting = (await service.list_scores(tenant.ctx, dataset.id, pending=True)).items
+        assert [score.id for score in waiting] == [regression.id]
+
     async def test_an_older_score_sent_by_hand_leaves_the_newer_one_waiting(
         self, db, judge
     ) -> None:
