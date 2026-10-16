@@ -961,15 +961,17 @@ async def _watched(
 
 
 @pytest.fixture(autouse=True)
-def no_stored_plans(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No plan store unless a test brings one.
+def no_shared_redis(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No plan store and no live-view queue unless a test brings its own.
 
-    The store is a module-level client that the app's lifespan configures, so a
-    test that started the app earlier on the same worker left a client bound to
-    its own, closed event loop - and every browse here then failed reading it
-    (CI, seed 2602337408).
+    Both are module-level clients that the app's lifespan configures, so a test
+    that started the app earlier on the same worker left them bound to its own,
+    closed event loop - and a browse here then failed on whichever it reached
+    first: the plan store (CI seed 2602337408), then the command queue between
+    steps (2798187338).
     """
     monkeypatch.setattr(browse_plans, "_redis", None)
+    monkeypatch.setattr(live_browse, "_redis", None)
 
 
 @pytest.fixture(autouse=True)
