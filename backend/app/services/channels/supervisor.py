@@ -59,6 +59,7 @@ async def open_inbound_stream(
     token: str,
     api_base_url: str | None = None,
     app_token: str | None = None,
+    take_over: bool = True,
 ) -> None:
     """Start this bot's stream, replacing one it already has.
 
@@ -79,14 +80,22 @@ async def open_inbound_stream(
             the adapter before the connection opens, because the adapter is a
             singleton and the address is per bot.
         app_token: Slack's app-level `xapp-` token, for the same reason.
+        take_over: Take the bot's lease whoever holds it - a registration or an
+            edit, the newest word on the bot. `False` for a lease a catch-up
+            pass claimed: the stream opens only if it is still this worker's,
+            since an edit or a pause may have come in between (#2168).
     """
     if _shutting_down:
         logger.info("Not opening inbound stream for bot %s: the server is shutting down", bot_id)
         return
 
-    # Taken whoever held it: this is called for a bot just registered, edited or
-    # found free, and the worker that held it closes its copy at its next renewal.
-    await stream_lease.leases().take(bot_id, platform)
+    leases = stream_lease.leases()
+    if take_over:
+        # The worker that held it closes its copy at its next renewal.
+        await leases.take(bot_id, platform)
+    elif not await leases.holds(bot_id):
+        leases.drop(bot_id)
+        return
     adapter = get_adapter(platform)
     adapter.prepare_connection(bot_id, api_base_url=api_base_url, app_token=app_token)
 

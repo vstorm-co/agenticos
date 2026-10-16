@@ -114,6 +114,12 @@ class _SharedRedis:
     async def get(self, key: str) -> str | None:
         return self.keys.get(key)
 
+    async def delete_if_equal(self, key: str, value: str) -> bool:
+        if self.keys.get(key) != value:
+            return False
+        del self.keys[key]
+        return True
+
 
 async def test_two_workers_open_one_stream_per_bot(monkeypatch: pytest.MonkeyPatch) -> None:
     """Both workers run the startup pass against one Redis; the bot gets one
@@ -152,3 +158,43 @@ async def test_a_bot_that_cannot_be_unsealed_is_refused_once_not_every_pass(
 
     unseal.assert_called_once()
     assert leases.held == {str(bot.id): "telegram"}
+
+
+async def test_a_bot_paused_after_the_first_read_is_given_back_not_opened(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pass reads the rows, then claims: a pause committed in between left
+    the lease free to claim, and the row read before it would reopen the bot."""
+    bot = _bot()
+    monkeypatch.setattr(main, "get_db_context", lambda: _Session())
+    monkeypatch.setattr(main, "get_active_polling_bots", AsyncMock(side_effect=[[bot], []]))
+    opened = AsyncMock()
+    monkeypatch.setattr(main, "open_inbound_stream", opened)
+    redis = _SharedRedis()
+    leases = StreamLeases(redis, holder="pass")  # ty: ignore[invalid-argument-type]
+    monkeypatch.setattr(stream_lease, "_leases", leases)
+
+    await main._start_channel_polling("telegram")
+
+    opened.assert_not_awaited()
+    assert redis.keys == {}
+    assert leases.held == {}
+
+
+async def test_a_claimed_bot_opens_with_the_row_as_it_is_now_and_only_if_still_held(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    before, now = _bot(), _bot()
+    now.id = before.id
+    now.api_base_url = "https://chat.example.com"
+    monkeypatch.setattr(main, "get_db_context", lambda: _Session())
+    monkeypatch.setattr(main, "get_active_polling_bots", AsyncMock(side_effect=[[before], [now]]))
+    monkeypatch.setattr(main, "unseal_bot_token", MagicMock(return_value="tok"))
+    monkeypatch.setattr(main, "unseal_slack_app_token", MagicMock(return_value=None))
+    opened = AsyncMock()
+    monkeypatch.setattr(main, "open_inbound_stream", opened)
+
+    await main._start_channel_polling("mattermost")
+
+    assert opened.await_args.kwargs["api_base_url"] == "https://chat.example.com"
+    assert opened.await_args.kwargs["take_over"] is False

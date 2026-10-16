@@ -36,8 +36,8 @@ class _SharedRedis:
     async def delete(self, key: str) -> int:
         return int(self.keys.pop(key, None) is not None)
 
-    async def expire_if_equal(self, key: str, value: str, ttl: int) -> bool:
-        return self.keys.get(key) == value
+    async def expire(self, key: str, ttl: int) -> bool:
+        return key in self.keys
 
     async def delete_if_equal(self, key: str, value: str) -> bool:
         if self.keys.get(key) != value:
@@ -51,6 +51,24 @@ class _DownRedis:
 
     def __getattr__(self, _name: str) -> AsyncMock:
         return AsyncMock(side_effect=ConnectionError("redis is down"))
+
+
+class _FlakyRedis(_SharedRedis):
+    """The shared Redis, unreachable while `down` is set."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.down = False
+
+    async def set(self, key: str, value: str, ttl: int | None = None, nx: bool = False) -> bool:
+        if self.down:
+            raise ConnectionError("redis is down")
+        return await super().set(key, value, ttl=ttl, nx=nx)
+
+    async def delete(self, key: str) -> int:
+        if self.down:
+            raise ConnectionError("redis is down")
+        return await super().delete(key)
 
 
 def _workers() -> tuple[StreamLeases, StreamLeases, _SharedRedis]:
@@ -128,6 +146,77 @@ class TestOneHolder:
         assert await first.renew() == ["bot"]
 
 
+class TestWhatRedisMissed:
+    """A write that did not reach Redis is written again, so the newest word wins."""
+
+    async def test_an_edit_whose_takeover_missed_redis_wins_once_it_is_back(
+        self, adapter: MagicMock
+    ):
+        """Otherwise the old holder keeps renewing with the old token, and the
+        worker that served the edit stops its new stream at its first renewal."""
+        redis = _FlakyRedis()
+        old, new = StreamLeases(redis, holder="old"), StreamLeases(redis, holder="new")  # ty: ignore[invalid-argument-type]
+        await old.take("bot", "telegram")
+
+        redis.down = True
+        await new.take("bot", "telegram")
+        assert new.untaken == {"bot"}
+        assert await new.renew() == []
+        redis.down = False
+        assert await new.renew() == []
+
+        assert redis.keys == {"channel:stream:bot": "new"}
+        assert await old.renew() == ["bot"]
+        assert new.untaken == set()
+
+    async def test_a_pause_whose_withdrawal_missed_redis_still_stops_the_holder(
+        self, adapter: MagicMock
+    ):
+        redis = _FlakyRedis()
+        holder, other = StreamLeases(redis, holder="a"), StreamLeases(redis, holder="b")  # ty: ignore[invalid-argument-type]
+        await holder.take("bot", "slack")
+
+        redis.down = True
+        await other.withdraw("bot")
+        await other.renew()
+        assert other.unwithdrawn == {"bot"}
+        redis.down = False
+        await other.renew()
+
+        assert other.unwithdrawn == set()
+        assert await holder.renew() == ["bot"]
+
+    async def test_a_renewal_redis_refuses_is_a_lease_lost(self, adapter: MagicMock):
+        """A refused command is not an unreachable Redis: reading it as held let
+        another worker claim the expiring key and open a second stream."""
+        redis = _SharedRedis()
+        leases = StreamLeases(redis, holder="a")  # ty: ignore[invalid-argument-type]
+        await leases.take("bot", "telegram")
+        redis.expire = AsyncMock(side_effect=PermissionError("NOPERM"))  # ty: ignore[invalid-assignment]
+        redis.get = AsyncMock(side_effect=ValueError("NOPERM this user has no permissions"))  # ty: ignore[invalid-assignment]
+
+        assert await leases.renew() == ["bot"]
+
+    async def test_a_claimed_lease_is_checked_before_its_stream_opens(self):
+        first, second, _ = _workers()
+        assert await first.claim("bot")
+        await second.take("bot", "telegram")
+
+        assert await first.holds("bot") is False
+        assert await second.holds("bot") is True
+
+    async def test_a_claim_for_a_bot_that_wants_no_stream_is_given_back(self):
+        first, second, redis = _workers()
+        await first.claim("bot")
+        first.hold("bot", "telegram")
+
+        await first.release_one("bot")
+
+        assert first.held == {}
+        assert redis.keys == {}
+        assert await second.claim("bot")
+
+
 class TestWithoutRedis:
     """Duplicates, never silence: a lease that cannot be read is a lease held."""
 
@@ -135,9 +224,12 @@ class TestWithoutRedis:
         leases = StreamLeases(None)
 
         assert await leases.claim("bot") is True
+        assert await leases.holds("bot") is True
         await leases.take("bot", "telegram")
         assert await leases.renew() == []
         await leases.withdraw("bot")
+        await leases.take("bot", "telegram")
+        await leases.release_one("bot")
         await leases.take("bot", "telegram")
         await leases.release()
         assert leases.held == {}
@@ -146,8 +238,12 @@ class TestWithoutRedis:
         leases = StreamLeases(_DownRedis())  # ty: ignore[invalid-argument-type]
 
         assert await leases.claim("bot") is True
+        assert await leases.holds("bot") is True
         await leases.take("bot", "telegram")
+        leases.untaken.clear()
         assert await leases.renew() == []
+        await leases.release_one("bot")
+        await leases.take("bot", "telegram")
         await leases.release()
         await leases.withdraw("bot")
 

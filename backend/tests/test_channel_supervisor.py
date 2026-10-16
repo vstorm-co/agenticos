@@ -180,3 +180,21 @@ class TestTheLease:
             await close_inbound_stream(bot_id="b-1", platform="telegram")
 
         leases.withdraw.assert_awaited_once_with("b-1")
+
+    async def test_a_claimed_stream_opens_only_while_the_lease_is_still_this_workers(self):
+        """A catch-up pass's claim can be overtaken by an edit or a pause before
+        it opens; the stream it would open is then somebody else's decision."""
+        adapter = _adapter()
+        for still_held, opened in ((False, 0), (True, 1)):
+            adapter.start_polling.reset_mock()
+            leases = MagicMock(holds=AsyncMock(return_value=still_held), take=AsyncMock())
+            with (
+                patch("app.services.channels.supervisor.get_adapter", return_value=adapter),
+                patch("app.services.channels.supervisor.stream_lease.leases", return_value=leases),
+            ):
+                await open_inbound_stream(
+                    bot_id="b-1", platform="telegram", token="tok", take_over=False
+                )
+            leases.take.assert_not_awaited()
+            assert adapter.start_polling.await_count == opened
+            assert leases.drop.call_count == 1 - opened

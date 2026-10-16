@@ -7,10 +7,6 @@ from redis import asyncio as aioredis
 
 from app.core.config import settings
 
-_EXPIRE_IF_EQUAL = (
-    "if redis.call('get', KEYS[1]) == ARGV[1] then "
-    "return redis.call('expire', KEYS[1], ARGV[2]) else return 0 end"
-)
 _DELETE_IF_EQUAL = (
     "if redis.call('get', KEYS[1]) == ARGV[1] then "
     "return redis.call('del', KEYS[1]) else return 0 end"
@@ -92,18 +88,11 @@ class RedisClient:
         used, _expired = await pipe.execute()
         return int(used)
 
-    async def expire_if_equal(self, key: str, value: str, ttl: int) -> bool:
-        """Extend a key's lifetime to `ttl` seconds only while it still holds `value`.
-
-        A lease renewed by its holder alone: one script, so no other writer can
-        land between the read and the expiry and have its own key extended as
-        though it were the caller's.
-        """
+    async def expire(self, key: str, ttl: int) -> bool:
+        """Set a key's lifetime to `ttl` seconds. False when there is no such key."""
         if not self.client:
             raise RuntimeError("Redis client not connected")
-        # The stubs union a sync and an async return; this client is the async one.
-        renewed = await self.client.eval(_EXPIRE_IF_EQUAL, 1, key, value, ttl)  # ty: ignore[invalid-await]
-        return bool(renewed)
+        return bool(await self.client.expire(key, ttl))
 
     async def delete_if_equal(self, key: str, value: str) -> bool:
         """Delete a key only while it still holds `value` - a lease given back by its holder."""

@@ -100,13 +100,26 @@ async def _start_channel_polling(channel: str) -> None:
     async with get_db_context() as _db:
         _bots = await get_active_polling_bots(_db, channel)
     leases = stream_lease.leases()
+    # Only a bot nobody serves: every worker runs this, at startup and on each
+    # pass of `_keep_channel_streams`, and a bot gets one stream per deployment -
+    # Telegram allows one `getUpdates` per bot (#2168).
+    claimed = [
+        str(_bot.id)
+        for _bot in _bots
+        if str(_bot.id) not in leases.held and await leases.claim(str(_bot.id))
+    ]
+    if not claimed:
+        return
+    # Read again once the leases are held: a pause or an edit committed after
+    # the read above withdrew or took its lease before this claim, and the row
+    # as it is now is the one to open with.
+    async with get_db_context() as _db:
+        current = {str(_bot.id): _bot for _bot in await get_active_polling_bots(_db, channel)}
     started = 0
-    for _bot in _bots:
-        bot_id = str(_bot.id)
-        # Only a bot nobody serves: every worker runs this, at startup and on
-        # each pass of `_keep_channel_streams`, and a bot gets one stream per
-        # deployment - Telegram allows one `getUpdates` per bot (#2168).
-        if bot_id in leases.held or not await leases.claim(bot_id):
+    for bot_id in claimed:
+        _bot = current.get(bot_id)
+        if _bot is None:
+            await leases.release_one(bot_id)
             continue
         try:
             token = unseal_bot_token(_bot)
@@ -123,12 +136,14 @@ async def _start_channel_polling(channel: str) -> None:
             # again takes the lease and opens the stream.
             leases.hold(bot_id, channel)
             continue
+        leases.hold(bot_id, channel)
         await open_inbound_stream(
-            bot_id=str(_bot.id),
+            bot_id=bot_id,
             platform=channel,
             token=token,
             api_base_url=_bot.api_base_url,
             app_token=app_token,
+            take_over=False,
         )
         started += 1
     if started:
@@ -289,9 +304,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
         await _slack_adapter.stop_polling(_sbid)
     for _mbid in list(_mattermost_adapter._socket_tasks.keys()):
         await _mattermost_adapter.stop_polling(_mbid)
-    # Given back now rather than left to run out, so another worker takes these
-    # bots over on its next pass instead of half a minute later.
-    await stream_lease.leases().release()
     # Intake has stopped and serving is already drained, so what is left is
     # in-flight fire-and-forget work - an ingestion or a sync a request or a
     # channel message handed off. It reads the stores and the session below, so
@@ -299,6 +311,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     # is left stuck in `processing` forever (#417 is the same row, from the other
     # end).
     await background.drain()
+    # Given back now rather than left to run out, so another worker takes these
+    # bots over on its next pass instead of half a minute later. After the drain,
+    # so a deferred open still taking its lease is given back too.
+    await stream_lease.leases().release()
     # Close each adapter's reused HTTP client now that no polling task or drained
     # background turn can still be mid-request on it (#952).
     for _adapter in (_telegram_adapter, _mattermost_adapter, _slack_adapter):
