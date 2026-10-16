@@ -5859,7 +5859,7 @@
         "judgeOutputInvalid": "The judge answered in a form that could not be read.",
         "judgeUngraded": "The judge gave no grade on the scale for this criterion.",
         "judgeReasonEcho": "The judge restated the criterion instead of saying why the answer meets it.",
-        "judgeCounterUnsupported": "The judge passed the answer as unlike the counter-example without quoting anything in it the counter-example does not also say."
+        "judgeCounterUnsupported": "The judge passed the answer as unlike the counter-example, though the answer repeats it or the judge quoted only what the two share."
       },
       "scoreRun": "Score against a case",
       "scoreRunBody": "Run every scorer the dataset configures on this run's answer. The result is kept on the dataset.",
@@ -5980,7 +5980,7 @@
       "noteAddedToRubric": "The note is now one of the judge's criteria for every case, and the judge is on.",
       "rule": "Rule: {rule}",
       "judgeSaid": "The judge answered: “{said}”",
-      "unverifiedTop": "Unverified: a top grade with nothing quoted from the answer to show for it.",
+      "unverifiedGrade": "Unverified: nothing quoted from the answer backs this grade.",
       "agentDraft": "{name} · Draft"
     },
     "title": "Datasets",

@@ -5717,7 +5717,7 @@
         "judgeOutputInvalid": "Der Bewerter hat in einer Form geantwortet, die sich nicht lesen ließ.",
         "judgeUngraded": "Der Bewerter hat für dieses Kriterium keine Note auf der Skala vergeben.",
         "judgeReasonEcho": "Der Bewerter hat das Kriterium wiederholt, statt zu sagen, warum die Antwort es erfüllt.",
-        "judgeCounterUnsupported": "Der Bewerter hat die Antwort als anders als das Gegenbeispiel bestanden, ohne etwas daraus zu zitieren, das das Gegenbeispiel nicht auch sagt."
+        "judgeCounterUnsupported": "Der Bewerter hat die Antwort als anders als das Gegenbeispiel bestanden, obwohl die Antwort es wiederholt oder der Bewerter nur zitiert hat, was beide sagen."
       },
       "scoreRun": "Gegen einen Fall bewerten",
       "scoreRunBody": "Alle im Dataset konfigurierten Bewertungen auf die Antwort dieses Runs anwenden. Das Ergebnis wird im Dataset gespeichert.",
@@ -5838,7 +5838,7 @@
       "noteAddedToRubric": "Die Notiz ist jetzt eines der Kriterien des Bewerters für jeden Fall, und der Bewerter ist eingeschaltet.",
       "rule": "Regel: {rule}",
       "judgeSaid": "Der Bewerter antwortete: „{said}“",
-      "unverifiedTop": "Nicht belegt: eine Höchstnote ohne ein Zitat aus der Antwort, das sie stützt.",
+      "unverifiedGrade": "Nicht belegt: Kein Zitat aus der Antwort stützt diese Bewertung.",
       "agentDraft": "{name} · Entwurf"
     },
     "title": "Datasets",

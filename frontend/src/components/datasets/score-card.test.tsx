@@ -204,7 +204,9 @@ describe("ScoreCard", () => {
     );
 
     expect(screen.getByText("Rule: Refunds over $500 need a manager")).toBeInTheDocument();
-    expect(screen.getByText(/Unverified: a top grade with nothing quoted/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Unverified: nothing quoted from the answer backs this grade/),
+    ).toBeInTheDocument();
     expect(screen.getByText("The judge answered: “It is fine.”")).toBeInTheDocument();
   });
 

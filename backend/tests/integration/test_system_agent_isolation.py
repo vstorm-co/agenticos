@@ -32,6 +32,7 @@ from app.db.models.user import User
 from app.schemas.agent_embed import EmbedCreate
 from app.schemas.agent_exposure import ExposureCreate
 from app.schemas.agent_trigger import TriggerCreate
+from app.services.agent_chat import ChatAgentRunner
 from app.services.agent_embed import AgentEmbedService
 from app.services.agent_exposure import AgentExposureService
 from app.services.agent_registry import DELEGATION_CAPABILITY_ID, AgentRegistryService
@@ -139,6 +140,16 @@ class TestRunning:
 
 
 class TestAttaching:
+    async def test_it_cannot_be_chatted_with(self, db) -> None:
+        ctx = await _owner(db)
+        judge = await _judge(db, ctx)
+        user = await db.get(User, ctx.user_id)
+
+        with pytest.raises(SystemAgentRestrictedError, match="a web run"):
+            await ChatAgentRunner(db).refuse_system_agent(
+                user=user, organization_id=ctx.organization_id, agent_id=judge.id
+            )
+
     async def test_it_cannot_be_put_on_a_channel(self, db) -> None:
         ctx = await _owner(db)
         judge = await _judge(db, ctx)

@@ -72,7 +72,7 @@ function ResultRow({ result }: { result: ScorerResult }) {
           </p>
         )}
         {result.unverified && (
-          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t("unverifiedTop")}</p>
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{t("unverifiedGrade")}</p>
         )}
         {result.unverified_quotes.length > 0 && (
           <p className="text-muted-foreground/80 mt-1 text-xs italic">

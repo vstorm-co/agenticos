@@ -1,5 +1,5 @@
 ---
-source_sha: "ee283b2976e2"
+source_sha: "fd7502bd1fcb"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -295,12 +295,16 @@ de llamar al modelo, y su run aparece en Activity bajo la superficie `eval`.
 
 El juez recibe la nota del caso, como el motivo por el que existe, sus turnos
 anteriores y la pregunta, la respuesta de referencia cuando se califica, el
-contraejemplo, cada llamada a herramienta que hizo el agent (con sus
-argumentos, y si un run aislado la bloqueó) y la respuesta. Un caso con
-contraejemplo se califica siempre también con un criterio obligatorio
-**counter-example**: la respuesta no debe repetir la respuesta mala conocida, y
-aprobarlo requiere una cita de la respuesta que el contraejemplo no diga
-también.
+contraejemplo, cada llamada a herramienta que hizo el agent (con sus argumentos,
+y si un run aislado la bloqueó) y la respuesta.
+
+Un caso con contraejemplo se califica siempre también con un criterio
+obligatorio **counter-example**: la respuesta no debe repetir la respuesta mala
+conocida, y se pide al juez que cite lo que distingue la respuesta de ella. Un
+aprobado es un error cuando solo cita lo que ambas dicen, o no cita nada de una
+respuesta que copia el contraejemplo; cualquier otro sin nada citado se
+mantiene, marcado como no verificado. Una respuesta que conserva el
+contraejemplo y añade lo que le faltaba aprueba con una cita de lo añadido.
 
 Los jueces empiezan con temperatura 0, para que la misma respuesta se califique
 igual dos veces; un modelo que no acepta temperatura, como un modelo de
@@ -339,9 +343,12 @@ cualquier decisión que una persona tomara sobre ella; una en la que cada
 evaluador llegó a un veredicto se queda como está.
 
 Una causa que sigue ahí (la asistencia de IA desactivada, el juez sin publicar)
-se rechaza tal cual, igual que un juez publicado de nuevo desde que falló, cuya
-calificación no sería comparable con el resto del run; entonces no se califica
-nada.
+se rechaza tal cual, igual que el juez de un run de evaluación publicado de nuevo
+desde que falló, o una puntuación de ese run fijada a un prompt de juez anterior,
+cuya calificación no sería comparable con el resto del run;
+entonces no se califica nada. Una respuesta calificada por sí sola, desde el chat
+o desde Activity, no tiene un run con el que compararse: la califica la versión
+publicada ahora, y su pin nombra esa versión.
 
 Una calificación puede citar la respuesta, hasta 12 fragmentos; una cita que la
 respuesta no contiene palabra por palabra se guarda junto a la calificación

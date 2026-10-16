@@ -1,5 +1,5 @@
 ---
-source_sha: "ee283b2976e2"
+source_sha: "fd7502bd1fcb"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -289,11 +289,15 @@ organizacji, a jego run pojawia się w Activity pod powierzchnią `eval`.
 Sędzia dostaje notatkę przypadku jako powód, dla którego przypadek istnieje,
 jego wcześniejsze tury i pytanie, odpowiedź wzorcową, gdy jest oceniana,
 kontrprzykład, każde wywołanie narzędzia wykonane przez agenta - z argumentami i
-informacją, czy izolowany run je zablokował - oraz odpowiedź. Przypadek z
-kontrprzykładem jest zawsze oceniany także według wymaganego kryterium
-**counter-example**: odpowiedź nie może powtarzać znanej złej odpowiedzi, a
-zaliczenie go wymaga cytatu z odpowiedzi, którego kontrprzykład też nie
-zawiera.
+informacją, czy izolowany run je zablokował - oraz odpowiedź.
+
+Przypadek z kontrprzykładem jest zawsze oceniany także według wymaganego
+kryterium **counter-example**: odpowiedź nie może powtarzać znanej złej
+odpowiedzi, a sędzia ma zacytować to, co odróżnia od niej odpowiedź. Zaliczenie
+jest błędem, gdy cytuje tylko to, co obie mówią, albo nie cytuje niczego z
+odpowiedzi, która kopiuje kontrprzykład; każde inne bez cytatu zostaje,
+oznaczone jako niezweryfikowane. Odpowiedź, która zachowuje kontrprzykład i
+dopisuje to, czego mu brakowało, zalicza się na cytacie z dopisku.
 
 Sędziowie startują z temperaturą 0, więc ta sama odpowiedź jest oceniana dwa
 razy tak samo; model, który nie przyjmuje temperatury, na przykład model
@@ -332,9 +336,12 @@ którą ktoś na nim podjął; wynik, na którym każdy oceniacz wydał werdykt,
 zostaje bez zmian.
 
 Przyczyna, która nadal trwa - wyłączone wsparcie AI, nieopublikowany sędzia -
-jest odrzucana tak, jak jest, podobnie jak sędzia opublikowany na nowo od
-czasu, gdy zawiódł, bo jego ocena nie byłaby porównywalna z resztą runu; wtedy
-nic nie jest oceniane.
+jest odrzucana tak, jak jest, podobnie jak sędzia runu ewaluacji opublikowany na
+nowo od czasu, gdy zawiódł, albo wynik takiego runu przypięty do wcześniejszego
+promptu sędziego, bo jego ocena nie byłaby porównywalna z resztą runu;
+wtedy nic nie jest oceniane. Odpowiedź oceniona osobno, z czatu albo z Activity,
+nie ma runu, z którym trzeba ją porównać: ocenia ją wersja opublikowana teraz, a
+jej pin wskazuje tę wersję.
 
 Ocena może cytować odpowiedź, do 12 fragmentów; cytat, którego odpowiedź nie
 zawiera słowo w słowo, jest zachowywany obok oceny jako niezweryfikowany,
