@@ -5,6 +5,7 @@ import { MonitorPlay } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { BrowserWindow } from "@/components/chat/browser-window";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState, LoadingState } from "@/components/states";
 import { useLiveBrowse } from "@/hooks/use-live-browse";
 import { isRunning } from "@/lib/browse";
@@ -38,17 +39,24 @@ export default function LiveBrowsePage({ params }: PageProps) {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-7rem)] max-w-6xl flex-col gap-3">
-      <div className="min-w-0 space-y-1 px-1">
-        <h1 className="text-foreground text-lg font-semibold">{t("title")}</h1>
-        <p className="text-foreground/80 line-clamp-2 text-sm leading-relaxed">
-          {task || browse.goal}
-        </p>
-        {isRunning(browse) && !canControl && (
-          <p className="text-muted-foreground text-xs">{t("watchOnly")}</p>
-        )}
-      </div>
-      <div className="ring-foreground/10 min-h-0 flex-1 overflow-hidden rounded-2xl ring-1">
+    // `w-full` is load-bearing: the window asks the browser to lay the page out
+    // at its own size, so a wrapper that shrank to its content shrank to the
+    // last picture - and a page once opened narrow stayed a phone layout.
+    <div className="mx-auto flex h-[calc(100dvh-7rem)] w-full max-w-7xl min-w-0 flex-col gap-4">
+      <PageHeader
+        className="mb-0 md:mb-0"
+        title={t("title")}
+        description={
+          <>
+            <span className="line-clamp-2">{task || browse.goal}</span>
+            {isRunning(browse) && !canControl && (
+              <span className="mt-1 block text-xs">{t("watchOnly")}</span>
+            )}
+          </>
+        }
+      />
+      {/* The same window the chat draws under a message, given the page. */}
+      <div className="border-border bg-background min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-2xl border shadow-sm">
         <BrowserWindow waitForFit browse={browse} control={{ canControl, canRemember, send }} />
       </div>
     </div>

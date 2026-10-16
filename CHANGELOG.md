@@ -601,6 +601,12 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A browse opened on its own page fills it.** The page that a channel and
+  Settings' sign-in link open shrank to whatever its first picture was, so a
+  site could be laid out as a phone in a narrow column on a wide screen. It
+  now takes the page's width, in the same window the chat draws, and lays the
+  site out at that size on a desktop and on a phone alike.
+
 - **Credentials and the browser, tightened after review.** A key reads the
   member list only with the new `members:view` scope (every role holds it). A
   person's keys and connected apps are revoked when their membership ends, so
