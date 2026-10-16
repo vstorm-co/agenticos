@@ -413,6 +413,8 @@ async def test_a_case_that_passed_on_v6_and_fails_on_v7_is_a_confirmed_regressio
     assert comparison.flips_by_tag["refunds"]["regression"] == 1
 
     failed = await service.cases(ctx, v7.id, outcome="failed")
+    with pytest.raises(NotFoundError, match="Arm not found"):
+        await service.cases(ctx, v7.id, arm_id=uuid.uuid4(), outcome="failed")
     assert [case.input for case in failed.items] == ["Question 0"]
     assert [attempt.attempt for attempt in failed.items[0].attempts] == [0, 1, 2]
 

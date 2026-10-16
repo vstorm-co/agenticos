@@ -1360,6 +1360,9 @@ class EvalRunService:
         candidate when omitted) passed, failed or is undecided, and `case_ids`
         to those cases - the ones a comparison says broke, say. A reused
         baseline's attempts are shown under this run's baseline arm.
+
+        Raises:
+            NotFoundError: `arm_id` is not an arm of this run.
         """
         run = await self._readable(ctx, run_id)
         org = ctx.organization_id
@@ -1372,6 +1375,8 @@ class EvalRunService:
         revisions = await eval_run_repo.revisions(
             self.db, sorted({a.case_revision_id for _, a in shown}), organization_id=org
         )
+        if arm_id is not None and arm_id not in {arm.id for arm in arms}:
+            raise NotFoundError(message="Arm not found", details={"arm_id": arm_id})
         focus = arm_id or next(arm.id for arm in arms if arm.role == ArmRole.CANDIDATE.value)
         by_case: dict[UUID, list[tuple[UUID, EvalRunCase]]] = defaultdict(list)
         for pair in shown:
