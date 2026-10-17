@@ -76,14 +76,31 @@ class TestRegistering:
         assert read.skills[0].name == "Review"
         assert audited.await_args.kwargs["details"] == {"endpoint_host": "agents.example.com"}
 
-    async def test_a_card_that_cannot_be_read_is_a_refusal_saying_why(self) -> None:
+    @pytest.mark.security
+    async def test_a_card_that_cannot_be_read_is_refused_without_repeating_its_address(
+        self,
+    ) -> None:
+        """A signed card URL carries its credential; `details` is logged."""
+        signed = "https://agents.example.com/card.json?sig=s3cr3t"
         with (
             patch.object(module, "fetch_card", AsyncMock(side_effect=A2AClientError("HTTP 404"))),
-            pytest.raises(BadRequestError, match="HTTP 404"),
+            pytest.raises(BadRequestError, match="HTTP 404") as refused,
         ):
             await ExternalAgentService(MagicMock()).register(
-                CTX, ExternalAgentCreate(card_url="https://agents.example.com")
+                CTX, ExternalAgentCreate(card_url=signed)
             )
+        assert "s3cr3t" not in str(refused.value.details)
+        assert refused.value.details["fields"][0]["field"] == "card_url"
+
+    async def test_a_stored_card_that_cannot_be_read_again_names_no_field(self) -> None:
+        row = _row(card_url="https://agents.example.com/card.json?sig=s3cr3t")
+        with (
+            patch.object(module.external_agent_repo, "get", AsyncMock(return_value=row)),
+            patch.object(module, "fetch_card", AsyncMock(side_effect=A2AClientError("HTTP 404"))),
+            pytest.raises(BadRequestError, match="HTTP 404") as refused,
+        ):
+            await ExternalAgentService(MagicMock()).refresh(CTX, row.id)
+        assert not refused.value.details
 
     async def test_a_taken_handle_is_refused(self) -> None:
         with (
@@ -165,6 +182,64 @@ class TestDelegatingToOne:
 
         assert problems == [f"Remote agent {unknown} is not registered in this organization."]
         assert handles == ["reviewer"]
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(("secret", "visible"), [(None, False), (MagicMock(), False)])
+    async def test_publish_refuses_a_remote_agent_whose_key_the_publisher_cannot_use(
+        self, secret: object, visible: bool
+    ) -> None:
+        """Its key is lent to every run, so the publisher must reach it - as a
+        capability's key - whoever registered it."""
+        ref = ExternalAgentRef(external_agent_id=uuid.uuid4())
+        service = AgentRegistryService(MagicMock())
+        with (
+            patch(
+                "app.services.agent_registry.external_agent_repo.get_many",
+                AsyncMock(
+                    return_value={
+                        ref.external_agent_id: _row(slug="reviewer", secret_id=uuid.uuid4())
+                    }
+                ),
+            ),
+            patch(
+                "app.services.agent_registry.organization_secret_repo.get",
+                AsyncMock(return_value=secret),
+            ),
+            patch("app.services.agent_registry.resolve_access", AsyncMock(return_value=visible)),
+        ):
+            problems, handles = await service._external_agent_problems(
+                CTX, MagicMock(external_agents=[ref])
+            )
+
+        assert problems == [
+            "Remote agent 'reviewer' sends a key you cannot use; ask whoever registered it "
+            "to share the key, or register it with your own."
+        ]
+        assert handles == ["reviewer"]
+
+    async def test_publish_takes_a_remote_agent_whose_key_the_publisher_may_use(self) -> None:
+        ref = ExternalAgentRef(external_agent_id=uuid.uuid4())
+        service = AgentRegistryService(MagicMock())
+        with (
+            patch(
+                "app.services.agent_registry.external_agent_repo.get_many",
+                AsyncMock(
+                    return_value={
+                        ref.external_agent_id: _row(slug="reviewer", secret_id=uuid.uuid4())
+                    }
+                ),
+            ),
+            patch(
+                "app.services.agent_registry.organization_secret_repo.get",
+                AsyncMock(return_value=MagicMock()),
+            ),
+            patch("app.services.agent_registry.resolve_access", AsyncMock(return_value=True)),
+        ):
+            problems, _ = await service._external_agent_problems(
+                CTX, MagicMock(external_agents=[ref])
+            )
+
+        assert problems == []
 
     async def test_the_run_builds_one_delegate_per_remote_agent_with_its_key(self) -> None:
         secret_id = uuid.uuid4()

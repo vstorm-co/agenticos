@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import SecretKind
 from app.db.models.external_agent import ExternalAgent
@@ -74,7 +75,7 @@ class ExternalAgentService:
             AlreadyExistsError: The handle is taken in this organization.
             NotFoundError: The secret is not one the caller may name.
         """
-        card = await self._card(data.card_url)
+        card = await self._card(data.card_url, typed=True)
         slug = slugify(data.slug or card.name)
         if await external_agent_repo.get_by_slug(
             self.db, slug, organization_id=ctx.organization_id
@@ -113,7 +114,7 @@ class ExternalAgentService:
     async def refresh(self, ctx: AuthContext, agent_id: UUID) -> ExternalAgentRead:
         """Read the card again - a remote agent changes on its own side."""
         agent = await self._get(ctx, agent_id)
-        card = await self._card(agent.card_url)
+        card = await self._card(agent.card_url, typed=False)
         updated = await external_agent_repo.update(
             self.db,
             agent=agent,
@@ -150,13 +151,19 @@ class ExternalAgentService:
         return agent
 
     @staticmethod
-    async def _card(url: str) -> AgentCard:
+    async def _card(url: str, *, typed: bool) -> AgentCard:
+        """The card at `url`, or a refusal saying why it could not be read.
+
+        The address is never repeated in the refusal: a signed card URL carries
+        its credential in the query, and `details` is logged. Named as the
+        `card_url` field only when the caller typed it in this request.
+        """
         try:
             return await fetch_card(url)
         except A2AClientError as unreadable:
-            raise BadRequestError(
-                message=str(unreadable), details={"card_url": url}
-            ) from unreadable
+            if typed:
+                raise refused_field("card_url", str(unreadable)) from unreadable
+            raise BadRequestError(message=str(unreadable)) from unreadable
 
 
 def _stored(card: AgentCard) -> dict[str, Any]:
