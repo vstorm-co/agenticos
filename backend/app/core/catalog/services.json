@@ -60,6 +60,13 @@
     "description": "The token a sandbox service accepts. Whoever holds it can open a session, and a session runs commands on the host holding the Docker socket."
   },
   {
+    "id": "a2a",
+    "label": "Remote agent (A2A)",
+    "category": "other",
+    "kind": "api_key",
+    "description": "The bearer token another vendor's A2A agent accepts, sent with every task this organization's agents delegate to it."
+  },
+  {
     "id": "daytona",
     "label": "Daytona",
     "category": "other",
