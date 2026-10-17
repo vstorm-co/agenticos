@@ -100,6 +100,7 @@ export function ChatControls({
           // The /settings slash command opens this popover by clicking the
           // trigger through this attribute - see ChatContainer's slashContext.
           data-chat-settings-trigger
+          data-tour="chat-settings"
           // One icon beside the microphone: the model is a choice made once
           // per conversation, and its name took the width of the row it sat in.
           // The dot is what an override leaves visible once the popover closes.
@@ -123,6 +124,12 @@ export function ChatControls({
         align="end"
         sideOffset={8}
         className="border-border bg-popover relative w-[380px] overflow-hidden rounded-2xl border p-0 shadow-md"
+        // The page tour walks through this popover's sections. Its caption takes
+        // focus and its overlay takes the pointer - both outside - and closing on
+        // either left the next stop pinned to a section that had gone.
+        onInteractOutside={(event) => {
+          if (document.querySelector(".driver-popover")) event.preventDefault();
+        }}
       >
         <div className="max-h-[420px] scrollbar-thin overflow-y-auto p-4">
           <p className="text-muted-foreground mb-3 text-xs leading-relaxed">
