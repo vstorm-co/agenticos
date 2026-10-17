@@ -178,6 +178,29 @@ class TestARunInAProject:
         assert "The Q3 launch." in spec.instructions
         assert spec.instructions.endswith("### The project's instructions\n\nCite sources.")
 
+    def test_a_coding_agent_is_left_out_where_the_project_has_no_shell(self) -> None:
+        """A project the platform keeps files for has no container: a coding
+        agent would fail every task there, so it is not run and the agent knows."""
+        coder = AgentSpec(
+            name="Coder",
+            capabilities=[
+                {"id": "coding_agent", "config": {"harness": "claude_code"}},
+                {"id": "web_search"},
+            ],
+        )
+
+        stored = _in_project(coder, _project())
+        assert [binding.id for binding in stored.capabilities] == ["web_search", "sandbox"]
+        assert "coding agent is not available in this project" in stored.instructions
+
+        container = _in_project(coder, _project(backend="service"))
+        assert [binding.id for binding in container.capabilities] == [
+            "coding_agent",
+            "web_search",
+            "sandbox",
+        ]
+        assert "not available" not in container.instructions
+
     def test_an_agents_own_workspace_is_replaced_and_its_approvals_kept(self) -> None:
         connection = uuid4()
         project = _project(backend="service", sandbox_connection_id=connection, runtime="python")

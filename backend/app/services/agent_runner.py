@@ -121,6 +121,7 @@ from app.agents.capabilities.channel_tools import (
     CHANNEL_TOOLS_CAPABILITY_ID,
     ChannelDirectory,
 )
+from app.agents.capabilities.coding_agent import CODING_AGENT_ID
 from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE
 from app.agents.capabilities.guardrails import (
     GuardrailBlocked,
@@ -1484,10 +1485,21 @@ def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
         briefing += f"\n\n{project.description}"
     if project.instructions.strip():
         briefing += f"\n\n### The project's instructions\n\n{project.instructions.strip()}"
+    # A project the platform keeps files for has no container, and so no shell:
+    # a coding agent bound here would fail on every task. It is left out of the
+    # run, and the agent is told why rather than trying.
+    shell = project.backend == "service"
+    if not shell and any(entry.id == CODING_AGENT_ID for entry in spec.capabilities):
+        briefing += (
+            "\n\nThe coding agent is not available in this project: it keeps its files "
+            "without a container, so there is no shell to run Claude Code or Codex in. "
+            "If a task needs one, say so."
+        )
+    dropped = {SANDBOX_CAPABILITY_ID} | (set() if shell else {CODING_AGENT_ID})
     return spec.model_copy(
         update={
             "capabilities": [
-                *(entry for entry in spec.capabilities if entry.id != SANDBOX_CAPABILITY_ID),
+                *(entry for entry in spec.capabilities if entry.id not in dropped),
                 binding,
             ],
             "instructions": f"{spec.instructions}\n\n{briefing}",

@@ -1,5 +1,5 @@
 ---
-source_sha: "f461d042a7d7"
+source_sha: "fd02046fa2c4"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1143,7 +1143,9 @@ zacząć od nowa, a sesja, której sandbox już nie ma, zaczyna się od nowa sam
 poleceniami shella — publikacja odrzuca każdą inną konfigurację — oraz runtime'u z
 zainstalowanym harnessem: runtime `workbench` przypina Claude Code 2.1.288 i Codex
 0.160.0. Poświadczenie pochodzi z vault przez `secret_id` bindingu i trafia do
-polecenia przez jego środowisko, nigdy w linii poleceń.
+polecenia przez jego środowisko, nigdy w linii poleceń. W [projekcie](../projects.md),
+który trzyma pliki bez kontenera, nie ma shella, więc coding agent jest tam pomijany
+w runach, a agent wie dlaczego.
 
 **Klucz albo subskrypcja.** Claude Code przyjmuje klucz API Anthropic albo token,
 który `claude setup-token` wypisuje dla subskrypcji Claude Pro albo Max, zapisany jako

@@ -1,5 +1,5 @@
 ---
-source_sha: "f461d042a7d7"
+source_sha: "fd02046fa2c4"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1212,7 +1212,9 @@ erlaubten Shell-Befehlen — alles andere lehnt das Veröffentlichen ab — und 
 Runtime mit installiertem Harness: Die Runtime `workbench` fixiert Claude Code
 2.1.288 und Codex 0.160.0. Die Zugangsdaten kommen über die `secret_id` des
 Bindings aus dem Vault und erreichen den Befehl über seine Umgebung, nie auf dessen
-Befehlszeile.
+Befehlszeile. In einem [Projekt](../projects.md), das seine Dateien ohne Container
+hält, gibt es keine Shell; dort wird der Coding Agent in Runs weggelassen, und der
+Agent erfährt, warum.
 
 **Ein Key oder ein Abo.** Claude Code nimmt einen Anthropic-API-Key oder das Token,
 das `claude setup-token` für ein Claude-Pro- oder -Max-Abo ausgibt, als Key

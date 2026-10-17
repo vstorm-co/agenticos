@@ -1084,7 +1084,9 @@ over, and a session the sandbox no longer holds starts over by itself, once.
 commands on — publishing refuses anything else — and a runtime with the harness
 installed: the `workbench` runtime pins Claude Code 2.1.288 and Codex 0.160.0. The
 credential comes from the vault through the binding's `secret_id` and reaches the
-command through its environment, never on its command line.
+command through its environment, never on its command line. In a [project](../projects.md)
+that keeps its files without a container there is no shell, so the coding agent is
+left out of runs there and the agent is told why.
 
 **A key or a subscription.** Claude Code takes an Anthropic API key, or the token
 `claude setup-token` prints for a Claude Pro or Max subscription, stored as a key —

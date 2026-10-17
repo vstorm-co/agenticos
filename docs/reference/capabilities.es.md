@@ -1,5 +1,5 @@
 ---
-source_sha: "f461d042a7d7"
+source_sha: "fd02046fa2c4"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1157,7 +1157,9 @@ una vez.
 comandos de shell activados — publicar rechaza cualquier otra cosa — y un runtime con
 el harness instalado: el runtime `workbench` fija Claude Code 2.1.288 y Codex
 0.160.0. La credencial viene del vault mediante el `secret_id` del binding y llega al
-comando por su entorno, nunca en su línea de comandos.
+comando por su entorno, nunca en su línea de comandos. En un [proyecto](../projects.md)
+que guarda sus archivos sin contenedor no hay shell, así que el coding agent se deja
+fuera de los runs ahí y el agent sabe por qué.
 
 **Una clave o una suscripción.** Claude Code toma una clave API de Anthropic, o el
 token que `claude setup-token` imprime para una suscripción Claude Pro o Max, guardado
