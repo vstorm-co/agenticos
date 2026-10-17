@@ -80,6 +80,11 @@ the page you are looking at, not a five-card preview - **Load more** keeps
 paging back through the organization you are currently in, plus anything
 addressed to the deployment as a whole, until it reaches what has aged out.
 
+Each row starts with what it is about: the agent's face, with a badge for how
+its run went, or an icon for the kind of event - green for a finished run or an
+MCP server back up, red for a failure or a spent budget, amber for an approval
+or a budget warning.
+
 Switch organizations and the bell is that one's: a notification from the
 organization you left is not gone, it is behind the switcher. A deployment
 administrator is the one exception - theirs is not narrowed by the organization

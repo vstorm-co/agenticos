@@ -1,5 +1,5 @@
 ---
-source_sha: "90ca81fac519"
+source_sha: "9d87b1a0a462"
 ---
 
 # La consola { #the-console }
@@ -88,6 +88,11 @@ abrirla trae la página completa que estás mirando, no una vista previa de
 cinco tarjetas — **Load more** sigue paginando hacia atrás por la organización
 en la que estás ahora, más lo dirigido al deployment entero, hasta llegar a lo
 que ya ha caducado.
+
+Cada fila empieza por aquello de lo que trata: la cara del agente, con una
+insignia de cómo fue su run, o un icono del tipo de evento — verde para un run
+terminado o un servidor MCP que vuelve a funcionar, rojo para un fallo o un
+budget agotado, ámbar para una aprobación o un aviso de budget.
 
 Cambia de organización y la campana es la de esa: una
 notificación de la organización que dejaste no ha desaparecido, está detrás del

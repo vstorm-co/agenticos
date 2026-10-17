@@ -1,5 +1,5 @@
 ---
-source_sha: "90ca81fac519"
+source_sha: "9d87b1a0a462"
 ---
 
 # Die Konsole { #the-console }
@@ -91,6 +91,12 @@ Fünf-Karten-Vorschau - **Load more** blättert immer weiter zurück durch die
 Organisation, in der Sie gerade sind, plus alles, was an das gesamte
 Deployment adressiert ist, bis es erreicht, was aus dem Aufbewahrungsfenster
 gefallen ist.
+
+Jede Zeile beginnt mit dem, worum es geht: dem Gesicht des Agents mit einem
+Abzeichen dafür, wie sein Run lief, oder einem Symbol für die Art des
+Ereignisses - grün für einen beendeten Run oder einen wieder erreichbaren
+MCP-Server, rot für einen Fehlschlag oder ein aufgebrauchtes Budget, bernsteinfarben
+für eine Freigabe oder eine Budgetwarnung.
 
 Wechseln Sie die Organisation, gehört die Glocke dieser: eine
 Benachrichtigung aus der verlassenen Organisation ist nicht weg, sie liegt

@@ -1,5 +1,5 @@
 ---
-source_sha: "90ca81fac519"
+source_sha: "9d87b1a0a462"
 ---
 
 # Konsola { #the-console }
@@ -86,6 +86,12 @@ powyżej, otwarcie pobiera stronę, na której właśnie jesteś, a nie pięciok
 podgląd — **Load more** cofa cię, stronę po stronie, przez organizację, w
 której właśnie jesteś, plus to, co zaadresowano do całego wdrożenia, aż dojdzie
 do tego, co wypadło z zasięgu.
+
+Każdy wiersz zaczyna się od tego, czego dotyczy: twarzy agenta z plakietką
+mówiącą, jak poszedł jego run, albo ikony rodzaju zdarzenia — zielonej dla
+ukończonego runu albo serwera MCP, który znów działa, czerwonej dla porażki
+albo wyczerpanego budgetu, bursztynowej dla zatwierdzenia albo ostrzeżenia
+o budgecie.
 
 Przełącz organizację, a dzwonek jest jej:
 powiadomienie z organizacji, którą zostawiłeś, nie zniknęło — jest za
