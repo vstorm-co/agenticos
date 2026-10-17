@@ -6,10 +6,13 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
 from app.api.deps import Auth, ExternalAgentSvc, require
+from app.api.public_api import PUBLIC
 from app.core.permissions import Perm
 from app.schemas.external_agent import ExternalAgentCreate, ExternalAgentList, ExternalAgentRead
 
-router = APIRouter()
+# Public: an integration that runs agents over the API may also register the
+# remote agents they delegate to, under the same permissions.
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get(

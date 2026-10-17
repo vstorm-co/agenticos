@@ -248,3 +248,11 @@ async def test_only_a_secret_of_the_asked_kind_is_usable(kind: str, found: bool)
     else:
         with pytest.raises(NotFoundError):
             await service.get_usable(CTX, uuid.uuid4(), kind=SecretKind.API_KEY)
+
+
+def test_the_registry_is_part_of_the_public_api() -> None:
+    """An organization key may register what its agents delegate to, as the docs say."""
+    from app.api.public_api import is_public_route
+    from app.api.routes.v1.external_agents import router
+
+    assert all(is_public_route(route) for route in router.routes)
