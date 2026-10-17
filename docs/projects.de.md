@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "4b6021cc5afa"
+source_sha: "cc1841bb424b"
 ---
 
 # Projekte { #projects }
@@ -53,6 +53,8 @@ Der Container ist eine [Sandbox](sandbox.md)-Session, wenn die Installation eine
 Sandbox-Dienst betreibt, sodass die Dateien des Projekts auch ausgeführt und nicht
 nur gelesen werden können. Ohne ihn hält das Projekt seine Dateien als
 gespeicherten Workspace, der genauso liest und schreibt, aber keine Shell hat.
+Ein Projekt bleibt auf der Sandbox-Verbindung, auf der es angelegt wurde, darum
+lässt sich diese Verbindung nicht löschen, solange ein Projekt dort Dateien hält.
 
 ## Dateien { #files }
 

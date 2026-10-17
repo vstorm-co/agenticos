@@ -134,6 +134,22 @@ async def update(db: AsyncSession, *, project: Project, update_data: dict[str, A
     return project
 
 
+async def names_on_connection(
+    db: AsyncSession, *, organization_id: UUID, connection_id: UUID, limit: int = 5
+) -> list[str]:
+    """The names of the projects whose containers run on one sandbox connection."""
+    result = await db.execute(
+        select(Project.name)
+        .where(
+            Project.organization_id == organization_id,
+            Project.sandbox_connection_id == connection_id,
+        )
+        .order_by(Project.name)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
 async def delete(db: AsyncSession, project: Project) -> None:
     await db.delete(project)
     await db.flush()

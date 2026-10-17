@@ -19,7 +19,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.repositories import agent_workspace as workspace_repo
-from app.repositories import conversation_repo, project_repo
+from app.repositories import conversation_repo, project_repo, sandbox_connection_repo
 
 pytestmark = pytest.mark.anyio
 
@@ -216,4 +216,33 @@ async def test_a_project_chat_works_in_its_projects_container(db) -> None:
             db, organization_id=org.id, conversation_id=plain.id
         )
         is None
+    )
+
+
+async def test_the_projects_on_a_connection_are_named_in_order(db) -> None:
+    alice = await _user(db)
+    org, other = await _org(db, owner=alice), await _org(db, owner=alice)
+    host = await sandbox_connection_repo.create(
+        db, organization_id=org.id, name="Host", kind="docker", base_url="http://sbx:8080"
+    )
+    for name in ("Launch", "Audit"):
+        await project_repo.create(
+            db,
+            organization_id=org.id,
+            owner_user_id=alice.id,
+            name=name,
+            description=None,
+            instructions="",
+            default_agent_id=None,
+            backend="service",
+            sandbox_connection_id=host.id,
+        )
+    await _project(db, org, alice, name="Notes", visibility=Visibility.PRIVATE.value)
+
+    assert await project_repo.names_on_connection(
+        db, organization_id=org.id, connection_id=host.id
+    ) == ["Audit", "Launch"]
+    assert (
+        await project_repo.names_on_connection(db, organization_id=other.id, connection_id=host.id)
+        == []
     )

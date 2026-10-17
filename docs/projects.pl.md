@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "4b6021cc5afa"
+source_sha: "cc1841bb424b"
 ---
 
 # Projekty { #projects }
@@ -49,7 +49,9 @@ Niezależnie od tego, który agent odpowiada, run w czacie projektu pracuje w
 Kontener jest sesją [sandboxa](sandbox.md), gdy wdrożenie uruchamia usługę
 sandboxów, więc pliki projektu można też uruchamiać, nie tylko czytać. Bez niej
 projekt trzyma pliki jako zapisany workspace, który czyta i zapisuje tak samo,
-ale nie ma powłoki.
+ale nie ma powłoki. Projekt zostaje na połączeniu sandboxa, na którym go
+utworzono, więc tego połączenia nie da się usunąć, dopóki jakiś projekt trzyma na
+nim pliki.
 
 ## Pliki { #files }
 
