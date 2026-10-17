@@ -107,35 +107,47 @@ class TestWhoIsHere:
         self, store: _Store
     ) -> None:
         anna, kacper = uuid4(), uuid4()
-        await chat_room.join(ROOM, anna)
-        await chat_room.join(ROOM, kacper)
+        await chat_room.join(ROOM, anna, "tab-a")
+        await chat_room.join(ROOM, kacper, "tab-k")
         assert set(await chat_room.present(ROOM)) == {anna, kacper}
 
-        await chat_room.leave(ROOM, anna)
+        await chat_room.leave(ROOM, anna, "tab-a")
         assert await chat_room.present(ROOM) == [kacper]
         # Every arrival and departure is news to the room.
         assert _kinds(store) == [chat_room.PRESENCE] * 3
+
+    async def test_closing_one_of_two_tabs_leaves_the_person_here(self, store: _Store) -> None:
+        anna = uuid4()
+        await chat_room.join(ROOM, anna, "tab-1")
+        await chat_room.join(ROOM, anna, "tab-2")
+        assert await chat_room.present(ROOM) == [anna]
+
+        await chat_room.leave(ROOM, anna, "tab-1")
+        assert await chat_room.present(ROOM) == [anna]
+
+        await chat_room.leave(ROOM, anna, "tab-2")
+        assert await chat_room.present(ROOM) == []
 
     async def test_a_socket_that_stopped_saying_so_drops_out(self, store: _Store) -> None:
         """A tab that died without leaving: its last heartbeat ages out."""
         gone, here = uuid4(), uuid4()
         store.hashes[f"room:{ROOM}:here"] = {
-            str(gone): str(time.time() - chat_room.PRESENCE_TTL - 1),
-            str(here): str(time.time()),
+            f"{gone}:tab": str(time.time() - chat_room.PRESENCE_TTL - 1),
+            f"{here}:tab": str(time.time()),
             "not-a-person": "nor-a-time",
         }
         assert await chat_room.present(ROOM) == [here]
 
     async def test_redis_failing_counts_nobody_and_raises_nothing(self, store: _Store) -> None:
         store.fail = True
-        await chat_room.join(ROOM, uuid4())
+        await chat_room.join(ROOM, uuid4(), "tab")
         assert await chat_room.present(ROOM) == []
         assert store.published == []
 
     async def test_without_redis_nobody_is_here_and_nothing_is_heard(self) -> None:
         chat_room.configure(None)
-        await chat_room.join(ROOM, uuid4())
-        await chat_room.leave(ROOM, uuid4())
+        await chat_room.join(ROOM, uuid4(), "tab")
+        await chat_room.leave(ROOM, uuid4(), "tab")
         await chat_room.turn_begun(ROOM, uuid4())
         assert await chat_room.present(ROOM) == []
         assert [event async for event in chat_room.events(ROOM)] == []
@@ -145,7 +157,7 @@ class TestWhatTheRoomHears:
     async def test_people_and_turns_are_heard_and_nothing_else(self, store: _Store) -> None:
         anna = uuid4()
         channel = f"room:{ROOM}:events"
-        await chat_room.join(ROOM, anna)
+        await chat_room.join(ROOM, anna, "tab")
         await chat_room.turn_begun(ROOM, anna)
         store.published += [(channel, "not json"), (channel, '{"type": "other"}')]
         store.published.append((f"room:{uuid4()}:events", '{"type": "presence"}'))

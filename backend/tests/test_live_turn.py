@@ -478,7 +478,7 @@ class TestTheRoom:
 
         await self._enter(session, CONVERSATION, room, people=[session.user])
 
-        room["join"].assert_awaited_once_with(CONVERSATION, session.user.id)
+        room["join"].assert_awaited_once_with(CONVERSATION, session.user.id, session._socket)
         presence = [data for kind, data in _sent_events(session) if kind == "presence"]
         assert presence == [
             {
@@ -520,7 +520,7 @@ class TestTheRoom:
         assert room["join"].await_count == 1
 
         await self._enter(session, None, room)
-        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id)
+        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id, session._socket)
         assert session._room is None
 
     async def test_a_chat_that_cannot_be_read_leaves_the_room_it_was_in(self) -> None:
@@ -528,7 +528,7 @@ class TestTheRoom:
         room = self._room()
         await self._enter(session, CONVERSATION, room)
         await self._enter(session, str(uuid4()), room, found=False)
-        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id)
+        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id, session._socket)
 
     async def test_a_socket_that_closes_leaves(self) -> None:
         session = _session()
@@ -536,7 +536,7 @@ class TestTheRoom:
         await self._enter(session, CONVERSATION, room)
         with patch.multiple("app.services.agent_session.chat_room", **room):
             await session.shutdown()
-        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id)
+        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id, session._socket)
 
     async def test_an_open_chat_keeps_saying_its_reader_is_here(self) -> None:
         session = _session()
@@ -556,7 +556,7 @@ class TestTheRoom:
         room = self._room(events=[{"type": "turn_begun", "by": "anna"}])
         with patch.object(live_turn, "is_live", AsyncMock(return_value=False)):
             await self._enter(session, CONVERSATION, room, reads=False)
-        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id)
+        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id, session._socket)
         assert session._room is None and session._follower is None
 
     async def test_a_followed_turn_asks_again_and_ends_for_somebody_removed(

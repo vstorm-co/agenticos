@@ -2,6 +2,8 @@
 
 A project's chat is several people's, at once. Each of their sockets that has the
 conversation open is in its room: its presence is kept in Redis with a heartbeat,
+one entry per socket, so a person with the chat open in two tabs stays here when
+they close one,
 and the room's channel says when the people in it change and when a turn begins -
 so the others can show who is here, and follow the answer as it is written rather
 than finding it on their next reload.
@@ -51,13 +53,17 @@ def _channel(conversation_id: str) -> str:
     return f"room:{conversation_id}:events"
 
 
-async def join(conversation_id: str, user_id: UUID) -> None:
-    """Count this person as here, and tell the room. Also the heartbeat. Never raises."""
+def _entry(user_id: UUID, socket: str) -> str:
+    return f"{user_id}:{socket}"
+
+
+async def join(conversation_id: str, user_id: UUID, socket: str) -> None:
+    """Count this socket's person as here, and tell the room. Also the heartbeat. Never raises."""
     if _redis is None:
         return
     try:
         pipe = _redis.raw.pipeline()
-        pipe.hset(_here(conversation_id), str(user_id), str(time.time()))
+        pipe.hset(_here(conversation_id), _entry(user_id, socket), str(time.time()))
         pipe.expire(_here(conversation_id), PRESENCE_TTL * 4)
         await pipe.execute()
     except Exception:
@@ -66,17 +72,23 @@ async def join(conversation_id: str, user_id: UUID) -> None:
     await _announce(conversation_id, PRESENCE)
 
 
-async def leave(conversation_id: str, user_id: UUID) -> None:
-    """Stop counting this person as here, and tell the room. Never raises."""
+async def leave(conversation_id: str, user_id: UUID, socket: str) -> None:
+    """Stop counting this socket, and tell the room. Never raises.
+
+    The person stays here while another of their sockets has the room open.
+    """
     if _redis is None:
         return
     with contextlib.suppress(Exception):
-        await _redis.raw.hdel(_here(conversation_id), str(user_id))
+        await _redis.raw.hdel(_here(conversation_id), _entry(user_id, socket))
     await _announce(conversation_id, PRESENCE)
 
 
 async def present(conversation_id: str) -> list[UUID]:
-    """The people whose socket has the conversation open, as of the last heartbeat."""
+    """The people with a socket that has the conversation open, as of the last heartbeat.
+
+    Each once, however many of their sockets are in the room.
+    """
     if _redis is None:
         return []
     try:
@@ -85,11 +97,12 @@ async def present(conversation_id: str) -> list[UUID]:
         logger.exception("chat_room_presence_failed")
         return []
     cutoff = time.time() - PRESENCE_TTL
-    here = []
-    for user_id, at in seen.items():
+    here: list[UUID] = []
+    for entry, at in seen.items():
         with contextlib.suppress(ValueError):
-            if float(at) >= cutoff:
-                here.append(UUID(user_id))
+            person = UUID(entry.partition(":")[0])
+            if float(at) >= cutoff and person not in here:
+                here.append(person)
     return here
 
 

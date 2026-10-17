@@ -4,7 +4,7 @@ import contextlib
 import logging
 import time
 from typing import Any, NamedTuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic_ai.exceptions import CallDeferred, ModelHTTPError, UsageLimitExceeded
@@ -231,6 +231,8 @@ class AgentSession:
         # The conversation this socket has open, as one of the people in its
         # room (`chat_room`), and the task keeping it there.
         self._room: str | None = None
+        # This socket's own entry in the room, beside the person's other tabs.
+        self._socket = uuid4().hex
         self._room_task: asyncio.Task[None] | None = None
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
@@ -1170,7 +1172,7 @@ class AgentSession:
             return
         await self._leave_room()
         self._room = conversation_id
-        await chat_room.join(conversation_id, self.user.id)
+        await chat_room.join(conversation_id, self.user.id, self._socket)
         self._room_task = asyncio.create_task(self._in_room(conversation_id))
 
     async def _leave_room(self) -> None:
@@ -1179,7 +1181,7 @@ class AgentSession:
         if task is not None and not task.done():
             task.cancel()
         if room is not None:
-            await chat_room.leave(room, self.user.id)
+            await chat_room.leave(room, self.user.id, self._socket)
 
     async def _in_room(self, conversation_id: str) -> None:
         """Keep this socket counted as here, and pass on the room's news.
@@ -1200,7 +1202,7 @@ class AgentSession:
                 if not await self._still_reads(conversation_id):
                     self._stop_following()
                     self._room = self._room_task = None
-                    await chat_room.leave(conversation_id, self.user.id)
+                    await chat_room.leave(conversation_id, self.user.id, self._socket)
                     return
                 if event["type"] == chat_room.PRESENCE:
                     await self._send_presence(conversation_id)
@@ -1233,7 +1235,7 @@ class AgentSession:
     async def _heartbeat(self, conversation_id: str) -> None:
         while True:
             await asyncio.sleep(chat_room.HEARTBEAT_SECONDS)
-            await chat_room.join(conversation_id, self.user.id)
+            await chat_room.join(conversation_id, self.user.id, self._socket)
 
     async def _send_presence(self, conversation_id: str) -> None:
         here = await chat_room.present(conversation_id)
