@@ -274,6 +274,18 @@ class TestKeepingATurn:
         await live_turn.end(turn)
         assert store.lists == {}
 
+    async def test_redis_away_reads_as_nothing_running_rather_than_failing(
+        self, store: _Store
+    ) -> None:
+        """An attach on a socket must not take the socket down with Redis."""
+        store.fail = True
+        with (
+            patch.object(store, "exists", AsyncMock(side_effect=ConnectionError("gone"))),
+            patch.object(store, "get", AsyncMock(side_effect=ConnectionError("gone"))),
+        ):
+            assert await live_turn.is_live(CONVERSATION) is False
+            assert await _followed() == []
+
     async def test_without_redis_nothing_is_kept_or_followed(self) -> None:
         live_turn.configure(None)
         assert await live_turn.begin(CONVERSATION) is None

@@ -152,7 +152,13 @@ async def is_live(conversation_id: str) -> bool:
     """Whether a turn is being written in the conversation now."""
     if _redis is None:
         return False
-    return await _redis.raw.exists(_live_key(conversation_id)) > 0
+    try:
+        return await _redis.raw.exists(_live_key(conversation_id)) > 0
+    except Exception:
+        # Following is a view, as everything else here: Redis being away must
+        # not close the chat socket that asked - it reads as nothing running.
+        logger.exception("live_turn_is_live_failed")
+        return False
 
 
 async def follow(conversation_id: str) -> AsyncGenerator[dict[str, Any]]:
@@ -163,7 +169,11 @@ async def follow(conversation_id: str) -> AsyncGenerator[dict[str, Any]]:
     """
     if _redis is None:
         return
-    token = await _redis.raw.get(_live_key(conversation_id))
+    try:
+        token = await _redis.raw.get(_live_key(conversation_id))
+    except Exception:
+        logger.exception("live_turn_follow_failed")
+        return
     if token is None:
         return
     # A string: the client decodes responses.

@@ -110,7 +110,13 @@ async def events(conversation_id: str) -> AsyncGenerator[dict[str, Any]]:
     if _redis is None:
         return
     pubsub = _redis.raw.pubsub(ignore_subscribe_messages=True)
-    await pubsub.subscribe(_channel(conversation_id))
+    try:
+        await pubsub.subscribe(_channel(conversation_id))
+    except Exception:
+        # The room is a view: without Redis nobody hears it, and nothing fails.
+        logger.exception("chat_room_subscribe_failed")
+        await pubsub.aclose()
+        return
     try:
         async for message in pubsub.listen():
             if message.get("type") != "message":
