@@ -167,6 +167,7 @@ class TestRebuild:
                         {"name": "unused", "source": "c"},
                     ],
                 },
+                uuid.uuid4(),
             ),
         }
         visual = await visuals.rebuild("r2", _lookup(calls))
@@ -174,7 +175,9 @@ class TestRebuild:
         assert visual.id == "r2"
         assert visual.title == "Renamed"
         assert visual.content == "<p>three</p>{{image:logo}}{{image:bg}}"
-        assert visual.agent_id == calls["r2"].agent_id
+        # The agent that first drew it, not the one that revised it last: its app
+        # lives in that agent's namespace, and a revision updates that app.
+        assert visual.agent_id == calls["d"].agent_id
         assert visual.images == {"logo": "r2", "bg": "d"}
 
     @pytest.mark.parametrize(
@@ -328,10 +331,15 @@ class TestReads:
 class TestPublish:
     @pytest.fixture(autouse=True)
     def _not_indexed(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A visual drawn before the index existed has no row, and saves all the same."""
+        """A visual drawn before the index existed has no row, and saves all the same -
+        for a member who may run the agent that drew it."""
         monkeypatch.setattr(
             "app.services.visual.visual_repo.get_by_call", AsyncMock(return_value=None)
         )
+        monkeypatch.setattr(
+            "app.services.visual.agent_repo.get", AsyncMock(return_value=MagicMock())
+        )
+        monkeypatch.setattr("app.services.visual.resolve_access", AsyncMock(return_value=True))
 
     def _published(self, **overrides: Any) -> PublishedArtifact:
         values: dict[str, Any] = {
@@ -362,6 +370,28 @@ class TestPublish:
                 new=AsyncMock(side_effect=lookup),
             ),
         )
+
+    @pytest.mark.security
+    async def test_a_reader_who_may_not_run_its_agent_cannot_save_it(self) -> None:
+        """Reading the conversation is not enough: the app goes in the agent's
+        namespace, where a name taken by a reader is one its next run finds taken."""
+        calls = {
+            "d": ToolCallArgs(
+                "d", "draw", {"title": "Flow", "kind": "html", "content": "<p>x</p>"}, uuid.uuid4()
+            )
+        }
+        conversation_read, repo = self._patches(calls)
+        with (
+            conversation_read,
+            repo,
+            patch("app.services.visual.resolve_access", new=AsyncMock(return_value=False)),
+            patch("app.services.visual.artifacts.publish_with", new=AsyncMock()) as publish,
+            pytest.raises(AuthorizationError),
+        ):
+            await VisualService(MagicMock()).publish(
+                _ctx(), uuid.uuid4(), "d", VisualPublish(name="flow")
+            )
+        publish.assert_not_awaited()
 
     async def test_a_visual_is_published_from_the_transcript_with_its_pictures_inlined(
         self,

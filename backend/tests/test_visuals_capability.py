@@ -8,6 +8,7 @@ the web - an address; and the person's browser's report reaches the model.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -207,6 +208,28 @@ class TestIndexing:
             )
         assert _no_index.await_args.kwargs["revision_of"] == "base"
         assert _no_index.await_args.kwargs["user_id"] is None
+
+    async def test_a_drawing_stopped_before_its_check_is_not_listed(
+        self, _no_index: AsyncMock
+    ) -> None:
+        """A run stopped while the browser was still reporting never finished the
+        call; a row for it would be a visual nothing can rebuild."""
+        with (
+            patch(f"{SERVICE}.conversation_of_run", new=AsyncMock(return_value=uuid.uuid4())),
+            patch(
+                "app.agents.capabilities.visuals._toolset._checked",
+                new=AsyncMock(side_effect=asyncio.CancelledError),
+            ),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await VisualsToolset().draw(
+                _ctx(_deps(user_id=str(uuid.uuid4()))),
+                title="Flow",
+                kind="svg",
+                height=480,
+                content=SVG,
+            )
+        _no_index.assert_not_awaited()
 
     async def test_a_run_outside_a_thread_lists_nothing(self, _no_index: AsyncMock) -> None:
         await VisualsToolset().draw(_ctx(), title="Flow", kind="svg", height=1, content=SVG)

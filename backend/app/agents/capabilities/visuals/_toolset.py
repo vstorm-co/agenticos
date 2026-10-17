@@ -251,8 +251,10 @@ class VisualsToolset:
         except VisualError as refused:
             return steer(ctx, str(refused))
         self.drawn.add(visual_id)
-        await _index(ctx, visual_id, title=title.strip(), kind=found, revision_of=None)
         checked = await _checked(ctx, visual_id)
+        # Indexed once the call has an answer: a run stopped while the browser was
+        # still reporting leaves no row for a visual the transcript never finished.
+        await _index(ctx, visual_id, title=title.strip(), kind=found, revision_of=None)
         return f"Drew {title.strip()!r} as visual `{visual_id}`. {checked}"
 
     async def revise_visual(
@@ -309,8 +311,8 @@ class VisualsToolset:
             return steer(ctx, str(refused))
         self.drawn.add(revision_id)
         shown = (title or "").strip() or base.title
-        await _index(ctx, revision_id, title=shown, kind=base.kind, revision_of=base.id)
         checked = await _checked(ctx, revision_id)
+        await _index(ctx, revision_id, title=shown, kind=base.kind, revision_of=base.id)
         return f"Revised {shown!r} as visual `{revision_id}` (a revision of `{base.id}`). {checked}"
 
     async def read_visual(self, ctx: RunContext[AgentDeps], visual_id: str) -> str:

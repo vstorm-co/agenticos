@@ -37,10 +37,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.media import prefix_for
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.artifact import ArtifactMediaType
 from app.db.models.conversation import Conversation
 from app.db.session import get_db_context
+from app.repositories import agent as agent_repo
 from app.repositories import agent_run as agent_run_repo
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
@@ -48,6 +49,7 @@ from app.repositories import visual as visual_repo
 from app.repositories.conversation import ToolCallArgs
 from app.schemas.visual import VisualList, VisualListItem, VisualPublish, VisualPublished
 from app.services import artifact as artifacts
+from app.services.access import AGENT, resolve_access
 from app.services.artifact import PLATFORM_SCRIPT
 from app.services.conversation import ConversationService
 from app.services.file_storage import get_file_storage
@@ -334,6 +336,9 @@ class Visual:
     kind: VisualKind
     content: str
     agent_id: UUID | None
+    """The agent that first drew it, whoever revised it since: the namespace its
+    app lives in, so a revision by another agent updates that app rather than
+    starting a second one."""
     images: Mapping[str, str]
     """Each image the visual may use, by name, and the call that brought it."""
 
@@ -412,7 +417,7 @@ async def rebuild(visual_id: str, lookup: Lookup) -> Visual:
         title=title,
         kind=kind,
         content=content,
-        agent_id=chain[0].agent_id,
+        agent_id=chain[-1].agent_id,
         images=images,
     )
 
@@ -619,6 +624,17 @@ class VisualService:
         if visual.agent_id is None:
             raise BadRequestError(
                 message="This visual has no agent to save it under",
+                details={"visual_id": visual_id},
+            )
+        # The app is the agent's, in its namespace: reading the conversation is
+        # not enough to put a name there, or a reader could take one the agent's
+        # next run then finds taken.
+        agent = await agent_repo.get(self.db, visual.agent_id, organization_id=ctx.organization_id)
+        if agent is None or not await resolve_access(
+            self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT
+        ):
+            raise AuthorizationError(
+                message="Saving this visual takes access to run the agent that drew it",
                 details={"visual_id": visual_id},
             )
         title = (data.title or "").strip() or visual.title or data.name
