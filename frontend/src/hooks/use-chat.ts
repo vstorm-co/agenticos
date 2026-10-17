@@ -1087,7 +1087,16 @@ export function useChat(options: UseChatOptions = {}) {
   const sendQueuedNow = useCallback(
     (id: string) => {
       const queued = messageQueueRef.current.find((q) => q.id === id);
-      if (!queued || !isProcessing || !isConnected || queued.fileIds?.length) return;
+      // Mentions travel with a message, never with a correction: the steer frame
+      // carries text alone, so one sent now would lose what it pointed at.
+      if (
+        !queued ||
+        !isProcessing ||
+        !isConnected ||
+        queued.fileIds?.length ||
+        queued.mentions?.length
+      )
+        return;
       messageQueueRef.current = messageQueueRef.current.filter((q) => q.id !== id);
       setQueuedMessages([...messageQueueRef.current]);
       setSteers((waiting) => [...waiting, { id: clientId(), text: queued.content }]);

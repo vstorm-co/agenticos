@@ -106,6 +106,25 @@ describe("@-mentions in the composer", () => {
     expect(messageOf(box)).toBe("@Contracts @");
   });
 
+  it("stops at the ten the server takes, and says so", async () => {
+    const many: Mentionable[] = Array.from({ length: 11 }, (_, n) => ({
+      kind: "collection",
+      id: `kb-${n}`,
+      name: `Book${n}`,
+    }));
+    offered.mockReturnValue({ items: many, isLoading: false, isError: false });
+    const { box, marked } = composer();
+    for (let n = 0; n < 10; n += 1) {
+      await userEvent.type(box, `@Book${n}`);
+      await userEvent.click(screen.getByRole("option", { name: new RegExp(`^Book${n}$`) }));
+    }
+    expect(marked()).toHaveLength(10);
+
+    await userEvent.type(box, "@Book10");
+    expect(screen.getByText("You can point at 10 things at most in one message.")).toBeVisible();
+    expect(screen.queryByRole("option")).toBeNull();
+  });
+
   it("keeps offering what is already picked, and a deleted chip is unpicked", async () => {
     const { box, onSend, marked } = composer();
     await userEvent.type(box, "@con");

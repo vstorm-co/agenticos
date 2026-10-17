@@ -52,7 +52,7 @@ class _World:
 
     def __init__(self) -> None:
         self.connection = SimpleNamespace(
-            id=uuid.uuid4(), name="github-work", label=None, catalog_key="github"
+            id=uuid.uuid4(), name="github-work", label=None, catalog_key="github", is_enabled=True
         )
         self.collection = SimpleNamespace(id=uuid.uuid4(), name="Contracts", organization_id=ORG)
         self.stranger_collection = SimpleNamespace(
@@ -156,15 +156,6 @@ class _World:
                 "get_many",
                 AsyncMock(return_value={agent.id: agent for agent in everyone}),
             ),
-            patch.object(
-                module,
-                "accessible_ids",
-                AsyncMock(
-                    side_effect=lambda _db, _ctx, rows, *_a, **_k: {
-                        row.id for row in rows if row is not self.locked
-                    }
-                ),
-            ),
         ]
 
 
@@ -189,17 +180,18 @@ class TestWhatIsOffered:
         offered_capabilities = [item.id for item in offered if item.kind == "capability"]
         assert "knowledge" in offered_capabilities
         assert "context" not in offered_capabilities
-        # Who it delegates to, and only them: a published delegate the person may
-        # run, then its inline specialist - never one they may not run, one that
-        # is gone, or an agent it does not delegate to.
-        assert by_kind["agent"] == ["Reviewer", "summariser"]
+        # Who it delegates to, and only them: every pinned delegate - one the person
+        # could not run directly too, as the run hands it work all the same - then
+        # its inline specialist; never one that is gone, or an agent it does not
+        # delegate to.
+        assert by_kind["agent"] == ["Reviewer", "Locked", "summariser"]
         # Another tenant's collection is not offered, nor files whose capability is off.
         assert by_kind["collection"] == ["Contracts"]
         assert by_kind["skill"] == ["refund-policy"]
         assert "context" not in by_kind
         github = offered[0]
         assert (github.detail, github.icon) == ("github_work_*", "github")
-        assert [item.id for item in offered if item.kind == "agent"][1] == "inline:summariser"
+        assert [item.id for item in offered if item.kind == "agent"][2] == "inline:summariser"
 
     async def test_capabilities_are_offered_whole_and_named_as_people_know_them(
         self, world: Any
@@ -238,9 +230,53 @@ class TestWhatIsOffered:
         assert {item.kind for item in offered} == {"capability", "context"}
 
 
+class TestWhatTheRunWouldNotHave:
+    async def test_a_server_disabled_since_publish_is_not_offered(self, world: Any) -> None:
+        """The run leaves its tools out; a chip would send the model after them."""
+        world.connection.is_enabled = False
+        offered = await MentionService(MagicMock()).available(_ctx(), CHAT_AGENT)
+        assert "GitHub" not in [item.name for item in offered if item.kind == "mcp"]
+
+    async def test_the_note_names_tools_as_the_binding_renamed_them(self, world: Any) -> None:
+        spec = world.specs[CHAT_AGENT]
+        renamed = {
+            "subagents": {"task": {"name": "hand_off"}},
+            "knowledge": {"search_documents": {"name": "look_up"}},
+        }
+        dumped = spec.model_dump()
+        for binding in dumped["capabilities"]:
+            binding["tool_overrides"] = renamed.get(binding["id"], {})
+        world.specs[CHAT_AGENT] = AgentSpec.model_validate(dumped)
+        resolved = await MentionService(MagicMock()).resolve(
+            _ctx(),
+            CHAT_AGENT,
+            [
+                MentionRef(kind="agent", id=str(world.reviewer.id)),
+                MentionRef(kind="collection", id=str(world.collection.id)),
+            ],
+        )
+        assert resolved.note is not None
+        assert "with the `hand_off` tool" in resolved.note
+        assert "search it with `look_up`" in resolved.note
+        assert "`task`" not in resolved.note and "`search_documents`" not in resolved.note
+
+
 class TestResolvingAFrame:
     async def test_nothing_mentioned_changes_nothing(self, world: Any) -> None:
         resolved = await MentionService(MagicMock()).resolve(_ctx(), CHAT_AGENT, [])
+        assert (resolved.mentions, resolved.note) == ([], None)
+
+    @pytest.mark.security
+    async def test_only_what_could_not_have_been_picked_tells_the_model_nothing(
+        self, world: Any
+    ) -> None:
+        """Another tenant's collection and an agent this one does not delegate to:
+        no note, so nothing about them reaches the model."""
+        refs = [
+            MentionRef(kind="collection", id=str(world.stranger_collection.id)),
+            MentionRef(kind="agent", id=str(world.writer.id)),
+        ]
+        resolved = await MentionService(MagicMock()).resolve(_ctx(), CHAT_AGENT, refs)
         assert (resolved.mentions, resolved.note) == ([], None)
 
     async def test_what_could_not_have_been_picked_is_dropped(self, world: Any) -> None:
@@ -259,6 +295,7 @@ class TestResolvingAFrame:
 
         assert [item.name for item in resolved.mentions] == [
             "Contracts",
+            "Locked",
             "agenticos",
             "refund-policy",
             "Reviewer",

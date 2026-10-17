@@ -3292,4 +3292,21 @@ describe("useChat - adding to a running turn (#2087)", () => {
     expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["this one"]);
     expect(result.current.steers).toEqual([]);
   });
+
+  it("holds a message that points at something - a correction carries no mention", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+
+    act(() =>
+      result.current.sendMessage("@Contracts this one", undefined, undefined, [
+        { kind: "collection", id: "kb-1", name: "Contracts" },
+      ]),
+    );
+    act(() => result.current.sendQueuedNow(result.current.queuedMessages[0]!.id));
+
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual([
+      "@Contracts this one",
+    ]);
+    expect(result.current.steers).toEqual([]);
+  });
 });

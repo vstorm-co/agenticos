@@ -67,6 +67,9 @@ import type { UseMicrophoneResult } from "voice-glow";
  */
 const PASTE_AS_FILE_CHARS = 2000;
 
+/** What one message may point at; the server refuses a frame with more (`agent_chat.MAX_MENTIONS`). */
+const MAX_MENTIONS = 10;
+
 /** A file queued for upload, shown as a card before the server has answered. */
 interface PendingUpload {
   key: number;
@@ -225,8 +228,10 @@ export function ChatInput({
     setMentionQuery(mentionAt(text, at));
   };
 
+  const full = mentions.length >= MAX_MENTIONS;
   const pickMention = (item: Mentionable) => {
     if (mentionQuery === null) return;
+    if (full && !mentions.includes(item)) return;
     setMentionQuery(null);
     const next = insertMention(message, mentionQuery, item);
     setMessage(next.text);
@@ -543,6 +548,7 @@ export function ChatInput({
           onPick={pickMention}
           isLoading={offered.isLoading}
           failed={offered.isError}
+          full={full ? MAX_MENTIONS : undefined}
         />
       )}
       {showPalette && (

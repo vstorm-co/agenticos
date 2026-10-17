@@ -1474,6 +1474,7 @@
     "sendNow": "Wyślij teraz",
     "sendNowHint": "Wyślij do bieżącego zadania teraz, zamiast po odpowiedzi",
     "sendNowNotWithFiles": "Wiadomość z plikami czeka na odpowiedź",
+    "sendNowNotWithMentions": "Wiadomość ze wskazaniami czeka na odpowiedź",
     "queuedCount": "{count, plural, one {1 wiadomość w kolejce} few {# wiadomości w kolejce} many {# wiadomości w kolejce} other {# wiadomości w kolejce}}",
     "sentIntoTask": "wysłane do zadania",
     "moveUp": "Przesuń wyżej",
@@ -1506,6 +1507,7 @@
       "loading": "Wczytywanie tego, czego agent może użyć…",
       "failed": "Nie udało się wczytać, czego ten agent może użyć.",
       "nothing": "Nic, czego ten agent może użyć, nie pasuje.",
+      "full": "W jednej wiadomości możesz wskazać najwyżej {count, plural, one {# rzecz} few {# rzeczy} many {# rzeczy} other {# rzeczy}}.",
       "kind": {
         "mcp": "Serwery MCP",
         "capability": "Capabilities",

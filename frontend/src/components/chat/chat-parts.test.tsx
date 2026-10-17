@@ -123,6 +123,28 @@ describe("the queue above the composer", () => {
     expect(within(rows[1]!).getByRole("button", { name: /Send now/ })).toBeDisabled();
   });
 
+  it("holds a message that points at something, which a correction cannot carry", () => {
+    render(
+      <PendingMessages
+        messages={
+          [
+            {
+              id: "q-3",
+              content: "@Contracts check this",
+              mentions: [{ kind: "collection", id: "kb-1", name: "Contracts" }],
+            },
+          ] as Parameters<typeof PendingMessages>[0]["messages"]
+        }
+        onCancel={vi.fn()}
+        onSendNow={vi.fn()}
+      />,
+    );
+
+    const send = screen.getByRole("button", { name: /Send now/ });
+    expect(send).toBeDisabled();
+    expect(send).toHaveAttribute("title", "A message pointing at something waits for the answer");
+  });
+
   it("offers no Send now with no task running to join", () => {
     render(<PendingMessages messages={queued} onCancel={vi.fn()} />);
 

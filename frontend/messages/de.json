@@ -1474,6 +1474,7 @@
     "sendNow": "Jetzt senden",
     "sendNowHint": "Jetzt in die laufende Aufgabe senden, statt nach der Antwort",
     "sendNowNotWithFiles": "Eine Nachricht mit Dateien wartet auf die Antwort",
+    "sendNowNotWithMentions": "Eine Nachricht mit Verweisen wartet auf die Antwort",
     "queuedCount": "{count, plural, =1 {1 Nachricht in der Warteschlange} other {# Nachrichten in der Warteschlange}}",
     "sentIntoTask": "in die Aufgabe gesendet",
     "moveUp": "Nach oben",
@@ -1506,6 +1507,7 @@
       "loading": "Lädt, was dieser Agent nutzen kann…",
       "failed": "Was dieser Agent nutzen kann, ließ sich nicht laden.",
       "nothing": "Nichts, was dieser Agent nutzen kann, passt.",
+      "full": "Eine Nachricht kann auf höchstens {count, plural, one {# Ding} other {# Dinge}} verweisen.",
       "kind": {
         "mcp": "MCP-Server",
         "capability": "Capabilities",

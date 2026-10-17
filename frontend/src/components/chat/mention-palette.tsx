@@ -18,6 +18,7 @@ export function MentionPalette({
   onPick,
   isLoading,
   failed,
+  full,
 }: {
   items: Mentionable[];
   selectedIndex: number;
@@ -26,6 +27,8 @@ export function MentionPalette({
   isLoading: boolean;
   /** The list could not be read, which is said rather than shown as still loading. */
   failed: boolean;
+  /** How many may be picked, when that many already are: said instead of the list. */
+  full?: number;
 }) {
   const t = useTranslations("chat.mentions");
   const listRef = useRef<HTMLUListElement>(null);
@@ -41,7 +44,9 @@ export function MentionPalette({
       aria-label={t("menu")}
       className="border-foreground/10 bg-popover absolute bottom-full left-0 z-20 mb-2 w-full max-w-md overflow-hidden rounded-xl border shadow-lg"
     >
-      {items.length === 0 ? (
+      {full !== undefined ? (
+        <p className="text-muted-foreground p-3 text-xs">{t("full", { count: full })}</p>
+      ) : items.length === 0 ? (
         <p className="text-muted-foreground p-3 text-xs">
           {failed ? t("failed") : isLoading ? t("loading") : t("nothing")}
         </p>

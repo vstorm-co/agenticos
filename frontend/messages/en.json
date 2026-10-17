@@ -1474,6 +1474,7 @@
     "sendNow": "Send now",
     "sendNowHint": "Send it into the running task now, instead of after the answer",
     "sendNowNotWithFiles": "A message with files waits for the answer",
+    "sendNowNotWithMentions": "A message pointing at something waits for the answer",
     "queuedCount": "{count, plural, =1 {1 message queued} other {# messages queued}}",
     "sentIntoTask": "sent into the task",
     "moveUp": "Move up",
@@ -1506,6 +1507,7 @@
       "loading": "Loading what this agent can use…",
       "failed": "Could not load what this agent can use.",
       "nothing": "Nothing this agent can use matches.",
+      "full": "You can point at {count, plural, one {# thing} other {# things}} at most in one message.",
       "kind": {
         "mcp": "MCP servers",
         "capability": "Capabilities",

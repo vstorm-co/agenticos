@@ -27,14 +27,13 @@ from app.agents.spec import (
     PersonalMcpServerRef,
 )
 from app.core.config import settings
-from app.core.permissions import AuthContext, Perm
+from app.core.permissions import AuthContext
 from app.repositories import agent as agent_repo
 from app.repositories import context as context_repo
 from app.repositories import knowledge_base as knowledge_base_repo
 from app.repositories import mcp_connection as mcp_connection_repo
 from app.repositories import skill as skill_repo
 from app.schemas.mention import Mentionable, MentionRef
-from app.services.access import AGENT, accessible_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.mcp_catalog import get_entry
 
@@ -101,7 +100,15 @@ class MentionService:
             if item is not None and item not in picked:
                 picked.append(item)
         tools = {item.id: names for item, names in _capabilities(spec)}
-        return ResolvedMentions(mentions=picked, note=_note(picked, tools))
+        return ResolvedMentions(
+            mentions=picked,
+            note=_note(
+                picked,
+                tools,
+                hand_off=_tool_name(spec, "subagents", "task"),
+                search=_tool_name(spec, "knowledge", "search_documents"),
+            ),
+        )
 
     async def _spec(self, ctx: AuthContext, agent_id: UUID, *, draft: bool) -> AgentSpec:
         registry = AgentRegistryService(self.db)
@@ -131,7 +138,9 @@ class MentionService:
         for ref in spec.mcp_servers:
             if isinstance(ref, OrgMcpServerRef):
                 connection = connections.get(ref.connection_id)
-                if connection is None:
+                # Disabled since publish: the run leaves its tools out, so a chip
+                # pointing at it would send the model after tools it lacks.
+                if connection is None or not connection.is_enabled:
                     continue
                 entry = get_entry(connection.catalog_key) if connection.catalog_key else None
                 items.append(
@@ -169,8 +178,10 @@ class MentionService:
         """Who the agent hands work to: its published delegates, then its inline specialists.
 
         Nothing where the delegation capability is off - an agent it cannot hand
-        work to is not something it can be pointed at. A published delegate the
-        person may not run is left out, as the run would refuse it.
+        work to is not something it can be pointed at. Every pinned delegate is
+        offered, whoever asks: `AGENTS_RUN` on it was checked when the parent was
+        published, and the run does not ask again (`_resolve_delegate`), so one
+        hidden here would still be handed work - only never by name.
         """
         config = _delegation(spec)
         if config is None:
@@ -183,9 +194,6 @@ class MentionService:
         published = [
             agent for ref in spec.subagents if (agent := rows.get(ref.agent_id)) is not None
         ]
-        runnable = await accessible_ids(
-            self.db, ctx, published, Perm.AGENTS_RUN, resource_type=AGENT
-        )
         return [
             *(
                 Mentionable(
@@ -198,7 +206,6 @@ class MentionService:
                     avatar_color=agent.avatar_color,
                 )
                 for agent in published
-                if agent.id in runnable
             ),
             *(
                 Mentionable(
@@ -269,8 +276,26 @@ def _capabilities(spec: AgentSpec) -> list[tuple[Mentionable, list[str]]]:
     return items
 
 
-def _note(mentions: list[Mentionable], tools: dict[str, list[str]]) -> str | None:
-    """What the model reads about the mentions: names and how to use them, never content."""
+def _tool_name(spec: AgentSpec, capability_id: str, tool_id: str) -> str:
+    """The name a binding gives one of its capability's tools - what its model calls."""
+    binding = next((one for one in spec.capabilities if one.id == capability_id), None)
+    overrides = binding.tool_overrides if binding is not None else {}
+    named = get_capability(capability_id).effective_tools(overrides)
+    return next((tool.name for tool in named if tool.id == tool_id), tool_id)
+
+
+def _note(
+    mentions: list[Mentionable],
+    tools: dict[str, list[str]],
+    *,
+    hand_off: str,
+    search: str,
+) -> str | None:
+    """What the model reads about the mentions: names and how to use them, never content.
+
+    Tools are named as the binding names them: a renamed `task` or
+    `search_documents` is the only name the model was given.
+    """
     if not mentions:
         return None
     how = {
@@ -280,11 +305,9 @@ def _note(mentions: list[Mentionable], tools: dict[str, list[str]]) -> str | Non
             f"({', '.join(tools.get(item.id, []))}) for this request."
         ),
         "agent": lambda item: (
-            f'Agent "{item.name}" - hand the work to this specialist with the `task` tool.'
+            f'Agent "{item.name}" - hand the work to this specialist with the `{hand_off}` tool.'
         ),
-        "collection": lambda item: (
-            f'Knowledge base "{item.name}" - search it with `search_documents`.'
-        ),
+        "collection": lambda item: f'Knowledge base "{item.name}" - search it with `{search}`.',
         "skill": lambda item: f'Skill "{item.name}" - follow it for this request.',
         "context": lambda item: f'Context file "{item.name}" - use what it says.',
     }
