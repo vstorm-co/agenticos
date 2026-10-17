@@ -19,7 +19,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.profiles import ModelProfile
 from pydantic_ai.usage import RequestUsage
 
-from app.agents.cache_watch import CacheWatch
+from app.agents.cache_watch import CacheTally, CacheWatch, tally
 from app.agents.deps import AgentDeps
 from app.agents.manifest import RecordingModel, RunRecorder, as_payload
 
@@ -86,6 +86,8 @@ async def test_a_prefix_that_moved_mid_run_is_one_bust_on_the_request_it_hit(cap
         )
 
     assert _caches(recorder) == [(None, 0), (None, 0), ("bust", 10_500), (None, 0)]
+    # What the run's row is credited with, for the per-agent, per-model count.
+    assert tally(recorder) == CacheTally(busts=1, expiries=0, missed_tokens=10_500)
     (record,) = [r for r in caplog.records if r.getMessage() == "prompt_cache_bust"]
     assert record.model == "function:respond:"
     assert record.missed_tokens == 10_500
@@ -102,6 +104,7 @@ async def test_a_cache_that_held_records_nothing() -> None:
     )
 
     assert _caches(recorder) == [(None, 0), (None, 0)]
+    assert tally(recorder) == CacheTally(busts=0, expiries=0, missed_tokens=0)
 
 
 async def test_the_next_turn_is_judged_against_what_the_last_one_cached() -> None:
@@ -146,6 +149,7 @@ async def test_a_conversation_resumed_after_the_cache_expired_is_an_expiry(monke
     )
 
     assert _caches(an_hour_later) == [("expired", 10_400)]
+    assert tally(an_hour_later) == CacheTally(busts=0, expiries=1, missed_tokens=10_400)
 
 
 async def test_two_agents_in_one_conversation_keep_their_own_marks() -> None:

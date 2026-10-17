@@ -409,6 +409,27 @@ export interface CostSummary {
   by_key: CostByKey[];
   /** Spend per UTC day over the window - days with no runs are absent. */
   by_day: CostByDay[];
+  /** Prompt-cache busts and expiries per agent and model, most busts first (#2109). */
+  cache_by_agent_model: CacheByAgentModel[];
+}
+
+/**
+ * One agent on one model, over the Spend tab's window: how often its cached
+ * prompt prefix collapsed. A *bust* moved while the provider should still have
+ * held it, and was billed at the full input rate; an *expiry* had outlived the
+ * provider's retention.
+ */
+export interface CacheByAgentModel {
+  agent_id: string;
+  agent_slug: string;
+  agent_name: string;
+  model_label: string | null;
+  busts: number;
+  expiries: number;
+  /** Tokens earlier requests had cached that these did not read back. */
+  missed_tokens: number;
+  /** Runs with at least one bust or expiry. */
+  run_count: number;
 }
 
 /**

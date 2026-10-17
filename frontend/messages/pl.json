@@ -4492,7 +4492,16 @@
       "spendOverTimeHint": "Ile kosztował każdy dzień okna (dni w UTC).",
       "actionInService": "{action} w {service}",
       "approvalDetails": "Szczegóły",
-      "approvalNoArguments": "Nie przyjmuje nic."
+      "approvalNoArguments": "Nie przyjmuje nic.",
+      "cache": {
+        "title": "Cache promptu",
+        "description": "Żądania, których zapisanego w cache promptu nie odczytano. Bust to prefiks, który się przesunął - inna kolejność narzędzi, znacznik czasu w instrukcjach - i został policzony po pełnej stawce za wejście; wygaśnięcie to cache, który przetrwał dłużej niż przechowuje go dostawca.",
+        "agentAndModel": "Agent i model",
+        "noModel": "model nie zapisany",
+        "busts": "Busty",
+        "expiries": "Wygaśnięcia",
+        "missedTokens": "Tokeny wysłane ponownie"
+      }
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",

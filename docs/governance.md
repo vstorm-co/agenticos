@@ -869,6 +869,11 @@ its retention passed - with how many cached tokens it did not read back, and log
 the agent and model. The first request of a turn is compared with what the
 previous turn cached, when the same API worker serves both.
 
+The counts are kept on each run, so **Runs → Spend** adds up where the cache did
+not hold: a *Prompt cache* card, one row per agent and model, with its busts,
+expiries and the tokens re-sent at the full rate over the window. The card is not
+shown while every cache held.
+
 ## Approvals
 
 A tool the agent's author gated parks the run and waits for a person. Nothing

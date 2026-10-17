@@ -532,6 +532,12 @@ class TestMeteringWhatTheTurnEmbedded:
         billed = finish_run.await_args.kwargs
         assert billed["cost_usd"] == Decimal("0.00002")
         assert billed["input_tokens"] == 1000
+        # A turn whose cache was never in play credits the row with nothing.
+        assert (billed["cache_busts"], billed["cache_expiries"], billed["cache_missed_tokens"]) == (
+            0,
+            0,
+            0,
+        )
 
     async def test_an_unpriced_embedding_makes_the_turns_cost_a_floor(self):
         """`cost_is_partial` is what the chat draws its `+` from. An embedding

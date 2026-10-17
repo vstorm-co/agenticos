@@ -92,6 +92,7 @@ from app.agents.ask_user import (
     wire_questions,
 )
 from app.agents.audience import RunAudience, derive_audience
+from app.agents.cache_watch import tally
 from app.agents.capabilities.approval import (
     ApprovalDecision,
     ApprovalGranted,
@@ -3926,6 +3927,7 @@ class AgentRunnerService:
             else self._parked_tree(prepared, paused_state, await dump_plan(prepared.plan_store))
         )
         ledger = prepared.built.ledger
+        cache = tally(prepared.built.recorder)
         finished = await agent_run_repo.finish_run(
             self.db,
             run=prepared.run,
@@ -3938,6 +3940,9 @@ class AgentRunnerService:
             error=error,
             logfire_trace_id=current_trace_id(),
             paused_state=None if parked is None else parked.model_dump(mode="json"),
+            cache_busts=cache.busts,
+            cache_expiries=cache.expiries,
+            cache_missed_tokens=cache.missed_tokens,
         )
         # After the parent's row and on every path out of the run, for the reason
         # the parent's row is written on every path: a delegation that spent money
@@ -5425,6 +5430,14 @@ class AgentRunnerService:
         further down.
         """
         return await agent_run_repo.spend_by_provider(
+            self.db, organization_id=ctx.organization_id, since=since, until=until
+        )
+
+    async def cache_collapses(
+        self, ctx: AuthContext, *, since: datetime, until: datetime | None = None
+    ) -> list[tuple[UUID, str, str, str | None, int, int, int, int]]:
+        """Prompt-cache busts and expiries per agent and model, over the Spend tab's window."""
+        return await agent_run_repo.cache_collapses(
             self.db, organization_id=ctx.organization_id, since=since, until=until
         )
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "a4c4982a7155"
+source_sha: "6325c87e4e88"
 ---
 
 # Governance { #governance }
@@ -917,6 +917,11 @@ proveedor aún debía conservarla, *caché caducada* cuando pasó su retención 
 cuántos tokens en caché no leyó, y se registra con el agente y el modelo.
 La primera petición de un turno se compara con lo que guardó el turno anterior,
 cuando el mismo worker de API atiende ambos.
+
+Los recuentos se guardan en cada run, así que **Runs → Spend** suma dónde no
+aguantó la caché: una tarjeta *Prompt cache*, una fila por agent y modelo, con
+sus busts, expiraciones y los tokens reenviados a tarifa completa en la ventana.
+La tarjeta no aparece mientras todas las cachés aguantaron.
 
 ## Aprobaciones { #approvals }
 

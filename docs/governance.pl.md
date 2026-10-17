@@ -1,5 +1,5 @@
 ---
-source_sha: "a4c4982a7155"
+source_sha: "6325c87e4e88"
 ---
 
 # Governance { #governance }
@@ -936,6 +936,11 @@ powinien go jeszcze trzymać, *cache wygasł*, gdy minęła retencja - z liczbą
 tokenów z cache, których nie odczytało, i logowane z agentem i modelem.
 Pierwsze żądanie tury jest porównywane z tym, co zapisała poprzednia tura, gdy
 obie obsługuje ten sam worker API.
+
+Liczby są zapisywane na każdym runie, więc **Runs → Spend** sumuje, gdzie cache
+nie trzymał: karta *Cache promptu*, jeden wiersz na agenta i model, z busts,
+wygaśnięciami i tokenami wysłanymi ponownie po pełnej stawce w wybranym oknie.
+Karty nie ma, dopóki każdy cache trzymał.
 
 ## Zatwierdzenia { #approvals }
 

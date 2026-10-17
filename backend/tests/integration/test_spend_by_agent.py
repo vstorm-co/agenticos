@@ -265,3 +265,56 @@ class TestTheWindowAndTheTenant:
         rows = await _rows(db, mine, me)
 
         assert set(rows) == {"Mine"}
+
+
+class TestPromptCacheCollapses:
+    """Busts and expiries per agent and model, beside the cost they explain (#2109)."""
+
+    async def test_counted_per_agent_and_model_most_busts_first(self, db) -> None:
+        org, owner = await _org(db)
+        clerk = await _agent(db, org, name="Billing clerk")
+        scout = await _agent(db, org, name="Scout")
+        for _ in range(2):
+            await _run(
+                db,
+                org,
+                clerk,
+                cost="0.10",
+                model_label="claude-sonnet-4-5",
+                cache_busts=2,
+                cache_missed_tokens=9000,
+            )
+        await _run(
+            db,
+            org,
+            clerk,
+            cost="0.10",
+            model_label="gpt-4.1",
+            cache_expiries=1,
+            cache_missed_tokens=500,
+        )
+        await _run(db, org, scout, cost="0.10", model_label="gpt-4.1", cache_busts=1)
+        # A run whose cache held is not a row, and nor is one outside the window.
+        await _run(db, org, scout, cost="0.10", model_label="claude-sonnet-4-5")
+        await _run(
+            db,
+            org,
+            scout,
+            cost="0.10",
+            model_label="claude-sonnet-4-5",
+            cache_busts=9,
+            started_at=datetime.now(UTC) - timedelta(days=60),
+        )
+        # Another organization's busts are not this one's.
+        other, _ = await _org(db)
+        await _run(db, other, await _agent(db, other, name="Elsewhere"), cost="0", cache_busts=5)
+
+        rows = await AgentRunnerService(db).cache_collapses(
+            _ctx(org, owner), since=datetime.now(UTC) - timedelta(days=30)
+        )
+
+        assert [(row[1], row[3], row[4], row[5], row[6], row[7]) for row in rows] == [
+            ("Billing clerk", "claude-sonnet-4-5", 4, 0, 18000, 2),
+            ("Scout", "gpt-4.1", 1, 0, 0, 1),
+            ("Billing clerk", "gpt-4.1", 0, 1, 500, 1),
+        ]

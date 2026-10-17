@@ -110,3 +110,22 @@ class CacheWatch(AbstractCapability[AgentDeps]):
             },
         )
         return response
+
+
+@dataclass(frozen=True)
+class CacheTally:
+    """What one run's own requests lost to the prompt cache, for the run's row."""
+
+    busts: int
+    expiries: int
+    missed_tokens: int
+
+
+def tally(recorder: RunRecorder) -> CacheTally:
+    """Count the busts and expiries `CacheWatch` marked on a run's requests."""
+    marked = [request for request in recorder.requests if request.cache is not None]
+    return CacheTally(
+        busts=sum(request.cache == "bust" for request in marked),
+        expiries=sum(request.cache == "expired" for request in marked),
+        missed_tokens=sum(request.cache_missed_tokens for request in marked),
+    )

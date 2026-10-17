@@ -1,5 +1,5 @@
 ---
-source_sha: "a4c4982a7155"
+source_sha: "6325c87e4e88"
 ---
 
 # Governance { #governance }
@@ -1001,6 +1001,11 @@ abgelaufen*, wenn die Aufbewahrung vorbei war - mit der Zahl der gecachten
 Tokens, die er nicht zurückgelesen hat, und mit Agent und Modell geloggt. Der erste Request eines
 Turns wird mit dem verglichen, was der vorige Turn gecacht hat, wenn derselbe
 API-Worker beide bedient.
+
+Die Zahlen werden an jedem Run gespeichert, daher summiert **Runs → Spend**, wo
+der Cache nicht gehalten hat: eine Karte *Prompt-Cache*, eine Zeile pro Agent
+und Modell, mit Busts, Abläufen und den zum vollen Preis erneut gesendeten Tokens
+im Zeitraum. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
 
 ## Freigaben { #approvals }
 

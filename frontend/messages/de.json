@@ -4604,7 +4604,16 @@
       "spendOverTimeHint": "Was jeder Tag des Zeitraums gekostet hat, in UTC-Tagen.",
       "actionInService": "{action} in {service}",
       "approvalDetails": "Details",
-      "approvalNoArguments": "Es nimmt nichts entgegen."
+      "approvalNoArguments": "Es nimmt nichts entgegen.",
+      "cache": {
+        "title": "Prompt-Cache",
+        "description": "Anfragen, deren gecachter Prompt nicht zurückgelesen wurde. Ein Bust ist ein Präfix, das sich verschoben hat - Tools neu sortiert, ein Zeitstempel in den Anweisungen - und zum vollen Eingabepreis berechnet wurde; ein Ablauf hatte den Cache des Anbieters überdauert.",
+        "agentAndModel": "Agent und Modell",
+        "noModel": "Modell nicht erfasst",
+        "busts": "Busts",
+        "expiries": "Abläufe",
+        "missedTokens": "Erneut gesendete Tokens"
+      }
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
