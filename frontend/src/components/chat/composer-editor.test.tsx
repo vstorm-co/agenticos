@@ -60,6 +60,24 @@ describe("the composer's editor", () => {
     expect(messageOf(box())).toBe("hi");
   });
 
+  it("shows what it suggests until it is focused, then the placeholder", () => {
+    render(
+      <ComposerEditor
+        value=""
+        mentions={[]}
+        onChange={vi.fn()}
+        placeholder="Type a message..."
+        idle={<p>try @Notion</p>}
+      />,
+    );
+    expect(screen.getByText("try @Notion")).toBeInTheDocument();
+    fireEvent.focus(box());
+    expect(screen.queryByText("try @Notion")).toBeNull();
+    expect(screen.getByText("Type a message...")).toBeInTheDocument();
+    fireEvent.blur(box());
+    expect(screen.getByText("try @Notion")).toBeInTheDocument();
+  });
+
   it("makes an address a chip once something follows it, so it can still be typed", async () => {
     render(<Harness />);
     await userEvent.type(box(), "see https://github.com/acme/repo");

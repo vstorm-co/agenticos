@@ -1514,6 +1514,15 @@
         "skill": "Skille",
         "context": "Pliki kontekstu"
       }
+    },
+    "hints": {
+      "mention": "Wpisz <key>@</key>, by wskazać agentowi serwer, innego agenta albo skill",
+      "mcp": "Zbierz tygodniowe zmiany z <chip></chip> i podsumuj je",
+      "capability": "Użyj <chip></chip>, by przeanalizować załączony arkusz",
+      "agent": "Poproś <chip></chip> o sprawdzenie liczb",
+      "skill": "Trzymaj się <chip></chip> i napisz odpowiedź dla tego klienta",
+      "collection": "Co <chip></chip> mówi o okresie wypowiedzenia?",
+      "slash": "Wpisz <command></command>, by podsumować rozmowę, albo /, by zobaczyć wszystkie komendy"
     }
   },
   "common": {

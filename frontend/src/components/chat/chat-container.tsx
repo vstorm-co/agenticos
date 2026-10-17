@@ -985,6 +985,7 @@ function ChatUI({
                         // scope's own selection holds it.
                         agentId={delegatingAgentId}
                         mentionsFromDraft={testingDraft}
+                        hints={messages.length === 0}
                         disabled={
                           !isConnected ||
                           isArchived ||

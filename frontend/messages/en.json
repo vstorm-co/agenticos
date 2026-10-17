@@ -1514,6 +1514,15 @@
         "skill": "Skills",
         "context": "Context files"
       }
+    },
+    "hints": {
+      "mention": "Type <key>@</key> to point the agent at a server, a teammate or a skill",
+      "mcp": "Pull this week's updates from <chip></chip> and summarise them",
+      "capability": "Use <chip></chip> to work through the attached spreadsheet",
+      "agent": "Ask <chip></chip> to double-check the numbers",
+      "skill": "Follow <chip></chip> and draft a reply to this customer",
+      "collection": "What does <chip></chip> say about notice periods?",
+      "slash": "Type <command></command> to summarise this conversation, or / for every command"
     }
   },
   "common": {

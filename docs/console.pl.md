@@ -1,5 +1,5 @@
 ---
-source_sha: "e18b82f7c24a"
+source_sha: "9766a1c697e8"
 ---
 
 # Konsola { #the-console }
@@ -263,7 +263,9 @@ wiedzy, skilla - bez wklejania samej treści. Wskazanie agenta przekazuje mu pra
 nigdy nie zmienia tego, kto odpowiada. Usuń `@Nazwa`, a wybór znika. Wklejony link
 pokazuje ikonę swojej strony nad polem i w wysłanej wiadomości. Wzmianka nigdy nie
 poszerza tego, do czego agent sięga: serwer sprawdza każdą ponownie jako ty, wobec
-tego, co agent już ma. W panelu testowym Buildera menu czyta testowany szkic.
+tego, co agent już ma. W panelu testowym Buildera menu czyta testowany szkic. Dopóki rozmowa jest pusta, pole pokazuje po kolei
+przykłady zbudowane z tego, czego agent może użyć - jego serwera, capability,
+delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz.
 
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.

@@ -29,6 +29,10 @@ Two things are versioned separately from this file and worth knowing about:
   are resolved again on the server as the person, so one can never widen what
   the agent reaches. `GET /api/v1/agents/{id}/mentionables` lists what is
   offered.
+- **The empty composer shows what to ask.** While a conversation has nothing in
+  it, the box cycles through examples built from the agent's own servers,
+  capabilities, delegates and skills, and `/`, sliding from one to the next;
+  clicking into it or sending clears them.
 
 ## [1.1.1] - 2026-10-16
 

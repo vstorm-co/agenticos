@@ -1,5 +1,5 @@
 ---
-source_sha: "e18b82f7c24a"
+source_sha: "9766a1c697e8"
 ---
 
 # La consola { #the-console }
@@ -270,7 +270,9 @@ Borra el `@Nombre` y lo elegido desaparece. Un enlace pegado muestra el icono de
 su sitio encima del cuadro y en el mensaje enviado. Una mención nunca amplía lo
 que el agent puede alcanzar: el servidor comprueba cada una de nuevo como tú,
 frente a lo que el agent ya tiene. En el panel de pruebas del Builder el menú lee
-el borrador que estás probando.
+el borrador que estás probando. Mientras una conversación está vacía, el cuadro muestra uno
+tras otro ejemplos hechos con lo que el agent puede usar - su servidor, una
+capability, un delegado, un skill - y `/`; desaparecen en cuanto haces clic en él.
 
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina

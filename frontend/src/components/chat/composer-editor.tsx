@@ -8,6 +8,7 @@ import {
   useState,
   type ClipboardEvent,
   type KeyboardEvent,
+  type ReactNode,
   type Ref,
 } from "react";
 import { createPortal } from "react-dom";
@@ -179,6 +180,7 @@ export function ComposerEditor({
   onKeyDown,
   onPaste,
   placeholder,
+  idle,
   disabled = false,
   enterKeyHint,
   className,
@@ -191,6 +193,8 @@ export function ComposerEditor({
   onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
   onPaste?: (event: ClipboardEvent<HTMLDivElement>) => void;
   placeholder: string;
+  /** Shown instead of the placeholder while the box is empty and not being typed in. */
+  idle?: ReactNode;
   disabled?: boolean;
   enterKeyHint?: "enter" | "send";
   className?: string;
@@ -204,6 +208,7 @@ export function ComposerEditor({
   // it at the end.
   const reported = useRef<{ text: string; caret: number } | null>(null);
   const composing = useRef(false);
+  const [focused, setFocused] = useState(false);
 
   const emit = useCallback(
     (text: string, caret: number) => {
@@ -270,14 +275,17 @@ export function ComposerEditor({
 
   return (
     <div className="relative">
-      {value === "" && (
-        <span
-          aria-hidden
-          className="text-muted-foreground pointer-events-none absolute inset-x-0 top-0 truncate py-2.5 text-base"
-        >
-          {placeholder}
-        </span>
-      )}
+      {value === "" &&
+        (idle && !focused ? (
+          idle
+        ) : (
+          <span
+            aria-hidden
+            className="text-muted-foreground pointer-events-none absolute inset-x-0 top-0 truncate py-2.5 text-base"
+          >
+            {placeholder}
+          </span>
+        ))}
       <div
         ref={rootRef}
         role="textbox"
@@ -295,6 +303,8 @@ export function ComposerEditor({
           disabled && "cursor-not-allowed opacity-50",
           className,
         )}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         onInput={(event) => {
           if (!composing.current) report(event.currentTarget);
         }}

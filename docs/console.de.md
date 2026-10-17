@@ -1,5 +1,5 @@
 ---
-source_sha: "e18b82f7c24a"
+source_sha: "9766a1c697e8"
 ---
 
 # Die Konsole { #the-console }
@@ -287,7 +287,10 @@ antwortet, ändert es nie. Löschen Sie `@Name`, und die Auswahl ist weg. Ein
 eingefügter Link zeigt das Symbol seiner Website über dem Feld und in der
 gesendeten Nachricht. Eine Erwähnung erweitert nie, was der Agent erreicht: Der
 Server prüft jede erneut als Sie, gegen das, was der Agent bereits hat. Im
-Testpanel des Builders liest das Menü den Entwurf, den Sie testen.
+Testpanel des Builders liest das Menü den Entwurf, den Sie testen. Solange ein Gespräch leer ist, zeigt das Feld nacheinander
+Beispiele aus dem, was der Agent nutzen kann - seinem Server, einer Capability,
+einem Delegierten, einem Skill - und `/`; sie verschwinden, sobald Sie
+hineinklicken.
 
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht

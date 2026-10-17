@@ -38,6 +38,7 @@ import {
 } from "./slash-commands";
 import { SlashCommandPalette } from "./slash-command-palette";
 import { ComposerEditor, type ComposerEditorHandle } from "./composer-editor";
+import { ComposerHints } from "./composer-hints";
 import { MentionPalette } from "./mention-palette";
 import { useMentionables } from "@/hooks/use-mentionables";
 import {
@@ -100,6 +101,8 @@ interface ChatInputProps {
   agentId?: string | null;
   /** Offer what the Builder's draft reaches - its test panel runs the draft. */
   mentionsFromDraft?: boolean;
+  /** Suggest what can be asked while the box is empty - a conversation with nothing in it yet. */
+  hints?: boolean;
   disabled?: boolean;
   isProcessing?: boolean;
   /** When set, a stop control replaces the send button while processing. */
@@ -170,6 +173,7 @@ export function ChatInput({
   incoming = null,
   agentId = null,
   mentionsFromDraft = false,
+  hints = false,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
@@ -584,6 +588,14 @@ export function ChatInput({
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         placeholder={t("placeholder")}
+        idle={
+          hints && !disabled ? (
+            <ComposerHints
+              offered={offered.items}
+              commands={allCommands.map((command) => command.name)}
+            />
+          ) : undefined
+        }
         disabled={disabled}
         // What a phone's keyboard offers: a return key that reads as a line
         // break where Enter makes one. 16px text, never less: iOS zooms the

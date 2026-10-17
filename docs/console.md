@@ -253,7 +253,9 @@ it never changes who answers. Delete the `@Name` and the pick is gone. A link yo
 paste shows its site's icon above the box and in the sent message. A mention never
 widens what the agent may reach: the server checks each one again as you, against
 what the agent already has. In the Builder's test panel the menu reads the draft
-you are testing.
+you are testing. While a conversation is empty, the box cycles through examples
+built from what the agent can use - its server, a capability, a delegate, a
+skill - and `/`; they are gone the moment you click into it.
 
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a

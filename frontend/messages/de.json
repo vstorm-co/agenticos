@@ -1514,6 +1514,15 @@
         "skill": "Skills",
         "context": "Kontextdateien"
       }
+    },
+    "hints": {
+      "mention": "Tippen Sie <key>@</key>, um dem Agent einen Server, einen anderen Agent oder einen Skill zu nennen",
+      "mcp": "Hol die Neuigkeiten der Woche aus <chip></chip> und fasse sie zusammen",
+      "capability": "Nutze <chip></chip>, um die angehängte Tabelle durchzuarbeiten",
+      "agent": "Bitte <chip></chip>, die Zahlen zu prüfen",
+      "skill": "Folge <chip></chip> und entwirf eine Antwort an diesen Kunden",
+      "collection": "Was sagt <chip></chip> zu Kündigungsfristen?",
+      "slash": "Tippen Sie <command></command>, um das Gespräch zusammenzufassen, oder / für alle Befehle"
     }
   },
   "common": {
