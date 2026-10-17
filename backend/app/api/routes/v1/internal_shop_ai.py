@@ -24,6 +24,10 @@ from app.schemas.shop_merchant_assistant import (
     ShopMerchantAssistantChatOut,
 )
 from app.schemas.shop_widget import ShopWidgetChatIn, ShopWidgetChatOut, ShopWidgetPollOut
+from app.schemas.shop_widget_quality import (
+    ShopChatQualityReportRead,
+    ShopChatQualitySummaryRead,
+)
 from app.schemas.knowledge_base import KnowledgeBaseList, KnowledgeBaseRead
 from app.schemas.rag import RAGIngestResponse, RAGTrackedDocumentList
 from app.schemas.shop_kb_delete import ShopKbDeleteResult
@@ -99,6 +103,7 @@ from app.services.shop_faq_sync import ShopFaqService
 from app.services.shop_live_agent_analytics import ShopLiveAgentAnalyticsService
 from app.services.shop_live_agent_inbox import ShopLiveAgentInboxService
 from app.services.shop_live_agent_settings import ShopLiveAgentSettingsService
+from app.services.shop_widget_quality import ShopWidgetQualityService
 from app.services.shop_widget_tenant import require_org_for_shop_tenant
 from app.services.shop_widget_chat_native import (
     native_widget_poll,
@@ -991,6 +996,38 @@ async def accept_faq_suggestion_route(
         kb_id=kb_id,
         suggestion_id=suggestion_id,
         data=body,
+    )
+
+
+@router.get("/widget/chat-quality-report", response_model=ShopChatQualityReportRead)
+async def get_widget_chat_quality_report_route(
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+    days: int = Query(7, ge=1, le=90),
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    return await ShopWidgetQualityService(db).build_report(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        days=days,
+    )
+
+
+@router.get("/widget/chat-quality-summary", response_model=ShopChatQualitySummaryRead)
+async def get_widget_chat_quality_summary_route(
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+    days: int = Query(7, ge=1, le=90),
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    return await ShopWidgetQualityService(db).build_summary(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        days=days,
     )
 
 
