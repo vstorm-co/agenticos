@@ -317,12 +317,23 @@ def claude_report(
     texts: list[str] = []
     session_id: str | None = None
     result: dict[str, Any] | None = None
+    # Each message's usage, by its id: one message arrives as several events,
+    # each carrying the message's whole usage.
+    streamed: dict[str, tuple[str, RequestUsage]] = {}
     for event in events:
         session_id = _text(event.get("session_id")) or session_id
         kind = event.get("type")
         if kind == "result":
             result = event
             continue
+        if kind == "assistant":
+            message = _mapping(event.get("message"))
+            spent, key = _mapping(message.get("usage")), _text(message.get("id"))
+            if spent and key:
+                streamed[key] = (
+                    _text(message.get("model")) or "claude",
+                    _claude_message_usage(spent),
+                )
         content = _content(event)
         for part in content:
             if kind == "assistant" and part.get("type") == "text":
@@ -345,6 +356,10 @@ def claude_report(
 
     usage = Usage(provider=None if base_url else "anthropic")
     if result is None:
+        # Stopped or timed out before its `result`: what the messages so far
+        # spent is still spent, so it is booked from them.
+        for model, spent in streamed.values():
+            usage.by_model[model] = usage.by_model.get(model, RequestUsage()) + spent
         return _unfinished("claude_code", access, session_id, [steps[key] for key in order]), usage
     for model, spent in (result.get("modelUsage") or {}).items():
         if isinstance(spent, dict):
@@ -573,6 +588,19 @@ def _claude_usage(spent: dict[str, Any]) -> RequestUsage:
         cache_read_tokens=read,
         cache_write_tokens=written,
         output_tokens=_count(spent.get("outputTokens")),
+    )
+
+
+def _claude_message_usage(spent: dict[str, Any]) -> RequestUsage:
+    """One streamed message's usage, as the Messages API words it - snake case."""
+    fresh = _count(spent.get("input_tokens"))
+    read = _count(spent.get("cache_read_input_tokens"))
+    written = _count(spent.get("cache_creation_input_tokens"))
+    return RequestUsage(
+        input_tokens=fresh + read + written,
+        cache_read_tokens=read,
+        cache_write_tokens=written,
+        output_tokens=_count(spent.get("output_tokens")),
     )
 
 

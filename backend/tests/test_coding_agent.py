@@ -598,6 +598,81 @@ async def _call(
     )
 
 
+_SPENDING = [
+    {
+        "type": "assistant",
+        "message": {
+            "id": "m1",
+            "model": "claude-sonnet-5-5",
+            "usage": {"input_tokens": 10, "cache_read_input_tokens": 90, "output_tokens": 5},
+            "content": [{"type": "text", "text": "Looking."}],
+        },
+    },
+    # The same message again, for its next block: counted once.
+    {
+        "type": "assistant",
+        "message": {
+            "id": "m1",
+            "model": "claude-sonnet-5-5",
+            "usage": {"input_tokens": 10, "cache_read_input_tokens": 90, "output_tokens": 5},
+            "content": [{"type": "tool_use", "id": "t1", "name": "Read", "input": {}}],
+        },
+    },
+    {
+        "type": "assistant",
+        "message": {
+            "id": "m2",
+            "model": "claude-sonnet-5-5",
+            "usage": {"input_tokens": 1, "cache_creation_input_tokens": 4, "output_tokens": 7},
+            "content": [{"type": "text", "text": "Still going."}],
+        },
+    },
+    {"type": "assistant", "message": {"id": "m3", "content": []}},
+]
+
+
+class TestSpendOfATaskThatDidNotFinish:
+    def test_an_unfinished_session_is_booked_from_its_messages(self) -> None:
+        report, usage = claude_report(_SPENDING, access="edit", base_url=None)
+        assert report.outcome == "failed"
+        (spent,) = usage.by_model.values()
+        assert (spent.input_tokens, spent.cache_read_tokens, spent.cache_write_tokens) == (
+            105,
+            90,
+            4,
+        )
+        assert spent.output_tokens == 12
+
+    @pytest.mark.security
+    async def test_a_task_stopped_mid_way_still_books_what_it_spent(self) -> None:
+        """Booked only on finishing, a task stopped late each time walked past
+        the budget."""
+
+        class _StoppedAfterAStep(_Shell):
+            polls = 0
+
+            async def _poll(self, command: str) -> CommandResult:
+                self.polls += 1
+                if self.polls > 1:
+                    raise anyio.get_cancelled_exc_class()
+                return await super()._poll(command)
+
+        shell = _StoppedAfterAStep(events=_lines(_SPENDING), hangs=True)
+        ledger = SpendLedger()
+        with metered_by(ledger), pytest.raises(anyio.get_cancelled_exc_class()):
+            await _call(shell)
+        assert [entry.model_name for entry in ledger.entries] == ["claude-sonnet-5-5"]
+        assert ledger.input_tokens == 105
+        assert shell.stopped == 1
+
+        # Codex's finished turns, the same way.
+        codex = _StoppedAfterAStep(events=_lines(_codex_stream(end=None)), hangs=True)
+        ledger = SpendLedger()
+        with metered_by(ledger), pytest.raises(anyio.get_cancelled_exc_class()):
+            await _call(codex, harness="codex")
+        assert ledger.input_tokens > 0
+
+
 class TestRunningATask:
     async def test_a_task_runs_detached_books_its_spend_keeps_its_session_and_tidies_up(
         self,

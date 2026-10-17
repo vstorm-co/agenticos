@@ -310,7 +310,10 @@ def build_coding_toolset(
             command = replace(command, env={**command.env, HOME_ENV: home})
         files = task_files(uuid.uuid4().hex)
 
+        seen: list[dict[str, Any]] = []
+
         async def shown(events: list[dict[str, Any]]) -> None:
+            seen.extend(events)
             for event in events:
                 await narration.shown(live_items(harness, event))
 
@@ -321,12 +324,23 @@ def build_coding_toolset(
         except _SANDBOX_FAILURES as failed:
             logger.warning("%s could not run in the workspace: %s", label, failed)
             return f"{label} could not run in this sandbox ({type(failed).__name__})."
+        except BaseException:
+            # Stopped mid-task: the harness has already spent what it spent, and
+            # a budget that only heard about finished tasks could be walked past
+            # by stopping each one late.
+            _book(spent(seen))
+            raise
         finally:
             try:
                 await clean_up(ctx, files)
             except _SANDBOX_FAILURES:
                 logger.debug("A coding task's files in %s were already gone", files.events)
         return reported(outcome)
+
+    def spent(events: list[dict[str, Any]]) -> Usage:
+        if harness == "claude_code":
+            return claude_report(events, access=access, base_url=base_url)[1]
+        return codex_report(events, access=access, model=model)[1]
 
     def reported(outcome: Outcome) -> CodingReport | str:
         if outcome.exit_code == MISSING_COMMAND and not outcome.events:
