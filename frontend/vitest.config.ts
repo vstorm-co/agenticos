@@ -112,6 +112,7 @@ export default defineConfig({
         // Projects: the pages, the composer's picker and the sidebar's rows.
         "src/components/projects/**/*.tsx",
         "src/components/layout/project-rows.tsx",
+        "src/components/layout/notification-glyph.tsx",
         "src/components/chat/project-chip.tsx",
         // One file viewer for every surface (#136). Held to the gate because what
         // it replaced was: three of the four implementations sat under

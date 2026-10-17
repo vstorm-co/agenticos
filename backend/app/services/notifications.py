@@ -105,6 +105,21 @@ _SECURITY_EVENT_SUMMARY: dict[str, str] = {
 }
 
 
+def agent_face(agent: Agent) -> dict[str, str | bool | int | None]:
+    """Which agent a notification is about, kept so the inbox can draw its face.
+
+    In `render_context` beside the name the email reads: the row is the one
+    record of the event, and an id there is what lets the bell show the agent
+    rather than a dot.
+    """
+    return {
+        "agent_id": str(agent.id),
+        "agent_slug": agent.slug,
+        "agent_has_avatar": agent.has_avatar,
+        "agent_avatar_color": agent.avatar_color,
+    }
+
+
 def _security_event_summary(entry: AppAdminAuditLog) -> str:
     return _SECURITY_EVENT_SUMMARY.get(
         entry.action, f"A privileged action was recorded: {entry.action}"
@@ -177,6 +192,7 @@ class NotificationService:
         run_path = self._link(f"/agents/{agent.id}", run.organization_id)
         render_context = {
             "agent_name": agent.name,
+            **agent_face(agent),
             "org_name": organization_name,
             "reason": reason,
             "spent": f"{run.cost_usd:.2f}" if run.cost_usd is not None else "0.00",
@@ -293,6 +309,7 @@ class NotificationService:
         ]
         render_context = {
             "agent_name": agent.name,
+            **agent_face(agent),
             "tools": ", ".join(tools) if tools else "a tool call",
             "approvals_url": absolute_context_url(approvals_path),
             "app_name": settings.PROJECT_NAME,
@@ -357,6 +374,7 @@ class NotificationService:
             context_url=run_path,
             render_context={
                 "agent_name": agent.name,
+                **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(run_path),
             },
@@ -395,6 +413,7 @@ class NotificationService:
             context_url=run_path,
             render_context={
                 "agent_name": agent.name,
+                **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(run_path),
             },
@@ -442,6 +461,7 @@ class NotificationService:
             context_url=chat_path,
             render_context={
                 "agent_name": agent.name,
+                **agent_face(agent),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(chat_path),
             },

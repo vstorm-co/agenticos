@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
+import { NotificationGlyph } from "@/components/layout/notification-glyph";
 import { useNotificationInbox } from "@/hooks";
 import { isInAppPath } from "@/lib/notification-link";
 import { cn, timeAgo } from "@/lib/utils";
@@ -48,13 +49,7 @@ export function NotificationsWidget({ title, hint, seeAll, options }: DashboardW
             const unread = item.read_at === null;
             const content = (
               <>
-                <span
-                  aria-hidden
-                  className={cn(
-                    "mt-1.5 size-1.5 shrink-0 rounded-full",
-                    unread ? "bg-primary" : "bg-transparent",
-                  )}
-                />
+                <NotificationGlyph item={item} />
                 <span className="min-w-0 flex-1">
                   <span className="sr-only">
                     {tNotifications(unread ? "rowUnread" : "rowRead")}
@@ -71,10 +66,17 @@ export function NotificationsWidget({ title, hint, seeAll, options }: DashboardW
                     {timeAgo(item.created_at, tTime, locale)}
                   </span>
                 </span>
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mt-1.5 size-2 shrink-0 rounded-full",
+                    unread ? "bg-primary" : "bg-transparent",
+                  )}
+                />
               </>
             );
             const rowClassName =
-              "hover:bg-muted/60 flex items-start gap-2.5 rounded-md px-1 py-1.5 text-left text-sm";
+              "hover:bg-muted/60 flex items-start gap-3 rounded-md px-1 py-1.5 text-left text-sm";
             // Fire-and-forget: nothing here needs the outcome, but an
             // unhandled rejection (a row the read-time gate has since
             // hidden, a dropped connection) must not reach the console as

@@ -69,6 +69,13 @@ Two things are versioned separately from this file and worth knowing about:
 - **Documents no longer lists the platform's own files.** A coding task's
   events and session under `.agenticos/` are left out, as skills and spilled
   tool output already were.
+- **Notifications say at a glance what they are about.** Each row in the bell
+  and on the dashboard card starts with the agent it concerns - its face, with
+  a badge for how the run went - or, for a row about no agent, an icon for its
+  kind: green for a finished run or a recovered MCP server, red for a failure
+  or an exhausted budget, amber for an approval or a budget warning. Rows
+  written before this keep the icon only. The inbox API serves the row's
+  `agent`.
 
 ## [1.1.1] - 2026-10-16
 
