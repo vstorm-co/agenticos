@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-18
+
 ### Fixed
 
 - **One connection per chat-app bot, however many API workers** (#2168). With
