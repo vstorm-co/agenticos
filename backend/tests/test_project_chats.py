@@ -130,6 +130,38 @@ class TestReadingATeammatesChat:
         assert access.resolve.await_args.args[1] is ctx
 
 
+class TestTheProjectDecidesForItsStarterToo:
+    """Whoever started a project's chat holds it through the project, not apart from it."""
+
+    async def test_a_starter_who_lost_the_project_reads_its_chat_no_more(self):
+        chat = _chat(project_id=uuid4(), user_id=OWNER)
+        with _Access(allows=set()), pytest.raises(NotFoundError):
+            await _get(_service(chat), chat, user_id=OWNER)
+
+    async def test_a_starter_who_only_sees_the_project_may_tidy_but_not_add(self):
+        chat = _chat(project_id=uuid4(), user_id=OWNER)
+        with _Access(allows={Perm.PROJECTS_VIEW}):
+            assert await _get(_service(chat), chat, user_id=OWNER, for_write=True) is chat
+        with (
+            _Access(allows={Perm.PROJECTS_VIEW}),
+            patch(
+                f"{MODULE}.conversation_repo.get_conversation_by_id", AsyncMock(return_value=chat)
+            ),
+            pytest.raises(NotFoundError),
+        ):
+            await _service(chat).add_message(
+                chat.id,
+                MessageCreate(role="user", content="hi"),
+                organization_id=ORG,
+                user_id=OWNER,
+            )
+
+    async def test_a_starter_who_lost_the_project_cannot_rename_its_chat_either(self):
+        chat = _chat(project_id=uuid4(), user_id=OWNER)
+        with _Access(allows=set()), pytest.raises(NotFoundError):
+            await _get(_service(chat), chat, user_id=OWNER, for_write=True)
+
+
 class TestContinuingATeammatesChat:
     async def test_whoever_works_in_the_project_adds_a_turn(self):
         chat = _chat(project_id=uuid4())

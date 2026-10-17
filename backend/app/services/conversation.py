@@ -433,7 +433,14 @@ class ConversationService:
         the agent, not a resource shared on its own. That way in needs the caller's
         `ctx` to resolve the grant, so a read with none (a channel or an export)
         does not get it.
+
+        **A project's chat is read through the project alone** - by its
+        starter as much as anybody. Ownership answered first, so a member who
+        lost the project kept reading the chats they had started in it, and
+        through them its files; the project as it stands decides, for everyone.
         """
+        if getattr(conversation, "project_id", None) is not None:
+            return await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_VIEW)
         owner = getattr(conversation, "user_id", None)
         if owner is not None and str(owner) == str(user_id):
             return True
@@ -442,8 +449,6 @@ class ConversationService:
         if await channel_membership.confirms_participation(
             self.db, conversation_id=conversation.id, user_id=user_id
         ):
-            return True
-        if await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_VIEW):
             return True
         return await self._may_read_trigger_log(conversation, ctx)
 
@@ -572,8 +577,21 @@ class ConversationService:
         given a `role: "assistant"` turn that everybody reads in `/chat` and the
         model is handed back as its own words. The level is stated to whoever
         grants it, so it has to be the level that is enforced (#931).
+
+        A project's chat is the project's here as on read: a turn needs the
+        right to work in the project, whoever started the chat, and renaming,
+        archiving or deleting it stays its starter's while the project is still
+        theirs to see.
         """
         owner = getattr(conversation, "user_id", None)
+        if getattr(conversation, "project_id", None) is not None:
+            if turn:
+                return await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_USE)
+            return (
+                owner is not None
+                and str(owner) == str(user_id)
+                and await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_VIEW)
+            )
         if owner is not None and str(owner) == str(user_id):
             return True
         share = await conversation_share_repo.get_share(self.db, conversation.id, user_id)
@@ -583,11 +601,7 @@ class ConversationService:
             return await channel_membership.confirms_participation(
                 self.db, conversation_id=conversation.id, user_id=user_id
             )
-        # A project's members continue each other's chats, and that is all the
-        # project gives them: renaming, archiving or deleting a thread somebody
-        # else started stays the owner's. `turn` is only ever a person's own
-        # words - `add_message` asks it for a user turn and never an assistant one.
-        return turn and await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_USE)
+        return False
 
     async def _attach_authors(self, messages: list[Message]) -> None:
         """Put a name on each turn that came from a chat account.

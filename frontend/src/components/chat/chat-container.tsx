@@ -500,7 +500,13 @@ export function ChatContainer({
     <ChatUI
       messages={messages}
       present={present}
-      ownsConversation={openConversation !== undefined && openConversation.user_id === meId}
+      // Not a project's chat: who reads one is the project's to say, so a
+      // conversation share would invite nobody - the project's Share does.
+      ownsConversation={
+        openConversation !== undefined &&
+        openConversation.user_id === meId &&
+        !openConversation.project_id
+      }
       isConnected={isConnected}
       isProcessing={isProcessing}
       compacting={compacting}
