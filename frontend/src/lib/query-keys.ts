@@ -476,6 +476,10 @@ export const qk = {
     all: () => ["local-services"] as const,
     list: () => ["local-services", "list"] as const,
   },
+  externalAgents: {
+    all: () => ["external-agents"] as const,
+    list: () => ["external-agents", "list"] as const,
+  },
   sandboxConnections: {
     all: () => ["sandbox-connections"] as const,
     list: () => ["sandbox-connections", "list"] as const,

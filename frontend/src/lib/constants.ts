@@ -48,6 +48,7 @@ export const ROUTES = {
   ROUTINES: "/routines",
   VAULT: "/vault",
   SANDBOXES: "/sandboxes",
+  REMOTE_AGENTS: "/remote-agents",
   DOCUMENTS: "/documents",
   DOCUMENT_FOLDER: (id: string) => `/documents/${id}`,
   SKILLS: "/skills",

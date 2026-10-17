@@ -325,6 +325,8 @@ export interface AgentSpec {
    * optional in this type because `create` does not send one.
    */
   subagents?: SubagentRef[];
+  /** Remote A2A agents it may delegate to (#2092). Optional here, always on the wire. */
+  external_agents?: ExternalAgentRef[];
   /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
   budget?: BudgetSpec | null;
@@ -338,6 +340,12 @@ export interface AgentSpec {
    */
   notifications?: NotificationSpec;
   observability?: ObservabilitySpec | null;
+}
+
+/** A remote A2A agent this agent may delegate to, by its registration (#2092). */
+export interface ExternalAgentRef {
+  external_agent_id: string;
+  preferred_mode?: DelegationMode | null;
 }
 
 /** The model an agent's published version runs on. Enough to prefill a picker. */
@@ -371,6 +379,8 @@ export interface Agent {
    * backend re-checks on every create, so it is not a security boundary.
    */
   can_run: boolean;
+  /** Whether other systems may reach it over A2A, by its agent card (#2092). */
+  a2a_enabled?: boolean;
   /** How many members hold an explicit grant. Filled by the listing only. */
   shared_user_count?: number;
   /** Surfaces with an active binding ("slack", "telegram", ...). Listing only. */

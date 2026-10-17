@@ -775,7 +775,22 @@
     "capabilityShelfEnabled": "Włączone: {enabled} z {total}",
     "capabilityShelfPrevious": "Wcześniej w: {shelf}",
     "capabilityShelfNext": "Więcej w: {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Wbudowana, bez narzędzi} =1 {1 narzędzie} few {# narzędzia} many {# narzędzi} other {# narzędzia}}"
+    "capabilityToolCount": "{count, plural, =0 {Wbudowana, bez narzędzi} =1 {1 narzędzie} few {# narzędzia} many {# narzędzi} other {# narzędzia}}",
+    "a2aTitle": "Agent2Agent (A2A)",
+    "a2aDescription": "Pozwól agentom z innych systemów wysyłać temu agentowi zadania przez protokół A2A. Każde zadanie to run opublikowanej wersji, z jej budżetem i zatwierdzeniami, widoczny w Activity.",
+    "a2aSwitch": "Udostępnij tego agenta przez A2A",
+    "a2aPublishFirst": "Najpierw opublikuj agenta: przez A2A udostępniana jest opublikowana wersja.",
+    "a2aOff": "Wyłączone. Włącz, by agent dostał agent card, po którym inne systemy go znajdą.",
+    "a2aCardUrl": "Agent card",
+    "a2aEndpoint": "Endpoint dla zadań",
+    "a2aAuthHint": "Wywołujący wysyła jako bearer token klucz API organizacji albo token dostępu OAuth z tego wdrożenia, który musi mieć prawo uruchamiać tego agenta.",
+    "remoteDelegatesHeading": "Zdalni agenci",
+    "remoteDelegatesDetail": "Agenci innych dostawców, którym ten agent może przekazywać pracę przez A2A. Każde wywołanie liczy się do budżetu tego agenta.",
+    "addRemoteDelegate": "Dodaj zdalnego agenta",
+    "noRemoteDelegatesYet": "Brak zdalnych agentów.",
+    "noRemoteAgentsRegistered": "Nie zarejestrowano jeszcze żadnych zdalnych agentów. <link>Zarejestruj</link> agenta po jego agent card.",
+    "remoteDelegateGone": "Zdalny agent, którego już nie zarejestrowano",
+    "remoteDelegateGoneDetail": "Jego rejestrację usunięto, więc publikacja odrzuci tego agenta, dopóki nie zostanie usunięty z listy."
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -2938,6 +2953,7 @@
     "quickActions": "Szybkie akcje",
     "rag": "RAG",
     "register": "Zarejestruj",
+    "remoteAgents": "Zdalni agenci",
     "sandboxes": "Sandboxy",
     "search": "Szukaj",
     "searchJump": "Szukaj lub przejdź do…",
@@ -3444,6 +3460,14 @@
       "sandboxes-connections": {
         "title": "Gdzie agenci uruchamiają kod",
         "body": "Agenci, którzy piszą i uruchamiają kod, robią to na tych hostach. Obserwuj sesje na żywo i ustaw limity stąd."
+      },
+      "remote-agents-register": {
+        "title": "Zarejestruj agenta",
+        "body": "Wklej adres karty agenta. Zostanie od razu odczytana i sprawdzona, a do każdego wywołania może iść klucz z vault."
+      },
+      "remote-agents-list": {
+        "title": "Agenci innych dostawców",
+        "body": "Agentów zarejestrowanych tu po ich agent card A2A można wybrać jako delegatów obok twoich własnych agentów."
       },
       "settings-tabs": {
         "title": "Twoje ustawienia",
@@ -4444,6 +4468,7 @@
       "surfaceEmbed": "Embed",
       "surfaceFilter": "Filtruj według powierzchni",
       "surfaceMattermost": "Mattermost",
+      "surfaceA2a": "A2A",
       "surfaceSchedule": "Harmonogram",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -7029,5 +7054,37 @@
     "unavailableBody": "To wdrożenie nie ma Redisa do podglądów. Spróbuj za chwilę.",
     "rememberSignIn": "Zapamiętaj moje logowanie do {site} na kolejne przeglądania",
     "signInKept": "Twoje logowanie do {site} zostało zapamiętane na kolejne przeglądania - zarządzasz nim w Ustawieniach → Logowania."
+  },
+  "remoteAgents": {
+    "title": "Zdalni agenci",
+    "pageDescription": "Agenci innych dostawców, którym twoi agenci mogą przekazywać pracę przez protokół A2A. Zarejestruj takiego agenta po jego agent card, a potem wybierz go w ustawieniach delegowania agenta.",
+    "listTitle": "Zarejestrowani zdalni agenci",
+    "registeredCount": "{count, plural, one {1 zarejestrowany} few {# zarejestrowanych} many {# zarejestrowanych} other {# zarejestrowanego}}",
+    "emptyTitle": "Brak zdalnych agentów",
+    "emptyDescription": "Zarejestruj agenta po adresie jego agent card A2A, a twoi agenci będą mogli delegować do niego jak do własnego.",
+    "register": "Zarejestruj agenta",
+    "registerTitle": "Rejestracja zdalnego agenta",
+    "registerDescription": "Agent card jest odczytywany od razu, więc nazwa, opis i umiejętności pochodzą od samego agenta.",
+    "cardUrl": "Adres agent card",
+    "cardUrlHint": "URL karty albo adres bazowy agenta, pod którym odczytywane jest /.well-known/agent-card.json.",
+    "handle": "Nazwa wywołania",
+    "handleHint": "Nazwa, po której wywołują go twoi agenci. Puste pole utworzy ją z nazwy agenta.",
+    "key": "Wysyłany klucz",
+    "keyHint": "Klucz API z vault, wysyłany jako bearer token, gdy agent go wymaga.",
+    "noKey": "Bez klucza",
+    "suggestedKeyName": "Klucz zdalnego agenta",
+    "cancel": "Anuluj",
+    "reading": "Odczytywanie karty…",
+    "registered": "Zarejestrowano {name}",
+    "refreshed": "Ponownie odczytano kartę {name}",
+    "refresh": "Odczytaj kartę ponownie",
+    "refreshNamed": "Odczytaj ponownie kartę {name}",
+    "remove": "Usuń",
+    "removeNamed": "Usuń {name}",
+    "removeTitle": "Usunąć {name}?",
+    "removeDescription": "Agentów, którzy do niego delegują, nie da się ponownie opublikować, dopóki go nie przestaną wskazywać, a ich opublikowane wersje przerwą run przy próbie delegowania.",
+    "withKey": "Wysyła klucz",
+    "answersOn": "Odpowiada pod {host}",
+    "failedToLoad": "Nie udało się wczytać zdalnych agentów."
   }
 }

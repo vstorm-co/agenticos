@@ -344,6 +344,13 @@ export function useAgent(agentId: string | null) {
     onError: (error) => toast.error(getErrorMessage(error, tErrors)),
   });
 
+  /** Serve this agent to other systems over A2A, or stop (#2092). */
+  const setA2a = useMutation({
+    mutationFn: (enabled: boolean) => apiClient.put<Agent>(`/agents/${agentId}/a2a`, { enabled }),
+    onSuccess: invalidate,
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+
   return {
     agent: data,
     isLoading,
@@ -358,6 +365,7 @@ export function useAgent(agentId: string | null) {
     setAvatar,
     setColor,
     setMetadata,
+    setA2a,
   };
 }
 

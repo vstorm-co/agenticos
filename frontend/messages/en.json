@@ -775,7 +775,22 @@
     "capabilityShelfEnabled": "{enabled} of {total} on",
     "capabilityShelfPrevious": "Earlier in {shelf}",
     "capabilityShelfNext": "More in {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}"
+    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}",
+    "a2aTitle": "Agent2Agent (A2A)",
+    "a2aDescription": "Let other systems' agents send this agent tasks over the A2A protocol. Each task is a run of the published version, under its budget and approvals, and shows in Activity.",
+    "a2aSwitch": "Serve this agent over A2A",
+    "a2aPublishFirst": "Publish the agent first: what A2A serves is the published version.",
+    "a2aOff": "Off. Turn it on to give this agent an agent card other systems can find it by.",
+    "a2aCardUrl": "Agent card",
+    "a2aEndpoint": "Endpoint for tasks",
+    "a2aAuthHint": "Callers send an organization API key or an OAuth access token from this deployment as a bearer token, and it must be allowed to run this agent.",
+    "remoteDelegatesHeading": "Remote agents",
+    "remoteDelegatesDetail": "Other vendors' agents this one may hand work to over A2A. Each call goes under this agent's budget.",
+    "addRemoteDelegate": "Add a remote agent",
+    "noRemoteDelegatesYet": "No remote agents yet.",
+    "noRemoteAgentsRegistered": "No remote agents are registered yet. <link>Register one</link> by its agent card.",
+    "remoteDelegateGone": "A remote agent no longer registered",
+    "remoteDelegateGoneDetail": "Its registration was removed, so publishing refuses this agent until it is taken off the list."
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -3168,6 +3183,7 @@
     "quickActions": "Quick actions",
     "rag": "RAG",
     "register": "Register",
+    "remoteAgents": "Remote agents",
     "sandboxes": "Sandboxes",
     "search": "Search",
     "searchJump": "Search or jump to…",
@@ -3674,6 +3690,14 @@
       "sandboxes-connections": {
         "title": "Where agents run code",
         "body": "Agents that write and run code do it on these hosts. Watch the live sessions and set the ceilings from here."
+      },
+      "remote-agents-register": {
+        "title": "Register one",
+        "body": "Paste the address of an agent's card. It is read and checked now, and a key from the vault can go with every call."
+      },
+      "remote-agents-list": {
+        "title": "Agents from other vendors",
+        "body": "Agents registered here by their A2A agent card can be picked as delegates, beside your own agents."
       },
       "settings-tabs": {
         "title": "Your settings",
@@ -4674,6 +4698,7 @@
       "surfaceEmbed": "Embed",
       "surfaceFilter": "Filter by surface",
       "surfaceMattermost": "Mattermost",
+      "surfaceA2a": "A2A",
       "surfaceSchedule": "Schedule",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -7245,5 +7270,37 @@
     "unavailableBody": "This deployment has no Redis for live views. Try again shortly.",
     "rememberSignIn": "Keep me signed in to {site} for later browses",
     "signInKept": "Your sign-in to {site} is kept for later browses - manage it in Settings → Sign-ins."
+  },
+  "remoteAgents": {
+    "title": "Remote agents",
+    "pageDescription": "Other vendors' agents your agents can hand work to over the A2A protocol. Register one here by its agent card, then pick it in an agent's delegation settings.",
+    "listTitle": "Registered remote agents",
+    "registeredCount": "{count, plural, =1 {1 registered} other {# registered}}",
+    "emptyTitle": "No remote agents yet",
+    "emptyDescription": "Register an agent by the address of its A2A agent card, and your agents can delegate to it like to one of your own.",
+    "register": "Register an agent",
+    "registerTitle": "Register a remote agent",
+    "registerDescription": "The agent card is read now, so its name, description and skills come from the agent itself.",
+    "cardUrl": "Agent card address",
+    "cardUrlHint": "The card's URL, or the agent's base address, where /.well-known/agent-card.json is read.",
+    "handle": "Handle",
+    "handleHint": "What your agents call it by. Left empty, it is made from the agent's name.",
+    "key": "Key it sends",
+    "keyHint": "An API key from the vault, sent as a bearer token, when the agent asks for one.",
+    "noKey": "No key",
+    "suggestedKeyName": "Remote agent key",
+    "cancel": "Cancel",
+    "reading": "Reading the card…",
+    "registered": "Registered {name}",
+    "refreshed": "Read {name}'s card again",
+    "refresh": "Read the card again",
+    "refreshNamed": "Read {name}'s card again",
+    "remove": "Remove",
+    "removeNamed": "Remove {name}",
+    "removeTitle": "Remove {name}?",
+    "removeDescription": "Agents that delegate to it cannot be published again until they stop naming it, and their published versions fail the run when they try.",
+    "withKey": "Sends a key",
+    "answersOn": "Answers on {host}",
+    "failedToLoad": "The remote agents could not be loaded."
   }
 }

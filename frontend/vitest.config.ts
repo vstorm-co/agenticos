@@ -107,6 +107,7 @@ export default defineConfig({
         "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",
         "src/components/sandboxes/**/*.tsx",
+        "src/components/remote-agents/**/*.tsx",
         // One file viewer for every surface (#136). Held to the gate because what
         // it replaced was: three of the four implementations sat under
         // `components/sandboxes/**` and one under `chat/`, all already at 100%, so

@@ -12,6 +12,7 @@ import {
   KeyRound,
   LayoutDashboard,
   MessageSquare,
+  Network,
   Plug,
   Repeat,
   ShieldCheck,
@@ -146,6 +147,14 @@ export const NAV_GROUPS: NavGroup[] = [
         labelKey: "channels",
         href: ROUTES.CHANNELS,
         icon: MessagesSquare,
+        permission: Perm.agentsView,
+      },
+      {
+        // Another vendor's agent, reached over A2A (#2092): a connection the
+        // organization registers once, which its agents then delegate to.
+        labelKey: "remoteAgents",
+        href: ROUTES.REMOTE_AGENTS,
+        icon: Network,
         permission: Perm.agentsView,
       },
       {
