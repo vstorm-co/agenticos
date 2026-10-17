@@ -116,7 +116,7 @@ from app.services import agent_session as agent_session_module
 from app.services.agent import PersistedPrompt
 from app.services.agent_chat import ChatTurn, OpenedRun
 from app.services.agent_runner import ParkedApproval, PersonalServiceGap, PreparedRun
-from app.services.agent_session import AgentSession
+from app.services.agent_session import AgentSession, _wire_text
 from app.services.chat_timeline import TurnTimeline
 from app.services.message_history import build_message_history
 from app.services.run_stream import RunFrames
@@ -3359,3 +3359,10 @@ class TestTellingThePersonWhoLeft:
                 await session.shutdown()
 
         notifications.answered_while_away.assert_not_called()
+
+
+def test_an_id_field_that_is_not_text_is_left_out_rather_than_parsed() -> None:
+    """A number or an object where an id belongs would raise past the refusal
+    handling and leave the client waiting for an answer."""
+    assert _wire_text("p-1") == "p-1"
+    assert [_wire_text(raw) for raw in (None, "", 7, {"id": 1})] == [None] * 4

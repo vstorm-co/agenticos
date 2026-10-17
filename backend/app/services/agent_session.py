@@ -501,11 +501,9 @@ class AgentSession:
                 organization_id=self.organization_id,
                 # Read only when the turn starts a conversation: a chat is in
                 # the project it was started in, and stays there.
-                project_id=data.get("project_id") or None,
+                project_id=_wire_text(data.get("project_id")),
                 # The message this turn answers, where the person replied to one.
-                reply_to=reply
-                if isinstance(reply := data.get("reply_to"), str) and reply
-                else None,
+                reply_to=_wire_text(data.get("reply_to")),
             )
         except AppException as e:
             # Every refusal the write can raise, not only the cross-org one:
@@ -1255,3 +1253,13 @@ def _conversation_id(raw: object) -> str | None:
         return str(UUID(raw))
     except ValueError:
         return None
+
+
+def _wire_text(raw: object) -> str | None:
+    """A frame's id field as text, or `None` for an empty or non-text one.
+
+    Checked before anything parses it: a number or an object where an id
+    belongs raised past the turn's refusal handling, and the client waited for
+    an answer that was never coming.
+    """
+    return raw if isinstance(raw, str) and raw else None
