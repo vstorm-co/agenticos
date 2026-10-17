@@ -125,6 +125,19 @@ async def get_for_project(
     return result.scalar_one_or_none()
 
 
+async def list_for_project(
+    db: AsyncSession, *, organization_id: UUID, project_id: UUID
+) -> list[AgentWorkspace]:
+    """Every container a project has had: one per sandbox connection it was opened on."""
+    result = await db.execute(
+        select(AgentWorkspace).where(
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.project_id == project_id,
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def list_for_conversation(
     db: AsyncSession, *, organization_id: UUID, conversation_id: UUID
 ) -> list[AgentWorkspace]:

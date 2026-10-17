@@ -139,6 +139,18 @@ async def test_deleting_a_project_keeps_its_chats_and_takes_its_container(db) ->
     )
     found = await workspace_repo.get_for_project(db, organization_id=org.id, project_id=project.id)
     assert found is not None and found.id == container.id and found.agent_id is None
+    # Moved to another connection, it leaves a second container; both are listed.
+    moved = await workspace_repo.create(
+        db,
+        organization_id=org.id,
+        agent_id=None,
+        project_id=project.id,
+        scope="project",
+        scope_key=f"dp-{uuid.uuid4().hex[:20]}",
+        backend="state",
+    )
+    every = await workspace_repo.list_for_project(db, organization_id=org.id, project_id=project.id)
+    assert {row.id for row in every} == {container.id, moved.id}
 
     await project_repo.detach_conversations(db, project=project)
     await project_repo.delete(db, project)

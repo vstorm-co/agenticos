@@ -805,12 +805,18 @@ class SandboxWorkspaceService:
         return await self._bytes_from(ctx, row, await self._browsable(ctx, row), path)
 
     async def purge_project(self, ctx: AuthContext, project: Project) -> None:
-        """Remove a project's container from its host, before the project goes."""
-        row = await workspace_repo.get_for_project(
+        """Remove every container a project has had from its host, before the project goes.
+
+        Every one, not the latest: a project moved to another sandbox connection
+        left a container on the first, and the rows naming them go with the
+        project - after which nothing would know to delete that one.
+        """
+        rows = await workspace_repo.list_for_project(
             self.db, organization_id=ctx.organization_id, project_id=project.id
         )
-        if row is not None and row.backend != "state":
-            await self._purge_remote(ctx, row)
+        for row in rows:
+            if row.backend != "state":
+                await self._purge_remote(ctx, row)
 
     async def close(self, workspace: OpenWorkspace | None, *, keep_spills: bool = False) -> None:
         """Persist or release what the run was using.

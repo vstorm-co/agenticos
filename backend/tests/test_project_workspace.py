@@ -120,6 +120,7 @@ class TestOpeningItOutsideARun:
         self, monkeypatch: pytest.MonkeyPatch, mock_db_session: MagicMock
     ) -> None:
         monkeypatch.setattr(workspace_repo, "get_for_project", AsyncMock(return_value=None))
+        monkeypatch.setattr(workspace_repo, "list_for_project", AsyncMock(return_value=[]))
         purged = AsyncMock()
         monkeypatch.setattr(SandboxWorkspaceService, "_purge_remote", purged)
         service = SandboxWorkspaceService(mock_db_session)
@@ -135,7 +136,12 @@ class TestOpeningItOutsideARun:
     ) -> None:
         row = _row(backend="service")
         contents = WorkspaceContents(entries=[])
+        moved_from = _row(backend="service")
         monkeypatch.setattr(workspace_repo, "get_for_project", AsyncMock(return_value=row))
+        # A project moved to another connection left a container on the first.
+        monkeypatch.setattr(
+            workspace_repo, "list_for_project", AsyncMock(return_value=[row, moved_from])
+        )
         monkeypatch.setattr(SandboxWorkspaceService, "_tiled", AsyncMock(return_value=contents))
         monkeypatch.setattr(SandboxWorkspaceService, "_browsable", AsyncMock(return_value=contents))
         monkeypatch.setattr(SandboxWorkspaceService, "_bytes_from", AsyncMock(return_value=b"hi"))
@@ -146,12 +152,12 @@ class TestOpeningItOutsideARun:
         assert await service.project_files(_ctx(), _project()) == (row, contents)
         assert await service.project_bytes(_ctx(), _project(), path="a.md") == b"hi"
         await service.purge_project(_ctx(), _project())
-        purged.assert_awaited_once()
+        assert [call.args[1] for call in purged.await_args_list] == [row, moved_from]
 
     async def test_a_stored_project_has_no_host_to_purge(
         self, monkeypatch: pytest.MonkeyPatch, mock_db_session: MagicMock
     ) -> None:
-        monkeypatch.setattr(workspace_repo, "get_for_project", AsyncMock(return_value=_row()))
+        monkeypatch.setattr(workspace_repo, "list_for_project", AsyncMock(return_value=[_row()]))
         purged = AsyncMock()
         monkeypatch.setattr(SandboxWorkspaceService, "_purge_remote", purged)
 
