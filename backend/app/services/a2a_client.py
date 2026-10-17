@@ -15,6 +15,7 @@ answer the delegating model has to read, not an error.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -57,6 +58,14 @@ POLL_SECONDS = 2.0
 
 POLL_FOR_SECONDS = 600.0
 """How long a task still under way is waited for before its state is the answer."""
+
+MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+"""How much of a remote agent's reply is read before it is refused.
+
+Counted while it arrives, not after: a remote agent is somebody else's server,
+and one answering with an endless body would otherwise fill this worker's memory
+twice over - once buffered, once parsed - before `MAX_ANSWER_CHARS` cut anything.
+"""
 
 
 class A2AClientError(Exception):
@@ -175,20 +184,23 @@ async def _call(
     if bearer:
         headers["Authorization"] = f"Bearer {bearer}"
     try:
-        async with PinnedAsyncClient(timeout=_TIMEOUT, transport=transport) as client:
-            response = await client.post(endpoint, json=body, headers=headers)
+        async with (
+            PinnedAsyncClient(timeout=_TIMEOUT, transport=transport) as client,
+            client.stream("POST", endpoint, json=body, headers=headers) as response,
+        ):
+            if response.status_code in (401, 403):
+                raise A2AClientError("The agent refused the credential it was sent")
+            if response.status_code != 200:
+                raise A2AClientError(f"The agent answered HTTP {response.status_code}")
+            raw = await _read_bounded(response)
     except UrlRefusedError as refused:
         raise A2AClientError(
             f"The agent's address is not one this deployment may call: {refused}"
         ) from refused
     except httpx2.HTTPError as unreachable:
         raise A2AClientError("The agent could not be reached") from unreachable
-    if response.status_code in (401, 403):
-        raise A2AClientError("The agent refused the credential it was sent")
-    if response.status_code != 200:
-        raise A2AClientError(f"The agent answered HTTP {response.status_code}")
     try:
-        payload: Any = response.json()
+        payload: Any = json.loads(raw)
     except ValueError as invalid:
         raise A2AClientError("The agent did not answer with JSON") from invalid
     if not isinstance(payload, dict):
@@ -199,6 +211,18 @@ async def _call(
             f"The agent refused the task: {str(error.get('message', 'no reason given'))[:500]}"
         )
     return payload.get("result")
+
+
+async def _read_bounded(response: httpx2.Response) -> bytes:
+    """The body, refused as soon as it passes `MAX_RESPONSE_BYTES`."""
+    body = bytearray()
+    async for chunk in response.aiter_bytes():
+        body += chunk
+        if len(body) > MAX_RESPONSE_BYTES:
+            raise A2AClientError(
+                f"The agent answered with more than {MAX_RESPONSE_BYTES // (1024 * 1024)} MB"
+            )
+    return bytes(body)
 
 
 def _reply(result: Any) -> A2AReply:

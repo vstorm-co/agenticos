@@ -240,6 +240,18 @@ class TestSendingAMessage:
         message = json.loads(seen[0].content)["params"]["message"]
         assert (message["taskId"], message["contextId"]) == ("task-7", "ctx-1")
 
+    async def test_an_endless_reply_is_refused_while_it_arrives(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Counted as it comes: a remote server answering forever must not fill
+        this worker's memory before anything is cut."""
+        monkeypatch.setattr(a2a_client, "MAX_RESPONSE_BYTES", 64)
+        endless = httpx2.Response(200, content=b"x" * 1000)
+        with pytest.raises(A2AClientError, match="more than"):
+            await send_message(
+                CARD["url"], "Hi", context_id=None, bearer=None, transport=_wire(endless)
+            )
+
     async def test_a_long_answer_is_cut_and_says_so(self) -> None:
         long = "x" * (a2a_client.MAX_ANSWER_CHARS + 10)
         reply = await send_message(
