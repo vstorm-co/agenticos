@@ -270,9 +270,13 @@ function useVisualImages(
   return { uris, ready: missing.length === 0 || gaveUp };
 }
 
-/** Where the zoom sits: over the drawing's bottom right corner, out of its way. */
+/**
+ * Where the zoom sits: over the drawing's bottom right corner, shown only while
+ * the pointer is on the card or a zoom button has focus, so it covers nothing
+ * the rest of the time.
+ */
 const ZOOM_CORNER =
-  "border-border bg-background/90 absolute right-2 bottom-2 rounded-full border shadow-sm backdrop-blur";
+  "border-border bg-background/90 absolute right-2 bottom-2 rounded-full border shadow-sm backdrop-blur opacity-0 transition-opacity group-hover/visual:opacity-100 focus-within:opacity-100";
 
 /** How many of a drawing's errors the panel lists; the first few say what broke. */
 const SHOWN_ERRORS = 3;
@@ -371,7 +375,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
   return (
     <div
       data-tour="chat-visual"
-      className="border-border bg-background w-full max-w-2xl min-w-0 overflow-hidden rounded-2xl border shadow-sm"
+      className="group/visual border-border bg-background w-full max-w-2xl min-w-0 overflow-hidden rounded-2xl border shadow-sm"
     >
       <div className="border-border flex min-w-0 items-center gap-2 border-b py-1.5 pr-1.5 pl-3">
         <Shapes className="text-muted-foreground size-4 shrink-0" aria-hidden />
@@ -512,7 +516,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
           <DialogHeader className="gap-0 pr-10">
             <DialogTitle className="truncate text-base">{shown.title}</DialogTitle>
           </DialogHeader>
-          <div className="border-border relative min-h-0 flex-1 overflow-hidden rounded-xl border">
+          <div className="group/visual border-border relative min-h-0 flex-1 overflow-hidden rounded-xl border">
             {full && (
               <VisualFrame
                 kind={shown.kind}
