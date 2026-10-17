@@ -90,6 +90,11 @@ describe("conversationMessageToChatMessage", () => {
     );
     expect(conversationMessageToChatMessage(raw({ sender: null })).sender).toBeUndefined();
     expect(conversationMessageToChatMessage(raw({ sender_gone: true })).senderGone).toBe(true);
+    expect(
+      conversationMessageToChatMessage(
+        raw({ reply_to: { message_id: "m-0", role: "user", excerpt: "x", sender: null } }),
+      ).replyTo,
+    ).toEqual({ messageId: "m-0", role: "user", excerpt: "x", sender: undefined });
     expect(conversationMessageToChatMessage(raw({})).senderGone).toBeUndefined();
   });
 

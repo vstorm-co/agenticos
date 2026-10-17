@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { ReactNode } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
-import { Send, Mic, MicOff } from "lucide-react";
+import { Send, Mic, MicOff, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { uploadFile, type FileUploadResponse } from "@/lib/file-api";
@@ -13,6 +13,8 @@ import { createPortal } from "react-dom";
 
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import { AttachmentRow } from "./attachment-row";
+import { ReplyQuote } from "./reply-quote";
+import { useChatStore } from "@/stores";
 import { ComposerSheet } from "./composer-sheet";
 
 /**
@@ -151,6 +153,10 @@ export function ChatInput({
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
+  const tReply = useTranslations("chat.reply");
+  // The message this turn will answer, chosen with Reply on it.
+  const replyTo = useChatStore((state) => state.replyTo);
+  const setReplyTo = useChatStore((state) => state.setReplyTo);
   const tCommands = useTranslations("chat.commands");
   const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
@@ -477,6 +483,22 @@ export function ChatInput({
             ))}
           </AttachmentRow>,
         )}
+
+      {replyTo && (
+        <div className="flex min-w-0 items-center gap-2 px-3 pt-2.5">
+          <span className="text-muted-foreground shrink-0 text-xs">{tReply("replyingTo")}</span>
+          <ReplyQuote reply={replyTo} className="min-w-0 flex-1" />
+          <button
+            type="button"
+            onClick={() => setReplyTo(null)}
+            aria-label={tReply("cancel")}
+            title={tReply("cancel")}
+            className="text-muted-foreground hover:text-foreground hover:bg-accent/60 shrink-0 rounded-md p-1"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        </div>
+      )}
 
       {/* The text has the box to itself, and every control is on one row under
           it. The buttons used to sit *beside* the textarea, which is fine on

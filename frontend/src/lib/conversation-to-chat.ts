@@ -52,6 +52,12 @@ export interface RawMessage {
   files?: ChatMessageFile[] | null;
   sender?: ChatPerson | null;
   sender_gone?: boolean;
+  reply_to?: {
+    message_id: string;
+    role: ChatMessage["role"];
+    excerpt: string;
+    sender?: ChatPerson | null;
+  } | null;
   /** What the turn cost. Absent on a message written before it was recorded. */
   input_tokens?: number | null;
   output_tokens?: number | null;
@@ -180,6 +186,14 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     conversationId: msg.conversation_id,
     sender: msg.sender ?? undefined,
     senderGone: msg.sender_gone === true || undefined,
+    replyTo: msg.reply_to
+      ? {
+          messageId: msg.reply_to.message_id,
+          role: msg.reply_to.role,
+          excerpt: msg.reply_to.excerpt,
+          sender: msg.reply_to.sender ?? undefined,
+        }
+      : undefined,
     agentId: msg.agent_id ?? undefined,
     agentVersion: msg.agent_version ?? undefined,
     runId: msg.run_id ?? undefined,

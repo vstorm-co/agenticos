@@ -1468,6 +1468,13 @@
     "viewMeans": "View pozwala tylko czytać tę konwersację.",
     "web": "Web",
     "whatWentWrong": "Co poszło nie tak?",
+    "reply": {
+      "reply": "Odpowiedz",
+      "replyingTo": "Odpowiedź na",
+      "cancel": "Nie odpowiadaj",
+      "theAgent": "Agent",
+      "jump": "Pokaż wiadomość"
+    },
     "room": {
       "here": "{count, plural, =1 {{name} też tu jest} few {# osoby są tu z tobą} many {# osób jest tu z tobą} other {# osoby są tu z tobą}}",
       "more": "+{count}",

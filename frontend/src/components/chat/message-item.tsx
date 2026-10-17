@@ -14,6 +14,7 @@ import { MessageSources } from "./message-sources";
 import { TurnDelegations } from "./turn-delegations";
 import { RoundedCost } from "./message-cost";
 import { PersonFace } from "./person-face";
+import { ReplyQuote, replyExcerpt } from "./reply-quote";
 import { YouFace } from "./you-face";
 import { TURN_ACTION } from "./turn-action";
 import { RatingButtons } from "./rating-buttons";
@@ -23,6 +24,7 @@ import { useInChatScope } from "@/stores/chat-scope-context";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import {
   Bot,
+  CornerUpLeft,
   FileText,
   OctagonPause,
   Paperclip,
@@ -107,6 +109,8 @@ export function MessageItem({
   const tInput = useTranslations("chat.input");
   const isUser = message.role === "user";
   const updateMessage = useChatStore((state) => state.updateMessage);
+  const setReplyTo = useChatStore((state) => state.setReplyTo);
+  const tReply = useTranslations("chat.reply");
   const openPreview = useFilePreviewStore((s) => s.open);
   const openSources = useSourcesPanelStore((s) => s.open);
   const { user: authUser } = useAuthStore();
@@ -293,6 +297,9 @@ export function MessageItem({
             );
           })()}
 
+        {message.replyTo && (
+          <ReplyQuote reply={message.replyTo} className={cn(isUser && "self-end")} />
+        )}
         <MessageBody
           message={message}
           isUser={isUser}
@@ -368,6 +375,26 @@ export function MessageItem({
             )}
             {isUser && pins && message.content && (
               <PinButton pins={pins} prompt={message.content} />
+            )}
+            {/* Stored messages only: a reply names the row it answers, and a
+                message still on this tab's own id has none yet. */}
+            {!message.isTemporaryId && !message.isStreaming && message.content && (
+              <button
+                type="button"
+                onClick={() =>
+                  setReplyTo({
+                    messageId: message.id,
+                    role: message.role,
+                    excerpt: replyExcerpt(message.content),
+                    sender: isUser ? message.sender : undefined,
+                  })
+                }
+                title={tReply("reply")}
+                aria-label={tReply("reply")}
+                className={cn(TURN_ACTION, "sm:opacity-0 sm:group-hover:opacity-100")}
+              >
+                <CornerUpLeft />
+              </button>
             )}
             {!isUser && onRegenerate && (
               <button

@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
 import { ChatInput } from "./chat-input";
+import { useChatStore } from "@/stores";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
 import type { FileUploadResponse } from "@/lib/file-api";
 import { DEFAULT_PUBLIC_CONFIG } from "@/lib/public-config";
@@ -47,6 +48,23 @@ beforeEach(() => {
   // test is still recorded in the next one that asserts none.
   vi.mocked(toast.error).mockClear();
   vi.mocked(toast.info).mockClear();
+});
+
+describe("ChatInput replying", () => {
+  it("says what the next turn answers, and lets it be taken back", async () => {
+    act(() =>
+      useChatStore
+        .getState()
+        .setReplyTo({ messageId: "m-2", role: "assistant", excerpt: "Plan: A, B" }),
+    );
+    render(<ChatInput onSend={vi.fn()} />);
+    expect(screen.getByText("Replying to")).toBeInTheDocument();
+    expect(screen.getByText("Plan: A, B")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Don't reply" }));
+    expect(useChatStore.getState().replyTo).toBeNull();
+    expect(screen.queryByText("Replying to")).toBeNull();
+  });
 });
 
 describe("ChatInput paste", () => {

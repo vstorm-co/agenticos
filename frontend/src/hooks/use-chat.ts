@@ -1064,6 +1064,10 @@ export function useChat(options: UseChatOptions = {}) {
         setCurrentMessageId(null);
       }
       const userMessageId = clientId();
+      // Read at send time, as the agent is: a reply chosen while the turn was
+      // queued is the one it answers. Spent by this turn either way.
+      const replyTo = chatApi.getState().replyTo;
+      chatApi.getState().setReplyTo(null);
       addMessage({
         id: userMessageId,
         role: "user",
@@ -1072,6 +1076,10 @@ export function useChat(options: UseChatOptions = {}) {
         conversationId: conversationId || undefined,
         fileIds,
         files,
+        // Its id is this tab's until a reload reads the stored one, so nothing
+        // may be addressed to it yet - a reply to it included.
+        isTemporaryId: true,
+        replyTo: replyTo ?? undefined,
       });
       setIsProcessing(true);
       const payload: Record<string, unknown> = {
@@ -1079,6 +1087,7 @@ export function useChat(options: UseChatOptions = {}) {
         conversation_id: conversationId || null,
       };
       if (fileIds?.length) payload.file_ids = fileIds;
+      if (replyTo) payload.reply_to = replyTo.messageId;
       // Only on the turn that starts the conversation: the server files a new
       // chat into the project and ignores the field on every turn after.
       const projectId = conversationApi.getState().pendingProjectId;
@@ -1113,6 +1122,7 @@ export function useChat(options: UseChatOptions = {}) {
     [
       selectionApi,
       conversationApi,
+      chatApi,
       addMessage,
       updateMessage,
       setCurrentMessageId,

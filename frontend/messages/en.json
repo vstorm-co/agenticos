@@ -1468,6 +1468,13 @@
     "viewMeans": "View lets them read this conversation and nothing else.",
     "web": "Web",
     "whatWentWrong": "What went wrong?",
+    "reply": {
+      "reply": "Reply",
+      "replyingTo": "Replying to",
+      "cancel": "Don't reply",
+      "theAgent": "The agent",
+      "jump": "Show the message"
+    },
     "room": {
       "here": "{count, plural, =1 {{name} is here too} other {# people are here with you}}",
       "more": "+{count}",

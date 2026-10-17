@@ -747,6 +747,34 @@ describe("what a person attached", () => {
     expect(screen.getByText("You")).toBeInTheDocument();
   });
 
+  it("offers Reply on a stored message, and quotes what a reply answers", async () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+    const { unmount } = item({
+      id: "m-2",
+      role: "assistant",
+      content: "Plan:\n step one",
+      conversationId: "c-1",
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Reply" }));
+    expect(useChatStore.getState().replyTo).toEqual({
+      messageId: "m-2",
+      role: "assistant",
+      excerpt: "Plan: step one",
+      sender: undefined,
+    });
+    unmount();
+
+    item({
+      role: "user",
+      content: "bigger",
+      isTemporaryId: true,
+      replyTo: { messageId: "m-2", role: "assistant", excerpt: "Plan: step one" },
+    });
+    expect(screen.getByText("Plan: step one")).toBeInTheDocument();
+    // Its own id is this tab's: nothing can be addressed to it yet.
+    expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+  });
+
   it("draws a turn whose writer has left as a former member, never as You", () => {
     useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
 

@@ -198,6 +198,23 @@ describe("useChat - which agent a turn is addressed to", () => {
   });
 });
 
+describe("useChat - replying to a message", () => {
+  it("sends what the turn answers once, and quotes it on the question", () => {
+    const reply = { messageId: "m-2", role: "assistant" as const, excerpt: "Plan: A" };
+    act(() => useChatStore.getState().setReplyTo(reply));
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.sendMessage("make it bigger"));
+
+    expect(lastFrame()).toMatchObject({ message: "make it bigger", reply_to: "m-2" });
+    const asked = useChatStore.getState().messages.at(-1);
+    expect(asked?.replyTo).toEqual(reply);
+    expect(asked?.isTemporaryId).toBe(true);
+    // Spent: the next turn answers nothing in particular.
+    expect(useChatStore.getState().replyTo).toBeNull();
+  });
+});
+
 describe("useChat - attributing the answer", () => {
   it("credits the answer to the agent the turn was sent to", () => {
     useAgentSelectionStore.getState().select("agent-1");

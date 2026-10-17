@@ -17,6 +17,16 @@ export interface ChatMessageFile {
   file_type: string;
 }
 
+/** The earlier message a turn answers, quoted above it. */
+export interface MessageReply {
+  messageId: string;
+  role: MessageRole;
+  /** A short line of it: whitespace folded, the tail cut. */
+  excerpt: string;
+  /** Who wrote it, for a person's message; absent for the agent's. */
+  sender?: ChatPerson;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -38,6 +48,8 @@ export interface ChatMessage {
   /** A project chat's turn whose writer's account is gone: theirs, not the
    *  reader's, and nobody left to name. */
   senderGone?: boolean;
+  /** The message this turn answers, where somebody replied to one. */
+  replyTo?: MessageReply;
   /** The published agent that produced this assistant turn. Absent means the
    *  general assistant, which is what a turn sent without an `agent_id` runs.
    *  Recorded per message on both paths - live and reloaded - because the

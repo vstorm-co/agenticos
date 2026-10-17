@@ -1468,6 +1468,13 @@
     "viewMeans": "Ansehen erlaubt, diese Unterhaltung zu lesen und sonst nichts.",
     "web": "Web",
     "whatWentWrong": "Was ist schiefgelaufen?",
+    "reply": {
+      "reply": "Antworten",
+      "replyingTo": "Antwort auf",
+      "cancel": "Nicht antworten",
+      "theAgent": "Der Agent",
+      "jump": "Nachricht zeigen"
+    },
     "room": {
       "here": "{count, plural, =1 {{name} ist auch hier} other {# Personen sind mit dir hier}}",
       "more": "+{count}",
