@@ -7174,6 +7174,7 @@
     "chats": "Czaty",
     "files": "Pliki",
     "untitledChat": "Czat bez tytułu",
+    "appCount": "{count, plural, =1 {1 aplikacja} few {# aplikacje} many {# aplikacji} other {# aplikacji}}",
     "moreChats": "Pokaż więcej czatów",
     "seenBy": "Wyświetlili: {names}",
     "moreReaders": "+{count}",

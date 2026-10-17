@@ -424,6 +424,20 @@ describe("ProjectApps", () => {
     expect(screen.getByText("No apps made in this project yet")).toBeInTheDocument();
   });
 
+  it("pages a project with more apps than one page holds", async () => {
+    artifacts.mockReturnValue({
+      artifacts: [{ id: "art-1", title: "Q3 cash report", current_version: null }],
+      total: 120,
+      isLoading: false,
+      error: null,
+    });
+    wrap(<ProjectApps project={aProject()} />);
+    expect(lastArtifactsQuery()).toMatchObject({ skip: 0, limit: 50 });
+
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(lastArtifactsQuery()).toMatchObject({ skip: 50, limit: 50 });
+  });
+
   it("holds its place while loading, and says when the list failed", () => {
     artifacts.mockReturnValue({ artifacts: [], isLoading: true, error: null });
     const { container, unmount } = wrap(<ProjectApps project={aProject()} />);

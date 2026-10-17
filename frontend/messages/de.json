@@ -7273,6 +7273,7 @@
     "chats": "Chats",
     "files": "Dateien",
     "untitledChat": "Chat ohne Titel",
+    "appCount": "{count, plural, =1 {1 App} other {# Apps}}",
     "moreChats": "Weitere Chats anzeigen",
     "seenBy": "Gesehen von {names}",
     "moreReaders": "+{count}",

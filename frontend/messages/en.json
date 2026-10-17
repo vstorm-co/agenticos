@@ -7390,6 +7390,7 @@
     "chats": "Chats",
     "files": "Files",
     "untitledChat": "Untitled chat",
+    "appCount": "{count, plural, =1 {1 app} other {# apps}}",
     "moreChats": "Show more chats",
     "seenBy": "Seen by {names}",
     "moreReaders": "+{count}",
