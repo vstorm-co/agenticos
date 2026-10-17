@@ -117,6 +117,12 @@ class RecordedRequest:
     #: The exception class, where the request raised. Never its message: a
     #: provider SDK puts the failing URL, and therefore a key, in that string.
     failed: str | None = None
+    #: `bust` when this request's cached prefix collapsed while the provider
+    #: should still have held it, `expired` when its retention had passed - see
+    #: `app/agents/cache_watch.py` (#2109).
+    cache: str | None = None
+    #: Of the prefix earlier requests cached, the tokens this one did not read back.
+    cache_missed_tokens: int = 0
 
 
 @dataclass
@@ -369,6 +375,8 @@ def as_payload(recorder: RunRecorder) -> dict[str, Any]:
                 "tool_calls": list(request.tool_calls),
                 "finish_reason": request.finish_reason,
                 "failed": request.failed,
+                "cache": request.cache,
+                "cache_missed_tokens": request.cache_missed_tokens,
             }
             for request in recorder.requests
         ],

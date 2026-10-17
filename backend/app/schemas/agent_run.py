@@ -402,6 +402,29 @@ class CostByKey(BaseSchema):
     run_count: int
 
 
+class CacheByAgentModel(BaseSchema):
+    """Prompt-cache collapses for one agent on one model over the window (#2109).
+
+    A *bust* is a cached prefix that moved while the provider should still have
+    held it - tools reordered, a timestamp in the instructions; an *expiry* is one
+    whose retention had passed. `missed_tokens` is the cached prefix that was not
+    read back - a measure of the miss, not of tokens billed again, since a
+    compaction can also shrink the prompt the cache held. Only pairs with at
+    least one of either are listed.
+    """
+
+    agent_id: UUID
+    agent_slug: str
+    agent_name: str
+    model_label: str | None
+    busts: int
+    expiries: int
+    missed_tokens: int = Field(
+        description="Tokens earlier requests had cached that these requests did not read back"
+    )
+    run_count: int = Field(description="Runs with at least one bust or expiry")
+
+
 class CostByDay(BaseSchema):
     """One day's spend, for the bars over the window."""
 
@@ -449,4 +472,11 @@ class CostSummary(BaseSchema):
     by_day: list[CostByDay] = Field(
         default_factory=list,
         description="Spend per UTC day over the window; a day with no runs has no entry",
+    )
+    cache_by_agent_model: list[CacheByAgentModel] = Field(
+        default_factory=list,
+        description=(
+            "Prompt-cache busts and expiries per agent and model over the window, most "
+            "busts first; empty when every cache held"
+        ),
     )

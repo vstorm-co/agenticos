@@ -92,6 +92,7 @@ from app.agents.ask_user import (
     wire_questions,
 )
 from app.agents.audience import RunAudience, derive_audience
+from app.agents.cache_watch import tally
 from app.agents.capabilities.approval import (
     ApprovalDecision,
     ApprovalGranted,
@@ -150,7 +151,7 @@ from app.agents.connect_on_use import (
 from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
-from app.agents.manifest import as_payload, fit
+from app.agents.manifest import RunRecorder, as_payload, fit
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.spec import (
@@ -1205,6 +1206,11 @@ class PreparedRun:
     user the same.
     """
 
+    delegate_recorders: list[RunRecorder] = field(default_factory=list)
+    """Every delegate's request recording, so `finish` counts the cache busts the
+    whole tree hit - a delegate's agent is built and discarded inside a tool call,
+    and its recorder with it."""
+
     delegations: list[RecordedDelegation] = field(default_factory=list)
     """What this run delegated, waiting to be written by `finish`.
 
@@ -1838,6 +1844,9 @@ class _Delegation:
     queued: list[RecordedDelegation]
     """Where the recorder leaves a finished delegation for `finish` to write."""
 
+    recorders: list[RunRecorder]
+    """Where each delegate built for this run leaves its request recording."""
+
     attribution: dict[UUID, ModelRequestSpec]
     """Which model each pinned delegate resolved to, keyed by version id.
 
@@ -1935,7 +1944,7 @@ def _delegate_builder(
     """
 
     def build() -> PydanticAgent[Any, Any]:
-        return build_agent(
+        built = build_agent(
             delegation.render_variables(spec),
             model,
             organization_id=delegation.ctx.organization_id,
@@ -1957,7 +1966,10 @@ def _delegate_builder(
             # delegate meters nothing the parent can see, and the parent's cap
             # stops binding at exactly the moment delegation multiplies spend.
             shared_budget=delegation.budget.guard,
-        ).agent
+        )
+        # Its requests are the run's too: kept so `finish` counts their cache busts.
+        delegation.recorders.append(built.recorder)
+        return built.agent
 
     return build
 
@@ -2904,6 +2916,7 @@ class AgentRunnerService:
         run_budget = _RunBudget()
         runtimes: list[SubagentRuntime] = []
         delegations: list[RecordedDelegation] = []
+        delegate_recorders: list[RunRecorder] = []
         stash = DelegationStash(
             resuming=resuming,
             spent=already_spent,
@@ -2925,6 +2938,7 @@ class AgentRunnerService:
             render_variables=render_variables,
             runtimes=runtimes,
             delegations=delegations,
+            delegate_recorders=delegate_recorders,
             stash=stash,
         )
         if runtime is not None:
@@ -3006,6 +3020,7 @@ class AgentRunnerService:
                 if isinstance(gap, UnavailablePersonalService)
             ],
             delegations=delegations,
+            delegate_recorders=delegate_recorders,
             stash=stash,
             ctx=ctx,
             plan_store=plan_store,
@@ -3039,6 +3054,7 @@ class AgentRunnerService:
         render_variables: Callable[[AgentSpec], AgentSpec],
         runtimes: list[SubagentRuntime],
         delegations: list[RecordedDelegation],
+        delegate_recorders: list[RunRecorder],
         stash: DelegationStash,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
@@ -3096,6 +3112,7 @@ class AgentRunnerService:
             render_variables=render_variables,
             record=self._delegation_recorder(run=run, attribution=attribution, queued=delegations),
             queued=delegations,
+            recorders=delegate_recorders,
             attribution=attribution,
             runtimes=runtimes,
             stash=stash,
@@ -3926,6 +3943,7 @@ class AgentRunnerService:
             else self._parked_tree(prepared, paused_state, await dump_plan(prepared.plan_store))
         )
         ledger = prepared.built.ledger
+        cache = tally(prepared.built.recorder, *prepared.delegate_recorders)
         finished = await agent_run_repo.finish_run(
             self.db,
             run=prepared.run,
@@ -3938,6 +3956,9 @@ class AgentRunnerService:
             error=error,
             logfire_trace_id=current_trace_id(),
             paused_state=None if parked is None else parked.model_dump(mode="json"),
+            cache_busts=cache.busts,
+            cache_expiries=cache.expiries,
+            cache_missed_tokens=cache.missed_tokens,
         )
         # After the parent's row and on every path out of the run, for the reason
         # the parent's row is written on every path: a delegation that spent money
@@ -5425,6 +5446,14 @@ class AgentRunnerService:
         further down.
         """
         return await agent_run_repo.spend_by_provider(
+            self.db, organization_id=ctx.organization_id, since=since, until=until
+        )
+
+    async def cache_collapses(
+        self, ctx: AuthContext, *, since: datetime, until: datetime | None = None
+    ) -> list[tuple[UUID, str, str, str | None, int, int, int, int]]:
+        """Prompt-cache busts and expiries per agent and model, over the Spend tab's window."""
+        return await agent_run_repo.cache_collapses(
             self.db, organization_id=ctx.organization_id, since=since, until=until
         )
 

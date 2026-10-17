@@ -29,6 +29,8 @@ function request(overrides: Partial<ManifestRequest> = {}): ManifestRequest {
     tool_calls: [],
     finish_reason: "stop",
     failed: null,
+    cache: null,
+    cache_missed_tokens: 0,
     ...overrides,
   };
 }
@@ -42,6 +44,28 @@ function renderWaterfall(requests: ManifestRequest[]) {
 }
 
 describe("the requests a run made", () => {
+  it("marks the request whose prompt cache collapsed, and an expiry apart from a bust", () => {
+    renderWaterfall([
+      request(),
+      request({ index: 1, cache: "bust", cache_missed_tokens: 41200 }),
+      request({ index: 2, cache: "expired", cache_missed_tokens: 900 }),
+    ]);
+
+    expect(screen.getByText("cache bust")).toHaveAttribute(
+      "title",
+      expect.stringContaining("41,200 cached tokens not read back"),
+    );
+    expect(screen.getByText("cache expired")).toHaveAttribute(
+      "title",
+      expect.stringContaining("had expired"),
+    );
+  });
+
+  it("marks nothing where the cache held", () => {
+    renderWaterfall([request()]);
+    expect(screen.queryByText(/cache (bust|expired)/)).toBeNull();
+  });
+
   it("scales each bar against the slowest request, not the run", () => {
     const { container } = renderWaterfall([
       request({ index: 0, duration_ms: 200 }),

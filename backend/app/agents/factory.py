@@ -28,6 +28,7 @@ from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import UsageLimits
 
 from app.agents.audience import RunAudience
+from app.agents.cache_watch import CacheWatch
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities.approval import (
     ApprovalGate,
@@ -341,6 +342,11 @@ def build_agent(
     # accident. The gate is attached even when nothing is gated, so that adding
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
+    # Wrapped, so what the provider is handed is written down as it is handed
+    # over. Reconstructing the prompt and the tool schemas from the spec
+    # afterwards would be a second implementation of everything above this line.
+    # Made before the capabilities, because `CacheWatch` writes onto it.
+    recorder = RunRecorder()
     capabilities: list[Any] = [
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
@@ -362,6 +368,15 @@ def build_agent(
         ),
         *configured,
         *extra_capabilities,
+        # Every agent: a moved cache prefix costs the most on exactly the long,
+        # tool-heavy runs nobody is watching the invoice of (#2109).
+        CacheWatch(
+            recorder=recorder,
+            marks_key=(
+                None if conversation_id is None else f"{conversation_id}/{agent_id}/{spec.name}"
+            ),
+            agent_id=agent_id,
+        ),
         # Every agent, not only one that compacts. The warning is most useful to
         # exactly the agent that will not: it is the one that reaches the ceiling
         # and gets refused by the provider.
@@ -385,10 +400,6 @@ def build_agent(
         }
     )
 
-    # Wrapped, so what the provider is handed is written down as it is handed
-    # over. Reconstructing the prompt and the tool schemas from the spec
-    # afterwards would be a second implementation of everything above this line.
-    recorder = RunRecorder()
     agent = PydanticAgent[AgentDeps, str | DeferredToolRequests](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,

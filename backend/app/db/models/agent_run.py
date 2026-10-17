@@ -314,6 +314,19 @@ class AgentRun(Base, TimestampMixin):
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
     # True when some model in the run had no price - the cost is then a floor.
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
+    # Prompt-cache collapses on this run's own requests (#2109): a *bust* is a
+    # prefix that moved while the provider should still have held it, an
+    # *expiry* one whose retention had passed, and the missed tokens what earlier
+    # requests had cached that these did not read back. On the row, beside the
+    # cost they explain, so they can be counted per agent and model; each
+    # request's own mark is in the run's manifest.
+    cache_busts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    cache_expiries: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    cache_missed_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
     # The trace lives in Logfire; we keep the id so the UI can deep-link into it
     # instead of duplicating spans into our database.

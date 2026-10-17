@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "7993306ad042"
 ---
 
 # Governance { #governance }
@@ -906,6 +906,24 @@ modelo puede hacer un run y es lo que de verdad lo detiene.
 Un run que no se pudo tarifar — un modelo que `genai-prices` no conoce — se registra
 a cero con un aviso y el total se marca como un **suelo** en vez de adivinarse. La UI
 lo muestra como un `+` junto a la cifra.
+
+**Una caché de prompts que deja de acertar se señala.** La caché solo compensa
+mientras el principio de cada petición sigue idéntico; una lista de herramientas
+reordenada o una marca de tiempo en las instrucciones hacen que el proveedor
+cobre a precio completo tokens que tenía en caché. Cada agente lee las cifras de
+caché del proveedor en cada respuesta, y una petición cuyo prefijo en caché se
+hundió se marca en la cascada de peticiones del run - *caché rota* cuando el
+proveedor aún debía conservarla, *caché caducada* cuando pasó su retención - con
+cuántos tokens en caché no leyó, y se registra con el agente y el modelo.
+La primera petición de un turno se compara con lo que guardó el turno anterior,
+cuando el mismo worker de API atiende ambos.
+
+Los recuentos se guardan en cada run, así que **Runs → Spend** suma dónde no
+aguantó la caché: una tarjeta *Prompt cache*, una fila por agent y modelo, con
+sus busts, expiraciones y los tokens en caché que no se leyeron de vuelta en la
+ventana - una medida del fallo, no de lo que se volvió a cobrar, ya que una
+compactación también puede acortar el prompt que la caché guardaba.
+La tarjeta no aparece mientras todas las cachés aguantaron.
 
 ## Aprobaciones { #approvals }
 

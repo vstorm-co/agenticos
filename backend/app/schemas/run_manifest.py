@@ -11,7 +11,7 @@ rather than a gap in one panel.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -60,6 +60,22 @@ class ManifestRequest(BaseSchema):
     tool_calls: list[str] = Field(default_factory=list)
     finish_reason: str | None = None
     failed: str | None = None
+    cache: Literal["bust", "expired"] | None = Field(
+        default=None,
+        description=(
+            "`bust` when this request's cached prompt prefix collapsed while the provider "
+            "should still have held it - the prefix moved; `expired` when its retention "
+            "window had passed. Null when the cache held, or was not in play"
+        ),
+    )
+    cache_missed_tokens: int = Field(
+        default=0,
+        description=(
+            "Of the prefix earlier requests cached, how many tokens this request did not "
+            "read back. A miss, not a bill: a compaction that shrank the request misses "
+            "tokens it never sent again"
+        ),
+    )
 
 
 class RunManifestRead(BaseSchema):

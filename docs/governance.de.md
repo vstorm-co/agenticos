@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "7993306ad042"
 ---
 
 # Governance { #governance }
@@ -989,6 +989,24 @@ Ein Run, der sich nicht bepreisen ließ — ein Modell, das `genai-prices` nicht
 kennt —, wird mit einer Warnung bei null festgehalten, und die Summe wird als
 **Untergrenze** gekennzeichnet, statt geraten zu werden. Die UI zeigt das als ein
 `+` neben der Zahl.
+
+**Ein Prompt-Cache, der nicht mehr trifft, wird markiert.** Caching lohnt sich
+nur, solange der Anfang jedes Requests gleich bleibt; eine umgestellte Tool-Liste
+oder ein Zeitstempel in den Anweisungen lässt den Anbieter den vollen Preis für
+Tokens berechnen, die er im Cache hatte. Jeder Agent liest bei jeder Antwort die
+Cache-Zahlen des Anbieters, und ein Request, dessen gecachter Präfix
+eingebrochen ist, wird im Request-Wasserfall des Runs markiert - *Cache
+gebrochen*, solange der Anbieter ihn noch hätte halten sollen, *Cache
+abgelaufen*, wenn die Aufbewahrung vorbei war - mit der Zahl der gecachten
+Tokens, die er nicht zurückgelesen hat, und mit Agent und Modell geloggt. Der erste Request eines
+Turns wird mit dem verglichen, was der vorige Turn gecacht hat, wenn derselbe
+API-Worker beide bedient.
+
+Die Zahlen werden an jedem Run gespeichert, daher summiert **Runs → Spend**, wo
+der Cache nicht gehalten hat: eine Karte *Prompt-Cache*, eine Zeile pro Agent
+und Modell, mit Busts, Abläufen und den gecachten Tokens, die nicht zurückgelesen
+wurden, im Zeitraum - ein Maß für den Fehlgriff, nicht für erneut Berechnetes, da
+auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
 
 ## Freigaben { #approvals }
 

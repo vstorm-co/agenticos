@@ -859,6 +859,22 @@ A run that could not be priced - a model `genai-prices` does not know - is
 recorded at zero with a warning and the total is flagged as a **floor** rather
 than guessed at. The UI shows that as a `+` next to the figure.
 
+**A prompt cache that stops hitting is flagged.** Caching pays only while the
+start of each request stays identical; a reordered tool list or a timestamp in
+the instructions makes the provider charge full price for tokens it had cached.
+Every agent reads the provider's own cache figures on each response, and a
+request whose cached prefix collapsed is marked in the run's request waterfall -
+*cache bust* while the provider should still have held it, *cache expired* once
+its retention passed - with how many cached tokens it did not read back, and logged with
+the agent and model. The first request of a turn is compared with what the
+previous turn cached, when the same API worker serves both.
+
+The counts are kept on each run, so **Runs → Spend** adds up where the cache did
+not hold: a *Prompt cache* card, one row per agent and model, with its busts,
+expiries and the cached tokens they did not read back over the window - a
+measure of the miss, not of what was billed again, since a compaction can also
+shrink the prompt the cache held. The card is not shown while every cache held.
+
 ## Approvals
 
 A tool the agent's author gated parks the run and waits for a person. Nothing
