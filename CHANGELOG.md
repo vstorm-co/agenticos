@@ -45,8 +45,8 @@ Two things are versioned separately from this file and worth knowing about:
   composer's **+**; upload files and folders on its **Files** tab; share it with
   people, departments or the organization (`projects:view`, `projects:use`,
   `projects:edit`). Chats stay their authors' own, and a deleted project leaves
-  them as ordinary chats. The sidebar lists your recent projects and the
-  dashboard has a **Projects** card. See [Projects](docs/projects.md).
+  them as ordinary chats. The sidebar lists your recent projects, the chat list
+  files each project's chats under it, and the dashboard has a **Projects** card. See [Projects](docs/projects.md).
 
 ### Fixed
 

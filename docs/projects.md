@@ -94,6 +94,8 @@ kept as ordinary chats, outside any project.
 
 - **Projects** in the sidebar lists the five you used most recently, above the
   link to all of them.
+- The chat list files your chats in a project under the project's name, above the
+  chats outside any project.
 - The dashboard's **Projects** card shows a row of them, with your chats in each.
 - `GET /api/v1/projects` and its sub-routes are part of the public API, so a
   script can create a project and fill it with files. See [the API](api.md).

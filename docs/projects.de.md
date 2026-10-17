@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "e2bf34a4cd0d"
+source_sha: "a9eb7c362eb8"
 ---
 
 # Projekte { #projects }
@@ -102,6 +102,8 @@ Chats bleiben als normale Chats außerhalb jedes Projekts erhalten.
 
 - **Projekte** in der Seitenleiste listet die fünf zuletzt genutzten über dem
   Link zu allen.
+- Die Chat-Liste führt deine Chats in einem Projekt unter seinem Namen, über den
+  Chats außerhalb von Projekten.
 - Die Karte **Projekte** im Dashboard zeigt eine Reihe davon, mit deinen Chats in
   jedem.
 - `GET /api/v1/projects` und seine Unterrouten gehören zur öffentlichen API, sodass

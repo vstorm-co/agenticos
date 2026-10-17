@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "e2bf34a4cd0d"
+source_sha: "a9eb7c362eb8"
 ---
 
 # Projekty { #projects }
@@ -96,6 +96,8 @@ zwykłe czaty, poza jakimkolwiek projektem.
 
 - **Projekty** w pasku bocznym pokazują pięć ostatnio używanych, nad linkiem do
   wszystkich.
+- Lista czatów pokazuje twoje czaty w projekcie pod jego nazwą, nad czatami spoza
+  projektów.
 - Karta **Projekty** na dashboardzie pokazuje ich rząd, z twoimi czatami w każdym.
 - `GET /api/v1/projects` i trasy pod nim należą do publicznego API, więc skrypt
   może utworzyć projekt i wypełnić go plikami. Zobacz [API](api.md).

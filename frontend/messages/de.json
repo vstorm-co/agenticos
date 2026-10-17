@@ -1225,7 +1225,8 @@
       "untitled": "Ohne Titel",
       "title": "Chats",
       "unread": "Neue Antwort",
-      "unreadHeading": "Ungelesen"
+      "unreadHeading": "Ungelesen",
+      "unnamedProject": "Ein Projekt"
     },
     "skipComment": "Kommentar überspringen",
     "sourceCount": "{count, plural, =1 {1 Quelle} other {# Quellen}}",

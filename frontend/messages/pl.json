@@ -1225,7 +1225,8 @@
       "untitled": "Bez tytułu",
       "title": "Czaty",
       "unread": "Nowa odpowiedź",
-      "unreadHeading": "Nieprzeczytane"
+      "unreadHeading": "Nieprzeczytane",
+      "unnamedProject": "Projekt"
     },
     "skipComment": "Pomiń komentarz",
     "sourceCount": "{count, plural, one {1 źródło} few {# źródła} many {# źródeł} other {# źródła}}",

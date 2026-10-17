@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "e2bf34a4cd0d"
+source_sha: "a9eb7c362eb8"
 ---
 
 # Proyectos { #projects }
@@ -101,6 +101,8 @@ conservan como chats normales, fuera de cualquier proyecto.
 
 - **Proyectos** en la barra lateral muestra los cinco usados más recientemente,
   encima del enlace a todos.
+- La lista de chats agrupa tus chats de un proyecto bajo su nombre, encima de los
+  chats que no están en ningún proyecto.
 - La tarjeta **Proyectos** del dashboard muestra una fila de ellos, con tus chats
   en cada uno.
 - `GET /api/v1/projects` y sus subrutas forman parte de la API pública, así que un
