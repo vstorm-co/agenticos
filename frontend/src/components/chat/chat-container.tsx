@@ -747,7 +747,9 @@ function ChatUI({
           message.role === "user"
             ? message.sender && message.sender.user_id !== authUser?.id
               ? message.sender.name
-              : t("rail.you")
+              : message.senderGone
+                ? t("rail.formerMember")
+                : t("rail.you")
             : ((message.agentId ? agentNames.get(message.agentId)?.name : undefined) ??
               t("rail.agent")),
         preview: (message.content ?? "").trim(),

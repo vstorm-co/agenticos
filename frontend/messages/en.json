@@ -1474,6 +1474,7 @@
       "next": "Next message",
       "jumpTo": "Jump to the message from {author}",
       "you": "You",
+      "formerMember": "A former member",
       "agent": "Agent",
       "empty": "No text in this message"
     },

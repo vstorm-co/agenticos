@@ -21,7 +21,16 @@ import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
-import { Bot, FileText, OctagonPause, Paperclip, Pin, PinOff, RefreshCw } from "lucide-react";
+import {
+  Bot,
+  FileText,
+  OctagonPause,
+  Paperclip,
+  Pin,
+  PinOff,
+  RefreshCw,
+  UserRound,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
@@ -104,6 +113,8 @@ export function MessageItem({
   // A teammate's words in a project's chat: theirs, not the reader's "You".
   const teammate =
     isUser && message.sender && message.sender.user_id !== authUser?.id ? message.sender : null;
+  // Somebody who has since left: never drawn as the reader.
+  const former = isUser && message.senderGone === true;
   // Read once per turn and handed to each step, so a public surface can render the
   // same step without a session - see `TurnParts`.
   const mcpServers = useMcpToolServers();
@@ -143,6 +154,10 @@ export function MessageItem({
     >
       {teammate ? (
         <PersonFace person={teammate} className="h-full w-full text-[10px]" />
+      ) : former ? (
+        <span className="bg-muted text-muted-foreground grid h-full w-full place-items-center">
+          <UserRound className="h-3.5 w-3.5" aria-hidden />
+        </span>
       ) : isUser ? (
         <YouFace />
       ) : agent ? (
@@ -202,7 +217,13 @@ export function MessageItem({
               compact ? "text-muted-foreground text-xs" : "text-foreground text-sm",
             )}
           >
-            {teammate ? teammate.name : isUser ? t("rail.you") : (agent?.name ?? t("rail.agent"))}
+            {teammate
+              ? teammate.name
+              : former
+                ? t("rail.formerMember")
+                : isUser
+                  ? t("rail.you")
+                  : (agent?.name ?? t("rail.agent"))}
             {!isUser && message.agentVersion !== undefined && (
               <span className="text-muted-foreground font-normal"> · v{message.agentVersion}</span>
             )}

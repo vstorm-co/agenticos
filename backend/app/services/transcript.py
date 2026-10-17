@@ -343,6 +343,15 @@ class TranscriptService:
                         # records which chat account asked, and a second route to
                         # the same fact is a second route to getting it wrong.
                         channel_identity_id=run.channel_identity_id,
+                        # Whoever started the run typed it - unless it ran as a
+                        # surface's publisher for a visitor, or a chat account
+                        # says who instead.
+                        author_user_id=(
+                            None
+                            if run.initiated_by_publisher_fallback
+                            or run.channel_identity_id is not None
+                            else run.user_id
+                        ),
                     )
                     await self._attach(asked.id, attachments)
                 for tool_call_id, result in (settled or {}).items():

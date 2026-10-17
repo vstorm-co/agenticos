@@ -89,6 +89,8 @@ describe("conversationMessageToChatMessage", () => {
       anna,
     );
     expect(conversationMessageToChatMessage(raw({ sender: null })).sender).toBeUndefined();
+    expect(conversationMessageToChatMessage(raw({ sender_gone: true })).senderGone).toBe(true);
+    expect(conversationMessageToChatMessage(raw({})).senderGone).toBeUndefined();
   });
 
   it("renames a failed tool call to the status the UI knows", () => {

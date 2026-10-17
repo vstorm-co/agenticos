@@ -35,6 +35,9 @@ export interface ChatMessage {
   /** Who typed a user turn, when it was somebody signed in. In a project's chat
    *  that is not always the reader, so the turn says whose words they are. */
   sender?: ChatPerson;
+  /** A project chat's turn whose writer's account is gone: theirs, not the
+   *  reader's, and nobody left to name. */
+  senderGone?: boolean;
   /** The published agent that produced this assistant turn. Absent means the
    *  general assistant, which is what a turn sent without an `agent_id` runs.
    *  Recorded per message on both paths - live and reloaded - because the

@@ -216,37 +216,17 @@ class TestWhoseWordsATurnIs:
     async def test_a_turn_names_the_person_who_typed_it(self):
         anna = _user(TEAMMATE, avatar="avatars/a.png")
         typed = SimpleNamespace(author_user_id=TEAMMATE)
-        gone = SimpleNamespace(author_user_id=uuid4())
         answer = SimpleNamespace(author_user_id=None, role="assistant")
         with patch(
             f"{MODULE}.conversation_repo.users_by_id", AsyncMock(return_value={TEAMMATE: anna})
         ):
             await ConversationService(AsyncMock())._attach_senders(
-                [typed, gone, answer], owner_id=None
+                [typed, answer], _chat(project_id=uuid4())
             )
 
         assert typed.sender.name == "Anna"
         assert typed.sender.has_avatar is True
-        # An account since deleted: the turn stays, nobody is named.
-        assert gone.sender is None
-        assert not hasattr(answer, "sender")
-
-    async def test_an_older_console_turn_is_the_owners_and_a_channel_turn_nobodys(self):
-        """Before the author was kept only the owner could type into a chat, so
-        their turn reads as theirs to a teammate, not as the teammate's "You"."""
-        older = SimpleNamespace(author_user_id=None, role="user", channel_identity_id=None)
-        from_slack = SimpleNamespace(author_user_id=None, role="user", channel_identity_id=uuid4())
-        with patch(
-            f"{MODULE}.conversation_repo.users_by_id",
-            AsyncMock(return_value={OWNER: _user(OWNER, name="Kacper")}),
-        ) as people:
-            await ConversationService(AsyncMock())._attach_senders(
-                [older, from_slack], owner_id=OWNER
-            )
-
-        assert older.sender.name == "Kacper"
-        assert not hasattr(from_slack, "sender")
-        assert people.await_args.args[1] == {OWNER}
+        assert not hasattr(answer, "sender") and not hasattr(answer, "sender_gone")
 
     async def test_a_person_with_no_name_is_shown_by_address(self):
         typed = SimpleNamespace(author_user_id=TEAMMATE)
@@ -254,9 +234,33 @@ class TestWhoseWordsATurnIs:
             f"{MODULE}.conversation_repo.users_by_id",
             AsyncMock(return_value={TEAMMATE: _user(TEAMMATE, name=None)}),
         ):
-            await ConversationService(AsyncMock())._attach_senders([typed], owner_id=None)
+            await ConversationService(AsyncMock())._attach_senders([typed], _chat())
 
         assert typed.sender.name == "anna@example.com"
+
+    async def test_a_project_turn_whose_writer_is_gone_says_so(self):
+        """Never the reader's "You" and never the owner: somebody who has left."""
+        unsigned = SimpleNamespace(author_user_id=None, role="user", channel_identity_id=None)
+        vanished = SimpleNamespace(author_user_id=uuid4())
+        from_slack = SimpleNamespace(author_user_id=None, role="user", channel_identity_id=uuid4())
+        with patch(f"{MODULE}.conversation_repo.users_by_id", AsyncMock(return_value={})):
+            await ConversationService(AsyncMock())._attach_senders(
+                [unsigned, vanished, from_slack], _chat(project_id=uuid4())
+            )
+
+        assert unsigned.sender_gone is True and not hasattr(unsigned, "sender")
+        assert vanished.sender_gone is True
+        assert not hasattr(from_slack, "sender_gone")
+
+    async def test_outside_a_project_an_unsigned_turn_is_left_as_it_was(self):
+        """A widget visitor's turn, or a run-log's prompt: nobody gone, nobody named."""
+        users = AsyncMock(return_value={})
+        unsigned = SimpleNamespace(author_user_id=None, role="user", channel_identity_id=None)
+        with patch(f"{MODULE}.conversation_repo.users_by_id", users):
+            await ConversationService(AsyncMock())._attach_senders([unsigned], _chat())
+
+        assert not hasattr(unsigned, "sender_gone")
+        users.assert_not_awaited()
 
 
 class TestTheProjectsChatList:

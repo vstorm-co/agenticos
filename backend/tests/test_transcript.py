@@ -46,7 +46,11 @@ pytestmark = pytest.mark.anyio
 
 
 def _run(
-    *, in_a_conversation: bool = True, channel_identity_id: uuid.UUID | None = None
+    *,
+    in_a_conversation: bool = True,
+    channel_identity_id: uuid.UUID | None = None,
+    user_id: uuid.UUID | None = None,
+    publisher_fallback: bool = False,
 ) -> MagicMock:
     # `channel_identity_id` is named rather than left to the mock: an attribute
     # nobody set answers with a `MagicMock`, and this one is written to a column.
@@ -56,6 +60,8 @@ def _run(
         agent_version_id=uuid.uuid4(),
         conversation_id=uuid.uuid4() if in_a_conversation else None,
         channel_identity_id=channel_identity_id,
+        user_id=user_id,
+        initiated_by_publisher_fallback=publisher_fallback,
     )
 
 
@@ -460,6 +466,20 @@ class TestWritingTheTranscript:
 
         prompt = conversations.create_message.await_args_list[0].kwargs
         assert prompt["channel_identity_id"] is None
+
+    async def test_a_turn_names_whoever_started_the_run_and_only_them(self, conversations):
+        """A key's caller typed what their run was asked; a visitor running as the
+        publisher did not, and a chat account already says who it was."""
+        starter = uuid.uuid4()
+        for run, expected in (
+            (_run(user_id=starter), starter),
+            (_run(user_id=starter, publisher_fallback=True), None),
+            (_run(user_id=starter, channel_identity_id=uuid.uuid4()), None),
+        ):
+            conversations.create_message.reset_mock()
+            await TranscriptService(_session()).record(run, prompt="hej", answer="czesc")
+            prompt = conversations.create_message.await_args_list[0].kwargs
+            assert prompt["author_user_id"] == expected
 
     async def test_the_answer_is_attributed_to_the_version_that_ran(self, conversations):
         """An agent is rewritten between runs. Attributing last Tuesday's answer

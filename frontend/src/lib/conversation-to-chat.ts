@@ -51,6 +51,7 @@ export interface RawMessage {
   rating_count?: { likes: number; dislikes: number } | null;
   files?: ChatMessageFile[] | null;
   sender?: ChatPerson | null;
+  sender_gone?: boolean;
   /** What the turn cost. Absent on a message written before it was recorded. */
   input_tokens?: number | null;
   output_tokens?: number | null;
@@ -178,6 +179,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     timestamp: new Date(msg.created_at),
     conversationId: msg.conversation_id,
     sender: msg.sender ?? undefined,
+    senderGone: msg.sender_gone === true || undefined,
     agentId: msg.agent_id ?? undefined,
     agentVersion: msg.agent_version ?? undefined,
     runId: msg.run_id ?? undefined,

@@ -323,6 +323,13 @@ class MessageRead(MessageBase, TimestampSchema):
             "on channel turns (`author` says who) and on turns older than the field."
         ),
     )
+    sender_gone: bool = Field(
+        default=False,
+        description=(
+            "A project chat's user turn whose writer's account no longer exists - "
+            "drawn as somebody, never as the reader or the chat's owner."
+        ),
+    )
     tool_calls: list[ToolCallRead] = Field(default_factory=list)
     files: list[MessageFileRead] = Field(default_factory=list)
     user_rating: int | None = Field(

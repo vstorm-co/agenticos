@@ -747,6 +747,15 @@ describe("what a person attached", () => {
     expect(screen.getByText("You")).toBeInTheDocument();
   });
 
+  it("draws a turn whose writer has left as a former member, never as You", () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+
+    item({ role: "user", content: "an old idea", senderGone: true });
+
+    expect(screen.getByText("A former member")).toBeInTheDocument();
+    expect(screen.queryByText("You")).toBeNull();
+  });
+
   it("draws the agent's face mid-thought while the turn is still streaming", () => {
     // The one picture in the product that says an agent is still working, which
     // is why it is worth the inline SVG the motion costs.

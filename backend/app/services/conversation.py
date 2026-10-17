@@ -316,7 +316,7 @@ class ConversationService:
                 msg.rating_count = rating_counts.get(msg.id)  # ty: ignore[unresolved-attribute]
         if include_messages and conversation.messages:
             await self._attach_authors(conversation.messages)
-            await self._attach_senders(conversation.messages, owner_id=conversation.user_id)
+            await self._attach_senders(conversation.messages, conversation)
         # Here rather than at each route, because this is the one read every
         # reader-scoped one goes through - `update`, `archive` and `set_favourite`
         # all return the object it hands back. Only two responses carried the flag
@@ -523,28 +523,36 @@ class ConversationService:
             if msg.channel_identity_id is not None:
                 msg.author = authors.get(msg.channel_identity_id)  # ty: ignore[unresolved-attribute]
 
-    async def _attach_senders(self, messages: Sequence[Message], *, owner_id: UUID | None) -> None:
+    async def _attach_senders(
+        self, messages: Sequence[Message], conversation: Conversation
+    ) -> None:
         """Put the person on each turn somebody signed in typed.
 
         A project's chat is continued by whoever works in it, so its user turns
         are several people's; one query for the page, none when nobody is named.
 
-        A console turn written before the author was kept is the owner's: until
-        a project's chats were shared nobody else could type into one, and left
-        unnamed it read as "You" to a teammate opening it.
+        A project chat's console turn naming nobody is one whose writer's
+        account has since gone - every earlier one was given its owner by
+        migration 0137 - and says so, rather than reading as the reader's own
+        "You" or as whoever started the thread.
         """
-        authored = [
-            (msg, author_id)
-            for msg in messages
-            if (author_id := _typed_by(msg, owner_id)) is not None
-        ]
+        in_project = getattr(conversation, "project_id", None) is not None
+        authored = []
+        for msg in messages:
+            author_id = getattr(msg, "author_user_id", None)
+            if author_id is not None:
+                authored.append((msg, author_id))
+            elif in_project and _a_persons_turn(msg):
+                msg.sender_gone = True  # ty: ignore[unresolved-attribute]
         if not authored:
-            # A turn left alone reads as no sender: the schema's default.
             return
         people = await conversation_repo.users_by_id(self.db, {a for _, a in authored})
         for msg, author_id in authored:
             author = people.get(author_id)
-            msg.sender = ChatPerson.of(author) if author else None  # ty: ignore[unresolved-attribute]
+            if author is None:
+                msg.sender_gone = True  # ty: ignore[unresolved-attribute]
+            else:
+                msg.sender = ChatPerson.of(author)  # ty: ignore[unresolved-attribute]
 
     async def list_project_chats(
         self,
@@ -1077,7 +1085,7 @@ class ConversationService:
             include_tool_calls=include_tool_calls,
         )
         total = await conversation_repo.count_messages(self.db, conversation_id)
-        await self._attach_senders(items, owner_id=conversation.user_id)
+        await self._attach_senders(items, conversation)
         outcomes = await conversation_repo.run_outcomes(
             self.db, {msg.run_id for msg in items if msg.run_id is not None}
         )
@@ -1367,15 +1375,6 @@ class ConversationService:
         return rows
 
 
-def _typed_by(message: Message, owner_id: UUID | None) -> UUID | None:
-    """Who typed a turn: its recorded author, or for an older console turn, the owner.
-
-    Never for a channel turn - `author` names the chat account that spoke - and
-    never for an answer.
-    """
-    author = getattr(message, "author_user_id", None)
-    if author is not None:
-        return author
-    if message.role == "user" and getattr(message, "channel_identity_id", None) is None:
-        return owner_id
-    return None
+def _a_persons_turn(message: Message) -> bool:
+    """A turn somebody typed in the console - not an answer, not a chat account's."""
+    return message.role == "user" and getattr(message, "channel_identity_id", None) is None
