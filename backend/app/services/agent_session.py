@@ -2,6 +2,7 @@
 import asyncio
 import contextlib
 import logging
+import time
 from typing import Any, NamedTuple
 from uuid import UUID
 
@@ -32,7 +33,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
-from app.repositories import agent_repo, agent_run_repo, conversation_repo
+from app.repositories import agent_repo, agent_run_repo, conversation_repo, member_repo
 from app.schemas.conversation import ChatPerson, MessagePart
 from app.services import chat_room, live_turn
 from app.services.agent import (
@@ -61,6 +62,9 @@ from app.services.usage_report import usage_frame
 from app.services.ws_auth import authenticate_socket_token
 
 logger = logging.getLogger(__name__)
+
+RECHECK_SECONDS = 30.0
+"""How often a turn being followed asks again whether its reader may still read it."""
 
 # Said to a frame that names no agent. There is nothing else a frame could run:
 # the general assistant the template shipped is gone, and guessing an agent on
@@ -1180,17 +1184,48 @@ class AgentSession:
         Who is here goes to the person as a `presence` frame; a turn somebody
         else began is followed like one they came back to, so a teammate's
         question and its answer appear as they are written.
+
+        Access is asked again before each piece of news is passed on: the check
+        at `attach` ran once, and a person removed from the organization or the
+        project since must stop hearing the room - the socket of somebody idle
+        sends no frame that would re-check it otherwise.
         """
         heartbeat = asyncio.create_task(self._heartbeat(conversation_id))
         try:
             await self._send_presence(conversation_id)
             async for event in chat_room.events(conversation_id):
+                if not await self._still_reads(conversation_id):
+                    self._stop_following()
+                    self._room = self._room_task = None
+                    await chat_room.leave(conversation_id, self.user.id)
+                    return
                 if event["type"] == chat_room.PRESENCE:
                     await self._send_presence(conversation_id)
                 else:
                     await self._follow_if_running(conversation_id)
         finally:
             heartbeat.cancel()
+
+    async def _still_reads(self, conversation_id: str) -> bool:
+        """Whether this person may still read the conversation, as of now."""
+        async with get_db_context() as db:
+            if (
+                await member_repo.get(
+                    db, organization_id=self.organization_id, user_id=self.user.id
+                )
+                is None
+            ):
+                return False
+            try:
+                await ConversationService(db).get_conversation(
+                    UUID(conversation_id),
+                    organization_id=self.organization_id,
+                    user_id=self.user.id,
+                    include_favourite=False,
+                )
+            except NotFoundError:
+                return False
+        return True
 
     async def _heartbeat(self, conversation_id: str) -> None:
         while True:
@@ -1220,8 +1255,18 @@ class AgentSession:
         """Forward a followed turn's frames until it ends, then say it has."""
         await send_event(self.websocket, "turn_attached", {"conversation_id": conversation_id})
         ended = False
+        recheck = time.monotonic() + RECHECK_SECONDS
         async for frame in live_turn.follow(conversation_id):
             ended = frame["type"] == live_turn.END
+            # A long turn is asked about again as it goes: somebody removed from
+            # the project mid-answer must not read the rest of it.
+            if time.monotonic() >= recheck and not ended:
+                if not await self._still_reads(conversation_id):
+                    await send_event(
+                        self.websocket, live_turn.END, {"conversation_id": conversation_id}
+                    )
+                    return
+                recheck = time.monotonic() + RECHECK_SECONDS
             if not await send_event(self.websocket, frame["type"], frame["data"]):
                 return
         if not ended:

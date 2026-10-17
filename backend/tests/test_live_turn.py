@@ -440,7 +440,9 @@ class TestTheRoom:
 
     async def _enter(self, session: Any, conversation: object, room: dict[str, Any], **kw):
         people = {person.id: person for person in kw.pop("people", [])}
+        reads = kw.pop("reads", True)
         with (
+            patch.object(session, "_still_reads", AsyncMock(return_value=reads)),
             patch.multiple("app.services.agent_session.chat_room", **room),
             patch(
                 "app.services.agent_session.conversation_repo.users_by_id",
@@ -527,3 +529,70 @@ class TestTheRoom:
         ):
             await session._heartbeat(CONVERSATION)
         assert join.await_count == 2
+
+    async def test_somebody_who_lost_the_chat_stops_hearing_its_room(self) -> None:
+        """Asked again on each piece of news: an idle socket sends nothing that
+        would re-check it, and removal must still end what it hears."""
+        session = _session()
+        room = self._room(events=[{"type": "turn_begun", "by": "anna"}])
+        with patch.object(live_turn, "is_live", AsyncMock(return_value=False)):
+            await self._enter(session, CONVERSATION, room, reads=False)
+        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id)
+        assert session._room is None and session._follower is None
+
+    async def test_a_followed_turn_asks_again_and_ends_for_somebody_removed(
+        self, store: _Store, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("app.services.agent_session.RECHECK_SECONDS", 0)
+        turn = await _begin()
+        await live_turn.publish(turn, "text_delta", {"content": "secret"})
+        session = _session()
+        with patch.object(session, "_still_reads", AsyncMock(return_value=False)):
+            await session._follow(CONVERSATION)
+        assert [kind for kind, _ in _sent_events(session)] == ["turn_attached", live_turn.END]
+
+    async def test_a_followed_turn_still_readable_goes_on(
+        self, store: _Store, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("app.services.agent_session.RECHECK_SECONDS", 0)
+        turn = await _begin()
+        await live_turn.publish(turn, "text_delta", {"content": "fine"})
+        store.on_listen = lambda: live_turn.end(turn)
+        session = _session()
+        with patch.object(session, "_still_reads", AsyncMock(return_value=True)):
+            await session._follow(CONVERSATION)
+        assert [kind for kind, _ in _sent_events(session)][:2] == ["turn_attached", "text_delta"]
+
+
+class TestStillReading:
+    @staticmethod
+    def _db() -> Any:
+        context = patch("app.services.agent_session.get_db_context")
+        return context
+
+    async def _ask(self, *, member: bool, found: bool) -> bool:
+        session = _session()
+        conversations = MagicMock()
+        conversations.get_conversation = AsyncMock(
+            side_effect=None if found else NotFoundError(message="Conversation not found")
+        )
+        with (
+            self._db() as db_context,
+            patch(
+                "app.services.agent_session.member_repo.get",
+                AsyncMock(return_value=MagicMock() if member else None),
+            ),
+            patch("app.services.agent_session.ConversationService", return_value=conversations),
+        ):
+            db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_context.return_value.__aexit__ = AsyncMock(return_value=False)
+            return await session._still_reads(CONVERSATION)
+
+    async def test_a_member_who_may_read_it_still_does(self) -> None:
+        assert await self._ask(member=True, found=True) is True
+
+    async def test_a_former_member_does_not(self) -> None:
+        assert await self._ask(member=False, found=True) is False
+
+    async def test_a_member_who_lost_the_chat_does_not(self) -> None:
+        assert await self._ask(member=True, found=False) is False
