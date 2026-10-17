@@ -21,9 +21,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **The AgenticOS MCP server for any agent** (#2190). The platform's own MCP
   server is the first card under an agent's **MCP servers**: switched on, the
-  agent reads the platform's agents, runs, knowledge bases, skills and apps as
-  whoever it runs for, with exactly their permissions, and every tool that
-  changes something waits for approval. The card's settings narrow the tools
+  agent reads the platform's agents, runs, spend, knowledge bases, skills and
+  members as whoever it runs for, with exactly their permissions, and every
+  tool that changes something waits for approval. The card's settings narrow the tools
   and can hold every call. The **Claude Code like** template binds it.
   `GET /api/v1/agents/platform-mcp-tools` lists the tools a binding chooses
   from. See [MCP](docs/mcp.md#giving-it-to-an-agent).

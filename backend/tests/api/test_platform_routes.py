@@ -251,6 +251,7 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
     Call("GET", "/agents/prompt-variables", Perm.AGENTS_VIEW),
     Call("GET", "/agents/templates", Perm.AGENTS_VIEW),
+    Call("GET", "/agents/platform-mcp-tools", Perm.AGENTS_VIEW),
     Call(
         "POST",
         "/agents/templates/install",

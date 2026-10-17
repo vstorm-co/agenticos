@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { BrandMark } from "@/components/branding/brand-mark";
 import { useBranding } from "@/components/branding/branding-provider";
 import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
+import { ErrorState } from "@/components/states";
 import {
   Badge,
   Button,
@@ -22,6 +23,7 @@ import {
   Switch,
 } from "@/components/ui";
 import { usePlatformMcpTools } from "@/hooks";
+import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
 import { cn } from "@/lib/utils";
 import type { McpApproval, PlatformMcpServerRef } from "@/types/agents";
@@ -121,7 +123,8 @@ function PlatformBindingDialog({
 }) {
   const t = useTranslations("agents");
   const tc = useTranslations("common");
-  const { tools, isLoading } = usePlatformMcpTools();
+  const tErrors = useTranslations("errors");
+  const { tools, isLoading, error } = usePlatformMcpTools();
   const current = binding ?? NEW_PLATFORM_BINDING;
   const allowed = current.allowed_tools ?? null;
   const isAllowed = (tool: string) => allowed === null || allowed.includes(tool);
@@ -191,7 +194,10 @@ function PlatformBindingDialog({
 
             <div className="space-y-2">
               <Label>{t("platformTools")}</Label>
-              {isLoading ? (
+              {error ? (
+                // A request that failed is said, never drawn as a server with no tools.
+                <ErrorState description={getErrorMessage(error, tErrors)} className="py-6" />
+              ) : isLoading ? (
                 <Skeleton className="h-32 w-full" />
               ) : (
                 <ul className="divide-border divide-y rounded-lg border">

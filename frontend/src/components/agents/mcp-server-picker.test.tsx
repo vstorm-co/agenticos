@@ -196,6 +196,15 @@ describe("McpServerPicker", () => {
     expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
   });
 
+  it("lets a search rule out the built-in server as it rules out the others", async () => {
+    render(picker({ connections: [connection()], value: [], onChange: vi.fn() }));
+    expect(screen.getByText("Built in")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText("Search servers…"), "github");
+    expect(screen.queryByText("Built in")).toBeNull();
+    expect(screen.getByText("GitHub")).toBeInTheDocument();
+  });
+
   it("drops a binding rather than writing it twice", async () => {
     const onChange = vi.fn();
     render(picker({ connections: [connection()], value: [bound("c1")], onChange }));

@@ -13,7 +13,7 @@ const tools = vi.fn(() => ({
     { name: "run_agent", description: "Run an agent.", writes: true },
   ],
   isLoading: false,
-  error: null,
+  error: null as Error | null,
 }));
 vi.mock("@/hooks", () => ({ usePlatformMcpTools: () => tools() }));
 vi.mock("@/components/branding/branding-provider", () => ({
@@ -100,6 +100,17 @@ describe("the AgenticOS server in the Builder", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Use it in this agent" }));
     expect(onChange).toHaveBeenLastCalledWith(NEW_PLATFORM_BINDING);
+  });
+
+  it("says the tools could not be read rather than showing a server with none", async () => {
+    const listed = tools.getMockImplementation()!;
+    tools.mockReturnValue({ tools: [], isLoading: false, error: new Error("Service unavailable") });
+    render(<Harness initial={NEW_PLATFORM_BINDING} onChange={vi.fn()} />);
+    await userEvent.click(screen.getByText("Asks before any change"));
+
+    expect(screen.getByRole("dialog")).toHaveTextContent("Service unavailable");
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    tools.mockImplementation(listed);
   });
 
   it("switches off from the card", async () => {

@@ -47,7 +47,7 @@ from app.agents.mcp import (
     tool_prefix,
 )
 from app.agents.mcp_oauth import McpOAuthPayload
-from app.agents.spec import OrgMcpServerRef, PersonalMcpServerRef
+from app.agents.spec import OrgMcpServerRef, PersonalMcpServerRef, PlatformMcpServerRef
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -75,6 +75,7 @@ from app.services.mcp_connection import (
     AccountNote,
     McpConnectionService,
     UnavailablePersonalService,
+    UnavailablePlatformServer,
     UnavailablePrefixCollision,
     _apply_token,
     _resolve_auth_headers,
@@ -846,6 +847,26 @@ class TestToolsetsForAgent:
                 kept_binding="the connection 'github'",
             )
         ]
+
+    @pytest.mark.anyio
+    async def test_the_platform_with_nobody_to_act_as_is_briefed_not_silent(self, monkeypatch):
+        """A visitor or a schedule acting as nobody gets no platform server - and
+        the model is told, rather than reaching for tools it lacks."""
+        seen = self._capture(monkeypatch)
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={}),
+        )
+
+        resolved = await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[PlatformMcpServerRef(account="platform")],
+        )
+
+        assert not any(seen)
+        assert resolved.unavailable == [UnavailablePlatformServer()]
 
     @pytest.mark.anyio
     async def test_an_unreachable_first_holder_neither_wins_nor_is_reported_as_attached(

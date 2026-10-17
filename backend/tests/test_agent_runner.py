@@ -99,6 +99,7 @@ from app.services.mcp_connection import (
     AccountNote,
     ResolvedMcpToolsets,
     UnavailablePersonalService,
+    UnavailablePlatformServer,
     UnavailablePrefixCollision,
 )
 from app.services.transcript import RecordedToolCall
@@ -4631,6 +4632,15 @@ class TestTellingTheAgentWhatItCannotReach:
             sender_present=sender_present,
         )
         return spec.instructions
+
+    def test_the_platform_with_nobody_to_act_as_is_said_to_be_out_of_reach(self):
+        spec = _with_personal_service_gaps(
+            AgentSpec(name="Support", instructions="Be brief."),
+            [UnavailablePlatformServer()],
+            RunSurface.EMBED,
+        )
+        assert "agenticos_*) are not available this turn" in spec.instructions
+        assert "rather than guessing" in spec.instructions
 
     def test_nothing_missing_leaves_the_instructions_alone(self):
         spec = AgentSpec(name="Support", instructions="Be brief.")

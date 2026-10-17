@@ -151,6 +151,7 @@ from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
 from app.agents.manifest import as_payload, fit
+from app.agents.mcp import PLATFORM_MCP_PREFIX
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.spec import (
@@ -240,6 +241,7 @@ from app.services.mcp_connection import (
     PersonalServiceGapKind,
     UnavailableBinding,
     UnavailablePersonalService,
+    UnavailablePlatformServer,
     UnavailablePrefixCollision,
     build_toolsets_for_agent,
     connect_personal_toolset,
@@ -1631,6 +1633,13 @@ def _binding_gap_briefing(
     gap: UnavailableBinding, surface: RunSurface, *, sender_present: bool
 ) -> str:
     """One paragraph for a binding this turn could not honour, model-facing."""
+    if isinstance(gap, UnavailablePlatformServer):
+        return (
+            f"This platform's own tools ({PLATFORM_MCP_PREFIX}_*) are not available this "
+            "turn: they act as the person you are talking to, and nobody signed in is "
+            "behind this message. If asked about the platform itself, say you cannot "
+            "look it up from here rather than guessing."
+        )
     if isinstance(gap, UnavailablePrefixCollision):
         if gap.server == gap.kept:
             # Same name on both sides - an organization connection and a personal

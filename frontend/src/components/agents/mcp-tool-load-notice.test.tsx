@@ -3,6 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { McpToolLoadNotice } from "./mcp-tool-load-notice";
+
+// The platform's own server lists its tools through a query; eighteen of them here.
+const platformTools = vi.fn((_options?: { enabled?: boolean }) => ({ tools: tools(18) }));
+vi.mock("@/hooks", () => ({
+  usePlatformMcpTools: (options?: { enabled?: boolean }) => platformTools(options),
+}));
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type { AgentSpec } from "@/types/agents";
 
@@ -85,5 +91,36 @@ describe("McpToolLoadNotice", () => {
     );
 
     expect(screen.getByRole("button", { name: "Turn on Tool search" })).toBeDisabled();
+  });
+
+  it("counts the platform's own server, every tool of it", () => {
+    render(
+      <McpToolLoadNotice
+        spec={spec({
+          mcp_servers: [
+            { account: "organization", connection_id: "o1", allowed_tools: null },
+            { account: "platform", approval: "writes" },
+          ],
+        })}
+        connections={[connection(20)]}
+        personalConnections={[]}
+        onEnableToolSearch={vi.fn()}
+      />,
+    );
+    // 20 on the connection and 18 on the platform: past the threshold together.
+    expect(screen.getByRole("status")).toHaveTextContent("38 tools");
+    expect(platformTools).toHaveBeenLastCalledWith({ enabled: true });
+  });
+
+  it("does not ask the platform for its tools when it is not bound", () => {
+    render(
+      <McpToolLoadNotice
+        spec={spec()}
+        connections={[connection(20)]}
+        personalConnections={[]}
+        onEnableToolSearch={vi.fn()}
+      />,
+    );
+    expect(platformTools).toHaveBeenLastCalledWith({ enabled: false });
   });
 });

@@ -776,7 +776,7 @@
     "capabilityShelfPrevious": "Zurück in {shelf}",
     "capabilityShelfNext": "Mehr in {shelf}",
     "capabilityToolCount": "{count, plural, =0 {Eingebaut, keine Werkzeuge} =1 {1 Werkzeug} other {# Werkzeuge}}",
-    "platformServerDescription": "Die eigenen Werkzeuge dieser Plattform: Agents, Runs, Wissensbasen, Skills und Apps - der Agent kann Fragen zur Plattform beantworten und in ihr handeln.",
+    "platformServerDescription": "Die eigenen Werkzeuge dieser Plattform: Agents, Runs, Ausgaben, Wissensbasen, Skills und Mitglieder - der Agent kann Fragen zur Plattform beantworten und in ihr handeln.",
     "platformServerBadge": "Eingebaut",
     "platformAsksBeforeWrites": "Fragt vor jeder Änderung",
     "platformAsksEveryCall": "Fragt vor jedem Aufruf",
@@ -3293,6 +3293,10 @@
       "flow-agent-limits": {
         "title": "Ein Budget setzen (optional)",
         "body": "Begrenzen Sie, was dieser Agent in einem Monat ausgeben darf und wie viele Schritte ein Run gehen darf, und wählen Sie, wer erfährt, wenn er ein Limit erreicht. So stoppt sich ein Agent selbst, der sich im Kreis dreht oder davonläuft. Wählen Sie Weiter, um fortzufahren."
+      },
+      "flow-agent-platform-mcp": {
+        "title": "In der Plattform handeln lassen (optional)",
+        "body": "Der eigene Server dieser Plattform braucht keine Verbindung: eingeschaltet beantwortet der Agent Fragen zu Agents, Runs und Wissen hier, als die Person, mit der er spricht - und fragt, bevor er etwas ändert."
       },
       "flow-agent-mcp": {
         "title": "MCP-Server hinzufügen (optional)",

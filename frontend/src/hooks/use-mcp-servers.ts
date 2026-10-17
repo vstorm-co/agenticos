@@ -31,11 +31,12 @@ export function useMcpCatalog() {
  *
  * Cached indefinitely for the same reason as the catalog: they change on redeploy.
  */
-export function usePlatformMcpTools() {
+export function usePlatformMcpTools({ enabled = true }: { enabled?: boolean } = {}) {
   const { data, isLoading, error } = useQuery({
     queryKey: qk.mcpServers.platformTools(),
     queryFn: () => apiClient.get<PlatformMcpToolList>("/agents/platform-mcp-tools"),
     staleTime: Infinity,
+    enabled,
   });
   return { tools: data?.items ?? [], isLoading, error };
 }

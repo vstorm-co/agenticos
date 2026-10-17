@@ -252,6 +252,7 @@ class TestMcpBindings:
 
 
 class TestTheShippedClaudeCodeLikeAgent:
+    @pytest.mark.security
     def test_it_reaches_the_platform_with_writes_held_for_approval(self):
         """A fresh agent from it answers questions about the platform out of the
         box, and asks before changing anything there (#2190)."""
