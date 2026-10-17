@@ -53,6 +53,12 @@ vi.mock("./visual-save-dialog", () => ({
 const { toast } = vi.hoisted(() => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("sonner", () => ({ toast }));
 
+// Saving publishes an app, which `artifacts:edit` decides.
+const canPublish = vi.fn(() => true);
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: () => canPublish() }),
+}));
+
 const SVG = '<svg viewBox="0 0 10 10"><rect/></svg>';
 
 function call(overrides: Partial<ToolCall> = {}): ToolCall {
@@ -179,6 +185,25 @@ describe("TurnVisuals", () => {
   it("shows nothing for a call that failed", () => {
     const { container } = show([call({ status: "error" })]);
     expect(container.querySelector("[data-tour]")).toBeNull();
+  });
+
+  it("shows nothing for a call the tool refused, though it finished", () => {
+    // A retry prompt or the last attempt's refusal is a finished call that drew nothing.
+    const { container } = show([
+      call({ result: "The visual pulls a script from the web; draw it inline." }),
+    ]);
+    expect(container.querySelector("[data-tour]")).toBeNull();
+  });
+
+  it("offers saving as an app only to whoever may publish one", () => {
+    const { unmount } = show([call({ result: "Drew 'Flow' as visual `d1`." })]);
+    expect(screen.getByRole("button", { name: "Save to Apps" })).toBeInTheDocument();
+    unmount();
+
+    canPublish.mockReturnValue(false);
+    show([call({ result: "Drew 'Flow' as visual `d1`." })]);
+    expect(screen.queryByRole("button", { name: "Save to Apps" })).toBeNull();
+    canPublish.mockReturnValue(true);
   });
 
   it("holds a place while nothing has streamed yet", () => {

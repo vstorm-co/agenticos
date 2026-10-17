@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { copySvgImage, downloadVisual } from "./visual-actions";
+import { copySvgImage, downloadVisual, sealedPage } from "./visual-actions";
 
 describe("downloadVisual", () => {
   it("saves the drawing under a name made from its title", () => {
@@ -18,6 +18,31 @@ describe("downloadVisual", () => {
     click.mockRestore();
     created.mockRestore();
     revoked.mockRestore();
+  });
+});
+
+describe("a downloaded page", () => {
+  it("carries the frame's rules inside it: no request anywhere", async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const created = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:x");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    downloadVisual("Report", "html", "<html><head><title>R</title></head><body></body></html>");
+
+    const saved = await (created.mock.calls[0]![0] as Blob).text();
+    expect(saved).toMatch(/^<html><head><meta http-equiv="Content-Security-Policy"/);
+    expect(saved).toContain("connect-src 'none'");
+    expect(saved).toContain(
+      `script-src 'unsafe-inline' 'unsafe-eval' data: blob: ${location.origin}`,
+    );
+    click.mockRestore();
+    vi.restoreAllMocks();
+  });
+
+  it("puts the policy first in a page with no head", () => {
+    expect(sealedPage("<p>hi</p>", "https://console.example")).toMatch(
+      /^<meta http-equiv="Content-Security-Policy" content="default-src 'none';.*"><p>hi<\/p>$/,
+    );
   });
 });
 

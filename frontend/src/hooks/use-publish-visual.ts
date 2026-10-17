@@ -21,6 +21,11 @@ export function usePublishVisual() {
       visualId: string;
       data: VisualPublish;
     }) => publishVisual(conversationId, visualId, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.artifacts.all() }),
+    // The apps list, and the visuals list whose rows say which one is saved.
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: qk.artifacts.all() }),
+        queryClient.invalidateQueries({ queryKey: qk.visuals.all() }),
+      ]),
   });
 }

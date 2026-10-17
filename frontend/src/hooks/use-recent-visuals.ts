@@ -10,6 +10,10 @@ export function useRecentVisuals(limit: number) {
   const query = useQuery({
     queryKey: qk.visuals.recent(limit),
     queryFn: () => listRecentVisuals(limit),
+    // Activity, drawn in chat while this page is away: asked again each time the
+    // card mounts rather than served from a cache minutes old.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
   return {
     visuals: query.data?.items ?? [],

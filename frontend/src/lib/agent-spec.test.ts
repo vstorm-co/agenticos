@@ -416,4 +416,10 @@ describe("withVisuals", () => {
     expect(updated.skill_ids).toEqual(["x"]);
     expect(updated.capabilities.map((entry) => entry.id)).toEqual([VISUALS_ID]);
   });
+
+  it("switches the Skills capability back on for a skill already bound", () => {
+    const updated = withVisuals(spec({ skill_ids: [design.id] }), [design]);
+    expect(updated.skill_ids).toEqual([design.id]);
+    expect(updated.capabilities.find((binding) => binding.id === "skills")?.enabled).toBe(true);
+  });
 });

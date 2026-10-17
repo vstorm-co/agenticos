@@ -77,16 +77,23 @@ describe("resolveVisual", () => {
     title: "Flow",
     kind: "svg",
     height: 600,
-    content: "<svg>one</svg>",
-    images: [{ name: "logo", source: "a.png" }, { source: "x" }, "junk", null],
+    content: "<svg>one{{image:logo}}</svg>",
+    images: [
+      { name: "logo", source: "a.png" },
+      { name: "unused", source: "u.png" },
+      { source: "x" },
+      "junk",
+      null,
+    ],
   });
 
   it("is a drawing as written", () => {
     expect(resolveVisual(origin, new Map())).toEqual({
       title: "Flow",
       kind: "svg",
-      content: "<svg>one</svg>",
+      content: "<svg>one{{image:logo}}</svg>",
       height: 600,
+      // Only what the drawing uses: `unused` is never fetched.
       images: { logo: "d" },
     });
   });
@@ -110,10 +117,21 @@ describe("resolveVisual", () => {
     expect(resolveVisual(second, known)).toEqual({
       title: "Renamed",
       kind: "svg",
-      content: "<svg>three</svg>",
+      content: "<svg>three{{image:logo}}</svg>",
       height: 600,
       images: { logo: "r2" },
     });
+  });
+
+  it("keeps no more pictures than a drawing may use", () => {
+    const names = ["a", "b", "c", "d", "e", "f", "g"];
+    const crowded = draw("c", {
+      title: "Many",
+      kind: "html",
+      content: names.map((name) => `{{image:${name}}}`).join(""),
+      images: names.map((name) => ({ name, source: `${name}.png` })),
+    });
+    expect(Object.keys(resolveVisual(crowded, new Map())?.images ?? {})).toHaveLength(6);
   });
 
   it("cannot rebuild what is not loaded, malformed or no longer applies", () => {

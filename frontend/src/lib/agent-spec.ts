@@ -207,10 +207,13 @@ export function withVisuals(
 ): Pick<AgentSpec, "skill_ids" | "capabilities"> {
   const capabilities = withCapability(spec.capabilities, VISUALS_ID, true);
   const design = skills.find((skill) => skill.name === VISUAL_DESIGN_SKILL);
-  if (design === undefined || spec.skill_ids.includes(design.id)) {
-    return { skill_ids: spec.skill_ids, capabilities };
-  }
-  return withSkills({ capabilities }, [...spec.skill_ids, design.id]);
+  if (design === undefined) return { skill_ids: spec.skill_ids, capabilities };
+  // Through `withSkills` even when the skill is already bound: it may be bound
+  // with the Skills capability since switched off, which reads nothing.
+  const bound = spec.skill_ids.includes(design.id)
+    ? spec.skill_ids
+    : [...spec.skill_ids, design.id];
+  return withSkills({ capabilities }, bound);
 }
 
 /** The capability that injects bound context files and exposes the linked ones. */

@@ -14,6 +14,15 @@ import type { PartialField } from "./partial-args";
 export const DRAW = "draw";
 export const REVISE = "revise_visual";
 
+/**
+ * Whether a finished call drew something: its result opens on what the tool says
+ * when it made a visual - the backend's `DREW`. A retry prompt or the last
+ * attempt's refusal is a finished call too, and draws nothing.
+ */
+export function drewVisual(result: unknown): boolean {
+  return typeof result === "string" && /^(Drew|Revised) /.test(result);
+}
+
 export type VisualKind = "svg" | "html" | "mermaid";
 
 /** A call that leaves a visual behind, whose arguments are shown as they arrive. */
@@ -98,6 +107,9 @@ export interface ResolvedVisual {
   images: Record<string, string>;
 }
 
+/** How many pictures one drawing may use - the backend's `MAX_IMAGES`. */
+const MAX_IMAGES = 6;
+
 /** Where a visual uses one of its pictures - the backend's `IMAGE_TOKEN`. */
 const IMAGE_TOKEN = /\{\{image:([a-z0-9][a-z0-9_-]{0,39})\}\}/g;
 
@@ -157,7 +169,15 @@ export function resolveVisual(
       title = revision.args.title;
     }
   }
-  return { title, kind, content, height: clampHeight(origin.height), images };
+  // Only the pictures the drawing still uses, as the server keeps them: a long
+  // chain of revisions may have added many, each one a download to show it.
+  const used = new Set([...content.matchAll(IMAGE_TOKEN)].map((match) => match[1]));
+  const kept = Object.fromEntries(
+    Object.entries(images)
+      .filter(([name]) => used.has(name))
+      .slice(0, MAX_IMAGES),
+  );
+  return { title, kind, content, height: clampHeight(origin.height), images: kept };
 }
 
 /** What of a `draw` call has arrived while its arguments stream. */

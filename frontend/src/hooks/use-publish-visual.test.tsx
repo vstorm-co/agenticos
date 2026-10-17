@@ -28,5 +28,7 @@ describe("usePublishVisual", () => {
 
     expect(publishVisual).toHaveBeenCalledWith("c", "v", { name: "flow" });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["artifacts"] });
+    // And the recent-visuals list, whose rows say which is saved.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["visuals"] });
   });
 });

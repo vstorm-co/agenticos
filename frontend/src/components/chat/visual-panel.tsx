@@ -28,8 +28,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, IconButton } from "@/
 import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { partialArgs, type PartialField } from "@/lib/partial-args";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
 import {
   DEFAULT_HEIGHT,
+  drewVisual,
   REVISE,
   framedElsewhere,
   inlineImages,
@@ -292,6 +295,8 @@ function VisualPanel({ call }: { call: ToolCall }) {
     shown !== null && shown !== "missing" && shown.done,
   );
   const saved = useSavedVisualsStore((state) => state.saved);
+  // Saving publishes an app, which `artifacts:edit` decides: offered only to whoever has it.
+  const mayPublish = usePermissions().can(Perm.artifactsEdit);
   const [code, setCode] = useState(false);
   const [full, setFull] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -307,6 +312,11 @@ function VisualPanel({ call }: { call: ToolCall }) {
   const thumbnailed = useRef(false);
 
   if (call.status === "error") return null;
+  // Finished without drawing - the tool refused it - is no visual, whatever the
+  // arguments held; a result still on its way is not a refusal yet.
+  if (call.status === "completed" && call.result !== undefined && !drewVisual(call.result)) {
+    return null;
+  }
   const streaming =
     call.status === "pending" || (shown !== null && shown !== "missing" && !shown.done);
   if (shown === null) {
@@ -420,7 +430,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
               <Download className="size-4" />
             </IconButton>
           )}
-          {done && conversationId !== null && (
+          {done && conversationId !== null && mayPublish && (
             <IconButton
               aria-label={app ? t("updateApp") : t("saveToApps")}
               title={app ? t("updateApp") : t("saveToApps")}

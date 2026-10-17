@@ -6,9 +6,45 @@ const MEDIA: Record<VisualKind, string> = {
   mermaid: "text/plain",
 };
 
+/**
+ * What a downloaded page may do, opened from disk: what the chat's frame lets it.
+ *
+ * In the chat a page runs under the policy the server sends; a file opened from
+ * a download has none, so the same rules travel inside it - no request to
+ * anywhere, scripts only inline or from this console's own library set. A page
+ * that read something must not be able to send it on just by being opened.
+ */
+export function downloadPolicy(origin: string): string {
+  return [
+    "default-src 'none'",
+    // i18n-exempt: a CSP directive, not copy
+    `script-src 'unsafe-inline' 'unsafe-eval' data: blob: ${origin}`,
+    // i18n-exempt: a CSP directive, not copy
+    `style-src 'unsafe-inline' data: ${origin}`,
+    "img-src data: blob:",
+    // i18n-exempt: a CSP directive, not copy
+    `font-src data: ${origin}`,
+    "media-src data: blob:",
+    "connect-src 'none'",
+    "form-action 'none'",
+    "base-uri 'none'",
+    "frame-src 'none'",
+  ].join("; ");
+}
+
+/** A page with `downloadPolicy` in its head - inserted after `<head>`, or first. */
+export function sealedPage(html: string, origin: string): string {
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${downloadPolicy(origin)}">`;
+  const head = /<head\b[^>]*>/i.exec(html);
+  if (head === null) return `${meta}${html}`;
+  const at = head.index + head[0].length;
+  return `${html.slice(0, at)}${meta}${html.slice(at)}`;
+}
+
 /** The drawing as a file: an SVG as itself, a page as HTML, a diagram as its source. */
 export function downloadVisual(title: string, kind: VisualKind, content: string): void {
-  const url = URL.createObjectURL(new Blob([content], { type: `${MEDIA[kind]};charset=utf-8` }));
+  const body = kind === "html" ? sealedPage(content, window.location.origin) : content;
+  const url = URL.createObjectURL(new Blob([body], { type: `${MEDIA[kind]};charset=utf-8` }));
   const link = document.createElement("a");
   link.href = url;
   link.download = visualFilename(title, kind);
