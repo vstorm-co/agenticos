@@ -128,6 +128,13 @@ describe("the collection picker", () => {
     expect(screen.getByRole("checkbox", { name: "Contracts" })).not.toBeChecked();
   });
 
+  it("shows the attached collections first", () => {
+    mount([collection(), collection({ id: "kb-2", name: "Contracts" })], ["kb-2"]);
+
+    const shown = screen.getAllByRole("checkbox").map((box) => box.getAttribute("aria-label"));
+    expect(shown).toEqual(["Contracts", "Handbook"]);
+  });
+
   it("toggles the collection that was pressed", async () => {
     const { onToggle } = mount([collection()]);
 

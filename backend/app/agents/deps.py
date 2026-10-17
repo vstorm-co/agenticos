@@ -25,6 +25,7 @@ from app.agents.browser_events import BrowserEventSink
 from app.agents.compaction_events import CompactionEvent
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
+from app.agents.visual_reports import VisualReports
 
 AskUserCallback = Callable[[str, list[str]], Awaitable[str]]
 """How a delegate reaches the person waiting on its parent, and back.
@@ -117,6 +118,11 @@ class AgentDeps:
     # everywhere else, and the browse then runs unnarrated - the frames are a
     # progress report, not a permission, exactly as `on_compaction` is.
     browser_events: BrowserEventSink | None = None
+
+    # Set when somebody is watching the run draw (#2171): the console reports how
+    # each visual rendered, and `draw` waits a moment to hand that to the model.
+    # None everywhere else, and a drawing is then simply not checked.
+    visual_reports: VisualReports | None = None
 
     metadata: dict[str, Any] = field(default_factory=dict)
 

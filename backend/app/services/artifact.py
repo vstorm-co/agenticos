@@ -183,6 +183,14 @@ ARTIFACT_LIBRARY: dict[str, str] = {
     "agenticos-1.css": "text/css; charset=utf-8",
     "agenticos-2.css": "text/css; charset=utf-8",
     "agenticos-2.js": "text/javascript; charset=utf-8",
+    "mermaid-12.1.0.min.js": "text/javascript; charset=utf-8",
+    "idiomorph-0.8.0.min.js": "text/javascript; charset=utf-8",
+    # three.js is an ES module that imports its core by a relative path, so the
+    # set keeps the package's own layout under a versioned directory, and a page
+    # maps `three` to it with an import map.
+    "three-0.186.0/three.module.js": "text/javascript; charset=utf-8",
+    "three-0.186.0/three.core.js": "text/javascript; charset=utf-8",
+    "three-0.186.0/addons/controls/OrbitControls.js": "text/javascript; charset=utf-8",
 }
 """The files a page may load, by the name it loads them as, and their media type.
 
@@ -191,6 +199,13 @@ Served from `lib/` beside the page's own address, so a page names them relativel
 deployment moves its content to another origin. Every name carries its version:
 a page published against one keeps getting exactly that one. See
 `app/core/catalog/artifact_lib/README.md`.
+"""
+
+FRAME_ONLY_LIBRARY = frozenset({"idiomorph-0.8.0.min.js"})
+"""Files of the set the visual frame loads for itself, not offered to a page.
+
+The frame morphs a drawing's markup in place while it streams; a page has no use
+for that, so the tool text does not name it.
 """
 
 _library_bytes: dict[str, bytes] = {}
@@ -302,13 +317,47 @@ def normalise_embed_origins(origins: Sequence[str]) -> list[str]:
     return kept
 
 
+def apply_replacements(source: str, replacements: Sequence[tuple[str, str]]) -> str:
+    """The text with each `(old, new)` replacement applied in order.
+
+    Each `old` must occur exactly once in the text as the replacements before it
+    left it: not at all means the edit was made against a memory of the text
+    rather than the text, and more than once means it does not say which place
+    it means. Shared by an app's edits and a visual's revisions.
+
+    Raises:
+        ValueError: The first replacement that does not name exactly one place, in
+            words the model can act on.
+    """
+    text = source
+    for number, (old, new) in enumerate(replacements, start=1):
+        found = text.count(old)
+        if found == 0:
+            raise ValueError(
+                f"Edit {number}: its `old` text is not in the page. Copy it exactly, "
+                "whitespace included."
+            )
+        if found > 1:
+            raise ValueError(
+                f"Edit {number}: its `old` text appears {found} times. Include more of the "
+                "surrounding text so it names one place."
+            )
+        text = text.replace(old, new, 1)
+    return text
+
+
+def valid_name(name: str) -> bool:
+    """Whether a name is one an app may have - :data:`NAME_PATTERN`."""
+    return re.fullmatch(NAME_PATTERN, name) is not None
+
+
 def publish_problem(*, name: str, media_type: ArtifactMediaType, data: bytes) -> str | None:
     """Why this publication would be refused, in words the model can act on.
 
     `None` when it is acceptable. Checked by the tool before anything is written,
     so a mistake costs a retry rather than a half-made artifact.
     """
-    if not re.fullmatch(NAME_PATTERN, name):
+    if not valid_name(name):
         return (
             f"`name` {name!r} is not a valid app name. Use 1-64 lower-case letters, "
             "digits and hyphens, starting with a letter or digit - for example "

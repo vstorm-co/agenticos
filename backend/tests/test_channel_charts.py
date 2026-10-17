@@ -338,3 +338,51 @@ class TestTheReplyAChannelTurnBuilds:
 
         assert answered.image_png is not None
         assert ran_on and ran_on[0] != loop_thread
+
+
+class TestTheTurnsPicture:
+    """A reply carries one picture: the last a turn made, chart or visual."""
+
+    @pytest.mark.anyio
+    async def test_a_visual_that_failed_leaves_the_chart_before_it_as_the_picture(self) -> None:
+        from app.services.channels.mentions import drawn_picture
+
+        png = await drawn_picture(
+            [_call(_spec().model_dump_json()), _call(None, name="draw")],
+            organization_id=uuid.uuid4(),
+            conversation_id=None,
+        )
+        assert png is not None and png.startswith(b"\x89PNG")
+
+    @pytest.mark.anyio
+    async def test_a_visual_after_the_chart_is_drawn_by_the_browser(self) -> None:
+        from unittest.mock import AsyncMock, patch
+
+        from app.services.channels.mentions import drawn_picture
+
+        conversation = uuid.uuid4()
+        visual = _call("Drew 'Flow' as visual `v`.", name="draw")
+        with patch(
+            "app.services.channels.mentions.visual_render.picture_of_turn",
+            new=AsyncMock(return_value=b"png"),
+        ) as picture:
+            png = await drawn_picture(
+                [_call(_spec().model_dump_json()), visual],
+                organization_id=uuid.uuid4(),
+                conversation_id=conversation,
+            )
+        assert png == b"png"
+        assert picture.await_args.kwargs["conversation_id"] == conversation
+
+    @pytest.mark.anyio
+    async def test_a_turn_that_drew_nothing_has_no_picture(self) -> None:
+        from app.services.channels.mentions import drawn_picture
+
+        assert (
+            await drawn_picture(
+                [_call("found it", name="web_search")],
+                organization_id=uuid.uuid4(),
+                conversation_id=None,
+            )
+            is None
+        )

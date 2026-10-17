@@ -748,6 +748,14 @@ class Settings(BaseSettings):
     # `BROWSER_CDP_ALLOWED_HOSTS` like any agent's. Empty hides the option.
     BROWSER_SIGN_IN_CDP_URL: str = ""
 
+    # The browser a visual is drawn to a picture with (#2171), where no frame can
+    # run it: a chat app's reply and a dashboard thumbnail of a page. The compose
+    # `browser` service, `http://browser:9222`, whose host has to be in
+    # `BROWSER_CDP_ALLOWED_HOSTS`. The drawing reaches nothing from there - every
+    # request it makes is answered by the deployment or refused. Empty sends a
+    # drawing's title instead of its picture.
+    VISUAL_RENDER_CDP_URL: str = ""
+
     # The proxy the deployment's own browser reaches every site through - the
     # compose `browser-egress` service, `http://browser-egress:3128`, which refuses
     # anything inside the deployment's network and connects to the address it

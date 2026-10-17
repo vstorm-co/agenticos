@@ -7,8 +7,9 @@ import { CollectionPicker } from "@/components/agents/collection-picker";
 import { ContextGallery } from "@/components/agents/context-gallery";
 import { SkillGallery } from "@/components/agents/skill-gallery";
 import {
-  ARTIFACT_PAGES_SKILL,
   ARTIFACTS_ID,
+  COMPANION_SKILLS,
+  VISUALS_ID,
   CONTEXT_ID,
   KNOWLEDGE_ID,
   SKILLS_ID,
@@ -53,6 +54,7 @@ export function resourceTabKey(capabilityId: string): string | undefined {
   if (capabilityId === KNOWLEDGE_ID) return "collectionsHeading";
   if (capabilityId === SKILLS_ID) return "skillsHeading";
   if (capabilityId === ARTIFACTS_ID) return "artifactPagesHeading";
+  if (capabilityId === VISUALS_ID) return "visualDesignHeading";
   return undefined;
 }
 
@@ -140,25 +142,32 @@ export function CapabilityResources({
     );
   }
 
-  if (capabilityId === ARTIFACTS_ID) {
-    // The one skill this capability is better with, offered where the page is
-    // built rather than left for somebody to find in the Skills panel. Missing
+  const companion = COMPANION_SKILLS[capabilityId];
+  if (companion !== undefined) {
+    // The one skill this capability is better with, offered where its work is
+    // done rather than left for somebody to find in the Skills panel. Missing
     // from this page of the organization's skills - deleted, renamed, or past
     // the first page - it is simply not offered.
-    const pages = resources.skills.filter((skill) => skill.name === ARTIFACT_PAGES_SKILL);
+    const offered = resources.skills.filter((skill) => skill.name === companion);
     // Only this skill's own binding: the gallery reads any selected id it does not
     // list as a skill that no longer exists, and every other bound skill would
     // be reported as one - they are the Skills tab's to show.
-    const pageIds = new Set(pages.map((skill) => skill.id));
+    const offeredIds = new Set(offered.map((skill) => skill.id));
+    const visuals = capabilityId === VISUALS_ID;
     return (
-      <ResourceGroup detail={t("artifactPagesDetail")} warning={null}>
-        {pages.length === 0 ? (
-          <p className="text-muted-foreground text-xs">{t("artifactPagesMissing")}</p>
+      <ResourceGroup
+        detail={visuals ? t("visualDesignDetail") : t("artifactPagesDetail")}
+        warning={null}
+      >
+        {offered.length === 0 ? (
+          <p className="text-muted-foreground text-xs">
+            {visuals ? t("visualDesignMissing") : t("artifactPagesMissing")}
+          </p>
         ) : (
           <SkillGallery
-            skills={pages}
-            total={pages.length}
-            selectedIds={resources.skillIds.filter((id) => pageIds.has(id))}
+            skills={offered}
+            total={offered.length}
+            selectedIds={resources.skillIds.filter((id) => offeredIds.has(id))}
             onToggle={resources.onSkillToggle}
             disabled={disabled}
           />

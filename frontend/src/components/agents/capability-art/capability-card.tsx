@@ -8,6 +8,7 @@ import { Badge, Switch } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import type { CapabilityCatalogEntry } from "@/types/agents";
 
+import { DRAWN_ART, DRAWN_HUE } from "./art.drawn";
 import { CAPABILITY_ART, CAPABILITY_HUE } from "./art.generated";
 import "./capability-art.css";
 
@@ -31,8 +32,8 @@ export function CapabilityArt({
   name: string;
   off?: boolean;
 }) {
-  const svg = CAPABILITY_ART[id];
-  const style = { "--h": CAPABILITY_HUE[id] ?? hueOf(id) } as CSSProperties;
+  const svg = CAPABILITY_ART[id] ?? DRAWN_ART[id];
+  const style = { "--h": CAPABILITY_HUE[id] ?? DRAWN_HUE[id] ?? hueOf(id) } as CSSProperties;
   const stage = "stage v-B aspect-video";
   return (
     <div className={cn("cap-art", off && "is-off")} style={style}>

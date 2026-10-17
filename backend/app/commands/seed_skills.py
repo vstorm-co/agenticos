@@ -31,15 +31,27 @@ from app.services.skills import LibraryRefresh, SkillService
 
 @command("seed-skills", help="Install the bundled skills into an organization")
 @click.option("--org", "org_id", help="Organization id. Defaults to every organization.")
+@click.option(
+    "--skill",
+    "skill_keys",
+    multiple=True,
+    help="Only this bundled skill, by folder name; repeat for more. Defaults to all of them.",
+)
 @click.option("--dry-run", is_flag=True, help="Say what would change and stop")
 @click.option(
     "--replace",
     is_flag=True,
     help="Also replace copies edited here with the bundled version - their edits are lost",
 )
-def seed_skills(org_id: str | None, dry_run: bool, replace: bool) -> None:
-    """Install and refresh every skill in `app/core/catalog/skills` in an organization."""
-    asyncio.run(_run(org_id, dry_run, replace))
+def seed_skills(
+    org_id: str | None, skill_keys: tuple[str, ...], dry_run: bool, replace: bool
+) -> None:
+    """Install and refresh the skills in `app/core/catalog/skills` in an organization.
+
+    `--skill` narrows it to the ones named: a release that ships a new bundled skill
+    installs that one without bringing back a skill an organization deleted.
+    """
+    asyncio.run(_run(org_id, skill_keys, dry_run, replace))
 
 
 _DONE = {
@@ -61,11 +73,19 @@ _WOULD = {
 }
 
 
-async def _run(org_id: str | None, dry_run: bool, replace: bool) -> None:
+async def _run(
+    org_id: str | None, skill_keys: tuple[str, ...], dry_run: bool, replace: bool
+) -> None:
     bundled = skill_library.library()
     if not bundled:
         warning("No bundled skills found - is app/core/catalog/skills missing?")
         return
+    if skill_keys:
+        unknown = sorted(set(skill_keys) - {skill.key for skill in bundled})
+        if unknown:
+            warning(f"No bundled skill named {', '.join(unknown)}.")
+            return
+        bundled = tuple(skill for skill in bundled if skill.key in skill_keys)
 
     info(f"{len(bundled)} bundled skill(s): {', '.join(skill.key for skill in bundled)}")
 

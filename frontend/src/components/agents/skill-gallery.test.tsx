@@ -21,6 +21,23 @@ function skill(overrides: Partial<SkillSummary> = {}): SkillSummary {
 }
 
 describe("SkillGallery", () => {
+  it("shows the attached skills first, ten to a page", async () => {
+    render(
+      <SkillGallery
+        skills={Array.from({ length: 12 }, (_, i) => skill({ id: `s${i}`, name: `skill-${i}` }))}
+        total={12}
+        selectedIds={["s11"]}
+        onToggle={vi.fn()}
+      />,
+    );
+
+    const shown = screen.getAllByRole("checkbox").map((box) => box.getAttribute("aria-label"));
+    expect(shown).toHaveLength(10);
+    expect(shown[0]).toBe("skill-11");
+    await userEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+  });
+
   it("searches descriptions, because that is what a skill is chosen on", async () => {
     render(
       <SkillGallery

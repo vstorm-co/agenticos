@@ -1,5 +1,5 @@
 ---
-source_sha: "911fcf1c1d12"
+source_sha: "6cf7abf21033"
 ---
 
 # Glosario { #glossary }
@@ -86,5 +86,6 @@ se describe en [Capabilities](capabilities.md).
 | Thinking | `thinking` |
 | Tool output limits | `tool_output_limits` |
 | Tool search | `tool_search` |
+| Visuals | `visuals` |
 | Read web pages | `web_fetch` |
 | Web search | `web_research` |

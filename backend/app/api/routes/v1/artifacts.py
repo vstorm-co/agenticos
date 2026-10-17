@@ -33,6 +33,7 @@ from app.api.routes.v1._artifact_bytes import (
     artifact_response,
     embed_response,
     library_response,
+    visual_frame_response,
 )
 from app.core.permissions import Perm
 from app.schemas.artifact import (
@@ -47,6 +48,7 @@ from app.schemas.artifact import (
     PublicArtifactUnlock,
 )
 from app.services.artifact import library_file
+from app.services.visual import frame_document
 
 router = APIRouter(dependencies=[PUBLIC])
 public_router = APIRouter()
@@ -190,11 +192,20 @@ async def unlock_public_artifact(
     return await service.public_view(public_key, password=data.password)
 
 
-@content_router.get("/lib/{name}", response_class=Response)
+@content_router.get("/lib/{name:path}", response_class=Response)
 async def get_artifact_library_file(name: str) -> Response:
     """One file of the library set pages may load. Static, versioned by name."""
     data, media_type = await library_file(name)
     return library_response(data, media_type)
+
+
+@content_router.get("/visual-frame", response_class=Response)
+async def get_visual_frame() -> Response:
+    """The page a visual is drawn in: fixed, holding no visual, under the app sandbox.
+
+    The console posts the drawing into it while the agent writes it.
+    """
+    return visual_frame_response(await frame_document())
 
 
 @content_router.get(

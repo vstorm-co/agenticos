@@ -570,3 +570,36 @@ class TestTheOldPaths:
         assert old and len(old) == len(new)
         assert all(op.get("deprecated") for p in old for op in paths[p].values())
         assert not any(op.get("deprecated") for p in new for op in paths[p].values())
+
+
+class TestTheVisualFrame:
+    @pytest.mark.security
+    async def test_the_frame_is_the_app_sandbox_and_holds_no_visual(
+        self, client: OpenClient
+    ) -> None:
+        """A drawing is model-written script that may have read hostile input, so
+        it gets exactly an app's isolation - from a header, not a meta tag."""
+        app.dependency_overrides.pop(deps.get_auth_context)
+        async with client() as http:
+            response = await http.get(f"{settings.API_V1_STR}/artifact-content/visual-frame")
+        assert response.status_code == 200
+        policy = response.headers["content-security-policy"]
+        assert policy.startswith("sandbox allow-scripts allow-modals;")
+        assert "connect-src 'none'" in policy
+        assert "frame-ancestors" in policy
+        assert response.headers["cache-control"] == "no-cache"
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert "__agenticosVisualDocument" in response.text
+
+    async def test_a_module_library_answers_cors_for_an_opaque_origin(
+        self, client: OpenClient
+    ) -> None:
+        """three.js imports as a module, fetched in CORS mode with `Origin: null`."""
+        app.dependency_overrides.pop(deps.get_auth_context)
+        async with client() as http:
+            response = await http.get(
+                f"{settings.API_V1_STR}/artifact-content/lib/three-0.186.0/addons/controls/OrbitControls.js"
+            )
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == "*"
+        assert b"OrbitControls" in response.content

@@ -775,7 +775,10 @@
     "capabilityShelfEnabled": "Włączone: {enabled} z {total}",
     "capabilityShelfPrevious": "Wcześniej w: {shelf}",
     "capabilityShelfNext": "Więcej w: {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Wbudowana, bez narzędzi} =1 {1 narzędzie} few {# narzędzia} many {# narzędzi} other {# narzędzia}}"
+    "capabilityToolCount": "{count, plural, =0 {Wbudowana, bez narzędzi} =1 {1 narzędzie} few {# narzędzia} many {# narzędzi} other {# narzędzia}}",
+    "visualDesignDetail": "Podepnij skill visual-design, a agent rysuje według jego stylu i szablonów - diagramy architektury, explainery z suwakami, sceny 3D. Włączenie Visuals podpina go automatycznie; agent czyta go przez capability Skills.",
+    "visualDesignMissing": "Ta organizacja nie ma skilla visual-design. Zainstaluj skille dostarczane z platformą, żeby go dodać.",
+    "visualDesignHeading": "Styl rysunków"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -1399,7 +1402,13 @@
       "scrollingPage": "Przewija",
       "scrollPage": "Przewinął",
       "goingBack": "Wraca",
-      "goBack": "Wrócił"
+      "goBack": "Wrócił",
+      "drawingVisual": "Rysuje",
+      "drawVisual": "Narysował wizual",
+      "revisingVisual": "Poprawia wizual",
+      "reviseVisual": "Poprawił wizual",
+      "readingVisual": "Czyta wizual",
+      "readVisual": "Przeczytał wizual"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -1500,7 +1509,45 @@
     "openPageNamed": "Otwórz {name}",
     "showMore": "Pokaż więcej",
     "showLess": "Pokaż mniej",
-    "openApp": "Otwórz appkę"
+    "openApp": "Otwórz appkę",
+    "visuals": {
+      "drawing": "Rysuje…",
+      "revising": "Poprawia…",
+      "unfinished": "Niedokończony",
+      "revisionOf": "Poprawka: {title}",
+      "showCode": "Pokaż kod",
+      "showVisual": "Pokaż wizual",
+      "fullScreen": "Pełny ekran",
+      "zoomIn": "Powiększ",
+      "zoomOut": "Pomniejsz",
+      "zoomReset": "Przywróć rozmiar",
+      "zoomLevel": "{zoom, number, percent}",
+      "download": "Pobierz",
+      "copyImage": "Kopiuj jako obraz",
+      "imageCopied": "Skopiowano obraz",
+      "copyImageFailed": "Nie udało się skopiować obrazu",
+      "renderError": "Rysunek zgłosił błąd",
+      "stalled": "Rysunek przestał odpowiadać, więc został zamknięty.",
+      "reload": "Wczytaj ponownie",
+      "baseMissing": "Wizualu, który ta poprawka zmienia, nie ma we wczytanej części rozmowy.",
+      "close": "Zamknij",
+      "fixIt": "Napraw",
+      "fixItPrompt": "Wizual „{title}” ({id}) zgłosił błędy:\n{errors}\nNapraw go, proszę.",
+      "saveToApps": "Zapisz w Aplikacjach",
+      "updateApp": "Zaktualizuj aplikację",
+      "saveDescription": "Zapisany jako aplikacja dostaje link, wersje i udostępnianie. Zapis pod nazwą, którą już masz, dodaje nową wersję tej aplikacji.",
+      "saveTitleLabel": "Tytuł",
+      "saveName": "Nazwa",
+      "saveNameHint": "Małe litery, cyfry i myślniki. Ta sama nazwa ponownie aktualizuje aplikację.",
+      "save": "Zapisz",
+      "saving": "Zapisywanie…",
+      "cancel": "Anuluj",
+      "savedToast": "Zapisano jako aplikację, wersja {version}",
+      "savedUnchanged": "Aplikacja ma już dokładnie tę wersję",
+      "savedBadge": "Zapisano · v{version}",
+      "openApp": "Otwórz",
+      "openInConsole": "Widoczny w AgenticOS"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
@@ -2136,6 +2183,15 @@
         "nothingWaiting": "Nic nie czeka",
         "spent": "Wydane",
         "spentLabel": "wydano {amount}"
+      },
+      "recent-visuals": {
+        "title": "Ostatnie wizualizacje",
+        "description": "Diagramy, explainery i sceny, które agenci ostatnio dla ciebie narysowali.",
+        "app": "Aplikacja",
+        "empty": {
+          "title": "Nic jeszcze nie narysowano",
+          "description": "Poproś agenta z Wizualizacjami, żeby coś narysował - diagram, explainer, scenę 3D - a pojawi się tutaj."
+        }
       }
     },
     "edit": {
@@ -3556,6 +3612,10 @@
       "agent-identity": {
         "title": "Nadaj mu rozpoznawalną nazwę",
         "body": "Nazwę wybiera się w czacie i znajduje w katalogu. Duplikat zaczyna od nazwy źródła z dopiskiem, więc zmień ją tutaj; handle, przez który inne agenty do niego trafiają, pozostaje ten sam."
+      },
+      "chat-visual": {
+        "title": "Rysunki",
+        "body": "Agent z Visuals rysuje tu diagramy, explainery i sceny 3D, na żywo, w trakcie pisania. Otwórz rysunek na pełnym ekranie, pobierz go, zapytaj o niego albo zapisz jako aplikację z linkiem do udostępnienia."
       }
     },
     "chooseLanguage": "Język"
@@ -6440,6 +6500,14 @@
       "example2": "Znaleźć trzech konkurentów i ich ceny",
       "needs": "Nic, z DuckDuckGo. Brave, Exa i Tavily potrzebują swojego klucza API w vault.",
       "never": "Nigdy nie wysyła twoich dokumentów do wyszukiwarki, tylko szukane słowa."
+    },
+    "visuals": {
+      "name": "Wizualizacje",
+      "does": "Rysuje w rozmowie - diagram, mapę architektury, explainer z suwakami, scenę 3D - na żywo, w trakcie pisania. Rysunek można zapisać jako aplikację.",
+      "example1": "Nasz przepływ zamówień jako diagram",
+      "example2": "Model 3D magazynu, który można obracać",
+      "needs": "Nic dodatkowego. Skill visual-design sprawia, że rysunki wyglądają na zaprojektowane.",
+      "never": "Nigdy nie łączy się z siecią - rysunek działa odcięty, jak strona aplikacji."
     }
   },
   "capabilityCategories": {
