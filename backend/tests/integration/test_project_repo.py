@@ -183,3 +183,37 @@ async def test_a_projects_chat_list_holds_only_the_chats_started_in_it(db) -> No
         )
         == 1
     )
+
+
+async def test_a_project_chat_works_in_its_projects_container(db) -> None:
+    """A run in a project chat keeps its files on the project's container, which
+    names no conversation - the chat's files panel finds it through the project."""
+    alice = await _user(db)
+    org = await _org(db, owner=alice)
+    project = await _project(db, org, alice, name="Launch", visibility=Visibility.PRIVATE.value)
+    in_project = await conversation_repo.create_conversation(
+        db, organization_id=org.id, user_id=alice.id, title="in", project_id=project.id
+    )
+    plain = await conversation_repo.create_conversation(
+        db, organization_id=org.id, user_id=alice.id, title="out"
+    )
+    container = await workspace_repo.create(
+        db,
+        organization_id=org.id,
+        agent_id=None,
+        project_id=project.id,
+        scope="project",
+        scope_key=f"dp-{uuid.uuid4().hex[:20]}",
+        backend="state",
+    )
+
+    found = await workspace_repo.kept_for_conversation(
+        db, organization_id=org.id, conversation_id=in_project.id
+    )
+    assert found is not None and found.id == container.id
+    assert (
+        await workspace_repo.kept_for_conversation(
+            db, organization_id=org.id, conversation_id=plain.id
+        )
+        is None
+    )

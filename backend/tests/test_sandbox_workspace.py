@@ -1314,6 +1314,8 @@ class TestServingAConversationsFileAsBytes:
         """An empty body would be indistinguishable from a file the agent wrote and
         left empty."""
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+        # Not in a project either, so there is no project's to fall back on.
+        mock_db_session.scalar = AsyncMock(return_value=None)
 
         with pytest.raises(NotFoundError):
             await SandboxWorkspaceService(mock_db_session).read_bytes(
@@ -2878,6 +2880,8 @@ class TestShowingTheFilesToAPerson:
         self, monkeypatch, mock_db_session
     ):
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+        # Not in a project either, so there is no project's to fall back on.
+        mock_db_session.scalar = AsyncMock(return_value=None)
 
         found = await SandboxWorkspaceService(mock_db_session).listing(
             _ctx(), conversation_id=uuid4()
@@ -2964,6 +2968,8 @@ class TestShowingTheFilesToAPerson:
         self, monkeypatch, mock_db_session
     ):
         monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=[]))
+        # Not in a project either, so there is no project's to fall back on.
+        mock_db_session.scalar = AsyncMock(return_value=None)
 
         assert (
             await SandboxWorkspaceService(mock_db_session).read_text(

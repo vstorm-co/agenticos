@@ -277,6 +277,8 @@ class TestAssemblingIt:
         monkeypatch.setattr(
             agent_workspace_repo, "list_for_conversation", AsyncMock(return_value=[])
         )
+        # Not in a project either, so there is no project's to fall back on.
+        mock_db_session.scalar = AsyncMock(return_value=None)
         service = UsageReportService(mock_db_session)
 
         report = await service.for_run(_ctx(), _run(), include_sandbox=True)

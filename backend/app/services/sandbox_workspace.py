@@ -1384,11 +1384,10 @@ class SandboxWorkspaceService:
     async def _conversation_workspace(
         self, ctx: AuthContext, conversation_id: UUID
     ) -> AgentWorkspace | None:
-        """The workspace a conversation keeps, if it keeps one - see :meth:`listing`."""
-        rows = await workspace_repo.list_for_conversation(
+        """The workspace a conversation works in, if any - see :meth:`listing`."""
+        return await workspace_repo.kept_for_conversation(
             self.db, organization_id=ctx.organization_id, conversation_id=conversation_id
         )
-        return rows[0] if rows else None
 
     async def _browsable(self, ctx: AuthContext, row: AgentWorkspace) -> WorkspaceContents:
         """A workspace's browsable entries, without tiles.

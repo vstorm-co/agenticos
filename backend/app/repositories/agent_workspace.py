@@ -138,6 +138,30 @@ async def list_for_project(
     return list(result.scalars().all())
 
 
+async def kept_for_conversation(
+    db: AsyncSession, *, organization_id: UUID, conversation_id: UUID
+) -> AgentWorkspace | None:
+    """The workspace a conversation's runs work in: its own, or its project's.
+
+    A run in a project chat keeps its files on the project's container, which
+    names no conversation, so a lookup by conversation alone found nothing and
+    the chat's files panel and usage meter said the chat had no workspace.
+    """
+    rows = await list_for_conversation(
+        db, organization_id=organization_id, conversation_id=conversation_id
+    )
+    if rows:
+        return rows[0]
+    project_id = await db.scalar(
+        select(Conversation.project_id).where(
+            Conversation.id == conversation_id, Conversation.organization_id == organization_id
+        )
+    )
+    if project_id is None:
+        return None
+    return await get_for_project(db, organization_id=organization_id, project_id=project_id)
+
+
 async def list_for_conversation(
     db: AsyncSession, *, organization_id: UUID, conversation_id: UUID
 ) -> list[AgentWorkspace]:
