@@ -245,6 +245,9 @@ class TestPersistUserTurnOrgScope:
             ("not-a-uuid", MagicMock(role="member"), BadRequestError),
             (str(uuid.uuid4()), None, AuthorizationError),
         ],
+        # Named, not derived from the values: a random id in a test's name
+        # differs between xdist workers, which then refuse to run at all.
+        ids=["not-an-id", "not-a-member"],
     )
     async def test_a_project_that_cannot_be_started_in_starts_no_conversation(
         self, project_id, membership, refusal
