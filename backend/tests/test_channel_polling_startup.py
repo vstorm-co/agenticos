@@ -58,7 +58,7 @@ async def test_a_bot_whose_token_cannot_be_unsealed_is_skipped_and_the_rest_star
     recorded `down` with a reason an operator can act on, so the console does
     not go on showing a heartbeat from the run before the restart."""
     sealed_elsewhere, readable = _bot(), _bot()
-    monkeypatch.setattr(main, "get_db_context", lambda: _Session())
+    monkeypatch.setattr(main, "get_db_context", _Session)
     monkeypatch.setattr(
         main, "get_active_polling_bots", AsyncMock(return_value=[sealed_elsewhere, readable])
     )
@@ -91,7 +91,7 @@ async def test_a_bot_with_a_readable_token_still_raises_when_its_stream_cannot_o
     """Only the vault refusal is absorbed. A stream that fails to open is the
     adapter's failure, and the lifespan's own handler around this call decides
     what to do with it - as before."""
-    monkeypatch.setattr(main, "get_db_context", lambda: _Session())
+    monkeypatch.setattr(main, "get_db_context", _Session)
     monkeypatch.setattr(main, "get_active_polling_bots", AsyncMock(return_value=[_bot()]))
     monkeypatch.setattr(main, "unseal_bot_token", MagicMock(return_value="xoxb"))
     monkeypatch.setattr(main, "unseal_slack_app_token", MagicMock(return_value=None))
@@ -125,7 +125,7 @@ async def test_two_workers_open_one_stream_per_bot(monkeypatch: pytest.MonkeyPat
     """Both workers run the startup pass against one Redis; the bot gets one
     stream, and the second worker's later passes leave it alone (#2168)."""
     bot = _bot()
-    monkeypatch.setattr(main, "get_db_context", lambda: _Session())
+    monkeypatch.setattr(main, "get_db_context", _Session)
     monkeypatch.setattr(main, "get_active_polling_bots", AsyncMock(return_value=[bot]))
     monkeypatch.setattr(main, "unseal_bot_token", MagicMock(return_value="123:abc"))
     monkeypatch.setattr(main, "unseal_slack_app_token", MagicMock(return_value=None))
@@ -147,7 +147,7 @@ async def test_a_bot_that_cannot_be_unsealed_is_refused_once_not_every_pass(
     """Held with no stream, so the pass every few seconds does not log the same
     refusal again; entering the token again takes the lease and opens it."""
     bot = _bot()
-    monkeypatch.setattr(main, "get_db_context", lambda: _Session())
+    monkeypatch.setattr(main, "get_db_context", _Session)
     monkeypatch.setattr(main, "get_active_polling_bots", AsyncMock(return_value=[bot]))
     unseal = MagicMock(side_effect=BadRequestError(message="wrong master key"))
     monkeypatch.setattr(main, "unseal_bot_token", unseal)
@@ -166,7 +166,7 @@ async def test_a_bot_paused_after_the_first_read_is_given_back_not_opened(
     """The pass reads the rows, then claims: a pause committed in between left
     the lease free to claim, and the row read before it would reopen the bot."""
     bot = _bot()
-    monkeypatch.setattr(main, "get_db_context", lambda: _Session())
+    monkeypatch.setattr(main, "get_db_context", _Session)
     monkeypatch.setattr(main, "get_active_polling_bots", AsyncMock(side_effect=[[bot], []]))
     opened = AsyncMock()
     monkeypatch.setattr(main, "open_inbound_stream", opened)
@@ -187,7 +187,7 @@ async def test_a_claimed_bot_opens_with_the_row_as_it_is_now_and_only_if_still_h
     before, now = _bot(), _bot()
     now.id = before.id
     now.api_base_url = "https://chat.example.com"
-    monkeypatch.setattr(main, "get_db_context", lambda: _Session())
+    monkeypatch.setattr(main, "get_db_context", _Session)
     monkeypatch.setattr(main, "get_active_polling_bots", AsyncMock(side_effect=[[before], [now]]))
     monkeypatch.setattr(main, "unseal_bot_token", MagicMock(return_value="tok"))
     monkeypatch.setattr(main, "unseal_slack_app_token", MagicMock(return_value=None))
