@@ -114,6 +114,8 @@ export default defineConfig({
         "src/components/layout/project-rows.tsx",
         "src/components/layout/notification-glyph.tsx",
         "src/components/chat/project-chip.tsx",
+        "src/components/chat/chat-room-bar.tsx",
+        "src/components/chat/person-face.tsx",
         // One file viewer for every surface (#136). Held to the gate because what
         // it replaced was: three of the four implementations sat under
         // `components/sandboxes/**` and one under `chat/`, all already at 100%, so

@@ -2,13 +2,14 @@
 
 import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { ChatMessageFile } from "@/types";
+import type { ChatMessageFile, ChatPerson } from "@/types";
 import type { PublishedModel } from "@/types/agents";
 import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
 import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
+import { ChatRoomBar } from "./chat-room-bar";
 import type { PageComment } from "./browser-comment";
 import { ChatInput, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
@@ -197,9 +198,11 @@ export function ChatContainer({
   // opening whether or not it was unread, because a read is also who has seen
   // it - a project chat lists its readers - and a teammate's chat is in nobody's
   // list but its owner's, so it never reads as unread to anyone else.
-  const openIsUnread =
-    conversations.find((conversation) => conversation.id === currentConversationId)?.unread ===
-    true;
+  const openConversation = conversations.find(
+    (conversation) => conversation.id === currentConversationId,
+  );
+  const meId = useAuthStore((state) => state.user?.id);
+  const openIsUnread = openConversation?.unread === true;
   const readOnOpen = useRef<string | null>(null);
   useEffect(() => {
     if (!currentConversationId) return;
@@ -230,6 +233,7 @@ export function ChatContainer({
 
   const {
     messages,
+    present,
     isConnected,
     isProcessing,
     compacting,
@@ -495,6 +499,8 @@ export function ChatContainer({
   return (
     <ChatUI
       messages={messages}
+      present={present}
+      ownsConversation={openConversation !== undefined && openConversation.user_id === meId}
       isConnected={isConnected}
       isProcessing={isProcessing}
       compacting={compacting}
@@ -602,6 +608,10 @@ interface ChatUIProps {
   browses: Browse[];
   /** The conversation the file panel reads, or null before one exists. */
   conversationId: string | null;
+  /** Who has the conversation open, the reader included. */
+  present: ChatPerson[];
+  /** Whether the reader started it, and so may share it. */
+  ownsConversation: boolean;
   /**
    * How many turns have finished. Bumped so the file panel re-reads when the
    * files could have changed, rather than polling for a change it can be told
@@ -648,6 +658,8 @@ interface ChatUIProps {
 
 function ChatUI({
   messages,
+  present,
+  ownsConversation,
   isConnected,
   isProcessing,
   compacting,
@@ -825,6 +837,17 @@ function ChatUI({
               compact ? "px-3 py-3 text-sm" : "mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6",
             )}
           >
+            {/* Who else has this chat open, held at the top while the transcript scrolls:
+                a project's chat is several people's at once. */}
+            {conversationId && !compact && (
+              <ChatRoomBar
+                conversationId={conversationId}
+                present={present}
+                meId={authUser?.id}
+                canShare={ownsConversation}
+                className="sticky top-2 z-20 mb-3"
+              />
+            )}
             {isLoadingConversation ? (
               <ConversationSkeleton />
             ) : messages.length === 0 ? (

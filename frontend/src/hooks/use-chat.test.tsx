@@ -3351,6 +3351,55 @@ describe("useChat - coming back to a turn still being written", () => {
     expect(onTurnInterrupted).not.toHaveBeenCalled();
   });
 
+  it("draws a teammate's question before the answer it is following", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    // Not followed yet: nothing to draw it under.
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-9",
+      content: "x",
+      sender: anna,
+    });
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-9",
+      content: "and the budget?",
+      sender: anna,
+    });
+    // Already in the transcript - a person who came back mid-turn read it there.
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "u-1",
+      content: "x",
+      sender: anna,
+    });
+    receive("turn_prompt", { conversation_id: "c-1", message_id: null, content: "", sender: anna });
+
+    const asked = useChatStore.getState().messages.filter((message) => message.role === "user");
+    expect(asked.map((message) => message.content)).toEqual([
+      "build a landing page",
+      "and the budget?",
+      "",
+    ]);
+    expect(asked[1]?.sender).toEqual(anna);
+  });
+
+  it("says who has the open conversation, and nobody for another one", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+    expect(result.current.present).toEqual([]);
+
+    receive("presence", { conversation_id: "c-1", people: [anna] });
+    expect(result.current.present).toEqual([anna]);
+
+    receive("presence", { conversation_id: "c-other", people: [anna] });
+    expect(result.current.present).toEqual([]);
+  });
+
   it("stops following rather than stopping a turn this socket does not own", () => {
     const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     storedQuestion();

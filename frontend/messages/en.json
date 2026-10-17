@@ -1468,6 +1468,11 @@
     "viewMeans": "View lets them read this conversation and nothing else.",
     "web": "Web",
     "whatWentWrong": "What went wrong?",
+    "room": {
+      "here": "{count, plural, =1 {{name} is here too} other {# people are here with you}}",
+      "more": "+{count}",
+      "share": "Invite"
+    },
     "rail": {
       "label": "Jump to a message",
       "previous": "Previous message",

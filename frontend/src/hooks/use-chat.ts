@@ -18,6 +18,7 @@ import type {
   AskUserQuestion,
   BrowserFrame,
   ChatMessageFile,
+  ChatPerson,
   Compaction,
   ConnectionRequest,
   PersonalServiceGap,
@@ -316,6 +317,8 @@ export function useChat(options: UseChatOptions = {}) {
   // The conversation whose turn this tab is following from another socket's
   // frames (`turn_attached`), or null. Its end is a re-read, not a `complete`.
   const followingRef = useRef<string | null>(null);
+  // Who else has this conversation open, as its room last said - see `presence`.
+  const [present, setPresent] = useState<{ conversationId: string; people: ChatPerson[] }>();
   const leftTurnPending = activeConversationId !== null && leftRunning.has(activeConversationId);
   // Say in the list of conversations that this one is being answered, from the
   // moment the question goes rather than from whenever the server's next listing
@@ -428,6 +431,38 @@ export function useChat(options: UseChatOptions = {}) {
           setCurrentMessageId(null);
           setLeftRunning((threads) => withoutThread(threads, conversation_id));
           setIsProcessing(true);
+          break;
+        }
+
+        // A turn somebody else in the room asked: their question, drawn before the
+        // answer that follows it. Skipped when the transcript already holds it -
+        // a person who came back mid-turn read it there.
+        case "turn_prompt": {
+          const data = wsEvent.data as {
+            conversation_id: string;
+            message_id: string | null;
+            content: string;
+            sender: ChatPerson;
+          };
+          if (followingRef.current !== data.conversation_id) break;
+          const id = data.message_id ?? clientId();
+          if (chatApi.getState().messages.some((message) => message.id === id)) break;
+          addMessage({
+            id,
+            role: "user",
+            content: data.content,
+            timestamp: new Date(),
+            conversationId: data.conversation_id,
+            sender: data.sender,
+          });
+          break;
+        }
+
+        // Who has this conversation open now: its room says so whenever somebody
+        // comes or goes.
+        case "presence": {
+          const data = wsEvent.data as { conversation_id: string; people: ChatPerson[] };
+          setPresent({ conversationId: data.conversation_id, people: data.people });
           break;
         }
 
@@ -1881,6 +1916,11 @@ export function useChat(options: UseChatOptions = {}) {
 
   return {
     messages,
+    /** Who has this conversation open, the reader included; empty until the room says. */
+    present:
+      present !== undefined && present.conversationId === activeConversationId
+        ? present.people
+        : [],
     isConnected,
     isProcessing,
     compacting,

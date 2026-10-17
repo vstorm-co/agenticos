@@ -223,6 +223,8 @@ export type WSEventType =
   // Following a turn another socket is writing - the reader came back to a
   // conversation whose agent was still answering (`app/services/live_turn.py`).
   | "turn_attached"
+  | "turn_prompt"
+  | "presence"
   | "turn_followed_to_end"
   // Sent on every turn and deliberately unread, because each only announces a step
   // the frame after it already carries: `model_request_start` opens the assistant
