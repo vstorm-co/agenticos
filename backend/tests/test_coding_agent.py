@@ -59,6 +59,8 @@ from app.agents.capabilities.coding_agent._harness import (
 from app.agents.capabilities.coding_agent._task import WORK_DIR, session_path, task_files
 from app.agents.capabilities.coding_agent._toolset import (
     AUTH_ENV,
+    CODEX_HOMES,
+    HOME_ENV,
     READ_AUTH,
     WRITE_AUTH,
     build_coding_toolset,
@@ -532,8 +534,9 @@ def _no_waiting(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(_task, "POLL_SECONDS", 0)
 
 
-# The conversation a test's run answers in.
+# The conversation a test's run answers in, and the person it runs for.
 THREAD = uuid4()
+RUNNER = uuid4()
 
 
 def _ctx(
@@ -544,7 +547,12 @@ def _ctx(
             frames.append(frame)
 
     ctx = RunContext(
-        deps=AgentDeps(organization_id=uuid4(), conversation_id=THREAD, subagent_events=sink),
+        deps=AgentDeps(
+            organization_id=uuid4(),
+            user_id=str(RUNNER),
+            conversation_id=THREAD,
+            subagent_events=sink,
+        ),
         model=TestModel(),
         usage=RunUsage(),
         retry=retry,
@@ -1083,9 +1091,15 @@ class TestSubscriptions:
 class _Store:
     """Where a ChatGPT sign-in lives, as the vault would keep it."""
 
-    def __init__(self, *, gone: bool = False) -> None:
+    def __init__(self, *, gone: bool = False, visible: bool = True) -> None:
         self.gone = gone
+        self.visible = visible
+        self.asked_for: list[UUID] = []
         self.saved: list[OpenAICodexCredentials] = []
+
+    async def visible_to(self, user_id: UUID) -> bool:
+        self.asked_for.append(user_id)
+        return self.visible
 
     async def load(self) -> OpenAICodexCredentials:
         if self.gone:
@@ -1123,7 +1137,43 @@ class TestCodexOnASignIn:
         assert json.loads(written[1][AUTH_ENV])["tokens"]["refresh_token"] == "rt-1"
         assert "CODEX_API_KEY" not in (started[1] or {})
         assert read[0] == READ_AUTH
+        # One Codex home per conversation: the sign-in, the run and the read-back
+        # all in it, never the sandbox user's shared ~/.codex.
+        home = f"{CODEX_HOMES}/{THREAD}"
+        assert written[1][HOME_ENV] == home and read[1] == {HOME_ENV: home}
+        assert started[1] is not None and started[1][HOME_ENV] == home
+        assert store.asked_for == [RUNNER]
         assert [saved.refresh_token for saved in store.saved] == ["rt-2"]
+
+    async def test_a_sign_in_the_runner_may_not_see_is_never_handed_over(self) -> None:
+        """Whatever Codex runs can read the tokens it is given, so running the
+        agent must not reach a sign-in its runner could not have chosen."""
+        shell = _Shell(events=_lines(_codex_stream(end=None)))
+        answer = await self._run(shell, _Store(visible=False))
+        assert "only for somebody who may see that sign-in" in answer
+        assert shell.commands == []
+
+    async def test_a_run_for_nobody_signed_in_gets_no_sign_in(self) -> None:
+        ctx = _ctx(_Shell())
+        ctx.deps.user_id = "not-a-person"
+        store = _Store()
+        answer = await _tools("codex", api_key=None, sign_in=lambda _org: store)[
+            "run_coding_agent"
+        ].function(ctx, task="Look")
+        assert "only for somebody who may see that sign-in" in answer
+        assert store.asked_for == []
+
+    async def test_a_run_in_no_conversation_gets_a_codex_home_of_its_own(self) -> None:
+        shell = _Shell(
+            events=_lines(_codex_stream(end=None)), auth_after=codex_auth_file(SIGNED_IN)
+        )
+        ctx = _ctx(shell)
+        ctx.deps.conversation_id = None
+        await _tools("codex", api_key=None, sign_in=lambda _org: _Store())[
+            "run_coding_agent"
+        ].function(ctx, task="Look")
+        home = shell.commands[0][1][HOME_ENV]
+        assert home.startswith(f"{CODEX_HOMES}/") and str(THREAD) not in home
 
     async def test_a_sign_in_that_was_not_rotated_is_left_alone(self) -> None:
         store = _Store()

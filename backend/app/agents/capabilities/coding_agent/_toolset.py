@@ -17,13 +17,14 @@ import json
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
-from typing import Any
+from dataclasses import replace
+from typing import Any, Protocol
 from uuid import UUID
 
 import anyio
 import httpx
 from pydantic_ai.exceptions import UserError
-from pydantic_ai.providers.openai_codex import OpenAICodexCredentials, OpenAICodexCredentialSource
+from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.workspaces import WorkspaceError
@@ -65,18 +66,43 @@ MISSING_COMMAND = 127
 """A shell's exit code for a program that is not installed."""
 
 AUTH_ENV = "AGENTICOS_CODEX_AUTH"
+HOME_ENV = "CODEX_HOME"
 WRITE_AUTH = (
-    f'mkdir -p "$HOME/.codex" && umask 077 && printf "%s" "${AUTH_ENV}" > "$HOME/.codex/auth.json"'
+    f'umask 077 && mkdir -p "${HOME_ENV}" && printf "%s" "${AUTH_ENV}" > "${HOME_ENV}/auth.json"'
+    f' && if [ -f "$HOME/.codex/config.toml" ]; then cp "$HOME/.codex/config.toml" "${HOME_ENV}/"; fi'
 )
 """Codex's sign-in, written where the CLI reads it - outside the workspace.
+
+Into a Codex home of the conversation's own (`CODEX_HOME`), not the sandbox
+user's one `~/.codex`: a project's sandbox, or one scoped to a person or an
+agent, runs several conversations' tasks at once, and one shared `auth.json`
+let a task overwrite another's sign-in and save its rotated tokens into the
+wrong secret. The configuration the runtime ships is copied in beside it.
 
 Passed through the environment of this one command, never on a command line,
 and kept out of the working directory so the file tools and the file browser
 never list it. Removed again by `READ_AUTH` once the task is over.
 """
-READ_AUTH = 'cat "$HOME/.codex/auth.json" 2>/dev/null; rm -f "$HOME/.codex/auth.json"'
+READ_AUTH = f'cat "${HOME_ENV}/auth.json" 2>/dev/null; rm -f "${HOME_ENV}/auth.json"'
 
-SignIn = Callable[[UUID], OpenAICodexCredentialSource]
+CODEX_HOMES = "/tmp/agenticos-codex"  # noqa: S108
+"""Where each conversation's Codex home is made - outside any workspace."""
+
+
+class CodexSignIn(Protocol):
+    """A ChatGPT sign-in Codex can run on, and who may hand it to Codex.
+
+    The vault's in production (`VaultCodexCredentials`).
+    """
+
+    async def load(self) -> OpenAICodexCredentials: ...
+
+    async def save(self, credentials: OpenAICodexCredentials) -> None: ...
+
+    async def visible_to(self, user_id: UUID) -> bool: ...
+
+
+SignIn = Callable[[UUID], CodexSignIn]
 
 _SANDBOX_FAILURES = (UserError, WorkspaceError, httpx.HTTPError)
 """What the sandbox raises when it cannot run a command at all.
@@ -184,15 +210,29 @@ def build_coding_toolset(
     ) -> CodingReport | str:
         """The task, with Codex's ChatGPT sign-in put in place first when it uses one."""
         if sign_in is None:
-            return await continued(ctx, task, fresh_session, narration)
+            return await continued(ctx, task, fresh_session, narration, home=None)
         organization_id = getattr(ctx.deps, "organization_id", None)
         if not isinstance(organization_id, UUID):
             return f"{label} on a ChatGPT sign-in runs only inside an organization."
         source = sign_in(organization_id)
+        # The tokens are written where Codex reads them, and anything Codex runs
+        # can read them there too: a task - or a repository's text it obeys - can
+        # print them. So only for somebody who may see the sign-in in the vault
+        # themselves; running the agent must not be a way to somebody else's.
+        person = _person(ctx.deps)
+        if person is None or not await source.visible_to(person):
+            return (
+                f"{label} runs on a ChatGPT sign-in only for somebody who may see that "
+                "sign-in in the vault. Say that they need their own, or one shared with them."
+            )
+        home = f"{CODEX_HOMES}/{getattr(ctx.deps, 'conversation_id', None) or uuid.uuid4().hex}"
         try:
             written = await source.load()
             await ctx.workspace.run(  # noqa: S604
-                WRITE_AUTH, shell=True, env={AUTH_ENV: codex_auth_file(written)}, timeout=60
+                WRITE_AUTH,
+                shell=True,
+                env={AUTH_ENV: codex_auth_file(written), HOME_ENV: home},
+                timeout=60,
             )
         except BadRequestError as gone:
             return f"{gone.message}. Say that the sign-in needs choosing again."
@@ -200,16 +240,21 @@ def build_coding_toolset(
             logger.warning("%s could not sign in in the workspace: %s", label, failed)
             return f"{label} could not run in this sandbox ({type(failed).__name__})."
         try:
-            return await continued(ctx, task, fresh_session, narration)
+            return await continued(ctx, task, fresh_session, narration, home=home)
         finally:
-            await _keep_rotated(ctx, source, written)
+            await _keep_rotated(ctx, source, written, home=home)
 
     async def continued(
-        ctx: RunContext[Any], task: str, fresh_session: bool, narration: Narration
+        ctx: RunContext[Any],
+        task: str,
+        fresh_session: bool,
+        narration: Narration,
+        *,
+        home: str | None,
     ) -> CodingReport | str:
         """The task in this conversation's session, or a new one when that is gone."""
         session_id = None if fresh_session else await remembered_session(ctx, harness)
-        report = await attempt(ctx, task, session_id, narration)
+        report = await attempt(ctx, task, session_id, narration, home=home)
         if (
             isinstance(report, CodingReport)
             and session_id
@@ -218,13 +263,18 @@ def build_coding_toolset(
         ):
             # A session the sandbox no longer holds - a fresh container, a session
             # the harness pruned - fails before any step. Once, from nothing.
-            report = await attempt(ctx, task, None, narration)
+            report = await attempt(ctx, task, None, narration, home=home)
         if isinstance(report, CodingReport) and report.session_id:
             await remember_session(ctx, harness, report.session_id)
         return report
 
     async def attempt(
-        ctx: RunContext[Any], task: str, session_id: str | None, narration: Narration
+        ctx: RunContext[Any],
+        task: str,
+        session_id: str | None,
+        narration: Narration,
+        *,
+        home: str | None,
     ) -> CodingReport | str:
         command = invocation(
             harness,
@@ -235,6 +285,9 @@ def build_coding_toolset(
             session_id=session_id,
             base_url=base_url,
         )
+        if home is not None:
+            # The sign-in, and the sessions it resumes, are in this conversation's home.
+            command = replace(command, env={**command.env, HOME_ENV: home})
         files = task_files(uuid.uuid4().hex)
 
         async def shown(events: list[dict[str, Any]]) -> None:
@@ -285,7 +338,7 @@ def build_coding_toolset(
 
 
 async def _keep_rotated(
-    ctx: RunContext[Any], source: OpenAICodexCredentialSource, written: OpenAICodexCredentials
+    ctx: RunContext[Any], source: CodexSignIn, written: OpenAICodexCredentials, *, home: str
 ) -> None:
     """Take the sign-in back out of the sandbox, keeping whatever Codex refreshed it to.
 
@@ -294,13 +347,24 @@ async def _keep_rotated(
     next task, or the next model request on the same sign-in, refused.
     """
     try:
-        result = await ctx.workspace.run(READ_AUTH, shell=True, timeout=60)  # noqa: S604
+        result = await ctx.workspace.run(  # noqa: S604
+            READ_AUTH, shell=True, env={HOME_ENV: home}, timeout=60
+        )
     except _SANDBOX_FAILURES as failed:
         logger.warning("Codex's sign-in could not be read back from the sandbox: %s", failed)
         return
     rotated = rotated_sign_in(result.stdout, written)
     if rotated is not None:
         await source.save(rotated)
+
+
+def _person(deps: object) -> UUID | None:
+    """Who the run is for, when it is somebody signed in."""
+    user_id = getattr(deps, "user_id", None)
+    try:
+        return UUID(str(user_id)) if user_id else None
+    except ValueError:
+        return None
 
 
 def _book(usage: Usage) -> None:

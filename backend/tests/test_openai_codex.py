@@ -108,6 +108,45 @@ class TestTheVaultAsTheProvidersCredentialSource:
         ):
             await source.load()
 
+    async def test_who_may_be_handed_the_sign_in_is_who_may_see_it(self):
+        """Asked before the coding agent writes the tokens where Codex - and
+        anything Codex runs - can read them."""
+        source = VaultCodexCredentials(organization_id=uuid.uuid4(), secret_id=uuid.uuid4())
+        member = MagicMock(role=OrgRoleName.MEMBER)
+        resolve = AsyncMock(side_effect=[True, False])
+
+        with (
+            patch.object(openai_codex, "get_db_context", _session),
+            patch.object(openai_codex.member_repo, "get", AsyncMock(return_value=member)),
+            patch.object(
+                openai_codex.organization_secret_repo, "get", AsyncMock(return_value=MagicMock())
+            ),
+            patch.object(openai_codex, "resolve_access", resolve),
+        ):
+            assert await source.visible_to(uuid.uuid4()) is True
+            assert await source.visible_to(uuid.uuid4()) is False
+        assert resolve.await_args.args[3] is openai_codex.Perm.SECRETS_VIEW
+
+    async def test_nobody_outside_the_organization_or_after_it_is_gone(self):
+        source = VaultCodexCredentials(organization_id=uuid.uuid4(), secret_id=uuid.uuid4())
+        with (
+            patch.object(openai_codex, "get_db_context", _session),
+            patch.object(openai_codex.member_repo, "get", AsyncMock(return_value=None)),
+        ):
+            assert await source.visible_to(uuid.uuid4()) is False
+        with (
+            patch.object(openai_codex, "get_db_context", _session),
+            patch.object(
+                openai_codex.member_repo,
+                "get",
+                AsyncMock(return_value=MagicMock(role=OrgRoleName.OWNER)),
+            ),
+            patch.object(
+                openai_codex.organization_secret_repo, "get", AsyncMock(return_value=None)
+            ),
+        ):
+            assert await source.visible_to(uuid.uuid4()) is False
+
     def test_its_repr_names_the_secret_and_nothing_sealed_in_it(self):
         secret_id = uuid.uuid4()
         source = VaultCodexCredentials(organization_id=uuid.uuid4(), secret_id=secret_id)

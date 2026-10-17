@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
-from uuid import UUID
 
 from pydantic_ai.capabilities import AbstractCapability
-from pydantic_ai.providers.openai_codex import OpenAICodexCredentialSource
 from pydantic_ai.tools import AgentDepsT
 from pydantic_ai.toolsets import AbstractToolset
 
 from app.agents.capabilities.coding_agent._harness import LABELS, Access, Harness
-from app.agents.capabilities.coding_agent._toolset import build_coding_toolset
+from app.agents.capabilities.coding_agent._toolset import SignIn, build_coding_toolset
 
 
 @dataclass
@@ -35,7 +32,7 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
     api_key: str | None = field(default=None, repr=False)
     # A ChatGPT sign-in, as where its tokens live for an organization - ids, not
     # tokens - rather than as the tokens themselves; see `_build`.
-    sign_in: Callable[[UUID], OpenAICodexCredentialSource] | None = None
+    sign_in: SignIn | None = None
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
     )

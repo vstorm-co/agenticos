@@ -42,13 +42,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.clients.redis import RedisClient
 from app.core.exceptions import BadRequestError
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import OpenAICodexSecret, SecretKind, seal_secret, unseal_secret
 from app.core.vault import VaultScope
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import Visibility
 from app.db.session import get_db_context
-from app.repositories import organization_secret_repo
+from app.repositories import member_repo, organization_secret_repo
+from app.services.access import SECRET, resolve_access
 from app.services.organization_secret import OrganizationSecretService
 
 logger = logging.getLogger(__name__)
@@ -100,6 +101,29 @@ class VaultCodexCredentials(OpenAICodexCredentialSource):
                 details={"secret_id": str(self.secret_id)},
             )
         return secret
+
+    async def visible_to(self, user_id: UUID) -> bool:
+        """Whether this person may see the sign-in in the vault themselves.
+
+        Asked before the coding agent hands the tokens to Codex, where whatever
+        Codex runs can read them: running an agent must not reach a sign-in its
+        runner could not have chosen.
+        """
+        async with get_db_context() as db:
+            membership = await member_repo.get(
+                db, organization_id=self.organization_id, user_id=user_id
+            )
+            if membership is None:
+                return False
+            ctx = AuthContext(
+                user_id=user_id, organization_id=self.organization_id, role=membership.role
+            )
+            secret = await organization_secret_repo.get(
+                db, self.secret_id, organization_id=self.organization_id
+            )
+            return secret is not None and await resolve_access(
+                db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+            )
 
     async def load(self) -> OpenAICodexCredentials:
         """The pair as the vault holds it now."""
