@@ -216,6 +216,18 @@ describe("WorkspaceBrowser", () => {
     expect(screen.getByText("plain words")).toBeInTheDocument();
   });
 
+  it("lists what a search found flat, each still opening and downloading", async () => {
+    render(<WorkspaceBrowser />);
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Search files" }), "report");
+    expect(screen.queryByRole("region", { name: "Analyst" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Download report.csv" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open report.csv" }));
+
+    expect(state.downloaded).toEqual([["w-1", "/report.csv"]]);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   it("offers a download for every file, without opening it first", async () => {
     render(<WorkspaceBrowser />);
 

@@ -232,19 +232,45 @@ belongs - `/workspaces` was mostly `skills/<name>/SKILL.md` before this (#1064),
 and `.agenticos/coding-agent/<id>.exit` once the coding agent ran."""
 
 
+TOOLING_DIRS = frozenset(
+    {
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".tox",
+        ".git",
+        ".next",
+        ".cache",
+    }
+)
+"""Folders a program's tools fill, dropped wherever they sit in a workspace.
+
+A coding agent that sets up a project installs its dependencies and runs its
+tests in the sandbox, and one FastAPI app with a virtualenv is a thousand files -
+`site-packages`, caches, compiled bytecode - which buried the dozen it wrote
+among them on Documents. They stay on disk for the next task; they are not what a
+person comes to the page for."""
+
+
 def browsable(entries: list[FileInfo]) -> list[FileInfo]:
-    """The entries a person is shown, without what the platform put there itself.
+    """The entries a person is shown, without what the platform or a toolchain put there.
 
     The directories too, not only what is in them: a container lists `skills`
     itself beside its files, and with the files dropped it read as an empty
     folder the agent had made for nothing.
     """
 
-    def platform_owned(path: str) -> bool:
+    def hidden(path: str) -> bool:
         relative = path.lstrip("/").rstrip("/")
-        return f"{relative}/".startswith(NOT_BROWSABLE)
+        if f"{relative}/".startswith(NOT_BROWSABLE):
+            return True
+        return any(segment in TOOLING_DIRS for segment in relative.split("/"))
 
-    return [entry for entry in entries if not platform_owned(str(entry.get("path", "")))]
+    return [entry for entry in entries if not hidden(str(entry.get("path", "")))]
 
 
 @dataclass(frozen=True)

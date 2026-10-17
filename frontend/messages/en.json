@@ -5327,7 +5327,9 @@
       "searchPlaceholder": "Search every folder",
       "source": "Source",
       "stored": "stored",
-      "whoPutItThere": "Who put it there"
+      "whoPutItThere": "Who put it there",
+      "openFolder": "Open folder",
+      "moreInFolder": "{count, plural, =1 {1 more in the folder} other {# more in the folder}}"
     }
   },
   "settings": {

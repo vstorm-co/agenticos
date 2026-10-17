@@ -4173,6 +4173,24 @@ class TestWhatTheBrowserDoesNotShow:
         assert [entry["path"] for entry in browsable(entries)] == ["/skillset.md", "/workspace/w"]
 
     @pytest.mark.parametrize(
+        "path",
+        [
+            ".venv/lib/python3.12/site-packages/py.py",
+            "/workspace/app/__pycache__/main.cpython-312.pyc",
+            "web/node_modules/react/index.js",
+            ".pytest_cache",
+            ".git/HEAD",
+        ],
+    )
+    def test_what_a_toolchain_fills_is_left_out_at_any_depth(self, path: str):
+        """A coding agent's virtualenv was a thousand files on Documents."""
+        entries: list[FileInfo] = [
+            {"name": path.rsplit("/", 1)[-1], "path": path, "is_dir": False},
+            {"name": "main.py", "path": "/workspace/app/main.py", "is_dir": False},
+        ]
+        assert [entry["path"] for entry in browsable(entries)] == ["/workspace/app/main.py"]
+
+    @pytest.mark.parametrize(
         "path", [".agenticos/coding-agent/a1.exit", "/workspace/.agenticos/coding-agent/x.session"]
     )
     def test_the_platforms_own_working_files_are_left_out(self, path: str):

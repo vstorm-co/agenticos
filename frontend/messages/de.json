@@ -5209,7 +5209,9 @@
       "searchPlaceholder": "Jeden Ordner durchsuchen",
       "source": "Quelle",
       "stored": "gespeichert",
-      "whoPutItThere": "Wer sie dort abgelegt hat"
+      "whoPutItThere": "Wer sie dort abgelegt hat",
+      "openFolder": "Ordner öffnen",
+      "moreInFolder": "{count, plural, =1 {1 weitere im Ordner} other {# weitere im Ordner}}"
     }
   },
   "settings": {

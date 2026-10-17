@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation";
 
 import { FileViewer } from "@/components/files";
 import { DocumentTile } from "@/components/sandboxes/document-tile";
+import { groupByWorkspace, WorkspaceGroups } from "@/components/sandboxes/workspace-groups";
 import { useAllWorkspaceFiles } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
 import { suffixOf } from "@/lib/file-kinds";
@@ -124,6 +125,13 @@ function FlatFiles() {
       suffixOf(file.path) === query.replace(/^\./, ""),
   });
 
+  // Grouped by workspace until something is searched for: a search is after one
+  // file wherever it is, and the groups would only scatter the matches.
+  const grouped = list.query === "";
+  const groups = useMemo(() => (grouped ? groupByWorkspace(sorted) : []), [grouped, sorted]);
+  const download = (file: FlatFile) =>
+    void workspaceFileAccess({ kind: "workspace", id: file.workspace_id }, file.path).download();
+
   if (isLoading) return <Skeleton className="m-5 h-24" />;
   if (error !== null) return <p className="text-destructive px-5 py-4 text-sm">{error}</p>;
   if (listing === null) return null;
@@ -164,7 +172,9 @@ function FlatFiles() {
           </SelectContent>
         </Select>
       </div>
-      {list.matched === 0 ? (
+      {grouped ? (
+        <WorkspaceGroups groups={groups} onOpen={setOpened} onDownload={download} />
+      ) : list.matched === 0 ? (
         <p className="text-muted-foreground py-8 text-center text-sm">{t("noFileMatches")}</p>
       ) : (
         /* Four across on a wide screen: a document is recognised by its first
@@ -177,25 +187,22 @@ function FlatFiles() {
               <DocumentTile
                 file={file}
                 onOpen={() => setOpened(file)}
-                onDownload={() =>
-                  void workspaceFileAccess(
-                    { kind: "workspace", id: file.workspace_id },
-                    file.path,
-                  ).download()
-                }
+                onDownload={() => download(file)}
               />
             </li>
           ))}
         </ul>
       )}
-      <Pager
-        page={list.page}
-        pageCount={list.pageCount}
-        matched={list.matched}
-        total={list.total}
-        onPage={list.setPage}
-        counted={t("fileCount", { count: list.total })}
-      />
+      {!grouped && (
+        <Pager
+          page={list.page}
+          pageCount={list.pageCount}
+          matched={list.matched}
+          total={list.total}
+          onPage={list.setPage}
+          counted={t("fileCount", { count: list.total })}
+        />
+      )}
       {opened !== null && (
         <FileViewer
           file={{

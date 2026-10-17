@@ -238,6 +238,14 @@ class FlatFileRead(WorkspaceFileRead):
         ),
     )
     access_label: str
+    conversation_title: str | None = Field(
+        default=None,
+        description=(
+            "The title of the conversation a conversation-scoped workspace belongs to, "
+            "so two workspaces of one agent read apart. Null for any other scope, and "
+            "for a conversation with no title yet."
+        ),
+    )
     from_upload: bool = Field(
         default=False,
         description=(
