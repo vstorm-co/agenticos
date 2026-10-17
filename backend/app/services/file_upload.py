@@ -19,6 +19,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.db.models.chat_file import ChatFile
 from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation as conversation_repo
+from app.repositories import member_repo
 from app.services.conversation import ConversationService
 from app.services.file_storage import (
     ALLOWED_EXTENSIONS,
@@ -1128,6 +1129,15 @@ class FileUploadService(DocumentText):
             else None
         )
         if conversation is None or conversation.organization_id is None:
+            raise NotFoundError(message="File not found")
+        # Still a member of that organization: a conversation share can outlive
+        # the person's membership, and the file must not.
+        if (
+            await member_repo.get(
+                self.db, organization_id=conversation.organization_id, user_id=user_id
+            )
+            is None
+        ):
             raise NotFoundError(message="File not found")
         # The conversation's own refusal, which names nothing about the file.
         await ConversationService(self.db).get_conversation(

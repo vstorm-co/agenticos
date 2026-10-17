@@ -21,7 +21,7 @@ from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.repositories import chat_file as chat_file_repo
-from app.repositories import conversation_repo, project_repo
+from app.repositories import conversation_repo, conversation_share_repo, project_repo
 from app.schemas.conversation import MessageCreate, MessageRead
 from app.schemas.message_rating import MessageRatingCreate
 from app.services.conversation import ConversationService
@@ -296,6 +296,35 @@ class TestOpeningATeammatesAttachment:
         await db.flush()
         with pytest.raises(NotFoundError):
             await files.get_readable_file(attached.id, user_id=stranger.id)
+
+    async def test_a_share_that_outlived_the_membership_opens_nothing(self, db) -> None:
+        kacper, leaver = await _user(db), await _user(db)
+        org = await _org(db, (kacper, "owner"))
+        chat = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=kacper.id, title="Plan"
+        )
+        turn = await conversation_repo.create_message(
+            db, conversation_id=chat.id, role="user", content="see attached"
+        )
+        attached = await chat_file_repo.create(
+            db,
+            user_id=kacper.id,
+            filename="a.csv",
+            mime_type="text/csv",
+            size=1,
+            storage_path=f"{uuid.uuid4().hex}/a.csv",
+            file_type="csv",
+        )
+        await chat_file_repo.link_to_message(
+            db, message_id=turn.id, file_ids=[attached.id], user_id=kacper.id
+        )
+        await db.refresh(attached)
+        # Shared with them while they were in the organization; no membership now.
+        await conversation_share_repo.create(
+            db, conversation_id=chat.id, shared_by=kacper.id, shared_with=leaver.id
+        )
+        with pytest.raises(NotFoundError):
+            await FileUploadService(db).get_readable_file(attached.id, user_id=leaver.id)
 
 
 class TestReplyingInAProjectChat:
