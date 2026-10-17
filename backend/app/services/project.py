@@ -377,7 +377,19 @@ class ProjectService:
             else:
                 # The shell, for a folder with files in it; argv, so the path is a
                 # word and never a command.
-                await opened.workspace.run(["rm", "-rf", "--", target], timeout=60)
+                result = await opened.workspace.run(["rm", "-rf", "--", target], timeout=60)
+                if result.exit_code != 0:
+                    # A folder an agent made read-only, say: the file is still
+                    # there, so neither the answer nor the audit may say it went.
+                    logger.warning(
+                        "project_remove_refused",
+                        extra={"project_id": str(project.id), "output": result.stderr},
+                    )
+                    raise BadRequestError(
+                        message="The project's container would not remove this - "
+                        "an agent may have made it read-only",
+                        details={"path": target},
+                    )
         finally:
             await self.workspaces.close(opened)
         await self._touched(ctx, project, "project.file_removed", target)

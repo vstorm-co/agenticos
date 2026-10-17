@@ -376,7 +376,11 @@ class TestFiles:
     async def test_a_folder_is_made_and_a_path_removed_by_the_backend_that_holds_it(self) -> None:
         project = _project()
         service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_USE)
-        container = MagicMock(make_dir=AsyncMock(), run=AsyncMock(), remove=AsyncMock())
+        container = MagicMock(
+            make_dir=AsyncMock(),
+            run=AsyncMock(return_value=MagicMock(exit_code=0, stderr="")),
+            remove=AsyncMock(),
+        )
         service.workspaces.open_project = AsyncMock(
             side_effect=[
                 MagicMock(workspace=container, kind="service"),
@@ -392,3 +396,22 @@ class TestFiles:
         assert container.run.await_args.args[0] == ["rm", "-rf", "--", "docs"]
         container.remove.assert_awaited_once_with("notes.md")
         assert service.workspaces.close.await_count == 3
+
+    async def test_a_removal_the_container_refused_is_not_reported_as_done(self) -> None:
+        """A folder an agent made read-only stays; the answer and the audit must say so."""
+        project = _project()
+        service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_USE)
+        refused = MagicMock(exit_code=1, stderr="rm: cannot remove 'docs': Permission denied")
+        container = MagicMock(run=AsyncMock(return_value=refused))
+        service.workspaces.open_project = AsyncMock(
+            return_value=MagicMock(workspace=container, kind="service")
+        )
+        with (
+            patch.object(module, "record_audit", AsyncMock()) as audited,
+            pytest.raises(BadRequestError, match="would not remove") as refusal,
+        ):
+            await service.remove(_ctx(), project.id, path="docs")
+        audited.assert_not_awaited()
+        # The host's own words go to the log, not to the reader.
+        assert "Permission denied" not in str(refusal.value.details)
+        service.workspaces.close.assert_awaited_once()
