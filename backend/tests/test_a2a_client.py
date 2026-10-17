@@ -14,7 +14,14 @@ from unittest.mock import AsyncMock, patch
 
 import httpx2
 import pytest
-from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
+from pydantic_ai.messages import (
+    ModelRequest,
+    ModelResponse,
+    SystemPromptPart,
+    TextPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 
 from app.agents import a2a_delegate as delegate_module
 from app.agents.a2a_delegate import a2a_delegate, latest_prompt
@@ -323,6 +330,14 @@ class TestDelegatingToARemoteAgent:
         assert latest_prompt(messages) == "second\npart"
         assert latest_prompt([ModelResponse(parts=[TextPart("x")])]) == ""
 
+    def test_a_tool_return_after_the_prompt_does_not_hide_it(self) -> None:
+        messages = [
+            ModelRequest(parts=[UserPromptPart("ask"), SystemPromptPart("context")]),
+            ModelRequest(parts=[ToolReturnPart(tool_name="t", content="x", tool_call_id="1")]),
+        ]
+        assert latest_prompt(messages) == "ask"
+
+    @pytest.mark.security
     async def test_each_call_is_budgeted_booked_and_continues_the_conversation(self) -> None:
         replies = [
             a2a_client.A2AReply(text="First answer", context_id="ctx-1", state="completed"),

@@ -201,6 +201,7 @@ class TestARunInAProject:
         ]
         assert "not available" not in container.instructions
 
+    @pytest.mark.security
     def test_an_agents_own_workspace_is_replaced_and_its_approvals_kept(self) -> None:
         connection = uuid4()
         project = _project(backend="service", sandbox_connection_id=connection, runtime="python")

@@ -441,6 +441,11 @@ test.describe("Agents", () => {
   // registers before `web_research`, so a search for "something that needs a
   // secret" finds it first and then cannot find its switch.
   const OWN_SECTION = new Set(["sandbox", "skills", "thinking"]);
+  // Needs more than a key: the coding agent also refuses to publish without a
+  // shell-capable sandbox, so binding it here leaves the shared draft agent
+  // unpublishable for every spec after this one. Its picker takes a sign-in as
+  // well, under its own label, which `capability-settings` covers.
+  const NEEDS_MORE_THAN_A_SECRET = new Set(["coding_agent"]);
 
   test("a capability that needs a secret says so until it has one, and keeps the one it is given", async ({
     page,
@@ -464,7 +469,9 @@ test.describe("Agents", () => {
     // requirement — correctly, which is a different spec than this one.
     const needy = items.find(
       (entry): entry is NeedsSecret =>
-        entry.requires_secret?.kind === "api_key" && !OWN_SECTION.has(entry.id),
+        entry.requires_secret?.kind === "api_key" &&
+        !OWN_SECTION.has(entry.id) &&
+        !NEEDS_MORE_THAN_A_SECRET.has(entry.id),
     );
     if (needy === undefined) {
       test.skip(
@@ -510,7 +517,7 @@ test.describe("Agents", () => {
     await expect(group.getByText(needy.requires_secret.description)).toBeVisible();
     // And the refusal that would otherwise arrive from a publish attempt, in a
     // list beside everything else wrong with the agent.
-    await expect(group.getByText(/cannot be published until it has one/)).toBeVisible();
+    await expect(group.getByText(/cannot be published until something is/)).toBeVisible();
 
     await picker.click();
     await page.getByRole("option", { name: new RegExp(SEEDED_SECRET_NAME) }).click();
@@ -519,7 +526,7 @@ test.describe("Agents", () => {
     // nothing else, and neither the API nor this page can show the value.
     await expect(picker).toContainText(SEEDED_SECRET_NAME);
     await expect(picker).toContainText(SEEDED_SECRET_HINT);
-    await expect(group.getByText(/cannot be published until it has one/)).toBeHidden();
+    await expect(group.getByText(/cannot be published until something is/)).toBeHidden();
 
     // Stored, without asserting the badge on the way: this spec walks through
     // two selects and a catalog read, which is long enough for the Builder's own
@@ -533,7 +540,7 @@ test.describe("Agents", () => {
     await openBuilderTab(page, "Toolbox");
     const saved = await capabilityPanel(page, needy.name);
     await expect(saved.getByLabel("Secret")).toContainText(SEEDED_SECRET_NAME);
-    await expect(saved.getByText(/cannot be published until it has one/)).toBeHidden();
+    await expect(saved.getByText(/cannot be published until something is/)).toBeHidden();
 
     // Nowhere on this page, at any point, is the value itself.
     await expectNoRenderedSecret(page);

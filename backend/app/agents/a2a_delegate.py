@@ -61,7 +61,7 @@ def a2a_delegate(
         # continued by the next message rather than left behind a new one.
         conversation: dict[str, str | None] = {"context": None, "task": None}
 
-        async def answer(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        async def reply_text(messages: list[ModelMessage]) -> str:
             prompt = latest_prompt(messages)
             await assert_ambient_budget()
             try:
@@ -75,19 +75,17 @@ def a2a_delegate(
             except A2AClientError as failed:
                 # An answer the delegating model reads, not a crash: it can try
                 # another delegate, or say it could not get this one.
-                return ModelResponse(
-                    parts=[TextPart(f"The remote agent {handle} did not answer: {failed}")]
-                )
+                return f"The remote agent {handle} did not answer: {failed}"
             record_ambient_usage(f"{PROVIDER}:{handle}", RequestUsage(), provider=PROVIDER)
             conversation["context"] = reply.context_id or conversation["context"]
             conversation["task"] = reply.task_id if reply.state in _CONTINUED else None
-            return ModelResponse(parts=[TextPart(reply.text or "(The remote agent sent no text.)")])
+            return reply.text or "(The remote agent sent no text.)"
 
-        async def stream(messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[str]:
-            response = await answer(messages, info)
-            for part in response.parts:
-                if isinstance(part, TextPart):
-                    yield part.content
+        async def answer(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+            return ModelResponse(parts=[TextPart(await reply_text(messages))])
+
+        async def stream(messages: list[ModelMessage], _info: AgentInfo) -> AsyncIterator[str]:
+            yield await reply_text(messages)
 
         model = FunctionModel(answer, stream_function=stream, model_name=f"{PROVIDER}:{handle}")
         return PydanticAgent(model, output_type=str, name=handle)

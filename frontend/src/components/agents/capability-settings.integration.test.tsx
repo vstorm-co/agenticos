@@ -20,6 +20,15 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The real one signs in with ChatGPT through a device code. What this form needs
+// from it is the callback, under the label the real one shows.
+vi.mock("@/components/vault/chatgpt-sign-in", () => ({
+  InlineChatGPTSignIn: ({ onCreated }: { onCreated: (id: string) => void }) => (
+    <button type="button" onClick={() => onCreated("sec-chatgpt")}>
+      Sign in with ChatGPT
+    </button>
+  ),
+}));
 
 /**
  * The capability the secret picker exists for: one that cannot work without a
@@ -674,6 +683,19 @@ describe("CapabilitySettings coding agent sign-in", () => {
     expect(await screen.findByRole("option", { name: /My ChatGPT/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Weather API key/ })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Ingest role/ })).toBeNull();
+  });
+
+  it("binds the sign-in it makes", async () => {
+    serve([API_KEY_SECRET]);
+    const onChange = vi.fn();
+    mount(binding({ id: "coding_agent", config: { harness: "codex" } }), {
+      definition: CODER,
+      onChange,
+    });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Sign in with ChatGPT" }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "sec-chatgpt" }));
   });
 
   it("tells Claude Code where its subscription token comes from", async () => {

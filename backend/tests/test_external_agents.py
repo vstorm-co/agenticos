@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -193,6 +194,26 @@ class TestDelegatingToOne:
             "endpoint": CARD.url,
             "bearer": "remote-key",
         }
+
+    async def test_the_remote_agents_join_the_delegates_the_tree_resolves(self) -> None:
+        ref = ExternalAgentRef(external_agent_id=uuid.uuid4())
+        remote = SimpleNamespace(name="reviewer")
+        runner = AgentRunnerService(MagicMock())
+        runner._resolve_external = AsyncMock(return_value=[remote])
+        delegation = MagicMock(ctx=CTX)
+
+        resolved = await runner._resolve_delegates(
+            delegation,
+            spec=MagicMock(capabilities=[], subagents=[], external_agents=[ref]),
+            config=MagicMock(share_with_delegates=[], inline=[]),
+            resources={},
+            depth_remaining=1,
+            depth=0,
+            ancestors=frozenset(),
+        )
+
+        assert resolved == [remote]
+        runner._resolve_external.assert_awaited_once_with(delegation, [ref])
 
     async def test_a_registration_removed_since_publish_fails_the_run(self) -> None:
         runner = AgentRunnerService(MagicMock())
