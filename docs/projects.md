@@ -94,6 +94,14 @@ the **Chats** tab each row says whose the chat is, who is at work in it right no
 and who has had it open - the latest faces, with every name on hover. A chat
 outside any project stays its author's own, as everywhere else in the console.
 
+**Working in one chat together.** Several people can be in a project's chat at
+once. A bar over the transcript shows who else has it open, and its owner can
+invite somebody from there. A question one of them asks, and the agent's answer,
+appear for everybody in the chat as they are written. **Reply** on any message
+quotes it above the composer, and the reply carries the quote - on screen, and to
+the agent, which reads each person's turn under their name, so it knows who asked
+what and what "yes, do that" is about.
+
 ## Deleting a project
 
 Deleting a project removes its container and every file in it. Its chats are

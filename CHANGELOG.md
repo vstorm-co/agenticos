@@ -19,6 +19,13 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Several people in one chat with the agent.** A conversation's open sockets
+  share a room: a bar over the transcript shows who else has the chat open, with
+  Invite for its owner, and a turn somebody asks is followed live by everybody
+  else in it, question first. **Reply** on any message quotes it; the reply
+  carries the quote to the transcript and to the model, which in a project's chat
+  also reads each person's turn under their name. A message's `reply_to` and the
+  `reply_to_message_id` it is sent with are the API's half.
 - **A project's chats are its members'.** Whoever may see a project reads every
   chat in it, and whoever may work in it continues a teammate's chat; each turn
   carries the name and face of whoever typed it. The project's **Chats** tab
