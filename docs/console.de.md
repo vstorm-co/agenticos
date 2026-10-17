@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "9766a1c697e8"
 ---
 
 # Die Konsole { #the-console }
@@ -274,6 +274,23 @@ werden keiner [Knowledge-Collection](file-processing.md) hinzugefügt. Siehe
 gesendet wird. Die eingebauten liefert das Produkt mit; eigene schreiben Sie
 unter **Settings → Slash commands**, und jeden eingebauten, den Sie nie nutzen,
 können Sie ausblenden. Sie gehören Ihnen, nicht der Organisation.
+
+**`@` zeigt dem Agent, was er nutzen soll.** Tippen Sie `@`, und ein Menü bietet in
+dieser Reihenfolge, was der Agent nutzen kann: seine MCP-Server, die Agents, an die
+er Arbeit übergibt (wenn die Delegations-Capability an ist), seine Capabilities -
+**Sandbox**, **Web research** - seine Skills, dann seine Wissensbasen und
+Kontextdateien. Die Auswahl bleibt als `@Name` in Ihrem Text, mit ihrem Logo
+markiert, und der Agent wird angewiesen, sie zu nutzen - die Werkzeuge eines
+Servers oder einer Capability, die Suche einer Wissensbasis, einen Skill -, ohne
+dass ihr Inhalt eingefügt wird. Einen Agent zu nennen übergibt ihm die Arbeit; wer
+antwortet, ändert es nie. Löschen Sie `@Name`, und die Auswahl ist weg. Ein
+eingefügter Link zeigt das Symbol seiner Website über dem Feld und in der
+gesendeten Nachricht. Eine Erwähnung erweitert nie, was der Agent erreicht: Der
+Server prüft jede erneut als Sie, gegen das, was der Agent bereits hat. Im
+Testpanel des Builders liest das Menü den Entwurf, den Sie testen. Solange ein Gespräch leer ist, zeigt das Feld nacheinander
+Beispiele aus dem, was der Agent nutzen kann - seinem Server, einer Capability,
+einem Delegierten, einem Skill - und `/`; sie verschwinden, sobald Sie
+hineinklicken.
 
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht

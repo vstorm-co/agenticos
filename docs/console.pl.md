@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "9766a1c697e8"
 ---
 
 # Konsola { #the-console }
@@ -252,6 +252,20 @@ do [kolekcji wiedzy](file-processing.md). Zobacz
 Wbudowane przychodzą razem z produktem; własne możesz napisać w
 **Settings → Slash commands**, a każdą wbudowaną, z której nie korzystasz,
 ukryć. Należą do ciebie, nie do organizacji.
+
+**`@` wskazuje agentowi, czego użyć.** Wpisz `@`, a menu pokaże, czego agent może
+użyć, w tej kolejności: jego serwery MCP, agentów, którym przekazuje pracę (przy
+włączonej capability delegowania), jego capabilities - **Sandbox**, **Web
+research** - jego skille, a potem bazy wiedzy i pliki kontekstu. Wybór zostaje w
+twoim tekście jako `@Nazwa`, oznaczony swoim logo, a agent dostaje polecenie, by z
+niego skorzystał - z narzędzi serwera, narzędzi capability, wyszukiwania w bazie
+wiedzy, skilla - bez wklejania samej treści. Wskazanie agenta przekazuje mu pracę;
+nigdy nie zmienia tego, kto odpowiada. Usuń `@Nazwa`, a wybór znika. Wklejony link
+pokazuje ikonę swojej strony nad polem i w wysłanej wiadomości. Wzmianka nigdy nie
+poszerza tego, do czego agent sięga: serwer sprawdza każdą ponownie jako ty, wobec
+tego, co agent już ma. W panelu testowym Buildera menu czyta testowany szkic. Dopóki rozmowa jest pusta, pole pokazuje po kolei
+przykłady zbudowane z tego, czego agent może użyć - jego serwera, capability,
+delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz.
 
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.

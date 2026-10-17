@@ -11,7 +11,7 @@ Framework-specific concerns (multimodal input, streaming events) stay in the rou
 
 import json
 import logging
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -34,6 +34,7 @@ from app.schemas.conversation import (
     ToolCallComplete,
     ToolCallCreate,
 )
+from app.schemas.mention import Mentionable
 from app.services.conversation import ConversationService
 from app.services.transcript import what_arrived
 from app.services.usage_report import UsageReport
@@ -161,6 +162,7 @@ async def persist_user_turn(
     requested_conversation_id: str | None,
     current_conversation_id: str | None,
     organization_id: UUID,
+    mentions: Sequence[Mentionable] = (),
 ) -> PersistedPrompt:
     """Resolve the conversation, persist the user message, and link any uploaded files.
 
@@ -234,7 +236,20 @@ async def persist_user_turn(
                 )
             user_msg = await conv_service.add_message(
                 UUID(current_conversation_id),
-                MessageCreate(role="user", content=content),
+                MessageCreate(
+                    role="user",
+                    content=content,
+                    parts=[
+                        MessagePart(
+                            type="mention",
+                            mention_kind=mention.kind,
+                            mention_id=mention.id,
+                            text=mention.name,
+                        )
+                        for mention in mentions
+                    ]
+                    or None,
+                ),
                 organization_id=organization_id,
                 user_id=user.id,
             )

@@ -103,6 +103,7 @@ export function PendingMessages({
           <ol>
             {messages.map((message, index) => {
               const fileCount = message.files?.length ?? 0;
+              const pointsAt = message.mentions?.length ?? 0;
               return (
                 <li
                   key={message.id}
@@ -177,9 +178,15 @@ export function PendingMessages({
                       <button
                         type="button"
                         onClick={() => onSendNow(message.id)}
-                        // A file cannot ride along into a running task.
-                        disabled={fileCount > 0}
-                        title={fileCount > 0 ? t("sendNowNotWithFiles") : t("sendNowHint")}
+                        // Neither a file nor a mention can ride along into a running task.
+                        disabled={fileCount > 0 || pointsAt > 0}
+                        title={
+                          fileCount > 0
+                            ? t("sendNowNotWithFiles")
+                            : pointsAt > 0
+                              ? t("sendNowNotWithMentions")
+                              : t("sendNowHint")
+                        }
                         className={cn(ROW_ACTION, "w-auto gap-1 px-1.5 text-xs")}
                       >
                         <Send aria-hidden />

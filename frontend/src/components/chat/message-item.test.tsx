@@ -163,6 +163,16 @@ describe("a turn in the transcript", () => {
     expect(screen.queryByText("stopped")).toBeNull();
   });
 
+  it("shows what a question pointed the agent at as chips above it (#2189)", () => {
+    item({
+      role: "user",
+      content: "Find the brief",
+      mentions: [{ kind: "skill", id: "s-1", name: "refund-policy" }],
+    });
+    expect(screen.getByTitle("refund-policy")).toHaveTextContent("refund-policy");
+    expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
+  });
+
   it("renders an answer as Markdown and a question as plain text", () => {
     const { unmount } = item();
     expect(screen.getByTestId("markdown")).toHaveTextContent("Refunds run to thirty days.");

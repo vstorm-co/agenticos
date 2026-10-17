@@ -1,7 +1,9 @@
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { messageOf } from "./composer-editor";
 import { ChatContainer } from "./chat-container";
 import {
   useAgentSelectionStore,
@@ -455,5 +457,37 @@ describe("the chat container - an answer still being written after its person le
     expect(
       await screen.findByText("Here is the rollout plan", {}, { timeout: 4000 }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("the chat container - @-mentions (#2189)", () => {
+  it("sends what was picked with the message and draws it on the question", async () => {
+    // Found live: the composer held the chip, and the container's send dropped it.
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/agents/a-chief/mentionables"
+        ? Promise.resolve({
+            items: [{ kind: "agent", id: "a-fin", name: "Finance Analyst" }],
+            total: 1,
+          })
+        : base(url),
+    );
+    useAgentSelectionStore.setState({ selectedAgentId: "a-chief" });
+    socket.send.mockClear();
+    mount();
+
+    const box = screen.getByRole("textbox");
+    await userEvent.type(box, "Ask @fin");
+    const option = await screen.findByRole("option", { name: /Finance Analyst/ });
+    fireEvent.mouseDown(option);
+    expect(messageOf(box)).toBe("Ask @Finance Analyst ");
+    await userEvent.type(box, "about margins");
+    fireEvent.submit(box.closest("form")!);
+
+    const sent = socket.send.mock.calls.map(([frame]) => frame as Record<string, unknown>);
+    const turn = sent.find((frame) => frame.message === "Ask @Finance Analyst about margins");
+    expect(turn?.mentions).toEqual([{ kind: "agent", id: "a-fin" }]);
+    // On the question, where it was written.
+    expect(await screen.findByTitle("Finance Analyst")).toBeInTheDocument();
   });
 });

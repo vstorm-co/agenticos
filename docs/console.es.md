@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "9766a1c697e8"
 ---
 
 # La consola { #the-console }
@@ -257,6 +257,22 @@ una [colección de conocimiento](file-processing.md). Consulta
 de serie vienen con el producto; puedes escribir los tuyos en
 **Settings → Slash commands**, y ocultar cualquiera de los de serie que no uses.
 Son tuyos, no de la organización.
+
+**`@` señala al agent qué usar.** Escribe `@` y un menú ofrece lo que el agent
+puede usar, en este orden: sus servidores MCP, los agents a los que pasa trabajo
+(con la capability de delegación activada), sus capabilities - **Sandbox**, **Web
+research** -, sus skills y después sus bases de conocimiento y archivos de
+contexto. Lo elegido se queda en tu texto como `@Nombre`, marcado con su logo, y
+al agent se le indica que lo use - las herramientas de un servidor o de una
+capability, la búsqueda de una base de conocimiento, un skill - sin pegar su
+contenido. Nombrar un agent le pasa el trabajo; nunca cambia quién responde.
+Borra el `@Nombre` y lo elegido desaparece. Un enlace pegado muestra el icono de
+su sitio encima del cuadro y en el mensaje enviado. Una mención nunca amplía lo
+que el agent puede alcanzar: el servidor comprueba cada una de nuevo como tú,
+frente a lo que el agent ya tiene. En el panel de pruebas del Builder el menú lee
+el borrador que estás probando. Mientras una conversación está vacía, el cuadro muestra uno
+tras otro ejemplos hechos con lo que el agent puede usar - su servidor, una
+capability, un delegado, un skill - y `/`; desaparecen en cuanto haces clic en él.
 
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina

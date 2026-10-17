@@ -112,12 +112,14 @@ from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequ
 from app.db.models.agent_run import RunStatus
 from app.repositories import conversation as conversation_repo
 from app.schemas.conversation import MessagePart
+from app.schemas.mention import Mentionable
 from app.services import agent_session as agent_session_module
 from app.services.agent import PersistedPrompt
 from app.services.agent_chat import ChatTurn, OpenedRun
 from app.services.agent_runner import ParkedApproval, PersonalServiceGap, PreparedRun
 from app.services.agent_session import AgentSession
 from app.services.chat_timeline import TurnTimeline
+from app.services.mentions import ResolvedMentions
 from app.services.message_history import build_message_history
 from app.services.run_stream import RunFrames
 from app.services.usage_report import UsageReport
@@ -3341,3 +3343,45 @@ class TestTellingThePersonWhoLeft:
                 await session.shutdown()
 
         notifications.answered_while_away.assert_not_called()
+
+
+class TestMentions:
+    """`@`-mentions on a frame (#2189): resolved as the person, before anything runs."""
+
+    async def test_a_mention_reaches_the_model_as_a_note_and_the_transcript_as_a_chip(self):
+        session = _session()
+        drive = Mentionable(kind="mcp", id="gdrive", name="Google Drive", detail="gdrive_*")
+        resolved = ResolvedMentions(mentions=[drive], note="Use Google Drive.")
+        run = AsyncMock(return_value=_finished_turn())
+
+        frame = _message("find the brief", mentions=[{"kind": "mcp", "id": "gdrive"}])
+        with _chat(run) as chat:
+            chat.runner.mentions = AsyncMock(return_value=resolved)
+            await session.process_message(frame)
+
+        assert chat.runner.mentions.await_args.kwargs["refs"][0].id == "gdrive"
+        assert chat.prompt.await_args.kwargs["mentions"] == [drive]
+        # A mention never changes who answers.
+        assert str(run.await_args.kwargs["agent_id"]) == frame["agent_id"]
+        assert run.await_args.kwargs["user_input"] == "find the brief\n\nUse Google Drive."
+
+    async def test_a_frame_whose_mentions_cannot_be_read_runs_nothing(self):
+        session = _session()
+        run = AsyncMock()
+
+        with _chat(run) as chat:
+            await session.process_message(_message(mentions=[{"kind": "spaceship", "id": "x"}]))
+
+        assert _frame_types(session) == ["error"]
+        chat.prompt.assert_not_awaited()
+        run.assert_not_awaited()
+
+    async def test_a_turn_without_mentions_is_unchanged(self):
+        session = _session()
+        run = AsyncMock(return_value=_finished_turn())
+
+        with _chat(run) as chat:
+            await session.process_message(_message("hi"))
+
+        assert chat.prompt.await_args.kwargs["mentions"] == []
+        assert run.await_args.kwargs["user_input"] == "hi"

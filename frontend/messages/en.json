@@ -1474,6 +1474,7 @@
     "sendNow": "Send now",
     "sendNowHint": "Send it into the running task now, instead of after the answer",
     "sendNowNotWithFiles": "A message with files waits for the answer",
+    "sendNowNotWithMentions": "A message pointing at something waits for the answer",
     "queuedCount": "{count, plural, =1 {1 message queued} other {# messages queued}}",
     "sentIntoTask": "sent into the task",
     "moveUp": "Move up",
@@ -1500,7 +1501,31 @@
     "openPageNamed": "Open {name}",
     "showMore": "Show more",
     "showLess": "Show less",
-    "openApp": "Open the app"
+    "openApp": "Open the app",
+    "mentions": {
+      "menu": "Point the agent at",
+      "loading": "Loading what this agent can use…",
+      "failed": "Could not load what this agent can use.",
+      "nothing": "Nothing this agent can use matches.",
+      "full": "You can point at {count, plural, one {# thing} other {# things}} at most in one message.",
+      "kind": {
+        "mcp": "MCP servers",
+        "capability": "Capabilities",
+        "agent": "Agents",
+        "collection": "Knowledge bases",
+        "skill": "Skills",
+        "context": "Context files"
+      }
+    },
+    "hints": {
+      "mention": "Type <key>@</key> to point the agent at a server, a teammate or a skill",
+      "mcp": "Pull this week's updates from <chip></chip> and summarise them",
+      "capability": "Use <chip></chip> to work through the attached spreadsheet",
+      "agent": "Ask <chip></chip> to double-check the numbers",
+      "skill": "Follow <chip></chip> and draft a reply to this customer",
+      "collection": "What does <chip></chip> say about notice periods?",
+      "slash": "Type <command></command> to summarise this conversation, or / for every command"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -2301,6 +2326,16 @@
       "dismissAll": "Hide tips",
       "dismiss": "Hide the tip {title}",
       "tips": {
+        "mentions": {
+          "title": "Point the agent with @",
+          "body": "In the chat, type @ to hand the agent one of its servers, capabilities, skills or teammates. It shows as a chip, and the agent uses exactly that.",
+          "cta": "Try it in chat"
+        },
+        "commands": {
+          "title": "Shortcuts with /",
+          "body": "Type / in the chat for commands - summarise, explain, start over - or write your own under Settings → Slash commands.",
+          "cta": "Open the chat"
+        },
         "mcp": {
           "title": "Use it from Claude Code or Cursor",
           "body": "AgenticOS is an MCP server too: connect Claude Code, Codex or Cursor and build agents, run them and read results without leaving them.",

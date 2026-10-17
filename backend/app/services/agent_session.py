@@ -46,6 +46,7 @@ from app.services.agent_chat import (
     requested_agent_id,
     requested_approval_mode,
     requested_environment_id,
+    requested_mentions,
     requested_model_profile_id,
     requested_testing,
     requested_time_zone,
@@ -462,6 +463,27 @@ class AgentSession:
         if agent_id is None:
             await send_event(self.websocket, "error", {"message": _PICK_AN_AGENT})
             return
+        # What the person pointed at with `@`, resolved as them against what the
+        # agent can reach (#2189). It never changes which agent answers.
+        try:
+            mention_refs = requested_mentions(data)
+            if mention_refs:
+                async with get_db_context() as db:
+                    resolved = await ChatAgentRunner(db).mentions(
+                        user=self.user,
+                        organization_id=self.organization_id,
+                        agent_id=agent_id,
+                        refs=mention_refs,
+                        # The test panel's draft, so a mention resolves against
+                        # what that run reaches rather than the published version.
+                        draft=requested_testing(data).draft,
+                    )
+                mentioned, mention_note = resolved.mentions, resolved.note
+            else:
+                mentioned, mention_note = [], None
+        except AppException as exc:
+            await send_event(self.websocket, "error", {"message": exc.message})
+            return
         # `conversation_id: null` is the console's new chat, and it starts one. The
         # session used to read it as "no id given" and carry on in the conversation
         # this socket had open, so after New chat - or after deleting the open
@@ -478,6 +500,7 @@ class AgentSession:
                 requested_conversation_id=data.get("conversation_id"),
                 current_conversation_id=self.current_conversation_id,
                 organization_id=self.organization_id,
+                mentions=mentioned,
             )
         except AppException as e:
             # Every refusal the write can raise, not only the cross-org one:
@@ -561,7 +584,11 @@ class AgentSession:
                     user=self.user,
                     organization_id=self.organization_id,
                     agent_id=agent_id,
-                    user_input=user_message,
+                    user_input=(
+                        user_message
+                        if mention_note is None
+                        else f"{user_message}\n\n{mention_note}"
+                    ),
                     message_history=model_history,
                     attachments=attachments,
                     conversation_id=(

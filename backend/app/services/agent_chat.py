@@ -30,6 +30,7 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
+from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter, UserContent
 from pydantic_ai.run import AgentRun
 from pydantic_ai.tools import DeferredToolRequests
@@ -53,6 +54,7 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import conversation_repo, member_repo
+from app.schemas.mention import MentionRef
 from app.services import change_feed
 from app.services.agent_runner import (
     AgentRunnerService,
@@ -65,6 +67,7 @@ from app.services.agent_runner import (
     input_screen_for,
 )
 from app.services.attachments import AttachmentRouter
+from app.services.mentions import MentionService, ResolvedMentions
 from app.services.usage_report import UsageReport, UsageReportService, context_fill
 
 logger = logging.getLogger(__name__)
@@ -159,6 +162,40 @@ def requested_approval_mode(frame: Mapping[str, Any]) -> ApprovalMode:
             message="That is not an approval mode",
             details={"approval_mode": str(raw)},
         ) from exc
+
+
+MAX_MENTIONS = 10
+"""More than a person points at in one message; a frame past it is malformed."""
+
+_MENTIONS = TypeAdapter(list[MentionRef])
+
+
+def requested_mentions(frame: Mapping[str, Any]) -> list[MentionRef]:
+    """What the person pointed the agent at with `@`, as the frame names it (#2189).
+
+    Only the shape is checked here; whether each one could have been picked is
+    `MentionService.resolve`'s question, asked against what the person may use.
+
+    Raises:
+        BadRequestError: If `mentions` is not a list of mentions. Dropping it would
+            run the turn without what the person said to use and not tell them.
+    """
+    raw = frame.get("mentions")
+    if raw is None:
+        return []
+    try:
+        mentions = _MENTIONS.validate_python(raw)
+    except ValidationError as exc:
+        raise BadRequestError(
+            message="Those mentions could not be read",
+            details={"mentions": exc.errors(include_url=False, include_input=False)},
+        ) from exc
+    if len(mentions) > MAX_MENTIONS:
+        raise BadRequestError(
+            message=f"A message can point at {MAX_MENTIONS} things at most",
+            details={"mentions": len(mentions)},
+        )
+    return mentions
 
 
 def requested_time_zone(frame: Mapping[str, Any]) -> str | None:
@@ -665,6 +702,19 @@ class ChatAgentRunner:
     @staticmethod
     def _as_decimal(value: float | None) -> Decimal | None:
         return None if value is None else Decimal(str(value))
+
+    async def mentions(
+        self,
+        *,
+        user: User,
+        organization_id: UUID,
+        agent_id: UUID,
+        refs: list[MentionRef],
+        draft: bool = False,
+    ) -> ResolvedMentions:
+        """A turn's `@`-mentions, checked as the person typing - see `MentionService.resolve`."""
+        ctx = await self._context(user, organization_id)
+        return await MentionService(self.db).resolve(ctx, agent_id, refs, draft=draft)
 
     async def _budget(self, ctx: AuthContext) -> Decimal | None:
         organization = await self.db.get(Organization, ctx.organization_id)

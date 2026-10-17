@@ -1474,6 +1474,7 @@
     "sendNow": "Jetzt senden",
     "sendNowHint": "Jetzt in die laufende Aufgabe senden, statt nach der Antwort",
     "sendNowNotWithFiles": "Eine Nachricht mit Dateien wartet auf die Antwort",
+    "sendNowNotWithMentions": "Eine Nachricht mit Verweisen wartet auf die Antwort",
     "queuedCount": "{count, plural, =1 {1 Nachricht in der Warteschlange} other {# Nachrichten in der Warteschlange}}",
     "sentIntoTask": "in die Aufgabe gesendet",
     "moveUp": "Nach oben",
@@ -1500,7 +1501,31 @@
     "openPageNamed": "{name} öffnen",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
-    "openApp": "App öffnen"
+    "openApp": "App öffnen",
+    "mentions": {
+      "menu": "Dem Agent zeigen",
+      "loading": "Lädt, was dieser Agent nutzen kann…",
+      "failed": "Was dieser Agent nutzen kann, ließ sich nicht laden.",
+      "nothing": "Nichts, was dieser Agent nutzen kann, passt.",
+      "full": "Eine Nachricht kann auf höchstens {count, plural, one {# Ding} other {# Dinge}} verweisen.",
+      "kind": {
+        "mcp": "MCP-Server",
+        "capability": "Capabilities",
+        "agent": "Agents",
+        "collection": "Wissensbasen",
+        "skill": "Skills",
+        "context": "Kontextdateien"
+      }
+    },
+    "hints": {
+      "mention": "Tippen Sie <key>@</key>, um dem Agent einen Server, einen anderen Agent oder einen Skill zu nennen",
+      "mcp": "Hol die Neuigkeiten der Woche aus <chip></chip> und fasse sie zusammen",
+      "capability": "Nutze <chip></chip>, um die angehängte Tabelle durchzuarbeiten",
+      "agent": "Bitte <chip></chip>, die Zahlen zu prüfen",
+      "skill": "Folge <chip></chip> und entwirf eine Antwort an diesen Kunden",
+      "collection": "Was sagt <chip></chip> zu Kündigungsfristen?",
+      "slash": "Tippen Sie <command></command>, um das Gespräch zusammenzufassen, oder / für alle Befehle"
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -2301,6 +2326,16 @@
       "dismissAll": "Tipps ausblenden",
       "dismiss": "Tipp {title} ausblenden",
       "tips": {
+        "mentions": {
+          "title": "Dem Agent mit @ etwas zeigen",
+          "body": "Tippen Sie im Chat @, um dem Agent einen seiner Server, Capabilities, Skills oder einen anderen Agent zu geben. Es erscheint als Chip, und der Agent nutzt genau das.",
+          "cta": "Im Chat ausprobieren"
+        },
+        "commands": {
+          "title": "Abkürzungen mit /",
+          "body": "Tippen Sie / im Chat für Befehle - zusammenfassen, erklären, neu beginnen - oder schreiben Sie eigene unter Einstellungen → Slash-Befehle.",
+          "cta": "Chat öffnen"
+        },
         "mcp": {
           "title": "Aus Claude Code oder Cursor heraus nutzen",
           "body": "AgenticOS ist auch ein MCP-Server: Verbinden Sie Claude Code, Codex oder Cursor und bauen, starten und lesen Sie Agents, ohne sie zu verlassen.",

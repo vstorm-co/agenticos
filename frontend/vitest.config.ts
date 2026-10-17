@@ -134,6 +134,12 @@ export default defineConfig({
         "src/components/chat/chat-controls.tsx",
         // A phone's `+` sheet for attaching and dictating (#2066).
         "src/components/chat/composer-sheet.tsx",
+        // `@`-mentions in the composer and the transcript (#2189).
+        "src/components/chat/mention-chip.tsx",
+        "src/components/chat/composer-editor.tsx",
+        "src/components/chat/composer-hints.tsx",
+        "src/components/chat/link-favicon.tsx",
+        "src/components/chat/mention-palette.tsx",
         "src/components/chat/connect-account-prompt.tsx",
         "src/components/chat/connect-services-card.tsx",
         "src/components/chat/your-connections.tsx",

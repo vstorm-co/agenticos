@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.1.1"
+version = "1.2.0"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -662,6 +662,7 @@ include = [
     # held to rather than reporting it.
     "app/services/rate_limit.py",
     "app/services/agent_chat.py",
+    "app/services/mentions.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
     # What the model is actually told about each tool, read off the built
@@ -1075,6 +1076,7 @@ include = [
     # held to rather than reporting it.
     "app/services/rate_limit.py",
     "app/services/agent_chat.py",
+    "app/services/mentions.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
     # What the model is actually told about each tool, read off the built

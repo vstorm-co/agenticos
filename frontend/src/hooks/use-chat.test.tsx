@@ -2583,6 +2583,23 @@ describe("useChat - the outbound queue", () => {
     expect(result.current.queuedMessages).toEqual([]);
   });
 
+  it("sends what the person pointed at, and keeps it with a message that waited", async () => {
+    vi.useFakeTimers();
+    const drive = { kind: "mcp" as const, id: "gdrive", name: "Google Drive" };
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first", undefined, undefined, [drive]));
+    expect(frame(0)).toMatchObject({ mentions: [{ kind: "mcp", id: "gdrive" }] });
+    expect(useChatStore.getState().messages[0]).toMatchObject({ mentions: [drive] });
+
+    act(() => result.current.sendMessage("second", undefined, undefined, [drive]));
+    receive("complete", {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(frame(1)).toMatchObject({ message: "second", mentions: [{ id: "gdrive" }] });
+    vi.useRealTimers();
+  });
+
   it("queues what is typed while the socket is offline", () => {
     socket.isConnected = false;
     const { result } = renderHook(() => useChat(), { wrapper });
@@ -3273,6 +3290,23 @@ describe("useChat - adding to a running turn (#2087)", () => {
     act(() => result.current.sendQueuedNow(result.current.queuedMessages[0]!.id));
 
     expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["this one"]);
+    expect(result.current.steers).toEqual([]);
+  });
+
+  it("holds a message that points at something - a correction carries no mention", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+
+    act(() =>
+      result.current.sendMessage("@Contracts this one", undefined, undefined, [
+        { kind: "collection", id: "kb-1", name: "Contracts" },
+      ]),
+    );
+    act(() => result.current.sendQueuedNow(result.current.queuedMessages[0]!.id));
+
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual([
+      "@Contracts this one",
+    ]);
     expect(result.current.steers).toEqual([]);
   });
 });
