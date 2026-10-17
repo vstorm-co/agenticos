@@ -122,11 +122,17 @@ export function ProjectFiles({ project }: { project: Project }) {
   );
 
   return (
-    <div className="flex min-h-[32rem] flex-1 flex-col">
+    // Down to the bottom of the screen, as the folder page's reader is: the files
+    // are what the tab is for, and a fixed floor left half the screen empty.
+    <div className="flex min-h-[calc(100dvh-17rem)] flex-1 flex-col">
       {/* A file dropped anywhere on the tab lands in the project, as one dropped
           on a knowledge base lands in it - for whoever may add files. */}
       {project.can_use ? (
-        <FileDropZone collectionName={project.name} onFiles={picked}>
+        <FileDropZone
+          collectionName={project.name}
+          onFiles={picked}
+          className="flex min-h-0 flex-1 flex-col"
+        >
           {explorer}
         </FileDropZone>
       ) : (
