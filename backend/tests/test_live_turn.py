@@ -158,7 +158,11 @@ async def _begin(conversation: str = CONVERSATION) -> live_turn.Turn:
 
 
 async def _followed(conversation: str = CONVERSATION) -> list[tuple[str, Any]]:
-    return [(frame["type"], frame["data"]) async for frame in live_turn.follow(conversation)]
+    """The turn running now, followed as a socket in its room follows it."""
+    token = await live_turn.live_token(conversation)
+    if token is None:
+        return []
+    return [(frame["type"], frame["data"]) async for frame in live_turn.follow(conversation, token)]
 
 
 class TestKeepingATurn:
@@ -212,7 +216,7 @@ class TestKeepingATurn:
         await live_turn.publish(first, "text_delta", {"content": "still first"})
         await live_turn.end(first)
 
-        assert await live_turn.is_live(CONVERSATION)
+        assert await live_turn.live_token(CONVERSATION) is not None
         first_frames = [json.loads(raw) for raw in store.lists[first.key("trace")]]
         assert [frame["data"].get("content") for frame in first_frames[:2]] == [
             "first",
@@ -224,7 +228,7 @@ class TestKeepingATurn:
             ("text_delta", {"content": "second"}),
             (live_turn.END, {"conversation_id": CONVERSATION}),
         ]
-        assert not await live_turn.is_live(CONVERSATION)
+        assert await live_turn.live_token(CONVERSATION) is None
 
     async def test_the_seam_between_trace_and_channel_loses_and_repeats_nothing(
         self, store: _Store
@@ -298,7 +302,7 @@ class TestKeepingATurn:
             patch.object(store, "exists", AsyncMock(side_effect=ConnectionError("gone"))),
             patch.object(store, "get", AsyncMock(side_effect=ConnectionError("gone"))),
         ):
-            assert await live_turn.is_live(CONVERSATION) is False
+            assert await live_turn.live_token(CONVERSATION) is None
             assert await _followed() == []
 
     async def test_without_redis_nothing_is_kept_or_followed(self) -> None:
@@ -307,8 +311,9 @@ class TestKeepingATurn:
         turn = live_turn.Turn(CONVERSATION, "t-1")
         await live_turn.publish(turn, "text_delta", {})
         await live_turn.end(turn)
-        assert not await live_turn.is_live(CONVERSATION)
+        assert await live_turn.live_token(CONVERSATION) is None
         assert await _followed() == []
+        assert [frame async for frame in live_turn.follow(CONVERSATION, "t-1")] == []
 
 
 class TestFollowingFromAnotherSocket:
@@ -379,7 +384,7 @@ class TestFollowingFromAnotherSocket:
     ) -> None:
         await _begin()
         session = _session()
-        with patch.object(live_turn, "follow", side_effect=lambda _c: _nothing()):
+        with patch.object(live_turn, "follow", side_effect=lambda _c, _t: _nothing()):
             await self._attach(session, CONVERSATION)
         assert [kind for kind, _ in _sent_events(session)] == ["turn_attached", live_turn.END]
 
@@ -397,7 +402,7 @@ class TestFollowingFromAnotherSocket:
         session = _session()
         hold = asyncio.Event()
 
-        async def waiting(_conversation: str) -> AsyncIterator[dict[str, Any]]:
+        async def waiting(_conversation: str, _token: str) -> AsyncIterator[dict[str, Any]]:
             await hold.wait()
             yield {"seq": 1, "type": "text_delta", "data": {}}
 
@@ -431,7 +436,7 @@ class TestFollowingFromAnotherSocket:
         assert frames[0]["data"]["agent_id"]
         # The question first: a follower in the room has no other way to see it.
         assert kept == ["turn_prompt", "message_saved", "complete", live_turn.END]
-        assert not await live_turn.is_live(_CONVERSATION)
+        assert await live_turn.live_token(_CONVERSATION) is None
 
 
 async def _nothing() -> AsyncIterator[dict[str, Any]]:
@@ -503,13 +508,57 @@ class TestTheRoom:
         # Heard twice - two tabs announcing - and followed once.
         begun = {"type": "turn_begun", "by": "anna"}
         room = self._room(events=[{"type": "presence"}, begun, begun])
-        with patch.object(live_turn, "is_live", AsyncMock(side_effect=[False, True, True])):
+        # Asked on opening, on the first announcement, and once the turn ends.
+        with patch.object(live_turn, "live_token", AsyncMock(side_effect=[None, turn.token, None])):
             await self._enter(session, CONVERSATION, room)
         if session._follower is not None:
             await session._follower
 
         kinds = [kind for kind, _ in _sent_events(session)]
         assert kinds[:2] == ["turn_attached", "turn_prompt"]
+
+    async def test_a_turn_begun_while_another_is_followed_is_followed_next(
+        self, store: _Store
+    ) -> None:
+        """Two teammates asking at once: the second turn's announcement found the
+        follower busy, and it used to be dropped until a reload."""
+        first = await _begin()
+        await live_turn.publish(first, "turn_prompt", {"content": "Anna asks"})
+        second = await _begin()
+        await live_turn.publish(second, "turn_prompt", {"content": "Kacper asks"})
+        ending = [first, second]
+
+        async def end_the_next() -> None:
+            await live_turn.end(ending.pop(0))
+
+        store.on_listen = end_the_next
+        session = _session()
+
+        await session._follow(CONVERSATION, first.token)
+
+        prompts = [data["content"] for kind, data in _sent_events(session) if kind == "turn_prompt"]
+        assert prompts == ["Anna asks", "Kacper asks"]
+        assert [kind for kind, _ in _sent_events(session)].count(live_turn.END) == 2
+
+    async def test_a_turn_this_socket_writes_is_not_followed_by_it(self, store: _Store) -> None:
+        await _begin()
+        session = _session()
+        session._live = CONVERSATION
+        await session._follow_if_running(CONVERSATION)
+        assert session._follower is None
+
+    async def test_a_teammates_turn_begun_during_this_sockets_own_is_followed_after_it(
+        self, store: _Store
+    ) -> None:
+        session = _session()
+        session._room = _CONVERSATION
+        follow = AsyncMock()
+        with (
+            patch.object(session, "_follow_if_running", follow),
+            _chat(AsyncMock(return_value=_finished_turn())),
+        ):
+            await session.process_message(_message())
+        follow.assert_awaited_once_with(_CONVERSATION)
 
     async def test_moving_to_another_chat_or_none_leaves_the_room(self) -> None:
         session = _session()
@@ -554,7 +603,7 @@ class TestTheRoom:
         would re-check it, and removal must still end what it hears."""
         session = _session()
         room = self._room(events=[{"type": "turn_begun", "by": "anna"}])
-        with patch.object(live_turn, "is_live", AsyncMock(return_value=False)):
+        with patch.object(live_turn, "live_token", AsyncMock(return_value=None)):
             await self._enter(session, CONVERSATION, room, reads=False)
         room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id, session._socket)
         assert session._room is None and session._follower is None
@@ -567,7 +616,7 @@ class TestTheRoom:
         await live_turn.publish(turn, "text_delta", {"content": "secret"})
         session = _session()
         with patch.object(session, "_still_reads", AsyncMock(return_value=False)):
-            await session._follow(CONVERSATION)
+            await session._follow(CONVERSATION, turn.token)
         assert [kind for kind, _ in _sent_events(session)] == ["turn_attached", live_turn.END]
 
     async def test_a_followed_turn_still_readable_goes_on(
@@ -579,7 +628,7 @@ class TestTheRoom:
         store.on_listen = lambda: live_turn.end(turn)
         session = _session()
         with patch.object(session, "_still_reads", AsyncMock(return_value=True)):
-            await session._follow(CONVERSATION)
+            await session._follow(CONVERSATION, turn.token)
         assert [kind for kind, _ in _sent_events(session)][:2] == ["turn_attached", "text_delta"]
 
 

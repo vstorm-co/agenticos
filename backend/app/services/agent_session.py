@@ -752,8 +752,12 @@ class AgentSession:
         finally:
             if self._live_turn is not None:
                 await live_turn.end(self._live_turn)
-            self._live = None
+            finished, self._live = self._live, None
             self._live_turn = None
+            if finished is not None and finished == self._room:
+                # A teammate's turn begun while this socket wrote its own was
+                # not followed then; it is now, from its start.
+                await self._follow_if_running(finished)
             self._current_timeline = None
             self._steering = None
             late = steering.unapplied()
@@ -1159,12 +1163,19 @@ class AgentSession:
         await self._follow_if_running(conversation_id)
 
     async def _follow_if_running(self, conversation_id: str) -> None:
-        """Follow the turn being written in the conversation, unless this socket writes it."""
-        if conversation_id == self._live or not await live_turn.is_live(conversation_id):
+        """Follow the turn being written in the conversation, unless this socket writes it.
+
+        One follower at a time: a turn somebody begins while another is followed
+        is taken up when that one ends, by `_follow` itself.
+        """
+        if conversation_id == self._live:
             return
         if self._follower is not None and not self._follower.done():
             return
-        self._follower = asyncio.create_task(self._follow(conversation_id))
+        token = await live_turn.live_token(conversation_id)
+        if token is None:
+            return
+        self._follower = asyncio.create_task(self._follow(conversation_id, token))
 
     async def _enter_room(self, conversation_id: str) -> None:
         """Be one of the people with this conversation open, and hear what happens in it."""
@@ -1256,12 +1267,29 @@ class AgentSession:
             },
         )
 
-    async def _follow(self, conversation_id: str) -> None:
-        """Forward a followed turn's frames until it ends, then say it has."""
+    async def _follow(self, conversation_id: str, token: str) -> None:
+        """Forward the conversation's running turns, one after another, until none is.
+
+        A teammate's turn begun while another was followed found this follower
+        busy and was not taken up then; so when a turn ends, the conversation is
+        asked again, and the newer turn is followed from its start.
+        """
+        while await self._follow_one(conversation_id, token):
+            newer = await live_turn.live_token(conversation_id)
+            if newer is None or newer == token or conversation_id == self._live:
+                return
+            token = newer
+
+    async def _follow_one(self, conversation_id: str, token: str) -> bool:
+        """Forward one turn's frames until it ends, then say it has.
+
+        Whether to go on following the conversation: not when the socket closed
+        or the person may no longer read it.
+        """
         await send_event(self.websocket, "turn_attached", {"conversation_id": conversation_id})
         ended = False
         recheck = time.monotonic() + RECHECK_SECONDS
-        async for frame in live_turn.follow(conversation_id):
+        async for frame in live_turn.follow(conversation_id, token):
             ended = frame["type"] == live_turn.END
             # A long turn is asked about again as it goes: somebody removed from
             # the project mid-answer must not read the rest of it.
@@ -1270,14 +1298,17 @@ class AgentSession:
                     await send_event(
                         self.websocket, live_turn.END, {"conversation_id": conversation_id}
                     )
-                    return
+                    return False
                 recheck = time.monotonic() + RECHECK_SECONDS
             if not await send_event(self.websocket, frame["type"], frame["data"]):
-                return
+                return False
         if not ended:
             # The turn ended between the check and the subscription: the
             # follower still needs to hear it is over.
-            await send_event(self.websocket, live_turn.END, {"conversation_id": conversation_id})
+            return await send_event(
+                self.websocket, live_turn.END, {"conversation_id": conversation_id}
+            )
+        return True
 
     def _stop_following(self) -> None:
         follower = self._follower

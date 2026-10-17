@@ -162,36 +162,30 @@ async def _append(turn: Turn, kind: str, data: Any, *, ttl: int) -> None:
         logger.exception("live_turn_publish_failed")
 
 
-async def is_live(conversation_id: str) -> bool:
-    """Whether a turn is being written in the conversation now."""
+async def live_token(conversation_id: str) -> str | None:
+    """Which turn is being written in the conversation now, or `None` for none."""
     if _redis is None:
-        return False
+        return None
     try:
-        return await _redis.raw.exists(_live_key(conversation_id)) > 0
+        token = await _redis.raw.get(_live_key(conversation_id))
     except Exception:
         # Following is a view, as everything else here: Redis being away must
         # not close the chat socket that asked - it reads as nothing running.
         logger.exception("live_turn_is_live_failed")
-        return False
+        return None
+    # A string: the client decodes responses.
+    return None if token is None else str(token)
 
 
-async def follow(conversation_id: str) -> AsyncGenerator[dict[str, Any]]:
-    """Every frame of the conversation's latest turn: what it has sent, then what it sends.
+async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, Any]]:
+    """Every frame of one turn: what it has sent, then what it sends.
 
-    Ends after the frame that closes the turn, and at once when no turn is running.
-    Each frame is `{"seq", "type", "data"}`, as the turn's socket sent it.
+    Ends after the frame that closes the turn. Each frame is `{"seq", "type",
+    "data"}`, as the turn's socket sent it.
     """
     if _redis is None:
         return
-    try:
-        token = await _redis.raw.get(_live_key(conversation_id))
-    except Exception:
-        logger.exception("live_turn_follow_failed")
-        return
-    if token is None:
-        return
-    # A string: the client decodes responses.
-    turn = Turn(conversation_id, str(token))
+    turn = Turn(conversation_id, token)
     pubsub = _redis.raw.pubsub(ignore_subscribe_messages=True)
     await pubsub.subscribe(turn.key("events"))
     try:
