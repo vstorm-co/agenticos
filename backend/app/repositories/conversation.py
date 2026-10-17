@@ -12,6 +12,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus
@@ -1231,6 +1232,11 @@ async def create_message(
     db.add(message)
     await db.flush()
     await db.refresh(message)
+    # Nothing hangs off a message that was just written, so say so rather than
+    # leave both collections to a lazy load: a route serializing the new row
+    # read them outside the session's async context and answered 500.
+    set_committed_value(message, "tool_calls", [])
+    set_committed_value(message, "files", [])
 
     await db.execute(
         sql_update(Conversation)

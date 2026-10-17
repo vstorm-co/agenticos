@@ -336,6 +336,8 @@ class TestReplyingInAProjectChat:
             answer.id,
             "Plan: step one, step two",
         )
+        # An answer: written by no person, and by no agent this test made.
+        assert (shown.reply_to.sender, shown.reply_to.agent_id) == (None, None)
 
         history = await service.model_history(chat.id, limit=20)
         said = [part.content for message in history for part in message.parts]
@@ -348,6 +350,10 @@ class TestReplyingInAProjectChat:
         assert conversation is not None
         assert await service.model_text(asked, conversation) == "Kacper: Draft the launch plan"
         assert reply.reply_to_message_id == answer.id
+        # A message just written serializes as it stands - no lazy load of its
+        # tool calls or files outside the session, which the POST route hit.
+        written = MessageRead.model_validate(reply)
+        assert (written.tool_calls, written.files) == ([], [])
 
     async def test_a_reply_to_a_person_names_them_and_one_outside_a_project_names_nobody(
         self, db
