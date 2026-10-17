@@ -94,6 +94,20 @@ async def test_a_prefix_that_moved_mid_run_is_one_bust_on_the_request_it_hit(cap
     assert record.agent_id == str(agent)
 
 
+async def test_a_run_is_credited_with_its_delegates_busts_too() -> None:
+    """A delegate's agent is built and discarded inside a tool call; its recorder
+    is kept so the run's row counts what the whole tree hit."""
+    churn = [
+        RequestUsage(input_tokens=10_000, cache_write_tokens=10_000),
+        RequestUsage(input_tokens=10_500, cache_read_tokens=10_000, cache_write_tokens=500),
+        RequestUsage(input_tokens=11_000, cache_write_tokens=11_000),
+    ]
+    parent = await _run(churn, conversation_id=uuid.uuid4(), agent_id=uuid.uuid4())
+    delegate = await _run(churn, conversation_id=uuid.uuid4(), agent_id=uuid.uuid4())
+
+    assert tally(parent, delegate) == CacheTally(busts=2, expiries=0, missed_tokens=21_000)
+
+
 async def test_a_cache_that_held_records_nothing() -> None:
     recorder = await _run(
         [
