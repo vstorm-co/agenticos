@@ -23,6 +23,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
+from uuid import UUID
 
 import anyio
 from pydantic_ai.tools import RunContext
@@ -185,16 +186,31 @@ async def clean_up(ctx: RunContext[Any], files: TaskFiles) -> None:
     await ctx.workspace.run(line, shell=True, timeout=30)  # noqa: S604
 
 
-def session_path(harness: str) -> str:
-    """Where the session a conversation's tasks continue is kept, per harness."""
-    return f"{WORK_DIR}/{harness}.session"
+def session_path(harness: str, conversation_id: UUID) -> str:
+    """Where a conversation's session is kept, per harness and per conversation.
+
+    Per conversation, not per sandbox: a project's sandbox, or one scoped to a
+    person or an agent, is shared by several conversations - and by several
+    people - and one chat continuing another's session would carry its hidden
+    prompt and context across.
+    """
+    return f"{WORK_DIR}/{harness}-{conversation_id}.session"
 
 
 async def remembered_session(ctx: RunContext[Any], harness: str) -> str | None:
-    """The session the last task in this sandbox left, to continue it."""
-    text = (await _read(ctx, session_path(harness))).strip()
+    """The session this conversation's last task left, to continue it.
+
+    `None` for a run in no conversation: there is nothing it could continue.
+    """
+    conversation_id = ctx.deps.conversation_id
+    if conversation_id is None:
+        return None
+    text = (await _read(ctx, session_path(harness, conversation_id))).strip()
     return text or None
 
 
 async def remember_session(ctx: RunContext[Any], harness: str, session_id: str) -> None:
-    await ctx.workspace.write_bytes(session_path(harness), session_id.encode())
+    conversation_id = ctx.deps.conversation_id
+    if conversation_id is None:
+        return
+    await ctx.workspace.write_bytes(session_path(harness, conversation_id), session_id.encode())

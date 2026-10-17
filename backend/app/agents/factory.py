@@ -305,6 +305,7 @@ def build_agent(
         organization_id=organization_id,
         agent_id=agent_id,
         run_id=run_id,
+        conversation_id=conversation_id,
         user_id=user_id,
         user_name=user_name,
         audience=bound_audience,

@@ -17,7 +17,7 @@ import shlex
 from collections.abc import Mapping
 from types import SimpleNamespace
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import anyio
 import httpx
@@ -532,6 +532,10 @@ def _no_waiting(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(_task, "POLL_SECONDS", 0)
 
 
+# The conversation a test's run answers in.
+THREAD = uuid4()
+
+
 def _ctx(
     workspace: Workspace | None, *, retry: int = 0, frames: list[SubagentEvent] | None = None
 ) -> RunContext[AgentDeps]:
@@ -540,7 +544,7 @@ def _ctx(
             frames.append(frame)
 
     ctx = RunContext(
-        deps=AgentDeps(organization_id=uuid4(), subagent_events=sink),
+        deps=AgentDeps(organization_id=uuid4(), conversation_id=THREAD, subagent_events=sink),
         model=TestModel(),
         usage=RunUsage(),
         retry=retry,
@@ -570,10 +574,13 @@ async def _call(
     *,
     frames: list[SubagentEvent] | None = None,
     fresh_session: bool = False,
+    conversation_id: UUID | None = THREAD,
     **kwargs: Any,
 ) -> str:
+    ctx = _ctx(workspace, frames=frames)
+    ctx.deps.conversation_id = conversation_id
     return await _tools(**kwargs)["run_coding_agent"].function(
-        _ctx(workspace, frames=frames), task=task, fresh_session=fresh_session
+        ctx, task=task, fresh_session=fresh_session
     )
 
 
@@ -598,14 +605,16 @@ class TestRunningATask:
         assert env is not None and env["ANTHROPIC_API_KEY"] == "sk-test"
         assert timeout == 60
         assert [entry.model_name for entry in ledger.entries] == ["claude-sonnet-5-5"]
-        assert await shell.read_bytes(session_path("claude_code")) == b"s-1"
-        assert [entry.name for entry in await shell.list_dir(WORK_DIR)] == ["claude_code.session"]
+        assert await shell.read_bytes(session_path("claude_code", THREAD)) == b"s-1"
+        assert [entry.name for entry in await shell.list_dir(WORK_DIR)] == [
+            f"claude_code-{THREAD}.session"
+        ]
         assert shell.stopped == 0
 
     async def test_the_next_task_continues_the_conversations_session(self) -> None:
         shell = _Shell(events=_lines(_codex_stream(end=None)))
         await shell.make_dir(WORK_DIR)
-        await shell.write_bytes(session_path("codex"), b"th-1\n")
+        await shell.write_bytes(session_path("codex", THREAD), b"th-1\n")
         raw = await _call(shell, "Apply it", harness="codex")
         assert CodingReport.model_validate_json(raw).files_changed == ["app.py"]
         assert shlex.split(shlex.split(shell.started[0])[4])[4:8] == [
@@ -615,17 +624,33 @@ class TestRunningATask:
             "th-1",
         ]
 
+    async def test_another_conversation_in_the_same_sandbox_starts_its_own(self) -> None:
+        """A project's sandbox is shared by several chats, and several people: one
+        must never continue another's session, hidden context and all."""
+        shell = _Shell(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+        await shell.make_dir(WORK_DIR)
+        await shell.write_bytes(session_path("claude_code", uuid4()), b"theirs")
+        await _call(shell)
+        assert "--resume" not in shell.started[0]
+
+    async def test_a_run_in_no_conversation_neither_continues_nor_keeps_one(self) -> None:
+        shell = _Shell(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+        await shell.make_dir(WORK_DIR)
+        await _call(shell, conversation_id=None)
+        assert "--resume" not in shell.started[0]
+        assert not any(entry.name.endswith(".session") for entry in await shell.list_dir(WORK_DIR))
+
     async def test_a_fresh_session_ignores_the_one_kept(self) -> None:
         shell = _Shell(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
         await shell.make_dir(WORK_DIR)
-        await shell.write_bytes(session_path("claude_code"), b"old")
+        await shell.write_bytes(session_path("claude_code", THREAD), b"old")
         await _call(shell, fresh_session=True)
         assert "--resume" not in shell.started[0]
 
     async def test_a_session_the_sandbox_lost_starts_over_once(self) -> None:
         shell = _Shell(events=_lines(_claude_stream(result=_CLAUDE_DONE)), fails_resumed=True)
         await shell.make_dir(WORK_DIR)
-        await shell.write_bytes(session_path("claude_code"), b"gone")
+        await shell.write_bytes(session_path("claude_code", THREAD), b"gone")
         report = CodingReport.model_validate_json(await _call(shell))
         assert report.outcome == "completed"
         assert ["--resume" in line for line in shell.started] == [True, False]
