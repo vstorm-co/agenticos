@@ -3368,6 +3368,25 @@ describe("useChat - coming back to a turn still being written", () => {
     expect(onTurnInterrupted).not.toHaveBeenCalled();
   });
 
+  it("draws the followed answer as the agent's that answers it, from its first word", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-9",
+      content: "and the budget?",
+      sender: anna,
+      agent_id: "a-9",
+    });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Up 4%." });
+
+    expect(useChatStore.getState().messages.at(-1)?.agentId).toBe("a-9");
+  });
+
   it("draws a teammate's question before the answer it is following", () => {
     renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     storedQuestion();
@@ -3386,6 +3405,7 @@ describe("useChat - coming back to a turn still being written", () => {
       message_id: "m-9",
       content: "and the budget?",
       sender: anna,
+      agent_id: "a-9",
     });
     // Already in the transcript - a person who came back mid-turn read it there.
     receive("turn_prompt", {

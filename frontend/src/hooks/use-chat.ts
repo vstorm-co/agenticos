@@ -443,8 +443,11 @@ export function useChat(options: UseChatOptions = {}) {
             message_id: string | null;
             content: string;
             sender: ChatPerson;
+            agent_id?: string;
           };
           if (followingRef.current !== data.conversation_id) break;
+          // The answer that follows is this agent's: its face and name from the start.
+          turnAgentIdRef.current = data.agent_id ?? null;
           const id = data.message_id ?? clientId();
           if (chatApi.getState().messages.some((message) => message.id === id)) break;
           addMessage({

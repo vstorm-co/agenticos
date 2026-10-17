@@ -409,7 +409,11 @@ class TestFollowingFromAnotherSocket:
             await session.process_message(_message())
 
         (trace,) = [key for key in store.lists if key.startswith(f"turn:{_CONVERSATION}:")]
-        kept = [json.loads(raw)["type"] for raw in store.lists[trace]]
+        frames = [json.loads(raw) for raw in store.lists[trace]]
+        kept = [frame["type"] for frame in frames]
+        # Who asked, and which agent answers - what a follower draws the turn by.
+        assert frames[0]["data"]["sender"]["name"] == "Kacper"
+        assert frames[0]["data"]["agent_id"]
         # The question first: a follower in the room has no other way to see it.
         assert kept == ["turn_prompt", "message_saved", "complete", live_turn.END]
         assert not await live_turn.is_live(_CONVERSATION)
