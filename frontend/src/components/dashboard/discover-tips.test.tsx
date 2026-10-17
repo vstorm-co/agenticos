@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { DiscoverTips } from "./discover-tips";
+import { ADVANCE_MS, DiscoverTips } from "./discover-tips";
 
 const data = vi.hoisted(() => ({ perms: new Set<string>() }));
 
@@ -106,6 +106,57 @@ describe("the dashboard's discover tips", () => {
     await userEvent.click(screen.getByRole("button", { name: "Previous tips" }));
 
     expect(scrollBy.mock.calls.map(([options]) => options.left)).toEqual([340, -340]);
+  });
+
+  it("lights one tile at a time and moves on to the next, back to the first after the last", () => {
+    vi.useFakeTimers();
+    const scrollTo = vi.fn();
+    Element.prototype.scrollTo = scrollTo;
+    render(<DiscoverTips />);
+    const lit = () =>
+      screen.getAllByRole("article").findIndex((tile) => tile.dataset.lit === "true");
+
+    expect(lit()).toBe(0);
+    act(() => vi.advanceTimersByTime(ADVANCE_MS));
+    expect(lit()).toBe(1);
+    expect(scrollTo).toHaveBeenLastCalledWith({ left: expect.any(Number), behavior: "smooth" });
+
+    act(() => vi.advanceTimersByTime(ADVANCE_MS * 10));
+    expect(lit()).toBe(0);
+    expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, behavior: "smooth" });
+    vi.useRealTimers();
+  });
+
+  it("holds still while the reader is on the strip", () => {
+    vi.useFakeTimers();
+    Element.prototype.scrollTo = vi.fn();
+    render(<DiscoverTips />);
+    const strip = screen.getAllByRole("article")[0]!.parentElement!;
+    const lit = () =>
+      screen.getAllByRole("article").findIndex((tile) => tile.dataset.lit === "true");
+
+    fireEvent.mouseEnter(strip);
+    act(() => vi.advanceTimersByTime(ADVANCE_MS * 2));
+    expect(lit()).toBe(0);
+    fireEvent.mouseLeave(strip);
+    fireEvent.focus(strip);
+    act(() => vi.advanceTimersByTime(ADVANCE_MS * 2));
+    expect(lit()).toBe(0);
+    fireEvent.blur(strip);
+    act(() => vi.advanceTimersByTime(ADVANCE_MS));
+    expect(lit()).toBe(1);
+    vi.useRealTimers();
+  });
+
+  it("does not move for a reader who asked for less motion", () => {
+    vi.useFakeTimers();
+    const desk = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ matches: true, media: query })) as never;
+    render(<DiscoverTips />);
+    act(() => vi.advanceTimersByTime(ADVANCE_MS * 3));
+    expect(screen.getAllByRole("article").findIndex((tile) => tile.dataset.lit === "true")).toBe(0);
+    window.matchMedia = desk;
+    vi.useRealTimers();
   });
 
   it("draws its tiles in the Toolbox's isometric style", () => {
