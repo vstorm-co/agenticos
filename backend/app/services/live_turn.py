@@ -58,6 +58,19 @@ A question or a connection request waits on the session that asked it, which an
 answer from another socket cannot reach; the prompt is already in the transcript;
 `conversation_created` names a chat the follower already has open."""
 
+LIVE_ONLY = frozenset({"browser_frame", "browser_pointer"})
+"""Frames sent to whoever is following now and never kept in the trace.
+
+A browse sends its screenshot about twelve times a second, each a full JPEG
+data URL: kept, one long browse held hundreds of megabytes in the shared
+Redis. Somebody arriving mid-browse is shown the next frame, a moment later -
+an old one is no use to them."""
+
+MAX_KEPT_BYTES = 256 * 1024
+"""The largest frame the trace keeps. Anything bigger is still announced live,
+for the same reason the frames above are: the trace is a replay of the turn's
+text and steps, not an archive of what it showed."""
+
 END = "turn_followed_to_end"
 """The frame type that closes a trace - sent to a follower as the turn being over."""
 
@@ -138,9 +151,10 @@ async def _append(turn: Turn, kind: str, data: Any, *, ttl: int) -> None:
         body = json.dumps({"seq": seq, "type": kind, "data": data}, default=str)
         trace = turn.key("trace")
         pipe = _redis.raw.pipeline()
-        pipe.rpush(trace, body)
-        pipe.ltrim(trace, -HISTORY_LIMIT, -1)
-        pipe.expire(trace, ttl)
+        if kind not in LIVE_ONLY and len(body) <= MAX_KEPT_BYTES:
+            pipe.rpush(trace, body)
+            pipe.ltrim(trace, -HISTORY_LIMIT, -1)
+            pipe.expire(trace, ttl)
         pipe.expire(turn.key("seq"), ttl)
         pipe.publish(turn.key("events"), body)
         await pipe.execute()

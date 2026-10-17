@@ -176,6 +176,21 @@ class TestKeepingATurn:
             await live_turn.publish(turn, kind, {})
         assert store.lists.get(turn.key("trace"), []) == []
 
+    async def test_a_browses_pictures_are_announced_and_never_kept(self, store: _Store) -> None:
+        """A screenshot a twelfth of a second, kept, filled Redis on one long
+        browse; a follower arriving mid-browse just gets the next one."""
+        turn = await _begin()
+        await live_turn.publish(turn, "browser_frame", {"image": "data:image/jpeg;base64,AAAA"})
+        await live_turn.publish(
+            turn, "text_delta", {"content": "x" * (live_turn.MAX_KEPT_BYTES + 1)}
+        )
+        await live_turn.publish(turn, "text_delta", {"content": "kept"})
+
+        kept = [json.loads(raw) for raw in store.lists[turn.key("trace")]]
+        assert [frame["data"].get("content") for frame in kept] == ["kept"]
+        announced = [json.loads(data)["type"] for channel, data in store.published]
+        assert announced == ["browser_frame", "text_delta", "text_delta"]
+
     async def test_a_new_turn_is_followed_from_its_own_fresh_trace(self, store: _Store) -> None:
         old = await _begin()
         await live_turn.publish(old, "text_delta", {"content": "old"})
