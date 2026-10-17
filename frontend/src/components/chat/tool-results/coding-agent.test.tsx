@@ -108,5 +108,14 @@ describe("parseCodingReport", () => {
     expect(parseCodingReport("[1]")).toBeNull();
     expect(parseCodingReport("null")).toBeNull();
     expect(parseCodingReport("not json")).toBeNull();
+    expect(parseCodingReport(JSON.stringify({ answer: "no harness" }))).toBeNull();
+  });
+
+  it("reads a report stored before its kind reached the wire", () => {
+    const { kind: _kind, ...stored } = REPORT;
+    expect(parseCodingReport(JSON.stringify(stored))).toMatchObject({
+      kind: "coding_agent",
+      harness: "claude_code",
+    });
   });
 });

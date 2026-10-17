@@ -48,7 +48,7 @@ const STEP_ICON: Record<StepKind, LucideIcon> = {
 };
 
 /** The product's own names, which no locale translates. */
-const HARNESS_NAME: Record<CodingReport["harness"], string> = {
+export const HARNESS_NAME: Record<CodingReport["harness"], string> = {
   // i18n-exempt: a product's own name
   claude_code: "Claude Code",
   // i18n-exempt: a product's own name
@@ -58,8 +58,12 @@ const HARNESS_NAME: Record<CodingReport["harness"], string> = {
 export function parseCodingReport(text: string): CodingReport | null {
   try {
     const parsed: unknown = JSON.parse(text);
-    if (typeof parsed === "object" && parsed !== null && "kind" in parsed) {
-      return parsed.kind === "coding_agent" ? (parsed as CodingReport) : null;
+    if (typeof parsed !== "object" || parsed === null) return null;
+    if ("kind" in parsed) return parsed.kind === "coding_agent" ? (parsed as CodingReport) : null;
+    // Reports stored before `kind` reached the wire carry no kind at all: they
+    // are told apart by the two fields every report has.
+    if ("harness" in parsed && "outcome" in parsed) {
+      return { ...(parsed as Omit<CodingReport, "kind">), kind: "coding_agent" };
     }
   } catch {
     // A refusal - no sandbox, the harness not installed - is a sentence, not a report.

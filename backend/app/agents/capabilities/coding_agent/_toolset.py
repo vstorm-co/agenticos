@@ -13,6 +13,7 @@ read without the model carrying ids around. `fresh_session` starts over.
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
@@ -172,7 +173,11 @@ def build_coding_toolset(
             "completed" if report.outcome == "completed" else "failed",
             error=None if report.outcome == "completed" else report.answer[:500],
         )
-        return report.model_dump_json(exclude_defaults=True)
+        # `kind` is a default, and dropping defaults dropped it - and it is the
+        # one field the console tells a report from a sentence by.
+        return json.dumps(
+            {"kind": report.kind, **report.model_dump(mode="json", exclude_defaults=True)}
+        )
 
     async def signed_in(
         ctx: RunContext[Any], task: str, fresh_session: bool, narration: Narration

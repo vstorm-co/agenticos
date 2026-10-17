@@ -587,6 +587,8 @@ class TestRunningATask:
             raw = await _call(shell, access="read_only")
 
         report = CodingReport.model_validate_json(raw)
+        # The console tells a report from a sentence by its kind, a default.
+        assert json.loads(raw)["kind"] == "coding_agent"
         assert report.answer == "Fixed the off-by-one in app.py."
         assert report.access == "read_only"
         ((line, env, timeout),) = [

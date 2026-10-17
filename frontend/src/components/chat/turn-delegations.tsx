@@ -9,7 +9,43 @@ import { delegateNamed, taskOutcome, type DelegateRef } from "@/lib/delegations"
 import { cn } from "@/lib/utils";
 import type { DelegationStatus, ToolCall } from "@/types";
 
+import { DelegateFace } from "./delegate-face";
 import { DelegationSheet, type SheetDelegation } from "./delegation-sheet";
+import { HARNESS_NAME, parseCodingReport } from "./tool-results/coding-agent";
+
+/** The tool the `coding_agent` capability hands a task to Claude Code or Codex through. */
+const CODING_TOOL = "run_coding_agent";
+
+/** Claude Code or Codex, by the mark and name their report says - or the capability's when it says none. */
+function harnessOf(report: ReturnType<typeof parseCodingReport>, fallback: string): DelegateRef {
+  if (report === null) return delegateNamed(fallback, []);
+  return {
+    id: null,
+    slug: report.harness,
+    name: HARNESS_NAME[report.harness],
+    harness: report.harness,
+  };
+}
+
+/** One coding task as an exchange: what it was asked, what it answered, every step it took. */
+function codingExchange(call: ToolCall): SheetDelegation {
+  const result = typeof call.result === "string" ? call.result : "";
+  const report = parseCodingReport(result);
+  return {
+    key: call.id,
+    delegate: harnessOf(report, "coding-agent"),
+    status:
+      report === null ? statusOf(call) : report.outcome === "completed" ? "completed" : "failed",
+    brief: typeof call.args.task === "string" ? call.args.task : null,
+    answer: report?.answer ?? result,
+    steps: (report?.steps ?? []).map((step, index) => ({
+      id: `${call.id}-${index}`,
+      name: step.kind,
+      ok: step.failed !== true,
+      title: step.title,
+    })),
+  };
+}
 
 /** Where a `task` call's work stands, in the words a delegation uses. */
 function statusOf(call: ToolCall): DelegationStatus {
@@ -47,12 +83,17 @@ export function TurnDelegations({
   const t = useTranslations("chat.delegation");
   const locale = useLocale();
   const [opened, setOpened] = useState<string | null>(null);
-  const tasks = toolCalls.filter(
-    (call) => call.name === "task" && typeof call.args.subagent_type === "string",
+  // A coding agent's task is an exchange like a delegation's: Claude Code or Codex
+  // is a separate agent the answer was worked out with.
+  const exchanges = toolCalls.filter(
+    (call) =>
+      (call.name === "task" && typeof call.args.subagent_type === "string") ||
+      (call.name === CODING_TOOL && call.status !== "pending" && call.status !== "running"),
   );
-  if (tasks.length === 0) return null;
+  if (exchanges.length === 0) return null;
 
-  const items: SheetDelegation[] = tasks.map((call) => {
+  const items: SheetDelegation[] = exchanges.map((call) => {
+    if (call.name === CODING_TOOL) return codingExchange(call);
     // A background start answers with its handle; what it came to is read from
     // the check of its task later in the turn, or it is still working.
     const background = taskOutcome(call, toolCalls);
@@ -93,14 +134,7 @@ export function TurnDelegations({
               key={item.delegate.slug}
               className={cn("relative", (parent !== undefined || index > 0) && "-ml-1.5")}
             >
-              <AgentAvatar
-                agentId={item.delegate.id ?? item.delegate.slug}
-                slug={item.delegate.slug}
-                hasAvatar={item.delegate.has_avatar}
-                colorSlot={item.delegate.avatar_color}
-                size="sm"
-                className="ring-background h-5 w-5 ring-2"
-              />
+              <DelegateFace who={item.delegate} className="ring-background h-5 w-5 ring-2" />
               {item.status === "completed" && (
                 <span className="bg-success ring-background absolute -right-0.5 -bottom-0.5 grid size-2.5 place-items-center rounded-full ring-2">
                   <Check className="text-background h-1.5 w-1.5" strokeWidth={4} aria-hidden />

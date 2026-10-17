@@ -149,3 +149,60 @@ describe("the team under an answer", () => {
     expect(screen.getByText("Refund issued")).toBeInTheDocument();
   });
 });
+
+describe("a coding agent's task under an answer", () => {
+  function coded(id: string, result: string, status: ToolCall["status"] = "completed"): ToolCall {
+    return { id, name: "run_coding_agent", args: { task: "Build a landing page" }, result, status };
+  }
+  const report = (outcome: string, harness = "codex") =>
+    JSON.stringify({
+      kind: "coding_agent",
+      harness,
+      access: "edit",
+      outcome,
+      answer: "Built index.html",
+      steps: [
+        { kind: "edit", title: "/workspace/index.html" },
+        { kind: "command", title: "python3 check.py", failed: true },
+      ],
+    });
+
+  it("is an exchange with Codex, with its brief, answer and every step", async () => {
+    render(<TurnDelegations toolCalls={[coded("1", report("completed"))]} agents={AGENTS} />);
+
+    expect(screen.getByText("Talked it through with Codex · 1 exchange")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Open the exchanges with the team" }));
+    const sheet = screen.getByRole("dialog");
+    expect(within(sheet).getByText("Build a landing page")).toBeInTheDocument();
+    expect(within(sheet).getByText("Built index.html")).toBeInTheDocument();
+    expect(within(sheet).getByText("index.html")).toBeInTheDocument();
+    expect(within(sheet).getByText("python3 check.py")).toBeInTheDocument();
+  });
+
+  it("names Claude Code, and reads a failed task as failed", async () => {
+    render(
+      <TurnDelegations
+        toolCalls={[coded("1", report("timed_out", "claude_code"))]}
+        agents={AGENTS}
+      />,
+    );
+    expect(screen.getByText("Talked it through with Claude Code · 1 exchange")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Open the exchanges with the team" }));
+    expect(within(screen.getByRole("dialog")).getByText(/^failed/)).toBeInTheDocument();
+  });
+
+  it("reads a refusal the tool answered with as the answer, and skips one still running", async () => {
+    const { rerender } = render(
+      <TurnDelegations
+        toolCalls={[coded("1", "Codex is not installed in this sandbox's runtime.", "error")]}
+        agents={AGENTS}
+      />,
+    );
+    expect(
+      screen.getByText("Talked it through with Coding agent · 1 exchange"),
+    ).toBeInTheDocument();
+
+    rerender(<TurnDelegations toolCalls={[coded("2", "", "running")]} agents={AGENTS} />);
+    expect(screen.queryByText(/Talked it through/)).toBeNull();
+  });
+});
