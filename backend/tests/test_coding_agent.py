@@ -53,13 +53,13 @@ from app.agents.capabilities.coding_agent._harness import (
     codex_report,
     invocation,
     live_items,
-    read_events,
     rotated_sign_in,
 )
 from app.agents.capabilities.coding_agent._task import WORK_DIR, session_path, task_files
 from app.agents.capabilities.coding_agent._toolset import (
     AUTH_ENV,
     CODEX_HOMES,
+    DISCARD_ENV,
     HOME_ENV,
     READ_AUTH,
     SESSIONS_ENV,
@@ -433,7 +433,7 @@ class TestReadingCodex:
         assert report.session_id == "th-2"
 
     def test_lines_that_are_not_events_are_skipped(self) -> None:
-        assert read_events('npm warn\n{"type": "x"}\n[1, 2]\n') == [{"type": "x"}]
+        assert _task._Reader().take(b'npm warn\n{"type": "x"}\n[1, 2]\n') == [{"type": "x"}]
 
 
 _TASK_FILE = re.compile(r"\.agenticos/coding-agent/[0-9a-f]+\.(?:jsonl|err|exit)")
@@ -1247,6 +1247,10 @@ class TestCodexOnASignIn:
         ].function(ctx, task="Look")
         home = shell.commands[0][1][HOME_ENV]
         assert home.startswith(f"{CODEX_HOMES}/") and str(THREAD) not in home
+        # Nothing will resume its sessions, so they go with the home.
+        read = shell.commands[-1]
+        assert read[0] == READ_AUTH
+        assert read[1] == {HOME_ENV: home, DISCARD_ENV: home.rsplit("/", 1)[0]}
 
     async def test_a_sign_in_that_was_not_rotated_is_left_alone(self) -> None:
         store = _Store()

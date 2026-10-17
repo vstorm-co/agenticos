@@ -87,9 +87,15 @@ copied in beside it.
 
 Passed through the environment of this one command, never on a command line,
 and kept out of the working directory so the file tools and the file browser
-never list it. Removed again, home and all, by `READ_AUTH` once the task is over.
+never list it. Removed again, home and all, by `READ_AUTH` once the task is over -
+with the sessions too (`DISCARD_ENV`) for a run in no conversation, which nothing
+will ever resume.
 """
-READ_AUTH = f'cat "${HOME_ENV}/auth.json" 2>/dev/null; rm -rf "${HOME_ENV}"'
+DISCARD_ENV = "AGENTICOS_CODEX_DISCARD"
+READ_AUTH = (
+    f'cat "${HOME_ENV}/auth.json" 2>/dev/null; rm -rf "${HOME_ENV}"'
+    f' ${{{DISCARD_ENV}:+"${DISCARD_ENV}"}}'
+)
 
 CODEX_HOMES = "/tmp/agenticos-codex"  # noqa: S108
 """Where each conversation's Codex sessions, and each task's home, are made - outside any workspace."""
@@ -231,10 +237,11 @@ def build_coding_toolset(
                 f"{label} runs on a ChatGPT sign-in only for somebody who may see that "
                 "sign-in in the vault. Say that they need their own, or one shared with them."
             )
-        conversation = (
-            f"{CODEX_HOMES}/{getattr(ctx.deps, 'conversation_id', None) or uuid.uuid4().hex}"
-        )
+        conversation_id = getattr(ctx.deps, "conversation_id", None)
+        conversation = f"{CODEX_HOMES}/{conversation_id or uuid.uuid4().hex}"
         home = f"{conversation}/{uuid.uuid4().hex}"
+        # A run in no conversation leaves sessions nothing will resume.
+        discard = {} if conversation_id else {DISCARD_ENV: conversation}
         try:
             written = await source.load()
             await ctx.workspace.run(  # noqa: S604
@@ -255,7 +262,7 @@ def build_coding_toolset(
         try:
             return await continued(ctx, task, fresh_session, narration, home=home)
         finally:
-            await _keep_rotated(ctx, source, written, home=home)
+            await _keep_rotated(ctx, source, written, env={HOME_ENV: home, **discard})
 
     async def continued(
         ctx: RunContext[Any],
@@ -351,7 +358,11 @@ def build_coding_toolset(
 
 
 async def _keep_rotated(
-    ctx: RunContext[Any], source: CodexSignIn, written: OpenAICodexCredentials, *, home: str
+    ctx: RunContext[Any],
+    source: CodexSignIn,
+    written: OpenAICodexCredentials,
+    *,
+    env: dict[str, str],
 ) -> None:
     """Take the sign-in back out of the sandbox, keeping whatever Codex refreshed it to.
 
@@ -361,7 +372,7 @@ async def _keep_rotated(
     """
     try:
         result = await ctx.workspace.run(  # noqa: S604
-            READ_AUTH, shell=True, env={HOME_ENV: home}, timeout=60
+            READ_AUTH, shell=True, env=env, timeout=60
         )
     except _SANDBOX_FAILURES as failed:
         logger.warning("Codex's sign-in could not be read back from the sandbox: %s", failed)

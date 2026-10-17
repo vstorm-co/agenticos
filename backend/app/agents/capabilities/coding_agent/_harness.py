@@ -307,19 +307,6 @@ def rotated_sign_in(
     return None if unchanged else current
 
 
-def read_events(log: str) -> list[dict[str, Any]]:
-    """The JSON objects in a harness's output, skipping anything else it printed."""
-    events: list[dict[str, Any]] = []
-    for line in log.splitlines():
-        try:
-            event = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(event, dict):
-            events.append(event)
-    return events
-
-
 def claude_report(
     events: Iterable[dict[str, Any]], *, access: Access, base_url: str | None
 ) -> tuple[CodingReport, Usage]:
