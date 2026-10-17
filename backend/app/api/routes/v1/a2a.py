@@ -9,7 +9,7 @@ allowed to run the agent, sends `message/send` and gets a task back.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from app.api.deps import A2AServerSvc, Auth, limit_agent_run
@@ -31,16 +31,21 @@ async def get_agent_card(agent_id: UUID, service: A2AServerSvc) -> Any:
     return JSONResponse(card.model_dump(by_alias=True, exclude_none=True))
 
 
-@router.post("/{agent_id}", response_model=None, dependencies=[Depends(limit_agent_run)])
+@router.post("/{agent_id}", response_model=None)
 async def a2a_request(agent_id: UUID, request: Request, service: A2AServerSvc, ctx: Auth) -> Any:
     """One A2A JSON-RPC request: `message/send` runs the agent, `tasks/get` reads a task.
 
     Answered with HTTP 200 and a JSON-RPC result or error, as A2A expects. Each
     task is an ordinary run, recorded on the `a2a` surface, under the caller's
-    key and its scopes.
+    key and its scopes. Only a request that runs the agent counts against the
+    caller's run allowance: a client polling a task it started reads it every
+    few seconds, and charged for that it ran out within a minute - before the
+    answer it was waiting for.
     """
     try:
         body = await request.json()
     except ValueError:
         return {"jsonrpc": "2.0", "id": None, "error": {"code": PARSE_ERROR, "message": "Not JSON"}}
+    if not isinstance(body, dict) or body.get("method") != "tasks/get":
+        await limit_agent_run(ctx)
     return await service.handle(ctx, agent_id, body)
