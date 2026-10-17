@@ -833,6 +833,12 @@ class TestChoosingAModel:
         with pytest.raises(ValidationError, match="Claude Code runs Claude models"):
             CodingAgentConfig(harness="codex", model="anthropic:claude-opus-5-5")
 
+    def test_the_builder_offers_each_harness_its_own_models(self) -> None:
+        when = CodingAgentConfig.model_json_schema()["properties"]["model"]["x-enum-when"]
+        assert when["field"] == "harness"
+        assert all(model.startswith("anthropic:") for model in when["choices"]["claude_code"])
+        assert all(model.startswith("openai:") for model in when["choices"]["codex"])
+
     def test_every_model_offered_has_a_name(self) -> None:
         schema = CodingAgentConfig.model_json_schema()["properties"]["model"]
         offered = next(branch["enum"] for branch in schema["anyOf"] if "enum" in branch)

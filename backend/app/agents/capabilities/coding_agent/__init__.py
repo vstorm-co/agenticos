@@ -75,7 +75,17 @@ class CodingAgentConfig(BaseModel):
             "The model the coding agent runs: a Claude model for Claude Code, an "
             "OpenAI one for Codex. Not set takes the coding agent's own default."
         ),
-        json_schema_extra={"x-enum-labels": _MODEL_NAMES},
+        json_schema_extra={
+            "x-enum-labels": _MODEL_NAMES,
+            # The Builder offers each harness only its own vendor's models.
+            "x-enum-when": {
+                "field": "harness",
+                "choices": {
+                    harness: [model for model in _MODEL_NAMES if model.startswith(f"{vendor}:")]
+                    for harness, vendor in _VENDOR.items()
+                },
+            },
+        },
     )
     base_url: HttpUrl | None = Field(
         title="Anthropic-compatible endpoint",
