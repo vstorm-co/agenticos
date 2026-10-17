@@ -312,14 +312,21 @@ async def get_knowledge_reach(agent_id: UUID, service: KnowledgeReachSvc, ctx: A
 
 
 @router.get("/{agent_id}/mentionables", response_model=MentionableList)
-async def list_mentionables(agent_id: UUID, service: MentionSvc, ctx: Auth) -> Any:
+async def list_mentionables(
+    agent_id: UUID,
+    service: MentionSvc,
+    ctx: Auth,
+    draft: Annotated[
+        bool, Query(description="Read the Builder's draft, as its test panel runs it")
+    ] = False,
+) -> Any:
     """What the person may point this agent at with `@` in the composer (#2189).
 
-    Its MCP servers, knowledge bases, skills and context files, its delegates and
-    the other published agents the caller may run - nothing the agent could not
-    already reach, and nothing the caller could not use.
+    Its MCP servers, the capabilities that give it tools, the agents it delegates
+    to, and its knowledge bases, skills and context files - nothing the agent
+    could not already reach, and nothing the caller could not use.
     """
-    items = await service.available(ctx, agent_id)
+    items = await service.available(ctx, agent_id, draft=draft)
     return MentionableList(items=items, total=len(items))
 
 

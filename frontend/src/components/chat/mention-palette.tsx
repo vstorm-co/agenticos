@@ -17,12 +17,15 @@ export function MentionPalette({
   onSelectIndex,
   onPick,
   isLoading,
+  failed,
 }: {
   items: Mentionable[];
   selectedIndex: number;
   onSelectIndex: (index: number) => void;
   onPick: (item: Mentionable) => void;
   isLoading: boolean;
+  /** The list could not be read, which is said rather than shown as still loading. */
+  failed: boolean;
 }) {
   const t = useTranslations("chat.mentions");
   const listRef = useRef<HTMLUListElement>(null);
@@ -40,7 +43,7 @@ export function MentionPalette({
     >
       {items.length === 0 ? (
         <p className="text-muted-foreground p-3 text-xs">
-          {isLoading ? t("loading") : t("nothing")}
+          {failed ? t("failed") : isLoading ? t("loading") : t("nothing")}
         </p>
       ) : (
         <ul ref={listRef} className="max-h-72 overflow-y-auto py-1">
@@ -68,7 +71,7 @@ export function MentionPalette({
                     index === selectedIndex ? "bg-foreground/[0.06]" : "hover:bg-foreground/[0.03]",
                   )}
                 >
-                  <MentionMark item={item} className="h-5 w-5" />
+                  <MentionMark item={item} className="h-5 w-5 text-[9px]" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm">{item.name}</span>
                     {item.detail && (
@@ -77,11 +80,6 @@ export function MentionPalette({
                       </span>
                     )}
                   </span>
-                  {item.kind === "agent" && (
-                    <span className="text-muted-foreground shrink-0 text-[11px]">
-                      {item.delegate ? t("delegates") : t("answers")}
-                    </span>
-                  )}
                 </div>
               </li>
             );

@@ -6,7 +6,7 @@ from pydantic import Field
 
 from app.schemas.base import BaseSchema
 
-MentionKind = Literal["mcp", "agent", "collection", "skill", "context"]
+MentionKind = Literal["mcp", "capability", "agent", "collection", "skill", "context"]
 
 
 class MentionRef(BaseSchema):
@@ -17,8 +17,9 @@ class MentionRef(BaseSchema):
         min_length=1,
         max_length=100,
         description=(
-            "The thing's id: a connection or agent id, a collection, skill or context "
-            "file id, a catalog key for a person's own MCP account, or `platform`"
+            "The thing's id: a connection or agent id, `inline:<name>` for an inline "
+            "specialist, a capability id, a collection, skill or context file id, a "
+            "catalog key for a person's own MCP account, or `platform`"
         ),
     )
 
@@ -31,17 +32,16 @@ class Mentionable(MentionRef):
         default=None,
         description="A short line under the name: the MCP tools' prefix, or what an agent does",
     )
-    icon: str | None = Field(default=None, description="The catalog's mark, for an MCP server")
+    icon: str | None = Field(
+        default=None,
+        description=(
+            "The catalog's mark for an MCP server; for a capability, the tool whose "
+            "icon the console draws for it"
+        ),
+    )
     slug: str | None = Field(default=None, description="An agent's handle, for its face")
     has_avatar: bool = False
     avatar_color: int | None = None
-    delegate: bool = Field(
-        default=False,
-        description=(
-            "For an agent: whether the chat's agent hands work to it as a delegate. "
-            "Otherwise mentioning it runs the turn on it."
-        ),
-    )
 
 
 class MentionableList(BaseSchema):

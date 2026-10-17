@@ -549,6 +549,7 @@ export function ChatContainer({
       onStop={stopGeneration}
       emptyState={emptyState}
       agentFixed={agentFixed}
+      testingDraft={testing?.draft ?? false}
       incomingFiles={incomingFiles}
     />
   );
@@ -558,6 +559,8 @@ interface ChatUIProps {
   /** Replaces the generic empty-conversation suggestions. */
   emptyState?: (onPick: (prompt: string) => void) => React.ReactNode;
   agentFixed: boolean;
+  /** The Builder's test panel running the draft, which is what `@` then offers from. */
+  testingDraft: boolean;
   incomingFiles: IncomingFiles | null;
   messages: import("@/types").ChatMessage[];
   isConnected: boolean;
@@ -685,6 +688,7 @@ function ChatUI({
   onStop,
   emptyState,
   agentFixed,
+  testingDraft,
   incomingFiles,
 }: ChatUIProps) {
   const t = useTranslations("chat");
@@ -714,8 +718,6 @@ function ChatUI({
   const { agents: knownAgents } = useAgents({ includeArchived: true });
   // The agent this thread is addressed to, which is the one handing work out.
   const delegatingAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
-  // `@` naming an agent the thread's agent cannot hand work to: it answers instead.
-  const selectAgentForTurn = useAgentSelectionStore((state) => state.select);
   const { user: authUser } = useAuthStore();
   const agentNames = useMemo(
     () =>
@@ -978,10 +980,11 @@ function ChatUI({
                           costs the row a button. */}
                       <ChatInput
                         onSend={sendMessage}
-                        // Mentions address the agent the thread is talking to;
-                        // a fixed agent's window offers none.
-                        agentId={agentFixed ? null : delegatingAgentId}
-                        onAgentMentioned={selectAgentForTurn}
+                        // Mentions address the agent the thread is talking to -
+                        // in a fixed window (the test panel, the Architect) the
+                        // scope's own selection holds it.
+                        agentId={delegatingAgentId}
+                        mentionsFromDraft={testingDraft}
                         disabled={
                           !isConnected ||
                           isArchived ||

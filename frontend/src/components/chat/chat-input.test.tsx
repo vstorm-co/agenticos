@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
+import { messageOf } from "./composer-editor";
 import { ChatInput } from "./chat-input";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
 import type { FileUploadResponse } from "@/lib/file-api";
@@ -21,7 +22,7 @@ vi.mock("@/lib/file-api", async (importOriginal) => ({
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
 // The `@` menu's request; `chat-input.mentions.test.tsx` drives it.
 vi.mock("@/hooks/use-mentionables", () => ({
-  useMentionables: () => ({ items: [], isLoading: false }),
+  useMentionables: () => ({ items: [], isLoading: false, isError: false }),
 }));
 
 vi.mock("next/image", () => ({
@@ -58,14 +59,14 @@ describe("ChatInput paste", () => {
     // The point of the whole feature: the question somebody is about to type has
     // to still fit on the screen after they paste the thing it is about.
     render(<ChatInput onSend={vi.fn()} />);
-    const textarea = screen.getByRole("textbox");
+    const box = screen.getByRole("textbox");
 
-    await userEvent.click(textarea);
+    await userEvent.click(box);
     await userEvent.paste(LONG);
 
     expect(await screen.findByText("pasted-2026-08-08.txt")).toBeVisible();
     expect(screen.getByText("Pasted · 48.8 KB")).toBeVisible();
-    expect(textarea).toHaveValue("");
+    expect(messageOf(box)).toBe("");
   });
 
   it("uploads the paste as a text file, which is what the agent can then read", async () => {
@@ -86,12 +87,12 @@ describe("ChatInput paste", () => {
       uploaded({ filename: "image.png", mime_type: "image/png", file_type: "image", size: 4 }),
     );
     render(<ChatInput onSend={vi.fn()} />);
-    const textarea = screen.getByRole("textbox");
+    const box = screen.getByRole("textbox");
     const picture = new File([new Uint8Array([137, 80, 78, 71])], "image.png", {
       type: "image/png",
     });
 
-    await userEvent.click(textarea);
+    await userEvent.click(box);
     await userEvent.paste({
       files: [picture],
       items: [],
@@ -101,29 +102,29 @@ describe("ChatInput paste", () => {
 
     await waitFor(() => expect(state.upload).toHaveBeenCalledOnce());
     expect(state.upload.mock.calls[0]![0]).toBe(picture);
-    expect(textarea).toHaveValue("");
+    expect(messageOf(box)).toBe("");
   });
 
   it("leaves a short paste alone - somebody who pastes a paragraph meant to send it", async () => {
     render(<ChatInput onSend={vi.fn()} />);
-    const textarea = screen.getByRole("textbox");
+    const box = screen.getByRole("textbox");
 
-    await userEvent.click(textarea);
+    await userEvent.click(box);
     await userEvent.paste("what does this error mean?");
 
-    expect(textarea).toHaveValue("what does this error mean?");
+    expect(messageOf(box)).toBe("what does this error mean?");
     expect(state.upload).not.toHaveBeenCalled();
   });
 
   it("sends the attachment with the question typed beside it", async () => {
     const onSend = vi.fn();
     render(<ChatInput onSend={onSend} />);
-    const textarea = screen.getByRole("textbox");
+    const box = screen.getByRole("textbox");
 
-    await userEvent.click(textarea);
+    await userEvent.click(box);
     await userEvent.paste(LONG);
     await screen.findByText("pasted-2026-08-08.txt");
-    await userEvent.type(textarea, "why does this fail?");
+    await userEvent.type(box, "why does this fail?");
     await userEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(onSend).toHaveBeenCalledWith("why does this fail?", ["f-1"], [uploaded()], undefined);
@@ -328,18 +329,18 @@ describe("ChatInput attachments", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole("textbox")).toHaveValue("Two things.\nThis button"),
+      expect(messageOf(screen.getByRole("textbox"))).toBe("Two things.\nThis button"),
     );
     rerender(<ChatInput onSend={vi.fn()} incoming={{ id: 2, files: [shot], text: "And this" }} />);
     await waitFor(() =>
-      expect(screen.getByRole("textbox")).toHaveValue("Two things.\nThis button\nAnd this"),
+      expect(messageOf(screen.getByRole("textbox"))).toBe("Two things.\nThis button\nAnd this"),
     );
   });
 
   it("starts the message with words handed in to an empty box", async () => {
     render(<ChatInput onSend={vi.fn()} incoming={{ id: 1, files: [], text: "This button" }} />);
 
-    await waitFor(() => expect(screen.getByRole("textbox")).toHaveValue("This button"));
+    await waitFor(() => expect(messageOf(screen.getByRole("textbox"))).toBe("This button"));
   });
 
   it("sends on Enter at a desk, and starts a new line on a touch keyboard", async () => {
@@ -361,7 +362,7 @@ describe("ChatInput attachments", () => {
     expect(touch).toHaveAttribute("enterkeyhint", "enter");
     await userEvent.type(touch, "one{Enter}two");
     expect(onSend).not.toHaveBeenCalled();
-    expect(touch).toHaveValue("one\ntwo");
+    expect(messageOf(touch)).toBe("one\ntwo");
     window.matchMedia = desk;
   });
 
@@ -373,7 +374,7 @@ describe("ChatInput attachments", () => {
     await userEvent.click(await screen.findByRole("menuitem", { name: /Commands/ }));
 
     const box = screen.getByRole("textbox");
-    expect(box).toHaveValue("/");
+    expect(messageOf(box)).toBe("/");
     expect(box).toHaveFocus();
   });
 });

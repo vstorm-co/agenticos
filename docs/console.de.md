@@ -1,5 +1,5 @@
 ---
-source_sha: "98d72a2fb17c"
+source_sha: "e18b82f7c24a"
 ---
 
 # Die Konsole { #the-console }
@@ -275,17 +275,19 @@ gesendet wird. Die eingebauten liefert das Produkt mit; eigene schreiben Sie
 unter **Settings → Slash commands**, und jeden eingebauten, den Sie nie nutzen,
 können Sie ausblenden. Sie gehören Ihnen, nicht der Organisation.
 
-**`@` zeigt dem Agent, was er nutzen soll.** Tippen Sie `@`, und ein Menü bietet,
-was der Agent nutzen kann: seine MCP-Server, Wissensbasen, Skills und
-Kontextdateien, seine Delegierten und die anderen Agents, die Sie ausführen
-dürfen. Eine Auswahl wird zum Chip über dem Eingabefeld, und der Agent wird
-angewiesen, sie zu nutzen - die Werkzeuge eines Servers, die Suche einer
-Wissensbasis, einen Skill -, ohne dass ihr Inhalt eingefügt wird. Ein Delegierter
-bekommt die Arbeit übergeben; ein Agent, an den der aktuelle keine Arbeit übergeben
-kann, beantwortet die Nachricht selbst, und die Auswahl wechselt zu ihm. Eine
-Erwähnung erweitert nie, was der Agent erreicht: Der Server prüft jede erneut als
-Sie, gegen das, was der Agent bereits hat, und die Chips bleiben an der Nachricht
-im Verlauf.
+**`@` zeigt dem Agent, was er nutzen soll.** Tippen Sie `@`, und ein Menü bietet in
+dieser Reihenfolge, was der Agent nutzen kann: seine MCP-Server, die Agents, an die
+er Arbeit übergibt (wenn die Delegations-Capability an ist), seine Capabilities -
+**Sandbox**, **Web research** - seine Skills, dann seine Wissensbasen und
+Kontextdateien. Die Auswahl bleibt als `@Name` in Ihrem Text, mit ihrem Logo
+markiert, und der Agent wird angewiesen, sie zu nutzen - die Werkzeuge eines
+Servers oder einer Capability, die Suche einer Wissensbasis, einen Skill -, ohne
+dass ihr Inhalt eingefügt wird. Einen Agent zu nennen übergibt ihm die Arbeit; wer
+antwortet, ändert es nie. Löschen Sie `@Name`, und die Auswahl ist weg. Ein
+eingefügter Link zeigt das Symbol seiner Website über dem Feld und in der
+gesendeten Nachricht. Eine Erwähnung erweitert nie, was der Agent erreicht: Der
+Server prüft jede erneut als Sie, gegen das, was der Agent bereits hat. Im
+Testpanel des Builders liest das Menü den Entwurf, den Sie testen.
 
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht

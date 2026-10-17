@@ -704,11 +704,17 @@ class ChatAgentRunner:
         return None if value is None else Decimal(str(value))
 
     async def mentions(
-        self, *, user: User, organization_id: UUID, agent_id: UUID, refs: list[MentionRef]
+        self,
+        *,
+        user: User,
+        organization_id: UUID,
+        agent_id: UUID,
+        refs: list[MentionRef],
+        draft: bool = False,
     ) -> ResolvedMentions:
         """A turn's `@`-mentions, checked as the person typing - see `MentionService.resolve`."""
         ctx = await self._context(user, organization_id)
-        return await MentionService(self.db).resolve(ctx, agent_id, refs)
+        return await MentionService(self.db).resolve(ctx, agent_id, refs, draft=draft)
 
     async def _budget(self, ctx: AuthContext) -> Decimal | None:
         organization = await self.db.get(Organization, ctx.organization_id)

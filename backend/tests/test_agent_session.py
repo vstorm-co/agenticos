@@ -3350,20 +3350,19 @@ class TestMentions:
 
     async def test_a_mention_reaches_the_model_as_a_note_and_the_transcript_as_a_chip(self):
         session = _session()
-        other = uuid4()
         drive = Mentionable(kind="mcp", id="gdrive", name="Google Drive", detail="gdrive_*")
-        resolved = ResolvedMentions(agent_id=other, mentions=[drive], note="Use Google Drive.")
+        resolved = ResolvedMentions(mentions=[drive], note="Use Google Drive.")
         run = AsyncMock(return_value=_finished_turn())
 
+        frame = _message("find the brief", mentions=[{"kind": "mcp", "id": "gdrive"}])
         with _chat(run) as chat:
             chat.runner.mentions = AsyncMock(return_value=resolved)
-            await session.process_message(
-                _message("find the brief", mentions=[{"kind": "mcp", "id": "gdrive"}])
-            )
+            await session.process_message(frame)
 
         assert chat.runner.mentions.await_args.kwargs["refs"][0].id == "gdrive"
         assert chat.prompt.await_args.kwargs["mentions"] == [drive]
-        assert run.await_args.kwargs["agent_id"] == other
+        # A mention never changes who answers.
+        assert str(run.await_args.kwargs["agent_id"]) == frame["agent_id"]
         assert run.await_args.kwargs["user_input"] == "find the brief\n\nUse Google Drive."
 
     async def test_a_frame_whose_mentions_cannot_be_read_runs_nothing(self):

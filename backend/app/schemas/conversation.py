@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.mention import MentionKind
 
 
 class MessagePart(BaseSchema):
@@ -86,7 +87,7 @@ class MessagePart(BaseSchema):
             "existed."
         ),
     )
-    mention_kind: Literal["mcp", "agent", "collection", "skill", "context"] | None = Field(
+    mention_kind: MentionKind | None = Field(
         default=None, description="What was mentioned, for a `mention` entry."
     )
     mention_id: str | None = Field(

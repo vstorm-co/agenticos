@@ -243,14 +243,17 @@ ones ship with the product; you can write your own under
 yours, not the organization's.
 
 **`@` points the agent at something.** Type `@` and a menu offers what the agent
-can use: its MCP servers, its knowledge bases, skills and context files, its
-delegates, and the other agents you may run. A pick becomes a chip above the box,
-and the agent is told to use it - a server's tools, a knowledge base's search, a
-skill - without the thing's content being pasted in. A delegate gets the work
-handed to it; an agent the current one cannot hand work to answers the message
-itself, and the picker switches to it. A mention never widens what the agent may
-reach: the server checks each one again as you, against what the agent already
-has, and the chips stay on the message in the transcript.
+can use, in this order: its MCP servers, the agents it hands work to (with the
+delegation capability on), its capabilities - **Sandbox**, **Web research** -
+its skills, then its knowledge bases and context files. The pick stays in your
+text as `@Name`, marked with its logo, and the agent is told to use it - a
+server's tools, a capability's tools, a knowledge base's search, a skill -
+without the thing's content being pasted in. Naming an agent hands it the work;
+it never changes who answers. Delete the `@Name` and the pick is gone. A link you
+paste shows its site's icon above the box and in the sent message. A mention never
+widens what the agent may reach: the server checks each one again as you, against
+what the agent already has. In the Builder's test panel the menu reads the draft
+you are testing.
 
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a

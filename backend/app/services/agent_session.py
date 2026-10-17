@@ -464,8 +464,7 @@ class AgentSession:
             await send_event(self.websocket, "error", {"message": _PICK_AN_AGENT})
             return
         # What the person pointed at with `@`, resolved as them against what the
-        # agent can reach (#2189). An agent the chat's agent does not delegate to
-        # is who answers this turn, so the resolution may change `agent_id`.
+        # agent can reach (#2189). It never changes which agent answers.
         try:
             mention_refs = requested_mentions(data)
             if mention_refs:
@@ -475,8 +474,10 @@ class AgentSession:
                         organization_id=self.organization_id,
                         agent_id=agent_id,
                         refs=mention_refs,
+                        # The test panel's draft, so a mention resolves against
+                        # what that run reaches rather than the published version.
+                        draft=requested_testing(data).draft,
                     )
-                agent_id = resolved.agent_id
                 mentioned, mention_note = resolved.mentions, resolved.note
             else:
                 mentioned, mention_note = [], None

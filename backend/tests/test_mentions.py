@@ -1,9 +1,10 @@
 """`@`-mentions (#2189): what is offered, what a frame may name, what the model reads.
 
 The refusals are the point. Only what the chat's agent already reaches is offered -
-a knowledge base it binds but whose capability is off is not - and only agents the
-person may run. A frame naming anything else has it dropped, so a mention can
-never widen what a run reaches.
+a knowledge base it binds but whose capability is off is not - and an agent only
+where the chat's agent delegates to it and the person may run it. A frame naming
+anything else has it dropped, so a mention can never widen what a run reaches, and
+none ever changes which agent answers.
 """
 
 from __future__ import annotations
@@ -71,7 +72,18 @@ class _World:
                     {"id": "knowledge"},
                     {"id": "skills"},
                     {"id": "context", "enabled": False},
-                    {"id": "subagents"},
+                    {
+                        "id": "subagents",
+                        "config": {
+                            "inline": [
+                                {
+                                    "name": "summariser",
+                                    "description": "Writes the short version",
+                                    "instructions": "Summarise.",
+                                }
+                            ]
+                        },
+                    },
                 ],
                 collection_ids=[self.collection.id, self.stranger_collection.id, uuid.uuid4()],
                 skill_ids=[self.skill.id, uuid.uuid4()],
@@ -83,11 +95,22 @@ class _World:
                     {"account": "personal", "catalog_key": "not-in-catalog"},
                     {"account": "platform"},
                 ],
-                subagents=[{"agent_id": self.reviewer.id, "agent_version_id": uuid.uuid4()}],
+                subagents=[
+                    {"agent_id": self.reviewer.id, "agent_version_id": uuid.uuid4()},
+                    {"agent_id": self.locked.id, "agent_version_id": uuid.uuid4()},
+                    {"agent_id": uuid.uuid4(), "agent_version_id": uuid.uuid4()},
+                ],
             ),
             self.writer.id: AgentSpec(
                 name="Writer", capabilities=[{"id": "context"}], context_ids=[self.context.id]
             ),
+        }
+
+        # What the Builder holds for the chat's agent: one skill, nothing published.
+        self.drafts: dict[uuid.UUID, AgentSpec] = {
+            CHAT_AGENT: AgentSpec(
+                name="Chat", capabilities=[{"id": "skills"}], skill_ids=[self.skill.id]
+            )
         }
 
     def patches(self) -> list[Any]:
@@ -96,9 +119,15 @@ class _World:
         ) -> tuple[Any, AgentSpec, Any]:
             return MagicMock(), self.specs[agent_id], uuid.uuid4()
 
+        async def draft_spec(
+            _self: object, _ctx: AuthContext, agent_id: uuid.UUID
+        ) -> tuple[Any, AgentSpec]:
+            return MagicMock(), self.drafts[agent_id]
+
         everyone = [self.chat, self.reviewer, self.writer, self.locked, self.draft]
         return [
             patch.object(module.AgentRegistryService, "get_runnable_spec", new=runnable_spec),
+            patch.object(module.AgentRegistryService, "get_draft_spec", new=draft_spec),
             patch.object(
                 module.mcp_connection_repo,
                 "get_org_scoped_by_ids",
@@ -122,9 +151,10 @@ class _World:
                 "get_many",
                 AsyncMock(return_value={self.context.id: self.context}),
             ),
-            patch.object(module, "visible_resource_ids", AsyncMock(return_value=[])),
             patch.object(
-                module.agent_repo, "list_visible", AsyncMock(return_value=(everyone, len(everyone)))
+                module.agent_repo,
+                "get_many",
+                AsyncMock(return_value={agent.id: agent for agent in everyone}),
             ),
             patch.object(
                 module,
@@ -155,21 +185,63 @@ class TestWhatIsOffered:
             by_kind.setdefault(item.kind, []).append(item.name)
 
         assert by_kind["mcp"] == ["GitHub", "Notion", "not-in-catalog", "agenticos"]
-        # A delegate first; never the chat's own agent, a draft, or one the person cannot run.
-        assert by_kind["agent"] == ["Reviewer", "Writer"]
+        # What is switched on, never a capability that is off.
+        offered_capabilities = [item.id for item in offered if item.kind == "capability"]
+        assert "knowledge" in offered_capabilities
+        assert "context" not in offered_capabilities
+        # Who it delegates to, and only them: a published delegate the person may
+        # run, then its inline specialist - never one they may not run, one that
+        # is gone, or an agent it does not delegate to.
+        assert by_kind["agent"] == ["Reviewer", "summariser"]
         # Another tenant's collection is not offered, nor files whose capability is off.
         assert by_kind["collection"] == ["Contracts"]
         assert by_kind["skill"] == ["refund-policy"]
         assert "context" not in by_kind
         github = offered[0]
         assert (github.detail, github.icon) == ("github_work_*", "github")
-        assert [item.delegate for item in offered if item.kind == "agent"] == [True, False]
+        assert [item.id for item in offered if item.kind == "agent"][1] == "inline:summariser"
+
+    async def test_capabilities_are_offered_whole_and_named_as_people_know_them(
+        self, world: Any
+    ) -> None:
+        """`@Web research`, not `@web_search`: the note names its tools, and a rename
+        in the binding is the name given - pointing the model at the default name
+        would point it at a tool it was not given."""
+        world.specs[CHAT_AGENT] = AgentSpec(
+            name="Chat",
+            capabilities=[
+                {"id": "knowledge"},
+                {"id": "context", "enabled": False},
+                {"id": "clock"},
+                {
+                    "id": "web_research",
+                    "tool_overrides": {"web_search": {"name": "search_the_web"}},
+                },
+            ],
+        )
+        offered = await MentionService(MagicMock()).available(_ctx(), CHAT_AGENT)
+        capabilities = [item for item in offered if item.kind == "capability"]
+
+        # `clock` only adds the date to the instructions: no tool, nothing to point at.
+        assert [item.id for item in capabilities] == ["knowledge", "web_research"]
+        research = capabilities[-1]
+        assert research.name != research.id
+        assert research.icon == "web_search"
+        resolved = await MentionService(MagicMock()).resolve(
+            _ctx(), CHAT_AGENT, [MentionRef(kind="capability", id="web_research")]
+        )
+        assert resolved.note is not None
+        assert f'Capability "{research.name}" - use its tools (search_the_web)' in resolved.note
+
+    async def test_an_agent_that_does_not_delegate_offers_no_agents(self, world: Any) -> None:
+        offered = await MentionService(MagicMock()).available(_ctx(), world.writer.id)
+        assert {item.kind for item in offered} == {"capability", "context"}
 
 
 class TestResolvingAFrame:
     async def test_nothing_mentioned_changes_nothing(self, world: Any) -> None:
         resolved = await MentionService(MagicMock()).resolve(_ctx(), CHAT_AGENT, [])
-        assert (resolved.agent_id, resolved.mentions, resolved.note) == (CHAT_AGENT, [], None)
+        assert (resolved.mentions, resolved.note) == ([], None)
 
     async def test_what_could_not_have_been_picked_is_dropped(self, world: Any) -> None:
         refs = [
@@ -177,49 +249,47 @@ class TestResolvingAFrame:
             MentionRef(kind="collection", id=str(world.collection.id)),
             MentionRef(kind="collection", id=str(world.stranger_collection.id)),
             MentionRef(kind="agent", id=str(world.locked.id)),
+            MentionRef(kind="agent", id=str(world.writer.id)),
             MentionRef(kind="mcp", id="platform"),
             MentionRef(kind="skill", id=str(world.skill.id)),
             MentionRef(kind="agent", id=str(world.reviewer.id)),
+            MentionRef(kind="agent", id="inline:summariser"),
         ]
         resolved = await MentionService(MagicMock()).resolve(_ctx(), CHAT_AGENT, refs)
 
-        assert resolved.agent_id == CHAT_AGENT
         assert [item.name for item in resolved.mentions] == [
             "Contracts",
             "agenticos",
             "refund-policy",
             "Reviewer",
+            "summariser",
         ]
         assert resolved.note is not None
         assert 'Knowledge base "Contracts" - search it with `search_documents`.' in resolved.note
         assert 'MCP server "agenticos" - use its tools (agenticos_*).' in resolved.note
         assert 'Skill "refund-policy"' in resolved.note
         assert 'Agent "Reviewer" - hand the work to this specialist' in resolved.note
+        assert 'Agent "summariser" - hand the work to this specialist' in resolved.note
 
-    async def test_an_agent_that_is_not_a_delegate_answers_the_turn_itself(
-        self, world: Any
-    ) -> None:
-        refs = [
-            MentionRef(kind="agent", id=str(world.writer.id)),
-            MentionRef(kind="context", id=str(world.context.id)),
-            MentionRef(kind="skill", id=str(world.skill.id)),
-        ]
-        resolved = await MentionService(MagicMock()).resolve(_ctx(), CHAT_AGENT, refs)
 
-        assert resolved.agent_id == world.writer.id
-        # The rest is resolved against the agent that answers: the writer reads
-        # context files and has no skills.
-        assert [item.name for item in resolved.mentions] == ["Writer", "glossary"]
-        assert resolved.note == (
-            "The person pointed at these for this request; use them:\n"
-            '- Context file "glossary" - use what it says.'
-        )
+class TestTheDraft:
+    """The Builder's test panel runs the draft, so it is the draft that is offered."""
 
-    async def test_an_agent_alone_is_who_answers_with_nothing_to_note(self, world: Any) -> None:
+    async def test_the_draft_is_read_instead_of_the_published_version(self, world: Any) -> None:
+        offered = await MentionService(MagicMock()).available(_ctx(), CHAT_AGENT, draft=True)
+        assert [(item.kind, item.name) for item in offered][-1] == ("skill", "refund-policy")
+        assert not any(item.kind == "mcp" for item in offered)
+
         resolved = await MentionService(MagicMock()).resolve(
-            _ctx(), CHAT_AGENT, [MentionRef(kind="agent", id=str(world.writer.id))]
+            _ctx(),
+            CHAT_AGENT,
+            [
+                MentionRef(kind="skill", id=str(world.skill.id)),
+                MentionRef(kind="collection", id=str(world.collection.id)),
+            ],
+            draft=True,
         )
-        assert (resolved.agent_id, resolved.note) == (world.writer.id, None)
+        assert [item.name for item in resolved.mentions] == ["refund-policy"]
 
 
 class TestTheFrame:

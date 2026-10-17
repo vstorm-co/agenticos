@@ -1502,14 +1502,13 @@
     "showLess": "Weniger anzeigen",
     "openApp": "App öffnen",
     "mentions": {
-      "remove": "{name} entfernen",
       "menu": "Dem Agent zeigen",
       "loading": "Lädt, was dieser Agent nutzen kann…",
+      "failed": "Was dieser Agent nutzen kann, ließ sich nicht laden.",
       "nothing": "Nichts, was dieser Agent nutzen kann, passt.",
-      "delegates": "übergibt ihm Arbeit",
-      "answers": "antwortet stattdessen",
       "kind": {
         "mcp": "MCP-Server",
+        "capability": "Capabilities",
         "agent": "Agents",
         "collection": "Wissensbasen",
         "skill": "Skills",

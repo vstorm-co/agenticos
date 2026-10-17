@@ -37,10 +37,16 @@ import {
   type SlashCommandContext,
 } from "./slash-commands";
 import { SlashCommandPalette } from "./slash-command-palette";
-import { MentionChip } from "./mention-chip";
+import { ComposerEditor, type ComposerEditorHandle } from "./composer-editor";
 import { MentionPalette } from "./mention-palette";
 import { useMentionables } from "@/hooks/use-mentionables";
-import { matching, mentionAt, withoutQuery, type MentionQuery } from "@/lib/mentions";
+import {
+  insertMention,
+  matching,
+  mentionAt,
+  stillMentioned,
+  type MentionQuery,
+} from "@/lib/mentions";
 import type { Mentionable } from "@/types/mention";
 import { FileDropOverlay } from "@/components/files";
 import { cn } from "@/lib/utils";
@@ -92,8 +98,8 @@ interface ChatInputProps {
    * `@` offers (#2189). Absent where the composer offers no mentions.
    */
   agentId?: string | null;
-  /** An agent mentioned that the chat's agent cannot hand work to: it answers instead. */
-  onAgentMentioned?: (agentId: string) => void;
+  /** Offer what the Builder's draft reaches - its test panel runs the draft. */
+  mentionsFromDraft?: boolean;
   disabled?: boolean;
   isProcessing?: boolean;
   /** When set, a stop control replaces the send button while processing. */
@@ -163,7 +169,7 @@ export function ChatInput({
   actionsSlot,
   incoming = null,
   agentId = null,
-  onAgentMentioned,
+  mentionsFromDraft = false,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
@@ -178,53 +184,50 @@ export function ChatInput({
   // Slash-command palette state. Open while message starts with "/" and the
   // caller wired a context - without one, commands have nothing to do.
   const [paletteIndex, setPaletteIndex] = useState(0);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<ComposerEditorHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const showPalette = !!slashContext && message.startsWith("/") && !message.includes("\n");
   // `@`-mentions (#2189): what was picked, and the one being typed at the caret.
-  const [mentions, setMentions] = useState<Mentionable[]>([]);
+  // A pick stays in the text as `@Name`; deleting that text unpicks it, so what
+  // is sent is always what the message still says.
+  const [picked, setPicked] = useState<Mentionable[]>([]);
+  const mentions = useMemo(() => stillMentioned(message, picked), [message, picked]);
   const [mentionQuery, setMentionQuery] = useState<MentionQuery | null>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const mentionOpen = mentionQuery !== null && agentId !== null && !showPalette;
-  const offered = useMentionables(agentId, mentionOpen || mentions.length > 0);
+  const offered = useMentionables(agentId, mentionsFromDraft);
   const mentionMatches = useMemo(
-    () =>
-      mentionOpen && mentionQuery ? matching(offered.items, mentionQuery.query, mentions) : [],
-    [mentionOpen, mentionQuery, offered.items, mentions],
+    () => (mentionOpen && mentionQuery ? matching(offered.items, mentionQuery.query) : []),
+    [mentionOpen, mentionQuery, offered.items],
   );
   if (useChanged(`${mentionMatches.length}|${mentionQuery?.query ?? ""}`)) setMentionIndex(0);
   // Another agent's servers and knowledge are not this one's, so a switch drops
   // what was picked for the previous one rather than sending what it cannot reach.
-  if (useChanged(agentId ?? "") && mentions.length > 0) setMentions([]);
+  if (useChanged(agentId ?? "") && picked.length > 0) setPicked([]);
 
-  // Where the caret goes once the picked `@query` is gone from the text - set as
-  // that text commits, so the next keystroke lands where the query was.
+  // Where the caret goes once the picked `@query` is replaced - set as that text
+  // commits, so the next keystroke lands after what was picked.
   const caretAfterPick = useRef<number | null>(null);
   useLayoutEffect(() => {
     if (caretAfterPick.current === null) return;
-    textareaRef.current?.setSelectionRange(caretAfterPick.current, caretAfterPick.current);
+    editorRef.current?.setCaret(caretAfterPick.current);
     caretAfterPick.current = null;
   }, [message]);
 
-  const typed = (text: string, caret: number) => {
+  const typed = (text: string, at: number) => {
     setMessage(text);
-    setMentionQuery(mentionAt(text, caret));
+    setMentionQuery(mentionAt(text, at));
   };
 
   const pickMention = (item: Mentionable) => {
     if (mentionQuery === null) return;
-    const next = withoutQuery(message, mentionQuery);
-    setMessage(next.text);
     setMentionQuery(null);
+    const next = insertMention(message, mentionQuery, item);
+    setMessage(next.text);
     caretAfterPick.current = next.caret;
-    if (item.kind === "agent" && !item.delegate) {
-      // Who answers, rather than something the answer uses: the picker moves.
-      onAgentMentioned?.(item.id);
-      return;
-    }
-    setMentions((picked) => [...picked, item]);
+    setPicked(mentions.includes(item) ? mentions : [...mentions, item]);
   };
   // The palette before the user's own commands have loaded: the built-ins, with their
   // copy resolved here because the registry holds keys (#446).
@@ -242,17 +245,8 @@ export function ChatInput({
   if (useChanged(`${filteredCommands.length}|${message}`)) setPaletteIndex(0);
 
   useEffect(() => {
-    if (!isProcessing && !isUploading && textareaRef.current) {
-      textareaRef.current.focus();
-    }
+    if (!isProcessing && !isUploading) editorRef.current?.focus();
   }, [isProcessing, isUploading]);
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
-    }
-  }, [message]);
 
   const runSlashCommand = useCallback(
     (cmd: SlashCommand) => {
@@ -294,7 +288,7 @@ export function ChatInput({
     );
     setMessage("");
     setAttachedFiles([]);
-    setMentions([]);
+    setPicked([]);
     setMentionQuery(null);
   };
 
@@ -455,7 +449,7 @@ export function ChatInput({
     if (incoming === null || attachedIncoming.current === incoming.id) return;
     attachedIncoming.current = incoming.id;
     void uploadFiles(incoming.files);
-    if (incoming.text) textareaRef.current?.focus();
+    if (incoming.text) editorRef.current?.focus();
   }, [incoming, uploadFiles]);
   // The words that came with them, once per hand-off and after whatever is
   // already typed - written during render, as state that follows a prop is.
@@ -479,7 +473,7 @@ export function ChatInput({
    * textarea is left alone, so the question gets typed beside it.
    */
   const handlePaste = useCallback(
-    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    (e: React.ClipboardEvent<HTMLElement>) => {
       const pastedFiles = Array.from(e.clipboardData.files);
       if (pastedFiles.length > 0) {
         e.preventDefault();
@@ -544,6 +538,7 @@ export function ChatInput({
           onSelectIndex={setMentionIndex}
           onPick={pickMention}
           isLoading={offered.isLoading}
+          failed={offered.isError}
         />
       )}
       {showPalette && (
@@ -578,33 +573,22 @@ export function ChatInput({
           it. The buttons used to sit *beside* the textarea, which is fine on
           one line and wrong on ten: the send button drifted to the vertical
           middle of a tall message, with text above it and text below. */}
-      {mentions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pt-1">
-          {mentions.map((item) => (
-            <MentionChip
-              key={`${item.kind}:${item.id}`}
-              item={item}
-              onRemove={() => setMentions((picked) => picked.filter((other) => other !== item))}
-            />
-          ))}
-        </div>
-      )}
-      <textarea
-        ref={textareaRef}
+      {/* Plain text with real chips in it: a picked mention and a settled
+          address are drawn as what they name, and the message is still the
+          one string it always was. */}
+      <ComposerEditor
+        ref={editorRef}
         value={message}
-        onChange={(e) => typed(e.target.value, e.target.selectionStart)}
+        mentions={mentions}
+        onChange={typed}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         placeholder={t("placeholder")}
         disabled={disabled}
-        rows={1}
         // What a phone's keyboard offers: a return key that reads as a line
-        // break where Enter makes one, and sentences that start capitalised.
+        // break where Enter makes one. 16px text, never less: iOS zooms the
+        // page into any field smaller than that when it is focused (#2066).
         enterKeyHint={touchKeyboard() ? "enter" : "send"}
-        autoCapitalize="sentences"
-        // 16px, never less: iOS zooms the page into any field smaller than that
-        // the moment it is focused, which is the whole screen lurching (#2066).
-        className="placeholder:text-muted-foreground block min-h-[40px] w-full resize-none scrollbar-thin bg-transparent py-2.5 text-base focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       />
 
       {/* `min-w-0` and a shrinkable right group: at 390px the controls used to
@@ -625,7 +609,7 @@ export function ChatInput({
             slashContext
               ? () => {
                   setMessage("/");
-                  textareaRef.current?.focus();
+                  editorRef.current?.focus();
                 }
               : undefined
           }

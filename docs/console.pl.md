@@ -1,5 +1,5 @@
 ---
-source_sha: "98d72a2fb17c"
+source_sha: "e18b82f7c24a"
 ---
 
 # Konsola { #the-console }
@@ -253,15 +253,17 @@ Wbudowane przychodzą razem z produktem; własne możesz napisać w
 **Settings → Slash commands**, a każdą wbudowaną, z której nie korzystasz,
 ukryć. Należą do ciebie, nie do organizacji.
 
-**`@` wskazuje agentowi, czego użyć.** Wpisz `@`, a menu pokaże to, czego agent
-może użyć: jego serwery MCP, bazy wiedzy, skille i pliki kontekstu, jego delegatów
-oraz innych agentów, których możesz uruchomić. Wybór staje się chipem nad polem
-tekstowym, a agent dostaje polecenie, by z tego skorzystał - z narzędzi serwera,
-wyszukiwania w bazie wiedzy, skilla - bez wklejania samej treści. Delegat dostaje
-zadanie do wykonania; agent, któremu bieżący nie może przekazać pracy, sam
-odpowiada na wiadomość, a wybór agenta przełącza się na niego. Wzmianka nigdy nie
+**`@` wskazuje agentowi, czego użyć.** Wpisz `@`, a menu pokaże, czego agent może
+użyć, w tej kolejności: jego serwery MCP, agentów, którym przekazuje pracę (przy
+włączonej capability delegowania), jego capabilities - **Sandbox**, **Web
+research** - jego skille, a potem bazy wiedzy i pliki kontekstu. Wybór zostaje w
+twoim tekście jako `@Nazwa`, oznaczony swoim logo, a agent dostaje polecenie, by z
+niego skorzystał - z narzędzi serwera, narzędzi capability, wyszukiwania w bazie
+wiedzy, skilla - bez wklejania samej treści. Wskazanie agenta przekazuje mu pracę;
+nigdy nie zmienia tego, kto odpowiada. Usuń `@Nazwa`, a wybór znika. Wklejony link
+pokazuje ikonę swojej strony nad polem i w wysłanej wiadomości. Wzmianka nigdy nie
 poszerza tego, do czego agent sięga: serwer sprawdza każdą ponownie jako ty, wobec
-tego, co agent już ma, a chipy zostają przy wiadomości w transkrypcie.
+tego, co agent już ma. W panelu testowym Buildera menu czyta testowany szkic.
 
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.

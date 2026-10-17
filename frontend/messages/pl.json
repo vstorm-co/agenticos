@@ -1502,14 +1502,13 @@
     "showLess": "Pokaż mniej",
     "openApp": "Otwórz appkę",
     "mentions": {
-      "remove": "Usuń {name}",
       "menu": "Wskaż agentowi",
       "loading": "Wczytywanie tego, czego agent może użyć…",
+      "failed": "Nie udało się wczytać, czego ten agent może użyć.",
       "nothing": "Nic, czego ten agent może użyć, nie pasuje.",
-      "delegates": "przekazuje mu pracę",
-      "answers": "odpowiada zamiast",
       "kind": {
         "mcp": "Serwery MCP",
+        "capability": "Capabilities",
         "agent": "Agenci",
         "collection": "Bazy wiedzy",
         "skill": "Skille",

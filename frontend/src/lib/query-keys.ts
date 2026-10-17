@@ -58,7 +58,8 @@ export const qk = {
     all: () => ["agents"] as const,
     // What `@` offers in the composer for one agent - under `agents`, so a
     // republish that changes its servers or knowledge refreshes the menu.
-    mentionables: (agentId: string) => ["agents", "mentionables", agentId] as const,
+    mentionables: (agentId: string, draft: boolean) =>
+      ["agents", "mentionables", agentId, draft] as const,
     /**
      * `includeArchived` is part of the key: the two lists are different rows.
      * So is the discovery facet - the server applies it, so two category/tag
