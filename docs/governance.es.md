@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "0400fa24d162"
 ---
 
 # Governance { #governance }
@@ -900,6 +900,22 @@ mira, y quien lo jubiló no se enteraría nunca.
 La otra clase de desbocamiento es un bucle de herramientas: barato por llamada, y no
 termina nunca. Un budget solo factura eso. `max_steps` limita cuántas peticiones al
 modelo puede hacer un run y es lo que de verdad lo detiene.
+
+### Modo código { #code-mode }
+
+Un agente que recorre registros - actualiza diez filas y luego las resume - paga
+un turno de modelo por cada llamada dependiente, y cada turno reenvía todo el
+contexto. Con el *Modo código* activado (`code_mode` en el spec, junto a los
+límites en el Builder) las herramientas del agente se pliegan en una sola
+herramienta `run_code`: el modelo escribe un script corto de Python que corre en
+el sandbox Monty y llama a las herramientas en bucles y en paralelo, hasta
+`max_tool_calls` por script.
+
+Cada llamada desde un script pasa por los mismos guardrails, el mismo budget y
+las mismas comprobaciones de permisos que una llamada directa. Una herramienta
+que necesita aprobación nunca se pliega: sigue siendo una llamada normal, y el run
+se detiene para la persona como siempre. La vista del run lista cada script y
+cada llamada que hizo.
 
 ### Informes { #reporting }
 

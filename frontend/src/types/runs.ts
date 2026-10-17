@@ -251,8 +251,19 @@ export interface RunManifest {
   requests: ManifestRequest[];
   /** The last request's messages, dumped - what the model saw at the end. */
   messages: Record<string, unknown>[];
+  /** Each `run_code` script code mode ran, and the calls it made (#2107). */
+  code_runs?: ManifestCodeRun[];
   /** Whether the record was trimmed to fit its size ceiling. */
   truncated: boolean;
+}
+
+/** One script code mode ran. */
+export interface ManifestCodeRun {
+  tool_call_id: string;
+  code: string;
+  calls: { tool: string; args: string; status: "returned" | "failed" }[];
+  /** Calls past the ones listed - a script that loops can make thousands. */
+  omitted_calls?: number;
 }
 
 export interface ToolApproval {

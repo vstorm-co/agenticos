@@ -23,12 +23,14 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RequestUsage, RunUsage
+from pydantic_ai_harness import CodeMode
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities import all_capabilities, load_builtins
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.agents.capabilities.compaction import ReportContextSize
+from app.agents.code_mode import CodeCalls
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
 from app.agents.factory import _AUDIENCE_AWARE, DEFAULT_MAX_STEPS, BuiltAgent, build_agent
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
@@ -37,6 +39,7 @@ from app.agents.spec import (
     AgentSpec,
     AlertAudience,
     AlertSpec,
+    CodeModeSpec,
     NotificationSpec,
 )
 from app.core.exceptions import BadRequestError
@@ -658,6 +661,36 @@ class TestBudgetComposition:
         )
 
         assert self._lookups(built)[BudgetScope.AGENT] is None
+
+
+class TestCodeMode:
+    """Many tool calls from one sandboxed script, when the spec asks for it (#2107)."""
+
+    def test_a_spec_written_before_it_existed_loads_with_it_off(self):
+        spec = AgentSpec.from_yaml("name: Clerk\ninstructions: Answer briefly.\n")
+        assert spec.code_mode == CodeModeSpec(enabled=False, max_tool_calls=100)
+
+    @staticmethod
+    def _attached(spec: AgentSpec, **kwargs: Any) -> list[object]:
+        built = build_agent(spec, _model_spec(), organization_id=uuid.uuid4(), **kwargs)
+        attached: list[object] = []
+        built.agent.root_capability.apply(attached.append)
+        return attached
+
+    def test_it_is_added_only_when_the_spec_asks(self):
+        on = AgentSpec(name="Clerk", code_mode=CodeModeSpec(enabled=True, max_tool_calls=25))
+
+        assert not [
+            one for one in self._attached(AgentSpec(name="Clerk")) if isinstance(one, CodeMode)
+        ]
+        (mode,) = [one for one in self._attached(on) if isinstance(one, CodeMode)]
+        assert mode.max_tool_calls == 25
+        assert [one for one in self._attached(on) if isinstance(one, CodeCalls)]
+
+    def test_a_session_that_asks_before_every_tool_gets_no_code_mode(self):
+        on = AgentSpec(name="Clerk", code_mode=CodeModeSpec(enabled=True))
+        attached = self._attached(on, gate_every_tool=True)
+        assert not [one for one in attached if isinstance(one, CodeMode | CodeCalls)]
 
 
 class TestAskingAboutEveryTool:

@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "0400fa24d162"
 ---
 
 # Governance { #governance }
@@ -982,6 +982,22 @@ hat, erführe es nie.
 Die andere Art von Ausreißer ist eine Tool-Schleife: billig je Aufruf, und sie
 wird nie fertig. Ein Budget rechnet dafür nur ab. `max_steps` deckelt, wie viele
 Modellanfragen ein Run stellen darf, und ist das, was sie tatsächlich stoppt.
+
+### Code-Modus { #code-mode }
+
+Ein Agent, der Datensätze abarbeitet - zehn Zeilen aktualisieren, dann
+zusammenfassen -, zahlt für jeden abhängigen Aufruf einen Modell-Turn, und jeder
+Turn schickt den ganzen Kontext erneut. Mit eingeschaltetem *Code-Modus*
+(`code_mode` im Spec, neben den Limits im Builder) werden die Tools des Agents in
+ein einziges `run_code`-Tool gefaltet: Das Modell schreibt ein kurzes
+Python-Skript, das in der Monty-Sandbox läuft und die Tools in Schleifen und
+parallel aufruft, bis zu `max_tool_calls` pro Skript.
+
+Jeder Aufruf aus einem Skript durchläuft dieselben Guardrails, dasselbe Budget
+und dieselben Berechtigungsprüfungen wie ein direkter Aufruf. Ein Tool, das eine
+Freigabe braucht, wird nie hineingefaltet: Es bleibt ein normaler Aufruf, und der
+Run hält wie immer für die Person an. Die Run-Ansicht listet jedes Skript und
+jeden Aufruf, den es gemacht hat.
 
 ### Berichte { #reporting }
 

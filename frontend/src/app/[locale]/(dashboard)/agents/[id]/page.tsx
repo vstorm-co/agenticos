@@ -44,6 +44,7 @@ import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
+import { CodeModeField } from "@/components/agents/code-mode-field";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
@@ -1664,6 +1665,11 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     {t("howManyModelRequests")}
                   </p>
                 </div>
+                <CodeModeField
+                  value={spec.code_mode}
+                  onChange={(code_mode) => update({ code_mode })}
+                  disabled={!canEdit}
+                />
               </CardContent>
             </Card>
             {/* Beside the budget rather than in a settings page of its own: the two

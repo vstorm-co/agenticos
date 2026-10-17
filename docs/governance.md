@@ -853,6 +853,20 @@ The other kind of runaway is a tool loop: cheap per call, and it never finishes.
 budget only bills for that. `max_steps` caps how many model requests one run may
 make and is what actually stops it.
 
+### Code mode { #code-mode }
+
+An agent that works through records - update ten rows, then summarise them - pays
+a model turn per dependent call, and every turn re-sends the whole context. With
+*Code mode* on (`code_mode` in the spec, beside the limits in the Builder) the
+agent's tools are folded into one `run_code` tool: the model writes a short Python
+script that runs in the Monty sandbox and calls the tools in loops and in
+parallel, up to `max_tool_calls` per script.
+
+Each call from a script goes through the same guardrails, budget and permission
+checks as a direct call. A tool that needs approval is never folded in: it stays
+an ordinary call, and the run stops for the person as it always does. The run view
+lists each script and every call it made.
+
 ### Reporting
 
 A run that could not be priced - a model `genai-prices` does not know - is

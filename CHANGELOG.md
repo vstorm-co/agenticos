@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Code mode: many tool calls from one sandboxed script** (#2107). An agent
+  with *Code mode* on writes a short Python script that calls its tools in loops
+  and in parallel inside the Monty sandbox, instead of one model turn per call -
+  ten record updates take one turn, not ten. Calls from a script go through the
+  same guardrails, budget and permission checks; a tool that needs approval stays
+  an ordinary call. The run view lists each script and the calls it made. Off by
+  default; switched on in the Builder beside the limits.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

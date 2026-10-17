@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "0400fa24d162"
 ---
 
 # Governance { #governance }
@@ -919,6 +919,21 @@ Drugi rodzaj rozbiegania to pętla narzędziowa: tania w przeliczeniu na wywoła
 i nigdy się nie kończy. Budżet tylko wystawia za nią rachunek. `max_steps`
 ogranicza, ile żądań do modelu może wykonać jeden run, i to on faktycznie ją
 zatrzymuje.
+
+### Tryb kodu { #code-mode }
+
+Agent, który przechodzi przez rekordy - zaktualizuj dziesięć wierszy, potem je
+podsumuj - płaci turą modelu za każde zależne wywołanie, a każda tura wysyła
+ponownie cały kontekst. Z włączonym *Trybem kodu* (`code_mode` w specu, obok
+limitów w Builderze) narzędzia agenta są zwijane w jedno narzędzie `run_code`:
+model pisze krótki skrypt Pythona, który działa w sandboksie Monty i wywołuje
+narzędzia w pętlach i równolegle, do `max_tool_calls` na skrypt.
+
+Każde wywołanie ze skryptu przechodzi przez te same guardraile, budżet i
+sprawdzenia uprawnień co wywołanie bezpośrednie. Narzędzie wymagające
+zatwierdzenia nigdy nie trafia do skryptu: pozostaje zwykłym wywołaniem, a run
+zatrzymuje się dla człowieka jak zawsze. Widok runu wymienia każdy skrypt i każde
+wywołanie, które wykonał.
 
 ### Raportowanie { #reporting }
 

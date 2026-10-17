@@ -150,7 +150,7 @@ from app.agents.connect_on_use import (
 from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
-from app.agents.manifest import as_payload, fit
+from app.agents.manifest import as_payload, carried_over, fit
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.spec import (
@@ -3989,7 +3989,13 @@ class AgentRunnerService:
         if not recorder.requests and recorder.instructions is None:
             return
         try:
-            payload, truncated = fit(as_payload(recorder))
+            payload = as_payload(recorder)
+            previous = await run_manifest_repo.get_by_run(
+                self.db, prepared.run.id, prepared.run.organization_id
+            )
+            if previous is not None:
+                payload = carried_over(previous.payload, payload)
+            payload, truncated = fit(payload)
             async with self.db.begin_nested():
                 await run_manifest_repo.record(
                     self.db,

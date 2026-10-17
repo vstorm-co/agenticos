@@ -138,6 +138,9 @@ class RunRecorder:
     #: the end of the run - retries, tool returns and reminders included, which
     #: the conversation transcript deliberately does not show.
     messages: list[dict[str, Any]] = field(default_factory=list)
+    #: Each `run_code` script code mode ran, and every tool call it made (#2107) -
+    #: one `run_code` step otherwise hides all of them.
+    code_runs: list[dict[str, Any]] = field(default_factory=list)
 
     def observe_request(
         self,
@@ -373,7 +376,30 @@ def as_payload(recorder: RunRecorder) -> dict[str, Any]:
             for request in recorder.requests
         ],
         "messages": recorder.messages,
+        "code_runs": list(recorder.code_runs),
     }
+
+
+RECORDED_SCRIPTS = 30
+"""How many code-mode scripts one run's manifest keeps, so it stays within its
+size ceiling (#2107)."""
+
+
+def carried_over(previous: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    """This segment's payload with what earlier segments of the run recorded and it cannot.
+
+    A parked run is recorded twice - at the park, and when the resumed run ends -
+    and the second recording replaces the first. Most of a payload describes the
+    whole run either way: the requests and messages a resumed run replays. The
+    scripts code mode ran do not; they happened in the segment being replaced, and
+    their calls may have changed things, so they are carried over in front of this
+    segment's own.
+    """
+    earlier = previous.get("code_runs") or []
+    if not earlier:
+        return payload
+    scripts = [*earlier, *payload.get("code_runs", [])][:RECORDED_SCRIPTS]
+    return {**payload, "code_runs": scripts}
 
 
 #: How large a stored manifest may be, as JSON bytes.
@@ -391,7 +417,9 @@ def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[s
     Trimmed in the order things are worth keeping, and **measured after each
     stage** - a ceiling that is not re-checked is not a ceiling. The messages go
     first: they are the largest by far, and the transcript beside them already
-    says what was asked and answered. The tool schemas go second, leaving each
+    says what was asked and answered. Code mode's scripts lose their calls'
+    arguments next, keeping which tools each called and how. The tool schemas go
+    after that, leaving each
     tool's name and description - the half that explains behaviour and the half
     readable nowhere else. Then the descriptions themselves, and last the
     instructions, each cut to a length rather than dropped: an agent whose
@@ -407,6 +435,12 @@ def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[s
     if _size(payload) <= limit:
         return payload, False
     trimmed = {**payload, "messages": []}
+    if _size(trimmed) <= limit:
+        return trimmed, True
+    # Then each script's calls lose their arguments and its code is clipped: what
+    # it called and how each call went is the audit, and thirty scripts of a
+    # hundred calls each would otherwise be bigger than the ceiling on their own.
+    trimmed = {**trimmed, "code_runs": [_bare(script) for script in trimmed.get("code_runs", [])]}
     if _size(trimmed) <= limit:
         return trimmed, True
     trimmed = {
@@ -439,6 +473,18 @@ def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[s
 #: of a trimmed manifest is doing - and small enough that a thousand tools cannot
 #: add up past the ceiling on their own.
 _TEXT_CLIP = 400
+
+
+def _bare(script: dict[str, Any]) -> dict[str, Any]:
+    """A recorded `run_code` script as the audit needs it: its calls without their arguments."""
+    return {
+        **script,
+        "code": _clipped(script.get("code"), _TEXT_CLIP),
+        "calls": [
+            {"tool": call.get("tool"), "status": call.get("status")}
+            for call in script.get("calls", [])
+        ],
+    }
 
 
 def _clipped(text: Any, limit: int) -> Any:
