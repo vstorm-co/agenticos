@@ -1,5 +1,5 @@
 ---
-source_sha: "036002000a56"
+source_sha: "29cf0b5c3b94"
 ---
 
 # La API HTTP { #the-http-api }
@@ -66,7 +66,7 @@ Conviene conocer dos rechazos:
 
 - **`403` "API keys are not accepted on this endpoint"**: las claves solo se
   aceptan en la API pública: agents, runs y aprobaciones, bases de conocimiento y
-  RAG, skills, archivos de contexto, aplicaciones, los servicios de ML,
+  RAG, skills, archivos de contexto, proyectos, aplicaciones, los servicios de ML,
   `/me/permissions` y los miembros, invitaciones, grupos y ajustes de una
   organización. Las rutas propias de la consola, tu cuenta, abandonar o traspasar
   una organización y la gestión de claves en sí siguen siendo solo de sesión, para

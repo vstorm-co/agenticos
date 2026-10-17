@@ -18,6 +18,7 @@ import {
   ORG_ROLES,
   SETTINGS_DETAIL,
   WORKSPACE_DETAIL,
+  PROJECT_DETAIL,
 } from "@/lib/onboarding/tour";
 import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
@@ -175,6 +176,7 @@ export function useDetailTargets(enabled: boolean): Record<string, ResolvedDetai
       // exists only so the engine treats it as a detail it need not navigate to.
       [SETTINGS_DETAIL]: { pending: false, href: ROUTES.SETTINGS_PROFILE },
       [WORKSPACE_DETAIL]: { pending: false, href: null },
+      [PROJECT_DETAIL]: { pending: false, href: null },
     }),
     [
       enabled,

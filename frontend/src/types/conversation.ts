@@ -32,6 +32,8 @@ export interface Conversation {
   is_favourite?: boolean;
   /** In the order they first answered. Empty means the general assistant. */
   agents?: ConversationAgent[];
+  /** The project it was started in, whose files and instructions its runs share. */
+  project_id?: string | null;
   /** `api` for a conversation an organization key's run opened (#2122). */
   origin?: "api" | null;
   /** Holds an answer the caller has not seen since they last had it open. Listings only. */

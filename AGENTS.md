@@ -228,6 +228,7 @@ retranslated is how a stale translation stops being visible.
 | Threat model, data flow, at-rest, the controls matrix | `docs/security.md` |
 | Skills — format, library, skills vs knowledge | `docs/skills.md` |
 | Context files — standing knowledge bound to agents | `docs/context.md` |
+| Projects: shared files, instructions and chats | `docs/projects.md` |
 | Named environments, promotion, per-environment tracing | `docs/environments.md` |
 | Surfaces: widget, WebSocket, Slack, Telegram | `docs/channels.md` |
 | Published pages: artifacts, versions, public links, isolation | `docs/artifacts.md` |

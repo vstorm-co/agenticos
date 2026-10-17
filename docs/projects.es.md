@@ -1,0 +1,107 @@
+---
+title: Proyectos
+seo_title: Proyectos - archivos e instrucciones compartidos
+description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
+source_sha: "e2bf34a4cd0d"
+---
+
+# Proyectos { #projects }
+
+Un **proyecto** es un hogar para el trabajo en curso: un lanzamiento, un informe
+mensual, un encargo de un cliente. Guarda dos cosas que comparte cada chat
+iniciado en él:
+
+- **Archivos** en un contenedor. Sube un briefing, una hoja de cálculo o una
+  carpeta entera una vez, y cada chat del proyecto - el de hoy y el de la semana
+  que viene - trabaja sobre la misma copia. Un archivo que un agent escribe en un
+  chat está en el siguiente.
+- **Instrucciones** que cada agent que responde en el proyecto lee después de las
+  suyas: el tono, los plazos, dónde está la guía de marca.
+
+Un proyecto tiene también un **agent predeterminado**, con el que empieza un chat
+nuevo en él. En un chat del proyecto puede responder cualquier agent; el
+predeterminado solo decide dónde empieza un chat.
+
+## Empezar un chat en un proyecto { #starting-a-chat-in-a-project }
+
+Dos formas de entrar:
+
+- **Nuevo chat** en la página del proyecto abre el chat con el proyecto y su agent
+  predeterminado ya elegidos.
+- El menú **+** del campo de mensaje ofrece **Trabajar en un proyecto** antes del
+  primer mensaje. La etiqueta junto al selector de agent muestra el proyecto; su
+  **×** empieza el chat fuera de él.
+
+Un chat se queda en el proyecto en el que empezó. La etiqueta de un chat existente
+lleva de vuelta al proyecto.
+
+## Lo que recibe un agent en un proyecto { #what-an-agent-gets-in-a-project }
+
+Responda el agent que responda, un run en un chat del proyecto trabaja en el
+**contenedor del proyecto** y no en un workspace propio:
+
+- Un agent sin sandbox recibe una, la del proyecto, así que un agent de chat sin
+  más puede leer y escribir los archivos del proyecto.
+- Un agent con su propia vinculación de sandbox pasa al contenedor del proyecto.
+  Los ajustes de aprobación de la vinculación se conservan, así que un autor que
+  puso **Preguntar siempre** en la shell mantiene ese control.
+- El nombre, la descripción y las instrucciones del proyecto se añaden después de
+  las instrucciones del agent. El agent sigue siendo quien es, trabajando en esto.
+
+El contenedor es una sesión de [sandbox](sandbox.md) cuando el despliegue tiene
+un servicio de sandbox, así que los archivos del proyecto también se pueden
+ejecutar, no solo leer. Sin él, el proyecto guarda sus archivos como un workspace
+almacenado, que lee y escribe igual pero no tiene shell.
+
+## Archivos { #files }
+
+La pestaña **Archivos** del proyecto es el contenedor para explorar: un árbol
+junto a un lector que abre Markdown, PDF, imágenes, hojas de cálculo y código en
+el sitio.
+
+- **Subir archivos** y **Subir carpeta** ponen los archivos en la raíz del
+  proyecto; una carpeta conserva su árbol. Cada archivo está sujeto al límite de
+  subida del despliegue.
+- **Nueva carpeta** crea una carpeta vacía para que un agent la llene.
+- La papelera junto a un archivo o una carpeta lo elimina - una carpeta con todo
+  lo que contiene - para cada chat y agent del proyecto.
+
+El directorio `.agenticos` y las carpetas propias de la plataforma no se pueden
+escribir desde aquí; una ruta fuera del proyecto se rechaza antes de escribir
+nada.
+
+## Compartir y permisos { #sharing-and-permissions }
+
+Un proyecto es privado para quien lo creó hasta que lo comparte, con el mismo
+diálogo **Compartir** que usa un agent o un skill: personas,
+[departamentos](departments.md) o toda la organización, cada uno con un nivel.
+
+| Nivel de permiso | Permiso | Lo que permite |
+|---|---|---|
+| `read` | `projects:view` | Ver el proyecto, sus archivos y sus instrucciones |
+| `use` | `projects:use` | Chatear en él, subir, crear carpetas, eliminar archivos |
+| `edit` | `projects:edit` | Cambiar sus instrucciones y su agent predeterminado, compartirlo, borrarlo |
+
+Los roles los tienen en los ámbitos habituales: Owner y Admin llegan a cada
+proyecto, un Builder trabaja en los que se le comparten y los edita, un Member
+edita los suyos y trabaja en los compartidos, y un Viewer lee lo que se le
+compartió. Un chat cuyo autor pierde `projects:use` deja de llegar a los archivos
+del proyecto en su siguiente turno.
+
+**Los chats siguen siendo de sus autores.** Compartir un proyecto comparte sus
+archivos e instrucciones, no las conversaciones que hay en él: los chats de cada
+persona en un proyecto solo los ve ella, como en el resto de la consola.
+
+## Borrar un proyecto { #deleting-a-project }
+
+Borrar un proyecto elimina su contenedor y todos sus archivos. Sus chats se
+conservan como chats normales, fuera de cualquier proyecto.
+
+## Dónde aparecen los proyectos { #where-projects-show-up }
+
+- **Proyectos** en la barra lateral muestra los cinco usados más recientemente,
+  encima del enlace a todos.
+- La tarjeta **Proyectos** del dashboard muestra una fila de ellos, con tus chats
+  en cada uno.
+- `GET /api/v1/projects` y sus subrutas forman parte de la API pública, así que un
+  script puede crear un proyecto y llenarlo de archivos. Consulta [la API](api.md).

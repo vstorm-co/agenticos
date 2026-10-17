@@ -1117,7 +1117,9 @@
       "attachFileHint": "Bilder, PDFs, Tabellen und Dokumente",
       "voiceInputHint": "Sprechen statt tippen",
       "commands": "Befehle",
-      "commandsHint": "Aus einer Liste wählen - wie das Tippen von /"
+      "commandsHint": "Aus einer Liste wählen - wie das Tippen von /",
+      "project": "In einem Projekt arbeiten",
+      "projectHint": "Diesen Chat in einem Projekt beginnen: mit seinen Dateien und Anweisungen"
     },
     "knowledgeBase": "Wissensdatenbank",
     "link": "Link",
@@ -2167,6 +2169,14 @@
         "nothingWaiting": "Nichts wartet",
         "spent": "Ausgegeben",
         "spentLabel": "{amount} ausgegeben"
+      },
+      "projects": {
+        "title": "Projekte",
+        "description": "Deine Projekte, zuletzt geänderte zuerst.",
+        "empty": {
+          "title": "Noch keine Projekte",
+          "description": "Ein Projekt hält Anweisungen und Dateien, die jeder Chat darin teilt."
+        }
       }
     },
     "edit": {
@@ -3101,7 +3111,9 @@
     "connections": "Verbindungen",
     "organization": "Organisation",
     "documents": "Dokumente",
-    "signIns": "Anmeldungen"
+    "signIns": "Anmeldungen",
+    "projects": "Projekte",
+    "allProjects": "Alle Projekte"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3708,6 +3720,18 @@
       "agent-identity": {
         "title": "Geben Sie ihm einen erkennbaren Namen",
         "body": "Den Namen wählt man im Chat aus und findet ihn im Katalog. Ein Duplikat beginnt mit dem Namen seiner Vorlage und einem Zusatz, benennen Sie es also hier um; das Handle, über das andere Agents es erreichen, bleibt gleich."
+      },
+      "projects-new": {
+        "title": "Ein Projekt anlegen",
+        "body": "Gib laufender Arbeit ein Zuhause: Anweisungen, die jeder Agent darin liest, und Dateien, die jeder Chat darin teilt."
+      },
+      "projects-list": {
+        "title": "Deine Projekte",
+        "body": "Deine eigenen Projekte und die mit dir oder deinen Abteilungen geteilten. Deine Chats darin bleiben deine."
+      },
+      "project-tabs": {
+        "title": "Chats, Dateien und Anweisungen",
+        "body": "Beginne einen Chat im Projekt, füge Dateien und Ordner hinzu, in denen seine Agents arbeiten, und lege fest, was jeder Agent hier gesagt bekommt."
       }
     },
     "chooseLanguage": "Sprache"
@@ -7189,5 +7213,67 @@
     "withKey": "Sendet einen Key",
     "answersOn": "Antwortet unter {host}",
     "failedToLoad": "Die Remote Agents konnten nicht geladen werden."
+  },
+  "projects": {
+    "title": "Projekte",
+    "pageDescription": "Anweisungen und Dateien, die jeder in einem Projekt begonnene Chat teilt, egal welcher Agent antwortet.",
+    "newProject": "Neues Projekt",
+    "newProjectHint": "Ein Ort für laufende Arbeit: Jeder Chat darin liest seine Anweisungen und arbeitet in seinen Dateien.",
+    "created": "Projekt {name} erstellt",
+    "saved": "Projekt gespeichert",
+    "deleted": "Projekt gelöscht. Seine Chats sind jetzt normale Chats.",
+    "uploaded": "{count, plural, =1 {1 Datei hinzugefügt} other {# Dateien hinzugefügt}}",
+    "removed": "Entfernt",
+    "filesUnreadable": "Die Dateien des Projekts konnten nicht gelesen werden",
+    "activeWhen": "Aktiv {when}",
+    "chatCount": "{count, plural, =0 {Noch keine Chats} =1 {1 Chat} other {# Chats}}",
+    "projectCount": "{count, plural, =1 {1 Projekt} other {# Projekte}}",
+    "startsWith": "Beginnt mit {agent}",
+    "noDefaultAgent": "Kein Standard - der im Chat gewählte Agent",
+    "name": "Name",
+    "namePlaceholder": "Q3-Launch",
+    "description": "Beschreibung",
+    "descriptionPlaceholder": "Wofür dieses Projekt ist",
+    "defaultAgent": "Standard-Agent",
+    "defaultAgentHint": "Ein neuer Chat im Projekt beginnt mit diesem Agent. Antworten kann darin trotzdem jeder Agent.",
+    "instructions": "Anweisungen",
+    "instructionsHint": "Jeder Agent, der im Projekt antwortet, liest sie nach seinen eigenen.",
+    "instructionsPlaceholder": "Schreibe auf Deutsch. Der Brand Guide liegt in brand/guide.pdf.",
+    "whoWorksInIt": "Wer darin arbeitet",
+    "cancel": "Abbrechen",
+    "create": "Erstellen",
+    "save": "Speichern",
+    "newChat": "Neuer Chat",
+    "chats": "Chats",
+    "files": "Dateien",
+    "untitledChat": "Chat ohne Titel",
+    "noChatsYet": "Noch keine Chats in diesem Projekt",
+    "noChatsHint": "Beginne einen: Er liest die Anweisungen des Projekts und arbeitet in seinen Dateien.",
+    "noChatsViewer": "Du kannst die Dateien und Anweisungen dieses Projekts lesen, aber nicht darin chatten.",
+    "uploadFiles": "Dateien hochladen",
+    "uploadFolder": "Ordner hochladen",
+    "newFolder": "Neuer Ordner",
+    "folderName": "Ordnername",
+    "folderPlaceholder": "berichte",
+    "remove": "Entfernen",
+    "removeTitle": "{path} entfernen?",
+    "removeBody": "Es verschwindet für jeden Chat und Agent im Projekt. Ein Ordner verschwindet mit allem darin.",
+    "delete": "Löschen",
+    "deleteProject": "Projekt löschen",
+    "deleteProjectHint": "Seine Dateien gehen mit. Seine Chats bleiben als normale Chats.",
+    "deleteTitle": "{name} löschen?",
+    "cannotSee": "Du kannst in dieser Organisation keine Projekte sehen",
+    "askForAccess": "Bitte einen Administrator um Zugriff auf Projekte.",
+    "search": "Projekte suchen",
+    "noMatches": "Kein Projekt passt",
+    "searchedNames": "Durchsucht werden Namen und Beschreibungen.",
+    "noProjectsYet": "Noch keine Projekte",
+    "noProjectsHint": "Ein Projekt hält Anweisungen und Dateien, die jeder Chat darin teilt.",
+    "pickTitle": "In einem Projekt arbeiten",
+    "pickHint": "Der Chat liest die Anweisungen des Projekts und arbeitet in seinen Dateien. Er bleibt im Projekt.",
+    "noProject": "Kein Projekt",
+    "noProjectHint": "Ein normaler Chat",
+    "manageProjects": "Neues oder alle Projekte",
+    "leaveProject": "Außerhalb von {name} beginnen"
   }
 }

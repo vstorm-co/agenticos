@@ -107,6 +107,8 @@ interface ChatInputProps {
    * stay inside this `<form>` to submit it.
    */
   controlsSlot?: ReactNode;
+  /** Opens the project picker from the `+`; absent where a chat cannot change project. */
+  onProject?: () => void;
   /**
    * Icons drawn before the microphone: what the conversation is using, and the
    * model it runs on. Icons, because a line of readings and a model's name took
@@ -143,6 +145,7 @@ export function ChatInput({
   attachmentSlot,
   mic,
   controlsSlot,
+  onProject,
   actionsSlot,
   incoming = null,
 }: ChatInputProps) {
@@ -519,6 +522,7 @@ export function ChatInput({
                 }
               : undefined
           }
+          onProject={onProject}
           disabled={disabled || isUploading}
         />
         {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}

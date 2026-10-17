@@ -1,5 +1,5 @@
 ---
-source_sha: "036002000a56"
+source_sha: "29cf0b5c3b94"
 ---
 
 # API HTTP { #the-http-api }
@@ -65,7 +65,7 @@ Warto znać dwie odmowy:
 
 - **`403` "API keys are not accepted on this endpoint"** — klucze są przyjmowane
   wyłącznie w publicznym API: agenci, runy i zatwierdzenia, bazy wiedzy i RAG,
-  skille, pliki kontekstu, aplikacje, usługi ML, `/me/permissions` oraz
+  skille, pliki kontekstu, projekty, aplikacje, usługi ML, `/me/permissions` oraz
   członkowie, zaproszenia, grupy i ustawienia organizacji. Własne trasy konsoli,
   twoje konto, opuszczenie lub przekazanie organizacji i samo zarządzanie kluczami
   pozostają tylko dla sesji, więc wyciekły klucz nie wybije swojego następcy.

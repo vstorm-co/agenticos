@@ -38,6 +38,23 @@ Two things are versioned separately from this file and worth knowing about:
   run. Claude Code runs on an Anthropic key or a `claude setup-token`
   subscription token, Codex on an OpenAI key or a ChatGPT sign-in. The
   `workbench` runtime now carries Claude Code 2.1.288 and Codex 0.160.0.
+- **Projects.** A project holds instructions and files in one container that
+  every chat started in it shares, whichever agent answers: a chat agent without
+  a sandbox is given the project's, and every agent reads the project's
+  instructions after its own. Start one from the project's **New chat** or the
+  composer's **+**; upload files and folders on its **Files** tab; share it with
+  people, departments or the organization (`projects:view`, `projects:use`,
+  `projects:edit`). Chats stay their authors' own, and a deleted project leaves
+  them as ordinary chats. The sidebar lists your recent projects and the
+  dashboard has a **Projects** card. See [Projects](docs/projects.md).
+
+### Fixed
+
+- **The collapsed sidebar matches the open one.** A folded group stays folded on
+  the icon rail, which now has the same row height and group spacing, so no icon
+  moves when the column collapses.
+- **Remote agents load in the console** (#2092). The page called a route the
+  console did not proxy, so it answered 404.
 
 ## [1.1.1] - 2026-10-16
 

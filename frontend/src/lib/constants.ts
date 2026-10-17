@@ -53,6 +53,10 @@ export const ROUTES = {
   DOCUMENT_FOLDER: (id: string) => `/documents/${id}`,
   SKILLS: "/skills",
   CONTEXT: "/context",
+  PROJECTS: "/projects",
+  PROJECT_DETAIL: (id: string) => `/projects/${id}`,
+  /** A new chat in a project, starting with its default agent. */
+  PROJECT_CHAT: (id: string) => `/chat?project=${id}`,
   ARTIFACTS: "/apps",
   ARTIFACT_DETAIL: (id: string) => `/apps/${id}`,
   ORG_SETTINGS: (id: string) => `/orgs/${id}/settings`,

@@ -58,7 +58,7 @@ Two refusals are worth knowing:
 
 - **`403` "API keys are not accepted on this endpoint"** — keys are accepted on
   the public API only: agents, runs and approvals, knowledge bases and RAG, skills,
-  context files, apps, the ML services, `/me/permissions`, and an
+  context files, projects, apps, the ML services, `/me/permissions`, and an
   organization's members, invitations, groups and settings. The console's own
   routes, your account, leaving or handing over an organization, and key
   management itself stay session-only, so a leaked key cannot mint its successor.

@@ -12,6 +12,7 @@ import { ChatEmptyState } from "./chat-empty-state";
 import type { PageComment } from "./browser-comment";
 import { ChatInput, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
+import { ProjectChip } from "./project-chip";
 import { UsageMeter } from "./usage-meter";
 import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
@@ -690,6 +691,7 @@ function ChatUI({
   // its level. See `VoiceGlow` for why it is a second capture.
   const mic = useMicrophone();
   const [composerFocused, setComposerFocused] = useState(false);
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   // What the composer is handed from outside it: the caller's files, or a
   // comment pointed at the browser's page. The newer wins, and a caller's new
   // files replace a comment the way a comment replaces them.
@@ -989,7 +991,23 @@ function ChatUI({
                         mic={mic}
                         // Who answers first and largest: it is the most
                         // consequential choice in the composer.
-                        controlsSlot={agentFixed ? undefined : <AgentPicker />}
+                        controlsSlot={
+                          agentFixed ? undefined : (
+                            <>
+                              <AgentPicker />
+                              <ProjectChip
+                                conversationId={conversationId}
+                                pickerOpen={projectPickerOpen}
+                                onPickerOpenChange={setProjectPickerOpen}
+                              />
+                            </>
+                          )
+                        }
+                        onProject={
+                          agentFixed || conversationId
+                            ? undefined
+                            : () => setProjectPickerOpen(true)
+                        }
                         actionsSlot={
                           <>
                             {/* Wide screens only, as is the panel it opens. */}

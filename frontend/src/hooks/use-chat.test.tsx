@@ -2140,6 +2140,22 @@ describe("useChat - what goes out with a turn", () => {
     expect(frame(0)).not.toHaveProperty("file_ids");
   });
 
+  it("files a new thread into the project picked for it, and only the first turn", () => {
+    useConversationStore.getState().setPendingProjectId("p-1");
+    const { result, rerender } = renderHook(({ id }) => useChat({ conversationId: id }), {
+      wrapper,
+      initialProps: { id: null as string | null },
+    });
+
+    act(() => result.current.sendMessage("hello"));
+    expect(frame(0)).toMatchObject({ conversation_id: null, project_id: "p-1" });
+
+    rerender({ id: "c-1" });
+    receive("complete", {});
+    act(() => result.current.sendMessage("again"));
+    expect(frame(1)).not.toHaveProperty("project_id");
+  });
+
   it("carries the per-turn model override, and only when it is set", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 

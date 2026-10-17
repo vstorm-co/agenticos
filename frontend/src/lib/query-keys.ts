@@ -476,6 +476,16 @@ export const qk = {
     all: () => ["local-services"] as const,
     list: () => ["local-services", "list"] as const,
   },
+  projects: {
+    all: () => ["projects"] as const,
+    list: (query: { search: string; skip: number; limit: number }) =>
+      ["projects", "list", query] as const,
+    detail: (id: string) => ["projects", id] as const,
+    files: (id: string) => ["projects", id, "files"] as const,
+    file: (id: string, path: string) => ["projects", id, "file", path] as const,
+    // The same file's bytes, keyed apart from its text: two bodies for one path.
+    bytes: (id: string, path: string) => ["projects", id, "bytes", path] as const,
+  },
   externalAgents: {
     all: () => ["external-agents"] as const,
     list: () => ["external-agents", "list"] as const,

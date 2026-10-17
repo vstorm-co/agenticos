@@ -1117,7 +1117,9 @@
       "attachFileHint": "Images, PDFs, spreadsheets and documents",
       "voiceInputHint": "Speak instead of typing",
       "commands": "Commands",
-      "commandsHint": "Pick one from a list - the same as typing /"
+      "commandsHint": "Pick one from a list - the same as typing /",
+      "project": "Work in a project",
+      "projectHint": "Start this chat in a project: its files and instructions"
     },
     "knowledgeBase": "Knowledge base",
     "link": "Link",
@@ -2167,6 +2169,14 @@
         "nothingWaiting": "Nothing waiting",
         "spent": "Spent",
         "spentLabel": "{amount} spent"
+      },
+      "projects": {
+        "title": "Projects",
+        "description": "Your projects, most recently changed first.",
+        "empty": {
+          "title": "No projects yet",
+          "description": "A project keeps instructions and files that every chat in it shares."
+        }
       }
     },
     "edit": {
@@ -3219,7 +3229,9 @@
     "connections": "Connections",
     "organization": "Organization",
     "documents": "Documents",
-    "signIns": "Sign-ins"
+    "signIns": "Sign-ins",
+    "projects": "Projects",
+    "allProjects": "All projects"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3826,6 +3838,18 @@
       "agent-identity": {
         "title": "Call it something recognizable",
         "body": "The name is what people pick in chat and find in the catalog. A duplicate starts as its source with a suffix, so rename it here; the handle other agents reach it by stays the same."
+      },
+      "projects-new": {
+        "title": "Start a project",
+        "body": "Give ongoing work a home: instructions every agent in it reads, and files every chat in it shares."
+      },
+      "projects-list": {
+        "title": "Your projects",
+        "body": "The projects you own and the ones shared with you or your departments. Your chats in each stay your own."
+      },
+      "project-tabs": {
+        "title": "Chats, files and instructions",
+        "body": "Start a chat in the project, add files and folders its agents work in, and set what every agent here is told."
       }
     },
     "chooseLanguage": "Language"
@@ -7306,5 +7330,67 @@
     "withKey": "Sends a key",
     "answersOn": "Answers on {host}",
     "failedToLoad": "The remote agents could not be loaded."
+  },
+  "projects": {
+    "title": "Projects",
+    "pageDescription": "Instructions and files shared by every chat started in a project, whichever agent answers.",
+    "newProject": "New project",
+    "newProjectHint": "A place for ongoing work: every chat in it reads its instructions and works in its files.",
+    "created": "Project {name} created",
+    "saved": "Project saved",
+    "deleted": "Project deleted. Its chats are ordinary chats now.",
+    "uploaded": "{count, plural, =1 {1 file added} other {# files added}}",
+    "removed": "Removed",
+    "filesUnreadable": "The project's files could not be read",
+    "activeWhen": "Active {when}",
+    "chatCount": "{count, plural, =0 {No chats yet} =1 {1 chat} other {# chats}}",
+    "projectCount": "{count, plural, =1 {1 project} other {# projects}}",
+    "startsWith": "Starts with {agent}",
+    "noDefaultAgent": "No default - the agent chosen in the chat",
+    "name": "Name",
+    "namePlaceholder": "Q3 launch",
+    "description": "Description",
+    "descriptionPlaceholder": "What this project is for",
+    "defaultAgent": "Default agent",
+    "defaultAgentHint": "A new chat in the project starts with this agent. Any agent can still answer in it.",
+    "instructions": "Instructions",
+    "instructionsHint": "Every agent answering in the project reads these after its own.",
+    "instructionsPlaceholder": "Write in British English. The brand guide is in brand/guide.pdf.",
+    "whoWorksInIt": "Who works in it",
+    "cancel": "Cancel",
+    "create": "Create",
+    "save": "Save",
+    "newChat": "New chat",
+    "chats": "Chats",
+    "files": "Files",
+    "untitledChat": "Untitled chat",
+    "noChatsYet": "No chats in this project yet",
+    "noChatsHint": "Start one: it reads the project's instructions and works in its files.",
+    "noChatsViewer": "You can read this project's files and instructions, but not chat in it.",
+    "uploadFiles": "Upload files",
+    "uploadFolder": "Upload folder",
+    "newFolder": "New folder",
+    "folderName": "Folder name",
+    "folderPlaceholder": "reports",
+    "remove": "Remove",
+    "removeTitle": "Remove {path}?",
+    "removeBody": "It goes for every chat and agent in the project. A folder goes with everything in it.",
+    "delete": "Delete",
+    "deleteProject": "Delete project",
+    "deleteProjectHint": "Its files go with it. Its chats stay, as ordinary chats.",
+    "deleteTitle": "Delete {name}?",
+    "cannotSee": "You cannot see projects in this organization",
+    "askForAccess": "Ask an administrator for access to projects.",
+    "search": "Search projects",
+    "noMatches": "No projects match",
+    "searchedNames": "Names and descriptions are searched.",
+    "noProjectsYet": "No projects yet",
+    "noProjectsHint": "A project keeps instructions and files that every chat in it shares.",
+    "pickTitle": "Work in a project",
+    "pickHint": "The chat reads the project's instructions and works in its files. It stays in the project.",
+    "noProject": "No project",
+    "noProjectHint": "An ordinary chat",
+    "manageProjects": "New or all projects",
+    "leaveProject": "Start outside {name}"
   }
 }

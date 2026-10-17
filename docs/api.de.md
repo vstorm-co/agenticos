@@ -1,5 +1,5 @@
 ---
-source_sha: "036002000a56"
+source_sha: "29cf0b5c3b94"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -69,7 +69,7 @@ Zwei Ablehnungen sollten Sie kennen:
 
 - **`403` "API keys are not accepted on this endpoint"** — Schlüssel werden nur in
   der öffentlichen API angenommen: Agents, Runs und Freigaben, Wissensbasen und
-  RAG, Skills, Kontextdateien, Apps, die ML-Dienste, `/me/permissions`
+  RAG, Skills, Kontextdateien, Projekte, Apps, die ML-Dienste, `/me/permissions`
   sowie Mitglieder, Einladungen, Gruppen und Einstellungen einer Organisation.
   Die eigenen Routen der Konsole, Ihr Konto, das Verlassen oder Übergeben einer
   Organisation und die Schlüsselverwaltung selbst bleiben Sitzungen vorbehalten,

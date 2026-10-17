@@ -1,0 +1,159 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { toast } from "sonner";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  uploadPath,
+  useProject,
+  useProjectChats,
+  useProjectFiles,
+  useProjects,
+} from "./use-projects";
+import { apiClient } from "@/lib/api-client";
+import * as api from "@/lib/projects-api";
+import type { Project } from "@/types/projects";
+
+vi.mock("@/lib/projects-api", () => ({
+  listProjects: vi.fn(),
+  getProject: vi.fn(),
+  createProject: vi.fn(),
+  updateProject: vi.fn(),
+  deleteProject: vi.fn(),
+  listProjectFiles: vi.fn(),
+  uploadProjectFile: vi.fn(),
+  createProjectFolder: vi.fn(),
+  removeProjectPath: vi.fn(),
+}));
+vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+function wrapper({ children }: { children: ReactNode }) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+const PROJECT = { id: "p-1", name: "Launch" } as Project;
+const LISTING = { scope: "project", items: [], total: 0 };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(api.listProjects).mockResolvedValue({ items: [PROJECT], total: 1 });
+  vi.mocked(api.getProject).mockResolvedValue(PROJECT);
+  vi.mocked(api.createProject).mockResolvedValue(PROJECT);
+  vi.mocked(api.updateProject).mockResolvedValue(PROJECT);
+  vi.mocked(api.deleteProject).mockResolvedValue(undefined);
+  vi.mocked(api.listProjectFiles).mockResolvedValue(LISTING as never);
+  vi.mocked(api.uploadProjectFile).mockResolvedValue({ path: "a" });
+  vi.mocked(api.createProjectFolder).mockResolvedValue({ path: "docs" });
+  vi.mocked(api.removeProjectPath).mockResolvedValue(undefined);
+});
+
+describe("useProjects", () => {
+  it("lists one page and says so when one is created", async () => {
+    const { result } = renderHook(() => useProjects({ search: "la" }), { wrapper });
+    await waitFor(() => expect(result.current.projects).toEqual([PROJECT]));
+    expect(result.current.total).toBe(1);
+    expect(api.listProjects).toHaveBeenCalledWith({ search: "la", skip: 0, limit: 50 });
+
+    await act(() => result.current.create.mutateAsync({ name: "Launch" }));
+    expect(toast.success).toHaveBeenCalledWith("Project Launch created");
+  });
+
+  it("asks for nothing when it is not wanted", () => {
+    const { result } = renderHook(() => useProjects({ enabled: false }), { wrapper });
+    expect(result.current.projects).toEqual([]);
+    expect(api.listProjects).not.toHaveBeenCalled();
+  });
+});
+
+describe("useProject", () => {
+  it("reads one, saves it and deletes it, toasting each", async () => {
+    const { result } = renderHook(() => useProject("p-1"), { wrapper });
+    await waitFor(() => expect(result.current.project).toEqual(PROJECT));
+
+    await act(() => result.current.update.mutateAsync({ instructions: "Be brief." }));
+    expect(api.updateProject).toHaveBeenCalledWith("p-1", { instructions: "Be brief." });
+    await act(() => result.current.remove.mutateAsync());
+    expect(toast.success).toHaveBeenLastCalledWith(
+      "Project deleted. Its chats are ordinary chats now.",
+    );
+  });
+
+  it("says why a save or a delete was refused", async () => {
+    vi.mocked(api.updateProject).mockRejectedValue(new Error("no"));
+    vi.mocked(api.deleteProject).mockRejectedValue(new Error("no"));
+    const { result } = renderHook(() => useProject("p-1"), { wrapper });
+    await waitFor(() => expect(result.current.project).not.toBeNull());
+
+    await act(async () => {
+      await result.current.update.mutateAsync({}).catch(() => undefined);
+      await result.current.remove.mutateAsync().catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("useProjectFiles", () => {
+  it("uploads each file into its folder, makes folders and removes paths", async () => {
+    const { result } = renderHook(() => useProjectFiles("p-1"), { wrapper });
+    await waitFor(() => expect(result.current.files).toEqual(LISTING));
+
+    const a = new File(["a"], "a.md");
+    const b = new File(["b"], "b.md");
+    await act(() => result.current.upload.mutateAsync({ files: [a, b], folder: "docs" }));
+    expect(api.uploadProjectFile).toHaveBeenCalledWith("p-1", b, "docs/b.md");
+    expect(toast.success).toHaveBeenCalledWith("2 files added");
+
+    await act(() => result.current.addFolder.mutateAsync("notes"));
+    expect(api.createProjectFolder).toHaveBeenCalledWith("p-1", "notes");
+    await act(() => result.current.remove.mutateAsync("notes"));
+    expect(toast.success).toHaveBeenLastCalledWith("Removed");
+  });
+
+  it("names a refused write and an unreadable listing", async () => {
+    vi.mocked(api.listProjectFiles).mockRejectedValue(new Error("down"));
+    vi.mocked(api.uploadProjectFile).mockRejectedValue(new Error("too big"));
+    vi.mocked(api.createProjectFolder).mockRejectedValue(new Error("no"));
+    vi.mocked(api.removeProjectPath).mockRejectedValue(new Error("no"));
+    const { result } = renderHook(() => useProjectFiles("p-1"), { wrapper });
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+
+    await act(async () => {
+      await result.current.upload
+        .mutateAsync({ files: [new File(["a"], "a")], folder: "" })
+        .catch(() => undefined);
+      await result.current.addFolder.mutateAsync("x").catch(() => undefined);
+      await result.current.remove.mutateAsync("x").catch(() => undefined);
+    });
+    expect(toast.error).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("useProjectChats", () => {
+  it("lists the reader's chats in the project", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "c-1" }], total: 1 });
+    const { result } = renderHook(() => useProjectChats("p-1"), { wrapper });
+    await waitFor(() => expect(result.current.total).toBe(1));
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/conversations?project_id=p-1&limit=100&sort_by=updated_at",
+    );
+  });
+
+  it("starts empty", () => {
+    vi.mocked(apiClient.get).mockReturnValue(new Promise(() => undefined));
+    const { result } = renderHook(() => useProjectChats("p-1"), { wrapper });
+    expect(result.current.chats).toEqual([]);
+    expect(result.current.total).toBe(0);
+  });
+});
+
+describe("uploadPath", () => {
+  it("keeps a folder upload's tree and puts a file at the top otherwise", () => {
+    const nested = new File(["x"], "a.md");
+    Object.defineProperty(nested, "webkitRelativePath", { value: "brand/a.md" });
+    expect(uploadPath(nested, "")).toBe("brand/a.md");
+    expect(uploadPath(new File(["x"], "b.md"), "")).toBe("b.md");
+  });
+});

@@ -4,6 +4,7 @@ import {
   Activity,
   Boxes,
   FileText,
+  FolderKanban,
   FolderOpen,
   BookOpen,
   Bot,
@@ -47,6 +48,8 @@ export type NavItem = {
    * `/admin/users`, `/admin/system` - so each is still the section's page.
    */
   tabbed?: boolean;
+  /** Lit on its own page only - a project's page lights the project's own row instead. */
+  exact?: boolean;
 };
 
 /** The section hue a group carries - see "Section hues" in `globals.css`. */
@@ -74,6 +77,23 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { labelKey: "dashboard", href: ROUTES.DASHBOARD, icon: LayoutDashboard },
       { labelKey: "chat", href: ROUTES.CHAT, icon: MessageSquare },
+    ],
+  },
+  // Somebody's ongoing work: the projects they are in, most recent first, drawn
+  // above this entry by the sidebar itself (`ProjectRows`) - the list is data,
+  // not a table row. The entry is what every project's page belongs to.
+  {
+    labelKey: "projects",
+    domain: "use",
+    items: [
+      {
+        labelKey: "allProjects",
+        href: ROUTES.PROJECTS,
+        icon: FolderKanban,
+        permission: Perm.projectsView,
+        dataTour: "nav-projects",
+        exact: true,
+      },
     ],
   },
   {
