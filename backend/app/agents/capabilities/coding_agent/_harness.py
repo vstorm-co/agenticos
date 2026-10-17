@@ -73,36 +73,19 @@ _CLAUDE_KINDS: dict[str, StepKind] = {
 _CLAUDE_QUIET = frozenset({"TodoWrite"})
 """Bookkeeping calls, not steps a person would recognise as work."""
 
-_CLAUDE_EDITING_TOOLS = "Edit,MultiEdit,Write,NotebookEdit"
-"""What a read-only Claude Code session is not given at all."""
+_CLAUDE_WRITING_TOOLS = "Edit,MultiEdit,Write,NotebookEdit,Bash"
+"""What a read-only Claude Code session is not given at all - the shell included.
 
-_CLAUDE_READING_COMMANDS = ",".join(
-    f"Bash({command}:*)"
-    for command in (
-        "ls",
-        "cat",
-        "head",
-        "tail",
-        "wc",
-        "grep",
-        "rg",
-        "git status",
-        "git log",
-        "git diff",
-        "git show",
-    )
-)
-"""The shell commands a read-only session may run unasked - each only reads.
-
-Not `find`, whose `-delete` and `-exec` make it a writer; the Glob tool lists
-files instead.
+The shell because no list of command prefixes keeps it read-only: a rule is a
+trailing wildcard, and `git log --output=<file>` matches `git log` as well as
+any read does. Read, Grep and Glob read everything a review needs and write
+nothing, whatever they are asked.
 """
 
 _READ_ONLY_NOTE = (
-    "You are running read-only: you cannot change files, and the only commands you "
-    "may run are ones that read (ls, cat, grep, rg, git log, git diff). Nobody can "
-    "approve anything else - there is no person at this terminal. Where a change or "
-    "another command would be needed, say what it would be."
+    "You are running read-only: you cannot change files or run commands. Read files "
+    "with Read, Grep and Glob. Nobody can approve anything else - there is no person "
+    "at this terminal. Where a change or a command would be needed, say what it would be."
 )
 """What a read-only Claude Code session is told, so it does not ask for an approval nobody can give."""
 
@@ -221,11 +204,9 @@ def invocation(
         argv += (
             [
                 "--permission-mode",
-                "default",
+                "plan",
                 "--disallowedTools",
-                _CLAUDE_EDITING_TOOLS,
-                "--allowedTools",
-                _CLAUDE_READING_COMMANDS,
+                _CLAUDE_WRITING_TOOLS,
                 "--append-system-prompt",
                 _READ_ONLY_NOTE,
             ]

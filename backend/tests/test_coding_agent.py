@@ -201,7 +201,9 @@ def _lines(events: list[dict[str, Any]]) -> str:
 
 
 class TestTheCommand:
-    def test_claude_code_read_only_takes_its_editing_tools_away(self) -> None:
+    def test_claude_code_read_only_has_no_tool_that_writes_not_even_the_shell(self) -> None:
+        """No list of command prefixes keeps a shell read-only - `git log
+        --output=<file>` matches `git log` - so a read-only session has none."""
         command = invocation(
             "claude_code",
             "read_only",
@@ -215,12 +217,11 @@ class TestTheCommand:
         flags = command.argv[command.argv.index("--permission-mode") :]
         assert flags[:4] == [
             "--permission-mode",
-            "default",
+            "plan",
             "--disallowedTools",
-            "Edit,MultiEdit,Write,NotebookEdit",
+            "Edit,MultiEdit,Write,NotebookEdit,Bash",
         ]
-        allowed = flags[flags.index("--allowedTools") + 1]
-        assert "Bash(git log:*)" in allowed and "find" not in allowed
+        assert "--allowedTools" not in flags
         assert "nobody can approve" in flags[flags.index("--append-system-prompt") + 1].lower()
         assert command.env["ANTHROPIC_API_KEY"] == "sk-a"
         assert "sk-a" not in command.detached_line(task_files("t"))
@@ -609,7 +610,7 @@ class TestRunningATask:
         ((line, env, timeout),) = [
             command for command in shell.commands if command[0].startswith("(setsid")
         ]
-        assert "--permission-mode default" in line and f"{WORK_DIR}/" in line
+        assert "--permission-mode plan" in line and f"{WORK_DIR}/" in line
         assert env is not None and env["ANTHROPIC_API_KEY"] == "sk-test"
         assert timeout == 60
         assert [entry.model_name for entry in ledger.entries] == ["claude-sonnet-5-5"]

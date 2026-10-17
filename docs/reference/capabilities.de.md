@@ -1,5 +1,5 @@
 ---
-source_sha: "07a07ea56998"
+source_sha: "f461d042a7d7"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1177,9 +1177,11 @@ Harness jede Datei und führt jeden Befehl im Sandbox aus, mit abgeschalteten ei
 Rückfragen (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`):
 Niemand sitzt an seinem Terminal, und die Grenze ist der Container, für den beide
 Schalter dokumentiert sind. Bei `read_only` läuft Claude Code im
-Standard-Berechtigungsmodus ohne seine Bearbeitungstools und nur mit lesenden Befehlen
-(`ls`, `cat`, `grep`, `rg`, `git log`, `git diff`, `git show`, `git status`) und
-weiß, dass nichts anderes freigegeben werden kann. Codex hat kein `read_only`: Sein
+Planmodus ohne jedes Tool, das schreibt - ohne seine Bearbeitungstools und ohne Shell -
+und liest mit Read, Grep und Glob; es weiß, dass nichts anderes freigegeben werden
+kann. Nicht einmal lesende Befehle: Keine Liste von Befehlspräfixen hält eine Shell
+schreibgeschützt, denn `git log --output=<Datei>` passt auf `git log` wie jeder
+Lesezugriff. Codex hat kein `read_only`: Sein
 Nur-Lesen-Modus ist ein eigener Sandbox, der im Container des Agent nicht startet,
 und das Veröffentlichen lehnt die Kombination ab. Ob ein Mensch vor jeder Aufgabe Ja
 sagt, ist die **Freigabe durch einen Menschen** der Capability, auf **Immer fragen**
@@ -1198,8 +1200,10 @@ gestoppt. Im Hintergrund heißt auch, dass eine Aufgabe nicht an der Obergrenze 
 Sandbox-Dienstes für einen Befehl abgeschnitten wird.
 
 **Die Aufgaben einer Unterhaltung setzen eine Sitzung fort.** Die Sitzungs-ID des
-Harness liegt im Sandbox neben der Arbeit, unter `.agenticos/coding-agent/`, sodass
-die zweite Aufgabe in einem Chat weiß, was die erste gelesen hat. Das Modell übergibt
+Harness liegt im Sandbox neben der Arbeit, unter `.agenticos/coding-agent/`, eine je
+Unterhaltung, sodass die zweite Aufgabe in einem Chat weiß, was die erste gelesen hat -
+und ein Chat setzt nie die Sitzung eines anderen fort, in einem Sandbox, den mehrere
+teilen: dem eines Projekts oder einem, der einer Person oder einem Agent gehört. Das Modell übergibt
 `fresh_session`, um neu zu beginnen, und eine Sitzung, die der Sandbox nicht mehr
 hat, beginnt von selbst neu, einmal.
 
@@ -1215,9 +1219,12 @@ das `claude setup-token` für ein Claude-Pro- oder -Max-Abo ausgibt, als Key
 gespeichert — erkannt an seinem Präfix `sk-ant-oat`; es meldet sich nur bei Anthropic
 an, nicht bei einem Gateway. Codex nimmt einen OpenAI-API-Key oder eine
 ChatGPT-Anmeldung über **Sign in with ChatGPT**, dieselbe, die ein
-[Modellprofil](../models.md) nutzt. Für eine Aufgabe wird die Anmeldung in Codex'
-eigene `auth.json` außerhalb des Workspace geschrieben und danach entfernt, und von
-Codex erneuerte Tokens werden über dasselbe Secret zurückversiegelt. Die Arbeit auf
+[Modellprofil](../models.md) nutzt. Für eine Aufgabe wird die Anmeldung in eine
+`auth.json` in einem eigenen Codex-Verzeichnis der Unterhaltung (`CODEX_HOME`)
+außerhalb des Workspace geschrieben und danach entfernt; von Codex erneuerte Tokens
+werden über dasselbe Secret zurückversiegelt. Alles, was Codex ausführt, kann diese
+Datei lesen, darum wird die Anmeldung nur für eine Person übergeben, die sie selbst im
+Vault sehen darf - den Agent auszuführen ist nie ein Weg zum Abo eines anderen. Die Arbeit auf
 einem persönlichen Abo unterliegt den Bedingungen von Anthropic und OpenAI für diese
 Pläne, die das auf einem geteilten Deployment womöglich nicht erlauben.
 

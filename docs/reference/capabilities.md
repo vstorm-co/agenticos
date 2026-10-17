@@ -1053,10 +1053,11 @@ chat shows it working. Another agent reaches a coding agent through ordinary
 any file and runs any command in the sandbox, with its own prompts off
 (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`):
 nobody sits at its terminal, and the container is the boundary both flags are
-documented for. At `read_only`, Claude Code runs in its default permission mode
-without its editing tools and with only reading commands allowed (`ls`, `cat`,
-`grep`, `rg`, `git log`, `git diff`, `git show`, `git status`), and is told that
-nothing else can be approved. Codex has no `read_only`: its read-only mode is a
+documented for. At `read_only`, Claude Code runs in plan mode without any tool
+that writes - its editing tools and the shell - and reads with Read, Grep and Glob;
+it is told that nothing else can be approved. Not even reading commands: no list of
+command prefixes keeps a shell read-only, since `git log --output=<file>` matches
+`git log` as well as any read does. Codex has no `read_only`: its read-only mode is a
 sandbox of its own, which cannot start inside the agent's container, and publish
 refuses the combination. Whether a person says yes before each task is the
 capability's **Human approval**, set to **Always ask** — like every gate, it is off
@@ -1073,8 +1074,10 @@ process group stopped. Detached also means a task is not cut at the sandbox
 service's ceiling for one command.
 
 **A conversation's tasks continue one session.** The harness's session id is kept
-in the sandbox beside the work, under `.agenticos/coding-agent/`, so the second task
-in a chat knows what the first one read. The model passes `fresh_session` to start
+in the sandbox beside the work, under `.agenticos/coding-agent/`, one per
+conversation, so the second task in a chat knows what the first one read - and a
+chat never continues another's in a sandbox several share, a project's or one scoped
+to a person or an agent. The model passes `fresh_session` to start
 over, and a session the sandbox no longer holds starts over by itself, once.
 
 **What it needs.** The `sandbox` capability on the `service` backend with shell
@@ -1088,8 +1091,11 @@ command through its environment, never on its command line.
 it is told apart by its `sk-ant-oat` prefix, and it signs in to Anthropic only, not
 to a gateway. Codex takes an OpenAI API key, or a ChatGPT sign-in made with **Sign
 in with ChatGPT**, the same one a [model profile](../models.md) uses. For a task the
-sign-in is written to Codex's own `auth.json` outside the workspace and removed
-afterwards, and any tokens Codex refreshed are sealed back over the same secret.
+sign-in is written to an `auth.json` in a Codex home of the conversation's own
+(`CODEX_HOME`), outside the workspace, and removed afterwards; any tokens Codex
+refreshed are sealed back over the same secret. Whatever Codex runs can read that
+file, so the sign-in is handed over only for a person who may see it in the vault
+themselves - running the agent is never a way to somebody else's subscription.
 Running on a personal subscription is subject to Anthropic's and OpenAI's terms for
 those plans, which may not allow it on a shared deployment.
 

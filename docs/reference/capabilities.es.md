@@ -1,5 +1,5 @@
 ---
-source_sha: "07a07ea56998"
+source_sha: "f461d042a7d7"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1124,10 +1124,11 @@ especialista.
 edita cualquier archivo y ejecuta cualquier comando en la sandbox, con sus propias
 preguntas desactivadas (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`):
 nadie está ante su terminal, y el límite es el contenedor para el que ambas opciones
-están documentadas. Con `read_only`, Claude Code se ejecuta en su modo de permisos
-predeterminado, sin sus herramientas de edición y solo con comandos que leen (`ls`,
-`cat`, `grep`, `rg`, `git log`, `git diff`, `git show`, `git status`), y sabe que no
-se puede aprobar nada más. Codex no tiene `read_only`: su modo de solo lectura es una
+están documentadas. Con `read_only`, Claude Code se ejecuta en modo plan, sin
+ninguna herramienta que escriba - ni las de edición ni la shell - y lee con Read, Grep
+y Glob; sabe que no se puede aprobar nada más. Ni siquiera comandos que leen: ninguna
+lista de prefijos de comandos hace de una shell algo de solo lectura, porque
+`git log --output=<archivo>` encaja con `git log` igual que cualquier lectura. Codex no tiene `read_only`: su modo de solo lectura es una
 sandbox propia, que no arranca dentro del contenedor del agent, y la publicación
 rechaza la combinación. Que una persona diga sí antes de cada tarea es la
 **Aprobación humana** de la capability, puesta en **Preguntar siempre** — como toda
@@ -1145,8 +1146,10 @@ ve detenido todo su grupo de procesos. En segundo plano significa también que u
 tarea no se corta en el límite del servicio de sandbox para un comando.
 
 **Las tareas de una conversación continúan una sesión.** El id de sesión del harness
-se guarda en la sandbox junto al trabajo, en `.agenticos/coding-agent/`, así que la
-segunda tarea de un chat sabe lo que leyó la primera. El modelo pasa `fresh_session`
+se guarda en la sandbox junto al trabajo, en `.agenticos/coding-agent/`, uno por
+conversación, así que la segunda tarea de un chat sabe lo que leyó la primera - y un
+chat nunca continúa la de otro en una sandbox que comparten varias: la de un proyecto o
+una asignada a una persona o a un agent. El modelo pasa `fresh_session`
 para empezar de cero, y una sesión que la sandbox ya no tiene empieza de cero sola,
 una vez.
 
@@ -1161,9 +1164,12 @@ token que `claude setup-token` imprime para una suscripción Claude Pro o Max, g
 como clave — se distingue por su prefijo `sk-ant-oat` y solo inicia sesión en
 Anthropic, no en una pasarela. Codex toma una clave API de OpenAI, o un inicio de
 sesión de ChatGPT hecho con **Sign in with ChatGPT**, el mismo que usa un
-[perfil de modelo](../models.md). Para una tarea, el inicio de sesión se escribe en el
-propio `auth.json` de Codex fuera del workspace y se elimina después, y los tokens que
-Codex renovó se sellan de nuevo sobre el mismo secreto. Trabajar con una suscripción
+[perfil de modelo](../models.md). Para una tarea, el inicio de sesión se escribe en un
+`auth.json` en un directorio de Codex propio de la conversación (`CODEX_HOME`), fuera
+del workspace, y se elimina después; los tokens que Codex renovó se sellan de nuevo
+sobre el mismo secreto. Todo lo que Codex ejecuta puede leer ese archivo, así que el
+inicio de sesión solo se entrega a una persona que puede verlo en el vault - ejecutar
+el agent nunca es un camino a la suscripción de otro. Trabajar con una suscripción
 personal está sujeto a las condiciones de Anthropic y OpenAI para esos planes, que
 pueden no permitirlo en un despliegue compartido.
 
