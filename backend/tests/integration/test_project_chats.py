@@ -22,7 +22,9 @@ from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.repositories import conversation_repo, project_repo
 from app.schemas.conversation import MessageCreate, MessageRead
+from app.schemas.message_rating import MessageRatingCreate
 from app.services.conversation import ConversationService
+from app.services.message_rating import MessageRatingService
 
 pytestmark = pytest.mark.anyio
 
@@ -217,6 +219,33 @@ class TestAContinuedChatInTheTeammatesOwnList:
             )
         )
         assert await service._project_threads(anna.id, org.id) == set()
+
+
+class TestRatingATeammatesAnswer:
+    async def test_whoever_reads_the_chat_rates_its_answers_and_nobody_else(self, db) -> None:
+        kacper, anna, stranger = await _user(db), await _user(db), await _user(db)
+        org = await _org(db, (kacper, "owner"), (anna, "member"), (stranger, "member"))
+        shared = await _project(db, org, kacper, visibility=Visibility.ORG.value)
+        chat = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=kacper.id, title="Plan", project_id=shared.id
+        )
+        answer = await conversation_repo.create_message(
+            db, conversation_id=chat.id, role="assistant", content="Here is the plan"
+        )
+        ratings = MessageRatingService(db)
+
+        rating, is_new = await ratings.rate_message(
+            chat.id, answer.id, anna.id, org.id, MessageRatingCreate(rating=1)
+        )
+        assert is_new and rating.rating == 1
+        await ratings.remove_rating(chat.id, answer.id, anna.id, org.id)
+
+        shared.visibility = Visibility.PRIVATE.value
+        await db.flush()
+        with pytest.raises(NotFoundError):
+            await ratings.rate_message(
+                chat.id, answer.id, stranger.id, org.id, MessageRatingCreate(rating=1)
+            )
 
 
 class TestThePeopleQueries:

@@ -353,6 +353,7 @@ async def rate_message(
     data: MessageRatingCreate,
     rating_service: MessageRatingSvc,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
     response: Response,
 ) -> Any:
     """Rate an assistant message - 201 for new rating, 200 when updating."""
@@ -360,6 +361,7 @@ async def rate_message(
         conversation_id=conversation_id,
         message_id=message_id,
         user_id=current_user.id,
+        organization_id=active_org.id,
         data=data,
     )
     if is_new:
@@ -377,12 +379,14 @@ async def remove_rating(
     message_id: UUID,
     rating_service: MessageRatingSvc,
     current_user: CurrentUser,
+    active_org: ActiveOrg,
 ) -> None:
     """Remove your rating from a message."""
     await rating_service.remove_rating(
         conversation_id=conversation_id,
         message_id=message_id,
         user_id=current_user.id,
+        organization_id=active_org.id,
     )
 
 
