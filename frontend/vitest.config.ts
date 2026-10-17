@@ -170,6 +170,7 @@ export default defineConfig({
         "src/components/chat/source-mark.tsx",
         "src/components/chat/markdown-quote.tsx",
         "src/components/chat/delegation-chat.tsx",
+        "src/components/chat/delegate-face.tsx",
         "src/components/chat/delegation-sheet.tsx",
         "src/components/chat/turn-delegations.tsx",
         "src/components/chat/tool-call-card.tsx",

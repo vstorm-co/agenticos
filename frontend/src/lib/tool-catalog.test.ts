@@ -37,11 +37,10 @@ describe("the tool catalog", () => {
       .map(([id]) => id);
 
     expect(opens.sort()).toEqual([
-      "apply_code_change",
       "create_chart",
       "edit_file",
       "generate_image",
-      "plan_code_change",
+      "run_coding_agent",
       "run_python",
       "write_file",
     ]);

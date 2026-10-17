@@ -8,7 +8,7 @@ import type { ToolCall } from "@/types";
 function call(overrides: Partial<ToolCall> = {}): ToolCall {
   return {
     id: "c1",
-    name: "apply_code_change",
+    name: "run_coding_agent",
     args: { task: "Fix the failing test" },
     status: "completed",
     ...overrides,
@@ -18,7 +18,7 @@ function call(overrides: Partial<ToolCall> = {}): ToolCall {
 const REPORT = {
   kind: "coding_agent",
   harness: "claude_code",
-  mode: "apply",
+  access: "edit",
   outcome: "completed",
   answer: "Fixed **the off-by-one**.",
   session_id: "s-1",
@@ -39,7 +39,7 @@ describe("CodingAgentResult", () => {
     expect(screen.getByText("Done")).toBeInTheDocument();
     expect(await screen.findByText("the off-by-one")).toBeInTheDocument();
     expect(screen.getByText("Changed 1 file:")).toBeInTheDocument();
-    expect(screen.getByText("Not allowed while planning: WebFetch")).toBeInTheDocument();
+    expect(screen.getByText("Not allowed read-only: WebFetch")).toBeInTheDocument();
   });
 
   it("lists every step, a failed one marked as failed", async () => {
@@ -53,21 +53,21 @@ describe("CodingAgentResult", () => {
     expect(screen.getByLabelText("Edited")).toBeInTheDocument();
   });
 
-  it("says a plan was planned and a stopped task ran out of time", () => {
+  it("names the harness that did it and says when a task ran out of time", () => {
     const { rerender } = render(
       <CodingAgentResult
         toolCall={call()}
         resultText={JSON.stringify({
           kind: "coding_agent",
           harness: "codex",
-          mode: "plan",
+          access: "edit",
           outcome: "completed",
-          answer: "Plan",
+          answer: "Done it",
         })}
       />,
     );
     expect(screen.getByText("Codex")).toBeInTheDocument();
-    expect(screen.getByText("Planned")).toBeInTheDocument();
+    expect(screen.getByText("Done")).toBeInTheDocument();
 
     rerender(
       <CodingAgentResult

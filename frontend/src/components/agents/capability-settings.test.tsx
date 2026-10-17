@@ -391,6 +391,26 @@ describe("CapabilitySettings tools", () => {
     );
   });
 
+  it("offers no Tools tab for a capability whose one tool is the capability itself", () => {
+    const coding: CapabilityCatalogEntry = {
+      ...EMAIL,
+      id: "coding_agent",
+      name: "Coding agent",
+      tools: [{ id: "run_coding_agent", name: "run_coding_agent", description: "Hand it over." }],
+      tool_settings: false,
+    };
+    render(
+      <CapabilitySettings
+        catalog={[coding]}
+        selected={[binding("coding_agent")]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("tab", { name: "Tools" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.queryByText(/Every tool follows this/)).toBeNull();
+  });
+
   it("shows no tool list for a capability that is not tools", () => {
     // A clock puts the time in the instructions. An empty "Tools" heading over
     // an empty box would imply something is missing.

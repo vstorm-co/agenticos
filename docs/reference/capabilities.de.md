@@ -1,5 +1,5 @@
 ---
-source_sha: "271abc72ba39"
+source_sha: "f426316e6713"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1154,45 +1154,54 @@ Bilder trotzdem; er hat nur nichts, womit er damit bauen könnte.
 
 ## Coding Agent { #coding-agent }
 
-`plan_code_change` — *Den Coding Agent den Code untersuchen und eine Änderung planen lassen, ohne etwas zu ändern.*
-`apply_code_change` — *Den Coding Agent eine Änderung im Sandbox vornehmen lassen: Dateien bearbeiten und Befehle ausführen.*
+`run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
 
 Übergibt Softwarearbeit an **Claude Code** oder **Codex**, die im eigenen
-[Sandbox](../sandbox.md) des Agent laufen. Ein allgemeiner Agent mit einer Shell
-kann Code bearbeiten; ein Coding-Harness kann es besser, und so erreicht ein Agent
-einen. Ein Agent mit dieser Capability ist ein *Coding Agent*, und ein anderer Agent
-übergibt ihm Arbeit über die gewöhnliche [Delegation](#delegation), so wie jedem
-Spezialisten.
+[Sandbox](../sandbox.md) des Agent laufen. Ein gewöhnlicher Agent mit Shell kann
+Code bearbeiten; ein Coding-Harness kann es besser, und so erreicht ein Agent eines.
+Das Harness ist ein eigener Agent: Der Agent übergibt ihm eine ganze Aufgabe, es
+arbeitet, bis sie erledigt ist, und der Chat zeigt es bei der Arbeit. Ein anderer
+Agent erreicht einen Coding Agent über gewöhnliche [Delegation](#delegation), wie
+jeden Spezialisten.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|
 | `harness` | `claude_code` | `claude_code` (ein Anthropic-API-Key oder ein Claude-Abo-Token), `codex` (ein OpenAI-API-Key oder eine ChatGPT-Anmeldung) |
+| `access` | `edit` | `edit` ändert Dateien und führt Befehle aus; `read_only` liest den Code und antwortet (nur Claude Code) |
 | `model` | Standard des Harness | Claude Opus, Sonnet oder Haiku 5.5 für Claude Code; GPT-5.6 Sol, Terra, Luna oder GPT-5.3 Codex für Codex |
-| `base_url` | direkt Anthropic | Nur Claude Code: ein Gateway, das die API von Anthropic spricht, etwa `https://openrouter.ai/api`, dessen Key dann im Vault liegt |
+| `base_url` | direkt Anthropic | Nur Claude Code: ein Gateway, das die API von Anthropic spricht, etwa `https://openrouter.ai/api`, dessen Key dann im Vault liegt. Entfällt, sobald Codex gewählt ist |
 | `timeout_minutes` | 15 | 1–60, pro Aufgabe |
 
-**Planen liest, Anwenden schreibt.** `plan_code_change` startet das Harness nur
-lesend — Claude Code im Berechtigungsmodus `plan`, Codex mit seinem Sandbox auf
-`read-only` — und antwortet mit dem Plan oder dem Befund. `apply_code_change` lässt
-es jede Datei bearbeiten und jeden Befehl im Sandbox ausführen; es hat also
-Nebenwirkungen, und **Always ask** darauf stellt jede Änderung hinter die
-[Freigabe](../governance.md) — wie jede Freigabe ist sie aus, bis jemand sie setzt.
-Das ist eine Entscheidung pro Änderung, getroffen, wenn der Plan schon im Gespräch
-steht, statt einer Rückfrage pro Datei: Das Harness läuft ohne seine eigenen
-Rückfragen
-(`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`), weil
-der Sandbox-Container die Grenze ist, für die beide Flags dokumentiert sind.
-Anwenden übergibt meist die `session_id` des Planungsaufrufs, damit das Harness
-behält, was es gelesen hat.
+**Ein Tool, und das Binding entscheidet, was es darf.** Bei `edit` bearbeitet das
+Harness jede Datei und führt jeden Befehl im Sandbox aus, mit abgeschalteten eigenen
+Rückfragen (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`):
+Niemand sitzt an seinem Terminal, und die Grenze ist der Container, für den beide
+Schalter dokumentiert sind. Bei `read_only` läuft Claude Code im
+Standard-Berechtigungsmodus ohne seine Bearbeitungstools und nur mit lesenden Befehlen
+(`ls`, `cat`, `grep`, `rg`, `git log`, `git diff`, `git show`, `git status`) und
+weiß, dass nichts anderes freigegeben werden kann. Codex hat kein `read_only`: Sein
+Nur-Lesen-Modus ist ein eigener Sandbox, der im Container des Agent nicht startet,
+und das Veröffentlichen lehnt die Kombination ab. Ob ein Mensch vor jeder Aufgabe Ja
+sagt, ist die **Freigabe durch einen Menschen** der Capability, auf **Immer fragen**
+gesetzt — wie jede Sperre ist sie aus, bis jemand sie setzt. Es gibt keinen
+Tools-Tab: Das eine Tool ist die Capability.
 
-**Jede Aufgabe ist ein einzelner Befehl ohne Oberfläche**, `claude -p --output-format stream-json`
-oder `codex exec --json`, ausgeführt im Workspace. Seine Ereignisse werden dort in
-eine Datei geschrieben, zurückgelesen und auf die Antwort, die Schritte — gelesene
-und geänderte Dateien, ausgeführte Befehle, Suchen — und die geänderten Dateien
-reduziert, die der Chat unter dem Aufruf zeigt. Die Schritte kommen an, wenn die
-Aufgabe fertig ist, nicht während sie läuft: Der Sandbox führt einen Befehl bis zum
-Ende aus und hält keine interaktive Sitzung, weshalb auch das Agent Client Protocol
-nicht verwendet wird.
+**Man sieht ihm bei der Arbeit zu.** Das Harness wird im Sandbox im Hintergrund
+gestartet (`claude -p --output-format stream-json` oder `codex exec --json`), und
+seine Ereignisdatei wird alle anderthalb Sekunden gelesen. Jeder Schritt erreicht den
+Chat, während er geschieht, in einem eigenen Panel unter dem Zeichen von Claude Code
+oder Codex, wie die einer Delegation: die gelesene Datei, die Bearbeitung, der
+ausgeführte Befehl, was es dazwischen sagt. Am Ende enthält das Ergebnis des Aufrufs
+die Antwort, jeden Schritt und die geänderten Dateien. Bei einer Aufgabe über
+`timeout_minutes` und einer, die ein Mensch stoppt, wird die ganze Prozessgruppe
+gestoppt. Im Hintergrund heißt auch, dass eine Aufgabe nicht an der Obergrenze des
+Sandbox-Dienstes für einen Befehl abgeschnitten wird.
+
+**Die Aufgaben einer Unterhaltung setzen eine Sitzung fort.** Die Sitzungs-ID des
+Harness liegt im Sandbox neben der Arbeit, unter `.agenticos/coding-agent/`, sodass
+die zweite Aufgabe in einem Chat weiß, was die erste gelesen hat. Das Modell übergibt
+`fresh_session`, um neu zu beginnen, und eine Sitzung, die der Sandbox nicht mehr
+hat, beginnt von selbst neu, einmal.
 
 **Was es braucht.** Die Capability `sandbox` auf dem Backend `service` mit
 erlaubten Shell-Befehlen — alles andere lehnt das Veröffentlichen ab — und eine

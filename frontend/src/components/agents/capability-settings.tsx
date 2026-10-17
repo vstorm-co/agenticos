@@ -354,7 +354,9 @@ export function CapabilityDetail({
         </Select>
         <p className="text-muted-foreground text-xs">
           {t(approvalHint(binding.approval, definition.side_effecting))}
-          {definition.tools.length > 0 && ` ${t("everyToolFollowsThis")}`}
+          {definition.tools.length > 0 &&
+            definition.tool_settings !== false &&
+            ` ${t("everyToolFollowsThis")}`}
         </p>
       </div>
 
@@ -364,7 +366,9 @@ export function CapabilityDetail({
     </>
   );
 
-  const tools = definition.tools.length > 0 && (
+  // A capability whose one tool is the capability itself has nothing per tool to
+  // set: its approval is the one above.
+  const tools = definition.tools.length > 0 && definition.tool_settings !== false && (
     <ToolList
       binding={binding}
       tools={definition.tools}

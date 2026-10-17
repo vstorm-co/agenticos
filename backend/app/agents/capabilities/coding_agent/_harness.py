@@ -7,11 +7,14 @@ environment that carries the credential, and how their events become one
 :class:`CodingReport`. Nothing here touches a workspace or a ledger, so all of it
 is tested on recorded event streams.
 
-The two modes are the platform's, not the harnesses': `plan` reads and may run a
-read-only command, `apply` changes files and runs anything. Claude Code has a
-permission mode for each. Codex's own sandbox is read-only for `plan`; for `apply`
-it is bypassed, because the sandbox container is already the boundary and the
-platform's approval gate is what a person says yes on.
+The two levels of access are the binding's, not the model's: `read_only` reads
+and answers, `edit` changes files and runs anything. Claude Code read-only runs in
+its default permission mode with the editing tools taken away and only reading
+commands allowed, so anything that would need a person's yes is refused rather
+than asked. Codex runs at `edit` only: its read-only mode is its own sandbox,
+which cannot start inside the sandbox container, and then even `cat` fails. At
+`edit` both run with their prompts off, because the container is already the
+boundary and nobody sits at the harness's terminal.
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from pydantic_ai.usage import RequestUsage
 
 Harness = Literal["claude_code", "codex"]
-Mode = Literal["plan", "apply"]
+Access = Literal["read_only", "edit"]
 StepKind = Literal["read", "search", "edit", "command", "web", "other"]
 
 MAX_STEPS = 200
@@ -67,8 +70,41 @@ _CLAUDE_KINDS: dict[str, StepKind] = {
     "WebSearch": "web",
 }
 
-_CLAUDE_QUIET = frozenset({"TodoWrite", "ExitPlanMode"})
+_CLAUDE_QUIET = frozenset({"TodoWrite"})
 """Bookkeeping calls, not steps a person would recognise as work."""
+
+_CLAUDE_EDITING_TOOLS = "Edit,MultiEdit,Write,NotebookEdit"
+"""What a read-only Claude Code session is not given at all."""
+
+_CLAUDE_READING_COMMANDS = ",".join(
+    f"Bash({command}:*)"
+    for command in (
+        "ls",
+        "cat",
+        "head",
+        "tail",
+        "wc",
+        "grep",
+        "rg",
+        "git status",
+        "git log",
+        "git diff",
+        "git show",
+    )
+)
+"""The shell commands a read-only session may run unasked - each only reads.
+
+Not `find`, whose `-delete` and `-exec` make it a writer; the Glob tool lists
+files instead.
+"""
+
+_READ_ONLY_NOTE = (
+    "You are running read-only: you cannot change files, and the only commands you "
+    "may run are ones that read (ls, cat, grep, rg, git log, git diff). Nobody can "
+    "approve anything else - there is no person at this terminal. Where a change or "
+    "another command would be needed, say what it would be."
+)
+"""What a read-only Claude Code session is told, so it does not ask for an approval nobody can give."""
 
 
 class CodingStep(BaseModel):
@@ -84,14 +120,24 @@ class CodingReport(BaseModel):
 
     kind: Literal["coding_agent"] = "coding_agent"
     harness: Harness
-    mode: Mode
+    access: Access
     outcome: Literal["completed", "failed", "timed_out"]
     answer: str
     session_id: str | None = None
     steps: list[CodingStep] = []
     files_changed: list[str] = []
     refused: list[str] = []
-    """Tools the harness wanted and was not allowed in this mode."""
+    """Tools the harness wanted and was not allowed at this access."""
+
+
+@dataclass(frozen=True)
+class TaskFiles:
+    """Where one task's events, errors, exit code and process id are written."""
+
+    events: str
+    errors: str
+    status: str
+    pid: str
 
 
 @dataclass(frozen=True)
@@ -101,13 +147,50 @@ class Invocation:
     argv: list[str]
     env: dict[str, str] = field(repr=False)
 
-    def shell_line(self, log: str, errors: str) -> str:
-        """The command with its events and its errors each written to a file.
+    def detached_line(self, files: TaskFiles) -> str:
+        """The command, started in a session of its own and left running.
 
-        To files rather than captured: a session that reads a large repository
-        prints more than a command's output may carry back.
+        Detached, because a coding task outlives what one command call may wait
+        for, and because its events are read while it works: the platform polls
+        `files.events` and shows each step as it lands. The process writes its own
+        id first - a session leader, so the whole group can be stopped by it -
+        and its exit code last, which is how a poll knows it is over.
+
+        Every word is quoted; the redirections and the `&` are the point.
         """
-        return f"{shlex.join(self.argv)} > {shlex.quote(log)} 2> {shlex.quote(errors)}"
+        inner = (
+            f"echo $$ > {shlex.quote(files.pid)}; "
+            f"{shlex.join(self.argv)} > {shlex.quote(files.events)} 2> {shlex.quote(files.errors)}; "
+            f"echo $? > {shlex.quote(files.status)}"
+        )
+        return f"(setsid nohup sh -c {shlex.quote(inner)} < /dev/null > /dev/null 2>&1 &)"
+
+
+@dataclass(frozen=True)
+class StepStarted:
+    """The harness began a step: a file read, an edit, a command."""
+
+    key: str
+    step: CodingStep
+
+
+@dataclass(frozen=True)
+class StepEnded:
+    """A step the harness began is over."""
+
+    key: str
+    failed: bool
+
+
+@dataclass(frozen=True)
+class Said:
+    """Something the harness wrote to the person, between its steps."""
+
+    text: str
+
+
+LiveItem = StepStarted | StepEnded | Said
+"""One thing worth showing while a task runs, read off a single event."""
 
 
 @dataclass
@@ -120,7 +203,7 @@ class Usage:
 
 def invocation(
     harness: Harness,
-    mode: Mode,
+    access: Access,
     task: str,
     *,
     api_key: str | None,
@@ -128,7 +211,7 @@ def invocation(
     session_id: str | None,
     base_url: str | None,
 ) -> Invocation:
-    """How to run `task` in `mode` on `harness`, continuing `session_id` when given.
+    """How to run `task` at `access` on `harness`, continuing `session_id` when given.
 
     `api_key` is None only for Codex on a ChatGPT sign-in, whose tokens are in its
     `auth.json` rather than the environment.
@@ -136,7 +219,18 @@ def invocation(
     if harness == "claude_code":
         argv = ["claude", "-p", task, "--output-format", "stream-json", "--verbose"]
         argv += (
-            ["--permission-mode", "plan"] if mode == "plan" else ["--dangerously-skip-permissions"]
+            [
+                "--permission-mode",
+                "default",
+                "--disallowedTools",
+                _CLAUDE_EDITING_TOOLS,
+                "--allowedTools",
+                _CLAUDE_READING_COMMANDS,
+                "--append-system-prompt",
+                _READ_ONLY_NOTE,
+            ]
+            if access == "read_only"
+            else ["--dangerously-skip-permissions"]
         )
         if model:
             argv += ["--model", model]
@@ -144,7 +238,7 @@ def invocation(
             argv += ["--resume", session_id]
         env = {
             # Claude Code refuses to skip its prompts as root outside a sandbox;
-            # this is one, and the platform's approval gate already asked.
+            # this is one, and the platform's approval gate is where a person says yes.
             "IS_SANDBOX": "1",
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
         }
@@ -167,12 +261,10 @@ def invocation(
     argv = ["codex", "exec"]
     if session_id:
         argv += ["resume", session_id]
-    argv += ["--json", "--skip-git-repo-check"]
-    argv += (
-        ["-c", 'sandbox_mode="read-only"']
-        if mode == "plan"
-        else ["--dangerously-bypass-approvals-and-sandbox"]
-    )
+    if access == "read_only":
+        # The config refuses this; a direct caller is told the same thing.
+        raise UserError("Codex runs only with access to change files; see CodingAgentConfig.")
+    argv += ["--json", "--skip-git-repo-check", "--dangerously-bypass-approvals-and-sandbox"]
     if model:
         argv += ["-m", model]
     argv.append(task)
@@ -249,13 +341,12 @@ def read_events(log: str) -> list[dict[str, Any]]:
 
 
 def claude_report(
-    events: Iterable[dict[str, Any]], *, mode: Mode, base_url: str | None
+    events: Iterable[dict[str, Any]], *, access: Access, base_url: str | None
 ) -> tuple[CodingReport, Usage]:
     """Claude Code's stream, from its `init` to its `result`."""
     steps: dict[str, CodingStep] = {}
     order: list[str] = []
     files: list[str] = []
-    plan: str | None = None
     texts: list[str] = []
     session_id: str | None = None
     result: dict[str, Any] | None = None
@@ -272,8 +363,6 @@ def claude_report(
             elif kind == "assistant" and part.get("type") == "tool_use":
                 name = _text(part.get("name")) or "tool"
                 arguments = _mapping(part.get("input"))
-                if name == "ExitPlanMode":
-                    plan = _text(arguments.get("plan")) or plan
                 if name in _CLAUDE_QUIET:
                     continue
                 step = _claude_step(name, arguments)
@@ -289,7 +378,7 @@ def claude_report(
 
     usage = Usage(provider=None if base_url else "anthropic")
     if result is None:
-        return _unfinished("claude_code", mode, session_id, [steps[key] for key in order]), usage
+        return _unfinished("claude_code", access, session_id, [steps[key] for key in order]), usage
     for model, spent in (result.get("modelUsage") or {}).items():
         if isinstance(spent, dict):
             usage.by_model[str(model)] = _claude_usage(spent)
@@ -298,17 +387,17 @@ def claude_report(
         for denial in result.get("permission_denials") or []
         if isinstance(denial, dict) and denial.get("tool_name") not in _CLAUDE_QUIET
     ]
-    answer = _text(result.get("result")) or plan or "\n\n".join(texts)
+    answer = _text(result.get("result")) or "\n\n".join(texts)
     failed = bool(result.get("is_error")) or result.get("subtype") != "success"
     return (
         CodingReport(
             harness="claude_code",
-            mode=mode,
+            access=access,
             outcome="failed" if failed else "completed",
             answer=_bounded(answer or "(Claude Code sent no answer.)"),
             session_id=_text(result.get("session_id")) or session_id,
             steps=_last([steps[key] for key in order]),
-            files_changed=files if mode == "apply" else [],
+            files_changed=files if access == "edit" else [],
             refused=sorted(set(refused)),
         ),
         usage,
@@ -316,7 +405,7 @@ def claude_report(
 
 
 def codex_report(
-    events: Iterable[dict[str, Any]], *, mode: Mode, model: str | None
+    events: Iterable[dict[str, Any]], *, access: Access, model: str | None
 ) -> tuple[CodingReport, Usage]:
     """Codex's stream, from `thread.started` to `turn.completed` or `turn.failed`."""
     steps: list[CodingStep] = []
@@ -361,19 +450,67 @@ def codex_report(
         outcome = "completed"
         answer = messages[-1] if messages else "(Codex sent no answer.)"
     else:
-        return _unfinished("codex", mode, session_id, steps), usage
+        return _unfinished("codex", access, session_id, steps), usage
     return (
         CodingReport(
             harness="codex",
-            mode=mode,
+            access=access,
             outcome=outcome,
             answer=_bounded(answer),
             session_id=session_id,
             steps=_last(steps),
-            files_changed=files if mode == "apply" else [],
+            files_changed=files if access == "edit" else [],
         ),
         usage,
     )
+
+
+def live_items(harness: Harness, event: dict[str, Any]) -> list[LiveItem]:
+    """What one event shows a person watching the task, in the order it shows it.
+
+    The same steps the report ends with, read one event at a time: a step opens
+    when the harness asks for a tool and closes when the answer comes back, and
+    what the harness says in between is shown as it says it.
+    """
+    if harness == "claude_code":
+        return _claude_live(event)
+    return _codex_live(event)
+
+
+def _claude_live(event: dict[str, Any]) -> list[LiveItem]:
+    kind = event.get("type")
+    items: list[LiveItem] = []
+    for part in _content(event):
+        if kind == "assistant" and part.get("type") == "text" and (text := _text(part.get("text"))):
+            items.append(Said(text))
+        elif kind == "assistant" and part.get("type") == "tool_use":
+            name = _text(part.get("name")) or "tool"
+            if name not in _CLAUDE_QUIET and (key := _text(part.get("id"))):
+                items.append(StepStarted(key, _claude_step(name, _mapping(part.get("input")))))
+        elif (
+            kind == "user"
+            and part.get("type") == "tool_result"
+            and (key := _text(part.get("tool_use_id")))
+        ):
+            items.append(StepEnded(key, failed=bool(part.get("is_error"))))
+    return items
+
+
+def _codex_live(event: dict[str, Any]) -> list[LiveItem]:
+    kind = event.get("type")
+    item = _mapping(event.get("item"))
+    key = _text(item.get("id"))
+    if kind not in ("item.started", "item.completed") or key is None:
+        return []
+    message, step, _ = _codex_item(item)
+    if kind == "item.started":
+        # A command opens as it starts; Codex sends the rest of its kinds whole.
+        return [StepStarted(key, step)] if step is not None else []
+    if message:
+        return [Said(message)]
+    if step is None:
+        return []
+    return [StepStarted(key, step), StepEnded(key, failed=step.failed)]
 
 
 def _claude_step(name: str, arguments: dict[str, Any]) -> CodingStep:
@@ -401,7 +538,7 @@ def _codex_item(item: dict[str, Any]) -> tuple[str | None, CodingStep | None, li
         exit_code = item.get("exit_code")
         step = CodingStep(
             kind="command",
-            title=_clip(_text(item.get("command")) or "command"),
+            title=_clip(_unwrapped(_text(item.get("command")) or "command")),
             failed=failed or (isinstance(exit_code, int) and exit_code != 0),
         )
         return None, step, []
@@ -425,13 +562,32 @@ def _codex_item(item: dict[str, Any]) -> tuple[str | None, CodingStep | None, li
     return None, None, []
 
 
+def _unwrapped(command: str) -> str:
+    """The command Codex ran, without the login shell it wraps every one in.
+
+    Codex reports `/bin/bash -lc 'python3 hello.py'`; the person watching asked
+    for `python3 hello.py`.
+    """
+    try:
+        words = shlex.split(command)
+    except ValueError:
+        return command
+    if (
+        len(words) == 3
+        and words[0].rsplit("/", 1)[-1] in ("bash", "sh", "zsh")
+        and words[1] in ("-lc", "-c")
+    ):
+        return words[2]
+    return command
+
+
 def _unfinished(
-    harness: Harness, mode: Mode, session_id: str | None, steps: list[CodingStep]
+    harness: Harness, access: Access, session_id: str | None, steps: list[CodingStep]
 ) -> CodingReport:
     """A session that stopped before it said it was done - killed, or crashed."""
     return CodingReport(
         harness=harness,
-        mode=mode,
+        access=access,
         outcome="failed",
         answer=f"{LABELS[harness]} stopped before it finished.",
         session_id=session_id,

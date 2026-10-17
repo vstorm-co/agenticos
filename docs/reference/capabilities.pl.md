@@ -1,5 +1,5 @@
 ---
-source_sha: "271abc72ba39"
+source_sha: "f426316e6713"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1090,41 +1090,51 @@ nie ma gdzie niczego z nich zbudować.
 
 ## Coding agent { #coding-agent }
 
-`plan_code_change` — *Poproś coding agenta, by przeanalizował kod i zaplanował zmianę, niczego nie zmieniając.*
-`apply_code_change` — *Niech coding agent wprowadzi zmianę w sandboxie: edytuje pliki i uruchamia polecenia.*
+`run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
 
 Przekazuje pracę programistyczną do **Claude Code** albo **Codex**, działających we
-własnym [sandboxie](../sandbox.md) agenta. Ogólny agent z shellem potrafi edytować
-kod; harness programistyczny robi to lepiej, a ta capability jest drogą agenta do
-niego. Agent z tą capability jest *coding agentem*, a inny agent przekazuje mu pracę
-przez zwykłe [delegowanie](#delegation), tak jak każdemu specjaliście.
+własnym [sandboxie](../sandbox.md) agenta. Zwykły agent z shellem też edytuje kod,
+ale harness programistyczny robi to lepiej, i w ten sposób agent do niego sięga.
+Harness to osobny agent: agent przekazuje mu całe zadanie, harness pracuje do końca,
+a czat pokazuje jego pracę. Inny agent sięga do coding agenta zwykłą
+[delegacją](#delegation), tak jak do każdego specjalisty.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
 | `harness` | `claude_code` | `claude_code` (klucz API Anthropic albo token subskrypcji Claude), `codex` (klucz API OpenAI albo logowanie ChatGPT) |
+| `access` | `edit` | `edit` zmienia pliki i uruchamia polecenia; `read_only` czyta kod i odpowiada (tylko Claude Code) |
 | `model` | domyślny dla harnessu | Claude Opus, Sonnet albo Haiku 5.5 dla Claude Code; GPT-5.6 Sol, Terra, Luna albo GPT-5.3 Codex dla Codexa |
-| `base_url` | bezpośrednio Anthropic | Tylko Claude Code: bramka obsługująca API Anthropic, np. `https://openrouter.ai/api`, której klucz trzyma wtedy vault |
+| `base_url` | bezpośrednio Anthropic | Tylko Claude Code: bramka obsługująca API Anthropic, np. `https://openrouter.ai/api`, której klucz trzyma wtedy vault. Usuwany po wyborze Codexa |
 | `timeout_minutes` | 15 | 1–60, na jedno zadanie |
 
-**Planowanie czyta, wdrażanie zapisuje.** `plan_code_change` uruchamia harness tylko
-do odczytu — Claude Code w trybie uprawnień `plan`, Codex z sandboxem ustawionym na
-`read-only` — i odpowiada planem albo ustaleniem. `apply_code_change` pozwala mu
-edytować każdy plik i uruchamiać każde polecenie w sandboxie, więc ma skutki
-uboczne, a ustawienie na nim **Always ask** stawia każdą zmianę za
-[bramką zatwierdzeń](../governance.md) — jak każda bramka jest wyłączona, dopóki ktoś
-jej nie ustawi. To jedna decyzja na zmianę, podjęta, gdy plan jest już w rozmowie, a
-nie pytanie o każdy plik: harness działa z wyłączonymi własnymi pytaniami (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`),
-bo granicą jest kontener sandboxa, dla którego obie flagi są przeznaczone.
-Wdrożenie zwykle przekazuje `session_id` z wywołania planującego, więc harness
-pamięta, co przeczytał.
+**Jedno narzędzie, a binding decyduje, co wolno.** Przy `edit` harness edytuje
+dowolny plik i uruchamia dowolne polecenie w sandboxie z wyłączonymi własnymi
+pytaniami (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`):
+nikt nie siedzi przy jego terminalu, a granicą jest kontener, dla którego oba
+przełączniki są opisane. Przy `read_only` Claude Code działa w domyślnym trybie
+uprawnień, bez narzędzi edycji i tylko z poleceniami czytającymi (`ls`, `cat`,
+`grep`, `rg`, `git log`, `git diff`, `git show`, `git status`), i wie, że niczego
+innego nie da się zatwierdzić. Codex nie ma `read_only`: jego tryb tylko do odczytu
+to jego własny sandbox, który nie startuje w kontenerze agenta, więc publikacja
+odrzuca to połączenie. To, czy człowiek mówi „tak” przed każdym zadaniem, ustawia
+**Zatwierdzenie przez człowieka** capability na **Zawsze pytaj** — jak każda bramka,
+jest wyłączona, dopóki ktoś jej nie ustawi. Nie ma zakładki Narzędzia: jedno
+narzędzie to sama capability.
 
-**Każde zadanie to jedno polecenie bez interfejsu**, `claude -p --output-format stream-json`
-albo `codex exec --json`, uruchomione w workspace. Jego zdarzenia trafiają do pliku,
-są odczytywane i sprowadzane do odpowiedzi, kroków — przeczytanych i zmienionych
-plików, uruchomionych poleceń, wyszukiwań — oraz zmienionych plików, które czat
-rysuje pod wywołaniem. Kroki pojawiają się po zakończeniu zadania, a nie w trakcie:
-sandbox uruchamia polecenie do końca i nie trzyma interaktywnej sesji, dlatego też
-nie jest używany Agent Client Protocol.
+**Człowiek widzi jego pracę.** Harness startuje w sandboxie w tle
+(`claude -p --output-format stream-json` albo `codex exec --json`), a plik jego
+zdarzeń jest czytany co półtorej sekundy. Każdy krok trafia do czatu, gdy się
+dzieje, w osobnym panelu pod znakiem Claude Code albo Codex, tak jak kroki
+delegacji: czytany plik, edycja, uruchomione polecenie, to, co mówi między nimi. Po
+zakończeniu wynik wywołania zawiera odpowiedź, każdy krok i zmienione pliki.
+Zadaniu po `timeout_minutes` i zadaniu zatrzymanemu przez człowieka zatrzymywana
+jest cała grupa procesów. Praca w tle oznacza też, że zadania nie ucina limit
+usługi sandboxa na jedno polecenie.
+
+**Zadania jednej rozmowy kontynuują jedną sesję.** Identyfikator sesji harnessu
+jest trzymany w sandboxie obok pracy, w `.agenticos/coding-agent/`, więc drugie
+zadanie w czacie wie, co przeczytało pierwsze. Model przekazuje `fresh_session`, by
+zacząć od nowa, a sesja, której sandbox już nie ma, zaczyna się od nowa sama, raz.
 
 **Czego potrzebuje.** Capability `sandbox` na backendzie `service` z włączonymi
 poleceniami shella — publikacja odrzuca każdą inną konfigurację — oraz runtime'u z

@@ -25,11 +25,11 @@ interface CodingStep {
   failed?: boolean;
 }
 
-/** What `plan_code_change` and `apply_code_change` return - `CodingReport` in the backend. */
+/** What `run_coding_agent` returns - `CodingReport` in the backend. */
 interface CodingReport {
   kind: "coding_agent";
   harness: "claude_code" | "codex";
-  mode: "plan" | "apply";
+  access: "edit" | "read_only";
   outcome: "completed" | "failed" | "timed_out";
   answer: string;
   session_id?: string;
@@ -117,7 +117,7 @@ function Report({ report }: { report: CodingReport }) {
               : "bg-destructive/10 text-destructive",
           )}
         >
-          {t("outcome", { outcome: report.outcome, mode: report.mode })}
+          {t("outcome", { outcome: report.outcome })}
         </span>
       </div>
       <div className="text-sm">

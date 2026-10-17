@@ -506,6 +506,14 @@ class CapabilityCatalogEntry(BaseSchema):
             "and description the model sees via tool_overrides, both keyed by the id here."
         )
     )
+    tool_settings: bool = Field(
+        default=True,
+        description=(
+            "Whether the Builder offers per-tool approval and tool text for this "
+            "capability. False where its one tool is the capability itself, so its "
+            "approval is the capability's own."
+        ),
+    )
     scopes: list[str]
     contracts: list[CapabilityToolContract] = Field(
         default_factory=list,

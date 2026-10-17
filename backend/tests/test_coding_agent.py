@@ -1,19 +1,25 @@
 """The coding agent: Claude Code and Codex run headless in the agent's sandbox (#2092).
 
-The harness is never run. A workspace whose shell writes a recorded event stream
-where the command said to stands in for the sandbox, so the command line, the
-files, the parsing, the booking and the clean-up all run as they would.
+The harness is never run. A workspace whose shell plays a detached harness - it
+writes a recorded event stream where the command said to, and an exit code when
+it is done, and answers the platform's polls from those files - stands in for
+the sandbox, so the command line, the polling, the live frames, the parsing, the
+booking, the session and the clean-up all run as they would.
 """
 
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
+import re
 import shlex
 from collections.abc import Mapping
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
+import anyio
 import httpx
 import pytest
 from pydantic import ValidationError
@@ -26,7 +32,6 @@ from pydantic_ai.usage import RunUsage
 from pydantic_ai.workspaces import (
     CommandResult,
     Workspace,
-    WorkspaceTimeoutError,
     WorkspaceUnavailableError,
     WrapperWorkspace,
 )
@@ -34,27 +39,34 @@ from pydantic_ai.workspaces import (
 from app.agents.capabilities import get
 from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext
 from app.agents.capabilities.budget import SpendLedger, metered_by
-from app.agents.capabilities.coding_agent import CodingAgent, CodingAgentConfig
+from app.agents.capabilities.coding_agent import CodingAgent, CodingAgentConfig, _task
 from app.agents.capabilities.coding_agent._harness import (
     MAX_ANSWER_CHARS,
     MAX_STEPS,
     CodingReport,
+    CodingStep,
+    Said,
+    StepEnded,
+    StepStarted,
     claude_report,
     codex_auth_file,
     codex_report,
     invocation,
+    live_items,
     read_events,
     rotated_sign_in,
 )
+from app.agents.capabilities.coding_agent._task import WORK_DIR, session_path, task_files
 from app.agents.capabilities.coding_agent._toolset import (
     AUTH_ENV,
-    LOG_DIR,
     READ_AUTH,
     WRITE_AUTH,
     build_coding_toolset,
 )
+from app.agents.capabilities.subagents import _journal
 from app.agents.deps import AgentDeps
 from app.agents.spec import AgentSpec
+from app.agents.subagent_events import SubagentEvent
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret, OpenAICodexSecret, SecretKind
 from app.services.agent_registry import _coding_agent_problems
@@ -97,12 +109,6 @@ def _claude_stream(*, result: dict[str, Any] | None = None) -> list[dict[str, An
                         "name": "Task",
                         "input": {"description": "dig"},
                     },
-                    {
-                        "type": "tool_use",
-                        "id": "t6",
-                        "name": "ExitPlanMode",
-                        "input": {"plan": "1. Fix app.py"},
-                    },
                 ]
             },
         },
@@ -136,7 +142,7 @@ _CLAUDE_DONE = {
         },
         "broken": "not usage",
     },
-    "permission_denials": [{"tool_name": "WebFetch"}, {"tool_name": "ExitPlanMode"}],
+    "permission_denials": [{"tool_name": "WebFetch"}, {"tool_name": "TodoWrite"}],
 }
 
 
@@ -148,7 +154,12 @@ def _codex_stream(*, end: dict[str, Any] | None) -> list[dict[str, Any]]:
         {"type": "item.completed", "item": {"type": "agent_message", "text": "Reading."}},
         {
             "type": "item.completed",
-            "item": {"type": "command_execution", "command": "ls", "exit_code": 0},
+            "item": {
+                "id": "i1",
+                "type": "command_execution",
+                "command": "/bin/bash -lc ls",
+                "exit_code": 0,
+            },
         },
         {
             "type": "item.completed",
@@ -188,10 +199,10 @@ def _lines(events: list[dict[str, Any]]) -> str:
 
 
 class TestTheCommand:
-    def test_claude_code_plans_in_its_plan_mode_with_the_key_in_the_environment(self) -> None:
+    def test_claude_code_read_only_takes_its_editing_tools_away(self) -> None:
         command = invocation(
             "claude_code",
-            "plan",
+            "read_only",
             "Find the bug",
             api_key="sk-a",
             model=None,
@@ -199,15 +210,24 @@ class TestTheCommand:
             base_url=None,
         )
         assert command.argv[:3] == ["claude", "-p", "Find the bug"]
-        assert command.argv[6:8] == ["--permission-mode", "plan"]
+        flags = command.argv[command.argv.index("--permission-mode") :]
+        assert flags[:4] == [
+            "--permission-mode",
+            "default",
+            "--disallowedTools",
+            "Edit,MultiEdit,Write,NotebookEdit",
+        ]
+        allowed = flags[flags.index("--allowedTools") + 1]
+        assert "Bash(git log:*)" in allowed and "find" not in allowed
+        assert "nobody can approve" in flags[flags.index("--append-system-prompt") + 1].lower()
         assert command.env["ANTHROPIC_API_KEY"] == "sk-a"
-        assert "sk-a" not in command.shell_line("log", "err")
+        assert "sk-a" not in command.detached_line(task_files("t"))
         assert "sk-a" not in repr(command)
 
-    def test_claude_code_applies_without_its_own_prompts_continuing_the_session(self) -> None:
+    def test_claude_code_edits_without_its_own_prompts_continuing_the_session(self) -> None:
         command = invocation(
             "claude_code",
-            "apply",
+            "edit",
             "Apply it",
             api_key="sk-or",
             model="anthropic/claude-sonnet-5.5",
@@ -221,45 +241,57 @@ class TestTheCommand:
         assert command.env["ANTHROPIC_API_KEY"] == ""
         assert command.env["IS_SANDBOX"] == "1"
 
-    def test_codex_plans_read_only_and_resumes_by_its_thread(self) -> None:
-        planned = invocation(
+    def test_codex_edits_bypassing_its_own_sandbox_and_resumes_by_its_thread(self) -> None:
+        fresh = invocation(
             "codex",
-            "plan",
-            "Find it",
+            "edit",
+            "Do it",
             api_key="sk-o",
             model="gpt-5.5-codex",
             session_id=None,
             base_url=None,
         )
-        assert planned.argv[:2] == ["codex", "exec"]
-        assert 'sandbox_mode="read-only"' in planned.argv
-        assert planned.argv[-3:] == ["-m", "gpt-5.5-codex", "Find it"]
-        assert planned.env == {"CODEX_API_KEY": "sk-o"}
+        assert fresh.argv[:2] == ["codex", "exec"]
+        assert "--dangerously-bypass-approvals-and-sandbox" in fresh.argv
+        assert fresh.argv[-3:] == ["-m", "gpt-5.5-codex", "Do it"]
+        assert fresh.env == {"CODEX_API_KEY": "sk-o"}
 
-        applied = invocation(
-            "codex", "apply", "Do it", api_key="sk-o", model=None, session_id="th-1", base_url=None
+        resumed = invocation(
+            "codex", "edit", "Do it", api_key="sk-o", model=None, session_id="th-1", base_url=None
         )
-        assert applied.argv[:4] == ["codex", "exec", "resume", "th-1"]
-        assert "--dangerously-bypass-approvals-and-sandbox" in applied.argv
+        assert resumed.argv[:4] == ["codex", "exec", "resume", "th-1"]
 
-    def test_the_task_is_one_quoted_word_on_the_shell_line(self) -> None:
+    def test_codex_has_no_read_only_mode_to_run(self) -> None:
+        """Its read-only mode is a sandbox of its own, which cannot start in a container."""
+        with pytest.raises(UserError, match="only with access to change files"):
+            invocation(
+                "codex", "read_only", "x", api_key="k", model=None, session_id=None, base_url=None
+            )
+
+    def test_the_task_is_one_quoted_word_of_a_detached_session(self) -> None:
         command = invocation(
             "codex",
-            "plan",
+            "edit",
             "it's; rm -rf /",
             api_key="k",
             model=None,
             session_id=None,
             base_url=None,
         )
-        line = command.shell_line("a b.jsonl", "err")
-        assert shlex.split(line)[-5:] == ["it's; rm -rf /", ">", "a b.jsonl", "2>", "err"]
+        files = task_files("a b")
+        line = command.detached_line(files)
+        words = shlex.split(line)
+        assert words[:4] == ["(setsid", "nohup", "sh", "-c"]
+        inner = shlex.split(words[4])
+        assert inner[:4] == ["echo", "$$", ">", f"{files.pid};"]
+        assert "it's; rm -rf /" in inner
+        assert inner[-3:] == ["$?", ">", files.status]
 
 
 class TestReadingClaudeCode:
     def test_a_finished_session_is_its_answer_steps_files_and_spend(self) -> None:
         report, usage = claude_report(
-            _claude_stream(result=_CLAUDE_DONE), mode="apply", base_url=None
+            _claude_stream(result=_CLAUDE_DONE), access="edit", base_url=None
         )
 
         assert report.outcome == "completed"
@@ -283,34 +315,25 @@ class TestReadingClaudeCode:
         assert usage.provider == "anthropic"
         assert list(usage.by_model) == ["claude-sonnet-5-5"]
 
-    def test_a_plan_with_no_closing_text_is_the_plan_it_proposed(self) -> None:
-        report, _ = claude_report(
-            _claude_stream(result={"subtype": "success", "is_error": False}),
-            mode="plan",
-            base_url=None,
-        )
-        assert report.answer == "1. Fix app.py"
-        assert report.files_changed == []
-
     def test_with_neither_the_text_it_wrote_is_the_answer(self) -> None:
         events = [
             {"type": "assistant", "message": {"content": [{"type": "text", "text": "Only this."}]}},
             {"type": "result", "subtype": "success"},
         ]
-        report, _ = claude_report(events, mode="plan", base_url=None)
+        report, _ = claude_report(events, access="read_only", base_url=None)
         assert report.answer == "Only this."
 
     def test_a_session_that_errored_is_failed_and_gateway_spend_has_no_provider(self) -> None:
         report, usage = claude_report(
             _claude_stream(result={"subtype": "error_max_turns", "is_error": True}),
-            mode="apply",
+            access="edit",
             base_url="https://openrouter.ai/api",
         )
         assert report.outcome == "failed"
         assert usage.provider is None
 
     def test_a_session_with_no_result_stopped_before_it_finished(self) -> None:
-        report, usage = claude_report(_claude_stream(), mode="apply", base_url=None)
+        report, usage = claude_report(_claude_stream(), access="edit", base_url=None)
         assert report.outcome == "failed"
         assert "stopped before it finished" in report.answer
         assert len(report.steps) == 4
@@ -318,13 +341,15 @@ class TestReadingClaudeCode:
 
     def test_an_empty_answer_says_so_and_a_long_one_is_cut(self) -> None:
         silent, _ = claude_report(
-            [{"type": "result", "subtype": "success"}], mode="plan", base_url=None
+            [{"type": "result", "subtype": "success"}], access="read_only", base_url=None
         )
         assert silent.answer == "(Claude Code sent no answer.)"
 
         long = "x" * (MAX_ANSWER_CHARS + 5)
         cut, _ = claude_report(
-            [{"type": "result", "subtype": "success", "result": long}], mode="plan", base_url=None
+            [{"type": "result", "subtype": "success", "result": long}],
+            access="read_only",
+            base_url=None,
         )
         assert cut.answer.endswith("[The answer went on for 5 more characters.]")
 
@@ -341,7 +366,7 @@ class TestReadingClaudeCode:
             {"type": "assistant", "message": "not a message"},
             {"type": "result", "subtype": "success", "result": "ok"},
         ]
-        report, _ = claude_report(events, mode="plan", base_url=None)
+        report, _ = claude_report(events, access="read_only", base_url=None)
         assert len(report.steps) == MAX_STEPS
         assert report.steps[0].title == "p4"
         assert report.steps[-1].title.endswith("…")
@@ -352,13 +377,13 @@ class TestReadingClaudeCode:
             {"type": "assistant", "message": {"content": [{"type": "tool_use", "input": "x"}]}},
             {"type": "result", "subtype": "success", "result": "ok"},
         ]
-        report, _ = claude_report(events, mode="plan", base_url=None)
+        report, _ = claude_report(events, access="read_only", base_url=None)
         assert [(step.kind, step.title) for step in report.steps] == [("other", "tool")]
 
 
 class TestReadingCodex:
     def test_a_finished_turn_is_its_last_message_steps_files_and_spend(self) -> None:
-        report, usage = codex_report(_codex_stream(end=None), mode="apply", model="gpt-5.5-codex")
+        report, usage = codex_report(_codex_stream(end=None), access="edit", model="gpt-5.5-codex")
 
         assert report.outcome == "completed"
         assert report.answer == "Done: app.py fixed."
@@ -379,7 +404,7 @@ class TestReadingCodex:
     def test_turns_add_up_and_an_unnamed_model_is_booked_as_codex(self) -> None:
         turn = {"type": "turn.completed", "usage": {"input_tokens": 5, "output_tokens": 1}}
         report, usage = codex_report(
-            [turn, turn, {"type": "turn.completed"}], mode="plan", model=None
+            [turn, turn, {"type": "turn.completed"}], access="read_only", model=None
         )
         assert usage.by_model["codex"].input_tokens == 10
         assert report.answer == "(Codex sent no answer.)"
@@ -387,17 +412,17 @@ class TestReadingCodex:
     def test_a_failed_turn_is_the_error_it_gave(self) -> None:
         report, _ = codex_report(
             _codex_stream(end={"type": "turn.failed", "error": {"message": "quota exceeded"}}),
-            mode="apply",
+            access="edit",
             model=None,
         )
         assert (report.outcome, report.answer) == ("failed", "quota exceeded")
 
-        bare, _ = codex_report([{"type": "error"}], mode="plan", model=None)
+        bare, _ = codex_report([{"type": "error"}], access="read_only", model=None)
         assert bare.answer == "Codex stopped with an error."
 
     def test_a_session_that_never_finished_a_turn_stopped_before_it_finished(self) -> None:
         report, _ = codex_report(
-            [{"type": "thread.started", "thread_id": "th-2"}], mode="plan", model=None
+            [{"type": "thread.started", "thread_id": "th-2"}], access="read_only", model=None
         )
         assert report.outcome == "failed"
         assert report.session_id == "th-2"
@@ -406,8 +431,16 @@ class TestReadingCodex:
         assert read_events('npm warn\n{"type": "x"}\n[1, 2]\n') == [{"type": "x"}]
 
 
+_TASK_FILE = re.compile(r"\.agenticos/coding-agent/[0-9a-f]+\.(?:jsonl|err|exit|pid)")
+
+
 class _Shell(WrapperWorkspace):
-    """A sandbox whose harness prints a recorded stream where it was told to."""
+    """A sandbox playing a detached harness that prints a recorded stream.
+
+    Starting it writes the events and stderr where the line says, and - unless it
+    `hangs` - the exit code; a poll answers with the bytes past its offset, base64,
+    and the exit code once there is one, as the real one-line poll does.
+    """
 
     def __init__(
         self,
@@ -416,13 +449,22 @@ class _Shell(WrapperWorkspace):
         stderr: str = "",
         exit_code: int = 0,
         raises: Exception | None = None,
+        hangs: bool = False,
         auth_after: str = "",
         auth_raises: Exception | None = None,
+        fails_resumed: bool = False,
     ) -> None:
         super().__init__(document_workspace())
         self.events, self.stderr, self.exit_code, self.raises = events, stderr, exit_code, raises
+        self.hangs, self.fails_resumed = hangs, fails_resumed
         self.auth_after, self.auth_raises = auth_after, auth_raises
         self.commands: list[tuple[str, Mapping[str, str] | None, float | None]] = []
+        self.stopped = 0
+
+    @property
+    def started(self) -> list[str]:
+        """The harness lines started, in order."""
+        return [command for command, _, _ in self.commands if command.startswith("(setsid")]
 
     async def run(
         self,
@@ -438,21 +480,72 @@ class _Shell(WrapperWorkspace):
                 raise self.auth_raises
             stdout = self.auth_after if command == READ_AUTH else ""
             return CommandResult(exit_code=0, stdout=stdout, stderr="")
-        words = shlex.split(command)
-        await self.write_bytes(words[words.index(">") + 1], self.events.encode())
-        await self.write_bytes(words[words.index("2>") + 1], self.stderr.encode())
+        if command.startswith("(setsid"):
+            return await self._start(command)
+        if command.startswith("tail -c +"):
+            return await self._poll(command)
+        if "kill -TERM" in command:
+            self.stopped += 1
+        elif command.startswith("rm -f "):
+            for path in shlex.split(command)[2:]:
+                with contextlib.suppress(FileNotFoundError):
+                    await self.remove(path)
+        return CommandResult(exit_code=0, stdout="", stderr="")
+
+    async def _start(self, command: str) -> CommandResult:
         if self.raises is not None:
             raise self.raises
-        return CommandResult(exit_code=self.exit_code, stdout="", stderr="")
+        paths = {path.rsplit(".", 1)[1]: path for path in _TASK_FILE.findall(command)}
+        resumed = "--resume" in command or " resume " in command
+        events = "" if resumed and self.fails_resumed else self.events
+        await self.write_bytes(paths["jsonl"], events.encode())
+        await self.write_bytes(paths["err"], self.stderr.encode())
+        await self.write_bytes(paths["pid"], b"4242")
+        if not self.hangs:
+            code = 1 if resumed and self.fails_resumed else self.exit_code
+            await self.write_bytes(paths["exit"], f"{code}\n".encode())
+        return CommandResult(exit_code=0, stdout="", stderr="")
+
+    async def _poll(self, command: str) -> CommandResult:
+        offset = int(command.split("+", 1)[1].split(" ", 1)[0]) - 1
+        events, status = (
+            next(path for path in _TASK_FILE.findall(command) if path.endswith(ext))
+            for ext in (".jsonl", ".exit")
+        )
+        data = await self._bytes(events)
+        chunk = data[offset : offset + _task.CHUNK_BYTES]
+        code = (await self._bytes(status)).decode()
+        return CommandResult(
+            exit_code=0, stdout=f"{base64.b64encode(chunk).decode()}\n{code}", stderr=""
+        )
+
+    async def _bytes(self, path: str) -> bytes:
+        try:
+            return await self.read_bytes(path)
+        except FileNotFoundError:
+            return b""
 
 
-def _ctx(workspace: Workspace | None, *, retry: int = 0) -> RunContext[AgentDeps]:
+@pytest.fixture(autouse=True)
+def _no_waiting(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Polls back to back: a test waits on nothing but its own events."""
+    monkeypatch.setattr(_task, "POLL_SECONDS", 0)
+
+
+def _ctx(
+    workspace: Workspace | None, *, retry: int = 0, frames: list[SubagentEvent] | None = None
+) -> RunContext[AgentDeps]:
+    async def sink(frame: SubagentEvent) -> None:
+        if frames is not None:
+            frames.append(frame)
+
     ctx = RunContext(
-        deps=AgentDeps(organization_id=uuid4()),
+        deps=AgentDeps(organization_id=uuid4(), subagent_events=sink),
         model=TestModel(),
         usage=RunUsage(),
         retry=retry,
         max_retries=1,
+        tool_call_id="call-1",
     )
     if workspace is not None:
         ctx.workspace = workspace
@@ -462,6 +555,7 @@ def _ctx(workspace: Workspace | None, *, retry: int = 0) -> RunContext[AgentDeps
 def _tools(harness: Any = "claude_code", **overrides: Any) -> Any:
     options: dict[str, Any] = {
         "harness": harness,
+        "access": "edit",
         "model": None,
         "base_url": None,
         "api_key": "sk-test",
@@ -470,64 +564,159 @@ def _tools(harness: Any = "claude_code", **overrides: Any) -> Any:
     return build_coding_toolset(**options).tools
 
 
-async def _call(tool: str, workspace: Workspace | None, task: str = "Fix it", **kwargs: Any) -> str:
-    return await _tools(**kwargs)[tool].function(_ctx(workspace), task=task)
+async def _call(
+    workspace: Workspace | None,
+    task: str = "Fix it",
+    *,
+    frames: list[SubagentEvent] | None = None,
+    fresh_session: bool = False,
+    **kwargs: Any,
+) -> str:
+    return await _tools(**kwargs)["run_coding_agent"].function(
+        _ctx(workspace, frames=frames), task=task, fresh_session=fresh_session
+    )
 
 
 class TestRunningATask:
-    async def test_a_plan_runs_the_harness_and_books_its_spend_and_tidies_up(self) -> None:
+    async def test_a_task_runs_detached_books_its_spend_keeps_its_session_and_tidies_up(
+        self,
+    ) -> None:
         shell = _Shell(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
         ledger = SpendLedger()
         with metered_by(ledger):
-            raw = await _call("plan_code_change", shell)
+            raw = await _call(shell, access="read_only")
 
         report = CodingReport.model_validate_json(raw)
         assert report.answer == "Fixed the off-by-one in app.py."
-        assert report.mode == "plan"
-        ((line, env, timeout),) = shell.commands
-        assert "--permission-mode plan" in line and f"{LOG_DIR}/" in line
+        assert report.access == "read_only"
+        ((line, env, timeout),) = [
+            command for command in shell.commands if command[0].startswith("(setsid")
+        ]
+        assert "--permission-mode default" in line and f"{WORK_DIR}/" in line
         assert env is not None and env["ANTHROPIC_API_KEY"] == "sk-test"
-        assert timeout == 600
+        assert timeout == 60
         assert [entry.model_name for entry in ledger.entries] == ["claude-sonnet-5-5"]
-        assert [entry.name for entry in await shell.list_dir(LOG_DIR)] == []
+        assert await shell.read_bytes(session_path("claude_code")) == b"s-1"
+        assert [entry.name for entry in await shell.list_dir(WORK_DIR)] == ["claude_code.session"]
+        assert shell.stopped == 0
 
-    async def test_a_change_continues_the_session_it_is_given(self) -> None:
+    async def test_the_next_task_continues_the_conversations_session(self) -> None:
         shell = _Shell(events=_lines(_codex_stream(end=None)))
-        raw = await _tools("codex")["apply_code_change"].function(
-            _ctx(shell), task="Apply it", session_id="th-1"
-        )
+        await shell.make_dir(WORK_DIR)
+        await shell.write_bytes(session_path("codex"), b"th-1\n")
+        raw = await _call(shell, "Apply it", harness="codex")
         assert CodingReport.model_validate_json(raw).files_changed == ["app.py"]
-        assert shlex.split(shell.commands[0][0])[:4] == ["codex", "exec", "resume", "th-1"]
+        assert shlex.split(shlex.split(shell.started[0])[4])[4:8] == [
+            "codex",
+            "exec",
+            "resume",
+            "th-1",
+        ]
+
+    async def test_a_fresh_session_ignores_the_one_kept(self) -> None:
+        shell = _Shell(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+        await shell.make_dir(WORK_DIR)
+        await shell.write_bytes(session_path("claude_code"), b"old")
+        await _call(shell, fresh_session=True)
+        assert "--resume" not in shell.started[0]
+
+    async def test_a_session_the_sandbox_lost_starts_over_once(self) -> None:
+        shell = _Shell(events=_lines(_claude_stream(result=_CLAUDE_DONE)), fails_resumed=True)
+        await shell.make_dir(WORK_DIR)
+        await shell.write_bytes(session_path("claude_code"), b"gone")
+        report = CodingReport.model_validate_json(await _call(shell))
+        assert report.outcome == "completed"
+        assert ["--resume" in line for line in shell.started] == [True, False]
+
+    async def test_each_step_streams_to_its_own_panel_as_it_lands(self) -> None:
+        frames: list[SubagentEvent] = []
+        shell = _Shell(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+        await _call(shell, "Fix it", frames=frames)
+
+        kinds = [frame.kind for frame in frames]
+        assert kinds[0] == "subagent_start" and kinds[-1] == "subagent_complete"
+        start = frames[0]
+        assert start.kind == "subagent_start"
+        assert (start.task_id, start.subagent, start.harness, start.prompt) == (
+            "call-1",
+            "Claude Code",
+            "claude_code",
+            "Fix it",
+        )
+        calls = [(f.tool_name, f.title) for f in frames if f.kind == "subagent_tool_call"]
+        assert calls == [
+            ("read", "app.py"),
+            ("command", "pytest -q"),
+            ("edit", "app.py"),
+            ("other", "dig"),
+        ]
+        results = {f.tool_call_id: f.ok for f in frames if f.kind == "subagent_tool_result"}
+        # t3 and t5 were never answered: they close with the panel, as failed.
+        assert results == {"t1": True, "t2": False, "t3": False, "t5": False}
+        assert any(f.kind == "subagent_text_delta" and f.delta == "Looking.\n\n" for f in frames)
+        assert frames[-1].kind == "subagent_complete" and frames[-1].status == "completed"
+
+    async def test_a_long_stream_is_read_in_chunks_and_a_split_line_is_joined(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(_task, "CHUNK_BYTES", 7)
+        frames: list[SubagentEvent] = []
+        # No newline after the last event: it is read once the harness has exited.
+        shell = _Shell(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+        report = CodingReport.model_validate_json(await _call(shell, frames=frames))
+        assert report.outcome == "completed" and len(report.steps) == 4
 
     async def test_a_task_past_its_time_is_stopped_and_says_so(self) -> None:
-        shell = _Shell(events=_lines(_claude_stream()), raises=WorkspaceTimeoutError("slow"))
-        report = CodingReport.model_validate_json(await _call("apply_code_change", shell))
+        frames: list[SubagentEvent] = []
+        shell = _Shell(events=_lines(_claude_stream()), hangs=True)
+        report = CodingReport.model_validate_json(
+            await _call(shell, frames=frames, timeout_seconds=0)
+        )
         assert report.outcome == "timed_out"
-        assert "stopped after 10 minutes" in report.answer
+        assert "stopped after 0 minutes" in report.answer
         assert len(report.steps) == 4
+        assert shell.stopped == 1
+        assert frames[-1].kind == "subagent_complete" and frames[-1].status == "failed"
+
+    async def test_a_cancelled_run_stops_the_harness_and_closes_its_panel(self) -> None:
+        frames: list[SubagentEvent] = []
+
+        class _Cancelled(_Shell):
+            async def _poll(self, command: str) -> CommandResult:
+                raise anyio.get_cancelled_exc_class()
+
+        shell = _Cancelled(hangs=True)
+        with pytest.raises(anyio.get_cancelled_exc_class()):
+            await _call(shell, frames=frames)
+        assert shell.stopped == 1
+        assert frames[-1].kind == "subagent_complete" and frames[-1].status == "cancelled"
 
     async def test_a_harness_that_printed_nothing_but_errors_says_what(self) -> None:
         shell = _Shell(stderr="Invalid API key\n", exit_code=1)
-        report = CodingReport.model_validate_json(await _call("plan_code_change", shell))
+        report = CodingReport.model_validate_json(await _call(shell))
         assert (report.outcome, report.answer) == ("failed", "Invalid API key")
 
-    async def test_a_log_already_gone_is_no_failure(self) -> None:
+    async def test_files_already_gone_are_no_failure(self) -> None:
         class _Tidied(_Shell):
-            async def remove(self, path: str) -> None:
-                raise FileNotFoundError(path)
+            async def run(self, command: Any, **kwargs: Any) -> CommandResult:
+                if command.startswith("rm -f "):
+                    raise WorkspaceUnavailableError("gone")
+                return await super().run(command, **kwargs)
 
         shell = _Tidied(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
-        report = CodingReport.model_validate_json(await _call("plan_code_change", shell))
+        report = CodingReport.model_validate_json(await _call(shell))
         assert report.outcome == "completed"
 
     async def test_a_runtime_without_the_harness_is_named(self) -> None:
-        answer = await _call("plan_code_change", _Shell(exit_code=127), harness="codex")
+        answer = await _call(_Shell(exit_code=127), harness="codex")
         assert "Codex is not installed" in answer
 
     async def test_a_sandbox_that_cannot_run_it_is_an_answer(self) -> None:
+        frames: list[SubagentEvent] = []
         shell = _Shell(raises=WorkspaceUnavailableError("gone"))
-        answer = await _call("plan_code_change", shell)
+        answer = await _call(shell, frames=frames)
         assert answer == "Claude Code could not run in this sandbox (WorkspaceUnavailableError)."
+        assert frames[-1].kind == "subagent_complete" and frames[-1].status == "failed"
 
     async def test_a_sandbox_the_service_will_not_open_is_an_answer(self) -> None:
         """A runtime still building answers 409, which the sandboxd client raises unmapped."""
@@ -536,40 +725,187 @@ class TestRunningATask:
             request=httpx.Request("POST", "http://sandboxd/sessions"),
             response=httpx.Response(409),
         )
-        answer = await _call("plan_code_change", _Shell(raises=refused))
+        answer = await _call(_Shell(raises=refused))
         assert answer == "Claude Code could not run in this sandbox (HTTPStatusError)."
+
+    async def test_a_poll_that_comes_back_garbled_reads_as_nothing_yet(self) -> None:
+        class _Garbled(_Shell):
+            polls = 0
+
+            async def _poll(self, command: str) -> CommandResult:
+                self.polls += 1
+                if self.polls == 1:
+                    return CommandResult(exit_code=0, stdout="not base64!\nnot a code", stderr="")
+                return await super()._poll(command)
+
+        shell = _Garbled(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+        assert CodingReport.model_validate_json(await _call(shell)).outcome == "completed"
 
     async def test_a_workspace_whose_files_cannot_be_read_still_reports(self) -> None:
         shell = _Shell(exit_code=0)
         ledger = SpendLedger()
         with metered_by(ledger):
-            raw = await _tools()["plan_code_change"].function(
+            raw = await _tools()["run_coding_agent"].function(
                 _ctx(ShellFailing(shell)), task="Look"
             )
+        # The session file cannot be read or written; the task still runs and reports.
         assert CodingReport.model_validate_json(raw).outcome == "failed"
         assert ledger.entries == []
 
     async def test_an_agent_with_no_sandbox_is_told_to_say_so(self) -> None:
-        answer = await _call("plan_code_change", None)
+        answer = await _call(None)
         assert "needs a sandbox with a shell" in answer
 
     async def test_an_empty_task_or_a_missing_key_asks_again(self) -> None:
         with pytest.raises(ModelRetry, match="Describe the task"):
-            await _call("plan_code_change", _Shell(), task="  ")
+            await _call(_Shell(), task="  ")
         with pytest.raises(ModelRetry, match="no API key"):
-            await _call("plan_code_change", _Shell(), api_key=None)
+            await _call(_Shell(), api_key=None)
+
+
+class TestWatchingItWork:
+    def test_claude_code_opens_a_step_per_tool_and_closes_it_on_the_result(self) -> None:
+        assistant, user = _claude_stream()[1:3]
+        assert live_items("claude_code", assistant)[:2] == [
+            Said("Looking."),
+            StepStarted("t1", CodingStep(kind="read", title="app.py")),
+        ]
+        assert live_items("claude_code", user) == [
+            StepEnded("t2", failed=True),
+            StepEnded("t1", failed=False),
+            StepEnded("unknown", failed=True),
+        ]
+
+    def test_codex_opens_a_command_as_it_starts_and_says_what_it_wrote(self) -> None:
+        started = {
+            "type": "item.started",
+            "item": {
+                "id": "i1",
+                "type": "command_execution",
+                "command": "/bin/bash -lc 'pytest -q'",
+            },
+        }
+        assert live_items("codex", started) == [
+            StepStarted("i1", CodingStep(kind="command", title="pytest -q"))
+        ]
+        said = {
+            "type": "item.completed",
+            "item": {"id": "i2", "type": "agent_message", "text": "Done."},
+        }
+        assert live_items("codex", said) == [Said("Done.")]
+        edit = {
+            "type": "item.completed",
+            "item": {"id": "i3", "type": "file_change", "changes": [{"path": "a.py"}]},
+        }
+        assert live_items("codex", edit) == [
+            StepStarted("i3", CodingStep(kind="edit", title="a.py")),
+            StepEnded("i3", failed=False),
+        ]
+
+    def test_what_says_nothing_shows_nothing(self) -> None:
+        assert live_items("codex", {"type": "turn.completed"}) == []
+        assert (
+            live_items(
+                "codex", {"type": "item.started", "item": {"id": "i", "type": "agent_message"}}
+            )
+            == []
+        )
+        assert (
+            live_items(
+                "codex", {"type": "item.completed", "item": {"id": "i", "type": "reasoning"}}
+            )
+            == []
+        )
+        assert (
+            live_items("codex", {"type": "item.completed", "item": {"type": "agent_message"}}) == []
+        )
+
+    def test_a_command_codex_wraps_reads_as_the_command(self) -> None:
+        report, _ = codex_report(_codex_stream(end=None), access="edit", model=None)
+        assert report.steps[0].title == "ls"
+        unbalanced = {
+            "type": "item.started",
+            "item": {"id": "i", "type": "command_execution", "command": "echo 'open"},
+        }
+        assert live_items("codex", unbalanced) == [
+            StepStarted("i", CodingStep(kind="command", title="echo 'open"))
+        ]
+
+    def test_claude_codes_thinking_is_not_a_step(self) -> None:
+        thinking = {"type": "assistant", "message": {"content": [{"type": "thinking"}]}}
+        assert live_items("claude_code", thinking) == []
+
+    async def test_a_codex_command_opened_as_it_started_is_not_opened_twice(self) -> None:
+        frames: list[SubagentEvent] = []
+        item = {"id": "c1", "type": "command_execution", "command": "pytest", "exit_code": 0}
+        events = [
+            {"type": "thread.started", "thread_id": "th-9"},
+            {"type": "item.started", "item": item},
+            {"type": "item.completed", "item": item},
+            {"type": "turn.completed", "usage": {}},
+        ]
+        await _call(_Shell(events=_lines(events)), harness="codex", frames=frames)
+        calls = [frame for frame in frames if frame.kind == "subagent_tool_call"]
+        results = [frame for frame in frames if frame.kind == "subagent_tool_result"]
+        assert [(c.tool_call_id, c.title) for c in calls] == [("c1", "pytest")]
+        assert [(r.tool_call_id, r.ok) for r in results] == [("c1", True)]
+
+    async def test_a_task_handed_on_by_a_delegate_streams_inside_its_panel(self) -> None:
+        frames: list[SubagentEvent] = []
+        # Only the four fields `acting_delegate` reads; a whole `Delegation` is a
+        # running delegation's bookkeeping, none of which this is about.
+        enclosing = SimpleNamespace(name="tech-lead", public_id="task-9", agent_id=None, depth=0)
+        token = _journal._CURRENT.set(enclosing)  # ty: ignore[invalid-argument-type]
+        try:
+            await _call(_Shell(events=_lines(_claude_stream(result=_CLAUDE_DONE))), frames=frames)
+        finally:
+            _journal._CURRENT.reset(token)
+        start = frames[0]
+        assert start.kind == "subagent_start"
+        assert (start.depth, start.parent_task_id) == (1, "task-9")
+        assert {frame.depth for frame in frames} == {1}
+
+    async def test_a_surface_that_cannot_show_it_hears_nothing(self) -> None:
+        ctx = _ctx(_Shell(events=_lines(_claude_stream(result=_CLAUDE_DONE))))
+        ctx.deps.subagent_events = None
+        raw = await _tools()["run_coding_agent"].function(ctx, task="Fix it")
+        assert CodingReport.model_validate_json(raw).outcome == "completed"
 
 
 class TestConfiguringIt:
-    def test_only_claude_code_takes_another_endpoint(self) -> None:
-        with pytest.raises(ValidationError, match="Only Claude Code"):
-            CodingAgentConfig(harness="codex", base_url="https://openrouter.ai/api")
+    def test_an_endpoint_left_from_claude_code_goes_with_codex(self) -> None:
+        """The field is hidden once Codex is chosen, so a value left in it is dropped."""
+        config = CodingAgentConfig(harness="codex", base_url="https://openrouter.ai/api")
+        assert config.base_url is None
+        schema = CodingAgentConfig.model_json_schema()["properties"]["base_url"]
+        assert schema["x-visible-when"] == {"field": "harness", "equals": ["claude_code"]}
+
+    def test_codex_is_refused_read_only_and_the_builder_never_offers_it(self) -> None:
+        with pytest.raises(ValidationError, match="Codex can only run with access"):
+            CodingAgentConfig(harness="codex", access="read_only")
+        when = CodingAgentConfig.model_json_schema()["properties"]["access"]["x-enum-when"]
+        assert when["choices"] == {"claude_code": ["edit", "read_only"], "codex": ["edit"]}
+
+    def test_its_one_tool_is_the_capability_and_has_no_settings_of_its_own(self) -> None:
+        definition = get("coding_agent")
+        assert [tool.id for tool in definition.tools] == ["run_coding_agent"]
+        assert definition.tool_settings is False
+
+    def test_the_instructions_say_which_harness_and_what_it_may_do(self) -> None:
+        editing = CodingAgent(harness="codex").get_instructions()
+        reading = CodingAgent(harness="claude_code", access="read_only").get_instructions()
+        assert "Codex" in editing and "edits files" in editing
+        assert "Claude Code" in reading and "changing nothing" in reading
 
     def test_the_builder_reads_the_key_the_endpoint_and_the_time_limit(self) -> None:
         definition = get("coding_agent")
         binding = CapabilityBinding(
             capability_id="coding_agent",
-            config={"base_url": "https://openrouter.ai/api/", "timeout_minutes": 5},
+            config={
+                "base_url": "https://openrouter.ai/api/",
+                "timeout_minutes": 5,
+                "access": "read_only",
+            },
         )
         built = definition.builder(
             CapabilityBuildContext(
@@ -580,14 +916,15 @@ class TestConfiguringIt:
             )
         )
         assert isinstance(built, CodingAgent)
-        assert (built.base_url, built.timeout_seconds, built.api_key) == (
+        assert (built.base_url, built.timeout_seconds, built.api_key, built.access) == (
             "https://openrouter.ai/api",
             300,
             "sk-or-gateway",
+            "read_only",
         )
         toolset = built.get_toolset()
         assert isinstance(toolset, FunctionToolset)
-        assert set(toolset.tools) == {"plan_code_change", "apply_code_change"}
+        assert set(toolset.tools) == {"run_coding_agent"}
         assert built.get_toolset() is built.get_toolset()
 
     def test_a_binding_with_no_secret_builds_without_a_key(self) -> None:
@@ -651,7 +988,7 @@ class TestSubscriptions:
     def test_a_claude_subscription_token_goes_where_claude_code_reads_one(self) -> None:
         command = invocation(
             "claude_code",
-            "plan",
+            "edit",
             "x",
             api_key="sk-ant-oat01-abc",
             model=None,
@@ -664,12 +1001,12 @@ class TestSubscriptions:
     def test_claude_code_without_any_credential_is_a_mistake(self) -> None:
         with pytest.raises(UserError):
             invocation(
-                "claude_code", "plan", "x", api_key=None, model=None, session_id=None, base_url=None
+                "claude_code", "edit", "x", api_key=None, model=None, session_id=None, base_url=None
             )
 
     def test_codex_on_a_sign_in_carries_no_key(self) -> None:
         command = invocation(
-            "codex", "plan", "x", api_key=None, model=None, session_id=None, base_url=None
+            "codex", "edit", "x", api_key=None, model=None, session_id=None, base_url=None
         )
         assert command.env == {}
 
@@ -737,7 +1074,7 @@ class _Store:
 class TestCodexOnASignIn:
     async def _run(self, shell: _Shell, store: _Store, **overrides: Any) -> str:
         options: dict[str, Any] = {"api_key": None, "sign_in": lambda _org: store} | overrides
-        return await _tools("codex", **options)["plan_code_change"].function(
+        return await _tools("codex", **options)["run_coding_agent"].function(
             _ctx(shell), task="Look"
         )
 
@@ -750,10 +1087,14 @@ class TestCodexOnASignIn:
         report = CodingReport.model_validate_json(await self._run(shell, store))
 
         assert report.outcome == "completed"
-        written, task, read = shell.commands
+        written, started, read = (
+            shell.commands[0],
+            next(command for command in shell.commands if command[0].startswith("(setsid")),
+            shell.commands[-1],
+        )
         assert written[0] == WRITE_AUTH and written[1] is not None
         assert json.loads(written[1][AUTH_ENV])["tokens"]["refresh_token"] == "rt-1"
-        assert "CODEX_API_KEY" not in (task[1] or {})
+        assert "CODEX_API_KEY" not in (started[1] or {})
         assert read[0] == READ_AUTH
         assert [saved.refresh_token for saved in store.saved] == ["rt-2"]
 
@@ -791,7 +1132,7 @@ class TestCodexOnASignIn:
         ctx.deps.organization_id = None
         store = _Store()
         answer = await _tools("codex", api_key=None, sign_in=lambda _org: store)[
-            "plan_code_change"
+            "run_coding_agent"
         ].function(ctx, task="Look")
         assert "only inside an organization" in answer
 
@@ -817,7 +1158,7 @@ class TestCredentialsThatDoNotFit:
         self, harness: Any, overrides: dict[str, Any], says: str
     ) -> None:
         shell = _Shell()
-        answer = await _tools(harness, **overrides)["plan_code_change"].function(
+        answer = await _tools(harness, **overrides)["run_coding_agent"].function(
             _ctx(shell), task="x"
         )
         assert says in answer

@@ -31,12 +31,15 @@ Two things are versioned separately from this file and worth knowing about:
   organization's own agents (`external_agents` in the spec). Every call is
   budget-checked and booked to the run as unpriced.
 - **Coding agent capability** (#2092). `coding_agent` hands software work to
-  Claude Code or Codex in the agent's sandbox: `plan_code_change` reads and plans,
-  `apply_code_change` edits and runs commands, and is the tool to set **Always ask**
-  on. The chat
-  shows what the harness read, ran and changed, and its tokens are booked to the
-  run. Claude Code runs on an Anthropic key or a `claude setup-token`
-  subscription token, Codex on an OpenAI key or a ChatGPT sign-in. The
+  Claude Code or Codex in the agent's sandbox through one tool,
+  `run_coding_agent`: the harness works on the task until done, and the chat
+  shows each step as it takes it - the file it reads, the edit, the command - in
+  a panel under the harness's mark. The binding's `access` decides whether it
+  may change files and run commands or only read and answer (Claude Code only);
+  **Human approval** set to **Always ask** asks before each task. A
+  conversation's tasks continue one harness session. Claude Code runs on an
+  Anthropic key or a `claude setup-token` subscription token, Codex on an
+  OpenAI key or a ChatGPT sign-in, and their tokens are booked to the run. The
   `workbench` runtime now carries Claude Code 2.1.288 and Codex 0.160.0.
 - **Projects.** A project holds instructions and files in one container that
   every chat started in it shares, whichever agent answers: a chat agent without

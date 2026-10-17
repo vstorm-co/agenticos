@@ -1422,18 +1422,18 @@
       "scrollPage": "Scrolled",
       "goingBack": "Going back",
       "goBack": "Went back",
-      "planCodeChange": "Plan a code change",
-      "planningCodeChange": "Planning a code change",
-      "applyCodeChange": "Change the code",
-      "applyingCodeChange": "Changing the code",
       "codingAgent": {
         "task": "Task",
-        "outcome": "{outcome, select, completed {{mode, select, plan {Planned} other {Done}}} timed_out {Stopped: out of time} other {Failed}}",
+        "outcome": "{outcome, select, completed {Done} timed_out {Stopped: out of time} other {Failed}}",
         "filesChanged": "{count, plural, =1 {Changed 1 file:} other {Changed # files:}}",
         "steps": "{count, plural, =1 {1 step} other {# steps}}",
         "stepKind": "{kind, select, read {Read} search {Searched} edit {Edited} command {Ran} web {Looked up} failed {Failed} other {Used}}",
-        "refused": "Not allowed while planning: {tools}"
-      }
+        "refused": "Not allowed read-only: {tools}"
+      },
+      "runCodingAgent": "Hand the work to the coding agent",
+      "runningCodingAgent": "The coding agent is working",
+      "codingStepRunning": "{kind, select, read {Reading} search {Searching} edit {Editing} command {Running} web {Looking up} other {Working on}}",
+      "codingStepDone": "{kind, select, read {Read} search {Searched} edit {Edited} command {Ran} web {Looked up} other {Used}}"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -6593,11 +6593,11 @@
     },
     "coding_agent": {
       "name": "Coding agent",
-      "does": "Hands software work to Claude Code or Codex, which plan and change code in the agent's sandbox.",
+      "does": "Hands software work to Claude Code or Codex, which work on it in the agent's sandbox while you watch each step in the chat.",
       "example1": "Fix a failing test in a repository the agent cloned",
-      "example2": "Explain how a module works before changing it",
+      "example2": "Explain how a module works, read-only",
       "needs": "The Sandbox capability on a sandbox connection, and in the vault an Anthropic or OpenAI key, a Claude subscription token or a ChatGPT sign-in.",
-      "never": "Never works outside the agent's sandbox. Changes wait for your approval when you set Always ask on Change the code."
+      "never": "Never works outside the agent's sandbox. Set Human approval to Always ask and each task waits for your yes."
     },
     "compaction": {
       "name": "Long conversations",
@@ -7198,6 +7198,10 @@
       "harness": {
         "title": "Coding agent",
         "description": "Which coding agent does the work: Claude Code, on an Anthropic key or a Claude subscription token, or Codex, on an OpenAI key or a ChatGPT sign-in."
+      },
+      "access": {
+        "title": "What it may do",
+        "description": "Change files and run commands, such as tests - or only read the code and answer. Set Human approval to ask before each task either way."
       },
       "model": {
         "title": "Model",

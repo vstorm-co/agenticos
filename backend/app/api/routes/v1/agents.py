@@ -112,6 +112,7 @@ async def list_capability_catalog() -> Any:
             description=definition.description,
             side_effecting=definition.side_effecting,
             tools=list(definition.tools),
+            tool_settings=definition.tool_settings,
             scopes=sorted(definition.scopes),
             contracts=[
                 CapabilityToolContract(

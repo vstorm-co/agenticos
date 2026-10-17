@@ -4,37 +4,57 @@ Claude Code or Codex, doing software work in the agent's own sandbox (#2092).
 
 ## What it is
 
-Two tools. `plan_code_change` runs the harness read-only - Claude Code in its
-`plan` permission mode, Codex with its sandbox set to `read-only` - and returns
-the plan or the finding. `apply_code_change` runs it with permission to edit and
-execute, and is side-effecting: the tool to set **Always ask** on, so a person
-approves each change. Like every gate it is off until somebody sets it. Applying usually continues the planning
-session (`session_id`), so the harness keeps what it read.
+One tool, `run_coding_agent`. The agent hands Claude Code or Codex a whole task;
+the harness works on it in the sandbox until it is done, and the chat shows it
+working. What the harness may do is the binding's `access`, not the model's
+choice: `edit` changes files and runs commands, `read_only` reads and answers
+(Claude Code only - Codex's read-only mode is its own sandbox, which cannot start
+inside the container, and then even `cat` fails). Whether a person approves each
+task first is the capability's approval, set to **Always ask**; the capability
+declares `tool_settings=False`, so the Builder shows no per-tool tab for a tool
+that *is* the capability.
+
+The tasks of one conversation continue one harness session. The session id is
+kept in the sandbox at `.agenticos/coding-agent/<harness>.session`, the second task
+resumes it, `fresh_session` starts over, and a session the sandbox lost (a fresh
+container) starts over by itself, once.
 
 An agent with this capability is a *coding agent*. Another agent hands it work
 through ordinary delegation, the same way it reaches any specialist.
 
+## Detached, and watched
+
+The harness is started in a session of its own (`setsid nohup`) with its events
+written to a file, and the platform polls that file - one command per poll that
+answers with the new bytes, base64, and the exit code once there is one
+(`_task.py`). Two reasons. A coding task outlives the sandbox service's ceiling
+for one command. And a person should see Claude Code read, edit and run tests as
+it does them: each event becomes the delegation frames the chat already draws
+(`_narration.py`, `app.agents.subagent_events`), so the harness gets a panel of
+its own under its own mark, nested under a delegate that handed the task on. A
+timed-out task, and a run that is cancelled, has its process group stopped.
+
 ## Why headless through the sandbox's shell, not ACP
 
 The Agent Client Protocol drives a harness over a long-lived stdio session. The
-sandbox runs a command to completion and returns its output; it has no
-interactive session to hold one open in. Both harnesses also run headless with a
-machine-readable event stream - `claude -p --output-format stream-json`,
-`codex exec --json` - which is what OpenClaw's CLI backends use, and that is what
-this does: one command per task, its events written to a file in the workspace,
-read back and parsed. The cost is that the steps reach the conversation when the
-task finishes rather than as it runs.
+sandbox runs commands and returns their output; it holds no interactive session
+to keep one open in. Both harnesses also run headless with a machine-readable
+event stream - `claude -p --output-format stream-json`, `codex exec --json` -
+which is what OpenClaw's CLI backends use, and that is what this does.
 
-## Why one approval per change
+## Why one approval per task
 
 A harness asks permission per file and per command when a person sits at its
 terminal. Nobody does here, and forwarding each of those prompts through the
 platform would make a person approve forty edits to accept one change. So the
-platform asks once, at `apply_code_change` when it is gated, after the plan has
-been shown, and the harness runs with its own prompts off either way: Claude Code with
+platform asks once, before the task, when the approval is set, and the harness
+runs with its own prompts off at `edit`: Claude Code with
 `--dangerously-skip-permissions` (and `IS_SANDBOX=1`, which it asks for when run
 as root), Codex with `--dangerously-bypass-approvals-and-sandbox`. The container
-is the boundary, which is what both flags are documented for.
+is the boundary, which is what both flags are documented for. At `read_only`
+Claude Code runs in its default permission mode without its editing tools and
+with only reading commands allowed, and is told nobody can approve anything else
+(it otherwise tells the person to "approve the deletion").
 
 ## What it costs
 
@@ -63,6 +83,6 @@ cost says it is partial.
 
 ## What it does not do
 
-- Stream the harness's steps while it works.
 - Forward the harness's own permission prompts.
+- Run Codex read-only.
 - Run on the `state` workspace, which has no shell.

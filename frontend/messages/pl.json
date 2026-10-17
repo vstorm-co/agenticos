@@ -1422,18 +1422,18 @@
       "scrollPage": "Przewinął",
       "goingBack": "Wraca",
       "goBack": "Wrócił",
-      "planCodeChange": "Zaplanuj zmianę w kodzie",
-      "planningCodeChange": "Planowanie zmiany w kodzie",
-      "applyCodeChange": "Zmień kod",
-      "applyingCodeChange": "Zmienianie kodu",
       "codingAgent": {
         "task": "Zadanie",
-        "outcome": "{outcome, select, completed {{mode, select, plan {Zaplanowano} other {Gotowe}}} timed_out {Przerwano: koniec czasu} other {Nie udało się}}",
+        "outcome": "{outcome, select, completed {Gotowe} timed_out {Przerwano: koniec czasu} other {Nie udało się}}",
         "filesChanged": "{count, plural, one {Zmieniono 1 plik:} few {Zmieniono # pliki:} many {Zmieniono # plików:} other {Zmieniono # pliku:}}",
         "steps": "{count, plural, one {1 krok} few {# kroki} many {# kroków} other {# kroku}}",
         "stepKind": "{kind, select, read {Odczyt} search {Wyszukiwanie} edit {Edycja} command {Polecenie} web {Sieć} failed {Błąd} other {Narzędzie}}",
-        "refused": "Niedozwolone podczas planowania: {tools}"
-      }
+        "refused": "Niedozwolone w trybie tylko do odczytu: {tools}"
+      },
+      "runCodingAgent": "Przekaż pracę coding agentowi",
+      "runningCodingAgent": "Coding agent pracuje",
+      "codingStepRunning": "{kind, select, read {Czyta} search {Szuka} edit {Edytuje} command {Uruchamia} web {Sprawdza w sieci} other {Pracuje nad}}",
+      "codingStepDone": "{kind, select, read {Przeczytał} search {Przeszukał} edit {Edytował} command {Uruchomił} web {Sprawdził w sieci} other {Użył}}"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -6367,11 +6367,11 @@
     },
     "coding_agent": {
       "name": "Coding agent",
-      "does": "Przekazuje pracę programistyczną do Claude Code albo Codex, które planują i zmieniają kod w sandboxie agenta.",
+      "does": "Przekazuje pracę programistyczną do Claude Code albo Codex, które pracują nad nią w sandboxie agenta, a ty widzisz w czacie każdy krok.",
       "example1": "Napraw padający test w repozytorium sklonowanym przez agenta",
-      "example2": "Wyjaśnij, jak działa moduł, zanim go zmienisz",
+      "example2": "Wyjaśnij, jak działa moduł, bez zmieniania kodu",
       "needs": "Capability Sandbox na połączeniu sandbox oraz w vault klucz Anthropic albo OpenAI, token subskrypcji Claude albo logowanie ChatGPT.",
-      "never": "Nigdy nie działa poza sandboxem agenta. Zmiany czekają na twoją zgodę, gdy ustawisz Always ask na Zmień kod."
+      "never": "Nigdy nie działa poza sandboxem agenta. Ustaw Zatwierdzenie przez człowieka na Zawsze pytaj, a każde zadanie poczeka na twoją zgodę."
     },
     "compaction": {
       "name": "Długie rozmowy",
@@ -6982,6 +6982,10 @@
       "harness": {
         "title": "Coding agent",
         "description": "Który coding agent wykonuje pracę: Claude Code na kluczu Anthropic albo tokenie subskrypcji Claude, albo Codex na kluczu OpenAI albo logowaniu ChatGPT."
+      },
+      "access": {
+        "title": "Co może robić",
+        "description": "Zmieniać pliki i uruchamiać polecenia, np. testy - albo tylko czytać kod i odpowiadać. W obu przypadkach ustaw Zatwierdzenie przez człowieka, żeby pytał przed każdym zadaniem."
       },
       "model": {
         "title": "Model",

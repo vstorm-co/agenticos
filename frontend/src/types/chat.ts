@@ -534,7 +534,15 @@ export interface SubagentStartFrame extends SubagentFrameBase {
    * else keeps - so a surface can offer to promote it while the run is on screen.
    */
   specialist: SpecialistDefinition | null;
+  /**
+   * Set when the worker is Claude Code or Codex, started by the `coding_agent`
+   * capability rather than delegated to an agent, so the panel draws its mark.
+   */
+  harness?: CodingHarness | null;
 }
+
+/** The coding harnesses the `coding_agent` capability runs. */
+export type CodingHarness = "claude_code" | "codex";
 
 export interface SubagentTextDeltaFrame extends SubagentFrameBase {
   kind: "subagent_text_delta";
@@ -550,6 +558,8 @@ export interface SubagentToolCallFrame extends SubagentFrameBase {
   kind: "subagent_tool_call";
   tool_name: string;
   tool_call_id: string;
+  /** What the step is about - a file, a command - where the worker says; a coding harness does. */
+  title?: string | null;
 }
 
 export interface SubagentToolResultFrame extends SubagentFrameBase {
@@ -650,6 +660,8 @@ export interface DelegationStep {
   id: string;
   name: string;
   ok: boolean | null;
+  /** The file or command the step was about, when the frame said; see `SubagentToolCallFrame`. */
+  title: string | null;
 }
 
 /** One delegation, assembled from its frames - the thing a panel draws. */
@@ -673,6 +685,8 @@ export interface Delegation {
    * chat reads, and what its absence hides that action for. See `SpecialistDefinition`.
    */
   specialist: SpecialistDefinition | null;
+  /** Claude Code or Codex, when the worker is a coding harness rather than an agent. */
+  harness: CodingHarness | null;
   text: string;
   thinking: string;
   steps: DelegationStep[];

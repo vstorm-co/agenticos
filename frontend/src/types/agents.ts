@@ -579,6 +579,12 @@ export interface CapabilityCatalogEntry {
   category: string;
   description: string;
   side_effecting: boolean;
+  /**
+   * Whether the Builder offers per-tool settings. False where the one tool is the
+   * capability itself - the coding agent's - so its approval is the capability's.
+   * Absent from an older server, which means offered.
+   */
+  tool_settings?: boolean;
   scopes: string[];
   /** Empty for a capability that is not tools at all - a guardrail, or instructions. */
   tools: CapabilityTool[];

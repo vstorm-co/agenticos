@@ -12,7 +12,7 @@ from pydantic_ai.providers.openai_codex import OpenAICodexCredentialSource
 from pydantic_ai.tools import AgentDepsT
 from pydantic_ai.toolsets import AbstractToolset
 
-from app.agents.capabilities.coding_agent._harness import Harness
+from app.agents.capabilities.coding_agent._harness import LABELS, Access, Harness
 from app.agents.capabilities.coding_agent._toolset import build_coding_toolset
 
 
@@ -22,10 +22,11 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
 
     See the package `README.md` for why the harness is driven headless through
     the sandbox's shell rather than over ACP, and why its approval is one
-    decision per change.
+    decision per task.
     """
 
     harness: Harness = "claude_code"
+    access: Access = "edit"
     model: str | None = None
     base_url: str | None = None
     timeout_seconds: int = 900
@@ -39,10 +40,25 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
         default=None, init=False, repr=False, compare=False
     )
 
+    def get_instructions(self) -> str:
+        label = LABELS[self.harness]
+        reach = (
+            "reads the code, edits files and runs commands such as tests"
+            if self.access == "edit"
+            else "reads and searches the code and answers, changing nothing"
+        )
+        return (
+            f"You can hand software work to {label}, a coding agent that works in your "
+            f"sandbox: it {reach}. Use run_coding_agent with the whole task, then tell "
+            "the person what it found or did. Its later tasks in this conversation "
+            "continue the same session."
+        )
+
     def get_toolset(self) -> AbstractToolset[Any]:
         if self._toolset is None:
             self._toolset = build_coding_toolset(
                 harness=self.harness,
+                access=self.access,
                 model=self.model,
                 base_url=self.base_url,
                 api_key=self.api_key,

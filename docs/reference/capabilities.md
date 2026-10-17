@@ -1032,41 +1032,50 @@ simply has nowhere to build with them.
 
 ## Coding agent { #coding-agent }
 
-`plan_code_change` — *Ask the coding agent to study the code and plan a change, without changing anything.*
-`apply_code_change` — *Have the coding agent make a change in the sandbox: edit files and run commands.*
+`run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
 
 Hands software work to **Claude Code** or **Codex**, running in the agent's own
 [sandbox](../sandbox.md). A general agent with a shell can edit code; a coding
-harness is better at it, and this is how an agent reaches one. An agent with this
-capability is a *coding agent*, and another agent hands it work through ordinary
+harness is better at it, and this is how an agent reaches one. The harness is a
+separate agent: the agent hands it a whole task, it works until done, and the
+chat shows it working. Another agent reaches a coding agent through ordinary
 [delegation](#delegation), the way it reaches any specialist.
 
 | Config | Default | Values |
 |---|---|---|
 | `harness` | `claude_code` | `claude_code` (an Anthropic API key or a Claude subscription token), `codex` (an OpenAI API key or a ChatGPT sign-in) |
+| `access` | `edit` | `edit` changes files and runs commands; `read_only` reads the code and answers (Claude Code only) |
 | `model` | the harness's default | Claude Opus, Sonnet or Haiku 5.5 for Claude Code; GPT-5.6 Sol, Terra, Luna or GPT-5.3 Codex for Codex |
-| `base_url` | Anthropic directly | Claude Code only: a gateway that speaks Anthropic's API, such as `https://openrouter.ai/api`, whose key the vault then holds |
+| `base_url` | Anthropic directly | Claude Code only: a gateway that speaks Anthropic's API, such as `https://openrouter.ai/api`, whose key the vault then holds. Dropped when Codex is chosen |
 | `timeout_minutes` | 15 | 1–60, for one task |
 
-**Planning reads; applying writes.** `plan_code_change` runs the harness read-only
-— Claude Code in its `plan` permission mode, Codex with its sandbox set to
-`read-only` — and answers with the plan or the finding. `apply_code_change` lets it
-edit any file and run any command in the sandbox, so it is side-effecting, and
-setting **Always ask** on it puts each change behind the
-[approval gate](../governance.md) — like every gate, it is off until somebody sets
-it. That is one decision per change, taken after the plan is in the conversation,
-rather than a prompt per file: the harness runs with its own prompts off (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`),
-because the sandbox container is the boundary both flags are documented for.
-Applying usually passes the planning call's `session_id`, so the harness keeps
-what it read.
+**One tool, and the binding decides what it may do.** At `edit` the harness edits
+any file and runs any command in the sandbox, with its own prompts off
+(`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`):
+nobody sits at its terminal, and the container is the boundary both flags are
+documented for. At `read_only`, Claude Code runs in its default permission mode
+without its editing tools and with only reading commands allowed (`ls`, `cat`,
+`grep`, `rg`, `git log`, `git diff`, `git show`, `git status`), and is told that
+nothing else can be approved. Codex has no `read_only`: its read-only mode is a
+sandbox of its own, which cannot start inside the agent's container, and publish
+refuses the combination. Whether a person says yes before each task is the
+capability's **Human approval**, set to **Always ask** — like every gate, it is off
+until somebody sets it. There is no Tools tab: the one tool is the capability.
 
-**Each task is one headless command**, `claude -p --output-format stream-json` or
-`codex exec --json`, run in the workspace. Its events are written to a file there,
-read back, and reduced to the answer, the steps it took — files read and changed,
-commands run, searches — and the files it changed, which the chat draws under the
-call. The steps arrive when the task finishes rather than as it runs: the sandbox
-runs a command to completion and holds no interactive session, which is also why
-the Agent Client Protocol is not used.
+**The person watches it work.** The harness is started detached in the sandbox,
+`claude -p --output-format stream-json` or `codex exec --json`, and its events file
+is read every second and a half. Each step reaches the chat as it happens, in a
+panel of its own under the Claude Code or Codex mark, the way a delegation's do:
+the file it reads, the edit, the command it runs, what it says between them. When
+it finishes, the call's result holds the answer, every step and the files it
+changed. A task past `timeout_minutes`, and one the person stops, has its whole
+process group stopped. Detached also means a task is not cut at the sandbox
+service's ceiling for one command.
+
+**A conversation's tasks continue one session.** The harness's session id is kept
+in the sandbox beside the work, under `.agenticos/coding-agent/`, so the second task
+in a chat knows what the first one read. The model passes `fresh_session` to start
+over, and a session the sandbox no longer holds starts over by itself, once.
 
 **What it needs.** The `sandbox` capability on the `service` backend with shell
 commands on — publishing refuses anything else — and a runtime with the harness

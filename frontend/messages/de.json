@@ -1422,18 +1422,18 @@
       "scrollPage": "Gescrollt",
       "goingBack": "Geht zurück",
       "goBack": "Zurückgegangen",
-      "planCodeChange": "Codeänderung planen",
-      "planningCodeChange": "Plane eine Codeänderung",
-      "applyCodeChange": "Code ändern",
-      "applyingCodeChange": "Ändere den Code",
       "codingAgent": {
         "task": "Aufgabe",
-        "outcome": "{outcome, select, completed {{mode, select, plan {Geplant} other {Erledigt}}} timed_out {Gestoppt: Zeit abgelaufen} other {Fehlgeschlagen}}",
+        "outcome": "{outcome, select, completed {Erledigt} timed_out {Gestoppt: Zeit abgelaufen} other {Fehlgeschlagen}}",
         "filesChanged": "{count, plural, =1 {1 Datei geändert:} other {# Dateien geändert:}}",
         "steps": "{count, plural, =1 {1 Schritt} other {# Schritte}}",
         "stepKind": "{kind, select, read {Gelesen} search {Gesucht} edit {Bearbeitet} command {Ausgeführt} web {Nachgeschlagen} failed {Fehlgeschlagen} other {Verwendet}}",
-        "refused": "Beim Planen nicht erlaubt: {tools}"
-      }
+        "refused": "Im Nur-Lesen-Modus nicht erlaubt: {tools}"
+      },
+      "runCodingAgent": "Arbeit an den Coding Agent übergeben",
+      "runningCodingAgent": "Der Coding Agent arbeitet",
+      "codingStepRunning": "{kind, select, read {Liest} search {Sucht} edit {Bearbeitet} command {Führt aus} web {Schlägt nach} other {Arbeitet an}}",
+      "codingStepDone": "{kind, select, read {Gelesen} search {Gesucht} edit {Bearbeitet} command {Ausgeführt} web {Nachgeschlagen} other {Verwendet}}"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -6476,11 +6476,11 @@
     },
     "coding_agent": {
       "name": "Coding Agent",
-      "does": "Übergibt Softwarearbeit an Claude Code oder Codex, die im Sandbox des Agent Code planen und ändern.",
+      "does": "Übergibt Softwarearbeit an Claude Code oder Codex, die im Sandbox des Agent daran arbeiten, während Sie jeden Schritt im Chat sehen.",
       "example1": "Einen fehlschlagenden Test in einem Repository beheben, das der Agent geklont hat",
-      "example2": "Erklären, wie ein Modul funktioniert, bevor es geändert wird",
+      "example2": "Erklären, wie ein Modul funktioniert, ohne etwas zu ändern",
       "needs": "Die Capability Sandbox auf einer Sandbox-Verbindung und im Vault ein Anthropic- oder OpenAI-Key, ein Claude-Abo-Token oder eine ChatGPT-Anmeldung.",
-      "never": "Arbeitet nie außerhalb des Sandbox des Agent. Änderungen warten auf Ihre Freigabe, wenn Sie Always ask auf Code ändern setzen."
+      "never": "Arbeitet nie außerhalb des Sandbox des Agent. Setzen Sie Freigabe durch einen Menschen auf Immer fragen, dann wartet jede Aufgabe auf Ihr Ja."
     },
     "compaction": {
       "name": "Lange Gespräche",
@@ -7081,6 +7081,10 @@
       "harness": {
         "title": "Coding Agent",
         "description": "Welcher Coding Agent die Arbeit erledigt: Claude Code mit einem Anthropic-Key oder einem Claude-Abo-Token, oder Codex mit einem OpenAI-Key oder einer ChatGPT-Anmeldung."
+      },
+      "access": {
+        "title": "Was er darf",
+        "description": "Dateien ändern und Befehle ausführen, etwa Tests - oder nur den Code lesen und antworten. Setzen Sie in beiden Fällen Freigabe durch einen Menschen, damit vor jeder Aufgabe gefragt wird."
       },
       "model": {
         "title": "Modell",

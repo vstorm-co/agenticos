@@ -104,6 +104,12 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     # excerpt of its text - goes to the agent's own model provider, which the
     # inventory already names.
     "browser_use": "a browser host on BROWSER_CDP_ALLOWED_HOSTS, and the sites it opens",
+    # Claude Code or Codex reads the sandbox's files and sends what it reads to
+    # its own vendor, from inside the sandbox rather than from the platform.
+    "coding_agent": (
+        "Anthropic, OpenAI or the gateway the binding names, from the agent's sandbox, "
+        "with the code the coding agent reads"
+    ),
     "image_generation": "the image provider named in the binding",
     "knowledge": "the collection's embedding endpoint",
     "memory_mem0": "the mem0 host the binding names (MEM0_ALLOWED_HOSTS bounds it)",
