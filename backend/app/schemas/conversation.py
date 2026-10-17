@@ -253,6 +253,9 @@ class MessageReplyRef(BaseSchema):
     role: str
     excerpt: str
     sender: ChatPerson | None = None
+    agent_id: UUID | None = Field(
+        default=None, description="The agent that wrote it, where it is an answer"
+    )
 
 
 class MessageRead(MessageBase, TimestampSchema):

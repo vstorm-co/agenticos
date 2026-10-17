@@ -761,6 +761,8 @@ describe("what a person attached", () => {
       role: "assistant",
       excerpt: "Plan: step one",
       sender: undefined,
+      agentId: undefined,
+      agentName: undefined,
     });
     unmount();
 

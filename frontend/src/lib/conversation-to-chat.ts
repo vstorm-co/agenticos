@@ -57,6 +57,7 @@ export interface RawMessage {
     role: ChatMessage["role"];
     excerpt: string;
     sender?: ChatPerson | null;
+    agent_id?: string | null;
   } | null;
   /** What the turn cost. Absent on a message written before it was recorded. */
   input_tokens?: number | null;
@@ -192,6 +193,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
           role: msg.reply_to.role,
           excerpt: msg.reply_to.excerpt,
           sender: msg.reply_to.sender ?? undefined,
+          agentId: msg.reply_to.agent_id ?? undefined,
         }
       : undefined,
     agentId: msg.agent_id ?? undefined,

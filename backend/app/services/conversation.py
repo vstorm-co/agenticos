@@ -685,6 +685,7 @@ class ConversationService:
                 role=answered.role,
                 excerpt=_excerpt(answered.content),
                 sender=ChatPerson.of(author) if author is not None else None,
+                agent_id=answered.agent_id,
             )
 
     async def list_project_chats(

@@ -58,12 +58,14 @@ describe("ChatInput replying", () => {
         .setReplyTo({ messageId: "m-2", role: "assistant", excerpt: "Plan: A, B" }),
     );
     render(<ChatInput onSend={vi.fn()} />);
-    expect(screen.getByText("Replying to")).toBeInTheDocument();
+    expect(screen.getByText("The agent")).toBeInTheDocument();
     expect(screen.getByText("Plan: A, B")).toBeInTheDocument();
+    // Ready to type the answer.
+    expect(screen.getByRole("textbox")).toHaveFocus();
 
     await userEvent.click(screen.getByRole("button", { name: "Don't reply" }));
     expect(useChatStore.getState().replyTo).toBeNull();
-    expect(screen.queryByText("Replying to")).toBeNull();
+    expect(screen.queryByText("Plan: A, B")).toBeNull();
   });
 });
 

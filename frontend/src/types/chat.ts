@@ -25,6 +25,10 @@ export interface MessageReply {
   excerpt: string;
   /** Who wrote it, for a person's message; absent for the agent's. */
   sender?: ChatPerson;
+  /** The agent that wrote it, for an answer. */
+  agentId?: string;
+  /** Its name, where the reply was chosen on screen and the name was at hand. */
+  agentName?: string;
 }
 
 export interface ChatMessage {

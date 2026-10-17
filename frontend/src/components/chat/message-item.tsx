@@ -298,17 +298,21 @@ export function MessageItem({
           })()}
 
         {message.replyTo && (
-          <ReplyQuote reply={message.replyTo} className={cn(isUser && "self-end")} />
+          <ReplyQuote reply={message.replyTo} agents={agents} align={isUser ? "end" : "start"} />
         )}
-        <MessageBody
-          message={message}
-          isUser={isUser}
-          mcpServers={mcpServers}
-          agents={agents}
-          openLastStep={openLastStep}
-          endsTurn={endsTurn}
-          onCiteClick={onCiteClick}
-        />
+        {/* Pulled up onto the quote it answers, as a reply bubble sits in a chat
+            app: the two read as one exchange rather than two stacked boxes. */}
+        <div className={cn("contents", message.replyTo && "relative -mt-4 block")}>
+          <MessageBody
+            message={message}
+            isUser={isUser}
+            mcpServers={mcpServers}
+            agents={agents}
+            openLastStep={openLastStep}
+            endsTurn={endsTurn}
+            onCiteClick={onCiteClick}
+          />
+        </div>
 
         {!isUser && !message.isStreaming && apps.length > 0 && (
           // What the turn made, under what it said: the app is the answer to
@@ -387,6 +391,8 @@ export function MessageItem({
                     role: message.role,
                     excerpt: replyExcerpt(message.content),
                     sender: isUser ? message.sender : undefined,
+                    agentId: isUser ? undefined : agent?.id,
+                    agentName: isUser ? undefined : agent?.name,
                   })
                 }
                 title={tReply("reply")}

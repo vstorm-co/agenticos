@@ -1470,10 +1470,13 @@
     "whatWentWrong": "What went wrong?",
     "reply": {
       "reply": "Reply",
-      "replyingTo": "Replying to",
       "cancel": "Don't reply",
       "theAgent": "The agent",
-      "jump": "Show the message"
+      "jump": "Show the message",
+      "inReplyTo": "In reply to {name}",
+      "inReplyToYou": "In reply to you",
+      "replyingTo": "Replying to <strong>{name}</strong>",
+      "replyingToYourself": "Replying to yourself"
     },
     "room": {
       "here": "{count, plural, =1 {{name} is here too} other {# people are here with you}}",

@@ -1470,10 +1470,13 @@
     "whatWentWrong": "Was ist schiefgelaufen?",
     "reply": {
       "reply": "Antworten",
-      "replyingTo": "Antwort auf",
       "cancel": "Nicht antworten",
       "theAgent": "Der Agent",
-      "jump": "Nachricht zeigen"
+      "jump": "Nachricht zeigen",
+      "inReplyTo": "Antwort an {name}",
+      "inReplyToYou": "Antwort an dich",
+      "replyingTo": "Antwort an <strong>{name}</strong>",
+      "replyingToYourself": "Antwort auf deine eigene Nachricht"
     },
     "room": {
       "here": "{count, plural, =1 {{name} ist auch hier} other {# Personen sind mit dir hier}}",
