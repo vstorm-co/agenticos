@@ -519,6 +519,20 @@ async def messages_by_id(db: AsyncSession, message_ids: Collection[UUID]) -> dic
     return {message.id: message for message in result.scalars().all()}
 
 
+async def release_project_chats(db: AsyncSession, *, user_id: UUID) -> None:
+    """Take this person off the project chats they started, so the chats outlive them.
+
+    Called as their account goes: the `users` cascade deletes the rows that
+    still name them, and a project's chat is its members' to keep.
+    """
+    await db.execute(
+        sql_update(Conversation)
+        .where(Conversation.user_id == user_id, Conversation.project_id.is_not(None))
+        .values(user_id=None)
+    )
+    await db.flush()
+
+
 async def users_by_id(db: AsyncSession, user_ids: Collection[UUID]) -> dict[UUID, User]:
     """These people, keyed by id; one query, and none for an empty set."""
     if not user_ids:

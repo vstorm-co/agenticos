@@ -34,6 +34,9 @@ Two things are versioned separately from this file and worth knowing about:
   Renaming, archiving and deleting stay with whoever started the chat.
   `GET /api/v1/projects/{id}/chats` lists them; a message's `sender` names who
   typed a user turn.
+  Access to a project's chat follows the project alone - its starter loses it
+  with the project - and deleting the starter's account keeps the chat for the
+  team, unowned.
 - **Agents served over A2A** (#2092). An agent its organization switches on under
   **Availability → Agent2Agent (A2A)** has an agent card at
   `/api/v1/a2a/{id}/.well-known/agent-card.json` and takes `message/send` and

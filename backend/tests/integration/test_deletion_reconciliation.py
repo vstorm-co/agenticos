@@ -27,14 +27,17 @@ from app.core.background import discard_deferred, drain, start_deferred
 from app.core.config import settings as app_settings
 from app.core.exceptions import BadRequestError
 from app.db.locks import LockScope, hold_name
+from app.db.models.conversation import Conversation
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.rag_document import RAGDocument
 from app.db.models.user import User
 from app.repositories import (
+    conversation_repo,
     knowledge_base_repo,
     member_repo,
+    project_repo,
     user_repo,
 )
 from app.services.file_storage import get_file_storage
@@ -194,6 +197,42 @@ class TestDeletingAUser:
         await db.refresh(secret)
         assert secret.owner_user_id is None
         assert secret.visibility == "org"
+
+    async def test_a_project_chat_the_user_started_stays_with_the_team(self, db):
+        """Teammates read and continue a project's chat; the `users` cascade
+        would have taken it with its starter. Their own chats still go."""
+        creator = _user()
+        db.add(creator)
+        await db.flush()
+        org = await _org(db, creator)
+        leaver = _user()
+        db.add(leaver)
+        await db.flush()
+        await _member(db, org.id, leaver.id, "member")
+        project = await project_repo.create(
+            db,
+            organization_id=org.id,
+            owner_user_id=creator.id,
+            name="Launch",
+            description=None,
+            instructions="",
+            default_agent_id=None,
+            backend="state",
+        )
+        shared = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=leaver.id, title="Plan", project_id=project.id
+        )
+        own = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=leaver.id, title="Mine"
+        )
+        shared_id, own_id, project_id = shared.id, own.id, project.id
+
+        await UserService(db).delete(leaver.id)
+
+        db.expire_all()
+        kept = await db.get(Conversation, shared_id)
+        assert kept is not None and kept.user_id is None and kept.project_id == project_id
+        assert await db.get(Conversation, own_id) is None
 
     async def test_deleting_a_user_removes_an_org_scoped_collection_they_owned(self, db):
         """The personal-org teardown runs the same collection cleanup as an org
