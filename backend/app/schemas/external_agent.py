@@ -1,0 +1,55 @@
+"""Remote A2A agents registered to delegate to (#2092)."""
+
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import Field
+
+from app.schemas.base import BaseSchema
+
+
+class ExternalAgentCreate(BaseSchema):
+    """Register a remote agent by the address of its A2A agent card."""
+
+    card_url: str = Field(
+        min_length=8,
+        max_length=1000,
+        description=(
+            "The agent card's URL, or the agent's base address - "
+            "`/.well-known/agent-card.json` is appended to one that is not a JSON file."
+        ),
+    )
+    slug: str | None = Field(
+        default=None,
+        max_length=64,
+        description="The handle a delegating agent calls it by. Derived from its name if unset.",
+    )
+    secret_id: UUID | None = Field(
+        default=None,
+        description="An API key secret sent as its bearer token, when it asks for one.",
+    )
+
+
+class ExternalAgentSkill(BaseSchema):
+    id: str
+    name: str
+    description: str
+
+
+class ExternalAgentRead(BaseSchema):
+    """A registered remote agent, as its card described it."""
+
+    id: UUID
+    slug: str
+    name: str
+    description: str
+    card_url: str
+    endpoint_url: str
+    secret_id: UUID | None = None
+    skills: list[ExternalAgentSkill] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime | None = None
+
+
+class ExternalAgentList(BaseSchema):
+    items: list[ExternalAgentRead]

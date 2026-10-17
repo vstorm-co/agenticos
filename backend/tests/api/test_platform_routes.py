@@ -1617,6 +1617,10 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # deployment's signature over its state - neither has a session.
         ("POST", f"{V1}/mattermost/{{bot_id}}/commands"),
         ("POST", f"{V1}/mattermost/{{bot_id}}/dialogs"),
+        # An A2A agent card (#2092): read before a caller authenticates, because
+        # it is what says how to. Only an agent its organization chose to serve
+        # has one; every other id is a 404.
+        ("GET", f"{V1}/a2a/{{agent_id}}/.well-known/agent-card.json"),
         # An event trigger's inbound webhook. Same arrangement as Slack: GitHub
         # and the email relay sign the body with the trigger's own secret, and the
         # service verifies that HMAC against the trigger named in the path. A

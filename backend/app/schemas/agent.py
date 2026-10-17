@@ -124,6 +124,13 @@ class AgentRead(BaseSchema):
     visibility: str
     owner_user_id: UUID | None = None
     current_version_id: UUID | None = None
+    a2a_enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether other systems may reach this agent over A2A: its card at "
+            "/a2a/{id}/.well-known/agent-card.json, its tasks at /a2a/{id} (#2092)."
+        ),
+    )
     has_avatar: bool = Field(
         default=False,
         description=(
@@ -868,3 +875,9 @@ class AgentKnowledgeReach(BaseSchema):
     whole_organization: bool
     groups: list[str] = Field(default_factory=list)
     sources: list[KnowledgeSource] = Field(default_factory=list)
+
+
+class AgentA2ARequest(BaseSchema):
+    """Serve this agent over A2A, or stop (#2092)."""
+
+    enabled: bool

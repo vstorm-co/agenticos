@@ -61,6 +61,7 @@ from app.db.models.announcement import Announcement
 from app.db.models.api_key import ApiKey
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.channel_prompt import ChannelPrompt
+from app.db.models.external_agent import ExternalAgent
 from app.db.models.oauth import (
     OAuthAuthorizationCode,
     OAuthAuthorizationRequest,
@@ -80,6 +81,7 @@ __all__ = [
     "BrowserSignIn",
     "OrganizationAssistant",
     "ChannelPrompt",
+    "ExternalAgent",
     "OAuthAuthorizationCode",
     "OAuthAuthorizationRequest",
     "OAuthClient",

@@ -395,6 +395,23 @@ from app.api.public_api import is_public_route
 from app.services.api_key import ApiKeyService, KeyCaller, is_api_key
 from app.services.assistant import AssistantService
 from app.services.oauth_server import OAuthServerService
+from app.services.a2a_server import A2AServerService
+
+
+def get_a2a_server_service(db: DBSession) -> A2AServerService:
+    return A2AServerService(db)
+
+
+A2AServerSvc = Annotated[A2AServerService, Depends(get_a2a_server_service)]
+
+from app.services.external_agent import ExternalAgentService
+
+
+def get_external_agent_service(db: DBSession) -> ExternalAgentService:
+    return ExternalAgentService(db)
+
+
+ExternalAgentSvc = Annotated[ExternalAgentService, Depends(get_external_agent_service)]
 from app.services.change_feed import CONSOLE_TAB_HEADER, ChangeOrigin, console_tab
 from app.schemas.change_event import ChangeSurface
 

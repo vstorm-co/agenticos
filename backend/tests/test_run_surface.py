@@ -36,11 +36,12 @@ class TestEveryMemberIsAssignedBySomething:
     design documents a paragraph each explaining the omission.
     """
 
-    def test_the_vocabulary_is_exactly_the_seven_surfaces_that_exist(self):
+    def test_the_vocabulary_is_exactly_the_eight_surfaces_that_exist(self):
         assert {surface.value for surface in RunSurface} == {
             "web",
             "embed",
             "api",
+            "a2a",
             "slack",
             "telegram",
             "mattermost",

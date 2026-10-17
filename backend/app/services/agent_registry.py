@@ -79,6 +79,7 @@ from app.repositories import (
     agent_trigger_repo,
     context_repo,
     credential_repo,
+    external_agent_repo,
     knowledge_base_repo,
     mcp_connection_repo,
     member_repo,
@@ -1770,7 +1771,7 @@ class AgentRegistryService:
         """
         binding = delegation_binding(spec)
         if binding is None:
-            if spec.subagents:
+            if spec.subagents or spec.external_agents:
                 # A pin nothing reads: the capability is what turns these into
                 # tools, so without it they are configuration that reads as a
                 # decision and has no effect - and the author who wired up three
@@ -1805,11 +1806,30 @@ class AgentRegistryService:
         # Both are what the runtime hands the model, which is the only namespace
         # a collision can happen in.
         names.extend(pins.handles)
+        remote = await self._external_agent_problems(ctx, spec)
+        problems.add(remote[0])
+        names.extend(remote[1])
         problems.add(_collision_problems(names))
         problems.add(
             await self._cycle_problems(ctx, pins.delegates, agent_id=agent_id, root_name=spec.name)
         )
         return problems
+
+    async def _external_agent_problems(
+        self, ctx: AuthContext, spec: AgentSpec
+    ) -> tuple[list[str], list[str]]:
+        """Remote agents named that this organization has not registered, and the
+        handles of those it has - which share the namespace delegates are called in."""
+        ids = [ref.external_agent_id for ref in spec.external_agents]
+        found = await external_agent_repo.get_many(
+            self.db, ids, organization_id=ctx.organization_id
+        )
+        problems = [
+            f"Remote agent {ref_id} is not registered in this organization."
+            for ref_id in ids
+            if ref_id not in found
+        ]
+        return problems, [found[ref_id].slug for ref_id in ids if ref_id in found]
 
     async def _specialist_problems(
         self, ctx: AuthContext, specialist: SpecialistSpec
@@ -2321,6 +2341,34 @@ class AgentRegistryService:
         return await agent_repo.update(
             self.db, agent=agent, update_data={"categories": categories, "tags": tags}
         )
+
+    async def set_a2a(self, ctx: AuthContext, agent_id: UUID, *, enabled: bool) -> Agent:
+        """Serve this agent over A2A, or stop (#2092).
+
+        A publishing decision rather than an edit: turning it on makes the agent's
+        name and description readable by anybody who has the card's address, and
+        reachable by every key and OAuth grant of the organization allowed to run
+        it. So it takes `AGENTS_PUBLISH`, grant-aware through `self.get`, and an
+        agent with no published version cannot be served - it has nothing to run.
+        """
+        agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH)
+        if enabled and agent.current_version_id is None:
+            raise BadRequestError(
+                message="Publish the agent before serving it over A2A",
+                details={"agent_id": agent.id},
+            )
+        updated = await agent_repo.update(
+            self.db, agent=agent, update_data={"a2a_enabled": enabled}
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="agent.a2a_served" if enabled else "agent.a2a_withdrawn",
+            target_type="agent",
+            target_id=str(agent.id),
+        )
+        return updated
 
     async def avatar_path(self, ctx: AuthContext, agent_id: UUID) -> str:
         """The storage path of the agent's picture, for the route that streams it.
