@@ -349,6 +349,11 @@ class TestTheProjectsChatList:
                 AsyncMock(return_value={chat.id: TEAMMATE}),
             ),
             patch(f"{MODULE}.conversation_repo.users_by_id", AsyncMock(return_value=people)),
+            patch(
+                f"{MODULE}.chat_room.present_in",
+                # The teammate is here; a third person's account is gone.
+                AsyncMock(return_value={str(chat.id): [TEAMMATE, uuid4()]}),
+            ) as present,
         ):
             items, total = await ConversationService(AsyncMock()).list_project_chats(
                 chat.project_id, organization_id=ORG, user_id=OWNER
@@ -362,5 +367,7 @@ class TestTheProjectsChatList:
         assert [reader.name for reader in row.seen_by] == ["Anna"]
         assert row.seen_by[0].read_at == seen
         assert row.working is not None and row.working.user_id == TEAMMATE
+        assert [person.user_id for person in row.here] == [TEAMMATE]
+        present.assert_awaited_once_with([str(chat.id), str(quiet.id)])
         empty = ProjectChatRead.model_validate(items[1])
-        assert (empty.owner, empty.seen_by, empty.working) == (None, [], None)
+        assert (empty.owner, empty.seen_by, empty.working, empty.here) == (None, [], None, [])

@@ -19,7 +19,7 @@ import contextlib
 import json
 import logging
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
@@ -96,11 +96,37 @@ async def present(conversation_id: str) -> list[UUID]:
     except Exception:
         logger.exception("chat_room_presence_failed")
         return []
+    return _people(seen)
+
+
+async def present_in(conversation_ids: Sequence[str]) -> dict[str, list[UUID]]:
+    """`present` for each of a page of conversations, in one round trip.
+
+    An empty answer when Redis cannot say: the rooms are a view, and a list of
+    chats is still a list without them.
+    """
+    if _redis is None or not conversation_ids:
+        return {}
+    try:
+        pipe = _redis.raw.pipeline()
+        for conversation_id in conversation_ids:
+            pipe.hgetall(_here(conversation_id))
+        rooms = await pipe.execute()
+    except Exception:
+        logger.exception("chat_room_presence_failed")
+        return {}
+    return {
+        conversation_id: _people(seen)
+        for conversation_id, seen in zip(conversation_ids, rooms, strict=True)
+    }
+
+
+def _people(seen: Mapping[str, str]) -> list[UUID]:
     cutoff = time.time() - PRESENCE_TTL
     here: list[UUID] = []
     for entry, at in seen.items():
         with contextlib.suppress(ValueError):
-            person = UUID(entry.partition(":")[0])
+            person = UUID(str(entry).partition(":")[0])
             if float(at) >= cutoff and person not in here:
                 here.append(person)
     return here

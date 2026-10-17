@@ -211,6 +211,7 @@ export function useProjectFiles(projectId: string) {
  */
 /** Chats fetched per page of the project's list. */
 export const PROJECT_CHATS_PAGE = 50;
+const PROJECT_CHATS_POLL_MS = 20_000;
 
 /**
  * The project's chats, a page at a time, most recently active first.
@@ -224,6 +225,9 @@ export function useProjectChats(projectId: string) {
     useInfiniteQuery({
       queryKey: [...qk.conversations.all(), "project", projectId] as const,
       queryFn: ({ pageParam }) => listProjectChats(projectId, pageParam, PROJECT_CHATS_PAGE),
+      // Who is in each chat, and whose run is at work, change while the page is
+      // open; asked again on the same cadence a room's heartbeat keeps.
+      refetchInterval: PROJECT_CHATS_POLL_MS,
       initialPageParam: 0,
       getNextPageParam: (last, pages) => {
         const loaded = pages.reduce((sum, page) => sum + page.items.length, 0);

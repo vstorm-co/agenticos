@@ -52,6 +52,7 @@ from app.schemas.conversation import (
     ToolCallCreate,
 )
 from app.schemas.conversation_share import AdminConversationList, AdminConversationRead
+from app.services import chat_room
 from app.services.access import AGENT, PROJECT, resolve_access
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
@@ -725,15 +726,25 @@ class ConversationService:
         ids = [conversation.id for conversation in conversations]
         readers = await conversation_repo.readers_of(self.db, ids)
         working = await conversation_repo.running_users(self.db, ids)
+        here = await chat_room.present_in([str(conversation_id) for conversation_id in ids])
         people = await conversation_repo.users_by_id(
             self.db,
-            {c.user_id for c in conversations if c.user_id is not None} | set(working.values()),
+            {c.user_id for c in conversations if c.user_id is not None}
+            | set(working.values())
+            | {person for room in here.values() for person in room},
         )
         for conversation in conversations:
             owner = people.get(conversation.user_id) if conversation.user_id else None
             worker = people.get(working[conversation.id]) if conversation.id in working else None
             conversation.owner = ChatPerson.of(owner) if owner else None  # ty: ignore[unresolved-attribute]
             conversation.working = ChatPerson.of(worker) if worker else None  # ty: ignore[unresolved-attribute]
+            # Somebody whose account went between the heartbeat and this read
+            # is simply not drawn.
+            conversation.here = [  # ty: ignore[unresolved-attribute]
+                ChatPerson.of(people[person])
+                for person in here.get(str(conversation.id), [])
+                if person in people
+            ]
             conversation.seen_by = [  # ty: ignore[unresolved-attribute]
                 ChatReader(**ChatPerson.of(user).model_dump(), read_at=read_at)
                 for user, read_at in readers.get(conversation.id, [])

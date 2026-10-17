@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "cc1841bb424b"
+source_sha: "c179f95e5c09"
 ---
 
 # Projekty { #projects }
@@ -96,7 +96,8 @@ w nim, a kto może w nim pracować (`use`), kontynuuje je: jego wiadomości nios
 jego imię i twarz, więc wątek, nad którym pracowało kilka osób, mówi, kto o co
 pytał. Zmiana nazwy, archiwizacja i usunięcie czatu zostają przy osobie, która go
 zaczęła. Na zakładce **Czaty** każdy wiersz mówi, czyj jest czat, kto teraz w nim
-pracuje i kto go otwierał - ostatnie twarze, a wszystkie imiona po najechaniu.
+pracuje i kto go otwierał - ostatnie twarze, a wszystkie imiona po najechaniu;
+kto ma go otwartego w tej chwili, jest pierwszy, z zieloną kropką.
 Czat poza projektem zostaje jego autora, jak wszędzie indziej w konsoli.
 
 **Wspólna praca w jednym czacie.** W czacie projektu może być naraz kilka osób.

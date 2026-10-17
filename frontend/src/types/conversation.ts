@@ -59,6 +59,8 @@ export interface ProjectChat extends Conversation {
   seen_by: (ChatPerson & { read_at: string })[];
   /** Whose run is at work in it now; null when none is. */
   working: ChatPerson | null;
+  /** Who has it open right now. */
+  here: ChatPerson[];
 }
 
 export interface ConversationMessage {

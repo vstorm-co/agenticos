@@ -160,38 +160,47 @@ function ChatRow({ chat }: { chat: ProjectChat }) {
           {chat.title || t("untitledChat")}
         </span>
       </span>
-      <SeenBy readers={chat.seen_by} />
+      <SeenBy readers={chat.seen_by} here={chat.here} />
     </Link>
   );
 }
 
-/** Faces shown before the rest of the readers fold into a count. */
+/** Faces shown before the rest of the people fold into a count. */
 const FACES = 3;
 
 /**
- * Who has had the chat open: the latest few as overlapping faces, the rest as a
- * count, and every name in the tooltip - the way a shared document says who
- * has looked at it.
+ * Who is in the chat now and who has had it open: the people here first, each
+ * with a live dot, then the latest readers as overlapping faces, the rest as a
+ * count, and every name in the tooltip - the way a shared document says who has
+ * it open and who has looked at it.
  */
-function SeenBy({ readers }: { readers: ProjectChat["seen_by"] }) {
+function SeenBy({ readers, here }: { readers: ProjectChat["seen_by"]; here: ProjectChat["here"] }) {
   const t = useTranslations("projects");
-  if (readers.length === 0) return null;
-  const names = readers.map((reader) => reader.name).join(", ");
-  const shown = readers.slice(0, FACES);
-  const more = readers.length - shown.length;
+  const present = new Set(here.map((person) => person.user_id));
+  const people = [...here, ...readers.filter((reader) => !present.has(reader.user_id))];
+  if (people.length === 0) return null;
+  const label = [
+    here.length > 0 && t("hereNow", { names: here.map((person) => person.name).join(", ") }),
+    readers.length > 0 && t("seenBy", { names: readers.map((reader) => reader.name).join(", ") }),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const shown = people.slice(0, FACES);
+  const more = people.length - shown.length;
   return (
-    <span
-      className="flex shrink-0 items-center"
-      title={t("seenBy", { names })}
-      aria-label={t("seenBy", { names })}
-      role="img"
-    >
-      {shown.map((reader, index) => (
-        <PersonFace
-          key={reader.user_id}
-          person={reader}
-          className={cn("ring-card h-5 w-5 text-[8px] ring-2", index > 0 && "-ml-1.5")}
-        />
+    <span className="flex shrink-0 items-center" title={label} aria-label={label} role="img">
+      {shown.map((person, index) => (
+        // The first face on top, so the live dot at its corner is not under the next.
+        <span
+          key={person.user_id}
+          className={cn("relative", index > 0 && "-ml-1.5")}
+          style={{ zIndex: shown.length - index }}
+        >
+          <PersonFace person={person} className="ring-card h-5 w-5 text-[8px] ring-2" />
+          {present.has(person.user_id) && (
+            <span className="bg-success ring-card absolute -right-px -bottom-px h-2 w-2 rounded-full ring-2" />
+          )}
+        </span>
       ))}
       {more > 0 && (
         <span className="bg-muted text-muted-foreground ring-card -ml-1.5 grid h-5 min-w-5 place-items-center rounded-full px-1 text-[9px] font-medium ring-2">

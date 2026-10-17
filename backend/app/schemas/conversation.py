@@ -498,6 +498,10 @@ class ProjectChatRead(ConversationRead):
         default=None,
         description="Whose run is at work in the chat now; null when none is",
     )
+    here: list[ChatPerson] = Field(
+        default_factory=list,
+        description="Who has the chat open right now, as of their last heartbeat",
+    )
 
 
 class ProjectChatList(BaseSchema):

@@ -7392,6 +7392,7 @@
     "untitledChat": "Untitled chat",
     "appCount": "{count, plural, =1 {1 app} other {# apps}}",
     "moreChats": "Show more chats",
+    "hereNow": "Here now: {names}",
     "seenBy": "Seen by {names}",
     "moreReaders": "+{count}",
     "isWorking": "{name} is working",

@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "cc1841bb424b"
+source_sha: "c179f95e5c09"
 ---
 
 # Proyectos { #projects }
@@ -102,7 +102,8 @@ llevan su nombre y su cara, así que un hilo en el que trabajaron varias persona
 dice quién preguntó qué. Renombrar, archivar o borrar un chat sigue siendo cosa de
 quien lo empezó. En la pestaña **Chats** cada fila dice de quién es el chat, quién
 está trabajando en él ahora y quién lo ha abierto - las últimas caras, con todos
-los nombres al pasar el ratón. Un chat fuera de un proyecto sigue siendo de su
+los nombres al pasar el ratón; quien lo tiene abierto ahora mismo va primero, con
+un punto verde. Un chat fuera de un proyecto sigue siendo de su
 autor, como en el resto de la consola.
 
 **Trabajar juntos en un chat.** Varias personas pueden estar a la vez en un chat

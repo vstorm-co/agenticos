@@ -221,6 +221,7 @@ describe("ProjectChats", () => {
           owner: KACPER,
           seen_by: [],
           working: null,
+          here: [],
         },
         {
           id: "c-2",
@@ -230,6 +231,7 @@ describe("ProjectChats", () => {
           owner: null,
           seen_by: [],
           working: null,
+          here: [],
         },
       ],
       total: 2,
@@ -260,6 +262,7 @@ describe("ProjectChats", () => {
           owner: KACPER,
           seen_by: [],
           working: null,
+          here: [],
         },
       ],
       total: 120,
@@ -294,6 +297,7 @@ describe("ProjectChats", () => {
           seen_by: ["Anna", "Kacper", "Ola", "Piotr", "Ewa"].map((name, i) =>
             reader(name, `r-${i}`),
           ),
+          here: [],
         },
       ],
       total: 1,
@@ -307,6 +311,37 @@ describe("ProjectChats", () => {
       screen.getByRole("img", { name: "Seen by Anna, Kacper, Ola, Piotr, Ewa" }),
     ).toBeInTheDocument();
     expect(screen.getByText("+2")).toBeInTheDocument();
+  });
+
+  it("puts who is in a chat now first, with a live dot", () => {
+    const ola = { ...KACPER, user_id: "r-2", name: "Ola" };
+    chats.mockReturnValue({
+      chats: [
+        {
+          id: "c-1",
+          title: "Budget",
+          created_at: new Date().toISOString(),
+          updated_at: null,
+          owner: KACPER,
+          working: null,
+          seen_by: [
+            { ...KACPER, user_id: "r-0", name: "Anna", read_at: new Date().toISOString() },
+            { ...ola, read_at: new Date().toISOString() },
+          ],
+          // Ola is in it now; Zofia opened it so recently it has not counted yet.
+          here: [ola, { ...KACPER, user_id: "u-9", name: "Zofia" }],
+        },
+      ],
+      total: 1,
+      isLoading: false,
+      error: null,
+    });
+    wrap(<ProjectChats project={aProject()} />);
+    const people = screen.getByRole("img", { name: /Here now: Ola, Zofia/ });
+    expect(people).toHaveAccessibleName("Here now: Ola, Zofia\nSeen by Anna, Ola");
+    // Three faces - Ola and Zofia, then Anna - and two of them live.
+    expect(people.querySelectorAll(".bg-success")).toHaveLength(2);
+    expect(screen.queryByText(/^\+/)).not.toBeInTheDocument();
   });
 
   it("tells a reader who cannot chat that they can read, and offers no new chat", () => {

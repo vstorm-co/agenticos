@@ -48,6 +48,8 @@ class _Store:
             raise ConnectionError("redis went away")
         return dict(self.hashes.get(key, {}))
 
+    hgetall = hash_all
+
     async def publish(self, channel: str, data: str) -> None:
         self.published.append((channel, data))
 
@@ -64,9 +66,8 @@ class _Pipe:
     def __getattr__(self, name: str) -> Any:
         return lambda *args: self.ops.append((name, args))
 
-    async def execute(self) -> None:
-        for name, args in self.ops:
-            await getattr(self.store, name)(*args)
+    async def execute(self) -> list[Any]:
+        return [await getattr(self.store, name)(*args) for name, args in self.ops]
 
 
 class _PubSub:
@@ -151,6 +152,30 @@ class TestWhoIsHere:
         await chat_room.turn_begun(ROOM, uuid4())
         assert await chat_room.present(ROOM) == []
         assert [event async for event in chat_room.events(ROOM)] == []
+
+
+class TestAPageOfRooms:
+    async def test_each_chat_names_who_is_in_it_in_one_round_trip(self, store: _Store) -> None:
+        anna, kacper = uuid4(), uuid4()
+        other = "8e9b4c6f-3333-4d3b-8c2f-3a4b5c6d7e8f"
+        await chat_room.join(ROOM, anna, "tab-1")
+        await chat_room.join(ROOM, anna, "tab-2")
+        await chat_room.join(other, kacper, "tab")
+
+        assert await chat_room.present_in([ROOM, other, "empty"]) == {
+            ROOM: [anna],
+            other: [kacper],
+            "empty": [],
+        }
+
+    async def test_a_page_redis_cannot_answer_for_names_nobody(self, store: _Store) -> None:
+        store.fail = True
+        assert await chat_room.present_in([ROOM]) == {}
+
+    async def test_no_page_or_no_redis_asks_nothing(self, store: _Store) -> None:
+        assert await chat_room.present_in([]) == {}
+        chat_room.configure(None)
+        assert await chat_room.present_in([ROOM]) == {}
 
 
 class TestWhatTheRoomHears:

@@ -7275,6 +7275,7 @@
     "untitledChat": "Chat ohne Titel",
     "appCount": "{count, plural, =1 {1 App} other {# Apps}}",
     "moreChats": "Weitere Chats anzeigen",
+    "hereNow": "Gerade hier: {names}",
     "seenBy": "Gesehen von {names}",
     "moreReaders": "+{count}",
     "isWorking": "{name} arbeitet",

@@ -93,7 +93,8 @@ chat in it, and whoever may work in it (`use`) continues them: their turns carry
 their own name and face, so a thread several people worked on says who asked
 what. Renaming, archiving or deleting a chat stays with whoever started it. On
 the **Chats** tab each row says whose the chat is, who is at work in it right now
-and who has had it open - the latest faces, with every name on hover. A chat
+and who has had it open - the latest faces, with every name on hover; whoever has
+it open right now comes first, with a green dot. A chat
 outside any project stays its author's own, as everywhere else in the console.
 
 **Working in one chat together.** Several people can be in a project's chat at

@@ -73,8 +73,9 @@ Two things are versioned separately from this file and worth knowing about:
   files each project's chats under it, and the dashboard has a **Projects** card. A
   project opens on its files, which can be dropped anywhere on the tab and show
   their progress as they go up; its **Apps** tab lists the apps its chats
-  published (`GET /apps?project_id=`). A sandbox connection a project keeps its
-  files on cannot be deleted. See [Projects](docs/projects.md).
+  published (`GET /apps?project_id=`). A chat on its **Chats** tab shows who has
+  it open right now (`here` on `GET /projects/{id}/chats`). A sandbox connection a
+  project keeps its files on cannot be deleted. See [Projects](docs/projects.md).
 
 ### Fixed
 
