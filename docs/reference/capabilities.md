@@ -57,7 +57,7 @@ browser is pointed at the deployment's browser service
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required |
-| `coding_agent` | Coding agent | analysis | `plan_code_change`, `apply_code_change` | `sandbox:execute` | required |
+| `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | required |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |

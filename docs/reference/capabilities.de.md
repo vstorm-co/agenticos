@@ -1,5 +1,5 @@
 ---
-source_sha: "f426316e6713"
+source_sha: "07a07ea56998"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -64,7 +64,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
 | `charts` | Diagramme | analysis | `create_chart` | — | — |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich |
-| `coding_agent` | Coding Agent | analysis | `plan_code_change`, `apply_code_change` | `sandbox:execute` | erforderlich |
+| `coding_agent` | Coding Agent | analysis | `run_coding_agent` | `sandbox:execute` | erforderlich |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Nachdenken | reasoning | keine, mit Absicht | — | — |

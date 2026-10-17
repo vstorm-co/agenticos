@@ -1,5 +1,5 @@
 ---
-source_sha: "f426316e6713"
+source_sha: "07a07ea56998"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -64,7 +64,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
 | `charts` | Wykresy | analiza | `create_chart` | — | — |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany |
-| `coding_agent` | Coding agent | analiza | `plan_code_change`, `apply_code_change` | `sandbox:execute` | wymagany |
+| `coding_agent` | Coding agent | analiza | `run_coding_agent` | `sandbox:execute` | wymagany |
 | `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Myślenie | rozumowanie | brak, celowo | — | — |
