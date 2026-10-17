@@ -334,6 +334,12 @@ export function CapabilityDetail({
         <StaleSecretNotice binding={binding} onChange={onChange} disabled={disabled} />
       )}
 
+      {definition.tool_settings === false &&
+        (Object.keys(binding.tool_approval).length > 0 ||
+          Object.keys(binding.tool_overrides).length > 0) && (
+          <StaleToolSettingsNotice binding={binding} onChange={onChange} disabled={disabled} />
+        )}
+
       <div className="space-y-2">
         <Label htmlFor={`${binding.id}-approval`}>{t("humanApproval")}</Label>
         <Select
@@ -807,6 +813,40 @@ function StaleSecretNotice({ binding, onChange, disabled }: StaleSecretNoticePro
         onClick={() => onChange({ ...binding, secret_id: null })}
       >
         {t("clearSecret")}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Per-tool settings a capability no longer offers, carried over from when it did.
+ *
+ * The coding agent had a tool per mode and now has one tool that is the
+ * capability, so the Builder shows no tool list - and an entry left for a tool
+ * that is gone would refuse the next publish with nothing on screen to remove it
+ * by. Clearing carries any "always ask" up to the capability, so a gate the
+ * author set is moved rather than lost.
+ */
+function StaleToolSettingsNotice({ binding, onChange, disabled }: StaleSecretNoticeProps) {
+  const t = useTranslations("agents");
+  const gated = Object.values(binding.tool_approval).includes("required");
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
+      <p className="text-muted-foreground text-xs">{t("capabilityHasNoToolSettings")}</p>
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={disabled}
+        onClick={() =>
+          onChange({
+            ...binding,
+            approval: gated ? "required" : binding.approval,
+            tool_approval: {},
+            tool_overrides: {},
+          })
+        }
+      >
+        {t("useCapabilityApproval")}
       </Button>
     </div>
   );

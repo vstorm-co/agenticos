@@ -794,7 +794,9 @@
     "keyOrSignIn": "Klucz albo logowanie",
     "codingAgentKeyName": "{signIn, select, chatgpt {Klucz OpenAI dla Codexa} other {Klucz Claude Code}}",
     "chatgptSignInName": "ChatGPT dla Codexa",
-    "claudeTokenHint": "Przy subskrypcji Claude Pro albo Max: uruchom <code>claude setup-token</code> na swoim komputerze i dodaj tutaj jako klucz token, który wypisze. Klucz API Anthropic też zadziała."
+    "claudeTokenHint": "Przy subskrypcji Claude Pro albo Max: uruchom <code>claude setup-token</code> na swoim komputerze i dodaj tutaj jako klucz token, który wypisze. Klucz API Anthropic też zadziała.",
+    "capabilityHasNoToolSettings": "Miała wcześniej ustawienia dla poszczególnych narzędzi, których już nie ma. Teraz obowiązuje zatwierdzenie poniżej.",
+    "useCapabilityApproval": "Przenieś na capability"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",

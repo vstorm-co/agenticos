@@ -794,7 +794,9 @@
     "keyOrSignIn": "Key oder Anmeldung",
     "codingAgentKeyName": "{signIn, select, chatgpt {OpenAI-Key für Codex} other {Claude-Code-Key}}",
     "chatgptSignInName": "ChatGPT für Codex",
-    "claudeTokenHint": "Mit einem Claude-Pro- oder -Max-Abo: Führen Sie <code>claude setup-token</code> auf Ihrem eigenen Rechner aus und fügen Sie das ausgegebene Token hier als Key hinzu. Ein Anthropic-API-Key funktioniert ebenfalls."
+    "claudeTokenHint": "Mit einem Claude-Pro- oder -Max-Abo: Führen Sie <code>claude setup-token</code> auf Ihrem eigenen Rechner aus und fügen Sie das ausgegebene Token hier als Key hinzu. Ein Anthropic-API-Key funktioniert ebenfalls.",
+    "capabilityHasNoToolSettings": "Sie hatte früher Einstellungen pro Tool, die es nicht mehr gibt. Jetzt gilt die Freigabe unten.",
+    "useCapabilityApproval": "Auf die Capability übertragen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
