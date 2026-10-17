@@ -1093,8 +1093,10 @@ left out of runs there and the agent is told why.
 it is told apart by its `sk-ant-oat` prefix, and it signs in to Anthropic only, not
 to a gateway. Codex takes an OpenAI API key, or a ChatGPT sign-in made with **Sign
 in with ChatGPT**, the same one a [model profile](../models.md) uses. For a task the
-sign-in is written to an `auth.json` in a Codex home of the conversation's own
-(`CODEX_HOME`), outside the workspace, and removed afterwards; any tokens Codex
+sign-in is written to an `auth.json` in a Codex home of that task's own
+(`CODEX_HOME`), outside the workspace, and removed afterwards - two tasks running at
+once never share one, and the sessions Codex resumes are kept per conversation
+beside it. Any tokens Codex
 refreshed are sealed back over the same secret. Whatever Codex runs can read that
 file, so the sign-in is handed over only for a person who may see it in the vault
 themselves - running the agent is never a way to somebody else's subscription.

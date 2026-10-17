@@ -62,6 +62,7 @@ from app.agents.capabilities.coding_agent._toolset import (
     CODEX_HOMES,
     HOME_ENV,
     READ_AUTH,
+    SESSIONS_ENV,
     WRITE_AUTH,
     build_coding_toolset,
 )
@@ -284,9 +285,10 @@ class TestTheCommand:
         files = task_files("a b")
         line = command.detached_line(files)
         words = shlex.split(line)
-        assert words[:4] == ["(setsid", "nohup", "sh", "-c"]
+        assert words[:4] == ["setsid", "nohup", "sh", "-c"]
+        # The group's id goes to the platform, never to a file the harness can edit.
+        assert words[-3:] == ["&", "echo", "$!"]
         inner = shlex.split(words[4])
-        assert inner[:4] == ["echo", "$$", ">", f"{files.pid};"]
         assert "it's; rm -rf /" in inner
         assert inner[-3:] == ["$?", ">", files.status]
 
@@ -434,15 +436,18 @@ class TestReadingCodex:
         assert read_events('npm warn\n{"type": "x"}\n[1, 2]\n') == [{"type": "x"}]
 
 
-_TASK_FILE = re.compile(r"\.agenticos/coding-agent/[0-9a-f]+\.(?:jsonl|err|exit|pid)")
+_TASK_FILE = re.compile(r"\.agenticos/coding-agent/[0-9a-f]+\.(?:jsonl|err|exit)")
+GROUP = 4242
 
 
 class _Shell(WrapperWorkspace):
     """A sandbox playing a detached harness that prints a recorded stream.
 
     Starting it writes the events and stderr where the line says, and - unless it
-    `hangs` - the exit code; a poll answers with the bytes past its offset, base64,
-    and the exit code once there is one, as the real one-line poll does.
+    `hangs` - the exit code, and prints its process group; a poll answers with the
+    bytes past its offset, base64, and - once the group is gone - the exit code,
+    as the real one-line poll does. A harness that `hangs` keeps its group alive
+    whatever its exit-code file says.
     """
 
     def __init__(
@@ -467,7 +472,7 @@ class _Shell(WrapperWorkspace):
     @property
     def started(self) -> list[str]:
         """The harness lines started, in order."""
-        return [command for command, _, _ in self.commands if command.startswith("(setsid")]
+        return [command for command, _, _ in self.commands if command.startswith("setsid")]
 
     async def run(
         self,
@@ -483,11 +488,11 @@ class _Shell(WrapperWorkspace):
                 raise self.auth_raises
             stdout = self.auth_after if command == READ_AUTH else ""
             return CommandResult(exit_code=0, stdout=stdout, stderr="")
-        if command.startswith("(setsid"):
+        if command.startswith("setsid"):
             return await self._start(command)
-        if command.startswith("tail -c +"):
+        if "tail -c +" in command:
             return await self._poll(command)
-        if "kill -TERM" in command:
+        if f"pkill -TERM -g {GROUP}" in command:
             self.stopped += 1
         elif command.startswith("rm -f "):
             for path in shlex.split(command)[2:]:
@@ -503,23 +508,23 @@ class _Shell(WrapperWorkspace):
         events = "" if resumed and self.fails_resumed else self.events
         await self.write_bytes(paths["jsonl"], events.encode())
         await self.write_bytes(paths["err"], self.stderr.encode())
-        await self.write_bytes(paths["pid"], b"4242")
         if not self.hangs:
             code = 1 if resumed and self.fails_resumed else self.exit_code
             await self.write_bytes(paths["exit"], f"{code}\n".encode())
-        return CommandResult(exit_code=0, stdout="", stderr="")
+        return CommandResult(exit_code=0, stdout=f"{GROUP}\n", stderr="")
 
     async def _poll(self, command: str) -> CommandResult:
-        offset = int(command.split("+", 1)[1].split(" ", 1)[0]) - 1
+        assert f"pgrep -g {GROUP}" in command
+        offset = int(command.split("tail -c +", 1)[1].split(" ", 1)[0]) - 1
         events, status = (
             next(path for path in _TASK_FILE.findall(command) if path.endswith(ext))
             for ext in (".jsonl", ".exit")
         )
         data = await self._bytes(events)
         chunk = data[offset : offset + _task.CHUNK_BYTES]
-        code = (await self._bytes(status)).decode()
+        state = "running" if self.hangs else f"exited:{(await self._bytes(status)).decode()}"
         return CommandResult(
-            exit_code=0, stdout=f"{base64.b64encode(chunk).decode()}\n{code}", stderr=""
+            exit_code=0, stdout=f"{base64.b64encode(chunk).decode()}\n{state}\n", stderr=""
         )
 
     async def _bytes(self, path: str) -> bytes:
@@ -608,7 +613,7 @@ class TestRunningATask:
         assert report.answer == "Fixed the off-by-one in app.py."
         assert report.access == "read_only"
         ((line, env, timeout),) = [
-            command for command in shell.commands if command[0].startswith("(setsid")
+            command for command in shell.commands if command[0].startswith("setsid")
         ]
         assert "--permission-mode plan" in line and f"{WORK_DIR}/" in line
         assert env is not None and env["ANTHROPIC_API_KEY"] == "sk-test"
@@ -626,7 +631,7 @@ class TestRunningATask:
         await shell.write_bytes(session_path("codex", THREAD), b"th-1\n")
         raw = await _call(shell, "Apply it", harness="codex")
         assert CodingReport.model_validate_json(raw).files_changed == ["app.py"]
-        assert shlex.split(shlex.split(shell.started[0])[4])[4:8] == [
+        assert shlex.split(shlex.split(shell.started[0])[4])[:4] == [
             "codex",
             "exec",
             "resume",
@@ -713,6 +718,51 @@ class TestRunningATask:
         assert len(report.steps) == 4
         assert shell.stopped == 1
         assert frames[-1].kind == "subagent_complete" and frames[-1].status == "failed"
+
+    @pytest.mark.security
+    async def test_an_exit_code_written_early_does_not_end_a_running_task(self) -> None:
+        """The exit-code file is in the workspace the harness edits. A task that
+        writes it while still running is still watched, and still stopped."""
+
+        class _Forging(_Shell):
+            async def _start(self, command: str) -> CommandResult:
+                started = await super()._start(command)
+                status = next(
+                    path for path in _TASK_FILE.findall(command) if path.endswith(".exit")
+                )
+                await self.write_bytes(status, b"0\n")
+                return started
+
+        shell = _Forging(events=_lines(_claude_stream()), hangs=True)
+        report = CodingReport.model_validate_json(await _call(shell, timeout_seconds=0))
+        assert report.outcome == "timed_out"
+        assert shell.stopped == 1
+
+    async def test_a_task_gone_without_an_exit_code_is_over(self) -> None:
+        class _Killed(_Shell):
+            async def _start(self, command: str) -> CommandResult:
+                started = await super()._start(command)
+                status = next(
+                    path for path in _TASK_FILE.findall(command) if path.endswith(".exit")
+                )
+                await self.remove(status)
+                return started
+
+        shell = _Killed(events=_lines(_claude_stream()))
+        report = CodingReport.model_validate_json(await _call(shell))
+        assert report.outcome == "failed"
+        assert shell.stopped == 0
+
+    async def test_a_start_that_names_no_process_is_not_watched(self) -> None:
+        class _Silent(_Shell):
+            async def _start(self, command: str) -> CommandResult:
+                await super()._start(command)
+                return CommandResult(exit_code=0, stdout="1\n", stderr="")
+
+        shell = _Silent(events=_lines(_claude_stream(result=_CLAUDE_DONE)))
+        report = CodingReport.model_validate_json(await _call(shell))
+        assert report.answer == "The sandbox did not say which process the task runs as."
+        assert not any("tail -c +" in command for command, _, _ in shell.commands)
 
     async def test_a_cancelled_run_stops_the_harness_and_closes_its_panel(self) -> None:
         frames: list[SubagentEvent] = []
@@ -1131,17 +1181,23 @@ class TestCodexOnASignIn:
         assert report.outcome == "completed"
         written, started, read = (
             shell.commands[0],
-            next(command for command in shell.commands if command[0].startswith("(setsid")),
+            next(command for command in shell.commands if command[0].startswith("setsid")),
             shell.commands[-1],
         )
         assert written[0] == WRITE_AUTH and written[1] is not None
         assert json.loads(written[1][AUTH_ENV])["tokens"]["refresh_token"] == "rt-1"
         assert "CODEX_API_KEY" not in (started[1] or {})
         assert read[0] == READ_AUTH
-        # One Codex home per conversation: the sign-in, the run and the read-back
-        # all in it, never the sandbox user's shared ~/.codex.
-        home = f"{CODEX_HOMES}/{THREAD}"
-        assert written[1][HOME_ENV] == home and read[1] == {HOME_ENV: home}
+        # One Codex home per task: the sign-in, the run and the read-back all in
+        # it, never the sandbox user's shared ~/.codex - and the sessions it
+        # resumes in one the conversation keeps.
+        home = written[1][HOME_ENV]
+        assert (
+            home.startswith(f"{CODEX_HOMES}/{THREAD}/")
+            and home != f"{CODEX_HOMES}/{THREAD}/sessions"
+        )
+        assert written[1][SESSIONS_ENV] == f"{CODEX_HOMES}/{THREAD}/sessions"
+        assert read[1] == {HOME_ENV: home}
         assert started[1] is not None and started[1][HOME_ENV] == home
         assert store.asked_for == [RUNNER]
         assert [saved.refresh_token for saved in store.saved] == ["rt-2"]
@@ -1163,6 +1219,22 @@ class TestCodexOnASignIn:
         ].function(ctx, task="Look")
         assert "only for somebody who may see that sign-in" in answer
         assert store.asked_for == []
+
+    async def test_two_tasks_in_one_conversation_never_share_a_sign_in(self) -> None:
+        """Two turns of one shared project chat can run at once, on different
+        sign-ins; one `auth.json` between them let either save the other's
+        rotated tokens into its own secret."""
+        shell = _Shell(
+            events=_lines(_codex_stream(end=None)), auth_after=codex_auth_file(SIGNED_IN)
+        )
+        await self._run(shell, _Store())
+        await self._run(shell, _Store())
+        homes = [env[HOME_ENV] for command, env, _ in shell.commands if command == WRITE_AUTH]
+        sessions = {
+            env[SESSIONS_ENV] for command, env, _ in shell.commands if command == WRITE_AUTH
+        }
+        assert len(set(homes)) == 2
+        assert sessions == {f"{CODEX_HOMES}/{THREAD}/sessions"}
 
     async def test_a_run_in_no_conversation_gets_a_codex_home_of_its_own(self) -> None:
         shell = _Shell(

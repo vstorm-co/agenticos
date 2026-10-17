@@ -115,12 +115,11 @@ class CodingReport(BaseModel):
 
 @dataclass(frozen=True)
 class TaskFiles:
-    """Where one task's events, errors, exit code and process id are written."""
+    """Where one task's events, errors and exit code are written."""
 
     events: str
     errors: str
     status: str
-    pid: str
 
 
 @dataclass(frozen=True)
@@ -135,18 +134,18 @@ class Invocation:
 
         Detached, because a coding task outlives what one command call may wait
         for, and because its events are read while it works: the platform polls
-        `files.events` and shows each step as it lands. The process writes its own
-        id first - a session leader, so the whole group can be stopped by it -
-        and its exit code last, which is how a poll knows it is over.
+        `files.events` and shows each step as it lands. The line prints the
+        session's id - the process group the whole task runs in - which the
+        platform keeps rather than a file the harness could rewrite; its exit
+        code is written last.
 
         Every word is quoted; the redirections and the `&` are the point.
         """
         inner = (
-            f"echo $$ > {shlex.quote(files.pid)}; "
             f"{shlex.join(self.argv)} > {shlex.quote(files.events)} 2> {shlex.quote(files.errors)}; "
             f"echo $? > {shlex.quote(files.status)}"
         )
-        return f"(setsid nohup sh -c {shlex.quote(inner)} < /dev/null > /dev/null 2>&1 &)"
+        return f"setsid nohup sh -c {shlex.quote(inner)} < /dev/null > /dev/null 2>&1 & echo $!"
 
 
 @dataclass(frozen=True)

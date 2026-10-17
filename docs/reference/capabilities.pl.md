@@ -1,5 +1,5 @@
 ---
-source_sha: "fd02046fa2c4"
+source_sha: "b9e761a15abc"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1152,8 +1152,10 @@ który `claude setup-token` wypisuje dla subskrypcji Claude Pro albo Max, zapisa
 klucz — rozpoznawany po prefiksie `sk-ant-oat`; loguje się wyłącznie do Anthropic, nie
 do bramki. Codex przyjmuje klucz API OpenAI albo logowanie ChatGPT zrobione przyciskiem
 **Sign in with ChatGPT**, to samo, którego używa [profil modelu](../models.md). Na czas
-zadania logowanie trafia do `auth.json` w katalogu domowym Codexa należącym do tej
-rozmowy (`CODEX_HOME`), poza workspace, i jest potem usuwane; tokeny odświeżone
+zadania logowanie trafia do `auth.json` w katalogu domowym Codexa należącym do tego
+jednego zadania (`CODEX_HOME`), poza workspace, i jest potem usuwane - dwa zadania
+działające naraz nigdy nie dzielą jednego, a sesje wznawiane przez Codex są trzymane
+osobno dla każdej rozmowy. Tokeny odświeżone
 przez Codex są pieczętowane z powrotem w tym samym sekrecie. Wszystko, co Codex
 uruchomi, może przeczytać ten plik, więc logowanie jest przekazywane tylko osobie,
 która sama może je zobaczyć w vault - uruchomienie agenta nigdy nie daje dostępu do

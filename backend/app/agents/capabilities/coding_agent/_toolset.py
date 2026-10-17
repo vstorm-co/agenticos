@@ -67,26 +67,32 @@ MISSING_COMMAND = 127
 
 AUTH_ENV = "AGENTICOS_CODEX_AUTH"
 HOME_ENV = "CODEX_HOME"
+SESSIONS_ENV = "AGENTICOS_CODEX_SESSIONS"
 WRITE_AUTH = (
-    f'umask 077 && mkdir -p "${HOME_ENV}" && printf "%s" "${AUTH_ENV}" > "${HOME_ENV}/auth.json"'
+    f'umask 077 && mkdir -p "${HOME_ENV}" "${SESSIONS_ENV}"'
+    f' && ln -sfn "${SESSIONS_ENV}" "${HOME_ENV}/sessions"'
+    f' && printf "%s" "${AUTH_ENV}" > "${HOME_ENV}/auth.json"'
     f' && if [ -f "$HOME/.codex/config.toml" ]; then cp "$HOME/.codex/config.toml" "${HOME_ENV}/"; fi'
 )
 """Codex's sign-in, written where the CLI reads it - outside the workspace.
 
-Into a Codex home of the conversation's own (`CODEX_HOME`), not the sandbox
-user's one `~/.codex`: a project's sandbox, or one scoped to a person or an
-agent, runs several conversations' tasks at once, and one shared `auth.json`
-let a task overwrite another's sign-in and save its rotated tokens into the
-wrong secret. The configuration the runtime ships is copied in beside it.
+Into a Codex home of this one task's own (`CODEX_HOME`), not the sandbox
+user's one `~/.codex` and not one per conversation: a sandbox runs several
+tasks at once - two turns of one shared project chat among them - and one
+shared `auth.json` let a task overwrite another's sign-in and save its rotated
+tokens into the wrong secret. The sessions Codex resumes are the
+conversation's, so its `sessions` directory is linked in from one the
+conversation keeps across tasks. The configuration the runtime ships is
+copied in beside it.
 
 Passed through the environment of this one command, never on a command line,
 and kept out of the working directory so the file tools and the file browser
-never list it. Removed again by `READ_AUTH` once the task is over.
+never list it. Removed again, home and all, by `READ_AUTH` once the task is over.
 """
-READ_AUTH = f'cat "${HOME_ENV}/auth.json" 2>/dev/null; rm -f "${HOME_ENV}/auth.json"'
+READ_AUTH = f'cat "${HOME_ENV}/auth.json" 2>/dev/null; rm -rf "${HOME_ENV}"'
 
 CODEX_HOMES = "/tmp/agenticos-codex"  # noqa: S108
-"""Where each conversation's Codex home is made - outside any workspace."""
+"""Where each conversation's Codex sessions, and each task's home, are made - outside any workspace."""
 
 
 class CodexSignIn(Protocol):
@@ -225,13 +231,20 @@ def build_coding_toolset(
                 f"{label} runs on a ChatGPT sign-in only for somebody who may see that "
                 "sign-in in the vault. Say that they need their own, or one shared with them."
             )
-        home = f"{CODEX_HOMES}/{getattr(ctx.deps, 'conversation_id', None) or uuid.uuid4().hex}"
+        conversation = (
+            f"{CODEX_HOMES}/{getattr(ctx.deps, 'conversation_id', None) or uuid.uuid4().hex}"
+        )
+        home = f"{conversation}/{uuid.uuid4().hex}"
         try:
             written = await source.load()
             await ctx.workspace.run(  # noqa: S604
                 WRITE_AUTH,
                 shell=True,
-                env={AUTH_ENV: codex_auth_file(written), HOME_ENV: home},
+                env={
+                    AUTH_ENV: codex_auth_file(written),
+                    HOME_ENV: home,
+                    SESSIONS_ENV: f"{conversation}/sessions",
+                },
                 timeout=60,
             )
         except BadRequestError as gone:
@@ -286,7 +299,7 @@ def build_coding_toolset(
             base_url=base_url,
         )
         if home is not None:
-            # The sign-in, and the sessions it resumes, are in this conversation's home.
+            # The sign-in is this task's, and the sessions it resumes the conversation's.
             command = replace(command, env={**command.env, HOME_ENV: home})
         files = task_files(uuid.uuid4().hex)
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "fd02046fa2c4"
+source_sha: "b9e761a15abc"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1222,8 +1222,10 @@ gespeichert — erkannt an seinem Präfix `sk-ant-oat`; es meldet sich nur bei A
 an, nicht bei einem Gateway. Codex nimmt einen OpenAI-API-Key oder eine
 ChatGPT-Anmeldung über **Sign in with ChatGPT**, dieselbe, die ein
 [Modellprofil](../models.md) nutzt. Für eine Aufgabe wird die Anmeldung in eine
-`auth.json` in einem eigenen Codex-Verzeichnis der Unterhaltung (`CODEX_HOME`)
-außerhalb des Workspace geschrieben und danach entfernt; von Codex erneuerte Tokens
+`auth.json` in einem eigenen Codex-Verzeichnis dieser einen Aufgabe (`CODEX_HOME`)
+außerhalb des Workspace geschrieben und danach entfernt - zwei gleichzeitig laufende
+Aufgaben teilen sich nie eines, und die Sitzungen, die Codex fortsetzt, werden je
+Unterhaltung daneben gehalten. Von Codex erneuerte Tokens
 werden über dasselbe Secret zurückversiegelt. Alles, was Codex ausführt, kann diese
 Datei lesen, darum wird die Anmeldung nur für eine Person übergeben, die sie selbst im
 Vault sehen darf - den Agent auszuführen ist nie ein Weg zum Abo eines anderen. Die Arbeit auf

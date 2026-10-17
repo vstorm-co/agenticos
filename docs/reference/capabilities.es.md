@@ -1,5 +1,5 @@
 ---
-source_sha: "fd02046fa2c4"
+source_sha: "b9e761a15abc"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1167,8 +1167,10 @@ como clave — se distingue por su prefijo `sk-ant-oat` y solo inicia sesión en
 Anthropic, no en una pasarela. Codex toma una clave API de OpenAI, o un inicio de
 sesión de ChatGPT hecho con **Sign in with ChatGPT**, el mismo que usa un
 [perfil de modelo](../models.md). Para una tarea, el inicio de sesión se escribe en un
-`auth.json` en un directorio de Codex propio de la conversación (`CODEX_HOME`), fuera
-del workspace, y se elimina después; los tokens que Codex renovó se sellan de nuevo
+`auth.json` en un directorio de Codex propio de esa tarea (`CODEX_HOME`), fuera
+del workspace, y se elimina después - dos tareas que se ejecutan a la vez nunca
+comparten uno, y las sesiones que Codex reanuda se guardan por conversación a su
+lado. Los tokens que Codex renovó se sellan de nuevo
 sobre el mismo secreto. Todo lo que Codex ejecuta puede leer ese archivo, así que el
 inicio de sesión solo se entrega a una persona que puede verlo en el vault - ejecutar
 el agent nunca es un camino a la suscripción de otro. Trabajar con una suscripción

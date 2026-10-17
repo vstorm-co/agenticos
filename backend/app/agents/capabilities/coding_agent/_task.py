@@ -8,7 +8,9 @@ see Claude Code read, edit and run tests as it does them, not a paragraph a
 quarter of an hour later.
 
 Each poll is one command that answers with the bytes written since the last one
-and the exit code once there is one. The bytes travel base64, so a read that
+and, once the task's process group is gone, its exit code. The group decides, not
+the exit-code file: that file is in the workspace the harness edits, and a task
+that wrote it early would otherwise be taken for finished and never stopped. The bytes travel base64, so a read that
 stops inside a UTF-8 character or a long line loses nothing: they are joined
 here, and only whole lines are parsed.
 """
@@ -42,6 +44,12 @@ CHUNK_BYTES = 256 * 1024
 
 STOP_GRACE_SECONDS = 3
 """How long a stopped harness has to exit before its process group is killed."""
+
+NO_EXIT_CODE = -1
+"""A task whose group is gone with no exit code to read: killed, or it rewrote the file."""
+
+_RUNNING = "running"
+_EXITED = "exited:"
 
 
 @dataclass
@@ -88,9 +96,7 @@ def _event(line: bytes) -> dict[str, Any] | None:
 
 def task_files(name: str) -> TaskFiles:
     base = f"{WORK_DIR}/{name}"
-    return TaskFiles(
-        events=f"{base}.jsonl", errors=f"{base}.err", status=f"{base}.exit", pid=f"{base}.pid"
-    )
+    return TaskFiles(events=f"{base}.jsonl", errors=f"{base}.err", status=f"{base}.exit")
 
 
 async def run_detached(
@@ -114,15 +120,18 @@ async def run_detached(
     await ctx.workspace.make_dir(WORK_DIR)
     # The credential reaches the harness through this command's environment,
     # which the detached process inherits; it is never on a command line.
-    await ctx.workspace.run(  # noqa: S604
+    started = await ctx.workspace.run(  # noqa: S604
         command.detached_line(files), shell=True, env=command.env, timeout=60
     )
+    group = _group(started.stdout)
+    if group is None:
+        return Outcome([], "The sandbox did not say which process the task runs as.", NO_EXIT_CODE)
     reader = _Reader()
     deadline = time.monotonic() + timeout_seconds
     finished = False
     try:
         while True:
-            chunk, exit_code = await _poll(ctx, files, reader.offset)
+            chunk, exit_code = await _poll(ctx, files, reader.offset, group)
             fresh = reader.take(chunk)
             if fresh:
                 await on_events(fresh)
@@ -141,15 +150,29 @@ async def run_detached(
             # Shielded: the cancellation that brought us here would otherwise
             # cancel the very command that stops the harness.
             with anyio.CancelScope(shield=True):
-                await _stop(ctx, files)
+                await _stop(ctx, group)
 
 
-async def _poll(ctx: RunContext[Any], files: TaskFiles, offset: int) -> tuple[bytes, int | None]:
-    """The events written since `offset`, and the exit code once the harness has one."""
+def _group(stdout: str) -> int | None:
+    """The process group the start line printed. Never 0 or 1, which name no task's group."""
+    printed = stdout.strip().rsplit("\n", 1)[-1].strip()
+    return int(printed) if printed.isdigit() and int(printed) > 1 else None
+
+
+async def _poll(
+    ctx: RunContext[Any], files: TaskFiles, offset: int, group: int
+) -> tuple[bytes, int | None]:
+    """The events written since `offset`, and the exit code once the task's group is gone.
+
+    Whether the group lives is asked first, so a group already gone has written
+    every event the read that follows returns.
+    """
     line = (
+        f"alive=; pgrep -g {group} > /dev/null 2>&1 && alive=1; "
         f"tail -c +{offset + 1} {shlex.quote(files.events)} 2>/dev/null "
         f"| head -c {CHUNK_BYTES} | base64 | tr -d '\\n'; echo; "
-        f"cat {shlex.quote(files.status)} 2>/dev/null"
+        f'if [ -n "$alive" ]; then echo {_RUNNING}; '
+        f"else printf {_EXITED}; cat {shlex.quote(files.status)} 2>/dev/null; echo; fi"
     )
     result = await ctx.workspace.run(line, shell=True, timeout=60)  # noqa: S604
     encoded, _, status = result.stdout.partition("\n")
@@ -157,16 +180,23 @@ async def _poll(ctx: RunContext[Any], files: TaskFiles, offset: int) -> tuple[by
         chunk = base64.b64decode(encoded.strip(), validate=True)
     except (binascii.Error, ValueError):
         chunk = b""
-    status = status.strip()
-    return chunk, int(status) if status.lstrip("-").isdigit() else None
+    return chunk, _exit_code(status.strip())
 
 
-async def _stop(ctx: RunContext[Any], files: TaskFiles) -> None:
-    pid = shlex.quote(files.pid)
+def _exit_code(status: str) -> int | None:
+    """`None` while the task runs - or when the poll came back unreadable, to ask again."""
+    if not status.startswith(_EXITED):
+        return None
+    code = status.removeprefix(_EXITED).strip()
+    return int(code) if code.lstrip("-").isdigit() else NO_EXIT_CODE
+
+
+async def _stop(ctx: RunContext[Any], group: int) -> None:
+    # `pkill -g`, not `kill -- -group`: the runtimes' `sh` is dash, whose built-in
+    # `kill` reads `--` as a process id and signals nothing.
     line = (
-        f'group="$(cat {pid} 2>/dev/null)"; [ -n "$group" ] || exit 0; '
-        f'kill -TERM -- "-$group" 2>/dev/null; sleep {STOP_GRACE_SECONDS}; '
-        f'kill -KILL -- "-$group" 2>/dev/null; true'
+        f"pkill -TERM -g {group} 2>/dev/null; sleep {STOP_GRACE_SECONDS}; "
+        f"pkill -KILL -g {group} 2>/dev/null; true"
     )
     await ctx.workspace.run(line, shell=True, timeout=30)  # noqa: S604
 
@@ -181,7 +211,7 @@ async def _read(ctx: RunContext[Any], path: str) -> str:
 async def clean_up(ctx: RunContext[Any], files: TaskFiles) -> None:
     """Remove a finished task's files; the session it continues stays."""
     line = "rm -f " + " ".join(
-        shlex.quote(path) for path in (files.events, files.errors, files.status, files.pid)
+        shlex.quote(path) for path in (files.events, files.errors, files.status)
     )
     await ctx.workspace.run(line, shell=True, timeout=30)  # noqa: S604
 

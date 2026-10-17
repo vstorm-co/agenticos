@@ -57,8 +57,11 @@ Two things are versioned separately from this file and worth knowing about:
   **Human approval** set to **Always ask** asks before each task. A
   conversation's tasks continue one harness session. Claude Code runs on an
   Anthropic key or a `claude setup-token` subscription token, Codex on an
-  OpenAI key or a ChatGPT sign-in, and their tokens are booked to the run. The
-  `workbench` runtime now carries Claude Code 2.1.288 and Codex 0.160.0.
+  OpenAI key or a ChatGPT sign-in, and their tokens are booked to the run. Stop
+  and the task's time limit end the harness's whole process group, and whether
+  a task is over is read from that group rather than a file the harness could
+  write. The `workbench` runtime now carries Claude Code 2.1.288 and Codex
+  0.160.0.
 - **Projects.** A project holds instructions and files in one container that
   every chat started in it shares, whichever agent answers: a chat agent without
   a sandbox is given the project's, and every agent reads the project's
@@ -70,7 +73,8 @@ Two things are versioned separately from this file and worth knowing about:
   files each project's chats under it, and the dashboard has a **Projects** card. A
   project opens on its files, which can be dropped anywhere on the tab and show
   their progress as they go up; its **Apps** tab lists the apps its chats
-  published (`GET /apps?project_id=`). See [Projects](docs/projects.md).
+  published (`GET /apps?project_id=`). A sandbox connection a project keeps its
+  files on cannot be deleted. See [Projects](docs/projects.md).
 
 ### Fixed
 
