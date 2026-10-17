@@ -90,7 +90,21 @@ class _Store:
         return value
 
     async def set(self, key: str, value: str, ex: int | None = None) -> None:
+        if self.fail:
+            raise ConnectionError("redis went away")
         self.values[key] = value
+
+    async def get(self, key: str) -> str | None:
+        return self.values.get(key)
+
+    async def eval(self, _script: str, _numkeys: int, key: str, token: str) -> int:
+        """`_END_IF_OURS`: delete the marker only while it names this turn."""
+        if self.fail:
+            raise ConnectionError("redis went away")
+        if self.values.get(key) != token:
+            return 0
+        del self.values[key]
+        return 1
 
     async def delete(self, *keys: str) -> None:
         if self.fail:
@@ -136,51 +150,79 @@ def store() -> Iterator[_Store]:
     live_turn.configure(None)
 
 
+async def _begin(conversation: str = CONVERSATION) -> live_turn.Turn:
+    turn = await live_turn.begin(conversation)
+    assert turn is not None
+    return turn
+
+
 async def _followed(conversation: str = CONVERSATION) -> list[tuple[str, Any]]:
     return [(frame["type"], frame["data"]) async for frame in live_turn.follow(conversation)]
 
 
 class TestKeepingATurn:
     async def test_a_follower_gets_the_turn_from_its_start_to_its_end(self, store: _Store) -> None:
-        await live_turn.begin(CONVERSATION)
-        await live_turn.publish(CONVERSATION, "model_request_start", {})
-        await live_turn.publish(CONVERSATION, "text_delta", {"index": 0, "content": "Hi"})
-        await live_turn.end(CONVERSATION)
+        turn = await _begin()
+        await live_turn.publish(turn, "model_request_start", {})
+        await live_turn.publish(turn, "text_delta", {"index": 0, "content": "Hi"})
+        await live_turn.end(turn)
         # Ended, so a new follower is told there is nothing to follow.
         assert await _followed() == []
 
     async def test_a_frame_for_the_person_who_asked_is_not_kept(self, store: _Store) -> None:
-        await live_turn.begin(CONVERSATION)
+        turn = await _begin()
         for kind in live_turn.NOT_KEPT:
-            await live_turn.publish(CONVERSATION, kind, {})
-        assert store.lists.get(f"turn:{CONVERSATION}:trace", []) == []
+            await live_turn.publish(turn, kind, {})
+        assert store.lists.get(turn.key("trace"), []) == []
 
-    async def test_a_new_turn_starts_a_fresh_trace(self, store: _Store) -> None:
-        await live_turn.begin(CONVERSATION)
-        await live_turn.publish(CONVERSATION, "text_delta", {"content": "old"})
-        await live_turn.begin(CONVERSATION)
-        await live_turn.publish(CONVERSATION, "text_delta", {"content": "new"})
-        store.on_listen = lambda: live_turn.end(CONVERSATION)
+    async def test_a_new_turn_is_followed_from_its_own_fresh_trace(self, store: _Store) -> None:
+        old = await _begin()
+        await live_turn.publish(old, "text_delta", {"content": "old"})
+        new = await _begin()
+        await live_turn.publish(new, "text_delta", {"content": "new"})
+        store.on_listen = lambda: live_turn.end(new)
         frames = await _followed()
         assert frames[0] == ("text_delta", {"content": "new"})
-        assert [json.loads(raw)["seq"] for raw in store.lists[f"turn:{CONVERSATION}:trace"]] == [
-            1,
-            2,
+        assert [json.loads(raw)["seq"] for raw in store.lists[new.key("trace")]] == [1, 2]
+
+    async def test_two_turns_in_one_conversation_keep_out_of_each_others_way(
+        self, store: _Store
+    ) -> None:
+        """Two tabs, one conversation: the second turn neither wipes the first's
+        trace, nor is ended by the first finishing while it is still running."""
+        first = await _begin()
+        await live_turn.publish(first, "text_delta", {"content": "first"})
+        second = await _begin()
+        await live_turn.publish(first, "text_delta", {"content": "still first"})
+        await live_turn.end(first)
+
+        assert await live_turn.is_live(CONVERSATION)
+        first_frames = [json.loads(raw) for raw in store.lists[first.key("trace")]]
+        assert [frame["data"].get("content") for frame in first_frames[:2]] == [
+            "first",
+            "still first",
         ]
+        await live_turn.publish(second, "text_delta", {"content": "second"})
+        store.on_listen = lambda: live_turn.end(second)
+        assert await _followed() == [
+            ("text_delta", {"content": "second"}),
+            (live_turn.END, {"conversation_id": CONVERSATION}),
+        ]
+        assert not await live_turn.is_live(CONVERSATION)
 
     async def test_the_seam_between_trace_and_channel_loses_and_repeats_nothing(
         self, store: _Store
     ) -> None:
-        await live_turn.begin(CONVERSATION)
-        await live_turn.publish(CONVERSATION, "text_delta", {"content": "1"})
+        turn = await _begin()
+        await live_turn.publish(turn, "text_delta", {"content": "1"})
 
         async def published_while_subscribing() -> None:
             # On both the trace and the channel: read once, from the trace.
-            await live_turn.publish(CONVERSATION, "text_delta", {"content": "2"})
+            await live_turn.publish(turn, "text_delta", {"content": "2"})
 
         async def published_after_the_trace_was_read() -> None:
-            await live_turn.publish(CONVERSATION, "text_delta", {"content": "3"})
-            await live_turn.end(CONVERSATION)
+            await live_turn.publish(turn, "text_delta", {"content": "3"})
+            await live_turn.end(turn)
 
         store.on_subscribe = published_while_subscribing
         store.on_listen = published_after_the_trace_was_read
@@ -195,44 +237,48 @@ class TestKeepingATurn:
         assert frames[-1] == (live_turn.END, {"conversation_id": CONVERSATION})
 
     async def test_a_trace_already_ended_stops_at_its_end(self, store: _Store) -> None:
-        await live_turn.begin(CONVERSATION)
-        await live_turn.publish(CONVERSATION, "text_delta", {"content": "1"})
+        turn = await _begin()
+        await live_turn.publish(turn, "text_delta", {"content": "1"})
 
         async def ended_while_subscribing() -> None:
-            await live_turn.end(CONVERSATION)
+            await live_turn.end(turn)
 
         store.on_subscribe = ended_while_subscribing
         assert [kind for kind, _ in await _followed()] == ["text_delta", live_turn.END]
 
     async def test_a_channel_that_closes_ends_the_follow(self, store: _Store) -> None:
-        await live_turn.begin(CONVERSATION)
-        await live_turn.publish(CONVERSATION, "text_delta", {"content": "1"})
+        turn = await _begin()
+        await live_turn.publish(turn, "text_delta", {"content": "1"})
         assert [kind for kind, _ in await _followed()] == ["text_delta"]
 
     async def test_what_is_not_a_frame_is_skipped(self, store: _Store) -> None:
-        await live_turn.begin(CONVERSATION)
-        await store.rpush(f"turn:{CONVERSATION}:trace", "not json")
-        await store.rpush(f"turn:{CONVERSATION}:trace", json.dumps({"type": "x"}))
+        turn = await _begin()
+        await store.rpush(turn.key("trace"), "not json")
+        await store.rpush(turn.key("trace"), json.dumps({"type": "x"}))
 
         async def broken_then_ended() -> None:
-            await store.publish(f"turn:{CONVERSATION}:events", "[1]")
-            await live_turn.end(CONVERSATION)
+            await store.publish(turn.key("events"), "[1]")
+            await live_turn.end(turn)
 
         store.on_listen = broken_then_ended
         assert [kind for kind, _ in await _followed()] == [live_turn.END]
 
     async def test_redis_failing_never_fails_the_turn(self, store: _Store) -> None:
         store.fail = True
-        await live_turn.begin(CONVERSATION)
-        await live_turn.publish(CONVERSATION, "text_delta", {"content": "x"})
-        await live_turn.end(CONVERSATION)
+        # Refused at the start: the turn runs unwatched.
+        assert await live_turn.begin(CONVERSATION) is None
+        # Refused part-way through: frames are dropped, nothing is raised.
+        turn = live_turn.Turn(CONVERSATION, "t-1")
+        await live_turn.publish(turn, "text_delta", {"content": "x"})
+        await live_turn.end(turn)
         assert store.lists == {}
 
     async def test_without_redis_nothing_is_kept_or_followed(self) -> None:
         live_turn.configure(None)
-        await live_turn.begin(CONVERSATION)
-        await live_turn.publish(CONVERSATION, "text_delta", {})
-        await live_turn.end(CONVERSATION)
+        assert await live_turn.begin(CONVERSATION) is None
+        turn = live_turn.Turn(CONVERSATION, "t-1")
+        await live_turn.publish(turn, "text_delta", {})
+        await live_turn.end(turn)
         assert not await live_turn.is_live(CONVERSATION)
         assert await _followed() == []
 
@@ -262,10 +308,10 @@ class TestFollowingFromAnotherSocket:
     async def test_a_person_who_comes_back_gets_the_turn_so_far_and_its_end(
         self, store: _Store
     ) -> None:
-        await live_turn.begin(CONVERSATION)
-        await live_turn.publish(CONVERSATION, "model_request_start", {})
-        await live_turn.publish(CONVERSATION, "text_delta", {"index": 0, "content": "Reading"})
-        store.on_listen = lambda: live_turn.end(CONVERSATION)
+        turn = await _begin()
+        await live_turn.publish(turn, "model_request_start", {})
+        await live_turn.publish(turn, "text_delta", {"index": 0, "content": "Reading"})
+        store.on_listen = lambda: live_turn.end(turn)
         session = _session()
 
         await self._attach(session, CONVERSATION)
@@ -295,7 +341,7 @@ class TestFollowingFromAnotherSocket:
     async def test_a_conversation_the_person_may_not_read_is_answered_with_nothing(
         self, store: _Store
     ) -> None:
-        await live_turn.begin(CONVERSATION)
+        await _begin()
         session = _session()
         await self._attach(session, CONVERSATION, found=False)
         assert _sent_events(session) == []
@@ -303,23 +349,23 @@ class TestFollowingFromAnotherSocket:
     async def test_a_turn_that_ends_before_the_subscription_is_still_said_to_end(
         self, store: _Store
     ) -> None:
-        await live_turn.begin(CONVERSATION)
+        await _begin()
         session = _session()
         with patch.object(live_turn, "follow", side_effect=lambda _c: _nothing()):
             await self._attach(session, CONVERSATION)
         assert [kind for kind, _ in _sent_events(session)] == ["turn_attached", live_turn.END]
 
     async def test_a_socket_gone_mid_replay_stops_forwarding(self, store: _Store) -> None:
-        await live_turn.begin(CONVERSATION)
-        await live_turn.publish(CONVERSATION, "text_delta", {"content": "1"})
-        await live_turn.publish(CONVERSATION, "text_delta", {"content": "2"})
+        turn = await _begin()
+        await live_turn.publish(turn, "text_delta", {"content": "1"})
+        await live_turn.publish(turn, "text_delta", {"content": "2"})
         session = _session()
         session.websocket.send_json = AsyncMock(side_effect=[None, RuntimeError("closed")])
         await self._attach(session, CONVERSATION)
         assert session.websocket.send_json.await_count == 2
 
     async def test_asking_something_or_leaving_stops_following(self, store: _Store) -> None:
-        await live_turn.begin(CONVERSATION)
+        await _begin()
         session = _session()
         hold = asyncio.Event()
 
@@ -349,7 +395,8 @@ class TestFollowingFromAnotherSocket:
         with _chat(AsyncMock(return_value=_finished_turn())):
             await session.process_message(_message())
 
-        kept = [json.loads(raw)["type"] for raw in store.lists[f"turn:{_CONVERSATION}:trace"]]
+        (trace,) = [key for key in store.lists if key.startswith(f"turn:{_CONVERSATION}:")]
+        kept = [json.loads(raw)["type"] for raw in store.lists[trace]]
         assert kept == ["message_saved", "complete", live_turn.END]
         assert not await live_turn.is_live(_CONVERSATION)
 

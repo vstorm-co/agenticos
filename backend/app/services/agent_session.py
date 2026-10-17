@@ -217,10 +217,12 @@ class AgentSession:
         self._turn_agent_id: UUID | None = None
         self._turn_runs: list[OpenedRun] = []
         self._outcome: _Outcome | None = None
-        # The conversation whose running turn this socket is writing, which every
-        # frame is also kept under for a person who comes back to it; and the
-        # turn this socket is following instead, from another socket (`attach`).
+        # The conversation whose running turn this socket is writing, and that
+        # turn's handle, which every frame is also kept under for a person who
+        # comes back to it; and the turn this socket is following instead, from
+        # another socket (`attach`).
         self._live: str | None = None
+        self._live_turn: live_turn.Turn | None = None
         self._follower: asyncio.Task[None] | None = None
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
@@ -506,7 +508,7 @@ class AgentSession:
         self.current_conversation_id = prompt.conversation_id
         if self.current_conversation_id:
             self._live = self.current_conversation_id
-            await live_turn.begin(self._live)
+            self._live_turn = await live_turn.begin(self._live)
         if prompt.newly_created and self.current_conversation_id:
             await self._emit(
                 "conversation_created",
@@ -717,9 +719,10 @@ class AgentSession:
             if opened:
                 self._outcome = _Outcome(opened[0].run_id, agent_id, _turn_failed(exc))
         finally:
-            if self._live is not None:
-                await live_turn.end(self._live)
-                self._live = None
+            if self._live_turn is not None:
+                await live_turn.end(self._live_turn)
+            self._live = None
+            self._live_turn = None
             self._current_timeline = None
             self._steering = None
             late = steering.unapplied()
@@ -1090,8 +1093,8 @@ class AgentSession:
         whether this socket took it, as `send_event` does.
         """
         sent = await send_event(self.websocket, kind, payload)
-        if self._live is not None:
-            await live_turn.publish(self._live, kind, payload)
+        if self._live_turn is not None:
+            await live_turn.publish(self._live_turn, kind, payload)
         return sent
 
     async def _attach(self, raw: object) -> None:
