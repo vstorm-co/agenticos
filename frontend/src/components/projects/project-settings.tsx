@@ -96,7 +96,10 @@ export function ProjectSettings({ project }: { project: Project }) {
                     name: name.trim(),
                     description: description.trim() || null,
                     instructions,
-                    default_agent_id: agentId,
+                    // Only when it was changed: a default agent this reader may
+                    // not see reaches them as none, and saving the instructions
+                    // must not clear it.
+                    ...(agentId !== project.default_agent_id && { default_agent_id: agentId }),
                   })
                 }
               >

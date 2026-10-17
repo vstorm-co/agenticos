@@ -220,8 +220,11 @@ class TestListing:
     ) -> None:
         agent = MagicMock(id=uuid.uuid4())
         agent.name = "Researcher"
+        hidden = MagicMock(id=uuid.uuid4())
+        hidden.name = "Private agent"
         mine = _project(default_agent_id=agent.id)
-        theirs = _project()
+        # A default agent the reader may not see: neither named nor identified.
+        theirs = _project(default_agent_id=hidden.id)
         service = _service(None)
         with (
             patch.object(module, "visible_resource_ids", AsyncMock(return_value=None)),
@@ -244,14 +247,19 @@ class TestListing:
                 "accessible_ids",
                 AsyncMock(side_effect=[{mine.id}, {mine.id}, {agent.id}]),
             ),
-            patch.object(module.agent_repo, "get_many", AsyncMock(return_value={agent.id: agent})),
+            patch.object(
+                module.agent_repo,
+                "get_many",
+                AsyncMock(return_value={agent.id: agent, hidden.id: hidden}),
+            ),
         ):
             page = await service.list_projects(_ctx(), search="lau")
 
         assert listed.await_args.kwargs["see_all"] is True
         first, second = page.items
         assert (first.chat_count, first.can_use, first.can_edit) == (3, True, True)
-        assert first.default_agent_name == "Researcher"
+        assert (first.default_agent_id, first.default_agent_name) == (agent.id, "Researcher")
+        assert (second.default_agent_id, second.default_agent_name) == (None, None)
         assert first.shared_groups == ["Finance"]
         assert (second.chat_count, second.can_use, second.default_agent_name) == (0, False, None)
 

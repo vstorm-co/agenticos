@@ -431,6 +431,18 @@ describe("ProjectSettings", () => {
     });
   });
 
+  it("leaves a default agent it did not change alone, even one it cannot see", async () => {
+    wrap(<ProjectSettings project={aProject()} />);
+    await userEvent.type(screen.getByLabelText("Instructions"), " Cite.");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(project.update.mutate).toHaveBeenCalledWith({
+      name: "Launch",
+      description: expect.anything(),
+      instructions: "Be brief. Cite.",
+    });
+  });
+
   it("deletes after the name is typed, and goes back to the list", async () => {
     project.remove.mutateAsync.mockResolvedValue(undefined);
     wrap(<ProjectSettings project={aProject({ description: null })} />);

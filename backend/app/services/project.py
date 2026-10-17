@@ -166,6 +166,7 @@ class ProjectService:
         for project in projects:
             count, last = activity.get(project.id, (0, None))
             agent = agents.get(project.default_agent_id) if project.default_agent_id else None
+            seen = agent if agent is not None and agent.id in visible_agents else None
             reads.append(
                 ProjectRead.model_validate(project).model_copy(
                     update={
@@ -174,9 +175,10 @@ class ProjectService:
                         "shared_groups": groups[project.id],
                         "can_use": project.id in usable,
                         "can_edit": project.id in editable,
-                        "default_agent_name": (
-                            agent.name if agent is not None and agent.id in visible_agents else None
-                        ),
+                        # Both or neither: an agent the reader may not see is not
+                        # named, and its id is not handed over either.
+                        "default_agent_id": seen.id if seen else None,
+                        "default_agent_name": seen.name if seen else None,
                     }
                 )
             )
