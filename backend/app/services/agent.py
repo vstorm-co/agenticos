@@ -110,6 +110,20 @@ class PersistedPrompt:
     conversation_id: str | None
     newly_created: bool
     message_id: UUID | None = None
+    # How the model reads the turn, where that is more than what was typed: who
+    # said it in a project's chat, and the message it replies to. `None` means
+    # just the text.
+    for_model: str | None = None
+
+
+def _message_uuid(message_id: str) -> UUID:
+    """A replied-to message id off the wire, refusing rather than crashing."""
+    try:
+        return UUID(message_id)
+    except ValueError as exc:
+        raise BadRequestError(
+            message="That is not a message id", details={"reply_to": message_id}
+        ) from exc
 
 
 def _conversation_uuid(conversation_id: str) -> UUID:
@@ -192,6 +206,7 @@ async def persist_user_turn(
     current_conversation_id: str | None,
     organization_id: UUID,
     project_id: str | None = None,
+    reply_to: str | None = None,
 ) -> PersistedPrompt:
     """Resolve the conversation, persist the user message, and link any uploaded files.
 
@@ -224,6 +239,11 @@ async def persist_user_turn(
     """
     newly_created = False
     message_id: UUID | None = None
+    for_model: str | None = None
+    replied = _message_uuid(reply_to) if reply_to else None
+    # The thread as resolved or created here; a turn continuing the socket's own
+    # thread names none, and reads to the model as typed.
+    conversation: Conversation | None = None
     try:
         async with get_db_context() as db:
             conv_service = get_conversation_service(db)
@@ -237,7 +257,7 @@ async def persist_user_turn(
                 # `except` below and was logged as a persistence failure. The
                 # guard that followed never ran, and neither did the write - so
                 # every message after the first was silently dropped (#5).
-                conv = await _resolve_in_org(
+                conv = conversation = await _resolve_in_org(
                     conv_service, requested, organization_id=organization_id, user_id=user.id
                 )
                 # The owner's to name: a teammate continuing a project's chat may
@@ -273,11 +293,14 @@ async def persist_user_turn(
                 )
             user_msg = await conv_service.add_message(
                 UUID(current_conversation_id),
-                MessageCreate(role="user", content=content),
+                MessageCreate(role="user", content=content, reply_to_message_id=replied),
                 organization_id=organization_id,
                 user_id=user.id,
             )
             message_id = user_msg.id
+            if conversation is not None:
+                spoken = await conv_service.model_text(user_msg, conversation)
+                for_model = spoken if spoken != content else None
             if file_ids:
                 try:
                     await conv_service.link_files_to_message(user_msg.id, file_ids, user_id=user.id)
@@ -306,6 +329,7 @@ async def persist_user_turn(
         conversation_id=current_conversation_id,
         newly_created=newly_created,
         message_id=message_id,
+        for_model=for_model,
     )
 
 

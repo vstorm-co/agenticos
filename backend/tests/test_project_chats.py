@@ -263,6 +263,25 @@ class TestWhoseWordsATurnIs:
         users.assert_not_awaited()
 
 
+class TestQuotingWhatAReplyAnswers:
+    async def test_a_quoted_message_since_deleted_quotes_nothing(self):
+        reply = SimpleNamespace(id=uuid4(), reply_to_message_id=uuid4())
+        with (
+            patch(f"{MODULE}.conversation_repo.messages_by_id", AsyncMock(return_value={})),
+            patch(f"{MODULE}.conversation_repo.users_by_id", AsyncMock(return_value={})),
+        ):
+            await ConversationService(AsyncMock())._attach_replies([reply])
+        assert not hasattr(reply, "reply_to")
+
+    async def test_a_page_with_no_replies_asks_nothing(self):
+        found = AsyncMock()
+        with patch(f"{MODULE}.conversation_repo.messages_by_id", found):
+            await ConversationService(AsyncMock())._attach_replies(
+                [SimpleNamespace(id=uuid4(), reply_to_message_id=None)]
+            )
+        found.assert_not_awaited()
+
+
 class TestTheProjectsChatList:
     async def test_each_chat_says_whose_it_is_who_saw_it_and_who_is_at_work(self):
         chat = SimpleNamespace(

@@ -147,6 +147,13 @@ class MessageCreate(MessageBase):
     """
 
     model_name: str | None = Field(default=None, max_length=100, description="AI model used")
+    reply_to_message_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The earlier message in this conversation this turn answers, where somebody "
+            "replied to one; refused when it is in another conversation."
+        ),
+    )
     parts: list[MessagePart] | None = Field(
         default=None,
         description=(
@@ -239,6 +246,15 @@ class ChatPerson(BaseSchema):
         )
 
 
+class MessageReplyRef(BaseSchema):
+    """The message a turn answers, as much of it as a quote above the turn needs."""
+
+    message_id: UUID
+    role: str
+    excerpt: str
+    sender: ChatPerson | None = None
+
+
 class MessageRead(MessageBase, TimestampSchema):
     """Schema for reading a message (API response)."""
 
@@ -322,6 +338,10 @@ class MessageRead(MessageBase, TimestampSchema):
             "that is not always the conversation's owner. Null on assistant turns, "
             "on channel turns (`author` says who) and on turns older than the field."
         ),
+    )
+    reply_to: MessageReplyRef | None = Field(
+        default=None,
+        description="The message this turn answers, quoted, where it replied to one",
     )
     sender_gone: bool = Field(
         default=False,

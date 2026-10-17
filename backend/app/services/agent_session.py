@@ -502,6 +502,10 @@ class AgentSession:
                 # Read only when the turn starts a conversation: a chat is in
                 # the project it was started in, and stays there.
                 project_id=data.get("project_id") or None,
+                # The message this turn answers, where the person replied to one.
+                reply_to=reply
+                if isinstance(reply := data.get("reply_to"), str) and reply
+                else None,
             )
         except AppException as e:
             # Every refusal the write can raise, not only the cross-org one:
@@ -602,7 +606,7 @@ class AgentSession:
                     user=self.user,
                     organization_id=self.organization_id,
                     agent_id=agent_id,
-                    user_input=user_message,
+                    user_input=prompt.for_model or user_message,
                     message_history=model_history,
                     attachments=attachments,
                     conversation_id=(

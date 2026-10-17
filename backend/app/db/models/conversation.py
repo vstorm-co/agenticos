@@ -234,6 +234,14 @@ class Message(Base, TimestampMixin):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # The earlier message this turn answers, when somebody replied to one - in a
+    # chat several people talk in at once, "yes, do that" has to say to what.
+    # `SET NULL`: a deleted message leaves the reply standing, unanchored.
+    reply_to_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # Which frozen spec answered, not just which agent. An agent is rewritten;
     # what it said last Tuesday was said by one version of it, and "why did it
     # answer that" is a question about the version. Runs have recorded this

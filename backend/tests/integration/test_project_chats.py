@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import delete
 
 from app.agents.spec import AgentSpec
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun
@@ -296,6 +296,105 @@ class TestOpeningATeammatesAttachment:
         await db.flush()
         with pytest.raises(NotFoundError):
             await files.get_readable_file(attached.id, user_id=stranger.id)
+
+
+class TestReplyingInAProjectChat:
+    async def test_a_reply_is_quoted_on_screen_and_to_the_model_with_who_said_what(
+        self, db
+    ) -> None:
+        kacper, anna = await _user(db, "Kacper"), await _user(db, "Anna")
+        org = await _org(db, (kacper, "owner"), (anna, "member"))
+        project = await _project(db, org, kacper, visibility=Visibility.ORG.value)
+        chat = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=kacper.id, title="Plan", project_id=project.id
+        )
+        service = ConversationService(db)
+        asked = await service.add_message(
+            chat.id,
+            MessageCreate(role="user", content="Draft the launch plan"),
+            organization_id=org.id,
+            user_id=kacper.id,
+        )
+        answer = await conversation_repo.create_message(
+            db, conversation_id=chat.id, role="assistant", content="Plan:   step one, step two"
+        )
+        reply = await service.add_message(
+            chat.id,
+            MessageCreate(
+                role="user", content="Make step two bigger", reply_to_message_id=answer.id
+            ),
+            organization_id=org.id,
+            user_id=anna.id,
+        )
+
+        items, _, _ = await service.transcript(
+            chat.id, organization_id=org.id, user_id=kacper.id, include_tool_calls=True
+        )
+        shown = MessageRead.model_validate(items[-1])
+        assert shown.reply_to is not None
+        assert (shown.reply_to.message_id, shown.reply_to.excerpt) == (
+            answer.id,
+            "Plan: step one, step two",
+        )
+
+        history = await service.model_history(chat.id, limit=20)
+        said = [part.content for message in history for part in message.parts]
+        assert said[0] == "Kacper: Draft the launch plan"
+        assert said[-1] == (
+            'Anna: (In reply to your earlier answer: "Plan: step one, step two")\n\n'
+            "Make step two bigger"
+        )
+        conversation = await conversation_repo.get_conversation_by_id(db, chat.id)
+        assert conversation is not None
+        assert await service.model_text(asked, conversation) == "Kacper: Draft the launch plan"
+        assert reply.reply_to_message_id == answer.id
+
+    async def test_a_reply_to_a_person_names_them_and_one_outside_a_project_names_nobody(
+        self, db
+    ) -> None:
+        kacper = await _user(db, "Kacper")
+        org = await _org(db, (kacper, "owner"))
+        chat = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=kacper.id, title="Solo"
+        )
+        service = ConversationService(db)
+        first = await service.add_message(
+            chat.id,
+            MessageCreate(role="user", content="x" * 400),
+            organization_id=org.id,
+            user_id=kacper.id,
+        )
+        again = await service.add_message(
+            chat.id,
+            MessageCreate(role="user", content="About that", reply_to_message_id=first.id),
+            organization_id=org.id,
+            user_id=kacper.id,
+        )
+        conversation = await conversation_repo.get_conversation_by_id(db, chat.id)
+        assert conversation is not None
+        text = await service.model_text(again, conversation)
+        # Not a project chat: no name in front, but the quote, cut short.
+        assert text.startswith('(In reply to Kacper: "' + "x" * 280 + "…")
+
+    async def test_a_reply_to_another_conversations_message_is_refused(self, db) -> None:
+        kacper = await _user(db)
+        org = await _org(db, (kacper, "owner"))
+        here = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=kacper.id, title="here"
+        )
+        there = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=kacper.id, title="there"
+        )
+        elsewhere = await conversation_repo.create_message(
+            db, conversation_id=there.id, role="user", content="elsewhere"
+        )
+        with pytest.raises(BadRequestError):
+            await ConversationService(db).add_message(
+                here.id,
+                MessageCreate(role="user", content="hm", reply_to_message_id=elsewhere.id),
+                organization_id=org.id,
+                user_id=kacper.id,
+            )
 
 
 class TestThePeopleQueries:

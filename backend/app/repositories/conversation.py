@@ -511,6 +511,14 @@ async def readers_of(
     return readers
 
 
+async def messages_by_id(db: AsyncSession, message_ids: Collection[UUID]) -> dict[UUID, Message]:
+    """These messages, keyed by id; one query, and none for an empty set."""
+    if not message_ids:
+        return {}
+    result = await db.execute(select(Message).where(Message.id.in_(set(message_ids))))
+    return {message.id: message for message in result.scalars().all()}
+
+
 async def users_by_id(db: AsyncSession, user_ids: Collection[UUID]) -> dict[UUID, User]:
     """These people, keyed by id; one query, and none for an empty set."""
     if not user_ids:
@@ -1181,6 +1189,7 @@ async def create_message(
     run_id: UUID | None = None,
     channel_identity_id: UUID | None = None,
     author_user_id: UUID | None = None,
+    reply_to_message_id: UUID | None = None,
     attachment_context: str | None = None,
 ) -> Message:
     """Create a new message."""
@@ -1191,6 +1200,7 @@ async def create_message(
         attachment_context=attachment_context,
         channel_identity_id=channel_identity_id,
         author_user_id=author_user_id,
+        reply_to_message_id=reply_to_message_id,
         thinking=thinking,
         parts=parts,
         model_name=model_name,

@@ -335,6 +335,68 @@ class TestPersistUserTurnOrgScope:
         assert service.update_conversation.await_args.kwargs["organization_id"] == org_id
 
     @pytest.mark.anyio
+    async def test_a_reply_is_written_with_its_message_and_read_as_the_model_hears_it(self):
+        """The text the model is handed is the turn as said - who, and to what -
+        while the transcript keeps what was typed."""
+        owner = _user()
+        replied = uuid.uuid4()
+        service = self._conv_service(
+            MagicMock(organization_id=uuid.uuid4(), title="Plan", user_id=owner.id)
+        )
+        service.model_text.return_value = 'Kacper: (In reply to your earlier answer: "x")\n\nyes'
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            prompt = await persist_user_turn(
+                owner,
+                "yes",
+                [],
+                requested_conversation_id=str(uuid.uuid4()),
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+                reply_to=str(replied),
+            )
+
+        written = service.add_message.await_args.args[1]
+        assert (written.content, written.reply_to_message_id) == ("yes", replied)
+        assert prompt.for_model is not None and prompt.for_model.endswith("yes")
+
+    @pytest.mark.anyio
+    async def test_a_turn_said_as_typed_hands_the_model_nothing_extra(self):
+        service = self._conv_service(MagicMock(organization_id=uuid.uuid4(), title="t"))
+        service.model_text.return_value = "hello"
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            prompt = await persist_user_turn(
+                _user(),
+                "hello",
+                [],
+                requested_conversation_id=None,
+                # The socket's own thread, named by nothing in the frame.
+                current_conversation_id=str(uuid.uuid4()),
+                organization_id=uuid.uuid4(),
+            )
+        assert prompt.for_model is None
+        service.model_text.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_reply_to_something_that_is_not_a_message_id_is_refused(self):
+        with pytest.raises(BadRequestError, match="not a message id"):
+            await persist_user_turn(
+                _user(),
+                "yes",
+                [],
+                requested_conversation_id=None,
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+                reply_to="not-an-id",
+            )
+
+    @pytest.mark.anyio
     async def test_a_teammate_continuing_a_project_chat_does_not_rename_it(self):
         """Naming the thread stays its owner's, so a teammate's first words in an
         untitled project chat are a turn and not a new title."""

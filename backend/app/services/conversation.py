@@ -25,6 +25,7 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import Conversation, Message, ToolCall
+from app.db.models.user import User
 from app.db.updates import writable
 from app.repositories import (
     agent_repo,
@@ -46,6 +47,7 @@ from app.schemas.conversation import (
     ConversationUpdate,
     MessageCreate,
     MessageRead,
+    MessageReplyRef,
     ToolCallComplete,
     ToolCallCreate,
 )
@@ -85,12 +87,19 @@ def _file_uuids(file_ids: Sequence[str]) -> tuple[list[UUID], list[str]]:
     return ids, malformed
 
 
-def _as_history(rows: Sequence[Message], exclude_message_id: UUID | None) -> list[HistoryMessage]:
+def _as_history(
+    rows: Sequence[Message],
+    exclude_message_id: UUID | None,
+    spoken: dict[UUID, str] | None = None,
+) -> list[HistoryMessage]:
     """Transcript rows as the replayer wants them, minus the turn being answered.
 
     A prompt that carried files is replayed with what they added for the model,
-    so a follow-up about the file reaches a model that knows it is there.
+    so a follow-up about the file reaches a model that knows it is there. A
+    person's turn reads as `spoken` says where it says anything - who said it
+    and what it answers - see `ConversationService._spoken`.
     """
+    spoken = spoken or {}
     history: list[HistoryMessage] = []
     for row in rows:
         if row.id == exclude_message_id:
@@ -106,7 +115,7 @@ def _as_history(rows: Sequence[Message], exclude_message_id: UUID | None) -> lis
         history.append(
             {
                 "role": row.role,
-                "content": row.content + (row.attachment_context or ""),
+                "content": spoken.get(row.id, row.content) + (row.attachment_context or ""),
                 # The size of the request this answer came out of: the anchor the
                 # compaction estimator measures against, in place of counting
                 # characters - see `agent.build_message_history`.
@@ -142,7 +151,9 @@ class ConversationService:
         conversation = await conversation_repo.get_conversation_by_id(self.db, conversation_id)
         summary = None if conversation is None else conversation.summary_messages
         if conversation is None or summary is None or conversation.summary_ordinal is None:
-            return await self._from_transcript(conversation_id, limit, exclude_message_id)
+            return await self._from_transcript(
+                conversation_id, limit, exclude_message_id, conversation
+            )
         # Re-inline whatever the stored history references before it is parsed
         # (#55). Unconditional: offloading is the `media` capability's decision,
         # but a conversation whose agent was unbound afterwards still has markers
@@ -167,18 +178,89 @@ class ConversationService:
             logger.exception(
                 "conversation_summary_unreadable", extra={"conversation_id": str(conversation_id)}
             )
-            return await self._from_transcript(conversation_id, limit, exclude_message_id)
+            return await self._from_transcript(
+                conversation_id, limit, exclude_message_id, conversation
+            )
         since = await conversation_repo.get_messages_after(
             self.db, conversation_id, ordinal=conversation.summary_ordinal, limit=limit
         )
-        return [*replayed, *build_message_history(_as_history(since, exclude_message_id))]
+        spoken = await self._spoken(since, conversation)
+        return [*replayed, *build_message_history(_as_history(since, exclude_message_id, spoken))]
 
     async def _from_transcript(
-        self, conversation_id: UUID, limit: int, exclude_message_id: UUID | None
+        self,
+        conversation_id: UUID,
+        limit: int,
+        exclude_message_id: UUID | None,
+        conversation: Conversation | None,
     ) -> list[ModelMessage]:
         """The recent window, which is what every surface read before #49."""
         rows = await conversation_repo.get_recent_messages(self.db, conversation_id, limit=limit)
-        return build_message_history(_as_history(rows, exclude_message_id))
+        spoken = await self._spoken(rows, conversation)
+        return build_message_history(_as_history(rows, exclude_message_id, spoken))
+
+    async def model_text(self, message: Message, conversation: Conversation) -> str:
+        """How one person's turn reads to the model - see :meth:`_spoken`."""
+        return (await self._spoken([message], conversation)).get(message.id, message.content)
+
+    async def _spoken(
+        self, rows: Sequence[Message], conversation: Conversation | None
+    ) -> dict[UUID, str]:
+        """How each person's turn reads to the model, where that is more than its text.
+
+        In a project's chat several people talk to the agent at once, so each
+        turn says who said it; and a turn that replies to an earlier message
+        quotes it, so "yes, do that" reaches the model with what it says yes to.
+        One query for the quoted messages outside the window, one for the names.
+        """
+        in_project = getattr(conversation, "project_id", None) is not None
+        turns = [
+            row
+            for row in rows
+            if row.role == "user"
+            and (row.reply_to_message_id is not None or (in_project and row.author_user_id))
+        ]
+        if not turns:
+            return {}
+        quoted = {row.id: row for row in rows}
+        quoted |= await conversation_repo.messages_by_id(
+            self.db,
+            {
+                row.reply_to_message_id
+                for row in turns
+                if row.reply_to_message_id is not None and row.reply_to_message_id not in quoted
+            },
+        )
+        people = await conversation_repo.users_by_id(
+            self.db,
+            {
+                author
+                for row in turns
+                for author in (
+                    row.author_user_id,
+                    getattr(quoted.get(row.reply_to_message_id), "author_user_id", None)
+                    if row.reply_to_message_id is not None
+                    else None,
+                )
+                if author is not None
+            },
+        )
+        spoken: dict[UUID, str] = {}
+        for row in turns:
+            text = row.content
+            answered = (
+                quoted.get(row.reply_to_message_id) if row.reply_to_message_id is not None else None
+            )
+            if answered is not None:
+                text = (
+                    f'(In reply to {_whose(answered, people)}: "{_excerpt(answered.content)}")'
+                    f"\n\n{text}"
+                )
+            author = people.get(row.author_user_id) if in_project and row.author_user_id else None
+            if author is not None:
+                text = f"{ChatPerson.of(author).name}: {text}"
+            spoken[row.id] = text
+        return spoken
 
     async def keep_overhead(self, conversation_id: UUID, tokens: int) -> None:
         """Record what a turn measured its instructions and tool schemas at.
@@ -317,6 +399,7 @@ class ConversationService:
         if include_messages and conversation.messages:
             await self._attach_authors(conversation.messages)
             await self._attach_senders(conversation.messages, conversation)
+            await self._attach_replies(conversation.messages)
         # Here rather than at each route, because this is the one read every
         # reader-scoped one goes through - `update`, `archive` and `set_favourite`
         # all return the object it hands back. Only two responses carried the flag
@@ -553,6 +636,42 @@ class ConversationService:
                 msg.sender_gone = True  # ty: ignore[unresolved-attribute]
             else:
                 msg.sender = ChatPerson.of(author)  # ty: ignore[unresolved-attribute]
+
+    async def _attach_replies(self, messages: Sequence[Message]) -> None:
+        """Quote, on each turn that replied to one, the message it answers.
+
+        One query for those outside the page, one for their writers' names.
+        """
+        replies = [
+            (msg, target)
+            for msg in messages
+            if (target := getattr(msg, "reply_to_message_id", None)) is not None
+        ]
+        if not replies:
+            return
+        found = {msg.id: msg for msg in messages}
+        found |= await conversation_repo.messages_by_id(
+            self.db, {target for _, target in replies if target not in found}
+        )
+        people = await conversation_repo.users_by_id(
+            self.db,
+            {
+                author
+                for _, target in replies
+                if (author := getattr(found.get(target), "author_user_id", None)) is not None
+            },
+        )
+        for msg, target in replies:
+            answered = found.get(target)
+            if answered is None:
+                continue
+            author = people.get(answered.author_user_id) if answered.author_user_id else None
+            msg.reply_to = MessageReplyRef(  # ty: ignore[unresolved-attribute]
+                message_id=answered.id,
+                role=answered.role,
+                excerpt=_excerpt(answered.content),
+                sender=ChatPerson.of(author) if author is not None else None,
+            )
 
     async def list_project_chats(
         self,
@@ -1086,6 +1205,7 @@ class ConversationService:
         )
         total = await conversation_repo.count_messages(self.db, conversation_id)
         await self._attach_senders(items, conversation)
+        await self._attach_replies(items)
         outcomes = await conversation_repo.run_outcomes(
             self.db, {msg.run_id for msg in items if msg.run_id is not None}
         )
@@ -1179,6 +1299,12 @@ class ConversationService:
                 message="Conversation is archived",
                 details={"conversation_id": str(conversation_id)},
             )
+        if data.reply_to_message_id is not None:
+            answered = await conversation_repo.get_message_by_id(self.db, data.reply_to_message_id)
+            if answered is None or answered.conversation_id != conversation.id:
+                raise refused_field(
+                    "reply_to_message_id", "Reply to a message in this conversation"
+                )
         return await conversation_repo.create_message(
             self.db,
             conversation_id=conversation_id,
@@ -1213,6 +1339,7 @@ class ConversationService:
             run_id=run_id,
             # Whose words these are: in a project's chat, not always the owner's.
             author_user_id=user_id if data.role == "user" else None,
+            reply_to_message_id=data.reply_to_message_id,
         )
 
     async def delete_message(self, message_id: UUID) -> bool:
@@ -1378,3 +1505,21 @@ class ConversationService:
 def _a_persons_turn(message: Message) -> bool:
     """A turn somebody typed in the console - not an answer, not a chat account's."""
     return message.role == "user" and getattr(message, "channel_identity_id", None) is None
+
+
+_EXCERPT_CHARS = 280
+"""How much of a replied-to message is quoted to the model and above the reply."""
+
+
+def _excerpt(text: str) -> str:
+    """A message as one short line: its whitespace folded, its tail cut."""
+    flat = " ".join(text.split())
+    return flat if len(flat) <= _EXCERPT_CHARS else f"{flat[:_EXCERPT_CHARS]}…"
+
+
+def _whose(message: Message, people: dict[UUID, User]) -> str:
+    """Who wrote a quoted message, as the model is told it: its own answer is "you"."""
+    if message.role == "assistant":
+        return "your earlier answer"
+    author = people.get(message.author_user_id) if message.author_user_id else None
+    return ChatPerson.of(author).name if author is not None else "an earlier message"
