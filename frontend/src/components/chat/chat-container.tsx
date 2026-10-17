@@ -1,5 +1,6 @@
 "use client";
 
+import type { Mentionable } from "@/types/mention";
 import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile } from "@/types";
@@ -427,9 +428,9 @@ export function ChatContainer({
   // A ref, not state: releasing it is a send, not something to render.
   const held = useRef<Parameters<typeof sendMessage> | null>(null);
   const send = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
-      if (holdSending) held.current = [content, fileIds, files];
-      else sendMessage(content, fileIds, files);
+    (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
+      if (holdSending) held.current = [content, fileIds, files, mentions];
+      else sendMessage(content, fileIds, files, mentions);
     },
     [sendMessage, holdSending],
   );
@@ -447,7 +448,7 @@ export function ChatContainer({
       for (let i = idx - 1; i >= 0; i--) {
         const m = messages[i];
         if (m?.role === "user") {
-          sendMessage(m.content, m.fileIds, m.files);
+          sendMessage(m.content, m.fileIds, m.files, m.mentions);
           return;
         }
       }
@@ -610,6 +611,7 @@ interface ChatUIProps {
     content: string,
     fileIds?: string[],
     files?: import("@/types").ChatMessageFile[],
+    mentions?: Mentionable[],
   ) => void;
   onModelProfileChange?: (profileId: string | null) => void;
   onApprovalModeChange?: (mode: import("./chat-controls").ApprovalMode) => void;
@@ -712,6 +714,8 @@ function ChatUI({
   const { agents: knownAgents } = useAgents({ includeArchived: true });
   // The agent this thread is addressed to, which is the one handing work out.
   const delegatingAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
+  // `@` naming an agent the thread's agent cannot hand work to: it answers instead.
+  const selectAgentForTurn = useAgentSelectionStore((state) => state.select);
   const { user: authUser } = useAuthStore();
   const agentNames = useMemo(
     () =>
@@ -974,6 +978,10 @@ function ChatUI({
                           costs the row a button. */}
                       <ChatInput
                         onSend={sendMessage}
+                        // Mentions address the agent the thread is talking to;
+                        // a fixed agent's window offers none.
+                        agentId={agentFixed ? null : delegatingAgentId}
+                        onAgentMentioned={selectAgentForTurn}
                         disabled={
                           !isConnected ||
                           isArchived ||

@@ -1500,7 +1500,22 @@
     "openPageNamed": "Open {name}",
     "showMore": "Show more",
     "showLess": "Show less",
-    "openApp": "Open the app"
+    "openApp": "Open the app",
+    "mentions": {
+      "remove": "Remove {name}",
+      "menu": "Point the agent at",
+      "loading": "Loading what this agent can use…",
+      "nothing": "Nothing this agent can use matches.",
+      "delegates": "hands work to it",
+      "answers": "answers instead",
+      "kind": {
+        "mcp": "MCP servers",
+        "agent": "Agents",
+        "collection": "Knowledge bases",
+        "skill": "Skills",
+        "context": "Context files"
+      }
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",

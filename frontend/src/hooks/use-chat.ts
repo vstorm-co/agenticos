@@ -1,5 +1,6 @@
 "use client";
 
+import type { Mentionable } from "@/types/mention";
 import type { ApprovalMode } from "@/components/chat/chat-controls";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -61,6 +62,8 @@ export interface QueuedMessage {
   content: string;
   fileIds?: string[];
   files?: ChatMessageFile[];
+  /** What the person pointed the agent at with `@`, sent with the message (#2189). */
+  mentions?: Mentionable[];
 }
 
 /** One conversation, including the one a first question has not named yet. */
@@ -955,7 +958,7 @@ export function useChat(options: UseChatOptions = {}) {
   }, [hasAccessToken, connect, disconnect]);
 
   const doSend = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
+    (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
       // The previous turn's panels belong to the previous turn. Cleared here rather
       // than on `complete` so they survive it - which is the whole point - and a
       // late frame from a background delegation of the turn before is dropped by
@@ -1004,6 +1007,7 @@ export function useChat(options: UseChatOptions = {}) {
         conversationId: conversationId || undefined,
         fileIds,
         files,
+        mentions,
       });
       setIsProcessing(true);
       const payload: Record<string, unknown> = {
@@ -1011,6 +1015,10 @@ export function useChat(options: UseChatOptions = {}) {
         conversation_id: conversationId || null,
       };
       if (fileIds?.length) payload.file_ids = fileIds;
+      // Resolved again on the server as the person, against what the agent reaches.
+      if (mentions?.length) {
+        payload.mentions = mentions.map((mention) => ({ kind: mention.kind, id: mention.id }));
+      }
       // A model profile from the vault - the agent runs on it for this turn
       // instead of the model its spec names, and the run records which.
       if (modelProfileRef.current) payload.model_profile_id = modelProfileRef.current;
@@ -1052,7 +1060,7 @@ export function useChat(options: UseChatOptions = {}) {
   );
 
   const sendChatMessage = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
+    (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
       // While the agent works a message waits for its answer, as in any chat;
       // "Send now" on the queued message is how it joins the running task
       // instead (#2087) - see `sendQueuedNow`.
@@ -1061,11 +1069,11 @@ export function useChat(options: UseChatOptions = {}) {
       // drainer effect below pops the head as soon as the agent is idle.
       if (isProcessing || !isConnected) {
         const id = clientId();
-        messageQueueRef.current.push({ id, content, fileIds, files });
+        messageQueueRef.current.push({ id, content, fileIds, files, mentions });
         setQueuedMessages([...messageQueueRef.current]);
         return;
       }
-      doSend(content, fileIds, files);
+      doSend(content, fileIds, files, mentions);
     },
     [isProcessing, isConnected, doSend],
   );
@@ -1783,7 +1791,7 @@ export function useChat(options: UseChatOptions = {}) {
       if (next) {
         // Small debounce so the UI shows the queue clearing visibly before
         // the next user bubble lands; also avoids racing the WS state flip.
-        setTimeout(() => doSend(next.content, next.fileIds, next.files), 100);
+        setTimeout(() => doSend(next.content, next.fileIds, next.files, next.mentions), 100);
       }
     }
   }, [isProcessing, isConnected, interruptedFor, doSend]);

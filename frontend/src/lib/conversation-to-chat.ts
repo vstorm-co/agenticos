@@ -1,4 +1,5 @@
 import { storedUsage } from "./message-usage";
+import type { MentionKind, Mentionable } from "@/types/mention";
 import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall } from "@/types";
 
 /**
@@ -15,8 +16,11 @@ export interface RawToolCall {
 
 /** One entry of a stored timeline - see `MessagePart` in the backend schemas. */
 export interface RawMessagePart {
-  type: "text" | "thinking" | "tool" | "ask_user" | "steer";
+  type: "text" | "thinking" | "tool" | "ask_user" | "steer" | "mention";
   text?: string | null;
+  /** For a `mention` entry on a user turn (#2189). */
+  mention_kind?: MentionKind | null;
+  mention_id?: string | null;
   tool_call_id?: string | null;
   question?: string | null;
   answer?: string | null;
@@ -92,7 +96,8 @@ export function replayStoredParts(
       });
       return;
     }
-    if (!entry.text) return;
+    // A user turn's mention is its own chip, never a block of the timeline.
+    if (!entry.text || entry.type === "mention") return;
     // Indexed, because a turn has more than one block of each kind - that is the
     // whole point of storing the order - and `${msgId}-text` twice is one React
     // key for two rows.
@@ -168,6 +173,11 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
         : buildAssistantParts(toolCalls ?? [], msg.content, msg.id, msg.thinking);
 
   const files = Array.isArray(msg.files) ? msg.files : undefined;
+  const mentions = (msg.parts ?? []).flatMap((part): Mentionable[] =>
+    part.type === "mention" && part.mention_kind && part.mention_id
+      ? [{ kind: part.mention_kind, id: part.mention_id, name: part.text ?? part.mention_id }]
+      : [],
+  );
 
   return {
     id: msg.id,
@@ -190,6 +200,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     rating_count: msg.rating_count ?? undefined,
     files,
     fileIds: files?.map((f) => f.id),
+    mentions: mentions.length > 0 ? mentions : undefined,
   };
 }
 

@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **`@`-mentions in the chat composer** (#2189). Typing `@` offers what the
+  agent can use - its MCP servers, knowledge bases, skills and context files,
+  its delegates - and the other agents the person may run. A pick is a chip
+  that stays on the message; the model is told to use it, never handed its
+  content. A delegate is handed the work, and an agent the current one cannot
+  delegate to answers the message instead. Mentions are resolved again on the
+  server as the person, so one can never widen what the agent reaches.
+  `GET /api/v1/agents/{id}/mentionables` lists what is offered.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

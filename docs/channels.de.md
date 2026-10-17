@@ -1,5 +1,5 @@
 ---
-source_sha: "6460bba9d44c"
+source_sha: "0d6692178b7c"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -407,6 +407,7 @@ wäre hier falsch“ oder „das ist noch nicht gebaut“ — niemals Schweigen.
 | Delegations-Frames | ja | **nein, bewusst**: ein angehängter Sink lässt die Bibliothek pro Kind einen *gestreamten* Request öffnen, also bricht ein Delegierter, dessen Anbieter nicht streamen kann, in dem Moment, in dem jemand zusieht |
 | Freigaben: parken den Lauf | ja | ja | ja |
 | Freigaben: ein Weg zur Entscheidung | ja (`/runs`) | ein Satz, bewusst: einem Fremden mit einem Link zeigt man keine URL in die Konsole eines anderen | ja — das Ergebnis trägt `parked` und nennt, worauf gewartet wird und an welche Freigabe zu senden ist |
+| `@`-Erwähnungen | ja (`mentions`) | **nein, noch nicht**: ein Widget hat kein Menü zur Auswahl, und die Erwähnung eines Besuchers bräuchte dieselbe Prüfung in seinem Namen | **nein, noch nicht**: ein Skript nennt in der Nachricht selbst, was zu nutzen ist |
 
 ### `environment_id` am Socket, und warum es dem Veröffentlichenden gehört { #environment_id-on-the-socket-and-why-it-is-the-publishers }
 

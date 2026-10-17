@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import type { ReactNode } from "react";
 import { getErrorMessage } from "@/lib/api-error";
 import { Button, Spinner } from "@/components/ui";
@@ -37,6 +37,11 @@ import {
   type SlashCommandContext,
 } from "./slash-commands";
 import { SlashCommandPalette } from "./slash-command-palette";
+import { MentionChip } from "./mention-chip";
+import { MentionPalette } from "./mention-palette";
+import { useMentionables } from "@/hooks/use-mentionables";
+import { matching, mentionAt, withoutQuery, type MentionQuery } from "@/lib/mentions";
+import type { Mentionable } from "@/types/mention";
 import { FileDropOverlay } from "@/components/files";
 import { cn } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
@@ -76,7 +81,19 @@ interface Attachment {
 }
 
 interface ChatInputProps {
-  onSend: (message: string, fileIds?: string[], files?: FileUploadResponse[]) => void;
+  onSend: (
+    message: string,
+    fileIds?: string[],
+    files?: FileUploadResponse[],
+    mentions?: Mentionable[],
+  ) => void;
+  /**
+   * The agent this turn is addressed to, whose servers, delegates and knowledge
+   * `@` offers (#2189). Absent where the composer offers no mentions.
+   */
+  agentId?: string | null;
+  /** An agent mentioned that the chat's agent cannot hand work to: it answers instead. */
+  onAgentMentioned?: (agentId: string) => void;
   disabled?: boolean;
   isProcessing?: boolean;
   /** When set, a stop control replaces the send button while processing. */
@@ -145,6 +162,8 @@ export function ChatInput({
   controlsSlot,
   actionsSlot,
   incoming = null,
+  agentId = null,
+  onAgentMentioned,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
@@ -164,6 +183,49 @@ export function ChatInput({
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const showPalette = !!slashContext && message.startsWith("/") && !message.includes("\n");
+  // `@`-mentions (#2189): what was picked, and the one being typed at the caret.
+  const [mentions, setMentions] = useState<Mentionable[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<MentionQuery | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionOpen = mentionQuery !== null && agentId !== null && !showPalette;
+  const offered = useMentionables(agentId, mentionOpen || mentions.length > 0);
+  const mentionMatches = useMemo(
+    () =>
+      mentionOpen && mentionQuery ? matching(offered.items, mentionQuery.query, mentions) : [],
+    [mentionOpen, mentionQuery, offered.items, mentions],
+  );
+  if (useChanged(`${mentionMatches.length}|${mentionQuery?.query ?? ""}`)) setMentionIndex(0);
+  // Another agent's servers and knowledge are not this one's, so a switch drops
+  // what was picked for the previous one rather than sending what it cannot reach.
+  if (useChanged(agentId ?? "") && mentions.length > 0) setMentions([]);
+
+  // Where the caret goes once the picked `@query` is gone from the text - set as
+  // that text commits, so the next keystroke lands where the query was.
+  const caretAfterPick = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (caretAfterPick.current === null) return;
+    textareaRef.current?.setSelectionRange(caretAfterPick.current, caretAfterPick.current);
+    caretAfterPick.current = null;
+  }, [message]);
+
+  const typed = (text: string, caret: number) => {
+    setMessage(text);
+    setMentionQuery(mentionAt(text, caret));
+  };
+
+  const pickMention = (item: Mentionable) => {
+    if (mentionQuery === null) return;
+    const next = withoutQuery(message, mentionQuery);
+    setMessage(next.text);
+    setMentionQuery(null);
+    caretAfterPick.current = next.caret;
+    if (item.kind === "agent" && !item.delegate) {
+      // Who answers, rather than something the answer uses: the picker moves.
+      onAgentMentioned?.(item.id);
+      return;
+    }
+    setMentions((picked) => [...picked, item]);
+  };
   // The palette before the user's own commands have loaded: the built-ins, with their
   // copy resolved here because the registry holds keys (#446).
   const allCommands = useMemo(
@@ -228,12 +290,40 @@ export function ChatInput({
       trimmed || t("analyzeFiles"),
       files?.map((f) => f.id),
       files,
+      mentions.length > 0 ? mentions : undefined,
     );
     setMessage("");
     setAttachedFiles([]);
+    setMentions([]);
+    setMentionQuery(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (mentionOpen) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionQuery(null);
+        return;
+      }
+      if (mentionMatches.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setMentionIndex((i) => (i + 1) % mentionMatches.length);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setMentionIndex((i) => (i - 1 + mentionMatches.length) % mentionMatches.length);
+          return;
+        }
+        if (e.key === "Enter" || e.key === "Tab") {
+          e.preventDefault();
+          const item = mentionMatches[mentionIndex];
+          if (item) pickMention(item);
+          return;
+        }
+      }
+    }
     if (showPalette && filteredCommands.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -447,6 +537,15 @@ export function ChatInput({
         title={t("dropFilesAttach")}
         hint={t("dropMaxSize", { max: chatMaxUploadSizeMb })}
       />
+      {mentionOpen && (
+        <MentionPalette
+          items={mentionMatches}
+          selectedIndex={mentionIndex}
+          onSelectIndex={setMentionIndex}
+          onPick={pickMention}
+          isLoading={offered.isLoading}
+        />
+      )}
       {showPalette && (
         <SlashCommandPalette
           commands={filteredCommands}
@@ -479,10 +578,21 @@ export function ChatInput({
           it. The buttons used to sit *beside* the textarea, which is fine on
           one line and wrong on ten: the send button drifted to the vertical
           middle of a tall message, with text above it and text below. */}
+      {mentions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {mentions.map((item) => (
+            <MentionChip
+              key={`${item.kind}:${item.id}`}
+              item={item}
+              onRemove={() => setMentions((picked) => picked.filter((other) => other !== item))}
+            />
+          ))}
+        </div>
+      )}
       <textarea
         ref={textareaRef}
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        onChange={(e) => typed(e.target.value, e.target.selectionStart)}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         placeholder={t("placeholder")}

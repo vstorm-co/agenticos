@@ -1500,7 +1500,22 @@
     "openPageNamed": "Otwórz {name}",
     "showMore": "Pokaż więcej",
     "showLess": "Pokaż mniej",
-    "openApp": "Otwórz appkę"
+    "openApp": "Otwórz appkę",
+    "mentions": {
+      "remove": "Usuń {name}",
+      "menu": "Wskaż agentowi",
+      "loading": "Wczytywanie tego, czego agent może użyć…",
+      "nothing": "Nic, czego ten agent może użyć, nie pasuje.",
+      "delegates": "przekazuje mu pracę",
+      "answers": "odpowiada zamiast",
+      "kind": {
+        "mcp": "Serwery MCP",
+        "agent": "Agenci",
+        "collection": "Bazy wiedzy",
+        "skill": "Skille",
+        "context": "Pliki kontekstu"
+      }
+    }
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",

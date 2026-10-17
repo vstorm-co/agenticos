@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "98d72a2fb17c"
 ---
 
 # Konsola { #the-console }
@@ -252,6 +252,16 @@ do [kolekcji wiedzy](file-processing.md). Zobacz
 Wbudowane przychodzą razem z produktem; własne możesz napisać w
 **Settings → Slash commands**, a każdą wbudowaną, z której nie korzystasz,
 ukryć. Należą do ciebie, nie do organizacji.
+
+**`@` wskazuje agentowi, czego użyć.** Wpisz `@`, a menu pokaże to, czego agent
+może użyć: jego serwery MCP, bazy wiedzy, skille i pliki kontekstu, jego delegatów
+oraz innych agentów, których możesz uruchomić. Wybór staje się chipem nad polem
+tekstowym, a agent dostaje polecenie, by z tego skorzystał - z narzędzi serwera,
+wyszukiwania w bazie wiedzy, skilla - bez wklejania samej treści. Delegat dostaje
+zadanie do wykonania; agent, któremu bieżący nie może przekazać pracy, sam
+odpowiada na wiadomość, a wybór agenta przełącza się na niego. Wzmianka nigdy nie
+poszerza tego, do czego agent sięga: serwer sprawdza każdą ponownie jako ty, wobec
+tego, co agent już ma, a chipy zostają przy wiadomości w transkrypcie.
 
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.

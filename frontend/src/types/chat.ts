@@ -1,3 +1,5 @@
+import type { Mentionable } from "./mention";
+
 export type MessageRole = "user" | "assistant" | "system";
 /** Rating values for message feedback. */
 export enum RatingValue {
@@ -28,6 +30,8 @@ export interface ChatMessage {
   fileIds?: string[];
   /** Full file metadata for rendering attachments. */
   files?: ChatMessageFile[];
+  /** What a person's message pointed the agent at with `@`, drawn as chips (#2189). */
+  mentions?: Mentionable[];
   /** Conversation ID for this message */
   conversationId?: string;
   /** The published agent that produced this assistant turn. Absent means the

@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "98d72a2fb17c"
 ---
 
 # Die Konsole { #the-console }
@@ -274,6 +274,18 @@ werden keiner [Knowledge-Collection](file-processing.md) hinzugefügt. Siehe
 gesendet wird. Die eingebauten liefert das Produkt mit; eigene schreiben Sie
 unter **Settings → Slash commands**, und jeden eingebauten, den Sie nie nutzen,
 können Sie ausblenden. Sie gehören Ihnen, nicht der Organisation.
+
+**`@` zeigt dem Agent, was er nutzen soll.** Tippen Sie `@`, und ein Menü bietet,
+was der Agent nutzen kann: seine MCP-Server, Wissensbasen, Skills und
+Kontextdateien, seine Delegierten und die anderen Agents, die Sie ausführen
+dürfen. Eine Auswahl wird zum Chip über dem Eingabefeld, und der Agent wird
+angewiesen, sie zu nutzen - die Werkzeuge eines Servers, die Suche einer
+Wissensbasis, einen Skill -, ohne dass ihr Inhalt eingefügt wird. Ein Delegierter
+bekommt die Arbeit übergeben; ein Agent, an den der aktuelle keine Arbeit übergeben
+kann, beantwortet die Nachricht selbst, und die Auswahl wechselt zu ihm. Eine
+Erwähnung erweitert nie, was der Agent erreicht: Der Server prüft jede erneut als
+Sie, gegen das, was der Agent bereits hat, und die Chips bleiben an der Nachricht
+im Verlauf.
 
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht

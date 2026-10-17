@@ -457,3 +457,33 @@ describe("the chat container - an answer still being written after its person le
     ).toBeInTheDocument();
   });
 });
+
+describe("the chat container - @-mentions (#2189)", () => {
+  it("sends what was picked with the message and draws it on the question", async () => {
+    // Found live: the composer held the chip, and the container's send dropped it.
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/agents/a-chief/mentionables"
+        ? Promise.resolve({
+            items: [{ kind: "agent", id: "a-fin", name: "Finance Analyst", delegate: true }],
+            total: 1,
+          })
+        : base(url),
+    );
+    useAgentSelectionStore.setState({ selectedAgentId: "a-chief" });
+    socket.send.mockClear();
+    mount();
+
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: "Ask @fin", selectionStart: 8 } });
+    const option = await screen.findByRole("option", { name: /Finance Analyst/ });
+    fireEvent.mouseDown(option);
+    fireEvent.change(box, { target: { value: "Ask about margins", selectionStart: 17 } });
+    fireEvent.submit(box.closest("form")!);
+
+    const sent = socket.send.mock.calls.map(([frame]) => frame as Record<string, unknown>);
+    const turn = sent.find((frame) => frame.message === "Ask about margins");
+    expect(turn?.mentions).toEqual([{ kind: "agent", id: "a-fin" }]);
+    expect(await screen.findByTitle("Finance Analyst")).toBeInTheDocument();
+  });
+});

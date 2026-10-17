@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "98d72a2fb17c"
 ---
 
 # La consola { #the-console }
@@ -257,6 +257,17 @@ una [colección de conocimiento](file-processing.md). Consulta
 de serie vienen con el producto; puedes escribir los tuyos en
 **Settings → Slash commands**, y ocultar cualquiera de los de serie que no uses.
 Son tuyos, no de la organización.
+
+**`@` señala al agent qué usar.** Escribe `@` y un menú ofrece lo que el agent
+puede usar: sus servidores MCP, sus bases de conocimiento, skills y archivos de
+contexto, sus delegados y los demás agents que puedes ejecutar. Lo elegido se
+convierte en una etiqueta encima del cuadro, y al agent se le indica que lo use -
+las herramientas de un servidor, la búsqueda de una base de conocimiento, un skill
+- sin pegar su contenido. Un delegado recibe el trabajo; un agent al que el actual
+no puede pasarle trabajo responde él mismo al mensaje, y el selector cambia a él.
+Una mención nunca amplía lo que el agent puede alcanzar: el servidor comprueba cada
+una de nuevo como tú, frente a lo que el agent ya tiene, y las etiquetas quedan en
+el mensaje del historial.
 
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina

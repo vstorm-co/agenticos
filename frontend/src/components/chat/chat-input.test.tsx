@@ -19,6 +19,10 @@ vi.mock("@/lib/file-api", async (importOriginal) => ({
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
+// The `@` menu's request; `chat-input.mentions.test.tsx` drives it.
+vi.mock("@/hooks/use-mentionables", () => ({
+  useMentionables: () => ({ items: [], isLoading: false }),
+}));
 
 vi.mock("next/image", () => ({
   // eslint-disable-next-line @next/next/no-img-element
@@ -122,7 +126,7 @@ describe("ChatInput paste", () => {
     await userEvent.type(textarea, "why does this fail?");
     await userEvent.click(screen.getByRole("button", { name: "Send message" }));
 
-    expect(onSend).toHaveBeenCalledWith("why does this fail?", ["f-1"], [uploaded()]);
+    expect(onSend).toHaveBeenCalledWith("why does this fail?", ["f-1"], [uploaded()], undefined);
   });
 });
 

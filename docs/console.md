@@ -242,6 +242,16 @@ ones ship with the product; you can write your own under
 **Settings → Slash commands**, and hide any built-in you never use. They are
 yours, not the organization's.
 
+**`@` points the agent at something.** Type `@` and a menu offers what the agent
+can use: its MCP servers, its knowledge bases, skills and context files, its
+delegates, and the other agents you may run. A pick becomes a chip above the box,
+and the agent is told to use it - a server's tools, a knowledge base's search, a
+skill - without the thing's content being pasted in. A delegate gets the work
+handed to it; an agent the current one cannot hand work to answers the message
+itself, and the picker switches to it. A mention never widens what the agent may
+reach: the server checks each one again as you, against what the agent already
+has, and the chips stay on the message in the transcript.
+
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a
 queued message, or use its arrows, to change the order. **Send now** puts it into

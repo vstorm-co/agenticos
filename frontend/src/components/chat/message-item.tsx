@@ -1,5 +1,6 @@
 "use client";
 
+import { MentionChip } from "./mention-chip";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
@@ -210,6 +211,13 @@ export function MessageItem({
           isUser ? "flex max-w-[85%] flex-col items-end" : "w-full",
         )}
       >
+        {isUser && message.mentions && message.mentions.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {message.mentions.map((item) => (
+              <MentionChip key={`${item.kind}:${item.id}`} item={item} />
+            ))}
+          </div>
+        )}
         {isUser &&
           (() => {
             const attachments: AttachmentDisplay[] =

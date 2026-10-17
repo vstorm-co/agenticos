@@ -33,6 +33,7 @@ from app.api.deps import (
     ConversationSvc,
     DBSession,
     KnowledgeReachSvc,
+    MentionSvc,
     limit_agent_run,
     require,
 )
@@ -72,6 +73,7 @@ from app.schemas.agent import (
     TemplateInstallRequest,
     TemplateInstallResult,
 )
+from app.schemas.mention import MentionableList
 from app.services import agent_templates, mcp_listing
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
@@ -307,6 +309,18 @@ async def get_knowledge_reach(agent_id: UUID, service: KnowledgeReachSvc, ctx: A
     are answered from it all the same. Sources the caller may not see are left out.
     """
     return await service.for_agent(ctx, agent_id)
+
+
+@router.get("/{agent_id}/mentionables", response_model=MentionableList)
+async def list_mentionables(agent_id: UUID, service: MentionSvc, ctx: Auth) -> Any:
+    """What the person may point this agent at with `@` in the composer (#2189).
+
+    Its MCP servers, knowledge bases, skills and context files, its delegates and
+    the other published agents the caller may run - nothing the agent could not
+    already reach, and nothing the caller could not use.
+    """
+    items = await service.available(ctx, agent_id)
+    return MentionableList(items=items, total=len(items))
 
 
 @router.get("/{agent_id}", response_model=AgentDetail)

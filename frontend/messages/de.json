@@ -1500,7 +1500,22 @@
     "openPageNamed": "{name} öffnen",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
-    "openApp": "App öffnen"
+    "openApp": "App öffnen",
+    "mentions": {
+      "remove": "{name} entfernen",
+      "menu": "Dem Agent zeigen",
+      "loading": "Lädt, was dieser Agent nutzen kann…",
+      "nothing": "Nichts, was dieser Agent nutzen kann, passt.",
+      "delegates": "übergibt ihm Arbeit",
+      "answers": "antwortet stattdessen",
+      "kind": {
+        "mcp": "MCP-Server",
+        "agent": "Agents",
+        "collection": "Wissensbasen",
+        "skill": "Skills",
+        "context": "Kontextdateien"
+      }
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
