@@ -422,15 +422,23 @@ export function TriggerFormDialog({
           Object.assign(patch, scheduleCadence());
         }
         // An event's filter is editable in place (the source and secret are
-        // not); sent only when a value changed, and as `{}` when both were
-        // cleared - which the server reads as "fire on anything signed".
+        // not); sent only when a value changed. The two slots replace their own
+        // keys and nothing else: the server stores the config whole, so sending
+        // only the slots dropped what this form does not show - a Gmail label,
+        // an Outlook folder or shared mailbox - and moved the trigger.
         if (trigger.trigger_type === "event" && trigger.event_source) {
-          const keys = FILTER_KEYS[trigger.event_source] ?? [];
+          const keys: readonly string[] = FILTER_KEYS[trigger.event_source] ?? [];
           const changed = keys.some(
             (key, index) => ([filterA, filterB][index]?.trim() ?? "") !== seededFilter(index),
           );
           if (changed) {
-            patch.event_config = eventFilterConfig(trigger.event_source, [filterA, filterB]) ?? {};
+            const kept = Object.fromEntries(
+              Object.entries(trigger.event_config).filter(([key]) => !keys.includes(key)),
+            );
+            patch.event_config = {
+              ...kept,
+              ...eventFilterConfig(trigger.event_source, [filterA, filterB]),
+            };
           }
         }
         await update.mutateAsync({ triggerId: trigger.id, patch });
@@ -1201,6 +1209,7 @@ interface EventFieldsProps {
 // filters the server will actually apply.
 const SOURCE_FILTERS: Partial<Record<EventSource, readonly [string, string]>> = {
   gmail: ["subjectContains", "senderContains"],
+  outlook: ["subjectContains", "senderContains"],
 };
 
 /** The sources the picker offers, each with its static label key so the catalog
@@ -1218,6 +1227,8 @@ function sourceHelp(t: ReturnType<typeof useTranslations>, source: EventSource):
       return t("sourceHelpGithub");
     case "gmail":
       return t("sourceHelpGmail");
+    case "outlook":
+      return t("sourceHelpOutlook");
     case "webhook":
       return t("sourceHelpWebhook");
   }

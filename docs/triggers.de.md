@@ -1,5 +1,5 @@
 ---
-source_sha: "3c3d227eb5e7"
+source_sha: "11f0ce3319d9"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -12,8 +12,8 @@ ist die Sache der Quelle und nicht Ihre:
 - **Geschoben.** Ein Provider schickt per POST eine signierte Payload — ein
   GitHub-Issue, oder alles, was signiertes JSON senden kann (die Quelle **API**).
 - **Abgefragt.** Die Plattform liest ein verbundenes Konto nach einem Zeitplan.
-  **Gmail** ist so eine: es wird nichts an uns gepostet, es gibt also keine URL
-  zu konfigurieren und kein Secret zu verwahren. Sie verbinden das Postfach, und
+  **Gmail** und **Outlook** sind so: es wird nichts an uns gepostet, es gibt also
+  keine URL zu konfigurieren und kein Secret zu verwahren. Sie verbinden das Postfach, und
   das ist die gesamte Einrichtung.
 
 [Konzepte](concepts.md#trigger) behandelt, was ein Trigger *ist* und wie sich ein
@@ -94,9 +94,9 @@ flowchart TD
 
   `source` ist entweder `github` oder `webhook` (der Leitungsname der Quelle API);
   `trigger_id` ist eine nicht erratbare UUID. Der Dialog füllt das für Sie aus -
-  kopieren Sie es, bauen Sie es nicht von Hand. **`gmail` hat keine URL**: eine
-  abgefragte Quelle hat keine eingehende Tür, und ein POST, der eine benennt, wird
-  wie jede Zustellung ohne etwas zu tun beantwortet.
+  kopieren Sie es, bauen Sie es nicht von Hand. **`gmail` und `outlook` haben keine
+  URL**: eine abgefragte Quelle hat keine eingehende Tür, und ein POST, der eine
+  benennt, wird wie jede Zustellung ohne etwas zu tun beantwortet.
 
 - **Die Signatur** ist `HMAC-SHA256` über die **exakten rohen Anfrage-Bytes**, mit
   dem Signatur-Secret als Schlüssel, hex-kodiert und mit `sha256=` vorangestellt.
@@ -212,15 +212,77 @@ postet. Was Sie darüber wissen sollten, wie es liest:
 - **Eine verpasste Woche repariert sich selbst.** Google hält etwa eine Woche
   Historie vor. Ein Cursor, der älter ist als das, synchronisiert sich auf jetzt,
   statt das Postfach für immer stillzulegen.
+- **Eine zurückgezogene Zustimmung stoppt die Trigger.** Verweigert Google den
+  Grant endgültig - das Refresh-Token wurde widerrufen oder das Konto hat die App
+  entfernt -, werden die Trigger des Postfachs ausgeschaltet, die Karte bittet um
+  eine neue Verbindung, und das Audit-Log hält den Grund fest
+  (`mailbox_access_revoked`). Verbinden Sie neu und schalten Sie sie dann wieder
+  ein. Ein Ausfall bei Google ist etwas anderes: die Abfrage wird eine Minute
+  später wiederholt.
 
-Das Deployment braucht einen Google-OAuth-Client (`GOOGLE_CLIENT_ID` /
-`GOOGLE_CLIENT_SECRET` - dasselbe Paar, das die Google-Anmeldung verwendet) mit
-aktivierter Gmail-API. Ohne einen sagt die Karte das, statt eine
-Connect-Schaltfläche anzubieten, die nur scheitern könnte. Anders als bei GitHub
-gehört der Client dem *Deployment* und nicht jeder Organisation: Googles
-Zustimmungsbildschirm für einen Postfach-Scope braucht ein verifiziertes Projekt,
-das ein Betreiber einmal registriert und das kein Tenant von ihm überhaupt
-registrieren kann.
+Die Organisation braucht einen eigenen Google-OAuth-Client, in Vault als Secret
+**Google OAuth client** (`google_oauth_app`) gespeichert, mit aktivierter
+Gmail-API in ihrem Google-Projekt. Ohne einen sagt die Karte das, statt eine
+Connect-Schaltfläche anzubieten, die nur scheitern könnte. Es ist nicht die
+`GOOGLE_CLIENT_ID` des Deployments, die der Anmeldung dient.
+
+## Outlook (~1 Minute, und nirgends ein Secret) { #outlook-1-minute-and-no-secret-anywhere }
+
+Ein Outlook-Postfach - Microsoft 365 oder Exchange Online - wird abgefragt wie
+Gmail, die Einrichtung ist also wieder ein Zustimmungsbildschirm.
+
+1. **Registrieren Sie eine App** im Microsoft Entra Admin Center: eine
+   Web-Redirect-URI `{FRONTEND_URL}/api/me/mcp-connections/oauth/callback`, ein
+   Client-Secret und die delegierten Microsoft-Graph-Berechtigungen `Mail.Read`,
+   `Mail.Read.Shared` und `offline_access`. Keine davon braucht die Zustimmung
+   eines Administrators.
+2. **Speichern Sie sie in Vault** als Secret **Microsoft OAuth app**
+   (`microsoft_oauth_app`): die Tenant-ID oder -Domain, die Client-ID und den Wert
+   des Secrets. `organizations` als Tenant nur für eine als mehrinstanzenfähig
+   registrierte App. Es muss für die Organisation sichtbar sein, und es darf genau
+   eines geben.
+3. **Verbinden Sie das Konto.** *Routines → New event trigger → Outlook →
+   Connect account*, mit `mcp:manage`. Microsoft fragt, welches Konto verwendet
+   werden soll, damit ein bei einem privaten Konto angemeldeter Browser nicht das
+   falsche Postfach verbindet.
+4. **Wählen Sie, was ihn auslöst**: jede neue Nachricht, nur eine mit Anhängen
+   oder nur eine mit hoher Wichtigkeit. Grenzen Sie mit einem Absender- oder
+   Betreff-Teilstring ein.
+
+Was anders ist als bei Gmail:
+
+- **Er liest Ordner, nicht ein Postfach.** Microsoft Graph meldet neue Mail
+  ordnerweise, also benennt ein Trigger den Ordner, den er beobachtet - den
+  Posteingang, sofern er nichts anderes sagt -, und der Poller liest genau die
+  Ordner, die die Outlook-Trigger der Organisation benennen. `folder` ist ein
+  bekannter Name (`inbox`, `archive`, `junkemail`) oder ein Pfad aus Ordnernamen,
+  etwa `Inbox/Invoices` für den Ordner, in den eine Mailregel Rechnungen ablegt.
+  `mailbox` liest statt des eigenen ein freigegebenes Postfach, das das verbundene
+  Konto öffnen kann.
+- **Der Filter hat Outlooks eigene Felder**: `has_attachments`, `importance`
+  (`low`, `normal`, `high`) und `category`, neben `subject_contains` und
+  `sender_contains`, die Gmail hat. Sie werden in der `event_config` des Triggers
+  gesetzt; der Dialog bietet die Presets und die beiden Teilstrings an.
+- **Ein neuer Trigger sieht, was seit seiner Erstellung ankam.** Ein Ordner wird
+  zum ersten Mal ab dem Zeitpunkt gelesen, an dem sein ältester Trigger erstellt
+  wurde, nie von vor der Verbindung des Postfachs - weder das Verbinden noch ein
+  neuer Trigger löst also bei Mail aus, die schon da war.
+- **Eine Änderung ist kein Eingang.** Graph meldet eine Nachricht, die jemand als
+  gelesen markiert hat, genauso bereitwillig wie eine, die gerade ankam; nur Mail,
+  die seit dem letzten Lesen des Ordners empfangen wurde, löst aus.
+- **Der Run liest Text.** Der Inhalt kommt als reiner Text - Exchange wandelt eine
+  HTML-Nachricht selbst um - mit den Namen, Typen und Größen der Anhänge. Die
+  Anhänge selbst werden nicht heruntergeladen.
+- **Ein Ordner, der nicht gelesen werden kann, stoppt seine Trigger.** Ein
+  umbenannter Ordner oder ein freigegebenes Postfach, das nicht mehr freigegeben
+  ist, schaltet die Trigger aus, die ihn beobachten, mit
+  `mailbox_folder_unreadable` im Audit-Log, während der Rest des Postfachs wie
+  gewohnt gelesen wird. Eine zurückgezogene Zustimmung stoppt sie alle, wie bei
+  Gmail.
+
+Zustellungs-IDs sind Outlooks unveränderliche Nachrichten-IDs, eine zweimal
+gelesene Nachricht - ein wiederholter Tick, eine langsame Abfrage, die sich mit
+der nächsten überschneidet - löst also jeden Trigger einmal aus.
 
 ## Zwei Wege, GitHub anzubinden, und woran Sie erkennen, welcher läuft { #two-ways-to-connect-github-and-how-to-tell-which-you-are-running }
 
@@ -338,8 +400,8 @@ falsch oder der Content Type ist nicht `application/json`.
 ## Der Payload-Vertrag für über ein Relay zugestellte Quellen { #the-payload-contract-for-relay-delivered-sources }
 
 GitHub besitzt die Form seiner Payload, und die einer abgefragten Quelle wird von
-dem Adapter gelesen, der sie liest - die Filter eines Gmail-Triggers werden gegen
-die Nachricht selbst abgeglichen, es gibt also keinen Vertrag, den Sie erfüllen
+dem Adapter gelesen, der sie liest - die Filter eines Gmail- oder Outlook-Triggers
+werden gegen die Nachricht selbst abgeglichen, es gibt also keinen Vertrag, den Sie erfüllen
 müssten.
 
 Der, der Ihnen gehört, ist die Auffangquelle `webhook` - **API** in den Dialogen.
@@ -492,7 +554,7 @@ hindurch:
 - Die Signatur ist `HMAC-SHA256` über die **exakten rohen Bytes**, und sie ist das,
   was eine Zustellung authentisch macht statt bloß korrekt adressiert.
 - Eine `202` bedeutet **angenommen**, nicht fertig. Lesen Sie den Run in Activity.
-- **Gmail wird abgefragt**, es hat also überhaupt keine URL und kein Secret —
-  verbinden Sie das Postfach, und das ist die Einrichtung.
+- **Gmail und Outlook werden abgefragt**, sie haben also überhaupt keine URL und
+  kein Secret — verbinden Sie das Postfach, und das ist die Einrichtung.
 - Greifen Sie auf einem Laptop nach **Run now**, bevor Sie nach einem Tunnel
   greifen.

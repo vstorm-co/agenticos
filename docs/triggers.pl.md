@@ -1,5 +1,5 @@
 ---
-source_sha: "3c3d227eb5e7"
+source_sha: "11f0ce3319d9"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -12,8 +12,8 @@ sprawą tego źródła, a nie twoją:
 - **Wypychane.** Provider wysyła POST-em podpisany payload — issue z GitHuba albo
   cokolwiek, co potrafi wysłać podpisany JSON (źródło **API**).
 - **Odpytywane.** Platforma czyta podłączone konto według harmonogramu. **Gmail**
-  jest właśnie taki: nic nie jest do nas wysyłane, więc nie ma URL-a do
-  skonfigurowania ani sekretu do przechowania. Podłączasz skrzynkę i to cała
+  i **Outlook** są właśnie takie: nic nie jest do nas wysyłane, więc nie ma URL-a
+  do skonfigurowania ani sekretu do przechowania. Podłączasz skrzynkę i to cała
   konfiguracja.
 
 [Koncepcje](concepts.md#trigger) opisują, czym trigger *jest* i jak zachowuje się
@@ -91,9 +91,9 @@ flowchart TD
 
   `source` to `github` albo `webhook` (nazwa źródła API na drucie); `trigger_id`
   to nieodgadywalny UUID. Dialog wypełnia to za ciebie - skopiuj, nie buduj tego
-  ręcznie. **`gmail` nie ma URL-a**: odpytywane źródło nie ma drzwi wejściowych, a
-  POST nazywający je dostaje odpowiedź jak każde dostarczenie, przy którym nie ma
-  nic do zrobienia.
+  ręcznie. **`gmail` i `outlook` nie mają URL-a**: odpytywane źródło nie ma drzwi
+  wejściowych, a POST nazywający je dostaje odpowiedź jak każde dostarczenie, przy
+  którym nie ma nic do zrobienia.
 
 - **Podpis** to `HMAC-SHA256` po **dokładnych surowych bajtach żądania**,
   kluczowany sekretem podpisującym, zakodowany szesnastkowo i poprzedzony
@@ -200,14 +200,72 @@ warto wiedzieć o tym, jak to czyta:
 - **Przegapiony tydzień naprawia się sam.** Google trzyma około tygodnia
   historii. Kursor starszy niż to resynchronizuje się do teraz, zamiast zaparkować
   skrzynkę na zawsze.
+- **Wycofana zgoda zatrzymuje triggery.** Gdy Google odmawia grantu na dobre -
+  refresh token został unieważniony albo konto usunęło aplikację - triggery
+  skrzynki są wyłączane, kafelek prosi o ponowne podłączenie, a dziennik audytu
+  zapisuje powód (`mailbox_access_revoked`). Podłącz ponownie, potem włącz je z
+  powrotem. Awaria po stronie Google to nie to: odpytanie jest ponawiane minutę
+  później.
 
-Deployment potrzebuje klienta Google OAuth (`GOOGLE_CLIENT_ID` /
-`GOOGLE_CLIENT_SECRET` - tej samej pary, której używa logowanie przez Google) z
-włączonym Gmail API. Bez niego kafelek mówi to wprost, zamiast oferować przycisk
-Connect, który mógłby tylko zawieść. W odróżnieniu od GitHuba klient należy do
-*deploymentu*, a nie do każdej organizacji: ekran zgody Google dla zakresu
-skrzynki pocztowej wymaga zweryfikowanego projektu, który operator rejestruje raz
-i którego żaden z jego tenantów nie może zarejestrować w ogóle.
+Organizacja potrzebuje własnego klienta Google OAuth, zapisanego w Vault jako
+sekret **Google OAuth client** (`google_oauth_app`), z włączonym Gmail API w jej
+projekcie Google. Bez niego kafelek mówi to wprost, zamiast oferować przycisk
+Connect, który mógłby tylko zawieść. To nie jest `GOOGLE_CLIENT_ID` deploymentu,
+który służy do logowania.
+
+## Outlook (~1 minuta i żadnego sekretu nigdzie) { #outlook-1-minute-and-no-secret-anywhere }
+
+Skrzynka Outlooka - Microsoft 365 albo Exchange Online - jest odpytywana tak jak
+Gmail, więc konfiguracja to znowu ekran zgody.
+
+1. **Zarejestruj aplikację** w centrum administracyjnym Microsoft Entra: webowy
+   redirect URI `{FRONTEND_URL}/api/me/mcp-connections/oauth/callback`, sekret
+   klienta i delegowane uprawnienia Microsoft Graph `Mail.Read`,
+   `Mail.Read.Shared` oraz `offline_access`. Żadne z nich nie wymaga zgody
+   administratora.
+2. **Zapisz ją w Vault** jako sekret **Microsoft OAuth app**
+   (`microsoft_oauth_app`): identyfikator albo domena tenanta, client id i wartość
+   sekretu. `organizations` jako tenanta użyj tylko dla aplikacji zarejestrowanej
+   jako wielodostępna. Musi być widoczny dla organizacji i musi być dokładnie
+   jeden.
+3. **Podłącz konto.** *Routines → New event trigger → Outlook → Connect
+   account*, z `mcp:manage`. Microsoft pyta, którego konta użyć, więc
+   przeglądarka zalogowana na konto prywatne nie podłączy niewłaściwej skrzynki.
+4. **Wybierz, co go odpala**: dowolna nowa wiadomość, tylko z załącznikami albo
+   tylko oznaczona jako bardzo ważna. Zawęź nadawcą albo fragmentem tematu.
+
+Czym różni się od Gmaila:
+
+- **Czyta foldery, nie skrzynkę.** Microsoft Graph zgłasza nową pocztę po jednym
+  folderze naraz, więc trigger nazywa folder, który obserwuje - skrzynkę odbiorczą,
+  chyba że wskaże inny - a poller czyta dokładnie te foldery, które nazywają
+  triggery Outlooka organizacji. `folder` to nazwa dobrze znana (`inbox`,
+  `archive`, `junkemail`) albo ścieżka nazw folderów, na przykład `Inbox/Invoices`
+  dla folderu, do którego reguła poczty odkłada faktury. `mailbox` czyta zamiast
+  własnej skrzynki współdzieloną, którą podłączone konto może otworzyć.
+- **Filtr ma własne pola Outlooka**: `has_attachments`, `importance` (`low`,
+  `normal`, `high`) i `category`, obok `subject_contains` i `sender_contains`,
+  które ma Gmail. Ustawia się je w `event_config` triggera; dialog oferuje presety
+  i dwa fragmenty tekstu.
+- **Nowy trigger widzi to, co przyszło od jego utworzenia.** Folder jest
+  pierwszy raz czytany od chwili utworzenia jego najstarszego triggera, nigdy
+  sprzed podłączenia skrzynki, więc ani podłączenie, ani dodanie triggera nie
+  odpala się na poczcie, która już tam była.
+- **Zmiana to nie nadejście.** Graph zgłasza wiadomość, którą ktoś oznaczył jako
+  przeczytaną, równie chętnie jak tę, która właśnie przyszła; odpala tylko poczta
+  otrzymana od ostatniego czytania folderu.
+- **Run czyta tekst.** Treść przychodzi jako zwykły tekst - Exchange sam
+  konwertuje wiadomość HTML - z wypisanymi nazwami, typami i rozmiarami
+  załączników. Same załączniki nie są pobierane.
+- **Folder, którego nie da się przeczytać, zatrzymuje swoje triggery.** Folder o
+  zmienionej nazwie albo skrzynka współdzielona, która przestała być udostępniana,
+  wyłącza obserwujące ją triggery, z `mailbox_folder_unreadable` w dzienniku
+  audytu, a reszta skrzynki jest czytana jak zwykle. Wycofana zgoda zatrzymuje je
+  wszystkie, tak jak przy Gmailu.
+
+Identyfikatory dostarczeń to niezmienne identyfikatory wiadomości Outlooka, więc
+wiadomość przeczytana dwa razy - ponowiony tick, wolne odpytanie nachodzące na
+następne - odpala każdy trigger raz.
 
 ## Dwa sposoby podłączenia GitHuba i jak poznać, który masz { #two-ways-to-connect-github-and-how-to-tell-which-you-are-running }
 
@@ -318,8 +376,8 @@ niezgodność podpisu - prawie zawsze sekret jest zły albo content type nie jes
 ## Kontrakt payloadu dla źródeł dostarczanych przez przekaźnik { #the-payload-contract-for-relay-delivered-sources }
 
 GitHub jest właścicielem kształtu swojego payloadu, a payload źródła odpytywanego
-czyta adapter, który go czyta - filtry triggera Gmaila dopasowywane są do samej
-wiadomości, więc nie ma kontraktu, który miałbyś spełnić.
+czyta adapter, który go czyta - filtry triggera Gmaila albo Outlooka dopasowywane
+są do samej wiadomości, więc nie ma kontraktu, który miałbyś spełnić.
 
 Tym, który należy do ciebie, jest uniwersalne źródło `webhook` - **API** w
 dialogach. **Nie ma filtra**: zweryfikowane dostarczenie odpala, a całe body JSON
@@ -460,6 +518,6 @@ przekaźnika - nie widzą twojej maszyny. Dwa sposoby, żeby to obejść:
 - Podpis to `HMAC-SHA256` po **dokładnych surowych bajtach** i to on czyni
   dostarczenie autentycznym, a nie tylko poprawnie zaadresowanym.
 - `202` znaczy **przyjęte**, a nie zakończone. Przeczytaj run w Activity.
-- **Gmail jest odpytywany**, więc nie ma URL-a ani sekretu w ogóle — podłącz
-  skrzynkę i to cała konfiguracja.
+- **Gmail i Outlook są odpytywane**, więc nie mają URL-a ani sekretu w ogóle —
+  podłącz skrzynkę i to cała konfiguracja.
 - Na laptopie sięgnij po **Run now**, zanim sięgniesz po tunel.

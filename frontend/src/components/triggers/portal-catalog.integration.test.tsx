@@ -399,7 +399,7 @@ describe("PortalCatalog", () => {
 
     const card = within(screen.getByRole("group", { name: "GitHub" }));
 
-    expect(card.getByText(/GitHub OAuth App credentials/)).toBeVisible();
+    expect(card.getByText(/Connecting GitHub needs your organization's own app/)).toBeVisible();
     expect(card.getByRole("button", { name: /Add credentials/ })).toBeEnabled();
     // And the toast that used to be the only way to learn this is not the path:
     // nothing was clicked to get here.
@@ -426,7 +426,7 @@ describe("PortalCatalog", () => {
 
     expect(gmail.getByText(/Google client/)).toBeVisible();
     expect(gmail.queryByText(/cannot tell which one/)).toBeNull();
-    expect(gmail.queryByText(/GitHub OAuth App credentials/)).toBeNull();
+    expect(gmail.queryByText(/Connecting GitHub/)).toBeNull();
   });
 
   it("offers no vault control for a prerequisite the vault cannot fix", async () => {

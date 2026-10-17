@@ -7,9 +7,9 @@ business rather than yours:
 
 - **Pushed.** A provider POSTs a signed payload — a GitHub issue, or anything that
   can send signed JSON (the **API** source).
-- **Polled.** The platform reads a connected account on a schedule. **Gmail** is
-  this: nothing is posted to us, so there is no URL to configure and no secret to
-  keep. You connect the mailbox and that is the whole setup.
+- **Polled.** The platform reads a connected account on a schedule. **Gmail** and
+  **Outlook** are this: nothing is posted to us, so there is no URL to configure and
+  no secret to keep. You connect the mailbox and that is the whole setup.
 
 [Concepts](concepts.md#trigger) covers what a trigger *is* and how a fired run
 behaves; [Governance](governance.md) covers what it spends and how a refusal is
@@ -83,8 +83,8 @@ flowchart TD
 
   `source` is one of `github` or `webhook` (the API source's wire name); `trigger_id`
   is an unguessable UUID. The dialog fills this in for you - copy it, do not build it
-  by hand. **`gmail` has no URL**: a polled source has no inbound door, and a POST
-  naming one is answered like any delivery with nothing to do.
+  by hand. **`gmail` and `outlook` have no URL**: a polled source has no inbound
+  door, and a POST naming one is answered like any delivery with nothing to do.
 
 - **The signature** is `HMAC-SHA256` over the **exact raw request bytes**, keyed with
   the signing secret, hex-encoded, and prefixed with `sha256=`. It rides in a header
@@ -183,14 +183,67 @@ you should know about how it reads:
   exactly one - "any message" and "marked important" on the same mailbox both fire.
 - **A missed week repairs itself.** Google keeps about a week of history. A cursor
   older than that resynchronises to now rather than parking the mailbox for ever.
+- **A withdrawn consent stops the triggers.** When Google refuses the grant for
+  good - the refresh token was revoked, or the account removed the app - the
+  mailbox's triggers are turned off, the card asks you to reconnect, and the audit
+  log records why (`mailbox_access_revoked`). Reconnect, then turn them back on. A
+  Google outage is not this: the poll is tried again a minute later.
 
-The deployment needs a Google OAuth client (`GOOGLE_CLIENT_ID` /
-`GOOGLE_CLIENT_SECRET` - the same pair Google sign-in uses) with the Gmail API
-enabled. Without one the card says so instead of offering a Connect button that
-could only fail. Unlike GitHub, the client is the *deployment's* rather than each
-organization's: Google's consent screen for a mailbox scope needs a verified
-project, which an operator registers once and no tenant of theirs can register at
-all.
+The organization needs its own Google OAuth client, stored in Vault as a
+**Google OAuth client** secret (`google_oauth_app`), with the Gmail API enabled in
+its Google project. Without one the card says so instead of offering a Connect
+button that could only fail. It is not the deployment's `GOOGLE_CLIENT_ID`, which
+is sign-in.
+
+## Outlook (~1 minute, and no secret anywhere)
+
+An Outlook mailbox - Microsoft 365 or Exchange Online - is polled the way Gmail
+is, so the setup is again a consent screen.
+
+1. **Register an app** in the Microsoft Entra admin center: a web redirect URI of
+   `{FRONTEND_URL}/api/me/mcp-connections/oauth/callback`, a client secret, and
+   the delegated Microsoft Graph permissions `Mail.Read`, `Mail.Read.Shared` and
+   `offline_access`. None of them needs an administrator's consent.
+2. **Store it in Vault** as a **Microsoft OAuth app** secret
+   (`microsoft_oauth_app`): the tenant id or domain, the client id and the secret's
+   value. Use `organizations` as the tenant only for an app registered as
+   multitenant. It must be org-visible, and there must be exactly one.
+3. **Connect the account.** *Routines → New event trigger → Outlook → Connect
+   account*, with `mcp:manage`. Microsoft asks which account to use, so a browser
+   signed in to a personal account does not connect the wrong mailbox.
+4. **Pick what fires it**: any new message, only one with attachments, or only one
+   marked high importance. Narrow it with a sender or subject substring.
+
+What differs from Gmail:
+
+- **It reads folders, not a mailbox.** Microsoft Graph reports new mail one folder
+  at a time, so a trigger names the folder it watches - the inbox unless it says
+  otherwise - and the poller reads exactly the folders the organization's Outlook
+  triggers name. `folder` is a well-known name (`inbox`, `archive`, `junkemail`) or
+  a path of folder names, such as `Inbox/Invoices` for the folder a mail rule files
+  invoices into. `mailbox` reads a shared mailbox the connected account can open
+  instead of its own.
+- **The filter has Outlook's own fields**: `has_attachments`, `importance` (`low`,
+  `normal`, `high`) and `category`, beside the `subject_contains` and
+  `sender_contains` Gmail has. Set them in the trigger's `event_config`; the dialog
+  offers the presets and the two substrings.
+- **A new trigger sees what arrived since it was made.** A folder is first read
+  from the moment its earliest trigger was created, never from before the mailbox
+  was connected, so neither connecting nor adding a trigger fires on mail that was
+  already there.
+- **A change is not an arrival.** Graph reports a message somebody marked read as
+  readily as one that just landed; only mail received since the folder was last
+  read fires.
+- **The run reads text.** The body arrives as plain text - Exchange converts an
+  HTML message - with the attachments' names, types and sizes listed. The
+  attachments themselves are not downloaded.
+- **A folder that cannot be read stops its triggers.** A renamed folder or a
+  shared mailbox that is no longer shared turns off the triggers watching it, with
+  `mailbox_folder_unreadable` in the audit log, while the rest of the mailbox is
+  read as usual. A withdrawn consent stops them all, as for Gmail.
+
+Delivery ids are Outlook's immutable message ids, so a message read twice - a
+retried tick, a slow poll overlapping the next - fires each trigger once.
 
 ## Two ways to connect GitHub, and how to tell which you are running
 
@@ -306,8 +359,8 @@ mismatch - almost always the secret is wrong or the content type is not
 ## The payload contract for relay-delivered sources
 
 GitHub owns its payload shape, and a polled source's is read by the adapter that
-reads it - a Gmail trigger's filters are matched against the message itself, so
-there is no contract for you to satisfy.
+reads it - a Gmail or Outlook trigger's filters are matched against the message
+itself, so there is no contract for you to satisfy.
 
 The one that is yours is the catch-all `webhook` source - **API** in the dialogs.
 It has **no filter**: a verified delivery fires, and the whole JSON body is appended
@@ -444,6 +497,6 @@ Two ways through it:
 - The signature is `HMAC-SHA256` over the **exact raw bytes**, and it is what makes
   a delivery authentic rather than merely addressed correctly.
 - A `202` means **accepted**, not finished. Read the run in Activity.
-- **Gmail is polled**, so it has no URL and no secret at all — connect the mailbox
-  and that is the setup.
+- **Gmail and Outlook are polled**, so they have no URL and no secret at all —
+  connect the mailbox and that is the setup.
 - On a laptop, reach for **Run now** before you reach for a tunnel.

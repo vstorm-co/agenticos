@@ -17,6 +17,30 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Outlook mail can start an agent** (#1984). A Microsoft 365 mailbox connects
+  as a trigger the way Gmail does - an app registration stored in Vault as a
+  Microsoft OAuth app, a consent screen, nothing to paste - and is read once a
+  minute. A trigger watches a folder (the inbox, a folder a mail rule files into,
+  or a shared mailbox) and narrows by sender, subject, attachments, importance or
+  category; the run gets the message as text with its attachments listed. A
+  message read twice fires once, and Outlook variants of the email templates come
+  with it.
+
+### Fixed
+
+- **A mailbox whose consent was withdrawn stops its triggers** (#1984). Gmail
+  and Outlook triggers were left on and retried every minute in silence; they
+  are now turned off with the reason in the audit log, and the card asks for a
+  reconnect. A refresh token the provider refuses as `invalid_grant` is no longer
+  spent again.
+- **Editing a mail trigger's subject or sender keeps the rest of its filter.**
+  Saving the two fields replaced the whole filter, dropping a Gmail label.
+- **A portal card names its own missing credentials.** Every card said it
+  needed "GitHub OAuth App credentials", the Gmail card included; it now names
+  the service it is connecting.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

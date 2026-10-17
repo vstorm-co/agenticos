@@ -141,10 +141,12 @@ export function unitToSeconds(unit: IntervalUnit, count: number): number {
  * or none. Shared by both trigger builders - the raw source-and-secret form and
  * the friendly portal dialog - so a source is described in one place: GitHub
  * fires on its default action and the API source on any signed delivery, so
- * neither offers a filter; Gmail narrows by subject and sender.
+ * neither offers a filter; a mailbox - Gmail or Outlook - narrows by subject and
+ * sender.
  */
 export const FILTER_KEYS: Partial<Record<EventSource, readonly [string, string]>> = {
   gmail: ["subject_contains", "sender_contains"],
+  outlook: ["subject_contains", "sender_contains"],
 };
 
 /**
@@ -217,6 +219,8 @@ function presetEventKey(portalKey: string): string {
       return "event.presetGithub";
     case "google":
       return "event.presetGmail";
+    case "microsoft":
+      return "event.presetOutlook";
     default:
       return "event.presetGeneric";
   }
@@ -275,6 +279,8 @@ export function cadenceText(trigger: FiringShape, t: Translate): string {
           return t("event.github");
         case "gmail":
           return t("event.gmail");
+        case "outlook":
+          return t("event.outlook");
         case "webhook":
           return t("event.webhook");
       }

@@ -34,14 +34,20 @@ from collections.abc import Mapping
 from typing import Any
 
 from app.db.models.agent_trigger import EventSource
-from app.schemas.agent_trigger import GithubTriggerConfig, GmailTriggerConfig
+from app.schemas.agent_trigger import (
+    GithubTriggerConfig,
+    GmailTriggerConfig,
+    OutlookTriggerConfig,
+)
+from app.services.portals import outlook_place
 
 # Where each source's HMAC-SHA256 signature of the raw body rides. GitHub's is its
 # own native header; the API source reuses the same scheme under a generic one.
 #
 # A source absent here has no inbound door and is refused at the webhook route
-# before a signature is looked for: `gmail` is *polled* from a connected mailbox,
-# so a signed POST claiming to be one is a delivery nobody registered (#1068).
+# before a signature is looked for: `gmail` and `outlook` are *polled* from a
+# connected mailbox, so a signed POST claiming to be one is a delivery nobody
+# registered (#1068).
 _SIGNATURE_HEADER = {
     EventSource.GITHUB.value: "x-hub-signature-256",
     EventSource.WEBHOOK.value: "x-signature-256",
@@ -124,6 +130,8 @@ def event_matches(
         return _github_matches(headers, payload, config)
     if source == EventSource.GMAIL.value:
         return _gmail_matches(payload, config)
+    if source == EventSource.OUTLOOK.value:
+        return _outlook_matches(payload, config)
     # The generic webhook: the sender chose to deliver, so a verified delivery
     # is a match by definition.
     return True
@@ -135,7 +143,23 @@ def render_context(source: str, *, payload: Mapping[str, Any]) -> str:
         return _github_context(payload)
     if source == EventSource.GMAIL.value:
         return _gmail_context(payload)
+    if source == EventSource.OUTLOOK.value:
+        return _outlook_context(payload)
     return _webhook_context(payload)
+
+
+def polled_place(source: str, config: Mapping[str, Any]) -> str | None:
+    """Where in the connected account the poller must look for this trigger.
+
+    `None` for a source whose account is read whole (Gmail's history covers the
+    mailbox). An Outlook trigger names a folder - in the account's own mailbox or a
+    shared one - and Graph is read a folder at a time, so the poller reads exactly
+    the places its triggers name.
+    """
+    if source != EventSource.OUTLOOK.value:
+        return None
+    parsed = OutlookTriggerConfig.model_validate(dict(config))
+    return outlook_place(mailbox=parsed.mailbox, folder=parsed.folder)
 
 
 def _github_matches(
@@ -166,6 +190,32 @@ def _gmail_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> boo
         return True
     labels = [str(one) for one in payload.get("labels") or []]
     return parsed.label in labels
+
+
+def _outlook_matches(payload: Mapping[str, Any], config: Mapping[str, Any]) -> bool:
+    # The place first: a message read from one folder never fires a trigger that
+    # watches another. The rest as Gmail's - substrings case-insensitive - plus
+    # what Outlook itself sets, matched exactly.
+    parsed = OutlookTriggerConfig.model_validate(dict(config))
+    if payload.get("place") != outlook_place(mailbox=parsed.mailbox, folder=parsed.folder):
+        return False
+    subject = str(payload.get("subject") or "").casefold()
+    sender = str(payload.get("from") or "").casefold()
+    if parsed.subject_contains is not None and parsed.subject_contains.casefold() not in subject:
+        return False
+    if parsed.sender_contains is not None and parsed.sender_contains.casefold() not in sender:
+        return False
+    if (
+        parsed.has_attachments is not None
+        and bool(payload.get("has_attachments")) != parsed.has_attachments
+    ):
+        return False
+    if parsed.importance is not None and payload.get("importance") != parsed.importance:
+        return False
+    if parsed.category is None:
+        return True
+    categories = [str(one).casefold() for one in payload.get("categories") or []]
+    return parsed.category.casefold() in categories
 
 
 def _clip(text: str) -> str:
@@ -201,6 +251,26 @@ def _gmail_context(payload: Mapping[str, Any]) -> str:
         f"Subject: {payload.get('subject', '')}\n\n"
         f"{_clip(str(payload.get('body') or payload.get('text') or ''))}"
     ).strip()
+
+
+def _outlook_context(payload: Mapping[str, Any]) -> str:
+    folder = str(payload.get("folder") or "inbox")
+    mailbox = payload.get("mailbox")
+    where = f"{folder} in {mailbox}" if mailbox else folder
+    attachments = [
+        str(entry.get("name") or "")
+        for entry in payload.get("attachments") or []
+        if isinstance(entry, Mapping)
+    ]
+    lines = [
+        "An email arrived in Outlook.",
+        f"From: {payload.get('from', '')}",
+        f"Subject: {payload.get('subject', '')}",
+        f"Folder: {where}",
+    ]
+    if attachments:
+        lines.append(f"Attachments: {', '.join(name for name in attachments if name)}")
+    return ("\n".join(lines) + f"\n\n{_clip(str(payload.get('text') or ''))}").strip()
 
 
 def _webhook_context(payload: Mapping[str, Any]) -> str:

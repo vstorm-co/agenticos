@@ -21,11 +21,13 @@ nobody looked at it for eight days.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
+from datetime import datetime
 from typing import Any
 
 import httpx
 
-from app.services.portals.base import PolledEvent, PolledEvents, PortalAdapter
+from app.services.portals.base import NOWHERE, PolledEvent, PolledEvents, PortalAdapter
 from app.services.portals.exceptions import PortalUnreachable
 
 logger = logging.getLogger(__name__)
@@ -108,12 +110,19 @@ def _body_text(part: dict[str, Any], depth: int = 0) -> str:
 class GooglePortalAdapter(PortalAdapter):
     portal_key = "google"
 
-    async def poll(self, *, access_token: str, cursor: dict[str, Any] | None) -> PolledEvents:
+    async def poll(
+        self,
+        *,
+        access_token: str,
+        cursor: dict[str, Any] | None,
+        places: Mapping[str, datetime] = NOWHERE,
+    ) -> PolledEvents:
         """New messages since the stored `historyId`, and the id to resume from.
 
         With no cursor this establishes the position and returns nothing: firing an
         agent once per message already sitting in a mailbox, the moment somebody
-        connects it, is not what connecting means.
+        connects it, is not what connecting means. `places` is ignored: the history
+        covers the whole mailbox, and a trigger narrows by label instead.
         """
         async with httpx.AsyncClient(base_url=_API_BASE, timeout=_TIMEOUT) as client:
             latest = cursor.get("history_id") if cursor else None

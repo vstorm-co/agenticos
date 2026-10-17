@@ -107,6 +107,34 @@ class GmailTriggerConfig(BaseSchema):
     label: str | None = Field(default=None, max_length=128)
 
 
+class OutlookTriggerConfig(BaseSchema):
+    """The filter an Outlook trigger applies, and the folder the poller reads for it.
+
+    Unlike Gmail's history, which covers a whole mailbox, Microsoft Graph reports
+    new messages one folder at a time - so `folder` and `mailbox` are not only a
+    filter but *where the poller looks*. `folder` is a well-known name (`inbox`,
+    `archive`, `junkemail`) or the display name of a top-level folder, which is
+    where a mail rule files the slice somebody wants an agent to see. `mailbox` is
+    a shared mailbox the connected account can read; absent, it is the account's
+    own.
+
+    The rest narrow what fires: substrings of the subject and sender,
+    case-insensitive like Gmail's, and exact matches on what Outlook itself sets -
+    attachments, importance, one of the message's categories. Unknown keys are
+    refused for the same reason as the GitHub config.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    folder: str = Field(default="inbox", min_length=1, max_length=255)
+    mailbox: str | None = Field(default=None, max_length=254, pattern=r"^[^@\s/]+@[^@\s/]+$")
+    subject_contains: str | None = Field(default=None, max_length=255)
+    sender_contains: str | None = Field(default=None, max_length=255)
+    has_attachments: bool | None = None
+    importance: Literal["low", "normal", "high"] | None = None
+    category: str | None = Field(default=None, max_length=255)
+
+
 class WebhookTriggerConfig(BaseSchema):
     """The generic webhook source carries no filter - a signed delivery fires.
 
@@ -118,9 +146,13 @@ class WebhookTriggerConfig(BaseSchema):
     model_config = ConfigDict(extra="forbid")
 
 
+# Read from a connected account rather than posted to - no webhook, no secret.
+_POLLED_SOURCES = frozenset({EventSource.GMAIL.value, EventSource.OUTLOOK.value})
+
 _EVENT_CONFIG_MODELS: dict[str, type[BaseSchema]] = {
     EventSource.GITHUB.value: GithubTriggerConfig,
     EventSource.GMAIL.value: GmailTriggerConfig,
+    EventSource.OUTLOOK.value: OutlookTriggerConfig,
     EventSource.WEBHOOK.value: WebhookTriggerConfig,
 }
 
@@ -161,7 +193,7 @@ class TriggerCreate(BaseSchema):
     cron_expression: str | None = Field(default=None, max_length=255)
 
     # Event fields.
-    event_source: Literal["github", "gmail", "webhook"] | None = None
+    event_source: Literal["github", "gmail", "outlook", "webhook"] | None = None
     event_config: dict[str, Any] | None = None
     event_secret: str | None = Field(default=None, min_length=16, max_length=255)
 
@@ -228,10 +260,12 @@ class TriggerCreate(BaseSchema):
         if self.event_source is None:
             raise ValueError("event_source is required for an event trigger")
         # A polled source has no webhook and no secret - the raw path *is* the
-        # webhook path, so accepting gmail here would validate a shape the
+        # webhook path, so accepting a mailbox here would validate a shape the
         # database CHECK then refuses as a 500. It is created from its portal.
-        if self.event_source == "gmail":
-            raise ValueError("gmail triggers are created from the Gmail portal, not a raw webhook")
+        if self.event_source in _POLLED_SOURCES:
+            raise ValueError(
+                f"{self.event_source} triggers are created from their portal, not a raw webhook"
+            )
         if self.event_secret is None:
             raise ValueError("event_secret is required for an event trigger")
         # Normalise the filter through its source's typed model: fills defaults
@@ -360,7 +394,7 @@ class TriggerRead(BaseSchema, TimestampSchema):
     schedule_kind: Literal["interval", "cron"]
     interval_seconds: int | None = None
     cron_expression: str | None = None
-    event_source: Literal["github", "gmail", "webhook"] | None = None
+    event_source: Literal["github", "gmail", "outlook", "webhook"] | None = None
     event_config: dict[str, Any] = Field(default_factory=dict)
     prompt: str
     # Null on an event trigger, which has no scheduled next fire.

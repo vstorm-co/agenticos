@@ -1456,6 +1456,55 @@ class AgentTriggerService:
                 )
         return decisions
 
+    async def polled_places(
+        self, *, organization_id: UUID, event_source: str
+    ) -> dict[str, datetime]:
+        """The places the organization's live triggers on a polled source read.
+
+        Each is keyed to its earliest trigger's creation, the moment from which mail
+        there is news - so a trigger made a minute before the tick still sees what
+        arrived in that minute. Empty for a source read whole (Gmail).
+        """
+        triggers = await agent_trigger_repo.list_active_for_event_source(
+            self.db, organization_id=organization_id, event_source=event_source
+        )
+        places: dict[str, datetime] = {}
+        for trigger in triggers:
+            place = trigger_events.polled_place(event_source, trigger.event_config)
+            if place is not None:
+                places[place] = min(places.get(place, trigger.created_at), trigger.created_at)
+        return places
+
+    async def disable_polled(
+        self,
+        *,
+        organization_id: UUID,
+        event_source: str,
+        reason: str,
+        places: frozenset[str] | None = None,
+    ) -> int:
+        """Turn off the live triggers reading an account that can no longer be read.
+
+        All of the source's triggers in the organization when the grant itself was
+        refused; only those watching `places` when the account answered for itself
+        but not for a folder or a shared mailbox. Off rather than retried, so the
+        member finds a stopped trigger and the reason in the audit log instead of
+        one that silently never fires. Answers how many were turned off.
+        """
+        triggers = await agent_trigger_repo.list_active_for_event_source(
+            self.db, organization_id=organization_id, event_source=event_source
+        )
+        stopped = 0
+        for trigger in triggers:
+            if (
+                places is not None
+                and trigger_events.polled_place(event_source, trigger.event_config) not in places
+            ):
+                continue
+            await self._disable(trigger, reason=reason)
+            stopped += 1
+        return stopped
+
     def _unseal_event_secret(self, trigger: AgentTrigger) -> str:
         """The trigger's signing secret, unsealed for its organization.
 

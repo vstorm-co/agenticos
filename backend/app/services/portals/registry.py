@@ -11,11 +11,13 @@ from app.services.portals.base import PortalAdapter
 from app.services.portals.github import GitHubPortalAdapter
 from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.portals.google import GooglePortalAdapter
+from app.services.portals.outlook import OutlookPortalAdapter
 
 _ADAPTERS: dict[str, PortalAdapter] = {
     GitHubPortalAdapter.portal_key: GitHubPortalAdapter(),
     GitHubAppPortalAdapter.portal_key: GitHubAppPortalAdapter(),
     GooglePortalAdapter.portal_key: GooglePortalAdapter(),
+    OutlookPortalAdapter.portal_key: OutlookPortalAdapter(),
 }
 
 

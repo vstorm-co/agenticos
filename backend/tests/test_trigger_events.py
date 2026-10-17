@@ -176,6 +176,67 @@ class TestGmailMatching:
         )
 
 
+def _outlook(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "place": "|inbox",
+        "mailbox": None,
+        "folder": "inbox",
+        "subject": "Invoice 42 overdue",
+        "from": "Billing <billing@Acme.test>",
+        "categories": ["Finance"],
+        "importance": "high",
+        "has_attachments": True,
+        "attachments": [{"name": "invoice.pdf"}, {"name": ""}, "not an object"],
+        "text": "Please pay.",
+    }
+    payload.update(overrides)
+    return payload
+
+
+class TestOutlookMatching:
+    """An Outlook trigger reads one place, then narrows like Gmail (#1984)."""
+
+    @staticmethod
+    def _matches(config: dict[str, object], **payload: object) -> bool:
+        return trigger_events.event_matches(
+            "outlook", headers={}, payload=_outlook(**payload), config=config
+        )
+
+    def test_no_filter_fires_on_any_message_in_the_inbox(self):
+        assert self._matches({})
+
+    def test_a_message_from_another_place_never_fires(self):
+        """Even with no other filter: the folder is where the trigger looks."""
+        assert not self._matches({}, place="|archive")
+        assert not self._matches({"folder": "Inbox/Invoices"}, place="|inbox")
+        assert self._matches({"folder": "Inbox/Invoices"}, place="|inbox/invoices")
+        assert self._matches({"mailbox": "Ops@Corp.test"}, place="ops@corp.test|inbox")
+
+    def test_subject_and_sender_are_case_insensitive_substrings(self):
+        assert self._matches({"subject_contains": "INVOICE", "sender_contains": "@acme.TEST"})
+        assert not self._matches({"subject_contains": "receipt"})
+        assert not self._matches({"sender_contains": "@other.test"})
+
+    def test_attachments_importance_and_category_are_exact(self):
+        assert self._matches({"has_attachments": True, "importance": "high", "category": "finance"})
+        assert not self._matches({"has_attachments": False})
+        assert not self._matches({"importance": "low"})
+        assert not self._matches({"category": "Fin"})
+
+    def test_the_place_a_trigger_reads(self):
+        assert trigger_events.polled_place("outlook", {"folder": "Archive"}) == "|archive"
+        assert trigger_events.polled_place("gmail", {"label": "INBOX"}) is None
+
+    def test_an_unknown_key_or_a_malformed_mailbox_is_refused(self):
+        from pydantic import ValidationError
+
+        from app.schemas.agent_trigger import OutlookTriggerConfig
+
+        for config in ({"labels": "x"}, {"mailbox": "not-an-address"}, {"importance": "urgent"}):
+            with pytest.raises(ValidationError):
+                OutlookTriggerConfig.model_validate(config)
+
+
 class TestRenderContext:
     def test_a_github_issue_renders_its_number_title_and_body(self):
         context = trigger_events.render_context(
@@ -236,6 +297,28 @@ class TestRenderContext:
         assert "Subject: Hello" in context
         assert "truncated" in context
         assert len(context) < 3000
+
+
+class TestOutlookContext:
+    def test_it_names_the_sender_subject_folder_and_files(self):
+        context = trigger_events.render_context("outlook", payload=_outlook())
+
+        assert context.startswith("An email arrived in Outlook.")
+        assert "From: Billing <billing@Acme.test>" in context
+        assert "Subject: Invoice 42 overdue" in context
+        assert "Folder: inbox\n" in context
+        assert "Attachments: invoice.pdf\n" in context
+        assert context.endswith("Please pay.")
+
+    def test_a_shared_mailbox_is_named_and_no_files_means_no_line(self):
+        context = trigger_events.render_context(
+            "outlook",
+            payload=_outlook(mailbox="ops@corp.test", attachments=[], text="x" * 5000),
+        )
+
+        assert "Folder: inbox in ops@corp.test" in context
+        assert "Attachments" not in context
+        assert context.endswith("(truncated)")
 
 
 class TestGenericWebhook:
