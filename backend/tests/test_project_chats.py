@@ -217,11 +217,13 @@ class TestWhoseWordsATurnIs:
         anna = _user(TEAMMATE, avatar="avatars/a.png")
         typed = SimpleNamespace(author_user_id=TEAMMATE)
         gone = SimpleNamespace(author_user_id=uuid4())
-        answer = SimpleNamespace(author_user_id=None)
+        answer = SimpleNamespace(author_user_id=None, role="assistant")
         with patch(
             f"{MODULE}.conversation_repo.users_by_id", AsyncMock(return_value={TEAMMATE: anna})
         ):
-            await ConversationService(AsyncMock())._attach_senders([typed, gone, answer])
+            await ConversationService(AsyncMock())._attach_senders(
+                [typed, gone, answer], owner_id=None
+            )
 
         assert typed.sender.name == "Anna"
         assert typed.sender.has_avatar is True
@@ -229,13 +231,30 @@ class TestWhoseWordsATurnIs:
         assert gone.sender is None
         assert not hasattr(answer, "sender")
 
+    async def test_an_older_console_turn_is_the_owners_and_a_channel_turn_nobodys(self):
+        """Before the author was kept only the owner could type into a chat, so
+        their turn reads as theirs to a teammate, not as the teammate's "You"."""
+        older = SimpleNamespace(author_user_id=None, role="user", channel_identity_id=None)
+        from_slack = SimpleNamespace(author_user_id=None, role="user", channel_identity_id=uuid4())
+        with patch(
+            f"{MODULE}.conversation_repo.users_by_id",
+            AsyncMock(return_value={OWNER: _user(OWNER, name="Kacper")}),
+        ) as people:
+            await ConversationService(AsyncMock())._attach_senders(
+                [older, from_slack], owner_id=OWNER
+            )
+
+        assert older.sender.name == "Kacper"
+        assert not hasattr(from_slack, "sender")
+        assert people.await_args.args[1] == {OWNER}
+
     async def test_a_person_with_no_name_is_shown_by_address(self):
         typed = SimpleNamespace(author_user_id=TEAMMATE)
         with patch(
             f"{MODULE}.conversation_repo.users_by_id",
             AsyncMock(return_value={TEAMMATE: _user(TEAMMATE, name=None)}),
         ):
-            await ConversationService(AsyncMock())._attach_senders([typed])
+            await ConversationService(AsyncMock())._attach_senders([typed], owner_id=None)
 
         assert typed.sender.name == "anna@example.com"
 

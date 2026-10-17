@@ -316,7 +316,7 @@ class ConversationService:
                 msg.rating_count = rating_counts.get(msg.id)  # ty: ignore[unresolved-attribute]
         if include_messages and conversation.messages:
             await self._attach_authors(conversation.messages)
-            await self._attach_senders(conversation.messages)
+            await self._attach_senders(conversation.messages, owner_id=conversation.user_id)
         # Here rather than at each route, because this is the one read every
         # reader-scoped one goes through - `update`, `archive` and `set_favourite`
         # all return the object it hands back. Only two responses carried the flag
@@ -498,16 +498,20 @@ class ConversationService:
             if msg.channel_identity_id is not None:
                 msg.author = authors.get(msg.channel_identity_id)  # ty: ignore[unresolved-attribute]
 
-    async def _attach_senders(self, messages: Sequence[Message]) -> None:
+    async def _attach_senders(self, messages: Sequence[Message], *, owner_id: UUID | None) -> None:
         """Put the person on each turn somebody signed in typed.
 
         A project's chat is continued by whoever works in it, so its user turns
         are several people's; one query for the page, none when nobody is named.
+
+        A console turn written before the author was kept is the owner's: until
+        a project's chats were shared nobody else could type into one, and left
+        unnamed it read as "You" to a teammate opening it.
         """
         authored = [
             (msg, author_id)
             for msg in messages
-            if (author_id := getattr(msg, "author_user_id", None)) is not None
+            if (author_id := _typed_by(msg, owner_id)) is not None
         ]
         if not authored:
             # A turn left alone reads as no sender: the schema's default.
@@ -1025,7 +1029,7 @@ class ConversationService:
         The cost is summed over every turn, not over the page asked for, and is
         `None` where nothing in the thread was ever measured.
         """
-        await self.get_conversation(
+        conversation = await self.get_conversation(
             conversation_id,
             organization_id=organization_id,
             user_id=user_id,
@@ -1040,7 +1044,7 @@ class ConversationService:
             include_tool_calls=include_tool_calls,
         )
         total = await conversation_repo.count_messages(self.db, conversation_id)
-        await self._attach_senders(items)
+        await self._attach_senders(items, owner_id=conversation.user_id)
         outcomes = await conversation_repo.run_outcomes(
             self.db, {msg.run_id for msg in items if msg.run_id is not None}
         )
@@ -1328,3 +1332,17 @@ class ConversationService:
                 details={"unknown": unknown, "already_attached": claimed},
             )
         return rows
+
+
+def _typed_by(message: Message, owner_id: UUID | None) -> UUID | None:
+    """Who typed a turn: its recorded author, or for an older console turn, the owner.
+
+    Never for a channel turn - `author` names the chat account that spoke - and
+    never for an answer.
+    """
+    author = getattr(message, "author_user_id", None)
+    if author is not None:
+        return author
+    if message.role == "user" and getattr(message, "channel_identity_id", None) is None:
+        return owner_id
+    return None

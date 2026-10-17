@@ -192,13 +192,20 @@ export function ChatContainer({
     selectAgent(threadAgentId);
   }, [agentFixed, currentConversationId, threadAgentId, selectAgent]);
 
-  // The open conversation is read: when it is opened unread, and when an answer
-  // arrives while it is open and the next listing calls it unread.
+  // The open conversation is read: once when it is opened, and again when an
+  // answer arrives while it is open and the next listing calls it unread. On
+  // opening whether or not it was unread, because a read is also who has seen
+  // it - a project chat lists its readers - and a teammate's chat is in nobody's
+  // list but its owner's, so it never reads as unread to anyone else.
   const openIsUnread =
     conversations.find((conversation) => conversation.id === currentConversationId)?.unread ===
     true;
+  const readOnOpen = useRef<string | null>(null);
   useEffect(() => {
-    if (currentConversationId && openIsUnread) void markRead(currentConversationId);
+    if (!currentConversationId) return;
+    if (!openIsUnread && readOnOpen.current === currentConversationId) return;
+    readOnOpen.current = currentConversationId;
+    void markRead(currentConversationId);
   }, [currentConversationId, openIsUnread, markRead]);
 
   const handleConversationCreated = useCallback(() => {
