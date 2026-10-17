@@ -246,6 +246,13 @@ class FlatFileRead(WorkspaceFileRead):
             "for a conversation with no title yet."
         ),
     )
+    conversation_id: UUID | None = Field(
+        default=None,
+        description=(
+            "That conversation, to open it from the file - set only when it is the "
+            "caller's own, because the chat lists its owner's threads."
+        ),
+    )
     from_upload: bool = Field(
         default=False,
         description=(

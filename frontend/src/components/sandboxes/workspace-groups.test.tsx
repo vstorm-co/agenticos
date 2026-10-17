@@ -68,22 +68,30 @@ describe("grouping Documents by the workspace that holds them", () => {
     expect(screen.getByText(/Whoever is in that conversation/)).toBeInTheDocument();
   });
 
-  it("shows a group's first tiles and links the folder for the rest", async () => {
+  it("shows a group's first rows, links its chat and its folder for the rest", async () => {
     const onOpen = vi.fn();
     const onDownload = vi.fn();
     const many = Array.from({ length: 10 }, (_, index) => file(`note-${index}.md`));
     render(
       <WorkspaceGroups
-        groups={groupByWorkspace([file("app/main.py"), ...many])}
+        groups={groupByWorkspace([
+          file("app/main.py", { conversation_id: "c-1" }),
+          file("/uploads/0d7d5756-brief.pdf", { from_upload: true, size: null, modified_at: null }),
+          ...many,
+        ])}
         onOpen={onOpen}
         onDownload={onDownload}
       />,
     );
-    const group = screen.getByRole("region", { name: "Coder" });
+    const group = screen.getByRole("region", { name: "Build a landing page" });
 
-    expect(within(group).getByText("app")).toBeInTheDocument();
-    expect(within(group).getByText("main.py")).toBeInTheDocument();
-    expect(within(group).getByText("3 more in the folder")).toHaveAttribute(
+    expect(within(group).getByRole("link", { name: "Build a landing page" })).toHaveAttribute(
+      "href",
+      "/chat?id=c-1",
+    );
+    expect(within(group).getByText("1 file · main.py")).toBeInTheDocument();
+    expect(within(group).getByText("PDF · Attached")).toBeInTheDocument();
+    expect(within(group).getByText("4 more in the folder")).toHaveAttribute(
       "href",
       "/documents/w-1",
     );
@@ -91,5 +99,18 @@ describe("grouping Documents by the workspace that holds them", () => {
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ path: "note-0.md" }));
     await userEvent.click(within(group).getByRole("button", { name: "Download note-0.md" }));
     expect(onDownload).toHaveBeenCalledWith(expect.objectContaining({ path: "note-0.md" }));
+  });
+
+  it("draws a stored image's thumbnail on its row", () => {
+    const { container } = render(
+      <WorkspaceGroups
+        groups={groupByWorkspace([
+          file("chart.png", { thumbnail: "data:image/png;base64,AAAA", modified_at: null }),
+        ])}
+        onOpen={vi.fn()}
+        onDownload={vi.fn()}
+      />,
+    );
+    expect(container.querySelector("img")).toHaveAttribute("src", "data:image/png;base64,AAAA");
   });
 });

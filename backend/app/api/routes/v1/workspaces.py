@@ -129,6 +129,9 @@ async def list_all_files(workspaces: WorkspaceSvc, ctx: Auth) -> Any:
             agent_has_avatar=file.overview.agent_has_avatar,
             access_label=file.overview.access_label,
             conversation_title=file.overview.conversation_title,
+            conversation_id=(
+                file.overview.row.conversation_id if file.overview.conversation_is_callers else None
+            ),
             from_upload=is_attachment(str(file.info.get("path"))),
             preview=file.preview,
             thumbnail=file.thumbnail,

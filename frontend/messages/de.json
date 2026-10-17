@@ -5211,7 +5211,8 @@
       "stored": "gespeichert",
       "whoPutItThere": "Wer sie dort abgelegt hat",
       "openFolder": "Ordner öffnen",
-      "moreInFolder": "{count, plural, =1 {1 weitere im Ordner} other {# weitere im Ordner}}"
+      "moreInFolder": "{count, plural, =1 {1 weitere im Ordner} other {# weitere im Ordner}}",
+      "recent": "Zuletzt"
     }
   },
   "settings": {
