@@ -1325,6 +1325,12 @@ class ConversationService:
                 message="Conversation is archived",
                 details={"conversation_id": str(conversation_id)},
             )
+        if user_id is not None and data.role != "user" and conversation.project_id is not None:
+            # A project's chat is read by the whole project, and the model reads
+            # it back as its own words: an agent's turn written by a person would
+            # be a fabricated answer everybody else trusts. The runs write those,
+            # with no person behind the call.
+            raise refused_field("role", "In a project's chat, write your own turns only")
         if data.reply_to_message_id is not None:
             answered = await conversation_repo.get_message_by_id(self.db, data.reply_to_message_id)
             if answered is None or answered.conversation_id != conversation.id:
