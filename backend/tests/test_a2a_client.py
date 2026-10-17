@@ -189,6 +189,57 @@ class TestSendingAMessage:
         assert says in reply.text
         assert "details" in reply.text
 
+    async def test_a_task_still_under_way_is_read_again_until_it_ends(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An agent may answer `message/send` before it is done; the answer lands
+        on the task, which is the only thing to read it from."""
+        monkeypatch.setattr(a2a_client, "POLL_SECONDS", 0)
+        answers = iter(
+            [
+                _rpc(_task("submitted")),
+                _rpc(_task("working")),
+                _rpc(_task("completed", answer="Done.")),
+            ]
+        )
+        seen: list[httpx2.Request] = []
+
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            seen.append(request)
+            return next(answers)
+
+        reply = await send_message(
+            CARD["url"], "Hi", context_id=None, bearer=None, transport=httpx2.MockTransport(handler)
+        )
+
+        assert (reply.state, reply.text) == ("completed", "Done.")
+        methods = [json.loads(request.content)["method"] for request in seen]
+        assert methods == ["message/send", "tasks/get", "tasks/get"]
+        assert json.loads(seen[1].content)["params"] == {"id": reply.task_id}
+
+    async def test_a_task_that_never_ends_is_answered_with_its_state(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(a2a_client, "POLL_SECONDS", 0)
+        monkeypatch.setattr(a2a_client, "POLL_FOR_SECONDS", 0)
+        reply = await send_message(
+            CARD["url"], "Hi", context_id=None, bearer=None, transport=_wire(_rpc(_task("working")))
+        )
+        assert reply.state == "working" and "still working" in reply.text
+
+    async def test_a_task_waiting_on_input_is_continued_by_the_next_message(self) -> None:
+        seen: list[httpx2.Request] = []
+        await send_message(
+            CARD["url"],
+            "Here is the file",
+            context_id="ctx-1",
+            task_id="task-7",
+            bearer=None,
+            transport=_wire(_rpc(_task("completed", answer="Thanks.")), seen),
+        )
+        message = json.loads(seen[0].content)["params"]["message"]
+        assert (message["taskId"], message["contextId"]) == ("task-7", "ctx-1")
+
     async def test_a_long_answer_is_cut_and_says_so(self) -> None:
         long = "x" * (a2a_client.MAX_ANSWER_CHARS + 10)
         reply = await send_message(
@@ -278,11 +329,37 @@ class TestDelegatingToARemoteAgent:
 
         assert first.output == "First answer"
         assert second.output == "(The remote agent sent no text.)"
-        assert sent.await_args_list[0].kwargs == {"context_id": None, "bearer": "tok"}
+        assert sent.await_args_list[0].kwargs == {
+            "context_id": None,
+            "task_id": None,
+            "bearer": "tok",
+        }
         assert sent.await_args_list[1].kwargs["context_id"] == "ctx-1"
         assert budget.await_count == 2
         assert booked.call_args.args[0] == "a2a:reviewer"
         assert booked.call_args.kwargs["provider"] == "a2a"
+
+    async def test_a_task_waiting_on_input_is_continued_and_a_finished_one_is_not(
+        self,
+    ) -> None:
+        replies = [
+            a2a_client.A2AReply(
+                text="Which file?", context_id="c", state="input-required", task_id="t-1"
+            ),
+            a2a_client.A2AReply(text="Done.", context_id="c", state="completed", task_id="t-1"),
+            a2a_client.A2AReply(text="Again.", context_id="c", state="completed", task_id="t-2"),
+        ]
+        sent = AsyncMock(side_effect=replies)
+        with (
+            patch.object(delegate_module, "send_message", sent),
+            patch.object(delegate_module, "assert_ambient_budget", AsyncMock()),
+            patch.object(delegate_module, "record_ambient_usage"),
+        ):
+            agent = a2a_delegate(handle="reviewer", endpoint=CARD["url"], bearer=None)()
+            for prompt in ("Review it", "contract.pdf", "Now clause 9"):
+                await agent.run(prompt)
+
+        assert [call.kwargs["task_id"] for call in sent.await_args_list] == [None, "t-1", None]
 
     async def test_a_remote_agent_that_fails_is_an_answer_not_a_crash(self) -> None:
         with (

@@ -16,10 +16,12 @@ answer the delegating model has to read, not an error.
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from dataclasses import dataclass
 from typing import Any
 
+import anyio
 import httpx2
 from pydantic import ValidationError
 
@@ -47,6 +49,16 @@ _WAITING = {
 }
 
 
+_STILL_GOING = frozenset({"working", "submitted"})
+"""States a task is read again from - it is under way and will end on its own."""
+
+POLL_SECONDS = 2.0
+"""How long between reads of a task still under way."""
+
+POLL_FOR_SECONDS = 600.0
+"""How long a task still under way is waited for before its state is the answer."""
+
+
 class A2AClientError(Exception):
     """A remote agent that could not be reached, read or understood. The message says which."""
 
@@ -58,6 +70,9 @@ class A2AReply:
     text: str
     context_id: str | None
     state: str
+    # The remote task, kept so a task waiting on input or a sign-in is continued
+    # rather than a new one started beside it. `None` for a plain message reply.
+    task_id: str | None = None
 
 
 def card_address(url: str) -> str:
@@ -100,10 +115,17 @@ async def send_message(
     text: str,
     *,
     context_id: str | None,
+    task_id: str | None = None,
     bearer: str | None,
     transport: httpx2.AsyncBaseTransport | None = None,
 ) -> A2AReply:
     """Send one message to a remote agent and read its answer.
+
+    A task the agent accepted and is still working on is read again
+    (`tasks/get`) until it ends, for up to `POLL_FOR_SECONDS`: the protocol lets
+    an agent answer `message/send` before it is done, and the task is the only
+    thing the answer will land on. `task_id` continues a task that was waiting
+    for more input.
 
     Raises:
         A2AClientError: The endpoint is refused or unreachable, answered something
@@ -114,16 +136,41 @@ async def send_message(
         parts=[Part(kind="text", text=text)],
         messageId=uuid.uuid4().hex,
         contextId=context_id,
+        taskId=task_id,
     )
-    body = {
-        "jsonrpc": "2.0",
-        "id": uuid.uuid4().hex,
-        "method": "message/send",
-        "params": {
-            "message": message.model_dump(by_alias=True, exclude_none=True),
-            "configuration": {"blocking": True, "acceptedOutputModes": ["text/plain"]},
-        },
-    }
+    reply = _reply(
+        await _call(
+            endpoint,
+            "message/send",
+            {
+                "message": message.model_dump(by_alias=True, exclude_none=True),
+                "configuration": {"blocking": True, "acceptedOutputModes": ["text/plain"]},
+            },
+            bearer=bearer,
+            transport=transport,
+        )
+    )
+    deadline = time.monotonic() + POLL_FOR_SECONDS
+    while reply.state in _STILL_GOING and reply.task_id and time.monotonic() < deadline:
+        await anyio.sleep(POLL_SECONDS)
+        reply = _reply(
+            await _call(
+                endpoint, "tasks/get", {"id": reply.task_id}, bearer=bearer, transport=transport
+            )
+        )
+    return reply
+
+
+async def _call(
+    endpoint: str,
+    method: str,
+    params: dict[str, Any],
+    *,
+    bearer: str | None,
+    transport: httpx2.AsyncBaseTransport | None,
+) -> Any:
+    """One JSON-RPC call, answering its `result`."""
+    body = {"jsonrpc": "2.0", "id": uuid.uuid4().hex, "method": method, "params": params}
     headers = {"Accept": "application/json"}
     if bearer:
         headers["Authorization"] = f"Bearer {bearer}"
@@ -151,7 +198,7 @@ async def send_message(
         raise A2AClientError(
             f"The agent refused the task: {str(error.get('message', 'no reason given'))[:500]}"
         )
-    return _reply(payload.get("result"))
+    return payload.get("result")
 
 
 def _reply(result: Any) -> A2AReply:
@@ -172,7 +219,7 @@ def _reply(result: Any) -> A2AReply:
         text = f"{_WAITING[state]}.\n\n{text}".strip()
     elif state in ("failed", "rejected", "canceled"):
         text = f"The agent's task {state}.\n\n{text}".strip()
-    return A2AReply(text=_bounded(text), context_id=task.context_id, state=state)
+    return A2AReply(text=_bounded(text), context_id=task.context_id, state=state, task_id=task.id)
 
 
 def _bounded(text: str) -> str:

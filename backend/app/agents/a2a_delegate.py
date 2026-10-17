@@ -31,6 +31,9 @@ from pydantic_ai.usage import RequestUsage
 from app.agents.capabilities.budget import assert_ambient_budget, record_ambient_usage
 from app.services.a2a_client import A2AClientError, send_message
 
+_CONTINUED = frozenset({"input-required", "auth-required"})
+"""A remote task waiting on the delegating side: the next message continues it."""
+
 PROVIDER = "a2a"
 """What a remote agent's calls are booked under. No price source knows it."""
 
@@ -54,14 +57,20 @@ def a2a_delegate(
     """A builder for one remote agent's delegate. See the module docstring."""
 
     def build() -> PydanticAgent[Any, str]:
-        conversation: dict[str, str | None] = {"context": None}
+        # The remote conversation, and the task in it still waiting on input -
+        # continued by the next message rather than left behind a new one.
+        conversation: dict[str, str | None] = {"context": None, "task": None}
 
         async def answer(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
             prompt = latest_prompt(messages)
             await assert_ambient_budget()
             try:
                 reply = await send_message(
-                    endpoint, prompt, context_id=conversation["context"], bearer=bearer
+                    endpoint,
+                    prompt,
+                    context_id=conversation["context"],
+                    task_id=conversation["task"],
+                    bearer=bearer,
                 )
             except A2AClientError as failed:
                 # An answer the delegating model reads, not a crash: it can try
@@ -71,6 +80,7 @@ def a2a_delegate(
                 )
             record_ambient_usage(f"{PROVIDER}:{handle}", RequestUsage(), provider=PROVIDER)
             conversation["context"] = reply.context_id or conversation["context"]
+            conversation["task"] = reply.task_id if reply.state in _CONTINUED else None
             return ModelResponse(parts=[TextPart(reply.text or "(The remote agent sent no text.)")])
 
         async def stream(messages: list[ModelMessage], info: AgentInfo) -> AsyncIterator[str]:
