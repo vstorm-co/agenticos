@@ -198,7 +198,8 @@ class ProjectService:
             await self._check_default_agent(ctx, data.default_agent_id)
         # A container where the organization has a sandbox to run one on, files
         # the platform keeps where it has none; decided now, so the project does
-        # not change what it is because somebody registered a host later.
+        # not change what it is because somebody registered a host later - and on
+        # that host, so a new organization default does not open it an empty one.
         connection = await SandboxConnectionService(self.db).ensure_local_connection(
             ctx.organization_id
         )
@@ -213,6 +214,7 @@ class ProjectService:
             default_agent_id=data.default_agent_id,
             backend="service" if connection is not None else "state",
             visibility="private" if narrowed else data.visibility.value,
+            sandbox_connection_id=connection.id if connection is not None else None,
         )
         await record_audit(
             self.db,

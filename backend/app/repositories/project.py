@@ -107,6 +107,7 @@ async def create(
     default_agent_id: UUID | None,
     backend: str,
     visibility: str = Visibility.PRIVATE.value,
+    sandbox_connection_id: UUID | None = None,
 ) -> Project:
     project = Project(
         organization_id=organization_id,
@@ -117,6 +118,7 @@ async def create(
         default_agent_id=default_agent_id,
         backend=backend,
         visibility=visibility,
+        sandbox_connection_id=sandbox_connection_id,
     )
     db.add(project)
     await db.flush()

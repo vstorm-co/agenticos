@@ -129,7 +129,8 @@ class TestCreatingAndChanging:
     async def test_a_project_runs_in_a_container_where_there_is_a_sandbox(self) -> None:
         created = _project()
         service = _service(None)
-        connections = MagicMock(ensure_local_connection=AsyncMock(return_value=MagicMock()))
+        host = MagicMock(id=uuid.uuid4())
+        connections = MagicMock(ensure_local_connection=AsyncMock(return_value=host))
         with (
             patch.object(module, "SandboxConnectionService", return_value=connections),
             patch.object(module.project_repo, "create", AsyncMock(return_value=created)) as create,
@@ -138,6 +139,8 @@ class TestCreatingAndChanging:
             assert await service.create(_ctx(), ProjectCreate(name="Launch")) is created
         assert create.await_args.kwargs["backend"] == "service"
         assert create.await_args.kwargs["visibility"] == "private"
+        # On that host: a new organization default must not open it an empty one.
+        assert create.await_args.kwargs["sandbox_connection_id"] == host.id
 
     async def test_without_a_sandbox_it_keeps_files_and_an_audience_keeps_it_private(self) -> None:
         created = _project()
