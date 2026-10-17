@@ -59,6 +59,8 @@ from app.api.routes.v1 import catalog_icons
 from app.api.routes.v1 import org_integrations
 from app.api.routes.v1 import notifications
 from app.api.routes.v1 import admin_announcements
+from app.api.routes.v1 import internal_minerp
+from app.api.routes.v1 import internal_shop_ai
 
 v1_router = APIRouter()
 
@@ -184,3 +186,5 @@ v1_router.include_router(
 v1_router.include_router(
     org_integrations.router, prefix="/org/integrations", tags=["org:integrations"]
 )
+v1_router.include_router(internal_minerp.router)
+v1_router.include_router(internal_shop_ai.router)

@@ -68,6 +68,10 @@ class Organization(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     slug: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     is_personal: Mapped[bool] = mapped_column(nullable=False, default=False, index=True)
+    # Minerp IAM `tenants.id` when this team org is the Agentra workspace for one merchant.
+    minerp_tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # Default-avatar colour slot 1..10 (`--avatar-*` ramp); null = auto from the id.
     avatar_color: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
@@ -133,6 +137,12 @@ class Organization(Base, TimestampMixin):
         CheckConstraint(
             "monthly_budget_usd IS NULL OR monthly_budget_usd > 0",
             name="ck_organization_budget_positive",
+        ),
+        Index(
+            "uq_organizations_minerp_tenant_id",
+            "minerp_tenant_id",
+            unique=True,
+            postgresql_where=text("minerp_tenant_id IS NOT NULL"),
         ),
     )
 

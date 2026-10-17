@@ -31,7 +31,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    PROJECT_NAME: str = "agenticos"
+    PROJECT_NAME: str = "pttc"
     API_V1_STR: str = "/api/v1"
     DEBUG: bool = False
     DB_ECHO: bool = (
@@ -211,6 +211,12 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = "agenticos"
+
+    # RAG vector backend: pgvector tables in Postgres, or Qdrant (Shop AI cutover).
+    VECTOR_STORE: Literal["pgvector", "qdrant"] = "pgvector"
+    QDRANT_URL: str = "http://localhost:6333"
+    QDRANT_API_KEY: str = ""
+    QDRANT_COLLECTION: str = "agentra_rag"
     # Encrypt the connection to Postgres. Empty leaves it plaintext, which is fine
     # for both stores on one compose network and is the first thing a reviewer asks
     # about for a managed Postgres or one on another host (HIPAA 164.312(e), SOC 2
@@ -291,6 +297,54 @@ class Settings(BaseSettings):
     # Zero or below switches the sweep off.
     STALE_RUN_REAPED_AFTER_HOURS: float = 6.0
     ALGORITHM: str = "HS256"
+
+    # Minerp IAM (`services/auth`) — console JWT + JIT user (B31).
+    IAM_AUTH_ENABLED: bool = False
+    IAM_JWT_SECRET_KEY: str = ""
+    IAM_AUTH_INTERNAL_BASE_URL: str = "http://127.0.0.1:8000"
+    IAM_CONSOLE_PERMISSION: str = "agentra.console:read"
+    # JIT team org per JWT `tenant_ids` (Minerp platform multi-tenant).
+    MINERP_TENANT_ORG_SYNC_ENABLED: bool = True
+    # Org display name from auth `GET /api/v1/internal/tenants/{id}` (API key).
+    MINERP_AUTH_TENANT_LOOKUP_ENABLED: bool = True
+    MINERP_AUTH_INTERNAL_API_KEY: str = ""
+    # Shop Studio MCP strangler → services/multi-agent (until D3).
+    MULTI_AGENT_BACKEND_URL: str = ""
+    MULTI_AGENT_INTERNAL_API_KEY: str = ""
+    # Storefront BFF for minerp_internal_shop tools (read-only CSKH).
+    SHOP_CSKH_BFF_BASE_URL: str = ""
+    SHOP_CSKH_BFF_API_PREFIX: str = "/api/v1"
+    SHOP_CSKH_BFF_API_KEY: str = ""
+    SHOP_CSKH_BFF_TENANT_MAP: str = ""
+    # D3: CSKH read + catalog sync GETs served via storefront BFF (not multi-agent).
+    SHOP_AI_NATIVE_BFF_READS_ENABLED: bool = True
+    # D3 slice 2 — Shop Studio GET mcp/catalog + mcp/connections on Agentra org MCP.
+    SHOP_AI_NATIVE_MCP_READS_ENABLED: bool = True
+    # D3 slice 4 — Shop Studio MCP create/update/delete/test on org MCP (Agentra).
+    SHOP_AI_NATIVE_MCP_WRITES_ENABLED: bool = True
+    # D3 slice 5 — Studio merchant assistant MCP catalog/connections (org MCP).
+    SHOP_AI_NATIVE_MERCHANT_MCP_READS_ENABLED: bool = True
+    # D3 slice 6 — merchant assistant chat (deterministic BFF); LLM/tools → strangler.
+    SHOP_AI_NATIVE_MERCHANT_CHAT_ENABLED: bool = True
+    SHOP_AI_NATIVE_MERCHANT_CHAT_STRANGLER_FALLBACK: bool = True
+    # D3 slice 3 — widget chat deterministic CSKH on Agentra; LLM/handoff/poll → strangler.
+    SHOP_AI_NATIVE_WIDGET_ENABLED: bool = True
+    SHOP_AI_NATIVE_WIDGET_STRANGLER_FALLBACK: bool = True
+    # B46 — poll native on Agentra (empty queue until handoff threads live here).
+    SHOP_AI_NATIVE_WIDGET_POLL_NATIVE: bool = True
+    # B48 — FAQ policy questions (giao hàng, đổi trả, …) via Agentra RAG; no match → strangler.
+    SHOP_AI_NATIVE_WIDGET_FAQ_RAG_ENABLED: bool = True
+    # B49 — widget handoff (queued/human) + poll messages on Agentra conversations.
+    SHOP_AI_NATIVE_WIDGET_HANDOFF_ENABLED: bool = True
+    SHOP_AI_NATIVE_WIDGET_QUEUE_NOTIFY_ENABLED: bool = True
+    SHOP_LIVE_AGENT_IDLE_RELEASE_MINUTES: int = 0
+    SHOP_LIVE_AGENT_IDLE_BEAT_INTERVAL_SEC: float = 300.0
+    SHOP_LIVE_AGENT_ROUND_ROBIN_ENABLED: bool = True
+    SHOP_LIVE_AGENT_AUTO_ASSIGN_ENABLED: bool = False
+    # B51 — after native deterministic/FAQ/handoff, forward LLM turns to multi-agent.
+    SHOP_AI_NATIVE_WIDGET_LLM_STRANGLER: bool = True
+    SHOP_AI_NATIVE_MERCHANT_LLM_STRANGLER: bool = True
+
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"
 

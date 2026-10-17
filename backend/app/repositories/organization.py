@@ -54,6 +54,20 @@ async def get_by_slug(db: AsyncSession, slug: str) -> Organization | None:
     return result.scalar_one_or_none()
 
 
+async def get_by_minerp_tenant_id(db: AsyncSession, tenant_id: UUID) -> Organization | None:
+    result = await db.execute(
+        select(Organization).where(Organization.minerp_tenant_id == tenant_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def list_with_minerp_tenant_id(db: AsyncSession) -> list[Organization]:
+    result = await db.execute(
+        select(Organization).where(Organization.minerp_tenant_id.is_not(None))
+    )
+    return list(result.scalars().all())
+
+
 async def list_by_ids(db: AsyncSession, org_ids: list[UUID]) -> list[Organization]:
     """The rows named by `org_ids`, in no particular order.
 
@@ -179,6 +193,7 @@ async def create(
     is_personal: bool = False,
     avatar_url: str | None = None,
     monthly_budget_usd: Decimal | None = None,
+    minerp_tenant_id: UUID | None = None,
 ) -> Organization:
     org = Organization(
         name=name,
@@ -187,6 +202,7 @@ async def create(
         is_personal=is_personal,
         avatar_url=avatar_url,
         monthly_budget_usd=monthly_budget_usd,
+        minerp_tenant_id=minerp_tenant_id,
     )
     db.add(org)
     await db.flush()

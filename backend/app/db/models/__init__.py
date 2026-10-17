@@ -56,11 +56,13 @@ from app.db.models.notification_delivery import DeliveryStatus, NotificationDeli
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.announcement import Announcement
 from app.db.models.artifact import Artifact, ArtifactMediaType, ArtifactVersion
+from app.db.models.shop_widget_handling import ShopWidgetHandling
 
 __all__ = [
     "Artifact",
     "ArtifactMediaType",
     "ArtifactVersion",
+    "ShopWidgetHandling",
     "User",
     "Session",
     "Conversation",

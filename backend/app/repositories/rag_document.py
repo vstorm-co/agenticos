@@ -40,6 +40,24 @@ async def get_by_id(db: AsyncSession, doc_id: UUID) -> RAGDocument | None:
     return await db.get(RAGDocument, doc_id)
 
 
+async def list_completed_with_storage(
+    db: AsyncSession,
+    *,
+    collection_name: str | None = None,
+) -> list[RAGDocument]:
+    """Completed documents that still have a stored file (pgvector → Qdrant re-ingest)."""
+    query = select(RAGDocument).where(
+        RAGDocument.status == DocumentStatus.DONE,
+        RAGDocument.storage_path.isnot(None),
+        RAGDocument.storage_path != "",
+    )
+    if collection_name:
+        query = query.where(RAGDocument.collection_name == collection_name)
+    query = query.order_by(RAGDocument.created_at)
+    result = await db.execute(query)
+    return list(result.scalars().all())
+
+
 async def get_all(
     db: AsyncSession,
     *,
@@ -79,6 +97,15 @@ async def get_all(
         .all()
     )
     return list(rows), int(total)
+
+
+async def list_all_for_kb(db: AsyncSession, kb_id: UUID) -> list[RAGDocument]:
+    result = await db.execute(
+        select(RAGDocument)
+        .where(RAGDocument.knowledge_base_id == kb_id)
+        .order_by(RAGDocument.created_at.desc())
+    )
+    return list(result.scalars().all())
 
 
 async def get_for_kb(

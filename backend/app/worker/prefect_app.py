@@ -46,6 +46,7 @@ from app.worker.tasks.report_tasks import (
     weekly_usage_report_flow,
 )
 from app.worker.tasks.run_tasks import stale_run_sweep_flow
+from app.worker.tasks.shop_live_agent_tasks import shop_live_agent_idle_release_flow
 from app.worker.tasks.teardown_tasks import (
     external_state_cleanup_flow,
     teardown_reservation_sweep_flow,
@@ -138,6 +139,12 @@ async def main() -> None:
         await mcp_connection_sweep_flow.ato_deployment(
             name="mcp-connection-sweep",
             schedules=[_every(900)],
+        )
+    )
+    deployments.append(
+        await shop_live_agent_idle_release_flow.ato_deployment(
+            name="shop-live-agent-idle-release",
+            schedules=[_every(settings.SHOP_LIVE_AGENT_IDLE_BEAT_INTERVAL_SEC)],
         )
     )
     # Hourly, against a threshold measured in days: precision here buys nothing,
