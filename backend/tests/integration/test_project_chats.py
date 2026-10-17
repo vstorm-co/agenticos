@@ -10,6 +10,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import delete
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import NotFoundError
@@ -165,6 +166,57 @@ class TestATeammateInAnOrganizationsProject:
         assert [reader.name for reader in by_title["Mine"].seen_by] == ["Anna"]
         assert by_title["Theirs"].working.name == "Anna"
         assert by_title["Mine"].working is None
+
+
+class TestAContinuedChatInTheTeammatesOwnList:
+    async def test_listed_while_the_project_is_theirs_and_gone_when_it_is_not(self, db) -> None:
+        kacper, anna = await _user(db, "Kacper"), await _user(db, "Anna")
+        org = await _org(db, (kacper, "owner"), (anna, "member"))
+        project = await _project(db, org, kacper, visibility=Visibility.ORG.value)
+        chat = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=kacper.id, title="Plan", project_id=project.id
+        )
+        read_only = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=kacper.id, title="Only read", project_id=project.id
+        )
+        service = ConversationService(db)
+        await service.add_message(
+            chat.id,
+            MessageCreate(role="user", content="on it"),
+            organization_id=org.id,
+            user_id=anna.id,
+        )
+
+        listed, total = await service.list_conversations(user_id=anna.id, organization_id=org.id)
+        assert [c.id for c in listed] == [chat.id] and total == 1
+        assert read_only.id not in {c.id for c in listed}
+
+        # The project goes private: typing in it once is not access (#641).
+        project.visibility = Visibility.PRIVATE.value
+        await db.flush()
+        listed, total = await service.list_conversations(user_id=anna.id, organization_id=org.id)
+        assert (listed, total) == ([], 0)
+
+    async def test_a_former_member_lists_nothing_of_it(self, db) -> None:
+        kacper, anna = await _user(db), await _user(db)
+        org = await _org(db, (kacper, "owner"), (anna, "member"))
+        project = await _project(db, org, kacper, visibility=Visibility.ORG.value)
+        chat = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=kacper.id, title="Plan", project_id=project.id
+        )
+        await conversation_repo.create_message(
+            db, conversation_id=chat.id, role="user", content="hi", author_user_id=anna.id
+        )
+        service = ConversationService(db)
+        assert await service._project_threads(anna.id, org.id) == {chat.id}
+
+        await db.execute(
+            delete(OrganizationMember).where(
+                OrganizationMember.organization_id == org.id,
+                OrganizationMember.user_id == anna.id,
+            )
+        )
+        assert await service._project_threads(anna.id, org.id) == set()
 
 
 class TestThePeopleQueries:

@@ -961,6 +961,7 @@ class TestConversationServiceListConversations:
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
             mock_repo.unread_ids = AsyncMock(return_value=set())
+            mock_repo.project_threads_written_in = AsyncMock(return_value=[])
             mock_membership.confirmed_participant_threads = AsyncMock(return_value=vetted)
 
             await service.list_conversations(user_id=reader, organization_id=TEST_ORG_ID)
@@ -2474,6 +2475,9 @@ class TestAFavouriteBelongsToTheReader:
         monkeypatch.setattr(conversation_repo, "get_conversations_by_user", listed)
         monkeypatch.setattr(conversation_repo, "count_conversations", AsyncMock(return_value=0))
         monkeypatch.setattr(conversation_repo, "favourite_ids", AsyncMock(return_value=set()))
+        monkeypatch.setattr(
+            conversation_repo, "project_threads_written_in", AsyncMock(return_value=[])
+        )
         service = ConversationService(AsyncMock())
         reader = uuid4()
 

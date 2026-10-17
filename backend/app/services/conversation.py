@@ -364,6 +364,39 @@ class ConversationService:
             return True
         return await self._may_read_trigger_log(conversation, ctx)
 
+    async def _member_ctx(self, organization_id: UUID, user_id: UUID) -> AuthContext | None:
+        """The context a member acts with in an organization; `None` for a non-member."""
+        membership = await member_repo.get(
+            self.db, organization_id=organization_id, user_id=user_id
+        )
+        if membership is None:
+            return None
+        return AuthContext(user_id=user_id, organization_id=organization_id, role=membership.role)
+
+    async def _project_threads(self, user_id: UUID, organization_id: UUID) -> set[UUID]:
+        """Teammates' project chats this person continued, in projects they still see.
+
+        Listed with their own, so a chat they picked up is where they look for
+        it. Vetted per project, as a room's participants are: typing in a thread
+        once must not keep it listed after its project is taken away (#641).
+        """
+        written = await conversation_repo.project_threads_written_in(
+            self.db, user_id=user_id, organization_id=organization_id
+        )
+        if not written:
+            return set()
+        ctx = await self._member_ctx(organization_id, user_id)
+        if ctx is None:
+            return set()
+        visible: set[UUID] = set()
+        for project_id in {project_id for _, project_id in written}:
+            project = await project_repo.get(self.db, project_id, organization_id=organization_id)
+            if project is not None and await resolve_access(
+                self.db, ctx, project, Perm.PROJECTS_VIEW, resource_type=PROJECT
+            ):
+                visible.add(project_id)
+        return {conversation_id for conversation_id, project_id in written if project_id in visible}
+
     async def _project_allows(
         self, conversation: Conversation, user_id: UUID, ctx: AuthContext | None, perm: Perm
     ) -> bool:
@@ -380,17 +413,9 @@ class ConversationService:
         project_id = getattr(conversation, "project_id", None)
         if project_id is None or conversation.organization_id is None:
             return False
+        ctx = ctx or await self._member_ctx(conversation.organization_id, user_id)
         if ctx is None:
-            membership = await member_repo.get(
-                self.db, organization_id=conversation.organization_id, user_id=user_id
-            )
-            if membership is None:
-                return False
-            ctx = AuthContext(
-                user_id=user_id,
-                organization_id=conversation.organization_id,
-                role=membership.role,
-            )
+            return False
         project = await project_repo.get(
             self.db, project_id, organization_id=conversation.organization_id
         )
@@ -596,6 +621,7 @@ class ConversationService:
             await channel_membership.confirmed_participant_threads(
                 self.db, user_id=user_id, organization_id=organization_id
             )
+            | await self._project_threads(user_id, organization_id)
             if user_id is not None
             else set()
         )

@@ -300,6 +300,33 @@ def _reachable_by(user_id: UUID, participant_ids: Collection[UUID]) -> ColumnEle
     return or_(Conversation.user_id == user_id, Conversation.id.in_(participant_ids))
 
 
+async def project_threads_written_in(
+    db: AsyncSession, *, user_id: UUID, organization_id: UUID
+) -> list[tuple[UUID, UUID]]:
+    """Somebody else's project chats this person has typed in, with their project.
+
+    A claim, not access, for the reason :class:`ParticipationClaim` is one:
+    having written in a thread says nothing about whether its project is still
+    theirs to see. The caller checks the project before listing the thread.
+    """
+    result = await db.execute(
+        select(Conversation.id, Conversation.project_id).where(
+            Conversation.organization_id == organization_id,
+            Conversation.project_id.is_not(None),
+            or_(Conversation.user_id.is_(None), Conversation.user_id != user_id),
+            select(Message.id)
+            .where(Message.conversation_id == Conversation.id, Message.author_user_id == user_id)
+            .exists(),
+        )
+    )
+    # Never None - the query asks for a project - but the column is nullable.
+    return [
+        (conversation_id, project_id)
+        for conversation_id, project_id in result.all()
+        if project_id is not None
+    ]
+
+
 class ParticipationClaim(NamedTuple):
     """One "I spoke there" fact, addressed well enough to check it.
 
