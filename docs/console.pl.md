@@ -1,5 +1,5 @@
 ---
-source_sha: "c228a539dccb"
+source_sha: "90ca81fac519"
 ---
 
 # Konsola { #the-console }
@@ -269,6 +269,9 @@ godzinie bez nikogo przy ekranie wciąż trwa, zostaje zatrzymana i dostajesz o 
 informację ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)).
 Taka, która czeka na zatwierdzenie albo na Twoją odpowiedź na pytanie, powiadamia
 Cię przez nie.
+Gdy wrócisz, zanim odpowiedź się skończy - do rozmowy, z innej karty, po
+odświeżeniu strony - czat podejmie ją tam, gdzie jest, ze wszystkim, co agent już
+zrobił, i dalej rysuje ją na bieżąco.
 
 **Na telefonie** czat działa jak komunikator: pole wpisywania zostaje nad
 klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera,

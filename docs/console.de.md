@@ -1,5 +1,5 @@
 ---
-source_sha: "c228a539dccb"
+source_sha: "90ca81fac519"
 ---
 
 # Die Konsole { #the-console }
@@ -293,6 +293,10 @@ Stunde ohne Zuschauer noch läuft, wird gestoppt, und Sie erfahren das
 ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)). Einer,
 der auf eine Freigabe oder auf Ihre Antwort auf eine Frage wartet, meldet sich
 über diese.
+Kommen Sie zurück, solange er noch antwortet - in die Unterhaltung, aus einem
+anderen Tab, nach dem Neuladen -, nimmt der Chat die Antwort dort auf, wo sie
+steht, mit allem, was der Agent bis dahin getan hat, und zeichnet sie weiter, wie
+sie ankommt.
 
 **Auf dem Telefon** verhält sich der Chat wie eine Messenger-App: Das
 Eingabefeld bleibt über der Tastatur und die Unterhaltung bei ihrer letzten

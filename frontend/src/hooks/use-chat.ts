@@ -313,6 +313,9 @@ export function useChat(options: UseChatOptions = {}) {
   // goes on without them - see the switch below - and lands in the transcript
   // when it finishes, which is what coming back to one of these says.
   const [leftRunning, setLeftRunning] = useState<ReadonlySet<string>>(() => new Set());
+  // The conversation whose turn this tab is following from another socket's
+  // frames (`turn_attached`), or null. Its end is a re-read, not a `complete`.
+  const followingRef = useRef<string | null>(null);
   const leftTurnPending = activeConversationId !== null && leftRunning.has(activeConversationId);
   // Say in the list of conversations that this one is being answered, from the
   // moment the question goes rather than from whenever the server's next listing
@@ -414,6 +417,35 @@ export function useChat(options: UseChatOptions = {}) {
       };
 
       switch (wsEvent.type) {
+        // The reader came back to a conversation whose agent is still answering,
+        // under a socket this tab no longer holds - another chat was opened, the
+        // page reloaded. The server sends the turn so far and then the rest as it
+        // comes, and every frame after this one is drawn exactly as a live turn's.
+        case "turn_attached": {
+          const { conversation_id } = wsEvent.data as { conversation_id: string };
+          if (conversation_id !== activeConversationId) break;
+          followingRef.current = conversation_id;
+          setCurrentMessageId(null);
+          setLeftRunning((threads) => withoutThread(threads, conversation_id));
+          setIsProcessing(true);
+          break;
+        }
+
+        // The followed turn is over and saved. The transcript is read again so the
+        // stored answer - its id, its cost, its rating - replaces the one drawn
+        // from the frames.
+        case "turn_followed_to_end": {
+          if (followingRef.current === null) break;
+          followingRef.current = null;
+          if (currentMessageIdRef.current) {
+            updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
+          }
+          setCurrentMessageId(null);
+          setIsProcessing(false);
+          onTurnInterrupted?.();
+          break;
+        }
+
         case "conversation_created": {
           const { conversation_id } = wsEvent.data as { conversation_id: string };
           setCurrentConversationId(conversation_id);
@@ -858,6 +890,7 @@ export function useChat(options: UseChatOptions = {}) {
       setCurrentMessageId,
       onConversationCreated,
       onTurnSaved,
+      onTurnInterrupted,
       activeConversationId,
       refreshConversationCost,
       t,
@@ -1674,7 +1707,13 @@ export function useChat(options: UseChatOptions = {}) {
   }, [updateMessage, abandonOpenCalls, setCurrentMessageId]);
 
   const stopGeneration = useCallback(() => {
-    sendMessage({ type: "stop" });
+    // A turn this tab only follows is not this socket's to stop: stop following.
+    if (followingRef.current !== null) {
+      followingRef.current = null;
+      sendMessage({ type: "attach", conversation_id: null });
+    } else {
+      sendMessage({ type: "stop" });
+    }
     endTurnLocally();
   }, [sendMessage, endTurnLocally]);
 
@@ -1704,6 +1743,7 @@ export function useChat(options: UseChatOptions = {}) {
     const previous = turnBelongsTo.current;
     turnBelongsTo.current = activeConversationId;
     if (previous === null || previous === activeConversationId || !isProcessing) return;
+    followingRef.current = null;
     // Before the working mark's own cleanup, which runs after layout effects:
     // the thread left is still being answered, whatever this tab does next.
     handOffWorking(previous);
@@ -1768,6 +1808,24 @@ export function useChat(options: UseChatOptions = {}) {
     if (thread.id !== activeConversationId) return;
     onTurnInterrupted?.();
   }, [isConnected, isProcessing, activeConversationId, endTurnLocally, onTurnInterrupted, chatApi]);
+
+  // Opening a conversation - or this socket coming back - asks to follow the turn
+  // being written in it, if one is. The server answers with `turn_attached` and
+  // the turn so far, or with nothing when no turn is running there. Not while this
+  // tab is writing a turn itself: that one already streams here.
+  const processingRef = useRef(isProcessing);
+  useEffect(() => {
+    processingRef.current = isProcessing;
+  }, [isProcessing]);
+  //
+  // Once its transcript is here, not before: the transcript replaces what the chat
+  // holds when it lands, and a turn already drawn from the frames would go with it.
+  const transcriptHere =
+    activeConversationId !== null && messages.at(-1)?.conversationId === activeConversationId;
+  useEffect(() => {
+    if (!isConnected || !transcriptHere || processingRef.current) return;
+    sendMessage({ type: "attach", conversation_id: activeConversationId });
+  }, [isConnected, transcriptHere, activeConversationId, sendMessage]);
 
   // Drain message queue when processing finishes AND we're back online.
   // Re-runs on either flip so a reconnect after offline → drains; a busy turn

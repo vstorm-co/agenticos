@@ -482,6 +482,15 @@ class TestReauthorizingEachFrame:
         assert session._turn_task is None
         session.websocket.close.assert_awaited_once_with(code=4001, reason="Session revoked")
 
+    async def test_a_revoked_session_follows_no_turn(self):
+        """Following another socket's turn reads a conversation, so it is refused too."""
+        session = self._socket_session()
+
+        with self._revoked(), patch.object(session, "_attach") as attach:
+            await session.handle_frame({"type": "attach", "conversation_id": "c-1"})
+
+        attach.assert_not_called()
+
     async def test_a_revoked_session_does_not_steer(self):
         """A correction acts on the session, so it is refused on a dead credential (#2087)."""
         session = self._socket_session()
@@ -2458,6 +2467,8 @@ class TestForwardingDelegationFrames:
                     # model invented at run time, whose definition a surface offers to
                     # keep. On the wire either way, for the same reason.
                     "specialist": None,
+                    # Set only when the worker is a coding harness, not an agent.
+                    "harness": None,
                 },
             )
         ]

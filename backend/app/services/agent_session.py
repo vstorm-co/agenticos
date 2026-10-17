@@ -27,13 +27,14 @@ from app.agents.failures import run_failure_summary
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
 from app.core.config import settings
-from app.core.exceptions import AppException, AuthenticationError
+from app.core.exceptions import AppException, AuthenticationError, NotFoundError
 from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
 from app.repositories import agent_repo, agent_run_repo
 from app.schemas.conversation import MessagePart
+from app.services import live_turn
 from app.services.agent import (
     persist_assistant_turn,
     persist_user_turn,
@@ -216,6 +217,11 @@ class AgentSession:
         self._turn_agent_id: UUID | None = None
         self._turn_runs: list[OpenedRun] = []
         self._outcome: _Outcome | None = None
+        # The conversation whose running turn this socket is writing, which every
+        # frame is also kept under for a person who comes back to it; and the
+        # turn this socket is following instead, from another socket (`attach`).
+        self._live: str | None = None
+        self._follower: asyncio.Task[None] | None = None
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
@@ -274,7 +280,7 @@ class AgentSession:
             if inbox is None or self._turn_task is None or self._turn_task.done():
                 # The turn ended between the click and the frame: nothing left to
                 # steer, so the client sends it as an ordinary message instead.
-                await send_event(self.websocket, "steer_unapplied", {"texts": [text]})
+                await self._emit("steer_unapplied", {"texts": [text]})
                 return
             if not await self._reauthorize():
                 return
@@ -290,6 +296,12 @@ class AgentSession:
             waiting.set_result(data.get("connected") is True)
             return
 
+        if msg_type == "attach":
+            if not await self._reauthorize():
+                return
+            await self._attach(data.get("conversation_id"))
+            return
+
         if msg_type is not None:
             return
 
@@ -299,6 +311,8 @@ class AgentSession:
 
         if not await self._reauthorize():
             return
+        # Asking something here is watching this socket's own turn, not another's.
+        self._stop_following()
         task = asyncio.create_task(self._run_turn(data))
         self._turn_task = task
         task.add_done_callback(self._on_turn_done)
@@ -361,8 +375,7 @@ class AgentSession:
         try:
             await self.process_message(data)
         except asyncio.CancelledError:
-            await send_event(
-                self.websocket,
+            await self._emit(
                 "complete",
                 {
                     "conversation_id": self.current_conversation_id,
@@ -393,6 +406,7 @@ class AgentSession:
         `stop` is untouched. `handle_frame` still cancels immediately there,
         because somebody asked.
         """
+        self._stop_following()
         task = self._turn_task
         if task is None or task.done():
             return
@@ -450,17 +464,17 @@ class AgentSession:
         file_ids = data.get("file_ids", [])
 
         if not user_message and not file_ids:
-            await send_event(self.websocket, "error", {"message": "Empty message"})
+            await self._emit("error", {"message": "Empty message"})
             return
         # Refused before the user turn is persisted: a message nothing will
         # answer does not belong in the transcript.
         try:
             agent_id = requested_agent_id(data)
         except AppException as exc:
-            await send_event(self.websocket, "error", {"message": exc.message})
+            await self._emit("error", {"message": exc.message})
             return
         if agent_id is None:
-            await send_event(self.websocket, "error", {"message": _PICK_AN_AGENT})
+            await self._emit("error", {"message": _PICK_AN_AGENT})
             return
         # `conversation_id: null` is the console's new chat, and it starts one. The
         # session used to read it as "no id given" and carry on in the conversation
@@ -487,17 +501,19 @@ class AgentSession:
             # an archived conversation and an id that is not a UUID reach here
             # too, and both used to be logged inside `persist_user_turn` and
             # answered as though the turn had been recorded.
-            await send_event(self.websocket, "error", {"message": e.message})
+            await self._emit("error", {"message": e.message})
             return
         self.current_conversation_id = prompt.conversation_id
+        if self.current_conversation_id:
+            self._live = self.current_conversation_id
+            await live_turn.begin(self._live)
         if prompt.newly_created and self.current_conversation_id:
-            await send_event(
-                self.websocket,
+            await self._emit(
                 "conversation_created",
                 {"conversation_id": self.current_conversation_id},
             )
 
-        await send_event(self.websocket, "user_prompt", {"content": user_message})
+        await self._emit("user_prompt", {"content": user_message})
 
         collected_tool_calls: list[dict[str, Any]] = []
         # Everything the model produces, in the order it produces it - the text,
@@ -517,7 +533,7 @@ class AgentSession:
         async def steered(text: str) -> None:
             # Where it reached the model is where the transcript shows it.
             timeline.add_steer(text)
-            await send_event(self.websocket, "steer_applied", {"text": text})
+            await self._emit("steer_applied", {"text": text})
 
         steering = SteeringInbox(on_applied=steered)
         self._steering = steering
@@ -637,8 +653,7 @@ class AgentSession:
                     )
 
             if assistant_msg_id:
-                await send_event(
-                    self.websocket,
+                await self._emit(
                     "message_saved",
                     {
                         "message_id": assistant_msg_id,
@@ -650,8 +665,7 @@ class AgentSession:
             # turn is still on screen. The queue and the email carry the same rows;
             # this is a shortcut for whoever is already looking at the tab.
             if turn.parked:
-                await send_event(
-                    self.websocket,
+                await self._emit(
                     "tool_approval_required",
                     {
                         "run_id": str(turn.run_id),
@@ -676,8 +690,7 @@ class AgentSession:
                     },
                 )
 
-            await send_event(
-                self.websocket,
+            await self._emit(
                 "complete",
                 {
                     "conversation_id": self.current_conversation_id,
@@ -695,15 +708,18 @@ class AgentSession:
             # working, not a crash. The client is told plainly; nothing answers
             # in the named agent's place.
             logger.info("Agent turn refused: %s", exc)
-            await send_event(self.websocket, "error", {"message": str(exc)})
+            await self._emit("error", {"message": str(exc)})
             if opened:
                 self._outcome = _Outcome(opened[0].run_id, agent_id, str(exc))
         except Exception as exc:
             logger.exception("Error processing agent request")
-            await send_event(self.websocket, "error", {"message": _turn_failed(exc)})
+            await self._emit("error", {"message": _turn_failed(exc)})
             if opened:
                 self._outcome = _Outcome(opened[0].run_id, agent_id, _turn_failed(exc))
         finally:
+            if self._live is not None:
+                await live_turn.end(self._live)
+                self._live = None
             self._current_timeline = None
             self._steering = None
             late = steering.unapplied()
@@ -712,7 +728,7 @@ class AgentSession:
                 # Handed back rather than dropped: the client sends them as the
                 # next message.
                 with contextlib.suppress(Exception):
-                    await send_event(self.websocket, "steer_unapplied", {"texts": late})
+                    await self._emit("steer_unapplied", {"texts": late})
             if not answered:
                 await self._persist_partial_turn(
                     opened,
@@ -882,7 +898,7 @@ class AgentSession:
         fut: asyncio.Future[list[dict[str, Any]]] = loop.create_future()
         self._ask_user_future = fut
         try:
-            await send_event(self.websocket, "ask_user", {"questions": questions})
+            await self._emit("ask_user", {"questions": questions})
             return await fut
         finally:
             self._ask_user_future = None
@@ -900,8 +916,7 @@ class AgentSession:
             waiting: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
             self._connect_future = waiting
             try:
-                await send_event(
-                    self.websocket,
+                await self._emit(
                     "connect_account",
                     {"catalog_key": request.catalog_key, "name": request.name, "gap": request.gap},
                 )
@@ -929,7 +944,7 @@ class AgentSession:
         a closed socket rather than raising, so a background delegation whose
         frames outlive the tab does not take the run down with it.
         """
-        await send_event(self.websocket, event.kind, event.model_dump(mode="json"))
+        await self._emit(event.kind, event.model_dump(mode="json"))
 
     async def _compaction_event(self, event: CompactionEvent) -> None:
         """Forward one frame from a summary in progress, under the frame's own name.
@@ -944,7 +959,7 @@ class AgentSession:
         does not take the run down with it.
         """
         frame = event.model_dump(mode="json")
-        await send_event(self.websocket, event.kind, frame)
+        await self._emit(event.kind, frame)
 
     async def _browser_event(self, event: BrowserEvent) -> bool:
         """Forward one frame from a browse in progress, under the frame's own name.
@@ -966,7 +981,7 @@ class AgentSession:
         Returns:
             Whether the frame reached the client.
         """
-        return await send_event(self.websocket, event.kind, event.model_dump(mode="json"))
+        return await self._emit(event.kind, event.model_dump(mode="json"))
 
     async def _personal_gaps_event(self, gaps: list[PersonalServiceGap]) -> None:
         """Say which of the agent's personal services this person cannot reach yet.
@@ -979,7 +994,7 @@ class AgentSession:
         would be wrong to repeat it.
         """
         frame = {"services": [gap.model_dump(mode="json") for gap in gaps]}
-        await send_event(self.websocket, "personal_services_unavailable", frame)
+        await self._emit("personal_services_unavailable", frame)
 
     async def _remember_context(self, turn: ChatTurn) -> None:
         """Record what this turn learned about the thread's own context.
@@ -1067,6 +1082,69 @@ class AgentSession:
                 file_db, message_id, [str(file_id) for file_id in file_ids], user_id=self.user.id
             )
 
+    async def _emit(self, kind: str, payload: Any) -> bool:
+        """Send one frame to this socket, and keep it for whoever follows the turn.
+
+        Kept even when the socket is gone, which is the point: a person who left
+        and came back follows the rest of the turn from another socket. Answers
+        whether this socket took it, as `send_event` does.
+        """
+        sent = await send_event(self.websocket, kind, payload)
+        if self._live is not None:
+            await live_turn.publish(self._live, kind, payload)
+        return sent
+
+    async def _attach(self, raw: object) -> None:
+        """Follow the turn running in a conversation the person may read, from its start.
+
+        The person came back to a conversation whose agent is still answering -
+        from another chat, another tab, a reloaded page. The turn's frames so far
+        are sent as they were, then the rest as they come, so the answer is drawn
+        exactly as it would have been. Nothing happens for a conversation with no
+        turn running, one this socket is itself answering, or one they may not
+        read - which is answered as nothing rather than as a refusal, so it says
+        nothing about a conversation they cannot see.
+        """
+        self._stop_following()
+        if not isinstance(raw, str):
+            return
+        try:
+            conversation_id = str(UUID(raw))
+        except ValueError:
+            return
+        if conversation_id == self._live or not await live_turn.is_live(conversation_id):
+            return
+        async with get_db_context() as db:
+            try:
+                await ConversationService(db).get_conversation(
+                    UUID(conversation_id),
+                    organization_id=self.organization_id,
+                    user_id=self.user.id,
+                    include_favourite=False,
+                )
+            except NotFoundError:
+                return
+        self._follower = asyncio.create_task(self._follow(conversation_id))
+
+    async def _follow(self, conversation_id: str) -> None:
+        """Forward a followed turn's frames until it ends, then say it has."""
+        await send_event(self.websocket, "turn_attached", {"conversation_id": conversation_id})
+        ended = False
+        async for frame in live_turn.follow(conversation_id):
+            ended = frame["type"] == live_turn.END
+            if not await send_event(self.websocket, frame["type"], frame["data"]):
+                return
+        if not ended:
+            # The turn ended between the check and the subscription: the
+            # follower still needs to hear it is over.
+            await send_event(self.websocket, live_turn.END, {"conversation_id": conversation_id})
+
+    def _stop_following(self) -> None:
+        follower = self._follower
+        self._follower = None
+        if follower is not None and not follower.done():
+            follower.cancel()
+
     async def _frame(self, kind: str, payload: dict[str, Any]) -> None:
         """Where this surface's frames go: to the member who is watching.
 
@@ -1074,4 +1152,4 @@ class AgentSession:
         the organization that owns the agent may see everything it did - which is
         exactly the decision a public surface makes differently.
         """
-        await send_event(self.websocket, kind, payload)
+        await self._emit(kind, payload)

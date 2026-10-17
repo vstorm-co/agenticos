@@ -58,6 +58,14 @@ Two things are versioned separately from this file and worth knowing about:
   moves when the column collapses.
 - **Remote agents load in the console** (#2092). The page called a route the
   console did not proxy, so it answered 404.
+- **Coming back to an answer still being written shows it.** Opening a
+  conversation whose agent is still answering - from another chat, another tab
+  or after a reload - picks the answer up where it is, with every step so far,
+  and goes on streaming it; it used to show only the question and a note to
+  check later. The running turn's frames are kept in Redis for this.
+- **Documents no longer lists the platform's own files.** A coding task's
+  events and session under `.agenticos/` are left out, as skills and spilled
+  tool output already were.
 
 ## [1.1.1] - 2026-10-16
 

@@ -257,7 +257,9 @@ for runs that finish or fail - tells you it is there, with a link back to it. A
 turn still going after an hour with nobody watching is stopped, and you are told
 that instead ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)).
 One that waits on an approval or on your answer to a question tells you through
-those.
+those. Come back while it is still answering - to the conversation, from
+another tab, after a reload - and the chat picks the answer up where it is,
+with everything it has done so far, and goes on drawing it as it arrives.
 
 **On a phone** the chat behaves like a messaging app: the composer stays above
 the keyboard and the conversation stays on its last message while it opens,

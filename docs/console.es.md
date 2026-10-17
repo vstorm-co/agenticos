@@ -1,5 +1,5 @@
 ---
-source_sha: "c228a539dccb"
+source_sha: "90ca81fac519"
 ---
 
 # La consola { #the-console }
@@ -274,6 +274,9 @@ terminan o fallan - te avisa de que está ahí, con un enlace a ella. Un turno q
 sigue en marcha tras una hora sin nadie mirando se detiene, y se te avisa de eso
 ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)). Uno
 que espera una aprobación o tu respuesta a una pregunta te avisa por esa vía.
+Si vuelves mientras aún responde - a la conversación, desde otra pestaña, tras
+recargar -, el chat retoma la respuesta donde está, con todo lo que el agente ha
+hecho hasta entonces, y la sigue dibujando a medida que llega.
 
 **En el teléfono** el chat se comporta como una app de mensajería: el campo de
 escritura queda sobre el teclado y la conversación en su último mensaje mientras

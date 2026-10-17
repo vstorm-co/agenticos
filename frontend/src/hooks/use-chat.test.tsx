@@ -2481,7 +2481,11 @@ describe("useChat - a socket that went away mid-answer", () => {
     });
 
     expect(result.current.queuedMessages).toHaveLength(1);
-    expect(sent).toHaveBeenCalledTimes(1);
+    // The reconnect asks to follow the interrupted turn; nothing queued went out.
+    const sentNotFollowing = sent.mock.calls.filter(
+      ([sentFrame]) => (sentFrame as { type?: string }).type !== "attach",
+    );
+    expect(sentNotFollowing).toHaveLength(1);
     vi.useRealTimers();
   });
 
@@ -3290,5 +3294,73 @@ describe("useChat - adding to a running turn (#2087)", () => {
 
     expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["this one"]);
     expect(result.current.steers).toEqual([]);
+  });
+});
+
+describe("useChat - coming back to a turn still being written", () => {
+  function storedQuestion(conversationId = "c-1") {
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "u-1",
+        role: "user",
+        content: "build a landing page",
+        timestamp: new Date(),
+        conversationId,
+      }),
+    );
+  }
+
+  it("asks to follow the conversation's turn once its transcript is here", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    expect(sent).not.toHaveBeenCalled();
+
+    storedQuestion();
+
+    expect(sent).toHaveBeenCalledWith({ type: "attach", conversation_id: "c-1" });
+  });
+
+  it("draws the followed turn as it would have been drawn live, and re-reads it at the end", () => {
+    const onTurnInterrupted = vi.fn();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1", onTurnInterrupted }), {
+      wrapper,
+    });
+    storedQuestion();
+
+    receive("turn_attached", { conversation_id: "c-1" });
+    expect(result.current.isProcessing).toBe(true);
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Writing index.html" });
+    expect(streaming()?.content).toContain("Writing index.html");
+
+    receive("turn_followed_to_end", { conversation_id: "c-1" });
+    expect(result.current.isProcessing).toBe(false);
+    expect(streaming()?.isStreaming).toBe(false);
+    expect(onTurnInterrupted).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a turn of another conversation, and an end it was not following", () => {
+    const onTurnInterrupted = vi.fn();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1", onTurnInterrupted }), {
+      wrapper,
+    });
+
+    receive("turn_attached", { conversation_id: "c-other" });
+    receive("turn_followed_to_end", { conversation_id: "c-other" });
+
+    expect(result.current.isProcessing).toBe(false);
+    expect(onTurnInterrupted).not.toHaveBeenCalled();
+  });
+
+  it("stops following rather than stopping a turn this socket does not own", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    receive("turn_attached", { conversation_id: "c-1" });
+    sent.mockClear();
+
+    act(() => result.current.stopGeneration());
+
+    expect(sent).toHaveBeenCalledWith({ type: "attach", conversation_id: null });
+    expect(sent).not.toHaveBeenCalledWith({ type: "stop" });
+    expect(result.current.isProcessing).toBe(false);
   });
 });
