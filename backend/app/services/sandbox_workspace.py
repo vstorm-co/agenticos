@@ -63,6 +63,7 @@ from app.agents.capabilities.sandbox._identity import (
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX
 from app.agents.spec import AgentSpec
+from app.core.background import spawn_after_commit
 from app.core.blocking import run_blocking
 from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
@@ -1038,7 +1039,7 @@ class SandboxWorkspaceService:
         return len(rows)
 
     async def _purge_remote(self, ctx: AuthContext, row: AgentWorkspace) -> None:
-        """Delete the sandbox behind a workspace whose conversation is going.
+        """Delete the sandbox behind a workspace whose conversation or project is going.
 
         Both kinds are reached, and the cloud one matters more. A container has
         `sandboxd`'s TTL behind it, so failing here costs a host some disk until
@@ -1046,6 +1047,11 @@ class SandboxWorkspaceService:
         only thing that knows the conversation is gone, and the organization pays
         for the sandbox until somebody deletes it. This used to return early for
         anything that was not Docker, so that was never.
+
+        The sandbox is destroyed once the deletion has committed, never before:
+        a rollback after the destroy would restore rows naming files that no
+        longer exist. Its connection is resolved now, while the transaction can
+        still read the vault, and only the call is deferred.
         """
         if row.connection_id is None:
             return
@@ -1053,17 +1059,19 @@ class SandboxWorkspaceService:
         try:
             resolved = await self._connection(ctx, row.connection_id)
             sandbox = self._service_capability(resolved, row.scope_key)
-            # By the name it was opened under; attach-only, so a session already
-            # gone is fine rather than one opened just to delete it.
-            await sandbox.destroy(
-                WorkspaceRef(provider=_provider(sandbox), id=row.session_id or row.scope_key)
-            )
         except Exception:
             # A service that is down must not stop a user deleting their chat.
             # The workspace TTL is the net under exactly this.
             logger.warning(
                 "workspace_purge_failed", extra={"scope_key": row.scope_key}, exc_info=True
             )
+            return
+        # By the name it was opened under; attach-only, so a session already
+        # gone is fine rather than one opened just to delete it.
+        ref = WorkspaceRef(provider=_provider(sandbox), id=row.session_id or row.scope_key)
+        spawn_after_commit(
+            self.db, _destroy_best_effort(sandbox, ref, row.scope_key), name="workspace-purge"
+        )
 
     async def visible_to(self, ctx: AuthContext) -> list[WorkspaceOverview]:
         """The workspaces this caller may see, with what a table needs beside each.
@@ -1808,6 +1816,16 @@ class SandboxWorkspaceService:
                 cached = await self.connections.resolve(ctx, connection_id)
                 self._connections_by_id[connection_id] = cached
             return cached
+
+
+async def _destroy_best_effort(
+    sandbox: SandboxdWorkspace | DaytonaWorkspace, ref: WorkspaceRef, scope_key: str
+) -> None:
+    """Destroy a sandbox whose rows are gone; a host that is down is logged, not raised."""
+    try:
+        await sandbox.destroy(ref)
+    except Exception:
+        logger.warning("workspace_purge_failed", extra={"scope_key": scope_key}, exc_info=True)
 
 
 def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool:

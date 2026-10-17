@@ -79,6 +79,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- **A deleted chat's sandbox is destroyed only once the deletion commits.** The
+  container or Daytona sandbox behind a conversation or project went before the
+  database did, so a deletion that rolled back left the rows naming files that
+  were already gone.
+
 - **The collapsed sidebar matches the open one.** A folded group stays folded on
   the icon rail, which now has the same row height and group spacing, so no icon
   moves when the column collapses.

@@ -54,6 +54,7 @@ from app.agents.capabilities.sandbox._identity import (
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.tool_output_limits import OVERFLOW_PREFIX, WorkspaceOverflowStore
 from app.agents.spec import AgentSpec
+from app.core import background
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace as workspace_repo
@@ -2681,6 +2682,12 @@ class TestASessionAcrossRuns:
         assert [r for r in caplog.records if r.message == "workspace_lost_sandbox_not_deleted"]
 
 
+async def _committed(session: object) -> None:
+    """What the request's session does after its commit: start what it deferred."""
+    background.start_deferred(session)  # ty: ignore[invalid-argument-type]
+    await background.drain()
+
+
 def _conversation_holds(monkeypatch: pytest.MonkeyPatch, *rows: object) -> AsyncMock:
     monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=list(rows)))
     deleted = AsyncMock()
@@ -2712,6 +2719,9 @@ class TestDeletingAConversation:
         await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
             _ctx(), conversation_id=uuid4()
         )
+        # Nothing is destroyed until the deletion has committed.
+        assert sandboxes.destroyed == []
+        await _committed(mock_db_session)
 
         # By the session the row recorded, on the connection's own provider name.
         assert sandboxes.destroyed == [
@@ -2736,13 +2746,14 @@ class TestDeletingAConversation:
 
         assert count == 1
         deleted.assert_awaited_once()
+        await _committed(mock_db_session)
         # The organization's own key, and the sandbox the row recorded.
         assert sandboxes.made[0]["config"].api_key == "dtn-live-key"
         assert sandboxes.destroyed == [WorkspaceRef(provider="daytona", id="dt-1")]
 
     @pytest.mark.parametrize("kind", ["docker", "daytona"])
     async def test_a_host_that_is_down_does_not_stop_the_deletion(
-        self, monkeypatch, mock_db_session, sandboxes, kind
+        self, monkeypatch, mock_db_session, sandboxes, kind, caplog
     ):
         """A provider having a bad day must not be the reason somebody cannot
         delete their own conversation; the workspace TTL is the net under a
@@ -2756,9 +2767,30 @@ class TestDeletingAConversation:
         count = await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
             _ctx(), conversation_id=uuid4()
         )
+        with caplog.at_level(logging.WARNING):
+            await _committed(mock_db_session)
 
         assert count == 1
         deleted.assert_awaited_once()
+        assert [r for r in caplog.records if r.message == "workspace_purge_failed"]
+
+    async def test_a_deletion_that_rolls_back_leaves_the_sandbox_alone(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        """Destroyed before the commit, a rollback would restore rows naming
+        files that no longer exist."""
+        _serve(monkeypatch, _resolved())
+        _conversation_holds(
+            monkeypatch, _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        )
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+        background.discard_deferred(mock_db_session)
+        await background.drain()
+
+        assert sandboxes.destroyed == []
 
     async def test_a_connection_deleted_since_does_not_stop_the_deletion(
         self, monkeypatch, mock_db_session
