@@ -49,7 +49,10 @@ Two things are versioned separately from this file and worth knowing about:
   people, departments or the organization (`projects:view`, `projects:use`,
   `projects:edit`). Chats stay their authors' own, and a deleted project leaves
   them as ordinary chats. The sidebar lists your recent projects, the chat list
-  files each project's chats under it, and the dashboard has a **Projects** card. See [Projects](docs/projects.md).
+  files each project's chats under it, and the dashboard has a **Projects** card. A
+  project opens on its files, which can be dropped anywhere on the tab and show
+  their progress as they go up; its **Apps** tab lists the apps its chats
+  published (`GET /apps?project_id=`). See [Projects](docs/projects.md).
 
 ### Fixed
 

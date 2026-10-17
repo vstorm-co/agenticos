@@ -6,6 +6,7 @@ import { FolderKanban, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ProjectApps } from "@/components/projects/project-apps";
 import { ProjectChats } from "@/components/projects/project-chats";
 import { ProjectFiles } from "@/components/projects/project-files";
 import { ProjectSettings } from "@/components/projects/project-settings";
@@ -18,7 +19,9 @@ import { useProject } from "@/hooks/use-projects";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 
-const TABS = ["chats", "files", "instructions"] as const;
+// Files first: a project is the work kept in it, and its chats are how the work
+// was done.
+const TABS = ["files", "chats", "apps", "instructions"] as const;
 type Tab = (typeof TABS)[number];
 
 /**
@@ -32,7 +35,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const tErrors = useTranslations("errors");
   const { project, isLoading, error } = useProject(id);
   const [tabParam, setTabParam] = useUrlState("tab");
-  const tab: Tab = TABS.find((entry) => entry === tabParam) ?? "chats";
+  const tab: Tab = TABS.find((entry) => entry === tabParam) ?? "files";
 
   if (isLoading) return <LoadingState variant="skeleton-panel" />;
   if (error || project === null) {
@@ -76,19 +79,23 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
       <Tabs
         value={tab}
-        onValueChange={(value) => setTabParam(value === "chats" ? null : value)}
+        onValueChange={(value) => setTabParam(value === "files" ? null : value)}
         className="flex min-h-0 flex-1 flex-col"
       >
         <TabsList data-tour="project-tabs">
-          <TabsTrigger value="chats">{t("chats")}</TabsTrigger>
           <TabsTrigger value="files">{t("files")}</TabsTrigger>
+          <TabsTrigger value="chats">{t("chats")}</TabsTrigger>
+          <TabsTrigger value="apps">{t("apps")}</TabsTrigger>
           <TabsTrigger value="instructions">{t("instructions")}</TabsTrigger>
         </TabsList>
+        <TabsContent value="files" className="flex min-h-0 flex-1 flex-col">
+          <ProjectFiles project={project} />
+        </TabsContent>
         <TabsContent value="chats">
           <ProjectChats project={project} />
         </TabsContent>
-        <TabsContent value="files" className="flex min-h-0 flex-1 flex-col">
-          <ProjectFiles project={project} />
+        <TabsContent value="apps">
+          <ProjectApps project={project} />
         </TabsContent>
         <TabsContent value="instructions">
           {/* Keyed on the saved row, so a save that comes back re-seeds the form. */}

@@ -314,6 +314,7 @@ export const qk = {
       skip: number;
       limit: number;
       groupId: string;
+      projectId?: string;
     }) => ["artifacts", "list", query] as const,
     agents: () => ["artifacts", "agents"] as const,
     detail: (id: string) => ["artifacts", id] as const,

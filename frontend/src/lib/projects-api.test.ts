@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "./projects-api";
 import { apiClient } from "./api-client";
+import { postWithProgress } from "./upload-with-progress";
 
 vi.mock("./api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), raw: vi.fn() },
 }));
+vi.mock("./upload-with-progress", () => ({ postWithProgress: vi.fn() }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -53,11 +55,13 @@ describe("the projects client", () => {
     expect(apiClient.get).toHaveBeenLastCalledWith("/projects/p-1/files");
 
     const file = new File(["x"], "in.csv");
-    await api.uploadProjectFile("p-1", file, "data/in.csv");
-    const [endpoint, form] = vi.mocked(apiClient.post).mock.calls.at(-1) as [string, FormData];
+    const progress = { organizationId: "org-1", onPercent: vi.fn(), failed: "Upload failed" };
+    await api.uploadProjectFile("p-1", file, "data/in.csv", progress);
+    const [endpoint, form, options] = vi.mocked(postWithProgress).mock.calls.at(-1)!;
     expect(endpoint).toBe("/projects/p-1/files");
     expect(form.get("path")).toBe("data/in.csv");
     expect((form.get("file") as File).name).toBe("in.csv");
+    expect(options).toBe(progress);
 
     await api.createProjectFolder("p-1", "docs");
     expect(apiClient.post).toHaveBeenLastCalledWith("/projects/p-1/folders", { path: "docs" });

@@ -7284,6 +7284,13 @@
     "noProject": "Kein Projekt",
     "noProjectHint": "Ein normaler Chat",
     "manageProjects": "Neues oder alle Projekte",
-    "leaveProject": "Außerhalb von {name} beginnen"
+    "leaveProject": "Außerhalb von {name} beginnen",
+    "apps": "Apps",
+    "noAppsYet": "In diesem Projekt ist noch keine App entstanden",
+    "noAppsHint": "Eine App, die ein Agent in einem Chat des Projekts veröffentlicht - ein Bericht, ein Dashboard - erscheint hier.",
+    "uploadFailed": "Der Upload ist fehlgeschlagen",
+    "noFilesYet": "Noch nichts in diesem Projekt",
+    "noFilesHint": "Legen Sie Dateien oder einen ganzen Ordner hier ab, oder laden Sie sie hoch. Jeder Chat im Projekt liest sie und arbeitet damit.",
+    "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier."
   }
 }

@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-error";
 import type { Project } from "@/types/projects";
 import { CreateProjectDialog } from "./create-project-dialog";
+import { ProjectApps } from "./project-apps";
 import { ProjectCard } from "./project-card";
 import { ProjectChats } from "./project-chats";
 import { ProjectFiles } from "./project-files";
@@ -50,6 +51,14 @@ const files = {
   remove: { mutateAsync: vi.fn(), isPending: false },
 };
 const chats = vi.fn();
+const artifacts = vi.fn();
+const lastArtifactsQuery = () => artifacts.mock.calls.at(-1)?.[0];
+vi.mock("@/hooks/use-artifacts", () => ({
+  useArtifacts: (query: unknown) => artifacts(query),
+}));
+vi.mock("@/components/artifacts/artifact-card", () => ({
+  ArtifactCard: ({ artifact }: { artifact: { title: string } }) => <p>{artifact.title}</p>,
+}));
 vi.mock("@/hooks/use-projects", () => ({
   useProjects: () => ({
     projects: projects.list(),
@@ -62,6 +71,7 @@ vi.mock("@/hooks/use-projects", () => ({
     isLoading: false,
     error: null,
     upload: files.upload,
+    uploads: [],
     addFolder: files.addFolder,
     remove: files.remove,
   }),
@@ -205,7 +215,7 @@ describe("ProjectChats", () => {
           title: "Press release",
           created_at: new Date().toISOString(),
           updated_at: null,
-          agents: [{ id: "a-1", name: "Writer" }],
+          agents: [{ id: "a-1", slug: "writer", name: "Writer", has_avatar: false }],
         },
         { id: "c-2", title: "", created_at: new Date().toISOString(), updated_at: null },
       ],
@@ -301,10 +311,54 @@ describe("ProjectFiles", () => {
     expect(files.remove.mutateAsync).toHaveBeenCalledTimes(1);
   });
 
+  it("opens an empty project on a place to drop its first files", async () => {
+    files.listing.mockReturnValue({ ...files.listing(), items: [], total: 0 });
+    wrap(<ProjectFiles project={aProject()} />);
+    expect(screen.getByText("Nothing in this project yet")).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Search every folder")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Upload files" }));
+  });
+
+  it("tells a reader of an empty project that files will appear", () => {
+    files.listing.mockReturnValue({ ...files.listing(), items: [], total: 0 });
+    wrap(<ProjectFiles project={aProject({ can_use: false })} />);
+    expect(screen.getByText("Files added to the project will appear here.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Upload files" })).not.toBeInTheDocument();
+  });
+
   it("offers no writes to a reader who cannot work in it", () => {
     wrap(<ProjectFiles project={aProject({ can_use: false })} />);
     expect(screen.queryByRole("button", { name: "Upload files" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove brief.md" })).not.toBeInTheDocument();
+  });
+});
+
+describe("ProjectApps", () => {
+  it("lists the apps the project's chats published, and says when there are none", () => {
+    artifacts.mockReturnValue({
+      artifacts: [{ id: "art-1", title: "Q3 cash report", current_version: null }],
+      isLoading: false,
+      error: null,
+    });
+    const { unmount } = wrap(<ProjectApps project={aProject()} />);
+    expect(screen.getByText("Q3 cash report")).toBeInTheDocument();
+    expect(lastArtifactsQuery()).toMatchObject({ projectId: "p-1" });
+    unmount();
+
+    artifacts.mockReturnValue({ artifacts: [], isLoading: false, error: null });
+    wrap(<ProjectApps project={aProject()} />);
+    expect(screen.getByText("No apps made in this project yet")).toBeInTheDocument();
+  });
+
+  it("holds its place while loading, and says when the list failed", () => {
+    artifacts.mockReturnValue({ artifacts: [], isLoading: true, error: null });
+    const { container, unmount } = wrap(<ProjectApps project={aProject()} />);
+    expect(container.querySelector(".animate-pulse")).not.toBeNull();
+    unmount();
+
+    artifacts.mockReturnValue({ artifacts: [], isLoading: false, error: new Error("down") });
+    wrap(<ProjectApps project={aProject()} />);
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
   });
 });
 

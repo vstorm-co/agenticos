@@ -7401,6 +7401,13 @@
     "noProject": "No project",
     "noProjectHint": "An ordinary chat",
     "manageProjects": "New or all projects",
-    "leaveProject": "Start outside {name}"
+    "leaveProject": "Start outside {name}",
+    "apps": "Apps",
+    "noAppsYet": "No apps made in this project yet",
+    "noAppsHint": "An app an agent publishes in one of the project's chats - a report, a dashboard - appears here.",
+    "uploadFailed": "The upload failed",
+    "noFilesYet": "Nothing in this project yet",
+    "noFilesHint": "Drop files or a whole folder here, or upload them. Every chat in the project reads and works in them.",
+    "noFilesViewer": "Files added to the project will appear here."
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -18,6 +18,8 @@ import {
   updateProject,
   uploadProjectFile,
 } from "@/lib/projects-api";
+import type { UploadProgress } from "@/hooks/use-knowledge-bases";
+import { useTenantId } from "@/hooks/use-organizations";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { ConversationListResponse } from "@/types/conversation";
@@ -135,9 +137,42 @@ export function useProjectFiles(projectId: string) {
     [projectId, queryClient],
   );
 
+  // One bar per file still in the air, as a knowledge base's upload shows them:
+  // all of a folder's files are listed at once and go one by one.
+  const organizationId = useTenantId();
+  const [uploads, setUploads] = useState<UploadProgress[]>([]);
+  const nextUpload = useRef(0);
+  const failed = t("uploadFailed");
+
   const upload = useMutation({
     mutationFn: async ({ files, folder }: { files: File[]; folder: string }) => {
-      for (const file of files) await uploadProjectFile(projectId, file, uploadPath(file, folder));
+      const queued = files.map((file) => ({
+        file,
+        uploadId: `${nextUpload.current++}`,
+      }));
+      setUploads((current) => [
+        ...current,
+        ...queued.map(({ file, uploadId }) => ({ uploadId, filename: file.name, percent: 0 })),
+      ]);
+      try {
+        for (const { file, uploadId } of queued) {
+          await uploadProjectFile(projectId, file, uploadPath(file, folder), {
+            organizationId,
+            failed,
+            onPercent: (percent) =>
+              setUploads((current) =>
+                current.map((entry) =>
+                  entry.uploadId === uploadId ? { ...entry, percent } : entry,
+                ),
+              ),
+          });
+          setUploads((current) => current.filter((entry) => entry.uploadId !== uploadId));
+        }
+      } finally {
+        // A refusal stops the batch; what had not gone yet is no longer coming.
+        const ids = new Set(queued.map(({ uploadId }) => uploadId));
+        setUploads((current) => current.filter((entry) => !ids.has(entry.uploadId)));
+      }
       return files.length;
     },
     onSuccess: (count) => toast.success(t("uploaded", { count })),
@@ -163,6 +198,7 @@ export function useProjectFiles(projectId: string) {
     isLoading,
     error: error ? getErrorMessage(error, tErrors, t("filesUnreadable")) : null,
     upload,
+    uploads,
     addFolder,
     remove,
   };

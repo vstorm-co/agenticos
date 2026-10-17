@@ -4,6 +4,8 @@ import { useMemo, useRef, useState } from "react";
 import { FolderPlus, FolderUp, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { FileDropZone } from "@/components/rag/file-drop-zone";
+import { UploadProgressList } from "@/components/rag/upload-progress-list";
 import { FileExplorer } from "@/components/sandboxes/workspace-explorer";
 import {
   Button,
@@ -27,7 +29,9 @@ import type { Project } from "@/types/projects";
  */
 export function ProjectFiles({ project }: { project: Project }) {
   const t = useTranslations("projects");
-  const { files, isLoading, error, upload, addFolder, remove } = useProjectFiles(project.id);
+  const { files, isLoading, error, upload, uploads, addFolder, remove } = useProjectFiles(
+    project.id,
+  );
   const source = useMemo<FileSource>(() => ({ kind: "project", id: project.id }), [project.id]);
   const filesInput = useRef<HTMLInputElement>(null);
   const folderInput = useRef<HTMLInputElement>(null);
@@ -85,8 +89,27 @@ export function ProjectFiles({ project }: { project: Project }) {
     </span>
   ) : undefined;
 
-  return (
+  // A project with nothing in it is a place to put the first files, not two
+  // empty panes - a folder tree saying it is empty beside a viewer with nothing
+  // to show.
+  const empty = files !== null && files.total === 0 && uploads.length === 0;
+
+  const explorer = empty ? (
+    <div className="border-border flex min-h-[24rem] flex-1 flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed px-6 py-12 text-center">
+      <span className="bg-muted text-foreground grid h-14 w-14 place-items-center rounded-xl">
+        <Upload className="h-6 w-6" aria-hidden />
+      </span>
+      <div className="max-w-md space-y-1">
+        <p className="text-foreground text-base font-semibold">{t("noFilesYet")}</p>
+        <p className="text-muted-foreground text-sm">
+          {project.can_use ? t("noFilesHint") : t("noFilesViewer")}
+        </p>
+      </div>
+      {toolbar && <div className="flex justify-center [&>span]:mr-0">{toolbar}</div>}
+    </div>
+  ) : (
     <div className="flex min-h-[32rem] flex-1 flex-col">
+      <UploadProgressList uploads={uploads} />
       <FileExplorer
         source={source}
         files={files}
@@ -95,6 +118,20 @@ export function ProjectFiles({ project }: { project: Project }) {
         toolbar={toolbar}
         onRemove={project.can_use ? setPendingRemove : undefined}
       />
+    </div>
+  );
+
+  return (
+    <div className="flex min-h-[32rem] flex-1 flex-col">
+      {/* A file dropped anywhere on the tab lands in the project, as one dropped
+          on a knowledge base lands in it - for whoever may add files. */}
+      {project.can_use ? (
+        <FileDropZone collectionName={project.name} onFiles={picked}>
+          {explorer}
+        </FileDropZone>
+      ) : (
+        explorer
+      )}
 
       <Dialog open={folderOpen} onOpenChange={setFolderOpen}>
         <DialogContent className={DIALOG_CONFIRM}>

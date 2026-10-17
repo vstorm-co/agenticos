@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "a9eb7c362eb8"
+source_sha: "a9d760cf0da1"
 ---
 
 # Projekte { #projects }
@@ -69,6 +69,12 @@ neben einer Ansicht, die Markdown, PDFs, Bilder, Tabellen und Code direkt öffne
 Das Verzeichnis `.agenticos` und die eigenen Ordner der Plattform sind hier nicht
 beschreibbar; ein Pfad außerhalb des Projekts wird abgelehnt, bevor etwas
 geschrieben wird.
+
+Ein Projekt öffnet sich auf **Dateien**. Dateien lassen sich auch irgendwo auf
+dem Tab ablegen, und jede zeigt beim Hochladen ihren Fortschritt; ein leeres
+Projekt ist ein Ort, die ersten abzulegen. **Chats** listet die Chats des Projekts
+wie die Chatliste, und **Apps** die Apps, die ein Run in einem davon
+veröffentlicht hat - die, die der Leser öffnen darf.
 
 ## Teilen und Berechtigungen { #sharing-and-permissions }
 

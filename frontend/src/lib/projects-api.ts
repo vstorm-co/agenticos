@@ -8,6 +8,7 @@
 
 import { apiClient } from "./api-client";
 import type { FileText } from "./file-access";
+import { postWithProgress } from "./upload-with-progress";
 import type { WorkspaceFiles } from "./sandbox-workspaces-api";
 import type { Project, ProjectCreate, ProjectList, ProjectUpdate } from "@/types/projects";
 
@@ -66,16 +67,20 @@ export async function readProjectText(id: string, path: string): Promise<FileTex
   return { content: await (await readProjectBytes(id, path)).text(), truncated: false };
 }
 
-/** Add one file, at `path` inside the project - a folder upload's relative path. */
+/**
+ * Add one file, at `path` inside the project - a folder upload's relative path -
+ * reporting how much of it has been sent, as a knowledge-base upload does.
+ */
 export async function uploadProjectFile(
   id: string,
   file: File,
   path: string,
-): Promise<{ path: string }> {
+  progress: Parameters<typeof postWithProgress>[2],
+): Promise<void> {
   const form = new FormData();
   form.append("file", file);
   form.append("path", path);
-  return apiClient.post<{ path: string }>(`${ROOT}/${id}/files`, form);
+  await postWithProgress(`${ROOT}/${id}/files`, form, progress);
 }
 
 export async function createProjectFolder(id: string, path: string): Promise<{ path: string }> {

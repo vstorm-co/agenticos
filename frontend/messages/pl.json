@@ -7185,6 +7185,13 @@
     "noProject": "Bez projektu",
     "noProjectHint": "Zwykły czat",
     "manageProjects": "Nowy projekt lub wszystkie",
-    "leaveProject": "Zacznij poza {name}"
+    "leaveProject": "Zacznij poza {name}",
+    "apps": "Aplikacje",
+    "noAppsYet": "W tym projekcie nie powstała jeszcze żadna aplikacja",
+    "noAppsHint": "Aplikacja, którą agent opublikuje w jednym z czatów projektu - raport, dashboard - pojawi się tutaj.",
+    "uploadFailed": "Przesyłanie się nie udało",
+    "noFilesYet": "W tym projekcie nie ma jeszcze plików",
+    "noFilesHint": "Upuść tu pliki albo cały folder, albo je prześlij. Każdy czat w projekcie je czyta i na nich pracuje.",
+    "noFilesViewer": "Pliki dodane do projektu pojawią się tutaj."
   }
 }

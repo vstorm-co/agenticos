@@ -45,7 +45,7 @@ beforeEach(() => {
   vi.mocked(api.updateProject).mockResolvedValue(PROJECT);
   vi.mocked(api.deleteProject).mockResolvedValue(undefined);
   vi.mocked(api.listProjectFiles).mockResolvedValue(LISTING as never);
-  vi.mocked(api.uploadProjectFile).mockResolvedValue({ path: "a" });
+  vi.mocked(api.uploadProjectFile).mockResolvedValue(undefined);
   vi.mocked(api.createProjectFolder).mockResolvedValue({ path: "docs" });
   vi.mocked(api.removeProjectPath).mockResolvedValue(undefined);
 });
@@ -102,9 +102,21 @@ describe("useProjectFiles", () => {
 
     const a = new File(["a"], "a.md");
     const b = new File(["b"], "b.md");
+    // Each upload reports its progress into the bar for its file, and the bar goes
+    // once the file is in.
+    vi.mocked(api.uploadProjectFile).mockImplementation(async (_id, _file, _path, progress) => {
+      progress.onPercent(40);
+      progress.onPercent(null);
+    });
     await act(() => result.current.upload.mutateAsync({ files: [a, b], folder: "docs" }));
-    expect(api.uploadProjectFile).toHaveBeenCalledWith("p-1", b, "docs/b.md");
+    expect(api.uploadProjectFile).toHaveBeenCalledWith(
+      "p-1",
+      b,
+      "docs/b.md",
+      expect.objectContaining({ failed: "The upload failed" }),
+    );
     expect(toast.success).toHaveBeenCalledWith("2 files added");
+    expect(result.current.uploads).toEqual([]);
 
     await act(() => result.current.addFolder.mutateAsync("notes"));
     expect(api.createProjectFolder).toHaveBeenCalledWith("p-1", "notes");

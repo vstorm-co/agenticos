@@ -378,7 +378,7 @@ interface ConversationListProps {
  * A thread at work, in place of when it last moved: a spinner and how long the
  * run has been going, counted here between the listing's reads.
  */
-function RunningFor({ since }: { since: string }) {
+export function RunningFor({ since }: { since: string }) {
   const t = useTranslations("chat.steps");
   const started = useMemo(() => new Date(since), [since]);
   const elapsed = useTurnElapsed(started, true);

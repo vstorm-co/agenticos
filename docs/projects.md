@@ -64,6 +64,11 @@ that opens Markdown, PDFs, images, spreadsheets and code in place.
 The `.agenticos` directory and the platform's own folders are not writable from
 here; a path outside the project is refused before anything is written.
 
+A project opens on **Files**. Files can also be dropped anywhere on the tab, and
+each one shows its progress as it goes up; an empty project is one place to drop
+the first ones. **Chats** lists the project's chats as the chat list does, and
+**Apps** the apps a run in one of them published - those the reader may open.
+
 ## Sharing and permissions
 
 A project is private to whoever created it until they share it, with the same

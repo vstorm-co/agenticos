@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "a9eb7c362eb8"
+source_sha: "a9d760cf0da1"
 ---
 
 # Proyectos { #projects }
@@ -69,6 +69,12 @@ el sitio.
 El directorio `.agenticos` y las carpetas propias de la plataforma no se pueden
 escribir desde aquí; una ruta fuera del proyecto se rechaza antes de escribir
 nada.
+
+Un proyecto se abre en **Archivos**. Los archivos también se pueden soltar en
+cualquier parte de la pestaña, y cada uno muestra su progreso mientras sube; un
+proyecto vacío es un solo lugar donde soltar los primeros. **Chats** lista los
+chats del proyecto como la lista de chats, y **Apps** las apps que publicó un run
+en uno de ellos - las que el lector puede abrir.
 
 ## Compartir y permisos { #sharing-and-permissions }
 

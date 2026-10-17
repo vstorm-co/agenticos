@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "a9eb7c362eb8"
+source_sha: "a9d760cf0da1"
 ---
 
 # Projekty { #projects }
@@ -64,6 +64,12 @@ który otwiera Markdown, PDF-y, obrazy, arkusze i kod na miejscu.
 
 Katalog `.agenticos` i własne foldery platformy nie są stąd zapisywalne; ścieżka
 poza projektem jest odrzucana, zanim cokolwiek zostanie zapisane.
+
+Projekt otwiera się na **Plikach**. Pliki można też upuścić w dowolnym miejscu
+karty, a każdy pokazuje postęp przesyłania; pusty projekt to jedno miejsce na
+pierwsze pliki. **Czaty** pokazują czaty projektu tak jak lista czatów, a
+**Aplikacje** - aplikacje opublikowane przez run w jednym z nich, te, które
+czytający może otworzyć.
 
 ## Udostępnianie i uprawnienia { #sharing-and-permissions }
 
