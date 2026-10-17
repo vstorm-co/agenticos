@@ -127,13 +127,33 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
     caller. Answers how many fires were submitted.
     """
     from app.services.agent_trigger import AgentTriggerService
-    from app.services.mcp_connection import McpConnectionService
+    from app.services.mcp_connection import McpConnectionService, RevokedGrant
 
-    read = await McpConnectionService(db).poll_grant(grant)
+    assert grant.organization_id is not None, "a portal grant is always created org-scoped"
+    triggers = AgentTriggerService(db)
+    places = await triggers.polled_places(
+        organization_id=grant.organization_id, event_source=source
+    )
+    read = await McpConnectionService(db).poll_grant(grant, places=places)
+    if isinstance(read, RevokedGrant):
+        # Retrying a refused grant every minute fires nothing and says nothing; off,
+        # the triggers show they stopped, and the card says to reconnect (#1984).
+        await triggers.disable_polled(
+            organization_id=grant.organization_id,
+            event_source=source,
+            reason="mailbox_access_revoked",
+        )
+        return 0
     if read is None:
         return 0
-    assert grant.organization_id is not None, "a portal grant is always created org-scoped"
-    decisions = await AgentTriggerService(db).prepare_polled_fires(
+    if read.unreadable:
+        await triggers.disable_polled(
+            organization_id=grant.organization_id,
+            event_source=source,
+            reason="mailbox_folder_unreadable",
+            places=read.unreadable,
+        )
+    decisions = await triggers.prepare_polled_fires(
         organization_id=grant.organization_id,
         event_source=source,
         events=read.events,
@@ -275,7 +295,8 @@ def _polled_source(portal_key: str | None) -> str | None:
     """The `event_source` a portal's presets fire through, or `None` for no portal.
 
     Read off the catalog rather than assumed from the key, because they are not the
-    same word: the portal is `google` and the source is `gmail`.
+    same word: the portal is `google` and the source is `gmail`, the portal
+    `microsoft` and the source `outlook`.
     """
     from app.services.portal_catalog import get_portal
 

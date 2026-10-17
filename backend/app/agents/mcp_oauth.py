@@ -67,6 +67,15 @@ class OAuthError(Exception):
     """A recoverable failure in the OAuth flow (surfaced to the user)."""
 
 
+class OAuthGrantRevoked(OAuthError):
+    """The token endpoint answered `invalid_grant`: the refresh token is dead.
+
+    RFC 6749 section 5.2 reserves the code for a grant that is "invalid, expired,
+    revoked" - nothing a retry fixes, unlike a timeout or a 5xx. Told apart so a
+    caller can stop spending the token and ask for a new consent instead.
+    """
+
+
 def _unusable_url(exc: httpx2.InvalidURL, what: str) -> OAuthError:
     """The refusal for an endpoint no request can be built for.
 
@@ -454,21 +463,41 @@ async def refresh_tokens(
     client_id: str,
     client_secret: str | None,
     refresh_token: str,
-    resource: str,
+    resource: str | None,
     scope: str | None,
 ) -> OAuthToken:
-    """Refresh an expired access token using the stored refresh token."""
+    """Refresh an expired access token using the stored refresh token.
+
+    `resource` is RFC 8707's, which an MCP server's authorization server expects;
+    `None` leaves it out for a provider that refuses it - Microsoft's v2.0
+    endpoint answers a request carrying one with an error.
+
+    Raises:
+        OAuthGrantRevoked: The provider answered `invalid_grant`.
+        OAuthError: Any other failure.
+    """
     data = {
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
         "client_id": client_id,
-        "resource": resource,
     }
+    if resource:
+        data["resource"] = resource
     if client_secret:
         data["client_secret"] = client_secret
     if scope:
         data["scope"] = scope
     return await _token_request(token_endpoint, data)
+
+
+def _error_code(response: httpx2.Response) -> str | None:
+    """The OAuth `error` code of a refusal, or None when the body names none."""
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    code = body.get("error") if isinstance(body, dict) else None
+    return code if isinstance(code, str) else None
 
 
 async def _token_request(token_endpoint: str, data: dict[str, str]) -> OAuthToken:
@@ -502,6 +531,10 @@ async def _token_request(token_endpoint: str, data: dict[str, str]) -> OAuthToke
             response.status_code,
             response.text[:200],
         )
+        if _error_code(response) == "invalid_grant":
+            raise OAuthGrantRevoked(
+                f"Token endpoint returned {response.status_code}: the grant is no longer valid."
+            )
         raise OAuthError(f"Token endpoint returned {response.status_code}.")
     try:
         return OAuthToken.model_validate_json(response.content)

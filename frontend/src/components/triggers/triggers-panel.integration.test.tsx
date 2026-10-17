@@ -280,6 +280,37 @@ describe("TriggersPanel", () => {
     });
   });
 
+  it("keeps what the form does not show when it edits an Outlook trigger's filter", async () => {
+    // The server stores the config whole: sending only the two slots moved a
+    // trigger watching a shared mailbox's folder back to the inbox (#1984).
+    const user = userEvent.setup();
+    const row = trigger({
+      trigger_type: "event",
+      event_source: "outlook",
+      interval_seconds: null,
+      event_config: {
+        folder: "Inbox/Invoices",
+        mailbox: "ops@corp.test",
+        has_attachments: true,
+        subject_contains: "invoice",
+        sender_contains: null,
+      },
+    });
+    serve([row]);
+    vi.mocked(apiClient.patch).mockResolvedValue(row);
+    await mount();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    const subject = within(dialog).getByLabelText<HTMLInputElement>("Subject contains");
+    await user.clear(subject);
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+      event_config: { folder: "Inbox/Invoices", mailbox: "ops@corp.test", has_attachments: true },
+    });
+  });
+
   it("does not echo the filter back on a prompt-only edit of an event trigger", async () => {
     const user = userEvent.setup();
     const row = trigger({

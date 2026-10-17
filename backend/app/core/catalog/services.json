@@ -95,6 +95,15 @@
     "icon": "google"
   },
   {
+    "id": "microsoft_oauth_app",
+    "label": "Microsoft OAuth app",
+    "category": "other",
+    "kind": "microsoft_oauth_app",
+    "help_url": "https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade",
+    "description": "A Microsoft Entra app registration people sign in through, used to connect an Outlook mailbox a trigger reads. Give it the delegated Mail.Read, Mail.Read.Shared and offline_access permissions.",
+    "icon": "microsoft"
+  },
+  {
     "id": "gdrive",
     "label": "Google Drive",
     "category": "connector",

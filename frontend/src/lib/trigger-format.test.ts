@@ -236,11 +236,12 @@ describe("cadenceText", () => {
   });
 
   it("names each event source", () => {
-    const event = (source: "github" | "gmail" | "webhook") =>
+    const event = (source: "github" | "gmail" | "outlook" | "webhook") =>
       cadenceText(trigger({ trigger_type: "event", event_source: source }), t);
 
     expect(event("github")).toBe("event.github");
     expect(event("gmail")).toBe("event.gmail");
+    expect(event("outlook")).toBe("event.outlook");
     expect(event("webhook")).toBe("event.webhook");
   });
 
@@ -264,6 +265,9 @@ describe("cadenceText", () => {
     );
     expect(preset("google")).toBe(
       'event.presetSummary({"event":"event.presetGmail","target":"acme/repo"})',
+    );
+    expect(preset("microsoft")).toBe(
+      'event.presetSummary({"event":"event.presetOutlook","target":"acme/repo"})',
     );
     // A portal added to the catalog tomorrow has no phrase of its own and takes
     // the generic one, rather than rendering a missing key.

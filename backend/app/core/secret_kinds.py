@@ -42,6 +42,12 @@ The kinds are the shapes that actually exist, and no more:
     that a SharePoint or OneDrive sync source reads a site with. Three fields,
     because a client secret is useless without the tenant and the app it
     belongs to.
+`microsoft_oauth_app`
+    The same three fields for an app registration a person signs in through, to
+    connect an Outlook mailbox a trigger reads. A separate kind from `entra_app`
+    for the reason Google's client is separate from GitHub's: one is spent with
+    the app's own permissions, the other with the delegated ones of whoever
+    consents.
 
 Two unions, deliberately. :data:`StorableSecret` is what a person can save;
 :data:`SecretValue` adds `none`, which the runtime can hold but nobody can
@@ -86,6 +92,7 @@ class SecretKind(StrEnum):
     GOOGLE_OAUTH_APP = "google_oauth_app"
     GIT_TOKEN = "git_token"
     ENTRA_APP = "entra_app"
+    MICROSOFT_OAUTH_APP = "microsoft_oauth_app"
 
 
 def _reveal(value: SecretStr) -> str:
@@ -443,6 +450,42 @@ class GoogleOAuthAppSecret(_SecretBase):
         return self.client_id[-4:]
 
 
+class MicrosoftOAuthAppSecret(_SecretBase):
+    """A Microsoft app registration a person signs in through: tenant, client id, secret.
+
+    The fields of `entra_app` and deliberately not that kind. An `entra_app` is
+    spent through the client credentials flow, with application permissions an
+    administrator granted for the whole tenant; this one through a sign-in, with
+    the delegated `Mail.Read` of whoever connects - so it reaches their mailbox and
+    the shared ones they can already open, nothing more. Filing both under one kind
+    would put a tenant-wide credential in a consent flow, or the reverse.
+    """
+
+    kind: Literal[SecretKind.MICROSOFT_OAUTH_APP] = SecretKind.MICROSOFT_OAUTH_APP
+    tenant_id: str = Field(
+        min_length=1,
+        max_length=253,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9.-]*$",
+        title="Tenant ID",
+        description=(
+            "The directory (tenant) id or domain - or organizations, for an app "
+            "registered as multitenant"
+        ),
+    )
+    client_id: str = Field(
+        pattern=r"^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$",
+        title="Client ID",
+        description="The app registration's application (client) id",
+    )
+    client_secret: CredentialStr = Field(
+        title="Client secret", description="The secret's value, not its id"
+    )
+
+    @property
+    def hint(self) -> str:
+        return self.client_id[-4:]
+
+
 StorableSecret = Annotated[
     ApiKeySecret
     | AzureOpenAISecret
@@ -452,7 +495,8 @@ StorableSecret = Annotated[
     | GithubAppSecret
     | GoogleOAuthAppSecret
     | GitTokenSecret
-    | EntraAppSecret,
+    | EntraAppSecret
+    | MicrosoftOAuthAppSecret,
     Field(discriminator="kind"),
 ]
 """Every shape a person can actually save."""
@@ -467,7 +511,8 @@ SecretValue = Annotated[
     | GithubAppSecret
     | GoogleOAuthAppSecret
     | GitTokenSecret
-    | EntraAppSecret,
+    | EntraAppSecret
+    | MicrosoftOAuthAppSecret,
     Field(discriminator="kind"),
 ]
 """What the runtime holds - :data:`StorableSecret` plus "there is no credential"."""
@@ -550,6 +595,7 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.GOOGLE_OAUTH_APP: GoogleOAuthAppSecret,
     SecretKind.GIT_TOKEN: GitTokenSecret,
     SecretKind.ENTRA_APP: EntraAppSecret,
+    SecretKind.MICROSOFT_OAUTH_APP: MicrosoftOAuthAppSecret,
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
@@ -589,6 +635,11 @@ _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
         "Microsoft Entra app",
         "An app registration's tenant, client id and client secret - for reading "
         "SharePoint sites and OneDrive folders through Microsoft Graph.",
+    ),
+    SecretKind.MICROSOFT_OAUTH_APP: (
+        "Microsoft OAuth app",
+        "An app registration's tenant, client id and client secret, used to connect "
+        "an Outlook mailbox a trigger reads.",
     ),
 }
 

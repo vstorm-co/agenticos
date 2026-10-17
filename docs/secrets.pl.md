@@ -1,5 +1,5 @@
 ---
-source_sha: "965ad3ad82f8"
+source_sha: "4318e1719cb0"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -98,6 +98,7 @@ kończy z poświadczeniem, które zawodzi przy pierwszym runie. Sekret ma więc
 | `github_oauth_app` | Publiczny client id aplikacji GitHub OAuth App i jej sekret |
 | `git_token` | Token dostępu do git przez HTTPS i jedyny host, do którego wolno go wysłać |
 | `entra_app` | Tenant id, client id i client secret rejestracji aplikacji Microsoft Entra |
+| `microsoft_oauth_app` | Te same trzy pola, dla rejestracji aplikacji, przez którą ludzie się logują |
 | `none` | Nie jest sekretem — znacznik endpointu, który nie potrzebuje poświadczenia |
 
 `github_oauth_app` jest zużywany przez platformę, a nie wybierany przez
@@ -121,6 +122,13 @@ witrynie, którą czyta źródło — zobacz [Konfiguracja SharePoint i
 OneDrive](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup). Jego
 podpowiedź (hint) to ostatnie cztery znaki client id, który jest publiczny, a nie
 sekretu.
+
+`microsoft_oauth_app` ma te same pola i jest wydawany inaczej: flow podłączania
+triggera Outlook loguje przez niego osobę, z delegowanym `Mail.Read` tego, kto
+wyraża zgodę - jego własna skrzynka i współdzielone, które już może otworzyć -
+podczas gdy `entra_app` działa z uprawnieniami aplikacji przyznanymi dla całego
+tenanta. Jak `github_oauth_app` musi być widoczny dla organizacji i musi być
+dokładnie jeden. Zobacz [Outlook](triggers.md#outlook-1-minute-and-no-secret-anywhere).
 
 `aws_credentials` to najczytelniejszy argument za tym, żeby rodzaje w ogóle
 istniały: access key id nie jest tajny, a secret access key jest, i jedno pole

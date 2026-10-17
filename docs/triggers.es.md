@@ -1,5 +1,5 @@
 ---
-source_sha: "3c3d227eb5e7"
+source_sha: "11f0ce3319d9"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -12,8 +12,8 @@ fuente y no tuyo:
 - **Por envío (push).** Un provider hace POST de una carga firmada — una issue de
   GitHub, o cualquier cosa que pueda enviar JSON firmado (la fuente **API**).
 - **Por sondeo (polling).** La plataforma lee una cuenta conectada con una
-  cadencia. **Gmail** es así: no se nos envía nada, así que no hay URL que
-  configurar ni secreto que guardar. Conectas el buzón y ese es todo el montaje.
+  cadencia. **Gmail** y **Outlook** son así: no se nos envía nada, así que no hay
+  URL que configurar ni secreto que guardar. Conectas el buzón y ese es todo el montaje.
 
 [Conceptos](concepts.md#trigger) cuenta qué *es* un trigger y cómo se comporta un
 run disparado; [Gobernanza](governance.md) cuenta lo que gasta y cómo se trata un
@@ -92,9 +92,9 @@ flowchart TD
 
   `source` es `github` o `webhook` (el nombre de cable de la fuente API);
   `trigger_id` es un UUID imposible de adivinar. El diálogo la rellena por ti -
-  cópiala, no la construyas a mano. **`gmail` no tiene URL**: una fuente sondeada
-  no tiene puerta de entrada, y un POST que nombre una se responde como cualquier
-  entrega que no tiene nada que hacer.
+  cópiala, no la construyas a mano. **`gmail` y `outlook` no tienen URL**: una
+  fuente sondeada no tiene puerta de entrada, y un POST que nombre una se responde
+  como cualquier entrega que no tiene nada que hacer.
 
 - **La firma** es `HMAC-SHA256` sobre los **bytes crudos exactos de la
   petición**, con el secreto de firma como clave, codificada en hexadecimal y con
@@ -203,14 +203,74 @@ conviene saber sobre cómo lee:
 - **Una semana perdida se repara sola.** Google guarda alrededor de una semana de
   historial. Un cursor más antiguo que eso se resincroniza con el ahora en vez de
   dejar el buzón aparcado para siempre.
+- **Un consentimiento retirado detiene los triggers.** Cuando Google rechaza el
+  grant para siempre - el refresh token se revocó o la cuenta quitó la
+  aplicación -, los triggers del buzón se apagan, la tarjeta pide volver a
+  conectar y el registro de auditoría anota el motivo (`mailbox_access_revoked`).
+  Vuelve a conectar y luego enciéndelos otra vez. Una caída de Google no es esto:
+  el sondeo se repite un minuto después.
 
-El despliegue necesita un cliente OAuth de Google (`GOOGLE_CLIENT_ID` /
-`GOOGLE_CLIENT_SECRET` - el mismo par que usa el inicio de sesión con Google) con
-la API de Gmail habilitada. Sin él la tarjeta lo dice en vez de ofrecer un botón
-Connect que solo podría fallar. A diferencia de GitHub, el cliente es del
-*despliegue* y no de cada organización: la pantalla de consentimiento de Google
-para un scope de buzón necesita un proyecto verificado, que un operador registra
-una vez y que ninguno de sus inquilinos puede registrar en absoluto.
+La organización necesita su propio cliente OAuth de Google, guardado en Vault como
+secreto **Google OAuth client** (`google_oauth_app`), con la API de Gmail
+habilitada en su proyecto de Google. Sin él la tarjeta lo dice en vez de ofrecer
+un botón Connect que solo podría fallar. No es el `GOOGLE_CLIENT_ID` del
+despliegue, que sirve para iniciar sesión.
+
+## Outlook (~1 minuto, y sin ningún secreto) { #outlook-1-minute-and-no-secret-anywhere }
+
+Un buzón de Outlook - Microsoft 365 o Exchange Online - se sondea como Gmail, así
+que el montaje vuelve a ser una pantalla de consentimiento.
+
+1. **Registra una aplicación** en el centro de administración de Microsoft Entra:
+   un URI de redirección web `{FRONTEND_URL}/api/me/mcp-connections/oauth/callback`,
+   un secreto de cliente y los permisos delegados de Microsoft Graph `Mail.Read`,
+   `Mail.Read.Shared` y `offline_access`. Ninguno necesita el consentimiento de un
+   administrador.
+2. **Guárdala en Vault** como secreto **Microsoft OAuth app**
+   (`microsoft_oauth_app`): el id o dominio del inquilino, el client id y el valor
+   del secreto. Usa `organizations` como inquilino solo para una aplicación
+   registrada como multiinquilino. Debe ser visible para la organización y debe
+   haber exactamente uno.
+3. **Conecta la cuenta.** *Routines → New event trigger → Outlook → Connect
+   account*, con `mcp:manage`. Microsoft pregunta qué cuenta usar, para que un
+   navegador con una cuenta personal abierta no conecte el buzón equivocado.
+4. **Elige qué lo dispara**: cualquier mensaje nuevo, solo uno con adjuntos o solo
+   uno marcado con importancia alta. Acótalo con un fragmento del remitente o del
+   asunto.
+
+En qué se diferencia de Gmail:
+
+- **Lee carpetas, no un buzón.** Microsoft Graph informa del correo nuevo carpeta
+  a carpeta, así que un trigger nombra la carpeta que vigila - la bandeja de
+  entrada salvo que diga otra - y el sondeador lee exactamente las carpetas que
+  nombran los triggers de Outlook de la organización. `folder` es un nombre
+  conocido (`inbox`, `archive`, `junkemail`) o una ruta de nombres de carpeta, como
+  `Inbox/Invoices` para la carpeta donde una regla de correo archiva las facturas.
+  `mailbox` lee, en lugar del propio, un buzón compartido que la cuenta conectada
+  puede abrir.
+- **El filtro tiene los campos propios de Outlook**: `has_attachments`,
+  `importance` (`low`, `normal`, `high`) y `category`, junto a `subject_contains` y
+  `sender_contains`, que tiene Gmail. Se fijan en el `event_config` del trigger; el
+  diálogo ofrece los presets y los dos fragmentos.
+- **Un trigger nuevo ve lo que llegó desde que se creó.** Una carpeta se lee por
+  primera vez desde el momento en que se creó su trigger más antiguo, nunca desde
+  antes de conectar el buzón, así que ni conectar ni añadir un trigger dispara con
+  correo que ya estaba ahí.
+- **Un cambio no es una llegada.** Graph informa de un mensaje que alguien marcó
+  como leído con la misma facilidad que de uno que acaba de llegar; solo dispara el
+  correo recibido desde la última lectura de la carpeta.
+- **El run lee texto.** El cuerpo llega como texto plano - Exchange convierte él
+  mismo un mensaje HTML - con los nombres, tipos y tamaños de los adjuntos. Los
+  adjuntos en sí no se descargan.
+- **Una carpeta que no se puede leer detiene sus triggers.** Una carpeta
+  renombrada o un buzón compartido que dejó de estarlo apaga los triggers que la
+  vigilan, con `mailbox_folder_unreadable` en el registro de auditoría, mientras el
+  resto del buzón se lee como siempre. Un consentimiento retirado los detiene
+  todos, como con Gmail.
+
+Los ids de entrega son los ids de mensaje inmutables de Outlook, así que un
+mensaje leído dos veces - un tick repetido, un sondeo lento que se solapa con el
+siguiente - dispara cada trigger una vez.
 
 ## Dos maneras de conectar GitHub, y cómo saber cuál tienes { #two-ways-to-connect-github-and-how-to-tell-which-you-are-running }
 
@@ -327,8 +387,8 @@ es `application/json`.
 ## El contrato de la carga para las fuentes entregadas por relé { #the-payload-contract-for-relay-delivered-sources }
 
 GitHub es el dueño de la forma de su carga, y la de una fuente sondeada la lee el
-adaptador que la lee - los filtros de un trigger de Gmail se contrastan con el
-propio mensaje, así que no hay contrato que tú tengas que cumplir.
+adaptador que la lee - los filtros de un trigger de Gmail o de Outlook se
+contrastan con el propio mensaje, así que no hay contrato que tú tengas que cumplir.
 
 El que sí es tuyo es la fuente comodín `webhook` - **API** en los diálogos. **No
 tiene filtro**: una entrega verificada dispara, y todo el cuerpo JSON se añade al
@@ -469,6 +529,6 @@ cualquier relé alojado - no pueden ver tu máquina. Dos maneras de salvarlo:
 - La firma es `HMAC-SHA256` sobre los **bytes crudos exactos**, y es lo que hace
   que una entrega sea auténtica y no solo esté bien dirigida.
 - Un `202` significa **aceptado**, no terminado. Lee el run en Activity.
-- **Gmail se sondea**, así que no tiene URL ni secreto alguno — conecta el buzón
-  y ese es todo el montaje.
+- **Gmail y Outlook se sondean**, así que no tienen URL ni secreto alguno —
+  conecta el buzón y ese es todo el montaje.
 - En un portátil, echa mano de **Run now** antes que de un túnel.

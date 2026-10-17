@@ -9,7 +9,7 @@ the fires are dispatched and not before.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -54,12 +54,12 @@ class _Recorder:
         self.steps: list[str] = []
 
 
-def _service(recorder: _Recorder, *, read: PolledEvents | None, decisions: list):
+def _service(recorder: _Recorder, *, read: object, decisions: list):
     """A connection service and a trigger service that record their calls."""
     connections = MagicMock()
     connections.claim_grants_to_poll = AsyncMock(return_value=[_grant()])
 
-    async def poll_grant(grant):
+    async def poll_grant(grant, *, places):
         recorder.steps.append("poll")
         return read
 
@@ -75,7 +75,13 @@ def _service(recorder: _Recorder, *, read: PolledEvents | None, decisions: list)
         recorder.steps.append(f"match:{event_source}:{len(events)}")
         return decisions
 
+    async def disable(*, organization_id, event_source, reason, places=None):
+        recorder.steps.append(f"disable:{reason}:{sorted(places) if places else 'all'}")
+        return 1
+
     triggers.prepare_polled_fires = prepare
+    triggers.polled_places = AsyncMock(return_value={})
+    triggers.disable_polled = disable
     return connections, triggers
 
 
@@ -184,6 +190,37 @@ class TestTheOrderOfWork:
 
         assert recorder.steps == ["poll", "match:gmail:0", "cursor:700"]
 
+    async def test_a_revoked_grant_turns_its_triggers_off_and_reads_nothing(self):
+        """Retrying a refused grant every minute fires nothing and says nothing
+        (#1984): the triggers stop, visibly, and no cursor moves."""
+        from app.services.mcp_connection import RevokedGrant
+
+        recorder = _Recorder()
+
+        await _run(recorder, read=RevokedGrant(), decisions=[])
+
+        assert recorder.steps == ["poll", "disable:mailbox_access_revoked:all"]
+
+    async def test_a_folder_that_cannot_be_read_turns_off_only_its_triggers(self):
+        """The account answered; one place did not. The rest of the poll is fired
+        and stored as usual."""
+        recorder = _Recorder()
+
+        await _run(
+            recorder,
+            read=PolledEvents(
+                events=(), cursor={"history_id": "800"}, unreadable=frozenset({"|invoices"})
+            ),
+            decisions=[],
+        )
+
+        assert recorder.steps == [
+            "poll",
+            "disable:mailbox_folder_unreadable:['|invoices']",
+            "match:gmail:0",
+            "cursor:800",
+        ]
+
 
 class TestOneMailboxIsOneTenant:
     """The isolation the tick did not have, and the reason it needs it.
@@ -204,7 +241,7 @@ class TestOneMailboxIsOneTenant:
         connections = MagicMock()
         connections.claim_grants_to_poll = AsyncMock(return_value=[one, two])
 
-        async def poll_grant(grant):
+        async def poll_grant(grant, *, places):
             recorder.steps.append(f"poll:{grant.id}")
             if grant is one and first_raises is not None:
                 raise first_raises
@@ -217,6 +254,7 @@ class TestOneMailboxIsOneTenant:
         connections.store_poll_cursor = store_cursor
         triggers = MagicMock()
         triggers.prepare_polled_fires = AsyncMock(return_value=[])
+        triggers.polled_places = AsyncMock(return_value={})
 
         session = MagicMock()
 
@@ -276,7 +314,7 @@ class TestWhichGrantsAreRead:
             await trigger_tasks.poll_portal_grants_flow()
 
         [call] = connections.claim_grants_to_poll.await_args_list
-        assert call.kwargs["portal_keys"] == ["google"]
+        assert call.kwargs["portal_keys"] == ["google", "microsoft"]
 
 
 class TestMatchingAPollAgainstTriggers:
@@ -328,7 +366,7 @@ class TestMatchingAPollAgainstTriggers:
 
 
 class TestReadingAGrant:
-    async def _poll(self, *, token, adapter_result=None, raises=None):
+    async def _poll(self, *, token, adapter_result=None, raises=None, needs_consent=False):
         from app.services.mcp_connection import McpConnectionService
 
         service = McpConnectionService(MagicMock())
@@ -341,6 +379,10 @@ class TestReadingAGrant:
         with (
             patch("app.services.mcp_connection.portals") as portals_module,
             patch("app.services.mcp_connection._oauth_access_token", AsyncMock(return_value=token)),
+            patch(
+                "app.services.mcp_connection.grant_needs_consent",
+                MagicMock(return_value=needs_consent),
+            ),
             patch("app.services.mcp_connection.mcp_connection_repo") as repo,
         ):
             portals_module.get_adapter.return_value = adapter
@@ -350,12 +392,31 @@ class TestReadingAGrant:
             return read, repo
 
     async def test_a_grant_whose_token_will_not_renew_is_marked_and_skipped(self):
-        """A revoked consent. Marked so the card says the mailbox stopped working,
-        rather than only a log line saying it."""
+        """A token endpoint that is down. Marked so the card says the mailbox
+        stopped working, and tried again next tick."""
         read, repo = await self._poll(token=None)
 
         assert read is None
         assert repo.update.await_args.kwargs["update_data"]["last_status"] == "error"
+
+    async def test_a_grant_only_a_new_consent_can_fix_is_revoked(self):
+        """The refresh token is gone - refused as `invalid_grant` and dropped - so
+        the card asks for a reconnect and the caller stops the triggers."""
+        from app.services.mcp_connection import GRANT_REVOKED, RevokedGrant
+
+        read, repo = await self._poll(token=None, needs_consent=True)
+
+        assert isinstance(read, RevokedGrant)
+        assert repo.update.await_args.kwargs["update_data"]["last_error"] == GRANT_REVOKED
+
+    async def test_a_token_the_provider_refuses_is_revoked(self):
+        """A 401 for a token this side still held to be good: an administrator
+        withdrew consent. Asking again next minute would be refused again."""
+        from app.services.mcp_connection import RevokedGrant
+
+        read, _ = await self._poll(token="t", raises=PortalUnreachable(details={"status": 401}))
+
+        assert isinstance(read, RevokedGrant)
 
     async def test_a_provider_failure_says_nothing_of_the_providers_own_words(self):
         """A portal's error body echoes the request, and the request carries a
@@ -523,3 +584,80 @@ class TestTheRefusalsAroundIt:
 
         with pytest.raises(WebhookRegistrationUnavailable):
             await PortalAdapter().poll(access_token="t", cursor=None)
+
+
+class TestWhereAnOutlookPollLooks:
+    """The places the poller reads, and the triggers it stops (#1984)."""
+
+    @staticmethod
+    def _trigger(config: dict, *, minutes_ago: int):
+        return MagicMock(
+            id=uuid.uuid4(),
+            event_config=config,
+            created_at=datetime.now(UTC).replace(microsecond=0) - timedelta(minutes=minutes_ago),
+        )
+
+    async def _with(self, triggers, call):
+        from app.services.agent_trigger import AgentTriggerService
+
+        service = AgentTriggerService(MagicMock())
+        with patch("app.services.agent_trigger.agent_trigger_repo") as repo:
+            repo.list_active_for_event_source = AsyncMock(return_value=triggers)
+            disabled = AsyncMock()
+            with patch.object(AgentTriggerService, "_disable", disabled):
+                result = await call(service)
+        return result, disabled
+
+    async def test_each_place_is_keyed_to_its_earliest_trigger(self):
+        older = self._trigger({"folder": "inbox"}, minutes_ago=30)
+        newer = self._trigger({"folder": "Inbox", "has_attachments": True}, minutes_ago=5)
+        archive = self._trigger({"folder": "archive"}, minutes_ago=1)
+
+        places, _ = await self._with(
+            [newer, older, archive],
+            lambda service: service.polled_places(
+                organization_id=uuid.uuid4(), event_source="outlook"
+            ),
+        )
+
+        assert places == {"|inbox": older.created_at, "|archive": archive.created_at}
+
+    async def test_a_source_read_whole_has_no_places(self):
+        places, _ = await self._with(
+            [self._trigger({"label": "INBOX"}, minutes_ago=1)],
+            lambda service: service.polled_places(
+                organization_id=uuid.uuid4(), event_source="gmail"
+            ),
+        )
+
+        assert places == {}
+
+    async def test_a_revoked_grant_stops_every_trigger_on_the_source(self):
+        triggers = [self._trigger({}, minutes_ago=1), self._trigger({"folder": "x"}, minutes_ago=1)]
+
+        stopped, disabled = await self._with(
+            triggers,
+            lambda service: service.disable_polled(
+                organization_id=uuid.uuid4(), event_source="outlook", reason="revoked"
+            ),
+        )
+
+        assert stopped == 2
+        assert [call.kwargs["reason"] for call in disabled.await_args_list] == ["revoked"] * 2
+
+    async def test_an_unreadable_place_stops_only_its_triggers(self):
+        inbox = self._trigger({}, minutes_ago=1)
+        shared = self._trigger({"mailbox": "ops@corp.test"}, minutes_ago=1)
+
+        stopped, disabled = await self._with(
+            [inbox, shared],
+            lambda service: service.disable_polled(
+                organization_id=uuid.uuid4(),
+                event_source="outlook",
+                reason="unreadable",
+                places=frozenset({"ops@corp.test|inbox"}),
+            ),
+        )
+
+        assert stopped == 1
+        assert disabled.await_args.args == (shared,)

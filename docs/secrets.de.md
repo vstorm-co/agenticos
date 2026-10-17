@@ -1,5 +1,5 @@
 ---
-source_sha: "965ad3ad82f8"
+source_sha: "4318e1719cb0"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -104,6 +104,7 @@ existieren.
 | `github_oauth_app` | Die öffentliche Client-ID einer GitHub OAuth App und deren Secret |
 | `git_token` | Ein Zugriffstoken für git über HTTPS und der eine Host, an den es gesendet werden darf |
 | `entra_app` | Tenant-ID, Client-ID und Client Secret einer App-Registrierung in Microsoft Entra |
+| `microsoft_oauth_app` | Dieselben drei Felder, für eine App-Registrierung, über die sich Menschen anmelden |
 | `none` | Kein Secret — die Markierung für einen Endpunkt, der keine Zugangsdaten braucht |
 
 `github_oauth_app` wird von der Plattform ausgegeben und nicht von einer Person
@@ -128,6 +129,14 @@ Sites sie lesen kann, und ein Token sagt nicht, welche das sind. Gewähren Sie i
 OneDrive einrichten](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup).
 Ihr Hinweis sind die letzten vier Zeichen der Client-ID, die öffentlich ist, statt
 die des Secrets.
+
+`microsoft_oauth_app` hat dieselben Felder und wird anders eingesetzt: der
+Verbindungsablauf des Outlook-Triggers meldet eine Person darüber an, mit dem
+delegierten `Mail.Read` dessen, der zustimmt - das eigene Postfach und die
+freigegebenen, die er schon öffnen kann -, wo eine `entra_app` mit den
+Anwendungsberechtigungen handelt, die für den ganzen Tenant erteilt wurden. Wie
+`github_oauth_app` muss es für die Organisation sichtbar sein, und es darf genau
+eines geben. Siehe [Outlook](triggers.md#outlook-1-minute-and-no-secret-anywhere).
 
 `aws_credentials` ist der klarste Fall dafür, dass es Arten überhaupt gibt: die
 Access Key ID ist nicht geheim und der Secret Access Key ist es, und ein einzelnes

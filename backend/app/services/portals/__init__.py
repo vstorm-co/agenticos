@@ -7,6 +7,7 @@ package-internal, resolved by key through the registry.
 from __future__ import annotations
 
 from app.services.portals.base import (
+    NOWHERE,
     PolledEvent,
     PolledEvents,
     PortalAdapter,
@@ -19,9 +20,11 @@ from app.services.portals.exceptions import (
     WebhookRegistrationForbidden,
     WebhookRegistrationUnavailable,
 )
+from app.services.portals.outlook import place_key as outlook_place
 from app.services.portals.registry import get_adapter
 
 __all__ = [
+    "NOWHERE",
     "PolledEvent",
     "PolledEvents",
     "PortalAdapter",
@@ -32,4 +35,5 @@ __all__ = [
     "WebhookRegistrationForbidden",
     "WebhookRegistrationUnavailable",
     "get_adapter",
+    "outlook_place",
 ]

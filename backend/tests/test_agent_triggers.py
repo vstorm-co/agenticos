@@ -1577,15 +1577,16 @@ class TestEventTriggerSchema:
                 prompt="x", trigger_type="event", event_source="gmail", event_secret="short"
             )
 
-    def test_a_raw_gmail_trigger_is_refused_at_the_schema(self):
-        """Gmail is polling-only: the raw path is the webhook path, and a shape it
-        validated here was one `ck_trigger_shape` then refused as a 500. The 422
+    @pytest.mark.parametrize("source", ["gmail", "outlook"])
+    def test_a_raw_mailbox_trigger_is_refused_at_the_schema(self, source: str):
+        """A mailbox is polling-only: the raw path is the webhook path, and a shape
+        it validated here was one `ck_trigger_shape` then refused as a 500. The 422
         points at the portal instead."""
-        with pytest.raises(PydanticValidationError, match="Gmail portal"):
+        with pytest.raises(PydanticValidationError, match="created from their portal"):
             TriggerCreate(
                 prompt="x",
                 trigger_type="event",
-                event_source="gmail",
+                event_source=source,
                 event_secret=_SIGNING_SECRET,
                 event_config={"subject_contains": "urgent"},
             )

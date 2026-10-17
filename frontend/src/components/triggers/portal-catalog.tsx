@@ -273,7 +273,9 @@ export function PortalCatalog({ canRun, canManageConnections }: PortalCatalogPro
                       is: a Member who cannot fix it is not told to. */}
                   {blocked(item) && canManageConnections && (
                     <p className="text-muted-foreground border-border mt-3 border-t pt-3 text-xs">
-                      {t(BLOCKED_REASON[item.portal.connect_blocked_by ?? "oauth_app_secret"])}
+                      {t(BLOCKED_REASON[item.portal.connect_blocked_by ?? "oauth_app_secret"], {
+                        service: item.portal.name,
+                      })}
                     </p>
                   )}
                   <div className="border-border mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
