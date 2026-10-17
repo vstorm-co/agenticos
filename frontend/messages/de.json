@@ -1399,7 +1399,19 @@
       "scrollingPage": "Scrollt",
       "scrollPage": "Gescrollt",
       "goingBack": "Geht zurück",
-      "goBack": "Zurückgegangen"
+      "goBack": "Zurückgegangen",
+      "planCodeChange": "Codeänderung planen",
+      "planningCodeChange": "Plane eine Codeänderung",
+      "applyCodeChange": "Code ändern",
+      "applyingCodeChange": "Ändere den Code",
+      "codingAgent": {
+        "task": "Aufgabe",
+        "outcome": "{outcome, select, completed {{mode, select, plan {Geplant} other {Erledigt}}} timed_out {Gestoppt: Zeit abgelaufen} other {Fehlgeschlagen}}",
+        "filesChanged": "{count, plural, =1 {1 Datei geändert:} other {# Dateien geändert:}}",
+        "steps": "{count, plural, =1 {1 Schritt} other {# Schritte}}",
+        "stepKind": "{kind, select, read {Gelesen} search {Gesucht} edit {Bearbeitet} command {Ausgeführt} web {Nachgeschlagen} failed {Fehlgeschlagen} other {Verwendet}}",
+        "refused": "Beim Planen nicht erlaubt: {tools}"
+      }
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -6408,6 +6420,14 @@
       "needs": "Nichts weiter.",
       "never": "Behält nichts zwischen Nachrichten und erreicht das Internet nicht. Für Dateien, die bleiben sollen, gibt es die Sandbox."
     },
+    "coding_agent": {
+      "name": "Coding Agent",
+      "does": "Übergibt Softwarearbeit an Claude Code oder Codex, die im Sandbox des Agent Code planen und ändern.",
+      "example1": "Einen fehlschlagenden Test in einem Repository beheben, das der Agent geklont hat",
+      "example2": "Erklären, wie ein Modul funktioniert, bevor es geändert wird",
+      "needs": "Die Capability Sandbox auf einer Sandbox-Verbindung und einen API-Key von Anthropic oder OpenAI im Vault. Jede Aufgabe rechnet dieser Anbieter ab.",
+      "never": "Ändert nie eine Datei ohne Ihre Freigabe, außer Sie schalten die Freigabe ab."
+    },
     "compaction": {
       "name": "Lange Gespräche",
       "does": "Kürzt den ältesten Teil eines langen Gesprächs, damit der Agent weiterarbeiten kann, statt an das Limit des Modells zu stoßen.",
@@ -7001,6 +7021,24 @@
       "max_results": {
         "title": "Ergebnisse pro Suche",
         "description": "Wie viele Ergebnisse eine Suche liefert; bei nativer Suche ignoriert."
+      }
+    },
+    "coding_agent": {
+      "harness": {
+        "title": "Coding Agent",
+        "description": "Welcher Coding Agent die Arbeit erledigt: Claude Code mit einem Anthropic-API-Key oder Codex mit einem OpenAI-API-Key."
+      },
+      "model": {
+        "title": "Modell",
+        "description": "Das Modell, mit dem der Coding Agent läuft, unter seinem eigenen Namen, etwa claude-sonnet-5-5 oder gpt-5.5-codex. Leer nimmt seinen Standard."
+      },
+      "base_url": {
+        "title": "Anthropic-kompatibler Endpunkt",
+        "description": "Nur Claude Code: ein Gateway, das die API von Anthropic spricht, etwa https://openrouter.ai/api; der Key im Vault ist dann der dieses Gateways. Leer ruft Anthropic direkt auf."
+      },
+      "timeout_minutes": {
+        "title": "Zeitlimit (Minuten)",
+        "description": "Wie lange eine Aufgabe laufen darf, bevor sie gestoppt wird."
       }
     }
   },

@@ -654,6 +654,7 @@ def load_builtins() -> None:
         charts,
         clock,
         code_execution,
+        coding_agent,
         compaction,
         context,
         conversation_search,

@@ -43,6 +43,7 @@ from app.agents.capabilities.browser_use import (
     validate_cdp_url,
 )
 from app.agents.capabilities.browser_use._route import check_address
+from app.agents.capabilities.coding_agent import CODING_AGENT_ID
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
@@ -249,6 +250,25 @@ async def _sandbox_problems(db: AsyncSession, ctx: AuthContext, spec: AgentSpec)
             "sandbox can be opened on it. Attach its key in the vault."
         )
     return problems
+
+
+def _coding_agent_problems(spec: AgentSpec) -> list[str]:
+    """A coding agent with nowhere to run its harness.
+
+    Claude Code and Codex run as commands in the agent's sandbox, so they need a
+    container-backed one with the shell on. Every other shape publishes and then
+    answers each task with "no shell here", which is the run-time surprise
+    publish exists to prevent.
+    """
+    if not any(binding.id == CODING_AGENT_ID and binding.enabled for binding in spec.capabilities):
+        return []
+    config = sandbox_config(spec)
+    if config is None or config.backend != "service" or not config.include_execute:
+        return [
+            "The coding agent runs in the agent's sandbox, so it needs the Sandbox "
+            "capability on a sandbox connection with shell commands allowed."
+        ]
+    return []
 
 
 _READ_PERMS = frozenset({Perm.AGENTS_VIEW, Perm.AGENTS_RUN})
@@ -1408,6 +1428,7 @@ class AgentRegistryService:
         problems.merge(_variable_problems(spec))
 
         problems.add(await _sandbox_problems(self.db, ctx, spec))
+        problems.add(_coding_agent_problems(spec))
         problems.merge(await self._delegation_problems(ctx, spec, agent_id=agent_id))
 
         if problems.messages:

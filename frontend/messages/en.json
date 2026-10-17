@@ -1399,7 +1399,19 @@
       "scrollingPage": "Scrolling",
       "scrollPage": "Scrolled",
       "goingBack": "Going back",
-      "goBack": "Went back"
+      "goBack": "Went back",
+      "planCodeChange": "Plan a code change",
+      "planningCodeChange": "Planning a code change",
+      "applyCodeChange": "Change the code",
+      "applyingCodeChange": "Changing the code",
+      "codingAgent": {
+        "task": "Task",
+        "outcome": "{outcome, select, completed {{mode, select, plan {Planned} other {Done}}} timed_out {Stopped: out of time} other {Failed}}",
+        "filesChanged": "{count, plural, =1 {Changed 1 file:} other {Changed # files:}}",
+        "steps": "{count, plural, =1 {1 step} other {# steps}}",
+        "stepKind": "{kind, select, read {Read} search {Searched} edit {Edited} command {Ran} web {Looked up} failed {Failed} other {Used}}",
+        "refused": "Not allowed while planning: {tools}"
+      }
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -6525,6 +6537,14 @@
       "needs": "Nothing extra.",
       "never": "Keeps nothing between messages and cannot reach the internet. For files that stay, use the Sandbox."
     },
+    "coding_agent": {
+      "name": "Coding agent",
+      "does": "Hands software work to Claude Code or Codex, which plan and change code in the agent's sandbox.",
+      "example1": "Fix a failing test in a repository the agent cloned",
+      "example2": "Explain how a module works before changing it",
+      "needs": "The Sandbox capability on a sandbox connection, and an Anthropic or OpenAI API key in the vault. Each task is billed by that provider.",
+      "never": "Never changes a file without your approval, unless you turn the approval off."
+    },
     "compaction": {
       "name": "Long conversations",
       "does": "Shortens the oldest part of a long conversation so the agent keeps going instead of hitting the model's limit.",
@@ -7118,6 +7138,24 @@
       "max_results": {
         "title": "Results per search",
         "description": "How many results one search returns; ignored for native search."
+      }
+    },
+    "coding_agent": {
+      "harness": {
+        "title": "Coding agent",
+        "description": "Which coding agent does the work: Claude Code, with an Anthropic API key, or Codex, with an OpenAI API key."
+      },
+      "model": {
+        "title": "Model",
+        "description": "The model the coding agent runs, by its own name for it, such as claude-sonnet-5-5 or gpt-5.5-codex. Empty takes its default."
+      },
+      "base_url": {
+        "title": "Anthropic-compatible endpoint",
+        "description": "Claude Code only: a gateway that speaks Anthropic's API, such as https://openrouter.ai/api, with the key in the vault being that gateway's. Empty calls Anthropic directly."
+      },
+      "timeout_minutes": {
+        "title": "Time limit (minutes)",
+        "description": "How long one task may run before it is stopped."
       }
     }
   },
