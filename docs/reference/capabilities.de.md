@@ -1,5 +1,5 @@
 ---
-source_sha: "b9e761a15abc"
+source_sha: "516b5c5d6230"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1228,7 +1228,11 @@ Aufgaben teilen sich nie eines, und die Sitzungen, die Codex fortsetzt, werden j
 Unterhaltung daneben gehalten. Von Codex erneuerte Tokens
 werden über dasselbe Secret zurückversiegelt. Alles, was Codex ausführt, kann diese
 Datei lesen, darum wird die Anmeldung nur für eine Person übergeben, die sie selbst im
-Vault sehen darf - den Agent auszuführen ist nie ein Weg zum Abo eines anderen. Die Arbeit auf
+Vault sehen darf - den Agent auszuführen ist nie ein Weg zum Abo eines anderen.
+Ein API-Key ist etwas anderes: Er gehört dem Agent, wie das Token eines Bots in
+Slack, also nutzt ihn jeder Run, wer auch immer gefragt hat - und alles, was eine
+Aufgabe ausführt, kann ihn lesen. Binde einen Key, den alle teilen dürfen, die den
+Agent ausführen dürfen. Die Arbeit auf
 einem persönlichen Abo unterliegt den Bedingungen von Anthropic und OpenAI für diese
 Pläne, die das auf einem geteilten Deployment womöglich nicht erlauben.
 
@@ -1624,7 +1628,9 @@ Ein Agent kann auch an den **Agent eines anderen Anbieters** delegieren, der das
 dabei gelesen und geprüft wird, optional mit einem API-Key aus dem Vault, der als
 Bearer-Token mitgeht. Die Spec eines Agent nennt Registrierungen in
 `external_agents`, und die Delegationseinstellungen zeigen sie neben den eigenen
-Agents der Organisation.
+Agents der Organisation. Der Key einer Registrierung wird jedem Run geliehen, wie der
+einer Capability, darum lehnt das Veröffentlichen eine Registrierung ab, deren Key
+die veröffentlichende Person im Vault nicht sehen kann.
 
 Für das delegierende Modell ist ein Remote Agent ein weiterer Delegierter, über
 seinen Namen mit demselben Tool `task` aufgerufen. Jeder Aufruf ist ein A2A

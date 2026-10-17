@@ -1850,6 +1850,23 @@ class AgentRegistryService:
             for ref_id in ids
             if ref_id not in found
         ]
+        # Its key is lent to every run, as a capability's is, so the publisher
+        # must reach it - `_secret_problems` gives the reason, and a registration
+        # is made by anybody who may edit agents, with a key of their own.
+        for ref_id in ids:
+            registered = found.get(ref_id)
+            if registered is None or registered.secret_id is None:
+                continue
+            secret = await organization_secret_repo.get(
+                self.db, registered.secret_id, organization_id=ctx.organization_id
+            )
+            if secret is None or not await resolve_access(
+                self.db, ctx, secret, Perm.SECRETS_VIEW, resource_type=SECRET
+            ):
+                problems.append(
+                    f"Remote agent '{registered.slug}' sends a key you cannot use; "
+                    "ask whoever registered it to share the key, or register it with your own."
+                )
         return problems, [found[ref_id].slug for ref_id in ids if ref_id in found]
 
     async def _specialist_problems(

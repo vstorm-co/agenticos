@@ -1,5 +1,5 @@
 ---
-source_sha: "b9e761a15abc"
+source_sha: "516b5c5d6230"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1173,7 +1173,10 @@ comparten uno, y las sesiones que Codex reanuda se guardan por conversación a s
 lado. Los tokens que Codex renovó se sellan de nuevo
 sobre el mismo secreto. Todo lo que Codex ejecuta puede leer ese archivo, así que el
 inicio de sesión solo se entrega a una persona que puede verlo en el vault - ejecutar
-el agent nunca es un camino a la suscripción de otro. Trabajar con una suscripción
+el agent nunca es un camino a la suscripción de otro. Una clave API es distinta:
+es del agent, como el token de un bot en Slack, así que cada run la usa, sea quien
+sea quien preguntó - y todo lo que ejecuta una tarea puede leerla. Vincula una
+clave que puedan compartir todos los que pueden ejecutar el agent. Trabajar con una suscripción
 personal está sujeto a las condiciones de Anthropic y OpenAI para esos planes, que
 pueden no permitirlo en un despliegue compartido.
 
@@ -1538,7 +1541,9 @@ Un agent también puede delegar en el **agent de otro proveedor** que hable el
 **Connections → Remote agents** por la dirección de su agent card, que se lee y se
 valida en ese momento, con una clave API opcional del vault enviada como bearer
 token. El spec de un agent nombra registros en `external_agents`, y los ajustes de
-delegación los muestran junto a los agents propios de la organización.
+delegación los muestran junto a los agents propios de la organización. La clave de
+un registro se presta a cada run, como la de una capability, así que publicar
+rechaza un registro cuya clave quien publica no puede ver en el vault.
 
 Para el modelo que delega, un agent remoto es un delegado más, llamado por su nombre
 con la misma herramienta `task`. Cada llamada es un `message/send` de A2A con la

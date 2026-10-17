@@ -1,5 +1,5 @@
 ---
-source_sha: "b9e761a15abc"
+source_sha: "516b5c5d6230"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1159,7 +1159,10 @@ osobno dla każdej rozmowy. Tokeny odświeżone
 przez Codex są pieczętowane z powrotem w tym samym sekrecie. Wszystko, co Codex
 uruchomi, może przeczytać ten plik, więc logowanie jest przekazywane tylko osobie,
 która sama może je zobaczyć w vault - uruchomienie agenta nigdy nie daje dostępu do
-cudzej subskrypcji. Praca na prywatnej subskrypcji podlega warunkom Anthropic i OpenAI dla tych
+cudzej subskrypcji. Klucz API jest czym innym: należy do agenta, jak token bota w
+Slacku, więc używa go każdy run, ktokolwiek pytał - i wszystko, co uruchomi
+zadanie, może go odczytać. Podpinaj klucz, który mogą dzielić wszyscy, którzy mogą
+uruchamiać agenta. Praca na prywatnej subskrypcji podlega warunkom Anthropic i OpenAI dla tych
 planów, które mogą na to nie pozwalać we współdzielonym wdrożeniu.
 
 **Delegowanie do coding agenta.** Delegat, który sam wiąże `sandbox`, działa w świeżym
@@ -1512,7 +1515,9 @@ Agent może też delegować do **agenta innego dostawcy**, który obsługuje
 **Connections → Remote agents** po adresie jego agent card, który jest wtedy
 odczytywany i sprawdzany, z opcjonalnym kluczem API z vault wysyłanym jako bearer
 token. Spec agenta wskazuje rejestracje w `external_agents`, a ustawienia
-delegowania pokazują je obok własnych agentów organizacji.
+delegowania pokazują je obok własnych agentów organizacji. Klucz rejestracji jest
+pożyczany każdemu runowi, jak klucz capability, więc publikacja odmawia rejestracji,
+której klucza publikujący nie widzi w vault.
 
 Dla delegującego modelu zdalny agent to po prostu kolejny delegat, wywoływany po
 nazwie tym samym narzędziem `task`. Każde wywołanie to jedno A2A `message/send` z

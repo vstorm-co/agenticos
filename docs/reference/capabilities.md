@@ -1100,6 +1100,9 @@ beside it. Any tokens Codex
 refreshed are sealed back over the same secret. Whatever Codex runs can read that
 file, so the sign-in is handed over only for a person who may see it in the vault
 themselves - running the agent is never a way to somebody else's subscription.
+An API key is different: it is the agent's, as a bot's token is in Slack, so
+every run uses it, whoever asked - and anything a task runs can read it. Bind a
+key that everyone who may run the agent may share.
 Running on a personal subscription is subject to Anthropic's and OpenAI's terms for
 those plans, which may not allow it on a shared deployment.
 
@@ -1434,7 +1437,9 @@ An agent may also delegate to **another vendor's agent** that speaks the
 **Connections → Remote agents** by the address of its agent card, which is read and
 validated then, with an optional API key from the vault sent as its bearer token.
 An agent's spec names registrations in `external_agents`, and Delegation's settings
-list them beside the organization's own agents.
+list them beside the organization's own agents. A registration's key is lent to
+every run, as a capability's is, so publishing refuses one whose key the publisher
+cannot see in the vault.
 
 To the delegating model a remote agent is one more delegate, called by its handle
 with the same `task` tool. Each call is one A2A `message/send` carrying the latest
