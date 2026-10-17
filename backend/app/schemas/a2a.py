@@ -14,10 +14,14 @@ platform has no reason to reject.
 from __future__ import annotations
 
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 PROTOCOL_VERSION = "0.3.0"
+
+ENDPOINT_MAX_LENGTH = 1000
+"""The longest endpoint a card may advertise: what `external_agents.endpoint_url` holds."""
 
 TaskState = Literal[
     "submitted",
@@ -107,7 +111,7 @@ class AgentCard(_Wire):
     protocol_version: str = Field(default=PROTOCOL_VERSION, alias="protocolVersion")
     name: str
     description: str = ""
-    url: str
+    url: str = Field(max_length=ENDPOINT_MAX_LENGTH)
     preferred_transport: str = Field(default="JSONRPC", alias="preferredTransport")
     version: str = "1"
     capabilities: AgentCapabilities = Field(default_factory=AgentCapabilities)
@@ -122,6 +126,20 @@ class AgentCard(_Wire):
         default_factory=dict, alias="securitySchemes"
     )
     security: list[dict[str, list[str]]] = Field(default_factory=list)
+
+    @field_validator("url")
+    @classmethod
+    def _an_http_endpoint(cls, url: str) -> str:
+        """Where the work is sent, so an address it can be sent to.
+
+        Refused when the card is read, not when the first delegation fails: an
+        agent registered with an endpoint nothing can reach publishes, and
+        every task handed to it fails afterwards.
+        """
+        parsed = urlsplit(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise ValueError("An agent card's url must be an http or https address")
+        return url
 
 
 class JsonRpcRequest(_Wire):

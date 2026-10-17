@@ -124,6 +124,22 @@ class TestReadingACard:
                 "does not answer with an A2A agent card",
             ),
             (httpx2.Response(200, content=b"x" * (a2a_client.MAX_CARD_BYTES + 1)), "larger"),
+            # A card naming an endpoint nothing could send work to, or one too
+            # long to store, is not a card this deployment can register.
+            (
+                httpx2.Response(200, json={**CARD, "url": "ftp://agents.example.com/a2a"}),
+                "does not answer with an A2A agent card",
+            ),
+            (
+                httpx2.Response(200, json={**CARD, "url": "not a url"}),
+                "does not answer with an A2A agent card",
+            ),
+            (
+                httpx2.Response(
+                    200, json={**CARD, "url": "https://agents.example.com/" + "a" * 1000}
+                ),
+                "does not answer with an A2A agent card",
+            ),
         ],
     )
     async def test_anything_but_a_card_is_refused(
