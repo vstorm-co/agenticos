@@ -248,6 +248,32 @@ describe("ProjectChats", () => {
     );
   });
 
+  it("offers the next page while there is one", async () => {
+    const loadMore = vi.fn();
+    chats.mockReturnValue({
+      chats: [
+        {
+          id: "c-1",
+          title: "Budget",
+          created_at: new Date().toISOString(),
+          updated_at: null,
+          owner: KACPER,
+          seen_by: [],
+          working: null,
+        },
+      ],
+      total: 120,
+      isLoading: false,
+      error: null,
+      hasMore: true,
+      loadingMore: false,
+      loadMore,
+    });
+    wrap(<ProjectChats project={aProject()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Show more chats" }));
+    expect(loadMore).toHaveBeenCalled();
+  });
+
   it("says who is at work in a chat, and who has seen it", () => {
     const reader = (name: string, id: string) => ({
       ...KACPER,

@@ -547,7 +547,13 @@ class ConversationService:
             msg.sender = ChatPerson.of(author) if author else None  # ty: ignore[unresolved-attribute]
 
     async def list_project_chats(
-        self, project_id: UUID, *, organization_id: UUID, user_id: UUID | None
+        self,
+        project_id: UUID,
+        *,
+        organization_id: UUID,
+        user_id: UUID | None,
+        skip: int = 0,
+        limit: int = 50,
     ) -> tuple[list[Conversation], int]:
         """Every chat in a project, whoever started it, with the people around it.
 
@@ -560,7 +566,8 @@ class ConversationService:
             self.db,
             user_id=None,
             organization_id=organization_id,
-            limit=100,
+            skip=skip,
+            limit=limit,
             project_id=project_id,
         )
         total = await conversation_repo.count_conversations(

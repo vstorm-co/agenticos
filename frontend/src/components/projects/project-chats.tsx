@@ -28,7 +28,9 @@ import type { Project } from "@/types/projects";
 export function ProjectChats({ project }: { project: Project }) {
   const t = useTranslations("projects");
   const tErrors = useTranslations("errors");
-  const { chats, total, isLoading, error } = useProjectChats(project.id);
+  const { chats, total, isLoading, error, hasMore, loadingMore, loadMore } = useProjectChats(
+    project.id,
+  );
 
   const newChat = project.can_use ? (
     <Button asChild size="sm">
@@ -57,13 +59,22 @@ export function ProjectChats({ project }: { project: Project }) {
           description={project.can_use ? t("noChatsHint") : t("noChatsViewer")}
         />
       ) : (
-        <ul className="grid grid-cols-1 gap-1 p-2 md:grid-cols-2">
-          {chats.map((chat) => (
-            <li key={chat.id}>
-              <ChatRow chat={chat} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="grid grid-cols-1 gap-1 p-2 md:grid-cols-2">
+            {chats.map((chat) => (
+              <li key={chat.id}>
+                <ChatRow chat={chat} />
+              </li>
+            ))}
+          </ul>
+          {hasMore && (
+            <div className="flex justify-center px-2 pb-3">
+              <Button variant="ghost" size="sm" onClick={loadMore} disabled={loadingMore}>
+                {t("moreChats")}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </ListCard>
   );

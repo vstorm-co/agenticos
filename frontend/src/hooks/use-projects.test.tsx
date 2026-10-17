@@ -143,14 +143,19 @@ describe("useProjectFiles", () => {
 });
 
 describe("useProjectChats", () => {
-  it("lists everybody's chats in the project", async () => {
-    vi.mocked(api.listProjectChats).mockResolvedValue({
-      items: [{ id: "c-1" }] as never,
-      total: 1,
-    });
+  it("lists everybody's chats in the project, a page at a time", async () => {
+    vi.mocked(api.listProjectChats)
+      .mockResolvedValueOnce({ items: [{ id: "c-1" }, { id: "c-2" }] as never, total: 3 })
+      .mockResolvedValueOnce({ items: [{ id: "c-3" }] as never, total: 3 });
     const { result } = renderHook(() => useProjectChats("p-1"), { wrapper });
-    await waitFor(() => expect(result.current.total).toBe(1));
-    expect(api.listProjectChats).toHaveBeenCalledWith("p-1");
+    await waitFor(() => expect(result.current.total).toBe(3));
+    expect(api.listProjectChats).toHaveBeenCalledWith("p-1", 0, 50);
+    expect(result.current.hasMore).toBe(true);
+
+    act(() => result.current.loadMore());
+    await waitFor(() => expect(result.current.chats).toHaveLength(3));
+    expect(api.listProjectChats).toHaveBeenLastCalledWith("p-1", 2, 50);
+    expect(result.current.hasMore).toBe(false);
   });
 
   it("starts empty", () => {

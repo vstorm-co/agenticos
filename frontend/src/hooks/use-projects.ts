@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -209,10 +209,34 @@ export function useProjectFiles(projectId: string) {
  * Keyed under the conversation lists, so a chat started, renamed or archived
  * anywhere refreshes this too.
  */
+/** Chats fetched per page of the project's list. */
+export const PROJECT_CHATS_PAGE = 50;
+
+/**
+ * The project's chats, a page at a time, most recently active first.
+ *
+ * Paged rather than capped: a busy project outgrows any one page, and the
+ * chats past it would otherwise drop out of the one list where teammates
+ * find each other's.
+ */
 export function useProjectChats(projectId: string) {
-  const { data, isLoading, error } = useQuery({
-    queryKey: [...qk.conversations.all(), "project", projectId] as const,
-    queryFn: () => listProjectChats(projectId),
-  });
-  return { chats: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
+  const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: [...qk.conversations.all(), "project", projectId] as const,
+      queryFn: ({ pageParam }) => listProjectChats(projectId, pageParam, PROJECT_CHATS_PAGE),
+      initialPageParam: 0,
+      getNextPageParam: (last, pages) => {
+        const loaded = pages.reduce((sum, page) => sum + page.items.length, 0);
+        return loaded < last.total ? loaded : undefined;
+      },
+    });
+  return {
+    chats: data?.pages.flatMap((page) => page.items) ?? [],
+    total: data?.pages[0]?.total ?? 0,
+    isLoading,
+    error,
+    hasMore: hasNextPage,
+    loadingMore: isFetchingNextPage,
+    loadMore: () => void fetchNextPage(),
+  };
 }

@@ -310,11 +310,17 @@ class ProjectService:
         """The project a new chat is to start in, when the caller may work in it."""
         return await self.get(ctx, project_id, perm=Perm.PROJECTS_USE)
 
-    async def chats(self, ctx: AuthContext, project_id: UUID) -> tuple[list[Conversation], int]:
-        """Every chat in the project, whoever started it - for whoever may see it."""
+    async def chats(
+        self, ctx: AuthContext, project_id: UUID, *, skip: int, limit: int
+    ) -> tuple[list[Conversation], int]:
+        """A page of the project's chats, whoever started them - for whoever may see it."""
         await self.get(ctx, project_id)
         return await ConversationService(self.db).list_project_chats(
-            project_id, organization_id=ctx.organization_id, user_id=ctx.user_id
+            project_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            skip=skip,
+            limit=limit,
         )
 
     async def files(

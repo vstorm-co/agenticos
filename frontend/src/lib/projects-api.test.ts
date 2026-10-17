@@ -54,8 +54,8 @@ describe("the projects client", () => {
     await api.listProjectFiles("p-1");
     expect(apiClient.get).toHaveBeenLastCalledWith("/projects/p-1/files");
 
-    await api.listProjectChats("p-1");
-    expect(apiClient.get).toHaveBeenLastCalledWith("/projects/p-1/chats");
+    await api.listProjectChats("p-1", 50, 50);
+    expect(apiClient.get).toHaveBeenLastCalledWith("/projects/p-1/chats?skip=50&limit=50");
 
     const file = new File(["x"], "in.csv");
     const progress = { organizationId: "org-1", onPercent: vi.fn(), failed: "Upload failed" };

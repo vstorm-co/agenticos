@@ -7257,6 +7257,7 @@
     "chats": "Chats",
     "files": "Dateien",
     "untitledChat": "Chat ohne Titel",
+    "moreChats": "Weitere Chats anzeigen",
     "seenBy": "Gesehen von {names}",
     "moreReaders": "+{count}",
     "isWorking": "{name} arbeitet",

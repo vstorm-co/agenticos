@@ -71,13 +71,19 @@ async def delete_project(project_id: UUID, service: ProjectSvc, ctx: Auth) -> No
 
 
 @router.get("/{project_id}/chats", response_model=ProjectChatList)
-async def list_project_chats(project_id: UUID, service: ProjectSvc, ctx: Auth) -> Any:
-    """Every chat in the project, whoever started it.
+async def list_project_chats(
+    project_id: UUID,
+    service: ProjectSvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    """The project's chats, whoever started them, most recently active first.
 
     Each names whose it is, who has had it open and whose run is at work in it,
     because a project's chats are its members' to read and continue.
     """
-    items, total = await service.chats(ctx, project_id)
+    items, total = await service.chats(ctx, project_id, skip=skip, limit=limit)
     return ProjectChatList(items=items, total=total)
 
 

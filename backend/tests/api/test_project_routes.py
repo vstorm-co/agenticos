@@ -183,7 +183,10 @@ async def test_a_projects_chats_are_listed_with_the_people_around_them(
     )
     service.chats = AsyncMock(return_value=([chat], 1))
     async with client() as http:
-        response = await http.get(f"/api/v1/projects/{PROJECT_ID}/chats")
+        response = await http.get(
+            f"/api/v1/projects/{PROJECT_ID}/chats", params={"skip": 50, "limit": 50}
+        )
+        too_many = await http.get(f"/api/v1/projects/{PROJECT_ID}/chats", params={"limit": 500})
 
     body = response.json()
     assert body["total"] == 1
@@ -191,3 +194,5 @@ async def test_a_projects_chats_are_listed_with_the_people_around_them(
     assert body["items"][0]["seen_by"][0]["name"] == "Anna"
     assert body["items"][0]["working"] is None
     assert service.chats.await_args.args[1] == PROJECT_ID
+    assert service.chats.await_args.kwargs == {"skip": 50, "limit": 50}
+    assert too_many.status_code == 422

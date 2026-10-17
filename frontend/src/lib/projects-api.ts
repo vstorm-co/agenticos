@@ -49,8 +49,12 @@ export interface ProjectChatList {
 }
 
 /** Every chat in the project, whoever started it, with who saw it and who works in it. */
-export async function listProjectChats(id: string): Promise<ProjectChatList> {
-  return apiClient.get<ProjectChatList>(`${ROOT}/${id}/chats`);
+export async function listProjectChats(
+  id: string,
+  skip: number,
+  limit: number,
+): Promise<ProjectChatList> {
+  return apiClient.get<ProjectChatList>(`${ROOT}/${id}/chats?skip=${skip}&limit=${limit}`);
 }
 
 export async function listProjectFiles(id: string): Promise<WorkspaceFiles> {

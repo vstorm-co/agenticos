@@ -7158,6 +7158,7 @@
     "chats": "Czaty",
     "files": "Pliki",
     "untitledChat": "Czat bez tytułu",
+    "moreChats": "Pokaż więcej czatów",
     "seenBy": "Wyświetlili: {names}",
     "moreReaders": "+{count}",
     "isWorking": "{name} pracuje",

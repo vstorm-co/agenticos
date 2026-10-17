@@ -115,10 +115,14 @@ class TestWhoMaySeeAndChangeIt:
         project = _project()
         listed = AsyncMock(return_value=([], 0))
         with patch.object(module.ConversationService, "list_project_chats", listed):
-            assert await _service(project, Perm.PROJECTS_VIEW).chats(_ctx(), project.id) == ([], 0)
+            page = await _service(project, Perm.PROJECTS_VIEW).chats(
+                _ctx(), project.id, skip=50, limit=50
+            )
+        assert page == ([], 0)
         assert listed.await_args.args[0] == project.id
+        assert (listed.await_args.kwargs["skip"], listed.await_args.kwargs["limit"]) == (50, 50)
         with pytest.raises(NotFoundError):
-            await _service(project).chats(_ctx(), project.id)
+            await _service(project).chats(_ctx(), project.id, skip=0, limit=50)
 
 
 class TestCreatingAndChanging:

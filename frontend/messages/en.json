@@ -7374,6 +7374,7 @@
     "chats": "Chats",
     "files": "Files",
     "untitledChat": "Untitled chat",
+    "moreChats": "Show more chats",
     "seenBy": "Seen by {names}",
     "moreReaders": "+{count}",
     "isWorking": "{name} is working",
