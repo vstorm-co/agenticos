@@ -317,6 +317,17 @@ describe("WorkspaceBrowser", () => {
     expect(screen.getByText(/No file matches that search/)).toBeVisible();
   });
 
+  it("says no file matched the origin filter rather than leaving the groups blank", async () => {
+    // Every file here is the agent's: asking for the attached ones leaves none,
+    // and grouping an empty list drew nothing at all.
+    render(<WorkspaceBrowser />);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Who put it there" }));
+    await userEvent.click(screen.getByRole("option", { name: "Attached" }));
+
+    expect(screen.getByText(/No file matches that search/)).toBeVisible();
+  });
+
   it("keeps the truncation warning while a filter is applied, and says the search was a sample", async () => {
     // A client-side filter over a truncated listing searched a sample - "1
     // result" with no caveat would claim the search was exhaustive.

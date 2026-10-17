@@ -195,10 +195,12 @@ function FlatFiles() {
           </ul>
         </section>
       )}
-      {grouped ? (
-        <WorkspaceGroups groups={groups} onOpen={setOpened} onDownload={download} />
-      ) : list.matched === 0 ? (
+      {/* Nothing left after the origin filter says so, grouped or not: grouping
+          an empty list drew no groups and no sentence - a blank results area. */}
+      {list.matched === 0 ? (
         <p className="text-muted-foreground py-8 text-center text-sm">{t("noFileMatches")}</p>
+      ) : grouped ? (
+        <WorkspaceGroups groups={groups} onOpen={setOpened} onDownload={download} />
       ) : (
         /* Four across on a wide screen: a document is recognised by its first
            lines and its name, and a fourth column shows a quarter more of them
