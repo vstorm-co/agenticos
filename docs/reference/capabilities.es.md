@@ -1,5 +1,5 @@
 ---
-source_sha: "572a76328911"
+source_sha: "271abc72ba39"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1114,8 +1114,8 @@ especialista.
 
 | Configuración | Por defecto | Valores |
 |---|---|---|
-| `harness` | `claude_code` | `claude_code` (una clave API de Anthropic), `codex` (una clave API de OpenAI) |
-| `model` | el del harness | El modelo por el nombre que le da el harness, como `claude-sonnet-5-5` o `gpt-5.5-codex` |
+| `harness` | `claude_code` | `claude_code` (una clave API de Anthropic o un token de suscripción de Claude), `codex` (una clave API de OpenAI o un inicio de sesión de ChatGPT) |
+| `model` | el del harness | Claude Opus, Sonnet o Haiku 5.5 para Claude Code; GPT-5.6 Sol, Terra, Luna o GPT-5.3 Codex para Codex |
 | `base_url` | Anthropic directamente | Solo Claude Code: una pasarela que habla la API de Anthropic, como `https://openrouter.ai/api`, cuya clave guarda entonces el vault |
 | `timeout_minutes` | 15 | 1–60, por tarea |
 
@@ -1144,8 +1144,19 @@ interactiva, que es también por qué no se usa el Agent Client Protocol.
 **Lo que necesita.** La capability `sandbox` en el backend `service` con los
 comandos de shell activados — publicar rechaza cualquier otra cosa — y un runtime con
 el harness instalado: el runtime `workbench` fija Claude Code 2.1.288 y Codex
-0.160.0. La clave API viene del vault mediante el `secret_id` del binding y llega al
-comando como variable de entorno, nunca en su línea de comandos.
+0.160.0. La credencial viene del vault mediante el `secret_id` del binding y llega al
+comando por su entorno, nunca en su línea de comandos.
+
+**Una clave o una suscripción.** Claude Code toma una clave API de Anthropic, o el
+token que `claude setup-token` imprime para una suscripción Claude Pro o Max, guardado
+como clave — se distingue por su prefijo `sk-ant-oat` y solo inicia sesión en
+Anthropic, no en una pasarela. Codex toma una clave API de OpenAI, o un inicio de
+sesión de ChatGPT hecho con **Sign in with ChatGPT**, el mismo que usa un
+[perfil de modelo](../models.md). Para una tarea, el inicio de sesión se escribe en el
+propio `auth.json` de Codex fuera del workspace y se elimina después, y los tokens que
+Codex renovó se sellan de nuevo sobre el mismo secreto. Trabajar con una suscripción
+personal está sujeto a las condiciones de Anthropic y OpenAI para esos planes, que
+pueden no permitirlo en un despliegue compartido.
 
 **Delegar en un coding agent.** Un delegado que enlaza `sandbox` por sí mismo se
 ejecuta en un workspace nuevo en memoria, sin shell, así que un coding agent al que se

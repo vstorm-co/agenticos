@@ -19,9 +19,11 @@ import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
+from uuid import UUID
 
 import httpx
 from pydantic_ai.exceptions import UserError
+from pydantic_ai.providers.openai_codex import OpenAICodexCredentials, OpenAICodexCredentialSource
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.workspaces import WorkspaceError, WorkspaceTimeoutError
@@ -29,15 +31,19 @@ from pydantic_ai.workspaces import WorkspaceError, WorkspaceTimeoutError
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.budget import assert_ambient_budget, record_ambient_usage
 from app.agents.capabilities.coding_agent._harness import (
+    CLAUDE_TOKEN_PREFIX,
     LABELS,
     Harness,
     Mode,
     Usage,
     claude_report,
+    codex_auth_file,
     codex_report,
     invocation,
     read_events,
+    rotated_sign_in,
 )
+from app.core.exceptions import BadRequestError
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +53,20 @@ LOG_DIR = ".agenticos"
 MISSING_COMMAND = 127
 """A shell's exit code for a program that is not installed."""
 
+AUTH_ENV = "AGENTICOS_CODEX_AUTH"
+WRITE_AUTH = (
+    f'mkdir -p "$HOME/.codex" && umask 077 && printf "%s" "${AUTH_ENV}" > "$HOME/.codex/auth.json"'
+)
+"""Codex's sign-in, written where the CLI reads it - outside the workspace.
+
+Passed through the environment of this one command, never on a command line,
+and kept out of the working directory so the file tools and the file browser
+never list it. Removed again by `READ_AUTH` once the task is over.
+"""
+READ_AUTH = 'cat "$HOME/.codex/auth.json" 2>/dev/null; rm -f "$HOME/.codex/auth.json"'
+
+SignIn = Callable[[UUID], OpenAICodexCredentialSource]
+
 
 def build_coding_toolset(
     *,
@@ -55,6 +75,7 @@ def build_coding_toolset(
     base_url: str | None,
     api_key: str | None,
     timeout_seconds: int,
+    sign_in: SignIn | None = None,
 ) -> FunctionToolset[Any]:
     """The two tools, bound to one harness, its model and its key.
 
@@ -63,11 +84,28 @@ def build_coding_toolset(
     """
     label = LABELS[harness]
 
+    def mismatch() -> str | None:
+        """A credential this harness cannot sign in with, said before anything runs."""
+        claude_token = api_key is not None and api_key.startswith(CLAUDE_TOKEN_PREFIX)
+        if sign_in is not None and harness != "codex":
+            return "A ChatGPT sign-in works only for Codex. Say that the key needs changing."
+        if claude_token and harness != "claude_code":
+            return "A Claude subscription token works only for Claude Code. Say so."
+        if claude_token and base_url:
+            return (
+                "A Claude subscription token signs in to Anthropic itself, not to a "
+                "gateway. Say that the endpoint needs clearing."
+            )
+        return None
+
     async def run(ctx: RunContext[Any], mode: Mode, task: str, session_id: str | None) -> str:
-        if api_key is None:
+        if api_key is None and sign_in is None:
             # Unreachable once published - the key is required at publish and at
             # build. A retry rather than a crash for a preview built without one.
             return steer(ctx, f"{label} has no API key configured.")
+        refused = mismatch()
+        if refused is not None:
+            return refused
         if not task.strip():
             return steer(ctx, "Describe the task in `task`: what to change or find, and where.")
         if not ctx.workspace.attached:
@@ -76,6 +114,28 @@ def build_coding_toolset(
                 "Say so rather than trying again."
             )
         await assert_ambient_budget()
+        if sign_in is None:
+            return await attempt(ctx, mode, task, session_id)
+        organization_id = getattr(ctx.deps, "organization_id", None)
+        if not isinstance(organization_id, UUID):
+            return f"{label} on a ChatGPT sign-in runs only inside an organization."
+        source = sign_in(organization_id)
+        try:
+            written = await source.load()
+            await ctx.workspace.run(  # noqa: S604
+                WRITE_AUTH, shell=True, env={AUTH_ENV: codex_auth_file(written)}, timeout=60
+            )
+        except BadRequestError as gone:
+            return f"{gone.message}. Say that the sign-in needs choosing again."
+        except (UserError, WorkspaceError, httpx.HTTPError) as failed:
+            logger.warning("%s could not sign in in the workspace: %s", label, failed)
+            return f"{label} could not run in this sandbox ({type(failed).__name__})."
+        try:
+            return await attempt(ctx, mode, task, session_id)
+        finally:
+            await _keep_rotated(ctx, source, written)
+
+    async def attempt(ctx: RunContext[Any], mode: Mode, task: str, session_id: str | None) -> str:
         command = invocation(
             harness,
             mode,
@@ -187,6 +247,25 @@ def build_coding_toolset(
 
     tools: list[Callable[..., Awaitable[str]]] = [plan_code_change, apply_code_change]
     return FunctionToolset(tools)
+
+
+async def _keep_rotated(
+    ctx: RunContext[Any], source: OpenAICodexCredentialSource, written: OpenAICodexCredentials
+) -> None:
+    """Take the sign-in back out of the sandbox, keeping whatever Codex refreshed it to.
+
+    A refresh token is single-use, so a pair Codex rotated during the task and
+    left only in the sandbox would leave the vault holding a spent one - and the
+    next task, or the next model request on the same sign-in, refused.
+    """
+    try:
+        result = await ctx.workspace.run(READ_AUTH, shell=True, timeout=60)  # noqa: S604
+    except (UserError, WorkspaceError, httpx.HTTPError) as failed:
+        logger.warning("Codex's sign-in could not be read back from the sandbox: %s", failed)
+        return
+    rotated = rotated_sign_in(result.stdout, written)
+    if rotated is not None:
+        await source.save(rotated)
 
 
 def _book(usage: Usage) -> None:

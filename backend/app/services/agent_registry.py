@@ -1732,7 +1732,7 @@ class AgentRegistryService:
                 f"Capability '{binding.id}' points at a secret this organization does not "
                 f"have: {binding.secret_id}"
             ]
-        if secret.kind != requirement.kind.value:
+        if not requirement.accepts(secret.kind):
             return [
                 f"Capability '{binding.id}' needs a {requirement.kind.value} secret, but "
                 f"'{secret.name}' holds a {secret.kind}"

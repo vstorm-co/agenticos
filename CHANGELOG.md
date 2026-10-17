@@ -35,7 +35,9 @@ Two things are versioned separately from this file and worth knowing about:
   `apply_code_change` edits and runs commands, and is the tool to set **Always ask**
   on. The chat
   shows what the harness read, ran and changed, and its tokens are booked to the
-  run. The `workbench` runtime now carries Claude Code 2.1.288 and Codex 0.160.0.
+  run. Claude Code runs on an Anthropic key or a `claude setup-token`
+  subscription token, Codex on an OpenAI key or a ChatGPT sign-in. The
+  `workbench` runtime now carries Claude Code 2.1.288 and Codex 0.160.0.
 
 ## [1.1.1] - 2026-10-16
 

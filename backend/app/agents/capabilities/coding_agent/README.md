@@ -49,10 +49,17 @@ cost says it is partial.
 - The `sandbox` capability on the `service` backend with the shell on, which
   publish checks.
 - A runtime with the harness installed. `workbench` pins Claude Code and Codex.
-- An API key in the vault: Anthropic's for Claude Code, OpenAI's for Codex. For
-  Claude Code behind a gateway such as OpenRouter, `base_url` names it and the key
-  is the gateway's. The key reaches the command as an environment variable,
-  never on its command line.
+- A credential in the vault. Claude Code: an Anthropic API key, or the token
+  `claude setup-token` prints for a Claude subscription (told apart by its
+  `sk-ant-oat` prefix, and sent as `CLAUDE_CODE_OAUTH_TOKEN`); behind a gateway
+  such as OpenRouter, `base_url` names it and the key is the gateway's. Codex: an
+  OpenAI API key, or a ChatGPT sign-in, which is written to `~/.codex/auth.json`
+  outside the workspace for the task and read back afterwards, so a pair Codex
+  refreshed is sealed over the same secret - its refresh token is single-use.
+  Codex's `auth.json` also wants an `id_token`, which the sign-in does not keep;
+  the CLI reads only its claims, so one is made of the access token's.
+  A credential reaches the command through its environment, never on its
+  command line.
 
 ## What it does not do
 

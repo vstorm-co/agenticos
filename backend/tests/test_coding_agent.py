@@ -7,6 +7,7 @@ files, the parsing, the booking and the clean-up all run as they would.
 
 from __future__ import annotations
 
+import base64
 import json
 import shlex
 from collections.abc import Mapping
@@ -17,8 +18,9 @@ import httpx
 import pytest
 from pydantic import ValidationError
 from pydantic_ai._run_context import RunContext
-from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.exceptions import ModelRetry, UserError
 from pydantic_ai.models.test import TestModel
+from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RunUsage
 from pydantic_ai.workspaces import (
@@ -38,14 +40,23 @@ from app.agents.capabilities.coding_agent._harness import (
     MAX_STEPS,
     CodingReport,
     claude_report,
+    codex_auth_file,
     codex_report,
     invocation,
     read_events,
+    rotated_sign_in,
 )
-from app.agents.capabilities.coding_agent._toolset import LOG_DIR, build_coding_toolset
+from app.agents.capabilities.coding_agent._toolset import (
+    AUTH_ENV,
+    LOG_DIR,
+    READ_AUTH,
+    WRITE_AUTH,
+    build_coding_toolset,
+)
 from app.agents.deps import AgentDeps
 from app.agents.spec import AgentSpec
-from app.core.secret_kinds import ApiKeySecret
+from app.core.exceptions import BadRequestError
+from app.core.secret_kinds import ApiKeySecret, OpenAICodexSecret, SecretKind
 from app.services.agent_registry import _coding_agent_problems
 from tests.workspaces import ShellFailing, document_workspace
 
@@ -405,9 +416,12 @@ class _Shell(WrapperWorkspace):
         stderr: str = "",
         exit_code: int = 0,
         raises: Exception | None = None,
+        auth_after: str = "",
+        auth_raises: Exception | None = None,
     ) -> None:
         super().__init__(document_workspace())
         self.events, self.stderr, self.exit_code, self.raises = events, stderr, exit_code, raises
+        self.auth_after, self.auth_raises = auth_after, auth_raises
         self.commands: list[tuple[str, Mapping[str, str] | None, float | None]] = []
 
     async def run(
@@ -419,6 +433,11 @@ class _Shell(WrapperWorkspace):
         timeout: float | None = None,
     ) -> CommandResult:
         self.commands.append((command, env, timeout))
+        if command in (WRITE_AUTH, READ_AUTH):
+            if self.auth_raises is not None:
+                raise self.auth_raises
+            stdout = self.auth_after if command == READ_AUTH else ""
+            return CommandResult(exit_code=0, stdout=stdout, stderr="")
         words = shlex.split(command)
         await self.write_bytes(words[words.index(">") + 1], self.events.encode())
         await self.write_bytes(words[words.index("2>") + 1], self.stderr.encode())
@@ -609,3 +628,238 @@ class TestPublishing:
 
     def test_an_agent_without_one_is_not_asked(self) -> None:
         assert _coding_agent_problems(self._spec({"id": "coding_agent", "enabled": False})) == []
+
+
+def _jwt(claims: dict[str, Any]) -> str:
+    def part(value: object) -> str:
+        return base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip("=")
+
+    return f"{part({'alg': 'RS256'})}.{part(claims)}.c2ln"
+
+
+ACCESS = _jwt(
+    {
+        "iat": 1_760_000_000,
+        "https://api.openai.com/auth": {"chatgpt_plan_type": "plus"},
+        "https://api.openai.com/profile": {"email": "kacper@example.com"},
+    }
+)
+SIGNED_IN = OpenAICodexCredentials(access_token=ACCESS, refresh_token="rt-1", account_id="acc-1")
+
+
+class TestSubscriptions:
+    def test_a_claude_subscription_token_goes_where_claude_code_reads_one(self) -> None:
+        command = invocation(
+            "claude_code",
+            "plan",
+            "x",
+            api_key="sk-ant-oat01-abc",
+            model=None,
+            session_id=None,
+            base_url=None,
+        )
+        assert command.env["CLAUDE_CODE_OAUTH_TOKEN"] == "sk-ant-oat01-abc"
+        assert "ANTHROPIC_API_KEY" not in command.env
+
+    def test_claude_code_without_any_credential_is_a_mistake(self) -> None:
+        with pytest.raises(UserError):
+            invocation(
+                "claude_code", "plan", "x", api_key=None, model=None, session_id=None, base_url=None
+            )
+
+    def test_codex_on_a_sign_in_carries_no_key(self) -> None:
+        command = invocation(
+            "codex", "plan", "x", api_key=None, model=None, session_id=None, base_url=None
+        )
+        assert command.env == {}
+
+    def test_a_sign_in_becomes_the_auth_file_the_codex_cli_reads(self) -> None:
+        auth = json.loads(codex_auth_file(SIGNED_IN))
+        tokens = auth["tokens"]
+        assert (tokens["access_token"], tokens["refresh_token"], tokens["account_id"]) == (
+            ACCESS,
+            "rt-1",
+            "acc-1",
+        )
+        header, body, signature = tokens["id_token"].split(".")
+        claims = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
+        assert claims["https://api.openai.com/auth"] == {
+            "chatgpt_plan_type": "plus",
+            "chatgpt_account_id": "acc-1",
+        }
+        assert claims["email"] == "kacper@example.com"
+        assert auth["last_refresh"] == "2025-10-09T08:53:20Z"
+        assert OpenAICodexCredentials.from_codex_cli_auth(auth).refresh_token == "rt-1"
+
+    def test_an_opaque_access_token_still_makes_an_auth_file(self) -> None:
+        auth = json.loads(
+            codex_auth_file(
+                OpenAICodexCredentials(access_token="opaque", refresh_token="r", account_id="a")
+            )
+        )
+        assert auth["tokens"]["account_id"] == "a"
+        bad = json.loads(
+            codex_auth_file(
+                OpenAICodexCredentials(access_token="a.!!!.b", refresh_token="r", account_id="a")
+            )
+        )
+        assert "email" not in bad["tokens"]["id_token"]
+
+    def test_only_tokens_codex_rotated_are_kept(self) -> None:
+        same = codex_auth_file(SIGNED_IN)
+        assert rotated_sign_in(same, SIGNED_IN) is None
+        moved = json.loads(same)
+        moved["tokens"] |= {"access_token": "new-access", "refresh_token": "rt-2"}
+        rotated = rotated_sign_in(json.dumps(moved), SIGNED_IN)
+        assert rotated is not None and rotated.refresh_token == "rt-2"
+        for broken in ("", "not json", "[1]", json.dumps({"tokens": {}})):
+            assert rotated_sign_in(broken, SIGNED_IN) is None
+
+
+class _Store:
+    """Where a ChatGPT sign-in lives, as the vault would keep it."""
+
+    def __init__(self, *, gone: bool = False) -> None:
+        self.gone = gone
+        self.saved: list[OpenAICodexCredentials] = []
+
+    async def load(self) -> OpenAICodexCredentials:
+        if self.gone:
+            raise BadRequestError(
+                message="The ChatGPT sign-in this model runs on is no longer in the vault"
+            )
+        return SIGNED_IN
+
+    async def save(self, credentials: OpenAICodexCredentials) -> None:
+        self.saved.append(credentials)
+
+
+class TestCodexOnASignIn:
+    async def _run(self, shell: _Shell, store: _Store, **overrides: Any) -> str:
+        options: dict[str, Any] = {"api_key": None, "sign_in": lambda _org: store} | overrides
+        return await _tools("codex", **options)["plan_code_change"].function(
+            _ctx(shell), task="Look"
+        )
+
+    async def test_the_sign_in_is_written_for_the_task_and_what_codex_rotated_is_kept(self) -> None:
+        rotated = json.loads(codex_auth_file(SIGNED_IN))
+        rotated["tokens"]["refresh_token"] = "rt-2"
+        shell = _Shell(events=_lines(_codex_stream(end=None)), auth_after=json.dumps(rotated))
+        store = _Store()
+
+        report = CodingReport.model_validate_json(await self._run(shell, store))
+
+        assert report.outcome == "completed"
+        written, task, read = shell.commands
+        assert written[0] == WRITE_AUTH and written[1] is not None
+        assert json.loads(written[1][AUTH_ENV])["tokens"]["refresh_token"] == "rt-1"
+        assert "CODEX_API_KEY" not in (task[1] or {})
+        assert read[0] == READ_AUTH
+        assert [saved.refresh_token for saved in store.saved] == ["rt-2"]
+
+    async def test_a_sign_in_that_was_not_rotated_is_left_alone(self) -> None:
+        store = _Store()
+        shell = _Shell(
+            events=_lines(_codex_stream(end=None)), auth_after=codex_auth_file(SIGNED_IN)
+        )
+        await self._run(shell, store)
+        assert store.saved == []
+
+    async def test_a_sign_in_removed_from_the_vault_is_an_answer(self) -> None:
+        answer = await self._run(_Shell(), _Store(gone=True))
+        assert "no longer in the vault" in answer
+
+    async def test_a_sandbox_that_cannot_take_the_sign_in_is_an_answer(self) -> None:
+        answer = await self._run(_Shell(auth_raises=WorkspaceUnavailableError("gone")), _Store())
+        assert answer == "Codex could not run in this sandbox (WorkspaceUnavailableError)."
+
+    async def test_a_sign_in_that_cannot_be_read_back_is_logged_not_fatal(self) -> None:
+        class _Unreadable(_Shell):
+            async def run(self, command: Any, **kwargs: Any) -> CommandResult:
+                if command == READ_AUTH:
+                    raise WorkspaceUnavailableError("gone")
+                return await super().run(command, **kwargs)
+
+        store = _Store()
+        report = CodingReport.model_validate_json(
+            await self._run(_Unreadable(events=_lines(_codex_stream(end=None))), store)
+        )
+        assert report.outcome == "completed" and store.saved == []
+
+    async def test_outside_an_organization_there_is_no_sign_in_to_read(self) -> None:
+        ctx = _ctx(_Shell())
+        ctx.deps.organization_id = None
+        store = _Store()
+        answer = await _tools("codex", api_key=None, sign_in=lambda _org: store)[
+            "plan_code_change"
+        ].function(ctx, task="Look")
+        assert "only inside an organization" in answer
+
+
+class TestCredentialsThatDoNotFit:
+    @pytest.mark.parametrize(
+        ("harness", "overrides", "says"),
+        [
+            (
+                "claude_code",
+                {"api_key": None, "sign_in": lambda _org: _Store()},
+                "works only for Codex",
+            ),
+            ("codex", {"api_key": "sk-ant-oat01-x"}, "works only for Claude Code"),
+            (
+                "claude_code",
+                {"api_key": "sk-ant-oat01-x", "base_url": "https://openrouter.ai/api"},
+                "not to a gateway",
+            ),
+        ],
+    )
+    async def test_a_mismatch_is_said_before_anything_runs(
+        self, harness: Any, overrides: dict[str, Any], says: str
+    ) -> None:
+        shell = _Shell()
+        answer = await _tools(harness, **overrides)["plan_code_change"].function(
+            _ctx(shell), task="x"
+        )
+        assert says in answer
+        assert shell.commands == []
+
+
+class TestChoosingAModel:
+    def test_the_model_is_named_as_the_harness_names_it(self) -> None:
+        assert CodingAgentConfig(model="anthropic:claude-opus-5-5").model_id == "claude-opus-5-5"
+        assert CodingAgentConfig().model_id is None
+
+    def test_a_model_of_the_other_vendor_is_refused(self) -> None:
+        with pytest.raises(ValidationError, match="Claude Code runs Claude models"):
+            CodingAgentConfig(harness="codex", model="anthropic:claude-opus-5-5")
+
+    def test_every_model_offered_has_a_name(self) -> None:
+        schema = CodingAgentConfig.model_json_schema()["properties"]["model"]
+        offered = next(branch["enum"] for branch in schema["anyOf"] if "enum" in branch)
+        assert set(offered) == set(schema["x-enum-labels"])
+
+    def test_a_chatgpt_sign_in_satisfies_the_key_it_asks_for(self) -> None:
+        requirement = get("coding_agent").secret
+        assert requirement is not None
+        assert requirement.accepts(SecretKind.API_KEY.value)
+        assert requirement.accepts(SecretKind.OPENAI_CODEX.value)
+        assert not requirement.accepts(SecretKind.AWS_CREDENTIALS.value)
+
+    def test_the_builder_hands_a_sign_in_over_as_where_it_lives(self) -> None:
+        definition = get("coding_agent")
+        binding = CapabilityBinding(
+            capability_id="coding_agent", config={"harness": "codex"}, secret_id=uuid4()
+        )
+        built = definition.builder(
+            CapabilityBuildContext(
+                binding=binding,
+                config=definition.validate_config(binding.config),
+                resources={},
+                secret=OpenAICodexSecret(
+                    access_token="a" * 20, refresh_token="r" * 20, account_id="acc"
+                ),
+            )
+        )
+        assert isinstance(built, CodingAgent)
+        assert built.api_key is None and built.sign_in is not None
+        assert repr(built.sign_in(uuid4())).startswith("VaultCodexCredentials(")

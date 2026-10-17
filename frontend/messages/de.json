@@ -362,7 +362,7 @@
     "noSandboxConnectionRegistered": "Keine Sandbox-Verbindung registriert",
     "noSecretOfKind": "Kein Secret der Art {kind} im Vault",
     "noSecret": "Kein Secret",
-    "noSecretSelected": "Kein Secret gewählt. Diese Capability braucht eines der Art {kind}, und der Agent lässt sich nicht veröffentlichen, bis er eines hat.",
+    "noSecretSelected": "Noch nichts gewählt - der Agent lässt sich erst veröffentlichen, wenn etwas gewählt ist.",
     "noSignMarketingPage": "Keine Anmeldung – eine Marketingseite",
     "noSitesAllowedWidget": "Keine Sites erlaubt – dieses Widget kann nirgends öffnen",
     "noSpecialistsYet": "Keine Spezialisten. Einer lohnt sich, wenn einen ganzen Agent zu veröffentlichen für die Aufgabe zu viel Aufwand wäre.",
@@ -790,7 +790,11 @@
     "noRemoteDelegatesYet": "Noch keine Remote Agents.",
     "noRemoteAgentsRegistered": "Noch keine Remote Agents registriert. <link>Registrieren Sie einen</link> über seine Agent Card.",
     "remoteDelegateGone": "Ein nicht mehr registrierter Remote Agent",
-    "remoteDelegateGoneDetail": "Seine Registrierung wurde entfernt, daher lehnt das Veröffentlichen diesen Agent ab, bis er von der Liste genommen ist."
+    "remoteDelegateGoneDetail": "Seine Registrierung wurde entfernt, daher lehnt das Veröffentlichen diesen Agent ab, bis er von der Liste genommen ist.",
+    "keyOrSignIn": "Key oder Anmeldung",
+    "codingAgentKeyName": "{signIn, select, chatgpt {OpenAI-Key für Codex} other {Claude-Code-Key}}",
+    "chatgptSignInName": "ChatGPT für Codex",
+    "claudeTokenHint": "Mit einem Claude-Pro- oder -Max-Abo: Führen Sie <code>claude setup-token</code> auf Ihrem eigenen Rechner aus und fügen Sie das ausgegebene Token hier als Key hinzu. Ein Anthropic-API-Key funktioniert ebenfalls."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -6450,7 +6454,7 @@
       "does": "Übergibt Softwarearbeit an Claude Code oder Codex, die im Sandbox des Agent Code planen und ändern.",
       "example1": "Einen fehlschlagenden Test in einem Repository beheben, das der Agent geklont hat",
       "example2": "Erklären, wie ein Modul funktioniert, bevor es geändert wird",
-      "needs": "Die Capability Sandbox auf einer Sandbox-Verbindung und einen API-Key von Anthropic oder OpenAI im Vault. Jede Aufgabe rechnet dieser Anbieter ab.",
+      "needs": "Die Capability Sandbox auf einer Sandbox-Verbindung und im Vault ein Anthropic- oder OpenAI-Key, ein Claude-Abo-Token oder eine ChatGPT-Anmeldung.",
       "never": "Arbeitet nie außerhalb des Sandbox des Agent. Änderungen warten auf Ihre Freigabe, wenn Sie Always ask auf Code ändern setzen."
     },
     "compaction": {
@@ -7051,11 +7055,11 @@
     "coding_agent": {
       "harness": {
         "title": "Coding Agent",
-        "description": "Welcher Coding Agent die Arbeit erledigt: Claude Code mit einem Anthropic-API-Key oder Codex mit einem OpenAI-API-Key."
+        "description": "Welcher Coding Agent die Arbeit erledigt: Claude Code mit einem Anthropic-Key oder einem Claude-Abo-Token, oder Codex mit einem OpenAI-Key oder einer ChatGPT-Anmeldung."
       },
       "model": {
         "title": "Modell",
-        "description": "Das Modell, mit dem der Coding Agent läuft, unter seinem eigenen Namen, etwa claude-sonnet-5-5 oder gpt-5.5-codex. Leer nimmt seinen Standard."
+        "description": "Das Modell, mit dem der Coding Agent läuft: ein Claude-Modell für Claude Code, ein OpenAI-Modell für Codex. Nicht gesetzt nimmt den Standard des Coding Agent."
       },
       "base_url": {
         "title": "Anthropic-kompatibler Endpunkt",

@@ -1043,8 +1043,8 @@ capability is a *coding agent*, and another agent hands it work through ordinary
 
 | Config | Default | Values |
 |---|---|---|
-| `harness` | `claude_code` | `claude_code` (an Anthropic API key), `codex` (an OpenAI API key) |
-| `model` | the harness's default | The model by the harness's own name for it, such as `claude-sonnet-5-5` or `gpt-5.5-codex` |
+| `harness` | `claude_code` | `claude_code` (an Anthropic API key or a Claude subscription token), `codex` (an OpenAI API key or a ChatGPT sign-in) |
+| `model` | the harness's default | Claude Opus, Sonnet or Haiku 5.5 for Claude Code; GPT-5.6 Sol, Terra, Luna or GPT-5.3 Codex for Codex |
 | `base_url` | Anthropic directly | Claude Code only: a gateway that speaks Anthropic's API, such as `https://openrouter.ai/api`, whose key the vault then holds |
 | `timeout_minutes` | 15 | 1–60, for one task |
 
@@ -1071,8 +1071,18 @@ the Agent Client Protocol is not used.
 **What it needs.** The `sandbox` capability on the `service` backend with shell
 commands on — publishing refuses anything else — and a runtime with the harness
 installed: the `workbench` runtime pins Claude Code 2.1.288 and Codex 0.160.0. The
-API key comes from the vault through the binding's `secret_id` and reaches the
-command as an environment variable, never on its command line.
+credential comes from the vault through the binding's `secret_id` and reaches the
+command through its environment, never on its command line.
+
+**A key or a subscription.** Claude Code takes an Anthropic API key, or the token
+`claude setup-token` prints for a Claude Pro or Max subscription, stored as a key —
+it is told apart by its `sk-ant-oat` prefix, and it signs in to Anthropic only, not
+to a gateway. Codex takes an OpenAI API key, or a ChatGPT sign-in made with **Sign
+in with ChatGPT**, the same one a [model profile](../models.md) uses. For a task the
+sign-in is written to Codex's own `auth.json` outside the workspace and removed
+afterwards, and any tokens Codex refreshed are sealed back over the same secret.
+Running on a personal subscription is subject to Anthropic's and OpenAI's terms for
+those plans, which may not allow it on a shared deployment.
 
 **Delegating to a coding agent.** A delegate that binds `sandbox` itself runs in a
 fresh in-memory workspace with no shell, so a coding agent reached by delegation has

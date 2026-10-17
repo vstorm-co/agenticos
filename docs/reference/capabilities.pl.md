@@ -1,5 +1,5 @@
 ---
-source_sha: "572a76328911"
+source_sha: "271abc72ba39"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1101,8 +1101,8 @@ przez zwykłe [delegowanie](#delegation), tak jak każdemu specjaliście.
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
-| `harness` | `claude_code` | `claude_code` (klucz API Anthropic), `codex` (klucz API OpenAI) |
-| `model` | domyślny dla harnessu | Model pod nazwą, jaką nadaje mu harness, np. `claude-sonnet-5-5` albo `gpt-5.5-codex` |
+| `harness` | `claude_code` | `claude_code` (klucz API Anthropic albo token subskrypcji Claude), `codex` (klucz API OpenAI albo logowanie ChatGPT) |
+| `model` | domyślny dla harnessu | Claude Opus, Sonnet albo Haiku 5.5 dla Claude Code; GPT-5.6 Sol, Terra, Luna albo GPT-5.3 Codex dla Codexa |
 | `base_url` | bezpośrednio Anthropic | Tylko Claude Code: bramka obsługująca API Anthropic, np. `https://openrouter.ai/api`, której klucz trzyma wtedy vault |
 | `timeout_minutes` | 15 | 1–60, na jedno zadanie |
 
@@ -1129,8 +1129,18 @@ nie jest używany Agent Client Protocol.
 **Czego potrzebuje.** Capability `sandbox` na backendzie `service` z włączonymi
 poleceniami shella — publikacja odrzuca każdą inną konfigurację — oraz runtime'u z
 zainstalowanym harnessem: runtime `workbench` przypina Claude Code 2.1.288 i Codex
-0.160.0. Klucz API pochodzi z vault przez `secret_id` bindingu i trafia do polecenia
-jako zmienna środowiskowa, nigdy w linii poleceń.
+0.160.0. Poświadczenie pochodzi z vault przez `secret_id` bindingu i trafia do
+polecenia przez jego środowisko, nigdy w linii poleceń.
+
+**Klucz albo subskrypcja.** Claude Code przyjmuje klucz API Anthropic albo token,
+który `claude setup-token` wypisuje dla subskrypcji Claude Pro albo Max, zapisany jako
+klucz — rozpoznawany po prefiksie `sk-ant-oat`; loguje się wyłącznie do Anthropic, nie
+do bramki. Codex przyjmuje klucz API OpenAI albo logowanie ChatGPT zrobione przyciskiem
+**Sign in with ChatGPT**, to samo, którego używa [profil modelu](../models.md). Na czas
+zadania logowanie trafia do własnego `auth.json` Codexa poza workspace i jest potem
+usuwane, a tokeny odświeżone przez Codex są pieczętowane z powrotem w tym samym
+sekrecie. Praca na prywatnej subskrypcji podlega warunkom Anthropic i OpenAI dla tych
+planów, które mogą na to nie pozwalać we współdzielonym wdrożeniu.
 
 **Delegowanie do coding agenta.** Delegat, który sam wiąże `sandbox`, działa w świeżym
 workspace w pamięci, bez shella, więc coding agent osiągany przez delegowanie nie ma

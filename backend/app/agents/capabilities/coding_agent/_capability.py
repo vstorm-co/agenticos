@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
+from uuid import UUID
 
 from pydantic_ai.capabilities import AbstractCapability
+from pydantic_ai.providers.openai_codex import OpenAICodexCredentialSource
 from pydantic_ai.tools import AgentDepsT
 from pydantic_ai.toolsets import AbstractToolset
 
@@ -29,6 +32,9 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
     # Unsealed from the vault by the factory; `repr=False` for the reason
     # `ImageGeneration.api_key` gives - a repr reaches log lines and tracebacks.
     api_key: str | None = field(default=None, repr=False)
+    # A ChatGPT sign-in, as where its tokens live for an organization - ids, not
+    # tokens - rather than as the tokens themselves; see `_build`.
+    sign_in: Callable[[UUID], OpenAICodexCredentialSource] | None = None
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
     )
@@ -40,6 +46,7 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
                 model=self.model,
                 base_url=self.base_url,
                 api_key=self.api_key,
+                sign_in=self.sign_in,
                 timeout_seconds=self.timeout_seconds,
             )
         return self._toolset

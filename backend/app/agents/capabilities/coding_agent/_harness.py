@@ -16,13 +16,17 @@ platform's approval gate is what a person says yes on.
 
 from __future__ import annotations
 
+import base64
 import json
 import shlex
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel
+from pydantic_ai.exceptions import UserError
+from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from pydantic_ai.usage import RequestUsage
 
 Harness = Literal["claude_code", "codex"]
@@ -37,6 +41,16 @@ MAX_ANSWER_CHARS = 30_000
 """How much of the harness's final answer reaches the model that asked."""
 
 LABELS: dict[Harness, str] = {"claude_code": "Claude Code", "codex": "Codex"}
+
+CLAUDE_TOKEN_PREFIX = "sk-ant-oat"
+"""What a Claude subscription token from `claude setup-token` starts with.
+
+Anthropic's own prefix, which is how Claude Code itself tells an OAuth token
+from an API key (`sk-ant-api`): the two go in different variables.
+"""
+
+_OPENAI_AUTH_CLAIM = "https://api.openai.com/auth"
+_OPENAI_PROFILE_CLAIM = "https://api.openai.com/profile"
 
 _CLAUDE_KINDS: dict[str, StepKind] = {
     "Read": "read",
@@ -109,12 +123,16 @@ def invocation(
     mode: Mode,
     task: str,
     *,
-    api_key: str,
+    api_key: str | None,
     model: str | None,
     session_id: str | None,
     base_url: str | None,
 ) -> Invocation:
-    """How to run `task` in `mode` on `harness`, continuing `session_id` when given."""
+    """How to run `task` in `mode` on `harness`, continuing `session_id` when given.
+
+    `api_key` is None only for Codex on a ChatGPT sign-in, whose tokens are in its
+    `auth.json` rather than the environment.
+    """
     if harness == "claude_code":
         argv = ["claude", "-p", task, "--output-format", "stream-json", "--verbose"]
         argv += (
@@ -130,7 +148,11 @@ def invocation(
             "IS_SANDBOX": "1",
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
         }
-        if base_url:
+        if api_key is None:
+            raise UserError("Claude Code needs an API key or a subscription token.")
+        if api_key.startswith(CLAUDE_TOKEN_PREFIX):
+            env["CLAUDE_CODE_OAUTH_TOKEN"] = api_key
+        elif base_url:
             # A gateway takes a bearer token where Anthropic takes `x-api-key`,
             # and an empty key keeps Claude Code from sending one at all.
             env |= {
@@ -154,7 +176,63 @@ def invocation(
     if model:
         argv += ["-m", model]
     argv.append(task)
-    return Invocation(argv=argv, env={"CODEX_API_KEY": api_key})
+    return Invocation(argv=argv, env={} if api_key is None else {"CODEX_API_KEY": api_key})
+
+
+def codex_auth_file(credentials: OpenAICodexCredentials) -> str:
+    """A ChatGPT sign-in as the Codex CLI's `auth.json`.
+
+    The CLI also wants an `id_token`, which the platform's sign-in does not keep:
+    it reads only the claims - the account, the plan - and checks no signature,
+    so one is made of the access token's own claims, account id included.
+    `last_refresh` is when the access token was issued, so the CLI refreshes it
+    on its own schedule rather than taking a stale one for fresh.
+    """
+    claims = _jwt_claims(credentials.access_token)
+    auth = _mapping(claims.get(_OPENAI_AUTH_CLAIM))
+    identity: dict[str, Any] = {
+        _OPENAI_AUTH_CLAIM: {**auth, "chatgpt_account_id": credentials.account_id}
+    }
+    email = _text(_mapping(claims.get(_OPENAI_PROFILE_CLAIM)).get("email"))
+    if email:
+        identity["email"] = email
+    issued = claims.get("iat")
+    refreshed = (
+        datetime.fromtimestamp(issued, UTC) if isinstance(issued, int) else datetime.now(UTC)
+    )
+    return json.dumps(
+        {
+            "OPENAI_API_KEY": None,
+            "tokens": {
+                "id_token": ".".join((_b64({"alg": "none"}), _b64(identity), _b64("agenticos"))),
+                "access_token": credentials.access_token,
+                "refresh_token": credentials.refresh_token,
+                "account_id": credentials.account_id,
+            },
+            "last_refresh": refreshed.isoformat().replace("+00:00", "Z"),
+        }
+    )
+
+
+def rotated_sign_in(
+    auth_file: str, written: OpenAICodexCredentials
+) -> OpenAICodexCredentials | None:
+    """The tokens Codex left in its `auth.json`, when they differ from what was written."""
+    try:
+        data = json.loads(auth_file)
+    except ValueError:
+        return None
+    if not isinstance(data, Mapping):
+        return None
+    try:
+        current = OpenAICodexCredentials.from_codex_cli_auth(data)
+    except UserError:
+        return None
+    unchanged = (
+        current.access_token == written.access_token
+        and current.refresh_token == written.refresh_token
+    )
+    return None if unchanged else current
 
 
 def read_events(log: str) -> list[dict[str, Any]]:
@@ -384,6 +462,21 @@ def _content(event: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _mapping(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _jwt_claims(token: str) -> dict[str, Any]:
+    parts = token.split(".")
+    if len(parts) != 3:
+        return {}
+    try:
+        decoded = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
+    except ValueError:
+        return {}
+    return _mapping(decoded)
+
+
+def _b64(value: object) -> str:
+    return base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip("=")
 
 
 def _text(value: object) -> str | None:

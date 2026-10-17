@@ -721,6 +721,17 @@ class SecretRequirement(BaseModel):
             "with a username and password or be reached without one."
         ),
     )
+    also_accepts: tuple[SecretKind, ...] = Field(
+        default=(),
+        description=(
+            "Further kinds that satisfy the requirement besides `kind`. The coding "
+            "agent takes an API key or a ChatGPT sign-in, and the Builder offers both."
+        ),
+    )
+
+    def accepts(self, kind: str) -> bool:
+        """Whether a secret of `kind` satisfies this requirement."""
+        return kind == self.kind.value or kind in {also.value for also in self.also_accepts}
 
     @model_validator(mode="after")
     def _a_requirement_is_for_a_real_secret(self) -> SecretRequirement:

@@ -1,5 +1,5 @@
 ---
-source_sha: "572a76328911"
+source_sha: "271abc72ba39"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1166,8 +1166,8 @@ Spezialisten.
 
 | Konfiguration | Standard | Werte |
 |---|---|---|
-| `harness` | `claude_code` | `claude_code` (ein Anthropic-API-Key), `codex` (ein OpenAI-API-Key) |
-| `model` | Standard des Harness | Das Modell unter dem Namen, den das Harness dafür verwendet, etwa `claude-sonnet-5-5` oder `gpt-5.5-codex` |
+| `harness` | `claude_code` | `claude_code` (ein Anthropic-API-Key oder ein Claude-Abo-Token), `codex` (ein OpenAI-API-Key oder eine ChatGPT-Anmeldung) |
+| `model` | Standard des Harness | Claude Opus, Sonnet oder Haiku 5.5 für Claude Code; GPT-5.6 Sol, Terra, Luna oder GPT-5.3 Codex für Codex |
 | `base_url` | direkt Anthropic | Nur Claude Code: ein Gateway, das die API von Anthropic spricht, etwa `https://openrouter.ai/api`, dessen Key dann im Vault liegt |
 | `timeout_minutes` | 15 | 1–60, pro Aufgabe |
 
@@ -1197,9 +1197,20 @@ nicht verwendet wird.
 **Was es braucht.** Die Capability `sandbox` auf dem Backend `service` mit
 erlaubten Shell-Befehlen — alles andere lehnt das Veröffentlichen ab — und eine
 Runtime mit installiertem Harness: Die Runtime `workbench` fixiert Claude Code
-2.1.288 und Codex 0.160.0. Der API-Key kommt über die `secret_id` des Bindings aus
-dem Vault und erreicht den Befehl als Umgebungsvariable, nie auf dessen
+2.1.288 und Codex 0.160.0. Die Zugangsdaten kommen über die `secret_id` des
+Bindings aus dem Vault und erreichen den Befehl über seine Umgebung, nie auf dessen
 Befehlszeile.
+
+**Ein Key oder ein Abo.** Claude Code nimmt einen Anthropic-API-Key oder das Token,
+das `claude setup-token` für ein Claude-Pro- oder -Max-Abo ausgibt, als Key
+gespeichert — erkannt an seinem Präfix `sk-ant-oat`; es meldet sich nur bei Anthropic
+an, nicht bei einem Gateway. Codex nimmt einen OpenAI-API-Key oder eine
+ChatGPT-Anmeldung über **Sign in with ChatGPT**, dieselbe, die ein
+[Modellprofil](../models.md) nutzt. Für eine Aufgabe wird die Anmeldung in Codex'
+eigene `auth.json` außerhalb des Workspace geschrieben und danach entfernt, und von
+Codex erneuerte Tokens werden über dasselbe Secret zurückversiegelt. Die Arbeit auf
+einem persönlichen Abo unterliegt den Bedingungen von Anthropic und OpenAI für diese
+Pläne, die das auf einem geteilten Deployment womöglich nicht erlauben.
 
 **An einen Coding Agent delegieren.** Ein Delegierter, der `sandbox` selbst bindet,
 läuft in einem frischen Workspace im Speicher ohne Shell, sodass ein per Delegation

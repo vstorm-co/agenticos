@@ -13,7 +13,7 @@ it reaches any specialist, through delegation, so "hand this to Claude Code" and
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, HttpUrl, model_validator
+from pydantic import BaseModel, Field, HttpUrl, JsonValue, model_validator
 
 from app.agents.capabilities._registry import (
     CapabilityBuildContext,
@@ -21,11 +21,39 @@ from app.agents.capabilities._registry import (
     register,
 )
 from app.agents.capabilities.coding_agent._capability import CodingAgent
-from app.core.secret_kinds import ApiKeySecret, SecretKind, SecretRequirement
+from app.core.secret_kinds import ApiKeySecret, OpenAICodexSecret, SecretKind, SecretRequirement
+from app.services.openai_codex import VaultCodexCredentials
 
 __all__ = ["CODING_AGENT_ID", "CodingAgent", "CodingAgentConfig"]
 
 CODING_AGENT_ID = "coding_agent"
+
+CodingModel = Literal[
+    "anthropic:claude-opus-5-5",
+    "anthropic:claude-sonnet-5-5",
+    "anthropic:claude-haiku-5-5",
+    "openai:gpt-5.6-sol",
+    "openai:gpt-5.6-terra",
+    "openai:gpt-5.6-luna",
+    "openai:gpt-5.3-codex",
+]
+"""The models offered, each prefixed with its vendor so the Builder draws its mark.
+
+The Claude ids are the ones Claude Code takes, directly and through OpenRouter,
+both checked; the Codex ones are the curated `openai_codex` list.
+"""
+
+_MODEL_NAMES: dict[str, JsonValue] = {
+    "anthropic:claude-opus-5-5": "Claude Opus 5.5",
+    "anthropic:claude-sonnet-5-5": "Claude Sonnet 5.5",
+    "anthropic:claude-haiku-5-5": "Claude Haiku 5.5",
+    "openai:gpt-5.6-sol": "GPT-5.6 Sol",
+    "openai:gpt-5.6-terra": "GPT-5.6 Terra",
+    "openai:gpt-5.6-luna": "GPT-5.6 Luna",
+    "openai:gpt-5.3-codex": "GPT-5.3 Codex",
+}
+
+_VENDOR = {"claude_code": "anthropic", "codex": "openai"}
 
 
 class CodingAgentConfig(BaseModel):
@@ -35,18 +63,19 @@ class CodingAgentConfig(BaseModel):
         title="Coding agent",
         default="claude_code",
         description=(
-            "Which coding agent does the work: Claude Code, with an Anthropic API key, "
-            "or Codex, with an OpenAI API key."
+            "Which coding agent does the work: Claude Code, on an Anthropic key or a "
+            "Claude subscription token, or Codex, on an OpenAI key or a ChatGPT sign-in."
         ),
+        json_schema_extra={"x-enum-labels": {"claude_code": "Claude Code", "codex": "Codex"}},
     )
-    model: str | None = Field(
+    model: CodingModel | None = Field(
         title="Model",
         default=None,
-        max_length=128,
         description=(
-            "The model the coding agent runs, by its own name for it, such as "
-            "claude-sonnet-5-5 or gpt-5.5-codex. Empty takes its default."
+            "The model the coding agent runs: a Claude model for Claude Code, an "
+            "OpenAI one for Codex. Not set takes the coding agent's own default."
         ),
+        json_schema_extra={"x-enum-labels": _MODEL_NAMES},
     )
     base_url: HttpUrl | None = Field(
         title="Anthropic-compatible endpoint",
@@ -71,6 +100,20 @@ class CodingAgentConfig(BaseModel):
         if self.base_url is not None and self.harness != "claude_code":
             raise ValueError("Only Claude Code can be pointed at another endpoint.")
         return self
+
+    @model_validator(mode="after")
+    def _model_fits_the_harness(self) -> "CodingAgentConfig":
+        if self.model is not None and not self.model.startswith(f"{_VENDOR[self.harness]}:"):
+            raise ValueError(
+                "Claude Code runs Claude models and Codex runs OpenAI ones; pick a model "
+                "of the chosen coding agent's vendor."
+            )
+        return self
+
+    @property
+    def model_id(self) -> str | None:
+        """The model as the harness names it, without the vendor the Builder shows."""
+        return self.model.split(":", 1)[1] if self.model is not None else None
 
 
 @register(
@@ -103,7 +146,11 @@ class CodingAgentConfig(BaseModel):
     side_effecting=True,
     secret=SecretRequirement(
         kind=SecretKind.API_KEY,
-        description="The Anthropic API key for Claude Code, or the OpenAI API key for Codex",
+        also_accepts=(SecretKind.OPENAI_CODEX,),
+        description=(
+            "Claude Code: an Anthropic API key or a Claude subscription token. "
+            "Codex: an OpenAI API key or a ChatGPT sign-in."
+        ),
     ),
 )
 def _build(ctx: CapabilityBuildContext) -> CodingAgent:
@@ -111,10 +158,20 @@ def _build(ctx: CapabilityBuildContext) -> CodingAgent:
     api_key = (
         ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
     )
+    secret_id = ctx.binding.secret_id
+    # A sign-in is not handed over as the tokens it held at build time: its
+    # refresh token is single-use, so each task reads the vault's current pair
+    # and writes back whatever Codex rotated it to.
+    sign_in = (
+        (lambda org: VaultCodexCredentials(organization_id=org, secret_id=secret_id))
+        if isinstance(ctx.secret, OpenAICodexSecret) and secret_id is not None
+        else None
+    )
     return CodingAgent(
         harness=config.harness,
-        model=config.model,
+        model=config.model_id,
         base_url=str(config.base_url).rstrip("/") if config.base_url is not None else None,
         timeout_seconds=config.timeout_minutes * 60,
         api_key=api_key,
+        sign_in=sign_in,
     )

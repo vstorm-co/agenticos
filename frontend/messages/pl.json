@@ -362,7 +362,7 @@
     "noSandboxConnectionRegistered": "Nie zarejestrowano połączenia sandbox",
     "noSecretOfKind": "Brak sekretu {kind} w vault",
     "noSecret": "Bez sekretu",
-    "noSecretSelected": "Nie wybrano sekretu. Ta capability potrzebuje sekretu rodzaju {kind}, a agenta nie można opublikować, dopóki go nie ma.",
+    "noSecretSelected": "Nic jeszcze nie wybrano - agenta nie da się opublikować, dopóki coś nie zostanie wybrane.",
     "noSignMarketingPage": "Bez logowania - strona marketingowa",
     "noSitesAllowedWidget": "Brak dozwolonych witryn - ten widget nie może się nigdzie otworzyć",
     "noSpecialistsYet": "Brak specjalistów. Warto dodać jednego, gdy publikowanie całego agenta byłoby zbyt dużym ceremoniałem jak na to zadanie.",
@@ -790,7 +790,11 @@
     "noRemoteDelegatesYet": "Brak zdalnych agentów.",
     "noRemoteAgentsRegistered": "Nie zarejestrowano jeszcze żadnych zdalnych agentów. <link>Zarejestruj</link> agenta po jego agent card.",
     "remoteDelegateGone": "Zdalny agent, którego już nie zarejestrowano",
-    "remoteDelegateGoneDetail": "Jego rejestrację usunięto, więc publikacja odrzuci tego agenta, dopóki nie zostanie usunięty z listy."
+    "remoteDelegateGoneDetail": "Jego rejestrację usunięto, więc publikacja odrzuci tego agenta, dopóki nie zostanie usunięty z listy.",
+    "keyOrSignIn": "Klucz albo logowanie",
+    "codingAgentKeyName": "{signIn, select, chatgpt {Klucz OpenAI dla Codexa} other {Klucz Claude Code}}",
+    "chatgptSignInName": "ChatGPT dla Codexa",
+    "claudeTokenHint": "Przy subskrypcji Claude Pro albo Max: uruchom <code>claude setup-token</code> na swoim komputerze i dodaj tutaj jako klucz token, który wypisze. Klucz API Anthropic też zadziała."
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -6341,7 +6345,7 @@
       "does": "Przekazuje pracę programistyczną do Claude Code albo Codex, które planują i zmieniają kod w sandboxie agenta.",
       "example1": "Napraw padający test w repozytorium sklonowanym przez agenta",
       "example2": "Wyjaśnij, jak działa moduł, zanim go zmienisz",
-      "needs": "Capability Sandbox na połączeniu sandbox oraz klucz API Anthropic albo OpenAI w vault. Każde zadanie rozlicza ten dostawca.",
+      "needs": "Capability Sandbox na połączeniu sandbox oraz w vault klucz Anthropic albo OpenAI, token subskrypcji Claude albo logowanie ChatGPT.",
       "never": "Nigdy nie działa poza sandboxem agenta. Zmiany czekają na twoją zgodę, gdy ustawisz Always ask na Zmień kod."
     },
     "compaction": {
@@ -6952,11 +6956,11 @@
     "coding_agent": {
       "harness": {
         "title": "Coding agent",
-        "description": "Który coding agent wykonuje pracę: Claude Code z kluczem API Anthropic albo Codex z kluczem API OpenAI."
+        "description": "Który coding agent wykonuje pracę: Claude Code na kluczu Anthropic albo tokenie subskrypcji Claude, albo Codex na kluczu OpenAI albo logowaniu ChatGPT."
       },
       "model": {
         "title": "Model",
-        "description": "Model, na którym działa coding agent, pod jego własną nazwą, np. claude-sonnet-5-5 albo gpt-5.5-codex. Puste pole oznacza jego domyślny model."
+        "description": "Model, na którym działa coding agent: model Claude dla Claude Code, model OpenAI dla Codexa. Nieustawiony oznacza domyślny model coding agenta."
       },
       "base_url": {
         "title": "Endpoint zgodny z Anthropic",

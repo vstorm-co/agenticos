@@ -192,7 +192,7 @@ describe("CapabilitySettings secret picker", () => {
     // Waited for the vault to have arrived, so this is the state with a key
     // available and nobody having picked it - not the one before the list landed.
     expect(await screen.findByText("Choose a secret")).toBeInTheDocument();
-    expect(screen.getByText(/cannot be published until it has one/)).toBeInTheDocument();
+    expect(screen.getByText(/cannot be published until something is/)).toBeInTheDocument();
     expect(picker()).toBeInvalid();
   });
 
@@ -390,7 +390,7 @@ describe("CapabilitySettings secret picker", () => {
     expect(
       await screen.findByText(/says nothing about what your organization has stored/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/cannot be published until it has one/)).toBeInTheDocument();
+    expect(screen.getByText(/cannot be published until something is/)).toBeInTheDocument();
   });
 
   it("names a stored secret of the wrong kind rather than silently dropping it", async () => {
@@ -639,5 +639,51 @@ describe("a capability configuration refused at publish", () => {
       "aria-invalid",
       "true",
     );
+  });
+});
+
+/** The coding agent takes a key or a subscription, and says which of each its harness takes. */
+describe("CapabilitySettings coding agent sign-in", () => {
+  const CODER: CapabilityCatalogEntry = {
+    ...WEATHER,
+    id: "coding_agent",
+    name: "Coding agent",
+    requires_secret: {
+      kind: "api_key",
+      also_accepts: ["openai_codex"],
+      description:
+        "Claude Code: an Anthropic key or token. Codex: an OpenAI key or a ChatGPT sign-in.",
+      required_when: null,
+      purpose: null,
+    },
+  };
+  const SIGN_IN: Secret = {
+    id: "sec-3",
+    name: "My ChatGPT",
+    description: null,
+    kind: "openai_codex",
+    hint: "acc1",
+  };
+
+  it("offers a ChatGPT sign-in to Codex, and one already made among the keys", async () => {
+    serve([API_KEY_SECRET, SIGN_IN, AWS_SECRET]);
+    mount(binding({ id: "coding_agent", config: { harness: "codex" } }), { definition: CODER });
+
+    expect(await screen.findByRole("button", { name: "Sign in with ChatGPT" })).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Key or sign-in"));
+    expect(await screen.findByRole("option", { name: /My ChatGPT/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Weather API key/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Ingest role/ })).toBeNull();
+  });
+
+  it("tells Claude Code where its subscription token comes from", async () => {
+    serve([API_KEY_SECRET]);
+    mount(binding({ id: "coding_agent", config: { harness: "claude_code" } }), {
+      definition: CODER,
+    });
+
+    expect(await screen.findByText("claude setup-token")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sign in with ChatGPT" })).toBeNull();
+    expect(await screen.findByRole("button", { name: /Claude Code key/ })).toBeInTheDocument();
   });
 });
