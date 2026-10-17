@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-17
+
 ### Added
 
 - **`@`-mentions in the chat composer** (#2189). Typing `@` offers what the
