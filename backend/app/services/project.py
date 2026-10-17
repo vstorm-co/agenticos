@@ -42,10 +42,6 @@ from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
 
-PLATFORM_DIR = ".agenticos"
-"""Where the platform keeps a task's working files - see the coding agent - and
-so not somewhere a person writes."""
-
 
 def project_path(path: str) -> str:
     """A path inside a project's container, as a person may name one.
@@ -64,7 +60,7 @@ def project_path(path: str) -> str:
             message="Name a path inside the project, such as reports/q3.pdf",
             details={"path": path},
         )
-    reserved = (PLATFORM_DIR, *(prefix.strip("/") for prefix in NOT_BROWSABLE))
+    reserved = tuple(prefix.strip("/") for prefix in NOT_BROWSABLE)
     if any(normal == prefix or normal.startswith(f"{prefix}/") for prefix in reserved):
         raise BadRequestError(
             message="That folder is the platform's own; choose another name",

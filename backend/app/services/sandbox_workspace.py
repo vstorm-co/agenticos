@@ -210,14 +210,26 @@ class WorkspaceOverview:
     """
 
 
-NOT_BROWSABLE = (*RESERVED_SKILL_PREFIXES, f"{OVERFLOW_PREFIX}/")
+PLATFORM_DIR = ".agenticos"
+"""Where the platform keeps its own working files in a workspace - a coding task's
+events and session (`app.agents.capabilities.coding_agent._task.WORK_DIR`), a
+project's task files - and so not somewhere a person writes or browses."""
+
+NOT_BROWSABLE = (
+    *RESERVED_SKILL_PREFIXES,
+    f"{OVERFLOW_PREFIX}/",
+    f"{PLATFORM_DIR}/",
+    f"workspace/{PLATFORM_DIR}/",
+)
 """Prefixes the file browser drops, matched after the leading slash.
 
-Both are the platform's own writing rather than the agent's work for a person, and
-both are needed on disk: a skill's resource is a script the shell runs and
-`collect_changes` diffs, and a spill is what a tool's overflowing output was
-written to. A listing of what an agent is keeping is not the place either belongs -
-`/workspaces` was mostly `skills/<name>/SKILL.md` before this (#1064)."""
+All are the platform's own writing rather than the agent's work for a person, and
+all are needed on disk: a skill's resource is a script the shell runs and
+`collect_changes` diffs, a spill is what a tool's overflowing output was written
+to, and `.agenticos/` holds a coding task's events and the session the next task
+continues. A listing of what an agent is keeping is not the place any of them
+belongs - `/workspaces` was mostly `skills/<name>/SKILL.md` before this (#1064),
+and `.agenticos/coding-agent/<id>.exit` once the coding agent ran."""
 
 
 def browsable(entries: list[FileInfo]) -> list[FileInfo]:

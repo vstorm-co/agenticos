@@ -4172,6 +4172,17 @@ class TestWhatTheBrowserDoesNotShow:
 
         assert [entry["path"] for entry in browsable(entries)] == ["/skillset.md", "/workspace/w"]
 
+    @pytest.mark.parametrize(
+        "path", [".agenticos/coding-agent/a1.exit", "/workspace/.agenticos/coding-agent/x.session"]
+    )
+    def test_the_platforms_own_working_files_are_left_out(self, path: str):
+        """A coding task's events and session are the platform's, not the agent's work."""
+        entries: list[FileInfo] = [
+            {"name": path.rsplit("/", 1)[-1], "path": path, "is_dir": False},
+            {"name": "report.md", "path": "/workspace/report.md", "is_dir": False},
+        ]
+        assert [entry["path"] for entry in browsable(entries)] == ["/workspace/report.md"]
+
     async def test_the_flat_view_leaves_them_out_too(self, monkeypatch, mock_db_session):
         from app.repositories import agent as agent_repo
 
