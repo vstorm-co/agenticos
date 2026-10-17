@@ -4,12 +4,13 @@ import { useState } from "react";
 
 import { McpBindingDialog } from "@/components/agents/mcp-binding-dialog";
 import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
+import { PlatformServerCard } from "./platform-server-card";
 import { Checkbox, Pager, SearchInput, Switch, useListControls } from "@/components/ui";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { entryForConnection } from "@/lib/mcp-servers";
 import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
 import type { AccountRef } from "@/components/agents/mcp-binding-dialog";
-import type { McpServerRef } from "@/types/agents";
+import type { McpServerRef, PlatformMcpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { useTranslations } from "next-intl";
 
@@ -137,6 +138,9 @@ export function McpServerPicker({
           : [ref.catalog_key],
   );
 
+  const platform =
+    value.find((ref): ref is PlatformMcpServerRef => ref.account === "platform") ?? null;
+
   /** Replace every binding this row held with `next` - several, one, or none. */
   const rebind = (row: CardRow, next: AccountRef[]) => {
     const mine = new Set<McpServerRef>(bindingsFor(row, value));
@@ -209,6 +213,20 @@ export function McpServerPicker({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {/* First, and on every page a search does not rule out: the one server
+            that needs no connection, because it is this deployment (#2190). */}
+        {list.page === 0 && !connectedOnly && (
+          <PlatformServerCard
+            binding={platform}
+            onChange={(next) =>
+              onChange([
+                ...value.filter((ref) => ref.account !== "platform"),
+                ...(next === null ? [] : [next]),
+              ])
+            }
+            disabled={disabled}
+          />
+        )}
         {list.visible.map((row) => (
           <ServerCard
             key={row.key}

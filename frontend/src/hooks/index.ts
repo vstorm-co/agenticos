@@ -61,7 +61,12 @@ export {
   useDelegationTree,
   usePromptVariables,
 } from "./use-agents";
-export { useMcpCatalog, useMcpServers, type McpServerRow } from "./use-mcp-servers";
+export {
+  useMcpCatalog,
+  useMcpServers,
+  usePlatformMcpTools,
+  type McpServerRow,
+} from "./use-mcp-servers";
 export { useMcpOAuthOutcome } from "./use-mcp-oauth-outcome";
 export {
   usePortalCatalog,

@@ -775,7 +775,20 @@
     "capabilityShelfEnabled": "{enabled} of {total} on",
     "capabilityShelfPrevious": "Earlier in {shelf}",
     "capabilityShelfNext": "More in {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}"
+    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}",
+    "platformServerDescription": "This platform's own tools: agents, runs, knowledge bases, skills and apps - so the agent can answer questions about the platform and act in it.",
+    "platformServerBadge": "Built in",
+    "platformAsksBeforeWrites": "Asks before any change",
+    "platformAsksEveryCall": "Asks before every call",
+    "platformAsWhoeverAsks": "Acts as whoever asks",
+    "platformActsAsWhoeverAsks": "Every tool acts as the person the agent runs for, with exactly their permissions. Nothing new is granted: what they could not do in the console, the agent cannot do here either.",
+    "platformUseIt": "Use it in this agent",
+    "platformApproval": "Approval",
+    "platformWritesHint": "Reading is free; creating, running or changing anything waits for the person to approve it.",
+    "platformAllHint": "Every call waits for approval, reading included.",
+    "platformTools": "Tools this agent may call",
+    "platformWritesBadge": "changes something",
+    "platformRemove": "Remove from this agent"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

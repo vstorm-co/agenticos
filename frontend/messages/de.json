@@ -775,7 +775,20 @@
     "capabilityShelfEnabled": "{enabled} von {total} an",
     "capabilityShelfPrevious": "Zurück in {shelf}",
     "capabilityShelfNext": "Mehr in {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Eingebaut, keine Werkzeuge} =1 {1 Werkzeug} other {# Werkzeuge}}"
+    "capabilityToolCount": "{count, plural, =0 {Eingebaut, keine Werkzeuge} =1 {1 Werkzeug} other {# Werkzeuge}}",
+    "platformServerDescription": "Die eigenen Werkzeuge dieser Plattform: Agents, Runs, Wissensbasen, Skills und Apps - der Agent kann Fragen zur Plattform beantworten und in ihr handeln.",
+    "platformServerBadge": "Eingebaut",
+    "platformAsksBeforeWrites": "Fragt vor jeder Änderung",
+    "platformAsksEveryCall": "Fragt vor jedem Aufruf",
+    "platformAsWhoeverAsks": "Handelt als die fragende Person",
+    "platformActsAsWhoeverAsks": "Jedes Werkzeug handelt als die Person, für die der Agent läuft, mit genau ihren Berechtigungen. Nichts Neues wird gewährt: Was sie in der Konsole nicht durfte, kann der Agent auch hier nicht.",
+    "platformUseIt": "In diesem Agent nutzen",
+    "platformApproval": "Freigabe",
+    "platformWritesHint": "Lesen ist frei; Anlegen, Ausführen oder Ändern wartet auf die Freigabe der Person.",
+    "platformAllHint": "Jeder Aufruf wartet auf Freigabe, auch Lesen.",
+    "platformTools": "Werkzeuge, die dieser Agent aufrufen darf",
+    "platformWritesBadge": "ändert etwas",
+    "platformRemove": "Aus diesem Agent entfernen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

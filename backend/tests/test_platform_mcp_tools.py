@@ -12,6 +12,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import AccessToken
 
+from app.services.platform_mcp import _unreachable, platform_tool_catalog
 from app.services.platform_mcp._api import PlatformApi
 from app.services.platform_mcp._oauth import PlatformOAuthProvider
 from app.services.platform_mcp._tools import platform_tools
@@ -332,3 +333,35 @@ class TestChainedCalls:
 async def test_refuse_answers_the_way_an_api_refusal_does() -> None:
     with pytest.raises(ToolError, match="nope"):
         _api(lambda request: httpx.Response(200)).refuse("nope")
+
+
+class TestTheCatalogTheBuilderLists:
+    """`GET /agents/platform-mcp-tools`: what a binding chooses from (#2190)."""
+
+    def test_it_is_the_server_s_own_tools_with_their_write_marks(self) -> None:
+        catalog = {tool.name: tool for tool in platform_tool_catalog()}
+
+        assert catalog["list_agents"].writes is False
+        assert catalog["create_agent_draft"].writes is True
+        assert catalog["whoami"].summary.startswith("Which organization")
+
+    async def test_describing_a_tool_can_never_run_it(self) -> None:
+        """The catalog's API answers nothing: a call would be a bug, so it says so."""
+        [whoami] = [tool for tool in platform_tool_catalog() if tool.name == "whoami"]
+
+        with pytest.raises(ToolError, match="needs an authenticated caller"):
+            await whoami.function()
+
+    async def test_the_route_lists_every_tool_with_its_write_mark(self) -> None:
+        from app.api.routes.v1.agents import list_platform_mcp_tools
+
+        listed = await list_platform_mcp_tools()
+        by_name = {item.name: item for item in listed.items}
+
+        assert listed.total == len(platform_tool_catalog()) == len(by_name)
+        assert by_name["run_agent"].writes is True
+        assert by_name["get_run"].writes is False
+
+    async def test_the_api_behind_the_catalog_answers_nothing(self) -> None:
+        with pytest.raises(RuntimeError, match="nothing is called"):
+            await _unreachable({}, AsyncMock(), AsyncMock())
