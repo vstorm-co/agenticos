@@ -159,14 +159,17 @@ class ProjectService:
             [project.default_agent_id for project in projects if project.default_agent_id],
             organization_id=ctx.organization_id,
         )
-        visible_agents = await accessible_ids(
-            self.db, ctx, list(agents.values()), Perm.AGENTS_VIEW, resource_type=AGENT
+        # Runnable, not merely visible: the chat starts with the default agent,
+        # and one the reader may only look at answered their first message with
+        # a refusal after the turn was already saved.
+        runnable_agents = await accessible_ids(
+            self.db, ctx, list(agents.values()), Perm.AGENTS_RUN, resource_type=AGENT
         )
         reads = []
         for project in projects:
             count, last = activity.get(project.id, (0, None))
             agent = agents.get(project.default_agent_id) if project.default_agent_id else None
-            seen = agent if agent is not None and agent.id in visible_agents else None
+            seen = agent if agent is not None and agent.id in runnable_agents else None
             reads.append(
                 ProjectRead.model_validate(project).model_copy(
                     update={
@@ -175,7 +178,7 @@ class ProjectService:
                         "shared_groups": groups[project.id],
                         "can_use": project.id in usable,
                         "can_edit": project.id in editable,
-                        # Both or neither: an agent the reader may not see is not
+                        # Both or neither: an agent the reader may not run is not
                         # named, and its id is not handed over either.
                         "default_agent_id": seen.id if seen else None,
                         "default_agent_name": seen.name if seen else None,

@@ -55,9 +55,12 @@ class ProjectRead(BaseSchema):
     name: str
     description: str | None = None
     instructions: str
-    default_agent_id: UUID | None = None
+    default_agent_id: UUID | None = Field(
+        default=None,
+        description="The agent a new chat starts with - null when the caller may not run it",
+    )
     default_agent_name: str | None = Field(
-        default=None, description="The default agent's name, when the caller may see it"
+        default=None, description="The default agent's name, when the caller may run it"
     )
     owner_user_id: UUID | None = None
     visibility: str

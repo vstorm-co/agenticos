@@ -246,7 +246,7 @@ class TestListing:
                 module,
                 "accessible_ids",
                 AsyncMock(side_effect=[{mine.id}, {mine.id}, {agent.id}]),
-            ),
+            ) as accessible,
             patch.object(
                 module.agent_repo,
                 "get_many",
@@ -260,6 +260,8 @@ class TestListing:
         assert (first.chat_count, first.can_use, first.can_edit) == (3, True, True)
         assert (first.default_agent_id, first.default_agent_name) == (agent.id, "Researcher")
         assert (second.default_agent_id, second.default_agent_name) == (None, None)
+        # Runnable, not merely visible: a new chat starts with it.
+        assert accessible.await_args_list[2].args[3] is Perm.AGENTS_RUN
         assert first.shared_groups == ["Finance"]
         assert (second.chat_count, second.can_use, second.default_agent_name) == (0, False, None)
 
