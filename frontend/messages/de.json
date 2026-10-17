@@ -6556,11 +6556,11 @@
     },
     "mirage": {
       "name": "Virtuelles Terminal (Mirage)",
-      "does": "Lässt den Agent ls, grep, cat und find über GitHub-Repositories nutzen, ohne einen Container zu starten.",
-      "example1": "Welche unserer Repositories erwähnen noch die alte API?",
+      "does": "Lässt den Agent ls, grep, cat und find über seine Wissensdatenbanken, deren Quellen (S3, Google Drive, SharePoint, Git) und GitHub-Repositories nutzen, ohne einen Container zu starten.",
+      "example1": "Welche Verträge in der Wissensdatenbank nennen noch eine Kündigungsfrist von 60 Tagen?",
       "example2": "Finde jedes TODO in den Repositories web und api",
-      "needs": "Ein GitHub-Token im Vault (Git-Token, Host github.com).",
-      "never": "Schreibt nie in ein Repository; beschreibbar ist nur der eigene Arbeitsordner."
+      "needs": "Nichts für Wissensdatenbanken und ihre Quellen; für Repositories ein GitHub-Token im Vault (Git-Token, Host github.com).",
+      "never": "Schreibt nie in einen eingehängten Ordner; beschreibbar ist nur der eigene Arbeitsordner."
     }
   },
   "capabilityCategories": {
@@ -7005,9 +7005,21 @@
       }
     },
     "mirage": {
-      "repositories": {
+      "github": {
         "title": "GitHub-Repositories",
-        "description": "Repositories, schreibgeschützt eingehängt unter /github/<owner>/<name>, als owner/name oder owner/name@branch."
+        "description": "Hängt die unten aufgeführten Repositories ein. Braucht ein GitHub-Token aus dem Vault."
+      },
+      "repositories": {
+        "title": "Repositories",
+        "description": "Schreibgeschützt eingehängt unter /github/<owner>/<name>, als owner/name oder owner/name@branch."
+      },
+      "knowledge": {
+        "title": "Wissensdatenbanken",
+        "description": "Die Wissensdatenbanken des Agents, jedes Dokument als sein geparster Text unter /knowledge/<datenbank>/."
+      },
+      "sources": {
+        "title": "Quellen der Wissensdatenbanken",
+        "description": "Die Dateien hinter den synchronisierten Quellen dieser Datenbanken - S3, Google Drive, SharePoint, Git - unter /sources/<quelle>/, gelesen mit den Zugangsdaten der jeweiligen Quelle."
       },
       "scratch": {
         "title": "Arbeitsordner",
@@ -7020,6 +7032,14 @@
       "max_output_chars": {
         "title": "Ausgabelimit (Zeichen)",
         "description": "Wie viel der Ausgabe eines Befehls das Modell erreicht; der Rest wird abgeschnitten."
+      },
+      "allowed_commands": {
+        "title": "Erlaubte Befehle",
+        "description": "Nur diese Befehle laufen, z. B. ls, cat, grep. Leer erlaubt jeden Befehl des Terminals."
+      },
+      "hidden_paths": {
+        "title": "Verborgene Pfade",
+        "description": "Pfade, die es für den Agent nicht gibt, z. B. /sources/finance oder *.env. In Auflistungen unsichtbar und für jeden Befehl gesperrt."
       }
     }
   },

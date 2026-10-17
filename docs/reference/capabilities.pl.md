@@ -1,5 +1,5 @@
 ---
-source_sha: "424ac8238a5e"
+source_sha: "9131a7770622"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -985,31 +985,59 @@ odrzuca — zobacz [Skille](../skills.md).
 
 ## Wirtualny terminal (Mirage) { #mirage }
 
-`mirage_explore` — *Run a read-only shell command across the mounted repositories.*
+`mirage_explore` — *Run a read-only shell command across the mounted folders.*
 `mirage_run` — *Run a shell command that may write into the scratch folder.*
 
-`ls`, `cat`, `grep`, `find`, `head` i `wc` w repozytoriach GitHub, bez kontenera.
-[Mirage](https://github.com/strukto-ai/mirage) montuje każde repozytorium tylko do
-odczytu pod `/github/<owner>/<name>/` i czyta je przez API GitHuba, więc agent
-przeszuka kilka repozytoriów w kilka sekund. Nie uruchamia kodu; od tego jest
-[sandbox](#files-shell).
+`ls`, `cat`, `grep`, `find`, `head` i `wc` w bazach wiedzy agenta, plikach za ich
+źródłami i repozytoriach GitHub, bez kontenera.
+[Mirage](https://github.com/strukto-ai/mirage) montuje każde z nich tylko do odczytu
+w jednym drzewie, więc agent przeszuka bucket, folder na Drive i repozytorium w kilka
+sekund. Nie uruchamia kodu; od tego jest [sandbox](#files-shell).
 
 | Konfiguracja | Domyślnie | Wartości |
 |---|---|---|
-| `repositories` | — | 1–5, `owner/name` lub `owner/name@branch` |
-| `scratch` | włączony | zapisywalny `/scratch/`, pusty przy każdym runie |
+| `knowledge` | włączone | każda podpięta baza wiedzy pod `/knowledge/<base>/`, jeden plik na zaindeksowany dokument |
+| `sources` | wyłączone | każde synchronizowane źródło tych baz pod `/sources/<source>/` |
+| `github` | wyłączone | montuje `repositories`; wymaga tokenu GitHub |
+| `repositories` | — | do 5, `owner/name` lub `owner/name@branch`, pod `/github/<owner>/<name>/` |
+| `scratch` | włączone | zapisywalny `/scratch/`, pusty przy każdym runie |
+| `allowed_commands` | każde polecenie | nazwy poleceń, np. `ls`, `grep`, `git log` |
+| `hidden_paths` | brak | ścieżki bezwzględne lub wzorce nazw plików, np. `/sources/finance`, `*.env` |
 | `timeout_seconds` | 60 | 5–600, na polecenie |
 | `max_output_chars` | 20000 | 1000–200000, reszta jest ucinana z adnotacją |
 
-**Repozytoria są zawsze tylko do odczytu.** `mirage_explore` działa w widoku, w
-którym każde montowanie jest tylko do odczytu, więc nie wymaga zatwierdzenia;
-`mirage_run` może zapisywać, tylko do folderu roboczego, i to na nim ustawia się
-**Zawsze pytaj**. Zapis do repozytorium kończy się błędem w Mirage, niezależnie od
+Co najmniej jedno z `knowledge`, `sources` i `github` musi być włączone, a `github`
+wymaga co najmniej jednego repozytorium; publikacja odrzuca binding, który nic nie
+montuje albo wymienia repozytoria przy wyłączonym `github`.
+
+**Baza wiedzy to jej sparsowany tekst.** Każdy plik pod `/knowledge/<base>/` to jeden
+zaindeksowany dokument, odczytany z magazynu wektorów i sklejony tak, że zakładka
+splittera pojawia się raz. Dokument wciąż parsowany albo taki, którego parsowanie się
+nie udało, nie jest wylistowany. Dwa dokumenty o tej samej nazwie rozróżnia `~2`.
+
+**Źródło jest czytane własnym poświadczeniem.** `/sources/<source>/` listuje źródło S3,
+Google Drive, SharePoint lub Git podpiętej bazy wiedzy przez ten sam konektor, który je
+synchronizuje, z poświadczeniem z vaulta wskazanym przez źródło. Montowane są tylko
+aktywne źródła tej organizacji. Źródło typu strona WWW nie jest, bo jego strony już są
+dokumentami pod `/knowledge`. Źródło jest listowane przy pierwszym poleceniu, które do
+niego sięga, a plik powyżej 20 MB jest odrzucany zamiast czytany.
+
+**Każdy montaż jest tylko do odczytu, zawsze.** `mirage_explore` działa w widoku, w
+którym każdy montaż jest tylko do odczytu, więc nie wymaga zatwierdzenia; `mirage_run`
+może zapisywać, wyłącznie do folderu roboczego, i to na nim ustawia się
+**Zawsze pytaj**. Zapis gdziekolwiek indziej kończy się błędem w Mirage, niezależnie od
 narzędzia.
 
-**Token to `git_token` z vaulta, zapieczętowany dla `github.com`**, i jest wymagany
-także dla publicznych repozytoriów, bo GitHub odrzuca pusty. Token zapieczętowany
-dla innego hosta jest odrzucany, a nie wysyłany do GitHuba.
+**Polityka jest polityką Mirage.** `allowed_commands` i `hidden_paths` stają się
+profilem uprawnień sesji, więc egzekwuje je shell, który parsuje linię, także w
+potokach i `$(...)`. Polecenie spoza listy to `command not found`; ukryta ścieżka nie
+pojawia się w listingach ani wyszukiwaniach i jest odrzucana każdemu poleceniu.
+
+**Poświadczenia nigdy nie trafiają do modelu ani do konfiguracji.** Token GitHub to
+`git_token` z vaulta, zapieczętowany dla `github.com`, wymagany tylko przy włączonym
+`github`, wtedy także dla publicznych repozytoriów, bo GitHub odrzuca pusty. Token
+zapieczętowany dla innego hosta jest odrzucany zamiast wysłany. Błąd źródła trafia do
+logu, a model czyta tylko, że folderu nie dało się wylistować albo odczytać.
 
 ## Wykresy { #charts }
 

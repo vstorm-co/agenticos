@@ -120,7 +120,7 @@ _DOCUMENTATION_STUB: dict[str, Any] = {
 _DOCUMENTATION_CONFIGS: dict[str, dict[str, Any]] = {
     "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
     # Mounts nothing without a repository; the probe never reaches it.
-    "mirage": {"repositories": ["example/repository"]},
+    "mirage": {"github": True, "repositories": ["example/repository"]},
 }
 
 

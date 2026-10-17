@@ -21,7 +21,7 @@ from app.agents.capabilities._failures import steer
 if TYPE_CHECKING:
     from app.agents.capabilities.mirage._capability import _Views
 
-EXPLORE_DESCRIPTION = "Run a read-only shell command across the mounted repositories."
+EXPLORE_DESCRIPTION = "Run a read-only shell command across the mounted folders."
 RUN_DESCRIPTION = "Run a shell command that may write into the scratch folder."
 
 
@@ -63,30 +63,31 @@ def build_toolset(terminal: Terminal) -> FunctionToolset[Any]:
     """`mirage_explore` and `mirage_run`, bound to one run's terminal."""
 
     async def mirage_explore(ctx: RunContext[Any], command: str) -> str:
-        """Run a read-only shell command across the mounted repositories.
+        """Run a read-only shell command across the mounted folders.
 
-        ls, cat, grep, find, head and wc work as in a shell. Every mount is read-only here, so a write fails with "Read-only file
-        system" - use mirage_run for that. Pipes work: `grep -rn TODO /github | head`.
+        ls, cat, grep, find, head and wc work as in a shell. Every mount is
+        read-only here, so a write fails - use mirage_run for that. Pipes work:
+        `grep -rn TODO / | head`.
 
         Args:
-            command: One shell line, e.g. `ls /github` or `grep -rl Agent /github`.
+            command: One shell line, e.g. `ls /` or `grep -rl invoice /knowledge`.
 
         Returns:
             `exit code: N`, then the output; stderr follows under `[stderr]`. Long
             output is cut, and the note at the end says where.
         """
         if not command.strip():
-            return steer(ctx, "Pass a shell command, e.g. `ls /github`.")
+            return steer(ctx, "Pass a shell command, e.g. `ls /`.")
         return await terminal.run(command, writable=False)
 
     async def mirage_run(ctx: RunContext[Any], command: str) -> str:
         """Run a shell command that may write into the scratch folder.
 
-        The repositories stay read-only: a write there fails with "Operation
-        not supported". Use mirage_explore for anything that only reads.
+        Every other folder stays read-only: a write there fails with
+        "Operation not supported". Use mirage_explore for anything that only reads.
 
         Args:
-            command: One shell line, e.g. `grep -rn TODO /github > /scratch/todos.txt`.
+            command: One shell line, e.g. `grep -rn TODO / > /scratch/todos.txt`.
 
         Returns:
             `exit code: N`, then the output; stderr follows under `[stderr]`. Long

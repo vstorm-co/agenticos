@@ -121,6 +121,19 @@ class TestConditionalSecrets:
         a key for it would refuse a binding nothing can satisfy."""
         assert SecretCondition(field="method", equals=("tavily",)).is_met(None) is False
 
+    def test_a_switch_reads_as_the_builder_spells_it(self):
+        """The Builder evaluates the same condition with `String(true)`, which
+        is "true"; Python's `str(True)` would have asked for a key only on one
+        side of the wire."""
+        from pydantic import BaseModel
+
+        class Config(BaseModel):
+            github: bool
+
+        condition = SecretCondition(field="github", equals=("true",))
+        assert condition.is_met(Config(github=True)) is True
+        assert condition.is_met(Config(github=False)) is False
+
     @pytest.mark.anyio
     async def test_a_binding_whose_stored_config_is_invalid_reports_only_that(self):
         """The caller already names the config problem. Adding "and it needs a

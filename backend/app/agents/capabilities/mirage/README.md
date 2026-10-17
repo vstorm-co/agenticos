@@ -1,20 +1,45 @@
 # Mirage - a virtual terminal over mounted sources
 
-`mirage` gives an agent `ls`, `cat`, `grep`, `find`, `head` and `wc` across GitHub
-repositories, without starting a container. [Mirage](https://github.com/strukto-ai/mirage)
+`mirage` gives an agent `ls`, `cat`, `grep`, `find`, `head` and `wc` across its
+knowledge bases, the files behind their sources and GitHub repositories, without
+starting a container. [Mirage](https://github.com/strukto-ai/mirage)
 (strukto.ai, Apache-2.0, `mirage-ai` on PyPI) mounts each source under one tree
 and runs a virtualized shell over it, reading files through the source's own API.
 
 ## What it mounts
 
-- **GitHub repositories**, read-only, at `/github/<owner>/<name>/`, up to five,
-  optionally at a branch (`owner/name@branch`).
+- **Knowledge bases** (`knowledge`, on by default), read-only, at
+  `/knowledge/<base>/`: each indexed document of a bound base as its parsed
+  text, read back from the vector store with the splitter's overlap kept once.
+- **Their sources** (`sources`), read-only, at `/sources/<source>/`: the files
+  of each active S3, Google Drive, SharePoint or Git sync source of those bases,
+  this organization's only, listed and read through the platform's own connector
+  with the credential the source syncs with. A website source is left out; its
+  pages are already documents. A file over 20 MB is refused.
+- **GitHub repositories** (`github`), read-only, at `/github/<owner>/<name>/`, up
+  to five, optionally at a branch (`owner/name@branch`).
 - **A scratch folder** at `/scratch/`, writable, in memory, empty each run.
 
+Knowledge bases and sources are Mirage `GenericResource`s built in `_tree.py`
+from a flat listing and a reader that the runner resolves
+(`app/services/mirage_mounts.py`) - a capability must not read the database or
+the vault itself. What a failing source raised is logged, never shown: the shell
+prints an exception's text, and a connector's can carry a bucket policy or a
+signed URL, so the model reads only that the folder could not be listed or read.
+
 The GitHub token is the binding's secret: a `git_token` from the vault, sealed for
-`github.com`. It is required even for public repositories, because Mirage sends a
-token with every API request and GitHub answers 401 to an empty one. A token
-sealed for another host is refused at build time rather than sent to GitHub.
+`github.com`, asked for only when `github` is on. It is required even for public
+repositories then, because Mirage sends a token with every API request and GitHub
+answers 401 to an empty one. A token sealed for another host is refused at build
+time rather than sent to GitHub.
+
+## The policy
+
+`allowed_commands` and `hidden_paths` are compiled into Mirage's own
+`SessionProfile` (`commands.allow`, `paths.hide`), so the shell that parses a line
+enforces them - through pipes, `$(...)` and `find -delete` - rather than a second
+parser here that could read the line differently. An empty `allowed_commands` is
+Mirage's unstated `allow`: every command.
 
 ## Two tools, one shell
 
@@ -55,16 +80,19 @@ in seconds. It cannot run code; use `sandbox` or the coding agent for that.
   refuses writes before any source sees them. It is not a security boundary
   against the process itself, which is why the credential is scoped by the
   vault's host check rather than trusted to the shell.
+- **A quirk.** In 0.0.6 one `grep` line naming folders on two different mounts
+  searches only the first mount's operands, without an error. The instructions
+  tell the model to grep from `/` or once per folder.
 - **Dependencies.** Five new distributions (`mirage-ai`, `dulwich`, `jq`,
   `tree-sitter`, `tree-sitter-bash`), all Apache-2.0, MIT or BSD; `dulwich` is
   Apache-2.0 OR GPL-2.0-or-later and taken under Apache-2.0.
 
 ## Not yet
 
-- **S3.** Mirage's `s3` extra needs `aioboto3`, whose `botocore` range does not
-  resolve beside the `boto3` the backend already pins.
-- **Google Drive and knowledge bases as mounts.** Drive needs a person's OAuth
-  account rather than an organization key; a knowledge base would need a Mirage
-  source of our own over the platform's documents.
+- **Mirage's own S3 and Drive resources.** Its `s3` extra needs `aioboto3`, whose
+  `botocore` range does not resolve beside the `boto3` the backend pins, and its
+  Drive resource takes a person's OAuth account. Both stores are mounted through
+  the platform's sync connectors instead, which also reuses the credential an
+  organization already validated for the source.
 - **Usage of a model Mirage calls.** None of the mounted sources call a model, so
   there is nothing to meter yet.

@@ -265,7 +265,7 @@ class TestToolDeclarations:
         # makes it build here; it offers no tools either way.
         "system_reminders": {"goal_reanchor": {}},
         # Mounts nothing without a repository, so one is what makes it build.
-        "mirage": {"repositories": ["acme/api"]},
+        "mirage": {"github": True, "repositories": ["acme/api"]},
     }
     """Configurations a capability needs before it offers anything.
 

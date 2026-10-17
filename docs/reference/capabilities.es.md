@@ -1,5 +1,5 @@
 ---
-source_sha: "424ac8238a5e"
+source_sha: "9131a7770622"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -997,31 +997,59 @@ acepta o la descarta; consulta [Skills](../skills.md).
 
 ## Terminal virtual (Mirage) { #mirage }
 
-`mirage_explore` — *Run a read-only shell command across the mounted repositories.*
+`mirage_explore` — *Run a read-only shell command across the mounted folders.*
 `mirage_run` — *Run a shell command that may write into the scratch folder.*
 
-`ls`, `cat`, `grep`, `find`, `head` y `wc` sobre repositorios de GitHub, sin
-contenedor. [Mirage](https://github.com/strukto-ai/mirage) monta cada repositorio
-en solo lectura en `/github/<owner>/<name>/` y lo lee a través de la API de GitHub,
-así que un agent busca en varios repositorios en segundos. No ejecuta código; para
-eso está [la sandbox](#files-shell).
+`ls`, `cat`, `grep`, `find`, `head` y `wc` sobre las bases de conocimiento del agent,
+los archivos detrás de sus fuentes y repositorios de GitHub, sin contenedor.
+[Mirage](https://github.com/strukto-ai/mirage) monta cada uno en solo lectura bajo un
+mismo árbol, así que un agent busca en un bucket, una carpeta de Drive y un repositorio
+en segundos. No ejecuta código; para eso está [la sandbox](#files-shell).
 
 | Configuración | Predeterminado | Valores |
 |---|---|---|
-| `repositories` | — | 1–5, `owner/name` u `owner/name@branch` |
+| `knowledge` | activado | cada base de conocimiento vinculada en `/knowledge/<base>/`, un archivo por documento indexado |
+| `sources` | desactivado | cada fuente sincronizada de esas bases en `/sources/<source>/` |
+| `github` | desactivado | monta `repositories`; necesita un token de GitHub |
+| `repositories` | — | hasta 5, `owner/name` u `owner/name@branch`, en `/github/<owner>/<name>/` |
 | `scratch` | activado | un `/scratch/` con escritura, vacío en cada run |
+| `allowed_commands` | todos los comandos | nombres de comando, p. ej. `ls`, `grep`, `git log` |
+| `hidden_paths` | ninguna | rutas absolutas o patrones de nombre de archivo, p. ej. `/sources/finance`, `*.env` |
 | `timeout_seconds` | 60 | 5–600, por comando |
 | `max_output_chars` | 20000 | 1000–200000, el resto se corta con una nota |
 
-**Los repositorios son siempre de solo lectura.** `mirage_explore` se ejecuta en una
-vista donde cada montaje es de solo lectura, así que no necesita aprobación;
-`mirage_run` puede escribir, solo en la carpeta de trabajo, y es la herramienta en
-la que poner **Preguntar siempre**. Una escritura en un repositorio falla dentro de
-Mirage, con la herramienta que sea.
+Al menos uno de `knowledge`, `sources` y `github` tiene que estar activado, y `github`
+necesita al menos un repositorio; la publicación rechaza un binding que no monta nada o
+que lista repositorios con `github` desactivado.
 
-**El token es un `git_token` del vault, sellado para `github.com`**, y es obligatorio
-también para repositorios públicos, porque GitHub rechaza uno vacío. Un token
-sellado para otro host se rechaza en lugar de enviarse a GitHub.
+**Una base de conocimiento es su texto parseado.** Cada archivo en `/knowledge/<base>/`
+es un documento indexado, leído del almacén de vectores y unido de modo que el solape
+del splitter aparece una sola vez. Un documento que aún se está parseando, o cuyo
+parseo falló, no aparece. Dos documentos con el mismo nombre se distinguen con `~2`.
+
+**Una fuente se lee con su propia credencial.** `/sources/<source>/` lista una fuente
+S3, Google Drive, SharePoint o Git de una base vinculada a través del mismo conector que
+la sincroniza, con la credencial del vault que la fuente indica. Solo se montan las
+fuentes activas de esta organización. Una fuente de sitio web no, porque sus páginas ya
+son documentos en `/knowledge`. Una fuente se lista en el primer comando que llega a
+ella, y un archivo de más de 20 MB se rechaza en lugar de leerse.
+
+**Todo montaje es de solo lectura, siempre.** `mirage_explore` se ejecuta en una vista
+donde cada montaje es de solo lectura, así que no necesita aprobación; `mirage_run`
+puede escribir, solo en la carpeta de trabajo, y es la herramienta a la que se pone
+**Preguntar siempre**. Una escritura en cualquier otro sitio falla dentro de Mirage,
+sea cual sea la herramienta.
+
+**La política es la de Mirage.** `allowed_commands` y `hidden_paths` se convierten en el
+perfil de permisos de la sesión, así que los aplica el shell que analiza la línea,
+también en pipes y `$(...)`. Un comando fuera de la lista es `command not found`; una
+ruta oculta no aparece en listados ni búsquedas y se rechaza a todo comando.
+
+**Las credenciales nunca llegan al modelo ni a la configuración.** El token de GitHub es
+un `git_token` del vault, sellado para `github.com`, pedido solo con `github` activado y
+entonces obligatorio también para repositorios públicos, porque GitHub rechaza uno
+vacío. Un token sellado para otro host se rechaza en lugar de enviarse. El error de una
+fuente se registra, y el modelo solo lee que la carpeta no se pudo listar o leer.
 
 ## Gráficos { #charts }
 

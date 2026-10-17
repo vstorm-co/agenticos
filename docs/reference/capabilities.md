@@ -932,30 +932,60 @@ see [Skills](../skills.md).
 
 ## Virtual terminal (Mirage) { #mirage }
 
-`mirage_explore` — *Run a read-only shell command across the mounted repositories.*
+`mirage_explore` — *Run a read-only shell command across the mounted folders.*
 `mirage_run` — *Run a shell command that may write into the scratch folder.*
 
-`ls`, `cat`, `grep`, `find`, `head` and `wc` across GitHub repositories, with no
-container. [Mirage](https://github.com/strukto-ai/mirage) mounts each repository
-read-only at `/github/<owner>/<name>/` and reads it through GitHub's API, so an
-agent can search several repositories in seconds. It cannot run code; that is
-[the sandbox](#files-shell).
+`ls`, `cat`, `grep`, `find`, `head` and `wc` across the agent's knowledge bases,
+the files behind their sources and GitHub repositories, with no container.
+[Mirage](https://github.com/strukto-ai/mirage) mounts each one read-only under one
+tree, so an agent can search a bucket, a Drive folder and a repository in seconds.
+It cannot run code; that is [the sandbox](#files-shell).
 
 | Config | Default | Values |
 |---|---|---|
-| `repositories` | — | 1–5, `owner/name` or `owner/name@branch` |
+| `knowledge` | on | each bound knowledge base at `/knowledge/<base>/`, one file per indexed document |
+| `sources` | off | each synced source of those bases at `/sources/<source>/` |
+| `github` | off | mount `repositories`; needs a GitHub token |
+| `repositories` | — | up to 5, `owner/name` or `owner/name@branch`, at `/github/<owner>/<name>/` |
 | `scratch` | on | a writable `/scratch/`, empty each run |
+| `allowed_commands` | every command | command names, e.g. `ls`, `grep`, `git log` |
+| `hidden_paths` | none | absolute paths or file name patterns, e.g. `/sources/finance`, `*.env` |
 | `timeout_seconds` | 60 | 5–600, per command |
 | `max_output_chars` | 20000 | 1000–200000, the rest is cut with a note |
 
-**The repositories are read-only, always.** `mirage_explore` runs in a view where
-every mount is read-only, so it needs no approval; `mirage_run` may write, into
-the scratch folder only, and is the tool to set **Always ask** on. A write to a
-repository fails inside Mirage whichever tool tried it.
+At least one of `knowledge`, `sources` and `github` has to be on, and `github`
+needs at least one repository; publish refuses a binding that mounts nothing or
+lists repositories with `github` off.
 
-**The token is a `git_token` from the vault, sealed for `github.com`**, and it is
-required for public repositories too, because GitHub refuses an empty one. A
-token sealed for another host is refused rather than sent to GitHub.
+**A knowledge base is its parsed text.** Each file under `/knowledge/<base>/` is
+one indexed document, read back from the vector store and stitched so the
+splitter's overlap appears once. A document still parsing, or one that failed, is
+not listed. Two documents with the same name are told apart with `~2`.
+
+**A source is read with its own credential.** `/sources/<source>/` lists an S3,
+Google Drive, SharePoint or Git source of a bound knowledge base through the same
+connector that syncs it, with the credential from the vault the source names.
+Only this organization's active sources are mounted. A website source is not,
+because its pages are already documents under `/knowledge`. A source is listed on the
+first command that reaches it, and a file over 20 MB is refused rather than read.
+
+**Every mount is read-only, always.** `mirage_explore` runs in a view where every
+mount is read-only, so it needs no approval; `mirage_run` may write, into the
+scratch folder only, and is the tool to set **Always ask** on. A write anywhere
+else fails inside Mirage whichever tool tried it.
+
+**The policy is Mirage's own.** `allowed_commands` and `hidden_paths` become the
+session's permission profile, so the shell that parses a line enforces them,
+through pipes and `$(...)` as well. A command not on the list is `command not
+found`; a hidden path is absent from listings and searches and refused to every
+command.
+
+**Credentials never reach the model or the config.** The GitHub token is a
+`git_token` from the vault, sealed for `github.com`, asked for only when `github`
+is on and required then for public repositories too, because GitHub refuses an
+empty one. A token sealed for another host is refused rather than sent. A source's
+error is logged and the model reads only that the folder could not be listed or
+read.
 
 ## Charts
 

@@ -6447,11 +6447,11 @@
     },
     "mirage": {
       "name": "Wirtualny terminal (Mirage)",
-      "does": "Pozwala agentowi używać ls, grep, cat i find w repozytoriach GitHub bez uruchamiania kontenera.",
-      "example1": "Które nasze repozytoria wciąż wspominają stare API?",
+      "does": "Pozwala agentowi używać ls, grep, cat i find w jego bazach wiedzy, ich źródłach (S3, Google Drive, SharePoint, Git) i repozytoriach GitHub, bez uruchamiania kontenera.",
+      "example1": "Które umowy w bazie wiedzy wciąż mówią o 60-dniowym okresie wypowiedzenia?",
       "example2": "Znajdź każde TODO w repozytoriach web i api",
-      "needs": "Token GitHub w vaulcie (git token, host github.com).",
-      "never": "Nigdy nie zapisuje do repozytorium; zapisywalny jest tylko jego folder roboczy."
+      "needs": "Nic dla baz wiedzy i ich źródeł; dla repozytoriów token GitHub w vaulcie (git token, host github.com).",
+      "never": "Nigdy nie zapisuje do zamontowanego folderu; zapisywalny jest tylko jego folder roboczy."
     }
   },
   "capabilityCategories": {
@@ -6906,9 +6906,21 @@
       }
     },
     "mirage": {
-      "repositories": {
+      "github": {
         "title": "Repozytoria GitHub",
-        "description": "Repozytoria montowane tylko do odczytu pod /github/<owner>/<name>, jako owner/name lub owner/name@branch."
+        "description": "Montuje repozytoria wymienione poniżej. Wymaga tokenu GitHub z vaulta."
+      },
+      "repositories": {
+        "title": "Repozytoria",
+        "description": "Montowane tylko do odczytu pod /github/<owner>/<name>, jako owner/name lub owner/name@branch."
+      },
+      "knowledge": {
+        "title": "Bazy wiedzy",
+        "description": "Bazy wiedzy agenta, każdy dokument jako jego sparsowany tekst pod /knowledge/<baza>/."
+      },
+      "sources": {
+        "title": "Źródła baz wiedzy",
+        "description": "Pliki za synchronizowanymi źródłami tych baz - S3, Google Drive, SharePoint, Git - pod /sources/<źródło>/, czytane poświadczeniem każdego źródła."
       },
       "scratch": {
         "title": "Folder roboczy",
@@ -6921,6 +6933,14 @@
       "max_output_chars": {
         "title": "Limit wyjścia (znaki)",
         "description": "Ile wyjścia polecenia trafia do modelu; reszta jest ucinana."
+      },
+      "allowed_commands": {
+        "title": "Dozwolone polecenia",
+        "description": "Uruchamiają się tylko te polecenia, np. ls, cat, grep. Puste pozwala na każde polecenie terminala."
+      },
+      "hidden_paths": {
+        "title": "Ukryte ścieżki",
+        "description": "Ścieżki, które dla agenta nie istnieją, np. /sources/finance albo *.env. Niewidoczne w listingach i odrzucane każdemu poleceniu."
       }
     }
   },
