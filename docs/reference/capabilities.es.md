@@ -1,5 +1,5 @@
 ---
-source_sha: "6ad32732381f"
+source_sha: "572a76328911"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1146,6 +1146,13 @@ comandos de shell activados — publicar rechaza cualquier otra cosa — y un ru
 el harness instalado: el runtime `workbench` fija Claude Code 2.1.288 y Codex
 0.160.0. La clave API viene del vault mediante el `secret_id` del binding y llega al
 comando como variable de entorno, nunca en su línea de comandos.
+
+**Delegar en un coding agent.** Un delegado que enlaza `sandbox` por sí mismo se
+ejecuta en un workspace nuevo en memoria, sin shell, así que un coding agent al que se
+llega por delegación no tiene dónde ejecutar su harness. Da al agent que delega la
+capability `sandbox` en una conexión de sandbox y añade `sandbox` a *Capabilities delegates inherit* en la
+delegación: el coding agent trabaja entonces en el contenedor
+del padre, y los archivos que escribe son los que ve el padre.
 
 **Su gasto se mide.** Ambos harness informan de sus tokens por modelo, que se
 anotan en el registro del run como cualquier petición al modelo, y el budget se

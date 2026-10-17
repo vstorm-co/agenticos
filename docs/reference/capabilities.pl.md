@@ -1,5 +1,5 @@
 ---
-source_sha: "6ad32732381f"
+source_sha: "572a76328911"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1131,6 +1131,13 @@ poleceniami shella — publikacja odrzuca każdą inną konfigurację — oraz r
 zainstalowanym harnessem: runtime `workbench` przypina Claude Code 2.1.288 i Codex
 0.160.0. Klucz API pochodzi z vault przez `secret_id` bindingu i trafia do polecenia
 jako zmienna środowiskowa, nigdy w linii poleceń.
+
+**Delegowanie do coding agenta.** Delegat, który sam wiąże `sandbox`, działa w świeżym
+workspace w pamięci, bez shella, więc coding agent osiągany przez delegowanie nie ma
+gdzie uruchomić harnessu. Daj delegującemu agentowi capability `sandbox` na połączeniu
+sandbox i dodaj `sandbox` do *Capabilities dziedziczone przez delegaty* w ustawieniach delegowania: coding
+agent pracuje wtedy w kontenerze rodzica, a pliki, które zapisze, są tymi, które widzi
+rodzic.
 
 **Jej koszt jest mierzony.** Oba harnessy raportują tokeny per model, które trafiają
 do księgi runa jak każde żądanie do modelu, a budżet jest sprawdzany przed każdym

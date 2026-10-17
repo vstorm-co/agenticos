@@ -1,5 +1,5 @@
 ---
-source_sha: "6ad32732381f"
+source_sha: "572a76328911"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1200,6 +1200,14 @@ Runtime mit installiertem Harness: Die Runtime `workbench` fixiert Claude Code
 2.1.288 und Codex 0.160.0. Der API-Key kommt über die `secret_id` des Bindings aus
 dem Vault und erreicht den Befehl als Umgebungsvariable, nie auf dessen
 Befehlszeile.
+
+**An einen Coding Agent delegieren.** Ein Delegierter, der `sandbox` selbst bindet,
+läuft in einem frischen Workspace im Speicher ohne Shell, sodass ein per Delegation
+erreichter Coding Agent sein Harness nirgends starten kann. Geben Sie dem
+delegierenden Agent die Capability `sandbox` auf einer Sandbox-Verbindung und nehmen
+Sie `sandbox` in *Capabilities, die Delegaten erben* der Delegation auf: Der Coding Agent
+arbeitet dann im Container des Elternteils, und die Dateien, die er schreibt, sind
+die, die der Elternteil sieht.
 
 **Seine Kosten werden gemessen.** Beide Harnesses melden ihre Tokens pro Modell; sie
 werden wie jede Modellanfrage im Ledger des Runs gebucht, und das Budget wird vor

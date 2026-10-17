@@ -1074,6 +1074,13 @@ installed: the `workbench` runtime pins Claude Code 2.1.288 and Codex 0.160.0. T
 API key comes from the vault through the binding's `secret_id` and reaches the
 command as an environment variable, never on its command line.
 
+**Delegating to a coding agent.** A delegate that binds `sandbox` itself runs in a
+fresh in-memory workspace with no shell, so a coding agent reached by delegation has
+nowhere to run its harness. Give the delegating agent the `sandbox` capability on a
+sandbox connection and list `sandbox` under Delegation's *Capabilities delegates inherit*: the
+coding agent then works in the parent's container, where the files it writes are
+the ones the parent sees.
+
 **Its spend is metered.** Both harnesses report their tokens per model, which are
 booked to the run's ledger like any model request, and the budget is checked before
 each task. Codex names no model in its events, so with no `model` set its usage is
