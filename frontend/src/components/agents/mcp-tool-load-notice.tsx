@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
+import { usePlatformMcpTools } from "@/hooks";
 import { cn } from "@/lib/utils";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import { MCP_TOOL_SEARCH_THRESHOLD, mcpToolCount } from "@/lib/mcp-servers";
@@ -46,7 +47,14 @@ export function McpToolLoadNotice({
   className,
 }: McpToolLoadNoticeProps) {
   const t = useTranslations("pages.agents");
-  const count = mcpToolCount(spec.mcp_servers, connections, personalConnections);
+  const bindsPlatform = spec.mcp_servers.some((ref) => ref.account === "platform");
+  const platform = usePlatformMcpTools({ enabled: bindsPlatform });
+  const count = mcpToolCount(
+    spec.mcp_servers,
+    connections,
+    personalConnections,
+    platform.tools.length,
+  );
   const searching = spec.capabilities.some((binding) => binding.id === "tool_search");
   if (count <= MCP_TOOL_SEARCH_THRESHOLD || searching) return null;
 

@@ -7,7 +7,7 @@ import { apiClient } from "@/lib/api-client";
 import type { McpToolInfo } from "@/lib/mcp-connections-api";
 import { mergeServers, type McpServerRow } from "@/lib/mcp-servers";
 import { qk } from "@/lib/query-keys";
-import type { McpCatalog } from "@/types/mcp";
+import type { McpCatalog, PlatformMcpToolList } from "@/types/mcp";
 import { useMcpConnections } from "./use-mcp-connections";
 import { useOrgMcpConnections } from "./use-org-mcp-connections";
 
@@ -24,6 +24,21 @@ export function useMcpCatalog() {
     staleTime: Infinity,
   });
   return { servers: data?.items ?? [], isLoading, error };
+}
+
+/**
+ * The tools of this deployment's own MCP server, for a platform binding to pick from.
+ *
+ * Cached indefinitely for the same reason as the catalog: they change on redeploy.
+ */
+export function usePlatformMcpTools({ enabled = true }: { enabled?: boolean } = {}) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: qk.mcpServers.platformTools(),
+    queryFn: () => apiClient.get<PlatformMcpToolList>("/agents/platform-mcp-tools"),
+    staleTime: Infinity,
+    enabled,
+  });
+  return { tools: data?.items ?? [], isLoading, error };
 }
 
 /** What one page of the server list holds. */

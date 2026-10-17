@@ -487,6 +487,15 @@ describe("mcpToolCount", () => {
     expect(mcpToolCount(refs, [organization({ last_tools: tools(40) })], [])).toBe(2);
   });
 
+  it("counts the platform's own server at what it serves, or at the tools narrowed to", () => {
+    expect(mcpToolCount([{ account: "platform", approval: "writes" }], [], [], 18)).toBe(18);
+    expect(
+      mcpToolCount([{ account: "platform", approval: "writes", allowed_tools: ["a"] }], [], [], 18),
+    ).toBe(1);
+    // Nothing told about the platform: nothing counted for it.
+    expect(mcpToolCount([{ account: "platform", approval: "writes" }], [], [])).toBe(0);
+  });
+
   it("counts what each binding's own connection listed at its last check", () => {
     const refs: McpServerRef[] = [
       { account: "organization", connection_id: "o1", allowed_tools: null },

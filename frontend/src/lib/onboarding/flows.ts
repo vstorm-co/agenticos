@@ -571,6 +571,16 @@ export const FLOWS: Record<FlowId, CreationFlow> = {
       // and on yes pointed at that button, gated on the `connections:manage` the
       // button itself carries. The connection lands in the picker's own cache and
       // the step advances in place, no trip to another page to make or return from.
+      // This platform's own server needs no connection, and so no
+      // `connections:manage`: every author is shown it, whatever the organization
+      // has connected - the fork below is about the others.
+      {
+        id: "flow-agent-platform-mcp",
+        page: AGENT_BUILDER,
+        target: "agent-platform-mcp",
+        activate: "agent-tab-mcp",
+        permission: Perm.agentsView,
+      },
       {
         id: "flow-agent-mcp",
         page: AGENT_BUILDER,

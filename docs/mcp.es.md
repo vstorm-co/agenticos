@@ -1,5 +1,5 @@
 ---
-source_sha: "3409285bde3b"
+source_sha: "1eecb93af547"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -1016,6 +1016,30 @@ creado por error. Un borrador creado aquí lo publica una persona en la consola.
 aparecen en **Settings → MCP clients**, donde desconectar una termina su acceso y
 el de cada token que tiene. Las llamadas que cambian
 algo esperan aprobación, como explica [la sección de arriba](#which-calls-wait-for-a-person).
+
+### Dárselo a un agent { #giving-it-to-an-agent }
+
+El mismo servidor es también un enlace MCP que cualquier agent puede tener, así que
+un agent responde a «qué falló ayer» o «qué agents usan esta base de conocimiento»
+con los propios registros de la plataforma. En el Builder es la primera tarjeta de
+**Servidores MCP**, con el nombre de este despliegue; activarla lo enlaza como
+`mcp_servers: [{account: platform, approval: writes}]`.
+
+- **Actúa como la persona para la que corre el agent.** Un run crea una credencial
+  de corta duración con los permisos de esa persona, así que el agent de un Viewer
+  lee lo que el Viewer puede leer y no crea nada. No se concede nada nuevo, y donde
+  nadie está detrás del run - un widget público, una programación que no actúa por
+  nadie - el enlace no está.
+- **Los cambios esperan aprobación.** `writes`, el valor predeterminado, retiene
+  cada herramienta que cambia algo (`create_agent_draft`, `run_agent`,
+  `invite_member` y las demás) hasta que la persona la apruebe; `all` retiene
+  también la lectura. `none` no se ofrece: estas herramientas actúan con la
+  autoridad de una persona.
+- **Las herramientas se pueden acotar** en los ajustes de la tarjeta, que listan
+  cada herramienta y marcan las que cambian algo.
+
+La plantilla **Claude Code like** lo enlaza así, de modo que un agent nuevo creado a
+partir de ella consulta la plataforma desde el principio.
 
 ## Lo que MCP no te da { #what-mcp-does-not-get-you }
 

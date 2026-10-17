@@ -775,7 +775,20 @@
     "capabilityShelfEnabled": "Włączone: {enabled} z {total}",
     "capabilityShelfPrevious": "Wcześniej w: {shelf}",
     "capabilityShelfNext": "Więcej w: {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Wbudowana, bez narzędzi} =1 {1 narzędzie} few {# narzędzia} many {# narzędzi} other {# narzędzia}}"
+    "capabilityToolCount": "{count, plural, =0 {Wbudowana, bez narzędzi} =1 {1 narzędzie} few {# narzędzia} many {# narzędzi} other {# narzędzia}}",
+    "platformServerDescription": "Własne narzędzia tej platformy: agenci, runy, wydatki, bazy wiedzy, skille i członkowie - agent może odpowiadać na pytania o platformę i w niej działać.",
+    "platformServerBadge": "Wbudowany",
+    "platformAsksBeforeWrites": "Pyta przed każdą zmianą",
+    "platformAsksEveryCall": "Pyta przed każdym wywołaniem",
+    "platformAsWhoeverAsks": "Działa jako osoba, która pyta",
+    "platformActsAsWhoeverAsks": "Każde narzędzie działa jako osoba, dla której działa agent, z dokładnie jej uprawnieniami. Nic nowego nie jest przyznawane: czego nie mogła zrobić w konsoli, agent też tu nie zrobi.",
+    "platformUseIt": "Użyj w tym agencie",
+    "platformApproval": "Zatwierdzanie",
+    "platformWritesHint": "Odczyt jest swobodny; tworzenie, uruchamianie i zmienianie czegokolwiek czeka na zgodę osoby.",
+    "platformAllHint": "Każde wywołanie czeka na zgodę, także odczyt.",
+    "platformTools": "Narzędzia, które agent może wywołać",
+    "platformWritesBadge": "zmienia coś",
+    "platformRemove": "Usuń z tego agenta"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
@@ -3168,6 +3181,10 @@
       "flow-agent-limits": {
         "title": "Ustaw budżet (opcjonalnie)",
         "body": "Ogranicz, ile ten agent może wydać w miesiącu i z ilu kroków może się składać jedno uruchomienie, i wybierz, kto zostanie powiadomiony przy limicie. Tak agent, który się zapętli albo wymknie spod kontroli, zatrzyma się sam. Wybierz Dalej, żeby przejść dalej."
+      },
+      "flow-agent-platform-mcp": {
+        "title": "Pozwól mu działać w platformie (opcjonalnie)",
+        "body": "Własny serwer tej platformy nie wymaga podłączenia: po włączeniu agent odpowiada na pytania o agentów, runy i wiedzę tutaj, jako osoba, z którą rozmawia - i pyta, zanim cokolwiek zmieni."
       },
       "flow-agent-mcp": {
         "title": "Dodaj serwery MCP (opcjonalnie)",

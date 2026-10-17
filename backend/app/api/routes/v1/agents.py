@@ -66,6 +66,8 @@ from app.schemas.agent import (
     DelegationTree,
     McpCatalog,
     McpCatalogEntry,
+    PlatformMcpTool,
+    PlatformMcpToolList,
     PromptVariableCatalog,
     PromptVariableRead,
     SpecialistPromote,
@@ -75,6 +77,7 @@ from app.schemas.agent import (
 from app.services import agent_templates, mcp_listing
 from app.services.attachments import load_attached_files
 from app.services.capability_contracts import tool_contracts
+from app.services.platform_mcp import platform_tool_catalog
 
 router = APIRouter(dependencies=[PUBLIC])
 
@@ -184,6 +187,25 @@ async def list_mcp_catalog(db: DBSession) -> Any:
         total=len(items),
         registry_total=await mcp_listing.mirror_size(db),
     )
+
+
+@router.get(
+    "/platform-mcp-tools",
+    response_model=PlatformMcpToolList,
+    dependencies=[Depends(require(Perm.AGENTS_VIEW))],
+)
+async def list_platform_mcp_tools() -> Any:
+    """The tools of this deployment's own MCP server, for a binding to choose from.
+
+    Every caller sees the same list: a tool runs with the permissions of whoever
+    the agent runs for, so what may actually be done is decided per call, not
+    by who reads this list.
+    """
+    items = [
+        PlatformMcpTool(name=tool.name, description=tool.summary, writes=tool.writes)
+        for tool in platform_tool_catalog()
+    ]
+    return PlatformMcpToolList(items=items, total=len(items))
 
 
 @router.get(
