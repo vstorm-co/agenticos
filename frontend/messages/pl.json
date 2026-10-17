@@ -2324,6 +2324,16 @@
       "dismissAll": "Ukryj wskazówki",
       "dismiss": "Ukryj wskazówkę {title}",
       "tips": {
+        "mentions": {
+          "title": "Wskaż agentowi przez @",
+          "body": "W czacie wpisz @, by dać agentowi jeden z jego serwerów, capabilities, skilli albo innych agentów. Pokaże się jako chip, a agent użyje dokładnie tego.",
+          "cta": "Wypróbuj w czacie"
+        },
+        "commands": {
+          "title": "Skróty z /",
+          "body": "Wpisz / w czacie, by zobaczyć komendy - podsumuj, wyjaśnij, zacznij od nowa - albo napisz własne w Ustawienia → Komendy slash.",
+          "cta": "Otwórz czat"
+        },
         "mcp": {
           "title": "Używaj go z Claude Code albo Cursora",
           "body": "AgenticOS to też serwer MCP: podłącz Claude Code, Codex albo Cursora i twórz agenty, uruchamiaj je i czytaj wyniki, nie wychodząc z nich.",

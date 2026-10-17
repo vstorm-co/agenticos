@@ -2324,6 +2324,16 @@
       "dismissAll": "Tipps ausblenden",
       "dismiss": "Tipp {title} ausblenden",
       "tips": {
+        "mentions": {
+          "title": "Dem Agent mit @ etwas zeigen",
+          "body": "Tippen Sie im Chat @, um dem Agent einen seiner Server, Capabilities, Skills oder einen anderen Agent zu geben. Es erscheint als Chip, und der Agent nutzt genau das.",
+          "cta": "Im Chat ausprobieren"
+        },
+        "commands": {
+          "title": "Abkürzungen mit /",
+          "body": "Tippen Sie / im Chat für Befehle - zusammenfassen, erklären, neu beginnen - oder schreiben Sie eigene unter Einstellungen → Slash-Befehle.",
+          "cta": "Chat öffnen"
+        },
         "mcp": {
           "title": "Aus Claude Code oder Cursor heraus nutzen",
           "body": "AgenticOS ist auch ein MCP-Server: Verbinden Sie Claude Code, Codex oder Cursor und bauen, starten und lesen Sie Agents, ohne sie zu verlassen.",

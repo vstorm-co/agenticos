@@ -22,11 +22,17 @@ interface Tip {
   art?: string;
   /** Or with the marks of the services it is about, in their colours. */
   brands?: readonly { name: BrandName; color: string }[];
+  /** Or with the key that opens it, for a tip about typing in the chat. */
+  key?: string;
   /** Shown only to a reader who can act on it; none is everybody. */
   gate?: Permission;
 }
 
 const TIPS: readonly Tip[] = [
+  // The two keys that open up the chat, first: everybody chats, and neither is
+  // something a person finds by looking.
+  { id: "mentions", href: ROUTES.CHAT, key: "@" },
+  { id: "commands", href: ROUTES.CHAT, key: "/" },
   {
     id: "mcp",
     href: ROUTES.SETTINGS_MCP,
@@ -66,9 +72,9 @@ function readDismissed(): ReadonlySet<string> {
 }
 
 /**
- * What the platform can do that a person would not find by looking: its own
- * MCP server, sandboxes, apps, subagents, routines and the rest - one tile each,
- * leading to where it is switched on.
+ * What the platform can do that a person would not find by looking: `@` and `/`
+ * in the chat, its own MCP server, sandboxes, apps, subagents, routines and the
+ * rest - one tile each, leading to where it is switched on.
  *
  * On a person's own dashboard, under the start checklist. Each tile closes on
  * its own and the card goes once every tile has; which ones are closed is kept
@@ -164,6 +170,12 @@ function TipTile({ tip, onDismiss }: { tip: Tip; onDismiss: () => void }) {
     >
       {tip.art ? (
         <CapabilityArt id={tip.art} name={title} />
+      ) : tip.key ? (
+        <div className="from-muted to-muted/40 flex aspect-video items-center justify-center bg-gradient-to-br">
+          <kbd className="bg-background text-foreground grid size-14 place-items-center rounded-2xl font-mono text-2xl font-semibold shadow-sm">
+            {tip.key}
+          </kbd>
+        </div>
       ) : (
         <div className="from-muted to-muted/40 flex aspect-video items-center justify-center gap-3 bg-gradient-to-br">
           {tip.brands?.map((brand) => (

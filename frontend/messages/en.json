@@ -2324,6 +2324,16 @@
       "dismissAll": "Hide tips",
       "dismiss": "Hide the tip {title}",
       "tips": {
+        "mentions": {
+          "title": "Point the agent with @",
+          "body": "In the chat, type @ to hand the agent one of its servers, capabilities, skills or teammates. It shows as a chip, and the agent uses exactly that.",
+          "cta": "Try it in chat"
+        },
+        "commands": {
+          "title": "Shortcuts with /",
+          "body": "Type / in the chat for commands - summarise, explain, start over - or write your own under Settings → Slash commands.",
+          "cta": "Open the chat"
+        },
         "mcp": {
           "title": "Use it from Claude Code or Cursor",
           "body": "AgenticOS is an MCP server too: connect Claude Code, Codex or Cursor and build agents, run them and read results without leaving them.",

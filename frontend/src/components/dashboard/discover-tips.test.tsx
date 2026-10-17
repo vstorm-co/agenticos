@@ -37,15 +37,20 @@ describe("the dashboard's discover tips", () => {
       "href",
       "/apps",
     );
-    expect(screen.getAllByRole("article")).toHaveLength(9);
+    expect(within(tile("Point the agent with @")).getByRole("link")).toHaveAttribute(
+      "href",
+      "/chat",
+    );
+    expect(within(tile("Shortcuts with /")).getByText("/")).toBeInTheDocument();
+    expect(screen.getAllByRole("article")).toHaveLength(11);
   });
 
   it("leaves out what the reader cannot use", () => {
     data.perms = new Set();
     render(<DiscoverTips />);
 
-    // Only the MCP tip needs nothing: every member can connect their own client.
-    expect(screen.getAllByRole("article")).toHaveLength(1);
+    // What needs nothing: the chat's two keys, and connecting one's own client.
+    expect(screen.getAllByRole("article")).toHaveLength(3);
   });
 
   it("closes one tip, and remembers it", async () => {
@@ -59,7 +64,7 @@ describe("the dashboard's discover tips", () => {
     unmount();
     render(<DiscoverTips />);
     expect(screen.queryByRole("article", { name: "Turn answers into apps" })).toBeNull();
-    expect(screen.getAllByRole("article")).toHaveLength(8);
+    expect(screen.getAllByRole("article")).toHaveLength(10);
   });
 
   it("goes away once every tip is closed", async () => {
@@ -88,7 +93,7 @@ describe("the dashboard's discover tips", () => {
     window.localStorage.setItem("agenticos:discover-tips:dismissed", JSON.stringify({ apps: 1 }));
     render(<DiscoverTips />);
 
-    expect(screen.getAllByRole("article")).toHaveLength(9);
+    expect(screen.getAllByRole("article")).toHaveLength(11);
   });
 
   it("pages sideways from its arrows", async () => {
