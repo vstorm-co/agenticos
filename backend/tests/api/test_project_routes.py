@@ -18,6 +18,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
+from app.core.config import settings
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.conversation import ChatPerson, ChatReader, ProjectChatRead
@@ -196,3 +197,17 @@ async def test_a_projects_chats_are_listed_with_the_people_around_them(
     assert service.chats.await_args.args[1] == PROJECT_ID
     assert service.chats.await_args.kwargs == {"skip": 50, "limit": 50}
     assert too_many.status_code == 422
+
+
+async def test_an_upload_is_read_no_further_than_one_byte_past_the_ceiling(
+    client: OpenClient, service: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The service refuses an over-large file by its length; the route never
+    copies more than that length's worth of a body that declared none."""
+    monkeypatch.setattr(settings, "MAX_UPLOAD_SIZE_MB", 1)
+    async with client() as http:
+        await http.post(
+            f"/api/v1/projects/{PROJECT_ID}/files",
+            files={"file": ("big.bin", b"x" * (3 * 1024 * 1024))},
+        )
+    assert len(service.add_file.await_args.kwargs["data"]) == 1024 * 1024 + 1

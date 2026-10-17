@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile,
 from app.api.deps import Auth, ProjectSvc, require
 from app.api.public_api import PUBLIC
 from app.api.routes.v1._workspace_bytes import file_response
+from app.core.config import settings
 from app.core.permissions import Perm
 from app.schemas.conversation import ProjectChatList
 from app.schemas.project import (
@@ -141,7 +142,11 @@ async def upload_project_file(
 ) -> dict[str, str]:
     """Add a file to the project, for every agent working in it."""
     target = path or file.filename or "upload"
-    return {"path": await service.add_file(ctx, project_id, path=target, data=await file.read())}
+    # One byte past the ceiling, so the service refuses an over-large file on a
+    # length it can see - without the whole body copied into memory first, which
+    # a chunked upload with no Content-Length would otherwise get.
+    data = await file.read(settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024 + 1)
+    return {"path": await service.add_file(ctx, project_id, path=target, data=data)}
 
 
 @router.post("/{project_id}/folders", status_code=status.HTTP_201_CREATED, response_model=None)
