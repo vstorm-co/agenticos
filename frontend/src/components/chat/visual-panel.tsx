@@ -6,7 +6,6 @@ import {
   Copy,
   Download,
   Maximize2,
-  MessageSquareQuote,
   RotateCw,
   Shapes,
   TriangleAlert,
@@ -25,14 +24,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  IconButton,
-} from "@/components/ui";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, IconButton } from "@/components/ui";
 import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { partialArgs, type PartialField } from "@/lib/partial-args";
 import { cn } from "@/lib/utils";
@@ -59,6 +51,7 @@ import type { ChatMessage, ToolCall } from "@/types";
 import { copySvgImage, downloadVisual, svgPng } from "./visual-actions";
 import { VisualFrame } from "./visual-frame";
 import { VisualSaveDialog } from "./visual-save-dialog";
+import { VisualZoom } from "./visual-zoom";
 
 type KnownCalls = ReadonlyMap<string, ToolCall>;
 
@@ -277,6 +270,10 @@ function useVisualImages(
   return { uris, ready: missing.length === 0 || gaveUp };
 }
 
+/** Where the zoom sits: over the drawing's bottom right corner, out of its way. */
+const ZOOM_CORNER =
+  "border-border bg-background/90 absolute right-2 bottom-2 rounded-full border shadow-sm backdrop-blur";
+
 /** How many of a drawing's errors the panel lists; the first few say what broke. */
 const SHOWN_ERRORS = 3;
 
@@ -293,6 +290,8 @@ function VisualPanel({ call }: { call: ToolCall }) {
   const saved = useSavedVisualsStore((state) => state.saved);
   const [code, setCode] = useState(false);
   const [full, setFull] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [fullZoom, setFullZoom] = useState(1);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [stalled, setStalled] = useState(false);
@@ -377,9 +376,6 @@ function VisualPanel({ call }: { call: ToolCall }) {
       <div className="border-border flex min-w-0 items-center gap-2 border-b py-1.5 pr-1.5 pl-3">
         <Shapes className="text-muted-foreground size-4 shrink-0" aria-hidden />
         <span className="text-foreground min-w-0 truncate text-sm font-medium">{shown.title}</span>
-        <span className="text-muted-foreground shrink-0 text-xs">
-          {t("kind", { kind: shown.kind })}
-        </span>
         {label !== null && (
           <span
             className={cn(
@@ -398,19 +394,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
             {t("savedBadge", { version: savedHere.version })}
           </Link>
         )}
-        <span className="text-muted-foreground ml-auto hidden shrink-0 text-xs lg:inline">
-          {t("drawnByAgent")}
-        </span>
-        <div className="ml-auto flex shrink-0 items-center lg:ml-0">
-          {done && onCompose && (
-            <IconButton
-              aria-label={t("askAbout")}
-              title={t("askAbout")}
-              onClick={() => onCompose(t("askAboutPrompt", { title: shown.title, id: call.id }))}
-            >
-              <MessageSquareQuote className="size-4" />
-            </IconButton>
-          )}
+        <div className="ml-auto flex shrink-0 items-center">
           <IconButton
             aria-label={code ? t("showVisual") : t("showCode")}
             title={code ? t("showVisual") : t("showCode")}
@@ -476,6 +460,7 @@ function VisualPanel({ call }: { call: ToolCall }) {
             done={done}
             height={shown.height}
             aspect={shown.kind === "svg" ? svgAspect(shown.content) : null}
+            zoom={zoom}
             onError={onError}
             onRendered={onRendered}
             onSvg={onSvg}
@@ -490,6 +475,9 @@ function VisualPanel({ call }: { call: ToolCall }) {
             onClick={() => setFull(true)}
             className="absolute inset-0 md:hidden"
           />
+          {/* Not on a phone, where the preview is a picture that opens full
+              screen, and zooming is done there. */}
+          <VisualZoom zoom={zoom} onZoom={setZoom} className={cn(ZOOM_CORNER, "hidden md:flex")} />
         </div>
       )}
       {errors.length > 0 && (
@@ -520,12 +508,11 @@ function VisualPanel({ call }: { call: ToolCall }) {
         </div>
       )}
       <Dialog open={full} onOpenChange={setFull}>
-        <DialogContent className={DIALOG_WINDOW}>
+        <DialogContent className={DIALOG_WINDOW} aria-describedby={undefined}>
           <DialogHeader className="gap-0 pr-10">
             <DialogTitle className="truncate text-base">{shown.title}</DialogTitle>
-            <DialogDescription className="text-xs">{t("drawnByAgent")}</DialogDescription>
           </DialogHeader>
-          <div className="border-border min-h-0 flex-1 overflow-hidden rounded-xl border">
+          <div className="border-border relative min-h-0 flex-1 overflow-hidden rounded-xl border">
             {full && (
               <VisualFrame
                 kind={shown.kind}
@@ -533,9 +520,11 @@ function VisualPanel({ call }: { call: ToolCall }) {
                 content={content}
                 done={done}
                 height={shown.height}
+                zoom={fullZoom}
                 fill
               />
             )}
+            <VisualZoom zoom={fullZoom} onZoom={setFullZoom} className={ZOOM_CORNER} />
           </div>
         </DialogContent>
       </Dialog>
@@ -583,9 +572,11 @@ function VisualCard({
       <div className="flex min-w-0 items-center gap-2 px-3 py-2">
         <Shapes className="text-muted-foreground size-4 shrink-0" aria-hidden />
         <span className="text-foreground min-w-0 truncate text-sm font-medium">{title}</span>
-        <span className="text-muted-foreground ml-auto shrink-0 text-xs">
-          {kind === "svg" ? t("drawnByAgent") : t("openInConsole")}
-        </span>
+        {kind !== "svg" && (
+          <span className="text-muted-foreground ml-auto shrink-0 text-xs">
+            {t("openInConsole")}
+          </span>
+        )}
       </div>
     </div>
   );

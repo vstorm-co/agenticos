@@ -132,12 +132,48 @@ describe("TurnVisuals", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows a finished drawing, labelled as the agent's, with its kind", () => {
+  it("shows a finished drawing under its title alone", () => {
     show([call()]);
     expect(screen.getByText("Flow")).toBeInTheDocument();
-    expect(screen.getByText("SVG")).toBeInTheDocument();
-    expect(screen.getAllByText("Drawn by the agent").length).toBeGreaterThan(0);
-    expect(lastFrame()).toMatchObject({ done: true, aspect: 1, content: SVG, height: 400 });
+    expect(screen.queryByText("SVG")).toBeNull();
+    expect(lastFrame()).toMatchObject({
+      done: true,
+      aspect: 1,
+      content: SVG,
+      height: 400,
+      zoom: 1,
+    });
+  });
+
+  it("zooms the preview and full screen each on their own", () => {
+    show([call()]);
+    const [zoomOut, zoomIn] = [
+      screen.getByRole("button", { name: "Zoom out" }),
+      screen.getByRole("button", { name: "Zoom in" }),
+    ];
+    fireEvent.click(zoomIn);
+    fireEvent.click(zoomIn);
+    expect(lastFrame().zoom).toBe(1.5);
+    expect(screen.getByRole("button", { name: "Reset zoom" })).toHaveTextContent("150%");
+    fireEvent.click(screen.getByRole("button", { name: "Reset zoom" }));
+    expect(lastFrame().zoom).toBe(1);
+    fireEvent.click(zoomOut);
+    fireEvent.click(zoomOut);
+    expect(lastFrame().zoom).toBe(0.5);
+    expect(zoomOut).toBeDisabled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Full screen" })[0]!);
+    expect(lastFrame()).toMatchObject({ fill: true, zoom: 1 });
+    const fullZoomIn = screen.getAllByRole("button", { name: "Zoom in" }).at(-1)!;
+    for (let step = 0; step < 6; step += 1) fireEvent.click(fullZoomIn);
+    expect(lastFrame()).toMatchObject({ fill: true, zoom: 4 });
+    expect(fullZoomIn).toBeDisabled();
+  });
+
+  it("offers no zoom over the code", () => {
+    show([call()]);
+    fireEvent.click(screen.getByRole("button", { name: "Show code" }));
+    expect(screen.queryByRole("button", { name: "Zoom in" })).toBeNull();
   });
 
   it("shows nothing for a call that failed", () => {
@@ -248,12 +284,9 @@ describe("TurnVisuals", () => {
     expect(screen.getByTestId("full-frame")).toBeInTheDocument();
   });
 
-  it("asks about the drawing and asks the agent to fix what it reported", () => {
+  it("asks the agent to fix what the drawing reported", () => {
     const onCompose = vi.fn();
     show([call()], { onCompose });
-
-    fireEvent.click(screen.getByRole("button", { name: "Ask about this" }));
-    expect(onCompose).toHaveBeenLastCalledWith("About the visual “Flow” (d1): ");
 
     act(() => lastFrame().onError?.("boom"));
     act(() => lastFrame().onError?.("boom"));

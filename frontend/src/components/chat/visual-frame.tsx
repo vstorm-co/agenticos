@@ -9,6 +9,7 @@ import {
 } from "@/components/artifacts/artifact-frame";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { clampHeight, visualFrameUrl, type VisualKind } from "@/lib/visuals";
+import { cn } from "@/lib/utils";
 import { getResolvedTheme, useThemeStore } from "@/stores/theme-store";
 
 /** How long a finished drawing may go without a heartbeat before it is taken down. */
@@ -25,7 +26,8 @@ const MAX_GROWTHS = 4;
  * than this is shrunk to it rather than cut. An SVG is fitted by its `viewBox`
  * and redraws itself crisply at that size; a page is laid out at the panel's
  * width, measured, and scaled. Full screen shows either at its own size, and
- * interaction still works through the scale.
+ * interaction still works through the scale. Zoomed in, the drawing is the one
+ * thing that scrolls - inside its own box, which a person asked for.
  */
 const PREVIEW_MAX_HEIGHT = 560;
 
@@ -44,6 +46,8 @@ export interface VisualFrameProps {
   aspect?: number | null;
   /** Fill the parent rather than fit the drawing - full screen. */
   fill?: boolean;
+  /** How far the person zoomed in, 1 being the drawing fitted to its box. */
+  zoom?: number;
   onError?: (message: string) => void;
   /** The finished drawing has loaded and run its scripts for a moment. */
   onRendered?: () => void;
@@ -70,6 +74,7 @@ export function VisualFrame({
   height,
   aspect = null,
   fill = false,
+  zoom = 1,
   onError,
   onRendered,
   onSvg,
@@ -171,25 +176,28 @@ export function VisualFrame({
     return () => clearInterval(check);
   }, [done]);
 
+  // An SVG redraws itself at any size, so it is zoomed by laying it out larger;
+  // a page would only reflow wider, so it is laid out once and scaled.
   const measured = boxWidth > 0;
-  let preview: React.CSSProperties;
+  let laidOut: React.CSSProperties;
+  let footprint: { width: number; height: number };
   let boxHeight: number;
   if (aspect !== null) {
     const width = Math.min(boxWidth, PREVIEW_MAX_HEIGHT / aspect);
     boxHeight = measured ? width * aspect : clampHeight(height);
-    preview = { width, height: boxHeight, marginLeft: (boxWidth - width) / 2 };
+    footprint = { width: width * zoom, height: boxHeight * zoom };
+    laidOut = footprint;
   } else {
     const natural = Math.min(MAX_NATURAL, Math.max(1, reported ?? clampHeight(height)));
     const scale = Math.min(1, PREVIEW_MAX_HEIGHT / natural);
     boxHeight = natural * scale;
-    preview = {
-      width: boxWidth,
-      height: natural,
-      transform: `scale(${scale})`,
-      transformOrigin: "top left",
-      marginLeft: (boxWidth * (1 - scale)) / 2,
-    };
+    footprint = { width: boxWidth * scale * zoom, height: boxHeight * zoom };
+    laidOut = scaled(boxWidth, natural, scale * zoom);
   }
+  const fullLaidOut: React.CSSProperties =
+    kind === "svg"
+      ? { width: "100%", height: "100%" }
+      : scaled(`${100 / zoom}%`, `${100 / zoom}%`, zoom);
   const iframe = (
     <iframe
       ref={frame}
@@ -202,22 +210,50 @@ export function VisualFrame({
       // the colour scheme of the element framing it.
       style={
         fill
-          ? { colorScheme: theme }
-          : { ...preview, colorScheme: theme, visibility: measured ? "visible" : "hidden" }
+          ? { ...fullLaidOut, colorScheme: theme }
+          : { ...laidOut, colorScheme: theme, visibility: measured ? "visible" : "hidden" }
       }
-      className={fill ? "h-full w-full border-0" : "block border-0"}
+      className="block border-0"
     />
   );
+  // The footprint clips the frame to what it shows: a page laid out taller than
+  // it is drawn would otherwise give the box empty space to scroll into.
   return (
     <>
       {fill ? (
-        iframe
+        <div
+          className={cn(
+            "h-full w-full",
+            zoom > 1 ? "scrollbar-thin overflow-auto" : "overflow-hidden",
+          )}
+        >
+          <div
+            className="relative mx-auto overflow-hidden"
+            style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }}
+          >
+            {iframe}
+          </div>
+        </div>
       ) : (
-        <div ref={box} className="w-full overflow-hidden" style={{ height: Math.round(boxHeight) }}>
-          {iframe}
+        <div
+          ref={box}
+          className={cn("w-full", zoom > 1 ? "scrollbar-thin overflow-auto" : "overflow-hidden")}
+          style={{ height: Math.round(boxHeight) }}
+        >
+          <div
+            className="relative overflow-hidden"
+            style={{ ...footprint, marginLeft: Math.max(0, (boxWidth - footprint.width) / 2) }}
+          >
+            {iframe}
+          </div>
         </div>
       )}
       <LinkRequestDialog pending={pending} onDone={() => setPending(null)} />
     </>
   );
+}
+
+/** A frame laid out at one size and drawn at another, from its top left corner. */
+function scaled(width: number | string, height: number | string, by: number): React.CSSProperties {
+  return { width, height, transform: `scale(${by})`, transformOrigin: "top left" };
 }

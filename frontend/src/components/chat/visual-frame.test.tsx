@@ -26,6 +26,16 @@ function frameOf(): HTMLIFrameElement {
   return document.querySelector("iframe") as HTMLIFrameElement;
 }
 
+/** What the frame is clipped to: the size it is drawn at. */
+function sizerOf(): HTMLElement {
+  return frameOf().parentElement as HTMLElement;
+}
+
+/** The box the drawing sits in, which scrolls when it is zoomed past it. */
+function boxOf(): HTMLElement {
+  return sizerOf().parentElement as HTMLElement;
+}
+
 /** The frame saying something to the console, as its own window. */
 function say(data: unknown) {
   act(() => {
@@ -88,7 +98,7 @@ describe("VisualFrame", () => {
 
   it("shows a page whole, shrunk only past the preview's height", () => {
     render(<VisualFrame kind="html" title="T" content="<p/>" done height={300} />);
-    const box = frameOf().parentElement as HTMLElement;
+    const box = boxOf();
     expect(box.style.height).toBe("300px");
 
     say({ type: "agenticos:visual-size", height: 1120 });
@@ -110,20 +120,62 @@ describe("VisualFrame", () => {
     render(<VisualFrame kind="svg" title="T" content="<svg/>" done height={480} aspect={2} />);
     expect(frameOf().style.width).toBe("280px");
     expect(frameOf().style.height).toBe("560px");
-    expect(frameOf().style.marginLeft).toBe("160px");
+    expect(sizerOf().style.marginLeft).toBe("160px");
+  });
+
+  it("zooms an SVG by drawing it larger, in a box that scrolls", () => {
+    render(
+      <VisualFrame kind="svg" title="T" content="<svg/>" done height={480} aspect={2} zoom={2} />,
+    );
+    expect(frameOf().style.width).toBe("560px");
+    expect(frameOf().style.height).toBe("1120px");
+    expect(frameOf().style.transform).toBe("");
+    expect(sizerOf().style.marginLeft).toBe("20px");
+    expect(boxOf().style.height).toBe("560px");
+    expect(boxOf().className).toContain("overflow-auto");
+  });
+
+  it("zooms a page by scaling it, clipped to what it shows", () => {
+    render(<VisualFrame kind="html" title="T" content="<p/>" done height={300} zoom={1.5} />);
+    say({ type: "agenticos:visual-size", height: 1120 });
+    expect(frameOf().style.transform).toBe("scale(0.75)");
+    expect(sizerOf().style.width).toBe("450px");
+    expect(sizerOf().style.height).toBe("840px");
+    expect(sizerOf().style.marginLeft).toBe("75px");
+  });
+
+  it("keeps a page that fits unscrolled", () => {
+    render(<VisualFrame kind="html" title="T" content="<p/>" done height={300} zoom={0.5} />);
+    expect(boxOf().className).toContain("overflow-hidden");
+    expect(sizerOf().style.width).toBe("300px");
   });
 
   it("waits for the panel's width before showing anything", () => {
     global.ResizeObserver = original;
     render(<VisualFrame kind="svg" title="T" content="<svg/>" done height={300} aspect={1} />);
     expect(frameOf().style.visibility).toBe("hidden");
-    expect((frameOf().parentElement as HTMLElement).style.height).toBe("300px");
+    expect(boxOf().style.height).toBe("300px");
   });
 
   it("fills its parent full screen", () => {
     render(<VisualFrame kind="svg" title="T" content="<svg/>" done height={300} fill />);
-    expect(frameOf().className).toContain("h-full");
+    expect(frameOf().style.width).toBe("100%");
+    expect(frameOf().style.height).toBe("100%");
     expect(frameOf().getAttribute("scrolling")).toBeNull();
+    expect(boxOf().className).toContain("overflow-hidden");
+  });
+
+  it("zooms full screen: an SVG drawn larger, a page scaled", () => {
+    const { rerender } = render(
+      <VisualFrame kind="svg" title="T" content="<svg/>" done height={300} fill zoom={2} />,
+    );
+    expect(sizerOf().style.width).toBe("200%");
+    expect(frameOf().style.width).toBe("100%");
+    expect(boxOf().className).toContain("overflow-auto");
+
+    rerender(<VisualFrame kind="html" title="T" content="<p/>" done height={300} fill zoom={2} />);
+    expect(frameOf().style.width).toBe("50%");
+    expect(frameOf().style.transform).toBe("scale(2)");
   });
 
   it("passes the drawing's errors, its rendering and its SVG on", () => {
