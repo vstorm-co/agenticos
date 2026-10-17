@@ -76,6 +76,13 @@ Two things are versioned separately from this file and worth knowing about:
   or an exhausted budget, amber for an approval or a budget warning. Rows
   written before this keep the icon only. The inbox API serves the row's
   `agent`.
+- **A code file opens as it would in an editor.** The file viewer, the folder
+  page's reader and a skill's preview show source with line numbers, coloured
+  in its language, filling the pane - rather than in a chat's code block sized
+  to its content, which left a short file in a small box over empty space. On
+  the folder page the text fills the reader edge to edge instead of sitting in
+  a second box inside it; JSON and the Source view of Markdown and HTML are
+  coloured too.
 
 ## [1.1.1] - 2026-10-16
 

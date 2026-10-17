@@ -5,7 +5,7 @@ import { AlertTriangle, Download, Info, Search, Trash2 } from "lucide-react";
 
 import { FileContent, FileIcon, PathTree, type PathTreeNode } from "@/components/files";
 import { Badge, BlankPeek, Button, DocPeek, Input, Skeleton } from "@/components/ui";
-import { hasSourceView, resolveFileKind } from "@/lib/file-kinds";
+import { hasSourceView, readsAsText, resolveFileKind } from "@/lib/file-kinds";
 import { useWorkspaceFiles } from "@/hooks";
 import { cn, formatBytes } from "@/lib/utils";
 import { workspaceFileAccess, type FileSource } from "@/lib/workspace-files";
@@ -407,13 +407,17 @@ export function FileExplorer({
               {/* Keyed on the path, so moving between two files remounts the reader
                   rather than showing the previous one's bytes while the next load is
                   in flight. */}
-              <div className="min-h-0 flex-1 overflow-auto p-3">
+              {/* Text fills the pane edge to edge, as an editor's does: padded, it
+                  was a second box inside this one. A picture or a PDF keeps a
+                  margin to sit in. */}
+              <div className={cn("min-h-0 flex-1 overflow-auto", !readsAsText(kind) && "p-3")}>
                 <FileContent
                   key={chosen.path}
                   access={workspaceFileAccess(source, chosen.path)}
                   kind={kind}
                   name={chosen.path.split("/").filter(Boolean).pop() ?? chosen.path}
                   asSource={asSource}
+                  bare
                 />
               </div>
             </>
