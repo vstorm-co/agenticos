@@ -1399,7 +1399,11 @@
       "scrollingPage": "Przewija",
       "scrollPage": "Przewinął",
       "goingBack": "Wraca",
-      "goBack": "Wrócił"
+      "goBack": "Wrócił",
+      "exploringMounts": "Przeglądanie repozytoriów",
+      "runningInScratch": "Zapis do folderu roboczego",
+      "mirageExplore": "Wirtualny terminal",
+      "mirageRun": "Wirtualny terminal (zapis)"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",
@@ -6440,6 +6444,14 @@
       "example2": "Znaleźć trzech konkurentów i ich ceny",
       "needs": "Nic, z DuckDuckGo. Brave, Exa i Tavily potrzebują swojego klucza API w vault.",
       "never": "Nigdy nie wysyła twoich dokumentów do wyszukiwarki, tylko szukane słowa."
+    },
+    "mirage": {
+      "name": "Wirtualny terminal (Mirage)",
+      "does": "Pozwala agentowi używać ls, grep, cat i find w jego bazach wiedzy, ich źródłach (S3, Google Drive, SharePoint, Git) i repozytoriach GitHub, bez uruchamiania kontenera.",
+      "example1": "Które umowy w bazie wiedzy wciąż mówią o 60-dniowym okresie wypowiedzenia?",
+      "example2": "Znajdź każde TODO w repozytoriach web i api",
+      "needs": "Nic dla baz wiedzy i ich źródeł; dla repozytoriów token GitHub w vaulcie (git token, host github.com).",
+      "never": "Nigdy nie zapisuje do zamontowanego folderu; zapisywalny jest tylko jego folder roboczy."
     }
   },
   "capabilityCategories": {
@@ -6891,6 +6903,44 @@
       "max_results": {
         "title": "Wyników na wyszukiwanie",
         "description": "Ile wyników zwraca jedno wyszukiwanie; ignorowane przy wyszukiwaniu natywnym."
+      }
+    },
+    "mirage": {
+      "github": {
+        "title": "Repozytoria GitHub",
+        "description": "Montuje repozytoria wymienione poniżej. Wymaga tokenu GitHub z vaulta."
+      },
+      "repositories": {
+        "title": "Repozytoria",
+        "description": "Montowane tylko do odczytu pod /github/<owner>/<name>, jako owner/name lub owner/name@branch."
+      },
+      "knowledge": {
+        "title": "Bazy wiedzy",
+        "description": "Bazy wiedzy agenta, każdy dokument jako jego sparsowany tekst pod /knowledge/<baza>/."
+      },
+      "sources": {
+        "title": "Źródła baz wiedzy",
+        "description": "Pliki za synchronizowanymi źródłami tych baz - S3, Google Drive, SharePoint, Git - pod /sources/<źródło>/, czytane poświadczeniem każdego źródła."
+      },
+      "scratch": {
+        "title": "Folder roboczy",
+        "description": "Zapisywalny folder /scratch na notatki i pliki pośrednie, pusty przy każdym runie."
+      },
+      "timeout_seconds": {
+        "title": "Limit czasu polecenia (sekundy)",
+        "description": "Jak długo jedno polecenie może działać, zanim zostanie zatrzymane."
+      },
+      "max_output_chars": {
+        "title": "Limit wyjścia (znaki)",
+        "description": "Ile wyjścia polecenia trafia do modelu; reszta jest ucinana."
+      },
+      "allowed_commands": {
+        "title": "Dozwolone polecenia",
+        "description": "Uruchamiają się tylko te polecenia, np. ls, cat, grep. Puste pozwala na każde polecenie terminala."
+      },
+      "hidden_paths": {
+        "title": "Ukryte ścieżki",
+        "description": "Ścieżki, które dla agenta nie istnieją, np. /sources/finance albo *.env. Niewidoczne w listingach i odrzucane każdemu poleceniu."
       }
     }
   },

@@ -196,6 +196,7 @@ dependencies = [
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
     "phonenumberslite>=9.0.41",
+    "mirage-ai==0.0.6",
 ]
 
 [project.optional-dependencies]
@@ -675,6 +676,8 @@ include = [
     "app/schemas/trigger_template.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
+    # The virtual terminal's knowledge-base and sync-source folders (#2191).
+    "app/services/mirage_mounts.py",
     "app/services/agent_templates.py",
     "app/services/agent_session.py",
     # The turn loop itself, shared by the dashboard chat and the embedded
@@ -1087,6 +1090,8 @@ include = [
     "app/schemas/trigger_template.py",
     "app/services/agent_registry.py",
     "app/services/agent_runner.py",
+    # The virtual terminal's knowledge-base and sync-source folders (#2191).
+    "app/services/mirage_mounts.py",
     "app/services/agent_templates.py",
     # The whole dashboard chat wire format: every frame the WebSocket sends and
     # every frame it accepts. It sat outside both gates while `use-chat.ts`

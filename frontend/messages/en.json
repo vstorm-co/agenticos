@@ -1399,7 +1399,11 @@
       "scrollingPage": "Scrolling",
       "scrollPage": "Scrolled",
       "goingBack": "Going back",
-      "goBack": "Went back"
+      "goBack": "Went back",
+      "exploringMounts": "Looking through the repositories",
+      "runningInScratch": "Writing to the scratch folder",
+      "mirageExplore": "Virtual terminal",
+      "mirageRun": "Virtual terminal (write)"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -6666,6 +6670,14 @@
       "example2": "Find three competitors and their prices",
       "needs": "Nothing, with DuckDuckGo. Brave, Exa or Tavily need their API key in the vault.",
       "never": "Never sends your documents to the search engine, only the search words."
+    },
+    "mirage": {
+      "name": "Virtual terminal (Mirage)",
+      "does": "Lets the agent use ls, grep, cat and find across its knowledge bases, their sources (S3, Google Drive, SharePoint, Git) and GitHub repositories, without starting a container.",
+      "example1": "Which contracts in the knowledge base still mention a 60-day notice period?",
+      "example2": "Find every TODO in the web and api repositories",
+      "needs": "Nothing for knowledge bases and their sources; a GitHub token in the vault (git token, host github.com) for repositories.",
+      "never": "Never writes to a mounted folder; only its own scratch folder is writable."
     }
   },
   "capabilityCategories": {
@@ -7107,6 +7119,44 @@
       "max_results": {
         "title": "Results per search",
         "description": "How many results one search returns; ignored for native search."
+      }
+    },
+    "mirage": {
+      "github": {
+        "title": "GitHub repositories",
+        "description": "Mount the repositories listed below. Needs a GitHub token from the vault."
+      },
+      "repositories": {
+        "title": "Repositories",
+        "description": "Mounted read-only under /github/<owner>/<name>, as owner/name or owner/name@branch."
+      },
+      "knowledge": {
+        "title": "Knowledge bases",
+        "description": "The agent's knowledge bases, each document as its parsed text under /knowledge/<base>/."
+      },
+      "sources": {
+        "title": "Knowledge base sources",
+        "description": "The files behind those knowledge bases' synced sources - S3, Google Drive, SharePoint, Git - under /sources/<source>/, read with each source's own credential."
+      },
+      "scratch": {
+        "title": "Scratch folder",
+        "description": "A writable /scratch folder for notes and intermediate files, empty each run."
+      },
+      "timeout_seconds": {
+        "title": "Command timeout (seconds)",
+        "description": "How long one command may run before it is stopped."
+      },
+      "max_output_chars": {
+        "title": "Output limit (characters)",
+        "description": "How much of a command's output reaches the model; the rest is cut."
+      },
+      "allowed_commands": {
+        "title": "Allowed commands",
+        "description": "Only these commands run, e.g. ls, cat, grep. Empty allows every command the terminal has."
+      },
+      "hidden_paths": {
+        "title": "Hidden paths",
+        "description": "Paths that do not exist for the agent, e.g. /sources/finance or *.env. Hidden from listings and refused to every command."
       }
     }
   },

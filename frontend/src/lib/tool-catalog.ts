@@ -496,6 +496,21 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     displayNameKey: "availableSteps",
   },
 
+  // mirage - a virtual terminal over mounted repositories. Its answer is a
+  // command's output, which the generic renderer shows as the text it is.
+  mirage_explore: {
+    kind: "shell",
+    render: "generic",
+    captionKey: "exploringMounts",
+    displayNameKey: "mirageExplore",
+  },
+  mirage_run: {
+    kind: "shell",
+    render: "generic",
+    captionKey: "runningInScratch",
+    displayNameKey: "mirageRun",
+  },
+
   // web_research
   web_search: {
     kind: "web",

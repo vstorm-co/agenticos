@@ -129,6 +129,11 @@ from app.agents.capabilities.guardrails import (
     output_screen,
 )
 from app.agents.capabilities.media import offloaded_history
+from app.agents.capabilities.mirage import (
+    MIRAGE_CAPABILITY_ID,
+    MIRAGE_TREES_RESOURCE,
+    MirageConfig,
+)
 from app.agents.capabilities.planning import (
     PLANNING_STORE_RESOURCE,
     dump_plan,
@@ -244,6 +249,7 @@ from app.services.mcp_connection import (
     build_toolsets_for_agent,
     connect_personal_toolset,
 )
+from app.services.mirage_mounts import MirageMountService
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
@@ -2137,6 +2143,14 @@ def _browser_step_profile(spec: AgentSpec) -> UUID | None:
     return None
 
 
+def _mirage_config(spec: AgentSpec) -> MirageConfig | None:
+    """The agent's virtual terminal, when it binds one."""
+    for binding in spec.capabilities:
+        if binding.id == MIRAGE_CAPABILITY_ID and binding.enabled:
+            return MirageConfig.model_validate(binding.config)
+    return None
+
+
 def _key_may_continue(ctx: AuthContext, run: AgentRun) -> bool:
     """Whether an organization key may read and answer the questions of its issuer's run.
 
@@ -2271,6 +2285,21 @@ class AgentRunnerService:
             return None
         owner = await self._run_owner_context(ctx, existing_run)
         return None if owner is None else await mint_for_run(owner)
+
+    async def _add_mirage_trees(
+        self, resources: dict[str, Any], ctx: AuthContext, spec: AgentSpec
+    ) -> None:
+        """The terminal's knowledge-base and source folders, when it mounts either.
+
+        Resolved here for the reason collection names are: which documents and
+        which credentials an agent reaches is the server's decision, made before
+        the model is called.
+        """
+        config = _mirage_config(spec)
+        if config is not None and (config.knowledge or config.sources):
+            resources[MIRAGE_TREES_RESOURCE] = await MirageMountService(self.db).trees(
+                ctx, spec, knowledge=config.knowledge, sources=config.sources
+            )
 
     async def _collection_names(self, spec: AgentSpec, ctx: AuthContext) -> list[str]:
         """Vector-store collection names for the agent's bound collections.
@@ -2653,6 +2682,7 @@ class AgentRunnerService:
         # here" are worse than none, because the model keeps trying.
         if channel_directory is not None:
             resources[CHANNEL_DIRECTORY_RESOURCE] = channel_directory
+        await self._add_mirage_trees(resources, ctx, spec)
         step_profile = _browser_step_profile(spec)
         if step_profile is not None:
             # Built here, where the vault and the session are: a fast model for
@@ -3570,6 +3600,7 @@ class AgentRunnerService:
             "skills": await self.skills.resolve_for_agent(ctx, spec.skill_ids),
             CONTEXT_FILES_RESOURCE: await self.context.resolve_for_agent(ctx, spec.context_ids),
         }
+        await self._add_mirage_trees(resources, ctx, spec)
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
             resources[WORKSPACE_RESOURCE] = parent_resources.get(WORKSPACE_RESOURCE)
             # And the spill log with it: a delegate spilling to the shared

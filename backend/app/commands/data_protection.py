@@ -107,6 +107,14 @@ OUTBOUND_CAPABILITIES: dict[str, str] = {
     "image_generation": "the image provider named in the binding",
     "knowledge": "the collection's embedding endpoint",
     "memory_mem0": "the mem0 host the binding names (MEM0_ALLOWED_HOSTS bounds it)",
+    # Mirage reads each mounted repository through GitHub's REST API with the
+    # binding's token, and a mounted sync source through its own connector with
+    # the source's credential; knowledge-base text and the scratch folder never
+    # leave the deployment.
+    "mirage": (
+        "api.github.com, for the repositories the binding names, and the store of each "
+        "knowledge-base source it mounts (S3, Google Drive, SharePoint, Git)"
+    ),
     "sandbox": "the sandbox runtime this deployment configures",
     "web_fetch": "whatever address the model asks for",
     "web_research": "DuckDuckGo by default, or the search provider the binding names",

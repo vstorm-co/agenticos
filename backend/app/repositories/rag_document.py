@@ -126,6 +126,24 @@ async def get_for_kb(
     return list(rows), int(total)
 
 
+async def get_indexed_for_kb(db: AsyncSession, kb_id: UUID) -> list[RAGDocument]:
+    """Every document of a Knowledge Base whose chunks are stored, oldest first.
+
+    What has a parse to read back: a document still parsing, or one that
+    failed, has no chunks yet.
+    """
+    result = await db.execute(
+        select(RAGDocument)
+        .where(
+            RAGDocument.knowledge_base_id == kb_id,
+            RAGDocument.status == DocumentStatus.DONE,
+            RAGDocument.vector_document_id.is_not(None),
+        )
+        .order_by(RAGDocument.created_at, RAGDocument.id)
+    )
+    return list(result.scalars().all())
+
+
 async def create(
     db: AsyncSession,
     *,

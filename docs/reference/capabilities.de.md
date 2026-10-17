@@ -1,5 +1,5 @@
 ---
-source_sha: "60dde7e73718"
+source_sha: "9131a7770622"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -62,6 +62,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
+| `mirage` | Virtuelles Terminal (Mirage) | analysis | `mirage_explore`, `mirage_run` | — | erforderlich (Git-Token) |
 | `charts` | Diagramme | analysis | `create_chart` | — | — |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
@@ -1039,6 +1040,65 @@ Diese Dateien sind beschreibbar, und was der Agent schreibt, wird **nicht** zu
 einem Skill. Ein Skill sind Instruktionen, denen jeder daran gebundene Agent bei
 jedem Run folgt, deshalb wird eine Änderung als Vorschlag festgehalten und jemand
 mit `skills:edit` nimmt sie an oder verwirft sie — siehe [Skills](../skills.md).
+
+## Virtuelles Terminal (Mirage) { #mirage }
+
+`mirage_explore` — *Run a read-only shell command across the mounted folders.*
+`mirage_run` — *Run a shell command that may write into the scratch folder.*
+
+`ls`, `cat`, `grep`, `find`, `head` und `wc` über die Wissensdatenbanken des Agents,
+die Dateien hinter ihren Quellen und GitHub-Repositories, ohne Container.
+[Mirage](https://github.com/strukto-ai/mirage) hängt jede davon schreibgeschützt in
+einen Baum ein, sodass ein Agent einen Bucket, einen Drive-Ordner und ein Repository in
+Sekunden durchsucht. Code führt es nicht aus; dafür ist [die Sandbox](#files-shell) da.
+
+| Konfiguration | Standard | Werte |
+|---|---|---|
+| `knowledge` | an | jede gebundene Wissensdatenbank unter `/knowledge/<base>/`, eine Datei je indiziertem Dokument |
+| `sources` | aus | jede synchronisierte Quelle dieser Datenbanken unter `/sources/<source>/` |
+| `github` | aus | hängt `repositories` ein; braucht ein GitHub-Token |
+| `repositories` | — | bis zu 5, `owner/name` oder `owner/name@branch`, unter `/github/<owner>/<name>/` |
+| `scratch` | an | ein beschreibbares `/scratch/`, bei jedem Run leer |
+| `allowed_commands` | jeder Befehl | Befehlsnamen, z. B. `ls`, `grep`, `git log` |
+| `hidden_paths` | keine | absolute Pfade oder Dateinamensmuster, z. B. `/sources/finance`, `*.env` |
+| `timeout_seconds` | 60 | 5–600, pro Befehl |
+| `max_output_chars` | 20000 | 1000–200000, der Rest wird mit Hinweis abgeschnitten |
+
+Mindestens eines von `knowledge`, `sources` und `github` muss an sein, und `github`
+braucht mindestens ein Repository; das Veröffentlichen lehnt ein Binding ab, das nichts
+einhängt oder Repositories bei ausgeschaltetem `github` auflistet.
+
+**Eine Wissensdatenbank ist ihr geparster Text.** Jede Datei unter `/knowledge/<base>/`
+ist ein indiziertes Dokument, aus dem Vektorspeicher gelesen und so zusammengesetzt,
+dass die Überlappung des Splitters nur einmal vorkommt. Ein Dokument, das noch geparst
+wird oder dessen Parsen fehlschlug, wird nicht aufgelistet. Zwei Dokumente gleichen
+Namens unterscheidet `~2`.
+
+**Eine Quelle wird mit ihren eigenen Zugangsdaten gelesen.** `/sources/<source>/` listet
+eine S3-, Google-Drive-, SharePoint- oder Git-Quelle einer gebundenen Wissensdatenbank
+über denselben Connector, der sie synchronisiert, mit den Zugangsdaten aus dem Vault,
+die die Quelle nennt. Eingehängt werden nur aktive Quellen dieser Organisation. Eine
+Website-Quelle nicht, denn ihre Seiten sind schon Dokumente unter `/knowledge`. Eine
+Quelle wird beim ersten Befehl aufgelistet, der sie erreicht, und eine Datei über 20 MB
+wird abgelehnt statt gelesen.
+
+**Jede Einhängung ist schreibgeschützt, immer.** `mirage_explore` läuft in einer Ansicht,
+in der jede Einhängung schreibgeschützt ist, und braucht daher keine Freigabe;
+`mirage_run` darf schreiben, nur in den Arbeitsordner, und ist das Tool, auf das man
+**Immer fragen** setzt. Ein Schreibzugriff anderswo scheitert in Mirage, gleich mit
+welchem Tool.
+
+**Die Richtlinie ist die von Mirage.** `allowed_commands` und `hidden_paths` werden zum
+Berechtigungsprofil der Sitzung, also setzt die Shell sie durch, die die Zeile parst,
+auch in Pipes und `$(...)`. Ein Befehl außerhalb der Liste ist `command not found`; ein
+verborgener Pfad fehlt in Auflistungen und Suchen und wird jedem Befehl verweigert.
+
+**Zugangsdaten erreichen nie das Modell oder die Konfiguration.** Das GitHub-Token ist
+ein `git_token` aus dem Vault, versiegelt für `github.com`, nur bei eingeschaltetem
+`github` verlangt und dann auch für öffentliche Repositories, weil GitHub ein leeres
+ablehnt. Ein für einen anderen Host versiegeltes Token wird abgelehnt statt gesendet.
+Der Fehler einer Quelle wird protokolliert, und das Modell liest nur, dass der Ordner
+nicht aufgelistet oder gelesen werden konnte.
 
 ## Diagramme { #charts }
 

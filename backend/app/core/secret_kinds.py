@@ -637,7 +637,11 @@ class SecretCondition(BaseModel):
         """Whether this configuration needs the secret."""
         if config is None:
             return False
-        return str(getattr(config, self.field, None)) in self.equals
+        value = getattr(config, self.field, None)
+        # Spelled as the Builder's `String(value)` spells it, so a switch is
+        # "true" on both sides rather than "True" here and "true" there.
+        text = str(value).lower() if isinstance(value, bool) else str(value)
+        return text in self.equals
 
 
 class SecretRequirement(BaseModel):
