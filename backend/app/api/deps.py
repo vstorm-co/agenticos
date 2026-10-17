@@ -412,6 +412,15 @@ def get_external_agent_service(db: DBSession) -> ExternalAgentService:
 
 
 ExternalAgentSvc = Annotated[ExternalAgentService, Depends(get_external_agent_service)]
+
+from app.services.project import ProjectService
+
+
+def get_project_service(db: DBSession) -> ProjectService:
+    return ProjectService(db)
+
+
+ProjectSvc = Annotated[ProjectService, Depends(get_project_service)]
 from app.services.change_feed import CONSOLE_TAB_HEADER, ChangeOrigin, console_tab
 from app.schemas.change_event import ChangeSurface
 

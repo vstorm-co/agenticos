@@ -37,7 +37,7 @@ from dataclasses import dataclass, field, replace
 from functools import partial
 from io import BytesIO
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from PIL import Image, ImageOps
@@ -68,6 +68,7 @@ from app.core.config import settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.project import Project
 from app.repositories import agent as agent_repo
 from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
@@ -344,6 +345,19 @@ class OpenWorkspace:
     """
 
 
+def project_sandbox(project: Project) -> SandboxConfig:
+    """The workspace every run in a project shares, as a sandbox configuration.
+
+    The shell is always on: a project is somewhere work is done, and which agent
+    answered a chat in it should not decide whether its files can be run.
+    """
+    return SandboxConfig(
+        backend=cast("Literal['state', 'service']", project.backend),
+        connection_id=project.sandbox_connection_id,
+        runtime=project.runtime,
+    )
+
+
 def sandbox_config(spec: AgentSpec) -> SandboxConfig | None:
     """This spec's workspace configuration, or `None` if it has no workspace.
 
@@ -472,8 +486,19 @@ class SandboxWorkspaceService:
         config = sandbox_config(spec)
         if config is None:
             return None
+        return await self._open_config(
+            config, ctx=ctx, identity=identity, scope=scope_override or config.session_scope
+        )
 
-        scope = scope_override or config.session_scope
+    async def _open_config(
+        self,
+        config: SandboxConfig,
+        *,
+        ctx: AuthContext,
+        identity: WorkspaceIdentity,
+        scope: SessionScope,
+    ) -> OpenWorkspace:
+        """`open`, for a configuration already read out of a spec or a project."""
         if config.backend == "state":
             return await self._open_state(
                 config, identity, self._key(identity, scope, "state"), scope
@@ -680,7 +705,9 @@ class SandboxWorkspaceService:
         return await workspace_repo.create(
             self.db,
             organization_id=identity.organization_id,
-            agent_id=identity.agent_id,
+            # A project's container is every agent's in it and no one agent's.
+            agent_id=None if scope == "project" else identity.agent_id,
+            project_id=identity.project_id if scope == "project" else None,
             conversation_id=(identity.conversation_id if scope == "conversation" else None),
             owner_ref=identity.user_id if scope == "user" else None,
             scope=scope,
@@ -688,6 +715,64 @@ class SandboxWorkspaceService:
             backend=config.backend,
             connection_id=connection_id,
         )
+
+    async def open_project(self, ctx: AuthContext, project: Project) -> OpenWorkspace:
+        """A project's container, opened outside any run - to add or remove files.
+
+        The caller has already decided the caller may work in the project. The
+        same key a run in the project opens, so a file put here is the file the
+        agent finds, and `close` must follow as it does after a run.
+        """
+        return await self._open_config(
+            project_sandbox(project),
+            ctx=ctx,
+            identity=WorkspaceIdentity(
+                organization_id=ctx.organization_id,
+                agent_id=None,
+                run_id=None,
+                project_id=project.id,
+            ),
+            scope="project",
+        )
+
+    async def project_files(
+        self, ctx: AuthContext, project: Project
+    ) -> tuple[AgentWorkspace, WorkspaceContents] | None:
+        """What a project's container holds, read off the host without starting it.
+
+        `None` before anything has been put in it. The caller has already decided
+        the caller may see the project.
+        """
+        row = await workspace_repo.get_for_project(
+            self.db, organization_id=ctx.organization_id, project_id=project.id
+        )
+        if row is None:
+            return None
+        return row, await self._tiled(ctx, row)
+
+    async def project_bytes(self, ctx: AuthContext, project: Project, *, path: str) -> bytes:
+        """One file of a project's container, as bytes.
+
+        Raises:
+            NotFoundError: If the project holds no files, or no such file.
+            BadRequestError: If the host cannot be read.
+        """
+        row = await workspace_repo.get_for_project(
+            self.db, organization_id=ctx.organization_id, project_id=project.id
+        )
+        if row is None:
+            raise NotFoundError(
+                message="This project holds no files", details={"project_id": str(project.id)}
+            )
+        return await self._bytes_from(ctx, row, await self._browsable(ctx, row), path)
+
+    async def purge_project(self, ctx: AuthContext, project: Project) -> None:
+        """Remove a project's container from its host, before the project goes."""
+        row = await workspace_repo.get_for_project(
+            self.db, organization_id=ctx.organization_id, project_id=project.id
+        )
+        if row is not None and row.backend != "state":
+            await self._purge_remote(ctx, row)
 
     async def close(self, workspace: OpenWorkspace | None, *, keep_spills: bool = False) -> None:
         """Persist or release what the run was using.
@@ -965,7 +1050,9 @@ class SandboxWorkspaceService:
         if not rows:
             return []
         agents = await agent_repo.get_many(
-            self.db, [row.agent_id for row in rows], organization_id=ctx.organization_id
+            self.db,
+            [row.agent_id for row in rows if row.agent_id is not None],
+            organization_id=ctx.organization_id,
         )
         titles = await conversation_repo.titles_for(
             self.db,
@@ -976,7 +1063,11 @@ class SandboxWorkspaceService:
         # conversation-scoped workspace has exactly one by construction, and
         # counting it would be a query answering a question nobody asked.
         owners = await self._owner_names(rows, organization_id=ctx.organization_id)
-        shared = {row.agent_id for row in rows if row.scope in ("agent", "channel")}
+        shared = {
+            row.agent_id
+            for row in rows
+            if row.scope in ("agent", "channel") and row.agent_id is not None
+        }
         counts = (
             await conversation_repo.count_by_agent(
                 self.db, list(shared), organization_id=ctx.organization_id
@@ -984,39 +1075,34 @@ class SandboxWorkspaceService:
             if shared
             else {}
         )
-        return [
-            WorkspaceOverview(
-                row=row,
-                agent_name=(
-                    agents[row.agent_id].name if row.agent_id in agents else "a deleted agent"
-                ),
-                agent_slug=(agents[row.agent_id].slug if row.agent_id in agents else ""),
-                agent_has_avatar=(
-                    agents[row.agent_id].has_avatar if row.agent_id in agents else False
-                ),
-                conversation_title=(
-                    None
-                    if row.conversation_id is None
-                    else (head.title if (head := titles.get(row.conversation_id)) else None)
-                ),
-                conversation_is_callers=(
-                    row.conversation_id is not None
-                    and (owner := titles.get(row.conversation_id)) is not None
-                    and owner.user_id is not None
-                    and owner.user_id == ctx.user_id
-                ),
-                conversations=(
-                    1
-                    if row.conversation_id is not None
-                    else counts.get(row.agent_id, 0)
-                    if row.scope in ("agent", "channel")
-                    else 0
-                ),
-                access_label=access_label(row),
-                owner_name=owners.get(row.id),
+        overviews: list[WorkspaceOverview] = []
+        for row in rows:
+            agent = agents.get(row.agent_id) if row.agent_id is not None else None
+            head = titles.get(row.conversation_id) if row.conversation_id is not None else None
+            overviews.append(
+                WorkspaceOverview(
+                    row=row,
+                    agent_name=agent.name if agent is not None else "a deleted agent",
+                    agent_slug=agent.slug if agent is not None else "",
+                    agent_has_avatar=agent.has_avatar if agent is not None else False,
+                    conversation_title=head.title if head is not None else None,
+                    conversation_is_callers=(
+                        head is not None
+                        and head.user_id is not None
+                        and head.user_id == ctx.user_id
+                    ),
+                    conversations=(
+                        1
+                        if row.conversation_id is not None
+                        else counts.get(row.agent_id, 0)
+                        if row.scope in ("agent", "channel") and row.agent_id is not None
+                        else 0
+                    ),
+                    access_label=access_label(row),
+                    owner_name=owners.get(row.id),
+                )
             )
-            for row in rows
-        ]
+        return overviews
 
     async def _owner_names(
         self, rows: list[AgentWorkspace], *, organization_id: UUID
@@ -1920,6 +2006,8 @@ def access_label(row: AgentWorkspace) -> str:
         return "Everybody who talks to this agent"
     if row.scope == "channel":
         return "Everybody in that chat"
+    if row.scope == "project":
+        return "Everybody the project is shared with"
     return "Nobody - it is deleted when the run ends"
 
 
@@ -1936,4 +2024,6 @@ def owner_label(row: AgentWorkspace) -> str:
         return "Your files for this agent"
     if row.scope == "agent":
         return "Shared by everyone who uses this agent"
+    if row.scope == "project":
+        return "This project, shared by every chat in it"
     return "This run only"

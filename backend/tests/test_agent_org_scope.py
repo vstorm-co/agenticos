@@ -209,6 +209,67 @@ class TestPersistUserTurnOrgScope:
         assert service.create_conversation.call_args.args[0].organization_id == org_id
 
     @pytest.mark.anyio
+    async def test_a_new_conversation_starts_in_the_project_its_author_may_work_in(self):
+        org_id, project_id = uuid.uuid4(), uuid.uuid4()
+        service = self._conv_service(MagicMock(id=uuid.uuid4()))
+        allowed = AsyncMock(return_value=MagicMock(id=project_id))
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch(
+                "app.services.agent.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="member")),
+            ),
+            patch("app.services.agent.ProjectService.check_can_start", new=allowed),
+        ):
+            await persist_user_turn(
+                _user(),
+                "hello",
+                [],
+                requested_conversation_id=None,
+                current_conversation_id=None,
+                organization_id=org_id,
+                project_id=str(project_id),
+            )
+
+        assert service.create_conversation.call_args.args[0].project_id == project_id
+        checked_as, checked_project = allowed.await_args.args
+        assert (checked_as.organization_id, checked_as.role) == (org_id, "member")
+        assert checked_project == project_id
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("project_id", "membership", "refusal"),
+        [
+            ("not-a-uuid", MagicMock(role="member"), BadRequestError),
+            (str(uuid.uuid4()), None, AuthorizationError),
+        ],
+    )
+    async def test_a_project_that_cannot_be_started_in_starts_no_conversation(
+        self, project_id, membership, refusal
+    ):
+        service = self._conv_service(MagicMock(id=uuid.uuid4()))
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.member_repo.get", new=AsyncMock(return_value=membership)),
+            pytest.raises(refusal),
+        ):
+            await persist_user_turn(
+                _user(),
+                "hello",
+                [],
+                requested_conversation_id=None,
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+                project_id=project_id,
+            )
+
+        service.create_conversation.assert_not_called()
+
+    @pytest.mark.anyio
     async def test_a_resumed_conversation_persists_the_user_message(self):
         """The second message of a thread is written, not logged and dropped.
 

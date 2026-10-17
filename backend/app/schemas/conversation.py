@@ -324,6 +324,10 @@ class ConversationCreate(ConversationBase):
     organization_id: UUID | None = Field(
         default=None, description="Organization this conversation belongs to"
     )
+    project_id: UUID | None = Field(
+        default=None,
+        description="The project to start it in; the caller must be able to work in it",
+    )
 
 
 class ConversationUpdate(BaseSchema):
@@ -350,6 +354,9 @@ class ConversationRead(ConversationBase, TimestampSchema):
     id: UUID
     user_id: UUID | None = None
     organization_id: UUID | None = None
+    project_id: UUID | None = Field(
+        default=None, description="The project this chat was started in, if any"
+    )
     is_archived: bool = False
     origin: Literal["api"] | None = Field(
         default=None,

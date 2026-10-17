@@ -100,7 +100,9 @@ class WorkspaceSummary(BaseSchema):
     """
 
     id: UUID
-    agent_id: UUID
+    agent_id: UUID | None = Field(
+        description="The agent whose workspace it is; a project's container is not listed here."
+    )
     agent_name: str = Field(description="Resolved server-side, so a row names something readable")
     agent_slug: str = Field(
         default="",
@@ -216,7 +218,9 @@ class FlatFileRead(WorkspaceFileRead):
     """
 
     workspace_id: UUID
-    agent_id: UUID
+    agent_id: UUID | None = Field(
+        description="The agent whose workspace it is; a project's container is not listed here."
+    )
     agent_name: str
     agent_slug: str = Field(
         default="",

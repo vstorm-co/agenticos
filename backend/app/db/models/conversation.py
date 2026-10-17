@@ -56,6 +56,15 @@ class Conversation(Base, TimestampMixin):
     )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    """The project this chat was started in: its runs work in the project's
+    container and read its instructions. A deleted project leaves its chats as
+    ordinary ones, without the files they were working on."""
     origin: Mapped[str | None] = mapped_column(String(16), nullable=True)
     """Where a conversation was opened from, when it was not the console: `api`
     for one an organization key's run opened (#2122). Shown in its owner's chat

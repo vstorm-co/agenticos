@@ -10,6 +10,7 @@ from app.api.deps import (
     ConversationSvc,
     CurrentUser,
     MessageRatingSvc,
+    ProjectSvc,
     WorkspaceSvc,
 )
 from app.api.routes.v1._workspace_bytes import file_response
@@ -80,6 +81,7 @@ async def list_conversations(
     ),
     sort_dir: Literal["asc", "desc"] = Query("desc", description="Sort direction"),
     hide_api: bool = Query(False, description="Leave out conversations opened over the API"),
+    project_id: UUID | None = Query(default=None, description="Only chats started in this project"),
 ) -> Any:
     """List conversations for the current user.
 
@@ -106,6 +108,7 @@ async def list_conversations(
         sort_by=sort_by,
         sort_dir=sort_dir,
         hide_api=hide_api,
+        project_id=project_id,
     )
     return ConversationList(items=items, total=total)  # ty: ignore[invalid-argument-type]
 
@@ -115,11 +118,15 @@ async def create_conversation(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    projects: ProjectSvc,
+    ctx: Auth,
     data: ConversationCreate | None = None,
 ) -> Any:
-    """Create a new conversation."""
+    """Create a new conversation, in a project the caller may work in when one is named."""
     if data is None:
         data = ConversationCreate()
+    if data.project_id is not None:
+        await projects.check_can_start(ctx, data.project_id)
     data = data.model_copy(update={"user_id": current_user.id})
     data = data.model_copy(update={"organization_id": active_org.id})
     return await conversation_service.create_conversation(data)

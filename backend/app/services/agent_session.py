@@ -478,6 +478,9 @@ class AgentSession:
                 requested_conversation_id=data.get("conversation_id"),
                 current_conversation_id=self.current_conversation_id,
                 organization_id=self.organization_id,
+                # Read only when the turn starts a conversation: a chat is in
+                # the project it was started in, and stays there.
+                project_id=data.get("project_id") or None,
             )
         except AppException as e:
             # Every refusal the write can raise, not only the cross-org one:

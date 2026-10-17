@@ -211,6 +211,7 @@ def _list_filters(
     include_archived: bool = False,
     archived_only: bool = False,
     hide_api: bool = False,
+    project_id: UUID | None = None,
 ) -> list[ColumnElement[bool]]:
     """The predicates both conversation listings narrow by.
 
@@ -234,6 +235,8 @@ def _list_filters(
     nothing rather than confirming the agent exists.
     """
     filters: list[ColumnElement[bool]] = []
+    if project_id is not None:
+        filters.append(Conversation.project_id == project_id)
     if hide_api:
         # Null for every conversation opened in the console or a channel.
         filters.append(or_(Conversation.origin.is_(None), Conversation.origin != "api"))
@@ -560,6 +563,7 @@ async def get_conversations_by_user(
     favourites_first_for: UUID | None = None,
     participant_conversation_ids: Collection[UUID] = frozenset(),
     hide_api: bool = False,
+    project_id: UUID | None = None,
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
 
@@ -588,6 +592,7 @@ async def get_conversations_by_user(
         include_archived=include_archived,
         archived_only=archived_only,
         hide_api=hide_api,
+        project_id=project_id,
     ):
         query = query.where(condition)
     orders = [] if favourites_first_for is None else [_favourited_by(favourites_first_for).desc()]
@@ -664,6 +669,7 @@ async def count_conversations(
     archived_only: bool = False,
     participant_conversation_ids: Collection[UUID] = frozenset(),
     hide_api: bool = False,
+    project_id: UUID | None = None,
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
 
@@ -683,6 +689,7 @@ async def count_conversations(
         include_archived=include_archived,
         archived_only=archived_only,
         hide_api=hide_api,
+        project_id=project_id,
     ):
         query = query.where(condition)
     result = await db.execute(query)
@@ -696,6 +703,7 @@ async def create_conversation(
     user_id: UUID | None = None,
     title: str | None = None,
     origin: str | None = None,
+    project_id: UUID | None = None,
 ) -> Conversation:
     """Create a new conversation owned by an organization.
 
@@ -708,6 +716,7 @@ async def create_conversation(
         organization_id=organization_id,
         title=title,
         origin=origin,
+        project_id=project_id,
     )
     db.add(conversation)
     await db.flush()

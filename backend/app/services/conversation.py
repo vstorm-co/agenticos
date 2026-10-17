@@ -458,6 +458,7 @@ class ConversationService:
         sort_by: str = "updated_at",
         sort_dir: str = "desc",
         hide_api: bool = False,
+        project_id: UUID | None = None,
     ) -> tuple[list[Conversation], int]:
         """One page of the organization's conversations, each naming who answered.
 
@@ -503,6 +504,7 @@ class ConversationService:
             ),
             participant_conversation_ids=participant_ids,
             hide_api=hide_api,
+            project_id=project_id,
         )
         total = await conversation_repo.count_conversations(
             self.db,
@@ -514,6 +516,7 @@ class ConversationService:
             archived_only=archived_only,
             participant_conversation_ids=participant_ids,
             hide_api=hide_api,
+            project_id=project_id,
         )
         await self._attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
@@ -777,6 +780,7 @@ class ConversationService:
             organization_id=data.organization_id,
             user_id=data.user_id,
             title=data.title,
+            project_id=data.project_id,
         )
 
     async def update_conversation(

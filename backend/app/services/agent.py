@@ -20,12 +20,15 @@ from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_conversation_service
 from app.core.exceptions import AppException, AuthorizationError, BadRequestError, NotFoundError
+from app.core.permissions import AuthContext
 from app.db.models.conversation import Conversation
 from app.db.session import get_db_context
 from app.repositories import conversation as conversation_repo
+from app.repositories import member_repo
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationUpdate,
@@ -35,6 +38,7 @@ from app.schemas.conversation import (
     ToolCallCreate,
 )
 from app.services.conversation import ConversationService
+from app.services.project import ProjectService
 from app.services.transcript import what_arrived
 from app.services.usage_report import UsageReport
 
@@ -154,6 +158,32 @@ async def _resolve_in_org(
         ) from exc
 
 
+async def _project_to_start_in(
+    db: AsyncSession, user: Any, organization_id: UUID, project_id: str
+) -> UUID:
+    """The project a new chat starts in, when this person may work in it.
+
+    Raises:
+        BadRequestError: For an id that is not one.
+        NotFoundError, AuthorizationError: For a project they cannot see, or see
+            and may not work in.
+    """
+    try:
+        requested = UUID(project_id)
+    except ValueError as exc:
+        raise BadRequestError(
+            message="That is not a project id", details={"project_id": project_id}
+        ) from exc
+    membership = await member_repo.get(db, organization_id=organization_id, user_id=user.id)
+    if membership is None:
+        raise AuthorizationError(
+            message="You are not a member of this organization",
+            details={"org_id": str(organization_id)},
+        )
+    ctx = AuthContext(user_id=user.id, organization_id=organization_id, role=membership.role)
+    return (await ProjectService(db).check_can_start(ctx, requested)).id
+
+
 async def persist_user_turn(
     user: Any,
     user_message: str,
@@ -161,6 +191,7 @@ async def persist_user_turn(
     requested_conversation_id: str | None,
     current_conversation_id: str | None,
     organization_id: UUID,
+    project_id: str | None = None,
 ) -> PersistedPrompt:
     """Resolve the conversation, persist the user message, and link any uploaded files.
 
@@ -217,11 +248,17 @@ async def persist_user_turn(
                         user_id=user.id,
                     )
             elif not current_conversation_id:
+                project = (
+                    await _project_to_start_in(db, user, organization_id, project_id)
+                    if project_id
+                    else None
+                )
                 conversation = await conv_service.create_conversation(
                     ConversationCreate(
                         user_id=user.id,
                         organization_id=organization_id,
                         title=truncate_title(user_message),
+                        project_id=project,
                     )
                 )
                 current_conversation_id = str(conversation.id)
