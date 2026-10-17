@@ -119,6 +119,7 @@ What separates one tenant from another:
 |---|---|
 | Built on | `python:3.12-slim` |
 | Languages | Python 3.12; Node 24.19.0 LTS with npm 11 and `tsx` for TypeScript |
+| Coding agents | Claude Code 2.1.288 and Codex 0.160.0, for the [coding agent](reference/capabilities.md#coding-agent) |
 | Tools | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo` |
 | Reading | **liteparse** (`lit`) — PDFs and images to text or markdown, OCR included; `poppler-utils` for the fast text-layer path and a page count |
 | Documents | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab`; **LibreOffice** headless for conversion and the legacy formats |

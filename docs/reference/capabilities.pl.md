@@ -1,5 +1,5 @@
 ---
-source_sha: "60dde7e73718"
+source_sha: "e8b17e6e3238"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -64,6 +64,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
 | `charts` | Wykresy | analiza | `create_chart` | — | — |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany |
+| `coding_agent` | Coding agent | analiza | `plan_code_change`, `apply_code_change` | `sandbox:execute` | wymagany |
 | `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Myślenie | rozumowanie | brak, celowo | — | — |
@@ -1087,6 +1088,55 @@ też workspace (capability `sandbox`), ten sam obraz jest zapisywany w nim pod
 slajd, stronę. Agent bez workspace'u nadal generuje i pokazuje obrazy; po prostu
 nie ma gdzie niczego z nich zbudować.
 
+## Coding agent { #coding-agent }
+
+`plan_code_change` — *Poproś coding agenta, by przeanalizował kod i zaplanował zmianę, niczego nie zmieniając.*
+`apply_code_change` — *Niech coding agent wprowadzi zmianę w sandboxie: edytuje pliki i uruchamia polecenia.*
+
+Przekazuje pracę programistyczną do **Claude Code** albo **Codex**, działających we
+własnym [sandboxie](../sandbox.md) agenta. Ogólny agent z shellem potrafi edytować
+kod; harness programistyczny robi to lepiej, a ta capability jest drogą agenta do
+niego. Agent z tą capability jest *coding agentem*, a inny agent przekazuje mu pracę
+przez zwykłe [delegowanie](#delegation), tak jak każdemu specjaliście.
+
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `harness` | `claude_code` | `claude_code` (klucz API Anthropic), `codex` (klucz API OpenAI) |
+| `model` | domyślny dla harnessu | Model pod nazwą, jaką nadaje mu harness, np. `claude-sonnet-5-5` albo `gpt-5.5-codex` |
+| `base_url` | bezpośrednio Anthropic | Tylko Claude Code: bramka obsługująca API Anthropic, np. `https://openrouter.ai/api`, której klucz trzyma wtedy vault |
+| `timeout_minutes` | 15 | 1–60, na jedno zadanie |
+
+**Planowanie czyta, wdrażanie zapisuje.** `plan_code_change` uruchamia harness tylko
+do odczytu — Claude Code w trybie uprawnień `plan`, Codex z sandboxem ustawionym na
+`read-only` — i odpowiada planem albo ustaleniem. `apply_code_change` pozwala mu
+edytować każdy plik i uruchamiać każde polecenie w sandboxie, więc ma skutki uboczne
+i [bramka zatwierdzeń](../governance.md) pyta człowieka przed uruchomieniem, chyba
+że binding mówi inaczej. To jedna decyzja na zmianę, podjęta, gdy plan jest już w
+rozmowie, a nie pytanie o każdy plik: harness działa wtedy z wyłączonymi własnymi
+pytaniami (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`),
+bo granicą jest kontener sandboxa, dla którego obie flagi są przeznaczone.
+Wdrożenie zwykle przekazuje `session_id` z wywołania planującego, więc harness
+pamięta, co przeczytał.
+
+**Każde zadanie to jedno polecenie bez interfejsu**, `claude -p --output-format stream-json`
+albo `codex exec --json`, uruchomione w workspace. Jego zdarzenia trafiają do pliku,
+są odczytywane i sprowadzane do odpowiedzi, kroków — przeczytanych i zmienionych
+plików, uruchomionych poleceń, wyszukiwań — oraz zmienionych plików, które czat
+rysuje pod wywołaniem. Kroki pojawiają się po zakończeniu zadania, a nie w trakcie:
+sandbox uruchamia polecenie do końca i nie trzyma interaktywnej sesji, dlatego też
+nie jest używany Agent Client Protocol.
+
+**Czego potrzebuje.** Capability `sandbox` na backendzie `service` z włączonymi
+poleceniami shella — publikacja odrzuca każdą inną konfigurację — oraz runtime'u z
+zainstalowanym harnessem: runtime `workbench` przypina Claude Code 2.1.288 i Codex
+0.160.0. Klucz API pochodzi z vault przez `secret_id` bindingu i trafia do polecenia
+jako zmienna środowiskowa, nigdy w linii poleceń.
+
+**Jej koszt jest mierzony.** Oba harnessy raportują tokeny per model, które trafiają
+do księgi runa jak każde żądanie do modelu, a budżet jest sprawdzany przed każdym
+zadaniem. Codex nie podaje modelu w swoich zdarzeniach, więc bez ustawionego `model`
+jego zużycie jest księgowane bez ceny, a koszt runa oznaczony jako częściowy.
+
 ## Aplikacje { #artifacts }
 
 `publish_artifact` — *Opublikuj gotową stronę — raport, mały dashboard,
@@ -1417,6 +1467,30 @@ bibliotekę: delegaci z nazwy i opisu, tryb, którego ten run naprawdę użyje, 
 rozgałęzienia, który inaczej odkryłby, dostając odmowę. Dwie listy tych samych
 delegatów w jednym prompcie systemowym to kontekst opłacony dwa razy, a tylko jedna
 z nich może powiedzieć, co deployment naprawdę egzekwuje.
+
+### Zdalni agenci przez A2A { #remote-agents }
+
+Agent może też delegować do **agenta innego dostawcy**, który obsługuje
+[protokół Agent2Agent](https://a2a-protocol.org). Rejestruje się go raz w
+**Connections → Remote agents** po adresie jego agent card, który jest wtedy
+odczytywany i sprawdzany, z opcjonalnym kluczem API z vault wysyłanym jako bearer
+token. Spec agenta wskazuje rejestracje w `external_agents`, a ustawienia
+delegowania pokazują je obok własnych agentów organizacji.
+
+Dla delegującego modelu zdalny agent to po prostu kolejny delegat, wywoływany po
+nazwie tym samym narzędziem `task`. Każde wywołanie to jedno A2A `message/send` z
+najnowszą prośbą, a `contextId` zdalnego agenta przechodzi z jednego wywołania do
+następnego w obrębie runa. Odpowiedź `input-required` albo `auth-required` wraca jako
+tekst, który to mówi, bo delegat czekający na własnego użytkownika to odpowiedź,
+którą model musi przeczytać. Zdalny agent, do którego nie da się dotrzeć, odpowiada
+właśnie tym, a run toczy się dalej.
+
+Budżet jest sprawdzany przed każdym wywołaniem. Wycena wywołania należy do zdalnego
+dostawcy i nikt jej nie publikuje, więc każde wywołanie jest księgowane bez ceny, a
+koszt runa mówi, że jest częściowy. Każde żądanie przechodzi przez kontrole adresów
+deploymentu, więc karta ani endpoint nie mogą skierować platformy do jej własnej
+sieci. Publikacja odrzuca odwołanie do nieistniejącej rejestracji, a run, którego
+rejestracja została w międzyczasie usunięta, kończy się błędem, który ją wskazuje.
 
 Co kosztuje delegowanie i który wiersz runa je zapisuje — zobacz
 [Nadzór](../governance.md#delegation-spends-the-parents-budget). Kto może delegować

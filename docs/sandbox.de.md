@@ -1,5 +1,5 @@
 ---
-source_sha: "904d3115d4e7"
+source_sha: "d277ca141904"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -134,6 +134,7 @@ Was einen Tenant vom anderen trennt:
 |---|---|
 | Gebaut auf | `python:3.12-slim` |
 | Sprachen | Python 3.12; Node 24.19.0 LTS mit npm 11 und `tsx` für TypeScript |
+| Coding Agents | Claude Code 2.1.288 und Codex 0.160.0, für den [Coding Agent](reference/capabilities.md#coding-agent) |
 | Werkzeuge | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo` |
 | Lesen | **liteparse** (`lit`) — PDFs und Bilder zu Text oder Markdown, OCR eingeschlossen; `poppler-utils` für den schnellen Weg über die Textebene und eine Seitenzahl |
 | Dokumente | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab`; **LibreOffice** headless für die Konvertierung und die Altformate |

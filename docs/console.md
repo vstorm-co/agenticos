@@ -304,7 +304,7 @@ is kept the same way. It needs the deployment's sign-in browser
 The sidebar groups them. **Build** holds Agents, Routines, Apps and Activity;
 **Knowledge** holds Knowledge bases, Documents, Skills and Context. Two groups
 fold to their heading until you open them, because they are set up once and
-visited rarely: **Connections** (MCP servers, Channels, Vault, Sandboxes) and
+visited rarely: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) and
 **Organization** (Organizations, Groups). A folded group opens by itself on any
 page inside it, and stays the way you left it.
 
@@ -321,6 +321,7 @@ page inside it, and stays the way you left it.
 | **Sandboxes** | Where agents run code: hosts, live sessions, policy | [The sandbox](sandbox.md) |
 | **MCP servers** | Connections to external tools, personal and organization-wide | [MCP](mcp.md) |
 | **Channels** | Slack, Telegram and Mattermost bots, widgets, hosted pages | [Surfaces](channels.md) |
+| **Remote agents** | Other vendors' agents, registered by their A2A agent card, that agents delegate to | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Credentials, sealed per organization | [Secrets](secrets.md) |
 | **Organizations** | Members, roles, invitations | [Permissions](permissions.md) |
 | **Settings** | Providers, ingestion defaults, notifications, your own profile | [Configuration](configuration.md) |

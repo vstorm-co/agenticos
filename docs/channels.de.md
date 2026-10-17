@@ -1,5 +1,5 @@
 ---
-source_sha: "6460bba9d44c"
+source_sha: "1d259295c6c5"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -789,6 +789,33 @@ jemand entscheidet.
 
 Begrenzt pro Aufrufer statt pro Adresse — ein Büro hinter einem NAT ist nicht ein
 Aufrufer — auf `RATE_LIMIT_RUN_PER_MINUTE`.
+
+## Andere Agents, über A2A { #a2a }
+
+Der Agent eines anderen Systems kann einem Agent über das
+[Agent2Agent-Protokoll](https://a2a-protocol.org) Aufgaben senden. Das ist für jeden
+Agent aus, bis jemand, der ihn veröffentlichen darf, auf seinem Tab
+**Availability** **Agent2Agent (A2A)** einschaltet; dort stehen die beiden Adressen
+für die andere Seite:
+
+- die **Agent Card** unter `/api/v1/a2a/{agent_id}/.well-known/agent-card.json`,
+  ohne Key lesbar — Name, Beschreibung, Version des Agent, seine eine Fähigkeit und
+  wie man sich anmeldet;
+- der **Endpunkt** für Aufgaben, `POST /api/v1/a2a/{agent_id}`, JSON-RPC 2.0.
+
+Der Aufrufer sendet einen API-Key der Organisation oder ein von diesem Deployment
+ausgestelltes OAuth-Zugriffstoken als Bearer-Token, das den Agent ausführen darf.
+`message/send` führt die veröffentlichte Version als gewöhnlichen Run aus, mit `a2a`
+gestempelt, sodass Budget, Freigabe, Audit-Trail und Activity gelten. Die ID der
+Aufgabe ist die des Runs, und ihre `contextId` ist das Gespräch, unter dem der Run
+abgelegt wird; sie erneut zu senden, setzt dieses Gespräch fort. Ein Run, der für
+eine Freigabe anhält, antwortet `input-required`; entschieden wird in der Konsole,
+und `tasks/get` liest, wo er seitdem steht.
+
+Synchron beantwortet: `message/stream`, Push-Benachrichtigungen und `tasks/cancel`
+werden namentlich abgelehnt, und die Karte sagt, dass Streaming nicht angeboten wird.
+Ein Agent, der nicht angeboten wird — aus, unveröffentlicht, archiviert oder einer
+anderen Organisation —, antwortet mit `404`, Karte wie Endpunkt.
 
 ---
 
@@ -1715,6 +1742,7 @@ gesehen hat.
 | `@mention` in einem Channel | Dasselbe, mit dem Handle aus dem aufgezeichneten Prompt entfernt |
 | Eingebettetes Widget | Dasselbe. Der Besucher ist anonym; der Run und die Runden gehören dem Eigentümer des Widgets |
 | HTTP-API | Dasselbe, wenn der Aufruf eine `conversation_id` trägt. Nichts ohne eine — es gibt keinen Thread, in den eine Runde geschrieben werden könnte, und die Run-Zeile ist weiterhin der Beleg, dass es passiert ist |
+| A2A | Dasselbe. Jede Aufgabe wird unter einem Gespräch abgelegt, einem neuen oder dem, das ihre `contextId` nennt |
 | Ein nach einer Freigabe wieder aufgenommener Run | Seine Fortsetzung — die Antwort und die Aufrufe, die er gemacht hat, und die Aufrufe auch dann, wenn es keine Antwort gibt, was eine Fortsetzung hat, die bei einem zweiten freigabepflichtigen Aufruf erneut parkt. Keine Nutzerrunde: er setzt bei dem Aufruf an, bei dem er stehen blieb, und eine Frage zu erfinden hieße, jemandem Worte in den Mund zu legen |
 
 **Aufgezeichnet wird, was die Person geschrieben hat, und nicht der Prompt, der

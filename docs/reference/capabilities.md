@@ -57,6 +57,7 @@ browser is pointed at the deployment's browser service
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required |
+| `coding_agent` | Coding agent | analysis | `plan_code_change`, `apply_code_change` | `sandbox:execute` | required |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
@@ -1029,6 +1030,55 @@ under `/output`, so a later `execute` step can build with it — assemble a PDF,
 slide, a page. An agent without a workspace still generates and shows images; it
 simply has nowhere to build with them.
 
+## Coding agent { #coding-agent }
+
+`plan_code_change` — *Ask the coding agent to study the code and plan a change, without changing anything.*
+`apply_code_change` — *Have the coding agent make a change in the sandbox: edit files and run commands.*
+
+Hands software work to **Claude Code** or **Codex**, running in the agent's own
+[sandbox](../sandbox.md). A general agent with a shell can edit code; a coding
+harness is better at it, and this is how an agent reaches one. An agent with this
+capability is a *coding agent*, and another agent hands it work through ordinary
+[delegation](#delegation), the way it reaches any specialist.
+
+| Config | Default | Values |
+|---|---|---|
+| `harness` | `claude_code` | `claude_code` (an Anthropic API key), `codex` (an OpenAI API key) |
+| `model` | the harness's default | The model by the harness's own name for it, such as `claude-sonnet-5-5` or `gpt-5.5-codex` |
+| `base_url` | Anthropic directly | Claude Code only: a gateway that speaks Anthropic's API, such as `https://openrouter.ai/api`, whose key the vault then holds |
+| `timeout_minutes` | 15 | 1–60, for one task |
+
+**Planning reads; applying writes.** `plan_code_change` runs the harness read-only
+— Claude Code in its `plan` permission mode, Codex with its sandbox set to
+`read-only` — and answers with the plan or the finding. `apply_code_change` lets it
+edit any file and run any command in the sandbox, so it is side-effecting and the
+[approval gate](../governance.md) asks a person before it runs unless the binding
+says otherwise. That is one decision per change, taken after the plan is in the
+conversation, rather than a prompt per file: the harness then runs with its own
+prompts off (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`),
+because the sandbox container is the boundary both flags are documented for.
+Applying usually passes the planning call's `session_id`, so the harness keeps
+what it read.
+
+**Each task is one headless command**, `claude -p --output-format stream-json` or
+`codex exec --json`, run in the workspace. Its events are written to a file there,
+read back, and reduced to the answer, the steps it took — files read and changed,
+commands run, searches — and the files it changed, which the chat draws under the
+call. The steps arrive when the task finishes rather than as it runs: the sandbox
+runs a command to completion and holds no interactive session, which is also why
+the Agent Client Protocol is not used.
+
+**What it needs.** The `sandbox` capability on the `service` backend with shell
+commands on — publishing refuses anything else — and a runtime with the harness
+installed: the `workbench` runtime pins Claude Code 2.1.288 and Codex 0.160.0. The
+API key comes from the vault through the binding's `secret_id` and reaches the
+command as an environment variable, never on its command line.
+
+**Its spend is metered.** Both harnesses report their tokens per model, which are
+booked to the run's ledger like any model request, and the budget is checked before
+each task. Codex names no model in its events, so with no `model` set its usage is
+booked unpriced and the run's cost is marked partial.
+
 ## Apps { #artifacts }
 
 `publish_artifact` — *Publish a finished page - a report, a small dashboard, a
@@ -1340,6 +1390,30 @@ library: the delegates by name and description, the mode this run will actually
 use, and the fan-out ceiling it would otherwise discover by being refused. Two
 lists of the same delegates in one system prompt is context paid for twice, and
 only one of them can say what the deployment enforces.
+
+### Remote agents over A2A { #remote-agents }
+
+An agent may also delegate to **another vendor's agent** that speaks the
+[Agent2Agent protocol](https://a2a-protocol.org). It is registered once under
+**Connections → Remote agents** by the address of its agent card, which is read and
+validated then, with an optional API key from the vault sent as its bearer token.
+An agent's spec names registrations in `external_agents`, and Delegation's settings
+list them beside the organization's own agents.
+
+To the delegating model a remote agent is one more delegate, called by its handle
+with the same `task` tool. Each call is one A2A `message/send` carrying the latest
+request, and the remote agent's `contextId` is carried from one call to the next
+within the run. An answer that is `input-required` or `auth-required` comes back as
+text saying so, because a delegate waiting on its own user is an answer the model
+has to read. A remote agent that cannot be reached answers with that, and the run
+goes on.
+
+The budget is checked before every call. What a call costs is the remote vendor's
+to price and nothing publishes it, so each call is booked unpriced and the run's
+cost says it is partial. Every request goes through the deployment's address
+checks, so a card or an endpoint cannot point the platform at its own network.
+Publishing refuses a reference to a registration that does not exist, and a run
+whose registration was removed since fails naming it.
 
 For what a delegation costs and which run row records it, see
 [Governance](../governance.md#delegation-spends-the-parents-budget). For who may

@@ -34,6 +34,8 @@ rename.
 | Run | One time an agent answered, with its cost and steps | `agent_run` |
 | Environment | A named stage, such as production, pointing at one version | `environment` |
 | MCP server | An external tool server agents call, connected once | `mcp_connection` |
+| Remote agent | Another vendor's agent, reached over A2A, that agents delegate to | `external_agent` |
+| Agent2Agent (A2A) | The protocol other systems' agents use to send an agent tasks | `a2a_enabled` |
 | Sandbox | An isolated computer where an agent writes files and runs code | `sandbox` |
 | Documents | The files agents keep for a person, attached or written, in their sandboxes | `workspace` |
 
@@ -63,6 +65,7 @@ in [Capabilities](capabilities.md).
 | Charts | `charts` |
 | Date and time | `clock` |
 | Calculations | `code_execution` |
+| Coding agent | `coding_agent` |
 | Long conversations | `compaction` |
 | Context | `context` |
 | Past conversations | `conversation_search` |

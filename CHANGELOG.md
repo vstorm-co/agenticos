@@ -17,6 +17,25 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Agents served over A2A** (#2092). An agent its organization switches on under
+  **Availability → Agent2Agent (A2A)** has an agent card at
+  `/api/v1/a2a/{id}/.well-known/agent-card.json` and takes `message/send` and
+  `tasks/get` at `POST /api/v1/a2a/{id}`, with an organization key or an OAuth
+  token. Every task is an ordinary run on the new `a2a` surface, so budgets,
+  approvals, audit and Activity apply.
+- **Remote agents to delegate to** (#2092). Another vendor's A2A agent is
+  registered under **Connections → Remote agents** by its agent card, with an
+  optional vault key, and picked in an agent's delegation settings beside the
+  organization's own agents (`external_agents` in the spec). Every call is
+  budget-checked and booked to the run as unpriced.
+- **Coding agent capability** (#2092). `coding_agent` hands software work to
+  Claude Code or Codex in the agent's sandbox: `plan_code_change` reads and plans,
+  `apply_code_change` edits and runs commands behind the approval gate. The chat
+  shows what the harness read, ran and changed, and its tokens are booked to the
+  run. The `workbench` runtime now carries Claude Code 2.1.288 and Codex 0.160.0.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

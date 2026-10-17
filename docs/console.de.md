@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "c228a539dccb"
 ---
 
 # Die Konsole { #the-console }
@@ -344,7 +344,7 @@ Die Seitenleiste gruppiert sie. **Build** enthält Agents, Routines, Apps und
 Activity; **Knowledge** enthält Knowledge bases, Documents, Skills und Context.
 Zwei Gruppen sind bis zum Öffnen auf ihre Überschrift eingeklappt, weil man sie
 einmal einrichtet und selten besucht: **Connections** (MCP servers, Channels,
-Vault, Sandboxes) und **Organization** (Organizations, Groups). Eine eingeklappte
+Remote agents, Vault, Sandboxes) und **Organization** (Organizations, Groups). Eine eingeklappte
 Gruppe öffnet sich auf jeder Seite in ihr von selbst und bleibt, wie Sie sie
 verlassen haben.
 
@@ -361,6 +361,7 @@ verlassen haben.
 | **Sandboxes** | Wo Agents Code ausführen: Hosts, laufende Sessions, Policy | [Die Sandbox](sandbox.md) |
 | **MCP servers** | Verbindungen zu externen Werkzeugen, persönlich und organisationsweit | [MCP](mcp.md) |
 | **Channels** | Slack-, Telegram- und Mattermost-Bots, Widgets, gehostete Seiten | [Oberflächen](channels.md) |
+| **Remote agents** | Agents anderer Anbieter, über ihre A2A Agent Card registriert, an die Agents delegieren | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Zugangsdaten, pro Organisation versiegelt | [Secrets](secrets.md) |
 | **Organizations** | Mitglieder, Rollen, Einladungen | [Berechtigungen](permissions.md) |
 | **Settings** | Provider, Ingestion-Vorgaben, Benachrichtigungen, Ihr eigenes Profil | [Konfiguration](configuration.md) |

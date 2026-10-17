@@ -1,5 +1,5 @@
 ---
-source_sha: "60dde7e73718"
+source_sha: "e8b17e6e3238"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -64,6 +64,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
 | `charts` | Diagramme | analysis | `create_chart` | — | — |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich |
+| `coding_agent` | Coding Agent | analysis | `plan_code_change`, `apply_code_change` | `sandbox:execute` | erforderlich |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Nachdenken | reasoning | keine, mit Absicht | — | — |
@@ -1151,6 +1152,60 @@ abgelegt, sodass ein späterer `execute`-Schritt damit bauen kann — ein PDF, e
 Folie, eine Seite zusammensetzen. Ein Agent ohne Workspace erzeugt und zeigt
 Bilder trotzdem; er hat nur nichts, womit er damit bauen könnte.
 
+## Coding Agent { #coding-agent }
+
+`plan_code_change` — *Den Coding Agent den Code untersuchen und eine Änderung planen lassen, ohne etwas zu ändern.*
+`apply_code_change` — *Den Coding Agent eine Änderung im Sandbox vornehmen lassen: Dateien bearbeiten und Befehle ausführen.*
+
+Übergibt Softwarearbeit an **Claude Code** oder **Codex**, die im eigenen
+[Sandbox](../sandbox.md) des Agent laufen. Ein allgemeiner Agent mit einer Shell
+kann Code bearbeiten; ein Coding-Harness kann es besser, und so erreicht ein Agent
+einen. Ein Agent mit dieser Capability ist ein *Coding Agent*, und ein anderer Agent
+übergibt ihm Arbeit über die gewöhnliche [Delegation](#delegation), so wie jedem
+Spezialisten.
+
+| Konfiguration | Standard | Werte |
+|---|---|---|
+| `harness` | `claude_code` | `claude_code` (ein Anthropic-API-Key), `codex` (ein OpenAI-API-Key) |
+| `model` | Standard des Harness | Das Modell unter dem Namen, den das Harness dafür verwendet, etwa `claude-sonnet-5-5` oder `gpt-5.5-codex` |
+| `base_url` | direkt Anthropic | Nur Claude Code: ein Gateway, das die API von Anthropic spricht, etwa `https://openrouter.ai/api`, dessen Key dann im Vault liegt |
+| `timeout_minutes` | 15 | 1–60, pro Aufgabe |
+
+**Planen liest, Anwenden schreibt.** `plan_code_change` startet das Harness nur
+lesend — Claude Code im Berechtigungsmodus `plan`, Codex mit seinem Sandbox auf
+`read-only` — und antwortet mit dem Plan oder dem Befund. `apply_code_change` lässt
+es jede Datei bearbeiten und jeden Befehl im Sandbox ausführen; es hat also
+Nebenwirkungen, und die [Freigabe](../governance.md) fragt einen Menschen, bevor es
+läuft, sofern das Binding nichts anderes sagt. Das ist eine Entscheidung pro
+Änderung, getroffen, wenn der Plan schon im Gespräch steht, statt einer Rückfrage pro
+Datei: Das Harness läuft dann ohne seine eigenen Rückfragen
+(`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`), weil
+der Sandbox-Container die Grenze ist, für die beide Flags dokumentiert sind.
+Anwenden übergibt meist die `session_id` des Planungsaufrufs, damit das Harness
+behält, was es gelesen hat.
+
+**Jede Aufgabe ist ein einzelner Befehl ohne Oberfläche**, `claude -p --output-format stream-json`
+oder `codex exec --json`, ausgeführt im Workspace. Seine Ereignisse werden dort in
+eine Datei geschrieben, zurückgelesen und auf die Antwort, die Schritte — gelesene
+und geänderte Dateien, ausgeführte Befehle, Suchen — und die geänderten Dateien
+reduziert, die der Chat unter dem Aufruf zeigt. Die Schritte kommen an, wenn die
+Aufgabe fertig ist, nicht während sie läuft: Der Sandbox führt einen Befehl bis zum
+Ende aus und hält keine interaktive Sitzung, weshalb auch das Agent Client Protocol
+nicht verwendet wird.
+
+**Was es braucht.** Die Capability `sandbox` auf dem Backend `service` mit
+erlaubten Shell-Befehlen — alles andere lehnt das Veröffentlichen ab — und eine
+Runtime mit installiertem Harness: Die Runtime `workbench` fixiert Claude Code
+2.1.288 und Codex 0.160.0. Der API-Key kommt über die `secret_id` des Bindings aus
+dem Vault und erreicht den Befehl als Umgebungsvariable, nie auf dessen
+Befehlszeile.
+
+**Seine Kosten werden gemessen.** Beide Harnesses melden ihre Tokens pro Modell; sie
+werden wie jede Modellanfrage im Ledger des Runs gebucht, und das Budget wird vor
+jeder Aufgabe geprüft. Codex nennt in seinen Ereignissen kein Modell, daher wird
+seine Nutzung ohne gesetztes `model` ohne Preis gebucht und die Kosten des Runs als
+unvollständig markiert.
+
 ## Apps { #artifacts }
 
 `publish_artifact` — *veröffentlicht eine fertige Seite — einen Bericht, ein
@@ -1520,6 +1575,33 @@ tatsächlich verwenden wird, und die Fan-out-Obergrenze, die es sonst dadurch
 entdecken würde, dass es abgelehnt wird. Zwei Listen derselben Delegierten in einem
 System-Prompt sind doppelt bezahlter Kontext, und nur eine davon kann sagen, was
 das Deployment durchsetzt.
+
+### Remote Agents über A2A { #remote-agents }
+
+Ein Agent kann auch an den **Agent eines anderen Anbieters** delegieren, der das
+[Agent2Agent-Protokoll](https://a2a-protocol.org) spricht. Er wird einmal unter
+**Connections → Remote agents** über die Adresse seiner Agent Card registriert, die
+dabei gelesen und geprüft wird, optional mit einem API-Key aus dem Vault, der als
+Bearer-Token mitgeht. Die Spec eines Agent nennt Registrierungen in
+`external_agents`, und die Delegationseinstellungen zeigen sie neben den eigenen
+Agents der Organisation.
+
+Für das delegierende Modell ist ein Remote Agent ein weiterer Delegierter, über
+seinen Namen mit demselben Tool `task` aufgerufen. Jeder Aufruf ist ein A2A
+`message/send` mit der jüngsten Anfrage, und die `contextId` des Remote Agent wird
+innerhalb des Runs von Aufruf zu Aufruf weitergegeben. Eine Antwort
+`input-required` oder `auth-required` kommt als Text zurück, der das sagt, denn ein
+Delegierter, der auf seinen eigenen Nutzer wartet, ist eine Antwort, die das Modell
+lesen muss. Ein unerreichbarer Remote Agent antwortet genau damit, und der Run geht
+weiter.
+
+Das Budget wird vor jedem Aufruf geprüft. Was ein Aufruf kostet, bepreist der
+entfernte Anbieter, und niemand veröffentlicht es, daher wird jeder Aufruf ohne
+Preis gebucht und die Kosten des Runs als unvollständig ausgewiesen. Jede Anfrage
+läuft durch die Adressprüfungen des Deployments, sodass weder eine Karte noch ein
+Endpunkt die Plattform auf ihr eigenes Netz richten kann. Das Veröffentlichen lehnt
+einen Verweis auf eine nicht vorhandene Registrierung ab, und ein Run, dessen
+Registrierung inzwischen entfernt wurde, scheitert und nennt sie.
 
 Was eine Delegation kostet und welche Run-Zeile sie festhält, steht unter
 [Governance](../governance.md#delegation-spends-the-parents-budget). Wer an wen

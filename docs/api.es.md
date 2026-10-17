@@ -1,5 +1,5 @@
 ---
-source_sha: "8122fd41c206"
+source_sha: "036002000a56"
 ---
 
 # La API HTTP { #the-http-api }
@@ -213,6 +213,33 @@ La respuesta también trae `categories` y
 `tags`: cada etiqueta distinta en los agents que podrías listar, sea cual sea el
 filtro y la página — las opciones que ofrece un menú de filtro. Un agent privado que
 no puedes ver no aporta ninguna.
+## Agents por A2A { #agents-over-a2a }
+
+Un agent que su organización sirve por A2A responde JSON-RPC en
+`POST /api/v1/a2a/{agent_id}`, con las mismas claves que `/run`; su agent card está
+en `GET /api/v1/a2a/{agent_id}/.well-known/agent-card.json` y no necesita ninguna.
+`PUT /api/v1/agents/{id}/a2a` con `{"enabled": true}` lo activa, para quien tenga
+`agents:publish` sobre ese agent.
+
+```bash
+curl -X POST "$BASE/api/v1/a2a/$AGENT_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "message/send",
+       "params": {"message": {"role": "user", "messageId": "m1",
+                              "parts": [{"kind": "text", "text": "Review clause 7"}]}}}'
+```
+
+La respuesta es una `Task` cuyo id es el del run y cuyo `contextId` continúa la
+conversación. `tasks/get` vuelve a leer una. Los [canales](channels.md#a2a) tienen
+el resto.
+
+Los agents remotos en los que delega esta organización se registran en
+`/api/v1/external-agents`: `GET` los lista (`agents:view`); `POST` con una
+`card_url`, un `slug` opcional y un `secret_id` opcional de una clave API lee la card
+y lo registra, y `POST /{id}/refresh` la vuelve a leer; `DELETE /{id}` elimina uno
+(`agents:edit` para los tres).
+
 ## Los servicios de ML { #the-ml-services }
 
 Cuatro servicios de la plataforma responden por su cuenta, sin conversación y sin

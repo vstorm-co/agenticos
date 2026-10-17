@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "c228a539dccb"
 ---
 
 # La consola { #the-console }
@@ -324,7 +324,7 @@ navegador de inicio de sesión del despliegue
 La barra lateral los agrupa. **Build** reúne Agents, Routines, Apps y Activity;
 **Knowledge** reúne Knowledge bases, Documents, Skills y Context. Dos grupos se
 pliegan a su título hasta que los abres, porque se configuran una vez y se visitan
-poco: **Connections** (MCP servers, Channels, Vault, Sandboxes) y
+poco: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) y
 **Organization** (Organizations, Groups). Un grupo plegado se abre solo en
 cualquier página que le pertenezca, y se queda como lo dejaste.
 
@@ -341,6 +341,7 @@ cualquier página que le pertenezca, y se queda como lo dejaste.
 | **Sandboxes** | Dónde ejecutan código los agents: hosts, sesiones en curso, política | [La sandbox](sandbox.md) |
 | **MCP servers** | Conexiones a herramientas externas, personales y de toda la organización | [MCP](mcp.md) |
 | **Channels** | Bots de Slack, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
+| **Remote agents** | Agents de otros proveedores, registrados por su agent card de A2A, en los que delegan los agents | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Credenciales, selladas por organización | [Secretos](secrets.md) |
 | **Organizations** | Miembros, roles, invitaciones | [Permisos](permissions.md) |
 | **Settings** | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil | [Configuración](configuration.md) |
