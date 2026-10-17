@@ -4730,7 +4730,7 @@
         "noModel": "model not recorded",
         "busts": "Busts",
         "expiries": "Expiries",
-        "missedTokens": "Tokens re-sent"
+        "missedTokens": "Cached tokens missed"
       }
     },
     "sandboxes": {

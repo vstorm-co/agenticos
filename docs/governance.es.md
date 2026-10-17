@@ -1,5 +1,5 @@
 ---
-source_sha: "6325c87e4e88"
+source_sha: "7993306ad042"
 ---
 
 # Governance { #governance }
@@ -920,7 +920,9 @@ cuando el mismo worker de API atiende ambos.
 
 Los recuentos se guardan en cada run, así que **Runs → Spend** suma dónde no
 aguantó la caché: una tarjeta *Prompt cache*, una fila por agent y modelo, con
-sus busts, expiraciones y los tokens reenviados a tarifa completa en la ventana.
+sus busts, expiraciones y los tokens en caché que no se leyeron de vuelta en la
+ventana - una medida del fallo, no de lo que se volvió a cobrar, ya que una
+compactación también puede acortar el prompt que la caché guardaba.
 La tarjeta no aparece mientras todas las cachés aguantaron.
 
 ## Aprobaciones { #approvals }

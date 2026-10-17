@@ -871,8 +871,9 @@ previous turn cached, when the same API worker serves both.
 
 The counts are kept on each run, so **Runs → Spend** adds up where the cache did
 not hold: a *Prompt cache* card, one row per agent and model, with its busts,
-expiries and the tokens re-sent at the full rate over the window. The card is not
-shown while every cache held.
+expiries and the cached tokens they did not read back over the window - a
+measure of the miss, not of what was billed again, since a compaction can also
+shrink the prompt the cache held. The card is not shown while every cache held.
 
 ## Approvals
 

@@ -4612,7 +4612,7 @@
         "noModel": "Modell nicht erfasst",
         "busts": "Busts",
         "expiries": "Abläufe",
-        "missedTokens": "Erneut gesendete Tokens"
+        "missedTokens": "Verfehlte Cache-Tokens"
       }
     },
     "sandboxes": {

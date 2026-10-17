@@ -406,9 +406,11 @@ class CacheByAgentModel(BaseSchema):
     """Prompt-cache collapses for one agent on one model over the window (#2109).
 
     A *bust* is a cached prefix that moved while the provider should still have
-    held it - tools reordered, a timestamp in the instructions - and is billed at
-    the full input rate; an *expiry* is one whose retention had passed. Only
-    pairs with at least one of either are listed.
+    held it - tools reordered, a timestamp in the instructions; an *expiry* is one
+    whose retention had passed. `missed_tokens` is the cached prefix that was not
+    read back - a measure of the miss, not of tokens billed again, since a
+    compaction can also shrink the prompt the cache held. Only pairs with at
+    least one of either are listed.
     """
 
     agent_id: UUID

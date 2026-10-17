@@ -1,5 +1,5 @@
 ---
-source_sha: "6325c87e4e88"
+source_sha: "7993306ad042"
 ---
 
 # Governance { #governance }
@@ -939,7 +939,9 @@ obie obsługuje ten sam worker API.
 
 Liczby są zapisywane na każdym runie, więc **Runs → Spend** sumuje, gdzie cache
 nie trzymał: karta *Cache promptu*, jeden wiersz na agenta i model, z busts,
-wygaśnięciami i tokenami wysłanymi ponownie po pełnej stawce w wybranym oknie.
+wygaśnięciami i tokenami z cache, których nie odczytano z powrotem, w wybranym
+oknie - to miara chybienia, a nie tego, co naliczono ponownie, bo prompt trzymany
+w cache może też skrócić kompakcja.
 Karty nie ma, dopóki każdy cache trzymał.
 
 ## Zatwierdzenia { #approvals }

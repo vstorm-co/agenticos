@@ -1,5 +1,5 @@
 ---
-source_sha: "6325c87e4e88"
+source_sha: "7993306ad042"
 ---
 
 # Governance { #governance }
@@ -1004,8 +1004,9 @@ API-Worker beide bedient.
 
 Die Zahlen werden an jedem Run gespeichert, daher summiert **Runs → Spend**, wo
 der Cache nicht gehalten hat: eine Karte *Prompt-Cache*, eine Zeile pro Agent
-und Modell, mit Busts, Abläufen und den zum vollen Preis erneut gesendeten Tokens
-im Zeitraum. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
+und Modell, mit Busts, Abläufen und den gecachten Tokens, die nicht zurückgelesen
+wurden, im Zeitraum - ein Maß für den Fehlgriff, nicht für erneut Berechnetes, da
+auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
 
 ## Freigaben { #approvals }
 
