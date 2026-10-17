@@ -80,6 +80,11 @@ the page you are looking at, not a five-card preview - **Load more** keeps
 paging back through the organization you are currently in, plus anything
 addressed to the deployment as a whole, until it reaches what has aged out.
 
+Each row starts with what it is about: the agent's face, with a badge for how
+its run went, or an icon for the kind of event - green for a finished run or an
+MCP server back up, red for a failure or a spent budget, amber for an approval
+or a budget warning.
+
 Switch organizations and the bell is that one's: a notification from the
 organization you left is not gone, it is behind the switcher. A deployment
 administrator is the one exception - theirs is not narrowed by the organization
@@ -257,7 +262,9 @@ for runs that finish or fail - tells you it is there, with a link back to it. A
 turn still going after an hour with nobody watching is stopped, and you are told
 that instead ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)).
 One that waits on an approval or on your answer to a question tells you through
-those.
+those. Come back while it is still answering - to the conversation, from
+another tab, after a reload - and the chat picks the answer up where it is,
+with everything it has done so far, and goes on drawing it as it arrives.
 
 **On a phone** the chat behaves like a messaging app: the composer stays above
 the keyboard and the conversation stays on its last message while it opens,
@@ -304,7 +311,7 @@ is kept the same way. It needs the deployment's sign-in browser
 The sidebar groups them. **Build** holds Agents, Routines, Apps and Activity;
 **Knowledge** holds Knowledge bases, Documents, Skills and Context. Two groups
 fold to their heading until you open them, because they are set up once and
-visited rarely: **Connections** (MCP servers, Channels, Vault, Sandboxes) and
+visited rarely: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) and
 **Organization** (Organizations, Groups). A folded group opens by itself on any
 page inside it, and stays the way you left it.
 
@@ -321,6 +328,7 @@ page inside it, and stays the way you left it.
 | **Sandboxes** | Where agents run code: hosts, live sessions, policy | [The sandbox](sandbox.md) |
 | **MCP servers** | Connections to external tools, personal and organization-wide | [MCP](mcp.md) |
 | **Channels** | Slack, Telegram and Mattermost bots, widgets, hosted pages | [Surfaces](channels.md) |
+| **Remote agents** | Other vendors' agents, registered by their A2A agent card, that agents delegate to | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Credentials, sealed per organization | [Secrets](secrets.md) |
 | **Organizations** | Members, roles, invitations | [Permissions](permissions.md) |
 | **Settings** | Providers, ingestion defaults, notifications, your own profile | [Configuration](configuration.md) |

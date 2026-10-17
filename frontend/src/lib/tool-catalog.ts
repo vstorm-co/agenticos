@@ -63,6 +63,7 @@ export type ToolRenderer =
   | "web-search"
   | "rag"
   | "run-python"
+  | "coding-agent"
   | "loaded-skill"
   | "load-skill"
   | "skill-list"
@@ -294,6 +295,17 @@ export const TOOL_CATALOG: Record<string, ToolEntry> = {
     opensWhenDone: true,
   },
   execute: { kind: "shell", render: "workspace", verbs: { now: "executing", done: "executed" } },
+
+  // coding_agent - Claude Code or Codex in the sandbox. Its steps stream into a
+  // panel of their own while it works; what it read, ran and changed opens under
+  // the step afterwards, because that is what a person checks before trusting it.
+  run_coding_agent: {
+    kind: "code",
+    render: "coding-agent",
+    captionKey: "runningCodingAgent",
+    displayNameKey: "runCodingAgent",
+    opensWhenDone: true,
+  },
 
   // code_execution
   run_python: {

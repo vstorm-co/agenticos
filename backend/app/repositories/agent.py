@@ -69,6 +69,23 @@ async def get(db: AsyncSession, agent_id: UUID, *, organization_id: UUID) -> Age
     return result.scalar_one_or_none()
 
 
+async def get_served_over_a2a(db: AsyncSession, agent_id: UUID) -> Agent | None:
+    """A published agent its organization chose to serve over A2A, whatever the tenant.
+
+    The one cross-tenant read by id, because an agent card is fetched before any
+    caller is known. What it finds is only what the organization made discoverable.
+    """
+    result = await db.execute(
+        select(Agent).where(
+            Agent.id == agent_id,
+            Agent.a2a_enabled.is_(True),
+            Agent.status == AgentStatus.PUBLISHED.value,
+            Agent.current_version_id.is_not(None),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_by_slug(db: AsyncSession, slug: str, *, organization_id: UUID) -> Agent | None:
     result = await db.execute(
         select(Agent).where(Agent.slug == slug, Agent.organization_id == organization_id)

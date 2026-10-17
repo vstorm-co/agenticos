@@ -36,6 +36,7 @@ from app.core.secret_kinds import (
     GcpServiceAccountSecret,
     GithubOAuthAppSecret,
     NoSecret,
+    OpenAICodexSecret,
     SecretKind,
     seal_secret,
 )
@@ -47,6 +48,7 @@ from app.services.model_profile import (
     provider_catalog,
     validate_endpoint_url,
 )
+from app.services.openai_codex import VaultCodexCredentials
 
 
 def _ctx(org_id=None) -> AuthContext:
@@ -98,7 +100,17 @@ def secret_for(spec: ProviderSpec):
             aws_secret_access_key="aws-secret",
             region_name="us-east-1",
         )
+    if spec.secret_kind is SecretKind.OPENAI_CODEX:
+        return codex_secret()
     return GcpServiceAccountSecret(service_account_json=service_account_json())
+
+
+def codex_secret() -> OpenAICodexSecret:
+    return OpenAICodexSecret(
+        access_token="codex-access-1234",
+        refresh_token="codex-refresh-1234",
+        account_id="account-1234",
+    )
 
 
 def _credential(ctx, provider="openai", secret=None, is_active=True, base_url=None):
@@ -182,6 +194,9 @@ class TestProviderCatalog:
             provider=provider_id,
             secret=secret_for(spec),
             base_url="https://gateway.example.com" if spec.supports_base_url else None,
+            credential_source=VaultCodexCredentials(
+                organization_id=uuid.uuid4(), secret_id=uuid.uuid4()
+            ),
         )
         assert build_model(credential, model) is not None
 
@@ -202,6 +217,29 @@ class TestProviderCatalog:
         assert PROVIDERS["azure"].secret_kind is SecretKind.AZURE_OPENAI
         assert PROVIDERS["bedrock"].secret_kind is SecretKind.AWS_CREDENTIALS
         assert PROVIDERS["google_cloud"].secret_kind is SecretKind.GCP_SERVICE_ACCOUNT
+
+    def test_a_chatgpt_sign_in_builds_the_codex_model_on_its_vault_source(self):
+        """The Codex backend, reading and rotating its tokens through the vault."""
+        from pydantic_ai.models.openai_codex import OpenAICodexModel
+
+        source = VaultCodexCredentials(organization_id=uuid.uuid4(), secret_id=uuid.uuid4())
+        credential = ResolvedCredential(
+            provider="openai_codex", secret=codex_secret(), credential_source=source
+        )
+        model = build_model(credential, "gpt-5.6-luna")
+
+        assert isinstance(model, OpenAICodexModel)
+        assert model._provider._credential_source is source
+
+    def test_a_chatgpt_sign_in_with_nowhere_to_store_its_rotation_is_refused(self):
+        """Built from the pair alone, its first refresh would retire the stored token.
+
+        The next run would then find the vault holding a refresh token the
+        authorization server has already spent, so this refuses instead.
+        """
+        credential = ResolvedCredential(provider="openai_codex", secret=codex_secret())
+        with pytest.raises(BadRequestError, match="rotated tokens"):
+            build_model(credential, "gpt-5.6-luna")
 
     @pytest.mark.parametrize(
         ("provider_id", "api", "wrapper"),
@@ -769,6 +807,46 @@ class TestProfilesKeyedFromTheVault:
         # A vault secret carries no endpoint; a base URL would silently point a
         # provider's own client at somebody else's host.
         assert resolved.base_url is None
+
+    @pytest.mark.anyio
+    async def test_a_chatgpt_sign_in_resolves_with_its_place_in_the_vault(self):
+        """The provider is handed where the pair lives, not only the pair.
+
+        A refresh spends the refresh token it presents, so the provider must be
+        able to read the current pair and write the next one under this id.
+        """
+        ctx = _ctx()
+        secret = _vault_secret(ctx, purpose="openai_codex", value=codex_secret())
+        secret.kind = SecretKind.OPENAI_CODEX.value
+        profile = _profile(ctx, secret, provider="openai_codex")
+
+        with patch(
+            "app.services.model_profile.organization_secret_repo.get",
+            new=AsyncMock(return_value=secret),
+        ):
+            resolved = await ModelProfileService(_db()).resolve_credential(
+                ctx.organization_id, profile
+            )
+
+        source = resolved.credential_source
+        assert isinstance(source, VaultCodexCredentials)
+        assert (source.organization_id, source.secret_id) == (ctx.organization_id, secret.id)
+
+    @pytest.mark.anyio
+    async def test_an_api_key_resolves_with_no_source_to_rotate_into(self):
+        ctx = _ctx()
+        secret = _vault_secret(ctx)
+        profile = _profile(ctx, secret)
+
+        with patch(
+            "app.services.model_profile.organization_secret_repo.get",
+            new=AsyncMock(return_value=secret),
+        ):
+            resolved = await ModelProfileService(_db()).resolve_credential(
+                ctx.organization_id, profile
+            )
+
+        assert resolved.credential_source is None
 
     @pytest.mark.anyio
     async def test_a_deleted_key_is_named_by_the_model_that_needed_it(self):

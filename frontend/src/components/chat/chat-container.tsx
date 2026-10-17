@@ -2,16 +2,18 @@
 
 import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { ChatMessageFile } from "@/types";
+import type { ChatMessageFile, ChatPerson } from "@/types";
 import type { PublishedModel } from "@/types/agents";
 import { useAgents, useChat, useConversationWorkspace, useModelProviders } from "@/hooks";
 import type { ChatTesting, SteerDraft } from "@/hooks/use-chat";
 import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
+import { ChatRoomBar } from "./chat-room-bar";
 import type { PageComment } from "./browser-comment";
 import { ChatInput, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
+import { ProjectChip } from "./project-chip";
 import { UsageMeter } from "./usage-meter";
 import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
@@ -191,13 +193,22 @@ export function ChatContainer({
     selectAgent(threadAgentId);
   }, [agentFixed, currentConversationId, threadAgentId, selectAgent]);
 
-  // The open conversation is read: when it is opened unread, and when an answer
-  // arrives while it is open and the next listing calls it unread.
-  const openIsUnread =
-    conversations.find((conversation) => conversation.id === currentConversationId)?.unread ===
-    true;
+  // The open conversation is read: once when it is opened, and again when an
+  // answer arrives while it is open and the next listing calls it unread. On
+  // opening whether or not it was unread, because a read is also who has seen
+  // it - a project chat lists its readers - and a teammate's chat is in nobody's
+  // list but its owner's, so it never reads as unread to anyone else.
+  const openConversation = conversations.find(
+    (conversation) => conversation.id === currentConversationId,
+  );
+  const meId = useAuthStore((state) => state.user?.id);
+  const openIsUnread = openConversation?.unread === true;
+  const readOnOpen = useRef<string | null>(null);
   useEffect(() => {
-    if (currentConversationId && openIsUnread) void markRead(currentConversationId);
+    if (!currentConversationId) return;
+    if (!openIsUnread && readOnOpen.current === currentConversationId) return;
+    readOnOpen.current = currentConversationId;
+    void markRead(currentConversationId);
   }, [currentConversationId, openIsUnread, markRead]);
 
   const handleConversationCreated = useCallback(() => {
@@ -222,6 +233,7 @@ export function ChatContainer({
 
   const {
     messages,
+    present,
     isConnected,
     isProcessing,
     compacting,
@@ -487,6 +499,14 @@ export function ChatContainer({
   return (
     <ChatUI
       messages={messages}
+      present={present}
+      // Not a project's chat: who reads one is the project's to say, so a
+      // conversation share would invite nobody - the project's Share does.
+      ownsConversation={
+        openConversation !== undefined &&
+        openConversation.user_id === meId &&
+        !openConversation.project_id
+      }
       isConnected={isConnected}
       isProcessing={isProcessing}
       compacting={compacting}
@@ -594,6 +614,10 @@ interface ChatUIProps {
   browses: Browse[];
   /** The conversation the file panel reads, or null before one exists. */
   conversationId: string | null;
+  /** Who has the conversation open, the reader included. */
+  present: ChatPerson[];
+  /** Whether the reader started it, and so may share it. */
+  ownsConversation: boolean;
   /**
    * How many turns have finished. Bumped so the file panel re-reads when the
    * files could have changed, rather than polling for a change it can be told
@@ -640,6 +664,8 @@ interface ChatUIProps {
 
 function ChatUI({
   messages,
+  present,
+  ownsConversation,
   isConnected,
   isProcessing,
   compacting,
@@ -690,6 +716,7 @@ function ChatUI({
   // its level. See `VoiceGlow` for why it is a second capture.
   const mic = useMicrophone();
   const [composerFocused, setComposerFocused] = useState(false);
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   // What the composer is handed from outside it: the caller's files, or a
   // comment pointed at the browser's page. The newer wins, and a caller's new
   // files replace a comment the way a comment replaces them.
@@ -736,7 +763,11 @@ function ChatUI({
         id: message.id,
         author:
           message.role === "user"
-            ? t("rail.you")
+            ? message.sender && message.sender.user_id !== authUser?.id
+              ? message.sender.name
+              : message.senderGone
+                ? t("rail.formerMember")
+                : t("rail.you")
             : ((message.agentId ? agentNames.get(message.agentId)?.name : undefined) ??
               t("rail.agent")),
         preview: (message.content ?? "").trim(),
@@ -748,7 +779,9 @@ function ChatUI({
         // A person's face is drawn from their id, an agent's from its own; the
         // rail never has to know which, it just hands over the seed.
         seed:
-          message.role === "user" ? (authUser?.id ?? message.id) : (message.agentId ?? message.id),
+          message.role === "user"
+            ? (message.sender?.user_id ?? authUser?.id ?? message.id)
+            : (message.agentId ?? message.id),
       })),
     [messages, agentNames, authUser, t],
   );
@@ -810,6 +843,17 @@ function ChatUI({
               compact ? "px-3 py-3 text-sm" : "mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6",
             )}
           >
+            {/* Who else has this chat open, held at the top while the transcript scrolls:
+                a project's chat is several people's at once. */}
+            {conversationId && !compact && (
+              <ChatRoomBar
+                conversationId={conversationId}
+                present={present}
+                meId={authUser?.id}
+                canShare={ownsConversation}
+                className="sticky top-2 z-20 mb-3"
+              />
+            )}
             {isLoadingConversation ? (
               <ConversationSkeleton />
             ) : messages.length === 0 ? (
@@ -989,7 +1033,23 @@ function ChatUI({
                         mic={mic}
                         // Who answers first and largest: it is the most
                         // consequential choice in the composer.
-                        controlsSlot={agentFixed ? undefined : <AgentPicker />}
+                        controlsSlot={
+                          agentFixed ? undefined : (
+                            <>
+                              <AgentPicker />
+                              <ProjectChip
+                                conversationId={conversationId}
+                                pickerOpen={projectPickerOpen}
+                                onPickerOpenChange={setProjectPickerOpen}
+                              />
+                            </>
+                          )
+                        }
+                        onProject={
+                          agentFixed || conversationId
+                            ? undefined
+                            : () => setProjectPickerOpen(true)
+                        }
                         actionsSlot={
                           <>
                             {/* Wide screens only, as is the panel it opens. */}

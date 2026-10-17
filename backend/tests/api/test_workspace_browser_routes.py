@@ -320,6 +320,30 @@ class TestOneFlatList:
         assert body["items"][0]["agent_has_avatar"] is True
         assert body["items"][0]["agent_id"] == str(_row().agent_id)
 
+    async def test_a_file_names_its_conversation_and_links_only_the_callers_own(
+        self, client, service
+    ) -> None:
+        """Documents groups files under the chat they belong to and opens it - but
+        the chat lists its owner's threads, so somebody else's is named, not linked."""
+        mine, theirs = _overview(), _overview(conversation_is_callers=False)
+        service.flat_files = AsyncMock(
+            return_value=SimpleNamespace(
+                files=[
+                    FlatEntry(overview=view, info={"path": "/a.md"}, preview=None, thumbnail=None)
+                    for view in (mine, theirs)
+                ],
+                workspaces_read=2,
+                unreadable=0,
+                truncated=False,
+            )
+        )
+        async with client() as opened:
+            items = (await opened.get(_url("/files"))).json()["items"]
+
+        assert [item["conversation_title"] for item in items] == ["Refund policy"] * 2
+        assert items[0]["conversation_id"] == str(mine.row.conversation_id)
+        assert items[1]["conversation_id"] is None
+
     async def test_the_literal_path_is_not_read_as_a_workspace_id(self, client, service) -> None:
         """Starlette matches in declaration order, so `files` under `{workspace_id}`
         would answer as a 422 about a malformed UUID before any handler ran."""

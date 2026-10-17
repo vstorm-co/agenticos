@@ -70,6 +70,9 @@ class AgentDeps:
     user_name: str | None = None
     agent_id: UUID | None = None
     run_id: UUID | None = None
+    # The thread the run answers in, where it has one. What a tool keeps between
+    # turns is the conversation's, even in a sandbox several conversations share.
+    conversation_id: UUID | None = None
 
     # Who will hear this run - one person, a whole channel, or nobody
     # identifiable - derived server-side in `app.agents.audience`. It decides which
@@ -184,6 +187,7 @@ class AgentDeps:
             user_name=self.user_name,
             agent_id=self.agent_id,
             run_id=self.run_id,
+            conversation_id=self.conversation_id,
             ask_user=self.ask_user,
             ask_questions=None if self.parks_questions else self.ask_questions,
             request_approval=self.request_approval,

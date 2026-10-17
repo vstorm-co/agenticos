@@ -77,6 +77,7 @@ function finished(overrides: Partial<Delegation> = {}): Delegation {
     runId: "run-77",
     status: "completed",
     specialist: null,
+    harness: null,
     text: "found three",
     thinking: "",
     steps: [],

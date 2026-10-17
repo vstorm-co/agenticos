@@ -64,6 +64,9 @@ async def list_artifacts(
     ),
     agent_id: UUID | None = Query(None, description="Only the pages this agent published"),
     group_id: UUID | None = Query(None, description="Only what is shared with this group"),
+    project_id: UUID | None = Query(
+        None, description="Only the pages made in this project's chats"
+    ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> Any:
@@ -74,6 +77,7 @@ async def list_artifacts(
         search=q,
         agent_id=agent_id,
         group_id=group_id,
+        project_id=project_id,
         skip=skip,
         limit=limit,
     )

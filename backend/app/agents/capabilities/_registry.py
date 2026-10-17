@@ -307,6 +307,13 @@ class CapabilityDef:
     instructions.
     """
 
+    tool_settings: bool = True
+    """Whether the Builder offers per-tool settings - approval and the text the model reads.
+
+    False for a capability whose one tool is the capability itself: the coding
+    agent's tool *is* "hand this to Claude Code", so its approval is the
+    capability's and there is nothing about the tool to rework apart from it.
+    """
     scopes: frozenset[str] = frozenset()
     # The credential this capability needs, declared as a *kind* - never as an
     # instance. Code says "I need an API key"; configuration says which one.
@@ -402,6 +409,7 @@ def register(
     config_schema: type[BaseModel] | None = None,
     side_effecting: bool = False,
     selectable: bool = True,
+    tool_settings: bool = True,
     scopes: Iterable[str] = (),
     secret: SecretRequirement | None = None,
     provider_executed: ProviderExecuted | None = None,
@@ -457,6 +465,7 @@ def register(
             config_schema=config_schema,
             side_effecting=side_effecting,
             selectable=selectable,
+            tool_settings=tool_settings,
             scopes=frozenset(scopes),
             secret=secret,
             provider_executed=provider_executed,
@@ -654,6 +663,7 @@ def load_builtins() -> None:
         charts,
         clock,
         code_execution,
+        coding_agent,
         compaction,
         context,
         conversation_search,

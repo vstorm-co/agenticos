@@ -1,8 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WorkspaceBrowser } from "./workspace-browser";
+import { compareFlat, WorkspaceBrowser } from "./workspace-browser";
+import type { FlatFile } from "@/lib/sandbox-workspaces-api";
 import type {
   FlatFileList,
   WorkspaceFileContent,
@@ -103,6 +104,18 @@ beforeEach(() => {
   state.downloadError = null;
 });
 
+/**
+ * The page with every file as a tile, which is how a search lists its matches:
+ * every path starts with a slash, so searching for one matches them all. What a
+ * tile shows is what these tests are about; the groups have their own file.
+ */
+function renderAsTiles(): void {
+  render(<WorkspaceBrowser />);
+  fireEvent.change(screen.getByRole("textbox", { name: "Search files" }), {
+    target: { value: "/" },
+  });
+}
+
 describe("WorkspaceBrowser", () => {
   beforeEach(() => {
     state.flat = {
@@ -142,7 +155,7 @@ describe("WorkspaceBrowser", () => {
   it("names the workspace each file came from, and links to it", async () => {
     // `/report.csv` exists in several workspaces, so a path on its own is
     // ambiguous - and who can see it is the point of the line beneath it.
-    render(<WorkspaceBrowser />);
+    renderAsTiles();
 
     expect(screen.getByRole("link", { name: "Analyst" })).toHaveAttribute("href", "/documents/w-1");
     // Who else can see it is the workspace's sentence, on the agent's name.
@@ -206,7 +219,7 @@ describe("WorkspaceBrowser", () => {
         { ...state.flat!.items[0]!, path: "/notes.txt", preview: "plain words" },
       ],
     };
-    render(<WorkspaceBrowser />);
+    renderAsTiles();
 
     expect(screen.getByText("handbook.md")).toHaveAttribute(
       "title",
@@ -214,6 +227,39 @@ describe("WorkspaceBrowser", () => {
     );
     expect(screen.getByText(/MD · .* · 2h ago/)).toBeVisible();
     expect(screen.getByText("plain words")).toBeInTheDocument();
+  });
+
+  it("previews the newest files above the groups once there is more than a screen", async () => {
+    const base = state.flat!.items[0]!;
+    state.flat = {
+      ...state.flat!,
+      items: Array.from({ length: 6 }, (_, index) => ({
+        ...base,
+        path: `/file-${index}.md`,
+        modified_at: new Date(Date.now() - index * 60_000).toISOString(),
+      })),
+      total: 6,
+    };
+    render(<WorkspaceBrowser />);
+
+    const recent = screen.getByRole("region", { name: "Recent" });
+    expect(within(recent).getAllByRole("listitem")).toHaveLength(4);
+    await userEvent.click(within(recent).getByRole("button", { name: "Download file-0.md" }));
+    expect(state.downloaded).toEqual([["w-1", "/file-0.md"]]);
+    await userEvent.click(within(recent).getByRole("button", { name: "Open file-0.md" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("lists what a search found flat, each still opening and downloading", async () => {
+    render(<WorkspaceBrowser />);
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Search files" }), "report");
+    expect(screen.queryByRole("region", { name: "Analyst" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Download report.csv" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open report.csv" }));
+
+    expect(state.downloaded).toEqual([["w-1", "/report.csv"]]);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("offers a download for every file, without opening it first", async () => {
@@ -267,6 +313,17 @@ describe("WorkspaceBrowser", () => {
     render(<WorkspaceBrowser />);
 
     await userEvent.type(screen.getByRole("textbox", { name: "Search files" }), "nowhere");
+
+    expect(screen.getByText(/No file matches that search/)).toBeVisible();
+  });
+
+  it("says no file matched the origin filter rather than leaving the groups blank", async () => {
+    // Every file here is the agent's: asking for the attached ones leaves none,
+    // and grouping an empty list drew nothing at all.
+    render(<WorkspaceBrowser />);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Who put it there" }));
+    await userEvent.click(screen.getByRole("option", { name: "Attached" }));
 
     expect(screen.getByText(/No file matches that search/)).toBeVisible();
   });
@@ -342,7 +399,7 @@ describe("WorkspaceBrowser", () => {
       ...state.flat!,
       items: [{ ...state.flat!.items[0]!, path: "/report.md", preview: "# Findings\nline two" }],
     };
-    render(<WorkspaceBrowser />);
+    renderAsTiles();
 
     // Markdown reads as the page it is - the heading drawn as a heading, not
     // its hash - and the line under it stays a line.
@@ -361,7 +418,7 @@ describe("WorkspaceBrowser", () => {
         },
       ],
     };
-    render(<WorkspaceBrowser />);
+    renderAsTiles();
 
     // `hidden`: the tile's peek is decorative and out of the accessibility tree.
     expect(screen.getByRole("img", { name: "chart.png", hidden: true })).toBeVisible();
@@ -440,7 +497,7 @@ describe("who put a file in the workspace", () => {
   it("says of each file whether it was attached or written", () => {
     // A PDF somebody gave the agent and a PDF the agent produced are read for
     // different reasons, and the path is not always the answer.
-    render(<WorkspaceBrowser />);
+    renderAsTiles();
 
     expect(screen.getByText("Attached")).toBeVisible();
     expect(screen.getByText("By the agent")).toBeVisible();
@@ -461,5 +518,17 @@ describe("who put a file in the workspace", () => {
 
     expect(screen.getByText("8b1e-book.pdf")).toBeVisible();
     expect(screen.getByText("summary.md")).toBeVisible();
+  });
+});
+
+describe("compareFlat", () => {
+  it("orders by name, size, change and agent as the sort says", () => {
+    const base = { size: 1, modified_at: null, agent_name: "B" } as unknown as FlatFile;
+    const a = { ...base, path: "/a.md", size: 1, agent_name: "B" } as FlatFile;
+    const b = { ...base, path: "/b.md", size: 9, agent_name: "A" } as FlatFile;
+    expect(compareFlat("name", a, b)).toBeLessThan(0);
+    expect(compareFlat("size", a, b)).toBeGreaterThan(0);
+    expect(compareFlat("agent", a, b)).toBeGreaterThan(0);
+    expect(compareFlat("modified", a, b)).toBe(0);
   });
 });

@@ -166,3 +166,46 @@ class TestAppendingAMessage:
 
         assert response.status_code == 404
         assert service.add_message.await_args.kwargs["organization_id"] == org
+
+
+class TestStartingAConversationInAProject:
+    async def test_a_project_the_caller_cannot_work_in_starts_nothing(self) -> None:
+        """Without the check a chat could be filed into somebody's private
+        project, and the next turn would run in that project's container."""
+        service = MagicMock(create_conversation=AsyncMock())
+        projects = MagicMock(
+            check_can_start=AsyncMock(side_effect=NotFoundError(message="Project not found"))
+        )
+        app.dependency_overrides[deps.get_project_service] = lambda: projects
+
+        async with _client(user_id=uuid4(), service=service) as client:
+            response = await client.post(
+                f"{settings.API_V1_STR}/conversations", json={"project_id": str(uuid4())}
+            )
+
+        assert response.status_code == 404
+        service.create_conversation.assert_not_awaited()
+
+    async def test_a_project_the_caller_may_work_in_holds_the_new_chat(self) -> None:
+        caller, project = uuid4(), uuid4()
+        service = MagicMock(
+            create_conversation=AsyncMock(
+                return_value={
+                    "id": str(uuid4()),
+                    "user_id": str(caller),
+                    "project_id": str(project),
+                    "created_at": "2026-10-17T00:00:00Z",
+                }
+            )
+        )
+        projects = MagicMock(check_can_start=AsyncMock())
+        app.dependency_overrides[deps.get_project_service] = lambda: projects
+
+        async with _client(user_id=caller, service=service) as client:
+            response = await client.post(
+                f"{settings.API_V1_STR}/conversations", json={"project_id": str(project)}
+            )
+
+        assert response.status_code == 201, response.text
+        assert projects.check_can_start.await_args.args[1] == project
+        assert service.create_conversation.await_args.args[0].project_id == project

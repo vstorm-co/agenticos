@@ -17,6 +17,101 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Several people in one chat with the agent.** A conversation's open sockets
+  share a room: a bar over the transcript shows who else has the chat open, with
+  Invite for its owner, and a turn somebody asks is followed live by everybody
+  else in it, question first. **Reply** on any message quotes it; the reply
+  carries the quote to the transcript and to the model, which in a project's chat
+  also reads each person's turn under their name. A message's `reply_to` and the
+  `reply_to_message_id` it is sent with are the API's half.
+- **A project's chats are its members'.** Whoever may see a project reads every
+  chat in it, and whoever may work in it continues a teammate's chat; each turn
+  carries the name and face of whoever typed it. The project's **Chats** tab
+  lists everybody's chats, each saying whose it is, who is at work in it now
+  and who has had it open, and the project's chat count is everybody's.
+  Renaming, archiving and deleting stay with whoever started the chat.
+  `GET /api/v1/projects/{id}/chats` lists them; a message's `sender` names who
+  typed a user turn.
+  Access to a project's chat follows the project alone - its starter loses it
+  with the project - and deleting the starter's account keeps the chat for the
+  team, unowned.
+- **Agents served over A2A** (#2092). An agent its organization switches on under
+  **Availability → Agent2Agent (A2A)** has an agent card at
+  `/api/v1/a2a/{id}/.well-known/agent-card.json` and takes `message/send` and
+  `tasks/get` at `POST /api/v1/a2a/{id}`, with an organization key or an OAuth
+  token. Every task is an ordinary run on the new `a2a` surface, so budgets,
+  approvals, audit and Activity apply.
+- **Remote agents to delegate to** (#2092). Another vendor's A2A agent is
+  registered under **Connections → Remote agents** by its agent card, with an
+  optional vault key, and picked in an agent's delegation settings beside the
+  organization's own agents (`external_agents` in the spec). Every call is
+  budget-checked and booked to the run as unpriced.
+- **Coding agent capability** (#2092). `coding_agent` hands software work to
+  Claude Code or Codex in the agent's sandbox through one tool,
+  `run_coding_agent`: the harness works on the task until done, and the chat
+  shows each step as it takes it - the file it reads, the edit, the command - in
+  a panel under the harness's mark. The binding's `access` decides whether it
+  may change files and run commands or only read and answer (Claude Code only);
+  **Human approval** set to **Always ask** asks before each task. A
+  conversation's tasks continue one harness session. Claude Code runs on an
+  Anthropic key or a `claude setup-token` subscription token, Codex on an
+  OpenAI key or a ChatGPT sign-in, and their tokens are booked to the run. Stop
+  and the task's time limit end the harness's whole process group, and whether
+  a task is over is read from that group rather than a file the harness could
+  write. The `workbench` runtime now carries Claude Code 2.1.288 and Codex
+  0.160.0.
+- **Projects.** A project holds instructions and files in one container that
+  every chat started in it shares, whichever agent answers: a chat agent without
+  a sandbox is given the project's, and every agent reads the project's
+  instructions after its own. Start one from the project's **New chat** or the
+  composer's **+**; upload files and folders on its **Files** tab; share it with
+  people, departments or the organization (`projects:view`, `projects:use`,
+  `projects:edit`). Chats stay their authors' own, and a deleted project leaves
+  them as ordinary chats. The sidebar lists your recent projects, the chat list
+  files each project's chats under it, and the dashboard has a **Projects** card. A
+  project opens on its files, which can be dropped anywhere on the tab and show
+  their progress as they go up; its **Apps** tab lists the apps its chats
+  published (`GET /apps?project_id=`). A chat on its **Chats** tab shows who has
+  it open right now (`here` on `GET /projects/{id}/chats`). A sandbox connection a
+  project keeps its files on cannot be deleted. See [Projects](docs/projects.md).
+
+### Fixed
+
+- **A deleted chat's sandbox is destroyed only once the deletion commits.** The
+  container or Daytona sandbox behind a conversation or project went before the
+  database did, so a deletion that rolled back left the rows naming files that
+  were already gone.
+
+- **The collapsed sidebar matches the open one.** A folded group stays folded on
+  the icon rail, which now has the same row height and group spacing, so no icon
+  moves when the column collapses.
+- **Remote agents load in the console** (#2092). The page called a route the
+  console did not proxy, so it answered 404.
+- **Coming back to an answer still being written shows it.** Opening a
+  conversation whose agent is still answering - from another chat, another tab
+  or after a reload - picks the answer up where it is, with every step so far,
+  and goes on streaming it; it used to show only the question and a note to
+  check later. The running turn's frames are kept in Redis for this.
+- **Documents no longer lists the platform's own files.** A coding task's
+  events and session under `.agenticos/` are left out, as skills and spilled
+  tool output already were.
+- **Notifications say at a glance what they are about.** Each row in the bell
+  and on the dashboard card starts with the agent it concerns - its face, with
+  a badge for how the run went - or, for a row about no agent, an icon for its
+  kind: green for a finished run or a recovered MCP server, red for a failure
+  or an exhausted budget, amber for an approval or a budget warning. Rows
+  written before this keep the icon only. The inbox API serves the row's
+  `agent`.
+- **A code file opens as it would in an editor.** The file viewer, the folder
+  page's reader and a skill's preview show source with line numbers, coloured
+  in its language, filling the pane - rather than in a chat's code block sized
+  to its content, which left a short file in a small box over empty space. On
+  the folder page the text fills the reader edge to edge instead of sitting in
+  a second box inside it; JSON and the Source view of Markdown and HTML are
+  coloured too.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

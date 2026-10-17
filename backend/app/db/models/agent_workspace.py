@@ -50,12 +50,22 @@ class AgentWorkspace(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    agent_id: Mapped[uuid.UUID] = mapped_column(
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agents.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
+    """The agent whose workspace this is; `None` for a project's, which every agent
+    answering in the project shares and no one agent owns."""
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    """The project this is the container of, for a project-scoped one. A deleted
+    project takes its files with it."""
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="CASCADE"),

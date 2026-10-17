@@ -8,6 +8,8 @@ import { MarkdownContent } from "@/components/chat/markdown-content";
 import { Button } from "@/components/ui";
 import { codeLanguage, isRenderSafeImage, type FileKind } from "@/lib/file-kinds";
 import { parseDelimited } from "@/lib/delimited";
+import { cn } from "@/lib/utils";
+import { useHighlighted } from "./code-highlight";
 
 /**
  * One file's content on screen, once something has fetched it.
@@ -25,7 +27,19 @@ interface FileTextViewProps {
   text: string;
   /** Show the characters rather than the document they make, where those differ. */
   asSource?: boolean;
+  /**
+   * Drawn inside a pane that is already a frame - the folder page's reader - so
+   * the text fills it edge to edge instead of sitting in a second box inside it.
+   */
+  bare?: boolean;
 }
+
+/** What a transformed kind's characters are written in, for colouring its source. */
+const SOURCE_LANGUAGE: Partial<Record<FileKind, string>> = {
+  markdown: "markdown",
+  html: "xml",
+  json: "json",
+};
 
 /**
  * A file made of characters, as whatever those characters are.
@@ -35,15 +49,28 @@ interface FileTextViewProps {
  * between. Which kinds those are is `hasSourceView`, so the toggle and the render
  * cannot disagree about it.
  */
-export function FileTextView({ kind, name, text, asSource = false }: FileTextViewProps) {
+export function FileTextView({
+  kind,
+  name,
+  text,
+  asSource = false,
+  bare = false,
+}: FileTextViewProps) {
   const t = useTranslations("files");
 
-  if (text.trim() === "") return <p className="text-muted-foreground text-xs">{t("emptyFile")}</p>;
-  if (asSource) return <PlainText text={text} />;
+  if (text.trim() === "")
+    return <p className={cn("text-muted-foreground text-xs", bare && "p-4")}>{t("emptyFile")}</p>;
+  if (asSource) return <PlainText text={text} language={SOURCE_LANGUAGE[kind]} bare={bare} />;
 
   switch (kind) {
     case "markdown":
-      return <MarkdownContent content={text} />;
+      return bare ? (
+        <div className="px-6 py-5">
+          <MarkdownContent content={text} />
+        </div>
+      ) : (
+        <MarkdownContent content={text} />
+      );
     case "html":
       // Sandboxed with no allowances, which is what makes showing this safe at all:
       // the API refuses to serve HTML inline because a document an agent wrote and
@@ -57,21 +84,31 @@ export function FileTextView({ kind, name, text, asSource = false }: FileTextVie
           // `h-full` with a viewport-relative floor, for the reason the PDF below
           // carries: nothing between here and the viewer's body adds a wrapper, so
           // the height resolves - and where it cannot, the floor still draws a page.
-          className="bg-background h-full min-h-[calc(100vh-15rem)] w-full rounded-md border"
+          className={cn(
+            "bg-background h-full min-h-[calc(100vh-15rem)] w-full",
+            !bare && "rounded-md border",
+          )}
         />
       );
     case "csv":
-      return <DelimitedTable text={text} />;
+      return bare ? (
+        <div className="p-3">
+          <DelimitedTable text={text} />
+        </div>
+      ) : (
+        <DelimitedTable text={text} />
+      );
     case "json":
-      return <PlainText text={prettyJson(text)} />;
+      return <PlainText text={prettyJson(text)} language="json" bare={bare} />;
     case "code":
-      // The Markdown renderer highlights fenced code, so a source file is fenced
-      // with its own language rather than this growing a second highlighter.
-      return <MarkdownContent content={`\`\`\`${codeLanguage(name)}\n${text}\n\`\`\``} />;
+      // An editor's view rather than a chat's fenced block: a fenced block is a
+      // box sized to its content with a language label over it, which in a tall
+      // viewer left a short file in a small box above a band of empty space.
+      return <PlainText text={text} language={codeLanguage(name)} bare={bare} />;
     default:
       // `text`, and anything whose bytes turned out to be characters after all:
       // prose and pastes, read down rather than across, so wrapped.
-      return <PlainText text={text} wrap />;
+      return <PlainText text={text} wrap bare={bare} />;
   }
 }
 
@@ -202,13 +239,29 @@ const NUMBERED_UP_TO = 5000;
  * Wrapped, each line is its own row with its number beside it, so a number
  * stays with the line it counts however many rows the line takes.
  */
-function PlainText({ text, wrap = false }: { text: string; wrap?: boolean }) {
+function PlainText({
+  text,
+  wrap = false,
+  language,
+  bare,
+}: {
+  text: string;
+  wrap?: boolean;
+  /** The grammar the characters are coloured with; absent or `text` for none. */
+  language?: string;
+  bare: boolean;
+}) {
   const lines = text.split("\n");
   const numbered = lines.length <= NUMBERED_UP_TO;
+  const coloured = useHighlighted(text, wrap || language === "text" ? null : (language ?? null));
+  const frame = cn(
+    "relative h-full min-h-64 overflow-hidden",
+    bare ? "bg-muted/20" : "bg-muted/30 rounded-md border",
+  );
 
   if (wrap) {
     return (
-      <div className="bg-muted/40 relative h-full min-h-64 overflow-hidden rounded-md border">
+      <div className={frame}>
         <CopyButton text={text} className="absolute top-1 right-1 z-10" />
         <div className="h-full overflow-auto py-3 pr-10 font-mono text-xs leading-[1.6]">
           {numbered ? (
@@ -236,20 +289,24 @@ function PlainText({ text, wrap = false }: { text: string; wrap?: boolean }) {
   }
 
   return (
-    <div className="bg-muted/40 relative h-full min-h-64 overflow-hidden rounded-md border">
-      <CopyButton text={text} className="absolute top-1 right-1 z-10" />
+    <div className={frame}>
+      <CopyButton text={text} className="absolute top-2 right-2 z-10" />
 
       <div className="h-full overflow-auto">
-        <div className="flex min-w-max font-mono text-xs leading-[1.6]">
+        <div className="flex min-h-full min-w-max font-mono text-[12.5px] leading-[1.7]">
           {numbered && (
+            // Its own fill, so the code scrolling sideways passes under it rather
+            // than showing through the numbers.
             <pre
               aria-hidden
-              className="text-muted-foreground bg-muted/40 sticky left-0 shrink-0 border-r px-2 py-3 text-right tabular-nums select-none"
+              className="text-muted-foreground/70 bg-muted/60 border-border/60 sticky left-0 min-w-12 shrink-0 border-r py-4 pr-3 pl-4 text-right tabular-nums select-none"
             >
               {lines.map((_, index) => index + 1).join("\n")}
             </pre>
           )}
-          <pre className="text-foreground/90 px-3 py-3 whitespace-pre">{text}</pre>
+          <pre className="hljs text-foreground/90 flex-1 py-4 pr-12 pl-4 whitespace-pre">
+            {coloured ?? text}
+          </pre>
         </div>
       </div>
     </div>

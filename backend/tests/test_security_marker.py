@@ -58,6 +58,7 @@ EXEMPT: dict[str, str] = {
     "tests/integration/test_platform_flows.py::TestTheListingCarriesThePublishedCap::test_a_version_with_no_budget_block_answers_null": "a version with no budget block reports a null cap, listing, no refusal",
     "tests/integration/test_platform_flows.py::TestTheOrganizationsSecrets::test_a_deleted_secret_is_gone_and_a_second_delete_says_so": "delete is idempotent (a second delete returns False), CRUD, no refusal",
     "tests/integration/test_platform_flows.py::TestTheOrganizationsSecrets::test_deleting_the_organization_takes_its_secrets_with_it": "deleting the organization cascades its secrets, lifecycle, no refusal",
+    "tests/test_coding_agent.py::TestConfiguringIt::test_a_binding_with_no_secret_builds_without_a_key": "the capability builds with no secret bound, construction, no refusal",
     "tests/integration/test_platform_flows.py::TestTheOrganizationsSecrets::test_several_secrets_resolve_in_one_query": "batch resolves several secrets for a run, query feature, no refusal",
     "tests/integration/test_admin_org_owner.py::TestTheDetail::test_it_carries_the_members_owner_budget_and_size": "reads the budget onto an admin's page, display, no refusal",
     "tests/test_media_offload.py::TestTheBytesHaveALifetime::test_the_tenant_s_media_is_removed_with_the_tenant": "a teardown removing a prefix, not a refusal - the isolation case beside it carries the marker",

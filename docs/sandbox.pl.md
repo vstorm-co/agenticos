@@ -1,5 +1,5 @@
 ---
-source_sha: "904d3115d4e7"
+source_sha: "66a783c397fe"
 ---
 
 # Sandbox { #the-sandbox }
@@ -125,6 +125,7 @@ Co oddziela jednego tenanta od drugiego:
 |---|---|
 | Zbudowany na | `python:3.12-slim` |
 | Języki | Python 3.12; Node 24.19.0 LTS z npm 11 oraz `tsx` dla TypeScriptu |
+| Coding agenci | Claude Code 2.1.288 i Codex 0.160.0, dla [coding agenta](reference/capabilities.md#coding-agent) |
 | Narzędzia | `git`, `curl`, `ripgrep`, `fd`, `jq`, `less`, `procps`, `unzip`, `zip`, `uv`, `pdftotext`/`pdfinfo` |
 | Czytanie | **liteparse** (`lit`) — PDF-y i obrazy do tekstu lub markdownu, z OCR-em włącznie; `poppler-utils` dla szybkiej ścieżki po warstwie tekstowej i dla liczby stron |
 | Dokumenty | `pypdf`, `python-docx`, `openpyxl`, `python-pptx`, `reportlab`; **LibreOffice** headless do konwersji i do starszych formatów |
@@ -458,7 +459,7 @@ Co pozostaje, powiedziane wprost, a nie tylko zasugerowane:
 ## Co pokazuje przeglądarka plików, a co pomija { #what-the-file-browser-shows-and-what-it-leaves-out }
 
 **Documents** (`/documents`) wypisuje to, co agent trzyma **dla człowieka**, a nie jest to ten
-sam zbiór co to, co leży na wolumenie. Dwa prefiksy są pomijane w każdym
+sam zbiór co to, co leży na wolumenie. Trzy prefiksy są pomijane w każdym
 zestawieniu, które czyta człowiek — na liście wszystkich plików, w plikach
 jednego folderu, w panelu rozmowy i w liczbach plików:
 
@@ -468,9 +469,21 @@ jednego folderu, w panelu rozmowy i w liczbach plików:
   ktoś przyjmuje. Usunięto je raz, bo zestawienie składało się głównie z nich, co
   było słuszną pretensją o niewłaściwą rzecz (#1064).
 - katalog przelewowy — tam, gdzie zapisano nadmiarowe wyjście narzędzia.
+- `.agenticos/` — zdarzenia zadania coding agenta i sesja, którą kontynuuje następne.
+
+Pomijane są też foldery, które wypełnia toolchain, gdziekolwiek leżą: `.venv`,
+`venv`, `node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`,
+`.ruff_cache`, `.tox`, `.git`, `.next` i `.cache`. Coding agent, który postawił
+jedną aplikację FastAPI, wrzucił ich na stronę tysiąc, między tuzin plików, które
+napisał.
 
 Liczba plików też musi je pominąć, bo workspace raportujący cztery pliki, z których
 widać jeden, to liczba, której nikt nie sprawdzi.
+**Wszystkie pliki** grupują to, co zostało, według workspace'u, który je trzyma,
+od najnowszych, pod rozmową, do której należą: luźne pliki i załączniki jako
+wiersze, każdy folder najwyższego poziomu jako jeden wiersz z pierwszymi plikami i
+link do folderu po resztę. Najnowsze pliki mają podgląd nad grupami, a wyszukiwanie
+pokazuje trafienia płasko.
 
 ### Czyj to workspace i kto jeszcze go widzi { #whose-workspace-it-is-and-who-else-can-see-it }
 

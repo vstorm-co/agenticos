@@ -1,5 +1,5 @@
 ---
-source_sha: "19bc39209f10"
+source_sha: "9d87b1a0a462"
 ---
 
 # La consola { #the-console }
@@ -88,6 +88,11 @@ abrirla trae la página completa que estás mirando, no una vista previa de
 cinco tarjetas — **Load more** sigue paginando hacia atrás por la organización
 en la que estás ahora, más lo dirigido al deployment entero, hasta llegar a lo
 que ya ha caducado.
+
+Cada fila empieza por aquello de lo que trata: la cara del agente, con una
+insignia de cómo fue su run, o un icono del tipo de evento — verde para un run
+terminado o un servidor MCP que vuelve a funcionar, rojo para un fallo o un
+budget agotado, ámbar para una aprobación o un aviso de budget.
 
 Cambia de organización y la campana es la de esa: una
 notificación de la organización que dejaste no ha desaparecido, está detrás del
@@ -274,6 +279,9 @@ terminan o fallan - te avisa de que está ahí, con un enlace a ella. Un turno q
 sigue en marcha tras una hora sin nadie mirando se detiene, y se te avisa de eso
 ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)). Uno
 que espera una aprobación o tu respuesta a una pregunta te avisa por esa vía.
+Si vuelves mientras aún responde - a la conversación, desde otra pestaña, tras
+recargar -, el chat retoma la respuesta donde está, con todo lo que el agente ha
+hecho hasta entonces, y la sigue dibujando a medida que llega.
 
 **En el teléfono** el chat se comporta como una app de mensajería: el campo de
 escritura queda sobre el teclado y la conversación en su último mensaje mientras
@@ -324,7 +332,7 @@ navegador de inicio de sesión del despliegue
 La barra lateral los agrupa. **Build** reúne Agents, Routines, Apps y Activity;
 **Knowledge** reúne Knowledge bases, Documents, Skills y Context. Dos grupos se
 pliegan a su título hasta que los abres, porque se configuran una vez y se visitan
-poco: **Connections** (MCP servers, Channels, Vault, Sandboxes) y
+poco: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) y
 **Organization** (Organizations, Groups). Un grupo plegado se abre solo en
 cualquier página que le pertenezca, y se queda como lo dejaste.
 
@@ -341,6 +349,7 @@ cualquier página que le pertenezca, y se queda como lo dejaste.
 | **Sandboxes** | Dónde ejecutan código los agents: hosts, sesiones en curso, política | [La sandbox](sandbox.md) |
 | **MCP servers** | Conexiones a herramientas externas, personales y de toda la organización | [MCP](mcp.md) |
 | **Channels** | Bots de Slack, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
+| **Remote agents** | Agents de otros proveedores, registrados por su agent card de A2A, en los que delegan los agents | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Credenciales, selladas por organización | [Secretos](secrets.md) |
 | **Organizations** | Miembros, roles, invitaciones | [Permisos](permissions.md) |
 | **Settings** | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil | [Configuración](configuration.md) |

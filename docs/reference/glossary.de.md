@@ -1,5 +1,5 @@
 ---
-source_sha: "911fcf1c1d12"
+source_sha: "2479394e9556"
 ---
 
 # Glossar { #glossary }
@@ -38,6 +38,8 @@ nicht bricht.
 | Run | Ein Mal, dass ein Agent geantwortet hat, mit Kosten und Schritten | `agent_run` |
 | Environment | Eine benannte Stufe, etwa Produktion, die auf eine Version zeigt | `environment` |
 | MCP-Server | Ein externer Tool-Server, den Agents aufrufen, einmal verbunden | `mcp_connection` |
+| Remote Agent | Der Agent eines anderen Anbieters, über A2A erreichbar, an den Agents delegieren | `external_agent` |
+| Agent2Agent (A2A) | Das Protokoll, über das Agents anderer Systeme einem Agent Aufgaben senden | `a2a_enabled` |
 | Sandbox | Ein isolierter Rechner, auf dem ein Agent Dateien schreibt und Code ausführt | `sandbox` |
 | Dokumente | Die Dateien, die Agents für eine Person aufbewahren, angehängt oder geschrieben, in ihren Sandboxes | `workspace` |
 
@@ -67,6 +69,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Diagramme | `charts` |
 | Datum und Uhrzeit | `clock` |
 | Berechnungen | `code_execution` |
+| Coding Agent | `coding_agent` |
 | Lange Gespräche | `compaction` |
 | Kontext | `context` |
 | Frühere Gespräche | `conversation_search` |

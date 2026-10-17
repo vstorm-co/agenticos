@@ -171,6 +171,23 @@ class TestMembers:
         assert body["items"][0]["current_version"]["number"] == 3
         assert body["items"][0]["public_url"] is None
 
+    async def test_the_listing_narrows_to_a_project_the_caller_can_see(
+        self, client: OpenClient
+    ) -> None:
+        project_id = uuid.uuid4()
+        with (
+            patch(f"{PATH}.ProjectService") as projects,
+            patch(
+                f"{PATH}.artifact_repo.list_visible", new=AsyncMock(return_value=([], 0))
+            ) as listing,
+            patch(f"{PATH}.artifact_repo.latest_versions", new=AsyncMock(return_value={})),
+        ):
+            projects.return_value.get = AsyncMock()
+            async with client() as http:
+                response = await http.get(_url(f"?project_id={project_id}"))
+        assert response.status_code == 200
+        assert listing.await_args.kwargs["project_id"] == project_id
+
     @pytest.mark.security
     async def test_an_artifact_in_another_organization_is_not_found(
         self, client: OpenClient

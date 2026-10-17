@@ -57,6 +57,8 @@ from app.repositories import invitation as invitation_repo
 from app.repositories import member as member_repo
 from app.repositories import organization as organization_repo
 from app.repositories import channel_prompt as channel_prompt_repo
+from app.repositories import external_agent as external_agent_repo
+from app.repositories import project as project_repo
 from app.repositories import organization_assistant as organization_assistant_repo
 
 from app.repositories import user_slash_command as user_slash_command_repo
@@ -92,6 +94,8 @@ __all__ = [
     "channel_session_repo",
     "organization_repo",
     "channel_prompt_repo",
+    "external_agent_repo",
+    "project_repo",
     "organization_assistant_repo",
     "member_repo",
     "invitation_repo",

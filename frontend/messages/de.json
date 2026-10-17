@@ -362,7 +362,7 @@
     "noSandboxConnectionRegistered": "Keine Sandbox-Verbindung registriert",
     "noSecretOfKind": "Kein Secret der Art {kind} im Vault",
     "noSecret": "Kein Secret",
-    "noSecretSelected": "Kein Secret gewählt. Diese Capability braucht eines der Art {kind}, und der Agent lässt sich nicht veröffentlichen, bis er eines hat.",
+    "noSecretSelected": "Noch nichts gewählt - der Agent lässt sich erst veröffentlichen, wenn etwas gewählt ist.",
     "noSignMarketingPage": "Keine Anmeldung – eine Marketingseite",
     "noSitesAllowedWidget": "Keine Sites erlaubt – dieses Widget kann nirgends öffnen",
     "noSpecialistsYet": "Keine Spezialisten. Einer lohnt sich, wenn einen ganzen Agent zu veröffentlichen für die Aufgabe zu viel Aufwand wäre.",
@@ -775,7 +775,28 @@
     "capabilityShelfEnabled": "{enabled} von {total} an",
     "capabilityShelfPrevious": "Zurück in {shelf}",
     "capabilityShelfNext": "Mehr in {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Eingebaut, keine Werkzeuge} =1 {1 Werkzeug} other {# Werkzeuge}}"
+    "capabilityToolCount": "{count, plural, =0 {Eingebaut, keine Werkzeuge} =1 {1 Werkzeug} other {# Werkzeuge}}",
+    "a2aTitle": "Agent2Agent (A2A)",
+    "a2aDescription": "Lassen Sie Agents anderer Systeme diesem Agent Aufgaben über das A2A-Protokoll senden. Jede Aufgabe ist ein Run der veröffentlichten Version, unter ihrem Budget und ihren Freigaben, und erscheint in Activity.",
+    "a2aSwitch": "Diesen Agent über A2A anbieten",
+    "a2aPublishFirst": "Veröffentlichen Sie den Agent zuerst: Über A2A wird die veröffentlichte Version angeboten.",
+    "a2aOff": "Aus. Schalten Sie es ein, damit dieser Agent eine Agent Card bekommt, über die andere Systeme ihn finden.",
+    "a2aCardUrl": "Agent Card",
+    "a2aEndpoint": "Endpunkt für Aufgaben",
+    "a2aAuthHint": "Aufrufer senden einen API-Key der Organisation oder ein OAuth-Zugriffstoken dieses Deployments als Bearer-Token, das diesen Agent ausführen darf.",
+    "remoteDelegatesHeading": "Remote Agents",
+    "remoteDelegatesDetail": "Agents anderer Anbieter, an die dieser Agent über A2A Arbeit übergeben darf. Jeder Aufruf läuft unter dem Budget dieses Agent.",
+    "addRemoteDelegate": "Remote Agent hinzufügen",
+    "noRemoteDelegatesYet": "Noch keine Remote Agents.",
+    "noRemoteAgentsRegistered": "Noch keine Remote Agents registriert. <link>Registrieren Sie einen</link> über seine Agent Card.",
+    "remoteDelegateGone": "Ein nicht mehr registrierter Remote Agent",
+    "remoteDelegateGoneDetail": "Seine Registrierung wurde entfernt, daher lehnt das Veröffentlichen diesen Agent ab, bis er von der Liste genommen ist.",
+    "keyOrSignIn": "Key oder Anmeldung",
+    "codingAgentKeyName": "{signIn, select, chatgpt {OpenAI-Key für Codex} other {Claude-Code-Key}}",
+    "chatgptSignInName": "ChatGPT für Codex",
+    "claudeTokenHint": "Mit einem Claude-Pro- oder -Max-Abo: Führen Sie <code>claude setup-token</code> auf Ihrem eigenen Rechner aus und fügen Sie das ausgegebene Token hier als Key hinzu. Ein Anthropic-API-Key funktioniert ebenfalls.",
+    "capabilityHasNoToolSettings": "Sie hatte früher Einstellungen pro Tool, die es nicht mehr gibt. Jetzt gilt die Freigabe unten.",
+    "useCapabilityApproval": "Auf die Capability übertragen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1098,7 +1119,9 @@
       "attachFileHint": "Bilder, PDFs, Tabellen und Dokumente",
       "voiceInputHint": "Sprechen statt tippen",
       "commands": "Befehle",
-      "commandsHint": "Aus einer Liste wählen - wie das Tippen von /"
+      "commandsHint": "Aus einer Liste wählen - wie das Tippen von /",
+      "project": "In einem Projekt arbeiten",
+      "projectHint": "Diesen Chat in einem Projekt beginnen: mit seinen Dateien und Anweisungen"
     },
     "knowledgeBase": "Wissensdatenbank",
     "link": "Link",
@@ -1204,7 +1227,8 @@
       "untitled": "Ohne Titel",
       "title": "Chats",
       "unread": "Neue Antwort",
-      "unreadHeading": "Ungelesen"
+      "unreadHeading": "Ungelesen",
+      "unnamedProject": "Ein Projekt"
     },
     "skipComment": "Kommentar überspringen",
     "sourceCount": "{count, plural, =1 {1 Quelle} other {# Quellen}}",
@@ -1399,7 +1423,19 @@
       "scrollingPage": "Scrollt",
       "scrollPage": "Gescrollt",
       "goingBack": "Geht zurück",
-      "goBack": "Zurückgegangen"
+      "goBack": "Zurückgegangen",
+      "codingAgent": {
+        "task": "Aufgabe",
+        "outcome": "{outcome, select, completed {Erledigt} timed_out {Gestoppt: Zeit abgelaufen} other {Fehlgeschlagen}}",
+        "filesChanged": "{count, plural, =1 {1 Datei geändert:} other {# Dateien geändert:}}",
+        "steps": "{count, plural, =1 {1 Schritt} other {# Schritte}}",
+        "stepKind": "{kind, select, read {Gelesen} search {Gesucht} edit {Bearbeitet} command {Ausgeführt} web {Nachgeschlagen} failed {Fehlgeschlagen} other {Verwendet}}",
+        "refused": "Im Nur-Lesen-Modus nicht erlaubt: {tools}"
+      },
+      "runCodingAgent": "Arbeit an den Coding Agent übergeben",
+      "runningCodingAgent": "Der Coding Agent arbeitet",
+      "codingStepRunning": "{kind, select, read {Liest} search {Sucht} edit {Bearbeitet} command {Führt aus} web {Schlägt nach} other {Arbeitet an}}",
+      "codingStepDone": "{kind, select, read {Gelesen} search {Gesucht} edit {Bearbeitet} command {Ausgeführt} web {Nachgeschlagen} other {Verwendet}}"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -1432,12 +1468,28 @@
     "viewMeans": "Ansehen erlaubt, diese Unterhaltung zu lesen und sonst nichts.",
     "web": "Web",
     "whatWentWrong": "Was ist schiefgelaufen?",
+    "reply": {
+      "reply": "Antworten",
+      "cancel": "Nicht antworten",
+      "theAgent": "Der Agent",
+      "jump": "Nachricht zeigen",
+      "inReplyTo": "Antwort an {name}",
+      "inReplyToYou": "Antwort an dich",
+      "replyingTo": "Antwort an <strong>{name}</strong>",
+      "replyingToYourself": "Antwort auf deine eigene Nachricht"
+    },
+    "room": {
+      "here": "{count, plural, =1 {{name} ist auch hier} other {# Personen sind mit dir hier}}",
+      "more": "+{count}",
+      "share": "Einladen"
+    },
     "rail": {
       "label": "Zu einer Nachricht springen",
       "previous": "Vorherige Nachricht",
       "next": "Nächste Nachricht",
       "jumpTo": "Zur Nachricht von {author} springen",
       "you": "Sie",
+      "formerMember": "Ein ehemaliges Mitglied",
       "agent": "Agent",
       "empty": "Kein Text in dieser Nachricht"
     },
@@ -2136,6 +2188,14 @@
         "nothingWaiting": "Nichts wartet",
         "spent": "Ausgegeben",
         "spentLabel": "{amount} ausgegeben"
+      },
+      "projects": {
+        "title": "Projekte",
+        "description": "Deine Projekte, zuletzt geänderte zuerst.",
+        "empty": {
+          "title": "Noch keine Projekte",
+          "description": "Ein Projekt hält Anweisungen und Dateien, die jeder Chat darin teilt."
+        }
       }
     },
     "edit": {
@@ -3038,6 +3098,7 @@
     "quickActions": "Schnellaktionen",
     "rag": "RAG",
     "register": "Registrieren",
+    "remoteAgents": "Remote Agents",
     "sandboxes": "Sandboxes",
     "search": "Suchen",
     "searchJump": "Suchen oder springen zu …",
@@ -3069,7 +3130,9 @@
     "connections": "Verbindungen",
     "organization": "Organisation",
     "documents": "Dokumente",
-    "signIns": "Anmeldungen"
+    "signIns": "Anmeldungen",
+    "projects": "Projekte",
+    "allProjects": "Alle Projekte"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3545,6 +3608,14 @@
         "title": "Wo Agents Code ausführen",
         "body": "Agents, die Code schreiben und ausführen, tun das auf diesen Hosts. Beobachten Sie die laufenden Sessions und setzen Sie von hier aus die Obergrenzen."
       },
+      "remote-agents-register": {
+        "title": "Einen registrieren",
+        "body": "Fügen Sie die Adresse der Karte eines Agent ein. Sie wird sofort gelesen und geprüft, und ein Key aus dem Vault kann jeden Aufruf begleiten."
+      },
+      "remote-agents-list": {
+        "title": "Agents anderer Anbieter",
+        "body": "Hier über ihre A2A Agent Card registrierte Agents lassen sich neben Ihren eigenen Agents als Delegierte wählen."
+      },
       "settings-tabs": {
         "title": "Ihre Einstellungen",
         "body": "Ihr Profil, Anmeldung und Sicherheit, Benachrichtigungen und Slash-Befehle liegen alle hinter diesen Tabs - wechseln Sie hier zwischen ihnen."
@@ -3668,6 +3739,18 @@
       "agent-identity": {
         "title": "Geben Sie ihm einen erkennbaren Namen",
         "body": "Den Namen wählt man im Chat aus und findet ihn im Katalog. Ein Duplikat beginnt mit dem Namen seiner Vorlage und einem Zusatz, benennen Sie es also hier um; das Handle, über das andere Agents es erreichen, bleibt gleich."
+      },
+      "projects-new": {
+        "title": "Ein Projekt anlegen",
+        "body": "Gib laufender Arbeit ein Zuhause: Anweisungen, die jeder Agent darin liest, und Dateien, die jeder Chat darin teilt."
+      },
+      "projects-list": {
+        "title": "Deine Projekte",
+        "body": "Deine eigenen Projekte und die mit dir oder deinen Abteilungen geteilten. Deine Chats darin bleiben deine."
+      },
+      "project-tabs": {
+        "title": "Chats, Dateien und Anweisungen",
+        "body": "Beginne einen Chat im Projekt, füge Dateien und Ordner hinzu, in denen seine Agents arbeiten, und lege fest, was jeder Agent hier gesagt bekommt."
       }
     },
     "chooseLanguage": "Sprache"
@@ -4544,6 +4627,7 @@
       "surfaceEmbed": "Embed",
       "surfaceFilter": "Nach Oberfläche filtern",
       "surfaceMattermost": "Mattermost",
+      "surfaceA2a": "A2A",
       "surfaceSchedule": "Zeitplan",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -5141,7 +5225,10 @@
       "searchPlaceholder": "Jeden Ordner durchsuchen",
       "source": "Quelle",
       "stored": "gespeichert",
-      "whoPutItThere": "Wer sie dort abgelegt hat"
+      "whoPutItThere": "Wer sie dort abgelegt hat",
+      "openFolder": "Ordner öffnen",
+      "moreInFolder": "{count, plural, =1 {1 weitere im Ordner} other {# weitere im Ordner}}",
+      "recent": "Zuletzt"
     }
   },
   "settings": {
@@ -5458,6 +5545,17 @@
     "cancel": "Abbrechen",
     "cancel2": "Abbrechen",
     "cancel3": "Abbrechen",
+    "chatgptCallbackLabel": "Adresse, an die ChatGPT Sie weitergeleitet hat",
+    "chatgptOpenAgain": "Anmeldung erneut öffnen",
+    "chatgptPersonal": "Modelle laufen damit auf Ihrem eigenen ChatGPT-Abonnement und zählen gegen dessen Limits, daher wird die Anmeldung nur für Sie gespeichert.",
+    "chatgptReconnect": "Neu verbinden",
+    "chatgptReconnectBody": "Melden Sie sich erneut mit ChatGPT an. Die neue Anmeldung ersetzt die alte, und jedes Modell mit diesem Secret läuft weiter.",
+    "chatgptReconnectNamed": "{name} neu verbinden",
+    "chatgptReconnected": "{name} wieder mit ChatGPT verbunden",
+    "chatgptSave": "Anmeldung speichern",
+    "chatgptSignIn": "Mit ChatGPT anmelden",
+    "chatgptStepOne": "Melden Sie sich in dem Tab an, der sich öffnet, und bestätigen Sie den Zugriff.",
+    "chatgptStepTwo": "ChatGPT leitet Sie danach an eine localhost-Adresse weiter, die nicht lädt. Das ist so gewollt: Kopieren Sie die ganze Adresse aus der Adressleiste und fügen Sie sie hier ein.",
     "customService": "Eigener Dienst",
     "eitherWayAgentRunsWithIt": "So oder so läuft ein Agent, der diesen Schlüssel verwendet, damit für alle, die diesen Agent ausführen dürfen.",
     "encryptedBoundOrganizationAgent": "Verschlüsselt und an diese Organisation gebunden. Ein Agent nennt es per ID, nie per Wert – so lässt es sich rotieren, ohne einen einzigen Agent anzufassen, und es kann nicht zurückgelesen werden.",
@@ -6397,6 +6495,14 @@
       "needs": "Nichts weiter.",
       "never": "Behält nichts zwischen Nachrichten und erreicht das Internet nicht. Für Dateien, die bleiben sollen, gibt es die Sandbox."
     },
+    "coding_agent": {
+      "name": "Coding Agent",
+      "does": "Übergibt Softwarearbeit an Claude Code oder Codex, die im Sandbox des Agent daran arbeiten, während Sie jeden Schritt im Chat sehen.",
+      "example1": "Einen fehlschlagenden Test in einem Repository beheben, das der Agent geklont hat",
+      "example2": "Erklären, wie ein Modul funktioniert, ohne etwas zu ändern",
+      "needs": "Die Capability Sandbox auf einer Sandbox-Verbindung und im Vault ein Anthropic- oder OpenAI-Key, ein Claude-Abo-Token oder eine ChatGPT-Anmeldung.",
+      "never": "Arbeitet nie außerhalb des Sandbox des Agent. Setzen Sie Freigabe durch einen Menschen auf Immer fragen, dann wartet jede Aufgabe auf Ihr Ja."
+    },
     "compaction": {
       "name": "Lange Gespräche",
       "does": "Kürzt den ältesten Teil eines langen Gesprächs, damit der Agent weiterarbeiten kann, statt an das Limit des Modells zu stoßen.",
@@ -6991,6 +7097,28 @@
         "title": "Ergebnisse pro Suche",
         "description": "Wie viele Ergebnisse eine Suche liefert; bei nativer Suche ignoriert."
       }
+    },
+    "coding_agent": {
+      "harness": {
+        "title": "Coding Agent",
+        "description": "Welcher Coding Agent die Arbeit erledigt: Claude Code mit einem Anthropic-Key oder einem Claude-Abo-Token, oder Codex mit einem OpenAI-Key oder einer ChatGPT-Anmeldung."
+      },
+      "access": {
+        "title": "Was er darf",
+        "description": "Dateien ändern und Befehle ausführen, etwa Tests - oder nur den Code lesen und antworten. Setzen Sie in beiden Fällen Freigabe durch einen Menschen, damit vor jeder Aufgabe gefragt wird."
+      },
+      "model": {
+        "title": "Modell",
+        "description": "Das Modell, mit dem der Coding Agent läuft: ein Claude-Modell für Claude Code, ein OpenAI-Modell für Codex. Nicht gesetzt nimmt den Standard des Coding Agent."
+      },
+      "base_url": {
+        "title": "Anthropic-kompatibler Endpunkt",
+        "description": "Nur Claude Code: ein Gateway, das die API von Anthropic spricht, etwa https://openrouter.ai/api; der Key im Vault ist dann der dieses Gateways. Leer ruft Anthropic direkt auf."
+      },
+      "timeout_minutes": {
+        "title": "Zeitlimit (Minuten)",
+        "description": "Wie lange eine Aufgabe laufen darf, bevor sie gestoppt wird."
+      }
     }
   },
   "apiReference": {
@@ -7079,5 +7207,113 @@
     "unavailableBody": "Dieses Deployment hat kein Redis für Live-Ansichten. Versuchen Sie es gleich noch einmal.",
     "rememberSignIn": "Anmeldung bei {site} für spätere Browses behalten",
     "signInKept": "Deine Anmeldung bei {site} bleibt für spätere Browses erhalten - verwalten unter Einstellungen → Anmeldungen."
+  },
+  "remoteAgents": {
+    "title": "Remote Agents",
+    "pageDescription": "Agents anderer Anbieter, an die Ihre Agents über das A2A-Protokoll Arbeit übergeben können. Registrieren Sie einen hier über seine Agent Card und wählen Sie ihn dann in den Delegationseinstellungen eines Agent.",
+    "listTitle": "Registrierte Remote Agents",
+    "registeredCount": "{count, plural, =1 {1 registriert} other {# registriert}}",
+    "emptyTitle": "Noch keine Remote Agents",
+    "emptyDescription": "Registrieren Sie einen Agent über die Adresse seiner A2A Agent Card, und Ihre Agents können an ihn delegieren wie an einen eigenen.",
+    "register": "Agent registrieren",
+    "registerTitle": "Remote Agent registrieren",
+    "registerDescription": "Die Agent Card wird jetzt gelesen, Name, Beschreibung und Fähigkeiten kommen also vom Agent selbst.",
+    "cardUrl": "Adresse der Agent Card",
+    "cardUrlHint": "Die URL der Karte oder die Basisadresse des Agent, unter der /.well-known/agent-card.json gelesen wird.",
+    "handle": "Aufrufname",
+    "handleHint": "Wie Ihre Agents ihn nennen. Leer wird er aus dem Namen des Agent gebildet.",
+    "key": "Gesendeter Key",
+    "keyHint": "Ein API-Key aus dem Vault, als Bearer-Token gesendet, wenn der Agent einen verlangt.",
+    "noKey": "Kein Key",
+    "suggestedKeyName": "Key für Remote Agent",
+    "cancel": "Abbrechen",
+    "reading": "Karte wird gelesen…",
+    "registered": "{name} registriert",
+    "refreshed": "Karte von {name} neu gelesen",
+    "refresh": "Karte neu lesen",
+    "refreshNamed": "Karte von {name} neu lesen",
+    "remove": "Entfernen",
+    "removeNamed": "{name} entfernen",
+    "removeTitle": "{name} entfernen?",
+    "removeDescription": "Agents, die an ihn delegieren, lassen sich erst wieder veröffentlichen, wenn sie ihn nicht mehr nennen, und ihre veröffentlichten Versionen brechen den Run beim Versuch ab.",
+    "withKey": "Sendet einen Key",
+    "answersOn": "Antwortet unter {host}",
+    "failedToLoad": "Die Remote Agents konnten nicht geladen werden."
+  },
+  "projects": {
+    "title": "Projekte",
+    "pageDescription": "Anweisungen und Dateien, die jeder in einem Projekt begonnene Chat teilt, egal welcher Agent antwortet.",
+    "newProject": "Neues Projekt",
+    "newProjectHint": "Ein Ort für laufende Arbeit: Jeder Chat darin liest seine Anweisungen und arbeitet in seinen Dateien.",
+    "created": "Projekt {name} erstellt",
+    "saved": "Projekt gespeichert",
+    "deleted": "Projekt gelöscht. Seine Chats sind jetzt normale Chats.",
+    "uploaded": "{count, plural, =1 {1 Datei hinzugefügt} other {# Dateien hinzugefügt}}",
+    "removed": "Entfernt",
+    "filesUnreadable": "Die Dateien des Projekts konnten nicht gelesen werden",
+    "activeWhen": "Aktiv {when}",
+    "chatCount": "{count, plural, =0 {Noch keine Chats} =1 {1 Chat} other {# Chats}}",
+    "projectCount": "{count, plural, =1 {1 Projekt} other {# Projekte}}",
+    "startsWith": "Beginnt mit {agent}",
+    "noDefaultAgent": "Kein Standard - der im Chat gewählte Agent",
+    "name": "Name",
+    "namePlaceholder": "Q3-Launch",
+    "description": "Beschreibung",
+    "descriptionPlaceholder": "Wofür dieses Projekt ist",
+    "defaultAgent": "Standard-Agent",
+    "defaultAgentHint": "Ein neuer Chat im Projekt beginnt mit diesem Agent. Antworten kann darin trotzdem jeder Agent.",
+    "instructions": "Anweisungen",
+    "instructionsHint": "Jeder Agent, der im Projekt antwortet, liest sie nach seinen eigenen.",
+    "instructionsPlaceholder": "Schreibe auf Deutsch. Der Brand Guide liegt in brand/guide.pdf.",
+    "whoWorksInIt": "Wer darin arbeitet",
+    "cancel": "Abbrechen",
+    "create": "Erstellen",
+    "save": "Speichern",
+    "newChat": "Neuer Chat",
+    "chats": "Chats",
+    "files": "Dateien",
+    "untitledChat": "Chat ohne Titel",
+    "appCount": "{count, plural, =1 {1 App} other {# Apps}}",
+    "moreChats": "Weitere Chats anzeigen",
+    "hereNow": "Gerade hier: {names}",
+    "seenBy": "Gesehen von {names}",
+    "moreReaders": "+{count}",
+    "isWorking": "{name} arbeitet",
+    "startedBy": "Begonnen von {name}",
+    "noChatsYet": "Noch keine Chats in diesem Projekt",
+    "noChatsHint": "Beginne einen: Er liest die Anweisungen des Projekts und arbeitet in seinen Dateien.",
+    "noChatsViewer": "Du kannst die Dateien und Anweisungen dieses Projekts lesen, aber nicht darin chatten.",
+    "uploadFiles": "Dateien hochladen",
+    "uploadFolder": "Ordner hochladen",
+    "newFolder": "Neuer Ordner",
+    "folderName": "Ordnername",
+    "folderPlaceholder": "berichte",
+    "remove": "Entfernen",
+    "removeTitle": "{path} entfernen?",
+    "removeBody": "Es verschwindet für jeden Chat und Agent im Projekt. Ein Ordner verschwindet mit allem darin.",
+    "delete": "Löschen",
+    "deleteProject": "Projekt löschen",
+    "deleteProjectHint": "Seine Dateien gehen mit. Seine Chats bleiben als normale Chats.",
+    "deleteTitle": "{name} löschen?",
+    "cannotSee": "Du kannst in dieser Organisation keine Projekte sehen",
+    "askForAccess": "Bitte einen Administrator um Zugriff auf Projekte.",
+    "search": "Projekte suchen",
+    "noMatches": "Kein Projekt passt",
+    "searchedNames": "Durchsucht werden Namen und Beschreibungen.",
+    "noProjectsYet": "Noch keine Projekte",
+    "noProjectsHint": "Ein Projekt hält Anweisungen und Dateien, die jeder Chat darin teilt.",
+    "pickTitle": "In einem Projekt arbeiten",
+    "pickHint": "Der Chat liest die Anweisungen des Projekts und arbeitet in seinen Dateien. Er bleibt im Projekt.",
+    "noProject": "Kein Projekt",
+    "noProjectHint": "Ein normaler Chat",
+    "manageProjects": "Neues oder alle Projekte",
+    "leaveProject": "Außerhalb von {name} beginnen",
+    "apps": "Apps",
+    "noAppsYet": "In diesem Projekt ist noch keine App entstanden",
+    "noAppsHint": "Eine App, die ein Agent in einem Chat des Projekts veröffentlicht - ein Bericht, ein Dashboard - erscheint hier.",
+    "uploadFailed": "Der Upload ist fehlgeschlagen",
+    "noFilesYet": "Noch nichts in diesem Projekt",
+    "noFilesHint": "Legen Sie Dateien oder einen ganzen Ordner hier ab, oder laden Sie sie hoch. Jeder Chat im Projekt liest sie und arbeitet damit.",
+    "noFilesViewer": "Dateien, die dem Projekt hinzugefügt werden, erscheinen hier."
   }
 }

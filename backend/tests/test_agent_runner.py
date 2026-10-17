@@ -551,6 +551,58 @@ class TestPrepare:
         assert opened.await_args.kwargs["identity"].user_id is None
 
     @pytest.mark.anyio
+    async def test_a_chat_in_a_project_works_in_the_projects_container(self):
+        """Whichever agent answers, and whatever scope its own binding asks for:
+        the project's files are what the person put there for any agent to use."""
+        ctx = _ctx()
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        project = MagicMock(
+            id=uuid.uuid4(),
+            description=None,
+            instructions="Cite sources.",
+            backend="state",
+            sandbox_connection_id=None,
+            runtime=None,
+        )
+        project.name = "Launch"
+
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(
+                    return_value=(agent, AgentSpec(name="Writer"), agent.current_version_id)
+                ),
+            ),
+            patch.object(
+                service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
+            ),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch(
+                "app.services.agent_runner.build_toolsets_for_agent",
+                new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+            ),
+            patch(
+                "app.services.agent_runner.ProjectService.for_run",
+                new=AsyncMock(return_value=project),
+            ),
+            patch("app.services.agent_runner.build_agent"),
+            patch.object(service.workspaces, "open", new=AsyncMock(return_value=None)) as opened,
+        ):
+            await service.prepare(ctx, agent.id, conversation_id=uuid.uuid4())
+
+        assert opened.await_args.kwargs["scope_override"] == "project"
+        assert opened.await_args.kwargs["identity"].project_id == project.id
+        opened_spec = opened.await_args.args[0]
+        assert [binding.id for binding in opened_spec.capabilities] == ["sandbox"]
+        assert "Cite sources." in opened_spec.instructions
+
+    @pytest.mark.anyio
     async def test_a_fire_acting_as_its_creator_is_the_creator_on_their_terms(self):
         """Their own connections speak for it and the audience is them - but an
         event's audience writes no memory and no fire searches conversations, and

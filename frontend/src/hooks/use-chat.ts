@@ -18,6 +18,7 @@ import type {
   AskUserQuestion,
   BrowserFrame,
   ChatMessageFile,
+  ChatPerson,
   Compaction,
   ConnectionRequest,
   PersonalServiceGap,
@@ -313,6 +314,11 @@ export function useChat(options: UseChatOptions = {}) {
   // goes on without them - see the switch below - and lands in the transcript
   // when it finishes, which is what coming back to one of these says.
   const [leftRunning, setLeftRunning] = useState<ReadonlySet<string>>(() => new Set());
+  // The conversation whose turn this tab is following from another socket's
+  // frames (`turn_attached`), or null. Its end is a re-read, not a `complete`.
+  const followingRef = useRef<string | null>(null);
+  // Who else has this conversation open, as its room last said - see `presence`.
+  const [present, setPresent] = useState<{ conversationId: string; people: ChatPerson[] }>();
   const leftTurnPending = activeConversationId !== null && leftRunning.has(activeConversationId);
   // Say in the list of conversations that this one is being answered, from the
   // moment the question goes rather than from whenever the server's next listing
@@ -414,6 +420,70 @@ export function useChat(options: UseChatOptions = {}) {
       };
 
       switch (wsEvent.type) {
+        // The reader came back to a conversation whose agent is still answering,
+        // under a socket this tab no longer holds - another chat was opened, the
+        // page reloaded. The server sends the turn so far and then the rest as it
+        // comes, and every frame after this one is drawn exactly as a live turn's.
+        case "turn_attached": {
+          const { conversation_id } = wsEvent.data as { conversation_id: string };
+          if (conversation_id !== activeConversationId) break;
+          followingRef.current = conversation_id;
+          setCurrentMessageId(null);
+          setLeftRunning((threads) => withoutThread(threads, conversation_id));
+          setIsProcessing(true);
+          break;
+        }
+
+        // A turn somebody else in the room asked: their question, drawn before the
+        // answer that follows it. Skipped when the transcript already holds it -
+        // a person who came back mid-turn read it there.
+        case "turn_prompt": {
+          const data = wsEvent.data as {
+            conversation_id: string;
+            message_id: string | null;
+            content: string;
+            sender: ChatPerson;
+            agent_id?: string;
+          };
+          if (followingRef.current !== data.conversation_id) break;
+          // The answer that follows is this agent's: its face and name from the start.
+          turnAgentIdRef.current = data.agent_id ?? null;
+          const id = data.message_id ?? clientId();
+          if (chatApi.getState().messages.some((message) => message.id === id)) break;
+          addMessage({
+            id,
+            role: "user",
+            content: data.content,
+            timestamp: new Date(),
+            conversationId: data.conversation_id,
+            sender: data.sender,
+          });
+          break;
+        }
+
+        // Who has this conversation open now: its room says so whenever somebody
+        // comes or goes.
+        case "presence": {
+          const data = wsEvent.data as { conversation_id: string; people: ChatPerson[] };
+          setPresent({ conversationId: data.conversation_id, people: data.people });
+          break;
+        }
+
+        // The followed turn is over and saved. The transcript is read again so the
+        // stored answer - its id, its cost, its rating - replaces the one drawn
+        // from the frames.
+        case "turn_followed_to_end": {
+          if (followingRef.current === null) break;
+          followingRef.current = null;
+          if (currentMessageIdRef.current) {
+            updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
+          }
+          setCurrentMessageId(null);
+          setIsProcessing(false);
+          onTurnInterrupted?.();
+          break;
+        }
+
         case "conversation_created": {
           const { conversation_id } = wsEvent.data as { conversation_id: string };
           setCurrentConversationId(conversation_id);
@@ -858,6 +928,7 @@ export function useChat(options: UseChatOptions = {}) {
       setCurrentMessageId,
       onConversationCreated,
       onTurnSaved,
+      onTurnInterrupted,
       activeConversationId,
       refreshConversationCost,
       t,
@@ -996,6 +1067,10 @@ export function useChat(options: UseChatOptions = {}) {
         setCurrentMessageId(null);
       }
       const userMessageId = clientId();
+      // Read at send time, as the agent is: a reply chosen while the turn was
+      // queued is the one it answers. Spent by this turn either way.
+      const replyTo = chatApi.getState().replyTo;
+      chatApi.getState().setReplyTo(null);
       addMessage({
         id: userMessageId,
         role: "user",
@@ -1004,6 +1079,10 @@ export function useChat(options: UseChatOptions = {}) {
         conversationId: conversationId || undefined,
         fileIds,
         files,
+        // Its id is this tab's until a reload reads the stored one, so nothing
+        // may be addressed to it yet - a reply to it included.
+        isTemporaryId: true,
+        replyTo: replyTo ?? undefined,
       });
       setIsProcessing(true);
       const payload: Record<string, unknown> = {
@@ -1011,6 +1090,11 @@ export function useChat(options: UseChatOptions = {}) {
         conversation_id: conversationId || null,
       };
       if (fileIds?.length) payload.file_ids = fileIds;
+      if (replyTo) payload.reply_to = replyTo.messageId;
+      // Only on the turn that starts the conversation: the server files a new
+      // chat into the project and ignores the field on every turn after.
+      const projectId = conversationApi.getState().pendingProjectId;
+      if (!conversationId && projectId) payload.project_id = projectId;
       // A model profile from the vault - the agent runs on it for this turn
       // instead of the model its spec names, and the run records which.
       if (modelProfileRef.current) payload.model_profile_id = modelProfileRef.current;
@@ -1040,6 +1124,8 @@ export function useChat(options: UseChatOptions = {}) {
     },
     [
       selectionApi,
+      conversationApi,
+      chatApi,
       addMessage,
       updateMessage,
       setCurrentMessageId,
@@ -1669,7 +1755,13 @@ export function useChat(options: UseChatOptions = {}) {
   }, [updateMessage, abandonOpenCalls, setCurrentMessageId]);
 
   const stopGeneration = useCallback(() => {
-    sendMessage({ type: "stop" });
+    // A turn this tab only follows is not this socket's to stop: stop following.
+    if (followingRef.current !== null) {
+      followingRef.current = null;
+      sendMessage({ type: "attach", conversation_id: null });
+    } else {
+      sendMessage({ type: "stop" });
+    }
     endTurnLocally();
   }, [sendMessage, endTurnLocally]);
 
@@ -1699,6 +1791,7 @@ export function useChat(options: UseChatOptions = {}) {
     const previous = turnBelongsTo.current;
     turnBelongsTo.current = activeConversationId;
     if (previous === null || previous === activeConversationId || !isProcessing) return;
+    followingRef.current = null;
     // Before the working mark's own cleanup, which runs after layout effects:
     // the thread left is still being answered, whatever this tab does next.
     handOffWorking(previous);
@@ -1764,6 +1857,24 @@ export function useChat(options: UseChatOptions = {}) {
     onTurnInterrupted?.();
   }, [isConnected, isProcessing, activeConversationId, endTurnLocally, onTurnInterrupted, chatApi]);
 
+  // Opening a conversation - or this socket coming back - asks to follow the turn
+  // being written in it, if one is. The server answers with `turn_attached` and
+  // the turn so far, or with nothing when no turn is running there. Not while this
+  // tab is writing a turn itself: that one already streams here.
+  const processingRef = useRef(isProcessing);
+  useEffect(() => {
+    processingRef.current = isProcessing;
+  }, [isProcessing]);
+  //
+  // Once its transcript is here, not before: the transcript replaces what the chat
+  // holds when it lands, and a turn already drawn from the frames would go with it.
+  const transcriptHere =
+    activeConversationId !== null && messages.at(-1)?.conversationId === activeConversationId;
+  useEffect(() => {
+    if (!isConnected || !transcriptHere || processingRef.current) return;
+    sendMessage({ type: "attach", conversation_id: activeConversationId });
+  }, [isConnected, transcriptHere, activeConversationId, sendMessage]);
+
   // Drain message queue when processing finishes AND we're back online.
   // Re-runs on either flip so a reconnect after offline → drains; a busy turn
   // ending → drains the next one.
@@ -1818,6 +1929,11 @@ export function useChat(options: UseChatOptions = {}) {
 
   return {
     messages,
+    /** Who has this conversation open, the reader included; empty until the room says. */
+    present:
+      present !== undefined && present.conversationId === activeConversationId
+        ? present.people
+        : [],
     isConnected,
     isProcessing,
     compacting,

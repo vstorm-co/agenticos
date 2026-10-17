@@ -32,7 +32,12 @@ from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret, AwsCredentialsSecret
-from app.repositories import agent_workspace_repo, organization_secret_repo, sandbox_connection_repo
+from app.repositories import (
+    agent_workspace_repo,
+    organization_secret_repo,
+    project_repo,
+    sandbox_connection_repo,
+)
 from app.repositories import conversation as conversation_repo
 from app.schemas.sandbox_connection import (
     SandboxConnectionCreate,
@@ -300,10 +305,28 @@ class TestEditing:
         monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
         deleted = AsyncMock()
         monkeypatch.setattr(sandbox_connection_repo, "delete", deleted)
+        monkeypatch.setattr(project_repo, "names_on_connection", AsyncMock(return_value=[]))
 
         await service.delete(_ctx(), row.id)
 
         deleted.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_a_connection_a_project_keeps_its_files_on_is_not_deleted(self, monkeypatch):
+        """Clearing the pin would hand the project the organization's default
+        host - an empty workspace - and strand its files on this one."""
+        service = _service(monkeypatch)
+        row = _row()
+        monkeypatch.setattr(sandbox_connection_repo, "get", AsyncMock(return_value=row))
+        deleted = AsyncMock()
+        monkeypatch.setattr(sandbox_connection_repo, "delete", deleted)
+        monkeypatch.setattr(project_repo, "names_on_connection", AsyncMock(return_value=["Launch"]))
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.delete(_ctx(), row.id)
+
+        assert refused.value.details == {"projects": ["Launch"]}
+        deleted.assert_not_awaited()
 
     async def test_a_listing_never_carries_a_credential(self, monkeypatch):
         """`secret_id` is a reference the vault resolves under its own check; a

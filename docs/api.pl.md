@@ -1,5 +1,5 @@
 ---
-source_sha: "8122fd41c206"
+source_sha: "29cf0b5c3b94"
 ---
 
 # API HTTP { #the-http-api }
@@ -65,7 +65,7 @@ Warto znać dwie odmowy:
 
 - **`403` "API keys are not accepted on this endpoint"** — klucze są przyjmowane
   wyłącznie w publicznym API: agenci, runy i zatwierdzenia, bazy wiedzy i RAG,
-  skille, pliki kontekstu, aplikacje, usługi ML, `/me/permissions` oraz
+  skille, pliki kontekstu, projekty, aplikacje, usługi ML, `/me/permissions` oraz
   członkowie, zaproszenia, grupy i ustawienia organizacji. Własne trasy konsoli,
   twoje konto, opuszczenie lub przekazanie organizacji i samo zarządzanie kluczami
   pozostają tylko dla sesji, więc wyciekły klucz nie wybije swojego następcy.
@@ -204,6 +204,32 @@ to, co i tak już widzisz — nigdy nie przekracza granicy najemcy ani grantu.
 Odpowiedź niesie też `categories` i `tags`: każdą odrębną etykietę na agentach,
 które możesz wylistować, niezależnie od filtra i strony — wybory, które podaje menu
 filtra. Prywatny agent, którego nie widzisz, nie dodaje żadnej.
+## Agenci przez A2A { #agents-over-a2a }
+
+Agent, którego organizacja udostępnia przez A2A, odpowiada na JSON-RPC pod
+`POST /api/v1/a2a/{agent_id}`, z tymi samymi kluczami co `/run`; jego agent card jest
+pod `GET /api/v1/a2a/{agent_id}/.well-known/agent-card.json` i nie wymaga żadnego.
+`PUT /api/v1/agents/{id}/a2a` z `{"enabled": true}` włącza to wywołującemu, który ma
+`agents:publish` na tym agencie.
+
+```bash
+curl -X POST "$BASE/api/v1/a2a/$AGENT_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "message/send",
+       "params": {"message": {"role": "user", "messageId": "m1",
+                              "parts": [{"kind": "text", "text": "Review clause 7"}]}}}'
+```
+
+Odpowiedzią jest `Task`, którego id to id runa, a `contextId` kontynuuje rozmowę.
+`tasks/get` odczytuje go ponownie. Resztę opisują [Kanały](channels.md#a2a).
+
+Zdalnych agentów, do których deleguje ta organizacja, rejestruje się pod
+`/api/v1/external-agents`: `GET` je listuje (`agents:view`); `POST` z `card_url`,
+opcjonalnym `slug` i opcjonalnym `secret_id` klucza API odczytuje kartę i rejestruje
+agenta, a `POST /{id}/refresh` odczytuje ją ponownie; `DELETE /{id}` usuwa
+rejestrację (`agents:edit` dla wszystkich trzech).
+
 ## Usługi ML { #the-ml-services }
 
 Cztery usługi platformy odpowiadają samodzielnie, bez rozmowy i bez agenta za

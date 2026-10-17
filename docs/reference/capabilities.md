@@ -57,6 +57,7 @@ browser is pointed at the deployment's browser service
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required |
+| `coding_agent` | Coding agent | analysis | `run_coding_agent` | `sandbox:execute` | required |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
 | `thinking` | Thinking | reasoning | none, by design | — | — |
@@ -1029,6 +1030,94 @@ under `/output`, so a later `execute` step can build with it — assemble a PDF,
 slide, a page. An agent without a workspace still generates and shows images; it
 simply has nowhere to build with them.
 
+## Coding agent { #coding-agent }
+
+`run_coding_agent` — *Hand a software task to the coding agent, which works on it in the sandbox until done.*
+
+Hands software work to **Claude Code** or **Codex**, running in the agent's own
+[sandbox](../sandbox.md). A general agent with a shell can edit code; a coding
+harness is better at it, and this is how an agent reaches one. The harness is a
+separate agent: the agent hands it a whole task, it works until done, and the
+chat shows it working. Another agent reaches a coding agent through ordinary
+[delegation](#delegation), the way it reaches any specialist.
+
+| Config | Default | Values |
+|---|---|---|
+| `harness` | `claude_code` | `claude_code` (an Anthropic API key or a Claude subscription token), `codex` (an OpenAI API key or a ChatGPT sign-in) |
+| `access` | `edit` | `edit` changes files and runs commands; `read_only` reads the code and answers (Claude Code only) |
+| `model` | the harness's default | Claude Opus, Sonnet or Haiku 5.5 for Claude Code; GPT-5.6 Sol, Terra, Luna or GPT-5.3 Codex for Codex |
+| `base_url` | Anthropic directly | Claude Code only: a gateway that speaks Anthropic's API, such as `https://openrouter.ai/api`, whose key the vault then holds. Dropped when Codex is chosen |
+| `timeout_minutes` | 15 | 1–60, for one task |
+
+**One tool, and the binding decides what it may do.** At `edit` the harness edits
+any file and runs any command in the sandbox, with its own prompts off
+(`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`):
+nobody sits at its terminal, and the container is the boundary both flags are
+documented for. At `read_only`, Claude Code runs in plan mode without any tool
+that writes - its editing tools and the shell - and reads with Read, Grep and Glob;
+it is told that nothing else can be approved. Not even reading commands: no list of
+command prefixes keeps a shell read-only, since `git log --output=<file>` matches
+`git log` as well as any read does. Codex has no `read_only`: its read-only mode is a
+sandbox of its own, which cannot start inside the agent's container, and publish
+refuses the combination. Whether a person says yes before each task is the
+capability's **Human approval**, set to **Always ask** — like every gate, it is off
+until somebody sets it. There is no Tools tab: the one tool is the capability.
+
+**The person watches it work.** The harness is started detached in the sandbox,
+`claude -p --output-format stream-json` or `codex exec --json`, and its events file
+is read every second and a half. Each step reaches the chat as it happens, in a
+panel of its own under the Claude Code or Codex mark, the way a delegation's do:
+the file it reads, the edit, the command it runs, what it says between them. When
+it finishes, the call's result holds the answer, every step and the files it
+changed. A task past `timeout_minutes`, and one the person stops, has its whole
+process group stopped. Detached also means a task is not cut at the sandbox
+service's ceiling for one command.
+
+**A conversation's tasks continue one session.** The harness's session id is kept
+in the sandbox beside the work, under `.agenticos/coding-agent/`, one per
+conversation, so the second task in a chat knows what the first one read - and a
+chat never continues another's in a sandbox several share, a project's or one scoped
+to a person or an agent. The model passes `fresh_session` to start
+over, and a session the sandbox no longer holds starts over by itself, once.
+
+**What it needs.** The `sandbox` capability on the `service` backend with shell
+commands on — publishing refuses anything else — and a runtime with the harness
+installed: the `workbench` runtime pins Claude Code 2.1.288 and Codex 0.160.0. The
+credential comes from the vault through the binding's `secret_id` and reaches the
+command through its environment, never on its command line. In a [project](../projects.md)
+that keeps its files without a container there is no shell, so the coding agent is
+left out of runs there and the agent is told why.
+
+**A key or a subscription.** Claude Code takes an Anthropic API key, or the token
+`claude setup-token` prints for a Claude Pro or Max subscription, stored as a key —
+it is told apart by its `sk-ant-oat` prefix, and it signs in to Anthropic only, not
+to a gateway. Codex takes an OpenAI API key, or a ChatGPT sign-in made with **Sign
+in with ChatGPT**, the same one a [model profile](../models.md) uses. For a task the
+sign-in is written to an `auth.json` in a Codex home of that task's own
+(`CODEX_HOME`), outside the workspace, and removed afterwards - two tasks running at
+once never share one, and the sessions Codex resumes are kept per conversation
+beside it. Any tokens Codex
+refreshed are sealed back over the same secret. Whatever Codex runs can read that
+file, so the sign-in is handed over only for a person who may see it in the vault
+themselves - running the agent is never a way to somebody else's subscription.
+An API key is different: it is the agent's, as a bot's token is in Slack, so
+every run uses it, whoever asked - and anything a task runs can read it. Bind a
+key that everyone who may run the agent may share.
+Running on a personal subscription is subject to Anthropic's and OpenAI's terms for
+those plans, which may not allow it on a shared deployment.
+
+**Delegating to a coding agent.** A delegate that binds `sandbox` itself runs in a
+fresh in-memory workspace with no shell, so a coding agent reached by delegation has
+nowhere to run its harness. Give the delegating agent the `sandbox` capability on a
+sandbox connection and list `sandbox` under Delegation's *Capabilities delegates inherit*: the
+coding agent then works in the parent's container, where the files it writes are
+the ones the parent sees.
+
+**Its spend is metered.** Both harnesses report their tokens per model, which are
+booked to the run's ledger like any model request, and the budget is checked before
+each task. Codex names no model in its events, so with no `model` set its usage is
+booked unpriced and the run's cost is marked partial.
+
 ## Apps { #artifacts }
 
 `publish_artifact` — *Publish a finished page - a report, a small dashboard, a
@@ -1340,6 +1429,32 @@ library: the delegates by name and description, the mode this run will actually
 use, and the fan-out ceiling it would otherwise discover by being refused. Two
 lists of the same delegates in one system prompt is context paid for twice, and
 only one of them can say what the deployment enforces.
+
+### Remote agents over A2A { #remote-agents }
+
+An agent may also delegate to **another vendor's agent** that speaks the
+[Agent2Agent protocol](https://a2a-protocol.org). It is registered once under
+**Connections → Remote agents** by the address of its agent card, which is read and
+validated then, with an optional API key from the vault sent as its bearer token.
+An agent's spec names registrations in `external_agents`, and Delegation's settings
+list them beside the organization's own agents. A registration's key is lent to
+every run, as a capability's is, so publishing refuses one whose key the publisher
+cannot see in the vault.
+
+To the delegating model a remote agent is one more delegate, called by its handle
+with the same `task` tool. Each call is one A2A `message/send` carrying the latest
+request, and the remote agent's `contextId` is carried from one call to the next
+within the run. An answer that is `input-required` or `auth-required` comes back as
+text saying so, because a delegate waiting on its own user is an answer the model
+has to read. A remote agent that cannot be reached answers with that, and the run
+goes on.
+
+The budget is checked before every call. What a call costs is the remote vendor's
+to price and nothing publishes it, so each call is booked unpriced and the run's
+cost says it is partial. Every request goes through the deployment's address
+checks, so a card or an endpoint cannot point the platform at its own network.
+Publishing refuses a reference to a registration that does not exist, and a run
+whose registration was removed since fails naming it.
 
 For what a delegation costs and which run row records it, see
 [Governance](../governance.md#delegation-spends-the-parents-budget). For who may

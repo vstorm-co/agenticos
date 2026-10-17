@@ -18,6 +18,7 @@ from app.db.models.context import ContextFile
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.organization_secret import OrganizationSecret
+from app.db.models.project import Project
 from app.db.models.skill import Skill
 
 
@@ -49,6 +50,13 @@ async def load_context(db: AsyncSession, context_id: UUID, organization_id: UUID
             message="Context file not found", details={"context_id": str(context_id)}
         )
     return file
+
+
+async def load_project(db: AsyncSession, project_id: UUID, organization_id: UUID) -> Project:
+    project = await db.get(Project, project_id)
+    if project is None or project.organization_id != organization_id:
+        raise NotFoundError(message="Project not found", details={"project_id": str(project_id)})
+    return project
 
 
 async def load_secret(

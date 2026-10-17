@@ -1,5 +1,5 @@
 ---
-source_sha: "6460bba9d44c"
+source_sha: "1d259295c6c5"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -741,6 +741,31 @@ zdecyduje.
 
 Limitowany na wywołującego, a nie na adres — biuro za jednym NAT-em to nie jeden
 wywołujący — wartością `RATE_LIMIT_RUN_PER_MINUTE`.
+
+## Inni agenci, przez A2A { #a2a }
+
+Agent innego systemu może wysyłać agentowi zadania przez
+[protokół Agent2Agent](https://a2a-protocol.org). Dla każdego agenta jest to
+wyłączone, dopóki ktoś, kto może go publikować, nie włączy **Agent2Agent (A2A)** w
+zakładce **Availability**, która pokazuje dwa adresy do przekazania drugiej stronie:
+
+- **agent card** pod `/api/v1/a2a/{agent_id}/.well-known/agent-card.json`, czytelny
+  bez klucza — nazwa agenta, opis, wersja, jego jedna umiejętność i sposób
+  uwierzytelnienia;
+- **endpoint** dla zadań, `POST /api/v1/a2a/{agent_id}`, JSON-RPC 2.0.
+
+Wywołujący wysyła jako bearer token klucz API organizacji albo token dostępu OAuth
+wydany przez ten deployment, który musi mieć prawo uruchamiać agenta.
+`message/send` uruchamia opublikowaną wersję jako zwykły run oznaczony `a2a`, więc
+obowiązują budżet, bramka zatwierdzeń, audit trail i Activity. Id zadania to id
+runa, a jego `contextId` to rozmowa, do której run trafia, więc ponowne wysłanie go
+kontynuuje tę rozmowę. Run zatrzymany na zatwierdzeniu odpowiada `input-required`;
+decyzję podejmuje się w konsoli, a `tasks/get` odczytuje, na czym potem stanął.
+
+Odpowiedź jest synchroniczna: `message/stream`, powiadomienia push i `tasks/cancel`
+są odrzucane z nazwy, a karta mówi, że streaming nie jest oferowany. Agent, który
+nie jest udostępniony — wyłączony, nieopublikowany, zarchiwizowany albo innej
+organizacji — odpowiada `404`, zarówno karta, jak i endpoint.
 
 ---
 
@@ -1605,6 +1630,7 @@ czytelnik faktycznie zobaczył.
 | `@mention` na kanale | To samo, z uchwytem usuniętym z zapisanego promptu |
 | Osadzony widget | To samo. Odwiedzający jest anonimowy; run i tury należą do właściciela widgetu |
 | HTTP API | To samo, gdy wywołanie niesie `conversation_id`. Nic bez niego — nie ma wątku, w który dałoby się wpisać turę, a wiersz runa i tak jest zapisem tego, że się to zdarzyło |
+| A2A | To samo. Każde zadanie trafia do rozmowy: nowej albo tej, którą wskazuje jego `contextId` |
 | Run wznowiony po zatwierdzeniu | Jego kontynuację — odpowiedź i wywołania, które wykonał, a wywołania także wtedy, gdy odpowiedzi nie ma, co ma kontynuacja parkująca ponownie na drugim bramkowanym wywołaniu. Żadnej tury użytkownika: podejmuje pracę przy wywołaniu, na którym stanął, a wymyślenie pytania włożyłoby komuś słowa w usta |
 
 **Zapisywane jest to, co napisał człowiek, a nie prompt złożony wokół tego.**

@@ -85,6 +85,7 @@ from pydantic_ai_harness.guardrails import GuardrailResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import prompt_variables
+from app.agents.a2a_delegate import a2a_delegate
 from app.agents.ask_user import (
     QuestionItem,
     answers_to_response,
@@ -120,6 +121,7 @@ from app.agents.capabilities.channel_tools import (
     CHANNEL_TOOLS_CAPABILITY_ID,
     ChannelDirectory,
 )
+from app.agents.capabilities.coding_agent import CODING_AGENT_ID
 from app.agents.capabilities.context import CONTEXT_FILES_RESOURCE
 from app.agents.capabilities.guardrails import (
     GuardrailBlocked,
@@ -156,6 +158,7 @@ from app.agents.observability import current_trace_id
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
+    ExternalAgentRef,
     McpServerRef,
     ObservabilitySpec,
     PersonalMcpServerRef,
@@ -193,12 +196,13 @@ from app.core.exceptions import (
     RunFailedError,
 )
 from app.core.permissions import AuthContext, Perm
-from app.core.secret_kinds import StorableSecret
+from app.core.secret_kinds import ApiKeySecret, StorableSecret
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunOrder, RunStatus, RunSurface
 from app.db.models.chat_file import ChatFile
 from app.db.models.conversation import Message
+from app.db.models.project import Project
 from app.db.models.run_manifest import RunManifest
 from app.db.session import get_worker_db_context
 from app.repositories import (
@@ -208,6 +212,7 @@ from app.repositories import (
     agent_run_repo,
     chat_file_repo,
     conversation_repo,
+    external_agent_repo,
     group_repo,
     knowledge_base_repo,
     member_repo,
@@ -248,10 +253,12 @@ from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
+from app.services.project import ProjectService
 from app.services.sandbox_workspace import (
     SANDBOX_CAPABILITY_ID,
     OpenWorkspace,
     SandboxWorkspaceService,
+    project_sandbox,
 )
 from app.services.skill_proposal import SkillProposalService
 from app.services.skill_workspace import SKILLS_ROOT, MaterialisedSkills, collect_changes
@@ -1446,6 +1453,58 @@ async def _with_exposure_prompt(
     # names none costs nothing at all.
     added = await resolve_prompt_variables(added, directory)
     return spec.model_copy(update={"instructions": f"{spec.instructions}\n\n{added}"})
+
+
+def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
+    """The spec as it runs in a project: in the project's container, told about it.
+
+    The container replaces whatever workspace the agent keeps for itself, and is
+    given to an agent that keeps none - which agent answered a chat in a project
+    should not decide whether it can read the project's files. Its own sandbox
+    binding's approval settings carry over, so an author who gated the shell keeps
+    the gate. The project's instructions come after the agent's own: the agent is
+    still what it is, working on this.
+    """
+    config = project_sandbox(project).model_dump(mode="json")
+    own = next(
+        (binding for binding in spec.capabilities if binding.id == SANDBOX_CAPABILITY_ID), None
+    )
+    binding = (
+        own.model_copy(update={"config": config, "enabled": True})
+        if own is not None
+        else CapabilityBindingSpec(id=SANDBOX_CAPABILITY_ID, config=config)
+    )
+    briefing = (
+        f"## Project: {project.name}\n\n"
+        "This conversation is part of a project. Your workspace is the project's: its "
+        "files are shared with every chat in the project and every agent that answers "
+        "in it, whoever asked - so keep work there, and look there first for what the "
+        "person refers to."
+    )
+    if project.description:
+        briefing += f"\n\n{project.description}"
+    if project.instructions.strip():
+        briefing += f"\n\n### The project's instructions\n\n{project.instructions.strip()}"
+    # A project the platform keeps files for has no container, and so no shell:
+    # a coding agent bound here would fail on every task. It is left out of the
+    # run, and the agent is told why rather than trying.
+    shell = project.backend == "service"
+    if not shell and any(entry.id == CODING_AGENT_ID for entry in spec.capabilities):
+        briefing += (
+            "\n\nThe coding agent is not available in this project: it keeps its files "
+            "without a container, so there is no shell to run Claude Code or Codex in. "
+            "If a task needs one, say so."
+        )
+    dropped = {SANDBOX_CAPABILITY_ID} | (set() if shell else {CODING_AGENT_ID})
+    return spec.model_copy(
+        update={
+            "capabilities": [
+                *(entry for entry in spec.capabilities if entry.id not in dropped),
+                binding,
+            ],
+            "instructions": f"{spec.instructions}\n\n{briefing}",
+        }
+    )
 
 
 def _with_workspace_briefing(spec: AgentSpec, workspace: OpenWorkspace) -> AgentSpec:
@@ -2821,6 +2880,12 @@ class AgentRunnerService:
             self._department_context(ctx, existing_run), exclude_run_id=run.id
         )
 
+        # A chat in a project works in the project's container and reads its
+        # instructions, whichever agent answers - see `_in_project`.
+        project = await ProjectService(self.db).for_run(ctx, conversation_id)
+        if project is not None:
+            spec = _in_project(spec, project)
+
         # Opened after the run row, because a run-scoped workspace keys on it,
         # and before the agent, because the capability reads the backend out of
         # `resources`. Nothing starts here for a container-backed one: the
@@ -2849,12 +2914,16 @@ class AgentRunnerService:
                     else str(ctx.user_id)
                 ),
                 channel_key=channel_key,
+                project_id=project.id if project is not None else None,
             ),
             # What the binding that admitted this run says, if it says anything.
             # The same agent in web chat and on a Slack bot is one agent in two
-            # situations, and one value for both was the wrong shape.
+            # situations, and one value for both was the wrong shape. A project's
+            # container is the project's, whatever either says.
             scope_override=(
-                cast("SessionScope | None", exposure.session_scope)
+                "project"
+                if project is not None
+                else cast("SessionScope | None", exposure.session_scope)
                 if exposure is not None and exposure.session_scope
                 else None
             ),
@@ -3260,7 +3329,46 @@ class AgentRunnerService:
                     ancestors=ancestors,
                 )
             )
+        if spec.external_agents:
+            resolved.extend(await self._resolve_external(delegation, spec.external_agents))
         _refuse_duplicate_names(resolved)
+        return resolved
+
+    async def _resolve_external(
+        self, delegation: _Delegation, refs: Sequence[ExternalAgentRef]
+    ) -> list[ResolvedSubagent]:
+        """Remote A2A agents, each a delegate that sends its task over the wire (#2092).
+
+        A registration that was removed since publish fails the run, naming it, as
+        a pin to a vanished version does: delegating to "whatever is there now"
+        is not what was published. Its credential is unsealed now, like every
+        secret a run holds, and goes nowhere but its own endpoint.
+        """
+        ctx = delegation.ctx
+        rows = await external_agent_repo.get_many(
+            self.db, [ref.external_agent_id for ref in refs], organization_id=ctx.organization_id
+        )
+        missing = [str(ref.external_agent_id) for ref in refs if ref.external_agent_id not in rows]
+        if missing:
+            raise BadRequestError(
+                message="A remote agent this agent delegates to is no longer registered",
+                details={"external_agent_ids": missing},
+            )
+        secret_ids = [row.secret_id for row in rows.values() if row.secret_id is not None]
+        secrets = await self.secrets.resolve_for_bindings(ctx, secret_ids)
+        resolved: list[ResolvedSubagent] = []
+        for ref in refs:
+            row = rows[ref.external_agent_id]
+            secret = secrets.get(row.secret_id) if row.secret_id is not None else None
+            bearer = secret.api_key.get_secret_value() if isinstance(secret, ApiKeySecret) else None
+            resolved.append(
+                ResolvedSubagent(
+                    name=row.slug,
+                    description=row.description or row.name,
+                    build=a2a_delegate(handle=row.slug, endpoint=row.endpoint_url, bearer=bearer),
+                    preferred_mode=ref.preferred_mode,
+                )
+            )
         return resolved
 
     async def _resolve_specialist(

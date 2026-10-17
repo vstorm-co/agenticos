@@ -690,6 +690,24 @@ class TestRunCompletedAndFailed:
         assert call["use_savepoint"] is True
 
     @pytest.mark.anyio
+    async def test_the_row_keeps_the_agents_face_for_the_inbox(self, written):
+        initiator = uuid.uuid4()
+        agent = _agent()
+        agent.slug = "support"
+        agent.has_avatar = False
+        agent.avatar_color = 3
+        with patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(initiator)):
+            await NotificationService(MagicMock()).run_completed(
+                _run(user_id=initiator), agent=agent
+            )
+
+        context = written.calls[0]["render_context"]
+        assert context["agent_id"] == str(agent.id)
+        assert context["agent_slug"] == "support"
+        assert context["agent_has_avatar"] is False
+        assert context["agent_avatar_color"] == 3
+
+    @pytest.mark.anyio
     async def test_a_run_with_no_initiator_notifies_nobody(self, written):
         await NotificationService(MagicMock()).run_completed(_run(user_id=None), agent=_agent())
 

@@ -68,6 +68,13 @@ export const GROUP_DETAIL = "group-detail";
 export const WORKSPACE_DETAIL = "workspace-detail";
 
 /**
+ * One project, `/projects/<id>`. Like a Documents folder there is no seeded
+ * example to open, so its stop is "?"-only help shown on a project of the
+ * reader's own.
+ */
+export const PROJECT_DETAIL = "project-detail";
+
+/**
  * One stop on the guided tour.
  *
  * The engine (`components/onboarding`) gets the reader to `page`, optionally
@@ -644,6 +651,36 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.connectionsView,
   },
 
+  // Projects: shared instructions and files, and the chats started in them.
+  {
+    id: "projects-new",
+    page: ROUTES.PROJECTS,
+    target: "projects-new",
+    permission: Perm.projectsEdit,
+  },
+  {
+    id: "projects-list",
+    page: ROUTES.PROJECTS,
+    target: "projects-list",
+    permission: Perm.projectsView,
+  },
+  { id: "project-tabs", page: PROJECT_DETAIL, target: "project-tabs" },
+
+  // Other vendors' agents, reached over A2A (#2092). The list is what the page
+  // is for; registering is `agents:edit`, which the button carries.
+  {
+    id: "remote-agents-list",
+    page: ROUTES.REMOTE_AGENTS,
+    target: "remote-agents-list",
+    permission: Perm.agentsView,
+  },
+  {
+    id: "remote-agents-register",
+    page: ROUTES.REMOTE_AGENTS,
+    target: "remote-agents-register",
+    permission: Perm.agentsEdit,
+  },
+
   // Routines — the org-wide home for everything an agent does on its own. Two
   // stops: what is already running, and the two ways to start one. The create
   // stop is gated on the run floor a trigger is created at, not on a role: a
@@ -729,6 +766,7 @@ export function pageKey(path: string): string {
   if (path.startsWith(`${ROUTES.GROUPS}/`)) return GROUP_DETAIL;
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.DOCUMENTS}/`)) return WORKSPACE_DETAIL;
+  if (path.startsWith(`${ROUTES.PROJECTS}/`)) return PROJECT_DETAIL;
   return path;
 }
 

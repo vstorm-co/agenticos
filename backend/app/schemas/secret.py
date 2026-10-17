@@ -53,6 +53,42 @@ class SecretUpdate(BaseSchema):
     )
 
 
+# Long enough for the address ChatGPT redirects to, code and state included;
+# short enough that a paste of something else entirely is refused as such.
+_MAX_CALLBACK_URL = 4096
+
+
+class OpenAICodexSignIn(BaseSchema):
+    """Where to send a person to sign in with ChatGPT."""
+
+    authorization_url: str = Field(
+        description=(
+            "Open this in a browser. After signing in, ChatGPT redirects to an address on "
+            "localhost that may not load - copy it from the address bar and send it back as "
+            "`callback_url`."
+        )
+    )
+
+
+class OpenAICodexSecretCreate(BaseSchema):
+    """Finish a ChatGPT sign-in and store it as a new secret."""
+
+    name: str = Field(min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=1000)
+    visibility: VisibilityLiteral = Field(default="private")
+    callback_url: str = Field(
+        min_length=1,
+        max_length=_MAX_CALLBACK_URL,
+        description="The whole address the sign-in ended on, with its `code` and `state`",
+    )
+
+
+class OpenAICodexSecretReconnect(BaseSchema):
+    """Finish a ChatGPT sign-in and put it in place of an existing one."""
+
+    callback_url: str = Field(min_length=1, max_length=_MAX_CALLBACK_URL)
+
+
 class SecretPurposeRead(BaseSchema):
     """One thing a secret can be for, as the vault offers it."""
 

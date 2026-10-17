@@ -60,7 +60,8 @@ export type WidgetId =
   | "activity-rhythm"
   | "routines"
   | "notifications"
-  | "artifacts";
+  | "artifacts"
+  | "projects";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -552,6 +553,16 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r4",
     category: "workspace",
     seeAll: ROUTES.ARTIFACTS,
+  },
+  // The reader's projects, most recently changed first - what `GET /projects`
+  // itself asks, and nothing more.
+  projects: {
+    id: "projects",
+    gate: holds(Perm.projectsView),
+    defaultSpan: "s12",
+    defaultRows: "r2",
+    category: "workspace",
+    seeAll: ROUTES.PROJECTS,
   },
   "shared-with-you": {
     id: "shared-with-you",

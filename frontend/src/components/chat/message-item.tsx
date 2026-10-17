@@ -13,6 +13,8 @@ import { CopyButton } from "./copy-button";
 import { MessageSources } from "./message-sources";
 import { TurnDelegations } from "./turn-delegations";
 import { RoundedCost } from "./message-cost";
+import { PersonFace } from "./person-face";
+import { ReplyQuote, replyExcerpt } from "./reply-quote";
 import { YouFace } from "./you-face";
 import { TURN_ACTION } from "./turn-action";
 import { RatingButtons } from "./rating-buttons";
@@ -20,7 +22,17 @@ import { useChatStore, useFilePreviewStore } from "@/stores";
 import { useMcpToolServers } from "@/hooks";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
-import { Bot, FileText, OctagonPause, Paperclip, Pin, PinOff, RefreshCw } from "lucide-react";
+import {
+  Bot,
+  CornerUpLeft,
+  FileText,
+  OctagonPause,
+  Paperclip,
+  Pin,
+  PinOff,
+  RefreshCw,
+  UserRound,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { useAuthStore } from "@/stores";
@@ -97,9 +109,16 @@ export function MessageItem({
   const tInput = useTranslations("chat.input");
   const isUser = message.role === "user";
   const updateMessage = useChatStore((state) => state.updateMessage);
+  const setReplyTo = useChatStore((state) => state.setReplyTo);
+  const tReply = useTranslations("chat.reply");
   const openPreview = useFilePreviewStore((s) => s.open);
   const openSources = useSourcesPanelStore((s) => s.open);
   const { user: authUser } = useAuthStore();
+  // A teammate's words in a project's chat: theirs, not the reader's "You".
+  const teammate =
+    isUser && message.sender && message.sender.user_id !== authUser?.id ? message.sender : null;
+  // Somebody who has since left: never drawn as the reader.
+  const former = isUser && message.senderGone === true;
   // Read once per turn and handed to each step, so a public surface can render the
   // same step without a session - see `TurnParts`.
   const mcpServers = useMcpToolServers();
@@ -137,7 +156,13 @@ export function MessageItem({
         !isUser && !agent && "bg-muted text-foreground",
       )}
     >
-      {isUser ? (
+      {teammate ? (
+        <PersonFace person={teammate} className="h-full w-full text-[10px]" />
+      ) : former ? (
+        <span className="bg-muted text-muted-foreground grid h-full w-full place-items-center">
+          <UserRound className="h-3.5 w-3.5" aria-hidden />
+        </span>
+      ) : isUser ? (
         <YouFace />
       ) : agent ? (
         <AgentAvatar
@@ -196,7 +221,13 @@ export function MessageItem({
               compact ? "text-muted-foreground text-xs" : "text-foreground text-sm",
             )}
           >
-            {isUser ? t("rail.you") : (agent?.name ?? t("rail.agent"))}
+            {teammate
+              ? teammate.name
+              : former
+                ? t("rail.formerMember")
+                : isUser
+                  ? t("rail.you")
+                  : (agent?.name ?? t("rail.agent"))}
             {!isUser && message.agentVersion !== undefined && (
               <span className="text-muted-foreground font-normal"> · v{message.agentVersion}</span>
             )}
@@ -266,15 +297,22 @@ export function MessageItem({
             );
           })()}
 
-        <MessageBody
-          message={message}
-          isUser={isUser}
-          mcpServers={mcpServers}
-          agents={agents}
-          openLastStep={openLastStep}
-          endsTurn={endsTurn}
-          onCiteClick={onCiteClick}
-        />
+        {message.replyTo && (
+          <ReplyQuote reply={message.replyTo} agents={agents} align={isUser ? "end" : "start"} />
+        )}
+        {/* Pulled up onto the quote it answers, as a reply bubble sits in a chat
+            app: the two read as one exchange rather than two stacked boxes. */}
+        <div className={cn("contents", message.replyTo && "relative -mt-4 block")}>
+          <MessageBody
+            message={message}
+            isUser={isUser}
+            mcpServers={mcpServers}
+            agents={agents}
+            openLastStep={openLastStep}
+            endsTurn={endsTurn}
+            onCiteClick={onCiteClick}
+          />
+        </div>
 
         {!isUser && !message.isStreaming && apps.length > 0 && (
           // What the turn made, under what it said: the app is the answer to
@@ -341,6 +379,28 @@ export function MessageItem({
             )}
             {isUser && pins && message.content && (
               <PinButton pins={pins} prompt={message.content} />
+            )}
+            {/* Stored messages only: a reply names the row it answers, and a
+                message still on this tab's own id has none yet. */}
+            {!message.isTemporaryId && !message.isStreaming && message.content && (
+              <button
+                type="button"
+                onClick={() =>
+                  setReplyTo({
+                    messageId: message.id,
+                    role: message.role,
+                    excerpt: replyExcerpt(message.content),
+                    sender: isUser ? message.sender : undefined,
+                    agentId: isUser ? undefined : agent?.id,
+                    agentName: isUser ? undefined : agent?.name,
+                  })
+                }
+                title={tReply("reply")}
+                aria-label={tReply("reply")}
+                className={cn(TURN_ACTION, "sm:opacity-0 sm:group-hover:opacity-100")}
+              >
+                <CornerUpLeft />
+              </button>
             )}
             {!isUser && onRegenerate && (
               <button

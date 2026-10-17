@@ -73,6 +73,7 @@ export default defineConfig({
         "src/components/dashboard/agent-face.tsx",
         "src/components/dashboard/me-header.tsx",
         "src/components/dashboard/widgets/artifacts.tsx",
+        "src/components/dashboard/widgets/projects.tsx",
         // Department budgets (#2072): the dashboard card and the group page's.
         "src/components/dashboard/widgets/department-spend.tsx",
         "src/components/dashboard/widgets/department-quality.tsx",
@@ -107,6 +108,15 @@ export default defineConfig({
         "src/components/public-config/**/*.tsx",
         "src/components/runs/**/*.tsx",
         "src/components/sandboxes/**/*.tsx",
+        "src/components/remote-agents/**/*.tsx",
+        // Projects: the pages, the composer's picker and the sidebar's rows.
+        "src/components/projects/**/*.tsx",
+        "src/components/layout/project-rows.tsx",
+        "src/components/layout/notification-glyph.tsx",
+        "src/components/chat/project-chip.tsx",
+        "src/components/chat/chat-room-bar.tsx",
+        "src/components/chat/reply-quote.tsx",
+        "src/components/chat/person-face.tsx",
         // One file viewer for every surface (#136). Held to the gate because what
         // it replaced was: three of the four implementations sat under
         // `components/sandboxes/**` and one under `chat/`, all already at 100%, so
@@ -164,6 +174,7 @@ export default defineConfig({
         "src/components/chat/source-mark.tsx",
         "src/components/chat/markdown-quote.tsx",
         "src/components/chat/delegation-chat.tsx",
+        "src/components/chat/delegate-face.tsx",
         "src/components/chat/delegation-sheet.tsx",
         "src/components/chat/turn-delegations.tsx",
         "src/components/chat/tool-call-card.tsx",

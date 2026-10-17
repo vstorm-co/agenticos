@@ -320,6 +320,25 @@ class TestListing:
         assert result.total == 0
         assert listing.await_args.kwargs["see_all"] is True
 
+    async def test_a_project_s_apps_are_asked_for_only_once_the_project_is_seen(self) -> None:
+        """A project the caller cannot see answers 404, as opening it does, rather
+        than an empty list that says it exists and holds nothing."""
+        ctx = _ctx()
+        project_id = uuid.uuid4()
+        seen = AsyncMock()
+        with (
+            patch(f"{PATH}.ProjectService") as projects,
+            patch(f"{PATH}.visible_resource_ids", new=AsyncMock(return_value=None)),
+            patch(
+                f"{PATH}.artifact_repo.list_visible", new=AsyncMock(return_value=([], 0))
+            ) as listing,
+            patch(f"{PATH}.artifact_repo.latest_versions", new=AsyncMock(return_value={})),
+        ):
+            projects.return_value.get = seen
+            await _service().list_readable(ctx, project_id=project_id)
+        seen.assert_awaited_once_with(ctx, project_id)
+        assert listing.await_args.kwargs["project_id"] == project_id
+
     async def test_shared_with_me_asks_for_grants_even_when_the_role_reaches_everything(
         self,
     ) -> None:

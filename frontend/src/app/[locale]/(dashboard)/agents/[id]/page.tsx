@@ -45,6 +45,7 @@ import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
+import { A2aPanel } from "@/components/agents/a2a-panel";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
 import { ExposuresPanel } from "@/components/agents/exposures-panel";
 import { TriggersPanel } from "@/components/triggers/triggers-panel";
@@ -1473,6 +1474,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   // is handed that slice as well as the binding.
                   subagents={spec.subagents ?? []}
                   onSubagentsChange={(subagents) => update({ subagents })}
+                  externalAgents={spec.external_agents ?? []}
+                  onExternalAgentsChange={(external_agents) => update({ external_agents })}
                   // What the agent is *given*, picked in the panel of the
                   // capability that reads it. Each setter switches that capability
                   // on with the first pick, because bound without it the resources
@@ -1697,6 +1700,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 (binding) => binding.id === SANDBOX_ID && binding.enabled !== false,
               )}
             />
+            <A2aPanel agent={agent} canManage={canPublish} />
             {/* Managing a trigger is the same floor as running the agent, not
               publishing it - the server resolves `agents:run` per row. */}
             <TriggersPanel

@@ -13,6 +13,8 @@ import { createPortal } from "react-dom";
 
 import { AttachmentCard, PendingAttachmentCard } from "./attachment-card";
 import { AttachmentRow } from "./attachment-row";
+import { ReplyingTo } from "./reply-quote";
+import { useChatStore } from "@/stores";
 import { ComposerSheet } from "./composer-sheet";
 
 /**
@@ -107,6 +109,8 @@ interface ChatInputProps {
    * stay inside this `<form>` to submit it.
    */
   controlsSlot?: ReactNode;
+  /** Opens the project picker from the `+`; absent where a chat cannot change project. */
+  onProject?: () => void;
   /**
    * Icons drawn before the microphone: what the conversation is using, and the
    * model it runs on. Icons, because a line of readings and a model's name took
@@ -143,11 +147,15 @@ export function ChatInput({
   attachmentSlot,
   mic,
   controlsSlot,
+  onProject,
   actionsSlot,
   incoming = null,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
+  // The message this turn will answer, chosen with Reply on it.
+  const replyTo = useChatStore((state) => state.replyTo);
+  const setReplyTo = useChatStore((state) => state.setReplyTo);
   const tCommands = useTranslations("chat.commands");
   const { chatMaxUploadSizeMb } = usePublicConfig();
   const [message, setMessage] = useState("");
@@ -160,6 +168,10 @@ export function ChatInput({
   // caller wired a context - without one, commands have nothing to do.
   const [paletteIndex, setPaletteIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Reply was just chosen on a message: the person goes on to type the answer.
+  useEffect(() => {
+    if (replyTo) textareaRef.current?.focus();
+  }, [replyTo]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
@@ -475,6 +487,8 @@ export function ChatInput({
           </AttachmentRow>,
         )}
 
+      {replyTo && <ReplyingTo reply={replyTo} onCancel={() => setReplyTo(null)} />}
+
       {/* The text has the box to itself, and every control is on one row under
           it. The buttons used to sit *beside* the textarea, which is fine on
           one line and wrong on ten: the send button drifted to the vertical
@@ -519,6 +533,7 @@ export function ChatInput({
                 }
               : undefined
           }
+          onProject={onProject}
           disabled={disabled || isUploading}
         />
         {isUploading && <Spinner className="text-muted-foreground h-4 w-4 shrink-0" />}

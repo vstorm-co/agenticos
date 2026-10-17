@@ -356,6 +356,29 @@ describe("useAgent metadata", () => {
     ).rejects.toThrow();
     expect(toast.error).toHaveBeenCalledWith("too many tags");
   });
+
+  it("serves the agent over A2A through its own endpoint", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.put).mockResolvedValue({ id: "a1", a2a_enabled: true });
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.setA2a.mutateAsync(true);
+
+    expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/a2a", { enabled: true });
+  });
+
+  it("reports a refused A2A switch", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ id: "a1", draft_spec: {} });
+    vi.mocked(apiClient.put).mockRejectedValue(new Error("Publish the agent first"));
+
+    const { result } = renderHook(() => useAgent("a1"), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await expect(result.current.setA2a.mutateAsync(true)).rejects.toThrow();
+    expect(toast.error).toHaveBeenCalledWith("Publish the agent first");
+  });
 });
 
 describe("useCapabilityCatalog", () => {

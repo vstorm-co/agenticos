@@ -115,7 +115,13 @@ export function AgentPicker() {
           {currentConversationId ? t("appliesNext") : t("whoAnswers")}
         </p>
 
-        <div role="radiogroup" aria-label={t("label")} className="space-y-px">
+        <div
+          role="radiogroup"
+          aria-label={t("label")}
+          // Scrolls on its own, under the line that says what it is, so an
+          // organization with many agents does not run the menu off the screen.
+          className="max-h-[min(60vh,26rem)] scrollbar-thin space-y-px overflow-y-auto"
+        >
           {runnable.map((agent) => (
             <AgentOption
               key={agent.id}

@@ -209,6 +209,70 @@ class TestPersistUserTurnOrgScope:
         assert service.create_conversation.call_args.args[0].organization_id == org_id
 
     @pytest.mark.anyio
+    async def test_a_new_conversation_starts_in_the_project_its_author_may_work_in(self):
+        org_id, project_id = uuid.uuid4(), uuid.uuid4()
+        service = self._conv_service(MagicMock(id=uuid.uuid4()))
+        allowed = AsyncMock(return_value=MagicMock(id=project_id))
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch(
+                "app.services.agent.member_repo.get",
+                new=AsyncMock(return_value=MagicMock(role="member")),
+            ),
+            patch("app.services.agent.ProjectService.check_can_start", new=allowed),
+        ):
+            await persist_user_turn(
+                _user(),
+                "hello",
+                [],
+                requested_conversation_id=None,
+                current_conversation_id=None,
+                organization_id=org_id,
+                project_id=str(project_id),
+            )
+
+        assert service.create_conversation.call_args.args[0].project_id == project_id
+        checked_as, checked_project = allowed.await_args.args
+        assert (checked_as.organization_id, checked_as.role) == (org_id, "member")
+        assert checked_project == project_id
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("project_id", "membership", "refusal"),
+        [
+            ("not-a-uuid", MagicMock(role="member"), BadRequestError),
+            (str(uuid.uuid4()), None, AuthorizationError),
+        ],
+        # Named, not derived from the values: a random id in a test's name
+        # differs between xdist workers, which then refuse to run at all.
+        ids=["not-an-id", "not-a-member"],
+    )
+    async def test_a_project_that_cannot_be_started_in_starts_no_conversation(
+        self, project_id, membership, refusal
+    ):
+        service = self._conv_service(MagicMock(id=uuid.uuid4()))
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+            patch("app.services.agent.member_repo.get", new=AsyncMock(return_value=membership)),
+            pytest.raises(refusal),
+        ):
+            await persist_user_turn(
+                _user(),
+                "hello",
+                [],
+                requested_conversation_id=None,
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+                project_id=project_id,
+            )
+
+        service.create_conversation.assert_not_called()
+
+    @pytest.mark.anyio
     async def test_a_resumed_conversation_persists_the_user_message(self):
         """The second message of a thread is written, not logged and dropped.
 
@@ -250,14 +314,17 @@ class TestPersistUserTurnOrgScope:
         """The tenant reaches the service, which is where the check lives."""
         org_id = uuid.uuid4()
         conversation_id = uuid.uuid4()
-        service = self._conv_service(MagicMock(organization_id=org_id, title=None))
+        owner = _user()
+        service = self._conv_service(
+            MagicMock(organization_id=org_id, title=None, user_id=owner.id)
+        )
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
             patch("app.services.agent.get_conversation_service", return_value=service),
         ):
             await persist_user_turn(
-                _user(),
+                owner,
                 "hello",
                 [],
                 requested_conversation_id=str(conversation_id),
@@ -269,6 +336,92 @@ class TestPersistUserTurnOrgScope:
         # The retitling of an untitled thread goes through the same door, and it
         # was the second call #5 named.
         assert service.update_conversation.await_args.kwargs["organization_id"] == org_id
+
+    @pytest.mark.anyio
+    async def test_a_reply_is_written_with_its_message_and_read_as_the_model_hears_it(self):
+        """The text the model is handed is the turn as said - who, and to what -
+        while the transcript keeps what was typed."""
+        owner = _user()
+        replied = uuid.uuid4()
+        service = self._conv_service(
+            MagicMock(organization_id=uuid.uuid4(), title="Plan", user_id=owner.id)
+        )
+        service.model_text.return_value = 'Kacper: (In reply to your earlier answer: "x")\n\nyes'
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            prompt = await persist_user_turn(
+                owner,
+                "yes",
+                [],
+                requested_conversation_id=str(uuid.uuid4()),
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+                reply_to=str(replied),
+            )
+
+        written = service.add_message.await_args.args[1]
+        assert (written.content, written.reply_to_message_id) == ("yes", replied)
+        assert prompt.for_model is not None and prompt.for_model.endswith("yes")
+
+    @pytest.mark.anyio
+    async def test_a_turn_said_as_typed_hands_the_model_nothing_extra(self):
+        service = self._conv_service(MagicMock(organization_id=uuid.uuid4(), title="t"))
+        service.model_text.return_value = "hello"
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            prompt = await persist_user_turn(
+                _user(),
+                "hello",
+                [],
+                requested_conversation_id=None,
+                # The socket's own thread, named by nothing in the frame.
+                current_conversation_id=str(uuid.uuid4()),
+                organization_id=uuid.uuid4(),
+            )
+        assert prompt.for_model is None
+        service.model_text.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_a_reply_to_something_that_is_not_a_message_id_is_refused(self):
+        with pytest.raises(BadRequestError, match="not a message id"):
+            await persist_user_turn(
+                _user(),
+                "yes",
+                [],
+                requested_conversation_id=None,
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+                reply_to="not-an-id",
+            )
+
+    @pytest.mark.anyio
+    async def test_a_teammate_continuing_a_project_chat_does_not_rename_it(self):
+        """Naming the thread stays its owner's, so a teammate's first words in an
+        untitled project chat are a turn and not a new title."""
+        service = self._conv_service(
+            MagicMock(organization_id=uuid.uuid4(), title=None, user_id=uuid.uuid4())
+        )
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            await persist_user_turn(
+                _user(),
+                "picking this up",
+                [],
+                requested_conversation_id=str(uuid.uuid4()),
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+            )
+
+        service.update_conversation.assert_not_awaited()
+        service.add_message.assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_a_conversation_outside_the_active_org_is_refused(self):

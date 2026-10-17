@@ -33,6 +33,7 @@ function delegation(overrides: Partial<Delegation> = {}): Delegation {
     parentTaskId: null,
     status: "running",
     specialist: null,
+    harness: null,
     text: "",
     thinking: "",
     steps: [],
@@ -101,8 +102,8 @@ describe("DelegationPanels - a line until it is opened", () => {
           delegation({
             text: "half an answ",
             steps: [
-              { id: "c1", name: "search_documents", ok: true },
-              { id: "c2", name: "search_documents", ok: null },
+              { id: "c1", name: "search_documents", ok: true, title: null },
+              { id: "c2", name: "search_documents", ok: null, title: null },
             ],
           }),
         ]}
@@ -223,9 +224,9 @@ describe("DelegationPanels - the delegate's own work", () => {
         delegations={[
           delegation({
             steps: [
-              { id: "c1", name: "search_documents", ok: true },
-              { id: "c2", name: "search_documents", ok: null },
-              { id: "c3", name: "fetch_url", ok: false },
+              { id: "c1", name: "search_documents", ok: true, title: null },
+              { id: "c2", name: "search_documents", ok: null, title: null },
+              { id: "c3", name: "fetch_url", ok: false, title: null },
             ],
           }),
         ]}

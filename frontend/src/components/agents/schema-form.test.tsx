@@ -1118,3 +1118,88 @@ describe("a field shown only for some choices (#2130)", () => {
     expect(screen.getByLabelText("Proxy address")).toBeInTheDocument();
   });
 });
+
+/** Choices that depend on another field: the coding agent's models follow its harness. */
+describe("x-enum-when", () => {
+  const CODER: JsonSchema = {
+    type: "object",
+    properties: {
+      harness: {
+        type: "string",
+        enum: ["claude_code", "codex"],
+        default: "claude_code",
+        title: "Coding agent",
+      },
+      model: {
+        title: "Model",
+        default: null,
+        anyOf: [{ type: "string", enum: ["anthropic:a", "openai:b"] }, { type: "null" }],
+        "x-enum-when": {
+          field: "harness",
+          choices: { claude_code: ["anthropic:a"], codex: ["openai:b"] },
+        },
+      },
+    },
+  };
+
+  it("offers only the choices the other field allows, read with its default", async () => {
+    render(<SchemaForm schema={CODER} value={{}} onChange={vi.fn()} idPrefix="coder" />);
+
+    await userEvent.click(screen.getByLabelText("Model"));
+    expect(screen.getByRole("option", { name: "anthropic:a" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "openai:b" })).toBeNull();
+  });
+
+  it("clears a choice the other field no longer allows, and keeps one it does", async () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <SchemaForm
+        schema={CODER}
+        value={{ harness: "claude_code", model: "anthropic:a" }}
+        onChange={onChange}
+        idPrefix="coder"
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText("Coding agent"));
+    await userEvent.click(screen.getByRole("option", { name: "codex" }));
+    expect(onChange).toHaveBeenLastCalledWith({ harness: "codex", model: undefined });
+
+    rerender(
+      <SchemaForm
+        schema={{
+          ...CODER,
+          properties: {
+            ...CODER.properties,
+            model: {
+              ...CODER.properties!.model!,
+              "x-enum-when": {
+                field: "harness",
+                choices: { claude_code: ["anthropic:a"], codex: ["anthropic:a", "openai:b"] },
+              },
+            },
+          },
+        }}
+        value={{ harness: "claude_code", model: "anthropic:a" }}
+        onChange={onChange}
+        idPrefix="coder"
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Coding agent"));
+    await userEvent.click(screen.getByRole("option", { name: "codex" }));
+    expect(onChange).toHaveBeenLastCalledWith({ harness: "codex", model: "anthropic:a" });
+  });
+
+  it("offers nothing for a value the map does not name", async () => {
+    render(
+      <SchemaForm
+        schema={CODER}
+        value={{ harness: "other" }}
+        onChange={vi.fn()}
+        idPrefix="coder"
+      />,
+    );
+    await userEvent.click(screen.getByLabelText("Model"));
+    expect(screen.queryByRole("option", { name: /anthropic|openai/ })).toBeNull();
+  });
+});

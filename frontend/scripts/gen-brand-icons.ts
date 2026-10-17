@@ -80,6 +80,8 @@ const BRANDS: Readonly<Record<string, Source>> = {
   // lucide glyph at the call site instead.
   claude: lobehub("claude"),
   claudecode: lobehub("claudecode"),
+  // The coding agent capability's harness value, the same mark by another key.
+  claude_code: lobehub("claudecode"),
   clerk: simple("clerk"),
   clickup: simple("clickup"),
   codex: lobehub("codex"),
@@ -190,6 +192,7 @@ const PROVIDERS: Readonly<Record<string, Source>> = {
   nebius: lobehub("nebius"),
   ollama: lobehub("ollama"),
   openai: lobehub("openai"),
+  openai_codex: lobehub("codex"),
   openrouter: lobehub("openrouter"),
   ovhcloud: simple("ovh"),
   sambanova: lobehub("sambanova"),
@@ -221,6 +224,7 @@ const MANUAL_COLORS: Readonly<Record<string, string>> = {
   aws: "#FF9900",
   claude: "#D97757",
   claudecode: "#D97757",
+  claude_code: "#D97757",
   exa: "#1F40ED",
   microsoft: "#00A4EF",
   s3: "#FF9900",

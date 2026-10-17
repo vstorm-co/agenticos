@@ -4,6 +4,8 @@ import { useRef, useState, type ReactNode } from "react";
 import { Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { cn } from "@/lib/utils";
+
 /**
  * The `DataTransfer` type a dragged file carries, spelled as the DOM spells it.
  *
@@ -27,11 +29,14 @@ export function FileDropZone({
   collectionName,
   onFiles,
   children,
+  className,
 }: {
   /** Named in the overlay, so a drop says which collection it will land in. */
   collectionName: string;
   onFiles: (files: FileList) => void;
   children: ReactNode;
+  /** Replaces the default bottom padding: a pane that fills the page lays itself out. */
+  className?: string;
 }) {
   const t = useTranslations("pages.kb");
   const [isDragging, setIsDragging] = useState(false);
@@ -39,7 +44,7 @@ export function FileDropZone({
 
   return (
     <div
-      className="relative pb-8"
+      className={cn("relative", className ?? "pb-8")}
       onDragEnter={(e) => {
         if (e.dataTransfer.types.includes(DRAGGED_FILES)) {
           dragCounter.current += 1;

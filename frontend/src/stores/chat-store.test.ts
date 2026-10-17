@@ -306,3 +306,14 @@ describe("part ids on a runtime without randomUUID", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("the reply being written", () => {
+  it("is chosen, and goes with the conversation it was chosen in", () => {
+    const reply = { messageId: "m-1", role: "assistant" as const, excerpt: "x" };
+    useChatStore.getState().setReplyTo(reply);
+    expect(useChatStore.getState().replyTo).toEqual(reply);
+
+    useChatStore.getState().clearMessages();
+    expect(useChatStore.getState().replyTo).toBeNull();
+  });
+});

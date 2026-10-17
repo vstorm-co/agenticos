@@ -634,6 +634,9 @@ export function useConversations(query: Partial<ConversationQuery> = {}) {
     // selection to the first published agent as usual.
     const { defaultAgentId, select } = selectionApi.getState();
     if (defaultAgentId) select(defaultAgentId);
+    // Nor in the last one's project: a new chat is an ordinary one until the
+    // composer's `+` puts it in a project.
+    conversationApi.getState().setPendingProjectId(null);
     // Reuse the conversation already open when it is empty, so a stray click does
     // not leave an untitled row in the sidebar.
     //

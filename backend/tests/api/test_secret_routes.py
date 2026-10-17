@@ -125,6 +125,7 @@ class TestListing:
             "google_oauth_app",
             "git_token",
             "entra_app",
+            "openai_codex",
         }
         assert all(entry["json_schema"]["properties"] for entry in response.json()["items"])
 
@@ -186,3 +187,71 @@ class TestWriting:
 
         assert response.status_code == 204
         assert service.delete.call_args.args[1] == _SECRET_ID
+
+
+class TestSigningInWithChatGPT:
+    """The one secret stored by finishing a sign-in rather than by posting it."""
+
+    @pytest.fixture
+    def codex(self) -> Iterator[MagicMock]:
+        stub = MagicMock()
+        stub.start_sign_in = AsyncMock(
+            return_value="https://auth.openai.com/oauth/authorize?state=s"
+        )
+        stub.create = AsyncMock(
+            return_value=_row(
+                kind=SecretKind.OPENAI_CODEX.value, purpose="openai_codex", hint="abcd"
+            )
+        )
+        stub.reconnect = AsyncMock(
+            return_value=_row(
+                kind=SecretKind.OPENAI_CODEX.value, purpose="openai_codex", hint="abcd"
+            )
+        )
+        app.dependency_overrides[deps.get_openai_codex_service] = lambda: stub
+        yield stub
+
+    async def test_starting_answers_with_where_to_send_the_person(self, client, codex) -> None:
+        async with client() as opened:
+            response = await opened.post(_url("/openai-codex/sign-in"))
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "authorization_url": "https://auth.openai.com/oauth/authorize?state=s"
+        }
+
+    async def test_finishing_stores_it_private_unless_told_otherwise(self, client, codex) -> None:
+        callback = "http://localhost:1455/auth/callback?code=the-code&state=s"
+        async with client() as opened:
+            response = await opened.post(
+                _url("/openai-codex"), json={"name": "My ChatGPT", "callback_url": callback}
+            )
+
+        assert response.status_code == 201
+        assert response.json()["kind"] == "openai_codex"
+        assert "the-code" not in response.text
+        assert codex.create.call_args.kwargs == {
+            "callback_url": callback,
+            "name": "My ChatGPT",
+            "description": None,
+            "visibility": "private",
+        }
+
+    async def test_reconnecting_signs_in_again_in_place(self, client, codex) -> None:
+        async with client() as opened:
+            response = await opened.put(
+                _url(f"/{_SECRET_ID}/openai-codex"), json={"callback_url": "?code=c&state=s"}
+            )
+
+        assert response.status_code == 200
+        assert codex.reconnect.call_args.args[1] == _SECRET_ID
+        assert codex.reconnect.call_args.kwargs == {"callback_url": "?code=c&state=s"}
+
+    async def test_an_empty_paste_never_reaches_the_service(self, client, codex) -> None:
+        async with client() as opened:
+            response = await opened.post(
+                _url("/openai-codex"), json={"name": "My ChatGPT", "callback_url": ""}
+            )
+
+        assert response.status_code == 422
+        assert codex.create.await_count == 0

@@ -116,7 +116,7 @@ from app.services import agent_session as agent_session_module
 from app.services.agent import PersistedPrompt
 from app.services.agent_chat import ChatTurn, OpenedRun
 from app.services.agent_runner import ParkedApproval, PersonalServiceGap, PreparedRun
-from app.services.agent_session import AgentSession
+from app.services.agent_session import AgentSession, _wire_text
 from app.services.chat_timeline import TurnTimeline
 from app.services.message_history import build_message_history
 from app.services.run_stream import RunFrames
@@ -130,7 +130,14 @@ _CONVERSATION = "11111111-1111-1111-1111-111111111111"
 def _session() -> AgentSession:
     websocket = MagicMock()
     websocket.send_json = AsyncMock()
-    user = MagicMock()
+    # A person with the fields a chat draws them by, which the room's frames read.
+    user = MagicMock(
+        id=uuid4(),
+        full_name="Kacper",
+        email="kacper@example.com",
+        avatar_url=None,
+        avatar_color=None,
+    )
     organization = MagicMock()
     return AgentSession(websocket, user, organization)
 
@@ -481,6 +488,15 @@ class TestReauthorizingEachFrame:
         persist.assert_not_called()
         assert session._turn_task is None
         session.websocket.close.assert_awaited_once_with(code=4001, reason="Session revoked")
+
+    async def test_a_revoked_session_follows_no_turn(self):
+        """Following another socket's turn reads a conversation, so it is refused too."""
+        session = self._socket_session()
+
+        with self._revoked(), patch.object(session, "_attach") as attach:
+            await session.handle_frame({"type": "attach", "conversation_id": "c-1"})
+
+        attach.assert_not_called()
 
     async def test_a_revoked_session_does_not_steer(self):
         """A correction acts on the session, so it is refused on a dead credential (#2087)."""
@@ -2458,6 +2474,8 @@ class TestForwardingDelegationFrames:
                     # model invented at run time, whose definition a surface offers to
                     # keep. On the wire either way, for the same reason.
                     "specialist": None,
+                    # Set only when the worker is a coding harness, not an agent.
+                    "harness": None,
                 },
             )
         ]
@@ -3341,3 +3359,10 @@ class TestTellingThePersonWhoLeft:
                 await session.shutdown()
 
         notifications.answered_while_away.assert_not_called()
+
+
+def test_an_id_field_that_is_not_text_is_left_out_rather_than_parsed() -> None:
+    """A number or an object where an id belongs would raise past the refusal
+    handling and leave the client waiting for an answer."""
+    assert _wire_text("p-1") == "p-1"
+    assert [_wire_text(raw) for raw in (None, "", 7, {"id": 1})] == [None] * 4

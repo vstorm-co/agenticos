@@ -862,6 +862,26 @@ class SubagentRef(BaseModel):
     )
 
 
+class ExternalAgentRef(BaseModel):
+    """A remote agent this agent may delegate to over A2A (#2092).
+
+    Another vendor's agent, registered in the organization by the URL of its agent
+    card. It is not versioned here - its owner changes it on their side - so what
+    a reference pins is the registration: its endpoint, its credential and the
+    card an author reviewed when they picked it. Called by the same delegation
+    tool as a published delegate, under the same budget, and addressed by its
+    registration's handle.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    external_agent_id: UUID = Field(description="The registered remote agent.")
+    preferred_mode: DelegationMode | None = Field(
+        default=None,
+        description="Override the capability's mode for this delegate alone.",
+    )
+
+
 class SpecialistSpec(BaseModel):
     """A specialist defined inside another agent, rather than published.
 
@@ -1214,6 +1234,15 @@ class AgentSpec(BaseModel):
         ),
     )
 
+    external_agents: list[ExternalAgentRef] = Field(
+        default_factory=list,
+        description=(
+            "Remote agents this agent may delegate to over A2A, each a registration "
+            "in this organization. Top level for the reason `subagents` is: a "
+            "reference to another row, walked at publish."
+        ),
+    )
+
     max_steps: int | None = Field(
         default=None,
         ge=1,
@@ -1379,6 +1408,18 @@ class AgentSpec(BaseModel):
         if duplicates:
             raise ValueError(f"Capability bound more than once: {', '.join(duplicates)}")
         return capabilities
+
+    @field_validator("external_agents")
+    @classmethod
+    def _one_reference_per_remote_agent(
+        cls, external_agents: list[ExternalAgentRef]
+    ) -> list[ExternalAgentRef]:
+        """The same remote agent cannot be delegated to twice - it has one handle."""
+        counts = Counter(ref.external_agent_id for ref in external_agents)
+        duplicates = sorted(str(ref_id) for ref_id, count in counts.items() if count > 1)
+        if duplicates:
+            raise ValueError(f"Remote agent named more than once: {', '.join(duplicates)}")
+        return external_agents
 
     @field_validator("subagents")
     @classmethod

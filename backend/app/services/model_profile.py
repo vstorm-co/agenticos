@@ -27,6 +27,7 @@ from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import (
     NoSecret,
+    OpenAICodexSecret,
     SecretKind,
     unseal_secret,
 )
@@ -34,6 +35,7 @@ from app.core.vault import VaultScope
 from app.db.models.credential import ModelProfile
 from app.repositories import credential_repo, organization_secret_repo
 from app.services.model_catalog import models_for
+from app.services.openai_codex import VaultCodexCredentials
 from app.services.organization_secret import OrganizationSecretService
 
 logger = logging.getLogger(__name__)
@@ -343,13 +345,21 @@ class ModelProfileService:
                 message=f"Model '{profile.label}' points at a key this organization no longer has",
                 details={"profile_id": str(profile.id)},
             )
+        value = unseal_secret(
+            secret.sealed_secret,
+            kind=SecretKind(secret.kind),
+            scope=VaultScope.organization(organization_id),
+            key_version=secret.key_version,
+        )
         return ResolvedCredential(
             provider=profile.provider,
-            secret=unseal_secret(
-                secret.sealed_secret,
-                kind=SecretKind(secret.kind),
-                scope=VaultScope.organization(organization_id),
-                key_version=secret.key_version,
+            secret=value,
+            # A ChatGPT sign-in rotates as it is used, so the provider is handed
+            # the secret's place in the vault rather than only what it holds now.
+            credential_source=(
+                VaultCodexCredentials(organization_id=organization_id, secret_id=secret.id)
+                if isinstance(value, OpenAICodexSecret)
+                else None
             ),
             # The profile's, not the secret's. A secret says what authenticates;
             # where the request is sent is the profile's business, so the same key

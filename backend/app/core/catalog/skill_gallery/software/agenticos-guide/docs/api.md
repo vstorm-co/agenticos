@@ -58,7 +58,7 @@ Two refusals are worth knowing:
 
 - **`403` "API keys are not accepted on this endpoint"** — keys are accepted on
   the public API only: agents, runs and approvals, knowledge bases and RAG, skills,
-  context files, apps, the ML services, `/me/permissions`, and an
+  context files, projects, apps, the ML services, `/me/permissions`, and an
   organization's members, invitations, groups and settings. The console's own
   routes, your account, leaving or handing over an organization, and key
   management itself stay session-only, so a leaked key cannot mint its successor.
@@ -195,6 +195,33 @@ crosses a tenant or a grant boundary.
 The response also carries `categories` and `tags`: every distinct label on the
 agents you could list, whatever the filter and the page — the choices a filter
 menu offers. A private agent you cannot see adds none.
+## Agents over A2A
+
+An agent its organization serves over A2A answers JSON-RPC at
+`POST /api/v1/a2a/{agent_id}`, with the same keys as `/run`; its agent card is at
+`GET /api/v1/a2a/{agent_id}/.well-known/agent-card.json` and needs none.
+`PUT /api/v1/agents/{id}/a2a` with `{"enabled": true}` turns it on, for a caller
+holding `agents:publish` on that agent.
+
+```bash
+curl -X POST "$BASE/api/v1/a2a/$AGENT_ID" \
+  -H "Authorization: Bearer $AGENTICOS_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "id": 1, "method": "message/send",
+       "params": {"message": {"role": "user", "messageId": "m1",
+                              "parts": [{"kind": "text", "text": "Review clause 7"}]}}}'
+```
+
+The answer is a `Task` whose id is the run's and whose `contextId` continues the
+conversation. `tasks/get` reads one again. [Channels](channels.md#a2a) has the
+rest.
+
+Remote agents this organization delegates to are registered at
+`/api/v1/external-agents`: `GET` lists them (`agents:view`); `POST` with a
+`card_url`, an optional `slug` and an optional API key `secret_id` reads the card
+and registers it, and `POST /{id}/refresh` reads it again; `DELETE /{id}` removes
+one (`agents:edit` for all three).
+
 ## The ML services
 
 Four of the platform's services answer on their own, with no conversation and no

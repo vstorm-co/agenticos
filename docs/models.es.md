@@ -1,5 +1,5 @@
 ---
-source_sha: "0b5ae075ae8b"
+source_sha: "8df6cd2fcaed"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -108,7 +108,7 @@ guardada. Un perfil que la quiera pone `openai_store` a `true` en sus ajustes.
 
 ## Providers { #providers }
 
-Veintisiete, que es todo lo que trae Pydantic AI a lo que un perfil de chat puede
+Veintiocho, que es todo lo que trae Pydantic AI a lo que un perfil de chat puede
 apuntar.
 
 Aquí no hay un constructor por provider. Pydantic AI infiere la clase del
@@ -195,8 +195,9 @@ autenticarse.
 | Azure OpenAI | `azure` | clave **+** endpoint **+** versión de API fijada |
 | AWS Bedrock | `bedrock` | id de clave de acceso, clave secreta, región, token de sesión opcional |
 | Google Vertex AI | `google_cloud` | JSON de la cuenta de servicio |
+| ChatGPT (suscripción de Codex) | `openai_codex` | un inicio de sesión de ChatGPT, guardado iniciando sesión en vez de tecleado |
 
-Estos tres son la razón de que un secreto tenga un *kind*. Un formulario que
+Los tres primeros son la razón de que un secreto tenga un *kind*. Un formulario que
 recogiera un único token opaco para Azure recogería algo que se puede rellenar
 correctamente y que aun así falla en el primer run. Ver
 [los kinds de secreto](secrets.md#kinds).
@@ -210,6 +211,50 @@ correctamente y que aun así falla en el primer run. Ver
 
     `google_cloud` se construye como `google-cloud`. Ninguno de los dos cambia lo
     que guardas.
+
+### Ejecutar con una suscripción de ChatGPT { #running-on-a-chatgpt-subscription }
+
+`openai_codex` ejecuta modelos de OpenAI en el backend de Codex a través de una
+suscripción de ChatGPT, en vez de a través de una clave de API medida. Está
+pensado para **uso personal**: el inicio de sesión es la suscripción de una
+persona, y cada run en un perfil que lo usa cuenta contra los límites de ChatGPT
+de esa persona.
+
+Nadie puede teclear la credencial. En su lugar inicias sesión con ChatGPT:
+
+1. En **Vault → add a secret** (o en **Agents → add a model**, con **ChatGPT
+   (Codex subscription)** seleccionado), elige **Sign in with ChatGPT**. Se abre
+   un inicio de sesión de ChatGPT en una pestaña nueva.
+2. Apruébalo. ChatGPT envía entonces el navegador a `http://localhost:1455/...`,
+   que no carga. Es lo esperado: OpenAI fija esa dirección para todos los
+   clientes salvo el suyo propio.
+3. Copia la dirección completa de la barra de direcciones y pégala de vuelta en
+   el formulario.
+
+El código de esa dirección funciona una sola vez, solo para la persona que inició
+el inicio de sesión, y solo durante 15 minutos.
+
+El access token caduca y se renueva mientras los modelos se ejecutan. Cada
+renovación gasta el refresh token, así que el par nuevo se vuelve a sellar en el
+mismo secreto del vault de inmediato. Dos runs que renuevan en el mismo momento
+aún pueden competir. El que pierde se rechaza, y la solución es **Reconnect** en
+el secreto, que vuelve a iniciar sesión sin cambiar su id.
+
+!!! warning "Lo que no es un inicio de sesión de ChatGPT"
+
+    - **No es el `auth.json` de la CLI de Codex.** Ese archivo guarda la
+      concesión propia de la CLI. Los refresh tokens son de un solo uso, así que
+      cualquiera de los dos que renovara primero cerraría la sesión del otro.
+    - **No es una credencial de la organización.** Un secreto se crea privado
+      por defecto. Cualquiera que pueda editar un perfil de modelo en la
+      organización puede aun así apuntar uno a él, y cada agent en ese perfil
+      gasta entonces la suscripción de esa persona. Guarda el perfil para ti.
+    - **El gasto mostrado no es tu factura.** Un run se tarifa a los precios de
+      la API de OpenAI para el mismo modelo, que es lo que un
+      [budget](governance.md#budgets) puede razonar. La suscripción en sí la
+      factura OpenAI a tarifa plana.
+    - **Algunos ajustes se ignoran.** El backend de Codex descarta `max_tokens`,
+      `temperature` y `top_p`.
 
 ### Ausentes a propósito { #deliberately-absent }
 
@@ -248,15 +293,15 @@ aquella de la que se derivan todas es la primera:
 
 Cada clave de cualquiera de los dos archivos de catálogo tiene que nombrar un
 provider que `PROVIDERS` tenga. También cada entrada del catálogo de imágenes. Y
-cada provider tiene que aparecer en esta página. Añadir el vigesimoctavo es una
+cada provider tiene que aparecer en esta página. Añadir el vigesimonoveno es una
 edición más lo que ese test pida después.
 
 Merece la pena conocer dos cruces, porque son búsquedas que pueden no responder
 nada:
 
-- El snapshot de precios escribe tres providers de otra forma — `xai` es `x-ai`,
-  `bedrock` es `aws`, `google_cloud` es `google` — y `_PRICE_PROVIDER_ALIASES`
-  los puentea.
+- El snapshot de precios escribe cuatro providers de otra forma — `xai` es
+  `x-ai`, `bedrock` es `aws`, `google_cloud` es `google`, y `openai_codex` se
+  tarifa como `openai` — y `_PRICE_PROVIDER_ALIASES` los puentea.
 - El catálogo de imágenes lleva su propio par `provider` y `prefix`, que es un
   tercer vocabulario otra vez.
 
@@ -338,6 +383,7 @@ abajo.
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
+| `openai_codex` | los mismos cuatro que `openai` |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |
@@ -449,7 +495,7 @@ realmente se ejecutó y no bajo el del padre.
 
 - Un **perfil** es un modelo con nombre más una clave con nombre, y los agents
   apuntan a perfiles para que rotar cualquiera de los dos toque una sola fila.
-- **27 providers**, y lo único que esta plataforma sabe de cada uno es la forma
+- **28 providers**, y lo único que esta plataforma sabe de cada uno es la forma
   de la credencial — construirlo es trabajo de Pydantic AI.
 - El id de modelo es **texto libre**, porque ninguna lista es autoritativa.
 - La **longitud de contexto** se lee una vez y se guarda, porque el snapshot de

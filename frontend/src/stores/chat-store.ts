@@ -4,7 +4,7 @@ import { create, createStore, type StateCreator } from "zustand";
 
 import { scopedStore } from "./chat-scope-context";
 import { clientId } from "@/lib/ids";
-import type { ChatMessage, MessagePart, ToolCall } from "@/types";
+import type { ChatMessage, MessagePart, MessageReply, ToolCall } from "@/types";
 
 export interface ChatState {
   messages: ChatMessage[];
@@ -30,11 +30,15 @@ export interface ChatState {
   updateToolCallPart: (messageId: string, toolCallId: string, update: Partial<ToolCall>) => void;
   setStreaming: (streaming: boolean) => void;
   clearMessages: () => void;
+  /** The message the next turn replies to, chosen with Reply; null for none. */
+  replyTo: MessageReply | null;
+  setReplyTo: (reply: MessageReply | null) => void;
 }
 
 const chatState: StateCreator<ChatState> = (set) => ({
   messages: [],
   isStreaming: false,
+  replyTo: null,
 
   addMessage: (message) =>
     set((state) => ({
@@ -136,7 +140,9 @@ const chatState: StateCreator<ChatState> = (set) => ({
 
   setStreaming: (streaming) => set({ isStreaming: streaming }),
 
-  clearMessages: () => set({ messages: [] }),
+  // Another conversation opened: a reply chosen in this one goes with it.
+  clearMessages: () => set({ messages: [], replyTo: null }),
+  setReplyTo: (replyTo) => set({ replyTo }),
 });
 
 /** A copy of its own, for a conversation in a scope - see `ChatScope`. */

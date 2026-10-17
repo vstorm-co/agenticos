@@ -362,7 +362,7 @@
     "noSandboxConnectionRegistered": "No sandbox connection registered",
     "noSecretOfKind": "No {kind} secret in the vault",
     "noSecret": "No secret",
-    "noSecretSelected": "No secret selected. This capability needs one of kind {kind}, and the agent cannot be published until it has one.",
+    "noSecretSelected": "Nothing chosen yet - the agent cannot be published until something is.",
     "noSignMarketingPage": "No sign-in - a marketing page",
     "noSitesAllowedWidget": "No sites allowed - this widget cannot open anywhere",
     "noSpecialistsYet": "No specialists. One is worth adding when publishing a whole agent would be too much ceremony for the job.",
@@ -775,7 +775,28 @@
     "capabilityShelfEnabled": "{enabled} of {total} on",
     "capabilityShelfPrevious": "Earlier in {shelf}",
     "capabilityShelfNext": "More in {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}"
+    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}",
+    "a2aTitle": "Agent2Agent (A2A)",
+    "a2aDescription": "Let other systems' agents send this agent tasks over the A2A protocol. Each task is a run of the published version, under its budget and approvals, and shows in Activity.",
+    "a2aSwitch": "Serve this agent over A2A",
+    "a2aPublishFirst": "Publish the agent first: what A2A serves is the published version.",
+    "a2aOff": "Off. Turn it on to give this agent an agent card other systems can find it by.",
+    "a2aCardUrl": "Agent card",
+    "a2aEndpoint": "Endpoint for tasks",
+    "a2aAuthHint": "Callers send an organization API key or an OAuth access token from this deployment as a bearer token, and it must be allowed to run this agent.",
+    "remoteDelegatesHeading": "Remote agents",
+    "remoteDelegatesDetail": "Other vendors' agents this one may hand work to over A2A. Each call goes under this agent's budget.",
+    "addRemoteDelegate": "Add a remote agent",
+    "noRemoteDelegatesYet": "No remote agents yet.",
+    "noRemoteAgentsRegistered": "No remote agents are registered yet. <link>Register one</link> by its agent card.",
+    "remoteDelegateGone": "A remote agent no longer registered",
+    "remoteDelegateGoneDetail": "Its registration was removed, so publishing refuses this agent until it is taken off the list.",
+    "keyOrSignIn": "Key or sign-in",
+    "codingAgentKeyName": "{signIn, select, chatgpt {OpenAI key for Codex} other {Claude Code key}}",
+    "chatgptSignInName": "ChatGPT for Codex",
+    "claudeTokenHint": "On a Claude Pro or Max subscription: run <code>claude setup-token</code> on your own computer and add the token it prints as a key here. An Anthropic API key works too.",
+    "capabilityHasNoToolSettings": "It used to have settings per tool, which it no longer has. Its approval is the one below now.",
+    "useCapabilityApproval": "Move to the capability"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1098,7 +1119,9 @@
       "attachFileHint": "Images, PDFs, spreadsheets and documents",
       "voiceInputHint": "Speak instead of typing",
       "commands": "Commands",
-      "commandsHint": "Pick one from a list - the same as typing /"
+      "commandsHint": "Pick one from a list - the same as typing /",
+      "project": "Work in a project",
+      "projectHint": "Start this chat in a project: its files and instructions"
     },
     "knowledgeBase": "Knowledge base",
     "link": "Link",
@@ -1204,7 +1227,8 @@
       "untitled": "Untitled",
       "title": "Chats",
       "unread": "New answer",
-      "unreadHeading": "Unread"
+      "unreadHeading": "Unread",
+      "unnamedProject": "A project"
     },
     "skipComment": "Skip comment",
     "sourceCount": "{count, plural, =1 {1 source} other {# sources}}",
@@ -1399,7 +1423,19 @@
       "scrollingPage": "Scrolling",
       "scrollPage": "Scrolled",
       "goingBack": "Going back",
-      "goBack": "Went back"
+      "goBack": "Went back",
+      "codingAgent": {
+        "task": "Task",
+        "outcome": "{outcome, select, completed {Done} timed_out {Stopped: out of time} other {Failed}}",
+        "filesChanged": "{count, plural, =1 {Changed 1 file:} other {Changed # files:}}",
+        "steps": "{count, plural, =1 {1 step} other {# steps}}",
+        "stepKind": "{kind, select, read {Read} search {Searched} edit {Edited} command {Ran} web {Looked up} failed {Failed} other {Used}}",
+        "refused": "Not allowed read-only: {tools}"
+      },
+      "runCodingAgent": "Hand the work to the coding agent",
+      "runningCodingAgent": "The coding agent is working",
+      "codingStepRunning": "{kind, select, read {Reading} search {Searching} edit {Editing} command {Running} web {Looking up} other {Working on}}",
+      "codingStepDone": "{kind, select, read {Read} search {Searched} edit {Edited} command {Ran} web {Looked up} other {Used}}"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1432,12 +1468,28 @@
     "viewMeans": "View lets them read this conversation and nothing else.",
     "web": "Web",
     "whatWentWrong": "What went wrong?",
+    "reply": {
+      "reply": "Reply",
+      "cancel": "Don't reply",
+      "theAgent": "The agent",
+      "jump": "Show the message",
+      "inReplyTo": "In reply to {name}",
+      "inReplyToYou": "In reply to you",
+      "replyingTo": "Replying to <strong>{name}</strong>",
+      "replyingToYourself": "Replying to yourself"
+    },
+    "room": {
+      "here": "{count, plural, =1 {{name} is here too} other {# people are here with you}}",
+      "more": "+{count}",
+      "share": "Invite"
+    },
     "rail": {
       "label": "Jump to a message",
       "previous": "Previous message",
       "next": "Next message",
       "jumpTo": "Jump to the message from {author}",
       "you": "You",
+      "formerMember": "A former member",
       "agent": "Agent",
       "empty": "No text in this message"
     },
@@ -2136,6 +2188,14 @@
         "nothingWaiting": "Nothing waiting",
         "spent": "Spent",
         "spentLabel": "{amount} spent"
+      },
+      "projects": {
+        "title": "Projects",
+        "description": "Your projects, most recently changed first.",
+        "empty": {
+          "title": "No projects yet",
+          "description": "A project keeps instructions and files that every chat in it shares."
+        }
       }
     },
     "edit": {
@@ -3156,6 +3216,7 @@
     "quickActions": "Quick actions",
     "rag": "RAG",
     "register": "Register",
+    "remoteAgents": "Remote agents",
     "sandboxes": "Sandboxes",
     "search": "Search",
     "searchJump": "Search or jump to…",
@@ -3187,7 +3248,9 @@
     "connections": "Connections",
     "organization": "Organization",
     "documents": "Documents",
-    "signIns": "Sign-ins"
+    "signIns": "Sign-ins",
+    "projects": "Projects",
+    "allProjects": "All projects"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -3663,6 +3726,14 @@
         "title": "Where agents run code",
         "body": "Agents that write and run code do it on these hosts. Watch the live sessions and set the ceilings from here."
       },
+      "remote-agents-register": {
+        "title": "Register one",
+        "body": "Paste the address of an agent's card. It is read and checked now, and a key from the vault can go with every call."
+      },
+      "remote-agents-list": {
+        "title": "Agents from other vendors",
+        "body": "Agents registered here by their A2A agent card can be picked as delegates, beside your own agents."
+      },
       "settings-tabs": {
         "title": "Your settings",
         "body": "Your profile, sign-in and security, notifications, and slash-commands all live behind these tabs - switch between them here."
@@ -3786,6 +3857,18 @@
       "agent-identity": {
         "title": "Call it something recognizable",
         "body": "The name is what people pick in chat and find in the catalog. A duplicate starts as its source with a suffix, so rename it here; the handle other agents reach it by stays the same."
+      },
+      "projects-new": {
+        "title": "Start a project",
+        "body": "Give ongoing work a home: instructions every agent in it reads, and files every chat in it shares."
+      },
+      "projects-list": {
+        "title": "Your projects",
+        "body": "The projects you own and the ones shared with you or your departments. Your chats in each stay your own."
+      },
+      "project-tabs": {
+        "title": "Chats, files and instructions",
+        "body": "Start a chat in the project, add files and folders its agents work in, and set what every agent here is told."
       }
     },
     "chooseLanguage": "Language"
@@ -4662,6 +4745,7 @@
       "surfaceEmbed": "Embed",
       "surfaceFilter": "Filter by surface",
       "surfaceMattermost": "Mattermost",
+      "surfaceA2a": "A2A",
       "surfaceSchedule": "Schedule",
       "surfaceSlack": "Slack",
       "surfaceTelegram": "Telegram",
@@ -5259,7 +5343,10 @@
       "searchPlaceholder": "Search every folder",
       "source": "Source",
       "stored": "stored",
-      "whoPutItThere": "Who put it there"
+      "whoPutItThere": "Who put it there",
+      "openFolder": "Open folder",
+      "moreInFolder": "{count, plural, =1 {1 more in the folder} other {# more in the folder}}",
+      "recent": "Recent"
     }
   },
   "settings": {
@@ -5575,6 +5662,17 @@
     "cancel": "Cancel",
     "cancel2": "Cancel",
     "cancel3": "Cancel",
+    "chatgptCallbackLabel": "Address ChatGPT sent you to",
+    "chatgptOpenAgain": "Open the sign-in again",
+    "chatgptPersonal": "This runs models on your own ChatGPT subscription and counts against its limits, so it is stored as yours alone.",
+    "chatgptReconnect": "Reconnect",
+    "chatgptReconnectBody": "Sign in with ChatGPT again. The new sign-in replaces the old one, and every model using this secret keeps working.",
+    "chatgptReconnectNamed": "Reconnect {name}",
+    "chatgptReconnected": "Reconnected {name} to ChatGPT",
+    "chatgptSave": "Save sign-in",
+    "chatgptSignIn": "Sign in with ChatGPT",
+    "chatgptStepOne": "Sign in in the tab this opens, and approve access.",
+    "chatgptStepTwo": "ChatGPT then sends you to a localhost address that does not load. That is expected: copy the whole address from the address bar and paste it here.",
     "customService": "Custom service",
     "eitherWayAgentRunsWithIt": "Either way, an agent that uses this key runs with it for everyone who can run that agent.",
     "encryptedBoundOrganizationAgent": "Encrypted and bound to this organization. An agent names it by id, never by value - so it can be rotated without touching a single agent, and it cannot be read back.",
@@ -6514,6 +6612,14 @@
       "needs": "Nothing extra.",
       "never": "Keeps nothing between messages and cannot reach the internet. For files that stay, use the Sandbox."
     },
+    "coding_agent": {
+      "name": "Coding agent",
+      "does": "Hands software work to Claude Code or Codex, which work on it in the agent's sandbox while you watch each step in the chat.",
+      "example1": "Fix a failing test in a repository the agent cloned",
+      "example2": "Explain how a module works, read-only",
+      "needs": "The Sandbox capability on a sandbox connection, and in the vault an Anthropic or OpenAI key, a Claude subscription token or a ChatGPT sign-in.",
+      "never": "Never works outside the agent's sandbox. Set Human approval to Always ask and each task waits for your yes."
+    },
     "compaction": {
       "name": "Long conversations",
       "does": "Shortens the oldest part of a long conversation so the agent keeps going instead of hitting the model's limit.",
@@ -7108,6 +7214,28 @@
         "title": "Results per search",
         "description": "How many results one search returns; ignored for native search."
       }
+    },
+    "coding_agent": {
+      "harness": {
+        "title": "Coding agent",
+        "description": "Which coding agent does the work: Claude Code, on an Anthropic key or a Claude subscription token, or Codex, on an OpenAI key or a ChatGPT sign-in."
+      },
+      "access": {
+        "title": "What it may do",
+        "description": "Change files and run commands, such as tests - or only read the code and answer. Set Human approval to ask before each task either way."
+      },
+      "model": {
+        "title": "Model",
+        "description": "The model the coding agent runs: a Claude model for Claude Code, an OpenAI one for Codex. Not set takes the coding agent's own default."
+      },
+      "base_url": {
+        "title": "Anthropic-compatible endpoint",
+        "description": "Claude Code only: a gateway that speaks Anthropic's API, such as https://openrouter.ai/api, with the key in the vault being that gateway's. Empty calls Anthropic directly."
+      },
+      "timeout_minutes": {
+        "title": "Time limit (minutes)",
+        "description": "How long one task may run before it is stopped."
+      }
     }
   },
   "apiReference": {
@@ -7196,5 +7324,113 @@
     "unavailableBody": "This deployment has no Redis for live views. Try again shortly.",
     "rememberSignIn": "Keep me signed in to {site} for later browses",
     "signInKept": "Your sign-in to {site} is kept for later browses - manage it in Settings → Sign-ins."
+  },
+  "remoteAgents": {
+    "title": "Remote agents",
+    "pageDescription": "Other vendors' agents your agents can hand work to over the A2A protocol. Register one here by its agent card, then pick it in an agent's delegation settings.",
+    "listTitle": "Registered remote agents",
+    "registeredCount": "{count, plural, =1 {1 registered} other {# registered}}",
+    "emptyTitle": "No remote agents yet",
+    "emptyDescription": "Register an agent by the address of its A2A agent card, and your agents can delegate to it like to one of your own.",
+    "register": "Register an agent",
+    "registerTitle": "Register a remote agent",
+    "registerDescription": "The agent card is read now, so its name, description and skills come from the agent itself.",
+    "cardUrl": "Agent card address",
+    "cardUrlHint": "The card's URL, or the agent's base address, where /.well-known/agent-card.json is read.",
+    "handle": "Handle",
+    "handleHint": "What your agents call it by. Left empty, it is made from the agent's name.",
+    "key": "Key it sends",
+    "keyHint": "An API key from the vault, sent as a bearer token, when the agent asks for one.",
+    "noKey": "No key",
+    "suggestedKeyName": "Remote agent key",
+    "cancel": "Cancel",
+    "reading": "Reading the card…",
+    "registered": "Registered {name}",
+    "refreshed": "Read {name}'s card again",
+    "refresh": "Read the card again",
+    "refreshNamed": "Read {name}'s card again",
+    "remove": "Remove",
+    "removeNamed": "Remove {name}",
+    "removeTitle": "Remove {name}?",
+    "removeDescription": "Agents that delegate to it cannot be published again until they stop naming it, and their published versions fail the run when they try.",
+    "withKey": "Sends a key",
+    "answersOn": "Answers on {host}",
+    "failedToLoad": "The remote agents could not be loaded."
+  },
+  "projects": {
+    "title": "Projects",
+    "pageDescription": "Instructions and files shared by every chat started in a project, whichever agent answers.",
+    "newProject": "New project",
+    "newProjectHint": "A place for ongoing work: every chat in it reads its instructions and works in its files.",
+    "created": "Project {name} created",
+    "saved": "Project saved",
+    "deleted": "Project deleted. Its chats are ordinary chats now.",
+    "uploaded": "{count, plural, =1 {1 file added} other {# files added}}",
+    "removed": "Removed",
+    "filesUnreadable": "The project's files could not be read",
+    "activeWhen": "Active {when}",
+    "chatCount": "{count, plural, =0 {No chats yet} =1 {1 chat} other {# chats}}",
+    "projectCount": "{count, plural, =1 {1 project} other {# projects}}",
+    "startsWith": "Starts with {agent}",
+    "noDefaultAgent": "No default - the agent chosen in the chat",
+    "name": "Name",
+    "namePlaceholder": "Q3 launch",
+    "description": "Description",
+    "descriptionPlaceholder": "What this project is for",
+    "defaultAgent": "Default agent",
+    "defaultAgentHint": "A new chat in the project starts with this agent. Any agent can still answer in it.",
+    "instructions": "Instructions",
+    "instructionsHint": "Every agent answering in the project reads these after its own.",
+    "instructionsPlaceholder": "Write in British English. The brand guide is in brand/guide.pdf.",
+    "whoWorksInIt": "Who works in it",
+    "cancel": "Cancel",
+    "create": "Create",
+    "save": "Save",
+    "newChat": "New chat",
+    "chats": "Chats",
+    "files": "Files",
+    "untitledChat": "Untitled chat",
+    "appCount": "{count, plural, =1 {1 app} other {# apps}}",
+    "moreChats": "Show more chats",
+    "hereNow": "Here now: {names}",
+    "seenBy": "Seen by {names}",
+    "moreReaders": "+{count}",
+    "isWorking": "{name} is working",
+    "startedBy": "Started by {name}",
+    "noChatsYet": "No chats in this project yet",
+    "noChatsHint": "Start one: it reads the project's instructions and works in its files.",
+    "noChatsViewer": "You can read this project's files and instructions, but not chat in it.",
+    "uploadFiles": "Upload files",
+    "uploadFolder": "Upload folder",
+    "newFolder": "New folder",
+    "folderName": "Folder name",
+    "folderPlaceholder": "reports",
+    "remove": "Remove",
+    "removeTitle": "Remove {path}?",
+    "removeBody": "It goes for every chat and agent in the project. A folder goes with everything in it.",
+    "delete": "Delete",
+    "deleteProject": "Delete project",
+    "deleteProjectHint": "Its files go with it. Its chats stay, as ordinary chats.",
+    "deleteTitle": "Delete {name}?",
+    "cannotSee": "You cannot see projects in this organization",
+    "askForAccess": "Ask an administrator for access to projects.",
+    "search": "Search projects",
+    "noMatches": "No projects match",
+    "searchedNames": "Names and descriptions are searched.",
+    "noProjectsYet": "No projects yet",
+    "noProjectsHint": "A project keeps instructions and files that every chat in it shares.",
+    "pickTitle": "Work in a project",
+    "pickHint": "The chat reads the project's instructions and works in its files. It stays in the project.",
+    "noProject": "No project",
+    "noProjectHint": "An ordinary chat",
+    "manageProjects": "New or all projects",
+    "leaveProject": "Start outside {name}",
+    "apps": "Apps",
+    "noAppsYet": "No apps made in this project yet",
+    "noAppsHint": "An app an agent publishes in one of the project's chats - a report, a dashboard - appears here.",
+    "uploadFailed": "The upload failed",
+    "noFilesYet": "Nothing in this project yet",
+    "noFilesHint": "Drop files or a whole folder here, or upload them. Every chat in the project reads and works in them.",
+    "noFilesViewer": "Files added to the project will appear here."
   }
 }

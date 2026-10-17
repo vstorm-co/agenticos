@@ -42,6 +42,7 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
 from app.db.models.agent_run import RunSurface
 from app.schemas.agent import (
+    AgentA2ARequest,
     AgentAvatarColorRequest,
     AgentClone,
     AgentCreate,
@@ -111,6 +112,7 @@ async def list_capability_catalog() -> Any:
             description=definition.description,
             side_effecting=definition.side_effecting,
             tools=list(definition.tools),
+            tool_settings=definition.tool_settings,
             scopes=sorted(definition.scopes),
             contracts=[
                 CapabilityToolContract(
@@ -500,6 +502,25 @@ async def set_agent_avatar_color(
 ) -> Any:
     """Choose the colour the agent's fallback avatar uses, or null for auto."""
     return await service.set_avatar_color(ctx, agent_id, color=data.color)
+
+
+@router.put(
+    "/{agent_id}/a2a",
+    response_model=AgentRead,
+)
+async def set_agent_a2a(
+    agent_id: UUID,
+    data: AgentA2ARequest,
+    service: AgentRegistrySvc,
+    ctx: Auth,
+) -> Any:
+    """Serve this agent over A2A, or stop (#2092).
+
+    Per-resource: the service's grant-aware `AGENTS_PUBLISH` check decides. Served,
+    its card is at `/a2a/{agent_id}/.well-known/agent-card.json` and its tasks at
+    `POST /a2a/{agent_id}`.
+    """
+    return await service.set_a2a(ctx, agent_id, enabled=data.enabled)
 
 
 @router.patch(

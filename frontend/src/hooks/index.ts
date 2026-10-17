@@ -30,6 +30,7 @@ export { useDashboardLayout } from "./use-dashboard-layout";
 export { useDashboardPresets } from "./use-dashboard-presets";
 export { useReusableIntegrations } from "./use-reusable-integrations";
 export { useLocalServices } from "./use-local-services";
+export { useExternalAgents } from "./use-external-agents";
 export { useMcpConnections } from "./use-mcp-connections";
 export { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connections";
 export { useMcpToolServers } from "./use-mcp-tool-servers";
@@ -83,7 +84,8 @@ export {
   useSandboxPolicy,
   useSandboxSessions,
 } from "./use-sandbox-connections";
-export { useSecrets, useSecretPurposes, kindInfo } from "./use-secrets";
+export { useSecrets, useSecretPurposes, useChatGPTSignIn, kindInfo } from "./use-secrets";
+export type { NewChatGPTSignIn } from "./use-secrets";
 export {
   useApprovalHistory,
   useApprovals,

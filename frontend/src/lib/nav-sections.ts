@@ -4,6 +4,7 @@ import {
   Activity,
   Boxes,
   FileText,
+  FolderKanban,
   FolderOpen,
   BookOpen,
   Bot,
@@ -12,6 +13,7 @@ import {
   KeyRound,
   LayoutDashboard,
   MessageSquare,
+  Network,
   Plug,
   Repeat,
   ShieldCheck,
@@ -46,6 +48,8 @@ export type NavItem = {
    * `/admin/users`, `/admin/system` - so each is still the section's page.
    */
   tabbed?: boolean;
+  /** Lit on its own page only - a project's page lights the project's own row instead. */
+  exact?: boolean;
 };
 
 /** The section hue a group carries - see "Section hues" in `globals.css`. */
@@ -73,6 +77,23 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { labelKey: "dashboard", href: ROUTES.DASHBOARD, icon: LayoutDashboard },
       { labelKey: "chat", href: ROUTES.CHAT, icon: MessageSquare },
+    ],
+  },
+  // Somebody's ongoing work: the projects they are in, most recent first, drawn
+  // above this entry by the sidebar itself (`ProjectRows`) - the list is data,
+  // not a table row. The entry is what every project's page belongs to.
+  {
+    labelKey: "projects",
+    domain: "use",
+    items: [
+      {
+        labelKey: "allProjects",
+        href: ROUTES.PROJECTS,
+        icon: FolderKanban,
+        permission: Perm.projectsView,
+        dataTour: "nav-projects",
+        exact: true,
+      },
     ],
   },
   {
@@ -146,6 +167,14 @@ export const NAV_GROUPS: NavGroup[] = [
         labelKey: "channels",
         href: ROUTES.CHANNELS,
         icon: MessagesSquare,
+        permission: Perm.agentsView,
+      },
+      {
+        // Another vendor's agent, reached over A2A (#2092): a connection the
+        // organization registers once, which its agents then delegate to.
+        labelKey: "remoteAgents",
+        href: ROUTES.REMOTE_AGENTS,
+        icon: Network,
         permission: Perm.agentsView,
       },
       {
