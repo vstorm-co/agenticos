@@ -353,6 +353,25 @@ class TestFiles:
         assert row is listed[0] and contents.entries == [{"path": "a.md"}]
         assert await service.file_bytes(_ctx(), project.id, path="a.md") == b"data"
 
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "path",
+        [
+            ".agenticos/coding-agent/claude_code-thread.session",
+            "/.agenticos/coding-agent/codex-thread.session",
+            "notes/../.agenticos/coding-agent/x.exit",
+        ],
+    )
+    async def test_a_platform_file_cannot_be_fetched_by_naming_it(self, path: str) -> None:
+        """The browser never lists them, and an empty listing is no proof a file
+        is absent - so naming one must not reach the host."""
+        project = _project()
+        service = _service(project, Perm.PROJECTS_VIEW)
+        service.workspaces.project_bytes = AsyncMock(return_value=b"session")
+        with pytest.raises(NotFoundError):
+            await service.file_bytes(_ctx(), project.id, path=path)
+        service.workspaces.project_bytes.assert_not_awaited()
+
     async def test_adding_a_file_writes_it_into_its_folder_and_closes_the_container(self) -> None:
         project = _project()
         service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_USE)

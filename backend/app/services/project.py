@@ -62,13 +62,23 @@ def project_path(path: str) -> str:
             message="Name a path inside the project, such as reports/q3.pdf",
             details={"path": path},
         )
-    reserved = tuple(prefix.strip("/") for prefix in NOT_BROWSABLE)
-    if any(normal == prefix or normal.startswith(f"{prefix}/") for prefix in reserved):
+    if _in_platform_folder(normal):
         raise BadRequestError(
             message="That folder is the platform's own; choose another name",
             details={"path": path},
         )
     return normal
+
+
+def _in_platform_folder(path: str) -> bool:
+    """Whether a path, however it is spelled, is in a folder the platform keeps.
+
+    Resolved against the root first, so `a/../.agenticos/x` and `/.agenticos/x`
+    are the folder they name.
+    """
+    normal = posixpath.normpath(f"/{path.strip()}").lstrip("/")
+    reserved = tuple(prefix.strip("/") for prefix in NOT_BROWSABLE)
+    return any(normal == prefix or normal.startswith(f"{prefix}/") for prefix in reserved)
 
 
 class ProjectService:
@@ -337,7 +347,16 @@ class ProjectService:
         return project, row, contents
 
     async def file_bytes(self, ctx: AuthContext, project_id: UUID, *, path: str) -> bytes:
+        """One file of the project, as its file browser lists it.
+
+        Raises:
+            NotFoundError: For no such file - and for one in a folder the platform
+                keeps, a coding agent's session among them, which the browser
+                never lists and a reader cannot fetch by naming it.
+        """
         project = await self.get(ctx, project_id)
+        if _in_platform_folder(path):
+            raise NotFoundError(message="No such file", details={"path": path})
         return await self.workspaces.project_bytes(ctx, project, path=path)
 
     async def add_file(self, ctx: AuthContext, project_id: UUID, *, path: str, data: bytes) -> str:
