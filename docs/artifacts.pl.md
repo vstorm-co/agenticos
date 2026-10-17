@@ -1,5 +1,5 @@
 ---
-source_sha: "bf4446717e0f"
+source_sha: "e6bbede74d46"
 ---
 
 # Aplikacje { #artifacts }
@@ -165,11 +165,13 @@ ruszyły, dokładnie tak jak na zapisanej stronie. Ramka zgłasza swój rozmiar,
 sygnał życia; rysunek, który przestaje go wysyłać, jest zamykany, zamiast blokować kartę.
 
 **W czacie.** Panel pokazuje cały rysunek - SVG dopasowane po `viewBox`, stronę ułożoną
-w szerokości panelu i zmniejszoną powyżej 560 pikseli - z tytułem i napisem *Narysowane
-przez agenta*, więc nie da się go pomylić z konsolą. Pełny ekran pokazuje go w jego
-rozmiarze; na telefonie podgląd otwiera pełny ekran po stuknięciu. Obok są *Pokaż kod*,
-*Pobierz* (`.svg`, `.html` albo źródło Mermaid), *Kopiuj jako obraz* dla SVG i *Zapytaj
-o to*, a błąd zgłoszony przez rysunek przychodzi z *Napraw*, które prosi agenta.
+w szerokości panelu i zmniejszoną powyżej 560 pikseli - pod tytułem, w wiadomości
+agenta, nigdy jako część konsoli. Pełny ekran pokazuje go w jego rozmiarze; na telefonie
+podgląd otwiera pełny ekran po stuknięciu. Powiększenie pojawia się w prawym dolnym rogu
+rysunku, gdy kursor jest na karcie, w podglądzie i na pełnym ekranie: SVG jest rysowane
+większe, strona skalowana, a ramka przewija się, gdy rysunek z niej wyrośnie. Nad nim są
+*Pokaż kod*, *Pobierz* (`.svg`, `.html` albo źródło Mermaid) i *Kopiuj jako obraz* dla
+SVG, a błąd zgłoszony przez rysunek przychodzi z *Napraw*, które prosi agenta.
 
 **Zapis jako aplikacja.** *Zapisz w Aplikacjach* bierze tytuł i nazwę, obie wypełnione,
 i publikuje wizual jako wersję aplikacji pod agentem, którego tura go narysowała,

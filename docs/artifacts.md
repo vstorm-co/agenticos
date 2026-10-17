@@ -158,11 +158,13 @@ beating is taken down rather than left to hold the tab.
 
 **In the chat.** The panel shows the drawing whole - an SVG fitted by its
 `viewBox`, a page laid out at the panel's width and shrunk past 560 pixels -
-with its title and *Drawn by the agent*, so it cannot pass for the console. Full
-screen shows it at its own size; on a phone the preview opens full screen at a
-tap. *Show code*, *Download* (`.svg`, `.html`, or the Mermaid source), *Copy as
-image* for an SVG, and *Ask about this* are beside it, and an error the drawing
-reports comes with *Fix it*, which asks the agent.
+under its title, framed as the agent's message, never the console's. Full screen
+shows it at its own size; on a phone the preview opens full screen at a tap. Zoom
+sits in the drawing's bottom right corner while the pointer is on it, in the
+preview and full screen: an SVG is drawn larger, a page is scaled, and the box
+scrolls once the drawing outgrows it. *Show code*, *Download* (`.svg`, `.html`,
+or the Mermaid source) and *Copy as image* for an SVG are above it, and an error
+the drawing reports comes with *Fix it*, which asks the agent.
 
 **Saving one as an app.** *Save to Apps* takes a title and a name, both filled
 in, and publishes the visual as a version of an app under the agent whose turn

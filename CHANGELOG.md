@@ -27,12 +27,14 @@ Two things are versioned separately from this file and worth knowing about:
   the model what broke in the person's browser so it fixes it in the same turn.
   A drawing can use a photo attached to the thread, a workspace file, or - for
   an agent that already reads the web - a picture from an address. From the
-  panel: full screen, the code, download, copy as image, ask about it, fix it,
-  and **Save to Apps** with versions. A shared thread shows its drawings, the
+  panel: full screen, zoom, the code, download, copy as image, fix it, and
+  **Save to Apps** with versions. A shared thread shows its drawings, the
   dashboard gains a **Recent visuals** card, and with `VISUAL_RENDER_CDP_URL` a
   chat app gets the drawing as a picture. The bundled `visual-design` skill
   carries the house style and templates; the library set gains three.js 0.186.0
   and Mermaid 12.1.0. `seed-skills --skill` installs one bundled skill.
+- **An agent's skills, context files and knowledge bases are listed with the
+  attached ones first**, in a capability's panel, ten to a page.
 
 ### Fixed
 

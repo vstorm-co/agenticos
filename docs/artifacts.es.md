@@ -1,5 +1,5 @@
 ---
-source_sha: "bf4446717e0f"
+source_sha: "e6bbede74d46"
 ---
 
 # Aplicaciones { #artifacts }
@@ -175,11 +175,14 @@ bloquear la pestaña.
 
 **En el chat.** El panel muestra el dibujo entero - un SVG ajustado por su `viewBox`,
 una página maquetada al ancho del panel y reducida por encima de 560 píxeles - con su
-título y *Dibujado por el agente*, para que no pase por la consola. La pantalla completa
-lo muestra a su propio tamaño; en un teléfono, un toque abre la pantalla completa. Al
-lado están *Mostrar código*, *Descargar* (`.svg`, `.html` o el código Mermaid), *Copiar
-como imagen* para un SVG y *Preguntar sobre esto*, y un error que informa el dibujo
-viene con *Corregir*, que se lo pide al agente.
+título, en el mensaje del agente, nunca como parte de la consola. La pantalla completa
+lo muestra a su propio tamaño; en un teléfono, un toque abre la pantalla completa. El
+zoom aparece en la esquina inferior derecha del dibujo mientras el puntero está sobre
+la tarjeta, en la vista previa y a pantalla completa: un SVG se dibuja más grande, una
+página se escala y el marco se desplaza cuando el dibujo lo supera. Encima están
+*Mostrar código*, *Descargar* (`.svg`, `.html` o el código Mermaid) y *Copiar como
+imagen* para un SVG, y un error que informa el dibujo viene con *Corregir*, que se lo
+pide al agente.
 
 **Guardarlo como aplicación.** *Guardar en Aplicaciones* toma un título y un nombre,
 ambos rellenados, y publica el visual como versión de una aplicación bajo el agente

@@ -1,5 +1,5 @@
 ---
-source_sha: "2c887121394b"
+source_sha: "693b816fbdde"
 ---
 
 # Die Konsole { #the-console }
@@ -305,7 +305,7 @@ zeichnet unter seiner Nachricht - ein Diagramm, eine Erklärung mit Schieberegle
 3D-Szene - und Sie sehen sie entstehen, während sie geschrieben wird; ihre Skripte
 starten, wenn sie vollständig ist. Das Panel zeigt die ganze Zeichnung, passend zum
 Gespräch, mit Schaltflächen für Vollbild, Code, Herunterladen, Kopieren eines SVG als
-Bild, Fragen danach und Speichern als [App](artifacts.md#visuals) mit einem Link zum
+Bild, Zoomen und Speichern als [App](artifacts.md#visuals) mit einem Link zum
 Teilen. Meldet eine Zeichnung einen Fehler, weiß der Agent schon davon; **Beheben**
 fragt erneut. Auf einem Telefon öffnet ein Tippen sie im Vollbild.
 Die Karte **Neueste Visuals** auf dem Dashboard zeigt die zuletzt für Sie

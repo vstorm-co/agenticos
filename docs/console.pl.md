@@ -1,5 +1,5 @@
 ---
-source_sha: "2c887121394b"
+source_sha: "693b816fbdde"
 ---
 
 # Konsola { #the-console }
@@ -280,7 +280,7 @@ przybliżał.
 swoją wiadomością - diagram, explainer z suwakami, scenę 3D - a ty widzisz, jak powstaje
 w trakcie pisania; jego skrypty startują po zakończeniu. Panel pokazuje cały rysunek,
 dopasowany do rozmowy, z przyciskami do pełnego ekranu, pokazania kodu, pobrania,
-skopiowania SVG jako obrazu, zapytania o niego i zapisu jako
+skopiowania SVG jako obrazu, powiększenia i zapisu jako
 [aplikacji](artifacts.md#visuals) z linkiem do udostępnienia. Gdy rysunek zgłosi błąd,
 agent już o nim wie; **Napraw** prosi go ponownie. Na telefonie stuknięcie otwiera go na
 pełnym ekranie. Karta **Ostatnie wizualizacje** na dashboardzie pokazuje najnowsze

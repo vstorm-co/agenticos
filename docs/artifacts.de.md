@@ -1,5 +1,5 @@
 ---
-source_sha: "bf4446717e0f"
+source_sha: "e6bbede74d46"
 ---
 
 # Apps { #artifacts }
@@ -182,11 +182,14 @@ festzuhalten.
 
 **Im Chat.** Das Panel zeigt die ganze Zeichnung - ein SVG nach seiner `viewBox`
 eingepasst, eine Seite in der Breite des Panels gesetzt und über 560 Pixel verkleinert -
-mit ihrem Titel und *Vom Agent gezeichnet*, sodass sie nicht als Konsole durchgehen
-kann. Vollbild zeigt sie in ihrer eigenen Größe; auf einem Telefon öffnet ein Tippen
-das Vollbild. Daneben stehen *Code anzeigen*, *Herunterladen* (`.svg`, `.html` oder die
-Mermaid-Quelle), *Als Bild kopieren* für ein SVG und *Danach fragen*, und ein Fehler,
-den die Zeichnung meldet, kommt mit *Beheben*, das den Agent fragt.
+unter ihrem Titel, in der Nachricht des Agent, nie als Teil der Konsole. Vollbild
+zeigt sie in ihrer eigenen Größe; auf einem Telefon öffnet ein Tippen das Vollbild.
+Der Zoom erscheint in der unteren rechten Ecke der Zeichnung, solange der Zeiger auf
+der Karte ist, in der Vorschau und im Vollbild: ein SVG wird größer gezeichnet, eine
+Seite skaliert, und der Rahmen scrollt, sobald die Zeichnung über ihn hinauswächst.
+Darüber stehen *Code anzeigen*, *Herunterladen* (`.svg`, `.html` oder die
+Mermaid-Quelle) und *Als Bild kopieren* für ein SVG, und ein Fehler, den die Zeichnung
+meldet, kommt mit *Beheben*, das den Agent fragt.
 
 **Als App speichern.** *In Apps speichern* nimmt einen Titel und einen Namen, beide
 vorausgefüllt, und veröffentlicht das Visual als Version einer App unter dem Agent,

@@ -1,5 +1,5 @@
 ---
-source_sha: "2c887121394b"
+source_sha: "693b816fbdde"
 ---
 
 # La consola { #the-console }
@@ -285,8 +285,8 @@ campos nunca son tan pequeños como para que iOS haga zoom en ellos.
 su mensaje - un diagrama, una explicación con controles deslizantes, una escena 3D - y
 usted lo ve aparecer mientras se escribe; sus scripts arrancan cuando está completo. El
 panel muestra el dibujo entero, ajustado a la conversación, con botones para abrirlo a
-pantalla completa, mostrar su código, descargarlo, copiar un SVG como imagen, preguntar
-sobre él y guardarlo como [aplicación](artifacts.md#visuals) con un enlace para
+pantalla completa, mostrar su código, descargarlo, copiar un SVG como imagen, ampliarlo
+y guardarlo como [aplicación](artifacts.md#visuals) con un enlace para
 compartir. Cuando un dibujo informa de un error, el agente ya lo sabe; **Corregir**
 vuelve a pedírselo. En un teléfono, un toque lo abre a pantalla completa.
 La tarjeta **Recent visuals** del panel muestra los últimos dibujados para usted, y
