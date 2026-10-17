@@ -20,10 +20,12 @@ from app.db.models.agent_run import AgentRun
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
+from app.repositories import chat_file as chat_file_repo
 from app.repositories import conversation_repo, project_repo
 from app.schemas.conversation import MessageCreate, MessageRead
 from app.schemas.message_rating import MessageRatingCreate
 from app.services.conversation import ConversationService
+from app.services.file_upload import FileUploadService
 from app.services.message_rating import MessageRatingService
 
 pytestmark = pytest.mark.anyio
@@ -246,6 +248,54 @@ class TestRatingATeammatesAnswer:
             await ratings.rate_message(
                 chat.id, answer.id, stranger.id, org.id, MessageRatingCreate(rating=1)
             )
+
+
+class TestOpeningATeammatesAttachment:
+    async def test_an_attachment_opens_for_whoever_reads_its_chat(self, db) -> None:
+        kacper, anna, stranger = await _user(db), await _user(db), await _user(db)
+        org = await _org(db, (kacper, "owner"), (anna, "member"), (stranger, "member"))
+        project = await _project(db, org, kacper, visibility=Visibility.ORG.value)
+        chat = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=kacper.id, title="Plan", project_id=project.id
+        )
+        turn = await conversation_repo.create_message(
+            db, conversation_id=chat.id, role="user", content="see attached"
+        )
+
+        async def upload(name: str):
+            return await chat_file_repo.create(
+                db,
+                user_id=kacper.id,
+                filename=name,
+                mime_type="text/csv",
+                size=3,
+                storage_path=f"{uuid.uuid4().hex}/{name}",
+                file_type="csv",
+            )
+
+        attached, unsent = await upload("budget.csv"), await upload("draft.csv")
+        await chat_file_repo.link_to_message(
+            db, message_id=turn.id, file_ids=[attached.id], user_id=kacper.id
+        )
+        # A bulk UPDATE: the row this session already holds is read again, as a
+        # request's fresh session would.
+        await db.refresh(attached)
+        files = FileUploadService(db)
+
+        own = await files.get_readable_file(unsent.id, user_id=kacper.id)
+        assert own.id == unsent.id
+        seen = await files.get_readable_file(attached.id, user_id=anna.id)
+        assert seen.id == attached.id
+        # Not sent anywhere yet: still the uploader's alone.
+        with pytest.raises(NotFoundError):
+            await files.get_readable_file(unsent.id, user_id=anna.id)
+        with pytest.raises(NotFoundError):
+            await files.get_readable_file(uuid.uuid4(), user_id=anna.id)
+
+        project.visibility = Visibility.PRIVATE.value
+        await db.flush()
+        with pytest.raises(NotFoundError):
+            await files.get_readable_file(attached.id, user_id=stranger.id)
 
 
 class TestThePeopleQueries:
