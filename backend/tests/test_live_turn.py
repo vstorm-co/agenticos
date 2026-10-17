@@ -12,6 +12,7 @@ import json
 from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 
@@ -397,10 +398,120 @@ class TestFollowingFromAnotherSocket:
 
         (trace,) = [key for key in store.lists if key.startswith(f"turn:{_CONVERSATION}:")]
         kept = [json.loads(raw)["type"] for raw in store.lists[trace]]
-        assert kept == ["message_saved", "complete", live_turn.END]
+        # The question first: a follower in the room has no other way to see it.
+        assert kept == ["turn_prompt", "message_saved", "complete", live_turn.END]
         assert not await live_turn.is_live(_CONVERSATION)
 
 
 async def _nothing() -> AsyncIterator[dict[str, Any]]:
     return
     yield {}
+
+
+class TestTheRoom:
+    """Several people with one conversation open: who is here, and their turns."""
+
+    @staticmethod
+    def _room(
+        *, here: list[Any] | None = None, events: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
+        async def heard(_conversation: str) -> AsyncIterator[dict[str, Any]]:
+            for event in events or []:
+                yield event
+
+        return {
+            "join": AsyncMock(),
+            "leave": AsyncMock(),
+            "present": AsyncMock(return_value=here or []),
+            "events": heard,
+        }
+
+    async def _enter(self, session: Any, conversation: object, room: dict[str, Any], **kw):
+        people = {person.id: person for person in kw.pop("people", [])}
+        with (
+            patch.multiple("app.services.agent_session.chat_room", **room),
+            patch(
+                "app.services.agent_session.conversation_repo.users_by_id",
+                AsyncMock(return_value=people),
+            ),
+        ):
+            await TestFollowingFromAnotherSocket()._attach(session, conversation, **kw)
+            if session._room_task is not None:
+                await asyncio.gather(session._room_task, return_exceptions=True)
+
+    async def test_opening_a_chat_joins_its_room_and_says_who_is_here(self) -> None:
+        session = _session()
+        room = self._room(here=[session.user.id])
+
+        await self._enter(session, CONVERSATION, room, people=[session.user])
+
+        room["join"].assert_awaited_once_with(CONVERSATION, session.user.id)
+        presence = [data for kind, data in _sent_events(session) if kind == "presence"]
+        assert presence == [
+            {
+                "conversation_id": CONVERSATION,
+                "people": [
+                    {
+                        "user_id": str(session.user.id),
+                        "name": "Kacper",
+                        "has_avatar": False,
+                        "avatar_color": None,
+                    }
+                ],
+            }
+        ]
+
+    async def test_a_turn_somebody_else_began_is_followed(self, store: _Store) -> None:
+        turn = await _begin()
+        await live_turn.publish(turn, "turn_prompt", {"content": "Anna asks"})
+        store.on_listen = lambda: live_turn.end(turn)
+        session = _session()
+        # Nothing running when the chat is opened: the turn begins while it is open.
+        # Heard twice - two tabs announcing - and followed once.
+        begun = {"type": "turn_begun", "by": "anna"}
+        room = self._room(events=[{"type": "presence"}, begun, begun])
+        with patch.object(live_turn, "is_live", AsyncMock(side_effect=[False, True, True])):
+            await self._enter(session, CONVERSATION, room)
+        if session._follower is not None:
+            await session._follower
+
+        kinds = [kind for kind, _ in _sent_events(session)]
+        assert kinds[:2] == ["turn_attached", "turn_prompt"]
+
+    async def test_moving_to_another_chat_or_none_leaves_the_room(self) -> None:
+        session = _session()
+        room = self._room()
+        await self._enter(session, CONVERSATION, room)
+        # The same chat again: still in its room, not joined twice.
+        await self._enter(session, CONVERSATION, room)
+        assert room["join"].await_count == 1
+
+        await self._enter(session, None, room)
+        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id)
+        assert session._room is None
+
+    async def test_a_chat_that_cannot_be_read_leaves_the_room_it_was_in(self) -> None:
+        session = _session()
+        room = self._room()
+        await self._enter(session, CONVERSATION, room)
+        await self._enter(session, str(uuid4()), room, found=False)
+        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id)
+
+    async def test_a_socket_that_closes_leaves(self) -> None:
+        session = _session()
+        room = self._room()
+        await self._enter(session, CONVERSATION, room)
+        with patch.multiple("app.services.agent_session.chat_room", **room):
+            await session.shutdown()
+        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id)
+
+    async def test_an_open_chat_keeps_saying_its_reader_is_here(self) -> None:
+        session = _session()
+        join = AsyncMock(side_effect=[None, asyncio.CancelledError()])
+        with (
+            patch("app.services.agent_session.chat_room.join", join),
+            patch("app.services.agent_session.chat_room.HEARTBEAT_SECONDS", 0),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await session._heartbeat(CONVERSATION)
+        assert join.await_count == 2

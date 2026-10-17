@@ -130,7 +130,14 @@ _CONVERSATION = "11111111-1111-1111-1111-111111111111"
 def _session() -> AgentSession:
     websocket = MagicMock()
     websocket.send_json = AsyncMock()
-    user = MagicMock()
+    # A person with the fields a chat draws them by, which the room's frames read.
+    user = MagicMock(
+        id=uuid4(),
+        full_name="Kacper",
+        email="kacper@example.com",
+        avatar_url=None,
+        avatar_color=None,
+    )
     organization = MagicMock()
     return AgentSession(websocket, user, organization)
 

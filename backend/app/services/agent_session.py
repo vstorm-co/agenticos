@@ -32,9 +32,9 @@ from app.db.models.chat_file import ChatFile
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.db.session import get_db_context
-from app.repositories import agent_repo, agent_run_repo
-from app.schemas.conversation import MessagePart
-from app.services import live_turn
+from app.repositories import agent_repo, agent_run_repo, conversation_repo
+from app.schemas.conversation import ChatPerson, MessagePart
+from app.services import chat_room, live_turn
 from app.services.agent import (
     persist_assistant_turn,
     persist_user_turn,
@@ -224,6 +224,10 @@ class AgentSession:
         self._live: str | None = None
         self._live_turn: live_turn.Turn | None = None
         self._follower: asyncio.Task[None] | None = None
+        # The conversation this socket has open, as one of the people in its
+        # room (`chat_room`), and the task keeping it there.
+        self._room: str | None = None
+        self._room_task: asyncio.Task[None] | None = None
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
@@ -409,6 +413,7 @@ class AgentSession:
         because somebody asked.
         """
         self._stop_following()
+        await self._leave_room()
         task = self._turn_task
         if task is None or task.done():
             return
@@ -509,6 +514,21 @@ class AgentSession:
         if self.current_conversation_id:
             self._live = self.current_conversation_id
             self._live_turn = await live_turn.begin(self._live)
+            await self._enter_room(self._live)
+            if self._live_turn is not None:
+                # Who asked, and what: the others in the room follow this turn
+                # from its trace, and have no other way to see the question.
+                await live_turn.publish(
+                    self._live_turn,
+                    "turn_prompt",
+                    {
+                        "conversation_id": self._live,
+                        "message_id": None if prompt.message_id is None else str(prompt.message_id),
+                        "content": user_message,
+                        "sender": ChatPerson.of(self.user).model_dump(mode="json"),
+                    },
+                )
+            await chat_room.turn_begun(self._live, self.user.id)
         if prompt.newly_created and self.current_conversation_id:
             await self._emit(
                 "conversation_created",
@@ -1109,13 +1129,9 @@ class AgentSession:
         nothing about a conversation they cannot see.
         """
         self._stop_following()
-        if not isinstance(raw, str):
-            return
-        try:
-            conversation_id = str(UUID(raw))
-        except ValueError:
-            return
-        if conversation_id == self._live or not await live_turn.is_live(conversation_id):
+        conversation_id = _conversation_id(raw)
+        if conversation_id is None:
+            await self._leave_room()
             return
         async with get_db_context() as db:
             try:
@@ -1126,8 +1142,77 @@ class AgentSession:
                     include_favourite=False,
                 )
             except NotFoundError:
+                await self._leave_room()
                 return
+        await self._enter_room(conversation_id)
+        await self._follow_if_running(conversation_id)
+
+    async def _follow_if_running(self, conversation_id: str) -> None:
+        """Follow the turn being written in the conversation, unless this socket writes it."""
+        if conversation_id == self._live or not await live_turn.is_live(conversation_id):
+            return
+        if self._follower is not None and not self._follower.done():
+            return
         self._follower = asyncio.create_task(self._follow(conversation_id))
+
+    async def _enter_room(self, conversation_id: str) -> None:
+        """Be one of the people with this conversation open, and hear what happens in it."""
+        if self._room == conversation_id:
+            return
+        await self._leave_room()
+        self._room = conversation_id
+        await chat_room.join(conversation_id, self.user.id)
+        self._room_task = asyncio.create_task(self._in_room(conversation_id))
+
+    async def _leave_room(self) -> None:
+        room, task = self._room, self._room_task
+        self._room, self._room_task = None, None
+        if task is not None and not task.done():
+            task.cancel()
+        if room is not None:
+            await chat_room.leave(room, self.user.id)
+
+    async def _in_room(self, conversation_id: str) -> None:
+        """Keep this socket counted as here, and pass on the room's news.
+
+        Who is here goes to the person as a `presence` frame; a turn somebody
+        else began is followed like one they came back to, so a teammate's
+        question and its answer appear as they are written.
+        """
+        heartbeat = asyncio.create_task(self._heartbeat(conversation_id))
+        try:
+            await self._send_presence(conversation_id)
+            async for event in chat_room.events(conversation_id):
+                if event["type"] == chat_room.PRESENCE:
+                    await self._send_presence(conversation_id)
+                else:
+                    await self._follow_if_running(conversation_id)
+        finally:
+            heartbeat.cancel()
+
+    async def _heartbeat(self, conversation_id: str) -> None:
+        while True:
+            await asyncio.sleep(chat_room.HEARTBEAT_SECONDS)
+            await chat_room.join(conversation_id, self.user.id)
+
+    async def _send_presence(self, conversation_id: str) -> None:
+        here = await chat_room.present(conversation_id)
+        if not here:
+            # Not even this socket: no Redis to count anybody, so nothing to say.
+            return
+        async with get_db_context() as db:
+            people = await conversation_repo.users_by_id(db, here)
+        await send_event(
+            self.websocket,
+            "presence",
+            {
+                "conversation_id": conversation_id,
+                "people": [
+                    ChatPerson.of(person).model_dump(mode="json")
+                    for person in sorted(people.values(), key=lambda p: str(p.full_name or p.email))
+                ],
+            },
+        )
 
     async def _follow(self, conversation_id: str) -> None:
         """Forward a followed turn's frames until it ends, then say it has."""
@@ -1156,3 +1241,13 @@ class AgentSession:
         exactly the decision a public surface makes differently.
         """
         await self._emit(kind, payload)
+
+
+def _conversation_id(raw: object) -> str | None:
+    """A conversation id off the wire, canonical, or `None` for anything that is not one."""
+    if not isinstance(raw, str):
+        return None
+    try:
+        return str(UUID(raw))
+    except ValueError:
+        return None
