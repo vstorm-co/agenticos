@@ -1,5 +1,5 @@
 ---
-source_sha: "60dde7e73718"
+source_sha: "424ac8238a5e"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -62,6 +62,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
+| `mirage` | Wirtualny terminal (Mirage) | analiza | `mirage_explore`, `mirage_run` | — | wymagany (git token) |
 | `charts` | Wykresy | analiza | `create_chart` | — | — |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany |
 | `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
@@ -981,6 +982,34 @@ Te pliki są zapisywalne, a to, co agent zapisze, **nie** staje się skillem. Sk
 to instrukcje, za którymi idzie każdy powiązany z nim agent przy każdym runie, więc
 zmiana jest zapisywana jako propozycja, a ktoś z `skills:edit` ją przyjmuje albo
 odrzuca — zobacz [Skille](../skills.md).
+
+## Wirtualny terminal (Mirage) { #mirage }
+
+`mirage_explore` — *Run a read-only shell command across the mounted repositories.*
+`mirage_run` — *Run a shell command that may write into the scratch folder.*
+
+`ls`, `cat`, `grep`, `find`, `head` i `wc` w repozytoriach GitHub, bez kontenera.
+[Mirage](https://github.com/strukto-ai/mirage) montuje każde repozytorium tylko do
+odczytu pod `/github/<owner>/<name>/` i czyta je przez API GitHuba, więc agent
+przeszuka kilka repozytoriów w kilka sekund. Nie uruchamia kodu; od tego jest
+[sandbox](#files-shell).
+
+| Konfiguracja | Domyślnie | Wartości |
+|---|---|---|
+| `repositories` | — | 1–5, `owner/name` lub `owner/name@branch` |
+| `scratch` | włączony | zapisywalny `/scratch/`, pusty przy każdym runie |
+| `timeout_seconds` | 60 | 5–600, na polecenie |
+| `max_output_chars` | 20000 | 1000–200000, reszta jest ucinana z adnotacją |
+
+**Repozytoria są zawsze tylko do odczytu.** `mirage_explore` działa w widoku, w
+którym każde montowanie jest tylko do odczytu, więc nie wymaga zatwierdzenia;
+`mirage_run` może zapisywać, tylko do folderu roboczego, i to na nim ustawia się
+**Zawsze pytaj**. Zapis do repozytorium kończy się błędem w Mirage, niezależnie od
+narzędzia.
+
+**Token to `git_token` z vaulta, zapieczętowany dla `github.com`**, i jest wymagany
+także dla publicznych repozytoriów, bo GitHub odrzuca pusty. Token zapieczętowany
+dla innego hosta jest odrzucany, a nie wysyłany do GitHuba.
 
 ## Wykresy { #charts }
 

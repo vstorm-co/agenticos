@@ -1,5 +1,5 @@
 ---
-source_sha: "60dde7e73718"
+source_sha: "424ac8238a5e"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -62,6 +62,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` |
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona |
+| `mirage` | Virtual terminal (Mirage) | analysis | `mirage_explore`, `mirage_run` | — | obligatoria (git token) |
 | `charts` | Gráficos | analysis | `create_chart` | — | — |
 | `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
@@ -993,6 +994,34 @@ Esos archivos son escribibles, y lo que el agent escribe **no** se convierte en 
 skill. Un skill son instrucciones que sigue en cada run todo agent vinculado a él,
 así que un cambio se registra como una propuesta y alguien con `skills:edit` la
 acepta o la descarta; consulta [Skills](../skills.md).
+
+## Terminal virtual (Mirage) { #mirage }
+
+`mirage_explore` — *Run a read-only shell command across the mounted repositories.*
+`mirage_run` — *Run a shell command that may write into the scratch folder.*
+
+`ls`, `cat`, `grep`, `find`, `head` y `wc` sobre repositorios de GitHub, sin
+contenedor. [Mirage](https://github.com/strukto-ai/mirage) monta cada repositorio
+en solo lectura en `/github/<owner>/<name>/` y lo lee a través de la API de GitHub,
+así que un agent busca en varios repositorios en segundos. No ejecuta código; para
+eso está [la sandbox](#files-shell).
+
+| Configuración | Predeterminado | Valores |
+|---|---|---|
+| `repositories` | — | 1–5, `owner/name` u `owner/name@branch` |
+| `scratch` | activado | un `/scratch/` con escritura, vacío en cada run |
+| `timeout_seconds` | 60 | 5–600, por comando |
+| `max_output_chars` | 20000 | 1000–200000, el resto se corta con una nota |
+
+**Los repositorios son siempre de solo lectura.** `mirage_explore` se ejecuta en una
+vista donde cada montaje es de solo lectura, así que no necesita aprobación;
+`mirage_run` puede escribir, solo en la carpeta de trabajo, y es la herramienta en
+la que poner **Preguntar siempre**. Una escritura en un repositorio falla dentro de
+Mirage, con la herramienta que sea.
+
+**El token es un `git_token` del vault, sellado para `github.com`**, y es obligatorio
+también para repositorios públicos, porque GitHub rechaza uno vacío. Un token
+sellado para otro host se rechaza en lugar de enviarse a GitHub.
 
 ## Gráficos { #charts }
 

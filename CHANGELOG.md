@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Virtual terminal (Mirage)** (#2191). The `mirage` capability gives an agent
+  `ls`, `cat`, `grep`, `find`, `head` and `wc` across up to five GitHub
+  repositories, mounted read-only through Mirage with no container, plus a
+  scratch folder it may write in. `mirage_explore` only reads and needs no
+  approval; `mirage_run` may write into the scratch folder and is the tool to
+  gate. The GitHub token is a `git_token` from the vault, sealed for
+  `github.com`. See [Capabilities](docs/reference/capabilities.md#mirage).
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

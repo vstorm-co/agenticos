@@ -46,7 +46,7 @@ from app.agents.subagent_runtime import (
     SubagentRuntime,
 )
 from app.core.exceptions import BadRequestError
-from app.core.secret_kinds import ApiKeySecret, SecretKind, StorableSecret
+from app.core.secret_kinds import ApiKeySecret, GitTokenSecret, SecretKind, StorableSecret
 from app.services.capability_contracts import probe_context, real_tool_definition
 
 
@@ -264,6 +264,8 @@ class TestToolDeclarations:
         # without setting a reminder attaches nothing. One reminder on is what
         # makes it build here; it offers no tools either way.
         "system_reminders": {"goal_reanchor": {}},
+        # Mounts nothing without a repository, so one is what makes it build.
+        "mirage": {"repositories": ["acme/api"]},
     }
     """Configurations a capability needs before it offers anything.
 
@@ -302,15 +304,17 @@ class TestToolDeclarations:
 
         The parallel of `RESOURCES`: a capability that cannot build without a
         credential is given one here, so the drift check goes through `build()`
-        for it too rather than skipping it. Only `API_KEY` is handled because it
-        is the only kind any capability requires unconditionally; another kind
-        arriving unconditionally should fail here loudly rather than be skipped.
+        for it too rather than skipping it. The kinds handled are the ones a
+        capability requires unconditionally; another kind arriving unconditionally
+        should fail here loudly rather than be skipped.
         """
         requirement = definition.secret
         if requirement is None or not definition.needs_secret(definition.validate_config(config)):
             return None, {}
-        assert requirement.kind is SecretKind.API_KEY, definition.id
         secret_id = uuid4()
+        if requirement.kind is SecretKind.GIT_TOKEN:
+            return secret_id, {secret_id: GitTokenSecret(token="test-token", host="github.com")}
+        assert requirement.kind is SecretKind.API_KEY, definition.id
         return secret_id, {secret_id: ApiKeySecret(api_key="test-key")}
 
     def test_no_capability_escapes_the_drift_check(self):

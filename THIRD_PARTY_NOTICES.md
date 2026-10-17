@@ -23,11 +23,11 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 123 | 241 |
-| Apache-2.0 | 72 | 24 |
+| MIT | 125 | 241 |
+| Apache-2.0 | 73 | 24 |
 | BSD-3-Clause | 34 | 4 |
 | ISC | 6 | 16 |
-| BSD-2-Clause | 10 | 0 |
+| BSD-2-Clause | 11 | 0 |
 | MPL-2.0 | 4 | 0 |
 | Apache-2.0 AND MIT | 1 | 2 |
 | LGPL-3.0-or-later | 1 | 2 |
@@ -37,6 +37,7 @@ names no author is in the evidence column below.
 | Apache-2.0 AND BSD-2-Clause | 1 | 0 |
 | Apache-2.0 AND CNRI-Python | 1 | 0 |
 | Apache-2.0 OR BSD-3-Clause | 1 | 0 |
+| Apache-2.0 OR GPL-2.0-or-later | 1 | 0 |
 | Artistic-1.0-Perl OR GPL-2.0-or-later | 1 | 0 |
 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | 1 | 0 |
 | BSD-3-Clause OR Apache-2.0 | 1 | 0 |
@@ -52,7 +53,7 @@ names no author is in the evidence column below.
 
 ## Backend image (Python)
 
-269 distributions.
+274 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -116,6 +117,7 @@ names no author is in the evidence column below.
 | dnspython | 2.8.0 | ISC | https://github.com/rthalley/dnspython.git | License field |
 | docker | 7.2.0 | Apache-2.0 | https://github.com/docker/docker-py | License-Expression |
 | docstring-parser | 0.18.0 | MIT | https://github.com/rr-/docstring_parser | License field |
+| dulwich | 1.2.17 | Apache-2.0 OR GPL-2.0-or-later | https://www.dulwich.io/code/ | License-Expression |
 | email-validator | 2.3.0 | Unlicense | https://github.com/JoshData/python-email-validator | License field |
 | et-xmlfile | 2.0.0 | MIT | https://foss.heptapod.net/openpyxl/et_xmlfile | License field |
 | eval-type-backport | 0.4.0 | MIT | https://github.com/alexmojaki/eval_type_backport | License field |
@@ -167,6 +169,7 @@ names no author is in the evidence column below.
 | jiter | 0.17.0 | MIT | https://github.com/pydantic/jiter/ | License-Expression |
 | jmespath | 1.1.0 | MIT | https://github.com/jmespath/jmespath.py | License field |
 | joserfc | 1.7.5 | BSD-3-Clause | https://github.com/authlib/joserfc | License field |
+| jq | 1.12.0 | BSD-2-Clause | https://github.com/mwilliamson/jq.py | License field |
 | json-repair | 0.63.5 | MIT | https://github.com/mangiucugna/json_repair/ | License-Expression |
 | jsonpatch | 1.33 | BSD-3-Clause | https://github.com/stefankoegl/python-json-patch.git | License field |
 | jsonpath-python | 1.1.6 | MIT | https://github.com/sean2077/jsonpath-python | License field |
@@ -192,6 +195,7 @@ names no author is in the evidence column below.
 | mcp-types | 2.3.0 | MIT | https://github.com/modelcontextprotocol/python-sdk | License field |
 | mdurl | 0.1.2 | MIT | https://github.com/executablebooks/mdurl | classifier |
 | mem0ai | 2.2.1 | Apache-2.0 | https://pypi.org/project/mem0ai/2.2.1/ | License-Expression |
+| mirage-ai | 0.0.6 | Apache-2.0 | https://github.com/strukto-ai/mirage | License-Expression |
 | mistralai | 2.10.1 | Apache-2.0 | https://github.com/mistralai/client-python.git | licence file text |
 | more-itertools | 11.1.0 | MIT | https://github.com/more-itertools/more-itertools | License-Expression |
 | multidict | 6.9.1 | Apache-2.0 | https://github.com/aio-libs/multidict | License field |
@@ -303,6 +307,8 @@ names no author is in the evidence column below.
 | tokenizers | 0.23.2 | Apache-2.0 | https://github.com/huggingface/tokenizers | classifier; no licence file, attributed to Nicolas Patry, Anthony Moi |
 | toml | 0.10.2 | MIT | https://github.com/uiri/toml | License field |
 | tqdm | 4.70.1 | MPL-2.0 | https://github.com/tqdm/tqdm | licence file text; review accepted |
+| tree-sitter | 0.26.0 | MIT | https://github.com/tree-sitter/py-tree-sitter | classifier |
+| tree-sitter-bash | 0.25.1 | MIT | https://github.com/tree-sitter/tree-sitter-bash | License field |
 | truststore | 0.10.4 | MIT | https://github.com/sethmlarson/truststore | License-Expression |
 | typer | 0.25.1 | MIT | https://github.com/fastapi/typer | License-Expression |
 | types-requests | 2.33.0.20260906 | Apache-2.0 | https://github.com/python/typeshed | License-Expression |

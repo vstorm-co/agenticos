@@ -1399,7 +1399,11 @@
       "scrollingPage": "Scrollt",
       "scrollPage": "Gescrollt",
       "goingBack": "Geht zurück",
-      "goBack": "Zurückgegangen"
+      "goBack": "Zurückgegangen",
+      "exploringMounts": "Repositories werden durchsucht",
+      "runningInScratch": "Schreiben in den Arbeitsordner",
+      "mirageExplore": "Virtuelles Terminal",
+      "mirageRun": "Virtuelles Terminal (Schreiben)"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -6549,6 +6553,14 @@
       "example2": "Drei Wettbewerber und ihre Preise finden",
       "needs": "Nichts, mit DuckDuckGo. Brave, Exa oder Tavily brauchen ihren API-Schlüssel im Vault.",
       "never": "Schickt nie Ihre Dokumente an die Suchmaschine, nur die Suchwörter."
+    },
+    "mirage": {
+      "name": "Virtuelles Terminal (Mirage)",
+      "does": "Lässt den Agent ls, grep, cat und find über GitHub-Repositories nutzen, ohne einen Container zu starten.",
+      "example1": "Welche unserer Repositories erwähnen noch die alte API?",
+      "example2": "Finde jedes TODO in den Repositories web und api",
+      "needs": "Ein GitHub-Token im Vault (Git-Token, Host github.com).",
+      "never": "Schreibt nie in ein Repository; beschreibbar ist nur der eigene Arbeitsordner."
     }
   },
   "capabilityCategories": {
@@ -6990,6 +7002,24 @@
       "max_results": {
         "title": "Ergebnisse pro Suche",
         "description": "Wie viele Ergebnisse eine Suche liefert; bei nativer Suche ignoriert."
+      }
+    },
+    "mirage": {
+      "repositories": {
+        "title": "GitHub-Repositories",
+        "description": "Repositories, schreibgeschützt eingehängt unter /github/<owner>/<name>, als owner/name oder owner/name@branch."
+      },
+      "scratch": {
+        "title": "Arbeitsordner",
+        "description": "Ein beschreibbarer Ordner /scratch für Notizen und Zwischendateien, bei jedem Run leer."
+      },
+      "timeout_seconds": {
+        "title": "Zeitlimit pro Befehl (Sekunden)",
+        "description": "Wie lange ein Befehl laufen darf, bevor er gestoppt wird."
+      },
+      "max_output_chars": {
+        "title": "Ausgabelimit (Zeichen)",
+        "description": "Wie viel der Ausgabe eines Befehls das Modell erreicht; der Rest wird abgeschnitten."
       }
     }
   },

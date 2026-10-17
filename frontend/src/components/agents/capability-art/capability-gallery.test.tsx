@@ -68,6 +68,7 @@ const REGISTERED = [
   "media",
   "memory_files",
   "memory_mem0",
+  "mirage",
   "planning",
   "sandbox",
   "skills",

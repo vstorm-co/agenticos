@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
 
+from pydantic import SecretStr
 from pydantic_ai import Agent as PydanticAgent
 from pydantic_ai.capabilities import AbstractCapability, CombinedCapability, WrapperCapability
 from pydantic_ai.models.test import TestModel
@@ -48,7 +49,7 @@ from app.agents.subagent_runtime import (
     ResolvedSubagent,
     SubagentRuntime,
 )
-from app.core.secret_kinds import ApiKeySecret, SecretKind
+from app.core.secret_kinds import ApiKeySecret, GitTokenSecret, SecretKind
 
 logger = logging.getLogger(__name__)
 
@@ -118,10 +119,14 @@ _DOCUMENTATION_STUB: dict[str, Any] = {
 # is exactly the one somebody reaching for this page needs described.
 _DOCUMENTATION_CONFIGS: dict[str, dict[str, Any]] = {
     "channel_tools": {"tools": sorted(get("channel_tools").tool_ids)},
+    # Mounts nothing without a repository; the probe never reaches it.
+    "mirage": {"repositories": ["example/repository"]},
 }
 
 
-def _documentation_secret(definition: Any) -> ApiKeySecret | None:
+def _documentation_secret(
+    definition: Any, blob: dict[str, Any]
+) -> ApiKeySecret | GitTokenSecret | None:
     """A stand-in credential for a capability that will not build without one.
 
     Read for its *shape* and never used: nothing here calls the service, so the
@@ -130,13 +135,16 @@ def _documentation_secret(definition: Any) -> ApiKeySecret | None:
     falls back to the catalog's one-line summary - which is how `memory_mem0`
     showed the Builder a sentence while the model was reading six (#1473).
 
-    Only `API_KEY`, because it is the only kind any capability requires
-    unconditionally; another kind arriving that way should show up as a missing
-    contract rather than be quietly stubbed with the wrong shape.
+    The kinds a capability requires unconditionally - an API key, and the git
+    token `mirage` reads repositories with; another kind arriving that way should
+    show up as a missing contract rather than be quietly stubbed with the wrong
+    shape.
     """
     requirement = definition.secret
-    if requirement is None or not definition.needs_secret(definition.validate_config({})):
+    if requirement is None or not definition.needs_secret(definition.validate_config(blob)):
         return None
+    if requirement.kind is SecretKind.GIT_TOKEN:
+        return GitTokenSecret(token=SecretStr("documentation-probe"), host="github.com")
     if requirement.kind is not SecretKind.API_KEY:
         return None
     return ApiKeySecret(api_key="documentation-probe")
@@ -257,7 +265,7 @@ async def _contracts_for(definition: Any) -> dict[str, ToolContract]:
             binding=CapabilityBinding(capability_id=definition.id, config=blob),
             config=definition.validate_config(blob),
             resources=_DOCUMENTATION_STUB,
-            secret=_documentation_secret(definition),
+            secret=_documentation_secret(definition, blob),
         )
     )
     toolset = built.get_toolset() if built is not None else None

@@ -196,6 +196,7 @@ dependencies = [
     # lite build: the same `phonenumbers` module and numbering-plan metadata,
     # without the 20 MB of carrier, geocoding and time zone data nothing here reads.
     "phonenumberslite>=9.0.41",
+    "mirage-ai==0.0.6",
 ]
 
 [project.optional-dependencies]

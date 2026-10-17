@@ -55,6 +55,7 @@ browser is pointed at the deployment's browser service
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
+| `mirage` | Virtual terminal (Mirage) | analysis | `mirage_explore`, `mirage_run` | — | required (git token) |
 | `charts` | Charts | analysis | `create_chart` | — | — |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
@@ -928,6 +929,33 @@ Those files are writable, and what the agent writes does **not** become a skill.
 skill is instructions every agent bound to it follows on every run, so a change is
 recorded as a proposal and somebody holding `skills:edit` accepts or discards it —
 see [Skills](../skills.md).
+
+## Virtual terminal (Mirage) { #mirage }
+
+`mirage_explore` — *Run a read-only shell command across the mounted repositories.*
+`mirage_run` — *Run a shell command that may write into the scratch folder.*
+
+`ls`, `cat`, `grep`, `find`, `head` and `wc` across GitHub repositories, with no
+container. [Mirage](https://github.com/strukto-ai/mirage) mounts each repository
+read-only at `/github/<owner>/<name>/` and reads it through GitHub's API, so an
+agent can search several repositories in seconds. It cannot run code; that is
+[the sandbox](#files-shell).
+
+| Config | Default | Values |
+|---|---|---|
+| `repositories` | — | 1–5, `owner/name` or `owner/name@branch` |
+| `scratch` | on | a writable `/scratch/`, empty each run |
+| `timeout_seconds` | 60 | 5–600, per command |
+| `max_output_chars` | 20000 | 1000–200000, the rest is cut with a note |
+
+**The repositories are read-only, always.** `mirage_explore` runs in a view where
+every mount is read-only, so it needs no approval; `mirage_run` may write, into
+the scratch folder only, and is the tool to set **Always ask** on. A write to a
+repository fails inside Mirage whichever tool tried it.
+
+**The token is a `git_token` from the vault, sealed for `github.com`**, and it is
+required for public repositories too, because GitHub refuses an empty one. A
+token sealed for another host is refused rather than sent to GitHub.
 
 ## Charts
 

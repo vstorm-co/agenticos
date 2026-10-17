@@ -1399,7 +1399,11 @@
       "scrollingPage": "Scrolling",
       "scrollPage": "Scrolled",
       "goingBack": "Going back",
-      "goBack": "Went back"
+      "goBack": "Went back",
+      "exploringMounts": "Looking through the repositories",
+      "runningInScratch": "Writing to the scratch folder",
+      "mirageExplore": "Virtual terminal",
+      "mirageRun": "Virtual terminal (write)"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -6666,6 +6670,14 @@
       "example2": "Find three competitors and their prices",
       "needs": "Nothing, with DuckDuckGo. Brave, Exa or Tavily need their API key in the vault.",
       "never": "Never sends your documents to the search engine, only the search words."
+    },
+    "mirage": {
+      "name": "Virtual terminal (Mirage)",
+      "does": "Lets the agent use ls, grep, cat and find across GitHub repositories without starting a container.",
+      "example1": "Which of our repositories still mention the old API?",
+      "example2": "Find every TODO in the web and api repositories",
+      "needs": "A GitHub token in the vault (git token, host github.com).",
+      "never": "Never writes to a repository; only its own scratch folder is writable."
     }
   },
   "capabilityCategories": {
@@ -7107,6 +7119,24 @@
       "max_results": {
         "title": "Results per search",
         "description": "How many results one search returns; ignored for native search."
+      }
+    },
+    "mirage": {
+      "repositories": {
+        "title": "GitHub repositories",
+        "description": "Repositories mounted read-only under /github/<owner>/<name>, as owner/name or owner/name@branch."
+      },
+      "scratch": {
+        "title": "Scratch folder",
+        "description": "A writable /scratch folder for notes and intermediate files, empty each run."
+      },
+      "timeout_seconds": {
+        "title": "Command timeout (seconds)",
+        "description": "How long one command may run before it is stopped."
+      },
+      "max_output_chars": {
+        "title": "Output limit (characters)",
+        "description": "How much of a command's output reaches the model; the rest is cut."
       }
     }
   },
