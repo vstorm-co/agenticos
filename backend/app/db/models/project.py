@@ -6,8 +6,8 @@ one conversation wrote is there for the next, whoever asked and whichever agent
 answered; and the project's instructions reach every agent that answers in it.
 
 It is a shared resource like an agent or a context file - an owner, a visibility
-and grants - and the chats in it stay their authors' own: sharing a project
-shares its files and its instructions, never what somebody asked in it.
+and grants. Its chats are its members': whoever may see the project reads them,
+and whoever may work in it continues them.
 """
 
 import uuid

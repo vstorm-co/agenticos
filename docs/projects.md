@@ -86,9 +86,13 @@ Builder works in and edits the ones shared with them, a Member edits their own
 and works in shared ones, and a Viewer reads what was shared. A chat whose author
 loses `projects:use` stops reaching the project's files on its next turn.
 
-**Chats stay their authors' own.** Sharing a project shares its files and
-instructions, not the conversations in it: each person's chats in a project are
-listed to them alone, as everywhere else in the console.
+**A project's chats are its members'.** Whoever may see a project reads every
+chat in it, and whoever may work in it (`use`) continues them: their turns carry
+their own name and face, so a thread several people worked on says who asked
+what. Renaming, archiving or deleting a chat stays with whoever started it. On
+the **Chats** tab each row says whose the chat is, who is at work in it right now
+and who has had it open - the latest faces, with every name on hover. A chat
+outside any project stays its author's own, as everywhere else in the console.
 
 ## Deleting a project
 
@@ -101,6 +105,6 @@ kept as ordinary chats, outside any project.
   link to all of them.
 - The chat list files your chats in a project under the project's name, above the
   chats outside any project.
-- The dashboard's **Projects** card shows a row of them, with your chats in each.
+- The dashboard's **Projects** card shows a row of them, with the chats in each.
 - `GET /api/v1/projects` and its sub-routes are part of the public API, so a
   script can create a project and fill it with files. See [the API](api.md).

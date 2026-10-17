@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "a9d760cf0da1"
+source_sha: "30ff66811ce6"
 ---
 
 # Projekty { #projects }
@@ -89,9 +89,13 @@ edytuje własne i pracuje w udostępnionych, a Viewer czyta to, co mu udostępni
 Czat, którego autor straci `projects:use`, przestaje sięgać plików projektu przy
 kolejnej turze.
 
-**Czaty zostają ich autorów.** Udostępnienie projektu udostępnia jego pliki i
-instrukcje, a nie rozmowy w nim: czaty każdej osoby w projekcie widzi tylko ona,
-jak wszędzie indziej w konsoli.
+**Czaty projektu należą do jego członków.** Kto widzi projekt, czyta każdy czat
+w nim, a kto może w nim pracować (`use`), kontynuuje je: jego wiadomości niosą
+jego imię i twarz, więc wątek, nad którym pracowało kilka osób, mówi, kto o co
+pytał. Zmiana nazwy, archiwizacja i usunięcie czatu zostają przy osobie, która go
+zaczęła. Na zakładce **Czaty** każdy wiersz mówi, czyj jest czat, kto teraz w nim
+pracuje i kto go otwierał - ostatnie twarze, a wszystkie imiona po najechaniu.
+Czat poza projektem zostaje jego autora, jak wszędzie indziej w konsoli.
 
 ## Usuwanie projektu { #deleting-a-project }
 
@@ -104,6 +108,6 @@ zwykłe czaty, poza jakimkolwiek projektem.
   wszystkich.
 - Lista czatów pokazuje twoje czaty w projekcie pod jego nazwą, nad czatami spoza
   projektów.
-- Karta **Projekty** na dashboardzie pokazuje ich rząd, z twoimi czatami w każdym.
+- Karta **Projekty** na dashboardzie pokazuje ich rząd, z czatami w każdym.
 - `GET /api/v1/projects` i trasy pod nim należą do publicznego API, więc skrypt
   może utworzyć projekt i wypełnić go plikami. Zobacz [API](api.md).

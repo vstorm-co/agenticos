@@ -20,6 +20,7 @@ from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundErr
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_workspace import AgentWorkspace
+from app.db.models.conversation import Conversation
 from app.db.models.project import Project
 from app.db.updates import writable
 from app.repositories import agent_repo, conversation_repo, project_repo, resource_grant_repo
@@ -31,6 +32,7 @@ from app.services.access import (
     resolve_access,
     visible_resource_ids,
 )
+from app.services.conversation import ConversationService
 from app.services.resource_usage import groups_sharing, shared_with_group
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import (
@@ -143,7 +145,6 @@ class ProjectService:
         activity = await project_repo.chat_activity(
             self.db,
             organization_id=ctx.organization_id,
-            user_id=ctx.subject_id,
             project_ids=ids,
         )
         groups = await groups_sharing(self.db, ctx, resource_type=PROJECT, resource_ids=ids)
@@ -303,6 +304,13 @@ class ProjectService:
     async def check_can_start(self, ctx: AuthContext, project_id: UUID) -> Project:
         """The project a new chat is to start in, when the caller may work in it."""
         return await self.get(ctx, project_id, perm=Perm.PROJECTS_USE)
+
+    async def chats(self, ctx: AuthContext, project_id: UUID) -> tuple[list[Conversation], int]:
+        """Every chat in the project, whoever started it - for whoever may see it."""
+        await self.get(ctx, project_id)
+        return await ConversationService(self.db).list_project_chats(
+            project_id, organization_id=ctx.organization_id, user_id=ctx.user_id
+        )
 
     async def files(
         self, ctx: AuthContext, project_id: UUID

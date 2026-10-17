@@ -311,14 +311,17 @@ class TestPersistUserTurnOrgScope:
         """The tenant reaches the service, which is where the check lives."""
         org_id = uuid.uuid4()
         conversation_id = uuid.uuid4()
-        service = self._conv_service(MagicMock(organization_id=org_id, title=None))
+        owner = _user()
+        service = self._conv_service(
+            MagicMock(organization_id=org_id, title=None, user_id=owner.id)
+        )
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
             patch("app.services.agent.get_conversation_service", return_value=service),
         ):
             await persist_user_turn(
-                _user(),
+                owner,
                 "hello",
                 [],
                 requested_conversation_id=str(conversation_id),
@@ -330,6 +333,30 @@ class TestPersistUserTurnOrgScope:
         # The retitling of an untitled thread goes through the same door, and it
         # was the second call #5 named.
         assert service.update_conversation.await_args.kwargs["organization_id"] == org_id
+
+    @pytest.mark.anyio
+    async def test_a_teammate_continuing_a_project_chat_does_not_rename_it(self):
+        """Naming the thread stays its owner's, so a teammate's first words in an
+        untitled project chat are a turn and not a new title."""
+        service = self._conv_service(
+            MagicMock(organization_id=uuid.uuid4(), title=None, user_id=uuid.uuid4())
+        )
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            await persist_user_turn(
+                _user(),
+                "picking this up",
+                [],
+                requested_conversation_id=str(uuid.uuid4()),
+                current_conversation_id=None,
+                organization_id=uuid.uuid4(),
+            )
+
+        service.update_conversation.assert_not_awaited()
+        service.add_message.assert_awaited_once()
 
     @pytest.mark.anyio
     async def test_a_conversation_outside_the_active_org_is_refused(self):

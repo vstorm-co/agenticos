@@ -1,3 +1,5 @@
+import type { ChatPerson } from "./conversation";
+
 export type MessageRole = "user" | "assistant" | "system";
 /** Rating values for message feedback. */
 export enum RatingValue {
@@ -30,6 +32,9 @@ export interface ChatMessage {
   files?: ChatMessageFile[];
   /** Conversation ID for this message */
   conversationId?: string;
+  /** Who typed a user turn, when it was somebody signed in. In a project's chat
+   *  that is not always the reader, so the turn says whose words they are. */
+  sender?: ChatPerson;
   /** The published agent that produced this assistant turn. Absent means the
    *  general assistant, which is what a turn sent without an `agent_id` runs.
    *  Recorded per message on both paths - live and reloaded - because the

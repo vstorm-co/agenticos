@@ -733,6 +733,20 @@ describe("what a person attached", () => {
     expect(container.querySelector("g.mo-root")).toBeInTheDocument();
   });
 
+  it("names a teammate's turn in a project's chat by them, not as You", () => {
+    useAuthStore.setState({ user: { id: "u-1", email: "k@example.com" } as never });
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    const { unmount } = item({ role: "user", content: "picking this up", sender: anna });
+    expect(screen.getByText("Anna")).toBeInTheDocument();
+    expect(screen.queryByText("You")).toBeNull();
+    unmount();
+
+    // The reader's own turn, signed with their own id, is still theirs.
+    item({ role: "user", content: "x", sender: { ...anna, user_id: "u-1", name: "Kacper" } });
+    expect(screen.getByText("You")).toBeInTheDocument();
+  });
+
   it("draws the agent's face mid-thought while the turn is still streaming", () => {
     // The one picture in the product that says an agent is still working, which
     // is why it is worth the inline SVG the motion costs.

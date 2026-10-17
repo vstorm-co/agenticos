@@ -19,6 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **A project's chats are its members'.** Whoever may see a project reads every
+  chat in it, and whoever may work in it continues a teammate's chat; each turn
+  carries the name and face of whoever typed it. The project's **Chats** tab
+  lists everybody's chats, each saying whose it is, who is at work in it now
+  and who has had it open, and the project's chat count is everybody's.
+  Renaming, archiving and deleting stay with whoever started the chat.
+  `GET /api/v1/projects/{id}/chats` lists them; a message's `sender` names who
+  typed a user turn.
 - **Agents served over A2A** (#2092). An agent its organization switches on under
   **Availability → Agent2Agent (A2A)** has an agent card at
   `/api/v1/a2a/{id}/.well-known/agent-card.json` and takes `message/send` and

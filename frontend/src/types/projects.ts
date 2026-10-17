@@ -3,8 +3,8 @@ import type { Visibility } from "./sharing";
 /**
  * A project: instructions and files in one container, shared by every chat in it.
  *
- * Chats stay their authors' own - `chat_count` is the caller's chats only - while
- * the files and instructions are everybody's the project is shared with.
+ * Its chats, files and instructions are everybody's the project is shared with:
+ * `chat_count` counts every chat in it, whoever started it.
  */
 export interface Project {
   id: string;

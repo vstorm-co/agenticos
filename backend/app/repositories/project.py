@@ -67,12 +67,12 @@ async def list_visible(
 
 
 async def chat_activity(
-    db: AsyncSession, *, organization_id: UUID, user_id: UUID, project_ids: Sequence[UUID]
+    db: AsyncSession, *, organization_id: UUID, project_ids: Sequence[UUID]
 ) -> dict[UUID, tuple[int, datetime | None]]:
-    """How many of one person's chats each project holds, and when the last was active.
+    """How many chats each project holds, whoever started them, and when the last moved.
 
-    The person's own: a project shares files and instructions, never what
-    somebody asked in it.
+    Everybody's: a project's chats are its members' to read and continue, so a
+    card counting only the reader's own would disagree with the list it opens.
     """
     if not project_ids:
         return {}
@@ -84,7 +84,6 @@ async def chat_activity(
         )
         .where(
             Conversation.organization_id == organization_id,
-            Conversation.user_id == user_id,
             Conversation.project_id.in_(project_ids),
             Conversation.is_archived.is_(False),
         )

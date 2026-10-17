@@ -136,10 +136,10 @@ class TestConversationServiceGetConversation:
         identity_id = uuid4()
         identity = MagicMock(id=identity_id, platform_username="kacper.wlodarczyk")
         conversation = MockConversation()
-        wrote = MagicMock(id=uuid4(), channel_identity_id=identity_id)
+        wrote = MagicMock(id=uuid4(), channel_identity_id=identity_id, author_user_id=None)
         # `author=None` explicitly: a bare mock invents the attribute, and then the
         # assertion below would pass whatever the code did.
-        typed = MagicMock(id=uuid4(), channel_identity_id=None, author=None)
+        typed = MagicMock(id=uuid4(), channel_identity_id=None, author=None, author_user_id=None)
         conversation.messages = [wrote, typed]
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
@@ -160,7 +160,9 @@ class TestConversationServiceGetConversation:
     ):
         """One query per page, and not even that when there is nothing to name."""
         conversation = MockConversation()
-        conversation.messages = [MagicMock(id=uuid4(), channel_identity_id=None)]
+        conversation.messages = [
+            MagicMock(id=uuid4(), channel_identity_id=None, author_user_id=None)
+        ]
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)

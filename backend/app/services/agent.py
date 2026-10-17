@@ -240,7 +240,9 @@ async def persist_user_turn(
                 conv = await _resolve_in_org(
                     conv_service, requested, organization_id=organization_id, user_id=user.id
                 )
-                if not conv.title and user_message:
+                # The owner's to name: a teammate continuing a project's chat may
+                # add a turn and nothing else.
+                if not conv.title and user_message and conv.user_id == user.id:
                     await conv_service.update_conversation(
                         requested,
                         ConversationUpdate(title=truncate_title(user_message)),

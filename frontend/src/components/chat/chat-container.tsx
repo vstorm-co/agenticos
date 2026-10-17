@@ -738,7 +738,9 @@ function ChatUI({
         id: message.id,
         author:
           message.role === "user"
-            ? t("rail.you")
+            ? message.sender && message.sender.user_id !== authUser?.id
+              ? message.sender.name
+              : t("rail.you")
             : ((message.agentId ? agentNames.get(message.agentId)?.name : undefined) ??
               t("rail.agent")),
         preview: (message.content ?? "").trim(),
@@ -750,7 +752,9 @@ function ChatUI({
         // A person's face is drawn from their id, an agent's from its own; the
         // rail never has to know which, it just hands over the seed.
         seed:
-          message.role === "user" ? (authUser?.id ?? message.id) : (message.agentId ?? message.id),
+          message.role === "user"
+            ? (message.sender?.user_id ?? authUser?.id ?? message.id)
+            : (message.agentId ?? message.id),
       })),
     [messages, agentNames, authUser, t],
   );

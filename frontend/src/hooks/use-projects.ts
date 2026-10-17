@@ -12,6 +12,7 @@ import {
   createProjectFolder,
   deleteProject,
   getProject,
+  listProjectChats,
   listProjectFiles,
   listProjects,
   removeProjectPath,
@@ -20,9 +21,7 @@ import {
 } from "@/lib/projects-api";
 import type { UploadProgress } from "@/hooks/use-knowledge-bases";
 import { useTenantId } from "@/hooks/use-organizations";
-import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
-import type { ConversationListResponse } from "@/types/conversation";
 import type { ProjectCreate, ProjectUpdate } from "@/types/projects";
 
 export interface ProjectsQuery {
@@ -213,10 +212,7 @@ export function useProjectFiles(projectId: string) {
 export function useProjectChats(projectId: string) {
   const { data, isLoading, error } = useQuery({
     queryKey: [...qk.conversations.all(), "project", projectId] as const,
-    queryFn: () =>
-      apiClient.get<ConversationListResponse>(
-        `/conversations?project_id=${projectId}&limit=100&sort_by=updated_at`,
-      ),
+    queryFn: () => listProjectChats(projectId),
   });
   return { chats: data?.items ?? [], total: data?.total ?? 0, isLoading, error };
 }

@@ -16,6 +16,15 @@ export interface ConversationAgent {
   avatar_color?: number | null;
 }
 
+/** A member of the organization, as much as a chat needs to draw them. */
+export interface ChatPerson {
+  user_id: string;
+  /** Their name, or their address where they never set one. */
+  name: string;
+  has_avatar: boolean;
+  avatar_color: number | null;
+}
+
 export interface Conversation {
   id: string;
   user_id?: string;
@@ -40,6 +49,16 @@ export interface Conversation {
   unread?: boolean;
   /** When the run still at work in it began; null when none is. Listings only. */
   running_since?: string | null;
+}
+
+/** One of a project's chats, with the people around it - a project's chats are its members'. */
+export interface ProjectChat extends Conversation {
+  /** Who started it; null when that account is gone. */
+  owner: ChatPerson | null;
+  /** Everyone who has had it open, most recently first. */
+  seen_by: (ChatPerson & { read_at: string })[];
+  /** Whose run is at work in it now; null when none is. */
+  working: ChatPerson | null;
 }
 
 export interface ConversationMessage {

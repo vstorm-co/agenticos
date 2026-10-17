@@ -6,13 +6,14 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { RunningFor } from "@/components/chat/conversation-sidebar";
+import { PersonFace } from "@/components/chat/person-face";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button, ListCard, ListCardEmpty } from "@/components/ui";
 import { useProjectChats } from "@/hooks/use-projects";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { cn, timeAgo } from "@/lib/utils";
-import type { Conversation } from "@/types";
+import type { ProjectChat } from "@/types";
 import type { Project } from "@/types/projects";
 
 /**
@@ -20,7 +21,9 @@ import type { Project } from "@/types/projects";
  *
  * The same row as `/chat`'s sidebar - who the thread is with, when it last
  * moved or that it is at work, over its title, and the unread mark - so a chat
- * found here is recognised there.
+ * found here is recognised there. Everybody's, not the reader's alone: a
+ * project's chats are its members', so each also says whose it is, who is at
+ * work in it and who has seen it.
  */
 export function ProjectChats({ project }: { project: Project }) {
   const t = useTranslations("projects");
@@ -66,7 +69,7 @@ export function ProjectChats({ project }: { project: Project }) {
   );
 }
 
-function ChatRow({ chat }: { chat: Conversation }) {
+function ChatRow({ chat }: { chat: ProjectChat }) {
   const t = useTranslations("projects");
   const tChat = useTranslations("chat");
   const tTime = useTranslations("time");
@@ -103,13 +106,37 @@ function ChatRow({ chat }: { chat: Conversation }) {
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="text-muted-foreground block truncate text-[11px] leading-4">
-          {chat.running_since ? (
-            <RunningFor since={chat.running_since} />
+        <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-[11px] leading-4">
+          {chat.working ? (
+            // Who is at work in it, before how long: in a shared project the
+            // question is whether somebody is already on it.
+            <>
+              <PersonFace person={chat.working} className="h-3.5 w-3.5 shrink-0 text-[7px]" />
+              <span className="text-foreground/80 truncate">
+                {t("isWorking", { name: chat.working.name })}
+              </span>
+              {chat.running_since && (
+                <span className="shrink-0">
+                  · <RunningFor since={chat.running_since} />
+                </span>
+              )}
+            </>
           ) : (
             <>
-              {agentLabel && <>{agentLabel} · </>}
-              {timeAgo(chat.updated_at ?? chat.created_at, tTime, locale)}
+              {chat.owner && (
+                <span
+                  className="flex min-w-0 shrink items-center gap-1"
+                  title={t("startedBy", { name: chat.owner.name })}
+                >
+                  <PersonFace person={chat.owner} className="h-3.5 w-3.5 shrink-0 text-[7px]" />
+                  <span className="truncate">{chat.owner.name}</span>
+                </span>
+              )}
+              <span className="shrink-0 truncate">
+                {chat.owner && "· "}
+                {agentLabel && <>{agentLabel} · </>}
+                {timeAgo(chat.updated_at ?? chat.created_at, tTime, locale)}
+              </span>
             </>
           )}
         </span>
@@ -122,6 +149,44 @@ function ChatRow({ chat }: { chat: Conversation }) {
           {chat.title || t("untitledChat")}
         </span>
       </span>
+      <SeenBy readers={chat.seen_by} />
     </Link>
+  );
+}
+
+/** Faces shown before the rest of the readers fold into a count. */
+const FACES = 3;
+
+/**
+ * Who has had the chat open: the latest few as overlapping faces, the rest as a
+ * count, and every name in the tooltip - the way a shared document says who
+ * has looked at it.
+ */
+function SeenBy({ readers }: { readers: ProjectChat["seen_by"] }) {
+  const t = useTranslations("projects");
+  if (readers.length === 0) return null;
+  const names = readers.map((reader) => reader.name).join(", ");
+  const shown = readers.slice(0, FACES);
+  const more = readers.length - shown.length;
+  return (
+    <span
+      className="flex shrink-0 items-center"
+      title={t("seenBy", { names })}
+      aria-label={t("seenBy", { names })}
+      role="img"
+    >
+      {shown.map((reader, index) => (
+        <PersonFace
+          key={reader.user_id}
+          person={reader}
+          className={cn("ring-card h-5 w-5 text-[8px] ring-2", index > 0 && "-ml-1.5")}
+        />
+      ))}
+      {more > 0 && (
+        <span className="bg-muted text-muted-foreground ring-card -ml-1.5 grid h-5 min-w-5 place-items-center rounded-full px-1 text-[9px] font-medium ring-2">
+          {t("moreReaders", { count: more })}
+        </span>
+      )}
+    </span>
   );
 }

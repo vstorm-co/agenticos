@@ -32,10 +32,14 @@ from app.repositories import (
     chat_file_repo,
     conversation_repo,
     conversation_share_repo,
+    member_repo,
     message_rating_repo,
     personal_data_repo,
+    project_repo,
 )
 from app.schemas.conversation import (
+    ChatPerson,
+    ChatReader,
     ConversationAgent,
     ConversationCost,
     ConversationCreate,
@@ -46,7 +50,7 @@ from app.schemas.conversation import (
     ToolCallCreate,
 )
 from app.schemas.conversation_share import AdminConversationList, AdminConversationRead
-from app.services.access import AGENT, resolve_access
+from app.services.access import AGENT, PROJECT, resolve_access
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
 from app.services.message_history import HistoryMessage, build_message_history
@@ -251,6 +255,7 @@ class ConversationService:
         include_messages: bool = False,
         user_id: UUID | None = None,
         for_write: bool = False,
+        turn: bool = False,
         include_favourite: bool = True,
         ctx: AuthContext | None = None,
     ) -> Conversation:
@@ -262,7 +267,8 @@ class ConversationService:
 
         `for_write` picks which of the two questions is asked. Reading and
         writing stopped being one question when participation became a way in:
-        see `_may_read` and `_may_write`.
+        see `_may_read` and `_may_write`. `turn` narrows the write to adding a
+        person's turn, the one write a project's members share.
 
         `include_favourite` is on by default so that a route cannot forget it -
         that is the whole of #1254, and the flag reached two responses out of
@@ -288,7 +294,7 @@ class ConversationService:
             )
         if user_id is not None:
             allowed = (
-                await self._may_write(conversation, user_id)
+                await self._may_write(conversation, user_id, turn=turn, ctx=ctx)
                 if for_write
                 else await self._may_read(conversation, user_id, ctx=ctx)
             )
@@ -310,6 +316,7 @@ class ConversationService:
                 msg.rating_count = rating_counts.get(msg.id)  # ty: ignore[unresolved-attribute]
         if include_messages and conversation.messages:
             await self._attach_authors(conversation.messages)
+            await self._attach_senders(conversation.messages)
         # Here rather than at each route, because this is the one read every
         # reader-scoped one goes through - `update`, `archive` and `set_favourite`
         # all return the object it hands back. Only two responses carried the flag
@@ -353,7 +360,43 @@ class ConversationService:
             self.db, conversation_id=conversation.id, user_id=user_id
         ):
             return True
+        if await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_VIEW):
+            return True
         return await self._may_read_trigger_log(conversation, ctx)
+
+    async def _project_allows(
+        self, conversation: Conversation, user_id: UUID, ctx: AuthContext | None, perm: Perm
+    ) -> bool:
+        """Whether the project this chat is in lets this person `perm` it.
+
+        A project's chats are the project's: whoever may see it reads them, and
+        whoever may work in it continues them. Decided on the project as it
+        stands, so a member who loses the project loses its chats with it.
+
+        A caller with no `ctx` - the chat socket, which resolves a thread before
+        it builds one - is given their membership's, as a project chat started
+        from that socket is.
+        """
+        project_id = getattr(conversation, "project_id", None)
+        if project_id is None or conversation.organization_id is None:
+            return False
+        if ctx is None:
+            membership = await member_repo.get(
+                self.db, organization_id=conversation.organization_id, user_id=user_id
+            )
+            if membership is None:
+                return False
+            ctx = AuthContext(
+                user_id=user_id,
+                organization_id=conversation.organization_id,
+                role=membership.role,
+            )
+        project = await project_repo.get(
+            self.db, project_id, organization_id=conversation.organization_id
+        )
+        return project is not None and await resolve_access(
+            self.db, ctx, project, perm, resource_type=PROJECT
+        )
 
     async def _may_read_trigger_log(
         self, conversation: Conversation, ctx: AuthContext | None
@@ -387,7 +430,14 @@ class ConversationService:
             return False
         return await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
 
-    async def _may_write(self, conversation: Conversation, user_id: UUID) -> bool:
+    async def _may_write(
+        self,
+        conversation: Conversation,
+        user_id: UUID,
+        *,
+        turn: bool = False,
+        ctx: AuthContext | None = None,
+    ) -> bool:
         """Whether this reader may change or delete this conversation.
 
         Deliberately *not* `_may_read`, and this is the whole reason the two
@@ -425,7 +475,11 @@ class ConversationService:
             return await channel_membership.confirms_participation(
                 self.db, conversation_id=conversation.id, user_id=user_id
             )
-        return False
+        # A project's members continue each other's chats, and that is all the
+        # project gives them: renaming, archiving or deleting a thread somebody
+        # else started stays the owner's. `turn` is only ever a person's own
+        # words - `add_message` asks it for a user turn and never an assistant one.
+        return turn and await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_USE)
 
     async def _attach_authors(self, messages: list[Message]) -> None:
         """Put a name on each turn that came from a chat account.
@@ -443,6 +497,69 @@ class ConversationService:
         for msg in messages:
             if msg.channel_identity_id is not None:
                 msg.author = authors.get(msg.channel_identity_id)  # ty: ignore[unresolved-attribute]
+
+    async def _attach_senders(self, messages: Sequence[Message]) -> None:
+        """Put the person on each turn somebody signed in typed.
+
+        A project's chat is continued by whoever works in it, so its user turns
+        are several people's; one query for the page, none when nobody is named.
+        """
+        authored = [
+            (msg, author_id)
+            for msg in messages
+            if (author_id := getattr(msg, "author_user_id", None)) is not None
+        ]
+        if not authored:
+            # A turn left alone reads as no sender: the schema's default.
+            return
+        people = await conversation_repo.users_by_id(self.db, {a for _, a in authored})
+        for msg, author_id in authored:
+            author = people.get(author_id)
+            msg.sender = ChatPerson.of(author) if author else None  # ty: ignore[unresolved-attribute]
+
+    async def list_project_chats(
+        self, project_id: UUID, *, organization_id: UUID, user_id: UUID | None
+    ) -> tuple[list[Conversation], int]:
+        """Every chat in a project, whoever started it, with the people around it.
+
+        Unscoped by reader: the caller has already decided they may see the
+        project, and a project's chats are its members'. Each row carries what
+        the caller's own list does - agents, running, unread - plus whose it is,
+        who has had it open and whose run is at work in it.
+        """
+        items = await conversation_repo.get_conversations_by_user(
+            self.db,
+            user_id=None,
+            organization_id=organization_id,
+            limit=100,
+            project_id=project_id,
+        )
+        total = await conversation_repo.count_conversations(
+            self.db, user_id=None, organization_id=organization_id, project_id=project_id
+        )
+        await self._attach_agents(items)
+        await self._attach_running(items)
+        await self._attach_unread(items, user_id=user_id)
+        await self._attach_people(items)
+        return items, total
+
+    async def _attach_people(self, conversations: Sequence[Conversation]) -> None:
+        ids = [conversation.id for conversation in conversations]
+        readers = await conversation_repo.readers_of(self.db, ids)
+        working = await conversation_repo.running_users(self.db, ids)
+        people = await conversation_repo.users_by_id(
+            self.db,
+            {c.user_id for c in conversations if c.user_id is not None} | set(working.values()),
+        )
+        for conversation in conversations:
+            owner = people.get(conversation.user_id) if conversation.user_id else None
+            worker = people.get(working[conversation.id]) if conversation.id in working else None
+            conversation.owner = ChatPerson.of(owner) if owner else None  # ty: ignore[unresolved-attribute]
+            conversation.working = ChatPerson.of(worker) if worker else None  # ty: ignore[unresolved-attribute]
+            conversation.seen_by = [  # ty: ignore[unresolved-attribute]
+                ChatReader(**ChatPerson.of(user).model_dump(), read_at=read_at)
+                for user, read_at in readers.get(conversation.id, [])
+            ]
 
     async def list_conversations(
         self,
@@ -923,6 +1040,7 @@ class ConversationService:
             include_tool_calls=include_tool_calls,
         )
         total = await conversation_repo.count_messages(self.db, conversation_id)
+        await self._attach_senders(items)
         outcomes = await conversation_repo.run_outcomes(
             self.db, {msg.run_id for msg in items if msg.run_id is not None}
         )
@@ -1008,6 +1126,7 @@ class ConversationService:
             organization_id=organization_id,
             user_id=user_id,
             for_write=True,
+            turn=data.role == "user",
             include_favourite=False,
         )
         if conversation.is_archived:
@@ -1047,6 +1166,8 @@ class ConversationService:
             agent_id=data.agent_id,
             agent_version_id=data.agent_version_id,
             run_id=run_id,
+            # Whose words these are: in a project's chat, not always the owner's.
+            author_user_id=user_id if data.role == "user" else None,
         )
 
     async def delete_message(self, message_id: UUID) -> bool:

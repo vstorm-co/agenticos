@@ -10,6 +10,7 @@ import { apiClient } from "./api-client";
 import type { FileText } from "./file-access";
 import { postWithProgress } from "./upload-with-progress";
 import type { WorkspaceFiles } from "./sandbox-workspaces-api";
+import type { ProjectChat } from "@/types/conversation";
 import type { Project, ProjectCreate, ProjectList, ProjectUpdate } from "@/types/projects";
 
 const ROOT = "/projects";
@@ -40,6 +41,16 @@ export async function updateProject(id: string, changes: ProjectUpdate): Promise
 
 export async function deleteProject(id: string): Promise<void> {
   await apiClient.delete<void>(`${ROOT}/${id}`);
+}
+
+export interface ProjectChatList {
+  items: ProjectChat[];
+  total: number;
+}
+
+/** Every chat in the project, whoever started it, with who saw it and who works in it. */
+export async function listProjectChats(id: string): Promise<ProjectChatList> {
+  return apiClient.get<ProjectChatList>(`${ROOT}/${id}/chats`);
 }
 
 export async function listProjectFiles(id: string): Promise<WorkspaceFiles> {

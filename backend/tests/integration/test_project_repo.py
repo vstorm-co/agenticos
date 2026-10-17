@@ -1,7 +1,7 @@
 """What the projects tables guarantee that only a database can.
 
 A project is listed to its owner, to everyone when it is the organization's and
-to whoever it was shared with; its chat count is the reader's own chats only;
+to whoever it was shared with; its chat count is everybody's chats in it;
 deleting it leaves its chats as ordinary ones and takes its container's row with
 it; and a project's container belongs to no agent.
 """
@@ -98,7 +98,7 @@ async def test_a_reader_sees_their_own_the_organizations_and_what_was_shared(db)
     assert await project_repo.get(db, mine.id, organization_id=uuid.uuid4()) is None
 
 
-async def test_the_chat_count_is_the_readers_own_and_leaves_archived_out(db) -> None:
+async def test_the_chat_count_is_everybodys_and_leaves_archived_out(db) -> None:
     alice, bob = await _user(db), await _user(db)
     org = await _org(db, owner=alice)
     project = await _project(db, org, alice, name="Launch", visibility=Visibility.ORG.value)
@@ -110,16 +110,11 @@ async def test_the_chat_count_is_the_readers_own_and_leaves_archived_out(db) -> 
     await db.flush()
 
     activity = await project_repo.chat_activity(
-        db, organization_id=org.id, user_id=alice.id, project_ids=[project.id]
+        db, organization_id=org.id, project_ids=[project.id]
     )
     count, last = activity[project.id]
-    assert count == 2 and last is not None
-    assert (
-        await project_repo.chat_activity(
-            db, organization_id=org.id, user_id=alice.id, project_ids=[]
-        )
-        == {}
-    )
+    assert count == 3 and last is not None
+    assert await project_repo.chat_activity(db, organization_id=org.id, project_ids=[]) == {}
 
 
 async def test_deleting_a_project_keeps_its_chats_and_takes_its_container(db) -> None:

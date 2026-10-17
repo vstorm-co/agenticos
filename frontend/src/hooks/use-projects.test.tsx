@@ -11,7 +11,6 @@ import {
   useProjectFiles,
   useProjects,
 } from "./use-projects";
-import { apiClient } from "@/lib/api-client";
 import * as api from "@/lib/projects-api";
 import type { Project } from "@/types/projects";
 
@@ -22,11 +21,11 @@ vi.mock("@/lib/projects-api", () => ({
   updateProject: vi.fn(),
   deleteProject: vi.fn(),
   listProjectFiles: vi.fn(),
+  listProjectChats: vi.fn(),
   uploadProjectFile: vi.fn(),
   createProjectFolder: vi.fn(),
   removeProjectPath: vi.fn(),
 }));
-vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -144,17 +143,18 @@ describe("useProjectFiles", () => {
 });
 
 describe("useProjectChats", () => {
-  it("lists the reader's chats in the project", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [{ id: "c-1" }], total: 1 });
+  it("lists everybody's chats in the project", async () => {
+    vi.mocked(api.listProjectChats).mockResolvedValue({
+      items: [{ id: "c-1" }] as never,
+      total: 1,
+    });
     const { result } = renderHook(() => useProjectChats("p-1"), { wrapper });
     await waitFor(() => expect(result.current.total).toBe(1));
-    expect(apiClient.get).toHaveBeenCalledWith(
-      "/conversations?project_id=p-1&limit=100&sort_by=updated_at",
-    );
+    expect(api.listProjectChats).toHaveBeenCalledWith("p-1");
   });
 
   it("starts empty", () => {
-    vi.mocked(apiClient.get).mockReturnValue(new Promise(() => undefined));
+    vi.mocked(api.listProjectChats).mockReturnValue(new Promise(() => undefined));
     const { result } = renderHook(() => useProjectChats("p-1"), { wrapper });
     expect(result.current.chats).toEqual([]);
     expect(result.current.total).toBe(0);

@@ -438,6 +438,60 @@ async def running_since(
     return dict(result.all())
 
 
+async def running_users(db: AsyncSession, conversation_ids: Collection[UUID]) -> dict[UUID, UUID]:
+    """Who started the run still at work in each of these conversations.
+
+    The same runs `running_since` counts, so a list saying a thread is busy and
+    one saying who is busy in it agree. The earliest, where two are running.
+    """
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(AgentRun.conversation_id, AgentRun.user_id)
+        .where(
+            AgentRun.conversation_id.in_(list(conversation_ids)),
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.status == RunStatus.RUNNING,
+            AgentRun.ended_at.is_(None),
+            AgentRun.started_at >= datetime.now(UTC) - RUNNING_HORIZON,
+            AgentRun.user_id.is_not(None),
+        )
+        .order_by(AgentRun.started_at.desc())
+    )
+    # Newest first, so the earliest run's person is the one left standing.
+    return dict(result.all())
+
+
+async def readers_of(
+    db: AsyncSession, conversation_ids: Collection[UUID]
+) -> dict[UUID, list[tuple[User, datetime]]]:
+    """Who has had each of these conversations open, and when last - newest first.
+
+    One query for a page. Read from the rows `mark_read` keeps for the unread
+    mark, which is exactly the record of somebody having had the thread open.
+    """
+    if not conversation_ids:
+        return {}
+    result = await db.execute(
+        select(ConversationLastRead.conversation_id, User, ConversationLastRead.read_at)
+        .join(User, User.id == ConversationLastRead.user_id)
+        .where(ConversationLastRead.conversation_id.in_(list(conversation_ids)))
+        .order_by(ConversationLastRead.read_at.desc())
+    )
+    readers: dict[UUID, list[tuple[User, datetime]]] = {}
+    for conversation_id, user, read_at in result.all():
+        readers.setdefault(conversation_id, []).append((user, read_at))
+    return readers
+
+
+async def users_by_id(db: AsyncSession, user_ids: Collection[UUID]) -> dict[UUID, User]:
+    """These people, keyed by id; one query, and none for an empty set."""
+    if not user_ids:
+        return {}
+    result = await db.execute(select(User).where(User.id.in_(set(user_ids))))
+    return {user.id: user for user in result.scalars().all()}
+
+
 async def favourite_ids(
     db: AsyncSession, *, user_id: UUID, conversation_ids: Collection[UUID]
 ) -> set[UUID]:
@@ -1099,6 +1153,7 @@ async def create_message(
     agent_version_id: UUID | None = None,
     run_id: UUID | None = None,
     channel_identity_id: UUID | None = None,
+    author_user_id: UUID | None = None,
     attachment_context: str | None = None,
 ) -> Message:
     """Create a new message."""
@@ -1108,6 +1163,7 @@ async def create_message(
         content=content,
         attachment_context=attachment_context,
         channel_identity_id=channel_identity_id,
+        author_user_id=author_user_id,
         thinking=thinking,
         parts=parts,
         model_name=model_name,

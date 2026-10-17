@@ -224,6 +224,16 @@ class Message(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # Who typed this turn, when they were signed in. A project's chat is
+    # continued by whoever works in the project, so the conversation's owner no
+    # longer says whose words a user turn is. Null on assistant turns, on
+    # channel turns (`channel_identity_id` says who) and on turns written before
+    # this was kept.
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     # Which frozen spec answered, not just which agent. An agent is rewritten;
     # what it said last Tuesday was said by one version of it, and "why did it
     # answer that" is a question about the version. Runs have recorded this

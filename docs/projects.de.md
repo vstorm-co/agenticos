@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "a9d760cf0da1"
+source_sha: "30ff66811ce6"
 ---
 
 # Projekte { #projects }
@@ -95,9 +95,14 @@ Member bearbeitet seine eigenen und arbeitet in geteilten, und ein Viewer liest,
 was mit ihm geteilt wurde. Ein Chat, dessen Autor `projects:use` verliert,
 erreicht die Dateien des Projekts ab dem nächsten Zug nicht mehr.
 
-**Chats bleiben bei ihren Autoren.** Ein geteiltes Projekt teilt seine Dateien
-und Anweisungen, nicht die Unterhaltungen darin: Die Chats jeder Person in einem
-Projekt sieht nur sie, wie überall sonst in der Konsole.
+**Die Chats eines Projekts gehören seinen Mitgliedern.** Wer ein Projekt sehen
+darf, liest jeden Chat darin, und wer darin arbeiten darf (`use`), setzt sie fort:
+Seine Nachrichten tragen seinen Namen und sein Gesicht, sodass ein Thread, an dem
+mehrere gearbeitet haben, sagt, wer was gefragt hat. Umbenennen, Archivieren und
+Löschen bleibt bei der Person, die den Chat begonnen hat. Auf dem Tab **Chats**
+sagt jede Zeile, wessen Chat es ist, wer gerade darin arbeitet und wer ihn
+geöffnet hat - die letzten Gesichter, alle Namen beim Darüberfahren. Ein Chat
+außerhalb eines Projekts bleibt bei seinem Autor, wie überall sonst in der Konsole.
 
 ## Ein Projekt löschen { #deleting-a-project }
 
@@ -110,7 +115,7 @@ Chats bleiben als normale Chats außerhalb jedes Projekts erhalten.
   Link zu allen.
 - Die Chat-Liste führt deine Chats in einem Projekt unter seinem Namen, über den
   Chats außerhalb von Projekten.
-- Die Karte **Projekte** im Dashboard zeigt eine Reihe davon, mit deinen Chats in
+- Die Karte **Projekte** im Dashboard zeigt eine Reihe davon, mit den Chats in
   jedem.
 - `GET /api/v1/projects` und seine Unterrouten gehören zur öffentlichen API, sodass
   ein Skript ein Projekt anlegen und mit Dateien füllen kann. Siehe [die

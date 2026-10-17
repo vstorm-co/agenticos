@@ -206,8 +206,10 @@ describe("CreateProjectDialog", () => {
   });
 });
 
+const KACPER = { user_id: "u-1", name: "Kacper", has_avatar: false, avatar_color: null };
+
 describe("ProjectChats", () => {
-  it("lists the reader's chats with who answered, and starts a new one", () => {
+  it("lists everybody's chats with whose each is, and starts a new one", () => {
     chats.mockReturnValue({
       chats: [
         {
@@ -216,23 +218,69 @@ describe("ProjectChats", () => {
           created_at: new Date().toISOString(),
           updated_at: null,
           agents: [{ id: "a-1", slug: "writer", name: "Writer", has_avatar: false }],
+          owner: KACPER,
+          seen_by: [],
+          working: null,
         },
-        { id: "c-2", title: "", created_at: new Date().toISOString(), updated_at: null },
+        {
+          id: "c-2",
+          title: "",
+          created_at: new Date().toISOString(),
+          updated_at: null,
+          owner: null,
+          seen_by: [],
+          working: null,
+        },
       ],
       total: 2,
       isLoading: false,
       error: null,
     });
     wrap(<ProjectChats project={aProject()} />);
-    expect(screen.getByRole("link", { name: /Press release/ })).toHaveAttribute(
-      "href",
-      "/chat?id=c-1",
-    );
+    const row = screen.getByRole("link", { name: /Press release/ });
+    expect(row).toHaveAttribute("href", "/chat?id=c-1");
+    expect(row).toHaveTextContent("Kacper");
+    expect(screen.getByTitle("Started by Kacper")).toBeInTheDocument();
     expect(screen.getByText("Untitled chat")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /New chat/ })).toHaveAttribute(
       "href",
       "/chat?project=p-1",
     );
+  });
+
+  it("says who is at work in a chat, and who has seen it", () => {
+    const reader = (name: string, id: string) => ({
+      ...KACPER,
+      user_id: id,
+      name,
+      read_at: new Date().toISOString(),
+    });
+    chats.mockReturnValue({
+      chats: [
+        {
+          id: "c-1",
+          title: "Budget",
+          created_at: new Date().toISOString(),
+          updated_at: null,
+          running_since: new Date().toISOString(),
+          owner: KACPER,
+          working: { ...KACPER, user_id: "u-2", name: "Anna" },
+          seen_by: ["Anna", "Kacper", "Ola", "Piotr", "Ewa"].map((name, i) =>
+            reader(name, `r-${i}`),
+          ),
+        },
+      ],
+      total: 1,
+      isLoading: false,
+      error: null,
+    });
+    wrap(<ProjectChats project={aProject()} />);
+    expect(screen.getByText("Anna is working")).toBeInTheDocument();
+    // Three faces and a count, with every name in the label.
+    expect(
+      screen.getByRole("img", { name: "Seen by Anna, Kacper, Ola, Piotr, Ewa" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("+2")).toBeInTheDocument();
   });
 
   it("tells a reader who cannot chat that they can read, and offers no new chat", () => {

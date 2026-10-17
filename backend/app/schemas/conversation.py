@@ -5,12 +5,15 @@ This module contains Pydantic schemas for Conversation, Message, and ToolCall en
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
+
+if TYPE_CHECKING:
+    from app.db.models.user import User
 
 
 class MessagePart(BaseSchema):
@@ -214,6 +217,28 @@ class MessageAuthor(BaseSchema):
     user_id: UUID | None = None
 
 
+class ChatPerson(BaseSchema):
+    """A member of the organization, as much as a chat needs to draw them.
+
+    The name falls back to the address, as the members page does, because a
+    person who never set one is still somebody to tell apart.
+    """
+
+    user_id: UUID
+    name: str
+    has_avatar: bool = False
+    avatar_color: int | None = None
+
+    @classmethod
+    def of(cls, user: "User") -> "ChatPerson":
+        return cls(
+            user_id=user.id,
+            name=user.full_name or user.email,
+            has_avatar=bool(user.avatar_url),
+            avatar_color=user.avatar_color,
+        )
+
+
 class MessageRead(MessageBase, TimestampSchema):
     """Schema for reading a message (API response)."""
 
@@ -288,6 +313,14 @@ class MessageRead(MessageBase, TimestampSchema):
             "How long the run that produced this turn was open, in milliseconds - "
             "from its start to its end, including any wait for an approval. Null for "
             "a turn written outside a run and for a run that has not ended."
+        ),
+    )
+    sender: ChatPerson | None = Field(
+        default=None,
+        description=(
+            "Who typed a user turn, when they were signed in - in a project's chat "
+            "that is not always the conversation's owner. Null on assistant turns, "
+            "on channel turns (`author` says who) and on turns older than the field."
         ),
     )
     tool_calls: list[ToolCallRead] = Field(default_factory=list)
@@ -407,6 +440,38 @@ class ConversationList(BaseSchema):
     """Schema for listing conversations."""
 
     items: list[ConversationRead]
+    total: int
+
+
+class ChatReader(ChatPerson):
+    """Somebody who has had a chat open, and when they last did."""
+
+    read_at: datetime
+
+
+class ProjectChatRead(ConversationRead):
+    """One of a project's chats, with the people around it.
+
+    A project's chats are everybody's in it, so a row says whose it is, who has
+    seen it and who is at work in it now - the things a person looks for before
+    opening a thread somebody else started.
+    """
+
+    owner: ChatPerson | None = Field(
+        default=None, description="Who started the chat; null when that account is gone"
+    )
+    seen_by: list[ChatReader] = Field(
+        default_factory=list,
+        description="Everyone who has had the chat open, most recently first",
+    )
+    working: ChatPerson | None = Field(
+        default=None,
+        description="Whose run is at work in the chat now; null when none is",
+    )
+
+
+class ProjectChatList(BaseSchema):
+    items: list[ProjectChatRead]
     total: int
 
 

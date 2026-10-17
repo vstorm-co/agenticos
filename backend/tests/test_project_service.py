@@ -111,6 +111,15 @@ class TestWhoMaySeeAndChangeIt:
         service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_USE)
         assert await service.check_can_start(_ctx(), project.id) is project
 
+    async def test_its_chats_are_listed_to_whoever_may_see_it(self) -> None:
+        project = _project()
+        listed = AsyncMock(return_value=([], 0))
+        with patch.object(module.ConversationService, "list_project_chats", listed):
+            assert await _service(project, Perm.PROJECTS_VIEW).chats(_ctx(), project.id) == ([], 0)
+        assert listed.await_args.args[0] == project.id
+        with pytest.raises(NotFoundError):
+            await _service(project).chats(_ctx(), project.id)
+
 
 class TestCreatingAndChanging:
     async def test_a_project_runs_in_a_container_where_there_is_a_sandbox(self) -> None:
@@ -206,7 +215,9 @@ class TestCreatingAndChanging:
 
 
 class TestListing:
-    async def test_each_project_says_what_the_caller_may_do_and_their_own_chats(self) -> None:
+    async def test_each_project_says_what_the_caller_may_do_and_how_many_chats_it_holds(
+        self,
+    ) -> None:
         agent = MagicMock(id=uuid.uuid4())
         agent.name = "Researcher"
         mine = _project(default_agent_id=agent.id)

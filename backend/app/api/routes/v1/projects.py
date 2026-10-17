@@ -14,6 +14,7 @@ from app.api.deps import Auth, ProjectSvc, require
 from app.api.public_api import PUBLIC
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.permissions import Perm
+from app.schemas.conversation import ProjectChatList
 from app.schemas.project import (
     ProjectCreate,
     ProjectFolderCreate,
@@ -67,6 +68,17 @@ async def update_project(
 async def delete_project(project_id: UUID, service: ProjectSvc, ctx: Auth) -> None:
     """Delete the project and its files. Its chats remain, as ordinary chats."""
     await service.delete(ctx, project_id)
+
+
+@router.get("/{project_id}/chats", response_model=ProjectChatList)
+async def list_project_chats(project_id: UUID, service: ProjectSvc, ctx: Auth) -> Any:
+    """Every chat in the project, whoever started it.
+
+    Each names whose it is, who has had it open and whose run is at work in it,
+    because a project's chats are its members' to read and continue.
+    """
+    items, total = await service.chats(ctx, project_id)
+    return ProjectChatList(items=items, total=total)
 
 
 @router.get("/{project_id}/files", response_model=WorkspaceListing)

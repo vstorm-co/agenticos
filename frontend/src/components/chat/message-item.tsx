@@ -13,6 +13,7 @@ import { CopyButton } from "./copy-button";
 import { MessageSources } from "./message-sources";
 import { TurnDelegations } from "./turn-delegations";
 import { RoundedCost } from "./message-cost";
+import { PersonFace } from "./person-face";
 import { YouFace } from "./you-face";
 import { TURN_ACTION } from "./turn-action";
 import { RatingButtons } from "./rating-buttons";
@@ -100,6 +101,9 @@ export function MessageItem({
   const openPreview = useFilePreviewStore((s) => s.open);
   const openSources = useSourcesPanelStore((s) => s.open);
   const { user: authUser } = useAuthStore();
+  // A teammate's words in a project's chat: theirs, not the reader's "You".
+  const teammate =
+    isUser && message.sender && message.sender.user_id !== authUser?.id ? message.sender : null;
   // Read once per turn and handed to each step, so a public surface can render the
   // same step without a session - see `TurnParts`.
   const mcpServers = useMcpToolServers();
@@ -137,7 +141,9 @@ export function MessageItem({
         !isUser && !agent && "bg-muted text-foreground",
       )}
     >
-      {isUser ? (
+      {teammate ? (
+        <PersonFace person={teammate} className="h-full w-full text-[10px]" />
+      ) : isUser ? (
         <YouFace />
       ) : agent ? (
         <AgentAvatar
@@ -196,7 +202,7 @@ export function MessageItem({
               compact ? "text-muted-foreground text-xs" : "text-foreground text-sm",
             )}
           >
-            {isUser ? t("rail.you") : (agent?.name ?? t("rail.agent"))}
+            {teammate ? teammate.name : isUser ? t("rail.you") : (agent?.name ?? t("rail.agent"))}
             {!isUser && message.agentVersion !== undefined && (
               <span className="text-muted-foreground font-normal"> · v{message.agentVersion}</span>
             )}

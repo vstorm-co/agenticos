@@ -20,6 +20,7 @@ from httpx import ASGITransport, AsyncClient
 from app.api import deps
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.schemas.conversation import ChatPerson, ChatReader, ProjectChatRead
 from app.schemas.project import ProjectRead
 from app.services.sandbox_workspace import WorkspaceContents
 
@@ -59,6 +60,7 @@ def service() -> MagicMock:
         add_file=AsyncMock(return_value="data/in.csv"),
         add_folder=AsyncMock(return_value="docs"),
         remove=AsyncMock(),
+        chats=AsyncMock(return_value=([], 0)),
     )
 
 
@@ -162,3 +164,30 @@ async def test_files_are_read_uploaded_foldered_and_removed(
     assert folder.json() == {"path": "docs"}
     assert removed.status_code == 204
     assert service.remove.await_args.kwargs == {"path": "docs"}
+
+
+async def test_a_projects_chats_are_listed_with_the_people_around_them(
+    client: OpenClient, service: MagicMock
+) -> None:
+    chat = ProjectChatRead(
+        id=uuid.uuid4(),
+        title="Launch plan",
+        project_id=PROJECT_ID,
+        created_at=datetime(2026, 10, 17, tzinfo=UTC),
+        owner=ChatPerson(user_id=uuid.uuid4(), name="Kacper"),
+        seen_by=[
+            ChatReader(
+                user_id=uuid.uuid4(), name="Anna", read_at=datetime(2026, 10, 17, tzinfo=UTC)
+            )
+        ],
+    )
+    service.chats = AsyncMock(return_value=([chat], 1))
+    async with client() as http:
+        response = await http.get(f"/api/v1/projects/{PROJECT_ID}/chats")
+
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["owner"]["name"] == "Kacper"
+    assert body["items"][0]["seen_by"][0]["name"] == "Anna"
+    assert body["items"][0]["working"] is None
+    assert service.chats.await_args.args[1] == PROJECT_ID
