@@ -417,7 +417,9 @@ def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[s
     Trimmed in the order things are worth keeping, and **measured after each
     stage** - a ceiling that is not re-checked is not a ceiling. The messages go
     first: they are the largest by far, and the transcript beside them already
-    says what was asked and answered. The tool schemas go second, leaving each
+    says what was asked and answered. Code mode's scripts lose their calls'
+    arguments next, keeping which tools each called and how. The tool schemas go
+    after that, leaving each
     tool's name and description - the half that explains behaviour and the half
     readable nowhere else. Then the descriptions themselves, and last the
     instructions, each cut to a length rather than dropped: an agent whose
@@ -433,6 +435,12 @@ def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[s
     if _size(payload) <= limit:
         return payload, False
     trimmed = {**payload, "messages": []}
+    if _size(trimmed) <= limit:
+        return trimmed, True
+    # Then each script's calls lose their arguments and its code is clipped: what
+    # it called and how each call went is the audit, and thirty scripts of a
+    # hundred calls each would otherwise be bigger than the ceiling on their own.
+    trimmed = {**trimmed, "code_runs": [_bare(script) for script in trimmed.get("code_runs", [])]}
     if _size(trimmed) <= limit:
         return trimmed, True
     trimmed = {
@@ -465,6 +473,18 @@ def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[s
 #: of a trimmed manifest is doing - and small enough that a thousand tools cannot
 #: add up past the ceiling on their own.
 _TEXT_CLIP = 400
+
+
+def _bare(script: dict[str, Any]) -> dict[str, Any]:
+    """A recorded `run_code` script as the audit needs it: its calls without their arguments."""
+    return {
+        **script,
+        "code": _clipped(script.get("code"), _TEXT_CLIP),
+        "calls": [
+            {"tool": call.get("tool"), "status": call.get("status")}
+            for call in script.get("calls", [])
+        ],
+    }
 
 
 def _clipped(text: Any, limit: int) -> Any:

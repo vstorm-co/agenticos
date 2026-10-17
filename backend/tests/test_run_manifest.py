@@ -16,6 +16,7 @@ complete one is worse than no document.
 
 from __future__ import annotations
 
+import json
 from contextlib import ExitStack
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -362,6 +363,21 @@ class TestARecordTooLargeToKeep:
         assert truncated is True
         assert payload["messages"] == []
         assert payload["instructions"] == "Be brief."
+
+    def test_scripts_keep_what_they_called_when_their_arguments_do_not_fit(self):
+        """Thirty scripts of a hundred calls are bigger than the ceiling on their own."""
+        script = {
+            "tool_call_id": "c-1",
+            "code": "x" * 20_000,
+            "calls": [{"tool": "lookup", "args": "a" * 200, "status": "returned"}] * 100,
+            "omitted_calls": 0,
+        }
+        payload, truncated = fit(self._payload(code_runs=[script] * 30))
+        assert truncated
+        assert len(json.dumps(payload, default=str).encode()) <= MAX_PAYLOAD_BYTES
+        (first, *_) = payload["code_runs"]
+        assert first["calls"][0] == {"tool": "lookup", "status": "returned"}
+        assert len(first["code"]) < 1_000
 
     def test_a_schema_goes_before_the_sentence_that_explains_it(self):
         """What is left of a tool is its name and its description - the half that
