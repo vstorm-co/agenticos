@@ -10,9 +10,11 @@ import { useInChatScope } from "@/stores/chat-scope-context";
 import type { DelegateRef } from "@/lib/delegations";
 import type { McpServerRef } from "@/lib/tool-steps";
 import type { MessagePart, ToolCall } from "@/types";
+import type { Mentionable } from "@/types/mention";
 import { AgentSteps } from "./agent-step";
 import { TurnBrowses } from "./browser-card";
 import { MarkdownContent } from "./markdown-content";
+import { RichText } from "./mention-chip";
 import { ToolCallCard } from "./tool-call-card";
 import { YouFace } from "./you-face";
 import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
@@ -279,11 +281,14 @@ export function TextBubble({
   showCursor,
   isUser,
   onCiteClick,
+  mentions,
 }: {
   text: string;
   showCursor: boolean;
   isUser: boolean;
   onCiteClick?: (index: number) => void;
+  /** What the person picked with `@`, shown where it sits in their text. */
+  mentions?: readonly Mentionable[];
 }) {
   const visible = useSmoothText(text, showCursor && !isUser);
   // The narrow chat beside a page reads at the size of the page around it.
@@ -306,7 +311,7 @@ export function TextBubble({
         )}
       >
         <p className={cn("break-words whitespace-pre-wrap", compact ? "text-[13px]" : "text-sm")}>
-          {text}
+          <RichText text={text} mentions={mentions ?? []} />
         </p>
       </div>
     );

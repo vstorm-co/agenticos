@@ -26,6 +26,36 @@ Two things are versioned separately from this file and worth knowing about:
   Open-weight models on Ollama or vLLM do this most. Each run counts its
   repairs, shown on the run and per model on the dashboard's model card.
 
+## [1.2.1] - 2026-10-18
+
+### Fixed
+
+- **One connection per chat-app bot, however many API workers** (#2168). With
+  two workers, every polling bot had two connections: Telegram terminated one
+  `getUpdates` after the other about fourteen times a minute, and two Mattermost
+  sockets would each receive every event. A worker now holds a bot's connection
+  under a lease in the shared Redis; the others leave it alone and take it over
+  when its holder stops.
+
+## [1.2.0] - 2026-10-17
+
+### Added
+
+- **`@`-mentions in the chat composer** (#2189). Typing `@` offers what the
+  agent can use - its MCP servers, the agents it delegates to, its capabilities
+  (`@Sandbox`, `@Web research`), skills, knowledge bases and context files - in
+  the chat, the Builder's test panel and the Architect. A pick stays in the text
+  as `@Name` with its logo; the model is told to use it, never handed its
+  content, and naming an agent hands it the work without changing who answers.
+  A pasted link shows its site's icon in the composer and the message. Mentions
+  are resolved again on the server as the person, so one can never widen what
+  the agent reaches. `GET /api/v1/agents/{id}/mentionables` lists what is
+  offered.
+- **The empty composer shows what to ask.** While a conversation has nothing in
+  it, the box cycles through examples built from the agent's own servers,
+  capabilities, delegates and skills, and `/`, sliding from one to the next;
+  clicking into it or sending clears them.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

@@ -1474,6 +1474,7 @@
     "sendNow": "Wyślij teraz",
     "sendNowHint": "Wyślij do bieżącego zadania teraz, zamiast po odpowiedzi",
     "sendNowNotWithFiles": "Wiadomość z plikami czeka na odpowiedź",
+    "sendNowNotWithMentions": "Wiadomość ze wskazaniami czeka na odpowiedź",
     "queuedCount": "{count, plural, one {1 wiadomość w kolejce} few {# wiadomości w kolejce} many {# wiadomości w kolejce} other {# wiadomości w kolejce}}",
     "sentIntoTask": "wysłane do zadania",
     "moveUp": "Przesuń wyżej",
@@ -1500,7 +1501,31 @@
     "openPageNamed": "Otwórz {name}",
     "showMore": "Pokaż więcej",
     "showLess": "Pokaż mniej",
-    "openApp": "Otwórz appkę"
+    "openApp": "Otwórz appkę",
+    "mentions": {
+      "menu": "Wskaż agentowi",
+      "loading": "Wczytywanie tego, czego agent może użyć…",
+      "failed": "Nie udało się wczytać, czego ten agent może użyć.",
+      "nothing": "Nic, czego ten agent może użyć, nie pasuje.",
+      "full": "W jednej wiadomości możesz wskazać najwyżej {count, plural, one {# rzecz} few {# rzeczy} many {# rzeczy} other {# rzeczy}}.",
+      "kind": {
+        "mcp": "Serwery MCP",
+        "capability": "Capabilities",
+        "agent": "Agenci",
+        "collection": "Bazy wiedzy",
+        "skill": "Skille",
+        "context": "Pliki kontekstu"
+      }
+    },
+    "hints": {
+      "mention": "Wpisz <key>@</key>, by wskazać agentowi serwer, innego agenta albo skill",
+      "mcp": "Zbierz tygodniowe zmiany z <chip></chip> i podsumuj je",
+      "capability": "Użyj <chip></chip>, by przeanalizować załączony arkusz",
+      "agent": "Poproś <chip></chip> o sprawdzenie liczb",
+      "skill": "Trzymaj się <chip></chip> i napisz odpowiedź dla tego klienta",
+      "collection": "Co <chip></chip> mówi o okresie wypowiedzenia?",
+      "slash": "Wpisz <command></command>, by podsumować rozmowę, albo /, by zobaczyć wszystkie komendy"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Zarchiwizować {name}?",
@@ -2302,6 +2327,16 @@
       "dismissAll": "Ukryj wskazówki",
       "dismiss": "Ukryj wskazówkę {title}",
       "tips": {
+        "mentions": {
+          "title": "Wskaż agentowi przez @",
+          "body": "W czacie wpisz @, by dać agentowi jeden z jego serwerów, capabilities, skilli albo innych agentów. Pokaże się jako chip, a agent użyje dokładnie tego.",
+          "cta": "Wypróbuj w czacie"
+        },
+        "commands": {
+          "title": "Skróty z /",
+          "body": "Wpisz / w czacie, by zobaczyć komendy - podsumuj, wyjaśnij, zacznij od nowa - albo napisz własne w Ustawienia → Komendy slash.",
+          "cta": "Otwórz czat"
+        },
         "mcp": {
           "title": "Używaj go z Claude Code albo Cursora",
           "body": "AgenticOS to też serwer MCP: podłącz Claude Code, Codex albo Cursora i twórz agenty, uruchamiaj je i czytaj wyniki, nie wychodząc z nich.",

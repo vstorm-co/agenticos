@@ -161,13 +161,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // four seconds for a strip that never mounts.
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
   { id: "chat-model-picker", page: ROUTES.CHAT, target: "chat-model-picker" },
-  // Inside the same popover as the model, so the walk opens it once. `optional`
-  // because the control it names lives behind the trigger: the caption is
-  // pinned to nothing on a walk that never opened it.
+  // Inside the same popover as the model, so the walk opens it - `activate` on a
+  // popover's trigger clicks it - and the next stop finds it already open.
+  // `optional` because the section renders only for someone who may change it.
   {
     id: "chat-approval-mode",
     page: ROUTES.CHAT,
     target: "chat-approval-mode",
+    activate: "chat-settings",
     optional: true,
   },
   // Same popover, and rendered only for an agent bound to each person's own
@@ -177,6 +178,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-your-connections",
     page: ROUTES.CHAT,
     target: "chat-your-connections",
+    activate: "chat-settings",
     optional: true,
   },
 

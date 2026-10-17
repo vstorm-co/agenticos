@@ -259,7 +259,7 @@ test("an agent goes from a stored key to a run with a cost", async ({ page, brow
 
   // The composer clears on send, so the assertion below can only match the
   // model's answer, never the text that was typed into it.
-  await expect(composer).toHaveValue("");
+  await expect(composer).toHaveText("");
   await expect(page.getByRole("main").getByText(answerToken)).toBeVisible({ timeout: 120_000 });
 
   // 7. the same agent, reached by a link and nothing else

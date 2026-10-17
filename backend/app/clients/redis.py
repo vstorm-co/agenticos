@@ -7,6 +7,11 @@ from redis import asyncio as aioredis
 
 from app.core.config import settings
 
+_DELETE_IF_EQUAL = (
+    "if redis.call('get', KEYS[1]) == ARGV[1] then "
+    "return redis.call('del', KEYS[1]) else return 0 end"
+)
+
 
 class RedisClient:
     """Redis client wrapper for connection lifecycle management.
@@ -82,6 +87,20 @@ class RedisClient:
         pipe.expire(key, ttl, nx=True)
         used, _expired = await pipe.execute()
         return int(used)
+
+    async def expire(self, key: str, ttl: int) -> bool:
+        """Set a key's lifetime to `ttl` seconds. False when there is no such key."""
+        if not self.client:
+            raise RuntimeError("Redis client not connected")
+        return bool(await self.client.expire(key, ttl))
+
+    async def delete_if_equal(self, key: str, value: str) -> bool:
+        """Delete a key only while it still holds `value` - a lease given back by its holder."""
+        if not self.client:
+            raise RuntimeError("Redis client not connected")
+        # The stubs union a sync and an async return; this client is the async one.
+        deleted = await self.client.eval(_DELETE_IF_EQUAL, 1, key, value)  # ty: ignore[invalid-await]
+        return bool(deleted)
 
     async def delete(self, key: str) -> int:
         """Delete a key. Returns number of keys deleted."""

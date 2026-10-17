@@ -168,7 +168,7 @@ test("an agent delegates to another, and both runs are recorded", async ({ page 
   await page.getByRole("button", { name: "Send message" }).click();
   // The composer clears on send, so nothing asserted below can be the text that
   // was typed into it.
-  await expect(composer).toHaveValue("");
+  await expect(composer).toHaveText("");
 
   // 5. the exchange, under the answer
   // The parent's own answer, which arrives after the delegation it waited on.

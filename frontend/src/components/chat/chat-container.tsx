@@ -1,5 +1,6 @@
 "use client";
 
+import type { Mentionable } from "@/types/mention";
 import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ChatMessageFile } from "@/types";
@@ -427,9 +428,9 @@ export function ChatContainer({
   // A ref, not state: releasing it is a send, not something to render.
   const held = useRef<Parameters<typeof sendMessage> | null>(null);
   const send = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
-      if (holdSending) held.current = [content, fileIds, files];
-      else sendMessage(content, fileIds, files);
+    (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
+      if (holdSending) held.current = [content, fileIds, files, mentions];
+      else sendMessage(content, fileIds, files, mentions);
     },
     [sendMessage, holdSending],
   );
@@ -447,7 +448,7 @@ export function ChatContainer({
       for (let i = idx - 1; i >= 0; i--) {
         const m = messages[i];
         if (m?.role === "user") {
-          sendMessage(m.content, m.fileIds, m.files);
+          sendMessage(m.content, m.fileIds, m.files, m.mentions);
           return;
         }
       }
@@ -548,6 +549,7 @@ export function ChatContainer({
       onStop={stopGeneration}
       emptyState={emptyState}
       agentFixed={agentFixed}
+      testingDraft={testing?.draft ?? false}
       incomingFiles={incomingFiles}
     />
   );
@@ -557,6 +559,8 @@ interface ChatUIProps {
   /** Replaces the generic empty-conversation suggestions. */
   emptyState?: (onPick: (prompt: string) => void) => React.ReactNode;
   agentFixed: boolean;
+  /** The Builder's test panel running the draft, which is what `@` then offers from. */
+  testingDraft: boolean;
   incomingFiles: IncomingFiles | null;
   messages: import("@/types").ChatMessage[];
   isConnected: boolean;
@@ -610,6 +614,7 @@ interface ChatUIProps {
     content: string,
     fileIds?: string[],
     files?: import("@/types").ChatMessageFile[],
+    mentions?: Mentionable[],
   ) => void;
   onModelProfileChange?: (profileId: string | null) => void;
   onApprovalModeChange?: (mode: import("./chat-controls").ApprovalMode) => void;
@@ -683,6 +688,7 @@ function ChatUI({
   onStop,
   emptyState,
   agentFixed,
+  testingDraft,
   incomingFiles,
 }: ChatUIProps) {
   const t = useTranslations("chat");
@@ -974,6 +980,12 @@ function ChatUI({
                           costs the row a button. */}
                       <ChatInput
                         onSend={sendMessage}
+                        // Mentions address the agent the thread is talking to -
+                        // in a fixed window (the test panel, the Architect) the
+                        // scope's own selection holds it.
+                        agentId={delegatingAgentId}
+                        mentionsFromDraft={testingDraft}
+                        hints={messages.length === 0}
                         disabled={
                           !isConnected ||
                           isArchived ||
