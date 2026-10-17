@@ -7,8 +7,8 @@ to a file beside the work and read back, because a session that reads a large
 repository prints more than a command's output may carry.
 
 The split into two tools is the approval model. Planning reads, so it runs
-unattended; applying writes and runs commands, so it is side-effecting and the
-platform's approval gate asks a person first - one decision per change, with the
+unattended; applying writes and runs commands, so it is side-effecting and the one
+to put behind the platform's approval gate - one decision per change, with the
 plan the person can read in the same conversation, rather than a prompt per file.
 Applying can continue the planning session, so the harness keeps what it learned.
 """
@@ -20,6 +20,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+import httpx
 from pydantic_ai.exceptions import UserError
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
@@ -99,7 +100,10 @@ def build_coding_toolset(
             exit_code: int | None = result.exit_code
         except WorkspaceTimeoutError:
             timed_out, exit_code = True, None
-        except (UserError, WorkspaceError) as failed:
+        # The sandboxd client raises its HTTP error unmapped when the service
+        # refuses to open a session - a runtime still building answers 409 - so
+        # that is a sandbox this task could not run in, like the two above.
+        except (UserError, WorkspaceError, httpx.HTTPError) as failed:
             logger.warning("%s could not run in the workspace: %s", label, failed)
             return f"{label} could not run in this sandbox ({type(failed).__name__})."
         try:

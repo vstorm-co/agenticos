@@ -6342,7 +6342,7 @@
       "example1": "Napraw padający test w repozytorium sklonowanym przez agenta",
       "example2": "Wyjaśnij, jak działa moduł, zanim go zmienisz",
       "needs": "Capability Sandbox na połączeniu sandbox oraz klucz API Anthropic albo OpenAI w vault. Każde zadanie rozlicza ten dostawca.",
-      "never": "Nigdy nie zmienia pliku bez twojej zgody, chyba że wyłączysz zatwierdzanie."
+      "never": "Nigdy nie działa poza sandboxem agenta. Zmiany czekają na twoją zgodę, gdy ustawisz Always ask na Zmień kod."
     },
     "compaction": {
       "name": "Długie rozmowy",

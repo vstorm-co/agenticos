@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from typing import Any
 from uuid import uuid4
 
+import httpx
 import pytest
 from pydantic import ValidationError
 from pydantic_ai._run_context import RunContext
@@ -508,6 +509,16 @@ class TestRunningATask:
         shell = _Shell(raises=WorkspaceUnavailableError("gone"))
         answer = await _call("plan_code_change", shell)
         assert answer == "Claude Code could not run in this sandbox (WorkspaceUnavailableError)."
+
+    async def test_a_sandbox_the_service_will_not_open_is_an_answer(self) -> None:
+        """A runtime still building answers 409, which the sandboxd client raises unmapped."""
+        refused = httpx.HTTPStatusError(
+            "409 Conflict",
+            request=httpx.Request("POST", "http://sandboxd/sessions"),
+            response=httpx.Response(409),
+        )
+        answer = await _call("plan_code_change", _Shell(raises=refused))
+        assert answer == "Claude Code could not run in this sandbox (HTTPStatusError)."
 
     async def test_a_workspace_whose_files_cannot_be_read_still_reports(self) -> None:
         shell = _Shell(exit_code=0)

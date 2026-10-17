@@ -1,5 +1,5 @@
 ---
-source_sha: "e8b17e6e3238"
+source_sha: "6ad32732381f"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1109,11 +1109,11 @@ przez zwykłe [delegowanie](#delegation), tak jak każdemu specjaliście.
 **Planowanie czyta, wdrażanie zapisuje.** `plan_code_change` uruchamia harness tylko
 do odczytu — Claude Code w trybie uprawnień `plan`, Codex z sandboxem ustawionym na
 `read-only` — i odpowiada planem albo ustaleniem. `apply_code_change` pozwala mu
-edytować każdy plik i uruchamiać każde polecenie w sandboxie, więc ma skutki uboczne
-i [bramka zatwierdzeń](../governance.md) pyta człowieka przed uruchomieniem, chyba
-że binding mówi inaczej. To jedna decyzja na zmianę, podjęta, gdy plan jest już w
-rozmowie, a nie pytanie o każdy plik: harness działa wtedy z wyłączonymi własnymi
-pytaniami (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`),
+edytować każdy plik i uruchamiać każde polecenie w sandboxie, więc ma skutki
+uboczne, a ustawienie na nim **Always ask** stawia każdą zmianę za
+[bramką zatwierdzeń](../governance.md) — jak każda bramka jest wyłączona, dopóki ktoś
+jej nie ustawi. To jedna decyzja na zmianę, podjęta, gdy plan jest już w rozmowie, a
+nie pytanie o każdy plik: harness działa z wyłączonymi własnymi pytaniami (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`),
 bo granicą jest kontener sandboxa, dla którego obie flagi są przeznaczone.
 Wdrożenie zwykle przekazuje `session_id` z wywołania planującego, więc harness
 pamięta, co przeczytał.

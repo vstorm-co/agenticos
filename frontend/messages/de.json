@@ -6451,7 +6451,7 @@
       "example1": "Einen fehlschlagenden Test in einem Repository beheben, das der Agent geklont hat",
       "example2": "Erklären, wie ein Modul funktioniert, bevor es geändert wird",
       "needs": "Die Capability Sandbox auf einer Sandbox-Verbindung und einen API-Key von Anthropic oder OpenAI im Vault. Jede Aufgabe rechnet dieser Anbieter ab.",
-      "never": "Ändert nie eine Datei ohne Ihre Freigabe, außer Sie schalten die Freigabe ab."
+      "never": "Arbeitet nie außerhalb des Sandbox des Agent. Änderungen warten auf Ihre Freigabe, wenn Sie Always ask auf Code ändern setzen."
     },
     "compaction": {
       "name": "Lange Gespräche",

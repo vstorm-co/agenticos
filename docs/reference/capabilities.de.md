@@ -1,5 +1,5 @@
 ---
-source_sha: "e8b17e6e3238"
+source_sha: "6ad32732381f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1175,10 +1175,11 @@ Spezialisten.
 lesend — Claude Code im Berechtigungsmodus `plan`, Codex mit seinem Sandbox auf
 `read-only` — und antwortet mit dem Plan oder dem Befund. `apply_code_change` lässt
 es jede Datei bearbeiten und jeden Befehl im Sandbox ausführen; es hat also
-Nebenwirkungen, und die [Freigabe](../governance.md) fragt einen Menschen, bevor es
-läuft, sofern das Binding nichts anderes sagt. Das ist eine Entscheidung pro
-Änderung, getroffen, wenn der Plan schon im Gespräch steht, statt einer Rückfrage pro
-Datei: Das Harness läuft dann ohne seine eigenen Rückfragen
+Nebenwirkungen, und **Always ask** darauf stellt jede Änderung hinter die
+[Freigabe](../governance.md) — wie jede Freigabe ist sie aus, bis jemand sie setzt.
+Das ist eine Entscheidung pro Änderung, getroffen, wenn der Plan schon im Gespräch
+steht, statt einer Rückfrage pro Datei: Das Harness läuft ohne seine eigenen
+Rückfragen
 (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`), weil
 der Sandbox-Container die Grenze ist, für die beide Flags dokumentiert sind.
 Anwenden übergibt meist die `session_id` des Planungsaufrufs, damit das Harness

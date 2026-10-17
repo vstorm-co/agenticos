@@ -3,8 +3,8 @@
 A general agent with a shell can edit code; a coding harness is better at it, and
 both Claude Code and Codex run headless. This capability gives an agent two tools
 that hand a task to one of them in the agent's own sandbox: one that reads and
-plans, and one that changes files and runs commands, which the approval gate holds
-for a person by default.
+plans, and one that changes files and runs commands, which is the one to put
+behind the approval gate.
 
 An agent with this capability is a coding agent; another agent reaches it the way
 it reaches any specialist, through delegation, so "hand this to Claude Code" and

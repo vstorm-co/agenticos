@@ -6568,7 +6568,7 @@
       "example1": "Fix a failing test in a repository the agent cloned",
       "example2": "Explain how a module works before changing it",
       "needs": "The Sandbox capability on a sandbox connection, and an Anthropic or OpenAI API key in the vault. Each task is billed by that provider.",
-      "never": "Never changes a file without your approval, unless you turn the approval off."
+      "never": "Never works outside the agent's sandbox. Changes wait for your approval when you set Always ask on Change the code."
     },
     "compaction": {
       "name": "Long conversations",

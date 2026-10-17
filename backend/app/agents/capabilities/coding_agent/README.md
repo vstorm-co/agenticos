@@ -7,8 +7,8 @@ Claude Code or Codex, doing software work in the agent's own sandbox (#2092).
 Two tools. `plan_code_change` runs the harness read-only - Claude Code in its
 `plan` permission mode, Codex with its sandbox set to `read-only` - and returns
 the plan or the finding. `apply_code_change` runs it with permission to edit and
-execute, and is side-effecting, so the approval gate asks a person before it
-runs unless the binding says otherwise. Applying usually continues the planning
+execute, and is side-effecting: the tool to set **Always ask** on, so a person
+approves each change. Like every gate it is off until somebody sets it. Applying usually continues the planning
 session (`session_id`), so the harness keeps what it read.
 
 An agent with this capability is a *coding agent*. Another agent hands it work
@@ -30,8 +30,8 @@ task finishes rather than as it runs.
 A harness asks permission per file and per command when a person sits at its
 terminal. Nobody does here, and forwarding each of those prompts through the
 platform would make a person approve forty edits to accept one change. So the
-platform asks once, at `apply_code_change`, after the plan has been shown, and
-the harness then runs with its own prompts off: Claude Code with
+platform asks once, at `apply_code_change` when it is gated, after the plan has
+been shown, and the harness runs with its own prompts off either way: Claude Code with
 `--dangerously-skip-permissions` (and `IS_SANDBOX=1`, which it asks for when run
 as root), Codex with `--dangerously-bypass-approvals-and-sandbox`. The container
 is the boundary, which is what both flags are documented for.

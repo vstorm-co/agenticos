@@ -32,7 +32,8 @@ Two things are versioned separately from this file and worth knowing about:
   budget-checked and booked to the run as unpriced.
 - **Coding agent capability** (#2092). `coding_agent` hands software work to
   Claude Code or Codex in the agent's sandbox: `plan_code_change` reads and plans,
-  `apply_code_change` edits and runs commands behind the approval gate. The chat
+  `apply_code_change` edits and runs commands, and is the tool to set **Always ask**
+  on. The chat
   shows what the harness read, ran and changed, and its tokens are booked to the
   run. The `workbench` runtime now carries Claude Code 2.1.288 and Codex 0.160.0.
 

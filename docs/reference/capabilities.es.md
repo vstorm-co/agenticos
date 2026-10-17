@@ -1,5 +1,5 @@
 ---
-source_sha: "e8b17e6e3238"
+source_sha: "6ad32732381f"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1123,10 +1123,11 @@ especialista.
 lectura — Claude Code en su modo de permisos `plan`, Codex con su sandbox en
 `read-only` — y responde con el plan o el hallazgo. `apply_code_change` le deja
 editar cualquier archivo y ejecutar cualquier comando en la sandbox, así que tiene
-efectos y la [aprobación](../governance.md) pregunta a una persona antes de que se
-ejecute, salvo que el binding diga otra cosa. Es una decisión por cambio, tomada
-cuando el plan ya está en la conversación, en lugar de una pregunta por archivo: el
-harness se ejecuta entonces con sus propias preguntas desactivadas
+efectos, y poner **Always ask** en ella deja cada cambio tras la
+[aprobación](../governance.md) — como toda aprobación, está desactivada hasta que
+alguien la pone. Es una decisión por cambio, tomada cuando el plan ya está en la
+conversación, en lugar de una pregunta por archivo: el harness se ejecuta con sus
+propias preguntas desactivadas
 (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`),
 porque el contenedor de la sandbox es el límite para el que ambas opciones están
 documentadas. Aplicar suele pasar el `session_id` de la llamada que planificó, para

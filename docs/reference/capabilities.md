@@ -1051,11 +1051,11 @@ capability is a *coding agent*, and another agent hands it work through ordinary
 **Planning reads; applying writes.** `plan_code_change` runs the harness read-only
 — Claude Code in its `plan` permission mode, Codex with its sandbox set to
 `read-only` — and answers with the plan or the finding. `apply_code_change` lets it
-edit any file and run any command in the sandbox, so it is side-effecting and the
-[approval gate](../governance.md) asks a person before it runs unless the binding
-says otherwise. That is one decision per change, taken after the plan is in the
-conversation, rather than a prompt per file: the harness then runs with its own
-prompts off (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`),
+edit any file and run any command in the sandbox, so it is side-effecting, and
+setting **Always ask** on it puts each change behind the
+[approval gate](../governance.md) — like every gate, it is off until somebody sets
+it. That is one decision per change, taken after the plan is in the conversation,
+rather than a prompt per file: the harness runs with its own prompts off (`--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`),
 because the sandbox container is the boundary both flags are documented for.
 Applying usually passes the planning call's `session_id`, so the harness keeps
 what it read.
