@@ -70,7 +70,7 @@ from app.services.usage_report import (
     needs_sandbox_sample,
     should_report,
 )
-from app.services.visual import VISUAL_TOOLS
+from app.services.visual import DREW, VISUAL_TOOLS
 
 # Matches a leading handle and keeps everything after it as the prompt. Anchored
 # at the start on purpose: a slug appearing mid-sentence is someone talking
@@ -136,12 +136,16 @@ async def drawn_picture(
             continue
         if call.tool_name == _CHART_TOOL:
             return await asyncio.to_thread(drawn_chart, [call])
-        if call.tool_name in VISUAL_TOOLS:
-            return await visual_render.picture_of_turn(
+        # A visual the tool refused - a retry, the last attempt's refusal - is no
+        # drawing; and one that cannot be drawn here leaves an earlier chart to go.
+        if call.tool_name in VISUAL_TOOLS and call.result.startswith(DREW):
+            picture = await visual_render.picture_of_turn(
                 [(c.tool_call_id, c.tool_name, c.args, c.result) for c in called],
                 organization_id=organization_id,
                 conversation_id=conversation_id,
             )
+            if picture is not None:
+                return picture
     return None
 
 

@@ -375,6 +375,34 @@ class TestTheTurnsPicture:
         assert picture.await_args.kwargs["conversation_id"] == conversation
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("result", "rendered"),
+        [
+            # The tool refused it - a retry, the last attempt's refusal: no drawing.
+            ("The visual pulls a script from the web; draw it inline.", b"never asked"),
+            # Drawn, but not here - no browser, or it would not render.
+            ("Drew 'Flow' as visual `v`.", None),
+        ],
+    )
+    async def test_a_visual_with_no_picture_leaves_the_chart_before_it(
+        self, result: str, rendered: bytes | None
+    ) -> None:
+        from unittest.mock import AsyncMock, patch
+
+        from app.services.channels.mentions import drawn_picture
+
+        with patch(
+            "app.services.channels.mentions.visual_render.picture_of_turn",
+            new=AsyncMock(return_value=rendered),
+        ):
+            png = await drawn_picture(
+                [_call(_spec().model_dump_json()), _call(result, name="draw")],
+                organization_id=uuid.uuid4(),
+                conversation_id=uuid.uuid4(),
+            )
+        assert png is not None and png.startswith(b"\x89PNG")
+
+    @pytest.mark.anyio
     async def test_a_turn_that_drew_nothing_has_no_picture(self) -> None:
         from app.services.channels.mentions import drawn_picture
 
