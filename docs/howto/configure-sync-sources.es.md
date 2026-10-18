@@ -1,5 +1,5 @@
 ---
-source_sha: "35cbb3d979ce"
+source_sha: "a2315efb4fdc"
 ---
 
 # Configura las fuentes de sincronización { #configure-sync-sources }
@@ -133,6 +133,11 @@ el listado de `rag-sources`.
 6. Pulsa **"Create Source"**.
 7. Usa el botón **"Sync Now"** para lanzar una sincronización inmediata, o
    espera a que el horario la dispare por sí solo.
+
+Para cambiar una fuente más adelante, pulsa el lápiz de su fila. Se abre el mismo
+asistente con los valores de la fuente ya rellenados. El connector no se puede
+cambiar, y **"Save Changes"** envía solo los campos que hayas cambiado. La fuente
+sigue en la base de conocimiento en la que está.
 
 La interfaz llama a la misma API REST que se documenta más abajo, así que todo
 lo que puedes hacer desde ella lo puedes hacer también con `curl` o con

@@ -19,7 +19,13 @@ import { ConfigureStep } from "@/components/rag/sync-source-configure-step";
 import { CredentialStep } from "@/components/rag/sync-source-credential-step";
 import { ConnectorStep } from "@/components/rag/sync-source-connector-step";
 import { ScheduleStep } from "@/components/rag/sync-source-schedule-step";
-import type { ConnectorInfo, SyncSourceCreate, SyncSourceRead } from "@/lib/rag-api";
+import type {
+  ConnectorInfo,
+  SyncSourceCreate,
+  SyncSourceRead,
+  SyncSourceUpdate,
+} from "@/lib/rag-api";
+import { syncSourceChanges, syncSourceForm } from "@/lib/sync-source-changes";
 import type { KBScope } from "@/types/knowledge-base";
 import { cn } from "@/lib/utils";
 import { useChanged } from "@/hooks/use-changed";
@@ -51,6 +57,13 @@ interface SyncSourceWizardProps {
   /** The org-integrations request failed, so the "use existing" offer is missing, not absent. */
   orgIntegrationsFailed?: boolean;
   onSubmit: (data: SyncSourceCreate) => Promise<void> | void;
+  /**
+   * The source being edited, which turns the wizard into its edit form: filled
+   * in from the row, the connector fixed, and saved through {@link onUpdate}.
+   */
+  editing?: SyncSourceRead | null;
+  /** Receives only the fields the edit changed - see `syncSourceChanges`. */
+  onUpdate?: (sourceId: string, data: SyncSourceUpdate) => Promise<void> | void;
   onClone?: (sourceId: string, collectionName: string, name: string) => Promise<void> | void;
   submitting?: boolean;
 }
@@ -93,6 +106,8 @@ export function SyncSourceWizard({
   connectorsFailed = false,
   orgIntegrationsFailed = false,
   onSubmit,
+  editing = null,
+  onUpdate,
   onClone,
   submitting,
 }: SyncSourceWizardProps) {
@@ -100,10 +115,11 @@ export function SyncSourceWizard({
   const tErrors = useTranslations("errors");
   const [mode, setMode] = useState<Mode>("new");
   const [step, setStep] = useState<Step>("source");
-  const [form, setForm] = useState<SyncSourceCreate>({
-    ...EMPTY_FORM,
-    collection_name: defaultCollection ?? null,
-  });
+  const [form, setForm] = useState<SyncSourceCreate>(() =>
+    editing
+      ? syncSourceForm(editing)
+      : { ...EMPTY_FORM, collection_name: defaultCollection ?? null },
+  );
   const [cloneSourceId, setCloneSourceId] = useState<string>("");
   const [cloneName, setCloneName] = useState<string>("");
   const [configErrors, setConfigErrors] = useState<Readonly<Record<string, string>>>(NO_ERRORS);
@@ -133,7 +149,11 @@ export function SyncSourceWizard({
   if (useChanged(open) && open) {
     setMode("new");
     setStep("source");
-    setForm({ ...EMPTY_FORM, collection_name: defaultCollection ?? null });
+    setForm(
+      editing
+        ? syncSourceForm(editing)
+        : { ...EMPTY_FORM, collection_name: defaultCollection ?? null },
+    );
     setCloneSourceId("");
     setCloneName("");
     setConfigErrors(NO_ERRORS);
@@ -156,8 +176,12 @@ export function SyncSourceWizard({
     [selectedConnector],
   );
 
-  const enabledConnectors = connectors.filter((c) => c.enabled);
-  const hasOrgIntegrations = orgIntegrations.length > 0;
+  // An edited source keeps its connector even if it has since been disabled.
+  const offeredConnectors = editing
+    ? connectors.filter((c) => c.type === editing.connector_type)
+    : connectors.filter((c) => c.enabled);
+  const hasOrgIntegrations = !editing && orgIntegrations.length > 0;
+  const changes = editing ? syncSourceChanges(editing, form) : null;
 
   const selectedIntegration = orgIntegrations.find((i) => i.id === cloneSourceId);
 
@@ -212,7 +236,8 @@ export function SyncSourceWizard({
       if (!selectedConnector) return false;
       return selectedConnector.secret_kind === "none" || Boolean(form.secret_id);
     }
-    if (step === "schedule") return true;
+    // An edit that changes nothing has nothing to save.
+    if (step === "schedule") return changes === null || Object.keys(changes).length > 0;
     return false;
   })();
 
@@ -236,10 +261,14 @@ export function SyncSourceWizard({
     const submittedIn = session.current;
     setConfigErrors(NO_ERRORS);
     try {
-      await onSubmit({
-        ...form,
-        collection_name: form.collection_name ?? defaultCollection ?? null,
-      });
+      if (editing) {
+        await onUpdate?.(editing.id, syncSourceChanges(editing, form));
+      } else {
+        await onSubmit({
+          ...form,
+          collection_name: form.collection_name ?? defaultCollection ?? null,
+        });
+      }
     } catch (error) {
       if (session.current !== submittedIn) {
         toast.error(getErrorMessage(error, tErrors));
@@ -281,7 +310,9 @@ export function SyncSourceWizard({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(DIALOG_FRAMED, DIALOG_FORM)}>
         <DialogHeader className="border-foreground/10 border-b px-6 py-4">
-          <DialogTitle className="text-base font-semibold">{t("addSyncSource")}</DialogTitle>
+          <DialogTitle className="text-base font-semibold">
+            {editing ? t("editSyncSource") : t("addSyncSource")}
+          </DialogTitle>
 
           {/* Mode toggle - visible on the first step so user can switch between new/clone */}
           {hasOrgIntegrations && step === "source" && (
@@ -315,7 +346,7 @@ export function SyncSourceWizard({
             </div>
           )}
 
-          {orgIntegrationsFailed && step === "source" && (
+          {orgIntegrationsFailed && !editing && step === "source" && (
             // Unsaid, a failed org-integrations request is indistinguishable from
             // an organization that has none: the "Use existing" toggle never appears.
             <p className="text-destructive mt-2 text-xs">{t("orgIntegrationsLoadFailed")}</p>
@@ -343,7 +374,8 @@ export function SyncSourceWizard({
             <>
               {step === "source" && (
                 <ConnectorStep
-                  connectors={enabledConnectors}
+                  connectors={offeredConnectors}
+                  locked={Boolean(editing)}
                   connectorsFailed={connectorsFailed}
                   form={form}
                   setForm={setForm}
@@ -402,14 +434,16 @@ export function SyncSourceWizard({
             isLastStep
               ? mode === "clone"
                 ? t("useIntegration")
-                : t("createSource")
+                : editing
+                  ? t("saveChanges")
+                  : t("createSource")
               : t("continue")
           }
           onNext={handleNext}
           nextDisabled={!canAdvance}
           isLast={isLastStep}
           busy={Boolean(submitting) && isLastStep}
-          busyLabel={mode === "clone" ? t("cloning") : t("creating3")}
+          busyLabel={mode === "clone" ? t("cloning") : editing ? t("saving") : t("creating3")}
         />
       </DialogContent>
     </Dialog>

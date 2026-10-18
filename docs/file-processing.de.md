@@ -1,5 +1,5 @@
 ---
-source_sha: "27fe488f738b"
+source_sha: "4c7d4614d816"
 ---
 
 # Dateiverarbeitung { #file-processing }
@@ -1404,9 +1404,12 @@ Folge dieselbe ist (#982).
 
 Das Klonen sagt es ebenfalls, und aus dem Grund oben: es ist der einzige Weg, das
 Publikum einer Source aus der eigenen UI dieses Produkts heraus zu ändern. Eine
-bestehende umzuhängen ist ein `PATCH` auf `collection_name`, das heute kein
-Bildschirm sendet - es gibt keinen Editor für Sources - es ist also über die API
-und die CLI erreichbar, wo der Audit-Eintrag oben es festhält.
+bestehende umzuhängen ist ein `PATCH` auf `collection_name` an
+`/rag/sync/sources/{id}`. Der Source-Editor im Tab **Sync** einer
+Wissensdatenbank sendet keines, und deren eigenes
+`PATCH /kb/{kb_id}/sync-sources/{source_id}` weist einen `collection_name` ab,
+der eine andere Datenbank nennt - das Umhängen ist also über die API und die CLI
+erreichbar, wo der Audit-Eintrag oben es festhält.
 
 ### Was ein neuer Connector schuldet { #what-a-new-connector-owes }
 

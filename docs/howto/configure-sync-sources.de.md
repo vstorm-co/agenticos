@@ -1,5 +1,5 @@
 ---
-source_sha: "35cbb3d979ce"
+source_sha: "a2315efb4fdc"
 ---
 
 # Sync-Quellen einrichten { #configure-sync-sources }
@@ -134,6 +134,11 @@ in der Auflistung von `rag-sources` steht.
 6. Klicken Sie auf **"Create Source"**.
 7. Mit **"Sync Now"** lösen Sie einen sofortigen Sync aus, oder Sie warten, bis
    der Zeitplan von selbst greift.
+
+Um eine Source später zu ändern, klicken Sie auf den Stift in ihrer Zeile. Derselbe
+Assistent öffnet sich mit den Werten der Source. Der Connector lässt sich nicht
+ändern, und **"Save Changes"** sendet nur die Felder, die Sie geändert haben. Die
+Source bleibt der Wissensdatenbank zugeordnet, in der sie ist.
 
 Die Oberfläche ruft dieselbe REST-API auf, die unten dokumentiert ist: Was Sie in
 der Oberfläche tun können, können Sie auch mit `curl` oder einem beliebigen

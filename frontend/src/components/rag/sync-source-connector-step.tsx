@@ -13,9 +13,12 @@ export function ConnectorStep({
   connectorsFailed,
   form,
   setForm,
+  locked = false,
 }: {
   connectors: ConnectorInfo[];
   connectorsFailed: boolean;
+  /** Editing an existing source: its connector is fixed, and choosing another would wipe the config. */
+  locked?: boolean;
   form: SyncSourceCreate;
   setForm: React.Dispatch<React.SetStateAction<SyncSourceCreate>>;
 }) {
@@ -61,6 +64,7 @@ export function ConnectorStep({
                 <button
                   key={conn.type}
                   type="button"
+                  disabled={locked}
                   onClick={() => setForm((f) => ({ ...f, connector_type: conn.type, config: {} }))}
                   className={cn(
                     "flex items-center gap-3 rounded-xl border p-3.5 text-left transition-colors",

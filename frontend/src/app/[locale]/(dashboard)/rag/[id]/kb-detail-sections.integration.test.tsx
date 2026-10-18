@@ -108,7 +108,7 @@ function mockApi({
 }: {
   failing?: "sync-sources" | "connectors" | "documents";
   documents?: KBDocument[];
-  syncSources?: { id: string; name: string }[];
+  syncSources?: ({ id: string; name: string } & Record<string, unknown>)[];
 } = {}) {
   vi.mocked(apiClient.get).mockImplementation((endpoint: string) => {
     if (endpoint === `/kb/${KB_ID}`) return Promise.resolve(KB);
@@ -316,4 +316,41 @@ describe("the three sections are tabs (#939)", () => {
   // `next/navigation` mock in `vitest.setup.ts` answers an empty one and wins:
   // a test written that way passed while the page was showing its default,
   // which is worse than not having it.
+});
+
+describe("editing a sync source", () => {
+  it("is not offered to a reader who cannot change the collection", async () => {
+    mockApi({ syncSources: [{ id: "src-1", name: "Drive folder" }] });
+
+    await renderPage();
+    await openTab("pages.kb.syncSources");
+
+    await screen.findByText("Drive folder");
+    expect(screen.queryByRole("button", { name: "pages.kb.editSource" })).toBeNull();
+  });
+
+  it("opens the wizard filled in from the source for an editor", async () => {
+    perms.add("collections:edit");
+    try {
+      mockApi({
+        syncSources: [
+          {
+            id: "src-1",
+            name: "Drive folder",
+            connector_type: "gdrive",
+            config: { folder_id: "1AbC" },
+          },
+        ],
+      });
+
+      await renderPage();
+      await openTab("pages.kb.syncSources");
+      await userEvent.click(await screen.findByRole("button", { name: "pages.kb.editSource" }));
+
+      expect(await screen.findByText("rag.editSyncSource")).toBeVisible();
+      expect(screen.getByLabelText("rag.sourceName")).toHaveValue("Drive folder");
+    } finally {
+      perms.delete("collections:edit");
+    }
+  });
 });

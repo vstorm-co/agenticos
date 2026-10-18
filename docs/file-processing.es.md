@@ -1,5 +1,5 @@
 ---
-source_sha: "27fe488f738b"
+source_sha: "4c7d4614d816"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -1345,9 +1345,11 @@ consecuencia es la misma (#982).
 
 Clonar también lo dice, y por el motivo de arriba: es la única forma de cambiar la
 audiencia de una fuente desde la propia UI de este producto. Reapuntar una
-existente es un `PATCH` sobre `collection_name`, que hoy no envía ninguna pantalla
-- no hay un editor de fuentes - así que se llega a ello por la API y por la CLI,
-donde la entrada de auditoría de arriba es lo que lo registra.
+existente es un `PATCH` sobre `collection_name` a `/rag/sync/sources/{id}`. El
+editor de fuentes de la pestaña **Sync** de una base de conocimiento no lo envía,
+y el `PATCH /kb/{kb_id}/sync-sources/{source_id}` propio de esa base rechaza un
+`collection_name` que nombre otra base - así que se llega a ello por la API y por
+la CLI, donde la entrada de auditoría de arriba es lo que lo registra.
 
 ### Qué debe traer un conector nuevo { #what-a-new-connector-owes }
 

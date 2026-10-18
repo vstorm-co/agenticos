@@ -1,6 +1,6 @@
 "use client";
 
-import { Plug, RotateCw, Trash2 } from "lucide-react";
+import { Pencil, Plug, RotateCw, Trash2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
@@ -13,12 +13,14 @@ import { formatDateTime } from "@/lib/utils";
 export function SyncSourceRow({
   source,
   kbId,
+  onEdit,
   onTrigger,
   onDelete,
 }: {
   source: SyncSourceRead;
   kbId: string;
   /** Absent when the caller may not write - the buttons are then not drawn. */
+  onEdit?: () => void;
   onTrigger?: () => void;
   /** Asks for the disconnection; the page owns the confirmation and the call. */
   onDelete?: () => void;
@@ -57,6 +59,18 @@ export function SyncSourceRow({
             message={source.last_error}
             className="shrink-0"
           />
+        )}
+        {onEdit && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
+            onClick={onEdit}
+            title={t("editSource")}
+            aria-label={t("editSource")}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
         )}
         {onTrigger && (
           <Button

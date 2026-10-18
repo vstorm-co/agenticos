@@ -128,6 +128,11 @@ in the `rag-sources` listing.
 7. Use the **"Sync Now"** button to trigger an immediate sync, or wait
    for the schedule to fire automatically.
 
+To change a source later, click the pencil on its row. The same wizard opens
+with the source's values filled in. The connector cannot be changed, and
+**"Save Changes"** sends only the fields you changed. The source stays filed
+under the knowledge base it is on.
+
 The UI calls the same REST API documented below, so anything you can do
 in the UI you can also do with `curl` or any HTTP client.
 

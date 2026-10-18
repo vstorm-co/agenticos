@@ -1245,9 +1245,11 @@ consequence is the same (#982).
 
 Cloning says it too, and for the reason above: it is the only way to change a
 source's audience from this product's own UI. Repointing an existing one is a
-`PATCH` on `collection_name`, which no screen sends today - there is no source
-editor - so it is reachable through the API and the CLI, where the audit entry
-above is what records it.
+`PATCH` on `collection_name` to `/rag/sync/sources/{id}`. The source editor on a
+knowledge base's **Sync** tab does not send one, and that base's own
+`PATCH /kb/{kb_id}/sync-sources/{source_id}` refuses a `collection_name` naming
+another base - so repointing is reachable through the API and the CLI, where the
+audit entry above is what records it.
 
 ### What a new connector owes
 

@@ -90,6 +90,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
     deleteDocument,
     deleteCollection,
     createSyncSource,
+    updateSyncSource,
     cloneSyncSource,
     triggerSyncSource,
     deleteSyncSource,
@@ -103,6 +104,9 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [creatingSource, setCreatingSource] = useState(false);
+  // Kept after the wizard closes, so it does not turn back into the create
+  // form while it animates out; opening it to connect is what clears it.
+  const [editingSource, setEditingSource] = useState<SyncSourceRead | null>(null);
   const [viewerDoc, setViewerDoc] = useState<KBDocument | null>(null);
   const [ingestionOpen, setIngestionOpen] = useState(false);
   const [embeddingOpen, setEmbeddingOpen] = useState(false);
@@ -337,7 +341,14 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             syncSourcesFailed={sectionFailures.syncSources}
             connectorsFailed={sectionFailures.connectors}
             mayEdit={mayEdit}
-            onConnect={() => setWizardOpen(true)}
+            onConnect={() => {
+              setEditingSource(null);
+              setWizardOpen(true);
+            }}
+            onEdit={(source) => {
+              setEditingSource(source);
+              setWizardOpen(true);
+            }}
             onTrigger={(sourceId) => triggerSyncSource(sourceId)}
             onDisconnect={setDisconnectingSource}
             onRetry={() => refresh()}
@@ -464,6 +475,16 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
         connectorsFailed={sectionFailures.connectors}
         orgIntegrationsFailed={sectionFailures.orgIntegrations}
         submitting={creatingSource}
+        editing={editingSource}
+        onUpdate={async (sourceId, data) => {
+          setCreatingSource(true);
+          try {
+            await updateSyncSource(sourceId, data);
+            setWizardOpen(false);
+          } finally {
+            setCreatingSource(false);
+          }
+        }}
         onSubmit={async (data) => {
           setCreatingSource(true);
           try {

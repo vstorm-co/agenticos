@@ -1,5 +1,5 @@
 ---
-source_sha: "35cbb3d979ce"
+source_sha: "a2315efb4fdc"
 ---
 
 # Konfiguracja źródeł synchronizacji { #configure-sync-sources }
@@ -133,6 +133,11 @@ liście `rag-sources`.
 6. Kliknij **"Create Source"**.
 7. Przyciskiem **"Sync Now"** wyzwolisz synchronizację natychmiast albo
    poczekasz, aż harmonogram zadziała sam.
+
+Żeby później zmienić source, kliknij ołówek w jego wierszu. Otworzy się ten sam
+kreator z wypełnionymi wartościami source'a. Connectora nie da się zmienić, a
+**"Save Changes"** wysyła tylko pola, które zmieniłeś. Source zostaje w bazie
+wiedzy, w której jest.
 
 Interfejs wywołuje to samo REST API, które opisano poniżej: cokolwiek zrobisz
 w interfejsie, zrobisz też przez `curl` lub dowolnego klienta HTTP.

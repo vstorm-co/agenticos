@@ -1,5 +1,5 @@
 ---
-source_sha: "27fe488f738b"
+source_sha: "4c7d4614d816"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1327,9 +1327,11 @@ a konsekwencja jest ta sama (#982).
 
 Klonowanie mówi to samo, i z powodu podanego wyżej: to jedyny sposób, żeby
 zmienić publiczność source'a z własnego UI tego produktu. Przecelowanie
-istniejącego to `PATCH` na `collection_name`, którego dziś nie wysyła żaden
-ekran - nie ma edytora source'ów - więc jest osiągalne przez API i CLI, gdzie
-odnotowuje to powyższy wpis audytowy.
+istniejącego to `PATCH` na `collection_name` do `/rag/sync/sources/{id}`. Edytor
+source'ów w zakładce **Sync** bazy wiedzy go nie wysyła, a własny
+`PATCH /kb/{kb_id}/sync-sources/{source_id}` tej bazy odrzuca `collection_name`
+wskazujące inną bazę - więc przecelowanie jest osiągalne przez API i CLI, gdzie
+odnotowuje je powyższy wpis audytowy.
 
 ### Co jest winien nowy konektor { #what-a-new-connector-owes }
 
