@@ -110,6 +110,15 @@ class TestReadingACard:
     def test_a_base_address_reads_the_well_known_card(self, given: str, fetched: str) -> None:
         assert card_address(given) == fetched
 
+    async def test_a_card_offering_another_transport_is_refused(self) -> None:
+        """Registered, it would fail every delegation: this client speaks JSON-RPC."""
+        grpc = {**CARD, "preferredTransport": "GRPC"}
+        with pytest.raises(A2AClientError, match="speaks only JSON-RPC"):
+            await fetch_card(
+                "https://agents.example.com",
+                transport=httpx2.MockTransport(lambda _request: httpx2.Response(200, json=grpc)),
+            )
+
     async def test_a_card_is_read_and_validated(self) -> None:
         seen: list[httpx2.Request] = []
         card = await fetch_card(

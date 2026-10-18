@@ -124,9 +124,18 @@ async def fetch_card(url: str, *, transport: httpx2.AsyncBaseTransport | None = 
     except httpx2.HTTPError as unreachable:
         raise A2AClientError("The agent card could not be fetched") from unreachable
     try:
-        return AgentCard.model_validate_json(content)
+        card = AgentCard.model_validate_json(content)
     except ValidationError as invalid:
         raise A2AClientError("That address does not answer with an A2A agent card") from invalid
+    # Every request this client sends is a JSON-RPC POST to the card's url; an
+    # agent that serves gRPC or HTTP+JSON there would take the registration and
+    # then fail every delegation.
+    if card.preferred_transport.upper() != "JSONRPC":
+        raise A2AClientError(
+            f"That agent offers A2A over {card.preferred_transport[:40]}, and this "
+            "deployment speaks only JSON-RPC"
+        )
+    return card
 
 
 async def send_message(
