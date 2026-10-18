@@ -530,6 +530,20 @@ class TestTheRoom:
             await session.handle_frame({"type": "typing"})
         typed.assert_awaited_once_with(CONVERSATION, session.user.id)
 
+    async def test_a_stream_of_typing_frames_is_announced_once_a_while(self) -> None:
+        """A client sending a frame per keystroke - or a loop - cannot make the
+        room look up who is typing any faster than the console would."""
+        session = _session()
+        session._room = CONVERSATION
+        clock = iter([100.0, 100.5, 101.9, 102.1])
+        with (
+            patch("app.services.agent_session.time.monotonic", lambda: next(clock)),
+            patch("app.services.agent_session.chat_room.typing", AsyncMock()) as typed,
+        ):
+            for _ in range(4):
+                await session.handle_frame({"type": "typing"})
+        assert typed.await_count == 2
+
     async def test_a_turn_somebody_else_began_is_followed(self, store: _Store) -> None:
         turn = await _begin()
         await live_turn.publish(turn, "turn_prompt", {"content": "Anna asks"})

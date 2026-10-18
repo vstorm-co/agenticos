@@ -70,6 +70,9 @@ logger = logging.getLogger(__name__)
 RECHECK_SECONDS = 30.0
 """How often a turn being followed asks again whether its reader may still read it."""
 
+TYPING_EVERY_SECONDS = 2.0
+"""The least time between two "typing" announcements from one socket; the console sends one every three."""
+
 # Said to a frame that names no agent. There is nothing else a frame could run:
 # the general assistant the template shipped is gone, and guessing an agent on
 # the user's behalf would mean something they never picked answering them.
@@ -240,6 +243,8 @@ class AgentSession:
         # This socket's own entry in the room, beside the person's other tabs.
         self._socket = uuid4().hex
         self._room_task: asyncio.Task[None] | None = None
+        # When this socket last told its room the person is typing - see `typing`.
+        self._typed_at = float("-inf")
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
@@ -336,8 +341,12 @@ class AgentSession:
         if msg_type == "typing":
             # Only into the room this socket is in, which `attach` checked; no
             # credential query, since a keystroke is not an action, and the
-            # people hearing it are re-checked before it reaches them.
-            if self._room is not None:
+            # people hearing it are re-checked before it reaches them. At most
+            # one per `TYPING_EVERY_SECONDS`, whatever the client sends: each
+            # costs everybody else in the room a lookup of who is typing.
+            now = time.monotonic()
+            if self._room is not None and now - self._typed_at >= TYPING_EVERY_SECONDS:
+                self._typed_at = now
                 await chat_room.typing(self._room, self.user.id)
             return
 
