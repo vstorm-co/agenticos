@@ -1,10 +1,10 @@
 "use client";
 
-import { Check, Database } from "lucide-react";
+import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Input, Label } from "@/components/ui";
-import { BrandIcon, connectorBrand } from "@/components/icons/brand-icon";
+import { ConnectorIcon } from "@/components/icons/brand-icon";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +32,6 @@ export function CloneStep({
         <div className="space-y-2">
           {integrations.map((src) => {
             const isSelected = cloneSourceId === src.id;
-            const brand = connectorBrand(src.connector_type);
             return (
               <button
                 key={src.id}
@@ -45,19 +44,9 @@ export function CloneStep({
                     : "border-foreground/10 bg-card hover:border-foreground/30",
                 )}
               >
-                <span
-                  className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                    isSelected
-                      ? "bg-brand text-brand-foreground"
-                      : "bg-foreground/8 text-foreground",
-                  )}
-                >
-                  {brand ? (
-                    <BrandIcon name={brand} className="h-4 w-4" aria-hidden />
-                  ) : (
-                    <Database className="h-4 w-4" />
-                  )}
+                {/* Neutral whether chosen or not, as on the connector step. */}
+                <span className="bg-foreground/8 text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-full">
+                  <ConnectorIcon type={src.connector_type} className="h-4 w-4" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-foreground text-sm font-semibold">{src.name}</p>

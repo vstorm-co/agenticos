@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { BRAND_GLYPHS, PROVIDER_GLYPHS } from "@/lib/brand-glyphs.generated";
 
-import { BrandIcon, brandMark, connectorBrand, isBrandName } from "./brand-icon";
+import { BrandIcon, brandMark, ConnectorIcon, connectorBrand, isBrandName } from "./brand-icon";
 
 const BRAND_NAMES = Object.keys(BRAND_GLYPHS) as (keyof typeof BRAND_GLYPHS)[];
 
@@ -79,7 +79,10 @@ describe("connectorBrand", () => {
     ["drive", "gdrive"],
     ["aws", "s3"],
     ["s3", "s3"],
-    ["sharepoint", "microsoft"],
+    // The connector's own product, not its vendor's or one host's (#2204).
+    ["sharepoint", "sharepoint"],
+    ["onedrive", "onedrive"],
+    ["git", "git"],
   ])("maps the connector type %s to %s", (connector, brand) => {
     expect(connectorBrand(connector)).toBe(brand);
   });
@@ -111,6 +114,21 @@ describe("isBrandName", () => {
   });
 
   it("rejects one it does not, rather than rendering a blank", () => {
-    expect(isBrandName("sharepoint")).toBe(false);
+    expect(isBrandName("confluence")).toBe(false);
+  });
+});
+
+describe("ConnectorIcon", () => {
+  it("draws a connector's own mark, in its own colours", () => {
+    const { container } = render(<ConnectorIcon type="slack" />);
+    const fills = [...container.querySelectorAll("path")].map((path) => path.getAttribute("fill"));
+    expect(new Set(fills).size).toBeGreaterThan(1);
+  });
+
+  it("draws a globe for a website and a plug for a type with no mark", () => {
+    const { container: web } = render(<ConnectorIcon type="web" />);
+    const { container: other } = render(<ConnectorIcon type="confluence" />);
+    expect(web.querySelector("svg")).toHaveClass("lucide-globe");
+    expect(other.querySelector("svg")).toHaveClass("lucide-plug");
   });
 });
