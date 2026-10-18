@@ -10,8 +10,8 @@ or to your Prefect Cloud workspace URL + PREFECT_API_KEY for Cloud mode.
 At most PREFECT_RUNNER_LIMIT runs execute at once; the rest queue.  Each run is a
 separate process that imports the whole application, so an uncapped runner meeting
 a backlog is an out-of-memory kill rather than a slow afternoon.  Scheduled
-deployments also run one at a time each, so a host that falls behind skips ticks
-rather than queueing them - see `_ONE_AT_A_TIME`.
+sweeps also run one tick at a time each, so a host that falls behind skips ticks
+rather than running every one of them - see `_ONE_AT_A_TIME`.
 
 The runner also serves its own health endpoint, so that a container orchestrator
 can tell a runner that is polling from one that has stopped.  Where it listens is
@@ -62,16 +62,21 @@ from app.worker.tasks.trigger_tasks import (
 
 logger = logging.getLogger(__name__)
 
-# Every scheduled deployment here is a sweep over current state, so a tick that
-# arrives while the previous one is still running has nothing of its own to do.
-# Without a limit those ticks queue: on 2026-10-17 the production host fell
-# behind, each queued tick was another process importing the application on a
-# saturated CPU, which made every tick slower still, and ~1,650 Late runs had
-# piled up eight hours later with the API's workers starved into restarts.
-# `CANCEL_NEW` makes the server cancel the surplus tick - at the move to Pending,
-# and also at the move to Late, so a backlog never forms in the first place. A
-# run whose process died holds its slot only until its lease lapses (300s by
-# default); the engine renews the lease while the run is alive.
+# The scheduled sweeps here work over current state, so a tick that arrives
+# while the previous one is still running has nothing of its own to do. Without
+# a limit those ticks queue: on 2026-10-17 the production host fell behind, each
+# queued tick was another process importing the application on a saturated CPU,
+# which made every tick slower still, and ~1,650 Late runs had piled up eight
+# hours later with the API's workers starved into restarts.
+#
+# `CANCEL_NEW` makes the server refuse the surplus tick at the move to Pending,
+# which the runner proposes before it starts a process, so a refused tick costs
+# one API call. While a tick holds the slot the server also cancels the next one
+# at the move to Late. When the runner's own slots are full of other work, no
+# tick holds the slot and Late ticks still collect; once the runner has room the
+# first of them runs and the rest are refused the same way, without a process
+# each. A run whose process died holds its slot only until its lease lapses
+# (300s by default); the engine renews the lease while the run is alive.
 _ONE_AT_A_TIME = ConcurrencyLimitConfig(
     limit=1, collision_strategy=ConcurrencyLimitStrategy.CANCEL_NEW
 )
@@ -218,18 +223,20 @@ async def main() -> None:
     # has to be *roughly* weekly - what matters is that the number arrives
     # regularly, and an interval survives a restart without needing a timezone
     # decided for every deployment.
+    #
+    # No `_ONE_AT_A_TIME` here: a report covers the period its run's scheduled
+    # time names, so a tick cancelled for overlapping would be a week or a month
+    # nobody is ever sent.
     deployments.append(
         await weekly_usage_report_flow.ato_deployment(
             name="weekly-usage-report",
             schedules=[_every(7 * 86_400)],
-            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     deployments.append(
         await monthly_usage_report_flow.ato_deployment(
             name="monthly-usage-report",
             schedules=[_every(30 * 86_400)],
-            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Every minute, matching the other frequent sweeps here: defining the flow

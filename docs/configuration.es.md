@@ -1,5 +1,5 @@
 ---
-source_sha: "dceb1e6ed488"
+source_sha: "3cf4df3d624b"
 ---
 
 # Configuración { #configuration }
@@ -455,9 +455,10 @@ como permita el límite. Sin tope, tres días de caída fueron 71 procesos y 6 G
 Súbelo si la ingesta se acumula detrás de las sincronizaciones en una máquina con
 memoria de sobra; bájalo en una máquina pequeña.
 
-Los sweeps programados no entran en esa cola del
-reinicio: cada uno ejecuta un tick a la vez, y el servidor cancela los ticks que
-se quedaron Late entretanto.
+Los sweeps programados apenas suman a esa cola: cada uno ejecuta un tick a la
+vez, y el servidor rechaza el resto de sus ticks atrasados antes de que el
+runner arranque un proceso para ellos. Los informes de uso son la excepción,
+porque cada run cubre un periodo propio.
 
 Las dos variables `PREFECT_RUNNER_SERVER_*` son de Prefect, y los archivos compose
 las fijan para que el contenedor del runner tenga un estado de salud con sentido. El
