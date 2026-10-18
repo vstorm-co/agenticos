@@ -23,6 +23,7 @@ const { chromium } = require("@playwright/test");
 
 /** `crop` is [x, y, width, height] in the capture's CSS pixels; it is shown at `width` px in a 1600 x 1000 frame. */
 const FRAMES = [
+  { name: "hero", source: "dark-room-reply", background: "hero-bg", crop: [0, 0, 1600, 1000], width: 1380 },
   { name: "projects", source: "room-codex-live", background: "hero-bg", crop: [240, 0, 1360, 1000], width: 1380 },
   { name: "reply", source: "room-reply", background: "meadow-bg", crop: [240, 0, 1360, 1000], width: 1380 },
   { name: "coding", source: "room-codex-answer", background: "night", crop: [240, 300, 1360, 700], width: 1380 },

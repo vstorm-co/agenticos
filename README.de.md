@@ -1,4 +1,4 @@
-<!-- source_sha: a0fda49a887b -->
+<!-- source_sha: 07dd9c8b324e -->
 
 <div align="center">
 
@@ -40,7 +40,7 @@
 
 </div>
 
-<img src="docs/assets/readme/teammates-in-action.webp" alt="Ein Chief-of-Staff-Agent, live aufgenommen: Er gibt eine Frage vor einer Vorstandssitzung gleichzeitig an Support Desk und Sales Researcher und fasst ihre beiden Antworten als Briefing zusammen." width="100%">
+<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Dunkler Modus, zwei Personen im Projektchat: Der Chief of Staff schreibt Tom, dass er seine Budgetänderung und Peters Bestätigung in den Launch-Plan übernommen hat, zeigt die neue Aufteilung und listet auf, was das Team noch klären muss." width="100%"></a>
 
 AgenticOS gibt jedem Team KI-Teammates: Agents, die mit Dateien arbeiten, Code ausführen, im Web surfen und die Werkzeuge und das Wissen deines Unternehmens nutzen. Deine Kollegen und deine Agents arbeiten im selben Live-Chat, und jeder Agent kann Code an Claude Code oder Codex übergeben, mit dem ChatGPT-Abo, das du schon bezahlst. Es ist Open Source (Apache-2.0) und selbst gehostet, eine Schicht, die du auf deiner eigenen Infrastruktur betreibst. Baue und veröffentliche Agents im Browser, teile sie mit Kollegen und steuere ihren Zugriff, ihre Kosten und Ergebnisse an einem Ort.
 

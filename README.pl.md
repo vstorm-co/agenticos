@@ -1,4 +1,4 @@
-<!-- source_sha: a0fda49a887b -->
+<!-- source_sha: 07dd9c8b324e -->
 
 <div align="center">
 
@@ -40,7 +40,7 @@
 
 </div>
 
-<img src="docs/assets/readme/teammates-in-action.webp" alt="Agent Chief of Staff, nagrany na żywo: przekazuje pytanie przed posiedzeniem zarządu jednocześnie Support Desk i Sales Researcher, a ich dwie odpowiedzi spisuje w briefie." width="100%">
+<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Tryb ciemny, dwie osoby w czacie projektu: Chief of Staff pisze Tomowi, że naniósł jego zmianę budżetu i potwierdzenie Petera na plan launchu, pokazuje nowy podział i wypisuje, co zespół musi jeszcze ustalić." width="100%"></a>
 
 AgenticOS daje każdemu zespołowi kolegów z AI: agentów, którzy pracują z plikami, wykonują kod, przeglądają internet i korzystają z firmowych narzędzi oraz wiedzy. Twoi współpracownicy i agenci pracują na tym samym czacie na żywo, a każdy agent może przekazać kod do Claude Code albo Codexa, w ramach subskrypcji ChatGPT, którą już opłacasz. Jest open source (Apache-2.0) i działa na Twojej infrastrukturze jako warstwa, którą uruchamiasz sam. Twórz i publikuj agentów w przeglądarce, udostępniaj ich współpracownikom oraz zarządzaj ich dostępem, kosztami i wynikami w jednym miejscu.
 

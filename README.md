@@ -38,7 +38,7 @@
 
 </div>
 
-<img src="docs/assets/readme/teammates-in-action.webp" alt="A Chief of Staff agent, recorded live: it hands a board-call question to Support Desk and Sales Researcher at once, and writes up their two answers as a brief." width="100%">
+<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Dark mode, two people in a project chat: the Chief of Staff tells Tom it applied his budget change and Peter's confirmation to the launch plan, shows the new split and lists what is still open for the team." width="100%"></a>
 
 AgenticOS gives every team AI teammates: agents that work with files, run code, browse the web and use your company's tools and knowledge. Your colleagues and your agents work in the same live chat, and any agent can hand code to Claude Code or Codex, on the ChatGPT plan you already pay for. It is open source (Apache-2.0) and self-hosted, a layer you run on your own infrastructure. Build and publish agents in the browser, share them with colleagues, and manage their access, cost and results in one place.
 
