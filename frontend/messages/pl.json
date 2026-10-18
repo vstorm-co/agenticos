@@ -1481,7 +1481,8 @@
     "room": {
       "here": "{count, plural, =1 {{name} też tu jest} few {# osoby są tu z tobą} many {# osób jest tu z tobą} other {# osoby są tu z tobą}}",
       "more": "+{count}",
-      "share": "Zaproś"
+      "share": "Zaproś",
+      "typing": "{count, plural, =1 {{name} pisze} other {{name} piszą}}"
     },
     "rail": {
       "label": "Przejdź do wiadomości",

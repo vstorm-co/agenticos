@@ -122,6 +122,8 @@ interface ChatInputProps {
    * the page (#2063) - attached as if picked, once per `id`.
    */
   incoming?: IncomingFiles | null;
+  /** Called as the person types, so a shared chat can say they are. */
+  onTyping?: () => void;
 }
 
 /** Files to attach from outside the composer, once per `id`, and words to go with them. */
@@ -150,6 +152,7 @@ export function ChatInput({
   onProject,
   actionsSlot,
   incoming = null,
+  onTyping,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
@@ -496,7 +499,10 @@ export function ChatInput({
       <textarea
         ref={textareaRef}
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        onChange={(e) => {
+          setMessage(e.target.value);
+          if (e.target.value.trim()) onTyping?.();
+        }}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         placeholder={t("placeholder")}

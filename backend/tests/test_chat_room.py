@@ -179,10 +179,11 @@ class TestAPageOfRooms:
 
 
 class TestWhatTheRoomHears:
-    async def test_people_and_turns_are_heard_and_nothing_else(self, store: _Store) -> None:
+    async def test_people_typing_and_turns_are_heard_and_nothing_else(self, store: _Store) -> None:
         anna = uuid4()
         channel = f"room:{ROOM}:events"
         await chat_room.join(ROOM, anna, "tab")
+        await chat_room.typing(ROOM, anna)
         await chat_room.turn_begun(ROOM, anna)
         store.published += [(channel, "not json"), (channel, '{"type": "other"}')]
         store.published.append((f"room:{uuid4()}:events", '{"type": "presence"}'))
@@ -191,6 +192,7 @@ class TestWhatTheRoomHears:
 
         assert heard == [
             {"type": chat_room.PRESENCE},
+            {"type": chat_room.TYPING, "by": str(anna)},
             {"type": chat_room.TURN_BEGUN, "by": str(anna)},
         ]
 

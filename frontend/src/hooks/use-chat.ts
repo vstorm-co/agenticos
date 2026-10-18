@@ -111,6 +111,16 @@ function withoutThread(threads: ReadonlySet<string>, id: string | null): Readonl
   return next;
 }
 
+/** How often a person still writing says so, and how long a room shows it after. */
+const TYPING_EVERY_MS = 3000;
+const TYPING_SHOWN_MS = 6000;
+
+interface TypingPerson {
+  conversationId: string;
+  person: ChatPerson;
+  until: number;
+}
+
 export function useChat(options: UseChatOptions = {}) {
   const tErrors = useTranslations("errors");
 
@@ -319,6 +329,10 @@ export function useChat(options: UseChatOptions = {}) {
   const followingRef = useRef<string | null>(null);
   // Who else has this conversation open, as its room last said - see `presence`.
   const [present, setPresent] = useState<{ conversationId: string; people: ChatPerson[] }>();
+  // Who else is writing a message here, each until a while after their last
+  // keystroke was heard - see `typing`.
+  const [typing, setTyping] = useState<TypingPerson[]>([]);
+  const typingSentAt = useRef(0);
   const leftTurnPending = activeConversationId !== null && leftRunning.has(activeConversationId);
   // Say in the list of conversations that this one is being answered, from the
   // moment the question goes rather than from whenever the server's next listing
@@ -445,6 +459,8 @@ export function useChat(options: UseChatOptions = {}) {
             sender: ChatPerson;
             agent_id?: string;
           };
+          // Their message is here, so they are no longer writing it.
+          setTyping((list) => list.filter((entry) => entry.person.user_id !== data.sender.user_id));
           if (followingRef.current !== data.conversation_id) break;
           // The answer that follows is this agent's: its face and name from the start.
           turnAgentIdRef.current = data.agent_id ?? null;
@@ -466,6 +482,25 @@ export function useChat(options: UseChatOptions = {}) {
         case "presence": {
           const data = wsEvent.data as { conversation_id: string; people: ChatPerson[] };
           setPresent({ conversationId: data.conversation_id, people: data.people });
+          // Somebody who closed the chat is not writing in it any more.
+          const here = new Set(data.people.map((person) => person.user_id));
+          setTyping((list) => list.filter((entry) => here.has(entry.person.user_id)));
+          break;
+        }
+
+        // Somebody else in the room pressed a key, as a messenger says "Anna is
+        // typing": shown until a while after the last one, renewed by the next.
+        case "typing": {
+          const data = wsEvent.data as { conversation_id: string; person: ChatPerson };
+          const entry: TypingPerson = {
+            conversationId: data.conversation_id,
+            person: data.person,
+            until: Date.now() + TYPING_SHOWN_MS,
+          };
+          setTyping((list) => [
+            ...list.filter((other) => other.person.user_id !== data.person.user_id),
+            entry,
+          ]);
           break;
         }
 
@@ -1875,6 +1910,32 @@ export function useChat(options: UseChatOptions = {}) {
     sendMessage({ type: "attach", conversation_id: activeConversationId });
   }, [isConnected, transcriptHere, activeConversationId, sendMessage]);
 
+  // Nobody types forever: an entry goes when its time is up, without waiting for
+  // a frame to say so - the last keystroke is the last thing anybody hears.
+  useEffect(() => {
+    if (typing.length === 0) return;
+    const next = Math.min(...typing.map((entry) => entry.until));
+    const timer = setTimeout(
+      () => setTyping((list) => list.filter((entry) => entry.until > Date.now())),
+      Math.max(next - Date.now(), 0),
+    );
+    return () => clearTimeout(timer);
+  }, [typing]);
+
+  // Tell the room this person is writing - at most every few seconds, and only
+  // when somebody else has the chat open to be told.
+  const othersPresent =
+    present !== undefined &&
+    present.conversationId === activeConversationId &&
+    present.people.length > 1;
+  const notifyTyping = useCallback(() => {
+    if (!isConnected || !othersPresent) return;
+    const now = Date.now();
+    if (now - typingSentAt.current < TYPING_EVERY_MS) return;
+    typingSentAt.current = now;
+    sendMessage({ type: "typing" });
+  }, [isConnected, othersPresent, sendMessage]);
+
   // Drain message queue when processing finishes AND we're back online.
   // Re-runs on either flip so a reconnect after offline → drains; a busy turn
   // ending → drains the next one.
@@ -1934,6 +1995,12 @@ export function useChat(options: UseChatOptions = {}) {
       present !== undefined && present.conversationId === activeConversationId
         ? present.people
         : [],
+    /** Who else is writing a message in this conversation right now. */
+    typing: typing
+      .filter((entry) => entry.conversationId === activeConversationId)
+      .map((entry) => entry.person),
+    /** The reader typed: says so to the room, throttled. */
+    notifyTyping,
     isConnected,
     isProcessing,
     compacting,

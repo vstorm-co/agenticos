@@ -69,6 +69,19 @@ describe("ChatInput replying", () => {
   });
 });
 
+describe("ChatInput typing", () => {
+  it("says the person is writing when they type words, not when they clear the box", async () => {
+    const onTyping = vi.fn();
+    render(<ChatInput onSend={vi.fn()} onTyping={onTyping} />);
+
+    await userEvent.type(screen.getByRole("textbox"), "hi");
+    expect(onTyping).toHaveBeenCalledTimes(2);
+
+    await userEvent.clear(screen.getByRole("textbox"));
+    expect(onTyping).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("ChatInput paste", () => {
   it("turns a long paste into an attachment and leaves the composer empty", async () => {
     // The point of the whole feature: the question somebody is about to type has

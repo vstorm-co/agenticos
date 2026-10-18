@@ -314,6 +314,14 @@ class AgentSession:
             await self._attach(data.get("conversation_id"))
             return
 
+        if msg_type == "typing":
+            # Only into the room this socket is in, which `attach` checked; no
+            # credential query, since a keystroke is not an action, and the
+            # people hearing it are re-checked before it reaches them.
+            if self._room is not None:
+                await chat_room.typing(self._room, self.user.id)
+            return
+
         if msg_type is not None:
             return
 
@@ -1217,6 +1225,8 @@ class AgentSession:
                     return
                 if event["type"] == chat_room.PRESENCE:
                     await self._send_presence(conversation_id)
+                elif event["type"] == chat_room.TYPING:
+                    await self._send_typing(conversation_id, event.get("by"))
                 else:
                     await self._follow_if_running(conversation_id)
         finally:
@@ -1247,6 +1257,28 @@ class AgentSession:
         while True:
             await asyncio.sleep(chat_room.HEARTBEAT_SECONDS)
             await chat_room.join(conversation_id, self.user.id, self._socket)
+
+    async def _send_typing(self, conversation_id: str, by: object) -> None:
+        """Say somebody else in the room is writing a message - never this person."""
+        try:
+            person_id = UUID(str(by))
+        except ValueError:
+            return
+        if person_id == self.user.id:
+            return
+        async with get_db_context() as db:
+            people = await conversation_repo.users_by_id(db, {person_id})
+        person = people.get(person_id)
+        if person is None:
+            return
+        await send_event(
+            self.websocket,
+            "typing",
+            {
+                "conversation_id": conversation_id,
+                "person": ChatPerson.of(person).model_dump(mode="json"),
+            },
+        )
 
     async def _send_presence(self, conversation_id: str) -> None:
         here = await chat_room.present(conversation_id)

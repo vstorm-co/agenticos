@@ -102,7 +102,8 @@ outside any project stays its author's own, as everywhere else in the console.
 
 **Working in one chat together.** Several people can be in a project's chat at
 once. A bar over the transcript shows who else has it open, and its owner can
-invite somebody from there. A question one of them asks, and the agent's answer,
+invite somebody from there. While one of them writes, the others see their face and
+"Anna is typing" over the composer. A question one of them asks, and the agent's answer,
 appear for everybody in the chat as they are written. **Reply** on any message
 quotes it above the composer, and the reply carries the quote - on screen, and to
 the agent, which reads each person's turn under their name and is told the chat

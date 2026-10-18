@@ -241,6 +241,7 @@ export type WSEventType =
   | "turn_attached"
   | "turn_prompt"
   | "presence"
+  | "typing"
   | "turn_followed_to_end"
   // Sent on every turn and deliberately unread, because each only announces a step
   // the frame after it already carries: `model_request_start` opens the assistant

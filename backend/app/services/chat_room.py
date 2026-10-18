@@ -35,6 +35,7 @@ HEARTBEAT_SECONDS = 20
 
 PRESENCE = "presence"
 TURN_BEGUN = "turn_begun"
+TYPING = "typing"
 
 _redis: RedisClient | None = None
 
@@ -137,6 +138,15 @@ async def turn_begun(conversation_id: str, user_id: UUID) -> None:
     await _announce(conversation_id, TURN_BEGUN, by=str(user_id))
 
 
+async def typing(conversation_id: str, user_id: UUID) -> None:
+    """Tell the room somebody is writing a message, as a messenger does. Never raises.
+
+    Nothing is kept: the next one comes within a few seconds while they type,
+    and the others stop showing it when none has.
+    """
+    await _announce(conversation_id, TYPING, by=str(user_id))
+
+
 async def _announce(conversation_id: str, kind: str, **fields: Any) -> None:
     if _redis is None:
         return
@@ -145,7 +155,7 @@ async def _announce(conversation_id: str, kind: str, **fields: Any) -> None:
 
 
 async def events(conversation_id: str) -> AsyncGenerator[dict[str, Any]]:
-    """What happens in the room from now on: people coming and going, turns beginning."""
+    """What happens in the room from now on: people coming and going, typing, turns beginning."""
     if _redis is None:
         return
     pubsub = _redis.raw.pubsub(ignore_subscribe_messages=True)
@@ -164,7 +174,7 @@ async def events(conversation_id: str) -> AsyncGenerator[dict[str, Any]]:
                 event = json.loads(str(message["data"]))
             except ValueError:
                 continue
-            if isinstance(event, dict) and event.get("type") in (PRESENCE, TURN_BEGUN):
+            if isinstance(event, dict) and event.get("type") in (PRESENCE, TURN_BEGUN, TYPING):
                 yield event
     finally:
         await pubsub.aclose()

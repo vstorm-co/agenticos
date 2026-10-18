@@ -1481,7 +1481,8 @@
     "room": {
       "here": "{count, plural, =1 {{name} ist auch hier} other {# Personen sind mit dir hier}}",
       "more": "+{count}",
-      "share": "Einladen"
+      "share": "Einladen",
+      "typing": "{count, plural, =1 {{name} schreibt} other {{name} schreiben}}"
     },
     "rail": {
       "label": "Zu einer Nachricht springen",

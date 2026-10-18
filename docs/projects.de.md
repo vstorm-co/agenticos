@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "55ae0bf9abf7"
+source_sha: "0633aee6e4c8"
 ---
 
 # Projekte { #projects }
@@ -111,8 +111,9 @@ außerhalb eines Projekts bleibt bei seinem Autor, wie überall sonst in der Kon
 
 **Gemeinsam in einem Chat arbeiten.** In einem Chat eines Projekts können mehrere
 Personen zugleich sein. Eine Leiste über dem Verlauf zeigt, wer ihn noch geöffnet
-hat, und sein Besitzer kann von dort jemanden einladen. Eine Frage, die eine von
-ihnen stellt, und die Antwort des Agent erscheinen bei allen im Chat, während sie
+hat, und sein Besitzer kann von dort jemanden einladen. Während jemand schreibt,
+sehen die anderen über dem Eingabefeld sein Gesicht und „Anna schreibt“. Eine
+Frage, die eine von ihnen stellt, und die Antwort des Agent erscheinen bei allen im Chat, während sie
 geschrieben werden. **Antworten** bei einer beliebigen Nachricht zitiert sie über
 dem Eingabefeld, und die Antwort trägt das Zitat - auf dem Bildschirm und zum
 Agent, der die Nachricht jeder Person unter ihrem Namen liest und weiß, dass im

@@ -3437,6 +3437,65 @@ describe("useChat - coming back to a turn still being written", () => {
     expect(result.current.present).toEqual([]);
   });
 
+  it("says who else is typing here, until a while after their last keystroke", () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+      const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+      const ola = { user_id: "u-3", name: "Ola", has_avatar: false, avatar_color: null };
+
+      receive("typing", { conversation_id: "c-1", person: anna });
+      receive("typing", { conversation_id: "c-other", person: ola });
+      expect(result.current.typing).toEqual([anna]);
+
+      // Renewed by the next keystroke, not doubled.
+      act(() => vi.advanceTimersByTime(4000));
+      receive("typing", { conversation_id: "c-1", person: anna });
+      act(() => vi.advanceTimersByTime(4000));
+      expect(result.current.typing).toEqual([anna]);
+
+      act(() => vi.advanceTimersByTime(3000));
+      expect(result.current.typing).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops saying somebody types once their message lands, or they leave", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+    const ola = { user_id: "u-3", name: "Ola", has_avatar: false, avatar_color: null };
+    receive("typing", { conversation_id: "c-1", person: anna });
+    receive("typing", { conversation_id: "c-1", person: ola });
+
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-1",
+      content: "hi",
+      sender: anna,
+    });
+    expect(result.current.typing).toEqual([ola]);
+
+    receive("presence", { conversation_id: "c-1", people: [anna] });
+    expect(result.current.typing).toEqual([]);
+  });
+
+  it("tells the room it types only when somebody else is in it, and not every keystroke", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const me = { user_id: "u-1", name: "Kacper", has_avatar: false, avatar_color: null };
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+    const typed = () => sent.mock.calls.filter(([frame]) => frame.type === "typing").length;
+
+    receive("presence", { conversation_id: "c-1", people: [me] });
+    act(() => result.current.notifyTyping());
+    expect(typed()).toBe(0);
+
+    receive("presence", { conversation_id: "c-1", people: [me, anna] });
+    act(() => result.current.notifyTyping());
+    act(() => result.current.notifyTyping());
+    expect(typed()).toBe(1);
+  });
+
   it("stops following rather than stopping a turn this socket does not own", () => {
     const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     storedQuestion();

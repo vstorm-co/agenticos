@@ -499,6 +499,37 @@ class TestTheRoom:
             }
         ]
 
+    async def test_somebody_else_typing_is_said_and_this_persons_own_is_not(self) -> None:
+        """Like a messenger's "Anna is typing": the others hear it, the typist does
+        not hear their own, and an id that is not one is dropped."""
+        session = _session()
+        anna = MagicMock(
+            id=uuid4(), full_name="Anna", email="anna@acme.test", avatar_url=None, avatar_color=None
+        )
+        room = self._room(
+            events=[
+                {"type": "typing", "by": str(anna.id)},
+                {"type": "typing", "by": str(session.user.id)},
+                {"type": "typing", "by": "not-an-id"},
+                {"type": "typing", "by": str(uuid4())},
+            ]
+        )
+
+        await self._enter(session, CONVERSATION, room, people=[anna])
+
+        typing = [data for kind, data in _sent_events(session) if kind == "typing"]
+        assert [entry["person"]["name"] for entry in typing] == ["Anna"]
+        assert typing[0]["conversation_id"] == CONVERSATION
+
+    async def test_a_typing_frame_reaches_only_the_room_this_socket_is_in(self) -> None:
+        session = _session()
+        with patch("app.services.agent_session.chat_room.typing", AsyncMock()) as typed:
+            await session.handle_frame({"type": "typing"})
+            typed.assert_not_awaited()
+            session._room = CONVERSATION
+            await session.handle_frame({"type": "typing"})
+        typed.assert_awaited_once_with(CONVERSATION, session.user.id)
+
     async def test_a_turn_somebody_else_began_is_followed(self, store: _Store) -> None:
         turn = await _begin()
         await live_turn.publish(turn, "turn_prompt", {"content": "Anna asks"})

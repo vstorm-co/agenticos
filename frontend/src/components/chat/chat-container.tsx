@@ -10,6 +10,7 @@ import { AgentPicker } from "./agent-picker";
 import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatRoomBar } from "./chat-room-bar";
+import { TypingIndicator } from "./typing-indicator";
 import type { PageComment } from "./browser-comment";
 import { ChatInput, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
@@ -234,6 +235,8 @@ export function ChatContainer({
   const {
     messages,
     present,
+    typing,
+    notifyTyping,
     isConnected,
     isProcessing,
     compacting,
@@ -500,6 +503,8 @@ export function ChatContainer({
     <ChatUI
       messages={messages}
       present={present}
+      typing={typing}
+      onTyping={notifyTyping}
       // Not a project's chat: who reads one is the project's to say, so a
       // conversation share would invite nobody - the project's Share does.
       ownsConversation={
@@ -616,6 +621,10 @@ interface ChatUIProps {
   conversationId: string | null;
   /** Who has the conversation open, the reader included. */
   present: ChatPerson[];
+  /** Who else is writing a message in it right now. */
+  typing: ChatPerson[];
+  /** The reader typed - for the room to hear. */
+  onTyping: () => void;
   /** Whether the reader started it, and so may share it. */
   ownsConversation: boolean;
   /**
@@ -665,6 +674,8 @@ interface ChatUIProps {
 function ChatUI({
   messages,
   present,
+  typing,
+  onTyping,
   ownsConversation,
   isConnected,
   isProcessing,
@@ -967,6 +978,8 @@ function ChatUI({
                 over the next several: as a step it scrolls away under the work it
                 describes, and what somebody wants is where the agent is now. */}
             <PlanStrip plan={plan} live={isProcessing} />
+            {/* Right over the box the reply is written in, where a messenger says it. */}
+            <TypingIndicator people={typing} />
             {/* What is attached, above the composer rather than inside it. The
                 slot is here because the box below is drawn here; `ChatInput`
                 portals its row into it and keeps the upload state. */}
@@ -1030,6 +1043,7 @@ function ChatUI({
                         commands={slashCommands}
                         attachmentSlot={attachmentSlot}
                         incoming={incoming}
+                        onTyping={onTyping}
                         mic={mic}
                         // Who answers first and largest: it is the most
                         // consequential choice in the composer.
