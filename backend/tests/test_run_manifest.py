@@ -55,6 +55,7 @@ from app.agents.manifest import (
 from app.db.models.agent_run import RunStatus
 from app.db.models.run_manifest import RunManifest
 from app.repositories import run_manifest_repo
+from app.schemas.run_manifest import ManifestCodeRun
 from app.services.agent_runner import AgentRunnerService
 
 pytestmark = pytest.mark.anyio
@@ -377,8 +378,10 @@ class TestARecordTooLargeToKeep:
         assert truncated
         assert len(json.dumps(payload, default=str).encode()) <= MAX_PAYLOAD_BYTES
         (first, *_) = payload["code_runs"]
-        assert first["calls"][0] == {"tool": "lookup", "status": "returned"}
+        assert first["calls"][0] == {"tool": "lookup", "args": "", "status": "returned"}
         assert len(first["code"]) < 1_000
+        # The trimmed record still reads back: the route builds this schema from it.
+        assert ManifestCodeRun.model_validate(first).calls[0].args == ""
 
     def test_a_schema_goes_before_the_sentence_that_explains_it(self):
         """What is left of a tool is its name and its description - the half that

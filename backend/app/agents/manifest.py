@@ -503,12 +503,16 @@ _TEXT_CLIP = 400
 
 
 def _bare(script: dict[str, Any]) -> dict[str, Any]:
-    """A recorded `run_code` script as the audit needs it: its calls without their arguments."""
+    """A recorded `run_code` script as the audit needs it: its calls without their arguments.
+
+    `args` stays, emptied: the read schema requires it, and a run trimmed this far
+    is exactly the one somebody opens to see what its scripts called.
+    """
     return {
         **script,
         "code": _clipped(script.get("code"), _TEXT_CLIP),
         "calls": [
-            {"tool": call.get("tool"), "status": call.get("status")}
+            {"tool": call.get("tool"), "args": "", "status": call.get("status")}
             for call in script.get("calls", [])
         ],
     }
