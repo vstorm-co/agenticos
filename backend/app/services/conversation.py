@@ -470,8 +470,8 @@ class ConversationService:
             return None
         return AuthContext(user_id=user_id, organization_id=organization_id, role=membership.role)
 
-    async def _project_threads(self, user_id: UUID, organization_id: UUID) -> set[UUID]:
-        """Every chat in the projects this person may see, their own included.
+    async def visible_project_ids(self, user_id: UUID, organization_id: UUID) -> list[UUID]:
+        """The projects whose chats this person reads, their own chats there included.
 
         A project's chats are its members', so `/chat` lists them with the
         reader's own, grouped under the project - not only the ones the reader
@@ -481,19 +481,16 @@ class ConversationService:
         """
         ctx = await self._member_ctx(organization_id, user_id)
         if ctx is None:
-            return set()
+            return []
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=PROJECT, perm=Perm.PROJECTS_VIEW
         )
-        project_ids = await project_repo.visible_ids(
+        return await project_repo.visible_ids(
             self.db,
             organization_id=organization_id,
             user_id=user_id,
             see_all=shared is None,
             shared_ids=[] if shared is None else shared,
-        )
-        return await conversation_repo.project_threads_in(
-            self.db, organization_id=organization_id, project_ids=project_ids
         )
 
     async def _project_allows(
@@ -796,9 +793,11 @@ class ConversationService:
             await channel_membership.confirmed_participant_threads(
                 self.db, user_id=user_id, organization_id=organization_id
             )
-            | await self._project_threads(user_id, organization_id)
             if user_id is not None
             else set()
+        )
+        project_ids = (
+            await self.visible_project_ids(user_id, organization_id) if user_id is not None else []
         )
         items = await conversation_repo.get_conversations_by_user(
             self.db,
@@ -825,6 +824,7 @@ class ConversationService:
                 None if archived_only or include_archived or user_id is None else user_id
             ),
             participant_conversation_ids=participant_ids,
+            visible_project_ids=project_ids,
             hide_api=hide_api,
             project_id=project_id,
         )
@@ -837,6 +837,7 @@ class ConversationService:
             include_archived=include_archived,
             archived_only=archived_only,
             participant_conversation_ids=participant_ids,
+            visible_project_ids=project_ids,
             hide_api=hide_api,
             project_id=project_id,
         )

@@ -19,13 +19,14 @@ from datetime import datetime
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, func, or_, select
+from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Conversation, Message
 from app.db.models.conversation_share import ConversationShare
+from app.db.models.user import User
 
 SEARCH_CONFIG = "simple"
 """The text search configuration, which must be the one the column was generated
@@ -40,7 +41,9 @@ with the matched terms wrapped in Markdown emphasis, because what the tool retur
 is Markdown."""
 
 
-def readable_by(user_id: UUID, participant_ids: Collection[UUID]) -> ColumnElement[bool]:
+def readable_by(
+    user_id: UUID, participant_ids: Collection[UUID], project_ids: Collection[UUID] = ()
+) -> ColumnElement[bool]:
     """Which conversations this person may read, as one predicate.
 
     Three of the four ways in from `ConversationService._may_read`: the owner,
@@ -53,20 +56,28 @@ def readable_by(user_id: UUID, participant_ids: Collection[UUID]) -> ColumnEleme
     of runs made under somebody else's authority, gated on `runs:view` plus the
     trigger's agent, and an agent searching on a person's behalf carries no
     permission of theirs to check it with.
+
+    A project's chat is read through its project alone - `project_ids`, the ones
+    this person may see - and never by having started it or been shared it: a
+    person who lost the project must not find its later turns here.
     """
+    outside_projects = Conversation.project_id.is_(None)
     ways_in: list[ColumnElement[bool]] = [
-        Conversation.user_id == user_id,
+        and_(Conversation.user_id == user_id, outside_projects),
         select(ConversationShare.id)
         .select_from(ConversationShare)
         .where(
             ConversationShare.conversation_id == Conversation.id,
             ConversationShare.shared_with == user_id,
+            outside_projects,
         )
         .correlate(Conversation)
         .exists(),
     ]
     if participant_ids:
         ways_in.append(Conversation.id.in_(participant_ids))
+    if project_ids:
+        ways_in.append(Conversation.project_id.in_(project_ids))
     return or_(*ways_in)
 
 
@@ -185,9 +196,12 @@ async def search(
             func.coalesce(Conversation.updated_at, Conversation.created_at).label("updated_at"),
             ChannelIdentity.platform_display_name,
             ChannelIdentity.platform_username,
+            User.full_name,
+            User.email,
         )
         .join(Conversation, Conversation.id == Message.conversation_id)
         .outerjoin(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
+        .outerjoin(User, User.id == Message.author_user_id)
         .where(*matches, Message.conversation_id.in_(list(hits)))
         .ext(distinct_on(Message.conversation_id))
         .order_by(
@@ -204,7 +218,9 @@ async def search(
             hits=hits[row.conversation_id],
             snippet=row.snippet,
             speaker_role=row.role,
-            speaker_name=row.platform_display_name or row.platform_username,
+            speaker_name=(
+                row.platform_display_name or row.platform_username or row.full_name or row.email
+            ),
         )
         for row in (await db.execute(snippets)).all()
     ]
@@ -269,8 +285,12 @@ async def turns(
             Message.agent_id,
             ChannelIdentity.platform_display_name,
             ChannelIdentity.platform_username,
+            User.full_name,
+            User.email,
         )
         .outerjoin(ChannelIdentity, ChannelIdentity.id == Message.channel_identity_id)
+        # Who typed a console turn - in a project's chat, one of several people.
+        .outerjoin(User, User.id == Message.author_user_id)
         .where(Message.conversation_id == conversation_id)
         .order_by(Message.ordinal)
         .offset(skip)
@@ -282,7 +302,9 @@ async def turns(
             content=row.content,
             created_at=row.created_at,
             agent_id=row.agent_id,
-            speaker_name=row.platform_display_name or row.platform_username,
+            speaker_name=(
+                row.platform_display_name or row.platform_username or row.full_name or row.email
+            ),
         )
         for row in rows.all()
     ]

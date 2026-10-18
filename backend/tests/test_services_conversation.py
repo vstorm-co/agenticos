@@ -984,7 +984,7 @@ class TestConversationServiceListConversations:
         with (
             patch("app.services.conversation.conversation_repo") as mock_repo,
             patch("app.services.conversation.channel_membership") as mock_membership,
-            patch.object(service, "_project_threads", AsyncMock(return_value=set())),
+            patch.object(service, "visible_project_ids", AsyncMock(return_value=[])),
         ):
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
             mock_repo.count_conversations = AsyncMock(return_value=0)
@@ -2505,7 +2505,7 @@ class TestAFavouriteBelongsToTheReader:
         monkeypatch.setattr(conversation_repo, "get_conversations_by_user", listed)
         monkeypatch.setattr(conversation_repo, "count_conversations", AsyncMock(return_value=0))
         monkeypatch.setattr(conversation_repo, "favourite_ids", AsyncMock(return_value=set()))
-        monkeypatch.setattr(ConversationService, "_project_threads", AsyncMock(return_value=set()))
+        monkeypatch.setattr(ConversationService, "visible_project_ids", AsyncMock(return_value=[]))
         service = ConversationService(AsyncMock())
         reader = uuid4()
 

@@ -1,6 +1,6 @@
 """Conversation repository."""
 
-from collections.abc import Collection, Sequence
+from collections.abc import Collection
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, NamedTuple
@@ -291,7 +291,9 @@ async def authors_of(db: AsyncSession, identity_ids: list[UUID]) -> dict[UUID, C
     return {identity.id: identity for identity in result.scalars().all()}
 
 
-def _reachable_by(user_id: UUID, participant_ids: Collection[UUID]) -> ColumnElement[bool]:
+def _reachable_by(
+    user_id: UUID, participant_ids: Collection[UUID], project_ids: Collection[UUID]
+) -> ColumnElement[bool]:
     """Whose conversation list a thread appears in.
 
     Theirs if they own it, and theirs if they are a *confirmed* participant of
@@ -309,30 +311,16 @@ def _reachable_by(user_id: UUID, participant_ids: Collection[UUID]) -> ColumnEle
     Owning reaches only a chat outside any project. One in a project is
     reached through the project, its starter's included: a person who lost the
     project would otherwise still list a chat that answers 404 when opened.
+    `project_ids` are the projects this person may see, decided by the caller
+    on the projects as they stand - a predicate over them rather than a list of
+    their chats, which grows with every chat a busy project holds.
     """
-    owned = and_(Conversation.user_id == user_id, Conversation.project_id.is_(None))
-    if not participant_ids:
-        return owned
-    return or_(owned, Conversation.id.in_(participant_ids))
-
-
-async def project_threads_in(
-    db: AsyncSession, *, organization_id: UUID, project_ids: Sequence[UUID]
-) -> set[UUID]:
-    """Every chat in these projects, this person's own among them.
-
-    The caller passes only projects this person may see: a project chat is
-    listed through its project, so one in a project they lost is not listed.
-    """
-    if not project_ids:
-        return set()
-    result = await db.execute(
-        select(Conversation.id).where(
-            Conversation.organization_id == organization_id,
-            Conversation.project_id.in_(project_ids),
-        )
-    )
-    return set(result.scalars().all())
+    ways_in = [and_(Conversation.user_id == user_id, Conversation.project_id.is_(None))]
+    if participant_ids:
+        ways_in.append(Conversation.id.in_(participant_ids))
+    if project_ids:
+        ways_in.append(Conversation.project_id.in_(project_ids))
+    return or_(*ways_in)
 
 
 class ParticipationClaim(NamedTuple):
@@ -673,6 +661,7 @@ async def get_conversations_by_user(
     sort_dir: str = "desc",
     favourites_first_for: UUID | None = None,
     participant_conversation_ids: Collection[UUID] = frozenset(),
+    visible_project_ids: Collection[UUID] = frozenset(),
     hide_api: bool = False,
     project_id: UUID | None = None,
 ) -> list[Conversation]:
@@ -693,10 +682,14 @@ async def get_conversations_by_user(
     `participant_conversation_ids` widens a user's list to channel threads whose
     membership the caller has already confirmed against the platform - see
     :func:`_reachable_by` for why they arrive vetted rather than derived here.
+    `visible_project_ids` widens it to every chat in the projects the caller
+    decided this person may see.
     """
     query = select(Conversation).where(Conversation.organization_id == organization_id)
     if user_id:
-        query = query.where(_reachable_by(user_id, participant_conversation_ids))
+        query = query.where(
+            _reachable_by(user_id, participant_conversation_ids, visible_project_ids)
+        )
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,
@@ -779,6 +772,7 @@ async def count_conversations(
     include_archived: bool = False,
     archived_only: bool = False,
     participant_conversation_ids: Collection[UUID] = frozenset(),
+    visible_project_ids: Collection[UUID] = frozenset(),
     hide_api: bool = False,
     project_id: UUID | None = None,
 ) -> int:
@@ -793,7 +787,9 @@ async def count_conversations(
         Conversation.organization_id == organization_id
     )
     if user_id:
-        query = query.where(_reachable_by(user_id, participant_conversation_ids))
+        query = query.where(
+            _reachable_by(user_id, participant_conversation_ids, visible_project_ids)
+        )
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,

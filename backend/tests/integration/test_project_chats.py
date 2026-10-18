@@ -235,7 +235,7 @@ class TestAProjectsChatsInEveryMembersList:
             db, conversation_id=chat.id, role="user", content="hi", author_user_id=anna.id
         )
         service = ConversationService(db)
-        assert await service._project_threads(anna.id, org.id) == {chat.id}
+        assert await service.visible_project_ids(anna.id, org.id) == [project.id]
 
         await db.execute(
             delete(OrganizationMember).where(
@@ -243,7 +243,7 @@ class TestAProjectsChatsInEveryMembersList:
                 OrganizationMember.user_id == anna.id,
             )
         )
-        assert await service._project_threads(anna.id, org.id) == set()
+        assert await service.visible_project_ids(anna.id, org.id) == []
 
 
 class TestRatingATeammatesAnswer:
