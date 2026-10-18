@@ -12,6 +12,7 @@ import { ChatControls } from "./chat-controls";
 import { ChatEmptyState } from "./chat-empty-state";
 import { ChatRoomBar } from "./chat-room-bar";
 import { TypingIndicator } from "./typing-indicator";
+import { useProjectMentions } from "@/hooks/use-project-mentions";
 import type { PageComment } from "./browser-comment";
 import { ChatInput, type IncomingFiles } from "./chat-input";
 import { ComposerStatus } from "./composer-status";
@@ -740,6 +741,8 @@ function ChatUI({
   const mic = useMicrophone();
   const [composerFocused, setComposerFocused] = useState(false);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+  // Offered by `@` only while the chat can still choose its project, as the `+` is.
+  const projectMentions = useProjectMentions(!agentFixed && conversationId === null);
   // What the composer is handed from outside it: the caller's files, or a
   // comment pointed at the browser's page. The newer wins, and a caller's new
   // files replace a comment the way a comment replaces them.
@@ -1069,6 +1072,8 @@ function ChatUI({
                         attachmentSlot={attachmentSlot}
                         incoming={incoming}
                         onTyping={onTyping}
+                        projects={projectMentions.items}
+                        onPickProject={projectMentions.pick}
                         mic={mic}
                         // Who answers first and largest: it is the most
                         // consequential choice in the composer.

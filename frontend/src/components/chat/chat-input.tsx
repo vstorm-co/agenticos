@@ -153,6 +153,12 @@ interface ChatInputProps {
   incoming?: IncomingFiles | null;
   /** Called as the person types, so a shared chat can say they are. */
   onTyping?: () => void;
+  /**
+   * Projects `@` offers beside what the agent reaches, before the first message;
+   * picking one starts the chat in it rather than mentioning it.
+   */
+  projects?: Mentionable[];
+  onPickProject?: (projectId: string) => void;
 }
 
 /** Files to attach from outside the composer, once per `id`, and words to go with them. */
@@ -185,6 +191,8 @@ export function ChatInput({
   mentionsFromDraft = false,
   hints = false,
   onTyping,
+  projects,
+  onPickProject,
 }: ChatInputProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("chat.input");
@@ -221,8 +229,11 @@ export function ChatInput({
   const mentionOpen = mentionQuery !== null && agentId !== null && !showPalette;
   const offered = useMentionables(agentId, mentionsFromDraft);
   const mentionMatches = useMemo(
-    () => (mentionOpen && mentionQuery ? matching(offered.items, mentionQuery.query) : []),
-    [mentionOpen, mentionQuery, offered.items],
+    () =>
+      mentionOpen && mentionQuery
+        ? matching([...offered.items, ...(projects ?? [])], mentionQuery.query)
+        : [],
+    [mentionOpen, mentionQuery, offered.items, projects],
   );
   if (useChanged(`${mentionMatches.length}|${mentionQuery?.query ?? ""}`)) setMentionIndex(0);
   // Another agent's servers and knowledge are not this one's, so a switch drops
@@ -247,6 +258,16 @@ export function ChatInput({
   const full = mentions.length >= MAX_MENTIONS;
   const pickMention = (item: Mentionable) => {
     if (mentionQuery === null) return;
+    if (item.kind === "project") {
+      // Not a word in the message: the chat moves into the project, and the
+      // `@` typed to find it goes.
+      setMentionQuery(null);
+      const rest = message.slice(mentionQuery.start + 1 + mentionQuery.query.length);
+      setMessage(message.slice(0, mentionQuery.start) + rest.replace(/^ /, ""));
+      caretAfterPick.current = mentionQuery.start;
+      onPickProject?.(item.id);
+      return;
+    }
     if (full && !mentions.includes(item)) return;
     setMentionQuery(null);
     const next = insertMention(message, mentionQuery, item);

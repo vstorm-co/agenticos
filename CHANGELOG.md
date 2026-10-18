@@ -67,7 +67,7 @@ Two things are versioned separately from this file and worth knowing about:
   every chat started in it shares, whichever agent answers: a chat agent without
   a sandbox is given the project's, and every agent reads the project's
   instructions after its own. Start one from the project's **New chat** or the
-  composer's **+**; upload files and folders on its **Files** tab; share it with
+  composer's **+** or its `@`; upload files and folders on its **Files** tab; share it with
   people, departments or the organization (`projects:view`, `projects:use`,
   `projects:edit`). Chats stay their authors' own, and a deleted project leaves
   them as ordinary chats. The sidebar lists your recent projects, the chat list

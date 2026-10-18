@@ -26,7 +26,8 @@ Two ways in:
 - **New chat** on the project's page opens the chat with the project and its
   default agent already chosen.
 - The composer's **+** menu offers **Work in a project** before the first
-  message. The chip beside the agent picker shows the project; its **×** starts
+  message, and so does `@`: picking a project there starts the chat in it
+  instead of writing its name into the message. The chip beside the agent picker shows the project; its **×** starts
   the chat outside it instead.
 
 A chat stays in the project it was started in. The chip on an existing chat

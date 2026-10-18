@@ -1604,7 +1604,8 @@
         "agent": "Agents",
         "collection": "Knowledge bases",
         "skill": "Skills",
-        "context": "Context files"
+        "context": "Context files",
+        "project": "Projects"
       }
     },
     "hints": {

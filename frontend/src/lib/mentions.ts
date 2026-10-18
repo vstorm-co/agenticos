@@ -14,6 +14,7 @@ export const MENTION_KIND_ORDER: readonly MentionKind[] = [
   "skill",
   "collection",
   "context",
+  "project",
 ];
 
 /** A mention being typed: where its `@` is, and what follows it. */

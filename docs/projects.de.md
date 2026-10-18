@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "0633aee6e4c8"
+source_sha: "a4bdb4a17fb4"
 ---
 
 # Projekte { #projects }
@@ -29,7 +29,8 @@ Zwei Wege hinein:
 - **Neuer Chat** auf der Seite des Projekts öffnet den Chat mit dem Projekt und
   seinem Standard-Agent bereits gewählt.
 - Das **+**-Menü des Eingabefelds bietet vor der ersten Nachricht **In einem
-  Projekt arbeiten** an. Der Chip neben der Agent-Auswahl zeigt das Projekt; sein
+  Projekt arbeiten** an, und `@` ebenso: Ein dort gewähltes Projekt beginnt den
+  Chat darin, statt seinen Namen in die Nachricht zu schreiben. Der Chip neben der Agent-Auswahl zeigt das Projekt; sein
   **×** beginnt den Chat stattdessen außerhalb.
 
 Ein Chat bleibt in dem Projekt, in dem er begonnen wurde. Der Chip in einem

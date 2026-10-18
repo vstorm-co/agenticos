@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "0633aee6e4c8"
+source_sha: "a4bdb4a17fb4"
 ---
 
 # Proyectos { #projects }
@@ -29,7 +29,8 @@ Dos formas de entrar:
 - **Nuevo chat** en la página del proyecto abre el chat con el proyecto y su agent
   predeterminado ya elegidos.
 - El menú **+** del campo de mensaje ofrece **Trabajar en un proyecto** antes del
-  primer mensaje. La etiqueta junto al selector de agent muestra el proyecto; su
+  primer mensaje, y también `@`: un proyecto elegido ahí empieza el chat en él en
+  lugar de escribir su nombre en el mensaje. La etiqueta junto al selector de agent muestra el proyecto; su
   **×** empieza el chat fuera de él.
 
 Un chat se queda en el proyecto en el que empezó. La etiqueta de un chat existente

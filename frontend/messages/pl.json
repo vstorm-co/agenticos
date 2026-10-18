@@ -1604,7 +1604,8 @@
         "agent": "Agenci",
         "collection": "Bazy wiedzy",
         "skill": "Skille",
-        "context": "Pliki kontekstu"
+        "context": "Pliki kontekstu",
+        "project": "Projekty"
       }
     },
     "hints": {

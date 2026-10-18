@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "0633aee6e4c8"
+source_sha: "a4bdb4a17fb4"
 ---
 
 # Projekty { #projects }
@@ -27,7 +27,8 @@ Dwie drogi:
 - **Nowy czat** na stronie projektu otwiera czat z wybranym już projektem i jego
   domyślnym agentem.
 - Menu **+** w polu wiadomości oferuje **Pracuj w projekcie** przed pierwszą
-  wiadomością. Chip obok wyboru agenta pokazuje projekt; jego **×** zaczyna czat
+  wiadomością, podobnie jak `@`: wybrany tam projekt zaczyna w nim czat, zamiast
+  wpisywać jego nazwę do wiadomości. Chip obok wyboru agenta pokazuje projekt; jego **×** zaczyna czat
   poza nim.
 
 Czat zostaje w projekcie, w którym został rozpoczęty. Chip w istniejącym czacie

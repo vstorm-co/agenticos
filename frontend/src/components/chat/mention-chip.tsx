@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Database, FileText, Wrench } from "lucide-react";
+import { BookOpen, Database, FileText, FolderKanban, Wrench } from "lucide-react";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { McpServerIcon } from "@/components/mcp/mcp-server-icon";
@@ -51,7 +51,14 @@ export function MentionMark({ item, className }: { item: Mentionable; className?
       </span>
     );
   }
-  const Icon = item.kind === "collection" ? Database : item.kind === "skill" ? BookOpen : FileText;
+  const Icon =
+    item.kind === "collection"
+      ? Database
+      : item.kind === "skill"
+        ? BookOpen
+        : item.kind === "project"
+          ? FolderKanban
+          : FileText;
   return <Icon className={cn(size, "text-muted-foreground")} aria-hidden />;
 }
 

@@ -1604,7 +1604,8 @@
         "agent": "Agents",
         "collection": "Wissensbasen",
         "skill": "Skills",
-        "context": "Kontextdateien"
+        "context": "Kontextdateien",
+        "project": "Projekte"
       }
     },
     "hints": {
