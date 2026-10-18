@@ -16,6 +16,8 @@ export interface ExternalAgent {
   /** The vault API key sent as its bearer token, when it asks for one. */
   secret_id: string | null;
   skills: ExternalAgentSkill[];
+  /** Whether this person may refresh or remove it: whoever registered it, or an admin. */
+  can_manage: boolean;
   created_at: string;
   updated_at: string | null;
 }

@@ -22,16 +22,15 @@ function hostOf(url: string): string {
  * The registered remote agents, each as its card described it.
  *
  * The skills are shown because they are what a delegating agent reads before it
- * hands one work, and the host because it is where that work goes.
+ * hands one work, and the host because it is where that work goes. Refresh and
+ * Remove only on a registration the server says this person may change.
  */
 export function RemoteAgentList({
   agents,
-  canManage,
   onRefresh,
   onRemove,
 }: {
   agents: ExternalAgent[];
-  canManage: boolean;
   onRefresh: (id: string) => Promise<ExternalAgent>;
   onRemove: (id: string) => Promise<void>;
 }) {
@@ -91,7 +90,7 @@ export function RemoteAgentList({
                 </div>
               )}
             </div>
-            {canManage && (
+            {agent.can_manage && (
               <div className="flex shrink-0 items-center">
                 <IconButton
                   aria-label={t("refreshNamed", { name: agent.name })}

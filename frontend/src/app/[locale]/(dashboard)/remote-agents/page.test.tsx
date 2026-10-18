@@ -52,6 +52,7 @@ describe("the remote agents page", () => {
         endpoint_url: "https://agents.example.com/a2a",
         secret_id: null,
         skills: [],
+        can_manage: true,
         created_at: "2026-10-17T00:00:00Z",
         updated_at: null,
       },

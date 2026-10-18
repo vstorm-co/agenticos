@@ -64,12 +64,7 @@ export default function RemoteAgentsPage() {
             description={t("emptyDescription")}
           />
         ) : (
-          <RemoteAgentList
-            agents={agents}
-            canManage={canManage}
-            onRefresh={refresh}
-            onRemove={remove}
-          />
+          <RemoteAgentList agents={agents} onRefresh={refresh} onRemove={remove} />
         )}
       </ListCard>
 

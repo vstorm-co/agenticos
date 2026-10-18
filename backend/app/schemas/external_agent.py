@@ -60,6 +60,11 @@ class ExternalAgentRead(BaseSchema):
     endpoint_url: str
     secret_id: UUID | None = None
     skills: list[ExternalAgentSkill] = Field(default_factory=list)
+    can_manage: bool = Field(
+        default=False,
+        description="Whether the caller may refresh or remove it: whoever registered it, "
+        "or somebody who edits every agent.",
+    )
     created_at: datetime
     updated_at: datetime | None = None
 

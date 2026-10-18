@@ -203,6 +203,24 @@ class TestRegistering:
             await service.delete(member, mine.id)
         deleted.assert_awaited_once_with(ANY, mine)
 
+    async def test_the_list_says_which_registrations_the_caller_may_change(self) -> None:
+        """A member is offered Refresh and Remove only on their own: on the
+        others the button would be refused."""
+        member = AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role="member")
+        theirs = _row(slug="theirs", created_by_user_id=uuid.uuid4())
+        mine = _row(slug="mine", created_by_user_id=member.user_id)
+        with patch.object(
+            module.external_agent_repo, "list_for_org", AsyncMock(return_value=[theirs, mine])
+        ):
+            service = ExternalAgentService(MagicMock())
+            as_member = (await service.list(member)).items
+            as_admin = (await service.list(CTX)).items
+        assert [(item.slug, item.can_manage) for item in as_member] == [
+            ("theirs", False),
+            ("mine", True),
+        ]
+        assert all(item.can_manage for item in as_admin)
+
     async def test_a_card_that_moves_the_agent_to_another_host_is_audited(self) -> None:
         moved = CARD.model_copy(update={"url": "https://elsewhere.example.net/a2a"})
         row = _row()
@@ -238,7 +256,7 @@ class TestRegistering:
             card_url="https://bot:pw@agents.example.com:8443/card.json?sig=s3cret",
             endpoint_url="https://bot:pw@agents.example.com/a2a?token=s3cret",
         )
-        listed = module.read(signed)
+        listed = module.read(signed, can_manage=False)
         assert listed.card_url == "https://agents.example.com:8443/card.json"
         assert listed.endpoint_url == "https://agents.example.com/a2a"
 

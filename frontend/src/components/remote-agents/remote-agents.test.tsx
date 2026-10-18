@@ -32,6 +32,7 @@ function agent(overrides: Partial<ExternalAgent> = {}): ExternalAgent {
     endpoint_url: "https://agents.example.com/a2a/reviewer",
     secret_id: "s-1",
     skills: [{ id: "review", name: "Review", description: "Review a contract" }],
+    can_manage: true,
     created_at: "2026-10-17T00:00:00Z",
     updated_at: null,
     ...overrides,
@@ -44,7 +45,7 @@ beforeEach(() => {
 
 describe("RemoteAgentList", () => {
   it("shows what the card said, where the agent answers, and that it sends a key", () => {
-    render(<RemoteAgentList agents={[agent()]} canManage onRefresh={vi.fn()} onRemove={vi.fn()} />);
+    render(<RemoteAgentList agents={[agent()]} onRefresh={vi.fn()} onRemove={vi.fn()} />);
 
     expect(screen.getByText("Contract Reviewer")).toBeVisible();
     expect(screen.getByText("Reads contracts.")).toBeVisible();
@@ -55,9 +56,7 @@ describe("RemoteAgentList", () => {
 
   it("reads a card again, and says when it could not", async () => {
     const onRefresh = vi.fn().mockResolvedValueOnce(agent()).mockRejectedValueOnce(new Error("x"));
-    render(
-      <RemoteAgentList agents={[agent()]} canManage onRefresh={onRefresh} onRemove={vi.fn()} />,
-    );
+    render(<RemoteAgentList agents={[agent()]} onRefresh={onRefresh} onRemove={vi.fn()} />);
 
     const button = screen.getByRole("button", { name: "Read Contract Reviewer's card again" });
     await userEvent.click(button);
@@ -73,7 +72,6 @@ describe("RemoteAgentList", () => {
         agents={[
           agent({ description: "", skills: [], secret_id: null, endpoint_url: "not a url" }),
         ]}
-        canManage
         onRefresh={vi.fn()}
         onRemove={onRemove}
       />,
@@ -89,9 +87,7 @@ describe("RemoteAgentList", () => {
 
   it("keeps one it was asked to remove when the question is cancelled", async () => {
     const onRemove = vi.fn();
-    render(
-      <RemoteAgentList agents={[agent()]} canManage onRefresh={vi.fn()} onRemove={onRemove} />,
-    );
+    render(<RemoteAgentList agents={[agent()]} onRefresh={vi.fn()} onRemove={onRemove} />);
 
     await userEvent.click(screen.getByRole("button", { name: "Remove Contract Reviewer" }));
     await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
@@ -100,11 +96,10 @@ describe("RemoteAgentList", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  it("offers no controls to somebody who may only look", () => {
+  it("offers no controls on a registration this person may not change", () => {
     render(
       <RemoteAgentList
-        agents={[agent()]}
-        canManage={false}
+        agents={[agent({ can_manage: false })]}
         onRefresh={vi.fn()}
         onRemove={vi.fn()}
       />,

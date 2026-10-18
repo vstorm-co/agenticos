@@ -39,7 +39,7 @@ from app.services.agent_registry import slugify
 from app.services.organization_secret import OrganizationSecretService
 
 
-def read(agent: ExternalAgent) -> ExternalAgentRead:
+def read(agent: ExternalAgent, *, can_manage: bool) -> ExternalAgentRead:
     skills = agent.card.get("skills", []) if isinstance(agent.card, dict) else []
     return ExternalAgentRead(
         id=agent.id,
@@ -58,8 +58,15 @@ def read(agent: ExternalAgent) -> ExternalAgentRead:
             for skill in skills
             if isinstance(skill, dict)
         ],
+        can_manage=can_manage,
         created_at=agent.created_at,
         updated_at=agent.updated_at,
+    )
+
+
+def _may_change(ctx: AuthContext, agent: ExternalAgent) -> bool:
+    return agent.created_by_user_id == ctx.subject_id or (
+        ctx.scope_for(Perm.AGENTS_EDIT) is Scope.ALL
     )
 
 
@@ -71,7 +78,9 @@ class ExternalAgentService:
 
     async def list(self, ctx: AuthContext) -> ExternalAgentList:
         rows = await external_agent_repo.list_for_org(self.db, organization_id=ctx.organization_id)
-        return ExternalAgentList(items=[read(row) for row in rows])
+        return ExternalAgentList(
+            items=[read(row, can_manage=_may_change(ctx, row)) for row in rows]
+        )
 
     async def register(self, ctx: AuthContext, data: ExternalAgentCreate) -> ExternalAgentRead:
         """Read the card, check the secret, and keep the registration.
@@ -116,7 +125,7 @@ class ExternalAgentService:
             target_id=str(agent.id),
             details={"endpoint_host": _host(card.url)},
         )
-        return read(agent)
+        return read(agent, can_manage=True)
 
     async def refresh(self, ctx: AuthContext, agent_id: UUID) -> ExternalAgentRead:
         """Read the card again - a remote agent changes on its own side.
@@ -155,7 +164,7 @@ class ExternalAgentService:
                 target_id=str(agent_id),
                 details={"from_host": moved_from, "endpoint_host": _host(card.url)},
             )
-        return read(updated)
+        return read(updated, can_manage=True)
 
     async def delete(self, ctx: AuthContext, agent_id: UUID) -> None:
         """Remove a registration. An agent still delegating to it is refused at its next run."""
@@ -190,9 +199,7 @@ class ExternalAgentService:
                 their own agents.
         """
         agent = await self._get(ctx, agent_id)
-        if agent.created_by_user_id != ctx.subject_id and (
-            ctx.scope_for(Perm.AGENTS_EDIT) is not Scope.ALL
-        ):
+        if not _may_change(ctx, agent):
             raise AuthorizationError(
                 message="Only whoever registered this remote agent, or an admin, may change it",
                 details={"external_agent_id": str(agent_id)},
