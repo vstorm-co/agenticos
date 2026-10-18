@@ -10,7 +10,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from app.core.secret_kinds import SecretKind, SecretKindInfo, StorableSecret
+from app.core.secret_kinds import SecretKind, SecretKindInfo, TypedSecret
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.resource_grant import VisibilityLiteral
 
@@ -22,8 +22,11 @@ class SecretCreate(BaseSchema):
     description: str | None = Field(
         default=None, max_length=1000, description="What it is for, shown next to the picker"
     )
-    value: StorableSecret = Field(
-        description="The secret itself, discriminated by `kind`; sealed before storage"
+    value: TypedSecret = Field(
+        description=(
+            "The secret itself, discriminated by `kind`; sealed before storage. A ChatGPT "
+            "sign-in is stored through POST /secrets/openai-codex instead."
+        )
     )
     purpose: str = Field(
         default="custom",
@@ -48,7 +51,7 @@ class SecretUpdate(BaseSchema):
 
     name: str | None = Field(default=None, min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=1000)
-    value: StorableSecret | None = Field(
+    value: TypedSecret | None = Field(
         default=None, description="A replacement value of the same kind"
     )
 

@@ -492,6 +492,26 @@ StorableSecret = Annotated[
 ]
 """Every shape a person can actually save."""
 
+TypedSecret = Annotated[
+    ApiKeySecret
+    | AzureOpenAISecret
+    | AwsCredentialsSecret
+    | GcpServiceAccountSecret
+    | GithubOAuthAppSecret
+    | GithubAppSecret
+    | GoogleOAuthAppSecret
+    | GitTokenSecret
+    | EntraAppSecret,
+    Field(discriminator="kind"),
+]
+"""What a person may type into the vault: :data:`StorableSecret` but a ChatGPT sign-in.
+
+A sign-in is written only by finishing the sign-in flow, which binds it to whoever
+started it. Posted as a value, it would be any pair of tokens - a Codex CLI's own
+grant among them, whose single-use refresh token then signs the CLI and the platform
+out of each other.
+"""
+
 SecretValue = Annotated[
     NoSecret
     | ApiKeySecret

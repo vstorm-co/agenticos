@@ -220,6 +220,24 @@ class TestSigningInWithChatGPT:
             "authorization_url": "https://auth.openai.com/oauth/authorize?state=s"
         }
 
+    @pytest.mark.security
+    async def test_a_sign_in_cannot_be_posted_as_a_value(self, client, service) -> None:
+        """Only finishing the flow writes one: posted as a value it would be any
+        pair of tokens, bound to nobody's sign-in."""
+        value = {
+            "kind": "openai_codex",
+            "access_token": "a" * 40,
+            "refresh_token": "r" * 40,
+            "account_id": "acct",
+            "expires_at": "2030-01-01T00:00:00Z",
+        }
+        async with client() as opened:
+            created = await opened.post(_url(""), json={"name": "Mine", "value": value})
+            rotated = await opened.patch(_url(f"/{uuid.uuid4()}"), json={"value": value})
+
+        assert (created.status_code, rotated.status_code) == (422, 422)
+        service.create.assert_not_called()
+
     async def test_a_viewer_may_start_one_to_reconnect_a_secret_granted_to_them(
         self, client, codex
     ) -> None:
