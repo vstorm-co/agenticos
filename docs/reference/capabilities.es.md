@@ -1,5 +1,5 @@
 ---
-source_sha: "931385a2ab36"
+source_sha: "fb758598b7d2"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1175,8 +1175,8 @@ lado. Los tokens que Codex renovó se sellan de nuevo
 sobre el mismo secreto. Todo lo que Codex ejecuta puede leer ese archivo, así que el
 inicio de sesión solo se entrega a una persona que puede verlo en el vault - ejecutar
 el agent nunca es un camino a la suscripción de otro -, y solo en un sandbox que no
-comparten tareas de otras personas: en el contenedor de un proyecto, o en uno a nivel
-de agent, la tarea de otra persona se ejecuta como el mismo usuario y podría leerlo.
+comparten tareas de otras personas: en el contenedor de un proyecto, en uno a nivel de
+agent o en un chat compartido con alguien para editar, la tarea de otra persona se ejecuta como el mismo usuario y podría leerlo.
 Una clave API es distinta:
 es del agent, como el token de un bot en Slack, así que cada run la usa, sea quien
 sea quien preguntó - y todo lo que ejecuta una tarea puede leerla. Vincula una

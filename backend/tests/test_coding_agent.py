@@ -1134,30 +1134,19 @@ class TestConfiguringIt:
         )
         assert isinstance(built, CodingAgent) and built.api_key is None
 
-    @pytest.mark.parametrize(
-        ("scope", "shared"),
-        [
-            ("project", True),
-            ("agent", True),
-            ("channel", True),
-            ("conversation", False),
-            (None, False),
-        ],
-    )
-    def test_the_builder_says_whether_others_work_in_the_sandbox(
-        self, scope: str | None, shared: bool
-    ) -> None:
+    @pytest.mark.parametrize("shared", [True, False, None])
+    def test_the_builder_says_whether_others_work_in_the_sandbox(self, shared: bool | None) -> None:
         definition = get("coding_agent")
         binding = CapabilityBinding(capability_id="coding_agent")
         built = definition.builder(
             CapabilityBuildContext(
                 binding=binding,
                 config=None,
-                resources={} if scope is None else {"workspace_scope": scope},
+                resources={} if shared is None else {"workspace_shared": shared},
                 secret=None,
             )
         )
-        assert isinstance(built, CodingAgent) and built.shared_sandbox is shared
+        assert isinstance(built, CodingAgent) and built.shared_sandbox is (shared is True)
 
 
 class TestPublishing:

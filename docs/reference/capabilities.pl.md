@@ -1,5 +1,5 @@
 ---
-source_sha: "931385a2ab36"
+source_sha: "fb758598b7d2"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1161,7 +1161,8 @@ przez Codex są pieczętowane z powrotem w tym samym sekrecie. Wszystko, co Code
 uruchomi, może przeczytać ten plik, więc logowanie jest przekazywane tylko osobie,
 która sama może je zobaczyć w vault - uruchomienie agenta nigdy nie daje dostępu do
 cudzej subskrypcji - i tylko w sandboxie, którego nie dzielą zadania innych osób: w
-kontenerze projektu albo sandboxie na poziomie agenta zadanie innej osoby działa
+kontenerze projektu, sandboxie na poziomie agenta albo czacie udostępnionym komuś do
+edycji zadanie innej osoby działa
 jako ten sam użytkownik i mogłoby je przeczytać. Klucz API jest czym innym: należy do agenta, jak token bota w
 Slacku, więc używa go każdy run, ktokolwiek pytał - i wszystko, co uruchomi
 zadanie, może go odczytać. Podpinaj klucz, który mogą dzielić wszyscy, którzy mogą

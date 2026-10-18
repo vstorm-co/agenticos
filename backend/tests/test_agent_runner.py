@@ -53,7 +53,7 @@ from app.agents.capabilities.channel_tools import CHANNEL_DIRECTORY_RESOURCE
 from app.agents.capabilities.compaction import ContextGauge
 from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
-from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
+from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE, WORKSPACE_SHARED_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
 from app.agents.loop_guard import ToolLoopStopped
@@ -4303,7 +4303,7 @@ class TestTheWorkspaceReachesTheAgent:
     """
 
     @staticmethod
-    async def _prepare(spec, skills=()):
+    async def _prepare(spec, skills=(), shares=()):
         service = AgentRunnerService(_db())
         agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
         opened = MagicMock(id=uuid.uuid4(), exposure_id=None)
@@ -4334,6 +4334,12 @@ class TestTheWorkspaceReachesTheAgent:
                 "app.services.sandbox_workspace.workspace_repo.create",
                 new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
             ),
+            # Whether anybody else may write in the conversation, and so work in
+            # its container - see `_workspace_shared`.
+            patch(
+                "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
+                new=AsyncMock(return_value=shares),
+            ),
             patch("app.services.agent_runner.build_agent") as build,
         ):
             prepared = await service.prepare(_ctx(), agent.id, conversation_id=uuid.uuid4())
@@ -4348,6 +4354,23 @@ class TestTheWorkspaceReachesTheAgent:
 
         assert prepared.workspace is not None
         assert built.kwargs["resources"][WORKSPACE_RESOURCE] is prepared.workspace.workspace
+        # A chat nobody else may write in: a person's own sign-in may run in it.
+        assert built.kwargs["resources"][WORKSPACE_SHARED_RESOURCE] is False
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("permission", "shared"), [("edit", True), ("view", False)], ids=["editor", "reader"]
+    )
+    async def test_a_chat_shared_to_edit_has_a_shared_container(
+        self, permission: str, shared: bool
+    ):
+        """An editor's turns run in the same container, as the same user."""
+        spec = AgentSpec(name="Analyst", capabilities=[{"id": "sandbox", "config": {}}])
+        share = MagicMock(shared_with=uuid.uuid4(), permission=permission)
+
+        _, built = await self._prepare(spec, shares=[share])
+
+        assert built.kwargs["resources"][WORKSPACE_SHARED_RESOURCE] is shared
 
     @pytest.mark.anyio
     async def test_an_agent_without_one_is_handed_nothing(self):
@@ -4357,6 +4380,33 @@ class TestTheWorkspaceReachesTheAgent:
 
         assert prepared.workspace is None
         assert WORKSPACE_RESOURCE not in built.kwargs["resources"]
+
+
+class TestWhetherOthersWorkInTheWorkspace:
+    @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        ("scope", "conversation", "shared"),
+        [
+            ("project", True, True),
+            ("agent", True, True),
+            ("channel", False, True),
+            ("user", True, False),
+            ("run", True, False),
+            ("conversation", False, False),
+        ],
+    )
+    async def test_by_its_scope_alone(self, scope: str, conversation: bool, shared: bool):
+        service = AgentRunnerService(_db())
+        lookup = AsyncMock(return_value=[])
+        with patch(
+            "app.services.agent_runner.conversation_share_repo.get_shares_for_conversation",
+            new=lookup,
+        ):
+            answer = await service._workspace_shared(
+                _ctx(), scope, uuid.uuid4() if conversation else None
+            )
+        assert answer is shared
+        lookup.assert_not_awaited()
 
 
 class TestTheModelIsToldWhereTheSkillFilesWent:

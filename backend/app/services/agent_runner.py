@@ -141,8 +141,9 @@ from app.agents.capabilities.planning import (
     still_open,
 )
 from app.agents.capabilities.sandbox import (
+    SHARED_SCOPES,
     WORKSPACE_RESOURCE,
-    WORKSPACE_SCOPE_RESOURCE,
+    WORKSPACE_SHARED_RESOURCE,
     WorkspaceIdentity,
 )
 from app.agents.capabilities.sandbox._identity import SessionScope
@@ -219,6 +220,7 @@ from app.repositories import (
     agent_run_repo,
     chat_file_repo,
     conversation_repo,
+    conversation_share_repo,
     external_agent_repo,
     group_repo,
     knowledge_base_repo,
@@ -3011,7 +3013,9 @@ class AgentRunnerService:
         started_with: set[str] | None = None
         if workspace is not None:
             resources[WORKSPACE_RESOURCE] = workspace.workspace
-            resources[WORKSPACE_SCOPE_RESOURCE] = workspace.scope
+            resources[WORKSPACE_SHARED_RESOURCE] = await self._workspace_shared(
+                ctx, workspace.scope, conversation_id
+            )
             resources[SPILL_LOG_RESOURCE] = workspace.spills
             spec = _with_workspace_briefing(spec, workspace)
             # Skills as files, beside the shell that can run them. A skill whose
@@ -3767,12 +3771,30 @@ class AgentRunnerService:
         }
         if any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared):
             resources[WORKSPACE_RESOURCE] = parent_resources.get(WORKSPACE_RESOURCE)
-            resources[WORKSPACE_SCOPE_RESOURCE] = parent_resources.get(WORKSPACE_SCOPE_RESOURCE)
+            resources[WORKSPACE_SHARED_RESOURCE] = parent_resources.get(WORKSPACE_SHARED_RESOURCE)
             # And the spill log with it: a delegate spilling to the shared
             # filesystem must record its handles where the workspace's close can
             # delete them (#803).
             resources[SPILL_LOG_RESOURCE] = parent_resources.get(SPILL_LOG_RESOURCE)
         return resources
+
+    async def _workspace_shared(
+        self, ctx: AuthContext, scope: str, conversation_id: UUID | None
+    ) -> bool:
+        """Whether other people's runs work in this run's workspace too.
+
+        Always for a project's, an agent's or a channel's. For a conversation's,
+        once somebody it is shared with to edit may write in it: their turns run
+        in the same container.
+        """
+        if scope in SHARED_SCOPES:
+            return True
+        if scope != "conversation" or conversation_id is None:
+            return False
+        shares = await conversation_share_repo.get_shares_for_conversation(
+            self.db, conversation_id, organization_id=ctx.organization_id
+        )
+        return any(share.shared_with is not None and share.permission == "edit" for share in shares)
 
     @staticmethod
     def _delegation_recorder(

@@ -38,7 +38,7 @@ from app.agents.capabilities.sandbox._identity import (
 __all__ = [
     "SHARED_SCOPES",
     "WORKSPACE_RESOURCE",
-    "WORKSPACE_SCOPE_RESOURCE",
+    "WORKSPACE_SHARED_RESOURCE",
     "BackendKind",
     "SandboxConfig",
     "SessionScope",
@@ -47,11 +47,16 @@ __all__ = [
     "scope_key",
 ]
 
-WORKSPACE_SCOPE_RESOURCE = "workspace_scope"
-"""Whose the run's workspace is - its `SessionScope` - beside `WORKSPACE_RESOURCE`."""
+WORKSPACE_SHARED_RESOURCE = "workspace_shared"
+"""Whether other people's runs work in the run's workspace too, beside `WORKSPACE_RESOURCE`.
+
+They run as the same sandbox user, so anything one writes there the others can
+read - which is what a person's own credential must not be written into.
+"""
 
 SHARED_SCOPES: frozenset[str] = frozenset({"project", "agent", "channel"})
-"""Scopes whose container other people's runs work in too, as the same user."""
+"""Scopes whose container other people's runs always work in. A `conversation`
+one is shared too once somebody else may write in the conversation."""
 
 WORKSPACE_RESOURCE = "workspace"
 """Where the runner leaves the workspace it opened for this run.
