@@ -225,6 +225,17 @@ class TestSendingATask:
         assert answer["error"]["code"] == code
 
 
+class TestContinuingATask:
+    async def test_a_message_naming_a_task_is_refused_rather_than_run_beside_it(self) -> None:
+        """The waiting run stays the one waiting; no second run starts."""
+        served = _Served(_agent())
+        answer = await _ask(served, _send(taskId=str(uuid.uuid4())))
+
+        assert answer["error"]["code"] == -32004
+        assert "decided in the console" in answer["error"]["message"]
+        served.runner.execute.assert_not_awaited()
+
+
 class TestReadingATask:
     def _get(self, task_id: str | None) -> dict[str, Any]:
         return {"jsonrpc": "2.0", "id": 2, "method": "tasks/get", "params": {"id": task_id}}

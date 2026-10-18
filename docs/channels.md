@@ -741,7 +741,9 @@ continues that conversation. A run that stops for an approval answers
 stands since.
 
 A task is read by whoever sent it, or by somebody who may read every
-run (`runs:view`); to anyone else its id is unknown.
+run (`runs:view`); to anyone else its id is unknown. A message naming a `taskId`
+is refused rather than run beside the waiting task: send without it, in the same
+`contextId`, to ask something new.
 
 Answered synchronously: `message/stream`, push notifications and `tasks/cancel` are
 refused by name, and the card says streaming is not offered. An agent that is not

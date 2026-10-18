@@ -1,5 +1,5 @@
 ---
-source_sha: "148eb2fa3872"
+source_sha: "dcefccd16f75"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -814,7 +814,9 @@ eine Freigabe anhält, antwortet `input-required`; entschieden wird in der Konso
 und `tasks/get` liest, wo er seitdem steht.
 
 Eine Aufgabe liest, wer sie gesendet hat, oder wer jeden Run lesen darf
-(`runs:view`); für alle anderen ist ihre ID unbekannt.
+(`runs:view`); für alle anderen ist ihre ID unbekannt. Eine Nachricht mit `taskId`
+wird abgelehnt, statt neben der wartenden Aufgabe zu laufen: Für etwas Neues sendet
+man sie ohne, im selben `contextId`.
 
 Synchron beantwortet: `message/stream`, Push-Benachrichtigungen und `tasks/cancel`
 werden namentlich abgelehnt, und die Karte sagt, dass Streaming nicht angeboten wird.

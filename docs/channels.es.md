@@ -1,5 +1,5 @@
 ---
-source_sha: "148eb2fa3872"
+source_sha: "dcefccd16f75"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -771,7 +771,9 @@ aprobación responde `input-required`; se decide en la consola, y `tasks/get` le
 dónde está desde entonces.
 
 Una tarea la lee quien la envió, o quien puede leer todos los runs
-(`runs:view`); para cualquier otro su id es desconocido.
+(`runs:view`); para cualquier otro su id es desconocido. Un mensaje con `taskId` se
+rechaza en lugar de ejecutarse junto a la tarea que espera: para preguntar algo
+nuevo, se envía sin él, en el mismo `contextId`.
 
 Se responde de forma síncrona: `message/stream`, las notificaciones push y
 `tasks/cancel` se rechazan por su nombre, y la card dice que no se ofrece streaming.

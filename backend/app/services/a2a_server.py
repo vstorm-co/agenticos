@@ -200,6 +200,16 @@ class A2AServerService:
         prompt = message.text().strip()
         if not prompt:
             raise _RpcError(INVALID_PARAMS, "The message has no text part")
+        # A task here waits only on a person deciding in the console, so a message
+        # cannot carry it further - and taking it as a new one would start a
+        # second run beside the one still waiting.
+        if message.task_id is not None:
+            raise _RpcError(
+                UNSUPPORTED_OPERATION,
+                "A task here is not continued by a message: one waiting for input is "
+                "decided in the console, and tasks/get reads where it stands. Send "
+                "without taskId to ask something new in the same contextId.",
+            )
         conversation = _uuid(message.context_id, "contextId")
         runner = AgentRunnerService(self.db)
         conversation_id: UUID | None = conversation

@@ -1,5 +1,5 @@
 ---
-source_sha: "148eb2fa3872"
+source_sha: "dcefccd16f75"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -764,7 +764,9 @@ kontynuuje tę rozmowę. Run zatrzymany na zatwierdzeniu odpowiada `input-requir
 decyzję podejmuje się w konsoli, a `tasks/get` odczytuje, na czym potem stanął.
 
 Zadanie odczyta ten, kto je wysłał, albo ktoś, kto może czytać wszystkie runy
-(`runs:view`); dla każdego innego jego id jest nieznane.
+(`runs:view`); dla każdego innego jego id jest nieznane. Wiadomość z `taskId` jest
+odrzucana, zamiast uruchamiać się obok czekającego zadania: żeby zapytać o coś
+nowego, wyślij ją bez niego, w tym samym `contextId`.
 
 Odpowiedź jest synchroniczna: `message/stream`, powiadomienia push i `tasks/cancel`
 są odrzucane z nazwy, a karta mówi, że streaming nie jest oferowany. Agent, który
