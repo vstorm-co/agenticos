@@ -1,5 +1,5 @@
 ---
-source_sha: "7fabea1dc83b"
+source_sha: "2ee501a26cc8"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1572,7 +1572,8 @@ Od rejestracji zależy każdy agent, który do niej deleguje, więc odświeżyć
 ją może ten, kto ją zarejestrował, albo ktoś, kto edytuje wszystkie agenty.
 Odświeżenie, po którym karta przenosi agenta na inny host, trafia do audytu, bo ten
 host dostaje odtąd żądania i klucz. Lista pokazuje adres karty bez zapytania, w
-którym podpisany adres trzyma swoje poświadczenie.
+którym podpisany adres trzyma swoje poświadczenie. Usunięcie klucza, który wysyła
+rejestracja, usuwa rejestrację, zamiast zostawić ją wołającą bez klucza.
 
 Dla delegującego modelu zdalny agent to po prostu kolejny delegat, wywoływany po
 nazwie tym samym narzędziem `task`. Każde wywołanie to jedno A2A `message/send` z

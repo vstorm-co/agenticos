@@ -54,7 +54,7 @@ def upgrade() -> None:
             ["secret_id"],
             ["organization_secrets.id"],
             name=op.f("external_agents_secret_id_fkey"),
-            ondelete="SET NULL",
+            ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("external_agents_pkey")),
         sa.UniqueConstraint("organization_id", "slug", name="uq_external_agent_org_slug"),

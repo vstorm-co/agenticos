@@ -1,5 +1,5 @@
 ---
-source_sha: "7fabea1dc83b"
+source_sha: "2ee501a26cc8"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1691,7 +1691,8 @@ nur aktualisieren oder entfernen, wer sie registriert hat, oder wer jeden Agent
 bearbeitet. Eine Aktualisierung, deren Karte den Agent auf einen anderen Host
 verlegt, wird auditiert, denn dieser Host bekommt nun die Anfragen und den Key. Die
 Liste zeigt die Adresse einer Karte ohne ihre Query, in der eine signierte Adresse
-ihr Credential trägt.
+ihr Credential trägt. Wird der Key gelöscht, den eine Registrierung sendet, wird die
+Registrierung mit gelöscht, statt ohne Key weiter aufzurufen.
 
 Für das delegierende Modell ist ein Remote Agent ein weiterer Delegierter, über
 seinen Namen mit demselben Tool `task` aufgerufen. Jeder Aufruf ist ein A2A

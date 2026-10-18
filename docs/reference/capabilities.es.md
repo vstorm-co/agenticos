@@ -1,5 +1,5 @@
 ---
-source_sha: "7fabea1dc83b"
+source_sha: "2ee501a26cc8"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1603,6 +1603,8 @@ eliminarlo le corresponde a quien lo registró, o a quien edita todos los agents
 Una actualización cuya card lleva el agent a otro host queda en la auditoría, porque
 ese host recibe desde entonces las peticiones y la clave. La lista muestra la
 dirección de una card sin su query, donde una dirección firmada lleva su credencial.
+Borrar la clave que envía un registro borra el registro, en lugar de dejarlo
+llamando sin ella.
 
 Para el modelo que delega, un agent remoto es un delegado más, llamado por su nombre
 con la misma herramienta `task`. Cada llamada es un `message/send` de A2A con la

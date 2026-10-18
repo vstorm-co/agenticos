@@ -1496,7 +1496,8 @@ Every agent delegating to a registration depends on it, so refreshing or removin
 one is for whoever registered it, or for somebody who edits every agent. A refresh
 whose card moves the agent to another host is audited, since that host now gets the
 requests and the key. The list shows a card's address without its query, where a
-signed address keeps its credential.
+signed address keeps its credential. Deleting the key a registration sends deletes
+the registration, rather than leave it calling without one.
 
 To the delegating model a remote agent is one more delegate, called by its handle
 with the same `task` tool. Each call is one A2A `message/send` carrying the latest

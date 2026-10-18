@@ -48,10 +48,16 @@ class ExternalAgent(Base, TimestampMixin):
 
     secret_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("organization_secrets.id", ondelete="SET NULL"),
+        ForeignKey("organization_secrets.id", ondelete="CASCADE"),
         nullable=True,
     )
-    """The vault secret sent as its bearer token, if it asks for one."""
+    """The vault secret sent as its bearer token, if it asks for one.
+
+    Deleting the secret deletes the registration. Left behind as `NULL` it would
+    read as one that never had a key, and its next call would go out
+    unauthenticated rather than failing - a run naming a removed registration
+    fails loudly instead.
+    """
 
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
