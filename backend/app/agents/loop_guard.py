@@ -131,6 +131,15 @@ class LoopGuard(AbstractCapability[AgentDeps]):
     """How many of the run's calls had been made when it was warned; only those
     after count towards stopping it."""
 
+    async def for_run(self, ctx: RunContext[AgentDeps]) -> LoopGuard:
+        """A guard of its own for each run.
+
+        A delegate's built agent is cached and run once per delegation; on one
+        shared instance, four separate delegations of the same lookup would read
+        as one run calling it four times.
+        """
+        return LoopGuard(repeats=self.repeats, cycles=self.cycles)
+
     async def after_model_request(
         self,
         ctx: RunContext[AgentDeps],

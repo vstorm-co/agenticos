@@ -133,6 +133,36 @@ async def test_a_run_that_changes_approach_after_the_warning_finishes() -> None:
     )
 
 
+async def test_each_run_of_one_agent_is_judged_on_its_own_calls() -> None:
+    """A delegate's agent is built once and run per delegation: two runs of two
+    identical calls are not one run of four."""
+    seen: list[list[ModelMessage]] = []
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        seen.append(messages)
+        calls = sum(
+            isinstance(part, ToolCallPart)
+            for message in messages
+            if isinstance(message, ModelResponse)
+            for part in message.parts
+        )
+        if calls < 2:
+            return ModelResponse(parts=[ToolCallPart("search", {"q": "same"})])
+        return ModelResponse(parts=[TextPart("done")])
+
+    agent = _agent(FunctionModel(respond))
+    await agent.run("first", deps=AgentDeps())
+    await agent.run("second", deps=AgentDeps())
+
+    assert not any(
+        isinstance(part, UserPromptPart) and "change approach" in str(part.content).lower()
+        for messages in seen
+        for message in messages
+        if isinstance(message, ModelRequest)
+        for part in message.parts
+    )
+
+
 def test_a_cycle_is_described_by_its_calls_in_order() -> None:
     loop = Loop(tools=("search", "open"), times=3)
     assert loop.describe() == "went round the same calls (`search` → `open`) 3 times"
