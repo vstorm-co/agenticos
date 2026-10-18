@@ -1502,8 +1502,11 @@ refresh, which decides where the key goes next, also for somebody who may still 
 that key. A refresh
 whose card moves the agent to another host is audited, since that host now gets the
 requests and the key. The list shows a card's address and its endpoint without
-their query or userinfo, where a signed address keeps its credential. Deleting the key a registration sends deletes
-the registration, rather than leave it calling without one.
+their query or userinfo, where a signed address keeps its credential.
+
+Deleting the key a registration sends deletes the registration, rather than leave it
+calling without one. A key is sent only to an HTTPS endpoint, so a card that
+advertises plain HTTP is refused for a registration that has one.
 
 To the delegating model a remote agent is one more delegate, called by its handle
 with the same `task` tool. Each call is one A2A `message/send` carrying the latest

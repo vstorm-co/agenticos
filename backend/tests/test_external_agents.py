@@ -136,6 +136,38 @@ class TestRegistering:
         assert secrets.get_usable.await_args.kwargs == {"kind": SecretKind.API_KEY}
         create.assert_not_awaited()
 
+    @pytest.mark.security
+    async def test_a_key_is_never_bound_to_a_plain_http_endpoint(self) -> None:
+        """Anyone on the path - a proxy included - would read it off the header."""
+        cleartext = CARD.model_copy(update={"url": "http://agents.example.com/a2a"})
+        secrets = MagicMock(get_usable=AsyncMock())
+        with (
+            patch.object(module, "fetch_card", AsyncMock(return_value=cleartext)),
+            patch.object(module.external_agent_repo, "get_by_slug", AsyncMock(return_value=None)),
+            patch.object(module, "OrganizationSecretService", return_value=secrets),
+            patch.object(module.external_agent_repo, "create", AsyncMock()) as create,
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await ExternalAgentService(MagicMock()).register(
+                CTX,
+                ExternalAgentCreate(card_url="https://agents.example.com", secret_id=uuid.uuid4()),
+            )
+        assert refused.value.details["fields"][0]["field"] == "card_url"
+        create.assert_not_awaited()
+
+        # Nor moved there by a refresh, named by no field - nobody typed it.
+        row = _row(secret_id=uuid.uuid4(), created_by_user_id=CTX.user_id)
+        with (
+            patch.object(module.external_agent_repo, "get", AsyncMock(return_value=row)),
+            patch.object(module, "OrganizationSecretService", return_value=secrets),
+            patch.object(module, "fetch_card", AsyncMock(return_value=cleartext)),
+            patch.object(module.external_agent_repo, "update", AsyncMock()) as update,
+            pytest.raises(BadRequestError) as moved,
+        ):
+            await ExternalAgentService(MagicMock()).refresh(CTX, row.id)
+        assert moved.value.details == {"endpoint_host": "agents.example.com"}
+        update.assert_not_awaited()
+
     async def test_the_list_refresh_and_removal(self) -> None:
         row = _row()
         refreshed = _row(description="Now also NDAs.")

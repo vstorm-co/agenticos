@@ -1,5 +1,5 @@
 ---
-source_sha: "4df026dac07c"
+source_sha: "931385a2ab36"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1696,8 +1696,12 @@ bearbeitet - und aktualisieren, was bestimmt, wohin der Key geht, nur wer diesen
 noch verwenden darf. Eine Aktualisierung, deren Karte den Agent auf einen anderen Host
 verlegt, wird auditiert, denn dieser Host bekommt nun die Anfragen und den Key. Die
 Liste zeigt die Adresse einer Karte und ihren Endpoint ohne Query und Userinfo, in
-denen eine signierte Adresse ihr Credential trägt. Wird der Key gelöscht, den eine Registrierung sendet, wird die
-Registrierung mit gelöscht, statt ohne Key weiter aufzurufen.
+denen eine signierte Adresse ihr Credential trägt.
+
+Wird der Key gelöscht, den eine Registrierung sendet, wird die Registrierung mit
+gelöscht, statt ohne Key weiter aufzurufen. Ein Key geht nur an einen
+HTTPS-Endpoint, darum wird eine Karte mit reinem HTTP für eine Registrierung mit Key
+abgelehnt.
 
 Für das delegierende Modell ist ein Remote Agent ein weiterer Delegierter, über
 seinen Namen mit demselben Tool `task` aufgerufen. Jeder Aufruf ist ein A2A

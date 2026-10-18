@@ -192,6 +192,10 @@ async def _call(
     body = {"jsonrpc": "2.0", "id": uuid.uuid4().hex, "method": method, "params": params}
     headers = {"Accept": "application/json"}
     if bearer:
+        # Never over plain HTTP: anyone on the path, a proxy included, would read
+        # the organization's key off the header.
+        if urlsplit(endpoint).scheme != "https":
+            raise A2AClientError("The agent's endpoint is not HTTPS, so its key was not sent")
         headers["Authorization"] = f"Bearer {bearer}"
     try:
         async with (

@@ -166,6 +166,24 @@ class TestReadingACard:
 
 
 class TestSendingAMessage:
+    @pytest.mark.security
+    async def test_a_key_is_never_sent_over_plain_http(self) -> None:
+        seen: list[httpx2.Request] = []
+
+        def handler(request: httpx2.Request) -> httpx2.Response:
+            seen.append(request)
+            return httpx2.Response(200, json={})
+
+        with pytest.raises(A2AClientError, match="not HTTPS"):
+            await send_message(
+                "http://agents.example.com/a2a",
+                "Hi",
+                context_id=None,
+                bearer="sk-org-key",
+                transport=httpx2.MockTransport(handler),
+            )
+        assert seen == []
+
     async def test_a_completed_task_is_its_answer_and_its_context(self) -> None:
         seen: list[httpx2.Request] = []
         reply = await send_message(

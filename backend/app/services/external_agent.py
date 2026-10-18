@@ -94,6 +94,7 @@ class ExternalAgentService:
             await OrganizationSecretService(self.db).get_usable(
                 ctx, data.secret_id, kind=SecretKind.API_KEY
             )
+            _refuse_cleartext(card, field="card_url")
         agent = await external_agent_repo.create(
             self.db,
             organization_id=ctx.organization_id,
@@ -131,6 +132,8 @@ class ExternalAgentService:
                 ctx, agent.secret_id, kind=SecretKind.API_KEY
             )
         card = await self._card(agent.card_url, typed=False)
+        if agent.secret_id is not None:
+            _refuse_cleartext(card, field=None)
         moved_from = _host(agent.endpoint_url)
         updated = await external_agent_repo.update(
             self.db,
@@ -214,6 +217,21 @@ class ExternalAgentService:
 
 def _stored(card: AgentCard) -> dict[str, Any]:
     return card.model_dump(by_alias=True, exclude_none=True, mode="json")
+
+
+def _refuse_cleartext(card: AgentCard, *, field: str | None) -> None:
+    """A key is sent only to an HTTPS endpoint - over HTTP, anyone on the path reads it.
+
+    Raises:
+        BadRequestError: The card's endpoint is plain HTTP; named as `field` when
+            the caller typed the address in this request.
+    """
+    if urlsplit(card.url).scheme == "https":
+        return
+    message = "This agent's endpoint is not HTTPS, so a key cannot be sent to it"
+    if field is None:
+        raise BadRequestError(message=message, details={"endpoint_host": _host(card.url)})
+    raise refused_field(field, message)
 
 
 def _host(url: str) -> str:

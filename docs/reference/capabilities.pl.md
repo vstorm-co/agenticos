@@ -1,5 +1,5 @@
 ---
-source_sha: "4df026dac07c"
+source_sha: "931385a2ab36"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1578,8 +1578,11 @@ odświeżyć, co decyduje, dokąd trafi klucz, tylko ktoś, kto wciąż może te
 używać.
 Odświeżenie, po którym karta przenosi agenta na inny host, trafia do audytu, bo ten
 host dostaje odtąd żądania i klucz. Lista pokazuje adres karty i jej endpoint bez
-zapytania i danych logowania, w których podpisany adres trzyma poświadczenie. Usunięcie klucza, który wysyła
-rejestracja, usuwa rejestrację, zamiast zostawić ją wołającą bez klucza.
+zapytania i danych logowania, w których podpisany adres trzyma poświadczenie.
+
+Usunięcie klucza, który wysyła rejestracja, usuwa rejestrację, zamiast zostawić ją
+wołającą bez klucza. Klucz trafia tylko do endpointu HTTPS, więc karta ze zwykłym
+HTTP jest odrzucana dla rejestracji, która ma klucz.
 
 Dla delegującego modelu zdalny agent to po prostu kolejny delegat, wywoływany po
 nazwie tym samym narzędziem `task`. Każde wywołanie to jedno A2A `message/send` z

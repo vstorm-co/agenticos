@@ -445,7 +445,7 @@ class TestReadingCodex:
         assert len(event["result"][0]["text"]) == _task.MAX_STRING_CHARS
         assert event["tokens"] == 7
 
-    def test_past_its_budget_a_task_keeps_each_events_outline(self, monkeypatch) -> None:
+    def test_a_long_task_keeps_only_the_outline_of_its_later_events(self, monkeypatch) -> None:
         """Bounded lines still add up over an hour: past the budget an event is kept
         with its strings cut short, so the report still reads kinds, paths and
         usage, while every event still reaches the person whole."""

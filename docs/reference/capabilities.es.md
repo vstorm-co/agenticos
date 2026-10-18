@@ -1,5 +1,5 @@
 ---
-source_sha: "4df026dac07c"
+source_sha: "931385a2ab36"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1610,8 +1610,10 @@ Una actualización cuya card lleva el agent a otro host queda en la auditoría, 
 ese host recibe desde entonces las peticiones y la clave. La lista muestra la
 dirección de una card y su endpoint sin query ni userinfo, donde una dirección
 firmada lleva su credencial.
+
 Borrar la clave que envía un registro borra el registro, en lugar de dejarlo
-llamando sin ella.
+llamando sin ella. Una clave solo se envía a un endpoint HTTPS, así que una card con
+HTTP sin cifrar se rechaza para un registro que tiene clave.
 
 Para el modelo que delega, un agent remoto es un delegado más, llamado por su nombre
 con la misma herramienta `task`. Cada llamada es un `message/send` de A2A con la
