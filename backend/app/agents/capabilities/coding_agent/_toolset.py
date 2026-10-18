@@ -112,7 +112,9 @@ class CodexSignIn(Protocol):
 
     async def load(self) -> OpenAICodexCredentials: ...
 
-    async def save(self, credentials: OpenAICodexCredentials) -> None: ...
+    async def swap(
+        self, previous: OpenAICodexCredentials, rotated: OpenAICodexCredentials
+    ) -> bool: ...
 
     async def visible_to(self, user_id: UUID) -> bool: ...
 
@@ -411,7 +413,7 @@ async def _keep_rotated(
         return
     rotated = rotated_sign_in(result.stdout, written)
     if rotated is not None:
-        await source.save(rotated)
+        await source.swap(written, rotated)
 
 
 def _person(deps: object) -> UUID | None:

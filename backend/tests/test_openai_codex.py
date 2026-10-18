@@ -98,6 +98,46 @@ class TestTheVaultAsTheProvidersCredentialSource:
         assert stored.refresh_token.get_secret_value() == "refresh-rotated"
         assert written["update_data"]["hint"] == "abcd"
 
+
+class TestTakingBackWhatATaskRotated:
+    """A task's `auth.json` is whatever anything it ran left there."""
+
+    async def _swap(self, held, rotated):
+        org_id = uuid.uuid4()
+        row = _row(org_id, held)
+        source = VaultCodexCredentials(organization_id=org_id, secret_id=row.id)
+        update = AsyncMock()
+        with (
+            patch.object(openai_codex, "get_db_context", _session),
+            patch.object(
+                openai_codex.organization_secret_repo, "get_locked", AsyncMock(return_value=row)
+            ),
+            patch.object(openai_codex.organization_secret_repo, "update", update),
+        ):
+            stored = await source.swap(_pair("1"), rotated)
+        return stored, update
+
+    async def test_a_rotation_of_the_pair_written_is_kept(self):
+        stored, update = await self._swap(_pair("1"), _pair("2"))
+        assert stored is True
+        update.assert_awaited_once()
+
+    async def test_another_accounts_tokens_are_never_stored(self):
+        """A task that ran `codex login` as somebody else, or a repository that
+        planted tokens, must not turn the secret into another account."""
+        other = OpenAICodexCredentials(
+            access_token="a-x", refresh_token="r-x", account_id="acct-someone-else"
+        )
+        stored, update = await self._swap(_pair("1"), other)
+        assert stored is False
+        update.assert_not_awaited()
+
+    async def test_a_newer_pair_in_the_vault_is_left_alone(self):
+        """Reconnected, or refreshed by a model run, while the task ran."""
+        stored, update = await self._swap(_pair("reconnected"), _pair("2"))
+        assert stored is False
+        update.assert_not_awaited()
+
     async def test_a_sign_in_deleted_from_the_vault_is_named_as_gone(self):
         source = VaultCodexCredentials(organization_id=uuid.uuid4(), secret_id=uuid.uuid4())
 

@@ -1293,8 +1293,10 @@ class _Store:
             )
         return SIGNED_IN
 
-    async def save(self, credentials: OpenAICodexCredentials) -> None:
-        self.saved.append(credentials)
+    async def swap(self, previous: OpenAICodexCredentials, rotated: OpenAICodexCredentials) -> bool:
+        assert previous == SIGNED_IN
+        self.saved.append(rotated)
+        return True
 
 
 class TestCodexOnASignIn:

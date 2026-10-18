@@ -144,6 +144,50 @@ class VaultCodexCredentials(OpenAICodexCredentialSource):
             account_id=value.account_id,
         )
 
+    async def swap(self, previous: OpenAICodexCredentials, rotated: OpenAICodexCredentials) -> bool:
+        """Seal `rotated` over the secret only if it still holds `previous`.
+
+        What a task's sandbox hands back is whatever its `auth.json` held, which
+        anything the task ran could have rewritten - another account's tokens
+        among them. So it is taken only for the same account, and only over the
+        pair written for the task: a reconnect, or a refresh the provider made in
+        the meantime, is newer and stays. Compared under the row's lock.
+
+        Returns:
+            Whether the rotated pair was stored.
+        """
+        if rotated.account_id != previous.account_id:
+            logger.warning("codex_rotation_for_another_account_refused")
+            return False
+        async with get_db_context() as db:
+            secret = await organization_secret_repo.get_locked(
+                db, self.secret_id, organization_id=self.organization_id
+            )
+            if secret is None:
+                return False
+            held = unseal_secret(
+                secret.sealed_secret,
+                kind=SecretKind.OPENAI_CODEX,
+                scope=VaultScope.organization(self.organization_id),
+                key_version=secret.key_version,
+            )
+            assert isinstance(held, OpenAICodexSecret)
+            if held.refresh_token.get_secret_value() != previous.refresh_token:
+                return False
+            sealed = seal_secret(
+                _as_secret(rotated), scope=VaultScope.organization(self.organization_id)
+            )
+            await organization_secret_repo.update(
+                db,
+                secret=secret,
+                update_data={
+                    "sealed_secret": sealed.ciphertext,
+                    "hint": sealed.hint,
+                    "key_version": sealed.key_version,
+                },
+            )
+        return True
+
     async def save(self, credentials: OpenAICodexCredentials) -> None:
         """Seal a freshly rotated pair over the old one, under the same id."""
         async with get_db_context() as db:
