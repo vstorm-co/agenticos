@@ -192,9 +192,30 @@ class TestRegistering:
         }
 
     @pytest.mark.security
-    async def test_a_listed_card_address_keeps_no_credential(self) -> None:
-        signed = _row(card_url="https://bot:pw@agents.example.com:8443/card.json?sig=s3cret")
-        assert module.read(signed).card_url == "https://agents.example.com:8443/card.json"
+    async def test_a_listed_address_keeps_no_credential(self) -> None:
+        signed = _row(
+            card_url="https://bot:pw@agents.example.com:8443/card.json?sig=s3cret",
+            endpoint_url="https://bot:pw@agents.example.com/a2a?token=s3cret",
+        )
+        listed = module.read(signed)
+        assert listed.card_url == "https://agents.example.com:8443/card.json"
+        assert listed.endpoint_url == "https://agents.example.com/a2a"
+
+    @pytest.mark.security
+    async def test_a_refresh_needs_the_key_it_will_send_on(self) -> None:
+        """A refresh decides where the bound key goes next, so a registrant whose
+        access to the key was revoked cannot repoint it at a host of their own."""
+        row = _row(secret_id=uuid.uuid4(), created_by_user_id=CTX.user_id)
+        refused = AsyncMock(side_effect=NotFoundError(message="Secret not found"))
+        fetched = AsyncMock(return_value=CARD)
+        with (
+            patch.object(module.external_agent_repo, "get", AsyncMock(return_value=row)),
+            patch.object(module.OrganizationSecretService, "get_usable", refused),
+            patch.object(module, "fetch_card", fetched),
+            pytest.raises(NotFoundError),
+        ):
+            await ExternalAgentService(MagicMock()).refresh(CTX, row.id)
+        fetched.assert_not_awaited()
 
     @pytest.mark.security
     async def test_another_organizations_registration_is_not_found(self) -> None:

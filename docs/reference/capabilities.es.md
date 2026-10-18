@@ -1,5 +1,5 @@
 ---
-source_sha: "b70c863fb6a5"
+source_sha: "b3593229af33"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1601,10 +1601,12 @@ un registro se presta a cada run, como la de una capability, así que publicar
 rechaza un registro cuya clave quien publica no puede ver en el vault.
 
 Cada agent que delega en un registro depende de él, así que actualizarlo o
-eliminarlo le corresponde a quien lo registró, o a quien edita todos los agents.
+eliminarlo le corresponde a quien lo registró, o a quien edita todos los agents; y
+actualizarlo, que decide adónde va la clave, solo a quien aún puede usar esa clave.
 Una actualización cuya card lleva el agent a otro host queda en la auditoría, porque
 ese host recibe desde entonces las peticiones y la clave. La lista muestra la
-dirección de una card sin su query, donde una dirección firmada lleva su credencial.
+dirección de una card y su endpoint sin query ni userinfo, donde una dirección
+firmada lleva su credencial.
 Borrar la clave que envía un registro borra el registro, en lugar de dejarlo
 llamando sin ella.
 

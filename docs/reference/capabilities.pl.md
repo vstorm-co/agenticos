@@ -1,5 +1,5 @@
 ---
-source_sha: "b70c863fb6a5"
+source_sha: "b3593229af33"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1571,10 +1571,12 @@ pożyczany każdemu runowi, jak klucz capability, więc publikacja odmawia rejes
 której klucza publikujący nie widzi w vault.
 
 Od rejestracji zależy każdy agent, który do niej deleguje, więc odświeżyć albo usunąć
-ją może ten, kto ją zarejestrował, albo ktoś, kto edytuje wszystkie agenty.
+ją może ten, kto ją zarejestrował, albo ktoś, kto edytuje wszystkie agenty - a
+odświeżyć, co decyduje, dokąd trafi klucz, tylko ktoś, kto wciąż może tego klucza
+używać.
 Odświeżenie, po którym karta przenosi agenta na inny host, trafia do audytu, bo ten
-host dostaje odtąd żądania i klucz. Lista pokazuje adres karty bez zapytania, w
-którym podpisany adres trzyma swoje poświadczenie. Usunięcie klucza, który wysyła
+host dostaje odtąd żądania i klucz. Lista pokazuje adres karty i jej endpoint bez
+zapytania i danych logowania, w których podpisany adres trzyma poświadczenie. Usunięcie klucza, który wysyła
 rejestracja, usuwa rejestrację, zamiast zostawić ją wołającą bez klucza.
 
 Dla delegującego modelu zdalny agent to po prostu kolejny delegat, wywoływany po

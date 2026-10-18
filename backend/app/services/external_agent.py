@@ -47,7 +47,7 @@ def read(agent: ExternalAgent) -> ExternalAgentRead:
         name=agent.name,
         description=agent.description,
         card_url=_without_query(agent.card_url),
-        endpoint_url=agent.endpoint_url,
+        endpoint_url=_without_query(agent.endpoint_url),
         secret_id=agent.secret_id,
         skills=[
             ExternalAgentSkill(
@@ -124,6 +124,12 @@ class ExternalAgentService:
         was: that host now receives the organization's requests and its key.
         """
         agent = await self._changeable(ctx, agent_id)
+        # A refresh decides where the bound key is sent next, so whoever does it
+        # must still be able to use that key - as registering it required.
+        if agent.secret_id is not None:
+            await OrganizationSecretService(self.db).get_usable(
+                ctx, agent.secret_id, kind=SecretKind.API_KEY
+            )
         card = await self._card(agent.card_url, typed=False)
         moved_from = _host(agent.endpoint_url)
         updated = await external_agent_repo.update(
@@ -215,8 +221,8 @@ def _host(url: str) -> str:
 
 
 def _without_query(url: str) -> str:
-    """A card address as anyone who lists it sees it: a signed one keeps its
-    credential in the query, which only the server that fetches it needs."""
+    """An address as anyone who lists it sees it: a signed one keeps its credential
+    in the query or the userinfo, which only the server that calls it needs."""
     parts = urlsplit(url)
     # The netloc without any `user:password@` in front of it.
     host = parts.netloc.rpartition("@")[2]

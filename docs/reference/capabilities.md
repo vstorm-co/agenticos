@@ -1495,10 +1495,12 @@ every run, as a capability's is, so publishing refuses one whose key the publish
 cannot see in the vault.
 
 Every agent delegating to a registration depends on it, so refreshing or removing
-one is for whoever registered it, or for somebody who edits every agent. A refresh
+one is for whoever registered it, or for somebody who edits every agent - and a
+refresh, which decides where the key goes next, also for somebody who may still use
+that key. A refresh
 whose card moves the agent to another host is audited, since that host now gets the
-requests and the key. The list shows a card's address without its query, where a
-signed address keeps its credential. Deleting the key a registration sends deletes
+requests and the key. The list shows a card's address and its endpoint without
+their query or userinfo, where a signed address keeps its credential. Deleting the key a registration sends deletes
 the registration, rather than leave it calling without one.
 
 To the delegating model a remote agent is one more delegate, called by its handle

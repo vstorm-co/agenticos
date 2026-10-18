@@ -1,5 +1,5 @@
 ---
-source_sha: "b70c863fb6a5"
+source_sha: "b3593229af33"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1689,10 +1689,11 @@ die veröffentlichende Person im Vault nicht sehen kann.
 
 Jeder Agent, der an eine Registrierung delegiert, hängt von ihr ab, darum darf sie
 nur aktualisieren oder entfernen, wer sie registriert hat, oder wer jeden Agent
-bearbeitet. Eine Aktualisierung, deren Karte den Agent auf einen anderen Host
+bearbeitet - und aktualisieren, was bestimmt, wohin der Key geht, nur wer diesen Key
+noch verwenden darf. Eine Aktualisierung, deren Karte den Agent auf einen anderen Host
 verlegt, wird auditiert, denn dieser Host bekommt nun die Anfragen und den Key. Die
-Liste zeigt die Adresse einer Karte ohne ihre Query, in der eine signierte Adresse
-ihr Credential trägt. Wird der Key gelöscht, den eine Registrierung sendet, wird die
+Liste zeigt die Adresse einer Karte und ihren Endpoint ohne Query und Userinfo, in
+denen eine signierte Adresse ihr Credential trägt. Wird der Key gelöscht, den eine Registrierung sendet, wird die
 Registrierung mit gelöscht, statt ohne Key weiter aufzurufen.
 
 Für das delegierende Modell ist ein Remote Agent ein weiterer Delegierter, über
