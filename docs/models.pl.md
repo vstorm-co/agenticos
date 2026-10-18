@@ -1,5 +1,5 @@
 ---
-source_sha: "b982f2042ecb"
+source_sha: "caab0d1d874d"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -247,10 +247,12 @@ jego id.
     - **To nie jest `auth.json` z Codex CLI.** Ten plik przechowuje własny grant
       CLI. Refresh tokeny są jednorazowe, więc to z nich, które odświeżyłoby się
       pierwsze, wylogowałoby drugie.
-    - **To nie jest poświadczenie organizacji.** Sekret jest domyślnie tworzony
-      jako prywatny, a model na nim działa tylko dla kogoś, kto może zobaczyć to
-      logowanie w vault. Dla każdego innego i dla pracy w tle, jak opisywanie
-      obrazów z dokumentu, model jest odrzucany, a fallback na nim pomijany.
+    - **To nie jest poświadczenie organizacji.** Sekret jest domyślnie tworzony jako
+      prywatny, a model na nim działa tylko dla kogoś, kto może zobaczyć to
+      logowanie w vault i sam pyta. Dla każdego innego - odwiedzającego publiczną
+      stronę lub embed, wywołującego z kluczem API - i dla pracy w tle, jak
+      opisywanie obrazów z dokumentu, model jest odrzucany, a fallback na nim
+      pomijany.
     - **Pokazany wydatek to nie twój rachunek.** Run jest wyceniany według
       stawek API OpenAI dla tego samego modelu, bo to na tym może opierać się
       [budżet](governance.md#budgets). Samą subskrypcję OpenAI rozlicza według

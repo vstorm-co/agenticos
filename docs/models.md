@@ -237,9 +237,11 @@ again without changing its id.
       grant. Refresh tokens are single-use, so whichever of the two refreshed
       first would sign the other out.
     - **It is not an organization credential.** A secret is created private by
-      default, and a model on it runs only for somebody who may see the sign-in
-      in the vault. For anybody else, and for background work such as describing
-      a document's images, the model is refused, and a fallback on it is skipped.
+      default, and a model on it runs only for somebody who may see the sign-in in
+      the vault and is asking themselves. For anybody else - a visitor on a public
+      page or an embed, a caller with an API key - and for background work such as
+      describing a document's images, the model is refused, and a fallback on it is
+      skipped.
     - **The spend shown is not your bill.** A run is priced at the OpenAI API
       rates for the same model, which is what a [budget](governance.md#budgets)
       can reason about. The subscription itself is billed by OpenAI at a flat rate.

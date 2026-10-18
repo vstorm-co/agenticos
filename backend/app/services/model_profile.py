@@ -394,7 +394,13 @@ class ModelProfileService:
                 caller may not use.
         """
         spec = await self._resolve_in(ctx.organization_id, profile_id=profile_id)
-        if not await _may_spend(spec.credential, ctx.user_id):
+        # Only somebody actually asking: a publisher standing in for a visitor,
+        # and a key's issuer standing behind whoever holds it, are an account to
+        # bill, not the person whose subscription it is.
+        person = (
+            None if ctx.subject_is_publisher_fallback or ctx.api_key_id is not None else ctx.user_id
+        )
+        if not await _may_spend(spec.credential, person):
             raise AuthorizationError(
                 message=(
                     f"Model '{spec.label}' runs on somebody's own ChatGPT sign-in, "
@@ -402,7 +408,7 @@ class ModelProfileService:
                 ),
                 details={"profile_id": str(spec.profile_id)},
             )
-        usable = [entry for entry in spec.fallbacks if await _may_spend(entry[0], ctx.user_id)]
+        usable = [entry for entry in spec.fallbacks if await _may_spend(entry[0], person)]
         return spec if len(usable) == len(spec.fallbacks) else replace(spec, fallbacks=usable)
 
     async def resolve_for_organization(

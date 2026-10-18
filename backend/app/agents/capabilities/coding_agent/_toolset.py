@@ -30,6 +30,7 @@ from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RequestUsage
 from pydantic_ai.workspaces import WorkspaceError
 
+from app.agents.audience import RunAudience
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities.budget import assert_ambient_budget, record_ambient_usage
 from app.agents.capabilities.coding_agent._harness import (
@@ -414,12 +415,14 @@ async def _keep_rotated(
 
 
 def _person(deps: object) -> UUID | None:
-    """Who the run is for, when it is somebody signed in."""
-    user_id = getattr(deps, "user_id", None)
-    try:
-        return UUID(str(user_id)) if user_id else None
-    except ValueError:
-        return None
+    """Who the run is for, when it is somebody signed in - the audience, not the account.
+
+    `user_id` on the deps is who the run is billed to, which on a public page or
+    for an API key is the publisher or the key's issuer standing in for somebody
+    else. The audience names only a person who is actually asking.
+    """
+    audience = getattr(deps, "audience", None)
+    return audience.user_id if isinstance(audience, RunAudience) else None
 
 
 UNREPORTED = "coding-agent:unreported"

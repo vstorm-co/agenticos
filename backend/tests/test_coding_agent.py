@@ -36,6 +36,7 @@ from pydantic_ai.workspaces import (
     WrapperWorkspace,
 )
 
+from app.agents.audience import RunAudience
 from app.agents.capabilities import get
 from app.agents.capabilities._registry import CapabilityBinding, CapabilityBuildContext
 from app.agents.capabilities.budget import SpendLedger, metered_by
@@ -580,7 +581,11 @@ RUNNER = uuid4()
 
 
 def _ctx(
-    workspace: Workspace | None, *, retry: int = 0, frames: list[SubagentEvent] | None = None
+    workspace: Workspace | None,
+    *,
+    retry: int = 0,
+    frames: list[SubagentEvent] | None = None,
+    audience: RunAudience | None = None,
 ) -> RunContext[AgentDeps]:
     async def sink(frame: SubagentEvent) -> None:
         if frames is not None:
@@ -592,6 +597,8 @@ def _ctx(
             user_id=str(RUNNER),
             conversation_id=THREAD,
             subagent_events=sink,
+            # The person asking - not merely who the run is billed to.
+            audience=audience or RunAudience(user_id=RUNNER),
         ),
         model=TestModel(),
         usage=RunUsage(),
@@ -1337,9 +1344,12 @@ class TestCodexOnASignIn:
         assert "only for somebody who may see that sign-in" in answer
         assert shell.commands == []
 
-    async def test_a_run_for_nobody_signed_in_gets_no_sign_in(self) -> None:
-        ctx = _ctx(_Shell())
-        ctx.deps.user_id = "not-a-person"
+    @pytest.mark.security
+    async def test_a_run_for_nobody_actually_asking_gets_no_sign_in(self) -> None:
+        """A visitor on a public page, or whoever holds an API key, runs billed to
+        the publisher or the key's issuer - whose own sign-in that is. The audience
+        names nobody for them, and nobody's sign-in is written."""
+        ctx = _ctx(_Shell(), audience=RunAudience())
         store = _Store()
         answer = await _tools("codex", api_key=None, sign_in=lambda _org: store)[
             "run_coding_agent"

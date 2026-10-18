@@ -782,6 +782,21 @@ class TestASignInIsItsOwnersAlone:
         assert [credential for credential, _ in resolved.fallbacks] == [key]
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize(
+        "stand_in",
+        [{"subject_is_publisher_fallback": True}, {"api_key_id": uuid.uuid4()}],
+        ids=["visitor-as-publisher", "key-holder-as-issuer"],
+    )
+    async def test_a_stand_in_for_somebody_else_reaches_nobody_s(self, stand_in):
+        """The publisher behind a public page, or a key's issuer, is the account a
+        run is billed to - not the person asking, whose subscription it is not."""
+        ctx = AuthContext(
+            user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER, **stand_in
+        )
+        with pytest.raises(AuthorizationError):
+            await self._resolve(self._spec(self._sign_in()), sees=True, ctx=ctx)
+
+    @pytest.mark.anyio
     async def test_background_work_never_runs_on_one(self):
         """Ingestion describing a document's images is nobody's run, long after the
         upload: a collection editor must not route it through another member's

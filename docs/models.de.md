@@ -1,5 +1,5 @@
 ---
-source_sha: "b982f2042ecb"
+source_sha: "caab0d1d874d"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -259,9 +259,11 @@ ohne seine Id zu ändern.
       die Seite, die zuerst erneuert, die andere abmelden.
     - **Sie ist kein Zugang für die ganze Organisation.** Ein Secret wird
       standardmäßig privat angelegt, und ein Modell darauf läuft nur für jemanden,
-      der die Anmeldung im Vault sehen darf. Für alle anderen und für Arbeit im
-      Hintergrund, etwa das Beschreiben der Bilder eines Dokuments, wird das Modell
-      abgelehnt, und ein Fallback darauf wird übersprungen.
+      der die Anmeldung im Vault sehen darf und selbst fragt. Für alle anderen -
+      Besucher einer öffentlichen Seite oder eines Embeds, Aufrufer mit API-Key -
+      und für Arbeit im Hintergrund, etwa das Beschreiben der Bilder eines
+      Dokuments, wird das Modell abgelehnt, und ein Fallback darauf wird
+      übersprungen.
     - **Die angezeigten Ausgaben sind nicht Ihre Rechnung.** Ein Run wird zu den
       OpenAI-API-Preisen für dasselbe Modell bepreist, und damit kann ein
       [Budget](governance.md#budgets) rechnen. Das Abonnement selbst rechnet
