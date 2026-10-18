@@ -1724,7 +1724,8 @@
         "providerError": "Der Provider für Anrufe hat einen Fehler gemeldet.",
         "timeLimit": "Der Anruf hat sein Zeitlimit erreicht und wird beendet.",
         "budget": "Das Budget ist aufgebraucht. Der Anruf wird beendet.",
-        "minutes": "Die Anrufminuten dieses Monats sind aufgebraucht. Der Anruf wird beendet."
+        "minutes": "Die Anrufminuten dieses Monats sind aufgebraucht. Der Anruf wird beendet.",
+        "unavailable": "Anrufe sind gerade nicht verfügbar. Der Anruf wird beendet."
       },
       "ended": {
         "timeLimit": "Der Anruf wurde beendet: Das Zeitlimit ist erreicht",
@@ -1740,7 +1741,8 @@
         "notConfigured": "Dieser Agent ist nicht für Anrufe eingerichtet",
         "notPriced": "Der Preis dieses Modells ist unbekannt, daher sind Anrufe deaktiviert",
         "resumeRefused": "Der Anruf konnte nicht fortgesetzt werden",
-        "generic": "Der Anruf wurde beendet"
+        "generic": "Der Anruf wurde beendet",
+        "unavailable": "Dieser Assistent kann gerade keine Anrufe annehmen. Bitte tippen Sie Ihre Nachricht stattdessen ein."
       },
       "failure": {
         "micInsecure": "<strong>Diese Seite kann das Mikrofon nicht verwenden.</strong> Browser geben das Mikrofon nur über HTTPS oder auf localhost frei. Bitten Sie Ihren Administrator, die Konsole über HTTPS bereitzustellen.",
@@ -1765,7 +1767,8 @@
         "ending": {
           "timeLimit": "Wird beendet: Zeitlimit erreicht",
           "budget": "Wird beendet: das Budget ist aufgebraucht",
-          "minutes": "Wird beendet: die Minuten dieses Monats sind aufgebraucht"
+          "minutes": "Wird beendet: die Minuten dieses Monats sind aufgebraucht",
+          "unavailable": "Wird beendet: Anrufe sind gerade nicht verfügbar"
         },
         "strip": {
           "allowMic": "<strong>Erlauben Sie den Mikrofonzugriff</strong> in der Abfrage Ihres Browsers. Der Anruf beginnt, sobald er erlaubt ist.",
@@ -2789,7 +2792,8 @@
         "ending": {
           "timeLimit": "Wird beendet: Zeitlimit erreicht",
           "budget": "Wird beendet: Anrufe sind gerade nicht verfügbar",
-          "minutes": "Wird beendet: keine Anrufminuten mehr übrig"
+          "minutes": "Wird beendet: keine Anrufminuten mehr übrig",
+          "unavailable": "Wird beendet: Anrufe sind gerade nicht verfügbar"
         },
         "strip": {
           "ending": {
@@ -2820,7 +2824,8 @@
         "notConfigured": "Anrufe sind hier gerade nicht verfügbar. Bitte tippen Sie Ihre Nachricht stattdessen ein.",
         "notPriced": "Anrufe sind hier gerade nicht verfügbar. Bitte tippen Sie Ihre Nachricht stattdessen ein.",
         "resumeRefused": "Der Anruf ist abgebrochen und konnte nicht fortgesetzt werden.",
-        "generic": "Der Anruf wurde unerwartet beendet. Bitte versuchen Sie es erneut."
+        "generic": "Der Anruf wurde unerwartet beendet. Bitte versuchen Sie es erneut.",
+        "unavailable": "Dieser Assistent kann gerade keine Anrufe annehmen. Bitte tippen Sie Ihre Nachricht stattdessen ein."
       },
       "notice": {
         "limitWarning": "{seconds, plural, =60 {Noch 1 Minute in diesem Anruf} other {Noch # Sekunden in diesem Anruf}}",
@@ -2828,7 +2833,8 @@
         "providerError": "Beim Anruf ist ein Problem aufgetreten.",
         "timeLimit": "Der Anruf hat sein Zeitlimit erreicht und wird beendet.",
         "budget": "Anrufe sind gerade nicht verfügbar. Der Anruf wird beendet.",
-        "minutes": "Für diesen Monat sind keine Anrufminuten mehr übrig. Der Anruf wird beendet."
+        "minutes": "Für diesen Monat sind keine Anrufminuten mehr übrig. Der Anruf wird beendet.",
+        "unavailable": "Anrufe sind gerade nicht verfügbar. Der Anruf wird beendet."
       }
     }
   },

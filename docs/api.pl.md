@@ -1,5 +1,5 @@
 ---
-source_sha: "0aaf19924f3b"
+source_sha: "47eb19869118"
 ---
 
 # API HTTP { #the-http-api }
@@ -394,10 +394,13 @@ Rozmowa, która się nie rozpocznie, odpowiada `ended` ze stałym `reason`:
 `data_channel`, `resume_refused`, `minutes_exhausted`, `call_limit`,
 `not_priced`, `budget`, `busy` albo `line_busy`, z `message`, który można
 bezpiecznie pokazać. Start, który nie powiedzie się z jakiegokolwiek innego
-powodu, odpowiada `ended` z `error`. Odwiedzający odrzucony jako
-`not_configured`, `not_priced`, `minutes_exhausted` albo `budget` dostaje ten
-sam powód z komunikatem "Calls are not available right now.", bo pełny
-komunikat jest pisany dla operatora agenta. Rozmowa w zarchiwizowanej
+powodu, odpowiada `ended` z `error`.
+
+Odwiedzający odrzucony jako
+`not_configured`, `not_priced`, `minutes_exhausted` albo `budget`, oraz
+rozmowa odwiedzającego zakończona jako `budget` albo `minutes`, dostaje zamiast
+tego `unavailable` z komunikatem "Calls are not available right now.": kod i
+pełny komunikat są do wiadomości operatora agenta. Rozmowa w zarchiwizowanej
 konwersacji jest odrzucana jako `forbidden`, tak jak wiadomość pisana do niej.
 
 Rozmowa, która trwała, kończy się z `user`, `time_limit`, `budget`, `minutes`,

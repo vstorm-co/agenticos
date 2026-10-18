@@ -382,10 +382,12 @@ A call that will not start answers with `ended` and a stable `reason`:
 `voice_off`, `no_agent`, `forbidden`, `not_configured`, `bad_offer`,
 `data_channel`, `resume_refused`, `minutes_exhausted`, `call_limit`,
 `not_priced`, `budget`, `busy` or `line_busy`, with a `message` safe to show. A
-start that fails for any other reason answers `ended` with `error`. A visitor
-refused as `not_configured`, `not_priced`, `minutes_exhausted` or `budget` gets
-the same reason with the message "Calls are not available right now.", because
-the full message is written for the agent's operator. A call into an archived
+start that fails for any other reason answers `ended` with `error`.
+
+A visitor refused as `not_configured`, `not_priced`, `minutes_exhausted` or `budget`, or a
+visitor's call that ends as `budget` or `minutes`, gets `unavailable` instead,
+with the message "Calls are not available right now.": the code and the full
+message are the agent's operator's to know. A call into an archived
 conversation is refused as `forbidden`, as a typed message into one is refused.
 
 A call that ran ends with `user`, `time_limit`, `budget`, `minutes`,

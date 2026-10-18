@@ -401,6 +401,13 @@ describe("the call view", () => {
     expect(onCallAgain).toHaveBeenCalledOnce();
   });
 
+  it("sums up a reconnect refused for the call's time as the time limit", () => {
+    // `call_limit`: the call had used its whole time when it tried to resume.
+    render(<View session={fake(live(frame({ type: "ended", reason: "call_limit" })))} />);
+    expect(screen.queryByText(/The call ended unexpectedly/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/time limit/i).length).toBeGreaterThan(0);
+  });
+
   it("names a limit or a reason that ended the call in the summary", () => {
     const { rerender } = render(
       <View session={fake(live(frame({ type: "ended", reason: "budget" })))} />,

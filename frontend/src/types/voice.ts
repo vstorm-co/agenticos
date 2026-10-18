@@ -24,6 +24,8 @@ export type VoiceActivity =
 export type VoiceEndReason =
   | "user"
   | "time_limit"
+  // A reconnect refused because the call had used its whole time.
+  | "call_limit"
   | "budget"
   | "minutes"
   | "disconnected"
@@ -43,7 +45,10 @@ export type VoiceEndReason =
   | "not_priced"
   | "busy"
   | "line_busy"
-  | "no_start";
+  | "no_start"
+  // What a visitor is told for any refusal or end that is the operator's to
+  // know about - minutes, budget, a missing price or setup (`session.py`).
+  | "unavailable";
 
 /** Why the call button is crossed out. */
 export type VoiceUnavailable =

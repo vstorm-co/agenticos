@@ -205,9 +205,18 @@ async def _run(
     caller=None,
     expire=None,
     start_clock=None,
+    during_start=None,
 ):
+    held: list[VoiceCallSession] = []
+
+    async def start(*_args, **_kwargs):
+        # Whatever the test does to the session while its starter still runs.
+        if during_start is not None:
+            during_start(held[0])
+        return started
+
     with (
-        patch(f"{_M}.VoiceCallStarter.start", AsyncMock(return_value=started)),
+        patch(f"{_M}.VoiceCallStarter.start", AsyncMock(side_effect=start)),
         patch(f"{_M}.hang_up", hang or AsyncMock(return_value=True)) as hung,
         patch(f"{_M}.seed_history", seed),
         patch(
@@ -239,6 +248,7 @@ async def _run(
             heartbeat_seconds=heartbeat,
             notice_seconds=notice_seconds,
         )
+        held.append(session)
         await asyncio.wait_for(session.run(), timeout=5)
     return hung, repo
 
@@ -520,8 +530,10 @@ async def test_a_visitor_refused_for_the_operators_reasons_is_not_told_them(reas
             VoiceCallSession(socket, _visitor(), sessions=_sessions).run(), timeout=2
         )
 
+    # The code too: `minutes_exhausted` or `budget` said the organization had run
+    # out to anyone reading the page's frames.
     assert socket.sent == [
-        {"type": "ended", "reason": reason, "message": "Calls are not available right now."}
+        {"type": "ended", "reason": "unavailable", "message": "Calls are not available right now."}
     ]
 
 
@@ -1224,6 +1236,53 @@ async def test_a_visitor_never_learns_the_organizations_minutes_from_the_cap_or_
     assert not [frame for frame in socket.sent if frame["type"] == "limit"]
     assert realtime.sent and "minute" not in realtime.sent[0].lower()
     assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.MINUTES
+    # Recorded as minutes; sent as nothing more than unavailable.
+    assert {f["kind"] for f in socket.sent if f["type"] == "notice"} <= {"unavailable"}
+    assert [f["reason"] for f in socket.sent if f["type"] == "ended"] == ["unavailable"]
+
+
+async def test_a_member_is_still_told_the_reason_by_its_code():
+    socket = FakeSocket([_START])
+    started = _started(
+        FakeRealtime(hold=True), cap=0.04, cap_reason=VoiceEndReason.MINUTES, shown_cap=600
+    )
+
+    await _run(socket, started)
+
+    assert [f["reason"] for f in socket.sent if f["type"] == "ended"] == ["minutes"]
+
+
+async def test_a_shutdown_asked_for_while_the_call_starts_opens_no_provider_call():
+    """`end_all` reaches a call whose starter is still running, before there is a
+    scope to cancel: the reason is kept, and honoured before any offer is answered."""
+    socket = FakeSocket([_START])
+    started = _started(FakeRealtime(hold=True))
+
+    _, repo = await _run(
+        socket, started, during_start=lambda s: s.request_end(VoiceEndReason.SHUTDOWN)
+    )
+
+    started.prepared.answer_offer.assert_not_awaited()
+    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.SHUTDOWN
+
+
+async def test_an_offer_the_provider_never_answers_ends_the_call(monkeypatch):
+    """Shielded so a provider call is never orphaned midway, the answer is still
+    bounded: End, a closed tab and shutdown are not held off for minutes."""
+    monkeypatch.setattr(f"{_M}.OFFER_SECONDS", 0.05)
+    socket = FakeSocket([_START])
+    started = _started(FakeRealtime(hold=True))
+
+    async def never(realtime, sdp):
+        await asyncio.sleep(10)
+
+    started.prepared.answer_offer = never
+
+    began = time.monotonic()
+    _, repo = await _run(socket, started)
+
+    assert time.monotonic() - began < 2
+    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.ERROR
 
 
 class _TimedSocket(FakeSocket):

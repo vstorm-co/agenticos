@@ -157,6 +157,7 @@ const FAILURE_KEYS = {
 /** The reasons a call is refused at setup, or ended, with words of their own. */
 export const ENDED_KEYS: Partial<Record<VoiceEndReason, string>> = {
   time_limit: "timeLimit",
+  call_limit: "timeLimit",
   budget: "budget",
   minutes: "minutes",
   minutes_exhausted: "minutes",
@@ -171,6 +172,7 @@ export const ENDED_KEYS: Partial<Record<VoiceEndReason, string>> = {
   not_configured: "notConfigured",
   not_priced: "notPriced",
   resume_refused: "resumeRefused",
+  unavailable: "unavailable",
 };
 
 /**

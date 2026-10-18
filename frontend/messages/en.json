@@ -1724,7 +1724,8 @@
         "providerError": "The voice provider reported an error.",
         "timeLimit": "This call has reached its time limit. The call is ending.",
         "budget": "The budget has run out. The call is ending.",
-        "minutes": "This month's call minutes are used up. The call is ending."
+        "minutes": "This month's call minutes are used up. The call is ending.",
+        "unavailable": "Calls aren't available right now. The call is ending."
       },
       "ended": {
         "timeLimit": "The call ended: it reached its time limit",
@@ -1740,7 +1741,8 @@
         "notConfigured": "This agent isn't set up for calls",
         "notPriced": "This model's price is unknown, so calls are off",
         "resumeRefused": "The call couldn't be resumed",
-        "generic": "The call ended"
+        "generic": "The call ended",
+        "unavailable": "This assistant can't take calls right now. Please type your message instead."
       },
       "failure": {
         "micInsecure": "<strong>This page can't use the microphone.</strong> Browsers open the microphone only on HTTPS or on localhost. Ask your administrator to serve the console over HTTPS.",
@@ -1765,7 +1767,8 @@
         "ending": {
           "timeLimit": "Ending: time limit reached",
           "budget": "Ending: the budget ran out",
-          "minutes": "Ending: this month's minutes are used up"
+          "minutes": "Ending: this month's minutes are used up",
+          "unavailable": "Ending: calls aren't available right now"
         },
         "strip": {
           "allowMic": "<strong>Allow the microphone</strong> in your browser's prompt. The call starts when it's on.",
@@ -2789,7 +2792,8 @@
         "ending": {
           "timeLimit": "Ending: time limit reached",
           "budget": "Ending: calls aren't available right now",
-          "minutes": "Ending: no call minutes are left"
+          "minutes": "Ending: no call minutes are left",
+          "unavailable": "Ending: calls aren't available right now"
         },
         "strip": {
           "ending": {
@@ -2820,7 +2824,8 @@
         "notConfigured": "Calls aren't available here right now. Please type your message instead.",
         "notPriced": "Calls aren't available here right now. Please type your message instead.",
         "resumeRefused": "The call dropped and couldn't be picked up again.",
-        "generic": "The call ended unexpectedly. Please try again."
+        "generic": "The call ended unexpectedly. Please try again.",
+        "unavailable": "This assistant can't take calls right now. Please type your message instead."
       },
       "notice": {
         "limitWarning": "{seconds, plural, =60 {1 minute left in this call} other {# seconds left in this call}}",
@@ -2828,7 +2833,8 @@
         "providerError": "The call ran into a problem.",
         "timeLimit": "This call has reached its time limit. The call is ending.",
         "budget": "Calls aren't available right now. The call is ending.",
-        "minutes": "No call minutes are left this month. The call is ending."
+        "minutes": "No call minutes are left this month. The call is ending.",
+        "unavailable": "Calls aren't available right now. The call is ending."
       }
     }
   },

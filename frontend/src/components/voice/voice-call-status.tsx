@@ -14,6 +14,7 @@ export const ENDING_NOTICES: Record<string, string> = {
   time_limit: "timeLimit",
   budget: "budget",
   minutes: "minutes",
+  unavailable: "unavailable",
 };
 
 /** The notices with words of their own; any other is left unsaid. */

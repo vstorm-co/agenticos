@@ -1,5 +1,5 @@
 ---
-source_sha: "0aaf19924f3b"
+source_sha: "47eb19869118"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -419,11 +419,13 @@ stabilen `reason`: `voice_off`, `no_agent`, `forbidden`, `not_configured`,
 `bad_offer`, `data_channel`, `resume_refused`, `minutes_exhausted`,
 `call_limit`, `not_priced`, `budget`, `busy` oder `line_busy`, mit einer
 `message`, die sich gefahrlos anzeigen lässt. Ein Start, der aus irgendeinem
-anderen Grund scheitert, antwortet mit `ended` und `error`. Ein Besucher, der
+anderen Grund scheitert, antwortet mit `ended` und `error`.
+
+Ein Besucher, der
 als `not_configured`, `not_priced`, `minutes_exhausted` oder `budget` abgelehnt
-wird, bekommt denselben Grund mit der Meldung "Calls are not available right
-now.", denn die vollständige Meldung ist für den Betreiber des Agents
-geschrieben. Ein Anruf in eine archivierte Unterhaltung wird als `forbidden`
+wird oder dessen Anruf als `budget` oder `minutes` endet, bekommt stattdessen
+`unavailable` mit der Meldung "Calls are not available right now.": Code und
+vollständige Meldung sind Sache des Betreibers des Agents. Ein Anruf in eine archivierte Unterhaltung wird als `forbidden`
 abgelehnt, so wie eine getippte Nachricht dorthin.
 
 Ein Anruf, der gelaufen ist, endet mit `user`, `time_limit`, `budget`,

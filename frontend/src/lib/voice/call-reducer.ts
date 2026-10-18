@@ -89,9 +89,11 @@ export type CallAction =
 /** The reasons a call ends because a limit ran out, shown apart from an ordinary end. */
 export const LIMIT_REASONS: ReadonlySet<VoiceEndReason> = new Set<VoiceEndReason>([
   "time_limit",
+  "call_limit",
   "budget",
   "minutes",
   "minutes_exhausted",
+  "unavailable",
 ]);
 
 export const initialCall: CallState = {

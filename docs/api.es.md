@@ -1,5 +1,5 @@
 ---
-source_sha: "0aaf19924f3b"
+source_sha: "47eb19869118"
 ---
 
 # La API HTTP { #the-http-api }
@@ -403,10 +403,12 @@ Una llamada que no va a empezar responde con `ended` y un `reason` estable:
 `data_channel`, `resume_refused`, `minutes_exhausted`, `call_limit`,
 `not_priced`, `budget`, `busy` o `line_busy`, con un `message` que se puede
 mostrar. Un inicio que falla por cualquier otro motivo responde con `ended` y
-`error`. Un visitante rechazado como `not_configured`, `not_priced`,
-`minutes_exhausted` o `budget` recibe el mismo motivo con el mensaje "Calls are
-not available right now.", porque el mensaje completo está escrito para el
-operador del agent. Una llamada a una conversación archivada se rechaza como
+`error`.
+
+Un visitante rechazado como `not_configured`, `not_priced`,
+`minutes_exhausted` o `budget`, o cuya llamada termina como `budget` o `minutes`,
+recibe en su lugar `unavailable` con el mensaje "Calls are not available right
+now.": el código y el mensaje completo son cosa del operador del agent. Una llamada a una conversación archivada se rechaza como
 `forbidden`, igual que un mensaje escrito en ella.
 
 Una llamada que se llegó a mantener termina con `user`, `time_limit`, `budget`,

@@ -1724,7 +1724,8 @@
         "providerError": "Provider głosu zgłosił błąd.",
         "timeLimit": "Rozmowa osiągnęła limit czasu i się kończy.",
         "budget": "Budżet się wyczerpał. Rozmowa się kończy.",
-        "minutes": "Minuty rozmów na ten miesiąc się wyczerpały. Rozmowa się kończy."
+        "minutes": "Minuty rozmów na ten miesiąc się wyczerpały. Rozmowa się kończy.",
+        "unavailable": "Rozmowy są teraz niedostępne. Rozmowa się kończy."
       },
       "ended": {
         "timeLimit": "Rozmowa zakończona: osiągnięto limit czasu",
@@ -1740,7 +1741,8 @@
         "notConfigured": "Ten agent nie jest skonfigurowany do rozmów",
         "notPriced": "Cena tego modelu jest nieznana, więc rozmowy są wyłączone",
         "resumeRefused": "Nie udało się wznowić rozmowy",
-        "generic": "Rozmowa została zakończona"
+        "generic": "Rozmowa została zakończona",
+        "unavailable": "Ten asystent nie może teraz odbierać rozmów. Zamiast tego napisz wiadomość."
       },
       "failure": {
         "micInsecure": "<strong>Ta strona nie może używać mikrofonu.</strong> Przeglądarki udostępniają mikrofon tylko przez HTTPS albo na localhost. Poproś administratora, aby udostępnił konsolę przez HTTPS.",
@@ -1765,7 +1767,8 @@
         "ending": {
           "timeLimit": "Rozmowa się kończy: osiągnięto limit czasu",
           "budget": "Rozmowa się kończy: budżet się wyczerpał",
-          "minutes": "Rozmowa się kończy: minuty na ten miesiąc się skończyły"
+          "minutes": "Rozmowa się kończy: minuty na ten miesiąc się skończyły",
+          "unavailable": "Rozmowa się kończy: połączenia głosowe są teraz niedostępne"
         },
         "strip": {
           "allowMic": "<strong>Zezwól na mikrofon</strong> w oknie przeglądarki. Rozmowa zacznie się, gdy będzie włączony.",
@@ -2789,7 +2792,8 @@
         "ending": {
           "timeLimit": "Rozmowa się kończy: osiągnięto limit czasu",
           "budget": "Rozmowa się kończy: połączenia głosowe są teraz niedostępne",
-          "minutes": "Rozmowa się kończy: minuty na ten miesiąc się skończyły"
+          "minutes": "Rozmowa się kończy: minuty na ten miesiąc się skończyły",
+          "unavailable": "Rozmowa się kończy: połączenia głosowe są teraz niedostępne"
         },
         "strip": {
           "ending": {
@@ -2820,7 +2824,8 @@
         "notConfigured": "Rozmowy są tu teraz niedostępne. Zamiast tego napisz wiadomość.",
         "notPriced": "Rozmowy są tu teraz niedostępne. Zamiast tego napisz wiadomość.",
         "resumeRefused": "Rozmowa została przerwana i nie udało się jej wznowić.",
-        "generic": "Rozmowa niespodziewanie się zakończyła. Spróbuj ponownie."
+        "generic": "Rozmowa niespodziewanie się zakończyła. Spróbuj ponownie.",
+        "unavailable": "Ten asystent nie może teraz odbierać rozmów. Zamiast tego napisz wiadomość."
       },
       "notice": {
         "limitWarning": "{seconds, plural, =60 {Została 1 minuta rozmowy} one {Została # sekunda rozmowy} few {Zostały # sekundy rozmowy} many {Zostało # sekund rozmowy} other {Zostało # sekundy rozmowy}}",
@@ -2828,7 +2833,8 @@
         "providerError": "W rozmowie wystąpił problem.",
         "timeLimit": "Rozmowa osiągnęła limit czasu i się kończy.",
         "budget": "Rozmowy są teraz niedostępne. Rozmowa się kończy.",
-        "minutes": "Minuty rozmów na ten miesiąc się wyczerpały. Rozmowa się kończy."
+        "minutes": "Minuty rozmów na ten miesiąc się wyczerpały. Rozmowa się kończy.",
+        "unavailable": "Rozmowy są teraz niedostępne. Rozmowa się kończy."
       }
     }
   },

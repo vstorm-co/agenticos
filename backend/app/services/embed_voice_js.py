@@ -82,6 +82,7 @@ VOICE_JS = r"""(function () {
     minutes: "This assistant can't take calls right now. Please type your message instead.",
     minutes_exhausted: "This assistant can't take calls right now. Please type your message instead.",
     budget: "This assistant can't take calls right now. Please type your message instead.",
+    unavailable: "This assistant can't take calls right now. Please type your message instead.",
     line_busy: "All lines are busy. Try again in a few minutes, or type your message.",
     voice_off: "Calls are switched off here.",
     revoked: "Calls were switched off here.",

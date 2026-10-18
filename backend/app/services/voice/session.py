@@ -92,6 +92,12 @@ end: a reason of its own would need the `voice_calls` CHECK constraint widened."
 NOTICE_WAIT_SECONDS = 8.0
 """How long a spoken limit notice may take before the call is ended anyway."""
 
+OFFER_SECONDS = 30.0
+"""How long answering a browser's offer may take. It is shielded - cut off midway
+it could leave a provider call nobody knows the id of - so it gets a bound of its
+own: it also lists the agent's MCP tools, and a server that never answers would
+hold End, a closed tab and shutdown off until the library's own timeouts."""
+
 # The reason is stated in words a visitor may hear: on a public page "budget"
 # would say more about the organization than the visitor needs to know. The
 # notice frame names the reason by its code, which the visitor's page turns into
@@ -222,6 +228,16 @@ message - its run, agent and version ids, its model, tokens, cost and tool calls
 is the organization's, as `ready` keeps the run's id from a visitor."""
 
 
+_NEUTRAL_TO_VISITORS = frozenset(
+    {"budget", "minutes", "minutes_exhausted", "not_configured", "not_priced"}
+)
+"""Reasons that are the operator's to know: a visitor is told `unavailable` instead,
+code and all - the words were already neutral, the code said the month's minutes or
+the budget had run out to anyone reading the page's frames."""
+
+VISITOR_REASON = "unavailable"
+
+
 def _visible(frame: ServerFrame, shows: frozenset[str]) -> ServerFrame | None:
     """A frame as an embed's operator agreed to show it, or `None` when it is not sent.
 
@@ -230,7 +246,8 @@ def _visible(frame: ServerFrame, shows: frozenset[str]) -> ServerFrame | None:
     step does not open into what it was called with or what came back - raw
     output is the most likely thing to carry something internal. A saved turn
     is sent as its words alone (`_VISITOR_TURN_FIELDS`), whatever the switches:
-    the steps reach the page as `tool` frames, never from the saved message.
+    the steps reach the page as `tool` frames, never from the saved message. An
+    end or a notice for one of `_NEUTRAL_TO_VISITORS` says `unavailable`.
     """
     steps = "tool_call" in shows
     details = "tool_result" in shows
@@ -243,6 +260,10 @@ def _visible(frame: ServerFrame, shows: frozenset[str]) -> ServerFrame | None:
     if isinstance(frame, TurnSavedFrame):
         message = {field: frame.message.get(field) for field in _VISITOR_TURN_FIELDS}
         return frame.model_copy(update={"message": message})
+    if isinstance(frame, EndedFrame) and frame.reason in _NEUTRAL_TO_VISITORS:
+        return frame.model_copy(update={"reason": VISITOR_REASON})
+    if isinstance(frame, NoticeFrame) and frame.kind in _NEUTRAL_TO_VISITORS:
+        return frame.model_copy(update={"kind": VISITOR_REASON})
     return frame
 
 
@@ -393,6 +414,11 @@ class VoiceCallSession:
             answer = None
             async with anyio.create_task_group() as setup:
                 self._scope = setup.cancel_scope
+                # An end asked for before there was a scope to cancel - shutdown
+                # while the starter still ran - is honoured here, before any
+                # provider is called.
+                if self._reason is not None:
+                    setup.cancel_scope.cancel()
                 setup.start_soon(self._keep_alive, started)
                 setup.start_soon(self._watch_setup)
                 async with self._sessions() as own:
@@ -409,14 +435,18 @@ class VoiceCallSession:
                     cost_limit=started.cost_limit,
                 )
                 if started.resolved.entry.transport == "webrtc":
+                    # A cancellation lands only at an await, and the offer below is
+                    # shielded: an end asked for by now is taken here, before it.
+                    await anyio.lowlevel.checkpoint()
                     # Shielded: the provider may create its call before it answers,
                     # and an offer cut off midway leaves a call nobody knows the id
                     # of to hang up, billing until the provider's own limit. An end
                     # meanwhile is honoured once the id is held, by the teardown.
                     with anyio.CancelScope(shield=True):
-                        answer = await started.prepared.answer_offer(
-                            realtime, frame.sdp_offer or ""
-                        )
+                        with anyio.fail_after(OFFER_SECONDS):
+                            answer = await started.prepared.answer_offer(
+                                realtime, frame.sdp_offer or ""
+                            )
                         provider_call_id = answer.session.call_id
                         async with self._sessions() as own:
                             await voice_call_repo.set_provider_call_id(
