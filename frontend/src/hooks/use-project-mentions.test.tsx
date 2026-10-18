@@ -7,17 +7,37 @@ import { useProjectMentions } from "./use-project-mentions";
 const useProjects = vi.fn();
 vi.mock("./use-projects", () => ({ useProjects: (query: unknown) => useProjects(query) }));
 
-const LAUNCH = { id: "p-1", name: "Launch", description: "Q4", default_agent_id: "a-9" };
-const NOTES = { id: "p-2", name: "Notes", description: null, default_agent_id: null };
+const LAUNCH = {
+  id: "p-1",
+  name: "Launch",
+  description: "Q4",
+  default_agent_id: "a-9",
+  can_use: true,
+};
+const NOTES = {
+  id: "p-2",
+  name: "Notes",
+  description: null,
+  default_agent_id: null,
+  can_use: true,
+};
+// Shared with the reader to read: a chat started in it would be refused.
+const BOARD = {
+  id: "p-3",
+  name: "Board",
+  description: null,
+  default_agent_id: null,
+  can_use: false,
+};
 
 beforeEach(() => {
-  useProjects.mockReset().mockReturnValue({ projects: [LAUNCH, NOTES] });
+  useProjects.mockReset().mockReturnValue({ projects: [LAUNCH, NOTES, BOARD] });
   useConversationStore.getState().setPendingProjectId(null);
   useAgentSelectionStore.getState().select("a-1");
 });
 
 describe("useProjectMentions", () => {
-  it("offers the reader's projects only while the chat can still choose one", () => {
+  it("offers the projects the reader may work in, only while the chat can choose one", () => {
     const { result, rerender } = renderHook(({ on }) => useProjectMentions(on), {
       initialProps: { on: true },
     });

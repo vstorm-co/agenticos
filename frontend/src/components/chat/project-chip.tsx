@@ -47,7 +47,7 @@ export function ProjectChip({
   });
   const projectId = conversationId === null ? pending : (started ?? null);
 
-  const { data: project } = useQuery({
+  const { data: project, isError: unreadable } = useQuery({
     queryKey: qk.projects.detail(projectId ?? ""),
     queryFn: () => getProject(projectId as string),
     enabled: projectId !== null,
@@ -60,6 +60,12 @@ export function ProjectChip({
     setPending(arrived);
     setUrlParam("project", null);
   }, [arrived, setPending]);
+  // A choice that cannot be read - a deleted project, one no longer shared, a
+  // mangled link - is dropped: kept, it drew no chip to clear it by and every
+  // first message was refused for it.
+  useEffect(() => {
+    if (conversationId === null && pending !== null && unreadable) setPending(null);
+  }, [conversationId, pending, unreadable, setPending]);
   useEffect(() => {
     if (conversationId === null && project?.default_agent_id && project.id === arrived) {
       selectAgent(project.default_agent_id);

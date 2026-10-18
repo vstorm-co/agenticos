@@ -19,13 +19,17 @@ export function useProjectMentions(enabled: boolean) {
 
   const items = useMemo<Mentionable[]>(
     () =>
+      // Only those the reader may work in, as the `+` menu's picker offers: a
+      // chat started in a project shared read-only is refused at its first word.
       enabled
-        ? projects.map((project) => ({
-            kind: "project",
-            id: project.id,
-            name: project.name,
-            detail: project.description,
-          }))
+        ? projects
+            .filter((project) => project.can_use)
+            .map((project) => ({
+              kind: "project",
+              id: project.id,
+              name: project.name,
+              detail: project.description,
+            }))
         : [],
     [enabled, projects],
   );
