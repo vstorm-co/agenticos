@@ -1,5 +1,5 @@
 ---
-source_sha: "51103c7b1def"
+source_sha: "fa5a6c8ba066"
 ---
 
 # Über AgenticOS { #about-agenticos }
@@ -52,7 +52,7 @@ alles an, womit Sie es vergleichen.
 | Prozesse | Runs sind erstklassig: Historie, Kosten, Status, und Mandantentrennung, die Datenbank-Constraints erzwingen statt Service-Code |
 | Ressourcengrenzen | [Monatsbudgets](../governance.md) pro Agent, geprüft vor jeder Modellanfrage. Ein Run, der fehlschlägt, verzeichnet trotzdem, was er gekostet hat, denn ein Budget, das Fehlschläge ignoriert, ist kein Budget |
 | Zugriffskontrolle | Ein [Permission-Katalog](../permissions.md) in Code, Rollen daraus zusammengesetzt, Grants pro Ressource, die ausweiten und nie einengen. `approval: required` ist das `sudo` — der Run parkt und wartet auf einen Menschen |
-| Treiber | [27 Modell-Provider](../models.md) hinter einem Modellprofil und [jeder MCP-Server per URL](../mcp.md). Ändern Sie das Profil, und jeder Agent, der es nutzt, zieht mit, ohne dass einer neu veröffentlicht wird |
+| Treiber | [28 Modell-Provider](../models.md) hinter einem Modellprofil und [jeder MCP-Server per URL](../mcp.md). Ändern Sie das Profil, und jeder Agent, der es nutzt, zieht mit, ohne dass einer neu veröffentlicht wird |
 | Dateisystem | [Collections, Skills und Context](../file-processing.md) in Ihrem eigenen Postgres, Embeddings mit einem Schlüssel pro Organisation |
 | Shell | Ein Runner hinter [Web-Chat, der API, Slack, Telegram, einem Widget, einer gehosteten Seite und einem Zeitplan](../channels.md) |
 | Audit-Log | Jeder Run, jede Approval-Entscheidung, jede Schlüsselrotation — mit Werten, nie mit Zeilen, und nie mit einem Schlüssel im Klartext |

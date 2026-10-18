@@ -82,7 +82,9 @@ writeFileSync(
     .replace("<!--CARDS-->", columns)
     // Vstorm's colour logo with its wordmark lightened for the dark ground,
     // from content-os's tools/brand/logo_vstorm_color.svg.
-    .replace("<!--VSTORM-->", readFileSync(join(here, "vstorm.svg"), "utf8")),
+    .replace("<!--VSTORM-->", readFileSync(join(here, "vstorm.svg"), "utf8"))
+    // The landing page's dusk over the mountains, the photograph the README's figures sit on.
+    .replaceAll("/*PHOTO*/", `file://${join(here, "../readme/backgrounds/hero-bg.webp")}`),
 );
 
 const browser = await chromium.launch();

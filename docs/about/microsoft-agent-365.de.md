@@ -2,7 +2,7 @@
 title: "AgenticOS vs Microsoft Agent 365"
 seo_title: "AgenticOS vs Microsoft Agent 365: Agents selbst steuern"
 description: "Agent 365 ist die Steuerungsebene von Microsoft für Agents in Microsoft 365. Vergleichen Sie AgenticOS: Agents auf Ihren Servern bauen, betreiben und steuern."
-source_sha: "80d442e7ad99"
+source_sha: "b13848977282"
 ---
 
 # AgenticOS vs Microsoft Agent 365 { #agenticos-vs-microsoft-agent-365 }
@@ -22,7 +22,7 @@ Gepflegt vom AgenticOS-Team. Quellen geprüft am 14. Oktober 2026. AgenticOS-Bas
 | Quellcode | Proprietär | Apache-2.0 |
 | Identität | Microsoft Entra ID | OIDC-Single-Sign-on, LDAP und Kerberos, einschließlich Entra ID |
 | Richtlinien und Audit | Purview, Schutz vor Datenverlust, Lebenszyklus | Rollen und Grants pro Ressource, Freigaben, Budgets vor jeder Modellanfrage, ein manipulationssicheres Audit-Log |
-| Modelle | Über die Agents, die es steuert | 27 Provider, darunter lokale Modelle |
+| Modelle | Über die Agents, die es steuert | 28 Provider, darunter lokale Modelle |
 | Preise | Microsoft-365-Lizenzen | Keine Lizenzgebühr; Sie bezahlen Modell-Provider und Infrastruktur |
 
 ## Wo AgenticOS weiter geht { #where-agenticos-goes-further }
@@ -33,7 +33,7 @@ Eine Steuerungsebene beobachtet Agents, die anderswo laufen. AgenticOS [prüft d
 
 ### Außerhalb der Cloud eines Anbieters { #outside-one-vendors-cloud }
 
-Agent 365 lebt in der Cloud und den Lizenzen von Microsoft. AgenticOS läuft [dort, wo Sie es betreiben](../deploy.md), meldet über Ihr [Verzeichnis](../directory.md#signing-in-with-a-directory-account) an - Entra ID eingeschlossen - und arbeitet mit [jedem der 27 Modell-Provider](../models.md#providers).
+Agent 365 lebt in der Cloud und den Lizenzen von Microsoft. AgenticOS läuft [dort, wo Sie es betreiben](../deploy.md), meldet über Ihr [Verzeichnis](../directory.md#signing-in-with-a-directory-account) an - Entra ID eingeschlossen - und arbeitet mit [jedem der 28 Modell-Provider](../models.md#providers).
 
 ### Offen zum Lesen und Erweitern { #open-to-read-and-extend }
 

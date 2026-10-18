@@ -20,7 +20,7 @@ Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS bas
 | Who builds | Developers, through the API | Anyone with the right role, in a browser; engineers extend it in Python |
 | Where it runs | Anthropic's cloud | Your infrastructure, with Docker Compose |
 | Source | Proprietary | Apache-2.0 |
-| Models | Claude only | 27 providers, Claude among them, plus local models |
+| Models | Claude only | 28 providers, Claude among them, plus local models |
 | Sandbox | Managed, per session | A sandbox per conversation, on your own Docker host |
 | Pricing | Tokens plus $0.08 per session-hour | No licence fee; you pay model providers and infrastructure |
 
@@ -52,7 +52,7 @@ Yes, if you want to run agents yourself. AgenticOS runs agents with a sandbox, s
 
 ### Can AgenticOS use Claude?
 
-Yes. Anthropic is one of 27 providers; you add a key once and choose Claude in a model profile.
+Yes. Anthropic is one of 28 providers; you add a key once and choose Claude in a model profile.
 
 ## Related comparisons
 

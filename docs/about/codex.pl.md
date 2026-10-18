@@ -1,5 +1,5 @@
 ---
-source_sha: "79a1554f42b0"
+source_sha: "018d5eb09c59"
 title: "AgenticOS vs OpenAI Codex"
 seo_title: "AgenticOS vs OpenAI Codex: agenci dla firmy czy do kodowania"
 description: "OpenAI Codex to agent programistyczny dla deweloperów. AgenticOS to platforma open source self-hosted dla zarządzanych agentów firmy. Porównaj je i połącz."
@@ -21,7 +21,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Na czym pracuje | Repozytorium kodu i powłoka | Firmowe dokumenty, narzędzia i systemy |
 | Gdzie działa | Maszyny deweloperów; zadania w chmurze w kontenerach zarządzanych przez OpenAI | Twoja infrastruktura, jako usługa współdzielona |
 | Kod | CLI na Apache-2.0; chmura, przegląd kodu i aplikacja ChatGPT własnościowe | Apache-2.0 |
-| Modele | OpenAI z logowaniem przez ChatGPT; CLI przyjmuje też Ollama, LM Studio, Bedrock i własnych providerów | 27 providerów, ustawianych w profilu modelu |
+| Modele | OpenAI z logowaniem przez ChatGPT; CLI przyjmuje też Ollama, LM Studio, Bedrock i własnych providerów | 28 providerów, ustawianych w profilu modelu |
 | Użytkownicy końcowi | Deweloper | Pracownicy, klienci i systemy, na ośmiu powierzchniach |
 | Zatwierdzenia | Tryby sandboksa i polityki zatwierdzeń przy biurku dewelopera | Osoba z `approvals:decide`, ze wspólnej kolejki |
 | Kontrola wydatków | Limity planu na pięciogodzinne okno i kredyty współdzielone z ChatGPT Work | Miesięczny budżet na agenta i na organizację |
@@ -39,7 +39,7 @@ Codex egzekwuje polityki sandboksa i zatwierdzeń na maszynie każdego deweloper
 
 ### Dowolny model ze wszystkimi funkcjami { #any-model-with-every-feature }
 
-CLI Codex może używać innych providerów, ale jego zadania w chmurze, przegląd kodu i Slack wymagają logowania przez ChatGPT i modeli OpenAI. W AgenticOS każdy provider ma dostęp do tej samej platformy: [27 providerów](../models.md#providers), [fallbacki](../models.md#fallbacks) i koszt zapisywany dla każdego runa każdego agenta.
+CLI Codex może używać innych providerów, ale jego zadania w chmurze, przegląd kodu i Slack wymagają logowania przez ChatGPT i modeli OpenAI. W AgenticOS każdy provider ma dostęp do tej samej platformy: [28 providerów](../models.md#providers), [fallbacki](../models.md#fallbacks) i koszt zapisywany dla każdego runa każdego agenta.
 
 ### Wykonywanie kodu jako zarządzana capability { #code-execution-as-a-governed-capability }
 

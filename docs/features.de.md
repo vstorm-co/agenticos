@@ -1,5 +1,5 @@
 ---
-source_sha: "dc1db9e6554c"
+source_sha: "e2e6a4228cf2"
 ---
 
 # Funktionen { #features }
@@ -107,7 +107,7 @@ Plattform.
 
 [Jede Capability, ihre Tools und ihre Konfiguration →](reference/capabilities.md)
 
-## Jedes Modell, von 27 Providern { #any-model-from-27-providers }
+## Jedes Modell, von 28 Providern { #any-model-from-28-providers }
 
 OpenAI, Anthropic, Google, Groq, Mistral, Bedrock, Vertex, ein Ollama auf Ihrer
 eigenen Hardware, ein LiteLLM-Proxy vor allem zusammen.

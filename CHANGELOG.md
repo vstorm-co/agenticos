@@ -30,6 +30,17 @@ Two things are versioned separately from this file and worth knowing about:
   `/admin/system`) reads the sweeps' heartbeat from Redis and, separately,
   whether Prefect still completes `mcp-connection-sweep` (#2213).
 
+## [1.6.2] - 2026-10-18
+
+### Changed
+
+- **The README, the decks and the banner show what shipped in October**, on the
+  landing page's photographs: a project chat several people share, a reply the
+  agent applies, Codex building a page, a drawing and research finished in the
+  background. The introduction deck has 17 slides and the product tour 47. The
+  README, its figures and the docs count 29 built-in capabilities and 28 model
+  providers. `docs/assets/readme/frames.mjs` sets a screenshot on a photograph.
+
 ## [1.6.1] - 2026-10-18
 
 ### Fixed

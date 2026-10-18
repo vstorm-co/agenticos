@@ -2,7 +2,7 @@
 title: "AgenticOS vs Grok Bot"
 seo_title: "AgenticOS vs Grok Bot: współpracownik AI, którego hostujesz sam"
 description: "Grok Bot daje każdemu nazwanemu współpracownikowi komputer w chmurze na Groku. Porównaj z AgenticOS: dowolny model, log audytu, osobne logowania, twoje serwery."
-source_sha: "7bcbfa751f35"
+source_sha: "718df56557d9"
 ---
 
 # AgenticOS vs Grok Bot { #agenticos-vs-grok-bot }
@@ -20,7 +20,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 14 października 2026. Wersja
 | Co dostajesz | Nazwanych współpracowników, każdego z komputerem w chmurze | Dowolną liczbę agentów, każdy jako wersjonowany spec |
 | Gdzie działa | Chmura xAI | Twoja infrastruktura, z Docker Compose |
 | Kod źródłowy | Zamknięty | Apache-2.0 |
-| Modele | Tylko Grok, bez wyboru | 27 providerów, w tym modele lokalne |
+| Modele | Tylko Grok, bez wyboru | 28 providerów, w tym modele lokalne |
 | Komputer | Stała maszyna wirtualna wspólna dla wszystkich botów konta | Sandbox na rozmowę; przeglądarka, której logowania są trzymane per osoba |
 | Nauka zadania | Nagrywasz ekran do dziesięciu minut; wraca szkic skilla | Skille pisane albo instalowane z galerii, przypięte do każdego agenta |
 | Praca zespołowa | Czaty grupowe dwóch do sześciu botów, które przekazują sobie pracę | [Delegowanie](../reference/capabilities.md#delegation) do innych opublikowanych agentów, przypiętych do wersji |
@@ -44,7 +44,7 @@ Zgody w Grok Bot są zapisane jako instrukcje i może je oceniać model. Agentic
 
 ### Dowolny model, na twoich serwerach { #any-model-on-your-servers }
 
-Grok Bot uruchamia Groka w chmurze xAI. Agent AgenticOS wybiera z [27 providerów](../models.md#providers), także modeli na twoim sprzęcie, i trzyma dane w [twoim własnym Postgresie](../data-protection.md#where-personal-data-lives).
+Grok Bot uruchamia Groka w chmurze xAI. Agent AgenticOS wybiera z [28 providerów](../models.md#providers), także modeli na twoim sprzęcie, i trzyma dane w [twoim własnym Postgresie](../data-protection.md#where-personal-data-lives).
 
 ## Kiedy Grok Bot wystarczy { #when-grok-bot-is-enough }
 

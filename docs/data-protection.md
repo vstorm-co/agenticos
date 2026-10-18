@@ -28,7 +28,7 @@ that way and the software cooperates:
 
 | Concern | The local answer |
 |---|---|
-| The chat model | An `ollama` or `litellm` profile - keyless, pointed at an endpoint you host. Any of the 27 providers with a `base_url` also takes a gateway of yours |
+| The chat model | An `ollama` or `litellm` profile - keyless, pointed at an endpoint you host. Any of the 28 providers with a `base_url` also takes a gateway of yours |
 | Document parsing | `pymupdf`, the default, runs in the worker. LiteParse OCR runs in the worker too, or at an OCR server you register as a local service. LlamaParse is a per-collection choice that needs a vault key; without one, nothing is parsed off-site |
 | Embeddings | An Ollama you host, registered as a local service under Knowledge → Integrations and chosen per collection as the `ollama` provider. Keyless, and the only provider an app-scoped collection may use |
 | Traces | Leave `LOGFIRE_TOKEN` unset and bind no `observability` token to a spec or an environment. Runs still record a trace id locally |

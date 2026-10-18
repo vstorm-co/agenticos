@@ -1,5 +1,5 @@
 ---
-source_sha: "5f956391f056"
+source_sha: "a91191c7e4f7"
 title: "AgenticOS vs OpenCode"
 seo_title: "AgenticOS vs OpenCode: dwa narzędzia agentowe open source"
 description: "OpenCode to agent programistyczny MIT dla jednego dewelopera. AgenticOS to platforma Apache-2.0 dla agentów AI firmy, z rolami, budżetami i logami audytu."
@@ -18,7 +18,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Dla kogo | Deweloper, w repozytorium | Organizacja: zespoły biznesowe, użytkownicy końcowi i inżynierowie |
 | Gdzie działa | Maszyna dewelopera; `opencode serve` jako lokalny serwer HTTP | Usługa współdzielona na twojej infrastrukturze |
 | Kod | MIT | Apache-2.0 |
-| Modele | Ponad 75 providerów przez Models.dev, w tym lokalne | 27 providerów, w tym lokalne |
+| Modele | Ponad 75 providerów przez Models.dev, w tym lokalne | 28 providerów, w tym lokalne |
 | Użytkownicy i dostęp | Jeden użytkownik; zespoły Zen mają role Admin i Member | Organizacje, sześć ról, 27 uprawnień, uprawnienia per zasób |
 | Zatwierdzenia | `allow`, `ask` lub `deny` dla każdego narzędzia, z odpowiedzią przy klawiaturze | Osoba z `approvals:decide`, ze wspólnej kolejki |
 | Kontrola wydatków | Miesięczne limity w bramce Zen | Budżet na agenta i na organizację, sprawdzany przed każdym zapytaniem do modelu |

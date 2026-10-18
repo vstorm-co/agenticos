@@ -1,4 +1,4 @@
-<!-- source_sha: 66b4dad584b3 -->
+<!-- source_sha: 7fe613360627 -->
 
 <div align="center">
 
@@ -6,7 +6,7 @@
 
 <p>
   <b>Die selbst gehostete Agent-Schicht: KI-Agenten auf deiner eigenen Infrastruktur bauen, betreiben und steuern.</b><br>
-  Chat, Apps, ein echter Browser, MCP und eine API an einem Ort, mit Budgets, Freigaben und einem aufgezeichneten Run.<br>
+  Dein Team und seine Agents in einem Live-Chat, mit Claude Code und Codex zur Hand, einem echten Browser, MCP und einer API, mit Budgets, Freigaben und einem aufgezeichneten Run.<br>
   <sub>Apache-2.0 &middot; gebaut auf Pydantic AI</sub>
 </p>
 
@@ -20,6 +20,7 @@
   <a href="#-finde-deinen-weg">Dein Weg</a> &middot;
   <a href="#-was-heute-enthalten-ist">Was enthalten ist</a> &middot;
   <a href="#-häufige-fragen">FAQ</a> &middot;
+  <a href="https://vstorm-co.github.io/vstormos-landing/">Website</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/presentation/">Einführungsfolien</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/de/">Dokumentation</a>
 </p>
@@ -40,13 +41,43 @@
 
 </div>
 
-<img src="docs/assets/readme/teammates-in-action.webp" alt="Ein Chief-of-Staff-Agent, live aufgenommen: Er gibt eine Frage vor einer Vorstandssitzung gleichzeitig an Support Desk und Sales Researcher und fasst ihre beiden Antworten als Briefing zusammen." width="100%">
+<a href="docs/assets/readme/highlight-hero.webp"><img src="docs/assets/readme/highlight-hero.webp" alt="Dunkler Modus, zwei Personen im Projektchat: Der Chief of Staff schreibt Tom, dass er seine Budgetänderung und Peters Bestätigung in den Launch-Plan übernommen hat, zeigt die neue Aufteilung und listet auf, was das Team noch klären muss." width="100%"></a>
 
-AgenticOS gibt jedem Team KI-Teammates: Agents, die mit Dateien arbeiten, Code ausführen, im Web surfen und die Werkzeuge und das Wissen deines Unternehmens nutzen. Es ist Open Source (Apache-2.0) und selbst gehostet, eine Schicht, die du auf deiner eigenen Infrastruktur betreibst. Baue und veröffentliche Agents im Browser, teile sie mit Kollegen und steuere ihren Zugriff, ihre Kosten und Ergebnisse an einem Ort.
+AgenticOS gibt jedem Team KI-Teammates: Agents, die mit Dateien arbeiten, Code ausführen, im Web surfen und die Werkzeuge und das Wissen deines Unternehmens nutzen. Deine Kollegen und deine Agents arbeiten im selben Live-Chat, und jeder Agent kann Code an Claude Code oder Codex übergeben, mit dem ChatGPT- oder Claude-Abo, das du schon bezahlst. Es ist Open Source (Apache-2.0) und selbst gehostet, eine Schicht, die du auf deiner eigenen Infrastruktur betreibst. Baue und veröffentliche Agents im Browser, teile sie mit Kollegen und steuere ihren Zugriff, ihre Kosten und Ergebnisse an einem Ort.
 
-**Neu hier?** Klicke dich durch die [Einführung in 14 Folien](https://vstorm-co.github.io/agenticos/presentation/) (auf Englisch): das Problem, die Idee, das Produkt auf echten Bildschirmen, seine Kontrollen und Grenzen und der Einstieg. Jeden Bildschirm im Detail zeigt die [Produkttour in 44 Folien](https://vstorm-co.github.io/agenticos/presentation/tour/). Die Pfeiltasten blättern in beiden, `O` zeigt alle Folien.
+**Neu hier?** Klicke dich durch die [Einführung in 17 Folien](https://vstorm-co.github.io/agenticos/presentation/) (auf Englisch): das Problem, die Idee, das Produkt auf echten Bildschirmen, seine Kontrollen und Grenzen und der Einstieg. Jeden Bildschirm im Detail zeigt die [Produkttour in 47 Folien](https://vstorm-co.github.io/agenticos/presentation/tour/). Die Pfeiltasten blättern in beiden, `O` zeigt alle Folien.
 
 ## ⚡ Highlights
+
+### Dein Team und deine Agents in einem Live-Raum
+
+Ein Projekt gibt allen dieselben Dateien, Anweisungen und einen Computer für die Agents. Lade Kollegen ein und arbeitet wie ein Team: Du siehst, wer da ist, verfolgst die Antwort eines Agents live, während sie entsteht, und holst jeden Agent, jedes Werkzeug oder Dokument mit einem `@` dazu.
+
+<a href="docs/assets/readme/highlight-projects.webp"><img src="docs/assets/readme/highlight-projects.webp" alt="Ein Projekt-Chat für den Fall launch: zwei Personen sind im Raum, Jordan Reed bittet den Coder-Agent, die Launch-Seite mit dem Coding Agent zu bauen, und die Schritte von Codex laufen unter der Antwort" width="100%"></a>
+
+### Antworte jedem, und der Agent weiß, wer was gesagt hat
+
+Antworte auf die Nachricht einer Person oder eines Agents, und der Agent übernimmt die Änderung und sagt, von wem sie kam. Jede Nachricht trägt einen Namen, also hat jede Entscheidung eine verantwortliche Person.
+
+<a href="docs/assets/readme/highlight-reply.webp"><img src="docs/assets/readme/highlight-reply.webp" alt="Tom Brooks antwortet auf den Launch-Plan des Chief of Staff mit einer Budgetänderung; der Agent antwortet Tom, übernimmt seine Änderung und Peters Bestätigung, und der Finance Analyst prüft die Zahlen erneut" width="100%"></a>
+
+### Claude Code und Codex in deinem Team
+
+Jeder Agent kann Softwarearbeit an Claude Code oder Codex übergeben. Sie bauen auf dem eigenen Computer des Agents, mit deinem ChatGPT- oder Claude-Abo, und berichten, was sie geändert und geprüft haben und was sie von dir brauchen.
+
+<a href="docs/assets/readme/highlight-coding.webp"><img src="docs/assets/readme/highlight-coding.webp" alt="Die Antwort des Coder-Agents, nachdem Codex die Launch-Seite gebaut hat: verwendete Farben und Überschrift, was weggelassen wurde, bestandene Prüfungen und zwei Entscheidungen für das Team" width="100%"></a>
+
+### Frag, wie es funktioniert, und bekomm eine Zeichnung, die du nutzen kannst
+
+Ein Agent zeichnet, während er schreibt: ein Diagramm aus deinen Dokumenten, einen Rechner mit Schiebereglern, ein Diagramm oder eine 3D-Szene, live unter seiner Nachricht. Ein Klick speichert es als App, die dein Team per Link öffnet.
+
+<a href="docs/assets/readme/highlight-visuals.webp"><img src="docs/assets/readme/highlight-visuals.webp" alt="Ein ROI-Rechner, den der Agent Visuals Lab im Chat gezeichnet hat: Schieberegler für Rechnungen, Minuten pro Rechnung, Stundenkosten und eingesparte Zeit, die gesparten Dollar pro Jahr und ein Balkendiagramm der monatlichen Kosten vorher und nachher" width="100%"></a>
+
+### Schreib einem Agent und geh
+
+Gib eine Recherche in Auftrag, die dauert, und schließ den Tab. Der Agent arbeitet weiter, die Antwort landet in der Unterhaltung, und die Glocke sagt dir, wann er fertig ist.
+
+<a href="docs/assets/readme/highlight-research.webp"><img src="docs/assets/readme/highlight-research.webp" alt="Eine Tabelle des Sales Researcher: was fünf AP-Automatisierungstools ein Unternehmen mit 200 Personen kosten, mit Plan, Preis, Leistungsumfang und Quelllink in jeder Zeile" width="100%"></a>
 
 ### Dein Tag auf einem Bildschirm
 
@@ -58,7 +89,7 @@ Die Konsole öffnet mit dem, was deine Agents getan haben, den Entscheidungen, d
 
 Ein führender Agent gibt Teile einer Aufgabe an Kollegen weiter und fasst zusammen, was sie gefunden haben - du siehst, wen er gefragt hat und was jeder gesagt hat.
 
-<a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="Das Briefing eines Chief-of-Staff-Agents für eine Vorstandssitzung, aus den Antworten von Support Desk und Sales Researcher, mit beiden Agents darunter genannt" width="100%"></a>
+<a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="Das Briefing eines Chief-of-Staff-Agenten für eine Preisrunde, geschrieben aus den Antworten von Sales Researcher und Finance Analyst: die Preise von Ramp und Bill.com in Dollar, die Marge, die Finance ohne GuV nicht nennen konnte, und drei Punkte für das Meeting" width="100%"></a>
 
 ### Ein echter Browser, direkt im Chat
 
@@ -76,13 +107,13 @@ Schalte Tools über illustrierte Karten ein und gib dem Entwurf im Test-Chat dan
 
 Ein Agent veröffentlicht ein Dashboard oder einen Bericht als Seite mit festem Link und Versionen.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Das Vorstands-Dashboard für Q3 2026, das ein Finance Analyst aus dem Chat als App veröffentlicht hat: KPI-Karten, Umsatz gegen Kosten pro Monat, der Margentrend, Umsatz nach Region und die größten Kunden, in einer Akzentfarbe" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Ein ROI-Rechner, den ein Visuals-Lab-Agent im Chat gezeichnet hat, als App mit eigenem Link gespeichert: Regler für Rechnungen, Minuten und Stundensatz, 69.120 $ Ersparnis pro Jahr und die monatlichen Kosten vorher und nachher" width="100%"></a>
 
 ### Über 4.700 MCP-Server
 
 Verbinde Notion, GitHub, Jira oder deinen eigenen Server und wähle, welche Werkzeuge jeder Agent nutzen darf.
 
-<a href="docs/assets/screens/light/mcp-servers.webp"><img src="docs/assets/screens/light/mcp-servers.webp" alt="Die MCP-Server-Galerie mit verbundenen Servern und ihrer Anmeldeart" width="100%"></a>
+<a href="docs/assets/readme/highlight-mcp-servers.webp"><img src="docs/assets/readme/highlight-mcp-servers.webp" alt="Die MCP-Server-Galerie mit verbundenen Servern und ihrer Anmeldeart" width="100%"></a>
 
 ### In AgenticOS arbeiten, aus Claude Code, Codex oder Cursor
 
@@ -103,7 +134,7 @@ AgenticOS ist ein MCP-Server. Mit einem Befehl hinzufügen und im Browser anmeld
 
 Die meisten Agent-Frameworks liefern eine Bibliothek, also wird jede Änderung am Verhalten eines Agenten zu Pull Request, Review und Release. Das passt nicht zu den kleinen Agenten, die ein Unternehmen tatsächlich will, denn wer weiß, was der Agent sagen soll, hat meist keinen Commit-Zugriff. **Code definiert, Konfiguration setzt zusammen:** Entwickler erweitern den Baukasten, und Konfiguration erreicht immer nur das, was Code registriert hat.
 
-Es läuft mit Docker Compose auf deiner eigenen Infrastruktur und arbeitet mit 27 Modellanbietern, darunter lokale Modelle über Ollama und vLLM. Die Agenten laufen auf [Pydantic AI](https://ai.pydantic.dev) und [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness); die Schicht drumherum nutzt FastAPI, PostgreSQL mit pgvector und Next.js. Gepflegt wird es von [Vstorm](https://vstorm.co).
+Es läuft mit Docker Compose auf deiner eigenen Infrastruktur und arbeitet mit 28 Modellanbietern, darunter dein ChatGPT-Abo und lokale Modelle über Ollama und vLLM. Die Agenten laufen auf [Pydantic AI](https://ai.pydantic.dev) und [pydantic-ai-harness](https://github.com/pydantic/pydantic-ai-harness); die Schicht drumherum nutzt FastAPI, PostgreSQL mit pgvector und Next.js. Gepflegt wird es von [Vstorm](https://vstorm.co).
 
 **Für wen es gedacht ist:**
 
@@ -118,9 +149,9 @@ Es läuft mit Docker Compose auf deiner eigenen Infrastruktur und arbeitet mit 2
 
 **Wie sich AgenticOS in ein Unternehmen einfügt:** Abteilungen wie Finanzen, Betrieb oder Vorstand nutzen gemeinsame Agenten im Webchat, in Slack oder in einem privaten Workspace. Deine Systeme rufen Agenten über die API auf, und Ereignisse oder Zeitpläne starten sie automatisch. Jede Anfrage durchläuft dieselben Kontrollen: Rollen, Budgets, Freigaben, Guardrails und einen aufgezeichneten Run. Deine Daten, Vektoren, Code-Sandboxes, der Vault für Zugangsdaten und optionale lokale Modelle bleiben auf deiner Infrastruktur. Gehostete Modelle, SaaS-Werkzeuge und externe Dokumentquellen werden nur genutzt, wenn du sie konfigurierst.
 
-<img src="docs/assets/readme/figures.webp" alt="26 integrierte Capabilities, pro Agent einschaltbar; 8 Orte, an denen ein Agent antwortet; 27 Modellanbieter, gehostet, in deiner Cloud oder lokal; 5 Quellen für die Dokumentsynchronisation; über 4.700 MCP-Server in der Galerie; 29 Tutorials, jedes mit einer Prüfung, die du ausführen kannst." width="100%">
+<img src="docs/assets/readme/figures.webp" alt="29 integrierte Capabilities, pro Agent einschaltbar; 8 Orte, an denen ein Agent antwortet; 28 Modellanbieter, gehostet, in deiner Cloud oder lokal; 5 Quellen für die Dokumentsynchronisation; über 4.700 MCP-Server in der Galerie; 29 Tutorials, jedes mit einer Prüfung, die du ausführen kannst." width="100%">
 
-<p align="center"><sub><b>Auf einen Blick:</b> 26 integrierte Capabilities · 8 Orte, an denen ein Agent antwortet · 27 Modellanbieter · 5 Synchronisationsquellen für Dokumente · über 4.700 MCP-Server · 29 Tutorials.</sub></p>
+<p align="center"><sub><b>Auf einen Blick:</b> 29 integrierte Capabilities · 8 Orte, an denen ein Agent antwortet · 28 Modellanbieter · 5 Synchronisationsquellen für Dokumente · über 4.700 MCP-Server · 29 Tutorials.</sub></p>
 
 ## ✨ Was du damit machen kannst
 
@@ -170,7 +201,7 @@ AgenticOS verbindet Agenten mit den Modellen, Chatwerkzeugen, Geschäftsanwendun
 | **Geschäftswerkzeuge** | **über 4.700 MCP-Server** in der Galerie (Notion, GitHub, Jira, HubSpot, Stripe…) und eigene Server; wähle, welche Werkzeuge jeder Agent aufrufen darf | [MCP](https://vstorm-co.github.io/agenticos/de/mcp/) |
 | **Dokumente** | Synchronisiere Google Drive, S3/MinIO, Git-Repositories, Websites, SharePoint und OneDrive in Wissensbasen | [Synchronisationsquellen](https://vstorm-co.github.io/agenticos/de/howto/configure-sync-sources/) |
 | **Ereignisse** | Starte Agenten nach Zeitplan, bei einem neuen GitHub-Issue, einer Gmail-Nachricht oder einem signierten Webhook | [Routinen](https://vstorm-co.github.io/agenticos/de/triggers/) |
-| **Modelle** | 27 Anbieter, dein Cloud-Vertrag (Azure, Bedrock, Vertex) oder lokale Modelle (Ollama, vLLM) | [Modelle](https://vstorm-co.github.io/agenticos/de/models/) |
+| **Modelle** | 28 Anbieter, dein ChatGPT-Abo, dein Cloud-Vertrag (Azure, Bedrock, Vertex) oder lokale Modelle (Ollama, vLLM) | [Modelle](https://vstorm-co.github.io/agenticos/de/models/) |
 
 <sub>Registry-Einträge sind Metadaten der Herausgeber; jede Verbindung erfordert eigene Einrichtung und Zugriffsprüfung. Outlook-E-Mail und -Kalender werden über einen externen MCP-Dienst angebunden. Die Logos kennzeichnen Verbindungsmöglichkeiten und bedeuten keine Partnerschaft.</sub>
 
@@ -285,15 +316,15 @@ Sicherheit ist geschichtet. Zugangsdaten liegen in einem Vault mit Envelope-Vers
 
 ## 📦 Was heute enthalten ist
 
-<img src="docs/assets/readme/capabilities.webp" alt="26 integrierte Capabilities in sechs Gruppen: Wissen und Gedächtnis, Web, Dateien, Code und Ausgabe, Arbeitsweise, Sicherheit und Limits, Chatkanäle." width="100%">
+<img src="docs/assets/readme/capabilities.webp" alt="29 integrierte Capabilities in sechs Gruppen: Wissen und Gedächtnis, Web, Dateien, Code und Ausgabe, Arbeitsweise, Sicherheit und Limits, Chatkanäle." width="100%">
 
 <details>
-<summary>Alle 26 integrierten Capabilities als Text</summary>
+<summary>Alle 29 integrierten Capabilities als Text</summary>
 
 - **Wissen und Gedächtnis:** Wissenssuche mit Quellenangaben, Skills, Kontext, Memory, Memory über mem0, frühere Unterhaltungen.
 - **Web:** Websuche (standardmäßig DuckDuckGo; Tavily, Brave oder Exa mit Schlüssel), Webseiten lesen und ein Webbrowser, den der Agent steuert und den du übernehmen kannst.
-- **Dateien, Code und Ausgabe:** Berechnungen in Python, eine Sandbox mit Dateien und Shell, Diagramme, Bilderzeugung (OpenAI oder Google), Apps.
-- **Arbeitsweise:** Subagents, Planung, Denken, Werkzeugsuche, Datum und Uhrzeit, Erinnerungen an Anweisungen, Rückfragen an den Nutzer.
+- **Dateien, Code und Ausgabe:** Berechnungen in Python, eine Sandbox mit Dateien und Shell, ein Coding Agent, der Arbeit an Claude Code oder Codex übergibt, Diagramme, Zeichnungen (Diagramme, Rechner, 3D-Szenen), Bilderzeugung (OpenAI oder Google), Apps.
+- **Arbeitsweise:** Subagents, Planung, Denken, Arbeiten während Werkzeuge laufen, Werkzeugsuche, Datum und Uhrzeit, Erinnerungen an Anweisungen, Rückfragen an den Nutzer.
 - **Sicherheit und Limits:** Guardrails, die Secrets und personenbezogene Daten schwärzen, lange Unterhaltungen, Auslagerung von Medien, Limits für Werkzeugausgaben.
 - **Chatkanäle:** Suche nach Chatkanälen für Bots in Slack, Telegram und Mattermost.
 
@@ -305,12 +336,13 @@ Dazu jedes Werkzeug eines verbundenen MCP-Servers und Capabilities, die deine En
 <summary>Wo Agenten antworten und welche Modelle sie nutzen</summary>
 
 <img src="docs/assets/readme/eight-surfaces.webp" alt="Acht Orte, an denen ein Agent antworten kann." width="100%">
-<img src="docs/assets/readme/model-providers.webp" alt="27 Modellanbieter: gehostet, über deinen Cloud-Vertrag oder auf deiner Hardware." width="100%">
+<img src="docs/assets/readme/model-providers.webp" alt="28 Modellanbieter: gehostet, über deinen Cloud-Vertrag oder auf deiner Hardware." width="100%">
 
 **Wo Agenten antworten:** Webchat, ein Website-Widget, eine gehostete Seite, die HTTP-API, ein streamender WebSocket, Slack, Mattermost und Telegram.
 
 **Modellanbieter:**
 - **Gehostet (22):** OpenAI, Anthropic, Google Gemini, OpenRouter, Mistral, DeepSeek, xAI, Cohere, Groq, Cerebras, Together, Fireworks, Hugging Face, GitHub Models, Alibaba, Moonshot, Z.AI, Nebius, OVHcloud, SambaNova, Heroku und Vercel AI Gateway.
+- **Dein Abo:** ChatGPT über Codex, nach einer Anmeldung.
 - **Über deinen Cloud-Vertrag:** Azure OpenAI, AWS Bedrock und Google Vertex AI.
 - **Selbst gehostet:** Ollama und LiteLLM, dazu vLLM und LM Studio über einen OpenAI-kompatiblen Endpunkt.
 
@@ -320,7 +352,7 @@ Dazu jedes Werkzeug eines verbundenen MCP-Servers und Capabilities, die deine En
 
 | | Wo es läuft | Quellcode | Modelle |
 |---|---|---|---|
-| **AgenticOS** | **Deine Infrastruktur** | **Apache-2.0** | **27 Anbieter, auch lokale** |
+| **AgenticOS** | **Deine Infrastruktur** | **Apache-2.0** | **28 Anbieter, auch lokale und dein ChatGPT-Abo** |
 | OpenAI dots | OpenAIs Cloud | Proprietär | Nur OpenAI |
 | Grok Bot | xAIs Cloud | Proprietär | Nur Grok |
 | Viktor | Viktors Cloud | Proprietär | OpenAI, Anthropic, Google, Kimi |
@@ -359,7 +391,7 @@ Rufe einen veröffentlichten Agenten als angemeldetes Mitglied mit `POST /api/v1
 
 [Architektur](https://vstorm-co.github.io/agenticos/de/architecture/) · [API](https://vstorm-co.github.io/agenticos/de/api/) · [Capability hinzufügen](https://vstorm-co.github.io/agenticos/de/howto/add-capability/) · [Capability-Referenz](https://vstorm-co.github.io/agenticos/de/reference/capabilities/) · [Mitwirken](https://vstorm-co.github.io/agenticos/de/help/)
 
-Die [Betriebssystem-Analogie](https://vstorm-co.github.io/agenticos/de/about/) erläutert die Architektur. Die optionale [Desktop-App](https://vstorm-co.github.io/agenticos/de/desktop/) ergänzt ein eigenes Fenster, ein Maskottchen und einen macOS-Kurzbefehl für Screenshots. <img src="docs/assets/amigo-walk.svg" alt="Amigo, das AgenticOS-Maskottchen" width="48" valign="middle">
+Die [Betriebssystem-Analogie](https://vstorm-co.github.io/agenticos/de/about/) erläutert die Architektur. Die optionale [Desktop-App](https://vstorm-co.github.io/agenticos/de/desktop/) ergänzt ein eigenes Fenster, ein Maskottchen und einen macOS-Kurzbefehl für Screenshots.
 
 ## ❓ Häufige Fragen
 
@@ -394,7 +426,7 @@ Monatliche Budgets pro Agent und pro Organisation werden vor jeder Modellanfrage
 <details>
 <summary><b>Worin unterscheidet es sich von ChatGPT Enterprise, Copilot Studio oder n8n?</b></summary>
 
-AgenticOS läuft auf deiner Infrastruktur mit jedem von 27 Modellanbietern und hat keine eigenen Gebühren pro Arbeitsplatz oder Credits. Es baut Agenten für die Organisation, veröffentlicht in Chats, auf Websites und über APIs, statt Assistenten-Lizenzen für einzelne Mitarbeitende. Anders als n8n beginnt es beim Agenten statt bei einer Workflow-Oberfläche, und viele Teams nutzen beides. Die Leitfäden behandeln auch den selbst gehosteten Builder [Dify](https://vstorm-co.github.io/agenticos/de/about/dify/) und Coding-Agenten wie Claude Code. [Vergleiche](https://vstorm-co.github.io/agenticos/de/about/comparison/)
+AgenticOS läuft auf deiner Infrastruktur mit jedem von 28 Modellanbietern und hat keine eigenen Gebühren pro Arbeitsplatz oder Credits. Es baut Agenten für die Organisation, veröffentlicht in Chats, auf Websites und über APIs, statt Assistenten-Lizenzen für einzelne Mitarbeitende. Anders als n8n beginnt es beim Agenten statt bei einer Workflow-Oberfläche, und viele Teams nutzen beides. Die Leitfäden behandeln auch den selbst gehosteten Builder [Dify](https://vstorm-co.github.io/agenticos/de/about/dify/) und Coding-Agenten wie Claude Code. [Vergleiche](https://vstorm-co.github.io/agenticos/de/about/comparison/)
 
 </details>
 

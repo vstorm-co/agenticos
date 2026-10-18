@@ -2,7 +2,7 @@
 title: "AgenticOS vs Microsoft Agent 365"
 seo_title: "AgenticOS vs Microsoft Agent 365: zarządzanie agentami u siebie"
 description: "Agent 365 to płaszczyzna kontroli Microsoftu nad agentami w Microsoft 365. Porównaj z AgenticOS: budowanie, uruchamianie i zarządzanie agentami na twoich serwerach."
-source_sha: "80d442e7ad99"
+source_sha: "b13848977282"
 ---
 
 # AgenticOS vs Microsoft Agent 365 { #agenticos-vs-microsoft-agent-365 }
@@ -22,7 +22,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 14 października 2026. Wersja
 | Kod źródłowy | Zamknięty | Apache-2.0 |
 | Tożsamość | Microsoft Entra ID | Logowanie OIDC, LDAP i Kerberos, w tym Entra ID |
 | Polityki i audyt | Purview, ochrona przed wyciekiem danych, cykl życia | Role i granty per zasób, zgody, budżety przed każdym zapytaniem do modelu, log audytu odporny na manipulację |
-| Modele | Przez agentów, którymi zarządza | 27 providerów, w tym modele lokalne |
+| Modele | Przez agentów, którymi zarządza | 28 providerów, w tym modele lokalne |
 | Cena | Licencje Microsoft 365 | Bez opłaty licencyjnej; płacisz providerom modeli i za infrastrukturę |
 
 ## Gdzie AgenticOS idzie dalej { #where-agenticos-goes-further }
@@ -33,7 +33,7 @@ Płaszczyzna kontroli obserwuje agentów, którzy działają gdzie indziej. Agen
 
 ### Poza chmurą jednego dostawcy { #outside-one-vendors-cloud }
 
-Agent 365 żyje w chmurze Microsoftu i w jego licencjach. AgenticOS działa [tam, gdzie go wdrożysz](../deploy.md), loguje przez twój [katalog](../directory.md#signing-in-with-a-directory-account) - także Entra ID - i współpracuje z [każdym z 27 providerów modeli](../models.md#providers).
+Agent 365 żyje w chmurze Microsoftu i w jego licencjach. AgenticOS działa [tam, gdzie go wdrożysz](../deploy.md), loguje przez twój [katalog](../directory.md#signing-in-with-a-directory-account) - także Entra ID - i współpracuje z [każdym z 28 providerów modeli](../models.md#providers).
 
 ### Otwarty do czytania i rozszerzania { #open-to-read-and-extend }
 

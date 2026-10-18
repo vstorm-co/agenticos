@@ -1,5 +1,5 @@
 ---
-source_sha: "dc1db9e6554c"
+source_sha: "e2e6a4228cf2"
 ---
 
 # Funkcje { #features }
@@ -101,7 +101,7 @@ decyzją, którą ktoś podejmuje wobec *tego* agenta, a nie zmianą w platformi
 
 [Każda capability, jej narzędzia i jej konfiguracja →](reference/capabilities.md)
 
-## Dowolny model, od 27 providerów { #any-model-from-27-providers }
+## Dowolny model, od 28 providerów { #any-model-from-28-providers }
 
 OpenAI, Anthropic, Google, Groq, Mistral, Bedrock, Vertex, Ollama na Twoim
 własnym sprzęcie, proxy LiteLLM przed tym wszystkim.
