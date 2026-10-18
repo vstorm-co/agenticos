@@ -41,8 +41,10 @@ import {
   streamedDrawing,
   svgAspect,
   type VisualKind,
+  visualContentBase,
 } from "@/lib/visuals";
 import { getVisualImage, putVisualThumbnail } from "@/lib/visuals-api";
+import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import {
   addVisualImages,
   resetVisualState,
@@ -304,6 +306,7 @@ function SaveToApps({ update, onSave }: { update: boolean; onSave: () => void })
 function VisualPanel({ call }: { call: ToolCall }) {
   const t = useTranslations("chat.visuals");
   const { known, conversationId, onReport, onCompose } = useContext(ConversationVisuals);
+  const { artifactUrl } = usePublicConfig();
   const shown = useShown(call, known);
   const nested = useSyncExternalStore(subscribeToNothing, framedElsewhere, () => false);
   const pictures = useVisualImages(
@@ -440,7 +443,14 @@ function VisualPanel({ call }: { call: ToolCall }) {
             <IconButton
               aria-label={t("download")}
               title={t("download")}
-              onClick={() => downloadVisual(shown.title, shown.kind, content)}
+              onClick={() =>
+                downloadVisual(
+                  shown.title,
+                  shown.kind,
+                  content,
+                  new URL(visualContentBase(artifactUrl), window.location.href).href,
+                )
+              }
             >
               <Download className="size-4" />
             </IconButton>

@@ -1,3 +1,4 @@
+import { saveBlob } from "@/lib/file-access";
 import { svgAspect, visualFilename, type VisualKind } from "@/lib/visuals";
 
 const MEDIA: Record<VisualKind, string> = {
@@ -11,8 +12,9 @@ const MEDIA: Record<VisualKind, string> = {
  *
  * In the chat a page runs under the policy the server sends; a file opened from
  * a download has none, so the same rules travel inside it - no request to
- * anywhere, scripts only inline or from this console's own library set. A page
- * that read something must not be able to send it on just by being opened.
+ * anywhere, scripts only inline or from the drawing library set on `origin`, the
+ * artifact origin the frame is served from. A page that read something must not
+ * be able to send it on just by being opened.
  */
 export function downloadPolicy(origin: string): string {
   return [
@@ -32,24 +34,100 @@ export function downloadPolicy(origin: string): string {
   ].join("; ");
 }
 
-/** A page with `downloadPolicy` in its head - inserted after `<head>`, or first. */
-export function sealedPage(html: string, origin: string): string {
+/**
+ * A page that runs from disk as it ran in the frame.
+ *
+ * The policy is the very first thing in the file, ahead of anything the drawing
+ * wrote: the parser files a leading `<meta>` into the head it implies, so no
+ * markup of the drawing's own can run or load before the policy applies. The
+ * `lib/...` the drawing names relative to the frame become absolute under
+ * `contentBase`, or the downloaded copy would open without its libraries.
+ */
+export function sealedPage(html: string, contentBase: string): string {
+  const origin = new URL(contentBase).origin;
   const meta = `<meta http-equiv="Content-Security-Policy" content="${downloadPolicy(origin)}">`;
-  const head = /<head\b[^>]*>/i.exec(html);
-  if (head === null) return `${meta}${html}`;
-  const at = head.index + head[0].length;
-  return `${html.slice(0, at)}${meta}${html.slice(at)}`;
+  return `${meta}${html.replace(/(["'(=]\s*)lib\//g, `$1${contentBase}lib/`)}`;
 }
 
-/** The drawing as a file: an SVG as itself, a page as HTML, a diagram as its source. */
-export function downloadVisual(title: string, kind: VisualKind, content: string): void {
-  const body = kind === "html" ? sealedPage(content, window.location.origin) : content;
-  const url = URL.createObjectURL(new Blob([body], { type: `${MEDIA[kind]};charset=utf-8` }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = visualFilename(title, kind);
-  link.click();
-  URL.revokeObjectURL(url);
+/** Elements that run something or embed another document, whatever they contain. */
+const ACTIVE_SVG = new Set(["script", "iframe", "object", "embed", "audio", "video"]);
+
+/** Attributes that name something to load or to jump to. */
+const URL_ATTRIBUTES = new Set(["href", "xlink:href", "src"]);
+
+/** A reference that stays inside the file: a fragment, or an inline picture. */
+function inside(value: string): boolean {
+  const trimmed = value.trim().toLowerCase();
+  return trimmed.startsWith("#") || trimmed.startsWith("data:image/");
+}
+
+/** A stylesheet with every `url(...)` and `@import` that would reach outside the file emptied. */
+function inertCss(css: string): string {
+  return css
+    .replace(/@import[^;]*;?/gi, "")
+    .replace(/url\(\s*(['"]?)([^'")]*)\1\s*\)/gi, (whole, _quote: string, target: string) =>
+      inside(target) ? whole : "none",
+    );
+}
+
+/**
+ * An SVG that does nothing when opened: no script, no handler, no request.
+ *
+ * A standalone SVG opened from disk carries no policy - nothing like the frame's
+ * sandbox and CSP applies to it - so instead of sealing it, what could run or
+ * reach out is taken out: scripts and embedded documents, `on*` handlers,
+ * animations that rewrite a link, and any reference that is not a fragment or an
+ * inline picture. What is left is the drawing.
+ */
+export function inertSvg(svg: string): string {
+  const document = new DOMParser().parseFromString(svg, "image/svg+xml");
+  if (document.getElementsByTagName("parsererror").length > 0) return "";
+  for (const element of Array.from(document.querySelectorAll("*"))) {
+    const name = element.localName.toLowerCase();
+    if (ACTIVE_SVG.has(name)) {
+      element.remove();
+      continue;
+    }
+    if (
+      (name === "animate" || name === "set") &&
+      /href/i.test(element.getAttribute("attributeName") ?? "")
+    ) {
+      element.remove();
+      continue;
+    }
+    if (name === "style") element.textContent = inertCss(element.textContent ?? "");
+    for (const attribute of Array.from(element.attributes)) {
+      const key = attribute.name.toLowerCase();
+      if (key.startsWith("on")) element.removeAttribute(attribute.name);
+      else if (URL_ATTRIBUTES.has(key) && !inside(attribute.value)) {
+        element.removeAttribute(attribute.name);
+      } else if (attribute.value.includes("url(")) {
+        element.setAttribute(attribute.name, inertCss(attribute.value));
+      }
+    }
+  }
+  return new XMLSerializer().serializeToString(document);
+}
+
+/**
+ * The drawing as a file: an SVG made inert, a page sealed, a diagram as its source.
+ *
+ * `contentBase` is where the frame is served (`visualContentBase`): the origin a
+ * page's libraries come from, and the base its `lib/...` names resolve against.
+ */
+export function downloadVisual(
+  title: string,
+  kind: VisualKind,
+  content: string,
+  contentBase: string,
+): void {
+  const body =
+    kind === "html"
+      ? sealedPage(content, contentBase)
+      : kind === "svg"
+        ? inertSvg(content)
+        : content;
+  saveBlob(new Blob([body], { type: `${MEDIA[kind]};charset=utf-8` }), visualFilename(title, kind));
 }
 
 /** The width an SVG is rasterised at, so a copied diagram is sharp when pasted. */

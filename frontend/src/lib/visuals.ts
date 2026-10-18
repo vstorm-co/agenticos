@@ -67,7 +67,17 @@ export function framedElsewhere(): boolean {
 
 /** The renderer page on the content origin, beside the apps it shares a sandbox with. */
 export function visualFrameUrl(artifactUrl: string): string {
-  return `${artifactUrl.replace(/\/+$/, "")}/api/v1/artifact-content/visual-frame`;
+  return `${visualContentBase(artifactUrl)}visual-frame`;
+}
+
+/**
+ * Where the drawing frame lives, and so where a drawing's `lib/...` resolves.
+ *
+ * Ends in a slash: a drawing names its libraries relative to the frame, and a
+ * downloaded copy has to name the same files absolutely.
+ */
+export function visualContentBase(artifactUrl: string): string {
+  return `${artifactUrl.replace(/\/+$/, "")}/api/v1/artifact-content/`;
 }
 
 interface Edit {

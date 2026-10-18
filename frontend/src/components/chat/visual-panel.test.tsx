@@ -288,7 +288,13 @@ describe("TurnVisuals", () => {
     copySvgImage.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("no"));
     show([call()]);
     fireEvent.click(screen.getByRole("button", { name: "Download" }));
-    expect(downloadVisual).toHaveBeenCalledWith("Flow", "svg", SVG);
+    expect(downloadVisual).toHaveBeenCalledWith(
+      "Flow",
+      "svg",
+      SVG,
+      // Where the frame is served, so a downloaded page finds its libraries.
+      "http://localhost:8000/api/v1/artifact-content/",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Copy as image" }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Image copied"));
     fireEvent.click(screen.getByRole("button", { name: "Copy as image" }));
