@@ -551,6 +551,32 @@ class TestTheRoom:
         assert [entry["person"]["name"] for entry in typing] == ["Anna"]
         assert typing[0]["conversation_id"] == CONVERSATION
 
+    async def test_a_room_whose_redis_went_away_is_listened_to_again(self, monkeypatch) -> None:
+        """Left to end, the socket stayed open but deaf - no presence, no typing, no
+        teammate's turn - and uncounted, until a reload."""
+        monkeypatch.setattr("app.services.agent_session.ROOM_RETRY_SECONDS", 0)
+        session = _session()
+        anna = MagicMock(
+            id=uuid4(), full_name="Anna", email="anna@acme.test", avatar_url=None, avatar_color=None
+        )
+        calls = 0
+
+        async def heard(_conversation: str) -> AsyncIterator[dict[str, Any]]:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise ConnectionError("Redis went away")
+            yield {"type": "typing", "by": str(anna.id)}
+
+        room = self._room()
+        room["events"] = heard
+        await self._enter(session, CONVERSATION, room, people=[anna])
+
+        typing = [data for kind, data in _sent_events(session) if kind == "typing"]
+        assert [entry["person"]["name"] for entry in typing] == ["Anna"]
+        # Back in the room's count, as on entering it.
+        assert room["join"].await_count == 2
+
     async def test_a_typing_frame_reaches_only_the_room_this_socket_is_in(self) -> None:
         session = _session()
         with patch("app.services.agent_session.chat_room.typing", AsyncMock()) as typed:

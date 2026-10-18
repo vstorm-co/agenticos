@@ -70,6 +70,9 @@ logger = logging.getLogger(__name__)
 RECHECK_SECONDS = 30.0
 """How often a turn being followed asks again whether its reader may still read it."""
 
+ROOM_RETRY_SECONDS = 5.0
+"""How long a socket whose room subscription failed waits before listening again."""
+
 TYPING_EVERY_SECONDS = 2.0
 """The least time between two "typing" announcements from one socket; the console sends one every three."""
 
@@ -1285,21 +1288,37 @@ class AgentSession:
         """
         heartbeat = asyncio.create_task(self._heartbeat(conversation_id))
         try:
-            await self._send_presence(conversation_id)
-            async for event in chat_room.events(conversation_id):
-                if not await self._still_reads(conversation_id):
-                    self._stop_following()
-                    self._room = self._room_task = None
-                    await chat_room.leave(conversation_id, self.user.id, self._socket)
-                    return
-                if event["type"] == chat_room.PRESENCE:
-                    await self._send_presence(conversation_id)
-                elif event["type"] == chat_room.TYPING:
-                    await self._send_typing(conversation_id, event.get("by"))
+            while True:
+                try:
+                    await self._hear_room(conversation_id)
+                except Exception:
+                    # Redis went away under the subscription. The socket stays
+                    # open and still in this room, so it listens again rather
+                    # than stay deaf - and uncounted - until a reload.
+                    logger.warning("chat_room_listen_failed", exc_info=True)
+                    await asyncio.sleep(ROOM_RETRY_SECONDS)
+                    with contextlib.suppress(Exception):
+                        await chat_room.join(conversation_id, self.user.id, self._socket)
                 else:
-                    await self._follow_if_running(conversation_id)
+                    return
         finally:
             heartbeat.cancel()
+
+    async def _hear_room(self, conversation_id: str) -> None:
+        """Pass on the room's news until it ends or this person may no longer read it."""
+        await self._send_presence(conversation_id)
+        async for event in chat_room.events(conversation_id):
+            if not await self._still_reads(conversation_id):
+                self._stop_following()
+                self._room = self._room_task = None
+                await chat_room.leave(conversation_id, self.user.id, self._socket)
+                return
+            if event["type"] == chat_room.PRESENCE:
+                await self._send_presence(conversation_id)
+            elif event["type"] == chat_room.TYPING:
+                await self._send_typing(conversation_id, event.get("by"))
+            else:
+                await self._follow_if_running(conversation_id)
 
     async def _still_reads(self, conversation_id: str) -> bool:
         """Whether this person may still read the conversation, as of now."""
