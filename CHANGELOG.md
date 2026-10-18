@@ -26,6 +26,8 @@ Two things are versioned separately from this file and worth knowing about:
   README, its figures and the docs count 29 built-in capabilities and 28 model
   providers. `docs/assets/readme/frames.mjs` sets a screenshot on a photograph.
 
+## [1.6.1] - 2026-10-18
+
 ### Fixed
 
 - **Work while tools run has its picture.** The capability showed a lone initial
