@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-10-18
+
 ### Changed
 
 - **The README, the decks and the banner show what shipped in October**, on the
