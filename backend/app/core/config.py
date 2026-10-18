@@ -344,6 +344,9 @@ class Settings(BaseSettings):
     # B51 — after native deterministic/FAQ/handoff, forward LLM turns to multi-agent.
     SHOP_AI_NATIVE_WIDGET_LLM_STRANGLER: bool = True
     SHOP_AI_NATIVE_MERCHANT_LLM_STRANGLER: bool = True
+    # B82 — try Agentra ShopLlmGenerateService before multi-agent strangler.
+    SHOP_AI_NATIVE_WIDGET_LLM_ON_AGENTRA: bool = True
+    SHOP_AI_NATIVE_MERCHANT_LLM_ON_AGENTRA: bool = True
     # B62 — Studio background report/digest jobs on Agentra OLTP.
     SHOP_AGENT_BACKGROUND_JOB_ENABLED: bool = True
     # B64 — workflow llm_generate + Studio email Generate (one-shot OpenAI-compatible).
@@ -379,7 +382,9 @@ class Settings(BaseSettings):
     SHOP_AI_ZALO_OAUTH_REFRESH_INTERVAL_SEC: float = 3600.0
     # B78 — channel inbound full agent via multi-agent widget/chat after native paths.
     SHOP_AI_NATIVE_CHANNEL_AGENT_ENABLED: bool = False
-    SHOP_AI_NATIVE_CHANNEL_AGENT_STRANGLER: bool = True
+    SHOP_AI_NATIVE_CHANNEL_AGENT_STRANGLER: bool = False
+    # B83 — when false, unlisted /internal/shop-ai paths return 404 instead of catch-all proxy.
+    SHOP_AI_CATCH_ALL_PROXY_ENABLED: bool = True
     ZALO_OA_APP_ID: str = ""
     ZALO_OA_APP_SECRET: str = ""
     ZALO_OA_OAUTH_REDIRECT_URI: str = "http://localhost:8800/api/v1/shop-oauth/zalo/callback"

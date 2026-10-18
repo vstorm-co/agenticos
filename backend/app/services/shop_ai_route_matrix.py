@@ -15,6 +15,13 @@ from app.services.shop_ai_llm_strangler import (
     shop_merchant_llm_strangler_enabled,
     shop_widget_llm_strangler_enabled,
 )
+from app.services.shop_channel_ai_pipeline import channel_inbound_ai_pipeline_note
+from app.services.shop_chat_llm_native import (
+    shop_merchant_llm_on_agentra_enabled,
+    shop_widget_llm_on_agentra_enabled,
+)
+from app.services.shop_d4_readiness import compute_d4_blockers
+from app.services.shop_llm_openai import shop_llm_generate_configured
 from app.services.shop_widget_chat_native import widget_poll_use_strangler
 
 RouteMode = Literal["native", "proxy", "hybrid", "catch_all_proxy"]
@@ -106,18 +113,46 @@ def build_shop_ai_route_matrix(cfg: Settings | None = None) -> list[ShopAiRouteP
         m("GET", "/background-jobs", "native" if cfg.SHOP_AGENT_BACKGROUND_JOB_ENABLED else "proxy", "B62 jobs"),
         m("GET", "/live-agent/inbox-summary", "native", "Widget + channel queue counts"),
         m(
+            "POST",
+            "/zalo/{bot_id}/webhook",
+            _mode_hybrid_native_first(cfg.SHOP_AI_NATIVE_CHANNEL_INBOUND_ENABLED),
+            "Zalo OA inbound; shop CSKH handling on Agentra",
+        ),
+        m(
+            "POST",
+            "/messenger/{bot_id}/webhook",
+            _mode_hybrid_native_first(cfg.SHOP_AI_NATIVE_CHANNEL_INBOUND_ENABLED),
+            "Messenger inbound; shop CSKH handling on Agentra",
+        ),
+        m(
             "*",
             "/{subpath}",
-            "catch_all_proxy",
-            "Unlisted Studio paths forward to multi-agent",
+            "catch_all_proxy" if cfg.SHOP_AI_CATCH_ALL_PROXY_ENABLED else "native",
+            "Unlisted Studio paths forward to multi-agent"
+            if cfg.SHOP_AI_CATCH_ALL_PROXY_ENABLED
+            else "Catch-all disabled — unlisted paths return 404 (B83)",
         ),
     ]
 
-    extra_notes: dict[str, str] = {}
+    channel_ai = channel_inbound_ai_pipeline_note(cfg)
+    extra_notes: dict[str, str] = {
+        "/zalo/{bot_id}/webhook": f"AI legs: {channel_ai}",
+        "/messenger/{bot_id}/webhook": f"AI legs: {channel_ai}",
+    }
     if shop_widget_llm_strangler_enabled():
-        extra_notes["/widget/chat"] = "LLM leg → multi-agent when native misses"
+        leg = (
+            "LLM on Agentra (B82) then multi-agent"
+            if shop_widget_llm_on_agentra_enabled() and shop_llm_generate_configured()
+            else "LLM leg → multi-agent when native misses"
+        )
+        extra_notes["/widget/chat"] = leg
     if shop_merchant_llm_strangler_enabled():
-        extra_notes["/merchant-assistant/chat"] = "LLM leg → multi-agent"
+        leg = (
+            "LLM on Agentra (B82) then multi-agent"
+            if shop_merchant_llm_on_agentra_enabled() and shop_llm_generate_configured()
+            else "LLM leg → multi-agent"
+        )
+        extra_notes["/merchant-assistant/chat"] = leg
     if not extra_notes:
         return rows
     out: list[ShopAiRouteParityRead] = []
@@ -145,14 +180,14 @@ def d4_readiness_summary(
     """D4 gate hints — not a hard blocker, for cutover checklist."""
     cfg = cfg or settings
     proxy_ok = multi_agent_shop_proxy_configured(cfg)
-    matrix = build_shop_ai_route_matrix(cfg)
-    catch_all = next((r for r in matrix if r.path == "/{subpath}"), None)
+    blockers = compute_d4_blockers(cfg)
     entitlement_check = bool(cfg.SHOP_AI_NATIVE_ENTITLEMENT_CHECK_ENABLED)
     return {
         "multi_agent_proxy_configured": proxy_ok,
-        "can_attempt_empty_multi_agent_url": not proxy_ok
-        or all(r.mode == "native" for r in matrix if r.mode != "catch_all_proxy"),
-        "catch_all_still_active": catch_all is not None and catch_all.mode == "catch_all_proxy",
+        "can_attempt_empty_multi_agent_url": not proxy_ok or len(blockers) == 0,
+        "d4_blockers": blockers,
+        "catch_all_still_active": bool(cfg.SHOP_AI_CATCH_ALL_PROXY_ENABLED),
+        "catch_all_proxy_enabled": bool(cfg.SHOP_AI_CATCH_ALL_PROXY_ENABLED),
         "entitlement_check_requires_cdc": entitlement_check,
         "entitlement_replica_shop_ai_count": entitlement_replica_shop_ai_count,
         "entitlement_replica_ready": (not entitlement_check)
@@ -161,5 +196,10 @@ def d4_readiness_summary(
             cfg.SHOP_AI_CATALOG_SYNC_NIGHTLY_ENABLED
             or cfg.SHOP_AGENT_BACKGROUND_DIGEST_ENABLED
             or cfg.SHOP_AI_ZALO_OAUTH_REFRESH_ENABLED
+        ),
+        "channel_inbound_on_agentra": bool(cfg.SHOP_AI_NATIVE_CHANNEL_INBOUND_ENABLED),
+        "channel_agent_native_configured": bool(
+            cfg.SHOP_AI_NATIVE_CHANNEL_AGENT_ENABLED
+            and (cfg.SHOP_AI_LLM_GENERATE_API_KEY or "").strip()
         ),
     }

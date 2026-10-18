@@ -10,6 +10,9 @@ def test_route_matrix_includes_catch_all() -> None:
     paths = {r.path for r in rows}
     assert "/{subpath}" in paths
     assert any(r.path == "/strangler-status" and r.mode == "native" for r in rows)
+    assert "/zalo/{bot_id}/webhook" in paths
+    zalo = next(r for r in rows if r.path == "/zalo/{bot_id}/webhook")
+    assert "AI legs:" in zalo.note
 
 
 def test_d4_readiness_has_proxy_flag() -> None:

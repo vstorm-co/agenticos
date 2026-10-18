@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import Field
 
 from app.schemas.base import BaseSchema
@@ -23,7 +25,7 @@ class ShopAiStranglerStatusRead(BaseSchema):
         description="SHOP_AI_NATIVE_* toggles from Agentra settings"
     )
     routes: list[ShopAiRouteParityRead] = Field(default_factory=list)
-    d4_readiness: dict[str, bool | str | int] = Field(default_factory=dict)
+    d4_readiness: dict[str, Any] = Field(default_factory=dict)
     entitlement_replica_shop_ai_count: int = Field(
         0,
         description="Active shop_ai rows in IAM CDC replica table (B79)",

@@ -10,7 +10,7 @@ from starlette.responses import StreamingResponse
 
 from app.api.deps import DBSession, RAGDocumentSvc, ValidAPIKey, VectorStoreSvc
 from app.core.permissions import AuthContext
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import BadRequestError, NotFoundError
 from app.schemas.shop_ai_mcp import (
     ShopMcpCatalogList,
     ShopMcpConnectionCreate,
@@ -437,6 +437,11 @@ async def merchant_assistant_chat(
     reply = await try_native_merchant_chat(tenant_id=tenant_id, message=data.message)
     if reply is not None:
         return ShopMerchantAssistantChatOut(reply=reply)
+    from app.services.shop_chat_llm_native import try_merchant_chat_llm_on_agentra
+
+    llm_native = await try_merchant_chat_llm_on_agentra(message=data.message)
+    if llm_native:
+        return ShopMerchantAssistantChatOut(reply=llm_native)
     if shop_merchant_llm_strangler_enabled():
         return await strangler_merchant_chat(
             request=request,
@@ -468,6 +473,10 @@ async def merchant_assistant_chat_stream(
         db, tenant_id=tenant_id, organization_id=organization_id
     )
     reply = await try_native_merchant_chat(tenant_id=tenant_id, message=data.message)
+    if reply is None:
+        from app.services.shop_chat_llm_native import try_merchant_chat_llm_on_agentra
+
+        reply = await try_merchant_chat_llm_on_agentra(message=data.message)
     if reply is not None:
 
         async def _native_sse() -> AsyncIterator[str]:
@@ -520,6 +529,15 @@ async def shop_widget_chat(
     native = await try_native_widget_chat(tenant_id=tenant_id, data=data, db=db)
     if native is not None:
         return native
+    from app.services.shop_chat_llm_native import try_widget_chat_llm_on_agentra
+
+    llm_native = await try_widget_chat_llm_on_agentra(message=data.message)
+    if llm_native:
+        return ShopWidgetChatOut(
+            reply=llm_native,
+            session_id=data.session_id,
+            handling_mode="ai",
+        )
     if shop_widget_llm_strangler_enabled():
         return await strangler_widget_chat(
             request=request,
@@ -1706,6 +1724,13 @@ async def proxy_shop_ai(
     await _assert_org_matches_tenant(
         db, tenant_id=tenant_id, organization_id=organization_id
     )
+    from app.core.config import settings as app_settings
+
+    if not app_settings.SHOP_AI_CATCH_ALL_PROXY_ENABLED:
+        raise NotFoundError(
+            message="Shop AI path not implemented on Agentra",
+            details={"subpath": subpath, "hint": "Enable SHOP_AI_CATCH_ALL_PROXY or add native route"},
+        )
     return await proxy_shop_ai_request(
         request=request,
         subpath=subpath,
