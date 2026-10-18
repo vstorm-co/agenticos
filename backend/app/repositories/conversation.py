@@ -797,12 +797,13 @@ async def recent_tool_calls(
 
 
 class ToolCallArgs(NamedTuple):
-    """A recorded call's name and arguments, and the agent whose turn made it."""
+    """A recorded call's name and arguments, and the agent and run whose turn made it."""
 
     tool_call_id: str
     tool_name: str
     args: dict[str, Any]
     agent_id: UUID | None = None
+    run_id: UUID | None = None
 
 
 def _succeeded(result_prefixes: Collection[str]) -> ColumnElement[bool]:
@@ -864,7 +865,13 @@ async def tool_call_in_conversation(
     any other conversation is not one it may reach.
     """
     result = await db.execute(
-        select(ToolCall.tool_call_id, ToolCall.tool_name, ToolCall.args, Message.agent_id)
+        select(
+            ToolCall.tool_call_id,
+            ToolCall.tool_name,
+            ToolCall.args,
+            Message.agent_id,
+            Message.run_id,
+        )
         .join(Message, Message.id == ToolCall.message_id)
         .where(
             Message.conversation_id == conversation_id,

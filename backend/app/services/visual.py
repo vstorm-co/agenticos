@@ -339,6 +339,9 @@ class Visual:
     """The agent that first drew it, whoever revised it since: the namespace its
     app lives in, so a revision by another agent updates that app rather than
     starting a second one."""
+    run_id: UUID | None
+    """The run that first drew it, beside `agent_id`: the environment its app is
+    published in, so a drawing made in staging never updates the default app."""
     images: Mapping[str, str]
     """Each image the visual may use, by name, and the call that brought it."""
 
@@ -418,6 +421,7 @@ async def rebuild(visual_id: str, lookup: Lookup) -> Visual:
         kind=kind,
         content=content,
         agent_id=chain[-1].agent_id,
+        run_id=chain[-1].run_id,
         images=images,
     )
 
@@ -652,7 +656,7 @@ class VisualService:
             organization_id=ctx.organization_id,
             agent_id=visual.agent_id,
             owner_user_id=ctx.user_id,
-            run_id=None,
+            run_id=visual.run_id,
             name=data.name,
             title=title[:200],
             media_type=ArtifactMediaType.HTML,

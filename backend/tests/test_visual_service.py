@@ -397,6 +397,7 @@ class TestPublish:
         self,
     ) -> None:
         agent = uuid.uuid4()
+        drawn_in = uuid.uuid4()
         calls = {
             "d": ToolCallArgs(
                 "d",
@@ -408,6 +409,7 @@ class TestPublish:
                     "images": [{"name": "logo", "source": "l"}, {"name": "gone", "source": "g"}],
                 },
                 agent,
+                drawn_in,
             )
         }
         ctx = _ctx()
@@ -438,7 +440,9 @@ class TestPublish:
         kwargs = publish.await_args.kwargs
         assert kwargs["agent_id"] == agent
         assert kwargs["owner_user_id"] == ctx.user_id
-        assert kwargs["run_id"] is None
+        # The run that drew it: `publish_with` reads its environment off that run,
+        # so a drawing made in staging never updates the default app.
+        assert kwargs["run_id"] == drawn_in
         assert kwargs["title"] == "Flow"
         assert b"data:image/png;base64," in kwargs["data"]
         assert b"{{image:gone}}" in kwargs["data"]
