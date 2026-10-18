@@ -21,6 +21,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import anyio
 import httpx2
@@ -85,11 +86,15 @@ class A2AReply:
 
 
 def card_address(url: str) -> str:
-    """The card's URL: as given when it names a JSON document, else the well-known path."""
-    trimmed = url.strip()
-    if trimmed.endswith(".json"):
-        return trimmed
-    return f"{trimmed.rstrip('/')}{CARD_PATH}"
+    """The card's URL: as given when it names a JSON document, else the well-known path.
+
+    Read off the path, not the end of the string: a signed card address ends in
+    its query, and the well-known path appended after that lands in the query.
+    """
+    parts = urlsplit(url.strip())
+    if parts.path.endswith(".json"):
+        return urlunsplit(parts)
+    return urlunsplit(parts._replace(path=f"{parts.path.rstrip('/')}{CARD_PATH}"))
 
 
 async def fetch_card(url: str, *, transport: httpx2.AsyncBaseTransport | None = None) -> AgentCard:
@@ -101,20 +106,25 @@ async def fetch_card(url: str, *, transport: httpx2.AsyncBaseTransport | None = 
     """
     address = card_address(url)
     try:
-        async with PinnedAsyncClient(timeout=_TIMEOUT, transport=transport) as client:
-            response = await client.get(address, headers={"Accept": "application/json"})
+        async with (
+            PinnedAsyncClient(timeout=_TIMEOUT, transport=transport) as client,
+            client.stream("GET", address, headers={"Accept": "application/json"}) as response,
+        ):
+            if response.status_code != 200:
+                raise A2AClientError(f"The agent card answered HTTP {response.status_code}")
+            content = await _read_bounded(
+                response,
+                MAX_CARD_BYTES,
+                "The agent card is larger than an agent card should be",
+            )
     except UrlRefusedError as refused:
         raise A2AClientError(
             f"That address is not one this deployment may call: {refused}"
         ) from refused
     except httpx2.HTTPError as unreachable:
         raise A2AClientError("The agent card could not be fetched") from unreachable
-    if response.status_code != 200:
-        raise A2AClientError(f"The agent card answered HTTP {response.status_code}")
-    if len(response.content) > MAX_CARD_BYTES:
-        raise A2AClientError("The agent card is larger than an agent card should be")
     try:
-        return AgentCard.model_validate_json(response.content)
+        return AgentCard.model_validate_json(content)
     except ValidationError as invalid:
         raise A2AClientError("That address does not answer with an A2A agent card") from invalid
 
@@ -192,7 +202,11 @@ async def _call(
                 raise A2AClientError("The agent refused the credential it was sent")
             if response.status_code != 200:
                 raise A2AClientError(f"The agent answered HTTP {response.status_code}")
-            raw = await _read_bounded(response)
+            raw = await _read_bounded(
+                response,
+                MAX_RESPONSE_BYTES,
+                f"The agent answered with more than {MAX_RESPONSE_BYTES // (1024 * 1024)} MB",
+            )
     except UrlRefusedError as refused:
         raise A2AClientError(
             f"The agent's address is not one this deployment may call: {refused}"
@@ -213,15 +227,13 @@ async def _call(
     return payload.get("result")
 
 
-async def _read_bounded(response: httpx2.Response) -> bytes:
-    """The body, refused as soon as it passes `MAX_RESPONSE_BYTES`."""
+async def _read_bounded(response: httpx2.Response, ceiling: int, refusal: str) -> bytes:
+    """The body, refused with `refusal` as soon as it passes `ceiling` bytes."""
     body = bytearray()
     async for chunk in response.aiter_bytes():
         body += chunk
-        if len(body) > MAX_RESPONSE_BYTES:
-            raise A2AClientError(
-                f"The agent answered with more than {MAX_RESPONSE_BYTES // (1024 * 1024)} MB"
-            )
+        if len(body) > ceiling:
+            raise A2AClientError(refusal)
     return bytes(body)
 
 

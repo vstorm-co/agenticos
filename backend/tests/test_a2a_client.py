@@ -96,6 +96,15 @@ class TestReadingACard:
                 "https://agents.example.com/.well-known/agent-card.json",
             ),
             ("https://x.example.com/card.json", "https://x.example.com/card.json"),
+            # A signed address: the query is the credential, not where the path ends.
+            (
+                "https://x.example.com/card.json?sig=abc",
+                "https://x.example.com/card.json?sig=abc",
+            ),
+            (
+                "https://x.example.com/agent?sig=abc",
+                "https://x.example.com/agent/.well-known/agent-card.json?sig=abc",
+            ),
         ],
     )
     def test_a_base_address_reads_the_well_known_card(self, given: str, fetched: str) -> None:
