@@ -176,6 +176,8 @@ class TestARunInAProject:
         assert binding.config["backend"] == "state"
         assert spec.instructions.startswith("You write.\n\n## Project: Launch")
         assert "The Q3 launch." in spec.instructions
+        # Several people talk in a project's chat: the agent is told how to tell them apart.
+        assert "Each person's message starts with their name" in spec.instructions
         assert spec.instructions.endswith("### The project's instructions\n\nCite sources.")
 
     def test_a_coding_agent_is_left_out_where_the_project_has_no_shell(self) -> None:

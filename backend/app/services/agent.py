@@ -298,6 +298,10 @@ async def persist_user_turn(
                 user_id=user.id,
             )
             message_id = user_msg.id
+            if conversation is None:
+                # The socket's own thread: still read, because in a project's chat
+                # the model has to be told who is speaking on every turn.
+                conversation = await conv_service.find_conversation(UUID(current_conversation_id))
             if conversation is not None:
                 spoken = await conv_service.model_text(user_msg, conversation)
                 for_model = spoken if spoken != content else None

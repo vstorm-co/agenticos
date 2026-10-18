@@ -1,6 +1,8 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { MessageSquare, Plus } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -8,7 +10,7 @@ import { ConversationAgents } from "@/components/agents/conversation-agents";
 import { RunningFor } from "@/components/chat/conversation-sidebar";
 import { PersonFace } from "@/components/chat/person-face";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Button, ListCard, ListCardEmpty } from "@/components/ui";
+import { Button, DataTable, ListCard, ListCardEmpty, type Column } from "@/components/ui";
 import { useProjectChats } from "@/hooks/use-projects";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -17,13 +19,12 @@ import type { ProjectChat } from "@/types";
 import type { Project } from "@/types/projects";
 
 /**
- * The project's chats, drawn as the chat list draws them, and a new one.
+ * The project's chats as a table, and a new one.
  *
- * The same row as `/chat`'s sidebar - who the thread is with, when it last
- * moved or that it is at work, over its title, and the unread mark - so a chat
- * found here is recognised there. Everybody's, not the reader's alone: a
- * project's chats are its members', so each also says whose it is, who is at
- * work in it and who has seen it.
+ * Everybody's, not the reader's alone: a project's chats are its members', so
+ * each row says whose it is, which agents answer in it, when it last moved or
+ * who is at work in it, and who has seen it - the columns a shared list is
+ * scanned by, as the console's other lists are.
  */
 export function ProjectChats({ project }: { project: Project }) {
   const t = useTranslations("projects");
@@ -31,6 +32,8 @@ export function ProjectChats({ project }: { project: Project }) {
   const { chats, total, isLoading, error, hasMore, loadingMore, loadMore } = useProjectChats(
     project.id,
   );
+  const columns = useChatColumns();
+  const router = useRouter();
 
   const newChat = project.can_use ? (
     <Button asChild size="sm">
@@ -60,13 +63,12 @@ export function ProjectChats({ project }: { project: Project }) {
         />
       ) : (
         <>
-          <ul className="grid grid-cols-1 gap-1 p-2 md:grid-cols-2">
-            {chats.map((chat) => (
-              <li key={chat.id}>
-                <ChatRow chat={chat} />
-              </li>
-            ))}
-          </ul>
+          <DataTable<ProjectChat>
+            columns={columns}
+            rows={chats}
+            getRowKey={(chat) => chat.id}
+            onRowClick={(chat) => router.push(`${ROUTES.CHAT}?id=${chat.id}`)}
+          />
           {hasMore && (
             <div className="flex justify-center px-2 pb-3">
               <Button variant="ghost" size="sm" onClick={loadMore} disabled={loadingMore}>
@@ -80,88 +82,103 @@ export function ProjectChats({ project }: { project: Project }) {
   );
 }
 
-function ChatRow({ chat }: { chat: ProjectChat }) {
+function useChatColumns(): Column<ProjectChat>[] {
   const t = useTranslations("projects");
   const tChat = useTranslations("chat");
   const tTime = useTranslations("time");
-  const tAgents = useTranslations("agents");
   const locale = useLocale();
-  const agents = chat.agents ?? [];
-  const unread = chat.unread === true;
-  const agentLabel =
-    agents.length === 0
-      ? null
-      : agents.length === 1
-        ? agents[0]!.name
-        : tAgents("agentCount", { count: agents.length });
-
-  return (
-    <Link
-      href={`${ROUTES.CHAT}?id=${chat.id}`}
-      className="hover:bg-accent/60 flex min-w-0 items-center gap-3 rounded-lg px-3 py-2"
-    >
-      <span className="relative shrink-0">
-        {agents.length > 0 ? (
-          <ConversationAgents agents={agents} showName={false} />
-        ) : (
-          <span className="bg-muted grid size-6 place-items-center rounded-full">
-            <MessageSquare className="text-muted-foreground h-3 w-3" aria-hidden />
-          </span>
-        )}
-        {unread && (
-          <span
-            role="status"
-            aria-label={tChat("sidebar.unread")}
-            className="unread-dot ring-background absolute -top-px -right-px h-2 w-2 rounded-full ring-2"
-          />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-[11px] leading-4">
-          {chat.working ? (
+  return useMemo<Column<ProjectChat>[]>(
+    () => [
+      {
+        key: "title",
+        header: t("columnChat"),
+        className: "w-full max-w-0",
+        sortable: true,
+        sortValue: (chat) => (chat.title || "").toLowerCase(),
+        cell: (chat) => (
+          <Link
+            href={`${ROUTES.CHAT}?id=${chat.id}`}
+            className="flex min-w-0 items-center gap-2"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <span className="relative shrink-0">
+              <MessageSquare className="text-muted-foreground h-4 w-4" aria-hidden />
+              {chat.unread === true && (
+                <span
+                  role="status"
+                  aria-label={tChat("sidebar.unread")}
+                  className="unread-dot ring-card absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full ring-2"
+                />
+              )}
+            </span>
+            <span
+              className={cn(
+                "truncate",
+                chat.unread === true ? "text-foreground font-semibold" : "font-medium",
+              )}
+            >
+              {chat.title || t("untitledChat")}
+            </span>
+          </Link>
+        ),
+      },
+      {
+        key: "owner",
+        header: t("columnStartedBy"),
+        hideBelow: "md",
+        className: "whitespace-nowrap",
+        sortable: true,
+        sortValue: (chat) => chat.owner?.name.toLowerCase() ?? null,
+        cell: (chat) =>
+          chat.owner ? (
+            <span className="flex items-center gap-2">
+              <PersonFace person={chat.owner} className="h-5 w-5 shrink-0 text-[8px]" />
+              <span className="truncate">{chat.owner.name}</span>
+            </span>
+          ) : null,
+      },
+      {
+        key: "agents",
+        header: t("columnAgents"),
+        hideBelow: "lg",
+        className: "whitespace-nowrap",
+        cell: (chat) =>
+          (chat.agents ?? []).length > 0 ? <ConversationAgents agents={chat.agents ?? []} /> : null,
+      },
+      {
+        key: "activity",
+        header: t("columnActivity"),
+        className: "whitespace-nowrap",
+        sortable: true,
+        sortValue: (chat) => new Date(chat.updated_at ?? chat.created_at).getTime(),
+        cell: (chat) =>
+          chat.working ? (
             // Who is at work in it, before how long: in a shared project the
             // question is whether somebody is already on it.
-            <>
-              <PersonFace person={chat.working} className="h-3.5 w-3.5 shrink-0 text-[7px]" />
-              <span className="text-foreground/80 truncate">
-                {t("isWorking", { name: chat.working.name })}
-              </span>
+            <span className="flex items-center gap-1.5">
+              <PersonFace person={chat.working} className="h-4 w-4 shrink-0 text-[7px]" />
+              <span className="text-foreground">{t("isWorking", { name: chat.working.name })}</span>
               {chat.running_since && (
-                <span className="shrink-0">
+                <span className="text-muted-foreground">
                   · <RunningFor since={chat.running_since} />
                 </span>
               )}
-            </>
+            </span>
           ) : (
-            <>
-              {chat.owner && (
-                <span
-                  className="flex min-w-0 shrink items-center gap-1"
-                  title={t("startedBy", { name: chat.owner.name })}
-                >
-                  <PersonFace person={chat.owner} className="h-3.5 w-3.5 shrink-0 text-[7px]" />
-                  <span className="truncate">{chat.owner.name}</span>
-                </span>
-              )}
-              <span className="shrink-0 truncate">
-                {chat.owner && "· "}
-                {agentLabel && <>{agentLabel} · </>}
-                {timeAgo(chat.updated_at ?? chat.created_at, tTime, locale)}
-              </span>
-            </>
-          )}
-        </span>
-        <span
-          className={cn(
-            "block truncate text-[13px] leading-[18px]",
-            unread ? "text-foreground font-semibold" : "text-foreground/80 font-medium",
-          )}
-        >
-          {chat.title || t("untitledChat")}
-        </span>
-      </span>
-      <SeenBy readers={chat.seen_by} here={chat.here} />
-    </Link>
+            <span className="text-muted-foreground">
+              {timeAgo(chat.updated_at ?? chat.created_at, tTime, locale)}
+            </span>
+          ),
+      },
+      {
+        key: "people",
+        header: t("columnPeople"),
+        hideBelow: "sm",
+        align: "right",
+        cell: (chat) => <SeenBy readers={chat.seen_by} here={chat.here} />,
+      },
+    ],
+    [t, tChat, tTime, locale],
   );
 }
 

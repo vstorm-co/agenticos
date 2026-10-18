@@ -49,8 +49,8 @@ function jumpTo(messageId: string): void {
 }
 
 /**
- * What a turn answers, the way Messenger draws it: a small "in reply to" line,
- * and the quoted message as a faded bubble the reply sits on.
+ * What a turn answers: a small "in reply to" line, and the quoted message as a
+ * faded bubble just above the reply.
  *
  * In a chat several people talk to at once "yes, do that" has to say to what.
  * A click goes to the quoted message where it is still on screen.
@@ -78,9 +78,10 @@ export function ReplyQuote({
         onClick={() => jumpTo(reply.messageId)}
         title={t("jump")}
         className={cn(
-          // Faded and tucked under the reply: the quote is context, the bubble
-          // that overlaps it is what was said.
-          "border-border/80 bg-background text-muted-foreground hover:bg-muted/40 line-clamp-2 rounded-2xl border px-3.5 pt-2 pb-5 text-left text-[13px] leading-snug transition-colors",
+          // A fill rather than an outline, and above the reply rather than under
+          // it: a bubble pulled over the quote let the quote's edge show through
+          // its translucent fill.
+          "bg-foreground/[0.04] text-muted-foreground hover:bg-foreground/[0.07] mb-1 line-clamp-2 rounded-2xl px-3.5 py-2 text-left text-[13px] leading-snug transition-colors",
           align === "end" ? "rounded-br-md" : "rounded-bl-md",
         )}
       >

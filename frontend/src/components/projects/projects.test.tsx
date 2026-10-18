@@ -239,10 +239,14 @@ describe("ProjectChats", () => {
       error: null,
     });
     wrap(<ProjectChats project={aProject()} />);
-    const row = screen.getByRole("link", { name: /Press release/ });
-    expect(row).toHaveAttribute("href", "/chat?id=c-1");
+    expect(screen.getByRole("link", { name: /Press release/ })).toHaveAttribute(
+      "href",
+      "/chat?id=c-1",
+    );
+    // A table: whose each chat is has a column of its own.
+    expect(screen.getByRole("columnheader", { name: "Started by" })).toBeInTheDocument();
+    const row = screen.getByRole("row", { name: /Press release/ });
     expect(row).toHaveTextContent("Kacper");
-    expect(screen.getByTitle("Started by Kacper")).toBeInTheDocument();
     expect(screen.getByText("Untitled chat")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /New chat/ })).toHaveAttribute(
       "href",
@@ -529,9 +533,12 @@ describe("ProjectSettings", () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith("/projects"));
   });
 
-  it("shows a reader who may not change it the instructions, read-only", () => {
+  it("shows a reader who may not change it the instructions, rendered and read-only", async () => {
     wrap(<ProjectSettings project={aProject({ can_edit: false })} />);
-    expect(screen.getByLabelText("Instructions")).toBeDisabled();
+    // Opened on the preview, as somebody who may only read them reads them.
+    expect(screen.getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByText(/Be brief/)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Instructions" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });

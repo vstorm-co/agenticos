@@ -1479,7 +1479,11 @@ def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
         "This conversation is part of a project. Your workspace is the project's: its "
         "files are shared with every chat in the project and every agent that answers "
         "in it, whoever asked - so keep work there, and look there first for what the "
-        "person refers to."
+        "person refers to.\n\n"
+        "Several people may write in this chat. Each person's message starts with their "
+        'name ("Anna: ..."): that is who is speaking, not part of what they said. Address '
+        "people by name, keep track of who asked for what, and when you answer one "
+        "person in a busy chat, say whom."
     )
     if project.description:
         briefing += f"\n\n{project.description}"

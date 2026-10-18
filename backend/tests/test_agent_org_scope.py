@@ -379,12 +379,36 @@ class TestPersistUserTurnOrgScope:
                 "hello",
                 [],
                 requested_conversation_id=None,
-                # The socket's own thread, named by nothing in the frame.
                 current_conversation_id=str(uuid.uuid4()),
                 organization_id=uuid.uuid4(),
             )
         assert prompt.for_model is None
-        service.model_text.assert_not_awaited()
+
+    @pytest.mark.anyio
+    async def test_the_sockets_own_project_thread_still_says_who_is_speaking(self):
+        """A frame that names no thread continues the socket's own; in a project's
+        chat that turn reached the model with no name, so the agent could not tell
+        the people in it apart."""
+        thread = uuid.uuid4()
+        conversation = MagicMock(organization_id=uuid.uuid4(), project_id=uuid.uuid4())
+        service = self._conv_service()
+        service.find_conversation.return_value = conversation
+        service.model_text.return_value = "Anna: hello"
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            prompt = await persist_user_turn(
+                _user(),
+                "hello",
+                [],
+                requested_conversation_id=None,
+                current_conversation_id=str(thread),
+                organization_id=uuid.uuid4(),
+            )
+        service.find_conversation.assert_awaited_once_with(thread)
+        assert service.model_text.await_args.args[1] is conversation
+        assert prompt.for_model == "Anna: hello"
 
     @pytest.mark.anyio
     async def test_a_reply_to_something_that_is_not_a_message_id_is_refused(self):

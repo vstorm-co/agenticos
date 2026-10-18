@@ -68,8 +68,10 @@ here; a path outside the project is refused before anything is written.
 
 A project opens on **Files**. Files can also be dropped anywhere on the tab, and
 each one shows its progress as it goes up; an empty project is one place to drop
-the first ones. **Chats** lists the project's chats as the chat list does, and
-**Apps** the apps a run in one of them published - those the reader may open.
+the first ones. **Chats** is a table of the project's chats, and **Apps** the
+apps a run in one of them published - those the reader may open.
+**Instructions** edits them in Markdown with Source and Preview, as the Agent
+Builder does an agent's, above the project's name, description and default agent.
 
 ## Sharing and permissions
 
@@ -92,9 +94,10 @@ loses `projects:use` stops reaching the project's files on its next turn.
 chat in it, and whoever may work in it (`use`) continues them: their turns carry
 their own name and face, so a thread several people worked on says who asked
 what. Renaming, archiving or deleting a chat stays with whoever started it. On
-the **Chats** tab each row says whose the chat is, who is at work in it right now
-and who has had it open - the latest faces, with every name on hover; whoever has
-it open right now comes first, with a green dot. A chat
+the **Chats** tab each row says whose the chat is, which agents answer in it, when
+it last moved or who is at work in it right now, and who has had it open - the
+latest faces, with every name on hover; whoever has it open right now comes
+first, with a green dot. A chat
 outside any project stays its author's own, as everywhere else in the console.
 
 **Working in one chat together.** Several people can be in a project's chat at
@@ -102,8 +105,9 @@ once. A bar over the transcript shows who else has it open, and its owner can
 invite somebody from there. A question one of them asks, and the agent's answer,
 appear for everybody in the chat as they are written. **Reply** on any message
 quotes it above the composer, and the reply carries the quote - on screen, and to
-the agent, which reads each person's turn under their name, so it knows who asked
-what and what "yes, do that" is about.
+the agent, which reads each person's turn under their name and is told the chat
+may have several people in it, so it knows who asked what and what "yes, do that"
+is about.
 
 ## Deleting a project
 
@@ -114,8 +118,8 @@ kept as ordinary chats, outside any project.
 
 - **Projects** in the sidebar lists the five you used most recently, above the
   link to all of them.
-- The chat list files your chats in a project under the project's name, above the
-  chats outside any project.
+- The chat list files every chat in the projects you can see - yours and your
+  teammates' - under the project's name, above the chats outside any project.
 - The dashboard's **Projects** card shows a row of them, with the chats in each.
 - `GET /api/v1/projects` and its sub-routes are part of the public API, so a
   script can create a project and fill it with files. See [the API](api.md).

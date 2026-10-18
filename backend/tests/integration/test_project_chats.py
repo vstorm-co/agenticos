@@ -172,8 +172,10 @@ class TestATeammateInAnOrganizationsProject:
         assert by_title["Mine"].working is None
 
 
-class TestAContinuedChatInTheTeammatesOwnList:
+class TestAProjectsChatsInEveryMembersList:
     async def test_listed_while_the_project_is_theirs_and_gone_when_it_is_not(self, db) -> None:
+        """Every chat in a project the reader may see, whether or not they wrote
+        in it - a new member found the project and none of its chats in /chat."""
         kacper, anna = await _user(db, "Kacper"), await _user(db, "Anna")
         org = await _org(db, (kacper, "owner"), (anna, "member"))
         project = await _project(db, org, kacper, visibility=Visibility.ORG.value)
@@ -192,10 +194,9 @@ class TestAContinuedChatInTheTeammatesOwnList:
         )
 
         listed, total = await service.list_conversations(user_id=anna.id, organization_id=org.id)
-        assert [c.id for c in listed] == [chat.id] and total == 1
-        assert read_only.id not in {c.id for c in listed}
+        assert {c.id for c in listed} == {chat.id, read_only.id} and total == 2
 
-        # The project goes private: typing in it once is not access (#641).
+        # The project goes private: having been in it is not access (#641).
         project.visibility = Visibility.PRIVATE.value
         await db.flush()
         listed, total = await service.list_conversations(user_id=anna.id, organization_id=org.id)

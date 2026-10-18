@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "c179f95e5c09"
+source_sha: "55ae0bf9abf7"
 ---
 
 # Projekty { #projects }
@@ -69,9 +69,10 @@ poza projektem jest odrzucana, zanim cokolwiek zostanie zapisane.
 
 Projekt otwiera się na **Plikach**. Pliki można też upuścić w dowolnym miejscu
 karty, a każdy pokazuje postęp przesyłania; pusty projekt to jedno miejsce na
-pierwsze pliki. **Czaty** pokazują czaty projektu tak jak lista czatów, a
-**Aplikacje** - aplikacje opublikowane przez run w jednym z nich, te, które
-czytający może otworzyć.
+pierwsze pliki. **Czaty** to tabela czatów projektu, a **Aplikacje** -
+aplikacje opublikowane przez run w jednym z nich, te, które czytający może
+otworzyć. **Instrukcje** edytuje się w Markdownie, ze Źródłem i Podglądem, jak
+instrukcje agenta w Agent Builderze, nad nazwą, opisem i domyślnym agentem projektu.
 
 ## Udostępnianie i uprawnienia { #sharing-and-permissions }
 
@@ -95,8 +96,9 @@ kolejnej turze.
 w nim, a kto może w nim pracować (`use`), kontynuuje je: jego wiadomości niosą
 jego imię i twarz, więc wątek, nad którym pracowało kilka osób, mówi, kto o co
 pytał. Zmiana nazwy, archiwizacja i usunięcie czatu zostają przy osobie, która go
-zaczęła. Na zakładce **Czaty** każdy wiersz mówi, czyj jest czat, kto teraz w nim
-pracuje i kto go otwierał - ostatnie twarze, a wszystkie imiona po najechaniu;
+zaczęła. Na zakładce **Czaty** każdy wiersz mówi, czyj jest czat, którzy agenci w
+nim odpowiadają, kiedy ostatnio coś się w nim działo albo kto teraz w nim pracuje,
+i kto go otwierał - ostatnie twarze, a wszystkie imiona po najechaniu;
 kto ma go otwartego w tej chwili, jest pierwszy, z zieloną kropką.
 Czat poza projektem zostaje jego autora, jak wszędzie indziej w konsoli.
 
@@ -105,8 +107,9 @@ Pasek nad transkrypcją pokazuje, kto jeszcze go ma otwarty, a jego właściciel
 stamtąd kogoś zaprosić. Pytanie zadane przez jedną z nich i odpowiedź agenta
 pojawiają się u wszystkich w czacie na bieżąco. **Odpowiedz** przy dowolnej
 wiadomości cytuje ją nad polem wpisywania, a odpowiedź niesie ten cytat - na
-ekranie i do agenta, który czyta wiadomość każdej osoby pod jej imieniem, więc
-wie, kto o co pytał i do czego odnosi się „tak, zrób to”.
+ekranie i do agenta, który czyta wiadomość każdej osoby pod jej imieniem i wie,
+że w czacie może być kilka osób, więc wie, kto o co pytał i do czego odnosi się
+„tak, zrób to”.
 
 ## Usuwanie projektu { #deleting-a-project }
 
@@ -117,8 +120,8 @@ zwykłe czaty, poza jakimkolwiek projektem.
 
 - **Projekty** w pasku bocznym pokazują pięć ostatnio używanych, nad linkiem do
   wszystkich.
-- Lista czatów pokazuje twoje czaty w projekcie pod jego nazwą, nad czatami spoza
-  projektów.
+- Lista czatów pokazuje każdy czat w projektach, które widzisz - twoje i twoich
+  współpracowników - pod nazwą projektu, nad czatami spoza projektów.
 - Karta **Projekty** na dashboardzie pokazuje ich rząd, z czatami w każdym.
 - `GET /api/v1/projects` i trasy pod nim należą do publicznego API, więc skrypt
   może utworzyć projekt i wypełnić go plikami. Zobacz [API](api.md).

@@ -794,6 +794,18 @@ class TestParticipationDoesNotCarryTheWrite:
             )
 
 
+@pytest.mark.anyio
+async def test_the_sockets_own_thread_is_read_by_id(monkeypatch):
+    """No access check: the socket checked the thread when it opened it."""
+    thread = SimpleNamespace(id=uuid4())
+    read = AsyncMock(return_value=thread)
+    monkeypatch.setattr(conversation_repo, "get_conversation_by_id", read)
+    service = ConversationService(AsyncMock())
+
+    assert await service.find_conversation(thread.id) is thread
+    assert read.await_args.args[1] == thread.id
+
+
 class TestConversationServiceListConversations:
     """Tests for list_conversations."""
 
@@ -972,13 +984,13 @@ class TestConversationServiceListConversations:
         with (
             patch("app.services.conversation.conversation_repo") as mock_repo,
             patch("app.services.conversation.channel_membership") as mock_membership,
+            patch.object(service, "_project_threads", AsyncMock(return_value=set())),
         ):
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
             mock_repo.count_conversations = AsyncMock(return_value=0)
             mock_repo.agents_in_conversations = AsyncMock(return_value={})
             mock_repo.running_since = AsyncMock(return_value={})
             mock_repo.unread_ids = AsyncMock(return_value=set())
-            mock_repo.project_threads_written_in = AsyncMock(return_value=[])
             mock_membership.confirmed_participant_threads = AsyncMock(return_value=vetted)
 
             await service.list_conversations(user_id=reader, organization_id=TEST_ORG_ID)
@@ -2493,9 +2505,7 @@ class TestAFavouriteBelongsToTheReader:
         monkeypatch.setattr(conversation_repo, "get_conversations_by_user", listed)
         monkeypatch.setattr(conversation_repo, "count_conversations", AsyncMock(return_value=0))
         monkeypatch.setattr(conversation_repo, "favourite_ids", AsyncMock(return_value=set()))
-        monkeypatch.setattr(
-            conversation_repo, "project_threads_written_in", AsyncMock(return_value=[])
-        )
+        monkeypatch.setattr(ConversationService, "_project_threads", AsyncMock(return_value=set()))
         service = ConversationService(AsyncMock())
         reader = uuid4()
 

@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "c179f95e5c09"
+source_sha: "55ae0bf9abf7"
 ---
 
 # Projekte { #projects }
@@ -74,9 +74,11 @@ geschrieben wird.
 
 Ein Projekt öffnet sich auf **Dateien**. Dateien lassen sich auch irgendwo auf
 dem Tab ablegen, und jede zeigt beim Hochladen ihren Fortschritt; ein leeres
-Projekt ist ein Ort, die ersten abzulegen. **Chats** listet die Chats des Projekts
-wie die Chatliste, und **Apps** die Apps, die ein Run in einem davon
-veröffentlicht hat - die, die der Leser öffnen darf.
+Projekt ist ein Ort, die ersten abzulegen. **Chats** ist eine Tabelle der Chats
+des Projekts, und **Apps** die Apps, die ein Run in einem davon veröffentlicht
+hat - die, die der Leser öffnen darf. **Anweisungen** werden in Markdown mit
+Quelltext und Vorschau bearbeitet, wie die eines Agents im Agent Builder, über
+Name, Beschreibung und Standard-Agent des Projekts.
 
 ## Teilen und Berechtigungen { #sharing-and-permissions }
 
@@ -102,8 +104,8 @@ darf, liest jeden Chat darin, und wer darin arbeiten darf (`use`), setzt sie for
 Seine Nachrichten tragen seinen Namen und sein Gesicht, sodass ein Thread, an dem
 mehrere gearbeitet haben, sagt, wer was gefragt hat. Umbenennen, Archivieren und
 Löschen bleibt bei der Person, die den Chat begonnen hat. Auf dem Tab **Chats**
-sagt jede Zeile, wessen Chat es ist, wer gerade darin arbeitet und wer ihn
-geöffnet hat - die letzten Gesichter, alle Namen beim Darüberfahren; wer ihn gerade
+sagt jede Zeile, wessen Chat es ist, welche Agents darin antworten, wann sich
+zuletzt etwas getan hat oder wer gerade darin arbeitet, und wer ihn geöffnet hat - die letzten Gesichter, alle Namen beim Darüberfahren; wer ihn gerade
 offen hat, steht vorn, mit einem grünen Punkt. Ein Chat
 außerhalb eines Projekts bleibt bei seinem Autor, wie überall sonst in der Konsole.
 
@@ -113,8 +115,9 @@ hat, und sein Besitzer kann von dort jemanden einladen. Eine Frage, die eine von
 ihnen stellt, und die Antwort des Agent erscheinen bei allen im Chat, während sie
 geschrieben werden. **Antworten** bei einer beliebigen Nachricht zitiert sie über
 dem Eingabefeld, und die Antwort trägt das Zitat - auf dem Bildschirm und zum
-Agent, der die Nachricht jeder Person unter ihrem Namen liest, sodass er weiß, wer
-was gefragt hat und worauf sich „ja, mach das“ bezieht.
+Agent, der die Nachricht jeder Person unter ihrem Namen liest und weiß, dass im
+Chat mehrere Personen sein können, sodass er weiß, wer was gefragt hat und worauf
+sich „ja, mach das“ bezieht.
 
 ## Ein Projekt löschen { #deleting-a-project }
 
@@ -125,8 +128,9 @@ Chats bleiben als normale Chats außerhalb jedes Projekts erhalten.
 
 - **Projekte** in der Seitenleiste listet die fünf zuletzt genutzten über dem
   Link zu allen.
-- Die Chat-Liste führt deine Chats in einem Projekt unter seinem Namen, über den
-  Chats außerhalb von Projekten.
+- Die Chat-Liste führt jeden Chat in den Projekten, die du sehen kannst - deine
+  und die deiner Kolleginnen und Kollegen - unter dem Namen des Projekts, über
+  den Chats außerhalb von Projekten.
 - Die Karte **Projekte** im Dashboard zeigt eine Reihe davon, mit den Chats in
   jedem.
 - `GET /api/v1/projects` und seine Unterrouten gehören zur öffentlichen API, sodass

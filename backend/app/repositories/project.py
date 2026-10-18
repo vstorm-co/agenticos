@@ -66,6 +66,28 @@ async def list_visible(
     return list(items.scalars().all()), total or 0
 
 
+async def visible_ids(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: list[UUID],
+) -> list[UUID]:
+    """Every project one member may see, by id - `list_visible`'s rule, unpaged."""
+    where = [Project.organization_id == organization_id]
+    if not see_all:
+        where.append(
+            or_(
+                Project.owner_user_id == user_id,
+                Project.visibility == Visibility.ORG.value,
+                Project.id.in_(shared_ids) if shared_ids else false(),
+            )
+        )
+    result = await db.execute(select(Project.id).where(*where))
+    return list(result.scalars().all())
+
+
 async def chat_activity(
     db: AsyncSession, *, organization_id: UUID, project_ids: Sequence[UUID]
 ) -> dict[UUID, tuple[int, datetime | None]]:

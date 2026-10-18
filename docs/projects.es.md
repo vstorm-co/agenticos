@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "c179f95e5c09"
+source_sha: "55ae0bf9abf7"
 ---
 
 # Proyectos { #projects }
@@ -74,9 +74,11 @@ nada.
 
 Un proyecto se abre en **Archivos**. Los archivos también se pueden soltar en
 cualquier parte de la pestaña, y cada uno muestra su progreso mientras sube; un
-proyecto vacío es un solo lugar donde soltar los primeros. **Chats** lista los
-chats del proyecto como la lista de chats, y **Apps** las apps que publicó un run
-en uno de ellos - las que el lector puede abrir.
+proyecto vacío es un solo lugar donde soltar los primeros. **Chats** es una tabla
+de los chats del proyecto, y **Apps** las apps que publicó un run en uno de ellos
+- las que el lector puede abrir. Las **Instrucciones** se editan en Markdown, con
+Fuente y Vista previa, como las de un agent en el Agent Builder, encima del
+nombre, la descripción y el agent por defecto del proyecto.
 
 ## Compartir y permisos { #sharing-and-permissions }
 
@@ -100,8 +102,9 @@ del proyecto en su siguiente turno.
 todos sus chats, y quien puede trabajar en él (`use`) los continúa: sus mensajes
 llevan su nombre y su cara, así que un hilo en el que trabajaron varias personas
 dice quién preguntó qué. Renombrar, archivar o borrar un chat sigue siendo cosa de
-quien lo empezó. En la pestaña **Chats** cada fila dice de quién es el chat, quién
-está trabajando en él ahora y quién lo ha abierto - las últimas caras, con todos
+quien lo empezó. En la pestaña **Chats** cada fila dice de quién es el chat, qué
+agents responden en él, cuándo se movió por última vez o quién está trabajando en
+él ahora, y quién lo ha abierto - las últimas caras, con todos
 los nombres al pasar el ratón; quien lo tiene abierto ahora mismo va primero, con
 un punto verde. Un chat fuera de un proyecto sigue siendo de su
 autor, como en el resto de la consola.
@@ -112,7 +115,8 @@ abierto, y su propietario puede invitar a alguien desde ahí. La pregunta que ha
 una de ellas, y la respuesta del agent, aparecen para todos en el chat mientras se
 escriben. **Responder** en cualquier mensaje lo cita sobre el campo de escritura, y
 la respuesta lleva la cita - en pantalla y al agent, que lee el mensaje de cada
-persona bajo su nombre, así sabe quién preguntó qué y a qué se refiere «sí, hazlo».
+persona bajo su nombre y sabe que en el chat puede haber varias personas, así sabe
+quién preguntó qué y a qué se refiere «sí, hazlo».
 
 ## Borrar un proyecto { #deleting-a-project }
 
@@ -123,8 +127,9 @@ conservan como chats normales, fuera de cualquier proyecto.
 
 - **Proyectos** en la barra lateral muestra los cinco usados más recientemente,
   encima del enlace a todos.
-- La lista de chats agrupa tus chats de un proyecto bajo su nombre, encima de los
-  chats que no están en ningún proyecto.
+- La lista de chats agrupa cada chat de los proyectos que puedes ver - los tuyos y
+  los de tus compañeros - bajo el nombre del proyecto, encima de los chats que no
+  están en ningún proyecto.
 - La tarjeta **Proyectos** del dashboard muestra una fila de ellos, con los chats
   en cada uno.
 - `GET /api/v1/projects` y sus subrutas forman parte de la API pública, así que un

@@ -53,7 +53,7 @@ from app.schemas.conversation import (
 )
 from app.schemas.conversation_share import AdminConversationList, AdminConversationRead
 from app.services import chat_room
-from app.services.access import AGENT, PROJECT, resolve_access
+from app.services.access import AGENT, PROJECT, resolve_access, visible_resource_ids
 from app.services.channels import membership as channel_membership
 from app.services.file_storage import delete_files_best_effort, delete_prefix_best_effort
 from app.services.message_history import HistoryMessage, build_message_history
@@ -199,6 +199,14 @@ class ConversationService:
         rows = await conversation_repo.get_recent_messages(self.db, conversation_id, limit=limit)
         spoken = await self._spoken(rows, conversation)
         return build_message_history(_as_history(rows, exclude_message_id, spoken))
+
+    async def find_conversation(self, conversation_id: UUID) -> Conversation | None:
+        """A conversation by id with no access check, for a caller that already holds it.
+
+        The chat socket's own thread: it resolved and checked the thread when the
+        thread was opened, and needs the row again only to read how a turn reads.
+        """
+        return await conversation_repo.get_conversation_by_id(self.db, conversation_id)
 
     async def model_text(self, message: Message, conversation: Conversation) -> str:
         """How one person's turn reads to the model - see :meth:`_spoken`."""
@@ -463,28 +471,30 @@ class ConversationService:
         return AuthContext(user_id=user_id, organization_id=organization_id, role=membership.role)
 
     async def _project_threads(self, user_id: UUID, organization_id: UUID) -> set[UUID]:
-        """Teammates' project chats this person continued, in projects they still see.
+        """Every teammate's chat in the projects this person may see.
 
-        Listed with their own, so a chat they picked up is where they look for
-        it. Vetted per project, as a room's participants are: typing in a thread
-        once must not keep it listed after its project is taken away (#641).
+        A project's chats are its members', so `/chat` lists them with the
+        reader's own, grouped under the project - not only the ones the reader
+        has typed in, which left a new member looking at a project whose chats
+        were nowhere in their list. Decided on the projects as they stand, so
+        losing a project takes its chats out of the list with it (#641).
         """
-        written = await conversation_repo.project_threads_written_in(
-            self.db, user_id=user_id, organization_id=organization_id
-        )
-        if not written:
-            return set()
         ctx = await self._member_ctx(organization_id, user_id)
         if ctx is None:
             return set()
-        visible: set[UUID] = set()
-        for project_id in {project_id for _, project_id in written}:
-            project = await project_repo.get(self.db, project_id, organization_id=organization_id)
-            if project is not None and await resolve_access(
-                self.db, ctx, project, Perm.PROJECTS_VIEW, resource_type=PROJECT
-            ):
-                visible.add(project_id)
-        return {conversation_id for conversation_id, project_id in written if project_id in visible}
+        shared = await visible_resource_ids(
+            self.db, ctx, resource_type=PROJECT, perm=Perm.PROJECTS_VIEW
+        )
+        project_ids = await project_repo.visible_ids(
+            self.db,
+            organization_id=organization_id,
+            user_id=user_id,
+            see_all=shared is None,
+            shared_ids=[] if shared is None else shared,
+        )
+        return await conversation_repo.project_threads_in(
+            self.db, user_id=user_id, organization_id=organization_id, project_ids=project_ids
+        )
 
     async def _project_allows(
         self, conversation: Conversation, user_id: UUID, ctx: AuthContext | None, perm: Perm

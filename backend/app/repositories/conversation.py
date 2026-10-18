@@ -1,6 +1,6 @@
 """Conversation repository."""
 
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, NamedTuple
@@ -301,31 +301,24 @@ def _reachable_by(user_id: UUID, participant_ids: Collection[UUID]) -> ColumnEle
     return or_(Conversation.user_id == user_id, Conversation.id.in_(participant_ids))
 
 
-async def project_threads_written_in(
-    db: AsyncSession, *, user_id: UUID, organization_id: UUID
-) -> list[tuple[UUID, UUID]]:
-    """Somebody else's project chats this person has typed in, with their project.
+async def project_threads_in(
+    db: AsyncSession, *, user_id: UUID, organization_id: UUID, project_ids: Sequence[UUID]
+) -> set[UUID]:
+    """Everybody else's chats in these projects - the caller decides which projects.
 
-    A claim, not access, for the reason :class:`ParticipationClaim` is one:
-    having written in a thread says nothing about whether its project is still
-    theirs to see. The caller checks the project before listing the thread.
+    The caller passes only projects this person may see; their own chats are
+    listed without this.
     """
+    if not project_ids:
+        return set()
     result = await db.execute(
-        select(Conversation.id, Conversation.project_id).where(
+        select(Conversation.id).where(
             Conversation.organization_id == organization_id,
-            Conversation.project_id.is_not(None),
+            Conversation.project_id.in_(project_ids),
             or_(Conversation.user_id.is_(None), Conversation.user_id != user_id),
-            select(Message.id)
-            .where(Message.conversation_id == Conversation.id, Message.author_user_id == user_id)
-            .exists(),
         )
     )
-    # Never None - the query asks for a project - but the column is nullable.
-    return [
-        (conversation_id, project_id)
-        for conversation_id, project_id in result.all()
-        if project_id is not None
-    ]
+    return set(result.scalars().all())
 
 
 class ParticipationClaim(NamedTuple):
