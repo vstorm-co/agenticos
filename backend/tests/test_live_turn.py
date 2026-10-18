@@ -17,10 +17,11 @@ from uuid import uuid4
 import pytest
 
 from app.clients.redis import RedisClient
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthenticationError, NotFoundError
 from app.schemas.conversation import MessageReplyRef
 from app.services import live_turn
 from app.services.agent import PersistedPrompt
+from app.services.agent_session import AgentSession
 from tests.test_agent_session import (
     _CONVERSATION,
     _chat,
@@ -765,3 +766,25 @@ class TestStillReading:
 
     async def test_a_member_who_lost_the_chat_does_not(self) -> None:
         assert await self._ask(member=True, found=False) is False
+
+    @pytest.mark.security
+    async def test_a_revoked_session_does_not_and_its_socket_is_closed(self) -> None:
+        """Membership and access outlive a revoked login; an idle socket sends no
+        frame to re-check it, so the room's news does."""
+        websocket = MagicMock(send_json=AsyncMock(), close=AsyncMock())
+        session = AgentSession(websocket, _session().user, MagicMock(), auth_token="revoked")
+        member = AsyncMock(return_value=MagicMock())
+        with (
+            self._db() as db_context,
+            patch(
+                "app.services.agent_session.authenticate_socket_token",
+                AsyncMock(side_effect=AuthenticationError(message="Session ended")),
+            ),
+            patch("app.services.agent_session.member_repo.get", member),
+        ):
+            db_context.return_value.__aenter__ = AsyncMock(return_value=MagicMock())
+            db_context.return_value.__aexit__ = AsyncMock(return_value=False)
+            assert await session._still_reads(CONVERSATION) is False
+
+        websocket.close.assert_awaited_once()
+        member.assert_not_awaited()

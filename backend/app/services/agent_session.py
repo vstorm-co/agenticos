@@ -1321,7 +1321,15 @@ class AgentSession:
                 await self._follow_if_running(conversation_id)
 
     async def _still_reads(self, conversation_id: str) -> bool:
-        """Whether this person may still read the conversation, as of now."""
+        """Whether this person may still read the conversation, as of now.
+
+        Their credential first: a revoked session or a suspended account keeps
+        its membership and its access, and an idle socket sends no frame that
+        would re-check it - so the room's news re-checks it, and closes the
+        socket on refusal as an inbound frame would.
+        """
+        if not await self._reauthorize():
+            return False
         async with get_db_context() as db:
             if (
                 await member_repo.get(
