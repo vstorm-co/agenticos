@@ -1340,8 +1340,12 @@ class TestCodexOnASignIn:
         assert "no longer in the vault" in answer
 
     async def test_a_sandbox_that_cannot_take_the_sign_in_is_an_answer(self) -> None:
-        answer = await self._run(_Shell(auth_raises=WorkspaceUnavailableError("gone")), _Store())
+        shell = _Shell(auth_raises=WorkspaceUnavailableError("gone"))
+        answer = await self._run(shell, _Store())
         assert answer == "Codex could not run in this sandbox (WorkspaceUnavailableError)."
+        # The write may have landed before the failure came back, so its home is
+        # still taken back out.
+        assert [command for command, _, _ in shell.commands] == [WRITE_AUTH, READ_AUTH]
 
     async def test_a_sign_in_that_cannot_be_read_back_is_logged_not_fatal(self) -> None:
         class _Unreadable(_Shell):

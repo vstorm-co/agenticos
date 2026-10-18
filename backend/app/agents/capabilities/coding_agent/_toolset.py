@@ -244,22 +244,25 @@ def build_coding_toolset(
         discard = {} if conversation_id else {DISCARD_ENV: conversation}
         try:
             written = await source.load()
-            await ctx.workspace.run(  # noqa: S604
-                WRITE_AUTH,
-                shell=True,
-                env={
-                    AUTH_ENV: codex_auth_file(written),
-                    HOME_ENV: home,
-                    SESSIONS_ENV: f"{conversation}/sessions",
-                },
-                timeout=60,
-            )
         except BadRequestError as gone:
             return f"{gone.message}. Say that the sign-in needs choosing again."
-        except _SANDBOX_FAILURES as failed:
-            logger.warning("%s could not sign in in the workspace: %s", label, failed)
-            return f"{label} could not run in this sandbox ({type(failed).__name__})."
+        # The cleanup covers the write as well: a write that landed and then
+        # failed on its way back would otherwise leave the tokens in the sandbox.
         try:
+            try:
+                await ctx.workspace.run(  # noqa: S604
+                    WRITE_AUTH,
+                    shell=True,
+                    env={
+                        AUTH_ENV: codex_auth_file(written),
+                        HOME_ENV: home,
+                        SESSIONS_ENV: f"{conversation}/sessions",
+                    },
+                    timeout=60,
+                )
+            except _SANDBOX_FAILURES as failed:
+                logger.warning("%s could not sign in in the workspace: %s", label, failed)
+                return f"{label} could not run in this sandbox ({type(failed).__name__})."
             return await continued(ctx, task, fresh_session, narration, home=home)
         finally:
             await _keep_rotated(ctx, source, written, env={HOME_ENV: home, **discard})
