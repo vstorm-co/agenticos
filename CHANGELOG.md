@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-18
+
 ### Added
 
 - **Models on a ChatGPT subscription.** The `openai_codex` provider runs OpenAI
