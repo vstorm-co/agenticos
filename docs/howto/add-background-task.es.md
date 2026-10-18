@@ -1,5 +1,5 @@
 ---
-source_sha: "1b7f3c282f31"
+source_sha: "0698462cb81b"
 ---
 
 # Añade una tarea en segundo plano { #add-a-background-task }
@@ -104,4 +104,11 @@ uv run --directory backend python -m app.worker.prefect_app
     el resto hace cola. Cada run es un proceso que importa la aplicación entera,
     así que prefiere el intervalo más largo que siga respondiendo a la pregunta.
 
-El intervalo decide también cuánto trabajo queda esperando tras una caída.
+El intervalo decide también cuánto trabajo queda esperando tras una caída. Pasa
+`concurrency_limit=_ONE_AT_A_TIME` cuando el flow recorre el estado actual, como
+los sweeps de `prefect_app.py`: el servidor rechaza entonces un tick que llega
+mientras el anterior sigue en marcha, antes de que el runner arranque un proceso
+para él, así que una máquina que no da abasto descarta ticks en lugar de
+ejecutarlos todos. No lo pongas en un deployment bajo demanda, donde cada run es
+un trabajo propio, ni en un flow cuyo run cubre un periodo propio, como los
+informes de uso o el digest de arriba.

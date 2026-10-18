@@ -435,6 +435,11 @@ limit allows. Uncapped, three days of downtime was 71 processes and 6 GiB. Raise
 it if ingestion queues behind syncs on a machine with memory to spare; lower it on
 a small host.
 
+Scheduled sweeps add little to that backlog: each runs one tick at a time, and
+the server refuses the rest of its overdue ticks before the runner starts a
+process for them. The usage reports are the exception, since each run covers a
+period of its own.
+
 The two `PREFECT_RUNNER_SERVER_*` variables are Prefect's, and the compose files
 pin them so the runner's container has a health status that means something. The
 runner starts Prefect's runner webserver, whose `GET /health` answers 503 once it

@@ -183,6 +183,21 @@ Two things are versioned separately from this file and worth knowing about:
   false`, which clears the pair, and refuses an explicit `null` for it. A pair
   sent together with `false` is refused, on create as on update. A spec
   carrying `speech_to_text` cannot be imported into a deployment older than it.
+
+## [1.3.1] - 2026-10-18
+
+### Fixed
+
+- **A host that falls behind skips sweep ticks instead of running every one.**
+  Every scheduled sweep (the four minute-ticks and the slower sweeps) now runs
+  one tick at a time: Prefect refuses the tick that arrives while the previous
+  one is still running, before the runner starts a process for it. Before, every
+  tick ran: on 2026-10-17 the production host fell behind, each queued tick was
+  another process importing the application on a saturated CPU, and eight hours
+  later ~1,650 runs were Late and the API's workers were being starved into
+  restarts. On-demand deployments (ingestion, syncs, cleanup) and the usage
+  reports, whose runs each cover a period of their own, keep no limit.
+
 ## [1.3.0] - 2026-10-18
 
 ### Added
