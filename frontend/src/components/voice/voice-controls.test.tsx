@@ -77,6 +77,28 @@ describe("VoiceControls", () => {
     editor.remove();
   });
 
+  it.each([
+    ["the window loses focus", () => fireEvent.blur(window)],
+    [
+      "the page is hidden",
+      () => {
+        Object.defineProperty(document, "visibilityState", {
+          value: "hidden",
+          configurable: true,
+        });
+        fireEvent(document, new Event("visibilitychange"));
+      },
+    ],
+  ])("lets go of a held Space when %s, whose keyup never comes", (_why, leave) => {
+    const { props } = setup(true);
+    fireEvent.keyDown(window, { key: " ", code: "Space" });
+
+    leave();
+
+    expect(props.onPress.mock.calls).toEqual([[true], [false]]);
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+  });
+
   it("keeps a held Space from scrolling the page", () => {
     const { props } = setup(true);
     // The browser repeats keydown while a key is held, and an unhandled Space

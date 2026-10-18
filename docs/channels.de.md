@@ -1,5 +1,5 @@
 ---
-source_sha: "f4d50356bd4f"
+source_sha: "214926a8a83b"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -947,6 +947,14 @@ Limit, Stummschalten und Beenden - ohne Push-to-Talk und ohne Freigabekarte.
 Untertitel erscheinen in der Nachrichtenliste und machen den gespeicherten
 Runden Platz, und eine Ablehnung, ein Limit oder eine besetzte Leitung erscheint
 als eine Zeile unter der Leiste.
+
+**Ein Anruf im Widget ist eine eigene Unterhaltung.** Der getippte Chat des
+Widgets hält keinen Besucherschlüssel - jeder Seitenaufruf beginnt neu -, daher
+werden die Beiträge eines Anrufs in einer eigenen Unterhaltung gespeichert, und
+eine danach getippte Nachricht beginnt eine weitere. Auf dem Bildschirm stehen
+sie in einer Liste; für den Agent ist das im Anruf Gesagte kein Kontext für das
+danach Getippte. Die gehostete Seite hat einen Besucherschlüssel, dort sind
+Anruf und Tippen ein Thread.
 
 Beenden, das Schließen des Panels, das Verlassen der Seite oder eine Verbindung,
 die sich nicht aufbauen lässt, beendet den Anruf und gibt Mikrofon, Audio und

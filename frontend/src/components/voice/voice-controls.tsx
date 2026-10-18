@@ -78,18 +78,29 @@ export function VoiceControls({
       spaceHeld.current = false;
       onPress(false);
     };
+    const letGo = () => {
+      if (!spaceHeld.current && !held.current) return;
+      spaceHeld.current = false;
+      held.current = false;
+      onPress(false);
+    };
+    // A window that loses focus with Space held never hears its keyup - Cmd-Tab,
+    // a system dialog - and the microphone would stay open with no key down.
+    const hidden = () => {
+      if (document.visibilityState === "hidden") letGo();
+    };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
+    window.addEventListener("blur", letGo);
+    document.addEventListener("visibilitychange", hidden);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", letGo);
+      document.removeEventListener("visibilitychange", hidden);
       // Push to talk switched off, or the call over, with the microphone held:
       // let go, so it does not stay open with nothing left to release it.
-      if (spaceHeld.current || held.current) {
-        spaceHeld.current = false;
-        held.current = false;
-        onPress(false);
-      }
+      letGo();
     };
   }, [pushToTalk, onPress]);
 

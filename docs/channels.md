@@ -861,6 +861,13 @@ fails to set up ends the call and releases the microphone, the audio and the
 connection; a connection that drops mid-call is retried once, within eight
 seconds. The widget's call copy is English, like the rest of it.
 
+**A widget call is a conversation of its own.** The widget's typed chat keeps
+no visitor key - each page load starts afresh - so the turns of a call are saved
+to a conversation of the call's, and a message typed after it starts another.
+On the screen they share one list; to the agent, what was said in the call is
+not context for what is typed next. The hosted page has a visitor key, and there
+the call and the typing are one thread.
+
 **A visitor cannot approve anything.** Tools that need an approval are left out
 of a visitor's call entirely, so the agent never reaches for one; it says
 plainly when it cannot do something there. A call also gets the embed's

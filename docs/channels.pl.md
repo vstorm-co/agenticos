@@ -1,5 +1,5 @@
 ---
-source_sha: "f4d50356bd4f"
+source_sha: "214926a8a83b"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -893,6 +893,13 @@ opuszczenie strony albo połączenie, którego nie udało się nawiązać, końc
 rozmowę i zwalnia mikrofon, dźwięk i połączenie; połączenie zerwane w trakcie
 rozmowy jest ponawiane raz, w ciągu ośmiu sekund. Teksty rozmowy w widgecie są
 po angielsku, tak jak reszta widgetu.
+
+**Rozmowa w widgecie to osobna konwersacja.** Czat tekstowy widgetu nie
+trzyma klucza odwiedzającego - każde wczytanie strony zaczyna od nowa - więc
+tury rozmowy trafiają do konwersacji tej rozmowy, a wiadomość wpisana po niej
+zaczyna kolejną. Na ekranie są na jednej liście; dla agenta to, co padło w
+rozmowie, nie jest kontekstem dla tego, co wpisano potem. Strona hostowana ma
+klucz odwiedzającego i tam rozmowa oraz pisanie to jeden wątek.
 
 **Odwiedzający nie może niczego zatwierdzić.** Narzędzia wymagające
 zatwierdzenia są całkowicie pomijane w rozmowie odwiedzającego, więc agent nigdy

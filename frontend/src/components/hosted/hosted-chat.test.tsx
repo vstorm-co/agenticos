@@ -1028,6 +1028,26 @@ describe("a voice call on the page (#54)", () => {
     }
   });
 
+  it("starts the call as the socket's visitor when storage reads but cannot keep a key", async () => {
+    // Full storage: nothing stored to read, and the minted key not kept either.
+    const getItem = vi.spyOn(window.localStorage, "getItem").mockReturnValue(null);
+    const setItem = vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("full", "QuotaExceededError");
+    });
+    try {
+      render(<HostedChat config={voice({ public_key: "pk_full" })} />);
+      await userEvent.click(screen.getByRole("button", { name: "Start a voice call" }));
+
+      const visitor = new URL(socket().url).searchParams.get("visitor");
+      expect(voiceCall.start).toHaveBeenCalledWith(
+        expect.objectContaining({ visitorKey: visitor }),
+      );
+    } finally {
+      getItem.mockRestore();
+      setItem.mockRestore();
+    }
+  });
+
   it("briefs the call with the page's supplied variables, as a typed message is", async () => {
     window.history.replaceState({}, "", "/e/pk_abc?var_order=123&var_secret=x");
     render(<HostedChat config={voice({ variables: ["order"] })} />);

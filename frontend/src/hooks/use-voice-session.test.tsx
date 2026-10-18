@@ -661,6 +661,30 @@ describe("useVoiceSession", () => {
     expect(FakeSocket.instances).toHaveLength(1);
   });
 
+  it("closes its own socket after End when the server never does", async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useVoiceSession(), { wrapper });
+    await act(() =>
+      result.current.start({
+        kind: "console",
+        agentId: "a1",
+        conversationId: null,
+        transport: "webrtc",
+      }),
+    );
+    act(() => {
+      FakeSocket.last().open();
+      FakeSocket.last().receive(READY);
+    });
+
+    act(() => result.current.end());
+    expect(FakeSocket.last().close).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(5000));
+
+    expect(FakeSocket.last().close).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
   it("ends a call still connecting without letting it start", async () => {
     const { result } = renderHook(() => useVoiceSession(), { wrapper });
     await act(() =>

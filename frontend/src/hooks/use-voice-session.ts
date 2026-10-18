@@ -92,6 +92,9 @@ export interface VoiceSession {
   dismiss: () => void;
 }
 
+/** After End, how long the socket stays open for the turns the server saves on the way out. */
+const END_LINGER_MS = 5000;
+
 /**
  * One voice call from this page (#54): the microphone, the peer connection, the
  * socket that governs them, and one automatic reconnect.
@@ -425,6 +428,12 @@ export function useVoiceSession(
       // The server ends the call and closes the socket; its `ended` frame follows.
       socket.send(JSON.stringify({ type: "end" } satisfies VoiceClientFrame));
       releaseMedia();
+      // Open a moment longer for the turns saved on the way out, then closed
+      // whatever the server did: this socket, not whichever a new call opened.
+      window.setTimeout(() => {
+        if (socketRef.current === socket) socketRef.current = null;
+        socket.close();
+      }, END_LINGER_MS);
     } else {
       // Still connecting: never let it open and start a call nobody is on.
       closeAll();

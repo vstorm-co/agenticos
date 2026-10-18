@@ -276,12 +276,15 @@ function visitorKeyFor(publicKey: string): string {
   } catch {
     // "Block all cookies" makes even reading window.localStorage throw. A
     // visitor with that setting gets a fresh thread each visit rather than the
-    // page failing to open at all - but one key for the whole visit, so the
-    // page's socket, a call and an upload are one visitor in one thread.
-    const held = pageVisitorKeys.get(publicKey);
-    if (held) return held;
+    // page failing to open at all.
   }
-  return mintVisitorKey(publicKey);
+  // One key for the whole visit, so the page's socket, a call and an upload are
+  // one visitor in one thread - also where storage reads but cannot keep what
+  // was minted, being full.
+  const held = pageVisitorKeys.get(publicKey);
+  if (held === undefined) return mintVisitorKey(publicKey);
+  keep(publicKey, held);
+  return held;
 }
 
 function storageKeyFor(publicKey: string): string {
@@ -301,13 +304,18 @@ function mintVisitorKey(publicKey: string): string {
   window.crypto.getRandomValues(bytes);
   const minted = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
   pageVisitorKeys.set(publicKey, minted);
-  try {
-    window.localStorage.setItem(storageKeyFor(publicKey), minted);
-  } catch {
-    // Same setting: the key lives only for this page load, so a bookmarked link
-    // starts a new thread rather than resuming - the small failure to take.
-  }
+  keep(publicKey, minted);
   return minted;
+}
+
+/** Store the visit's key where the next visit finds it, where storage allows. */
+function keep(publicKey: string, key: string): void {
+  try {
+    window.localStorage.setItem(storageKeyFor(publicKey), key);
+  } catch {
+    // Blocked or full: the key lives only for this page load, so a bookmarked
+    // link starts a new thread rather than resuming - the small failure to take.
+  }
 }
 
 /**

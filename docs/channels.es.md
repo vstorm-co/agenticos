@@ -1,5 +1,5 @@
 ---
-source_sha: "f4d50356bd4f"
+source_sha: "214926a8a83b"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -899,6 +899,14 @@ límite, Mute y End -, sin push-to-talk ni tarjeta de aprobación. Los subtítul
 aparecen en la lista de mensajes y dejan paso a los turnos guardados, y un
 rechazo, un límite alcanzado o la línea ocupada se muestran en una sola línea
 bajo la barra.
+
+**Una llamada en el widget es una conversación aparte.** El chat escrito del
+widget no guarda clave de visitante - cada carga de la página empieza de cero -,
+así que los turnos de una llamada se guardan en una conversación propia, y un
+mensaje escrito después empieza otra. En pantalla comparten una lista; para el
+agent, lo dicho en la llamada no es contexto de lo que se escribe luego. La
+página alojada tiene clave de visitante, y allí la llamada y lo escrito son un
+mismo hilo.
 
 End, cerrar el panel, salir de la página o una conexión que no llega a
 establecerse terminan la llamada y liberan el micrófono, el audio y la conexión;
