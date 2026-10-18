@@ -203,6 +203,19 @@ class TestRegistering:
             await service.delete(member, mine.id)
         deleted.assert_awaited_once_with(ANY, mine)
 
+    async def test_a_card_says_only_so_much_about_itself(self) -> None:
+        """Its description is a tool description every delegating agent reads."""
+        long = CARD.model_copy(update={"description": "x" * 5000})
+        row = _row()
+        with (
+            patch.object(module.external_agent_repo, "get", AsyncMock(return_value=row)),
+            patch.object(module, "fetch_card", AsyncMock(return_value=long)),
+            patch.object(module.external_agent_repo, "update", AsyncMock(return_value=row)) as up,
+        ):
+            await ExternalAgentService(MagicMock()).refresh(CTX, row.id)
+        stored = up.await_args.kwargs["update_data"]["description"]
+        assert len(stored) == module.MAX_DESCRIPTION_CHARS
+
     async def test_the_list_says_which_registrations_the_caller_may_change(self) -> None:
         """A member is offered Refresh and Remove only on their own: on the
         others the button would be refused."""

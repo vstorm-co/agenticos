@@ -38,6 +38,11 @@ from app.services.a2a_client import A2AClientError, fetch_card
 from app.services.agent_registry import slugify
 from app.services.organization_secret import OrganizationSecretService
 
+MAX_DESCRIPTION_CHARS = 1000
+"""How much of a card's description is kept. It is the remote host's text, read
+by every agent delegating to it as part of its own tools; a card is not where a
+prompt's worth of instructions gets in."""
+
 
 def read(agent: ExternalAgent, *, can_manage: bool) -> ExternalAgentRead:
     skills = agent.card.get("skills", []) if isinstance(agent.card, dict) else []
@@ -62,6 +67,10 @@ def read(agent: ExternalAgent, *, can_manage: bool) -> ExternalAgentRead:
         created_at=agent.created_at,
         updated_at=agent.updated_at,
     )
+
+
+def _described(card: AgentCard) -> str:
+    return (card.description or "")[:MAX_DESCRIPTION_CHARS]
 
 
 def _may_change(ctx: AuthContext, agent: ExternalAgent) -> bool:
@@ -109,7 +118,7 @@ class ExternalAgentService:
             organization_id=ctx.organization_id,
             slug=slug,
             name=card.name[:128],
-            description=card.description or "",
+            description=_described(card),
             card_url=data.card_url.strip(),
             endpoint_url=card.url,
             card=_stored(card),
@@ -149,7 +158,7 @@ class ExternalAgentService:
             agent=agent,
             update_data={
                 "name": card.name[:128],
-                "description": card.description or "",
+                "description": _described(card),
                 "endpoint_url": card.url,
                 "card": _stored(card),
             },

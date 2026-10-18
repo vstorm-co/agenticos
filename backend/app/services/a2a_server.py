@@ -231,10 +231,14 @@ class A2AServerService:
                 reports_failure=True,
             )
         except (NotFoundError, AuthorizationError) as refused:
+            if conversation is None and conversation_id is not None:
+                await self._discard(ctx, conversation_id)
             raise _RpcError(INVALID_REQUEST, refused.message) from refused
         except AppException as failed:
             run_id = (failed.details or {}).get("run_id")
             if run_id is None:
+                if conversation is None and conversation_id is not None:
+                    await self._discard(ctx, conversation_id)
                 raise _RpcError(INVALID_REQUEST, failed.message) from failed
             # The run started and failed: A2A's answer is a task that failed,
             # not an error about the request.
@@ -246,6 +250,17 @@ class A2AServerService:
             ).model_dump(by_alias=True, exclude_none=True)
         parked = await runner.parked_calls(ctx, run)
         return self._task_for(run, output, parked).model_dump(by_alias=True, exclude_none=True)
+
+    async def _discard(self, ctx: AuthContext, conversation_id: UUID) -> None:
+        """Delete a thread this request opened and no run answered.
+
+        Refused before any run began - a budget, an agent not published - it holds
+        the question alone, and the caller was answered with an error naming no
+        context to come back to.
+        """
+        await ConversationService(self.db).delete_conversation(
+            conversation_id, organization_id=ctx.organization_id, user_id=ctx.subject_id
+        )
 
     async def _get(self, ctx: AuthContext, agent: Agent, params: dict[str, Any]) -> dict[str, Any]:
         run_id = _uuid(params.get("id"), "id")

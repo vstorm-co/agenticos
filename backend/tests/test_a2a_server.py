@@ -75,7 +75,10 @@ class _Served:
             parked_calls=AsyncMock(return_value=[]),
             get_run=AsyncMock(),
         )
-        self.conversations = MagicMock(for_api_run=AsyncMock(return_value=(uuid.uuid4(), None)))
+        self.conversations = MagicMock(
+            for_api_run=AsyncMock(return_value=(uuid.uuid4(), None)),
+            delete_conversation=AsyncMock(),
+        )
         self.registry = MagicMock(get=AsyncMock(return_value=agent))
 
     def __enter__(self) -> _Served:
@@ -205,11 +208,27 @@ class TestSendingATask:
         assert task["status"]["state"] == "failed"
         assert task["status"]["message"]["parts"][0]["text"] == "The model provider refused"
 
-    async def test_a_refusal_before_any_run_is_an_error(self) -> None:
+    async def test_a_refusal_before_any_run_is_an_error_and_leaves_no_thread(self) -> None:
         served = _Served(_agent())
         served.runner.execute.side_effect = BadRequestError(message="Not runnable")
         answer = await _ask(served, _send())
         assert answer["error"]["message"] == "Not runnable"
+        # The thread it opened holds the question alone.
+        opened = served.conversations.for_api_run.return_value[0]
+        assert served.conversations.delete_conversation.await_args.args == (opened,)
+
+    async def test_a_run_refused_for_access_leaves_no_thread_either(self) -> None:
+        served = _Served(_agent())
+        served.runner.execute.side_effect = AuthorizationError(message="Not yours")
+        answer = await _ask(served, _send())
+        assert answer["error"]["message"] == "Not yours"
+        served.conversations.delete_conversation.assert_awaited_once()
+
+    async def test_a_refusal_in_a_thread_already_going_keeps_the_thread(self) -> None:
+        served = _Served(_agent())
+        served.runner.execute.side_effect = BadRequestError(message="Not runnable")
+        await _ask(served, _send(contextId=str(uuid.uuid4())))
+        served.conversations.delete_conversation.assert_not_awaited()
 
     @pytest.mark.parametrize(
         ("body", "code"),

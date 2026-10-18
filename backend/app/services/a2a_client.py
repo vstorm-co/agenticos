@@ -172,7 +172,11 @@ async def send_message(
             "message/send",
             {
                 "message": message.model_dump(by_alias=True, exclude_none=True),
-                "configuration": {"blocking": True, "acceptedOutputModes": ["text/plain"]},
+                # Not blocking: an agent that holds the request until it is done
+                # runs past the read timeout on a long task, and the task it had
+                # accepted reads as an agent that could not be reached. The task
+                # comes back at once and is polled below.
+                "configuration": {"blocking": False, "acceptedOutputModes": ["text/plain"]},
             },
             bearer=bearer,
             transport=transport,

@@ -212,6 +212,8 @@ class TestSendingAMessage:
         assert body["method"] == "message/send"
         assert body["params"]["message"]["parts"] == [{"kind": "text", "text": "Review clause 7"}]
         assert body["params"]["message"]["contextId"] == "ctx-0"
+        # Polled rather than held open past the read timeout on a long task.
+        assert body["params"]["configuration"]["blocking"] is False
         assert request.headers["authorization"] == "Bearer secret-token"
 
     async def test_a_plain_message_is_an_answer_too(self) -> None:
