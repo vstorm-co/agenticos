@@ -1,4 +1,4 @@
-<!-- source_sha: c387ac336e59 -->
+<!-- source_sha: 1c1f9bb567c5 -->
 
 <div align="center">
 
@@ -390,7 +390,7 @@ Rufe einen veröffentlichten Agenten als angemeldetes Mitglied mit `POST /api/v1
 
 [Architektur](https://vstorm-co.github.io/agenticos/de/architecture/) · [API](https://vstorm-co.github.io/agenticos/de/api/) · [Capability hinzufügen](https://vstorm-co.github.io/agenticos/de/howto/add-capability/) · [Capability-Referenz](https://vstorm-co.github.io/agenticos/de/reference/capabilities/) · [Mitwirken](https://vstorm-co.github.io/agenticos/de/help/)
 
-Die [Betriebssystem-Analogie](https://vstorm-co.github.io/agenticos/de/about/) erläutert die Architektur. Die optionale [Desktop-App](https://vstorm-co.github.io/agenticos/de/desktop/) ergänzt ein eigenes Fenster, ein Maskottchen und einen macOS-Kurzbefehl für Screenshots. <img src="docs/assets/amigo-walk.svg" alt="Amigo, das AgenticOS-Maskottchen" width="48" valign="middle">
+Die [Betriebssystem-Analogie](https://vstorm-co.github.io/agenticos/de/about/) erläutert die Architektur. Die optionale [Desktop-App](https://vstorm-co.github.io/agenticos/de/desktop/) ergänzt ein eigenes Fenster, ein Maskottchen und einen macOS-Kurzbefehl für Screenshots.
 
 ## ❓ Häufige Fragen
 

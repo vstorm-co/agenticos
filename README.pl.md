@@ -1,4 +1,4 @@
-<!-- source_sha: c387ac336e59 -->
+<!-- source_sha: 1c1f9bb567c5 -->
 
 <div align="center">
 
@@ -390,7 +390,7 @@ Wywołaj opublikowanego agenta przez `POST /api/v1/agents/{id}/run` jako uwierzy
 
 [Architektura](https://vstorm-co.github.io/agenticos/pl/architecture/) · [API](https://vstorm-co.github.io/agenticos/pl/api/) · [Dodaj capability](https://vstorm-co.github.io/agenticos/pl/howto/add-capability/) · [Referencja capabilities](https://vstorm-co.github.io/agenticos/pl/reference/capabilities/) · [Współtworzenie](https://vstorm-co.github.io/agenticos/pl/help/)
 
-[Analogia systemu operacyjnego](https://vstorm-co.github.io/agenticos/pl/about/) wyjaśnia architekturę. Opcjonalna [aplikacja desktopowa](https://vstorm-co.github.io/agenticos/pl/desktop/) dodaje osobne okno, zwierzaka i skrót do zrzutów ekranu na macOS. <img src="docs/assets/amigo-walk.svg" alt="Amigo, zwierzak AgenticOS" width="48" valign="middle">
+[Analogia systemu operacyjnego](https://vstorm-co.github.io/agenticos/pl/about/) wyjaśnia architekturę. Opcjonalna [aplikacja desktopowa](https://vstorm-co.github.io/agenticos/pl/desktop/) dodaje osobne okno, zwierzaka i skrót do zrzutów ekranu na macOS.
 
 ## ❓ Najczęściej zadawane pytania
 
