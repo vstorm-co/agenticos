@@ -76,7 +76,11 @@ def a2a_delegate(
                 # An answer the delegating model reads, not a crash: it can try
                 # another delegate, or say it could not get this one.
                 return f"The remote agent {handle} did not answer: {failed}"
-            record_ambient_usage(f"{PROVIDER}:{handle}", RequestUsage(), provider=PROVIDER)
+            finally:
+                # Booked whether or not it answered: a call that dropped or came
+                # back malformed may still have been worked on, and the unpriced
+                # entry is what says the run's cost is a floor.
+                record_ambient_usage(f"{PROVIDER}:{handle}", RequestUsage(), provider=PROVIDER)
             conversation["context"] = reply.context_id or conversation["context"]
             conversation["task"] = reply.task_id if reply.state in _CONTINUED else None
             return reply.text or "(The remote agent sent no text.)"

@@ -413,7 +413,7 @@ class TestDelegatingToARemoteAgent:
 
         assert [call.kwargs["task_id"] for call in sent.await_args_list] == [None, "t-1", None]
 
-    async def test_a_remote_agent_that_fails_is_an_answer_not_a_crash(self) -> None:
+    async def test_a_remote_agent_that_fails_is_an_answer_and_still_booked(self) -> None:
         with (
             patch.object(
                 delegate_module, "send_message", AsyncMock(side_effect=A2AClientError("down"))
@@ -426,7 +426,10 @@ class TestDelegatingToARemoteAgent:
             )
 
         assert result.output == "The remote agent reviewer did not answer: down"
-        booked.assert_not_called()
+        # A call that dropped may still have been worked on: booked unpriced, so
+        # the run's cost says it is a floor rather than reading as complete.
+        booked.assert_called_once()
+        assert booked.call_args.args[0] == "a2a:reviewer"
 
     async def test_a_streamed_delegation_gets_the_same_answer(self) -> None:
         reply = a2a_client.A2AReply(text="Streamed", context_id=None, state="completed")
