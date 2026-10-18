@@ -45,7 +45,7 @@ import {
 } from "@/lib/delegations";
 import { applyBrowserFrame, type Browse } from "@/lib/browse";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
-import { buildAssistantParts } from "@/lib/conversation-to-chat";
+import { buildAssistantParts, replyFromWire, type WireReply } from "@/lib/conversation-to-chat";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { toast } from "sonner";
 
@@ -464,6 +464,7 @@ export function useChat(options: UseChatOptions = {}) {
             message_id: string | null;
             content: string;
             sender: ChatPerson;
+            reply_to?: WireReply | null;
             agent_id?: string;
           };
           // Their message is here, so they are no longer writing it.
@@ -480,6 +481,7 @@ export function useChat(options: UseChatOptions = {}) {
             timestamp: new Date(),
             conversationId: data.conversation_id,
             sender: data.sender,
+            replyTo: replyFromWire(data.reply_to),
           });
           break;
         }

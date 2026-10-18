@@ -592,6 +592,11 @@ class AgentSession:
                         "message_id": None if prompt.message_id is None else str(prompt.message_id),
                         "content": user_message,
                         "sender": ChatPerson.of(self.user).model_dump(mode="json"),
+                        # The message it answers: "yes, do that" means nothing to
+                        # a teammate without the quote above it.
+                        "reply_to": None
+                        if prompt.reply is None
+                        else prompt.reply.model_dump(mode="json"),
                         # Which agent answers, so a follower draws its face and name
                         # on the answer from the first word rather than at the end.
                         "agent_id": str(agent_id),

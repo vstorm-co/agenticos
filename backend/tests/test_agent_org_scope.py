@@ -16,6 +16,7 @@ from fastapi import WebSocketException
 
 from app.api.deps import get_active_organization_ws
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.schemas.conversation import MessageReplyRef
 from app.services.agent import persist_user_turn
 from app.services.api_key import KeyCaller
 from app.services.conversation import ConversationService
@@ -347,6 +348,8 @@ class TestPersistUserTurnOrgScope:
             MagicMock(organization_id=uuid.uuid4(), title="Plan", user_id=owner.id)
         )
         service.model_text.return_value = 'Kacper: (In reply to your earlier answer: "x")\n\nyes'
+        quote = MessageReplyRef(message_id=replied, role="assistant", excerpt="x")
+        service.reply_quoted.return_value = quote
 
         with (
             patch("app.services.agent.get_db_context", _fake_db_context),
@@ -365,6 +368,8 @@ class TestPersistUserTurnOrgScope:
         written = service.add_message.await_args.args[1]
         assert (written.content, written.reply_to_message_id) == ("yes", replied)
         assert prompt.for_model is not None and prompt.for_model.endswith("yes")
+        # For the teammates following the turn live, who have no transcript yet.
+        assert prompt.reply == quote
 
     @pytest.mark.anyio
     async def test_a_turn_said_as_typed_hands_the_model_nothing_extra(self):

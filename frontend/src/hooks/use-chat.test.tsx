@@ -3513,6 +3513,29 @@ describe("useChat - coming back to a turn still being written", () => {
     expect(asked[1]?.sender).toEqual(anna);
   });
 
+  it("draws a teammate's reply with the quote it answers", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-9",
+      content: "yes, do that",
+      sender: anna,
+      reply_to: { message_id: "m-1", role: "assistant", excerpt: "Plan: A, B", agent_id: "a-9" },
+    });
+
+    expect(useChatStore.getState().messages.at(-1)?.replyTo).toEqual({
+      messageId: "m-1",
+      role: "assistant",
+      excerpt: "Plan: A, B",
+      sender: undefined,
+      agentId: "a-9",
+    });
+  });
+
   it("says who has the open conversation, and nobody for another one", () => {
     const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
     const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };

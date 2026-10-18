@@ -328,6 +328,24 @@ class TestQuotingWhatAReplyAnswers:
             await ConversationService(AsyncMock())._attach_replies([reply])
         assert not hasattr(reply, "reply_to")
 
+    async def test_one_turn_s_quote_is_what_a_follower_is_sent(self):
+        answered = SimpleNamespace(
+            id=uuid4(), role="assistant", content="Plan: A, B", author_user_id=None, agent_id=None
+        )
+        reply = SimpleNamespace(id=uuid4(), reply_to_message_id=answered.id)
+        with (
+            patch(
+                f"{MODULE}.conversation_repo.messages_by_id",
+                AsyncMock(return_value={answered.id: answered}),
+            ),
+            patch(f"{MODULE}.conversation_repo.users_by_id", AsyncMock(return_value={})),
+        ):
+            quote = await ConversationService(AsyncMock()).reply_quoted(reply)
+        assert quote is not None and (quote.message_id, quote.excerpt) == (
+            answered.id,
+            "Plan: A, B",
+        )
+
     async def test_a_page_with_no_replies_asks_nothing(self):
         found = AsyncMock()
         with patch(f"{MODULE}.conversation_repo.messages_by_id", found):

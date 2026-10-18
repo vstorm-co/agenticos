@@ -18,7 +18,9 @@ import pytest
 
 from app.clients.redis import RedisClient
 from app.core.exceptions import NotFoundError
+from app.schemas.conversation import MessageReplyRef
 from app.services import live_turn
+from app.services.agent import PersistedPrompt
 from tests.test_agent_session import (
     _CONVERSATION,
     _chat,
@@ -433,6 +435,21 @@ class TestFollowingFromAnotherSocket:
         assert follower.cancelled()
         assert session._follower is None
 
+    async def test_a_reply_reaches_the_teammates_with_its_quote(self, store: _Store) -> None:
+        """ "Yes, do that" means nothing without the message it answers, and a
+        follower has no transcript to read it from until the turn ends."""
+        session = _session()
+        quote = MessageReplyRef(message_id=uuid4(), role="assistant", excerpt="Plan: A, B")
+        with _chat(AsyncMock(return_value=_finished_turn())) as chat:
+            chat.prompt.return_value = PersistedPrompt(
+                conversation_id=_CONVERSATION, newly_created=False, reply=quote
+            )
+            await session.process_message(_message("yes, do that"))
+
+        (trace,) = [key for key in store.lists if key.startswith(f"turn:{_CONVERSATION}:")]
+        prompt = json.loads(store.lists[trace][0])["data"]
+        assert prompt["reply_to"]["excerpt"] == "Plan: A, B"
+
     async def test_a_turn_this_socket_writes_is_kept_for_whoever_comes_back(
         self, store: _Store
     ) -> None:
@@ -446,6 +463,7 @@ class TestFollowingFromAnotherSocket:
         # Who asked, and which agent answers - what a follower draws the turn by.
         assert frames[0]["data"]["sender"]["name"] == "Kacper"
         assert frames[0]["data"]["agent_id"]
+        assert frames[0]["data"]["reply_to"] is None
         # The question first: a follower in the room has no other way to see it.
         assert kept == ["turn_prompt", "message_saved", "complete", live_turn.END]
         assert await live_turn.live_token(_CONVERSATION) is None

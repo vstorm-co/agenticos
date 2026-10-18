@@ -1,6 +1,13 @@
 import { storedUsage } from "./message-usage";
 import type { MentionKind, Mentionable } from "@/types/mention";
-import type { ChatMessage, ChatMessageFile, ChatPerson, MessagePart, ToolCall } from "@/types";
+import type {
+  ChatMessage,
+  ChatMessageFile,
+  ChatPerson,
+  MessagePart,
+  MessageReply,
+  ToolCall,
+} from "@/types";
 
 /**
  * Shape of a persisted message as returned by the backend (MessageRead).
@@ -56,13 +63,7 @@ export interface RawMessage {
   files?: ChatMessageFile[] | null;
   sender?: ChatPerson | null;
   sender_gone?: boolean;
-  reply_to?: {
-    message_id: string;
-    role: ChatMessage["role"];
-    excerpt: string;
-    sender?: ChatPerson | null;
-    agent_id?: string | null;
-  } | null;
+  reply_to?: WireReply | null;
   /** What the turn cost. Absent on a message written before it was recorded. */
   input_tokens?: number | null;
   output_tokens?: number | null;
@@ -197,15 +198,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
     conversationId: msg.conversation_id,
     sender: msg.sender ?? undefined,
     senderGone: msg.sender_gone === true || undefined,
-    replyTo: msg.reply_to
-      ? {
-          messageId: msg.reply_to.message_id,
-          role: msg.reply_to.role,
-          excerpt: msg.reply_to.excerpt,
-          sender: msg.reply_to.sender ?? undefined,
-          agentId: msg.reply_to.agent_id ?? undefined,
-        }
-      : undefined,
+    replyTo: replyFromWire(msg.reply_to),
     agentId: msg.agent_id ?? undefined,
     agentVersion: msg.agent_version ?? undefined,
     runId: msg.run_id ?? undefined,
@@ -226,4 +219,26 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
 
 export function conversationMessagesToChatMessages(msgs: RawMessage[]): ChatMessage[] {
   return msgs.map(conversationMessageToChatMessage);
+}
+
+/** The message a turn answers, as the API and the live turn frame both send it. */
+export interface WireReply {
+  message_id: string;
+  role: ChatMessage["role"];
+  excerpt: string;
+  sender?: ChatPerson | null;
+  agent_id?: string | null;
+}
+
+/** The quote a turn carries, or nothing for a turn that answers no message. */
+export function replyFromWire(reply: WireReply | null | undefined): MessageReply | undefined {
+  return reply
+    ? {
+        messageId: reply.message_id,
+        role: reply.role,
+        excerpt: reply.excerpt,
+        sender: reply.sender ?? undefined,
+        agentId: reply.agent_id ?? undefined,
+      }
+    : undefined;
 }

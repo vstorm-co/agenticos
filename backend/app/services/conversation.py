@@ -662,6 +662,11 @@ class ConversationService:
             else:
                 msg.sender = ChatPerson.of(author)  # ty: ignore[unresolved-attribute]
 
+    async def reply_quoted(self, message: Message) -> MessageReplyRef | None:
+        """The quote one turn carries of the message it answers, or `None`."""
+        await self._attach_replies([message])
+        return getattr(message, "reply_to", None)
+
     async def _attach_replies(self, messages: Sequence[Message]) -> None:
         """Quote, on each turn that replied to one, the message it answers.
 

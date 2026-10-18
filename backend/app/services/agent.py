@@ -33,6 +33,7 @@ from app.schemas.conversation import (
     ConversationUpdate,
     MessageCreate,
     MessagePart,
+    MessageReplyRef,
     ToolCallComplete,
     ToolCallCreate,
 )
@@ -114,6 +115,9 @@ class PersistedPrompt:
     # said it in a project's chat, and the message it replies to. `None` means
     # just the text.
     for_model: str | None = None
+    # The message the turn answers, quoted as the transcript quotes it - for the
+    # teammates following the turn live, who have no transcript to read it from.
+    reply: MessageReplyRef | None = None
 
 
 def _message_uuid(message_id: str) -> UUID:
@@ -241,6 +245,7 @@ async def persist_user_turn(
     newly_created = False
     message_id: UUID | None = None
     for_model: str | None = None
+    reply: MessageReplyRef | None = None
     replied = _message_uuid(reply_to) if reply_to else None
     # The thread as resolved or created here; a turn continuing the socket's own
     # thread names none, and reads to the model as typed.
@@ -313,6 +318,8 @@ async def persist_user_turn(
                 user_id=user.id,
             )
             message_id = user_msg.id
+            if replied is not None:
+                reply = await conv_service.reply_quoted(user_msg)
             if conversation is None:
                 # The socket's own thread: still read, because in a project's chat
                 # the model has to be told who is speaking on every turn.
@@ -349,6 +356,7 @@ async def persist_user_turn(
         newly_created=newly_created,
         message_id=message_id,
         for_model=for_model,
+        reply=reply,
     )
 
 
