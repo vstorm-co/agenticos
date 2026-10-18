@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.mention import MentionKind
 
 
 class MessagePart(BaseSchema):
@@ -41,6 +42,13 @@ class MessagePart(BaseSchema):
     put nor the answer it acted on (#502). `asked_by` names the delegate a question
     came from, because a question from a specialist reads differently from one the
     main agent put itself (#1042).
+
+    A `steer` entry is what the person added while the agent was working, stored
+    where it reached the model (#2087): the transcript says when the course changed.
+
+    A `mention` entry is on a *user* turn: something the person pointed the agent at
+    with `@` (#2189), stored by kind, id and name so the transcript draws the chip
+    they picked rather than text that only looks like one.
     """
 
     # The one schema in this module that must not strip its strings. `BaseSchema`
@@ -55,9 +63,12 @@ class MessagePart(BaseSchema):
         str_strip_whitespace=False,
     )
 
-    type: Literal["text", "thinking", "tool", "ask_user"] = Field(description="What this entry is.")
+    type: Literal["text", "thinking", "tool", "ask_user", "steer", "mention"] = Field(
+        description="What this entry is."
+    )
     text: str | None = Field(
-        default=None, description="The words, for a `text` or `thinking` entry."
+        default=None,
+        description="The words, for a `text` or `thinking` entry, or what the person added for a `steer`.",
     )
     tool_call_id: str | None = Field(
         default=None, description="Which tool call this entry is, for a `tool` entry."
@@ -75,6 +86,12 @@ class MessagePart(BaseSchema):
             "agent asked it itself, and on every question stored before this field "
             "existed."
         ),
+    )
+    mention_kind: MentionKind | None = Field(
+        default=None, description="What was mentioned, for a `mention` entry."
+    )
+    mention_id: str | None = Field(
+        default=None, description="Which one, for a `mention` entry; its name is in `text`."
     )
 
 
@@ -106,7 +123,12 @@ class ToolCallRead(ToolCallBase):
     id: UUID
     message_id: UUID
     result: str | None = None
-    status: Literal["pending", "running", "completed", "failed", "awaiting_approval"] = "pending"
+    # Every status a stored step can hold - `awaiting_answer` included, the step
+    # of a run parked on a question (#2064): left out, the whole thread's
+    # transcript failed to read back and the conversation opened empty.
+    status: Literal[
+        "pending", "running", "completed", "failed", "awaiting_approval", "awaiting_answer"
+    ] = "pending"
     started_at: datetime
     completed_at: datetime | None = None
     duration_ms: int | None = None
@@ -136,8 +158,8 @@ class MessageCreate(MessageBase):
     parts: list[MessagePart] | None = Field(
         default=None,
         description=(
-            "The turn's timeline, in the order it happened. Null on a user turn and "
-            "on any assistant turn written before it was recorded."
+            "The turn's timeline, in the order it happened, or a user turn's "
+            "`mention` entries. Null on any turn written before it was recorded."
         ),
     )
     tokens_used: int | None = Field(default=None, ge=0, description="Token count")
@@ -271,6 +293,14 @@ class MessageRead(MessageBase, TimestampSchema):
             "half-written answer that reads exactly like a complete one."
         ),
     )
+    run_duration_ms: int | None = Field(
+        default=None,
+        description=(
+            "How long the run that produced this turn was open, in milliseconds - "
+            "from its start to its end, including any wait for an approval. Null for "
+            "a turn written outside a run and for a run that has not ended."
+        ),
+    )
     tool_calls: list[ToolCallRead] = Field(default_factory=list)
     files: list[MessageFileRead] = Field(default_factory=list)
     user_rating: int | None = Field(
@@ -321,6 +351,8 @@ class ConversationAgent(BaseSchema):
     slug: str
     name: str
     has_avatar: bool = False
+    # The colour its face was given, so a list draws the face its own page does.
+    avatar_color: int | None = None
 
 
 class ConversationRead(ConversationBase, TimestampSchema):
@@ -330,6 +362,10 @@ class ConversationRead(ConversationBase, TimestampSchema):
     user_id: UUID | None = None
     organization_id: UUID | None = None
     is_archived: bool = False
+    origin: Literal["api"] | None = Field(
+        default=None,
+        description="`api` for a conversation an organization key's run opened; null otherwise",
+    )
     is_favourite: bool = Field(
         default=False,
         description=(
@@ -337,6 +373,22 @@ class ConversationRead(ConversationBase, TimestampSchema):
             "rather than of the row: a conversation can be shared and a channel thread "
             "has participants, so one person's star must not decide where it sits for "
             "everybody who can see it."
+        ),
+    )
+    unread: bool = Field(
+        default=False,
+        description=(
+            "Whether this conversation holds an answer the caller has not seen since "
+            "they last had it open. Set on a listing; `POST /conversations/{id}/read` "
+            "clears it."
+        ),
+    )
+    running_since: datetime | None = Field(
+        default=None,
+        description=(
+            "When the run still at work in this conversation began, or null when "
+            "none is. Set on a listing, so a sidebar can show which threads are busy; "
+            "a run parked on an approval is waiting, not working, and is not counted."
         ),
     )
     agents: list[ConversationAgent] = Field(

@@ -18,7 +18,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from app.core.exceptions import AuthenticationError, NotFoundError
 from app.services.access_auth import resolve_user_from_access_token
+from app.services.api_key import ApiKeyService, KeyCaller, is_api_key
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,4 +62,25 @@ async def authenticate_socket_token(
             or an impersonation that has ended, or resolves to a user who is unknown or
             suspended.
     """
+    caller = await authenticate_socket_key(db, token)
+    if caller is not None:
+        return caller.user
+
     return await resolve_user_from_access_token(db, token, allow_expired=allow_expired)
+
+
+async def authenticate_socket_key(db: AsyncSession, token: str) -> KeyCaller | None:
+    """The organization key a socket was opened with, re-checked, or `None` for a JWT.
+
+    A key-authenticated chat socket is held to its key on every frame the way a
+    session socket is held to its session: revoking the key, letting it expire, or
+    removing its issuer closes the socket at the next frame (#1794). The context
+    comes back fresh each time, so a demotion narrows the next turn rather than
+    the next connection.
+
+    Raises:
+        AuthenticationError: The key is no longer valid.
+    """
+    if not is_api_key(token):
+        return None
+    return await ApiKeyService(db).authenticate(token)

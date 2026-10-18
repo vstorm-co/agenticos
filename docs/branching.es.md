@@ -1,5 +1,5 @@
 ---
-source_sha: "66365d6bce1a"
+source_sha: "4eeacc219cad"
 ---
 
 # Ramas y qué las protege { #branches-and-what-protects-them }
@@ -213,7 +213,7 @@ diff.
 ### Una ejecución por rama { #one-run-per-branch }
 
 `ci.yml` lleva un grupo de concurrencia con clave `github.ref`, así que volver a
-empujar a una rama cancela su ejecución anterior. Importa porque `CLAUDE.md` pide
+empujar a una rama cancela su ejecución anterior. Importa porque `AGENTS.md` pide
 un commit y un push por cada pieza terminada: sin nada que cancelara, 75 de las 369
 ejecuciones de los primeros seis días de agosto quedaron superadas mientras seguían
 en vuelo — unos 1.800 minutos facturados respondiendo preguntas sobre commits que
@@ -276,7 +276,7 @@ presupuesto entero del job y luego informa como si fuera la cancelación de otro
 !!! important "La descripción de la pull request *es* el mensaje de commit que sobrevive"
 
     `main` guarda un commit por pull request, construido a partir del título y del
-    cuerpo y no de los commits de la propia rama. `CLAUDE.md` tiene el formato.
+    cuerpo y no de los commits de la propia rama. `AGENTS.md` tiene el formato.
 
 Así que `wip`, `fixup` y `try again` nunca llegan ahí — y la descripción no es una
 cortesía.

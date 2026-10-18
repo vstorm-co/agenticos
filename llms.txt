@@ -63,7 +63,7 @@ This test is written to be applied to other products in the category, and to thi
 - [Context files](https://vstorm-co.github.io/agenticos/context/): standing knowledge written once and bound to many agents.
 - [File processing](https://vstorm-co.github.io/agenticos/file-processing/): upload, parsing, chunking, embedding, and syncing a Drive folder or an S3 bucket.
 - [Set up a knowledge base](https://vstorm-co.github.io/agenticos/howto/set-up-knowledge-base/): the retrieval recipe, step by step.
-- [MCP](https://vstorm-co.github.io/agenticos/mcp/): 5,802 servers in the picker, searchable by name — 99 of them checked by hand with their OAuth flows wired, the rest mirrored from the public registry — or any server by URL.
+- [MCP](https://vstorm-co.github.io/agenticos/mcp/): 4,700+ servers in the gallery, searchable by name - the common ones checked by hand with their OAuth flows wired, the rest mirrored from the public registry - or any server by URL.
 - [The sandbox](https://vstorm-co.github.io/agenticos/sandbox/): files and a shell an agent works in, isolated, with a lifetime.
 - [Capabilities reference](https://vstorm-co.github.io/agenticos/reference/capabilities/): every capability that ships, its tools, config and permission scope.
 - [The agent spec](https://vstorm-co.github.io/agenticos/reference/spec/): the format, field by field, generated from the source.

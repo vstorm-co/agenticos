@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Globe } from "lucide-react";
+import { Globe, Users } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { ArtifactThumbnail } from "@/components/artifacts/artifact-thumbnail";
+import { groupsLabel } from "@/components/sharing/audience-chip";
 import { Badge, Card, DocPeek } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import type { Artifact } from "@/types/artifact";
@@ -21,6 +22,8 @@ import type { Artifact } from "@/types/artifact";
 export function ArtifactCard({ artifact }: { artifact: Artifact }) {
   const t = useTranslations("artifacts");
   const format = useFormatter();
+  const tAudience = useTranslations("audience");
+  const groups = artifact.shared_groups ?? [];
   const version = artifact.current_version?.number ?? 0;
   return (
     <Link href={ROUTES.ARTIFACT_DETAIL(artifact.id)} className="group block h-full">
@@ -47,6 +50,13 @@ export function ArtifactCard({ artifact }: { artifact: Artifact }) {
               </Badge>
             )}
             {artifact.visibility === "org" && <Badge variant="secondary">{t("sharedOrg")}</Badge>}
+            {/* Its departments, as every other resource's card names them. */}
+            {groups.length > 0 && (
+              <Badge variant="secondary" className="gap-1">
+                <Users className="h-3 w-3" aria-hidden />
+                {groupsLabel(groups, tAudience)}
+              </Badge>
+            )}
             {artifact.public_url !== null && (
               <Badge variant="outline" className="gap-1">
                 <Globe className="h-3 w-3" />

@@ -18,7 +18,7 @@
 # Versions here are what the Dockerfiles and compose files name. When one of
 # those moves, this file moves with it - `scripts/docs_drift.py` reminds.
 
-# Images the two published containers are built from
+# Images the three published containers are built from
 
 [[component]]
 name = "python (Docker Official Image)"
@@ -69,6 +69,46 @@ source = "https://github.com/astral-sh/uv"
 status = "accepted"
 obligations = "None for the published image: the binary is copied into the builder stage and installs the wheels; it is not in the final layer."
 fulfilled_by = "Not distributed."
+
+[[component]]
+name = "debian (Docker Official Image)"
+version = "bookworm-slim"
+kind = "runtime image, browser"
+license = "Each package under its own licence (GPL-2.0, GPL-3.0, LGPL-2.1, MIT, BSD and others)."
+source = "https://hub.docker.com/_/debian"
+status = "accepted"
+obligations = "Ship licence texts and, for GPL and LGPL packages, make their corresponding source available to recipients of the image."
+fulfilled_by = "Debian keeps every package's licence under /usr/share/doc/<package>/copyright in the image and publishes the matching source packages (apt-get source; https://snapshot.debian.org). Distributed unmodified apart from the packages listed below; the per-release SBOM records the exact package set."
+
+[[component]]
+name = "chromium (Debian package)"
+version = "as pinned by Debian bookworm"
+kind = "system package, browser image"
+license = "BSD-3-Clause (Chromium), with bundled components under their own licences (LGPL-2.1, MPL-2.0, Apache-2.0, MIT and others), listed in chrome://credits"
+source = "https://www.chromium.org/"
+status = "accepted"
+obligations = "Licence texts and attribution; for LGPL components, their source available to recipients."
+fulfilled_by = "Debian's /usr/share/doc/chromium/copyright is in the image and chrome://credits lists every bundled component; source through Debian's source package; used unmodified."
+
+[[component]]
+name = "xvfb, socat, dumb-init, tzdata (Debian packages)"
+version = "as pinned by Debian bookworm"
+kind = "system package, browser image"
+license = "Xvfb: MIT/X11. socat: GPL-2.0. dumb-init: MIT. tzdata: public domain."
+source = "https://packages.debian.org/bookworm/"
+status = "accepted"
+obligations = "Licence texts; socat (GPL-2.0) is run unmodified as a separate process, so its corresponding source available to recipients."
+fulfilled_by = "Debian's /usr/share/doc/<package>/copyright for each is in the image; source through Debian's source packages; none modified."
+
+[[component]]
+name = "fonts-liberation, fonts-noto, fonts-noto-cjk, fonts-noto-color-emoji (Debian packages)"
+version = "as pinned by Debian bookworm"
+kind = "system package, browser image"
+license = "Liberation: OFL-1.1. Noto: OFL-1.1 (Noto Color Emoji: OFL-1.1, its images Apache-2.0)."
+source = "https://fonts.google.com/noto"
+status = "accepted"
+obligations = "OFL-1.1: the licence text travels with the fonts; the fonts are not sold on their own."
+fulfilled_by = "Debian's /usr/share/doc/fonts-*/copyright is in the image; installed as system fonts the browser renders pages with, never sold or redistributed apart from the image."
 
 # Bundled assets
 

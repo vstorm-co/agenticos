@@ -93,12 +93,15 @@ test.describe("Ingestion settings", () => {
     await dialog.getByLabel("Name").fill(KB_NAME);
     await chooseEmbeddingKey(page, dialog, SEEDED_EMBEDDING_KEY_LABEL);
 
-    // Folded away until asked for: creating a collection is a two-field job.
-    await expect(dialog.getByLabel("PDF parser")).toBeHidden();
-    await dialog.getByText("How documents are parsed").click();
-
-    await dialog.getByRole("combobox", { name: "PDF parser" }).click();
-    await page.getByRole("option", { name: PARSER, exact: true }).click();
+    // The parser is the one choice offered up front, as cards; the rest of the
+    // parsing settings wait in a fold that opens itself for LlamaParse's key.
+    await dialog
+      .getByRole("radiogroup", { name: "PDF parser" })
+      .getByRole("radio", { name: new RegExp(`^${PARSER}`) })
+      .click();
+    if (!(await dialog.getByLabel("Chunk size").isVisible())) {
+      await dialog.getByText("Chunking, OCR and images").click();
+    }
 
     // The tier belongs to this parser alone, so its appearance is the form
     // saying it understood the choice rather than merely recording a click.

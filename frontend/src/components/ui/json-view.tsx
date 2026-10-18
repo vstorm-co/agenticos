@@ -35,7 +35,7 @@ export function JsonView({
   className?: string;
 }) {
   return (
-    <div className={cn("font-mono text-[11.5px] leading-relaxed", className)}>
+    <div className={cn("font-mono text-xs leading-relaxed", className)}>
       <Node value={value} depth={0} initialDepth={initialDepth} />
     </div>
   );

@@ -49,6 +49,7 @@ function serve(spend: Partial<CostSummary>) {
     by_agent: [],
     by_provider: [],
     by_key: [],
+    by_day: [],
     ...spend,
   });
 }
@@ -114,6 +115,7 @@ describe("the vendor and key facets", () => {
       by_key: [
         { secret_id: "sec-1", label: "OpenAI · production", cost_usd: "2.0000", run_count: 8 },
       ],
+      by_day: [],
     });
 
     render(<SpendTab period={PERIOD} />, { wrapper });

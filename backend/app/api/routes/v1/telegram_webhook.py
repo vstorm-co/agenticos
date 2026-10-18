@@ -10,7 +10,8 @@ from app.api.deps import ChannelBotSvc
 from app.core.background import spawn
 from app.services.channel_bot import unseal_webhook_secret
 from app.services.channels import get_adapter
-from app.worker.background.channel import process_channel_event
+from app.services.channels.telegram_press import parse_press
+from app.worker.background.channel import process_channel_event, process_channel_press
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,11 @@ async def telegram_webhook(
         )
     if secret is None or not adapter.verify_webhook_signature(headers, secret):
         raise HTTPException(status_code=403, detail="Invalid webhook signature")
+
+    press = parse_press(payload, str(bot_id))
+    if press is not None:
+        spawn(process_channel_press(press), name=f"telegram_press:{bot_id}")
+        return Response(status_code=200)
 
     incoming = adapter.parse_incoming(payload, str(bot_id))
     if incoming is None:

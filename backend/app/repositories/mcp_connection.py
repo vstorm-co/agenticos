@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 
 from app.db.models.mcp_connection import McpConnection
+from app.db.models.resource_grant import Visibility
 
 
 async def get_by_id(db: AsyncSession, connection_id: UUID) -> McpConnection | None:
@@ -190,10 +191,9 @@ async def list_user_scoped_by_catalog_key(
 ) -> list[McpConnection]:
     """This person's own enabled connections to one catalog entry.
 
-    A list rather than one row: nothing stops somebody holding two Notion
-    accounts, and which of them an agent should speak through is a question only
-    they can answer. The caller substitutes when there is exactly one and
-    declines to guess otherwise (#1342).
+    A list rather than one row: somebody may hold two Notion accounts, and an
+    agent bound to their own account reaches every one of them (#2125). Oldest
+    first, because without a default the first connected keeps the plain prefix.
     """
     result = await db.execute(
         select(McpConnection)
@@ -331,6 +331,69 @@ async def list_oauth_connections(db: AsyncSession) -> list[McpConnection]:
     return list(result.scalars().all())
 
 
+async def list_org_servers_to_check(db: AsyncSession) -> list[McpConnection]:
+    """Every enabled organization server on the deployment, for the scheduled check (#2100).
+
+    Deliberately unscoped, like :func:`list_oauth_connections`: the check is
+    about whether servers answer, and a tenant learns only about its own through
+    the notifications it writes. Grep for this function when auditing
+    cross-tenant reads.
+    """
+    result = await db.execute(
+        select(McpConnection)
+        .where(
+            McpConnection.purpose == "mcp",
+            McpConnection.scope == "org",
+            McpConnection.is_enabled.is_(True),
+        )
+        .order_by(McpConnection.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+async def open_outage(db: AsyncSession, *, connection: McpConnection, at: datetime) -> bool:
+    """Record that this server stopped answering at `at`, unless an outage is already open.
+
+    One conditional statement rather than a read and a write, so two runs that
+    find the server down at once open one outage between them, and only the one
+    that opened it is told True - which is what makes one outage one
+    notification.
+    """
+    result = await db.execute(
+        sql_update(McpConnection)
+        .where(McpConnection.id == connection.id, McpConnection.unreachable_since.is_(None))
+        .values(unreachable_since=at)
+        .returning(McpConnection.id)
+    )
+    opened = result.scalar_one_or_none() is not None
+    await db.refresh(connection, ["unreachable_since"])
+    return opened
+
+
+async def close_outage(db: AsyncSession, *, connection: McpConnection) -> datetime | None:
+    """Record that this server answers again; when its outage began, or None if none was open.
+
+    The start is read back from the row the statement closed, not from the
+    caller's copy, so of two checks finding the server back only one is handed
+    an outage to announce the end of.
+    """
+    previous = (
+        select(McpConnection.id, McpConnection.unreachable_since)
+        .where(McpConnection.id == connection.id, McpConnection.unreachable_since.is_not(None))
+        .with_for_update()
+        .cte("previous")
+    )
+    result = await db.execute(
+        sql_update(McpConnection)
+        .where(McpConnection.id == previous.c.id)
+        .values(unreachable_since=None)
+        .returning(previous.c.unreachable_since)
+    )
+    since = result.scalar_one_or_none()
+    await db.refresh(connection, ["unreachable_since"])
+    return since
+
+
 async def get_by_oauth_state(db: AsyncSession, state: str) -> McpConnection | None:
     """Find the connection awaiting this OAuth callback (state is the CSRF token)."""
     result = await db.execute(select(McpConnection).where(McpConnection.oauth_state == state))
@@ -413,13 +476,14 @@ async def create_org_scoped(
     purpose: str = "mcp",
     portal_key: str | None = None,
     label: str | None = None,
+    visibility: str = Visibility.ORG.value,
 ) -> McpConnection:
     """Store a connection the organization owns.
 
     Separate from :func:`create` rather than a flag on it, because the two
     differ in the fields that matter: no `user_id` (the check constraint
-    refuses one), a `created_by_user_id` that records rather than authorizes,
-    and a catalog key. A single function taking both shapes would make the wrong
+    refuses one), a `created_by_user_id` that owns rather than holds it, a
+    visibility, and a catalog key. A single function taking both shapes would make the wrong
     combination expressible.
 
     `purpose="portal"` with a `portal_key` stores a third-party grant a trigger
@@ -443,6 +507,7 @@ async def create_org_scoped(
         purpose=purpose,
         portal_key=portal_key,
         label=label,
+        visibility=visibility,
     )
     db.add(connection)
     await db.flush()

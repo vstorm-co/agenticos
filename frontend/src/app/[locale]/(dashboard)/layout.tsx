@@ -1,12 +1,15 @@
+import { AddToAgentPrompt } from "@/components/agents/add-to-agent";
+import { AssistantWidget } from "@/components/assistant/assistant-widget";
 import { DeploymentGate } from "@/components/branding/deployment-gate";
 import { CustomIconsProvider } from "@/components/icons/custom-icons";
 import { MobileHeader, Sidebar } from "@/components/layout";
 import { ActiveOrgGuard } from "@/components/layout/active-org-guard";
+import { OnScreenKeyboard } from "@/components/layout/on-screen-keyboard";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AuthGuard } from "@/components/layout/auth-guard";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
-import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
+import { LiveUpdates } from "@/components/live-updates/live-updates";
 import { PageTransition } from "@/components/layout/page-transition";
 import { OnboardingFlows } from "@/components/onboarding/onboarding-flows";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
@@ -18,10 +21,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           empties every permission-gated destination at once, so the recovery
           lives beside the navigation it would otherwise silently strip. */}
       <ActiveOrgGuard />
+      {/* Changes made through the API, MCP or the assistant reach open pages. */}
+      <LiveUpdates />
       {/* Which custom brand marks the deployment ships - fetched once here so
           every icon down the tree reads it from context instead of querying. */}
       <CustomIconsProvider>
-        <div className="flex h-screen flex-col">
+        <OnScreenKeyboard />
+        {/* As tall as what can be seen, keyboard and address bar included -
+            see `useOnScreenKeyboard`; `100dvh` until it has measured. */}
+        <div className="flex h-[var(--app-height,100dvh)] flex-col">
           {/* Nothing above `md`: the brand, the organization, search, settings
             and the account are all in the column now, and this renders only
             where the column is a slide-over that needs opening. */}
@@ -70,11 +78,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </DeploymentGate>
             </main>
           </div>
+          {/* The one navigation on a phone too: the drawer holds every section,
+              where a bottom bar repeated five of them and took a strip of the
+              screen from every page. */}
           <Sidebar />
-          <MobileTabBar />
           <CommandPalette />
+          <AddToAgentPrompt />
           <OnboardingTour />
           <OnboardingFlows />
+          {/* The AI Architect, in the corner of every page (#2063). */}
+          <AssistantWidget />
         </div>
       </CustomIconsProvider>
     </AuthGuard>

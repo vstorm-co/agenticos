@@ -28,6 +28,14 @@ over it (`Unsupported chat content part type: 'file'`), a failure the agent then
 repeats by fetching the page again. The download is still theirs;
 :class:`_ReadableFetch` only turns a document into the text an attachment would
 have given, through the same parser.
+
+And so is what a failure costs. The library raises `ModelRetry` for every fetch
+that fails - a refused address, a 403, a timeout - and Pydantic AI counts retries
+per tool, not per URL. With the default budget of one, the second site that
+refused the agent ended the whole run with `UnexpectedModelBehavior`, however
+different the two URLs were. A failure therefore goes through
+:func:`~app.agents.capabilities._failures.steer`: a retry while there is budget
+for one, the same message as the result once there is not.
 """
 
 from __future__ import annotations
@@ -39,8 +47,9 @@ from pydantic_ai import ModelRetry
 from pydantic_ai.capabilities import WebFetch
 from pydantic_ai.common_tools.web_fetch import WebFetchLocalTool, WebFetchResult
 from pydantic_ai.messages import BinaryContent
-from pydantic_ai.tools import Tool
+from pydantic_ai.tools import RunContext, Tool
 
+from app.agents.capabilities._failures import steer
 from app.agents.capabilities._tool_text import ToolText
 from app.services.file_upload import extract_text
 
@@ -167,6 +176,23 @@ class _ReadableFetch(WebFetchLocalTool):
             raise ModelRetry(f"{url} returned {fetched.media_type}, which has no readable text")
         return WebFetchResult(url=url, title="", content=text)
 
+    async def fetch(
+        self, ctx: RunContext[object], url: str
+    ) -> WebFetchResult | BinaryContent | str:
+        """The tool the model calls: :meth:`__call__`, with a failure that cannot end the run.
+
+        Returns:
+            What :meth:`__call__` returns, or - on the tool's last attempt - the
+            failure's message, for the model to read as the result.
+
+        Raises:
+            ModelRetry: A fetch that failed while the tool has an attempt left.
+        """
+        try:
+            return await self(url)
+        except ModelRetry as exc:
+            return steer(ctx, exc.message)
+
 
 def build_web_fetch(
     *,
@@ -211,7 +237,7 @@ def build_web_fetch(
             max_download_bytes=_MAX_DOWNLOAD_BYTES,
             allowed_domains=allowed,
             blocked_domains=blocked,
-        ).__call__,
+        ).fetch,
         name="web_fetch",
         description=FETCH_DESCRIPTION,
     )

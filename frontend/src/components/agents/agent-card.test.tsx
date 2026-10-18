@@ -12,7 +12,7 @@ import type { Agent } from "@/types/agents";
  * on words here the same thing as asserting on what a reader sees.
  */
 function useWords(subject: Agent): string {
-  return accessSummary(subject, useTranslations("agents")).label;
+  return accessSummary(subject, useTranslations("agents"), useTranslations("audience")).label;
 }
 
 function agent(overrides: Partial<Agent>): Agent {
@@ -41,6 +41,13 @@ describe("accessSummary", () => {
 
   it("a private agent with grants says how many people were handed it", () => {
     expect(useWords(agent({ visibility: "private", shared_user_count: 3 }))).toBe("Shared with 3");
+  });
+
+  it("an agent shared with departments is named by them (#2072)", () => {
+    expect(useWords(agent({ shared_groups: ["Finance"], shared_user_count: 2 }))).toBe("Finance");
+    expect(useWords(agent({ shared_groups: ["Finance", "HR", "Sales", "Legal"] }))).toBe(
+      "Finance, HR +2",
+    );
   });
 
   it("a private agent nobody was handed reads as private, including when the listing omits the count", () => {
@@ -139,7 +146,7 @@ describe("AgentCard", () => {
     const actions = mount();
 
     await userEvent.click(screen.getByRole("button", { name: "More actions for Support" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Duplicate" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /^Duplicate/ }));
 
     expect(actions.onDuplicate).toHaveBeenCalled();
   });
@@ -148,8 +155,8 @@ describe("AgentCard", () => {
     const actions = mount({ status: "archived" });
 
     await userEvent.click(screen.getByRole("button", { name: "More actions for Support" }));
-    expect(screen.queryByRole("menuitem", { name: "Archive" })).toBeNull();
-    await userEvent.click(screen.getByRole("menuitem", { name: "Restore" }));
+    expect(screen.queryByRole("menuitem", { name: /^Archive/ })).toBeNull();
+    await userEvent.click(screen.getByRole("menuitem", { name: /^Restore/ }));
 
     expect(actions.onRestore).toHaveBeenCalled();
   });
@@ -158,7 +165,7 @@ describe("AgentCard", () => {
     const actions = mount();
 
     await userEvent.click(screen.getByRole("button", { name: "More actions for Support" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /^Archive/ }));
 
     expect(actions.onArchive).toHaveBeenCalled();
   });
@@ -167,9 +174,18 @@ describe("AgentCard", () => {
     const actions = mount();
 
     await userEvent.click(screen.getByRole("button", { name: "More actions for Support" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Delete permanently" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /^Delete permanently/ }));
 
     expect(actions.onDelete).toHaveBeenCalled();
+  });
+
+  it("says under each action what it does", async () => {
+    mount();
+    await userEvent.click(screen.getByRole("button", { name: "More actions for Support" }));
+
+    expect(screen.getByRole("menuitem", { name: /^Archive/ })).toHaveTextContent(
+      "Out of the pickers; its history stays",
+    );
   });
 
   it("shows the agent's categories and tags as chips", () => {

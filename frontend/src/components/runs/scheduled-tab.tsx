@@ -5,17 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { TriggerRow } from "@/components/triggers/trigger-row";
 import { ErrorState, LoadingState } from "@/components/states";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  ListCardEmpty,
-  Pager,
-  SearchInput,
-  useListControls,
-} from "@/components/ui";
+import { ListCard, ListCardEmpty, Pager, SearchInput, useListControls } from "@/components/ui";
 import { useOrgTriggers } from "@/hooks/use-org-triggers";
 import { getErrorMessage } from "@/lib/api-error";
 
@@ -29,10 +19,13 @@ import { getErrorMessage } from "@/lib/api-error";
  * the trigger's `can_manage`, resolved per row by the server, and the list itself
  * only carries triggers on agents the caller may already see.
  *
- * The card keeps the list dialect it was born with on the Activity page - the
- * same border-b header, text-sm title and flush content as the Runs and Spend
- * tabs - because it is still the same kind of thing: an org-wide list read rather
- * than scanned.
+ * The page header already says what the list is, so the card's own header is a
+ * toolbar - how many there are, and the search box.
+ *
+ * Nothing scheduled says so in the card every list page keeps, with no button
+ * of its own: the one it had sent the reader to the agents list to work out
+ * what to do there, where the header's New schedule and the ideas card under
+ * this one are the way in.
  *
  * Searched and paged on this side, because the request already holds the whole
  * list: `useOrgTriggers` walks every page of `GET /triggers` into one array so a
@@ -57,54 +50,52 @@ export function ScheduledTab() {
   });
 
   return (
-    <Card>
-      <CardHeader className="space-y-1 border-b px-5 py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <CardTitle className="text-sm">{t("activityTitle")}</CardTitle>
-            <CardDescription className="text-xs">{t("activityDescription")}</CardDescription>
-          </div>
-          {triggers.length > 0 && (
-            <SearchInput
-              value={list.query}
-              onChange={list.setQuery}
-              placeholder={t("searchRoutines")}
-              className="sm:w-56"
-            />
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        {isLoading ? (
-          <LoadingState variant="skeleton-table" columns={1} rows={4} className="m-5" />
-        ) : isError ? (
-          <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
-        ) : triggers.length === 0 ? (
-          <ListCardEmpty
-            icon={CalendarClock}
-            title={t("activityEmptyTitle")}
-            description={t("activityEmptyDescription")}
+    <ListCard
+      namedByPage
+      title={t("activityTitle")}
+      counted={isLoading ? null : t("routineCount", { count: triggers.length })}
+      empty={!isLoading && !isError && triggers.length === 0}
+      contentClassName="p-0"
+      controls={
+        triggers.length > 0 && (
+          <SearchInput
+            value={list.query}
+            onChange={list.setQuery}
+            placeholder={t("searchRoutines")}
+            className="sm:w-56"
           />
-        ) : (
-          <div className="space-y-3 p-5">
-            {list.visible.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t("noRoutineMatches")}</p>
-            ) : (
-              list.visible.map((trigger) => (
-                <TriggerRow key={trigger.id} trigger={trigger} showAgent />
-              ))
-            )}
-            <Pager
-              page={list.page}
-              pageCount={list.pageCount}
-              matched={list.matched}
-              total={list.total}
-              onPage={list.setPage}
-              counted={t("routineCount", { count: list.total })}
-            />
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        )
+      }
+    >
+      {isLoading ? (
+        <LoadingState variant="skeleton-table" columns={1} rows={4} className="m-5" />
+      ) : isError ? (
+        <ErrorState description={getErrorMessage(error, tErrors)} className="m-5" />
+      ) : triggers.length === 0 ? (
+        <ListCardEmpty
+          icon={CalendarClock}
+          title={t("activityEmptyTitle")}
+          description={t("activityEmptyDescription")}
+        />
+      ) : (
+        <div className="space-y-3 p-5">
+          {list.visible.length === 0 ? (
+            <p className="text-muted-foreground text-sm">{t("noRoutineMatches")}</p>
+          ) : (
+            list.visible.map((trigger) => (
+              <TriggerRow key={trigger.id} trigger={trigger} showAgent />
+            ))
+          )}
+          <Pager
+            page={list.page}
+            pageCount={list.pageCount}
+            matched={list.matched}
+            total={list.total}
+            onPage={list.setPage}
+            counted={t("routineCount", { count: list.total })}
+          />
+        </div>
+      )}
+    </ListCard>
   );
 }

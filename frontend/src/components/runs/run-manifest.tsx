@@ -161,7 +161,7 @@ function ToolRow({ tool }: { tool: ManifestTool }) {
         <Wrench className="text-muted-foreground h-3 w-3 shrink-0" aria-hidden />
         <span className="font-mono text-xs">{tool.name}</span>
         {tool.kind !== "function" && (
-          <Badge variant="outline" className="text-[11px]">
+          <Badge variant="outline" className="text-xs">
             {tool.kind}
           </Badge>
         )}

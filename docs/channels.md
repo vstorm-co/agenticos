@@ -98,6 +98,11 @@ In the Builder, open the agent → **Availability** → *Website widget*. You ch
   says, what the launcher button says, the accent colour and which corner it sits
   in. All seven, and the greeting is drawn by the widget rather than sent to the
   model: a greeting in the model's history is a turn the agent thinks it took.
+- **Suggested messages** — up to four first messages offered as buttons under the
+  greeting; a click sends one as the visitor.
+- **Sources** — off by default. On, an answer that drew on the knowledge base
+  names those documents under it: the file names only, never the passages, sent as
+  their own `sources` frame.
 - **Context** — a note appended to the visitor's first message: *"You are on the
   pricing page"*, *"Answer in German"*. It never replaces the agent's own
   instructions, which belong to the published version.
@@ -279,6 +284,7 @@ Every frame carries `{ "type": …, "data": { … } }`.
 | `tool_call` | `tool_call_id`, `tool_name`, `args` | A step. `args` only when the operator shows results. |
 | `tool_call_delta` | `index`, `args_delta` | A call's arguments as they stream. |
 | `tool_result` | `tool_call_id`, `content` | What the step returned. |
+| `sources` | `names` | The documents a knowledge search returned, by name. **Only on a widget whose operator turned sources on**, and never the passages. |
 | `final_result_start` | `tool_name` | The answer is being produced by an output tool. |
 | `final_result` | `output` | What the run ended with. Empty on a turn that parked. |
 | `complete` | — | The turn is over. It carries **no usage**: what a run cost is the operator's business, not the visitor's. |
@@ -302,9 +308,11 @@ on to answer without the input — a degraded answer, not a parked run.
 
 **A client ignores what it does not draw**, and `widget.js` is the worked example:
 it reads `model_request_start`, `text_delta`, `final_result`, `complete` and
-`error`, and ignores the reasoning and the steps on purpose — an answer arriving
-a word at a time is worth having in a bubble in the corner of a page, and a
-narration of tool calls is not. The hosted page draws all of them.
+`error` for the answer, `tool_call` and `tool_result` to show each step as a chip
+(*Searching the knowledge base*), and `sources` for the documents an answer named.
+It ignores the reasoning on purpose. It wears the agent's face, renders the answer
+as Markdown into nodes rather than HTML, follows the visitor's light or dark
+setting, and fills a phone's screen.
 
 **Close codes**
 
@@ -367,6 +375,7 @@ be wrong here" or "this is not built yet" — never silence.
 | Delegation frames | yes | **no, deliberately**: attaching a sink makes the library open a *streamed* request per child, so a delegate whose provider cannot stream breaks the moment somebody watches it |
 | Approvals: parks the run | yes | yes | yes |
 | Approvals: a path to the decision | yes (`/runs`) | one sentence, deliberately: a stranger holding a link is not shown a URL into somebody's console | yes — the result carries `parked`, naming what is waiting and the approval to post to |
+| `@`-mentions | yes (`mentions`) | **no, not yet**: a widget has no menu to pick from, and a visitor's mention would need the same as-them check | **no, not yet**: a script names what to use in the message itself |
 
 ### `environment_id` on the socket, and why it is the publisher's
 
@@ -807,6 +816,61 @@ caller — at `RATE_LIMIT_RUN_PER_MINUTE`.
     Enterprise-Managed Authorization on that page are all unused too — leave them
     alone.
 
+### The Slack app, from one manifest
+
+The steps above build the app by hand. The bot's settings here also offer **Copy
+Slack app manifest**: in Slack choose *Create New App → From a manifest*, paste,
+install, and paste the bot token and signing secret back here. The manifest
+points every request at this deployment and switches on what makes the bot an
+app rather than a bot:
+
+- **The assistant pane.** A new thread in Slack's AI split view is offered three
+  suggested prompts, and the thread says *is thinking…* while the agent works.
+- **App Home.** The bot's own tab names its agent, says how many of the person's
+  runs wait for an approval, and links to the console and the Architect.
+- **`/agent <question>`** asks the agent where it was typed, and the message
+  shortcut **Ask the agent about this** asks about a message in its own thread.
+  Both run exactly as a mention does: the same link check, limits and audit.
+- **Buttons** on approvals and questions — see
+  [Approvals and questions as buttons](#approvals-and-questions-as-buttons).
+- **Unfurls.** A console link to one of the organization's agents shows its name.
+
+A bot serves exactly one agent, so there is no agent picker in a direct
+message; a second agent is a second bot.
+
+The manifest is **org-ready**, so an Enterprise Grid administrator can install
+the app once for every workspace in the organization; an ordinary workspace
+installs it as before. Each answer names the asker's own workspace, which is
+what Slack needs to stream it under Grid.
+
+### Which way the connection runs
+
+The bot's settings ask **how Slack reaches AgenticOS**:
+
+- **Slack calls this deployment.** Slack sends every message to this
+  deployment's public address, verified with the signing secret. The manifest
+  names the URLs.
+- **AgenticOS connects to Slack.** The deployment opens the connection itself
+  (Socket Mode) with the app-level `xapp-` token, so it needs no public address -
+  the choice for a deployment behind a firewall or on premises. The manifest
+  turns Socket Mode on and names no URL, since nothing would answer at one.
+
+The form asks only for the credential the chosen direction uses.
+
+### Answers Slack draws itself
+
+Slack's AI apps draw an answer while it is written rather than having it edited
+into place. The answer streams under the question, and each thing the agent does
+on the way - a web search, a knowledge lookup, a calculation - is a row that goes
+from in progress to done or failed. A step that read web pages links them. The
+bot's settings show the steps as a **timeline**, or as one **plan** headed by the
+question, or turn streaming off, which falls back to a reply edited once a
+second. Streaming also falls back on its own where Slack refuses to start one.
+
+A Markdown table in the answer is drawn as a Slack table, and a chart arrives as
+an image, as it always did. If the finished answer is not what was streamed - an
+output guardrail redacted something - the streamed message is rewritten whole.
+
 ### Scopes and events
 
 Thirteen bot token scopes, each earning its place by a call the adapter makes:
@@ -928,6 +992,12 @@ from polling to webhook mode has to have its webhook registered before it will
 answer anything: the secret is minted when the mode changes, and Telegram only
 learns it when the webhook is registered.
 
+The bot sets its command menu - `/agents` says which agent answers and what it
+does, beside `/new`, `/link` and `/help` - shows *typing…* while it works and
+names the step it is on, sends answers as Telegram HTML converted from the
+agent's Markdown so code blocks and links survive, and answers a forum group's
+topic in that topic.
+
 ## Mattermost
 
 Mattermost is self-hosted, so a bot carries **your server's URL** as well as its
@@ -1035,6 +1105,19 @@ exists for. Instance-metadata addresses are the exception and are refused. The
 boundary that actually holds is the permission to manage channel bots, not this
 check.
 
+Approvals and questions arrive as buttons. Mattermost calls each button back at
+`https://your-api.example.com/api/v1/mattermost/BOT_ID/actions`, so the
+Mattermost server has to reach the API; on a private network, add the API's host
+to *System Console → Developer → Allow untrusted internal connections to*.
+
+### `/agent` in Mattermost
+
+A slash command asks the agent where it was typed, as Slack's `/agent` does. In
+Mattermost, *Integrations → Slash Commands → Add Slash Command*: trigger word
+`agent`, method `POST`, and the request URL the bot's settings show. Mattermost
+then shows a token; paste it into the bot's **Slash command token**. Every
+request carries it, and a bot without one refuses them all.
+
 ## A bot that cannot start stops, rather than retrying
 
 Telegram polling, Slack Socket Mode and the Mattermost event stream all run
@@ -1061,7 +1144,88 @@ serves all three platforms, so the policy cannot drift between them.
 
 ---
 
+## Approvals and questions as buttons
+
+A run started in Slack, Telegram or Mattermost can stop for a person: a gated
+tool call waits for a decision, or the agent asks an `ask_user` question. The
+chat is offered the choices where it is — a message per approval with
+**Approve** and **Reject**, a message per question with its options and **Skip**.
+Pressing one decides or answers, the run continues, and its answer is posted in
+the same chat; the pressed message keeps what was asked and shows what was
+chosen.
+
+A question that takes several answers stays open: each press adds or removes an
+option, the chat is told what is picked so far, and **Done** sends them. The run
+continues once everything it stopped for is settled - every approval decided,
+every question it asked answered, however many messages they took - and the last
+answer sends them all together.
+
+A question that takes an answer in the person's own words — and one with no
+options at all — says so under it: their next message in that chat is the
+answer, rather than a new turn beside a run still waiting. Only a message from
+the person it was put to counts, and the oldest such question takes it.
+
+A question can be put only to a linked member. A sender with no linked account
+runs as the binding's publisher, so a question the agent asks them is declined
+and the turn goes on without the answer, rather than waiting on buttons only the
+publisher could press.
+
+An approval reads as the agent asking, in its own voice: what it wants to do and
+the one argument that says what it is about — *I need your approval to **search in
+Notion**: “what's new in releases”*. A tool from an MCP server is named by its
+service and action rather than by its prefixed id, and the rest of the arguments
+stay in the console's **Approvals**, where the same request opens with that one
+line and folds the others behind **Details**.
+
+A press acts as the person who pressed it, through their linked account: deciding
+needs `approvals:decide`, and only the person a question was put to can answer
+it. An unlinked presser is told to send `/link`. A run waits for an answer for
+`QUESTION_EXPIRY_HOURS` and for a decision for `APPROVAL_EXPIRY_HOURS`, as
+anywhere else. Slack signs its presses; Mattermost signs nothing, so each button
+carries this deployment's own signature over its value and a press without it is
+refused.
+
+Who pressed is not taken from the press's body either: the trigger id the
+Mattermost server signs for each press names the person, and it is checked against
+the public key the server publishes, so a press nobody can prove is refused too.
+
+**A browse that needs a person.** An agent with the
+[web browser](reference/capabilities.md#browser-automation) posts the link to the
+browse's live view in its step - *Watch or take over* - in Slack, Telegram and
+Mattermost alike. When the page needs somebody, a sign-in or a captcha, the step
+changes to *Needs you* and says what for, and names who has the browser while a
+person holds it. The link opens the console, so taking over needs a console account:
+the person the run is for, or someone who may edit the agent.
+
+## Reactions and ratings
+
+Two touches every chat platform here shares, both switched in the bot's
+settings:
+
+- **A reaction on the question.** The bot reacts the moment a question it will
+  answer arrives, with an emoji named in its settings - `eyes`, say - so the
+  asker sees it was heard. Slack and Mattermost take any emoji's name; Telegram
+  allows a fixed set, and the names it accepts are `eyes`, `+1`, `ok_hand`,
+  `fire`, `thinking_face`, `writing_hand`, `zap` and `hourglass`.
+- **Thumbs under an answer.** A finished answer carries a thumbs-up and a
+  thumbs-down. A press is the presser's rating of that run's answer, the same
+  rating the console records, and pressing again changes it. A thumbs-down then
+  asks **what was wrong?** in a Slack modal or a Mattermost dialog; the reply is
+  kept as the rating's comment. Telegram takes the thumbs without the question.
+
+A rating needs a linked member, as a press on an approval does; an unlinked
+person's thumbs are not counted. The dashboard's *Answer quality* card splits
+the share of good answers by surface once more than one has been rated, so an
+agent that does well in the console and badly in Slack shows it.
+
 ## What every channel shares
+
+- **A message sent while the agent works joins its task.** From the person whose
+  turn it is, a plain message in the same chat reaches the running turn at its next
+  step instead of waiting for a turn of its own; one that arrives after the agent's
+  last step is answered as the next message. `/btw` followed by a question asks on
+  the side: answered at once from the thread so far, without tools, while the turn
+  keeps going. A colleague's message in a group chat is always a turn of its own.
 
 - **The model is reminded of the most recent turns, not the first ones.** A
   channel thread is keyed to the chat and never rolls over, so a support channel
@@ -1303,6 +1467,14 @@ serves all three platforms, so the policy cannot drift between them.
   take effect immediately, for the same reason: the stream is reopened to match
   whatever the row now says. It is opened *after* the transaction commits, so a
   registration that fails leaves no connection behind.
+- **One connection per bot, however many API workers.** Telegram allows one
+  `getUpdates` per bot and two Mattermost sockets would each receive every
+  event, so the worker holding a bot's connection holds a lease on it in the
+  shared Redis and renews it every 10 seconds. The others leave that bot alone.
+  A worker that shuts down hands its bots to another within about 10 seconds,
+  and one that dies within about 40. An edit served by another worker opens the
+  new connection at once, and the old one closes at its holder's next renewal.
+  With Redis unreachable, every worker connects, as before.
 - **A binding's instructions may name what only the platform knows.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` - filled in when a run starts, from the same calls the channel
@@ -1431,6 +1603,15 @@ charts are three answers rather than one with two footnotes.
 Which tools count as that kind is `opensOnSight` in `lib/tool-catalog.ts`, the same
 row the step reads to decide whether to open itself, so the rail and the step cannot
 disagree. Nothing marks a step that simply worked, so a marker means what it says.
+
+Once the turn has answered, **the work above the answer folds into one line** —
+*Worked for 12s · 3 steps* — with the thinking, the calls and the short narration
+between them behind it, one click away. The length is the run's, from its start to its
+end, so it includes any wait for an approval. While the turn is still working, the
+same place reads *Working for 5s…* with a light passing over it.
+
+What is never folded stays on the page: the three kinds of run above, a question the agent asked,
+what the person added mid-turn, and a passage long enough to be an answer of its own.
 
 **What opens itself follows what somebody is watching, except when the result is the
 point.**

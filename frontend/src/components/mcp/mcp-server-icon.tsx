@@ -3,6 +3,7 @@
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { CustomMark, useCustomIcons } from "@/components/icons/custom-icons";
 import { Monogram } from "@/components/icons/monogram";
+import { bakedLogo } from "@/lib/mcp-catalog";
 import { cn } from "@/lib/utils";
 
 /**
@@ -37,14 +38,27 @@ interface McpServerIconProps {
    * icon name, because an uncurated row has none.
    */
   name: string;
+  /**
+   * The server's address. A server the catalog bakes a logo for is drawn in its
+   * own colours from it - a column of grey glyphs reads as one icon repeated.
+   */
+  url?: string | null;
   className?: string;
 }
 
 /** A catalog server's logo: compiled-in, deployment-supplied, or a monogram. */
-export function McpServerIcon({ icon, name, className }: McpServerIconProps) {
+export function McpServerIcon({ icon, name, url, className }: McpServerIconProps) {
   const custom = useCustomIcons();
   const size = cn("h-5 w-5 shrink-0", className);
+  const logo = bakedLogo(url);
 
+  if (logo !== null) {
+    // A baked data URI: there is nothing for `next/image` to optimise or fetch.
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={logo} alt="" aria-hidden className={cn(size, "rounded-[22%] object-contain")} />
+    );
+  }
   if (icon && isBrandName(icon)) {
     return <BrandIcon name={icon} aria-hidden className={size} />;
   }

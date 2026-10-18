@@ -7,47 +7,10 @@ import { getErrorMessage } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
   listAllWorkspaceFiles,
-  listWorkspaces,
   readWorkspaceFiles,
   type FlatFileList,
   type WorkspaceFiles,
-  type WorkspaceSummary,
 } from "@/lib/sandbox-workspaces-api";
-
-interface UseWorkspacesResult {
-  /** Hosts that would not answer. A shorter answer, said rather than implied. */
-  unreadable: number;
-  truncated: boolean;
-  workspaces: WorkspaceSummary[];
-  isLoading: boolean;
-  error: string | null;
-}
-
-/**
- * Every workspace this organization's agents keep.
- *
- * Rows only, and no polling: a workspace's *contents* change when an agent runs,
- * but the list of them changes when a conversation starts or is deleted - which
- * is not something worth a request every ten seconds.
- */
-export function useSandboxWorkspaces(measure = false): UseWorkspacesResult {
-  const t = useTranslations("pages.workspaces");
-  const tErrors = useTranslations("errors");
-  // Keyed on the flag, so turning counting on is a new query rather than a refetch
-  // that replaces the cheap answer with the expensive one and back again.
-  const { data, isLoading, error } = useQuery({
-    queryKey: qk.sandboxWorkspaces.list(measure),
-    queryFn: () => listWorkspaces(measure),
-  });
-
-  return {
-    workspaces: data?.items ?? [],
-    unreadable: data?.unreadable ?? 0,
-    truncated: data?.truncated ?? false,
-    isLoading,
-    error: error ? getErrorMessage(error, tErrors, t("failedLoadWorkspaces")) : null,
-  };
-}
 
 interface UseAllWorkspaceFilesResult {
   listing: FlatFileList | null;

@@ -1,5 +1,5 @@
 ---
-source_sha: "34c34d991836"
+source_sha: "6829acd99f72"
 ---
 
 # Einen Server zum MCP-Katalog hinzufügen { #add-a-server-to-the-mcp-catalog }
@@ -98,6 +98,10 @@ und kein fehlendes: jedes Icon-Set ist endlich, und dieser Katalog ist es nicht.
 4. Prüfen Sie, dass der Name nicht mit dem
    [Tool-Präfix](../mcp.md#name-collisions) eines bestehenden Eintrags
    kollidiert.
+5. Führen Sie `uv run agenticos cmd mcp-catalog-check --source catalog` aus und
+   prüfen Sie, dass der Bericht den Eintrag als verifiziert führt; aktualisieren
+   Sie dann den mitgelieferten Snapshot mit einem vollen Lauf und `--snapshot` -
+   siehe [wie der Katalog gepflegt wird](../mcp.md#how-the-catalog-is-kept).
 
 ## Was nicht geändert werden muss { #what-does-not-need-changing }
 

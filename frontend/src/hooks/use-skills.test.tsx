@@ -56,6 +56,12 @@ describe("useSkills", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/skills?q=refund&sort=name&skip=50&limit=50");
   });
 
+  it("asks for what one group was given when grouped by one", async () => {
+    const { result } = renderHook(() => useSkills({ groupId: "g1" }), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(apiClient.get).toHaveBeenCalledWith("/skills?sort=name&skip=0&limit=50&group_id=g1");
+  });
+
   it("sends every picked category to the server, repeated, same as the search", async () => {
     // The filter is a multi-select and `category` repeats in the query string:
     // the server reads two occurrences as "either shelf". Joined or last-wins

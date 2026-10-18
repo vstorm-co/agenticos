@@ -13,6 +13,7 @@ const TrendChartImpl = dynamic(() => import("./trend-chart.impl").then((m) => m.
 export function TrendChart({
   data,
   variant = "area",
+  money = false,
   className,
 }: {
   data: TrendPoint[];
@@ -22,11 +23,13 @@ export function TrendChart({
    * and which of the two a daily count *is* depends on the reader.
    */
   variant?: "area" | "bars";
+  /** Values are dollars: the axis and the tooltip say so, with cents. */
+  money?: boolean;
   className?: string;
 }) {
   return (
     <div className={className ?? "h-40"}>
-      <TrendChartImpl data={data} variant={variant} />
+      <TrendChartImpl data={data} variant={variant} money={money} />
     </div>
   );
 }

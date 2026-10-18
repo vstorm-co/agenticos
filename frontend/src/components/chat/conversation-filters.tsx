@@ -1,10 +1,21 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ArrowDownUp } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
-import { SearchInput } from "@/components/ui/list-controls";
+import {
+  Label,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+} from "@/components/ui";
+import { SEGMENTED_CLASS, segment } from "@/components/dashboard/segmented";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { useAgents } from "@/hooks";
 import type { ConversationSortDir, ConversationSortKey } from "@/hooks/use-conversations";
@@ -36,22 +47,32 @@ export function splitSort(sort: ConversationSort): {
 }
 
 interface ConversationFiltersProps {
-  search: string;
-  onSearchChange: (search: string) => void;
   agentId: string | null;
   onAgentChange: (agentId: string | null) => void;
   sort: ConversationSort;
   onSortChange: (sort: ConversationSort) => void;
-  /** Put the cursor in the search box on mount - see the collapsed rail. */
-  autoFocusSearch?: boolean;
+  /** Leave out conversations an API key's runs opened. */
+  hideApi: boolean;
+  onHideApiChange: (hide: boolean) => void;
+  /** The active threads or the archive. */
+  view: "active" | "archived";
+  onViewChange: (view: "active" | "archived") => void;
+  /** Open beside the button rather than under it - from the collapsed rail. */
+  beside?: boolean;
 }
 
 /**
- * Search, agent and sort, above the conversation list.
+ * Everything that narrows the list, behind one button.
  *
  * Every one of them is a request rather than a slice of what is on screen: the
  * sidebar holds the pages fetched so far, so a filter applied here would search
  * thirty threads and report nothing for one from March.
+ *
+ * One icon, the way the chat products people already use draw it, whose dot
+ * says when anything narrows or reorders the list; search opens a window of
+ * its own beside it. It used to be six controls stacked over the threads - an agent picker,
+ * a sort, an API switch, an active/archived toggle and a count - which pushed
+ * the conversations themselves a third of the way down the column.
  *
  * Archived agents are included in the picker on purpose - a thread answered by
  * an agent that has since been retired is exactly the one somebody comes here
@@ -60,74 +81,112 @@ interface ConversationFiltersProps {
  * caller may see.
  */
 export function ConversationFilters({
-  search,
-  onSearchChange,
   agentId,
   onAgentChange,
   sort,
   onSortChange,
-  autoFocusSearch = false,
+  hideApi,
+  onHideApiChange,
+  view,
+  onViewChange,
+  beside = false,
 }: ConversationFiltersProps) {
   const t = useTranslations("chat.sidebar");
   const { agents } = useAgents({ includeArchived: true });
+  const narrowed = agentId !== null || hideApi || sort !== DEFAULT_SORT || view === "archived";
 
   return (
-    <div className="space-y-2 px-3 pb-2">
-      {/* `sm:w-full` overrides `SearchInput`'s own `sm:w-64`, which is a sensible
-          default on the wide pages every other caller sits on and 24px wider
-          than this one's content box: the sidebar is `w-64` too, so the input
-          hung over its right edge from the `sm` breakpoint up. */}
-      <SearchInput
-        value={search}
-        onChange={onSearchChange}
-        placeholder={t("searchPlaceholder")}
-        autoFocus={autoFocusSearch}
-        className="w-full sm:w-full"
-      />
-      <div className="flex gap-2">
-        {/* "Answered in", not "belongs to". The picker can be changed
-            mid-thread, so a thread can match two agents - which is why the
-            trigger says what the filter means rather than leaving a reader to
-            infer ownership from a name. */}
-        <Select
-          value={agentId ?? "all"}
-          onValueChange={(value) => onAgentChange(value === "all" ? null : value)}
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={t("filters")}
+          className="text-muted-foreground hover:text-foreground hover:bg-accent relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors"
         >
-          <SelectTrigger className="h-8 min-w-0 flex-1 text-xs" aria-label={t("agentFilterLabel")}>
-            <SelectValue placeholder={t("allAgents")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("allAgents")}</SelectItem>
-            {agents.map((agent) => (
-              <SelectItem key={agent.id} value={agent.id}>
-                <span className="flex items-center gap-2">
-                  <AgentAvatar agentId={agent.id} slug={agent.slug} size="sm" />
-                  <span className="truncate">{agent.name}</span>
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={sort} onValueChange={(value) => onSortChange(value as ConversationSort)}>
-          <SelectTrigger
-            className="h-8 w-9 justify-center px-0 [&>svg:last-child]:hidden"
-            aria-label={t("sortLabel")}
+          <SlidersHorizontal className="h-4 w-4" aria-hidden />
+          {narrowed && (
+            <span
+              aria-hidden
+              className="bg-foreground absolute top-1.5 right-1.5 size-1.5 rounded-full"
+            />
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side={beside ? "right" : "bottom"}
+        align={beside ? "start" : "end"}
+        className="w-72 space-y-4 p-4"
+      >
+        <div className={SEGMENTED_CLASS} role="group" aria-label={t("show")}>
+          {(["active", "archived"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={view === option}
+              onClick={() => onViewChange(option)}
+              className={segment(view === option)}
+            >
+              {t(option)}
+            </button>
+          ))}
+        </div>
+        <div className="space-y-1.5">
+          {/* "Answered in", not "belongs to". The picker can be changed
+                mid-thread, so a thread can match two agents - which is why the
+                hint says what the filter means rather than leaving a reader to
+                infer ownership from a name. */}
+          <Label htmlFor="conversation-agent">{t("agentFilterLabel")}</Label>
+          <Select
+            value={agentId ?? "all"}
+            onValueChange={(value) => onAgentChange(value === "all" ? null : value)}
           >
-            <ArrowDownUp className="h-3.5 w-3.5" aria-hidden />
-          </SelectTrigger>
-          <SelectContent align="end">
-            <SelectItem value="updated_at:desc">{t("sortRecent")}</SelectItem>
-            <SelectItem value="updated_at:asc">{t("sortLeastRecent")}</SelectItem>
-            <SelectItem value="created_at:desc">{t("sortNewest")}</SelectItem>
-            <SelectItem value="title:asc">{t("sortTitleAsc")}</SelectItem>
-            <SelectItem value="title:desc">{t("sortTitleDesc")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      {agentId !== null && (
-        <p className="text-muted-foreground text-[11px]">{t("agentFilterHint")}</p>
-      )}
-    </div>
+            <SelectTrigger id="conversation-agent" aria-label={t("agentFilterLabel")}>
+              <SelectValue placeholder={t("allAgents")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("allAgents")}</SelectItem>
+              {agents.map((agent) => (
+                <SelectItem key={agent.id} value={agent.id}>
+                  <span className="flex items-center gap-2">
+                    <AgentAvatar
+                      agentId={agent.id}
+                      slug={agent.slug}
+                      hasAvatar={agent.has_avatar}
+                      colorSlot={agent.avatar_color}
+                      size="sm"
+                    />
+                    <span className="truncate">{agent.name}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {agentId !== null && (
+            <p className="text-muted-foreground text-xs">{t("agentFilterHint")}</p>
+          )}
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="conversation-sort">{t("sortLabel")}</Label>
+          <Select value={sort} onValueChange={(value) => onSortChange(value as ConversationSort)}>
+            <SelectTrigger id="conversation-sort" aria-label={t("sortLabel")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="updated_at:desc">{t("sortRecent")}</SelectItem>
+              <SelectItem value="updated_at:asc">{t("sortLeastRecent")}</SelectItem>
+              <SelectItem value="created_at:desc">{t("sortNewest")}</SelectItem>
+              <SelectItem value="title:asc">{t("sortTitleAsc")}</SelectItem>
+              <SelectItem value="title:desc">{t("sortTitleDesc")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {/* A script's threads beside a person's: shown, labelled, and one
+              switch from out of the way (#2122). */}
+        <label className="flex items-center justify-between gap-3 text-sm">
+          {t("hideApi")}
+          <Switch checked={hideApi} onCheckedChange={onHideApiChange} aria-label={t("hideApi")} />
+        </label>
+      </PopoverContent>
+    </Popover>
   );
 }

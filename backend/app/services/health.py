@@ -286,7 +286,7 @@ async def _probe_pgvector_store(db: AsyncSession) -> SystemCheck:
     | yes | yes | - | `healthy` |
     | yes | no | yes | `unconfigured`, and the first ingestion creates it |
     | yes | no | no | `unhealthy` - a restricted role, and it fails at the upload |
-    | no | no | - | `unhealthy` - stock Postgres, the gotcha CLAUDE.md opens with |
+    | no | no | - | `unhealthy` - stock Postgres, the gotcha AGENTS.md opens with |
     | no | yes | - | `unhealthy` - a volume that outlived its image |
 
     That last row is why availability is read whether or not the extension exists.

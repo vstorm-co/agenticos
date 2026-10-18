@@ -1,5 +1,5 @@
 ---
-source_sha: "7588e57ff61c"
+source_sha: "63ed58260c3c"
 title: "Eine Änderung in einem Repository überprüfen"
 description: "Lassen Sie einen Agent in seiner Sandbox ein winziges Git-Repository anlegen, einen Diff mit dem eingebauten code-review-Skill prüfen und kontrollieren Sie, dass er beide eingebauten Fehler an den richtigen Zeilen findet."
 ---
@@ -78,7 +78,7 @@ Referenz: Der Diff zwischen den Versionen hat genau zwei echte Fehler. `return t
 ## Den Agent bauen { #build-the-agent }
 
 1. Erstellen Sie unter **Agents → New agent** einen Agent und wählen Sie Ihr Modellprofil.
-2. Aktivieren Sie in der **Toolbox** **Files & shell**. Wählen Sie **Container**, Ihre Sandbox-Verbindung und die Runtime `workbench`, und behalten Sie den Konversations-Scope bei.
+2. Aktivieren Sie in der **Toolbox** **Sandbox**. Wählen Sie **Container**, Ihre Sandbox-Verbindung und die Runtime `workbench`, und behalten Sie den Konversations-Scope bei.
 3. Aktivieren Sie **Skills** und binden Sie `code-review`.
 4. Legen Sie ein Budget für den Versuch fest. Der festgehaltene Run nutzte etwa 40 Schritte und kostete etwa 0,18 USD, vor allem durch die wiederholten Shell-Genehmigungen.
 5. Setzen Sie die Instruktionen unten und klicken Sie dann auf **Publish**.

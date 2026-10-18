@@ -1,5 +1,5 @@
 ---
-source_sha: "bf54d6dd6a38"
+source_sha: "dc1db9e6554c"
 ---
 
 # Funktionen { #features }
@@ -94,10 +94,10 @@ sagen.
 | Der Agent kann… | Einschalten |
 |---|---|
 | **Aus dem antworten, was Ihr Unternehmen weiß** — Ihre Dokumente, Ihre schriftlichen Abläufe und was auch immer an diese Unterhaltung angehängt wurde | Knowledge search · Skills · Context |
-| **Sich erinnern und nachschlagen** — Notizen über Unterhaltungen hinweg führen, eine Tatsache dem Sinn nach abrufen oder finden, was in einer früheren Unterhaltung tatsächlich gesagt wurde, und es nachlesen | Memory files · Memory (mem0) · Conversation search |
-| **Losziehen und es herausfinden** — im Web suchen, eine Seite richtig lesen oder einen echten Browser durch eine Website steuern, die Klicks verlangt | Web search · Web fetch · Browser automation |
-| **Die Arbeit erledigen, statt sie zu beschreiben** — Python über eine Datei laufen lassen, einen Workspace mit einer Shell führen, ein Diagramm zeichnen, ein Bild erzeugen | Run Python · Files & shell · Charts · Image generation |
-| **Arbeit bewältigen, die für eine Antwort zu groß ist** — an Spezialisten delegieren, eine Aufgabenliste führen, vor der Antwort länger nachdenken, eine lange Unterhaltung führen, ohne ihren Anfang zu verlieren | Delegation · Planning · Thinking · Context management |
+| **Sich erinnern und nachschlagen** — Notizen über Unterhaltungen hinweg führen, eine Tatsache dem Sinn nach abrufen oder finden, was in einer früheren Unterhaltung tatsächlich gesagt wurde, und es nachlesen | Memory · Memory (mem0) · Past conversations |
+| **Losziehen und es herausfinden** — im Web suchen, eine Seite richtig lesen oder einen echten Browser durch eine Website steuern, die Klicks verlangt | Web search · Read web pages · Web browser |
+| **Die Arbeit erledigen, statt sie zu beschreiben** — Python über eine Datei laufen lassen, einen Workspace mit einer Shell führen, ein Diagramm zeichnen, ein Bild erzeugen | Calculations · Sandbox · Charts · Image generation |
+| **Arbeit bewältigen, die für eine Antwort zu groß ist** — an Spezialisten delegieren, eine Aufgabenliste führen, vor der Antwort länger nachdenken, eine lange Unterhaltung führen, ohne ihren Anfang zu verlieren | Delegation · Planning · Thinking · Long conversations |
 | **Innerhalb der Linien bleiben** — schwärzen oder blockieren, was nicht durch darf, begrenzen, was ein Tool zurückgeben darf, wissen, welches Datum heute ist | Guardrails · Tool output limits · Date and time |
 
 Jede bringt ihre eigenen Einstellungen mit, ihren eigenen Permission-Scope und —
@@ -126,11 +126,13 @@ Endpunkt je zurückgegeben.
 Verbinden Sie einen Server, und seine Tools erscheinen in der Toolbox — mit
 Namensraum, damit zwei Server, die beide `search` anbieten, nicht kollidieren.
 
-**5.802 Server stehen im Picker.** 99 der gängigen — GitHub, Linear, Notion,
-Slack, Stripe, Postgres — kommen mit bereits verdrahteten OAuth-Flows, weil hier
-jemand jeden davon verbunden und geprüft hat. Die übrigen 5.703 sind aus dem
-öffentlichen MCP-Register gespiegelt und nach Namen durchsuchbar: die hat hier
-niemand geprüft, und die Liste sagt, welcher Art eine Zeile ist.
+**Über 4.700 Server stehen in der Galerie** - die Zahl, die die Seite MCP servers
+anzeigt. Die gängigen - GitHub, Linear, Notion, Slack, Stripe, Postgres - kommen
+mit bereits verdrahteten OAuth-Flows, weil hier jemand jeden davon verbunden und
+geprüft hat. Die übrigen sind aus dem öffentlichen MCP-Register gespiegelt und
+nach Namen durchsuchbar: die hat hier niemand geprüft, die Liste sagt, welcher
+Art eine Zeile ist, und ein Eintrag, den eine Prüfung als tot, defekt oder
+doppelt erkannt hat, fehlt.
 
 !!! info
 
@@ -189,10 +191,12 @@ Ein Run, der fehlschlägt, verzeichnet trotzdem, was er gekostet hat, denn ein
 Budget, das nur Erfolge zählt, ist kein Budget. Alerts feuern bei Schwellen, die
 Sie setzen, pro Agent.
 
-## Approval für alles mit Nebenwirkung { #approval-for-anything-side-effecting }
+## Approval, wo Sie eine Person wollen { #approval-where-you-want-a-person }
 
-Ein Tool, das die Außenwelt verändert, parkt den Run und wartet auf einen
-Menschen. Stellen Sie es pro Capability ein, überschreiben Sie es pro Tool.
+Wählen Sie, welche Tools auf eine Person warten, bevor sie laufen: pro Capability,
+pro Tool übersteuert und pro MCP-Server. Nichts wartet, bis Sie darum bitten,
+deshalb parkt ein Run in einem Kanal oder nach Zeitplan nie an einem Gate, das
+niemand gewählt hat.
 
 Eine Approval wird einmal entschieden. Eine zweite Entscheidung über eine bereits
 entschiedene Approval wird abgelehnt — was selbstverständlich klingt, bis man die

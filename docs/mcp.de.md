@@ -1,5 +1,5 @@
 ---
-source_sha: "0f382acc604e"
+source_sha: "3409285bde3b"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -38,6 +38,7 @@ konfigurieren wäre.
 | `auth_token` | Im [Vault](secrets.md) versiegelt, von keinem Endpunkt je zurückgegeben |
 | `allowed_tools` | Eine Allowlist, oder null für „alles, was der Server anbietet“. Ein Binding grenzt darin weiter ein — siehe unten |
 | `is_enabled` | Aus, ohne die Zugangsdaten zu verlieren |
+| `include_instructions` | Fügt die eigenen `initialize`-Anweisungen des Servers zu denen des Agenten hinzu. Standardmäßig aus - es ist der Text des Serverbetreibers, gelesen als Anweisungen des Agenten - und im Edit-Dialog der Verbindung eingeschaltet |
 | `last_status` | Was die letzte Prüfung ergeben hat, und wann |
 
 !!! warning "Eine Adresse, die dieses Deployment nicht erreichen darf, wird abgelehnt, und die Ablehnung sagt es"
@@ -62,7 +63,12 @@ konfigurieren wäre.
 
 ### Persönlich oder organisationsweit { #personal-or-organization-wide }
 
-Zwei Arten, und der Unterschied ist der Punkt.
+Zwei Arten, und der Unterschied ist der Punkt. Der Verbindungsdialog fragt das als
+eine Wahl in einfachen Worten: **Ein gemeinsames Konto** - einmal eingerichtet,
+meist von einem Admin mit einem Dienstkonto, und von jedem Agent genutzt - oder
+**Mein eigenes Konto**, genutzt von Ihnen und von Agents, die im Namen jeder
+Person handeln. Ein Katalogserver mit Anmeldung (Notion, Linear, Gmail) empfiehlt
+das Konto jeder Person; einer mit Schlüssel empfiehlt das gemeinsame.
 
 **Persönlich** (MCP servers → You) gilt für ein einzelnes Mitglied und wird von
 dessen eigenem Assistenten erreicht, und von einem Agent, der an das jeweils
@@ -73,9 +79,20 @@ eine persönliche Connection hat keine, und ihr Besitzer kann mehreren angehöre
 sie an diejenige zu binden, die beim Anlegen aktiv war, würde das Token
 unlesbar machen, sobald er wechselt.
 
-**Organization** gilt für die Organisation, ist auf `connections:manage`
-beschränkt und ist die einzige Art, die der Spec eines veröffentlichten Agents *per
-id* benennen darf.
+**Organization** gilt für die Organisation, ist auf `mcp:manage` beschränkt und
+ist die einzige Art, die der Spec eines veröffentlichten Agents *per id* benennen
+darf.
+
+Ein Server der Organisation kann einer Abteilung gehören. Unter **Wer es nutzen
+darf** bietet der Verbindungsdialog **Alle** - der Standard - oder **Bestimmte
+Personen**, die man durch Eintippen findet; der Server wird dann
+privat und mit jeder davon auf `use` geteilt. Sie und wer ihn verbunden hat sehen
+ihn und binden ihn; Owner und Admins sehen jeden Server. Der Button **Wer ihn
+nutzen darf** am Server ändert das später. Ein Agent, der ihn bereits nutzt,
+funktioniert weiter für alle, die ihn ausführen dürfen: Die Auswahl entscheidet,
+wer den Server wählen darf, nicht, wer über ihn Antworten bekommt, deshalb markiert
+der Builder ihn unter
+[woher das Wissen eines Agents kommt](departments.md#where-an-agents-knowledge-comes-from).
 
 Ein veröffentlichter Agent, der je nach Session seines Erbauers unterschiedliche
 Tools erreicht, ließe sich weder prüfen noch nachvollziehen, und genau darum gibt
@@ -86,8 +103,11 @@ dazu mit.
 
 ```
 GET  /api/v1/me/mcp-connections     personal
-GET  /api/v1/mcp-connections        organization, requires connections:manage
+GET  /api/v1/mcp-connections        organization, requires mcp:manage; each server
+                                    narrowed to groups only for them
 POST /api/v1/mcp-connections/{id}/test   probe it, list its tools, store the status
+GET  /api/v1/mcp-connections/{id}/sharing   who it is narrowed to, and the same
+                                            grant routes as an agent's
 ```
 
 ### Zwei Namen, und sie beantworten verschiedene Fragen { #two-names-and-they-answer-different-questions }
@@ -144,10 +164,30 @@ die Auswahl sagt das und verweist auf die Server-Seite, wo eine Connection gepr�
 wird. Ein Binding, das bereits Tools benennt, zeigt diese, sodass sichtbar bleibt,
 woran es gebunden ist, und weiter eingegrenzt werden kann.
 
+### Welche Aufrufe auf eine Person warten { #which-calls-wait-for-a-person }
+
+Jedes Binding hat eine `approval`-Richtlinie für die Tools seines Servers. Die
+Vorgabe `none` lässt jeden Aufruf durch, so wie die Tools einer Capability laufen,
+bis jemand sie hinter ein Gate stellt. `writes` hält jedes Tool, das der Server
+nicht als nur lesend markiert (MCPs `readOnlyHint`), an, bis eine Person den
+Aufruf freigibt: Die Karte zeigt die genauen Argumente, und ausgeführt werden die
+freigegebenen. `all` hält jeden Aufruf an. Der Nur-lesen-Hinweis ist die
+Behauptung des Servers selbst, also ist `writes` nur so streng, wie der Server
+ehrlich ist — wählen Sie `all` für einen Server, den Sie nicht kontrollieren.
+
+Die eigene Vorlage des Architect verlangt `writes` für den Server der Plattform, damit
+er nichts ohne die Person entwirft, für die er handelt. Das Binding jedes Agents an
+diesen Server gilt mindestens als `writes`, auch bei `none`: Seine Tools handeln mit
+der Berechtigung dessen, der fragt, auch eines Admins.
+
+Im Builder sagen die Einstellungen eines Servers das je
+Gruppe: **Lesen** und **Ändern** laufen jeweils ohne Rückfrage oder fragen erst.
+
 ### Durch wessen Konto ein Binding spricht { #whose-account-a-binding-speaks-through }
 
-Ein Binding ist von einer von zwei Arten, und der Builder fragt auf der Karte,
-welcher.
+Ein Binding ist von einer von zwei Arten, und der Builder fragt in den
+Einstellungen des Servers, welcher; dort stehen auch Ihre eigenen Konten bei
+dem Dienst.
 
 **Das Konto der Organisation** (`account: organization`) benennt eine der
 Connections der Organisation und antwortet für alle, auf jeder Oberfläche. Das ist
@@ -178,15 +218,10 @@ einem Channel zu verknüpfen, es dem Channel zu übergeben.
     (`/mcp-servers?connect=notion`), oder mit „senden Sie zuerst `/link` an diesen
     Bot“, wo das Chat-Konto das fehlende Stück ist.
 
-    Wer *mehrere* eigene Connections zu einem Dienst hält, wählt eine aus, unter
-    MCP servers → You: Das als Standard markierte Konto ist das, als das ein Agent
-    spricht. Bis zur Wahl fordert der Agent dazu auf — still den älteren Workspace
-    zu raten wäre schlechter.
 
     Der Dashboard-Chat fragt, wenn der Agent den Dienst braucht, nicht vorher.
-    Ein Dienst, den die Person nicht verbunden hat, zu dem sie mehrere
-    Connections hält oder den sie erneut autorisieren muss, wird dem Modell
-    stattdessen als `connect_account` angeboten: Braucht eine Frage Notion, hält
+    Ein Dienst, den die Person nicht verbunden hat oder erneut autorisieren
+    muss, wird dem Modell stattdessen als `connect_account` angeboten: Braucht eine Frage Notion, hält
     der Run an einer Karte mit der Schaltfläche zum Verbinden an, und sobald das
     Konto verbunden ist, arbeitet derselbe Run mit den Notion-Tools weiter.
     Übersprungen, arbeitet er ohne sie weiter. Die Bedienelemente des Chats listen
@@ -222,9 +257,41 @@ beiden schneiden sich.
     ihn an eine Logzeile zu verlieren, die niemand liest. Eine der beiden
     Connections umzubenennen ist die Korrektur des Autors.
 
-Ein Agent bindet jeden Dienst einmal, auf eine Weise. Ein Agent, der das
-Handbuch-Notion der Organisation *und* das jeweils eigene braucht, sind zwei
-Agents, oder derselbe Server zweimal unter zwei Namen verbunden.
+Ein Agent darf einen Dienst auf beide Weisen binden — das Handbuch-Notion der
+Organisation *und* das jeweils eigene —, solange die Organisations-Connection
+nicht nach dem Katalogschlüssel benannt ist, denn diesen Präfix erhält das
+eigene Konto jeder Person.
+
+### Mehrere Konten eines Servers { #several-accounts-of-one-server }
+
+Ein Agent kann das Firmenpostfach und `info@` zugleich lesen. Wer mehrere eigene
+Konten bei einem Dienst hält, wird über **jedes davon** erreicht: Das Konto, das
+die Person unter MCP servers → You als Hauptkonto markiert (sonst das zuerst
+verbundene), behält den schlichten Präfix, `outlook_send`, und jedes weitere
+Konto fügt sein Label hinzu, `outlook_info_send` (zwei Labels, die als
+Werkzeugname gleich lauten, `Sales US` und `Sales-US`, unterscheidet die kurze
+Konto-ID beim zweiten). Welche Konten das sind,
+entscheidet die Person durch das, was sie verbindet - das Binding grenzt es
+nicht ein.
+
+Die Konten der Organisation binden auf dieselbe Weise nebeneinander: Jede ihrer
+Connections zu einem Server ist ein eigenes Binding unter eigenem Namen, mit
+eigenen Tools. Im Builder listen die Einstellungen eines Servers seine
+gebundenen Konten mit **Add another account**. Wo ein Run einen Dienst über mehr
+als ein Konto erreicht, nennt eine Zeile seiner Anweisungen jedes Konto neben
+seinem Präfix und weist das Modell an nachzufragen, wenn unklar ist, welches die
+Person meint.
+
+Ein zweites Konto bei einem Dienst braucht einen Namen: Sein Label unterscheidet
+die beiden in jeder Auswahl und jeder Freigabe, deshalb fragt das Formular vor dem
+Verbinden danach, und die API lehnt ein unbenanntes zweites Konto bei `label` ab.
+
+Die Freigabe sagt dann, welches Konto handelt. Ein Aufruf über eine Verbindung
+mit Label oder über eines von mehreren Konten bei einem Dienst trägt den Namen
+dieses Kontos: Chat, Activity und Dashboard zeigen ihn neben der Aktion, eine
+Slack- oder Telegram-Nachricht fragt „to *send in Gmail* as *Work*“, und die
+Freigabe-E-Mail nennt ihn nach dem Tool. Ein einzelnes Konto ohne Label hat
+nichts zu unterscheiden, also kommt nichts hinzu.
 
 ## Authentifizierung { #authentication }
 
@@ -427,7 +494,18 @@ weiter, bis die neue Einwilligung eintrifft.
 ## Was bei einem Zug passiert { #what-happens-on-a-turn }
 
 Jeder Server wird vor Beginn des Zuges mit einem kurzen `tools/list`-Roundtrip
-geprüft — 3 Sekunden — und die Prüfungen laufen nebenläufig.
+geprüft — 3 Sekunden — und die Prüfungen laufen nebenläufig. Ein Server, der in den
+letzten zwei Minuten mit derselben Anmeldung auf seine Prüfung geantwortet hat, wird
+nicht erneut geprüft: Der nächste Zug einer Unterhaltung bindet ihn sofort ein. Ist
+er inzwischen ausgefallen, läuft dieser Zug ohne seine Tools weiter, und der nächste
+prüft ihn wieder.
+
+Der Name eines Tools erreicht das Modell als Präfix plus dem eigenen Namen des
+Servers - und Anbieter lehnen einen Namen über 64 Zeichen oder mit anderem als
+Buchstaben, Ziffern, `_` und `-` ab, indem sie die ganze Anfrage ablehnen. Ein
+solcher Name wird angepasst: abgelehnte Zeichen ersetzt, das Ende gekürzt und acht
+Hex-Ziffern eines Hashs angehängt, sodass zwei lange Namen zwei Tools bleiben. Der
+Server wird weiterhin unter seinem echten Namen aufgerufen.
 
 !!! warning "Ein nicht erreichbarer Server wird mit einer Warnung übersprungen, nicht ausgelöst"
 
@@ -452,7 +530,10 @@ Verbindungsdialog **an Ort und Stelle**.
 
 Ein Server mit Token oder ganz ohne Zugangsdaten wird verbunden, ohne die Seite zu
 verlassen, und die neue Connection ist für den Agent angehakt, sobald sie
-existiert.
+existiert. Das Verbinden prüft den Server, und seine Tools erscheinen sofort aus
+dieser Prüfung - Server wählen, verbinden und festlegen, was der Agent aufrufen
+darf, ist ein Weg. Eine fehlgeschlagene Prüfung sagt im Hinweis, warum, und die
+Verbindung bleibt zum Korrigieren erhalten.
 
 !!! info "OAuth öffnet einen Tab"
 
@@ -470,8 +551,10 @@ keine Notlösung: Namen sind pro Organisation eindeutig statt pro Katalogeintrag
 und der Name ist das Tool-Präfix, sodass das Modell `notion_readonly_search` und
 `notion_admin_search` als verschiedene Tools sieht.
 
-Binden Sie das, was der Agent haben soll. Der Builder listet eine Zeile je
-Connection und beschriftet jede mit ihrem Namen, wo ein Eintrag mehr als eine hat.
+Binden Sie das, was der Agent haben soll, oder mehrere nebeneinander — siehe
+[mehrere Konten eines Servers](#several-accounts-of-one-server). Der Builder
+zeigt eine Karte je Server und listet dessen Konten in den Einstellungen des
+Servers, jedes unter seinem Label und seinem Namen.
 
 !!! tip "Der Name ist der ganze Unterschied"
 
@@ -496,6 +579,39 @@ dedupliziert — die erste gewinnt, mit einer Warnung, die die unterlegene benen
 Vom Deployment verwaltete Server kommen zuerst, gewinnen also gegen eine
 Nutzer-Connection, die zufällig denselben Namen wählt.
 
+### Zustand, Nutzer und Aufrufe { #health-users-and-calls }
+
+Die Karte eines Servers auf der Seite MCP servers sagt, wenn eines seiner Konten
+bei der letzten Prüfung nicht geantwortet hat, und die Liste seiner Konten sagt,
+welches und was es meldete; wer MCP-Server verwaltet, kann ihn dort erneut
+prüfen.
+Ein OAuth-Konto, dessen Anmeldung nicht erneuert werden konnte, wird als
+autorisierungsbedürftig statt als unerreichbar gezeigt, mit **Autorisieren**, um
+sich erneut anzumelden.
+
+Alle fünfzehn Minuten prüft die Installation jeden Server der Organisation, und
+jeder Run prüft vor der Runde die Server, an die sein Agent gebunden ist. Hört
+ein Server auf zu antworten, bekommen die Administratoren und die Eigentümer der
+daran gebundenen Agents eine Benachrichtigung **MCP-Server antwortet nicht** für
+diesen Ausfall, egal wie viele Prüfungen oder Runs ihn finden, und **MCP-Server
+antwortet wieder**, sobald er zurück ist. Der nächste Ausfall meldet sich
+erneut. Beide kommen in der App und per E-Mail, und jede Person kann jede davon
+unter **Einstellungen → Benachrichtigungen** abschalten. Die eigene Verbindung
+eines Mitglieds sendet keine, und eine Anmeldung, die erneuert werden muss,
+zählt nicht als Ausfall.
+
+Auf der MCP-Seite nennt jedes Konto der Organisation die Agents, die daran
+gebunden sind, und **Was Agents gefragt haben** listet die letzten Aufrufe ihrer
+Tools: welches Tool, welcher Agent, wie es lief und in welchem Run. Was gefragt
+und geantwortet wurde, wird nicht gezeigt - es bleibt im Gespräch. Jeder Aufruf speichert die Verbindung, die ihn bedient hat; die eigene
+Verbindung eines Mitglieds mit demselben Namen erscheint daher nicht, und
+Aufrufe aus der Zeit davor erscheinen gar nicht. API: `used_by` an
+`GET /api/v1/mcp-connections` und `GET /api/v1/mcp-connections/{id}/calls`.
+
+**Zu einem Agent hinzufügen** bindet ein Konto in den Entwurf eines gewählten
+Agents, und das Verbinden eines Kontos per Schlüssel oder das Abschließen seiner
+Anmeldung bietet dasselbe an.
+
 ## Der Katalog { #the-catalog }
 
 Eine Auswahl, die leer beginnt und nach einer URL fragt, ist eine Auswahl, die
@@ -518,7 +634,7 @@ angesehen hat, dass der Auth-Flow funktioniert, dass die Beschreibung ehrlich is
     Gegen diesen Katalog abgeglichen gehörten **vier** dieser Hosts zu einem
     Unternehmen, das die meisten Leser wiedererkennen würden, und fehlten hier —
     CircleCI, New Relic, Statsig und Lusha, alle vier jetzt gelistet. Der Rest der
-    rund 5.000 nicht abgedeckten sind Einzelprojekt-Server, Proxys auf
+    nicht abgedeckten Hosts sind Einzelprojekt-Server, Proxys auf
     `workers.dev`, SEO-Werkzeuge und Spiele: alphabetisch sind die ersten paar eine
     Grundstückspreis-Abfrage, ein Werkzeug für Handwerkerangebote und ein
     ungarischer Fensterkalkulationsdienst.
@@ -531,7 +647,8 @@ angesehen hat, dass der Auth-Flow funktioniert, dass die Beschreibung ehrlich is
 ### Die Registry steht in derselben Liste, und in der Datenbank { #the-registry-is-in-the-same-list-and-in-the-database }
 
 Der Spiegel wird also mitgeliefert, und **/mcp ist eine Liste über alle** — die
-kuratierten hundert zuerst, dann 5.703 gespiegelte Server, seitenweise. Kein
+kuratierte Katalog zuerst, dann das gespiegelte Register, seitenweise: über 4.700
+Server, die Zahl, die die Galerie zeigt. Kein
 kuratiertes Raster mit einer Suche, die weiter reicht: eine Liste, ein Pager, eine
 Zählung.
 
@@ -543,7 +660,7 @@ wird von `agenticos cmd mcp-registry-sync` gefüllt, aus dem mitgelieferten Snap
 oder, mit `--fetch`, aus der Live-Registry.
 
 In der Datenbank gehalten, weil sich eine Datei nicht seitenweise ausgeben lässt.
-5.703 Einträge im Speicher könnten „Server, die auf 'linear' passen“ beantworten
+Tausende Einträge im Speicher könnten „Server, die auf 'linear' passen“ beantworten
 und nicht „die vierte Seite von allen“, ohne alles zu laden und zu schneiden. Die
 Rangfolge ist aus demselben Grund mit in SQL gewandert: Eine Seite zu ranken heißt,
 zu ranken, was auf dieser Seite zufällig stand. Drei Bänder — der Server, der
@@ -567,10 +684,13 @@ und keine Auflistung:
   Seitengröße von 50 — also lebt die Arithmetik in `mcp_listing.page`, mit einem
   Test auf der Grenze, denn ein Off-by-one dort überspringt einen Server oder zeigt
   ihn zweimal, in einer Liste, in der niemand merken würde, welches von beidem.
-- **Eine Kategorie fragt nur nach Katalogeinträgen.** Der Spiegel hat keine
-  Kategorien, sie mit gespiegelten Zeilen zu beantworten würde also
-  unkategorisierte Server unter eine Überschrift einsortieren, die etwas anderes
-  sagt.
+- **Eine Kategorie erreicht auch den Spiegel.** Die Registry hat keine
+  Kategorien, also bekommt jeder Eintrag beim Sync eine aus seinem eigenen Namen
+  und seiner Beschreibung, gezählt an den Wörtern, an denen man jede Kategorie
+  erkennt; ein Eintrag, der keines davon nennt, landet unter *other*, statt in
+  eine Überschrift geraten zu werden. Der Filter **Sign-in** fragt danach, was ein
+  Server verlangt - OAuth, ein Token, nichts -, und für einen gespiegelten Eintrag
+  ist das, was die Katalogprüfung herausgefunden hat.
 - **Kein eingebackenes Logo.** Die Konsole bettet ein Favicon je kuratiertem Host
   ein, damit ein Abzeichen offline rendert; bei 1,9 KB je Stück wären das für den
   Spiegel 10,5 MB Base64 in einem Modul, das der Browser lädt. Registry-Zeilen
@@ -604,15 +724,47 @@ nimmt jede URL und braucht überhaupt keinen Katalogeintrag.
     Art, nicht tausende Server, die jemand geprüft hat. Beide Formen sind
     nützlich, und sie sind nicht dieselbe Behauptung.
 
-!!! warning "Ein Versprechen, das erneuert werden muss"
+### Wie der Katalog gepflegt wird { #how-the-catalog-is-kept }
 
-    Das Versprechen verfällt. Der offizielle Postgres-Referenzserver wurde 2025 aus
-    `modelcontextprotocol/servers` archiviert, und dieser Katalog hat weiter darauf
-    verlinkt, sodass das Einzige, was der Eintrag einem Leser bot, eine 404 war.
-    Nichts prüft diese Links — ein Test, der ins öffentliche Internet greift, ist
-    ein Test, der im Zug von irgendjemandem fehlschlägt — das erneute Lesen des
-    Katalogs ist also eine wiederkehrende menschliche Aufgabe, und ein Eintrag, für
-    den niemand bürgen kann, sollte gelöscht statt stehen gelassen werden.
+Das Versprechen verfällt. Der offizielle Postgres-Referenzserver wurde 2025 aus
+`modelcontextprotocol/servers` archiviert, und dieser Katalog hat weiter darauf
+verlinkt, sodass das Einzige, was der Eintrag einem Leser bot, eine 404 war. Im
+Oktober 2026 war Linear von `/sse` weggezogen, Pipedrive auf einen neuen Host, und
+zwölf kuratierte Einträge hatten einen gehosteten Server, den niemand notiert
+hatte. Deshalb wird jetzt jeder gelistete Server so aufgerufen, wie eine erste
+Verbindung ihn aufruft, mit einem Befehl:
+
+```bash
+uv run agenticos cmd mcp-catalog-check --report catalog-check.md
+```
+
+Er schickt jedem Server den MCP-Handshake ohne Zugangsdaten und hält fest, was
+passiert ist: Er hat geantwortet und seine Tools gelistet (**open**, mit der Zahl
+derer, die nur lesen), er hat abgelehnt und veröffentlicht OAuth-Metadaten
+(**sign in**), er hat ohne diese Metadaten abgelehnt (**token**), oder er hat gar
+nicht wie ein MCP-Server geantwortet (**unreachable**, **broken** oder **refused**
+für eine Adresse innerhalb eines Netzes). Zwei Registry-Einträge unter einer
+Adresse sind ein Server, und der kürzere Name bleibt. Nirgends wird sich
+angemeldet: Ob die Tools nach dem Verbinden funktionieren, ist der eigene Test der
+Verbindung.
+
+Was gefunden wurde, steht auf den Karten. Ein Server, der geantwortet hat, zeigt
+**Checked** mit dem Datum und seinen Tool-Zahlen, wo er sie gelistet hat. Ein
+kuratierter Server, der nicht geantwortet hat, sagt das in Rot und bleibt
+gelistet, weil jemand ihn gewählt hat; ein gespiegelter Eintrag, der nicht
+geantwortet hat oder einen anderen wiederholt, wird nicht mehr angeboten. Ein
+kuratierter Eintrag, der OAuth verspricht und die Metadaten dafür nicht
+veröffentlicht hat, gilt nicht als geprüft, denn sein **Connect** ist der Knopf,
+der scheitern würde.
+
+Die Prüfung läuft vor jedem Release mit `--snapshot`, das
+`app/core/catalog/mcp_checks.json` schreibt; `make platform-bootstrap` lädt sie,
+sodass ein neues Deployment mit dem startet, wogegen das Release geprüft wurde.
+Führen Sie den Befehl auf einem Deployment aus, um erneut zu prüfen; seine eigenen
+Ergebnisse haben Vorrang vor den mitgelieferten. `--source catalog` prüft nur die
+kuratierte Liste in etwa zehn Sekunden; die ganze Registry braucht einige Minuten.
+Der Bericht führt jeden kuratierten Eintrag mit dem auf, was er angibt, was
+gefunden wurde und warum einer nicht bestanden hat.
 
 `(self-hosted)` unten heißt, der Eintrag beschreibt den Server, aber Sie liefern
 die URL: entweder weil er auf Ihrer eigenen Infrastruktur läuft, oder weil der
@@ -629,7 +781,7 @@ Anbieter einen Endpunkt je Konto ausgibt.
 | Vercel | oauth | `https://mcp.vercel.com/` |
 | Netlify | oauth | `https://mcp.netlify.com/mcp` |
 | Railway | token | `https://mcp.railway.app/mcp` |
-| Replit | oauth | self-hosted |
+| Replit | oauth | `https://mcp.replit.com/server/mcp` |
 | Hugging Face | token | `https://huggingface.co/mcp` |
 | Buildkite | oauth | `https://mcp.buildkite.com/mcp` |
 | Semgrep | token | `https://mcp.semgrep.ai/mcp` |
@@ -642,12 +794,12 @@ Anbieter einen Endpunkt je Konto ausgibt.
 
 | Server | Auth | URL |
 |---|---|---|
-| Linear | oauth | `https://mcp.linear.app/sse` |
+| Linear | oauth | `https://mcp.linear.app/mcp` |
 | Jira & Confluence | oauth | `https://mcp.atlassian.com/v1/sse` |
 | Asana | oauth | `https://mcp.asana.com/sse` |
 | ClickUp | oauth | `https://mcp.clickup.com/mcp` |
-| Trello | oauth | self-hosted |
-| Todoist | oauth | self-hosted |
+| Trello | oauth | `https://mcp.trello.com/v1` |
+| Todoist | oauth | `https://ai.todoist.net/mcp` |
 | monday.com | oauth | `https://mcp.monday.com/mcp` |
 
 ### Daten und Analytics { #data-and-analytics }
@@ -663,6 +815,7 @@ Anbieter einen Endpunkt je Konto ausgibt.
 | Google BigQuery | oauth | self-hosted |
 | PostHog | token | `https://mcp.posthog.com/mcp` |
 | Mixpanel | token | `https://mcp.mixpanel.com/mcp` |
+| Google Analytics 4 | token | self-hosted |
 | Neon | oauth | `https://mcp.neon.tech/mcp` |
 | Amplitude | token | `https://mcp.amplitude.com/mcp` |
 | Firecrawl | token | `https://mcp.firecrawl.dev/mcp` |
@@ -677,6 +830,9 @@ Anbieter einen Endpunkt je Konto ausgibt.
 | Server | Auth | URL |
 |---|---|---|
 | Slack | oauth | `https://mcp.slack.com/mcp` |
+| Microsoft Work IQ | oauth | `https://workiq.svc.cloud.microsoft/mcp` |
+| Outlook Mail (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_MailTools` |
+| Microsoft Teams (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_TeamsServer` |
 | Zoom | oauth | self-hosted |
 | Intercom | oauth | `https://mcp.intercom.com/sse` |
 | Notion | oauth | `https://mcp.notion.com/mcp` |
@@ -695,11 +851,11 @@ Anbieter einen Endpunkt je Konto ausgibt.
 | Stripe | token | `https://mcp.stripe.com` |
 | PayPal | oauth | `https://mcp.paypal.com/sse` |
 | Xero | oauth | `https://mcp.xero.com/mcp` |
-| HubSpot | oauth | self-hosted |
+| HubSpot | oauth | `https://mcp.hubspot.com/` |
 | Shopify | oauth | self-hosted |
 | Attio | oauth | `https://mcp.attio.com/mcp` |
-| Pipedrive | oauth | `https://mcp.pipedrive.com/mcp` |
-| Lusha | token | `https://mcp.lusha.com/mcp` |
+| Pipedrive | oauth | `https://mcp.pipedrive.ai/mcp` |
+| Lusha | oauth | `https://mcp.lusha.com` |
 
 ### Observability { #observability }
 
@@ -718,12 +874,14 @@ Anbieter einen Endpunkt je Konto ausgibt.
 
 | Server | Auth | URL |
 |---|---|---|
-| Mailchimp | oauth | self-hosted |
+| Mailchimp | oauth | `https://ai-inc.mailchimp.com/claude/mcp/v2` |
 | Resend | token | `https://mcp.resend.com/mcp` |
 | Webflow | oauth | `https://mcp.webflow.com/mcp` |
 | Wix | oauth | `https://mcp.wix.com/mcp` |
-| WordPress.com | oauth | self-hosted |
-| Semrush | token | self-hosted |
+| WordPress.com | oauth | `https://public-api.wordpress.com/wpcom/v2/mcp/v1` |
+| Semrush | oauth | `https://mcp.semrush.com/v1/mcp` |
+| Meta Ads | oauth | `https://mcp.facebook.com/ads` |
+| Google Ads | token | self-hosted |
 | Similarweb | token | `https://mcp.similarweb.com/mcp` |
 | Figma | oauth | `https://mcp.figma.com/mcp` |
 | Miro | oauth | `https://mcp.miro.com/mcp` |
@@ -736,24 +894,28 @@ Anbieter einen Endpunkt je Konto ausgibt.
 
 | Server | Auth | URL |
 |---|---|---|
-| Zapier | oauth | self-hosted |
+| Zapier | oauth | `https://mcp.zapier.com/api/mcp/mcp` |
 | Make | token | self-hosted |
 | n8n | token | self-hosted |
 | Box | oauth | `https://mcp.box.com/mcp` |
 | Dropbox | oauth | `https://mcp.dropbox.com/mcp` |
-| Calendly | oauth | self-hosted |
-| Typeform | oauth | self-hosted |
+| Calendly | oauth | `https://mcp.calendly.com/` |
+| Typeform | oauth | `https://api.typeform.com/mcp` |
 | SurveyMonkey | oauth | `https://mcp.surveymonkey.com/mcp` |
-| DeepL | token | self-hosted |
-| ElevenLabs | token | self-hosted |
+| DeepL | oauth | `https://mcp.deepl.com/v1/mcp` |
+| ElevenLabs | oauth | `https://api.elevenlabs.io/v1/mcp` |
 | Fireflies | token | `https://mcp.fireflies.ai/mcp` |
 | Egnyte | oauth | `https://mcp-server.egnyte.com/mcp` |
 | Apify | token | `https://mcp.apify.com` |
 | Tally | token | `https://api.tally.so/mcp` |
-| Pipedream | token | `https://remote.mcp.pipedream.net` |
+| Pipedream | oauth | `https://mcp.pipedream.net/v2` |
 | Composio | token | self-hosted |
 | Activepieces | token | `https://mcp.activepieces.com/mcp` |
 | Cal.com | token | `https://mcp.cal.com/mcp` |
+| Outlook Calendar (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_CalendarTools` |
+| Word (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_WordServer` |
+| SharePoint (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_SharePointRemoteServer` |
+| OneDrive (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_OneDriveRemoteServer` |
 
 ### Alles Übrige { #anything-else }
 
@@ -765,16 +927,35 @@ was der Agent also tun kann, wird dort entschieden und nicht hier.
 Verbinden introspiziert, und nichts an ihm muss vorher im Katalog stehen. Der
 Katalog erspart jemandem das Nachschlagen einer URL; er ist kein Tor.
 
+Die Adresse eines eigenen Servers einzutippen, fragt ihn, ob man sich anmelden
+kann: dieselbe Erkennung, die ein OAuth-Ablauf ausführt (RFC 9728, dann RFC 8414),
+ohne etwas zu registrieren, über `POST /api/v1/me/mcp-connections/probe`. Wenn ja,
+wird **OAuth** für Sie gewählt und Verbinden öffnet die Anmeldung; registriert der
+Server Apps nicht selbst, fragt der Dialog nach Client-ID und Secret vom Anbieter;
+veröffentlicht er keine OAuth-Metadaten, bleibt ein Token oder keine Zugangsdaten.
+
 Um einen Eintrag zur Liste hinzuzufügen, siehe
 [Einen Server zum MCP-Katalog hinzufügen](howto/add-mcp-server.md).
 
 <a id="outlook-setup"></a>
 
-### Outlook-E-Mail und -Kalender { #outlook-email-and-calendar }
+### Microsoft 365 und Outlook { #microsoft-365-and-outlook }
 
-Outlook ist über MCP-Dienste von Drittanbietern verfügbar, nicht über einen
-eingebauten Postfach-Connector. Die mitgelieferte Registry enthält MintMCP-Einträge
-für E-Mail und Kalender:
+Microsoft veröffentlicht eigene MCP-Server für Microsoft 365, und der Katalog
+listet sie: **Work IQ** - ein Endpunkt für Mail, Besprechungen, Chats und Dateien -
+und die einzelnen Server für Mail, Calendar, Teams, SharePoint, OneDrive und Word.
+Jeder braucht eine Microsoft-365-Copilot-Lizenz und eine in Microsoft Entra
+registrierte App: Fügen Sie die Work-IQ-Berechtigung des Servers hinzu (für Mail
+`WorkIQ-MailServer`) und die Redirect-URL dieser Konsole, die der Verbindungsdialog
+zeigt, und geben Sie beim Verbinden die Client-ID der App ein.
+
+Entra registriert
+keinen Client vor Ort, die Client-ID ist also nicht optional. Microsoft führt die
+Server je Anwendung als für die Kompatibilität erhalten und verweist neue Projekte
+auf Work IQ.
+
+Outlook ist auch über MCP-Dienste von Drittanbietern verfügbar. Die mitgelieferte
+Registry enthält MintMCP-Einträge für E-Mail und Kalender:
 
 | Registry-Eintrag | Server-URL |
 |---|---|
@@ -789,16 +970,80 @@ hängen vom Anbieter ab. Ein Registry-Eintrag ist kein durchgängiger Integratio
 mit AgenticOS. Prüfen Sie vor dem Aktivieren schreibender Werkzeuge die unten
 beschriebenen Freigabemodi.
 
+## AgenticOS als MCP-Server { #agenticos-as-an-mcp-server }
+
+Alles oben ist die Plattform, die andere Server aufruft. Sie ist aber auch selbst
+einer: **`/mcp`** auf dem Host der API spricht MCP über streamable HTTP, sodass
+Claude Code, Claude Desktop oder jeder MCP-Client die Organisation bedienen kann —
+Agents auflisten und anlegen, ausführen, Runs und ihre Kosten lesen, Wissensbasen
+befüllen und durchsuchen, Mitglieder einladen.
+
+Der Server baut auf [FastMCP](https://gofastmcp.com) auf: Es bedient das Protokoll
+und die OAuth-2.1-Endpunkte, und AgenticOS liefert die Tools und jede
+Entscheidung hinter einer Anmeldung.
+
+Der Client meldet sich über den Browser an: Er registriert sich, öffnet die
+Zustimmungsseite der Konsole, auf der Sie die Organisation und seine Befugnisse
+wählen, und erhält ein Token, das eine Stunde gilt und sich selbst erneuert. Es
+wird nirgends ein Schlüssel eingefügt.
+
+Die Registrierung braucht keine Anmeldedaten, daher ist sie wie die Anmeldung pro
+Adresse begrenzt, und ein Client, mit dem niemand die Anmeldung abgeschlossen hat,
+wird nach einem Tag vergessen.
+
+In der Konsole zeigt **Einstellungen → MCP-Clients** die URL dieses Servers und den genauen Befehl oder die Konfiguration für Claude Code, Codex, Claude Desktop, Cursor und VS Code, für beide Arten der Anmeldung.
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp
+```
+
+Oder verbinden Sie sich mit einem
+[API-Schlüssel der Organisation](api.md#organization-api-keys), für einen Client,
+der keinen Browser öffnen kann:
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp \
+  --header "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+Die Verbindung handelt als das Mitglied, das den Schlüssel ausgestellt hat,
+innerhalb der Berechtigungen des Schlüssels. Jedes Tool ist ein Aufruf der
+[öffentlichen API](api.md) mit diesem Schlüssel und wird daher genau so abgelehnt,
+begrenzt und auditiert wie dieselbe Anfrage über HTTP; eine Ablehnung kommt als
+Tool-Fehler zurück, der die fehlende Berechtigung nennt.
+
+| Tool | Braucht |
+|---|---|
+| `whoami` | — |
+| `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
+| `create_agent_draft` | `agents:edit` |
+| `discard_agent_draft` | `agents:edit`, für Ihren eigenen, nie veröffentlichten Entwurf |
+| `run_agent` | `agents:run` |
+| `list_runs`, `get_run`, `get_spend` | `runs:view` |
+| `list_knowledge_bases`, `search_knowledge` | `collections:view` |
+| `list_embedding_models` | — |
+| `create_knowledge_base`, `add_document` | `collections:edit` |
+| `list_skills` | `skills:view` |
+| `list_members` | `members:view` |
+| `invite_member` | `members:manage` und `roles:manage` |
+
+Bewusst fehlt: einen Agent veröffentlichen, Zugangsdaten anfassen und etwas
+löschen außer einem Agent-Entwurf, den der Aufrufer selbst angelegt und nie
+veröffentlicht hat - das Rückgängigmachen eines versehentlichen Entwurfs. Einen
+hier angelegten Entwurf veröffentlicht eine Person in der Konsole.
+Verbundene Anwendungen stehen unter **Einstellungen → MCP-Clients**, wo das
+Trennen ihren Zugriff samt jedem Token beendet. Aufrufe, die etwas ändern,
+warten auf eine Freigabe, wie [oben](#which-calls-wait-for-a-person) beschrieben.
+
 ## Was MCP Ihnen nicht bringt { #what-mcp-does-not-get-you }
 
 - **Eine Abdeckungsgarantie.** Katalogeinträge sind Metadaten. Die Tools gehören
   dem Anbieter, und sie können sich unter Ihnen von einem Zug zum nächsten ändern.
-- **Automatische Freigabeabdeckung.** Freigabeeinstellungen einer Capability
-  decken MCP-Tools nicht ab. Im Webchat erfasst **Ask about everything**
-  (`ask_all`) auch MCP-Aufrufe, die der Runner ausführt; der Standardmodus
-  **Follow the agent** ergänzt dieses Gate nicht. Beschränken Sie die
-  verfügbaren Tools und prüfen Sie den Ausführungsmodus vor dem Aktivieren
-  einer Verbindung. Siehe [Freigabemodi](governance.md#how-much-one-conversation-wants-to-be-asked).
+- **Freigaben, die wissen, was ein Tool tut.** Die Richtlinie `writes` vertraut
+  darauf, dass der Server seine nur lesenden Tools markiert; ein so markiertes
+  Tool, das etwas ändert, läuft ungefragt. Nutzen Sie `all` für einen Server, den
+  Sie nicht kontrollieren, und schränken Sie `allowed_tools` ein. Siehe
+  [welche Aufrufe warten](#which-calls-wait-for-a-person).
 - **Kostenzuordnung.** Was ein Server auf seiner eigenen Seite tut, steht nicht im
   [Budget](governance.md#budgets) dieser Plattform. Nur die Modell-Token stehen
   darin.

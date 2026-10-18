@@ -104,6 +104,10 @@ retry prompt on a refusal invites the model to look for a way around it.
 - Write the `README.md`. Reasoning goes there, not in the commit message.
 - Test it — `app/agents/**` is at **100% and CI fails below it**. See the
   `backend-tests` skill.
+- Give every config field `Field(title=..., description=...)` written for the
+  person in the Builder, and add both under `capabilityConfig.<id>.<field>` in
+  `frontend/messages/{en,pl,de}.json` — the English entry equal to the schema.
+  `TestCapabilitySettingsCopy` fails on any of the three missing (#2098).
 - If the capability needs a credential, declare it as a `SecretRequirement` *kind*,
   never an instance. See the `vault-secrets` skill.
 - Update `docs/reference/capabilities.md` — it is the human-readable catalog and it

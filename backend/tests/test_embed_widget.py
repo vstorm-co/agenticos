@@ -54,14 +54,47 @@ def test_it_speaks_the_documented_frames():
         assert f'"{frame}"' in RENDERED
 
 
-def test_it_ignores_the_frames_it_does_not_draw():
-    """A widget is a bubble in the corner of somebody else's page: an answer
-    arriving a word at a time is worth having there, a narration of tool calls is
-    not. The page draws those, and `docs/channels.md` says which client reads what -
-    so a widget that quietly started rendering them would make that page wrong.
-    """
-    for frame in ("thinking_delta", "tool_call", "tool_result"):
-        assert f'"{frame}"' not in RENDERED
+def test_it_draws_the_steps_and_the_sources_but_not_the_reasoning():
+    """A step reads as a chip - *Searching the knowledge base* - and the documents
+    an answer drew on as names under it (#2006). Both arrive only when the server
+    sends them: `tool_call` without its arguments unless the operator shows
+    results, `sources` only when they switched it on. The reasoning stays out:
+    `docs/channels.md` says which client reads what."""
+    for frame in ("tool_call", "tool_result", "sources"):
+        assert f'"{frame}"' in RENDERED
+    assert '"thinking_delta"' not in RENDERED
+
+
+@pytest.mark.security
+def test_an_answer_is_never_parsed_as_html():
+    """An answer is model output drawn on a customer's page; a string handed to
+    `innerHTML` there is script on their site. The one `innerHTML` is the send
+    button's icon, a literal in this file."""
+    assignments = re.findall(r"\.innerHTML\s*=\s*([^;]+);", RENDERED)
+    assert len(assignments) == 1
+    assert assignments[0].lstrip().startswith("'<svg")
+    assert "insertAdjacentHTML" not in RENDERED
+    assert "document.write" not in RENDERED
+
+
+@pytest.mark.security
+def test_a_link_in_an_answer_is_only_ever_http():
+    """`javascript:` in a Markdown link is the classic way out of a chat bubble."""
+    assert "if (!/^https?:\\/\\//i.test(href)) return document.createTextNode(label);" in RENDERED
+    assert 'a.rel = "noopener noreferrer nofollow";' in RENDERED
+
+
+def test_every_style_rule_is_its_own():
+    """The stylesheet lands on somebody else's page: a rule not scoped to the
+    widget's root would restyle their site."""
+    css = RENDERED.split("var CSS = [")[1].split("].join")[0]
+    selectors = re.findall(r"\"([^\"{}]+)\{", css)
+    assert selectors
+    for selector in selectors:
+        if selector.startswith("@") or selector in ("from", "to") or "%" in selector:
+            continue
+        for part in selector.split(","):
+            assert part.strip().startswith(".aos-"), part
 
 
 def test_a_refusal_is_not_retried():
@@ -88,15 +121,19 @@ def test_no_close_leaves_the_box_silently_dead():
     some third code would satisfy a copy check and not the visitor.
     """
     assert "The connection dropped." in RENDERED
-    assert 'else bubble("assistant", "The connection dropped.' in RENDERED
+    assert 'else botBubble("The connection dropped.' in RENDERED
 
 
 def test_a_half_written_answer_is_settled_when_the_socket_goes():
-    """`pending` is the bubble the deltas were landing in. Left as it was, a
-    sentence the agent was cut off mid-way through reads as the answer it gave."""
+    """`turn` is the answer the deltas were landing in. Left as it was - caret and
+    all - a sentence the agent was cut off mid-way through reads as one still
+    coming; an empty one is removed."""
     close = RENDERED.split("socket.onclose")[1]
-    assert "pending.remove()" in close
-    assert "pending = null" in close
+    assert close.index("endTurn();") < close.index("4003")
+    settle = RENDERED.split("function endTurn()")[1].split("function connect()")[0]
+    assert ".remove()" in settle
+    assert "draw(turn, false)" in settle
+    assert "turn = null" in settle
 
 
 def test_only_a_refusal_survives_a_reopen():

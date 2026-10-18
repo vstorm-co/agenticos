@@ -1,5 +1,5 @@
 ---
-source_sha: "82ec723c8c80"
+source_sha: "bb644bc0a7d4"
 ---
 
 # Skills { #skills }
@@ -115,6 +115,12 @@ gebundenen Skills eine Datei zum Lesen mitbringt.
 Ein Spec bindet Skills über ihre Id in `skill_ids`, sodass ein Agent genau die
 sieht, die ihm gegeben wurden, und sonst nichts.
 
+**Direkt vom Skill aus.** Jede Karte auf der Skills-Seite hat **Zu einem
+Agenten hinzufügen**: Agent wählen, und der Skill landet in dessen Entwurf, mit
+eingeschalteter Skills-Capability, bereit zum Veröffentlichen im Builder. Die
+Karte sagt auch, welche Agents den Skill nutzen - oder dass es noch keiner tut.
+Kontextdateien und Wissensdatenbanken bieten dasselbe.
+
 **Der Name eines Skills ist die id, unter der ein Modell ihn lädt**, also hat
 er die Form, in der Modelle ids schreiben: Kleinbuchstaben und Ziffern, verbunden
 durch einzelne Bindestriche, etwa `refund-policy`. Ein Name mit Leerzeichen oder
@@ -202,7 +208,7 @@ mehr Arbeit bekommen statt mehr Information.
 **Die mitgelieferten sind schon da.** Das Repository liefert vier: drei
 ausgearbeitete Beispiele — `refund-policy`, `code-review` und `incident-report` —
 und `artifact-pages`, das einem Agent beibringt, eine Seite für die Capability
-[Artifacts](artifacts.md#the-library-set) zu bauen. Jede Organisation startet mit
+[Apps](artifacts.md#the-library-set) zu bauen. Jede Organisation startet mit
 ihnen. Das Anlegen einer Organisation kopiert
 die gesamte mitgelieferte Bibliothek als gewöhnliche Skills hinein, im Besitz des
 Owners der Organisation und für die Organisation sichtbar.

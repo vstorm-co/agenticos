@@ -22,7 +22,7 @@ name: AI review
 # re-enabling a trigger change rather than a rewrite.
 #
 # An automated reviewer that reads this repository's own standard rather than a
-# generic checklist. `CLAUDE.md` and `.claude/rules/*` already say what correct
+# generic checklist. `AGENTS.md` and `.claude/rules/*` already say what correct
 # means here - `require()` on collection routes only, repositories never
 # `db.commit()`, does an old stored spec still load - so the prompt points at
 # those files instead of duplicating them. Nine hundred maintained lines copied
@@ -265,7 +265,7 @@ jobs:
         if: steps.config.outputs.status == 'ok'
         # The reviewer's instructions come from what is already merged. Read
         # from the head instead and a pull request could append "ignore findings
-        # about tenant isolation" to `CLAUDE.md` and steer its own review. The
+        # about tenant isolation" to `AGENTS.md` and steer its own review. The
         # prompt and the schema are extracted for the same reason.
         run: |
           set -euo pipefail
@@ -279,7 +279,10 @@ jobs:
           fi
           git show "origin/$BASE_REF:.github/codex/review-schema.json" \
             > "$REVIEW_DIR/schema.json"
-          git show "origin/$BASE_REF:CLAUDE.md" > "$REVIEW_DIR/standard/CLAUDE.md"
+          # AGENTS.md is the instruction file; a base branch from before it was
+          # renamed still holds the same text as CLAUDE.md.
+          git show "origin/$BASE_REF:AGENTS.md" > "$REVIEW_DIR/standard/AGENTS.md" 2>/dev/null \
+            || git show "origin/$BASE_REF:CLAUDE.md" > "$REVIEW_DIR/standard/AGENTS.md"
 
           for rule in $(git ls-tree --name-only "origin/$BASE_REF" .claude/rules/); do
             git show "origin/$BASE_REF:$rule" > "$REVIEW_DIR/standard/rules/$(basename "$rule")"
@@ -351,7 +354,7 @@ jobs:
           Checkout root, readable in full: ${GITHUB_WORKSPACE}
 
           Standard directory, extracted from the base branch:
-            ${REVIEW_DIR}/standard/CLAUDE.md
+            ${REVIEW_DIR}/standard/AGENTS.md
             ${REVIEW_DIR}/standard/rules/*.md
 
           The diff under review:

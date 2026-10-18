@@ -56,6 +56,29 @@ class TestAccumulatingOneTurn:
 
         assert timeline.text == "First. Second."
 
+    def test_a_new_response_opens_a_new_text_part(self):
+        """#2108: a background tool answers as a message, not a tool part, so the
+        text written while it ran and after it returned met with nothing between."""
+        timeline = TurnTimeline()
+
+        timeline.add_text("A haiku while it runs.")
+        timeline.next_response()
+        timeline.add_text("The heading is Example Domain.")
+
+        assert [part.text for part in timeline.parts] == [
+            "A haiku while it runs.",
+            "The heading is Example Domain.",
+        ]
+
+    def test_deltas_of_one_response_stay_one_part(self):
+        timeline = TurnTimeline()
+
+        timeline.next_response()
+        timeline.add_text("One ")
+        timeline.add_text("sentence.")
+
+        assert [part.text for part in timeline.parts] == ["One sentence."]
+
     def test_a_second_block_of_reasoning_is_separated_from_the_first(self):
         """Providers emit a block per thought with no trailing space, so joining
         them ran the last word of one into the first of the next."""
@@ -152,3 +175,23 @@ class TestWhatIsWorthStoring:
         assert [(part.type, part.question, part.answer) for part in stored] == [
             ("ask_user", "Which region?", "eu-west-1")
         ]
+
+
+class TestWhatThePersonAdded:
+    """A mid-run correction is a moment in the turn, kept where it landed (#2087)."""
+
+    def test_it_sits_between_what_came_before_and_after_and_is_not_text(self):
+        timeline = TurnTimeline()
+        timeline.add_text("Looking at the US numbers. ")
+        timeline.add_steer("use the EU numbers")
+        timeline.add_steer("and round them")
+        timeline.add_text("Switching to the EU numbers.")
+
+        assert [part.type for part in timeline.parts] == ["text", "steer", "steer", "text"]
+        assert timeline.text == "Looking at the US numbers. Switching to the EU numbers."
+
+    def test_a_lone_one_is_still_stored(self):
+        timeline = TurnTimeline()
+        timeline.add_steer("stop")
+
+        assert timeline.stored() == timeline.parts

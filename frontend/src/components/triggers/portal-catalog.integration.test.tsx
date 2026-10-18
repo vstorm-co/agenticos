@@ -237,12 +237,14 @@ function orgConnection(overrides: Partial<OrgMcpConnectionRecord> = {}): OrgMcpC
     has_auth_token: false,
     allowed_tools: null,
     is_enabled: true,
+    include_instructions: false,
     auth_type: "oauth",
     oauth_authorized: true,
     authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
+    visibility: "org",
     catalog_key: "github",
     is_default: false,
     label: null,
@@ -374,7 +376,7 @@ describe("PortalCatalog", () => {
       }),
     );
 
-    expect(await screen.findByRole("dialog", { name: /secret/i })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: /add a key/i })).toBeInTheDocument();
   });
 
   it("sends you to the vault to remove one when two are stored, and offers no add", async () => {
@@ -443,7 +445,7 @@ describe("PortalCatalog", () => {
     // The shortcut passed the dialog one kind and left its own pickers alone, so
     // it opened on Model provider with OpenAI chosen - and `kindInfo` then found
     // nothing for `api_key` in a list holding only `github_oauth_app`, leaving a
-    // form with no value fields and Store secret disabled for ever.
+    // form with no value fields and Store key disabled for ever.
     const user = userEvent.setup();
     await mount({ org: [], blockedBy: "oauth_app_secret" });
 
@@ -453,7 +455,7 @@ describe("PortalCatalog", () => {
       }),
     );
 
-    const dialog = within(await screen.findByRole("dialog", { name: /secret/i }));
+    const dialog = within(await screen.findByRole("dialog", { name: /add a key/i }));
     expect(dialog.getByDisplayValue("GitHub OAuth App")).toBeInTheDocument();
   });
 
@@ -470,7 +472,7 @@ describe("PortalCatalog", () => {
       }),
     );
 
-    const dialog = within(await screen.findByRole("dialog", { name: /secret/i }));
+    const dialog = within(await screen.findByRole("dialog", { name: /add a key/i }));
     expect(dialog.getByDisplayValue("Google OAuth client")).toBeInTheDocument();
   });
 

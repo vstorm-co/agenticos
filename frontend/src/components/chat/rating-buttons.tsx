@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DIALOG_CONFIRM } from "@/lib/dialog-sizes";
+import { TURN_ACTION } from "./turn-action";
 
 interface RatingButtonsProps {
   messageId: string;
@@ -129,26 +130,21 @@ export function RatingButtons({
 
   return (
     <>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         <button
           onClick={() => handleRate(RatingValue.LIKE)}
           disabled={inFlight !== null || isMissingConversationId}
           className={cn(
-            "inline-flex items-center rounded-md p-1.5 transition-colors",
-            "hover:bg-muted/80",
-            "opacity-100 sm:opacity-0 sm:group-hover:opacity-100",
-            currentRating === RatingValue.LIKE && "bg-success/25 text-success",
+            TURN_ACTION,
+            "w-auto min-w-7 px-1.5 sm:opacity-0 sm:group-hover:opacity-100",
+            currentRating === RatingValue.LIKE && "bg-success/15 text-success hover:text-success",
             isMissingConversationId && "cursor-not-allowed opacity-50",
           )}
           title={isMissingConversationId ? t("saveConversationToRate") : t("helpful")}
         >
-          {inFlight === RatingValue.LIKE ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <ThumbsUp className="h-4 w-4" />
-          )}
+          {inFlight === RatingValue.LIKE ? <Loader2 className="animate-spin" /> : <ThumbsUp />}
           {ratingCount && ratingCount.likes > 0 && (
-            <span className="ml-1 text-xs">{ratingCount.likes}</span>
+            <span className="text-xs">{ratingCount.likes}</span>
           )}
         </button>
 
@@ -156,21 +152,17 @@ export function RatingButtons({
           onClick={() => handleRate(RatingValue.DISLIKE)}
           disabled={inFlight !== null || isMissingConversationId}
           className={cn(
-            "inline-flex items-center rounded-md p-1.5 transition-colors",
-            "hover:bg-muted/80",
-            "opacity-100 sm:opacity-0 sm:group-hover:opacity-100",
-            currentRating === RatingValue.DISLIKE && "bg-destructive/25 text-destructive",
+            TURN_ACTION,
+            "w-auto min-w-7 px-1.5 sm:opacity-0 sm:group-hover:opacity-100",
+            currentRating === RatingValue.DISLIKE &&
+              "bg-destructive/15 text-destructive hover:text-destructive",
             isMissingConversationId && "cursor-not-allowed opacity-50",
           )}
           title={isMissingConversationId ? t("saveConversationToRate") : t("notHelpful")}
         >
-          {inFlight === RatingValue.DISLIKE ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <ThumbsDown className="h-4 w-4" />
-          )}
+          {inFlight === RatingValue.DISLIKE ? <Loader2 className="animate-spin" /> : <ThumbsDown />}
           {ratingCount && ratingCount.dislikes > 0 && (
-            <span className="ml-1 text-xs">{ratingCount.dislikes}</span>
+            <span className="text-xs">{ratingCount.dislikes}</span>
           )}
         </button>
       </div>

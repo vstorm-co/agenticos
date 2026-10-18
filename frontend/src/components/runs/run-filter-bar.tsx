@@ -82,7 +82,7 @@ export function RunFilterBar({
         value={filters.status}
         onValueChange={(value) => set({ status: value as RunFilters["status"] })}
       >
-        <SelectTrigger className="h-8 w-[170px]" aria-label={t("statusFilter")}>
+        <SelectTrigger size="sm" className="w-auto" aria-label={t("statusFilter")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -96,7 +96,7 @@ export function RunFilterBar({
         </SelectContent>
       </Select>
       <Select value={filters.surface} onValueChange={(value) => set({ surface: value })}>
-        <SelectTrigger className="h-8 w-[150px]" aria-label={t("surfaceFilter")}>
+        <SelectTrigger size="sm" className="w-auto" aria-label={t("surfaceFilter")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -118,13 +118,28 @@ export function RunFilterBar({
         value={filters.rated}
         onValueChange={(value) => set({ rated: value as RunFilters["rated"] })}
       >
-        <SelectTrigger className="h-8 w-[150px]" aria-label={t("ratingFilter")}>
+        <SelectTrigger size="sm" className="w-auto" aria-label={t("ratingFilter")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">{t("anyRating")}</SelectItem>
           <SelectItem value="up">{t("ratedUp")}</SelectItem>
           <SelectItem value="down">{t("ratedDown")}</SelectItem>
+        </SelectContent>
+      </Select>
+      {/* Somebody trying an agent in the Builder is not somebody using it
+          (#2074): counted and budgeted all the same, and told apart here. */}
+      <Select
+        value={filters.test}
+        onValueChange={(value) => set({ test: value as RunFilters["test"] })}
+      >
+        <SelectTrigger size="sm" className="w-auto" aria-label={t("testFilter")}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{t("testRunsIncluded")}</SelectItem>
+          <SelectItem value="hide">{t("testRunsHidden")}</SelectItem>
+          <SelectItem value="only">{t("testRunsOnly")}</SelectItem>
         </SelectContent>
       </Select>
       <ModelSelect
@@ -181,7 +196,7 @@ function ModelSelect({
 
   return (
     <Select value={model} onValueChange={onModelChange}>
-      <SelectTrigger className="h-8 w-[190px]" aria-label={t("modelFilter")}>
+      <SelectTrigger size="sm" className="w-auto" aria-label={t("modelFilter")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -211,7 +226,7 @@ function AgentSelect({
       value={agentId ?? "all"}
       onValueChange={(value) => onAgentChange(value === "all" ? null : value)}
     >
-      <SelectTrigger className="h-8 w-[180px]" aria-label={t("agentFilter")}>
+      <SelectTrigger size="sm" className="w-auto" aria-label={t("agentFilter")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -228,6 +243,7 @@ function AgentSelect({
                   agentId={agent.id}
                   slug={agent.slug}
                   hasAvatar={agent.has_avatar ?? false}
+                  colorSlot={agent.avatar_color}
                   size="sm"
                   className="h-5 w-5"
                 />
@@ -255,7 +271,7 @@ function PersonSelect({
 
   return (
     <Select value={userId} onValueChange={onUserChange}>
-      <SelectTrigger className="h-8 w-[180px]" aria-label={t("personFilter")}>
+      <SelectTrigger size="sm" className="w-auto" aria-label={t("personFilter")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -296,7 +312,7 @@ function VersionSelect({
 
   return (
     <Select value={versionId} onValueChange={onVersionChange}>
-      <SelectTrigger className="h-8 w-[140px]" aria-label={t("versionFilter")}>
+      <SelectTrigger size="sm" className="w-auto" aria-label={t("versionFilter")}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

@@ -119,7 +119,7 @@ export default function RolesPage({ params }: PageProps) {
         </CardHeader>
         <CardContent>
           {/* Wide table: scrolls inside its own container so the page never scrolls sideways. */}
-          <div className="overflow-x-auto">
+          <div className="-mx-1 overflow-x-auto px-1">
             <table className="w-full min-w-[46rem] text-sm">
               <thead>
                 <tr className="border-b">

@@ -1,5 +1,5 @@
 ---
-source_sha: "d73b776f3671"
+source_sha: "287cc6ab95e1"
 title: "Busca y actualiza Notion desde un agent"
 description: "Conecta Notion como servidor MCP, deja que un agent responda a partir de una página que encuentra por sí mismo y exige la revisión de una persona antes de que añada nada."
 ---
@@ -51,9 +51,11 @@ El modelo llama a una herramienta de búsqueda, abre la página que parece corre
 
 ## Flujo: añade notas de reunión, con una persona que decide { #workflow-append-meeting-notes-with-a-person-deciding }
 
-Este es el flujo en el que conviene ser exacto, porque **las herramientas MCP no tienen aprobación propia por herramienta**; el Builder lo dice directamente: *"MCP tools are outside the approval gate entirely: an approval set on a capability does not cover them, so anything these servers can do, this agent can do without asking."* Una herramienta de escritura que puedes nombrar en la spec, como `execute` o `send_email`, tiene un interruptor `required`/`never`/`default`; una herramienta de escritura de Notion descubierta al conectar nunca lo recibe, porque nada la declaró en el código. Consulta [lo que MCP no te da](../mcp.md#what-mcp-does-not-get-you).
+Este es el flujo en el que conviene ser exacto. Una herramienta de escritura de Notion se descubre al conectar, así que ninguna capability la declara, y lo que la retiene para una persona es la política **approval** del propio vínculo de Notion: en la pestaña **MCP servers** del agent, abre las **Tools** de Notion y pon **Changes things** en **Ask first** (la política `writes`), y cada llamada que el servidor no marque como de solo lectura espera a una persona, con los argumentos exactos en la tarjeta.
 
-La compuerta que sí llega hasta ella es la de la propia conversación. Antes de pedir al agent que escriba, quien habla con él abre **Chat controls → Approval mode** y elige **Ask about everything**, un ajuste de sesión que "reaches further than the spec's gate on purpose, to the tools no capability owns" (consulta [cuánto quiere que le pregunten a una conversación](../governance.md#how-much-one-conversation-wants-to-be-asked)). Con eso activado:
+Eso se fía del servidor sobre qué herramientas solo leen; pon también **Reads** en **Ask first** (`all`) si prefieres aprobar cada llamada. Consulta [qué llamadas esperan a una persona](../mcp.md#which-calls-wait-for-a-person).
+
+La propia conversación también puede pedir más. Antes de pedir al agent que escriba, quien habla con él abre **Chat controls → Approval mode** y elige **Ask about everything**, un ajuste de sesión que "reaches further than the spec's gate on purpose, to the tools no capability owns" (consulta [cuánto quiere que le pregunten a una conversación](../governance.md#how-much-one-conversation-wants-to-be-asked)). Con eso activado:
 
 ```text
 Append these notes to the Q3 onboarding checklist page: attendees Ana and Marek, decided to move the kickoff to Monday, action item for Marek to update the calendar invite.

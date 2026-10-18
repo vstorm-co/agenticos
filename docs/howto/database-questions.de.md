@@ -1,5 +1,5 @@
 ---
-source_sha: "c51412640202"
+source_sha: "351588808d86"
 title: "Fragen aus Ihrer Datenbank beantworten"
 description: "Verbinden Sie einen selbst gehosteten Postgres-MCP-Server hinter einer reinen Leserolle und einem reinen View-Schema, und lassen Sie einen Agent ihn abfragen."
 ---
@@ -16,7 +16,7 @@ Verbinden Sie einen Postgres-MCP-Server, damit ein Agent Fragen aus Ihrer eigene
 
 ## Warum eine reine Leserolle und ein reines View-Schema { #why-a-read-only-role-and-a-views-only-schema }
 
-**MCP-Tools liegen außerhalb des Genehmigungs-Gates.** Die Tools einer Capability können zur Genehmigung durch eine Person zurückgehalten werden; die eines MCP-Servers nicht; es gibt keine Prüfung pro Aufruf für das SQL, das das Abfrage-Tool eines Agents ausführt. Was auch immer der verbundene Server kann, kann der Agent, ohne zu fragen - siehe [MCP-Tools liegen außerhalb des Genehmigungs-Gates](../governance.md#an-approval-inside-a-delegation). Die Datenbank-Zugangsdaten selbst müssen die Grenze sein, keine Einstellung am Agent.
+**Eine Freigabe liest das SQL nicht für Sie.** Die `approval`-Regel der Bindung kann jede Abfrage für eine Person zurückhalten - `all`, mit dem genauen SQL auf der Karte -, aber ein Agent, der Dutzende Fragen stellt, macht daraus ein Abnicken, und `writes` vertraut darauf, dass der Server sein Abfrage-Tool als schreibgeschützt markiert. Siehe [welche Aufrufe auf eine Person warten](../mcp.md#which-calls-wait-for-a-person). Die Datenbank-Zugangsdaten selbst müssen die Grenze sein, keine Einstellung am Agent.
 
 Zwei Entscheidungen leisten das:
 

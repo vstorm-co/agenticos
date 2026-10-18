@@ -10,7 +10,7 @@ Build an assistant that keeps its own notes about the person it talks to, across
 ## What you need
 
 - A [running installation](../install.md) with a model profile.
-- No sandbox, no embedding model and no MCP connection — [memory files](../reference/capabilities.md#memory-files) work with nothing bound.
+- No sandbox, no embedding model and no MCP connection — [Memory](../reference/capabilities.md#memory-files) works with nothing bound.
 
 ## Prepare the input
 
@@ -25,7 +25,7 @@ Summary format: short bullet points, not paragraphs
 ## Build the agent
 
 1. Create an agent in **Agents → New agent** and select your model profile.
-2. In **Toolbox**, enable **Memory files**, **Date and time** and **Conversation search**. Add **Web search** if you want the brief below to look anything up; the checks here do not need it.
+2. In **Toolbox**, enable **Memory**, **Date and time** and **Past conversations**. Add **Web search** if you want the brief below to look anything up; the checks here do not need it.
 3. Set a budget and a step limit for the trial. The recorded runs used 5–15 steps and cost about 0.01–0.04 USD each.
 4. Set the instructions below, then **Publish**.
 
@@ -37,7 +37,7 @@ When asked to forget something, delete the matching note with delete_memory, rem
 Never save something the person has not actually told you.
 ```
 
-`write_memory`, `edit_memory` and `delete_memory` are side-effecting, so each save or forget parks for **Tool approval required** by default, the same as any other write. Approve it to continue.
+`write_memory`, `edit_memory` and `delete_memory` run without approval, like every tool until its author gates it. This walkthrough gates them: set **Always ask** on all three in the Builder, so each save or forget parks for **Tool approval required**. Approve it to continue.
 
 ## Run it
 
@@ -94,7 +94,7 @@ In a group chat the rule changes: the notes belong to the room and everyone in i
 
 ## When it goes wrong
 
-- **A save or a forget never happens.** `write_memory`, `edit_memory` and `delete_memory` are side-effecting and gated by default; check **Approvals** in Activity for a parked call before assuming the model ignored the instruction.
+- **A save or a forget never happens.** With `write_memory`, `edit_memory` and `delete_memory` gated, check **Approvals** in Activity for a parked call before assuming the model ignored the instruction.
 - **A later conversation does not know a saved preference.** Check `MEMORY.md` itself — a note the agent saved but never indexed is invisible until the model calls `list_memory`, which a lighter model may not do unprompted.
 - **A scheduled brief guesses instead of using your notes.** Expected — see [what a schedule cannot read](#what-a-schedule-cannot-read) above. Put the fact in the schedule's prompt.
 - **Deleting a note does not remove it everywhere.** `delete_memory` drops the note itself; if `MEMORY.md`'s line naming it is not also rewritten with `edit_memory`, the index still describes something that is gone.

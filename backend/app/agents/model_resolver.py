@@ -367,9 +367,33 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
             provider=_build_provider(spec, credential),
             settings=OpenAIResponsesModelSettings(openai_store=False),
         )
+    if spec.prefix == "openrouter":
+        return _openrouter_model(spec, credential, model)
     return infer_model(
         f"{spec.prefix}:{model}",
         provider_factory=lambda _: _build_provider(spec, credential),
+    )
+
+
+def _openrouter_model(spec: ProviderSpec, credential: ResolvedCredential, model: str) -> Model:
+    """An OpenRouter model whose cache breakpoints name no time to live.
+
+    Pydantic AI writes `ttl` into every `cache_control` it sends a Claude model
+    through OpenRouter, and OpenRouter forwards it to whichever host serves the
+    request. Amazon Bedrock is one of them for most Claude models and refuses the
+    field outright ("tools.N.custom.cache_control.ephemeral.ttl: Extra inputs are
+    not permitted"), so the same agent failed or answered depending on where
+    OpenRouter routed the request. `PROMPT_CACHE_DEFAULTS` asks for five minutes,
+    which is every host's default, so leaving `ttl` out changes nothing but that.
+    """
+    from pydantic_ai.models.openrouter import OpenRouterModel
+    from pydantic_ai.providers.openrouter import OpenRouterModelProfile
+
+    # A partial profile, merged over the one OpenRouter resolves for the model.
+    return OpenRouterModel(
+        model,
+        provider=_build_provider(spec, credential),
+        profile=OpenRouterModelProfile(openrouter_supports_cache_ttl=False),
     )
 
 

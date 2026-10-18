@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { Plug, Settings2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
+import { Button } from "@/components/ui";
 import { McpConnectionDialog } from "@/components/mcp/mcp-connection-dialog";
+import type { AudiencePayload } from "@/types/sharing";
 import type {
   ConnectionFormValues,
   DraftState,
@@ -13,31 +16,36 @@ import type {
 import { getErrorMessage } from "@/lib/api-error";
 import { startMcpOAuth } from "@/lib/mcp-connections-api";
 import { mcpOAuthClient, rememberMcpOAuthReturn, secretWithoutClientId } from "@/lib/mcp-oauth";
-import { rowForEntry } from "@/lib/mcp-servers";
+import { freePrefix, rowForEntry, slugForPrefix } from "@/lib/mcp-servers";
+import { EVERYONE, audiencePayload } from "@/components/sharing/audience-picker";
 import { useMcpConnections } from "@/hooks/use-mcp-connections";
 import { useOrgMcpConnections } from "@/hooks/use-org-mcp-connections";
+import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
+import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type { McpCatalogEntry } from "@/types/mcp";
 
 /** What the server itself accepts as a name; it becomes the tool prefix. */
 const NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
-/** What either scope's `create` answers with, as far as this dialog reads it. */
-type Created = { id: string; name: string };
-
 /** Either scope's `create`, narrowed to the fields this dialog sends. */
-type CreateConnection = (input: {
-  name: string;
-  url: string;
-  auth_token?: string;
-  catalog_key: string;
-}) => Promise<Created>;
+type CreateConnection<T extends McpConnectionRecord> = (
+  input: {
+    name: string;
+    url: string;
+    auth_token?: string;
+    catalog_key: string;
+  } & Partial<AudiencePayload>,
+) => Promise<T>;
 
-interface ConnectDialogProps {
+interface ConnectDialogProps<T extends McpConnectionRecord = McpConnectionRecord> {
   /** The catalog entry being connected, or null when the dialog is closed. */
   entry: McpCatalogEntry | null;
   onClose: () => void;
-  /** The new connection's id, so the caller can bind it straight away. */
-  onConnected?: (connectionId: string) => void;
+  /**
+   * The new connection, checked, so the caller can bind it straight away - and
+   * offer its tools from the check that just ran (#2073).
+   */
+  onConnected?: (connection: T) => void;
   /**
    * Where an OAuth consent should bring the browser back to, as a path on this
    * app. Given, the consent runs in *this* tab and returns here - right for a
@@ -70,7 +78,11 @@ interface ConnectDialogProps {
  * before the request that produces the URL: opened afterwards, in the callback
  * of an await, a popup blocker treats it as unprompted and eats it.
  */
-export function ConnectServerDialog({ entry, onClose, onConnected }: ConnectDialogProps) {
+export function ConnectServerDialog({
+  entry,
+  onClose,
+  onConnected,
+}: ConnectDialogProps<OrgMcpConnectionRecord>) {
   // Split so the form below never has a nullable entry. Reading one inside the
   // submit handler meant a `catalog_key` fallback for a state the handler
   // cannot be in - a branch no test could reach, which is a branch to delete
@@ -80,9 +92,11 @@ export function ConnectServerDialog({ entry, onClose, onConnected }: ConnectDial
   return <OrgConnectForm entry={entry} onClose={onClose} onConnected={onConnected} />;
 }
 
-function OrgConnectForm(props: ConnectDialogProps & { entry: McpCatalogEntry }) {
-  const { create } = useOrgMcpConnections();
-  return <ConnectForm {...props} scope="organization" create={create} />;
+function OrgConnectForm(
+  props: ConnectDialogProps<OrgMcpConnectionRecord> & { entry: McpCatalogEntry },
+) {
+  const { create, connections } = useOrgMcpConnections();
+  return <ConnectForm {...props} scope="organization" create={create} held={connections} />;
 }
 
 /**
@@ -113,14 +127,15 @@ export function ConnectOwnServerDialog({
 }
 
 function OwnConnectForm(props: ConnectDialogProps & { entry: McpCatalogEntry }) {
-  const { create } = useMcpConnections();
-  return <ConnectForm {...props} scope="personal" create={create} />;
+  const { create, connections } = useMcpConnections();
+  return <ConnectForm {...props} scope="personal" create={create} held={connections} />;
 }
 
-function ConnectForm({
+function ConnectForm<T extends McpConnectionRecord>({
   entry,
   scope,
   create,
+  held,
   onClose,
   onConnected,
   returnTo,
@@ -128,20 +143,35 @@ function ConnectForm({
 }: {
   entry: McpCatalogEntry;
   scope: Scope;
-  create: CreateConnection;
+  create: CreateConnection<T>;
+  /** This scope's connections: a second account on `entry` is named, under a free prefix. */
+  held: readonly Held[];
   onClose: () => void;
-  onConnected?: (connectionId: string) => void;
-  returnTo?: string;
-  keepThisTab?: boolean;
-}) {
+  onConnected?: (connection: T) => void;
+} & ConsentOptions) {
   const t = useTranslations("mcp");
   const tErrors = useTranslations("errors");
   const [submitting, setSubmitting] = useState(false);
+  const consent = useConsent(scope, { returnTo, keepThisTab });
 
   // The dialog speaks `DraftState`, and `rowForEntry` is what turns a catalog
   // entry into one - shared with the servers page, so a row here and a row
   // there cannot drift into two shapes.
-  const draft: DraftState = { scope, row: rowForEntry(entry), existing: null };
+  const another = heldOn(held, entry);
+  const draft: DraftState = {
+    scope,
+    row: rowForEntry(entry),
+    existing: null,
+    ...(another
+      ? {
+          needsLabel: true,
+          suggestedName: freePrefix(
+            slugForPrefix(entry.key),
+            new Set(held.map((connection) => connection.name)),
+          ),
+        }
+      : {}),
+  };
 
   const handleSubmit = async (values: ConnectionFormValues) => {
     const name = values.name.trim().toLowerCase();
@@ -160,47 +190,18 @@ function ConnectForm({
         toast.error(t("clientSecretNeedsId"));
         return;
       }
-      // With somewhere to return to, the consent runs in this tab and the
-      // callback brings the browser back. Otherwise a new tab, opened without
-      // `noopener` and then severed by hand: a browser that implements the
-      // feature returns `null` even though it created the tab, so the success
-      // path read that as "popup blocked", navigated the Builder itself to the
-      // consent screen, discarded the unsaved draft this dialog exists to
-      // preserve, and left a blank tab behind.
-      const tab = returnTo === undefined ? window.open("", "_blank") : null;
-      if (tab === null && keepThisTab) {
-        toast.error(t("consentTabBlocked"));
-        return;
-      }
-      if (tab) tab.opener = null;
       setSubmitting(true);
-      try {
-        const { authorization_url } = await startMcpOAuth(
-          {
-            name,
-            url,
-            catalog_key: entry.key,
-            ...mcpOAuthClient(values.clientId, values.clientSecret),
-          },
-          scope,
-        );
-        if (returnTo !== undefined) rememberMcpOAuthReturn(returnTo);
-        if (tab) {
-          tab.location.href = authorization_url;
-        } else {
-          // Either this is the return-here flow, or the tab was blocked anyway -
-          // and a navigation the person did not expect beats a consent screen
-          // that never opens and no explanation.
-          window.location.assign(authorization_url);
-        }
-        onClose();
-        if (returnTo === undefined) toast.info(t("finishConsentThenReturn"));
-      } catch (caught) {
-        tab?.close();
-        toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
-      } finally {
-        setSubmitting(false);
-      }
+      const label = values.label.trim();
+      const started = await consent({
+        name,
+        url,
+        catalog_key: entry.key,
+        ...(label ? { label } : {}),
+        ...mcpOAuthClient(values.clientId, values.clientSecret),
+        ...(scope === "organization" ? values.audience : {}),
+      });
+      setSubmitting(false);
+      if (started) onClose();
       return;
     }
 
@@ -209,12 +210,14 @@ function ConnectForm({
       const created = await create({
         name,
         url,
+        ...(values.label.trim() ? { label: values.label.trim() } : {}),
         auth_token: values.auth === "token" ? values.token.trim() : undefined,
         // Provenance, so the picker groups it under the entry it came from
         // rather than guessing from a URL somebody may later edit - and, for a
         // personal connection, what a binding to each person's own account
         // matches it on.
         catalog_key: entry.key,
+        ...(scope === "organization" ? values.audience : {}),
       });
       onClose();
       // `connected` is the bare state word; these are the sentences the servers
@@ -224,7 +227,7 @@ function ConnectForm({
           ? t("connectedForOrg", { name: created.name })
           : t("connectedForYou", { name: created.name }),
       );
-      onConnected?.(created.id);
+      onConnected?.(created);
     } catch (caught) {
       toast.error(getErrorMessage(caught, tErrors));
     } finally {
@@ -244,4 +247,172 @@ function ConnectForm({
       onSubmit={handleSubmit}
     />
   );
+}
+
+/** What deciding on a second account reads of a connection. */
+type Held = Pick<McpConnectionRecord, "name" | "catalog_key">;
+
+function heldOn(held: readonly Held[], entry: McpCatalogEntry): boolean {
+  return held.some((connection) => connection.catalog_key === entry.key);
+}
+
+interface ConsentOptions {
+  returnTo?: string;
+  keepThisTab?: boolean;
+}
+
+/**
+ * Start a provider's consent for a new connection; true once it is under way.
+ *
+ * With somewhere to return to, the consent runs in this tab and the callback
+ * brings the browser back. Otherwise a new tab, opened without `noopener` and
+ * then severed by hand: a browser that implements the feature returns `null`
+ * even though it created the tab, so the success path read that as "popup
+ * blocked", navigated the Builder itself to the consent screen, discarded the
+ * unsaved draft this flow exists to preserve, and left a blank tab behind. The
+ * tab is opened before the first `await`, so it still counts as the click's.
+ */
+function useConsent(scope: Scope, { returnTo, keepThisTab }: ConsentOptions) {
+  const t = useTranslations("mcp");
+  const tErrors = useTranslations("errors");
+  return async (input: Parameters<typeof startMcpOAuth>[0]): Promise<boolean> => {
+    const tab = returnTo === undefined ? window.open("", "_blank") : null;
+    if (tab === null && keepThisTab) {
+      toast.error(t("consentTabBlocked"));
+      return false;
+    }
+    if (tab) tab.opener = null;
+    try {
+      const { authorization_url } = await startMcpOAuth(input, scope);
+      if (returnTo !== undefined) rememberMcpOAuthReturn(returnTo);
+      if (tab) {
+        tab.location.href = authorization_url;
+      } else {
+        // Either this is the return-here flow, or the tab was blocked anyway -
+        // and a navigation the person did not expect beats a consent screen
+        // that never opens and no explanation.
+        window.location.assign(authorization_url);
+      }
+      if (returnTo === undefined) toast.info(t("finishConsentThenReturn"));
+      return true;
+    } catch (caught) {
+      tab?.close();
+      toast.error(getErrorMessage(caught, tErrors, t("couldNotStartSign")));
+      return false;
+    }
+  };
+}
+
+/**
+ * **Connect** on a catalog server: straight to the provider's sign-in when the
+ * catalog already says how it signs in, and the form only where something has
+ * to be typed - a token, or a server with no address on record.
+ *
+ * A server people sign in to needs nothing from anybody before the consent:
+ * its address, its sign-in and its prefix are the catalog's, and a form of
+ * pre-filled fields with one button under them was a click spent reading
+ * them. What it would let somebody change is behind **Configure**, which opens
+ * that form with its settings unfolded.
+ */
+export function useConnectEntry(
+  scope: Scope,
+  {
+    openForm,
+    held = [],
+    ...options
+  }: ConsentOptions & {
+    openForm: (entry: McpCatalogEntry) => void;
+    /**
+     * This scope's connections. Their names are taken for a new one's prefix, and
+     * one already on `entry` sends the person to the form, where a second account
+     * is named.
+     */
+    held?: readonly Held[];
+  },
+) {
+  const consent = useConsent(scope, options);
+  return (entry: McpCatalogEntry) => {
+    if (entry.auth !== "oauth" || entry.url === null || heldOn(held, entry)) {
+      openForm(entry);
+      return;
+    }
+    void consent({
+      name: freePrefix(
+        slugForPrefix(entry.key),
+        new Set(held.map((connection) => connection.name)),
+      ),
+      url: entry.url,
+      catalog_key: entry.key,
+      ...(scope === "organization" ? audiencePayload(EVERYONE) : {}),
+    });
+  };
+}
+
+/**
+ * **Connect** for one of a person's own accounts, with **Configure** beside it
+ * for a server that signs in - the one kind **Connect** no longer opens a form
+ * for. Owns its dialog, so each place offering a service is one element.
+ */
+export function ConnectOwnButton({
+  entry,
+  label,
+  disabled,
+  returnTo,
+  keepThisTab,
+}: {
+  entry: McpCatalogEntry;
+  label: string;
+  disabled?: boolean;
+} & ConsentOptions) {
+  const t = useTranslations("mcp");
+  const [formOpen, setFormOpen] = useState(false);
+  const connect = useConnectEntry("personal", {
+    returnTo,
+    keepThisTab,
+    openForm: () => setFormOpen(true),
+  });
+  return (
+    <>
+      <span className="flex shrink-0 items-center gap-0.5">
+        {entry.auth === "oauth" && (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            disabled={disabled}
+            onClick={() => setFormOpen(true)}
+            title={t("configureNamed", { name: entry.name })}
+            aria-label={t("configureNamed", { name: entry.name })}
+          >
+            <Settings2 aria-hidden />
+          </Button>
+        )}
+        <Button type="button" size="sm" disabled={disabled} onClick={() => connect(entry)}>
+          <Plug className="mr-1 h-3.5 w-3.5" />
+          {label}
+        </Button>
+      </span>
+      <ConnectOwnServerDialog
+        entry={formOpen ? entry : null}
+        onClose={() => setFormOpen(false)}
+        returnTo={returnTo}
+        keepThisTab={keepThisTab}
+      />
+    </>
+  );
+}
+
+/**
+ * Sign one of the reader's own accounts in again - one whose grant lapsed, or
+ * whose consent was never finished - under the name it already has.
+ */
+export function useSignInOwn(options: ConsentOptions) {
+  const consent = useConsent("personal", options);
+  return (connection: McpConnectionRecord) => {
+    void consent({
+      name: connection.name,
+      url: connection.url,
+      ...(connection.catalog_key ? { catalog_key: connection.catalog_key } : {}),
+    });
+  };
 }

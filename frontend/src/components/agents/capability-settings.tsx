@@ -7,6 +7,7 @@ import { ChevronRight, ShieldAlert } from "lucide-react";
 import { capabilityConfigErrors } from "@/lib/agent-spec";
 import { getErrorMessage } from "@/lib/api-error";
 import type { FieldProblem } from "@/lib/api-error";
+import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
 import {
   Badge,
@@ -30,6 +31,7 @@ import {
 import { InlineSecret } from "@/components/vault/inline-secret";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useSecrets } from "@/hooks";
+import { useCapabilityGuide } from "@/hooks/use-capability-guide";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type {
@@ -42,7 +44,7 @@ import type {
   ToolOverride,
   ToolParameterSchema,
 } from "@/types/agents";
-import { secretIsRequired } from "@/types/secrets";
+import { secretIsOffered, secretIsRequired } from "@/types/secrets";
 import type { Secret, SecretRequirement } from "@/types/secrets";
 import { useTranslations } from "next-intl";
 
@@ -107,7 +109,7 @@ function approvalHint(mode: ApprovalMode, sideEffecting: boolean): string {
 
 /**
  * Approval for one tool, most specific rule first: the tool's own override, then
- * the capability's mode, then what `side_effecting` decides.
+ * the capability's mode, and no approval when neither says anything.
  *
  * This is the frontend's copy of a rule the runtime also applies. It exists so
  * the Builder can *say* what a setting will do rather than describe the rule and
@@ -117,15 +119,17 @@ function approvalHint(mode: ApprovalMode, sideEffecting: boolean): string {
 export function resolveToolApproval(
   binding: CapabilityBindingSpec,
   toolId: string,
-  sideEffecting: boolean,
 ): ResolvedApproval {
-  return overrideFor(binding, toolId) ?? resolveCapabilityApproval(binding.approval, sideEffecting);
+  return overrideFor(binding, toolId) ?? resolveCapabilityApproval(binding.approval);
 }
 
-/** What a capability's own mode comes out to, `default` included. */
-function resolveCapabilityApproval(mode: ApprovalMode, sideEffecting: boolean): ResolvedApproval {
-  if (mode !== "default") return mode;
-  return sideEffecting ? "required" : "never";
+/**
+ * What a capability's own mode comes out to. `default` is no approval: a gate
+ * nobody chose parks runs in channels and routines where nobody is there to
+ * answer it, so a person is asked only once the author says so.
+ */
+function resolveCapabilityApproval(mode: ApprovalMode): ResolvedApproval {
+  return mode === "required" ? "required" : "never";
 }
 
 /**
@@ -141,8 +145,8 @@ function resolveCapabilityApproval(mode: ApprovalMode, sideEffecting: boolean): 
  * on *any* capability, so "this only reads, but in my organization somebody
  * approves it anyway" is a real decision, and there was no way to express it.
  *
- * `side_effecting` still decides what *default* resolves to. It no longer
- * decides whether you may see the question.
+ * `side_effecting` no longer decides anything: it is shown beside the choice,
+ * and the hint under it says what leaving it unanswered means for this one.
  */
 export function CapabilitySettings({
   catalog,
@@ -293,6 +297,7 @@ export function CapabilityDetail({
 }: CapabilityDetailProps) {
   const t = useTranslations("agents");
   const configErrors = capabilityConfigErrors(configProblems ?? [], binding.id);
+  const copyFor = useCapabilityFieldCopy(binding.id);
   const settings = (
     <>
       {settingsExtra}
@@ -304,6 +309,7 @@ export function CapabilityDetail({
           value={binding.config}
           disabled={disabled}
           errors={configErrors}
+          copyFor={copyFor}
           onChange={(config) => onChange({ ...binding, config })}
         />
       )}
@@ -313,10 +319,11 @@ export function CapabilityDetail({
             names the configurations it applies to; asking for a key the server
             will not demand is as wrong as not asking for one it will. */}
       {definition.requires_secret !== null &&
-        secretIsRequired(definition.requires_secret, binding.config) && (
+        secretIsOffered(definition.requires_secret, binding.config) && (
           <SecretField
             binding={binding}
             requirement={definition.requires_secret}
+            optional={!secretIsRequired(definition.requires_secret, binding.config)}
             onChange={onChange}
             disabled={disabled}
           />
@@ -361,7 +368,6 @@ export function CapabilityDetail({
       binding={binding}
       tools={definition.tools}
       contracts={definition.contracts}
-      sideEffecting={definition.side_effecting}
       onChange={onChange}
       disabled={disabled}
     />
@@ -400,6 +406,7 @@ export function CapabilityDetail({
         </div>
 
         <p className="text-muted-foreground text-sm">{definition.description}</p>
+        <CapabilityGuideNotes capabilityId={definition.id} />
 
         {/* Always the tab shell, even for the capability whose Settings is one
             select: every panel then reads the same way, and "this one looks
@@ -492,6 +499,8 @@ export function secretProblem(
 interface SecretFieldProps {
   binding: CapabilityBindingSpec;
   requirement: SecretRequirement;
+  /** This configuration can use a key but does not need one. */
+  optional: boolean;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
 }
@@ -558,7 +567,10 @@ function fitsPurpose(secret: Secret, purpose: string | null, selectedId: string 
  * state that blocks publishing - but it is reached by not having chosen, never
  * by choosing, so offering it would be offering a way to break the agent.
  */
-function SecretField({ binding, requirement, onChange, disabled }: SecretFieldProps) {
+/** The picker's "no key" choice; Radix refuses an empty string as an item's value. */
+const NO_SECRET = "__none__";
+
+function SecretField({ binding, requirement, optional, onChange, disabled }: SecretFieldProps) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   const { secrets, isLoading, listError } = useSecrets();
@@ -576,9 +588,11 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
   // as deleted on every load.
   const vaultWasRead = state === "ready" || state === "empty";
   const problem =
-    binding.secret_id === null || vaultWasRead
-      ? secretProblem(requirement, binding.secret_id, secrets, t)
-      : null;
+    optional && binding.secret_id === null
+      ? null
+      : binding.secret_id === null || vaultWasRead
+        ? secretProblem(requirement, binding.secret_id, secrets, t)
+        : null;
 
   return (
     <div className="space-y-2">
@@ -593,9 +607,14 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
         // deleted, wrong-kind or unreadable reference would leave the control
         // blank and silent. Falling back to the placeholder puts the state into
         // words, and the line below says which state it is.
-        value={usable.find((secret) => secret.id === binding.secret_id)?.id ?? ""}
+        value={
+          usable.find((secret) => secret.id === binding.secret_id)?.id ??
+          (optional && binding.secret_id === null ? NO_SECRET : "")
+        }
         disabled={disabled || state !== "ready"}
-        onValueChange={(secretId) => onChange({ ...binding, secret_id: secretId })}
+        onValueChange={(secretId) =>
+          onChange({ ...binding, secret_id: secretId === NO_SECRET ? null : secretId })
+        }
       >
         <SelectTrigger
           id={fieldId}
@@ -605,6 +624,7 @@ function SecretField({ binding, requirement, onChange, disabled }: SecretFieldPr
           <SelectValue placeholder={placeholderFor(state, requirement, t)} />
         </SelectTrigger>
         <SelectContent>
+          {optional && <SelectItem value={NO_SECRET}>{t("noSecret")}</SelectItem>}
           {usable.map((secret) => (
             <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
               {/* What the key is for is what `fitsPurpose` filtered on, and it
@@ -759,7 +779,6 @@ interface ToolListProps {
   binding: CapabilityBindingSpec;
   tools: CapabilityTool[];
   contracts: CapabilityToolContract[];
-  sideEffecting: boolean;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
 }
@@ -773,7 +792,7 @@ interface ToolListProps {
  * because the alternative is walking back through every row to find which of
  * them stopped following it.
  */
-function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled }: ToolListProps) {
+function ToolList({ binding, tools, contracts, onChange, disabled }: ToolListProps) {
   const t = useTranslations("agents");
   const changed = tools.filter((tool) => isToolOverridden(binding, tool.id));
 
@@ -810,7 +829,6 @@ function ToolList({ binding, tools, contracts, sideEffecting, onChange, disabled
             binding={binding}
             tool={tool}
             contract={contracts.find((entry) => entry.tool_id === tool.id)}
-            sideEffecting={sideEffecting}
             onChange={onChange}
             disabled={disabled}
           />
@@ -825,12 +843,11 @@ interface ToolRowProps {
   tool: CapabilityTool;
   /** What the model is really told. Absent only if the catalog could not read it. */
   contract?: CapabilityToolContract;
-  sideEffecting: boolean;
   onChange: (binding: CapabilityBindingSpec) => void;
   disabled?: boolean;
 }
 
-function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }: ToolRowProps) {
+function ToolRow({ binding, tool, contract, onChange, disabled }: ToolRowProps) {
   const t = useTranslations("agents");
   const fieldId = (suffix: string) => `${binding.id}-tool-${tool.id}-${suffix}`;
   const approval = overrideFor(binding, tool.id);
@@ -899,7 +916,7 @@ function ToolRow({ binding, tool, contract, sideEffecting, onChange, disabled }:
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="default">
-                {resolveCapabilityApproval(binding.approval, sideEffecting) === "required"
+                {resolveCapabilityApproval(binding.approval) === "required"
                   ? t("followCapabilityAlwaysAsk")
                   : t("followCapabilityNeverAsk")}
               </SelectItem>
@@ -1156,4 +1173,31 @@ function withoutToolOverride(
     tool_overrides[toolId] = remaining;
   }
   return { ...binding, tool_overrides };
+}
+
+/**
+ * What a capability is for, beyond its one sentence: a few uses, what it needs and
+ * what it never does - the three questions somebody who is not a developer asks
+ * before switching it on (#2070). Nothing where the console has no words for it.
+ */
+function CapabilityGuideNotes({ capabilityId }: { capabilityId: string }) {
+  const t = useTranslations("agents");
+  const guide = useCapabilityGuide()(capabilityId);
+  if (!guide) return null;
+  return (
+    <dl className="grid gap-x-4 gap-y-2 text-xs sm:grid-cols-[auto_minmax(0,1fr)]">
+      <dt className="text-muted-foreground font-medium">{t("capabilityForExample")}</dt>
+      <dd>
+        <ul className="list-disc space-y-0.5 pl-4">
+          {guide.examples.map((example) => (
+            <li key={example}>{example}</li>
+          ))}
+        </ul>
+      </dd>
+      <dt className="text-muted-foreground font-medium">{t("capabilityNeeds")}</dt>
+      <dd>{guide.needs}</dd>
+      <dt className="text-muted-foreground font-medium">{t("capabilityNever")}</dt>
+      <dd>{guide.never}</dd>
+    </dl>
+  );
 }

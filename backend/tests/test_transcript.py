@@ -340,6 +340,25 @@ class TestWritingTheTranscript:
             "user",
         ), "the file hangs off the turn that brought it, not off the answer"
 
+    async def test_what_the_files_told_the_model_is_kept_beside_the_turn(
+        self, conversations, files
+    ):
+        """Beside the words, not in them: the transcript shows what the person
+        wrote, and the next turn's history replays the rest."""
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="co tu widzisz",
+            answer="A dashboard.",
+            attachments=[MagicMock(id=uuid.uuid4(), user_id=uuid.uuid4())],
+            attachment_context="\n---\nAttached file: raport.csv",
+        )
+
+        asked = conversations.create_message.await_args_list[0].kwargs
+        assert (asked["content"], asked["attachment_context"]) == (
+            "co tu widzisz",
+            "\n---\nAttached file: raport.csv",
+        )
+
     async def test_a_file_with_no_caption_still_gets_a_turn_to_hang_off(self, conversations, files):
         """Somebody drops an image and says nothing. That is a turn, and its body
         names what arrived: a blank user message reads as somebody sending
@@ -475,6 +494,26 @@ class TestWritingTheTranscript:
         written = conversations.create_tool_call.await_args.kwargs
         assert (written["tool_name"], written["args"]) == ("send_email", {"to": "ada@example.com"})
         assert conversations.complete_tool_call.await_args.kwargs["result"] == "sent"
+
+    async def test_a_call_an_organization_server_served_is_stored_against_it(self, conversations):
+        """What a server's call log reads (#2072): the connection, not a prefix
+        that a member's own connection to the same service shares."""
+        linear = uuid.uuid4()
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="file it",
+            answer="filed",
+            tool_calls=[
+                RecordedToolCall(tool_call_id="c1", tool_name="linear_create", args={}),
+                RecordedToolCall(tool_call_id="c2", tool_name="send_email", args={}),
+            ],
+            mcp_origins={"linear_create": linear},
+        )
+
+        assert [
+            call.kwargs["mcp_connection_id"]
+            for call in conversations.create_tool_call.await_args_list
+        ] == [linear, None]
 
     async def test_a_call_that_never_returned_is_left_open_rather_than_completed(
         self, conversations

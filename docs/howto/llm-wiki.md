@@ -52,7 +52,7 @@ backup rule from that same rotation was not triggered.
 ## Build the agent
 
 1. Create an agent in **Agents → New agent** and select your model profile.
-2. In **Toolbox**, enable **Files & shell**. Choose **Container**, select
+2. In **Toolbox**, enable **Sandbox**. Choose **Container**, select
    your sandbox connection and the `workbench` runtime.
 3. Set **session scope to `user`**, not the `conversation` default. A
    conversation-scoped workspace starts empty on the next chat, which is
@@ -61,7 +61,7 @@ backup rule from that same rotation was not triggered.
    to this agent, which is the wrong sharing model for one person's wiki.
    `user` keeps one workspace for the person across every conversation and
    surface they reach the agent on, and nobody else's. See
-   [Files & shell](../reference/capabilities.md#files-shell) for what each
+   [Sandbox](../reference/capabilities.md#files-shell) for what each
    scope shares.
 4. Set a budget and a step limit for the trial.
 5. Set the instructions below, then **Publish**.

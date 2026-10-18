@@ -38,6 +38,8 @@ vi.mock("@/hooks/use-permissions", () => ({
 
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
+  // The empty Activity window offers to ask an agent (#2075).
+  useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => params,
   // The header's "?" reads the path to decide whether this page has tips.
   usePathname: () => "/runs",
@@ -45,6 +47,8 @@ vi.mock("next/navigation", () => ({
 
 const SPEND = {
   period_days: null,
+  from_date: "2026-07-01T00:00:00Z",
+  to_date: null,
   month_to_date_usd: "12.40",
   // The window figure sums these rows, so the $12.40 the test reads back is
   // the window's spend, not the calendar month's.
@@ -62,6 +66,7 @@ const SPEND = {
   ],
   by_provider: [],
   by_key: [],
+  by_day: [],
 };
 
 function wrapper({ children }: { children: ReactNode }) {

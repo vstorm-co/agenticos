@@ -28,6 +28,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
+from app.core.config import settings
 from app.services.skill_library import split_frontmatter
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,11 @@ logger = logging.getLogger(__name__)
 TEMPLATES_ROOT = Path(__file__).resolve().parent.parent / "core" / "catalog" / "agent_templates"
 
 MANIFEST = "AGENT.md"
+
+# The general-purpose agent a fresh organization starts with, beside the
+# Architect - and the capabilities it binds are the ones the Toolbox recommends
+# and a new agent starts with, so "what a good agent has" is written once.
+STARTER_TEMPLATE = "general/claude-code-like"
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +62,10 @@ class AgentTemplate:
 
     mcp: tuple[str, ...] = ()
     """Catalog keys worth connecting. Suggestions - a connection needs somebody to authorise it."""
+
+    mcp_servers: tuple[dict[str, Any], ...] = ()
+    """MCP bindings the agent is created with, as the spec takes them - for a
+    server that needs nobody to authorise it, such as this platform's own."""
 
     attach: tuple[str, ...] = ()
     """What a person still has to provide: `collection`, `context`, `sandbox`."""
@@ -109,6 +119,59 @@ def get(key: str) -> AgentTemplate | None:
     )
 
 
+def starter_capabilities() -> dict[str, dict[str, Any]]:
+    """The starter template's capability bindings, keyed by capability id.
+
+    Empty where the template is missing from this image, which recommends
+    nothing rather than failing the catalog that asks.
+    """
+    starter = get(STARTER_TEMPLATE)
+    if starter is None:
+        return {}
+    return {binding["id"]: binding for binding in for_this_deployment(starter.capabilities)}
+
+
+BROWSER = "browser_use"
+SANDBOX = "sandbox"
+
+
+def for_this_deployment(bindings: tuple[dict[str, Any], ...]) -> list[dict[str, Any]]:
+    """A template's bindings as this deployment can publish them.
+
+    A container workspace needs the sandbox service a deployment runs beside the
+    API (`SANDBOXD_TOKEN` says it does); without one, the binding falls back to the
+    files-only workspace rather than refusing every new agent at publish.
+
+    The web browser is the one a template cannot finish: its `cdp_url` names the
+    browser service this deployment runs, which a folder in the image cannot know
+    and publish refuses without. The deployment's own browser - the one people
+    sign in to sites with, `BROWSER_SIGN_IN_CDP_URL` - fills a binding that names
+    none. A deployment running no browser leaves the capability out rather than
+    handing every new agent a switch that refuses at publish.
+    """
+    resolved = []
+    for binding in bindings:
+        if binding["id"] == SANDBOX and not settings.SANDBOXD_TOKEN:
+            # A container workspace runs on the sandbox service this deployment
+            # starts beside the API; without one, the files-only workspace that
+            # needs nothing, so a new agent still publishes.
+            config = {**(binding.get("config") or {}), "backend": "state"}
+            config.pop("include_execute", None)
+            binding = {**binding, "config": config}
+        if binding["id"] == BROWSER and not (binding.get("config") or {}).get("cdp_url"):
+            if not settings.BROWSER_SIGN_IN_CDP_URL:
+                continue
+            binding = {
+                **binding,
+                "config": {
+                    **(binding.get("config") or {}),
+                    "cdp_url": settings.BROWSER_SIGN_IN_CDP_URL,
+                },
+            }
+        resolved.append(binding)
+    return resolved
+
+
 def _read(folder: Path, *, industry: str) -> AgentTemplate:
     manifest = folder / MANIFEST
     metadata, body = split_frontmatter(manifest.read_text(encoding="utf-8"))
@@ -133,6 +196,7 @@ def _read(folder: Path, *, industry: str) -> AgentTemplate:
         capabilities=tuple(_binding(item) for item in capabilities),
         skills=_strings(metadata.get("skills")),
         mcp=_strings(metadata.get("mcp")),
+        mcp_servers=_bindings(metadata.get("mcp_servers")),
         attach=_strings(metadata.get("attach")),
         budget_usd=float(budget) if isinstance(budget, int | float) else None,
     )
@@ -145,6 +209,15 @@ def _strings(value: Any) -> tuple[str, ...]:
     if not isinstance(value, list):
         raise TypeError(f"Expected a list of names, got {value!r}")
     return tuple(str(item) for item in value)
+
+
+def _bindings(value: Any) -> tuple[dict[str, Any], ...]:
+    """MCP bindings as the manifest wrote them; the spec validates each at install."""
+    if value is None:
+        return ()
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+        raise TypeError(f"`mcp_servers` must be a list of bindings, got {value!r}")
+    return tuple(dict(item) for item in value)
 
 
 def _binding(item: Any) -> dict[str, Any]:

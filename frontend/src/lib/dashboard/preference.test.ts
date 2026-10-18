@@ -78,13 +78,9 @@ describe("flattenDefaultToItems", () => {
     // untitled section deliberately contributes no divider.
     const titled = LAYOUTS.steward.filter((section) => section.titleKey !== null);
     expect(dividers).toHaveLength(titled.length);
-    expect(items[0]).toEqual({ kind: "section", label: "deployment", accent: "neutral" });
-    // The summary follows the deployment band's cards, headingless.
-    expect(items.find((item) => "widget" in item && item.widget === "summary")).toEqual({
-      widget: "summary",
-      span: "s12",
-      rows: "r3",
-    });
+    // The overview band is untitled, so its cards lead the list headingless.
+    expect(items[0]).toEqual({ widget: "summary", span: "s12", rows: "r3" });
+    expect(items).toContainEqual({ kind: "section", label: "attention", accent: "neutral" });
     const widgets = items.filter((item) => item.kind !== "section");
     expect(widgets.every((item) => "rows" in item && item.rows !== undefined)).toBe(true);
   });

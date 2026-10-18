@@ -1,5 +1,5 @@
 ---
-source_sha: "6b7c5763a7d2"
+source_sha: "5f956391f056"
 title: "AgenticOS vs OpenCode"
 seo_title: "AgenticOS vs OpenCode: Open-Source-Agent-Tools im Vergleich"
 description: "OpenCode ist ein MIT-Coding-Agent für einen Entwickler, AgenticOS eine Apache-2.0-Plattform für KI-Agents im Unternehmen, mit Rollen, Budgets und Audit-Logs."
@@ -23,7 +23,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Freigaben | `allow`, `ask` oder `deny` pro Werkzeug, an der Tastatur beantwortet | Eine Person mit `approvals:decide`, aus einer gemeinsamen Warteschlange |
 | Ausgabenkontrolle | Monatliche Limits auf dem Zen-Gateway | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
 | Audit | Nicht dokumentiert | Audit-Log mit Manipulationsnachweis |
-| Teilen | Öffentliche Freigabelinks auf `opncd.ai`, bis die Freigabe aufgehoben wird | Grants, gehostete Seiten und Artefakte mit Besitzer und Sichtbarkeit |
+| Teilen | Öffentliche Freigabelinks auf `opncd.ai`, bis die Freigabe aufgehoben wird | Grants, gehostete Seiten und Apps mit Besitzer und Sichtbarkeit |
 | Preise | Kostenlos; optional Zen mit nutzungsbasierter Abrechnung und Go für 10 $ im Monat; Enterprise pro Platz | Keine Lizenzgebühr; Modellnutzung und Infrastruktur |
 
 ## Wo AgenticOS weiter geht { #where-agenticos-goes-further }

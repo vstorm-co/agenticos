@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
@@ -35,6 +35,7 @@ from app.db.models.agent_run import (
     ToolApproval,
 )
 from app.db.models.conversation import Message
+from app.db.models.group import Group, GroupMember
 from app.db.models.message_rating import MessageRating
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
@@ -59,11 +60,17 @@ async def create_run(
     subagent_task_id: str | None = None,
     channel_identity_id: UUID | None = None,
     initiated_by_publisher_fallback: bool = False,
+    is_test: bool = False,
+    test_spec: dict[str, Any] | None = None,
+    key_scopes: list[str] | None = None,
 ) -> AgentRun:
     run = AgentRun(
+        key_scopes=key_scopes,
         organization_id=organization_id,
         agent_id=agent_id,
         agent_version_id=agent_version_id,
+        is_test=is_test,
+        test_spec=test_spec,
         user_id=user_id,
         initiated_by_publisher_fallback=initiated_by_publisher_fallback,
         conversation_id=conversation_id,
@@ -358,6 +365,8 @@ class RunFilters:
             been renamed or deleted, and the dashboard's model card counts these
             same strings - so "the runs behind this bar" is the same set on both
             screens.
+        is_test: Only test runs from the Builder's panel, or only real ones
+            (#2074). Unset lists both.
     """
 
     statuses: Sequence[str] | None = None
@@ -371,6 +380,7 @@ class RunFilters:
     exposure_id: UUID | None = None
     agent_version_id: UUID | None = None
     rated: RunRating | None = None
+    is_test: bool | None = None
 
     def conditions(self) -> list[ColumnElement[bool]]:
         """One `WHERE` clause per filter that was actually set.
@@ -401,6 +411,8 @@ class RunFilters:
             clauses.append(AgentRun.agent_version_id == self.agent_version_id)
         if self.rated is not None:
             clauses.append(_was_rated(self.rated))
+        if self.is_test is not None:
+            clauses.append(AgentRun.is_test.is_(self.is_test))
         return clauses
 
 
@@ -578,6 +590,16 @@ async def down_rated_run_ids(
     return {run_id for (run_id,) in result.all()}
 
 
+def _counts_for_a_department() -> list[ColumnElement[bool]]:
+    """The runs a department's cap holds: its members' own, not a routine's.
+
+    A routine firing as its creator, and a visitor a widget's publisher stands in
+    for, name that person on the run but run under no department cap - the runner
+    gives them none - so counting them would spend a cap that never held them.
+    """
+    return [AgentRun.trigger_id.is_(None), AgentRun.initiated_by_publisher_fallback.is_(False)]
+
+
 async def sum_cost_since(
     db: AsyncSession,
     *,
@@ -587,8 +609,13 @@ async def sum_cost_since(
     agent_id: UUID | None = None,
     include_delegations: bool = False,
     exclude_run_id: UUID | None = None,
+    group_id: UUID | None = None,
 ) -> Decimal:
     """Total run spend in a window - what a monthly budget is checked against.
+
+    `group_id` narrows it to the runs that group's members started - a
+    department's month, measured against the department's cap (#2072). Its
+    members today, so somebody who joins brings their month with them.
 
     `agent_id` narrows the sum to one agent's runs, because the agent's cap has
     to be measured against the spend it is a cap *on*: checked against the
@@ -645,8 +672,106 @@ async def sum_cost_since(
         query = query.where(AgentRun.parent_run_id.is_(None))
     if exclude_run_id is not None:
         query = query.where(AgentRun.id != exclude_run_id)
+    if group_id is not None:
+        members = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
+        query = query.where(AgentRun.user_id.in_(members), *_counts_for_a_department())
     result = await db.scalar(query)
     return Decimal(result or 0)
+
+
+async def spend_by_group(
+    db: AsyncSession, *, organization_id: UUID, since: datetime
+) -> list[tuple[UUID, Decimal, int]]:
+    """Each group's spend since `since`: what its members' runs cost, and how many (#2072).
+
+    Returns (group_id, total_cost, run_count) rows, only for groups that ran
+    something. A person in two groups counts in both, because each group is
+    measured against its own cap; these rows are not a partition of the bill.
+    Delegations are left out for the reason :func:`cost_breakdown` gives.
+    """
+    result = await db.execute(
+        select(
+            GroupMember.group_id,
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+            func.count(AgentRun.id),
+        )
+        .join(GroupMember, GroupMember.user_id == AgentRun.user_id)
+        .join(Group, Group.id == GroupMember.group_id)
+        .where(
+            Group.organization_id == organization_id,
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= since,
+            AgentRun.parent_run_id.is_(None),
+            *_counts_for_a_department(),
+        )
+        .group_by(GroupMember.group_id)
+    )
+    return [(group_id, Decimal(cost), int(runs)) for group_id, cost, runs in result.all()]
+
+
+async def group_spend_rows(
+    db: AsyncSession, *, organization_id: UUID, group_id: UUID, since: datetime, limit: int
+) -> tuple[list[tuple[str, str, int, Decimal]], int]:
+    """One group's spend since `since`, per member and agent - its export (#2072).
+
+    Returns at most `limit` (email, agent name, run_count, total_cost) rows,
+    costliest first, and how many there are in all - so an export over its cap
+    is refused without the whole match being read.
+    """
+    members = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
+    total = func.coalesce(func.sum(AgentRun.cost_usd), 0)
+    result = await db.execute(
+        select(User.email, Agent.name, func.count(AgentRun.id), total, func.count().over())
+        .join(User, User.id == AgentRun.user_id)
+        .join(Agent, Agent.id == AgentRun.agent_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= since,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.user_id.in_(members),
+            *_counts_for_a_department(),
+        )
+        .group_by(User.email, Agent.name)
+        .order_by(total.desc(), User.email, Agent.name)
+        .limit(limit)
+    )
+    found = result.all()
+    rows = [(email, name, int(runs), Decimal(cost)) for email, name, runs, cost, _ in found]
+    return rows, int(found[0][4]) if found else 0
+
+
+async def group_top_agents(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    group_id: UUID,
+    start: datetime,
+    end: datetime,
+    limit: int,
+) -> list[tuple[UUID, str, int]]:
+    """The agents a department's people ran most in a window (#2101).
+
+    Returns (agent_id, name, run_count) rows, busiest first. Top-level runs only,
+    like the department's spend: a delegation is the agent's own business.
+    """
+    members = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
+    runs = func.count(AgentRun.id)
+    result = await db.execute(
+        select(Agent.id, Agent.name, runs)
+        .join(Agent, Agent.id == AgentRun.agent_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= start,
+            AgentRun.started_at < end,
+            AgentRun.parent_run_id.is_(None),
+            AgentRun.user_id.in_(members),
+            *_counts_for_a_department(),
+        )
+        .group_by(Agent.id, Agent.name)
+        .order_by(runs.desc(), Agent.name)
+        .limit(limit)
+    )
+    return [(agent_id, name, int(count)) for agent_id, name, count in result.all()]
 
 
 async def cost_breakdown(
@@ -912,6 +1037,33 @@ async def spend_by_provider(
     return [(row[0], Decimal(row[1]), row[2]) for row in result.all()]
 
 
+async def spend_by_day(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    since: datetime,
+    until: datetime | None = None,
+) -> list[tuple[date, Decimal, int]]:
+    """Spend per calendar day (UTC) over a window - the bill's shape over time.
+
+    Each run's **own** spend, as :func:`spend_by_provider`, so the days sum to
+    the same total as the other splits. A day with no runs has no row: the
+    caller draws the gap.
+    """
+    day = func.date(func.timezone("UTC", AgentRun.started_at))
+    result = await db.execute(
+        select(day, func.coalesce(func.sum(_own_cost()), 0), func.count(AgentRun.id))
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= since,
+            *([] if until is None else [AgentRun.started_at <= until]),
+        )
+        .group_by(day)
+        .order_by(day)
+    )
+    return [(row[0], Decimal(row[1]), row[2]) for row in result.all()]
+
+
 async def spend_by_key(
     db: AsyncSession,
     *,
@@ -965,11 +1117,15 @@ class RunFilter:
     would have been eight signatures, and the third would be eight more.
 
     An empty filter is the organization's whole window, which is what the
-    dashboard asks for by default.
+    dashboard asks for by default. `group_id` narrows to the runs of the
+    group's members today - a person who joins a department brings their past
+    runs into its dashboard, which is the question "how does this team use
+    agents" asks.
     """
 
     user_id: UUID | None = None
     agent_id: UUID | None = None
+    group_id: UUID | None = None
 
 
 def _window_conditions(
@@ -1004,6 +1160,12 @@ def _window_conditions(
         conditions.append(AgentRun.user_id == filters.user_id)
     if filters.agent_id is not None:
         conditions.append(AgentRun.agent_id == filters.agent_id)
+    if filters.group_id is not None:
+        conditions.append(
+            AgentRun.user_id.in_(
+                select(GroupMember.user_id).where(GroupMember.group_id == filters.group_id)
+            )
+        )
     if not include_delegations:
         conditions.append(AgentRun.parent_run_id.is_(None))
     return conditions
@@ -1090,6 +1252,8 @@ class WindowAggregates:
     distinct_users: int
     p50_ms: float | None
     p95_ms: float | None
+    first_started_at: datetime | None = None
+    """When the window's first run started - where its timeline begins."""
 
 
 async def window_aggregates(
@@ -1100,7 +1264,7 @@ async def window_aggregates(
     end: datetime,
     where: RunFilter | None = None,
 ) -> WindowAggregates:
-    """The five scalars over one window, in a single SELECT.
+    """The window's scalars, and when its first run started, in a single SELECT.
 
     `count_runs`, `sum_cost_window`, `count_distinct_users` and
     `latency_percentiles_ms` all read this window's exact same rows and WHERE, so
@@ -1121,15 +1285,17 @@ async def window_aggregates(
             func.count(func.distinct(AgentRun.user_id)),
             func.percentile_cont(0.5).within_group(duration_ms),
             func.percentile_cont(0.95).within_group(duration_ms),
+            func.min(AgentRun.started_at),
         ).where(*conditions)
     )
-    total, cost, distinct_users, p50, p95 = result.one()
+    total, cost, distinct_users, p50, p95, first_started_at = result.one()
     return WindowAggregates(
         total=int(total or 0),
         cost_usd=Decimal(cost or 0),
         distinct_users=int(distinct_users or 0),
         p50_ms=float(p50) if p50 is not None else None,
         p95_ms=float(p95) if p95 is not None else None,
+        first_started_at=first_started_at,
     )
 
 
@@ -1164,7 +1330,8 @@ async def window_totals(
 class WindowBreakdown:
     """The window's five keyed slices, read from one scan.
 
-    A day's runs, completed and cost; run counts by surface, status and model;
+    A day's runs, completed and cost; run counts by surface, status and model
+    (with the provider that served it);
     and spend by provider - the same window's same rows grouped five ways, which
     used to be five scans for one dashboard. One `GROUPING SETS` scan computes
     them together, and a `GROUPING` flag per set says which slice each row
@@ -1179,7 +1346,7 @@ class WindowBreakdown:
     by_day: list[tuple[date, int, int, Decimal]]
     by_surface: list[tuple[str | None, int]]
     by_status: list[tuple[str | None, int]]
-    by_model: list[tuple[str | None, int]]
+    by_model: list[tuple[str | None, str | None, int]]
     by_provider: list[tuple[str | None, Decimal]]
 
 
@@ -1227,7 +1394,7 @@ async def window_breakdown(
                 tuple_(day),
                 tuple_(AgentRun.surface),
                 tuple_(AgentRun.status),
-                tuple_(AgentRun.model_label),
+                tuple_(AgentRun.model_label, AgentRun.provider),
                 tuple_(AgentRun.provider),
             )
         )
@@ -1235,7 +1402,7 @@ async def window_breakdown(
     by_day: list[tuple[date, int, int, Decimal]] = []
     by_surface: list[tuple[str | None, int]] = []
     by_status: list[tuple[str | None, int]] = []
-    by_model: list[tuple[str | None, int]] = []
+    by_model: list[tuple[str | None, str | None, int]] = []
     by_provider: list[tuple[str | None, Decimal]] = []
     for row in result.all():
         g_day, g_surface, g_status, g_model, g_provider = row[0], row[1], row[2], row[3], row[4]
@@ -1248,7 +1415,7 @@ async def window_breakdown(
         elif g_status == 0:
             by_status.append((status, run_count))
         elif g_model == 0:
-            by_model.append((model_label, run_count))
+            by_model.append((model_label, provider, run_count))
         elif g_provider == 0:
             by_provider.append((provider, Decimal(cost_usd)))
     # Largest group first, ties broken by the label so the order is the same
@@ -1258,7 +1425,7 @@ async def window_breakdown(
     by_day.sort(key=lambda entry: entry[0])
     by_surface.sort(key=lambda entry: (-entry[1], entry[0] or ""))
     by_status.sort(key=lambda entry: (-entry[1], entry[0] or ""))
-    by_model.sort(key=lambda entry: (-entry[1], entry[0] or ""))
+    by_model.sort(key=lambda entry: (-entry[2], entry[0] or "", entry[1] or ""))
     by_provider.sort(key=lambda entry: (-entry[1], entry[0] or ""))
     return WindowBreakdown(
         by_day=by_day,
@@ -1267,6 +1434,38 @@ async def window_breakdown(
         by_model=by_model,
         by_provider=by_provider,
     )
+
+
+async def runs_by_bin(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    start: datetime,
+    end: datetime,
+    step: timedelta,
+    where: RunFilter | None = None,
+) -> list[tuple[datetime, int, int, Decimal]]:
+    """Runs, completions and cost per `step`-wide bin, ascending and sparse.
+
+    Bins are aligned to `start` with `date_bin`, so a caller zero-filling from
+    `start` in steps of `step` meets every bin this returns on the same instant.
+    """
+    bucket = func.date_bin(step, AgentRun.started_at, start)
+    conditions = _window_conditions(
+        organization_id=organization_id, start=start, end=end, where=where
+    )
+    result = await db.execute(
+        select(
+            bucket,
+            func.count(AgentRun.id),
+            func.count(AgentRun.id).filter(AgentRun.status == RunStatus.COMPLETED.value),
+            func.coalesce(func.sum(AgentRun.cost_usd), 0),
+        )
+        .where(*conditions)
+        .group_by(bucket)
+        .order_by(bucket)
+    )
+    return [(row[0], row[1], row[2], Decimal(row[3])) for row in result.all()]
 
 
 async def runs_by_hour(
@@ -1482,7 +1681,13 @@ async def count_unfinished_in_environment(
         select(func.count(AgentRun.id)).where(
             AgentRun.organization_id == organization_id,
             AgentRun.environment_id == environment_id,
-            AgentRun.status.in_([RunStatus.RUNNING.value, RunStatus.AWAITING_APPROVAL.value]),
+            AgentRun.status.in_(
+                [
+                    RunStatus.RUNNING.value,
+                    RunStatus.AWAITING_APPROVAL.value,
+                    RunStatus.AWAITING_ANSWER.value,
+                ]
+            ),
         )
     )
     return int(result or 0)
@@ -1527,6 +1732,7 @@ async def create_approval(
     agent_id: UUID,
     tool_id: str,
     tool_args: dict,
+    account: str | None = None,
     subagent_name: str | None = None,
     subagent_agent_id: UUID | None = None,
     standing_consent_by: UUID | None = None,
@@ -1546,6 +1752,7 @@ async def create_approval(
         agent_id=agent_id,
         tool_id=tool_id,
         tool_args=tool_args,
+        account=account,
         subagent_name=subagent_name,
         subagent_agent_id=subagent_agent_id,
         status=ApprovalStatus.APPROVED.value if standing else ApprovalStatus.PENDING.value,
@@ -1621,6 +1828,7 @@ class ApprovalRow:
     agent_name: str
     tool_id: str
     tool_args: dict[str, Any]
+    account: str | None
     subagent_name: str | None
     subagent_agent_id: UUID | None
     status: str
@@ -1731,6 +1939,7 @@ async def list_approvals(
             agent_name=agent_name,
             tool_id=approval.tool_id,
             tool_args=approval.tool_args,
+            account=approval.account,
             subagent_name=approval.subagent_name,
             subagent_agent_id=approval.subagent_agent_id,
             status=approval.status,
@@ -1765,6 +1974,27 @@ async def list_approvals_for_run(
             ToolApproval.organization_id == organization_id,
         )
         .order_by(ToolApproval.created_at.asc())
+    )
+    return list(result.scalars().all())
+
+
+async def list_unanswered_runs(
+    db: AsyncSession, *, older_than: datetime, limit: int = 500
+) -> list[AgentRun]:
+    """Every run parked on a question since before `older_than` (#2064).
+
+    Not scoped to an organization, for the reason :func:`list_stale_approvals`
+    gives: its caller is the expiry sweep, which settles each run in its own
+    organization. Do not copy this shape into anything a route can reach.
+    """
+    result = await db.execute(
+        select(AgentRun)
+        .where(
+            AgentRun.status == RunStatus.AWAITING_ANSWER.value,
+            AgentRun.ended_at < older_than,
+        )
+        .order_by(AgentRun.ended_at.asc())
+        .limit(limit)
     )
     return list(result.scalars().all())
 

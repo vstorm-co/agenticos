@@ -22,10 +22,9 @@ const fetchPublicArtifact = cache(async (publicKey: string): Promise<PublicArtif
   // is not one this deployment made.
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(publicKey)) return null;
   const baseUrl = process.env.BACKEND_URL || "http://localhost:8000";
-  const response = await fetch(
-    `${baseUrl}/api/v1/public/artifacts/${encodeURIComponent(publicKey)}`,
-    { cache: "no-store" },
-  );
+  const response = await fetch(`${baseUrl}/api/v1/public/apps/${encodeURIComponent(publicKey)}`, {
+    cache: "no-store",
+  });
   // A revoked, rotated or never-made key are one answer. Anything else - a
   // backend restarting, the per-link limit - is not the page being gone, so it
   // reaches the error boundary instead of telling a reader the link is dead.

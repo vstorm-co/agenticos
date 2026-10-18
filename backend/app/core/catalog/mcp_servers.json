@@ -16,7 +16,7 @@
     "description": "Search and update issues, projects and cycles.",
     "category": "project-management",
     "auth": "oauth",
-    "url": "https://mcp.linear.app/sse",
+    "url": "https://mcp.linear.app/mcp",
     "docs_url": "https://linear.app/docs/mcp",
     "token_hint": "",
     "icon": "linear"
@@ -64,6 +64,83 @@
     "docs_url": "https://docs.slack.dev/mcp/",
     "token_hint": "",
     "icon": "slack"
+  },
+  {
+    "key": "work-iq",
+    "name": "Microsoft Work IQ",
+    "description": "Ask about your Microsoft 365 work - mail, meetings, chats and files - through Microsoft's own assistant.",
+    "category": "knowledge",
+    "auth": "oauth",
+    "url": "https://workiq.svc.cloud.microsoft/mcp",
+    "docs_url": "https://learn.microsoft.com/en-us/microsoft-agent-365/tooling-servers-overview",
+    "token_hint": "Needs a Microsoft 365 Copilot licence. Register an app in Microsoft Entra with the Work IQ permission and this console's redirect URL, and enter its client ID when you connect.",
+    "icon": "microsoft"
+  },
+  {
+    "key": "m365-mail",
+    "name": "Outlook Mail",
+    "description": "Work IQ: search, read, draft and send mail in Microsoft 365.",
+    "category": "communication",
+    "auth": "oauth",
+    "url": "https://agent365.svc.cloud.microsoft/agents/servers/mcp_MailTools",
+    "docs_url": "https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-mail-work-iq",
+    "token_hint": "Needs a Microsoft 365 Copilot licence. Register an app in Microsoft Entra with the WorkIQ-MailServer permission and this console's redirect URL, and enter its client ID when you connect.",
+    "icon": "microsoft"
+  },
+  {
+    "key": "m365-calendar",
+    "name": "Outlook Calendar",
+    "description": "Work IQ: list, create and update events; accept, decline and find a time.",
+    "category": "productivity",
+    "auth": "oauth",
+    "url": "https://agent365.svc.cloud.microsoft/agents/servers/mcp_CalendarTools",
+    "docs_url": "https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-calendar-work-iq",
+    "token_hint": "Needs a Microsoft 365 Copilot licence. Register an app in Microsoft Entra with this server's Work IQ permission and this console's redirect URL, and enter its client ID when you connect.",
+    "icon": "microsoft"
+  },
+  {
+    "key": "m365-teams",
+    "name": "Microsoft Teams",
+    "description": "Work IQ: read and post in chats and channels, and manage their members.",
+    "category": "communication",
+    "auth": "oauth",
+    "url": "https://agent365.svc.cloud.microsoft/agents/servers/mcp_TeamsServer",
+    "docs_url": "https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-teams-work-iq",
+    "token_hint": "Needs a Microsoft 365 Copilot licence. Register an app in Microsoft Entra with this server's Work IQ permission and this console's redirect URL, and enter its client ID when you connect.",
+    "icon": "microsoft"
+  },
+  {
+    "key": "m365-sharepoint",
+    "name": "SharePoint",
+    "description": "Work IQ: search sites, read and upload files, and manage lists.",
+    "category": "storage",
+    "auth": "oauth",
+    "url": "https://agent365.svc.cloud.microsoft/agents/servers/mcp_SharePointRemoteServer",
+    "docs_url": "https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-sharepoint-work-iq",
+    "token_hint": "Needs a Microsoft 365 Copilot licence. Register an app in Microsoft Entra with this server's Work IQ permission and this console's redirect URL, and enter its client ID when you connect.",
+    "icon": "microsoft"
+  },
+  {
+    "key": "m365-onedrive",
+    "name": "OneDrive",
+    "description": "Work IQ: find, read, create and share files in a person's OneDrive.",
+    "category": "storage",
+    "auth": "oauth",
+    "url": "https://agent365.svc.cloud.microsoft/agents/servers/mcp_OneDriveRemoteServer",
+    "docs_url": "https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-onedrive-work-iq",
+    "token_hint": "Needs a Microsoft 365 Copilot licence. Register an app in Microsoft Entra with this server's Work IQ permission and this console's redirect URL, and enter its client ID when you connect.",
+    "icon": "microsoft"
+  },
+  {
+    "key": "m365-word",
+    "name": "Word",
+    "description": "Work IQ: create Word documents, read them, and comment on them.",
+    "category": "productivity",
+    "auth": "oauth",
+    "url": "https://agent365.svc.cloud.microsoft/agents/servers/mcp_WordServer",
+    "docs_url": "https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-word-work-iq",
+    "token_hint": "Needs a Microsoft 365 Copilot licence. Register an app in Microsoft Entra with this server's Work IQ permission and this console's redirect URL, and enter its client ID when you connect.",
+    "icon": "microsoft"
   },
   {
     "key": "atlassian",
@@ -181,9 +258,9 @@
     "description": "Read and update contacts, companies, deals and tickets.",
     "category": "sales",
     "auth": "oauth",
-    "url": "",
-    "docs_url": "",
-    "token_hint": "",
+    "url": "https://mcp.hubspot.com/",
+    "docs_url": "https://developers.hubspot.com/mcp",
+    "token_hint": "HubSpot registers no client on the spot: create an MCP auth app in your HubSpot account with this console's redirect URL, and enter its client ID and secret when you connect.",
     "icon": "hubspot"
   },
   {
@@ -203,7 +280,7 @@
     "description": "Run Zaps and reach the apps behind them.",
     "category": "automation",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.zapier.com/api/mcp/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "zapier"
@@ -211,7 +288,7 @@
   {
     "key": "make",
     "name": "Make",
-    "description": "Run scenarios and manage a Make account.",
+    "description": "Run scenarios and manage a Make account. You supply the MCP URL Make gives your account.",
     "category": "automation",
     "auth": "token",
     "url": "",
@@ -247,8 +324,8 @@
     "description": "Boards, lists and cards.",
     "category": "project-management",
     "auth": "oauth",
-    "url": "",
-    "docs_url": "",
+    "url": "https://mcp.trello.com/v1",
+    "docs_url": "https://github.com/atlassian/trello-mcp-server",
     "token_hint": "",
     "icon": "trello"
   },
@@ -258,7 +335,7 @@
     "description": "Search, complete and manage tasks.",
     "category": "project-management",
     "auth": "oauth",
-    "url": "",
+    "url": "https://ai.todoist.net/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "todoist"
@@ -269,7 +346,7 @@
     "description": "Event types, availability and bookings.",
     "category": "productivity",
     "auth": "oauth",
-    "url": "",
+    "url": "https://mcp.calendly.com/",
     "docs_url": "",
     "token_hint": "",
     "icon": "calendly"
@@ -277,7 +354,7 @@
   {
     "key": "zoom",
     "name": "Zoom",
-    "description": "Search, recap and act on meetings.",
+    "description": "Search, recap and act on meetings. You supply the URL Zoom gives your account.",
     "category": "communication",
     "auth": "oauth",
     "url": "",
@@ -343,7 +420,7 @@
   {
     "key": "shopify",
     "name": "Shopify",
-    "description": "Build, manage and analyze a store.",
+    "description": "Build, manage and analyze a store. Each store has a server of its own; you supply its URL.",
     "category": "commerce",
     "auth": "oauth",
     "url": "",
@@ -357,7 +434,7 @@
     "description": "Create and analyze marketing campaigns.",
     "category": "marketing",
     "auth": "oauth",
-    "url": "",
+    "url": "https://ai-inc.mailchimp.com/claude/mcp/v2",
     "docs_url": "",
     "token_hint": "",
     "icon": "mailchimp"
@@ -409,7 +486,7 @@
   {
     "key": "snowflake",
     "name": "Snowflake",
-    "description": "Retrieve structured and unstructured data.",
+    "description": "Retrieve structured and unstructured data. You supply your account's server URL.",
     "category": "data",
     "auth": "token",
     "url": "",
@@ -420,7 +497,7 @@
   {
     "key": "databricks",
     "name": "Databricks",
-    "description": "Unity Catalog and Mosaic AI, over managed servers.",
+    "description": "Unity Catalog and Mosaic AI, over managed servers. You supply your workspace's server URL.",
     "category": "data",
     "auth": "token",
     "url": "",
@@ -431,7 +508,7 @@
   {
     "key": "bigquery",
     "name": "Google BigQuery",
-    "description": "Analytical queries over a warehouse.",
+    "description": "Analytical queries over a warehouse. You supply the server URL and a Google credential.",
     "category": "data",
     "auth": "oauth",
     "url": "",
@@ -500,8 +577,8 @@
     "description": "Turn ideas into apps and websites.",
     "category": "development",
     "auth": "oauth",
-    "url": "",
-    "docs_url": "",
+    "url": "https://mcp.replit.com/server/mcp",
+    "docs_url": "https://docs.replit.com/platforms/mcp-server",
     "token_hint": "",
     "icon": "replit"
   },
@@ -566,7 +643,7 @@
     "description": "Manage WordPress.com sites.",
     "category": "marketing",
     "auth": "oauth",
-    "url": "",
+    "url": "https://public-api.wordpress.com/wpcom/v2/mcp/v1",
     "docs_url": "",
     "token_hint": "",
     "icon": "wordpress"
@@ -576,11 +653,44 @@
     "name": "Semrush",
     "description": "SEO, competitor research and traffic analysis.",
     "category": "marketing",
-    "auth": "token",
-    "url": "",
+    "auth": "oauth",
+    "url": "https://mcp.semrush.com/v1/mcp",
     "docs_url": "",
     "token_hint": "",
     "icon": "semrush"
+  },
+  {
+    "key": "meta-ads",
+    "name": "Meta Ads",
+    "description": "Read and manage Facebook and Instagram ad accounts, campaigns and their results.",
+    "category": "marketing",
+    "auth": "oauth",
+    "url": "https://mcp.facebook.com/ads",
+    "docs_url": "",
+    "token_hint": "",
+    "icon": "meta"
+  },
+  {
+    "key": "google-ads",
+    "name": "Google Ads",
+    "description": "Report on campaigns with Google's own Ads server, which you run. It only reads.",
+    "category": "marketing",
+    "auth": "token",
+    "url": "",
+    "docs_url": "https://github.com/googleads/google-ads-mcp",
+    "token_hint": "Google publishes this server to run yourself, for example on Cloud Run with streamable HTTP. Paste its URL and the bearer it checks; it signs in to Google Ads with your developer token and OAuth credentials.",
+    "icon": "googleads"
+  },
+  {
+    "key": "google-analytics",
+    "name": "Google Analytics 4",
+    "description": "Query GA4 reports and properties with Google's own Analytics server, which you run. It only reads.",
+    "category": "analytics",
+    "auth": "token",
+    "url": "",
+    "docs_url": "https://github.com/googleanalytics/google-analytics-mcp",
+    "token_hint": "Google publishes this server to run yourself, for example on Cloud Run with streamable HTTP. Paste its URL and the bearer it checks; it reads GA4 with a service account or your Google credentials.",
+    "icon": "googleanalytics"
   },
   {
     "key": "similarweb",
@@ -599,8 +709,8 @@
     "description": "Create forms and analyze responses.",
     "category": "productivity",
     "auth": "oauth",
-    "url": "",
-    "docs_url": "",
+    "url": "https://api.typeform.com/mcp",
+    "docs_url": "https://www.typeform.com/developers/mcp/",
     "token_hint": "",
     "icon": "typeform"
   },
@@ -620,9 +730,9 @@
     "name": "DeepL",
     "description": "Translate text and documents.",
     "category": "productivity",
-    "auth": "token",
-    "url": "",
-    "docs_url": "",
+    "auth": "oauth",
+    "url": "https://mcp.deepl.com/v1/mcp",
+    "docs_url": "https://developers.deepl.com/docs/mcp",
     "token_hint": "",
     "icon": "deepl"
   },
@@ -631,9 +741,9 @@
     "name": "ElevenLabs",
     "description": "Create and manage voice agents.",
     "category": "media",
-    "auth": "token",
-    "url": "",
-    "docs_url": "",
+    "auth": "oauth",
+    "url": "https://api.elevenlabs.io/v1/mcp",
+    "docs_url": "https://elevenlabs.io/docs/eleven-agents/operate/hosted-mcp",
     "token_hint": "",
     "icon": "elevenlabs"
   },
@@ -818,10 +928,10 @@
     "name": "Pipedream",
     "description": "One endpoint onto thousands of app APIs, authenticated per account.",
     "category": "automation",
-    "auth": "token",
-    "url": "https://remote.mcp.pipedream.net",
+    "auth": "oauth",
+    "url": "https://mcp.pipedream.net/v2",
     "docs_url": "https://pipedream.com/docs/connect/mcp/developers",
-    "token_hint": "A Pipedream OAuth client and project id, plus the external user id the connected accounts belong to. Which apps the agent reaches is decided in Pipedream, not here.",
+    "token_hint": "",
     "icon": ""
   },
   {
@@ -1006,8 +1116,8 @@
     "description": "Read and update deals, contacts and activities in a pipeline.",
     "category": "sales",
     "auth": "oauth",
-    "url": "https://mcp.pipedrive.com/mcp",
-    "docs_url": "https://developers.pipedrive.com/mcp",
+    "url": "https://mcp.pipedrive.ai/mcp",
+    "docs_url": "",
     "token_hint": "",
     "icon": ""
   },
@@ -1082,10 +1192,10 @@
     "name": "Lusha",
     "description": "Look up business contact and company data for a prospect.",
     "category": "sales",
-    "auth": "token",
-    "url": "https://mcp.lusha.com/mcp",
-    "docs_url": "https://docs.lusha.com/apis/openapi/mcp-server",
-    "token_hint": "A Lusha API key. Every lookup spends a credit, so give the agent one on a plan with a cap.",
+    "auth": "oauth",
+    "url": "https://mcp.lusha.com",
+    "docs_url": "https://docs.lusha.com/user-guide/mcp/lusha-model-context-protocol-mcp-server",
+    "token_hint": "",
     "icon": ""
   },
   {

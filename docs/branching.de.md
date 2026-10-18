@@ -1,5 +1,5 @@
 ---
-source_sha: "66365d6bce1a"
+source_sha: "4eeacc219cad"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -218,7 +218,7 @@ nichts mit dem Diff zu tun hat.
 
 `ci.yml` trägt eine Concurrency-Gruppe mit Schlüssel `github.ref`, sodass ein
 erneuter Push auf einen Branch dessen vorigen Lauf abbricht. Das ist wichtig,
-weil `CLAUDE.md` einen Commit und einen Push pro fertigem Teilstück verlangt:
+weil `AGENTS.md` einen Commit und einen Push pro fertigem Teilstück verlangt:
 ohne Abbruch wurden 75 der 369 Läufe in den ersten sechs Augusttagen überholt,
 während sie noch liefen — etwa 1.800 abgerechnete Minuten, die Fragen zu Commits
 beantworteten, auf die niemand wartete.
@@ -284,7 +284,7 @@ Jobs und meldet sich dann als der Abbruch von jemand anderem.
 !!! important "Die Beschreibung des Pull Requests *ist* die Commit-Nachricht, die überlebt"
 
     `main` behält einen Commit pro Pull Request, gebaut aus Titel und Rumpf statt
-    aus den eigenen Commits des Branches. `CLAUDE.md` hat das Format.
+    aus den eigenen Commits des Branches. `AGENTS.md` hat das Format.
 
 Also erreichen `wip`, `fixup` und `try again` es nie — und die Beschreibung ist
 keine Höflichkeit.

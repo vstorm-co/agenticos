@@ -173,31 +173,30 @@ needs a key, a key needs an organization — and this walks that chain once:
 | An owner | `admin@example.com` / `admin123`, or `--email` / `--password` |
 | A vault entry | Your provider key, sealed for that organization |
 | A model profile | `gpt-4.1`, `claude-sonnet-4-6`, `gemini-2.5-pro` or `openai/gpt-4.1`, whichever provider the key is for |
-| A context file | `AGENTS.md`, explaining what this platform is |
-| An agent | `@getting-started`, published if there is a key |
+| Two agents | The **Architect**, in the corner of every page, and **Claude Code like**, both published if there is a key |
 
 Now open <http://localhost:3000>, sign in as `admin@example.com` / `admin123`, and
-go to **Agents → Getting Started → Test**.
+ask either of them something: **Claude Code like** in **Chat**, or the
+**Architect** from the corner of any page.
 
-You have a working agent. Not a stub: it can search the web and fetch a page,
-run Python, draw a chart, keep files and a shell, plan a piece of work, remember
-something across conversations, search what was said earlier, read the shipped
-skills and `AGENTS.md`, and hand independent work to sub-agents it invents on
-the spot. All of it on the one key you just pasted — the sandbox runs in the
-run's own store and search defaults to DuckDuckGo, so there is no second
-credential and no service to stand up.
+Claude Code like is a general-purpose agent: it reads before it acts, plans a
+multi-step piece of work, edits files and runs commands in its sandbox, researches
+the web, delegates to its specialists and checks what it did. The Architect knows
+this platform: it finds agents, runs and knowledge bases, explains why a run failed
+and what it cost, and drafts an agent or a knowledge base for you to approve.
 
-Open it in the Builder to see how: every one of those is a capability that was
+Open either in the Builder to see how: every one of those is a capability that was
 switched on, and the agent's instructions are a text box you can edit.
 
 !!! tip "No provider key yet?"
 
-    Leave `BOOTSTRAP_API_KEY` out. Everything is still created and the demo agent
-    is saved as a **draft** rather than published — an agent with no model cannot
+    Leave `BOOTSTRAP_API_KEY` out. Everything is still created and both agents are
+    saved as **drafts** rather than published — an agent with no model cannot
     answer, and publishing one that fails on its first message is worse than not
     publishing it.
 
-    Add a key under **Settings → AI providers**, then publish.
+    Add a key under **Settings → AI providers**, then publish Claude Code like. The
+    Architect publishes itself on the organization's first model.
 
 !!! note "`make seed` is a different thing"
 

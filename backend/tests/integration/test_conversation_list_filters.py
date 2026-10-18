@@ -292,3 +292,30 @@ class TestTheTotalDescribesThePage:
                 db, owner.id, organization_id=organization.id, **narrowing
             )
             assert total == len(rows), narrowing
+
+
+async def test_conversations_opened_over_the_api_can_be_left_out(db) -> None:
+    """Shown by default and labelled; the sidebar's switch leaves them out, and the
+    count agrees with the page (#2122)."""
+    organization = await _org(db)
+    owner = await _user(db)
+    console = Conversation(organization_id=organization.id, user_id=owner.id, title="console")
+    scripted = Conversation(
+        organization_id=organization.id, user_id=owner.id, title="script", origin="api"
+    )
+    db.add_all([console, scripted])
+    await db.flush()
+
+    every = await conversation_repo.get_conversations_by_user(
+        db, owner.id, organization_id=organization.id
+    )
+    without = await conversation_repo.get_conversations_by_user(
+        db, owner.id, organization_id=organization.id, hide_api=True
+    )
+    counted = await conversation_repo.count_conversations(
+        db, owner.id, organization_id=organization.id, hide_api=True
+    )
+
+    assert {c.title for c in every} == {"console", "script"}
+    assert [c.title for c in without] == ["console"]
+    assert counted == 1

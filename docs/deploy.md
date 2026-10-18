@@ -275,7 +275,7 @@ docker compose --env-file backend/.env -f docker-compose-prod.yml \
   --org 'Your Company' --provider anthropic --api-key sk-ant-...
 ```
 
-The provider key here is what the demo agent runs on. Without it the agent is
+The provider key here is what the two starting agents run on. Without it they are
 created and cannot answer; every other provider is added in the product, per
 organization, from the vault.
 
@@ -291,7 +291,7 @@ organization, from the vault.
     cannot see.
 
 Then, once, by hand: sign in, invite somebody (which proves `SMTP_*`), and send
-the demo agent a message (which proves the provider key and the WebSocket). Each
+Claude Code like a message (which proves the provider key and the WebSocket). Each
 exercises a path nothing else here checks.
 
 !!! info "The security headers come from the backend, so any proxy is covered"
