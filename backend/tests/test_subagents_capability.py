@@ -89,6 +89,7 @@ from app.agents.capabilities.subagents._journal import DelegationJournal
 from app.agents.capabilities.subagents._toolset import DelegatingToolset
 from app.agents.deps import AgentDeps
 from app.agents.factory import DEFAULT_MAX_STEPS
+from app.agents.loop_guard import ToolLoopStopped
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, DelegationMode
 from app.agents.subagent_events import SubagentEvent, SubagentFinished, SubagentTextDelta
 from app.agents.subagent_runtime import (
@@ -237,6 +238,21 @@ def crashing(text: str) -> FunctionModel:
         _messages: list[ModelMessage], _info: AgentInfo
     ) -> AsyncIterator[DeltaToolCalls]:
         raise RuntimeError(text)
+        yield {}  # pragma: no cover - makes this an async generator, like the client's
+
+    return FunctionModel(respond, stream_function=stream)
+
+
+def loop_stopped() -> FunctionModel:
+    """A model whose run the loop guard stops, mid-delegation."""
+
+    def respond(_messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        raise ToolLoopStopped("Stopped: the agent called `search` 4 times in a row.")
+
+    async def stream(
+        _messages: list[ModelMessage], _info: AgentInfo
+    ) -> AsyncIterator[DeltaToolCalls]:
+        raise ToolLoopStopped("Stopped: the agent called `search` 4 times in a row.")
         yield {}  # pragma: no cover - makes this an async generator, like the client's
 
     return FunctionModel(respond, stream_function=stream)
@@ -1111,6 +1127,21 @@ class TestRecording:
         finished = sink.frames[-1]
         assert isinstance(finished, SubagentFinished)
         assert finished.error == outcome.error
+
+    async def test_a_delegate_stopped_for_looping_keeps_its_status_and_reason(self):
+        """The loop guard's reason names tools, never arguments, so it is kept
+        whole; and the row records `loop_stopped`, not a generic failure (#2086)."""
+        recorder = Recorder()
+        sink = Sink()
+        capability = a_capability(a_runtime(a_delegate(model=loop_stopped()), record=recorder))
+
+        with pytest.raises(Exception, match="researcher"):
+            await delegate_to(capability, a_context(sink))
+
+        (outcome,) = recorder.outcomes
+        assert outcome.loop_stopped is True
+        assert outcome.error is not None and "`search`" in outcome.error
+        assert "The run did not finish" not in outcome.error
 
     async def test_a_delegate_the_runtime_never_resolved_records_nothing(self):
         """The library refuses the name; no delegate ran, so there is no outcome."""

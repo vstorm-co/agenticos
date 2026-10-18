@@ -1589,7 +1589,7 @@ agent that does well in the console and badly in Slack shows it.
 
         Before this switch existed, a bot with no pair was a bot that did not
         transcribe, and the API cleared the pair to turn transcription off.
-        Migration `0137_bot_transcription_switch.py` switches every such bot
+        Migration `0139_bot_transcription_switch.py` switches every such bot
         **off**, so none of them starts sending audio to a provider on upgrade;
         a bot with a pair keeps it. From then on a client that clears the pair
         gets **inherit**, and **off** is `transcribe_voice_notes: false`, which

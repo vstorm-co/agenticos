@@ -90,7 +90,7 @@ class ChannelBot(Base, TimestampMixin):
     job: it is what inherits. On by default, so a bot registered from the CLI
     or by an older API client inherits too; cost stays the organization's to
     decide, because with no provider on the agent or the organization nothing
-    is transcribed. `0137_bot_transcription_switch.py` turned it off for every
+    is transcribed. `0139_bot_transcription_switch.py` turned it off for every
     bot that had no pair before, so none of them started transcribing on
     upgrade.
     """

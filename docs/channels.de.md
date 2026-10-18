@@ -1,5 +1,5 @@
 ---
-source_sha: "214926a8a83b"
+source_sha: "30cbf9a8af36"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1759,7 +1759,7 @@ schlecht abschneidet, zeigt es.
 
         Bevor es diesen Schalter gab, war ein Bot ohne Paar ein Bot, der nicht
         transkribierte, und die API leerte das Paar, um die Transkription
-        abzuschalten. Die Migration `0137_bot_transcription_switch.py` schaltet
+        abzuschalten. Die Migration `0139_bot_transcription_switch.py` schaltet
         jeden solchen Bot auf **off**, sodass keiner von ihnen beim Upgrade
         anfängt, Audio an einen Provider zu schicken; ein Bot mit Paar behält es.
         Von da an bekommt ein Client, der das Paar leert, **inherit**, und

@@ -217,7 +217,7 @@ class PageConfig(BaseSchema):
         published before the change would silently lose its microphone - the
         schema does not forbid extra keys - and the next re-dump of its config
         (a logo upload rewrites it) would erase the setting for good.
-        `0139_embed_dictation` rewrites the stored rows; this covers anything
+        `0141_embed_dictation` rewrites the stored rows; this covers anything
         that reaches the model without passing through that, a YAML or an API
         client written against the old field included.
         """

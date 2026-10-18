@@ -117,6 +117,14 @@ class RecordedRequest:
     #: The exception class, where the request raised. Never its message: a
     #: provider SDK puts the failing URL, and therefore a key, in that string.
     failed: str | None = None
+    #: Written to the provider's cache - priced above the input rate (#2170).
+    cache_write_tokens: int = 0
+    #: `bust` when this request's cached prefix collapsed while the provider
+    #: should still have held it, `expired` when its retention had passed - see
+    #: `app/agents/cache_watch.py` (#2109).
+    cache: str | None = None
+    #: Of the prefix earlier requests cached, the tokens this one did not read back.
+    cache_missed_tokens: int = 0
 
 
 @dataclass
@@ -138,6 +146,12 @@ class RunRecorder:
     #: the end of the run - retries, tool returns and reminders included, which
     #: the conversation transcript deliberately does not show.
     messages: list[dict[str, Any]] = field(default_factory=list)
+    #: Each correction a run reviewer sent, with its name and after which request
+    #: (#2106) - what steered the run, and who.
+    reviews: list[dict[str, Any]] = field(default_factory=list)
+    #: Each `run_code` script code mode ran, and every tool call it made (#2107) -
+    #: one `run_code` step otherwise hides all of them.
+    code_runs: list[dict[str, Any]] = field(default_factory=list)
 
     def observe_request(
         self,
@@ -174,6 +188,7 @@ class RunRecorder:
                 input_tokens=usage.input_tokens,
                 output_tokens=usage.output_tokens,
                 cache_read_tokens=usage.cache_read_tokens,
+                cache_write_tokens=usage.cache_write_tokens,
                 tool_calls=[
                     part.tool_name for part in response.parts if isinstance(part, ToolCallPart)
                 ],
@@ -200,6 +215,7 @@ class RunRecorder:
                 input_tokens=0,
                 output_tokens=0,
                 cache_read_tokens=0,
+                cache_write_tokens=0,
                 tool_calls=[],
                 finish_reason=None,
                 failed=type(exc).__name__,
@@ -366,13 +382,50 @@ def as_payload(recorder: RunRecorder) -> dict[str, Any]:
                 "input_tokens": request.input_tokens,
                 "output_tokens": request.output_tokens,
                 "cache_read_tokens": request.cache_read_tokens,
+                "cache_write_tokens": request.cache_write_tokens,
                 "tool_calls": list(request.tool_calls),
                 "finish_reason": request.finish_reason,
                 "failed": request.failed,
+                "cache": request.cache,
+                "cache_missed_tokens": request.cache_missed_tokens,
             }
             for request in recorder.requests
         ],
         "messages": recorder.messages,
+        "reviews": list(recorder.reviews),
+        "code_runs": list(recorder.code_runs),
+    }
+
+
+MAX_RECORDED_REVIEWS = 50
+"""How many run-reviewer corrections a run's manifest keeps, so it stays within
+its size ceiling (#2106)."""
+
+RECORDED_SCRIPTS = 30
+"""How many code-mode scripts one run's manifest keeps, so it stays within its
+size ceiling (#2107)."""
+
+
+def carried_over(previous: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
+    """This segment's payload with what earlier segments of the run recorded and it cannot.
+
+    A parked run is recorded twice - at the park, and when the resumed run ends -
+    and the second recording replaces the first. Most of a payload describes the
+    whole run either way: the requests and messages a resumed run replays. What
+    happened only in the segment being replaced does not - a run reviewer's
+    corrections, and the scripts code mode ran, whose calls may have changed
+    things - so those are carried over in front of this segment's own.
+    """
+    earlier_reviews = previous.get("reviews") or []
+    earlier_scripts = previous.get("code_runs") or []
+    if not earlier_reviews and not earlier_scripts:
+        return payload
+    reviews = [*earlier_reviews, *payload.get("reviews", [])]
+    scripts = [*earlier_scripts, *payload.get("code_runs", [])]
+    return {
+        **payload,
+        "reviews": reviews[:MAX_RECORDED_REVIEWS],
+        "code_runs": scripts[:RECORDED_SCRIPTS],
     }
 
 
@@ -391,7 +444,9 @@ def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[s
     Trimmed in the order things are worth keeping, and **measured after each
     stage** - a ceiling that is not re-checked is not a ceiling. The messages go
     first: they are the largest by far, and the transcript beside them already
-    says what was asked and answered. The tool schemas go second, leaving each
+    says what was asked and answered. Code mode's scripts lose their calls'
+    arguments next, keeping which tools each called and how. The tool schemas go
+    after that, leaving each
     tool's name and description - the half that explains behaviour and the half
     readable nowhere else. Then the descriptions themselves, and last the
     instructions, each cut to a length rather than dropped: an agent whose
@@ -407,6 +462,12 @@ def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[s
     if _size(payload) <= limit:
         return payload, False
     trimmed = {**payload, "messages": []}
+    if _size(trimmed) <= limit:
+        return trimmed, True
+    # Then each script's calls lose their arguments and its code is clipped: what
+    # it called and how each call went is the audit, and thirty scripts of a
+    # hundred calls each would otherwise be bigger than the ceiling on their own.
+    trimmed = {**trimmed, "code_runs": [_bare(script) for script in trimmed.get("code_runs", [])]}
     if _size(trimmed) <= limit:
         return trimmed, True
     trimmed = {
@@ -439,6 +500,22 @@ def fit(payload: dict[str, Any], limit: int = MAX_PAYLOAD_BYTES) -> tuple[dict[s
 #: of a trimmed manifest is doing - and small enough that a thousand tools cannot
 #: add up past the ceiling on their own.
 _TEXT_CLIP = 400
+
+
+def _bare(script: dict[str, Any]) -> dict[str, Any]:
+    """A recorded `run_code` script as the audit needs it: its calls without their arguments.
+
+    `args` stays, emptied: the read schema requires it, and a run trimmed this far
+    is exactly the one somebody opens to see what its scripts called.
+    """
+    return {
+        **script,
+        "code": _clipped(script.get("code"), _TEXT_CLIP),
+        "calls": [
+            {"tool": call.get("tool"), "args": "", "status": call.get("status")}
+            for call in script.get("calls", [])
+        ],
+    }
 
 
 def _clipped(text: Any, limit: int) -> Any:

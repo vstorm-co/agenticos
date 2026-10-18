@@ -1,14 +1,14 @@
 """Voice conversations: the organization's switch and limits (#54).
 
 Four columns rather than a JSONB blob, in the style of
-`0136_org_speech_settings`: each is a limit the database should hold, and a
+`0138_org_speech_settings`: each is a limit the database should hold, and a
 CHECK can hold a column where it cannot hold a key inside a document. Off by
 default, so an upgrade starts no calls anywhere; a 600-second cap below
 OpenAI's 60-minute hard stop; 600 minutes a month, nullable so an organization
 can rely on its budgets alone. Existing rows take the server defaults.
 
-Revision ID: 0141_org_voice_settings
-Revises: 0140_dictation_compressed_audio
+Revision ID: 0143_org_voice_settings
+Revises: 0142_dictation_compressed_audio
 Create Date: 2026-10-14
 """
 
@@ -18,8 +18,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0141_org_voice_settings"
-down_revision: str | None = "0140_dictation_compressed_audio"
+revision: str = "0143_org_voice_settings"
+down_revision: str | None = "0142_dictation_compressed_audio"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

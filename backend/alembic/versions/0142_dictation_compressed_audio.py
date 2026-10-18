@@ -15,8 +15,8 @@ change an upgraded deployment: it stops accepting WebM. Nothing breaks for it,
 because every client records in the format the server advertises, and the
 advertised format becomes WAV in the same release.
 
-Revision ID: 0140_dictation_compressed_audio
-Revises: 0139_embed_dictation
+Revision ID: 0142_dictation_compressed_audio
+Revises: 0141_embed_dictation
 Create Date: 2026-10-14
 """
 
@@ -26,8 +26,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0140_dictation_compressed_audio"
-down_revision: str | None = "0139_embed_dictation"
+revision: str = "0142_dictation_compressed_audio"
+down_revision: str | None = "0141_embed_dictation"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

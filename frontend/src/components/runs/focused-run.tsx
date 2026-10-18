@@ -300,6 +300,17 @@ export function FocusedRun({
           </p>
         )}
 
+        {/* The input above includes the cache's share, priced apart from the rest:
+            this is what reconciles a run with the provider's console (#2170). */}
+        {!!(run.cache_read_tokens || run.cache_write_tokens) && (
+          <p className="text-muted-foreground text-xs">
+            {t("cacheSplit", {
+              read: run.cache_read_tokens ?? 0,
+              write: run.cache_write_tokens ?? 0,
+            })}
+          </p>
+        )}
+
         {/* Hidden when it holds none of the three, rather than repeating all
             three conditions around it. */}
         <div className="flex flex-wrap items-center gap-1.5 empty:hidden">

@@ -25,7 +25,7 @@ Two things are versioned separately from this file and worth knowing about:
   caller with `approvals:decide` deciding) and budgets, and every turn is saved
   as text in the conversation with no audio stored. Calls are off until an
   organization turns them on (new organization voice columns,
-  `0141_org_voice_settings.py`: the switch, `/chat` offering calls, the longest
+  `0143_org_voice_settings.py`: the switch, `/chat` offering calls, the longest
   call - 10 minutes by default, 50 at most - and 600 monthly call minutes by
   default, the minutes gated on `budgets:manage`). An agent's spec gains an
   optional `voice` block - provider, model or Azure deployment and base model,
@@ -35,11 +35,11 @@ Two things are versioned separately from this file and worth knowing about:
   `/api/v1/ws/voice`: OpenAI over WebRTC with a server sideband (no data
   channel, no client secret), Azure OpenAI, Gemini Live and xAI through a relay,
   those three **not verified live**. Each call is a run (`agent_runs.modality`,
-  and a `voice_calls` row per connection, `0142_voice_calls.py`), hung up on
+  and a `voice_calls` row per connection, `0144_voice_calls.py`), hung up on
   every exit, heartbeated every 15 seconds and swept every minute for a dead
   worker's calls; one call per person (`VOICE_MAX_CALLS_PER_USER`); one
   automatic reconnect within 10 seconds, seeded with text. Turns are messages
-  with a `turn_id` and an `interrupted` marker (`0143_message_voice_turns.py`).
+  with a `turn_id` and an `interrupted` marker (`0145_message_voice_turns.py`).
   `GET /api/v1/agents/{agent_id}/voice` says whether a call would start,
   `GET /api/v1/voice/usage` reports call minutes, `GET /api/v1/runs` takes
   `?modality=`, and Activity shows a call as one row with a microphone badge.
@@ -75,7 +75,7 @@ Two things are versioned separately from this file and worth knowing about:
 - **A Voice card on the organization's Members page.** For `org:settings`
   holders: the dictation engine (Off, Browser or Server), the provider and model
   from the speech-to-text catalog, a language and the longest recording, stored
-  in six new organization columns (`0136_org_speech_settings.py`), the key
+  in six new organization columns (`0138_org_speech_settings.py`), the key
   among them. The provider, model, key and language are shown whatever the
   engine, as the default channel bots inherit too.
 - **An agent can transcribe on its own engine (#1797).** An optional
@@ -88,7 +88,7 @@ Two things are versioned separately from this file and worth knowing about:
   recording format. See
   [Which engine a recording reaches](docs/ml-services.md#which-engine-a-recording-reaches).
 - **Channel bots inherit, choose or switch off transcription.** A new
-  `transcribe_voice_notes` switch (`0137_bot_transcription_switch.py`): a bot
+  `transcribe_voice_notes` switch (`0139_bot_transcription_switch.py`): a bot
   with no pair now inherits from its agent and organization, and off never
   transcribes. Every bot that had no pair before the migration is switched off,
   so none starts transcribing on upgrade. Slack audio clips are transcribed
@@ -104,7 +104,7 @@ Two things are versioned separately from this file and worth knowing about:
 - **Every transcription is recorded with its length and attribution (#1797).**
   `ml_service_calls` gains the provider and model, the key, the surface (`chat`,
   `channel`, `api`), the agent and channel bot, and `audio_ms`
-  (`0138_ml_call_attribution.py`); a transcription now counts seconds of audio,
+  (`0140_ml_call_attribution.py`); a transcription now counts seconds of audio,
   not characters. Channel voice notes write a row too, naming the linked
   sender while they are still a member. The length comes from the recording
   itself for dictation, then the provider (`whisper-1`, Groq, Mistral), the
@@ -142,7 +142,7 @@ Two things are versioned separately from this file and worth knowing about:
   dictation before the provider is called, recorded exactly, and sent behind a
   header the server builds. A **Dictation audio** card on Admin → Deployment
   turns on `dictation_compressed_audio`
-  (`0140_dictation_compressed_audio.py`, off), after a dialog naming the risk
+  (`0142_dictation_compressed_audio.py`, off), after a dialog naming the risk
   and an acknowledgement: compressed formats are then accepted too, their
   length read from the file's header, which a crafted file can understate up to
   about forty times within the byte cap; a page or widget still refuses one
@@ -160,7 +160,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - **A hosted page's `allow_voice` is now `dictation` (#1797).** `true` reads as
   `browser` and `false` as `off`, both on stored rows
-  (`0139_embed_dictation.py`, reversible) and on any config still sent with the
+  (`0141_embed_dictation.py`, reversible) and on any config still sent with the
   old field, so no page loses its microphone.
 - **Speech to text is sent with a key named beside its pair (#1797).** At
   every level - the organization's default (`speech_to_text_secret_id`), an
@@ -190,6 +190,62 @@ Two things are versioned separately from this file and worth knowing about:
   false`, which clears the pair, and refuses an explicit `null` for it. A pair
   sent together with `false` is refused, on create as on update. A spec
   carrying `speech_to_text` cannot be imported into a deployment older than it.
+
+## [1.4.0] - 2026-10-18
+
+### Added
+
+- **Prompt-cache busts are flagged on the run** (#2109). A request whose cached
+  prompt prefix collapsed is marked in the run's request waterfall - *cache
+  bust* when the prefix moved, *cache expired* when the provider's retention had
+  passed - with how many cached tokens it did not read back, and logged with the
+  agent and model. The first request of a turn is compared with what the
+  previous turn cached. The counts are kept on the run, and **Runs → Spend**
+  shows a *Prompt cache* card per agent and model with the busts, expiries and
+  cached tokens not read back over the window.
+- **Code mode: many tool calls from one sandboxed script** (#2107). An agent
+  with *Code mode* on writes a short Python script that calls its tools in loops
+  and in parallel inside the Monty sandbox, instead of one model turn per call -
+  ten record updates take one turn, not ten. Calls from a script go through the
+  same guardrails, budget and permission checks; a tool that needs approval stays
+  an ordinary call. The run view lists each script and the calls it made. Off by
+  default; switched on in the Builder beside the limits.
+- **Run reviewers: a second model that steers a run while it goes** (#2106).
+  An agent can carry up to five reviewers, each a usually cheaper model with one
+  concern ("claims without a source"). Every few requests a reviewer reads the
+  recent run and sends one short correction when it drifts; the run's model gets
+  it with the reviewer's name, and the run view lists it. Its calls are budgeted
+  and booked like the run's own, and a reviewer that cannot review never fails
+  the run. Set in the Builder beside the limits.
+- **Tool-call loops are stopped early, with the reason** (#2086). A run that
+  calls one tool with the same arguments again and again, or goes round a short
+  cycle of calls, is told it is looping; if it goes on, it ends as
+  `loop_stopped` and says which tools - before the step limit or the budget runs
+  out. On for every agent; the Builder sets the thresholds or switches it off
+  beside "Max steps". Chat apps, embeds and run notifications say why too.
+- **A run shows how much of its input the cache served** (#2170). Runs and
+  answers now keep `cache_read_tokens` and `cache_write_tokens` beside the input
+  total, in the run API, the run's request record, the run view and the cost
+  under each answer - so a run can be reconciled with the provider's console.
+  The cost was already priced from this split: the bundled prices match
+  Anthropic's current list (a Sonnet 5.5 cache read is 5% of the input rate).
+
+### Fixed
+
+- **The web chat remembers the plan between messages** (#2162). A checklist an
+  agent wrote in the chat was gone by the next message, so asking it to start
+  step two got "No plan yet." The chat now keeps the plan a turn ended on, as
+  the API, chat apps and triggers already did, and a stopped turn hands its
+  step back as still to do.
+
+### Changed
+
+- **Prompt caching on every provider that takes it** (#2169). Caching now uses
+  Pydantic AI's provider-neutral `cache` setting instead of Anthropic's and
+  OpenRouter's own flags, so Bedrock's Anthropic and Nova models and OpenAI from
+  GPT-5.6 are cached too, and providers that cache by themselves are unchanged.
+  A model profile turns it off with `cache: false`; a profile that sets a
+  provider's own flag keeps it.
 
 ## [1.3.1] - 2026-10-18
 
@@ -245,6 +301,10 @@ Two things are versioned separately from this file and worth knowing about:
   it, the box cycles through examples built from the agent's own servers,
   capabilities, delegates and skills, and `/`, sliding from one to the next;
   clicking into it or sending clears them.
+
+### Fixed
+
+### Changed
 
 ## [1.1.1] - 2026-10-16
 

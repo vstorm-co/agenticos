@@ -1207,6 +1207,8 @@ class TestResumeAnswersWithWhatTheContinuationDid:
             cost_usd=Decimal("0.02"),
             input_tokens=13,
             output_tokens=7,
+            cache_read_tokens=9,
+            cache_write_tokens=2,
         )
 
         class _Resuming:
@@ -1253,6 +1255,11 @@ class TestResumeAnswersWithWhatTheContinuationDid:
         # updates it, rather than putting the same command in the turn twice.
         assert response.json()["settled"] == [{"tool_call_id": "call-0", "result": "read 6 sheets"}]
         assert response.json()["conversation_id"] == str(run.conversation_id)
+        # The cache split, so the resumed turn's cost can be read like any other (#2170).
+        assert (response.json()["cache_read_tokens"], response.json()["cache_write_tokens"]) == (
+            9,
+            2,
+        )
 
 
 # -- the stats routes, whose gate is the scope parameter ----------------------

@@ -11,8 +11,8 @@ for on every typed turn to guard rows that are never spoken. `interrupted` marks
 the caller talked over, whose text is trimmed to roughly what was heard.
 Existing rows take the server default `false`. No audio is stored.
 
-Revision ID: 0143_message_voice_turns
-Revises: 0142_voice_calls
+Revision ID: 0145_message_voice_turns
+Revises: 0144_voice_calls
 Create Date: 2026-10-14
 """
 
@@ -22,8 +22,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0143_message_voice_turns"
-down_revision: str | None = "0142_voice_calls"
+revision: str = "0145_message_voice_turns"
+down_revision: str | None = "0144_voice_calls"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

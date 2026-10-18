@@ -1,5 +1,5 @@
 ---
-source_sha: "214926a8a83b"
+source_sha: "30cbf9a8af36"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1643,7 +1643,7 @@ agent, który dobrze radzi sobie w konsoli, a słabo w Slacku, to pokazuje.
 
         Zanim pojawił się ten przełącznik, bot bez pary był botem, który nie
         transkrybował, a API czyściło parę, żeby wyłączyć transkrypcję. Migracja
-        `0137_bot_transcription_switch.py` przełącza każdego takiego bota na
+        `0139_bot_transcription_switch.py` przełącza każdego takiego bota na
         **off**, więc żaden z nich nie zaczyna po aktualizacji wysyłać audio do
         providera; bot z parą ją zachowuje. Od tej pory klient, który czyści parę,
         dostaje **inherit**, a **off** to `transcribe_voice_notes: false`, co

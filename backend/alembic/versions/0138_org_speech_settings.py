@@ -16,8 +16,8 @@ for one provider a lookup is a guess about who pays. SET NULL on delete, like
 a new one, and never takes the organization with it. A key needs a pair: one
 left behind by a cleared pair would ride along to the next provider chosen.
 
-Revision ID: 0136_org_speech_settings
-Revises: 0135_run_tool_args_repaired
+Revision ID: 0138_org_speech_settings
+Revises: 0137_agent_run_cache_busts
 Create Date: 2026-10-13
 """
 
@@ -28,8 +28,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0136_org_speech_settings"
-down_revision: str | None = "0135_run_tool_args_repaired"
+revision: str = "0138_org_speech_settings"
+down_revision: str | None = "0137_agent_run_cache_busts"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -60,6 +60,8 @@ export interface ConversationMessage {
    */
   input_tokens?: number | null;
   output_tokens?: number | null;
+  cache_read_tokens?: number | null;
+  cache_write_tokens?: number | null;
   /** A string, like every other money field the API returns: `Numeric` is serialized
    *  as one so a sum of a thousand turns cannot drift from the budget it is compared
    *  against. */

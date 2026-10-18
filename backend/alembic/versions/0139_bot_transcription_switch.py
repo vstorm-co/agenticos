@@ -31,8 +31,8 @@ which its form shows as "choose a key": it stops transcribing until somebody
 does, rather than spending a key nobody chose for it. SET NULL on delete, as
 `knowledge_bases.embedding_secret_id` is - deleting a key never deletes a bot.
 
-Revision ID: 0137_bot_transcription_switch
-Revises: 0136_org_speech_settings
+Revision ID: 0139_bot_transcription_switch
+Revises: 0138_org_speech_settings
 Create Date: 2026-10-13
 """
 
@@ -43,8 +43,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0137_bot_transcription_switch"
-down_revision: str | None = "0136_org_speech_settings"
+revision: str = "0139_bot_transcription_switch"
+down_revision: str | None = "0138_org_speech_settings"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

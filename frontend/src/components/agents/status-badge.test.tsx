@@ -39,6 +39,12 @@ describe("RunStatusBadge", () => {
     expect(container.querySelector('[class*="destructive"]')).toBeNull();
   });
 
+  it("does not present a run stopped for looping as a crash either", () => {
+    const { container } = render(<RunStatusBadge status="loop_stopped" />);
+    expect(screen.getByText("Stopped: looping")).toBeInTheDocument();
+    expect(container.querySelector('[class*="destructive"]')).toBeNull();
+  });
+
   it.each([
     ["completed", "Completed"],
     ["running", "Running"],

@@ -45,6 +45,7 @@ from app.agents.capabilities.media import offloaded_history
 from app.agents.connect_on_use import ConnectionCallback
 from app.agents.deps import AgentDeps, AskUserCallback, CompactionSink, QuestionsCallback
 from app.agents.failures import run_failure_summary
+from app.agents.loop_guard import ToolLoopStopped
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
 from app.core.exceptions import AuthorizationError, BadRequestError
@@ -618,6 +619,13 @@ class ChatAgentRunner:
             error = str(exc)
             logger.info("Chat run %s blocked by a %s guardrail", prepared.run.id, exc.edge)
             raise
+        except ToolLoopStopped as exc:
+            # Raised on, like a guardrail block: the person is owed the reason
+            # the answer stopped, and it names tools, never what they returned.
+            status = RunStatus.LOOP_STOPPED
+            error = str(exc)
+            logger.info("Chat run %s stopped for looping: %s", prepared.run.id, exc)
+            raise
         except Exception as exc:
             error = run_failure_summary(exc)
             logger.exception("Chat run %s failed", prepared.run.id)
@@ -641,6 +649,7 @@ class ChatAgentRunner:
                     paused_state=paused,
                     budget_scope=budget_scope,
                 )
+                await self.runner.keep_plan(prepared, status=status)
                 await self.db.commit()
                 await change_feed.publish_run(prepared.run, "updated")
             except Exception:

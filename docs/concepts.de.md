@@ -1,5 +1,5 @@
 ---
-source_sha: "111d48326705"
+source_sha: "efe226528843"
 ---
 
 # Begriffe { #concepts }
@@ -330,6 +330,7 @@ Problemen filtert, sollte nicht durch korrekt arbeitende Plattform waten müssen
 | `failed` | ist kaputtgegangen |
 | `budget_exceeded` | hat eine Obergrenze erreicht — ein Ausgabenlimit, das seine Arbeit tut |
 | `guardrail_blocked` | wurde von einem [Guardrail](reference/capabilities.md#guardrails) abgelehnt |
+| `loop_stopped` | wiederholte nach einer Warnung dieselben Tool-Aufrufe und wurde [gestoppt](governance.md#step-limits) |
 | `cancelled` | wurde gestoppt: die Stopp-Schaltfläche im Composer, ein weggefallener Socket, eine von oben abgebrochene Delegation. Auf jeder Oberfläche, nicht nur der streamenden |
 | `awaiting_approval` | ist auf einem Approval geparkt und ist **fortsetzbar** — sein Nachrichtenverlauf ist gespeichert, sodass die Entscheidung für die Unterhaltung gilt, zu der sie gehört |
 

@@ -14,8 +14,8 @@ are summed from these rows, never from run durations.
 questions, and a call in the widget is still the widget. Existing runs take
 the server default `text`.
 
-Revision ID: 0142_voice_calls
-Revises: 0141_org_voice_settings
+Revision ID: 0144_voice_calls
+Revises: 0143_org_voice_settings
 Create Date: 2026-10-14
 """
 
@@ -25,8 +25,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0142_voice_calls"
-down_revision: str | None = "0141_org_voice_settings"
+revision: str = "0144_voice_calls"
+down_revision: str | None = "0143_org_voice_settings"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

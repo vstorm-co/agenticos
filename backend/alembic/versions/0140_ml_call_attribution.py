@@ -22,8 +22,8 @@ The summary reads one organization's rows over a window, which
 on `agent_runs`: deleting a secret sets it null on every row that names it, and
 without an index that is a scan of the whole log.
 
-Revision ID: 0138_ml_call_attribution
-Revises: 0137_bot_transcription_switch
+Revision ID: 0140_ml_call_attribution
+Revises: 0139_bot_transcription_switch
 Create Date: 2026-10-13
 """
 
@@ -34,8 +34,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0138_ml_call_attribution"
-down_revision: str | None = "0137_bot_transcription_switch"
+revision: str = "0140_ml_call_attribution"
+down_revision: str | None = "0139_bot_transcription_switch"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -210,6 +210,7 @@ const TERMINAL_DELEGATION_STATUS: Partial<Record<RunStatus, DelegationStatus>> =
   cancelled: "cancelled",
   budget_exceeded: "failed",
   guardrail_blocked: "failed",
+  loop_stopped: "failed",
 };
 
 /**

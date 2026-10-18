@@ -17,8 +17,8 @@ has no token to present, so it cannot be resumed. That is a reconnect refused
 in the minute around a deploy, and a client that sends no token is refused the
 same way rather than failing.
 
-Revision ID: 0145_voice_call_resume_token
-Revises: 0144_voice_call_indexes
+Revision ID: 0147_voice_call_resume_token
+Revises: 0146_voice_call_indexes
 Create Date: 2026-10-15
 """
 
@@ -28,8 +28,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0145_voice_call_resume_token"
-down_revision: str | None = "0144_voice_call_indexes"
+revision: str = "0147_voice_call_resume_token"
+down_revision: str | None = "0146_voice_call_indexes"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -18,8 +18,8 @@ Widgets need nothing: they had no voice, and a missing key takes the default
 `off`. The JSONB key test is spelled `config->'allow_voice' IS NOT NULL` rather
 than with `?`, which some drivers read as a bind marker.
 
-Revision ID: 0139_embed_dictation
-Revises: 0138_ml_call_attribution
+Revision ID: 0141_embed_dictation
+Revises: 0140_ml_call_attribution
 Create Date: 2026-10-13
 """
 
@@ -27,8 +27,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0139_embed_dictation"
-down_revision: str | None = "0138_ml_call_attribution"
+revision: str = "0141_embed_dictation"
+down_revision: str | None = "0140_ml_call_attribution"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

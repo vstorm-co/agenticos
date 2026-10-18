@@ -1,5 +1,5 @@
 ---
-source_sha: "214926a8a83b"
+source_sha: "30cbf9a8af36"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -1671,7 +1671,7 @@ Slack lo muestra.
 
         Antes de que existiera este interruptor, un bot sin par era un bot que no
         transcribía, y la API vaciaba el par para desactivar la transcripción. La
-        migración `0137_bot_transcription_switch.py` pone todos esos bots en
+        migración `0139_bot_transcription_switch.py` pone todos esos bots en
         **off**, así que ninguno empieza a enviar audio a un provider al
         actualizar; un bot con par lo conserva. A partir de ahí, un cliente que
         vacía el par obtiene **inherit**, y **off** es

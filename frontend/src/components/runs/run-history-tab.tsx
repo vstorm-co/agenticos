@@ -33,8 +33,8 @@ import { setUrlParam } from "@/lib/utils";
 import { Perm } from "@/types/permissions";
 import type { RunStatus } from "@/types/runs";
 
-/** "What went wrong" as one choice - the query the two statuses exist apart for. */
-const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded"];
+/** "What went wrong" as one choice - the query the statuses exist apart for. */
+const PROBLEM_STATUSES: RunStatus[] = ["failed", "budget_exceeded", "loop_stopped"];
 
 /** One server page - `GET /runs`' own default, so an unpaged call reads the same. */
 const PAGE_SIZE = 50;

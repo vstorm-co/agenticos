@@ -317,29 +317,24 @@ def _google_cloud_provider(secret: GcpServiceAccountSecret) -> Provider[Any]:
     )
 
 
-PROMPT_CACHE_DEFAULTS: dict[str, dict[str, bool]] = {
-    "anthropic": {
-        "anthropic_cache_instructions": True,
-        "anthropic_cache_tool_definitions": True,
-        "anthropic_cache_messages": True,
-    },
-    "openrouter": {
-        "openrouter_cache_instructions": True,
-        "openrouter_cache_tool_definitions": True,
-        "openrouter_cache_messages": True,
-    },
-}
-"""Prompt caching every request to these providers asks for unless its profile says not.
+PROMPT_CACHE: dict[str, bool] = {"cache": True}
+"""Prompt caching, asked of every model unless its profile says not (#2169).
 
 An agent re-sends its instructions, its tool schemas and its whole history on
-every request of a run, and on these two nothing was cached unless a profile
-named the settings by hand: a long conversation through OpenRouter sent 300,000
-tokens per request with no cache reads, and the account's in-flight credit ran
-out mid-run. The breakpoints are the stable prefix - instructions, tools - and
-the last message, so each request reads the one before it from cache. OpenRouter
-drops the markers for a downstream model that cannot cache explicitly, and the
-settings are prefixed per provider, so a fallback on another provider ignores
-them."""
+every request of a run; uncached, a long conversation through OpenRouter sent
+300,000 tokens per request with no cache reads, and the account's in-flight
+credit ran out mid-run. Pydantic AI's provider-neutral `cache` setting places the
+breakpoints - the stable prefix of tools and instructions, and the conversation -
+on every provider that takes explicit caching (Anthropic, Bedrock's Anthropic and
+Nova models, OpenRouter's Anthropic and Gemini models, OpenAI from GPT-5.6) and is
+ignored by one that caches implicitly or not at all. It replaced a table of
+Anthropic and OpenRouter flags, which left Bedrock and OpenAI uncached.
+
+A profile turns it off with `cache: false`, or narrows it with a `CacheConfig`
+(`{"messages": false}` caches only the prefix). A provider-specific flag a
+profile still sets - `anthropic_cache_messages` - takes precedence over this
+whole setting for that request, as Pydantic AI defines it.
+"""
 
 
 def build_model(credential: ResolvedCredential, model: str) -> Model:
@@ -383,8 +378,8 @@ def _openrouter_model(spec: ProviderSpec, credential: ResolvedCredential, model:
     request. Amazon Bedrock is one of them for most Claude models and refuses the
     field outright ("tools.N.custom.cache_control.ephemeral.ttl: Extra inputs are
     not permitted"), so the same agent failed or answered depending on where
-    OpenRouter routed the request. `PROMPT_CACHE_DEFAULTS` asks for five minutes,
-    which is every host's default, so leaving `ttl` out changes nothing but that.
+    OpenRouter routed the request. `PROMPT_CACHE` asks for the provider's default
+    retention, five minutes on every host, so leaving `ttl` out changes nothing but that.
     """
     from pydantic_ai.models.openrouter import OpenRouterModel
     from pydantic_ai.providers.openrouter import OpenRouterModelProfile
