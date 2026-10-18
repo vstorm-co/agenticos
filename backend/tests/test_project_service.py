@@ -190,7 +190,7 @@ class TestCreatingAndChanging:
         with (
             patch.object(module.agent_repo, "get", AsyncMock(return_value=MagicMock())),
             patch.object(
-                module.organization_assistant_repo, "for_agent", AsyncMock(return_value=None)
+                module.organization_assistant_repo, "switched_off", AsyncMock(return_value=set())
             ),
             patch.object(module.project_repo, "update", AsyncMock(return_value=project)) as update,
             patch.object(module, "record_audit", AsyncMock()) as audited,
@@ -232,8 +232,8 @@ class TestCreatingAndChanging:
             patch.object(module.agent_repo, "get", AsyncMock(return_value=agent)),
             patch.object(
                 module.organization_assistant_repo,
-                "for_agent",
-                AsyncMock(return_value=MagicMock(enabled=False)),
+                "switched_off",
+                AsyncMock(return_value={agent.id}),
             ),
             pytest.raises(BadRequestError) as refused,
         ):
@@ -347,7 +347,7 @@ class TestListing:
                 AsyncMock(return_value={agent.id: agent, hidden.id: hidden, archived.id: archived}),
             ),
             patch.object(
-                module.organization_assistant_repo, "for_agent", AsyncMock(return_value=None)
+                module.organization_assistant_repo, "switched_off", AsyncMock(return_value=set())
             ),
         ):
             page = await service.list_projects(_ctx(), search="lau")

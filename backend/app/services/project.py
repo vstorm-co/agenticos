@@ -187,11 +187,9 @@ class ProjectService:
         )
         # And one that still answers at all: a default archived, unpublished or
         # switched off since it was set is offered no more than one never allowed.
-        runnable_agents = {
-            agent.id
-            for agent in agents.values()
-            if agent.id in runnable_agents and await self._answers(agent)
-        }
+        runnable_agents = await self._answering(
+            [agent for agent in agents.values() if agent.id in runnable_agents]
+        )
         reads = []
         for project in projects:
             count, last = activity.get(project.id, (0, None))
@@ -475,13 +473,15 @@ class ProjectService:
                 "change - start a new project for another one",
             )
 
-    async def _answers(self, agent: Agent) -> bool:
-        """Whether a chat started with this agent gets an answer: published, not
-        archived, and not an assistant its organization switched off."""
-        if agent.status == AgentStatus.ARCHIVED.value or agent.current_version_id is None:
-            return False
-        assistant = await organization_assistant_repo.for_agent(self.db, agent.id)
-        return assistant is None or assistant.enabled
+    async def _answering(self, agents: list[Agent]) -> set[UUID]:
+        """Those a chat started with gets an answer from: published, not archived,
+        and not an assistant its organization switched off."""
+        published = [
+            agent.id
+            for agent in agents
+            if agent.status != AgentStatus.ARCHIVED.value and agent.current_version_id is not None
+        ]
+        return set(published) - await organization_assistant_repo.switched_off(self.db, published)
 
     async def _check_default_agent(self, ctx: AuthContext, agent_id: UUID) -> None:
         """One the setter may run, and that runs at all: a new chat starts with it,
@@ -491,7 +491,7 @@ class ProjectService:
             self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT
         ):
             raise refused_field("default_agent_id", "Choose a default agent you can run")
-        if not await self._answers(agent):
+        if agent.id not in await self._answering([agent]):
             raise refused_field(
                 "default_agent_id",
                 "Choose a published agent, not one archived or switched off - a new chat "

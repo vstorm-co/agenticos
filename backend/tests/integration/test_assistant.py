@@ -15,7 +15,7 @@ from app.db.models.agent import Agent
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.repositories import agent_repo
+from app.repositories import agent_repo, organization_assistant_repo
 from app.schemas.assistant import AssistantUpdate
 from app.services.agent_registry import AgentRegistryService
 from app.services.assistant import AssistantService
@@ -196,6 +196,11 @@ async def test_a_switched_off_assistant_is_no_longer_served_over_a2a(db: AsyncSe
     await service.update(admin, AssistantUpdate(enabled=False))
 
     assert await agent_repo.get_served_over_a2a(db, agent.id) is None
+    # And it is what a project's default agent is checked against.
+    assert await organization_assistant_repo.switched_off(db, [agent.id, uuid.uuid4()]) == {
+        agent.id
+    }
+    assert await organization_assistant_repo.switched_off(db, []) == set()
 
 
 async def test_an_organization_at_its_agent_ceiling_hears_it_is_unavailable(
