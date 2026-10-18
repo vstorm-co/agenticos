@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAgents } from "@/hooks";
+import { useAssistant } from "@/hooks/use-assistant";
 
 /** The sentinel a Radix select needs for "no value" - it refuses an empty string. */
 const NONE = "none";
@@ -35,8 +36,16 @@ export function DefaultAgentSelect({
 }) {
   const t = useTranslations("projects");
   const { agents } = useAgents();
+  // The organization's assistant, once switched off, answers no chat - and the
+  // listing says nothing of it, so the assistant's own state does.
+  const { assistant } = useAssistant();
+  const switchedOff = assistant?.status === "disabled" ? assistant.agent_id : null;
   const runnable = agents.filter(
-    (agent) => agent.can_run && agent.current_version_id !== null && agent.status !== "archived",
+    (agent) =>
+      agent.can_run &&
+      agent.current_version_id !== null &&
+      agent.status !== "archived" &&
+      agent.id !== switchedOff,
   );
   return (
     <Select

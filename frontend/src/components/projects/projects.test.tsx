@@ -34,6 +34,8 @@ vi.mock("@/hooks", async (original) => ({
   ...(await original<typeof import("@/hooks")>()),
   useAgents: () => ({ agents: agents() }),
 }));
+const assistant = vi.fn((): { status: string; agent_id: string | null } | null => null);
+vi.mock("@/hooks/use-assistant", () => ({ useAssistant: () => ({ assistant: assistant() }) }));
 
 const projects = {
   create: { mutateAsync: vi.fn(), isPending: false },
@@ -192,6 +194,15 @@ describe("CreateProjectDialog", () => {
     projects.create.mutateAsync.mockRejectedValueOnce(new Error("down"));
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
     expect(toast.error).toHaveBeenCalled();
+  });
+
+  it("offers no assistant the organization switched off as a default", async () => {
+    // Saving it is refused: a chat started with it would get no answer.
+    assistant.mockReturnValue({ status: "disabled", agent_id: "a-1" });
+    wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+    await userEvent.click(screen.getByLabelText("Default agent"));
+    expect(screen.queryByRole("option", { name: /Writer/ })).toBeNull();
+    assistant.mockReturnValue(null);
   });
 
   it("closes on cancel, and choosing no default agent sends none", async () => {
