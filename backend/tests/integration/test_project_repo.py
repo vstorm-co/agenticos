@@ -272,3 +272,34 @@ async def test_the_projects_on_a_connection_are_named_in_order(db) -> None:
         await project_repo.names_on_connection(db, organization_id=other.id, connection_id=host.id)
         == []
     )
+
+
+async def test_the_projects_a_member_may_see_by_id(db) -> None:
+    """Their own, the organization's and those shared with them - or every one,
+    for somebody who sees them all; and never another organization's."""
+    alice, bob = await _user(db), await _user(db)
+    org = await _org(db, owner=alice)
+    elsewhere = await _org(db, owner=bob)
+    mine = await _project(db, org, alice, name="Mine", visibility=Visibility.PRIVATE.value)
+    everyones = await _project(db, org, bob, name="All", visibility=Visibility.ORG.value)
+    shared = await _project(db, org, bob, name="Shared", visibility=Visibility.PRIVATE.value)
+    hidden = await _project(db, org, bob, name="Hidden", visibility=Visibility.PRIVATE.value)
+    await _project(db, elsewhere, bob, name="Theirs", visibility=Visibility.ORG.value)
+
+    def visible(*, see_all: bool, shared_ids: list[uuid.UUID]):
+        return project_repo.visible_ids(
+            db, organization_id=org.id, user_id=alice.id, see_all=see_all, shared_ids=shared_ids
+        )
+
+    assert set(await visible(see_all=False, shared_ids=[])) == {mine.id, everyones.id}
+    assert set(await visible(see_all=False, shared_ids=[shared.id])) == {
+        mine.id,
+        everyones.id,
+        shared.id,
+    }
+    assert set(await visible(see_all=True, shared_ids=[])) == {
+        mine.id,
+        everyones.id,
+        shared.id,
+        hidden.id,
+    }
