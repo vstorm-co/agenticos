@@ -2717,11 +2717,26 @@ class AgentRunnerService:
         that created it - at the run's own agent (agenticos#175) and inside a nested
         delegate (agenticos#254) alike.
         """
+        # Whose ChatGPT sign-in the run's models may run on: the person the run
+        # is for. On a resume `ctx` is the approver's, and releasing somebody's
+        # run must neither lend it the approver's subscription nor refuse it the
+        # owner's. The restored audience already names nobody for a visitor or a
+        # key's holder.
+        models_ctx = (
+            ctx
+            if restored_audience is None
+            else replace(
+                ctx,
+                user_id=restored_audience.user_id,
+                subject_is_publisher_fallback=False,
+                api_key_id=None,
+            )
+        )
         # A caller's override wins over the spec's choice. Only the model is
         # replaced - instructions, tools, budgets and the approval gate are the
         # agent's, so this cannot be used to run something the agent is not.
         model_spec = await self.models.resolve(
-            ctx, profile_id=model_profile_id or spec.model_profile_id
+            models_ctx, profile_id=model_profile_id or spec.model_profile_id
         )
 
         # The organization's ceiling is read here rather than passed in by the
@@ -2792,13 +2807,13 @@ class AgentRunnerService:
         # the session are here, and the factory has neither. Handed to it apart
         # from `resources`, which every capability reads and a log line may carry:
         # a resolved model holds its unsealed credential.
-        reviewer_models = await self._reviewer_models(ctx, spec)
+        reviewer_models = await self._reviewer_models(models_ctx, spec)
         step_profile = _browser_step_profile(spec)
         if step_profile is not None:
             # Built here, where the vault and the session are: a fast model for
             # `browse_web`'s steps, which are most of a browse's time.
             resources[BROWSER_STEP_MODEL_RESOURCE] = (
-                await self.models.resolve(ctx, profile_id=step_profile)
+                await self.models.resolve(models_ctx, profile_id=step_profile)
             ).build()
 
         # Unsealed here and handed straight to the factory, which hands them to

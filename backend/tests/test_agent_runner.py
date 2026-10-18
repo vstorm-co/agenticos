@@ -3011,9 +3011,10 @@ class TestResume:
             patch.object(service.registry, "get", new=AsyncMock(return_value=MagicMock())),
             patch.object(
                 service.models, "resolve", new=AsyncMock(return_value=MagicMock(label="gpt-4.1"))
-            ),
+            ) as resolve,
             patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
         ):
+            self.resolve = resolve
             resumer = _ctx()
             # Kept for the tests that ask *whose* account the continuation spoke
             # through: the approver releasing a parked run is not its owner.
@@ -3156,6 +3157,30 @@ class TestResume:
         assert self.resumer.user_id != self.resumed_run.user_id, "the fixture must differ"
         assert build.call_args.kwargs["user_id"] == str(self.resumed_run.user_id)
         assert build.call_args.kwargs["audience"] == RunAudience(user_id=_THE_ASKER, room_key=None)
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_the_model_resolves_for_the_runs_own_person_not_the_approver(self):
+        """A ChatGPT sign-in is one person's subscription: an approver releasing a
+        member's run must not lend it theirs, nor be the one asked about the
+        member's."""
+        await self._resumed(
+            paused_state={
+                "messages": [],
+                "tool_call_ids": {},
+                "admitted_as": {
+                    "approval_mode": "follow_agent",
+                    "acts_for_sender": True,
+                    "audience_user_id": str(_THE_ASKER),
+                    "audience_room_key": None,
+                },
+            }
+        )
+
+        asked_for = self.resolve.await_args_list[0].args[0]
+        assert self.resumer.user_id != _THE_ASKER, "the fixture must differ"
+        assert asked_for.user_id == _THE_ASKER
+        assert asked_for.organization_id == self.resumer.organization_id
 
     @pytest.mark.anyio
     async def test_a_parked_fire_keeps_the_terms_it_was_admitted_on(self):
