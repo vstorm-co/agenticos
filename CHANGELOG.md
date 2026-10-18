@@ -17,6 +17,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **Scheduled triggers, portal polling, notification emails and the sync check
+  no longer cost a process a minute.** Each was a Prefect deployment ticking
+  every 60 seconds, and every tick was a new Python process importing the whole
+  application. On a busy host that took longer than the minute between ticks:
+  runs piled up, and the server spent its CPU on imports. They now run as
+  sweeps inside the worker's own process, one tick at a time each, staggered
+  across the minute. The sync check still starts the syncs as a Prefect run,
+  and only when a source is due. The `scheduler` health check (`doctor`,
+  `/admin/system`) reads the sweeps' heartbeat from Redis and, separately,
+  whether Prefect still completes `mcp-connection-sweep` (#2213).
+
 ## [1.6.1] - 2026-10-18
 
 ### Fixed

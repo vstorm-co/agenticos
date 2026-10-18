@@ -1,21 +1,6 @@
-"""Background tasks."""
+"""Background tasks.
 
-from app.worker.tasks.rag_tasks import (
-    check_scheduled_syncs_flow,
-    ingest_document_flow,
-    sync_collection_flow,
-    sync_single_source_flow,
-)
-from app.worker.tasks.trigger_tasks import (
-    check_agent_triggers_flow,
-    run_scheduled_trigger_flow,
-)
-
-__all__ = [
-    "check_agent_triggers_flow",
-    "check_scheduled_syncs_flow",
-    "ingest_document_flow",
-    "run_scheduled_trigger_flow",
-    "sync_collection_flow",
-    "sync_single_source_flow",
-]
+Nothing is re-exported here on purpose. A Prefect flow run imports the module its
+flow is defined in, and this package's `__init__` with it: re-exporting every flow
+made each run import all of them (#2213).
+"""

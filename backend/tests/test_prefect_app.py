@@ -13,6 +13,24 @@ from app.worker import prefect_app
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def sweeps(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """The worker's in-process sweeps and their Redis, recorded rather than run.
+
+    Run for real they would tick until the test was killed.
+    """
+    seen: dict[str, Any] = {}
+    redis = MagicMock(connect=AsyncMock(), close=AsyncMock())
+    monkeypatch.setattr(prefect_app, "RedisClient", MagicMock(return_value=redis))
+
+    async def run_sweeps(sweeps: Any, client: Any) -> None:
+        seen["sweeps"], seen["redis"] = sweeps, client
+
+    monkeypatch.setattr(prefect_app, "run_sweeps", run_sweeps)
+    seen["client"] = redis
+    return seen
+
+
 @pytest.fixture
 def captured_runner(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Stand in for the Prefect `Runner` that `aserve` builds, and record its arguments.
@@ -82,8 +100,6 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "rag-sync-check",
         "run-scheduled-trigger",
         "org-purge-cleanup",
-        "agent-triggers-check",
-        "portal-poll",
         "sandbox-log-sweep",
         "mcp-connection-sweep",
         "approval-expiry-sweep",
@@ -93,7 +109,6 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "retention-sweep",
         "weekly-usage-report",
         "monthly-usage-report",
-        "notification-delivery-sweep",
         "notification-retention-sweep",
     }
     assert captured_runner.start.await_count == 1
@@ -120,10 +135,13 @@ async def test_a_scheduled_sweep_skips_a_tick_rather_than_queueing_it(
 
     registered: list[Any] = [call.args[0] for call in captured_runner.add_deployment.call_args_list]
     reports = {"weekly-usage-report", "monthly-usage-report"}
-    sweeps = [d for d in registered if d.schedules and d.name not in reports]
-    unlimited = [d for d in registered if not d.schedules or d.name in reports]
-    assert sweeps and {d.name for d in unlimited} >= reports
-    for deployment in sweeps:
+    # Started on demand by its sweep, and still one at a time: the sweep comes
+    # round every minute whether or not the last batch of syncs has finished.
+    checks = {"rag-sync-check"}
+    limited = [d for d in registered if (d.schedules and d.name not in reports) or d.name in checks]
+    unlimited = [d for d in registered if d not in limited]
+    assert limited and {d.name for d in unlimited} >= reports
+    for deployment in limited:
         assert deployment.concurrency_limit == 1, deployment.name
         assert deployment.concurrency_options is not None, deployment.name
         assert (
@@ -168,3 +186,25 @@ class TestTheIntervalFloor:
         monkeypatch.setattr(settings, "WORKER_MIN_INTERVAL_SECONDS", 30)
 
         assert prefect_app._every(60).interval == timedelta(seconds=60)
+
+
+async def test_the_minute_sweeps_run_in_this_process_beside_the_runner(
+    captured_runner: MagicMock, sweeps: dict[str, Any]
+) -> None:
+    """As deployments, each of their ticks was a process importing the whole
+    application - longer than the minute between ticks on the production host (#2213)."""
+    await prefect_app.main()
+
+    assert [(s.name, s.every_seconds) for s in sweeps["sweeps"]] == [
+        ("agent-triggers-check", 60),
+        ("portal-poll", 60),
+        ("notification-delivery-sweep", 60),
+        ("rag-sync-check", 60),
+    ]
+    assert sweeps["redis"] is sweeps["client"]
+    sweeps["client"].connect.assert_awaited_once()
+    sweeps["client"].close.assert_awaited_once()
+    registered = {
+        call.args[0].name: call.args[0] for call in captured_runner.add_deployment.call_args_list
+    }
+    assert not registered["rag-sync-check"].schedules

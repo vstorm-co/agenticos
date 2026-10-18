@@ -4,7 +4,9 @@ Run with:
     python -m app.worker.prefect_app
 
 The process registers scheduled deployments with the Prefect server and polls for
-work.  Set PREFECT_API_URL to http://prefect-server:4200/api (self-hosted Docker)
+work, and runs the minute-scale sweeps itself (`app/worker/sweeps.py`): as
+deployments, each of their ticks was a process importing the whole application
+(#2213).  Set PREFECT_API_URL to http://prefect-server:4200/api (self-hosted Docker)
 or to your Prefect Cloud workspace URL + PREFECT_API_KEY for Cloud mode.
 
 At most PREFECT_RUNNER_LIMIT runs execute at once; the rest queue.  Each run is a
@@ -28,17 +30,20 @@ from prefect import aserve
 from prefect.client.schemas.objects import ConcurrencyLimitConfig, ConcurrencyLimitStrategy
 from prefect.client.schemas.schedules import IntervalSchedule
 
+from app.clients.redis import RedisClient
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.worker.sweeps import Sweep, run_sweeps
 from app.worker.tasks.approval_tasks import approval_expiry_sweep_flow
 from app.worker.tasks.invitation_tasks import invitation_expiry_sweep_flow
 from app.worker.tasks.mcp_tasks import mcp_connection_sweep_flow
 from app.worker.tasks.notification_tasks import (
-    notification_delivery_sweep_flow,
+    deliver_due_notifications,
     notification_retention_sweep_flow,
 )
 from app.worker.tasks.rag_tasks import (
     check_scheduled_syncs_flow,
+    dispatch_due_syncs,
     ingest_document_flow,
     retention_sweep_flow,
     sync_collection_flow,
@@ -54,13 +59,28 @@ from app.worker.tasks.teardown_tasks import (
     teardown_reservation_sweep_flow,
 )
 from app.worker.tasks.trigger_tasks import (
-    check_agent_triggers_flow,
-    poll_portal_grants_flow,
+    check_agent_triggers,
+    poll_portal_grants,
     run_scheduled_trigger_flow,
     sweep_sandbox_operations_flow,
 )
 
 logger = logging.getLogger(__name__)
+
+SWEEPS = (
+    # Fire the agent triggers that have come due.
+    Sweep("agent-triggers-check", 60, check_agent_triggers),
+    # Read the connected accounts nobody pushes to. Its own sweep rather than work
+    # inside the trigger heartbeat: the two fail independently - a Gmail outage must
+    # not stop a cron schedule firing - and one tick of each is a different amount
+    # of work.
+    Sweep("portal-poll", 60, poll_portal_grants),
+    # Send queued notifications: a pending delivery waits at most one tick.
+    Sweep("notification-delivery-sweep", 60, deliver_due_notifications),
+    # Start the sync check when a source is due; the syncs stay a flow run.
+    Sweep("rag-sync-check", 60, dispatch_due_syncs),
+)
+"""The minute-scale work, in this process - see `app/worker/sweeps.py`."""
 
 # The scheduled sweeps here work over current state, so a tick that arrives
 # while the previous one is still running has nothing of its own to do. Without
@@ -88,8 +108,8 @@ def _every(seconds: float) -> IntervalSchedule:
     `WORKER_MIN_INTERVAL_SECONDS` is `0` on a deployment, so this is the
     declared interval and nothing else. It exists for the machine that is also
     running an editor: every run here is a separate Python process that imports
-    the whole application, so four minute-ticks cost far more in imports than
-    the work they do - see the setting's own note for the measurement.
+    the whole application - see the setting's own note for the measurement. The
+    in-process sweeps (`SWEEPS`) do not take it: they import nothing per tick.
 
     A floor rather than a multiplier, so raising it lengthens only what is
     already faster than it: the daily sweeps stay daily whatever it is set to,
@@ -110,14 +130,15 @@ async def main() -> None:
     deployments.append(await ingest_document_flow.ato_deployment(name="ingest-document"))
     deployments.append(await sync_single_source_flow.ato_deployment(name="sync-single-source"))
     deployments.append(await sync_collection_flow.ato_deployment(name="sync-collection"))
+    # On-demand: started by the `rag-sync-check` sweep when a source is due. One at
+    # a time, so a sweep that comes round while the last batch still syncs is
+    # refused rather than starting a second.
     deployments.append(
         await check_scheduled_syncs_flow.ato_deployment(
-            name="rag-sync-check",
-            schedules=[_every(60)],
-            concurrency_limit=_ONE_AT_A_TIME,
+            name="rag-sync-check", concurrency_limit=_ONE_AT_A_TIME
         )
     )
-    # On-demand: one fired run per due trigger, submitted by the heartbeat below.
+    # On-demand: one fired run per due trigger, submitted by the trigger sweep.
     deployments.append(
         await run_scheduled_trigger_flow.ato_deployment(name="run-scheduled-trigger")
     )
@@ -127,14 +148,6 @@ async def main() -> None:
     # deployment name stays `org-purge-cleanup` (its #1274 name) so an upgrade does
     # not strand runs queued under the old identifier; the flow it serves is general.
     deployments.append(await external_state_cleanup_flow.ato_deployment(name="org-purge-cleanup"))
-    # Every minute: fire the agent triggers that have come due.
-    deployments.append(
-        await check_agent_triggers_flow.ato_deployment(
-            name="agent-triggers-check",
-            schedules=[_every(60)],
-            concurrency_limit=_ONE_AT_A_TIME,
-        )
-    )
     # Daily: drop sandbox operations past the retention window. The window is
     # thirty days, so the hour a row leaves is nobody's business - and a delete over
     # a month-old boundary is cheap when it runs once rather than hourly.
@@ -142,17 +155,6 @@ async def main() -> None:
         await sweep_sandbox_operations_flow.ato_deployment(
             name="sandbox-log-sweep",
             schedules=[_every(86400)],
-            concurrency_limit=_ONE_AT_A_TIME,
-        )
-    )
-    # Every minute: read the connected accounts nobody pushes to. A separate
-    # deployment rather than work inside the trigger heartbeat, because the two
-    # fail independently - a Gmail outage must not stop a cron schedule firing -
-    # and because one tick of each is a different amount of work.
-    deployments.append(
-        await poll_portal_grants_flow.ato_deployment(
-            name="portal-poll",
-            schedules=[_every(60)],
             concurrency_limit=_ONE_AT_A_TIME,
         )
     )
@@ -239,16 +241,6 @@ async def main() -> None:
             schedules=[_every(30 * 86_400)],
         )
     )
-    # Every minute, matching the other frequent sweeps here: defining the flow
-    # alone does not run it. A pending delivery sits queued for at most one
-    # tick before the sweep claims and sends it.
-    deployments.append(
-        await notification_delivery_sweep_flow.ato_deployment(
-            name="notification-delivery-sweep",
-            schedules=[_every(60)],
-            concurrency_limit=_ONE_AT_A_TIME,
-        )
-    )
     # Daily, matching the sandbox-log sweep above: drop notifications past their
     # retention window. Read ones age out in ninety days; anything, read or
     # not, ages out in a year. `announcements` themselves are untouched - only
@@ -284,7 +276,16 @@ async def main() -> None:
     # unhealthy rather than as fine. Before this, the runner inherited the API's
     # HTTP probe from the shared image and was unhealthy from the second it
     # started, which is a status nobody can act on.
-    await aserve(*deployments, limit=settings.PREFECT_RUNNER_LIMIT, webserver=True)
+    redis = RedisClient()
+    await redis.connect()
+    try:
+        async with asyncio.TaskGroup() as group:
+            group.create_task(
+                aserve(*deployments, limit=settings.PREFECT_RUNNER_LIMIT, webserver=True)
+            )
+            group.create_task(run_sweeps(SWEEPS, redis))
+    finally:
+        await redis.close()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 """The heartbeat's dispatch loop isolates each submission and preserves its marker.
 
-`check_agent_triggers_flow` claims the due triggers in one committed transaction,
+`check_agent_triggers` claims the due triggers in one committed transaction,
 then submits a run for each. Because the claim commits *before* the loop, a trigger
 whose `run_deployment` raises has already had its `next_fire_at` advanced *and* its
 `fire_in_flight_since` marker set - so a bare loop that let the exception propagate
@@ -58,7 +58,7 @@ async def test_one_failed_dispatch_does_not_drop_the_rest_of_the_batch() -> None
         patch.object(trigger_tasks, "dispatch_trigger_fire", side_effect=dispatch),
         patch("app.services.agent_trigger.AgentTriggerService", return_value=service),
     ):
-        await trigger_tasks.check_agent_triggers_flow.fn()  # must not raise
+        await trigger_tasks.check_agent_triggers()  # must not raise
 
     # Every trigger is attempted, and each with the exact `now` handed to the claim.
     claimed_now = service.claim_and_advance.call_args.kwargs["now"]
@@ -90,7 +90,7 @@ async def test_a_failed_dispatch_does_not_release_the_marker() -> None:
         patch.object(trigger_tasks, "dispatch_trigger_fire", side_effect=dispatch),
         patch("app.services.agent_trigger.AgentTriggerService", return_value=service),
     ):
-        await trigger_tasks.check_agent_triggers_flow.fn()  # must not raise
+        await trigger_tasks.check_agent_triggers()  # must not raise
 
     # Exactly one session - the claim's. No second one is opened to release a marker.
     assert len(opened) == 1

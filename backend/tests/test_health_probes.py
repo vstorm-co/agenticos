@@ -107,21 +107,30 @@ def impatient(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(health, "PROBE_TIMEOUT_SECONDS", 0.01)
 
 
-def _heartbeat(monkeypatch: pytest.MonkeyPatch, answer: datetime | Exception | None) -> None:
-    """Make Prefect report this heartbeat - a completion time, never, or a failure."""
+def _heartbeat(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    sweep: datetime | Exception | None,
+    prefect: datetime | Exception | None,
+) -> None:
+    """Make the worker's sweep and Prefect's deployment report these completions."""
 
-    async def last_heartbeat() -> datetime | None:
-        if isinstance(answer, Exception):
-            raise answer
-        return answer
+    def answering(answer: datetime | Exception | None) -> Any:
+        async def last(*_: object) -> datetime | None:
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
 
-    monkeypatch.setattr(health, "_last_heartbeat", last_heartbeat)
+        return last
+
+    monkeypatch.setattr(health.worker_heartbeat, "last", answering(sweep))
+    monkeypatch.setattr(health, "_last_prefect_run", answering(prefect))
 
 
 @pytest.fixture
 def heartbeat_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A scheduler that completed its heartbeat just now."""
-    _heartbeat(monkeypatch, datetime.now(UTC))
+    """A worker and a scheduler that both completed a tick just now."""
+    _heartbeat(monkeypatch, sweep=datetime.now(UTC), prefect=datetime.now(UTC))
 
 
 class TestDatabaseProbe:
@@ -414,64 +423,84 @@ class TestReadiness:
 
 
 class TestSchedulerProbe:
-    async def test_a_recent_heartbeat_is_healthy_and_says_how_recent(
+    async def test_recent_ticks_are_healthy_and_say_how_recent(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _heartbeat(monkeypatch, datetime.now(UTC) - timedelta(seconds=40))
+        now = datetime.now(UTC)
+        _heartbeat(
+            monkeypatch, sweep=now - timedelta(seconds=40), prefect=now - timedelta(minutes=9)
+        )
 
-        check = await health.probe_scheduler()
+        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
 
         assert check.status == "healthy"
-        assert "agent-triggers-check heartbeat completed" in check.detail
+        assert "agent-triggers-check sweep ticked 40s ago" in check.detail
+        assert "mcp-connection-sweep completed 9 min ago" in check.detail
         assert check.latency_ms is not None
 
-    async def test_a_heartbeat_that_never_completed_is_unhealthy(
+    async def test_a_sweep_that_never_ticked_is_unhealthy(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The 2026-09-28 outage from a fresh Prefect database: deployments READY,
-        the API healthy, and not one run ever created."""
-        _heartbeat(monkeypatch, None)
+        """A worker that never came up, or one that never reached Redis."""
+        _heartbeat(monkeypatch, sweep=None, prefect=datetime.now(UTC))
 
-        check = await health.probe_scheduler()
+        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
-        assert "has ever completed" in check.detail
+        assert "agent-triggers-check sweep has never completed" in check.detail
         assert "scheduled triggers" in check.detail
 
-    async def test_a_stale_heartbeat_is_unhealthy_and_names_its_age(
+    async def test_a_stale_sweep_is_unhealthy_and_names_its_age(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The same outage on a database that had run before: the last completion
-        stays put while the scheduler keeps failing."""
-        _heartbeat(monkeypatch, datetime.now(UTC) - timedelta(hours=2))
+        _heartbeat(
+            monkeypatch, sweep=datetime.now(UTC) - timedelta(hours=2), prefect=datetime.now(UTC)
+        )
 
-        check = await health.probe_scheduler()
+        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
         assert "last completed 120 min ago" in check.detail
         assert "expected every 60s" in check.detail
 
-    async def test_one_missed_tick_is_not_an_outage(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        _heartbeat(monkeypatch, datetime.now(UTC) - timedelta(seconds=150))
+    async def test_a_scheduler_that_never_ran_anything_is_unhealthy(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The 2026-09-28 outage from a fresh Prefect database: deployments READY,
+        the API healthy, and not one run ever created - while the worker's own
+        sweeps would still tick."""
+        _heartbeat(monkeypatch, sweep=datetime.now(UTC), prefect=None)
 
-        assert (await health.probe_scheduler()).status == "healthy"
+        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
+
+        assert check.status == "unhealthy"
+        assert "mcp-connection-sweep deployment has never completed" in check.detail
+
+    async def test_one_missed_tick_is_not_an_outage(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        now = datetime.now(UTC)
+        _heartbeat(
+            monkeypatch, sweep=now - timedelta(seconds=150), prefect=now - timedelta(minutes=20)
+        )
+
+        assert (await health.probe_scheduler(_Redis())).status == "healthy"  # type: ignore[arg-type]
 
     async def test_a_slowed_development_worker_is_judged_by_its_own_interval(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """`WORKER_MIN_INTERVAL_SECONDS` lengthens the tick, so it lengthens the
-        grace too - or every laptop that sets it would read failed."""
-        monkeypatch.setattr(health.settings, "WORKER_MIN_INTERVAL_SECONDS", 600)
-        _heartbeat(monkeypatch, datetime.now(UTC) - timedelta(minutes=20))
+        """`WORKER_MIN_INTERVAL_SECONDS` lengthens Prefect's ticks, so it lengthens
+        their grace too - or every laptop that sets it would read failed."""
+        monkeypatch.setattr(health.settings, "WORKER_MIN_INTERVAL_SECONDS", 1800)
+        now = datetime.now(UTC)
+        _heartbeat(monkeypatch, sweep=now, prefect=now - timedelta(hours=2))
 
-        assert (await health.probe_scheduler()).status == "healthy"
+        assert (await health.probe_scheduler(_Redis())).status == "healthy"  # type: ignore[arg-type]
 
     async def test_an_unreachable_prefect_is_unhealthy_and_says_why(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _heartbeat(monkeypatch, OSError("connection refused"))
+        _heartbeat(monkeypatch, sweep=datetime.now(UTC), prefect=OSError("connection refused"))
 
-        check = await health.probe_scheduler()
+        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
         assert "connection refused" in check.detail
@@ -484,16 +513,17 @@ class TestSchedulerProbe:
             await asyncio.sleep(10)
             return None
 
-        monkeypatch.setattr(health, "_last_heartbeat", hangs)
+        _heartbeat(monkeypatch, sweep=datetime.now(UTC), prefect=None)
+        monkeypatch.setattr(health, "_last_prefect_run", hangs)
 
-        check = await health.probe_scheduler()
+        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
 
         assert check.status == "unhealthy"
-        assert "the Prefect API did not answer within" in check.detail
+        assert "Redis or the Prefect API did not answer within" in check.detail
 
 
-class TestLastHeartbeat:
-    """The Prefect query itself: the newest *completed* heartbeat, or none."""
+class TestLastPrefectRun:
+    """The Prefect query itself: the newest *completed* run of the deployment, or none."""
 
     @staticmethod
     def _client(monkeypatch: pytest.MonkeyPatch, runs: list[Any]) -> dict[str, Any]:
@@ -521,17 +551,17 @@ class TestLastHeartbeat:
         ended = datetime(2026, 10, 9, 11, 22, tzinfo=UTC)
         seen = self._client(monkeypatch, [SimpleNamespace(end_time=ended)])
 
-        assert await health._last_heartbeat() == ended
+        assert await health._last_prefect_run() == ended
         assert seen["closed"]
         assert seen["limit"] == 1
-        assert seen["deployment_filter"].name.any_ == ["agent-triggers-check"]
+        assert seen["deployment_filter"].name.any_ == ["mcp-connection-sweep"]
         assert [s.value for s in seen["flow_run_filter"].state.type.any_] == ["COMPLETED"]
         assert seen["sort"].value == "END_TIME_DESC"
 
     async def test_no_completed_run_is_never(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._client(monkeypatch, [])
 
-        assert await health._last_heartbeat() is None
+        assert await health._last_prefect_run() is None
 
 
 class TestSystemHealth:

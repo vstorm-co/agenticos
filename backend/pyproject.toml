@@ -726,6 +726,8 @@ include = [
     "app/services/impersonation.py",
     "app/services/ws_auth.py",
     "app/services/health.py",
+    # The worker's sweeps' heartbeat, which the scheduler probe reads (#2213).
+    "app/services/worker_heartbeat.py",
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
     "app/services/rag/failures.py",
@@ -1171,6 +1173,8 @@ include = [
     # provider check. A probe nobody has watched fail is not a probe, which is
     # why this module is gated rather than reported.
     "app/services/health.py",
+    # The worker's sweeps' heartbeat, which the scheduler probe reads (#2213).
+    "app/services/worker_heartbeat.py",
     # Template-inherited, gated anyway. Its fixed `emails/compiled` path pointed
     # at a directory that never existed, so every email raised
     # EmailTemplateError — and every caller logs and swallows that, so
