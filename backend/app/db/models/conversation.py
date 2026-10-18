@@ -233,6 +233,8 @@ class Message(Base, TimestampMixin):
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
+        # Deleting an account finds every message it wrote through this column.
+        index=True,
     )
     # The earlier message this turn answers, when somebody replied to one - in a
     # chat several people talk in at once, "yes, do that" has to say to what.
