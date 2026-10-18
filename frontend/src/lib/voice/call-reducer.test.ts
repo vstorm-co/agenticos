@@ -322,6 +322,18 @@ describe("callReducer", () => {
     expect(viewState(failed)).toBe("connfailed");
   });
 
+  it("brings back no ended call the page already put away", () => {
+    // New chat during a call: End, then dismiss - and the server's answer to the
+    // End arrives after, onto an idle page.
+    const dismissed = callReducer(live(), { type: "reset" });
+    const late = callReducer(dismissed, {
+      type: "frame",
+      frame: { type: "ended", reason: "user" },
+      now: 9000,
+    });
+    expect(late).toBe(initialCall);
+  });
+
   it("forgets everything on reset", () => {
     expect(callReducer(live(), { type: "reset" })).toBe(initialCall);
   });

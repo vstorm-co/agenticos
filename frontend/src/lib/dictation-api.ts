@@ -83,17 +83,20 @@ export function dictationStatus(agentId: string): Promise<DictationStatus> {
 }
 
 /**
- * Refetch everything that says whether speech can be transcribed here.
+ * Refetch everything that says whether speech can be transcribed, or a call
+ * started, here.
  *
- * Every agent's readiness, and which providers the catalog marks usable: the
- * organization's voice settings, a publish or promotion, a model profile and a
- * vault key each change one or both, and none of them knows which agents it
- * touched.
+ * Every agent's dictation and call readiness, and which providers the catalog
+ * marks usable: the organization's voice settings, a publish or promotion, a
+ * model profile and a vault key each change one or more, and none of them knows
+ * which agents it touched.
  */
 export function invalidateSpeechSettings(queryClient: QueryClient): Promise<void> {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: qk.dictation.all() }),
     queryClient.invalidateQueries({ queryKey: qk.providers.speechToTextModels() }),
+    // Whether a call would start reads the same publish, key and settings (#54).
+    queryClient.invalidateQueries({ queryKey: qk.voice.all() }),
   ]).then(() => undefined);
 }
 
@@ -203,7 +206,18 @@ export async function dictateOnPage(
   );
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) throw new ApiError(response.status, parseErrorMessage(body), body);
-  return (body as { text: string }).text;
+  // A cross-origin answer is narrowed rather than trusted: a success with no
+  // text in it is the provider's failure, not the visitor's network.
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "text" in body &&
+    typeof body.text === "string"
+  ) {
+    return body.text;
+  }
+  // i18n-exempt: never shown; `dictationReason` reads it as provider_error.
+  throw new Error("The dictation answer carried no text");
 }
 
 /**

@@ -245,8 +245,8 @@ export function ChatInput({
   // nothing typed then would survive the insertion, and nothing may be sent.
   const dictating = phase === "requesting" || phase === "recording" || phase === "transcribing";
   // Where the person was in the text when they pressed the mic, and the text it
-  // points into; the transcript lands there.
-  const [caret, setCaret] = useState<{ at: number; text: string } | null>(null);
+  // points into; the transcript lands there, replacing a selection.
+  const [caret, setCaret] = useState<{ from: number; to: number; text: string } | null>(null);
   const [placeCaret, setPlaceCaret] = useState<{ at: number } | null>(null);
   const [announcement, setAnnouncement] = useState("");
 
@@ -263,17 +263,19 @@ export function ChatInput({
   const transcript = server?.state.transcript ?? null;
   if (useChanged(transcript?.id ?? null) && transcript !== null && caret !== null) {
     // The box is writable while a failed recording waits for Retry, so the text
-    // can change between the press and the transcript. The saved offset points
+    // can change between the press and the transcript. The saved offsets point
     // into text that is gone then, and the transcript goes at the end instead.
-    const at = message === caret.text ? Math.min(caret.at, message.length) : message.length;
-    const before = message.slice(0, at);
-    const after = message.slice(at);
+    const kept = message === caret.text;
+    const from = kept ? caret.from : message.length;
+    const to = kept ? caret.to : message.length;
+    const before = message.slice(0, from);
+    const after = message.slice(to);
     const join = before.length > 0 && !/\s$/.test(before) ? " " : "";
     const gap = after.length > 0 && !/^\s/.test(after) ? " " : "";
     const inserted = join + transcript.text + gap;
     setMessage(before + inserted + after);
     setCaret(null);
-    setPlaceCaret({ at: at + inserted.length });
+    setPlaceCaret({ at: from + inserted.length });
     setAnnouncement(tDictation("announceInserted", { count: wordCount(transcript.text) }));
   }
 
@@ -295,7 +297,8 @@ export function ChatInput({
   }, [dictating]);
 
   const startDictation = () => {
-    setCaret({ at: editorRef.current?.caret() ?? message.length, text: message });
+    const end = { from: message.length, to: message.length };
+    setCaret({ ...(editorRef.current?.selection() ?? end), text: message });
     void server?.actions.start();
   };
 
@@ -799,23 +802,25 @@ export function ChatInput({
               onExplain={server.onExplain}
             />
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={toggleMic}
-            disabled={disabled}
-            // It starts from the `+`, and shows here only to stop.
-            className={cn("h-9 w-9 shrink-0", !isListening && "hidden")}
-            title={isListening ? t("stopRecording") : t("voiceInput")}
-            aria-label={isListening ? t("stopRecording") : t("voiceInput")}
-          >
-            {isListening ? (
-              <MicOff className="text-destructive h-4 w-4 animate-pulse" />
-            ) : (
-              <Mic className="text-muted-foreground h-4 w-4" />
-            )}
-          </Button>
+          {engine === "browser" && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={toggleMic}
+              disabled={disabled}
+              // It starts from the `+`, and shows here only to stop.
+              className={cn("h-9 w-9 shrink-0", !isListening && "hidden")}
+              title={isListening ? t("stopRecording") : t("voiceInput")}
+              aria-label={isListening ? t("stopRecording") : t("voiceInput")}
+            >
+              {isListening ? (
+                <MicOff className="text-destructive h-4 w-4 animate-pulse" />
+              ) : (
+                <Mic className="text-muted-foreground h-4 w-4" />
+              )}
+            </Button>
+          )}
 
           {isProcessing && onStop ? (
             <Button

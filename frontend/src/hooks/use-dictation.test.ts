@@ -408,12 +408,12 @@ describe("useDictation", () => {
     expect(view.result.current.state.silent).toBe(false);
     await wait(200);
     expect(view.result.current.state.silent).toBe(true);
-    expect(view.result.current.state.level).toBe(0);
+    expect(view.result.current.state.meter.read()).toBe(0);
 
     audio.level = 0.2;
     await wait(100);
     expect(view.result.current.state.silent).toBe(false);
-    expect(view.result.current.state.level).toBeGreaterThan(0.3);
+    expect(view.result.current.state.meter.read()).toBeGreaterThan(0.3);
   });
 
   it("records without a level where the page cannot analyse audio", async () => {
@@ -424,7 +424,7 @@ describe("useDictation", () => {
     await wait(6000);
 
     expect(view.result.current.state.phase).toBe("recording");
-    expect(view.result.current.state.level).toBe(0);
+    expect(view.result.current.state.meter.read()).toBe(0);
     expect(view.result.current.state.silent).toBe(false);
   });
 
@@ -1178,7 +1178,7 @@ describe("useDictation - WAV, for a provider that does not take WebM or Opus", (
     await wait(100);
 
     expect(view.result.current.state.silent).toBe(false);
-    expect(view.result.current.state.level).toBeGreaterThan(0.3);
+    expect(view.result.current.state.meter.read()).toBeGreaterThan(0.3);
   });
 
   it("counts down in the last thirty seconds", async () => {

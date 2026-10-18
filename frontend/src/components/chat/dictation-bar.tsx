@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Check, Loader2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -103,6 +103,8 @@ export function DictationBar({
 }) {
   const t = useTranslations("chat.dictation");
   const reduced = useReducedMotion();
+  // Read here, not by the page: only the bar redraws as the voice moves.
+  const level = useSyncExternalStore(state.meter.subscribe, state.meter.read, () => 0);
   const stopRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const live = state.phase === "recording";
@@ -174,7 +176,7 @@ export function DictationBar({
       >
         <X className="text-muted-foreground h-4 w-4" />
       </Button>
-      {reduced ? <LevelSteps level={state.level} /> : <Waveform level={state.level} flat={!live} />}
+      {reduced ? <LevelSteps level={level} /> : <Waveform level={level} flat={!live} />}
       {/* Not live: a clock announced every second is noise. The status region
           in the composer says what matters, once. */}
       <span

@@ -38,7 +38,7 @@ vi.mock("@/hooks/use-dictation", async (importOriginal) => ({
         elapsed: 3,
         remaining: null,
         silent: false,
-        level: 0,
+        meter: { read: () => 0, subscribe: () => () => {} },
         reason: null,
         canRetry: false,
         retryAfter: null,

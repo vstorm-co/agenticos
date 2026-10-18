@@ -2,12 +2,29 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DictationActions, DictationState } from "@/hooks/use-dictation";
+import type { DictationActions, DictationState, LevelMeter } from "@/hooks/use-dictation";
 
 import { clock, DictationBar } from "./dictation-bar";
 
 const motionState = vi.hoisted(() => ({ reduced: false }));
 vi.mock("@/hooks/use-reduced-motion", () => ({ useReducedMotion: () => motionState.reduced }));
+
+/** A meter that reads `level` - and, written, tells whoever subscribed. */
+function at(level: number): LevelMeter & { write: (next: number) => void } {
+  let now = level;
+  const listeners = new Set<() => void>();
+  return {
+    read: () => now,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    write: (next) => {
+      now = next;
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
 
 function dictationState(overrides: Partial<DictationState> = {}): DictationState {
   return {
@@ -15,7 +32,7 @@ function dictationState(overrides: Partial<DictationState> = {}): DictationState
     elapsed: 7,
     remaining: null,
     silent: false,
-    level: 0,
+    meter: { read: () => 0, subscribe: () => () => {} },
     reason: null,
     canRetry: false,
     retryAfter: null,
@@ -171,7 +188,7 @@ describe("DictationBar", () => {
     vi.useFakeTimers();
     const actions = fakeActions();
     const { rerender } = render(
-      <DictationBar state={dictationState({ level: 0.5 })} actions={actions} />,
+      <DictationBar state={dictationState({ meter: at(0.5) })} actions={actions} />,
     );
     const bars = () => [...screen.getByTestId("waveform").children] as HTMLElement[];
     expect(bars()).toHaveLength(64);
@@ -180,18 +197,30 @@ describe("DictationBar", () => {
     act(() => vi.advanceTimersByTime(70));
     expect(bars().at(-1)!.style.transform).toBe("scaleY(0.5)");
 
-    rerender(<DictationBar state={dictationState({ level: 1.4 })} actions={actions} />);
+    rerender(<DictationBar state={dictationState({ meter: at(1.4) })} actions={actions} />);
     act(() => vi.advanceTimersByTime(70));
     expect(bars().at(-1)!.style.transform).toBe("scaleY(1)");
     expect(bars().at(-2)!.style.transform).toBe("scaleY(0.5)");
     expect(screen.queryByTestId("level-steps")).not.toBeInTheDocument();
   });
 
+  it("follows the meter on its own, with no new state from the page", () => {
+    vi.useFakeTimers();
+    const meter = at(0);
+    render(<DictationBar state={dictationState({ meter })} actions={fakeActions()} />);
+    const bars = () => [...screen.getByTestId("waveform").children] as HTMLElement[];
+
+    act(() => meter.write(0.5));
+    act(() => vi.advanceTimersByTime(70));
+
+    expect(bars().at(-1)!.style.transform).toBe("scaleY(0.5)");
+  });
+
   it("keeps the waveform flat while the browser is still asking", () => {
     vi.useFakeTimers();
     render(
       <DictationBar
-        state={dictationState({ phase: "requesting", level: 0.8 })}
+        state={dictationState({ phase: "requesting", meter: at(0.8) })}
         actions={fakeActions()}
       />,
     );
@@ -209,7 +238,7 @@ describe("DictationBar", () => {
     [1, 5],
   ])("under reduced motion lights the steps for level %s: %i of 5", (level, on) => {
     motionState.reduced = true;
-    render(<DictationBar state={dictationState({ level })} actions={fakeActions()} />);
+    render(<DictationBar state={dictationState({ meter: at(level) })} actions={fakeActions()} />);
 
     const steps = [...screen.getByTestId("level-steps").children];
     expect(steps).toHaveLength(5);

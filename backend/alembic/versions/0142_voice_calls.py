@@ -113,7 +113,12 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
-            ["run_id"], ["agent_runs.id"], name=op.f("voice_calls_run_id_fkey"), ondelete="SET NULL"
+            ["run_id"],
+            ["agent_runs.id"],
+            name=op.f("voice_calls_run_id_fkey"),
+            ondelete="SET NULL",
+            deferrable=True,
+            initially="DEFERRED",
         ),
         sa.ForeignKeyConstraint(
             ["secret_id"],

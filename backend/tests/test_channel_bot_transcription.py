@@ -325,6 +325,9 @@ def _readable(bot: ChannelBot) -> None:
     bot.access_policy = {}
     bot.is_active = True
     bot.webhook_mode = False
+    bot.stream_answers = True
+    bot.step_display = "timeline"
+    bot.rate_answers = True
     bot.created_at = datetime.now(UTC)
 
 

@@ -981,4 +981,5 @@ class TestVoiceSpec:
             VoiceSpec(max_call_seconds=3001)
 
     def test_the_spec_version_did_not_move(self):
-        assert SPEC_VERSION == 12
+        # 13 is the browser's fold (#2127); an optional section with a default adds none.
+        assert SPEC_VERSION == 13

@@ -70,9 +70,14 @@ class VoiceCall(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("agents.id", ondelete="SET NULL"), nullable=True, index=True
     )
     # SET NULL: the run is the money's record, the call row the minutes'. Either outlives the other.
+    # Checked at commit rather than per row: deleting an agent cascades to its
+    # runs and nulls this row's `agent_id` in one statement, and which of those
+    # actions runs first depends on the order the constraints were created in -
+    # checked at once, the `agent_id` update could meet a run already gone, before
+    # its own `run_id` was nulled, and the delete was refused.
     run_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("agent_runs.id", ondelete="SET NULL"),
+        ForeignKey("agent_runs.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"),
         nullable=True,
         index=True,
     )

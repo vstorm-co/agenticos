@@ -45,6 +45,8 @@ def _run(modality: str) -> AgentRun:
         output_tokens=0,
         cost_usd=Decimal("0.30"),
         cost_is_partial=False,
+        is_test=False,
+        tool_args_repaired=0,
         started_at=datetime.now(UTC),
     )
 

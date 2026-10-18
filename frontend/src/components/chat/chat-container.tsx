@@ -73,7 +73,9 @@ import {
   useVoiceSession,
   type VoiceSession,
 } from "@/hooks";
+import { useQueryClient } from "@tanstack/react-query";
 import { ROUTES } from "@/lib/constants";
+import { qk } from "@/lib/query-keys";
 import { dictate, type DictationSend } from "@/lib/dictation-api";
 import { Perm } from "@/types/permissions";
 import { dictationHint, DictationStrip } from "./dictation-strip";
@@ -292,6 +294,13 @@ export function ChatContainer({
   // A call belongs to its conversation: opening another, or a new chat, hangs
   // it up, and an ended call's summary does not follow anybody elsewhere.
   const { end: endCall, dismiss: dismissCall } = voice;
+  // A call that ended has spent minutes, and may have been refused for a key
+  // or a setting that has changed since: the next button reads afresh.
+  const queryClient = useQueryClient();
+  const callPhase = voice.call.phase;
+  useEffect(() => {
+    if (callPhase === "ended") void queryClient.invalidateQueries({ queryKey: qk.voice.all() });
+  }, [callPhase, queryClient]);
   useEffect(() => {
     const open = openCallRef.current;
     if (open === null || open.conversationId === currentConversationId) return;

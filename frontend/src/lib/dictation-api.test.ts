@@ -102,6 +102,26 @@ describe("dictateOnPage", () => {
     expect(form.get("duration")).toBe("3");
   });
 
+  it.each([["<html>proxy</html>"], [JSON.stringify({ transcript: "hi" })]])(
+    "reads a success with no text in it as the provider's failure, not the network's: %s",
+    async (body) => {
+      sendWithProgress.mockResolvedValue(new Response(body, { status: 200 }));
+
+      const answered = dictateOnPage(
+        target,
+        new Blob(["a"]),
+        1,
+        new AbortController().signal,
+        noProgress,
+      );
+
+      await answered.catch((error: unknown) =>
+        expect(dictationReason(error)).toBe("provider_error"),
+      );
+      await expect(answered).rejects.toThrow("no text");
+    },
+  );
+
   it("turns a refusal into the ApiError the composer's reasons read", async () => {
     sendWithProgress.mockResolvedValue(
       new Response(

@@ -189,6 +189,9 @@ function onFrame(state: CallState, frame: VoiceServerFrame, now: number): CallSt
     case "limit":
       return { ...state, warningSecondsLeft: frame.seconds_left, warningAt: now };
     case "ended":
+      // The server's answer to an End the page already put away - a new chat,
+      // another conversation - brings back no summary over what is open now.
+      if (state.phase === "idle") return state;
       return {
         ...state,
         phase: "ended",

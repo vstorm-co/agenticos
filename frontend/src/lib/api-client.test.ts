@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, apiClient } from "./api-client";
+import { CONSOLE_TAB, CONSOLE_TAB_HEADER } from "./console-tab";
 import { useAuthStore, useOrgStore } from "@/stores";
 
 /**
@@ -557,7 +558,10 @@ describe("uploading with progress", () => {
     expect(xhr!.url).toBe("/api/agents/a1/dictation");
     // The form the caller built, as it is: its other fields ride beside the file.
     expect(xhr!.body).toBe(form);
-    expect(xhr!.headers).toEqual({ "x-organization-id": "org-7" });
+    expect(xhr!.headers).toEqual({
+      "x-organization-id": "org-7",
+      [CONSOLE_TAB_HEADER.toLowerCase()]: CONSOLE_TAB,
+    });
     // Nothing for a step with no total; 1 once the last byte has left.
     expect(steps).toEqual([0.4, 1]);
   });

@@ -386,7 +386,7 @@ function dictationState(overrides: Partial<DictationState> = {}): DictationState
     elapsed: 0,
     remaining: null,
     silent: false,
-    level: 0,
+    meter: { read: () => 0, subscribe: () => () => {} },
     reason: null,
     canRetry: false,
     retryAfter: null,
@@ -428,17 +428,46 @@ function moved(dictation: ComposerDictation, state: Partial<DictationState>): Co
   return { ...dictation, state: { ...dictation.state, ...state } };
 }
 
+/** Open the `+` and pick Voice input, which is where dictation starts now. */
+async function pressDictate(): Promise<void> {
+  await userEvent.click(screen.getAllByRole("button", { name: "Add to message" })[0]!);
+  await userEvent.click(await screen.findByRole("menuitem", { name: /Voice input/ }));
+}
+
+/** Put the selection `from`-`to` characters into the editor's text. */
+function select(box: HTMLElement, from: number, to = from): void {
+  const text = box.firstChild!;
+  const range = document.createRange();
+  range.setStart(text, from);
+  range.setEnd(text, to);
+  const selection = window.getSelection()!;
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+/** Where the caret is in the editor's text. */
+function caretOf(box: HTMLElement): number {
+  const selection = window.getSelection()!;
+  const range = document.createRange();
+  range.setStart(box, 0);
+  range.setEnd(selection.focusNode!, selection.focusOffset);
+  return range.toString().length;
+}
+
 describe("ChatInput dictation engines", () => {
-  it("draws no microphone when the organization turned dictation off", () => {
+  it("offers no microphone when the organization turned dictation off", async () => {
     render(<ChatInput onSend={vi.fn()} dictation={serverDictation({ engine: "off" })} />);
 
     expect(screen.queryByRole("button", { name: "Voice input" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole("button", { name: "Add to message" })[0]!);
+    await screen.findByRole("menuitem", { name: /Attach/ });
+    expect(screen.queryByRole("menuitem", { name: /Voice input/ })).not.toBeInTheDocument();
   });
 
   it("keeps the browser's own speech recognition for the browser engine", async () => {
     render(<ChatInput onSend={vi.fn()} dictation={serverDictation({ engine: "browser" })} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "Voice input" }));
+    await pressDictate();
 
     // jsdom has no Web Speech API: the browser engine's own refusal, unchanged.
     expect(toast.info).toHaveBeenCalledWith(
@@ -446,13 +475,11 @@ describe("ChatInput dictation engines", () => {
     );
   });
 
-  it("starts recording on the server engine's mic", async () => {
+  it("starts recording on the server engine from the `+`", async () => {
     const dictation = serverDictation();
     render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
 
-    const mic = screen.getByRole("button", { name: "Voice input" });
-    expect(mic).not.toHaveAttribute("aria-disabled");
-    await userEvent.click(mic);
+    await pressDictate();
 
     expect(dictation.actions.start).toHaveBeenCalledOnce();
     expect(toast.info).not.toHaveBeenCalled();
@@ -468,6 +495,10 @@ describe("ChatInput dictation engines", () => {
     await userEvent.click(mic);
     expect(dictation.actions.start).not.toHaveBeenCalled();
     expect(dictation.onExplain).toHaveBeenCalledOnce();
+    // Nothing in the `+` to press instead.
+    await userEvent.click(screen.getAllByRole("button", { name: "Add to message" })[0]!);
+    await screen.findByRole("menuitem", { name: /Attach/ });
+    expect(screen.queryByRole("menuitem", { name: /Voice input/ })).not.toBeInTheDocument();
   });
 
   it("crosses the mic out when there is no agent to send the recording through", () => {
@@ -475,6 +506,16 @@ describe("ChatInput dictation engines", () => {
 
     expect(screen.getByRole("button", { name: "Voice input" })).toHaveAccessibleDescription(
       /^Pick an agent first\./,
+    );
+  });
+
+  it("says readiness did not load, rather than that nothing is set up", () => {
+    render(
+      <ChatInput onSend={vi.fn()} dictation={serverDictation({ ready: false, unchecked: true })} />,
+    );
+
+    expect(screen.getByRole("button", { name: "Voice input" })).toHaveAccessibleDescription(
+      /^Couldn't check dictation\./,
     );
   });
 });
@@ -494,8 +535,8 @@ describe("ChatInput while dictating", () => {
           controlsSlot={<span data-testid="agent-picker" />}
         />,
       );
-      const textarea = screen.getByRole("textbox");
-      await userEvent.type(textarea, "draft");
+      const box = screen.getByRole("textbox");
+      await userEvent.type(box, "draft");
 
       const busy = moved(dictation, { phase });
       rerender(
@@ -508,8 +549,9 @@ describe("ChatInput while dictating", () => {
         />,
       );
 
-      expect(textarea).toHaveAttribute("readonly");
-      fireEvent.keyDown(textarea, { key: "Enter" });
+      expect(box).toHaveAttribute("aria-readonly", "true");
+      expect(box).toHaveAttribute("contenteditable", "false");
+      fireEvent.keyDown(box, { key: "Enter" });
       fireEvent.submit(container.querySelector("form")!);
       expect(onSend).not.toHaveBeenCalled();
       expect(busy.actions.stop).toHaveBeenCalledTimes(phase === "recording" ? 1 : 0);
@@ -520,13 +562,11 @@ describe("ChatInput while dictating", () => {
         screen.getByRole("button", { name: "Stop generating" }).closest("[inert]"),
       ).toHaveClass("hidden");
 
-      fireEvent.keyDown(textarea, { key: "Escape" });
+      fireEvent.keyDown(box, { key: "Escape" });
       expect(busy.actions.cancel).toHaveBeenCalledOnce();
-      await userEvent.type(textarea, "more");
-      expect(textarea).toHaveValue("draft");
+      expect(messageOf(box)).toBe("draft");
     },
   );
-
   it("cancels on Escape from the bar too, and leaves Escape alone once idle", () => {
     const dictation = serverDictation({}, { phase: "recording" });
     const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
@@ -600,18 +640,18 @@ describe("ChatInput while dictating", () => {
 });
 
 describe("ChatInput inserting a transcript", () => {
-  /** Type, put the caret or selection somewhere, press the mic, and get the text back. */
+  /** Type, put the caret or selection somewhere, press Dictate, and get the box back. */
   async function dictateInto(
     typed: string,
     selection: [number, number] | null,
     text: string,
-  ): Promise<HTMLTextAreaElement> {
+  ): Promise<HTMLElement> {
     const dictation = serverDictation();
     const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
-    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
-    if (typed) await userEvent.type(textarea, typed);
-    if (selection) textarea.setSelectionRange(...selection);
-    fireEvent.click(screen.getByRole("button", { name: "Voice input" }));
+    const box = screen.getByRole("textbox");
+    if (typed) await userEvent.type(box, typed);
+    if (selection) select(box, ...selection);
+    await pressDictate();
 
     rerender(
       <ChatInput onSend={vi.fn()} dictation={moved(dictation, { phase: "transcribing" })} />,
@@ -620,42 +660,41 @@ describe("ChatInput inserting a transcript", () => {
     rerender(<ChatInput onSend={vi.fn()} dictation={done} />);
     // The same transcript again is not a second insertion.
     rerender(<ChatInput onSend={vi.fn()} dictation={{ ...done }} />);
-    return textarea;
+    return box;
   }
 
-  it("lands at the caret saved when the mic was pressed, and leaves the caret after it", async () => {
-    const textarea = await dictateInto("Summarise the board pack and ", null, "focus on churn");
+  it("lands at the caret saved when Dictate was pressed, and leaves the caret after it", async () => {
+    const box = await dictateInto("Summarise the board pack and ", null, "focus on churn");
 
-    expect(textarea).toHaveValue("Summarise the board pack and focus on churn");
-    await waitFor(() => expect(textarea).toHaveFocus());
-    expect(textarea.selectionStart).toBe(textarea.value.length);
-    expect(textarea.selectionEnd).toBe(textarea.value.length);
+    expect(messageOf(box)).toBe("Summarise the board pack and focus on churn");
+    await waitFor(() => expect(box).toHaveFocus());
+    await waitFor(() => expect(caretOf(box)).toBe(messageOf(box).length));
   });
 
   it("replaces a selection", async () => {
-    const textarea = await dictateInto("Summarise the board pack", [0, 9], "Shorten");
+    const box = await dictateInto("Summarise the board pack", [0, 9], "Shorten");
 
-    expect(textarea).toHaveValue("Shorten the board pack");
-    await waitFor(() => expect(textarea.selectionStart).toBe(7));
+    expect(messageOf(box)).toBe("Shorten the board pack");
+    await waitFor(() => expect(caretOf(box)).toBe(7));
   });
 
   it("adds a joining space after a word", async () => {
-    const textarea = await dictateInto("Summarise", null, "the board pack");
+    const box = await dictateInto("Summarise", null, "the board pack");
 
-    expect(textarea).toHaveValue("Summarise the board pack");
+    expect(messageOf(box)).toBe("Summarise the board pack");
   });
 
   it("adds a space after the transcript when a word follows the caret, and leaves the caret past it", async () => {
-    const textarea = await dictateInto("Summarise pack", [10, 10], "the board");
+    const box = await dictateInto("Summarise pack", [10, 10], "the board");
 
-    expect(textarea).toHaveValue("Summarise the board pack");
-    await waitFor(() => expect(textarea.selectionStart).toBe("Summarise the board ".length));
+    expect(messageOf(box)).toBe("Summarise the board pack");
+    await waitFor(() => expect(caretOf(box)).toBe("Summarise the board ".length));
   });
 
   it("fills an empty box without a leading space", async () => {
-    const textarea = await dictateInto("", null, "hello there");
+    const box = await dictateInto("", null, "hello there");
 
-    expect(textarea).toHaveValue("hello there");
+    expect(messageOf(box)).toBe("hello there");
   });
 
   it("says how many words landed", async () => {
@@ -677,11 +716,11 @@ describe("ChatInput inserting a transcript", () => {
   it("puts the note away on the next key, but not on a modifier alone", async () => {
     const dictation = serverDictation({}, { inserted: true, transcript: { id: 1, text: "hi" } });
     render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
-    const textarea = screen.getByRole("textbox");
+    const box = screen.getByRole("textbox");
 
-    fireEvent.keyDown(textarea, { key: "Shift" });
+    fireEvent.keyDown(box, { key: "Shift" });
     expect(dictation.actions.dismissInserted).not.toHaveBeenCalled();
-    fireEvent.keyDown(textarea, { key: "a" });
+    fireEvent.keyDown(box, { key: "a" });
 
     expect(dictation.actions.dismissInserted).toHaveBeenCalledOnce();
   });
@@ -698,23 +737,23 @@ describe("ChatInput inserting a transcript", () => {
   it("goes at the end, joined by a space, when the text was edited while a failure waited", async () => {
     const dictation = serverDictation();
     const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
-    const textarea = screen.getByRole<HTMLTextAreaElement>("textbox");
+    const box = screen.getByRole("textbox");
     const step = (state: Partial<DictationState>) =>
       rerender(<ChatInput onSend={vi.fn()} dictation={moved(dictation, state)} />);
-    fireEvent.click(screen.getByRole("button", { name: "Voice input" }));
+    await pressDictate();
     step({ phase: "transcribing" });
     step({ phase: "failed", reason: "provider_error", canRetry: true });
 
-    await userEvent.type(textarea, "Hello");
-    // Retry, from the strip under the box: the mic was not pressed again.
+    await userEvent.type(box, "Hello");
+    // Retry, from the strip under the box: Dictate was not pressed again.
     step({ phase: "transcribing" });
     step({ phase: "idle", transcript: { id: 1, text: "focus on churn" } });
 
-    expect(textarea).toHaveValue("Hello focus on churn");
-    await waitFor(() => expect(textarea.selectionStart).toBe(textarea.value.length));
+    expect(messageOf(box)).toBe("Hello focus on churn");
+    await waitFor(() => expect(caretOf(box)).toBe(messageOf(box).length));
   });
 
-  it("inserts nothing for a transcript nobody pressed the mic for", () => {
+  it("inserts nothing for a transcript nobody pressed Dictate for", () => {
     const dictation = serverDictation();
     const { rerender } = render(<ChatInput onSend={vi.fn()} dictation={dictation} />);
 
@@ -725,6 +764,6 @@ describe("ChatInput inserting a transcript", () => {
       />,
     );
 
-    expect(screen.getByRole("textbox")).toHaveValue("");
+    expect(messageOf(screen.getByRole("textbox"))).toBe("");
   });
 });

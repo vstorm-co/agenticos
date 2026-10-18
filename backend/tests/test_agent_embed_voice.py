@@ -45,7 +45,10 @@ def _agent():
         current_version_id=uuid4(),
         status="published",
         name="Helper",
+        slug="helper",
         avatar_path=None,
+        avatar_url=None,
+        avatar_color=None,
     )
 
 

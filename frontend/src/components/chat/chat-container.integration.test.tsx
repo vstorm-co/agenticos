@@ -69,7 +69,7 @@ vi.mock("@/hooks/use-dictation", async (importOriginal) => ({
         elapsed: 42,
         remaining: null,
         silent: false,
-        level: 0,
+        meter: { read: () => 0, subscribe: () => () => {} },
         reason: dictation.reason,
         canRetry: dictation.reason !== null,
         retryAfter: null,
@@ -321,10 +321,22 @@ describe("the chat container - following the transcript", () => {
     return observers;
   }
 
-  /** The transcript's scroller, a screen long and scrolled to its end, and the dock over it. */
+  /**
+   * The transcript's scroller, a screen long and scrolled to its end, and the
+   * dock over it. With a message in it: an empty conversation reads from its top
+   * and is not followed at all.
+   */
   async function scrollerAndDock() {
     mount();
     await screen.findByRole("button", { name: "Voice input" });
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "m-1",
+        role: "user",
+        content: "Send the invoice",
+        timestamp: new Date(),
+      }),
+    );
     const dock = screen.getByRole("textbox").closest(".absolute") as HTMLElement;
     const scroller = dock.previousElementSibling as HTMLElement;
     expect(scroller).toHaveClass("overflow-y-auto");
@@ -747,7 +759,7 @@ describe("the chat container - a voice call (#54)", () => {
     expect(screen.getByRole("button", { name: "End call" })).toBeInTheDocument();
     // The composer is still mounted, so a draft survives the call - and closed.
     expect(container.querySelector('button[type="submit"]')).toBeDisabled();
-    expect(screen.getByRole("textbox")).toBeDisabled();
+    expect(screen.getByRole("textbox")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("reads the transcript again in place as each spoken turn is saved", async () => {

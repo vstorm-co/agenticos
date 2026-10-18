@@ -254,7 +254,7 @@ def test_the_call_script_is_fetched_only_for_an_embed_with_calls_on():
     assert '"/api/v1/embed/" + KEY + "/voice.js?v=0123abcd"' in loader
     assert "if (voiceRequested) return;" in loader
     assert "window.AgenticOSVoice[KEY]" in loader
-    opening = RENDERED.split("launcher.onclick")[1].split("form.onsubmit")[0]
+    opening = RENDERED.split("function setOpen")[1].split("launcher.onclick")[0]
     assert "if (open && config.voice_conversation) loadVoice(callParts);" in opening
 
 
@@ -265,6 +265,6 @@ def test_a_failed_call_script_can_be_fetched_again():
 
 def test_closing_the_panel_ends_a_call():
     """A call with its End button hidden would go on billing out of sight."""
-    opening = RENDERED.split("launcher.onclick")[1].split("form.onsubmit")[0]
+    opening = RENDERED.split("function setOpen")[1].split("launcher.onclick")[0]
     assert "if (!open && voiceCall) voiceCall.end();" in opening
     assert "voiceCall = mountCall(parts, config)" in RENDERED

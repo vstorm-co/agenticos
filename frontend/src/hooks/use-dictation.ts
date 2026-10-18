@@ -60,6 +60,37 @@ const RETRYABLE: ReadonlySet<DictationReason> = new Set([
 export type DictationPhase =
   "idle" | "requesting" | "recording" | "transcribing" | "failed" | "too_short";
 
+/**
+ * The input level, 0..1, read by what draws it rather than by the page.
+ *
+ * Sampled fourteen times a second while recording; held in state it re-rendered
+ * the whole chat - every message and its markdown - at that rate. The waveform
+ * subscribes to it instead (`useSyncExternalStore`), and nothing else moves.
+ */
+export interface LevelMeter {
+  /** The smoothed level now. */
+  read: () => number;
+  /** Calls `listener` whenever the level moves; returns the unsubscribe. */
+  subscribe: (listener: () => void) => () => void;
+}
+
+function levelMeter(): LevelMeter & { write: (level: number) => void } {
+  let level = 0;
+  const listeners = new Set<() => void>();
+  return {
+    read: () => level,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    write: (next) => {
+      if (next === level) return;
+      level = next;
+      for (const listener of listeners) listener();
+    },
+  };
+}
+
 export interface DictationState {
   phase: DictationPhase;
   /** Whole seconds recorded so far. */
@@ -68,8 +99,8 @@ export interface DictationState {
   remaining: number | null;
   /** True after 5 s below the silence threshold while recording. */
   silent: boolean;
-  /** Smoothed input level, 0..1, for the waveform and the 5-step indicator. */
-  level: number;
+  /** Smoothed input level, for the waveform and the 5-step indicator. */
+  meter: LevelMeter;
   reason: DictationReason | MicFailure | null;
   /** True when a failed recording is held for Retry. */
   canRetry: boolean;
@@ -284,7 +315,7 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
   const [phase, setPhase] = useState<DictationPhase>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [silent, setSilent] = useState(false);
-  const [level, setLevel] = useState(0);
+  const [levels] = useState(levelMeter);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [canRetry, setCanRetry] = useState(false);
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
@@ -412,45 +443,48 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
   );
 
   /** Watch the stream's level for the waveform and the silence hint. */
-  const meter = useCallback((stream: MediaStream): (() => void) => {
-    const context = getAudioContext();
-    if (context === null) return () => {};
-    const source = context.createMediaStreamSource(stream);
-    const analyser = context.createAnalyser();
-    analyser.fftSize = 1024;
-    source.connect(analyser);
-    const samples = new Float32Array(analyser.fftSize);
-    let smoothed = 0;
-    let lastPublished = 0;
-    let quietSince = Date.now();
-    let quiet = false;
-    let frame = 0;
-    const sample = () => {
-      analyser.getFloatTimeDomainData(samples);
-      let sum = 0;
-      for (const value of samples) sum += value * value;
-      const target = Math.min(1, Math.sqrt(sum / samples.length) * LEVEL_GAIN);
-      smoothed += (target - smoothed) * (target > smoothed ? ATTACK : RELEASE);
-      const now = Date.now();
-      if (smoothed >= SILENCE_LEVEL) quietSince = now;
-      const nowQuiet = now - quietSince >= SILENCE_MS;
-      if (nowQuiet !== quiet) {
-        quiet = nowQuiet;
-        setSilent(nowQuiet);
-      }
-      if (now - lastPublished >= LEVEL_EVERY_MS) {
-        lastPublished = now;
-        setLevel(smoothed);
-      }
+  const meter = useCallback(
+    (stream: MediaStream): (() => void) => {
+      const context = getAudioContext();
+      if (context === null) return () => {};
+      const source = context.createMediaStreamSource(stream);
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 1024;
+      source.connect(analyser);
+      const samples = new Float32Array(analyser.fftSize);
+      let smoothed = 0;
+      let lastPublished = 0;
+      let quietSince = Date.now();
+      let quiet = false;
+      let frame = 0;
+      const sample = () => {
+        analyser.getFloatTimeDomainData(samples);
+        let sum = 0;
+        for (const value of samples) sum += value * value;
+        const target = Math.min(1, Math.sqrt(sum / samples.length) * LEVEL_GAIN);
+        smoothed += (target - smoothed) * (target > smoothed ? ATTACK : RELEASE);
+        const now = Date.now();
+        if (smoothed >= SILENCE_LEVEL) quietSince = now;
+        const nowQuiet = now - quietSince >= SILENCE_MS;
+        if (nowQuiet !== quiet) {
+          quiet = nowQuiet;
+          setSilent(nowQuiet);
+        }
+        if (now - lastPublished >= LEVEL_EVERY_MS) {
+          lastPublished = now;
+          levels.write(smoothed);
+        }
+        frame = requestAnimationFrame(sample);
+      };
       frame = requestAnimationFrame(sample);
-    };
-    frame = requestAnimationFrame(sample);
-    return () => {
-      cancelAnimationFrame(frame);
-      source.disconnect();
-      analyser.disconnect();
-    };
-  }, []);
+      return () => {
+        cancelAnimationFrame(frame);
+        source.disconnect();
+        analyser.disconnect();
+      };
+    },
+    [levels],
+  );
 
   /** Close the recording's plumbing and the microphone with it. */
   const closeRecording = useCallback(() => {
@@ -459,8 +493,8 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
     recorderRef.current = null;
     micRef.current.stop();
     setSilent(false);
-    setLevel(0);
-  }, []);
+    levels.write(0);
+  }, [levels]);
 
   const record = useCallback(
     (stream: MediaStream, session: number) => {
@@ -540,7 +574,7 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
     setCanRetry(false);
     setElapsed(0);
     setSilent(false);
-    setLevel(0);
+    levels.write(0);
     if (!micRef.current.supported) {
       setFailure("mic_insecure");
       moveTo("failed");
@@ -566,7 +600,7 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
       return;
     }
     record(stream, session);
-  }, [sendTo, clearCountdown, dismissInserted, moveTo, record]);
+  }, [sendTo, clearCountdown, dismissInserted, moveTo, record, levels]);
 
   const stop = useCallback(() => {
     const recorder = recorderRef.current;
@@ -629,7 +663,7 @@ export function useDictation({ mic, send: sendTo, maxSeconds, format }: UseDicta
           ? Math.max(0, remainingSeconds)
           : null,
       silent,
-      level,
+      meter: levels,
       reason,
       canRetry,
       retryAfter,

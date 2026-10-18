@@ -50,7 +50,7 @@ function dictationState(overrides: Partial<DictationState> = {}): DictationState
     elapsed: 42,
     remaining: null,
     silent: false,
-    level: 0,
+    meter: { read: () => 0, subscribe: () => () => {} },
     reason: null,
     canRetry: false,
     retryAfter: null,

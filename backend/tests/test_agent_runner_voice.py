@@ -116,6 +116,18 @@ def _db() -> MagicMock:
     return db
 
 
+@pytest.fixture(autouse=True)
+def _in_no_group(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nobody here is in a group; `test_prompt_variables` covers `{{groups}}`."""
+    monkeypatch.setattr(
+        "app.services.agent_runner.group_repo.names_for_member", AsyncMock(return_value=[])
+    )
+    monkeypatch.setattr(
+        "app.services.agent_runner.group_repo.capped_groups_for_member",
+        AsyncMock(return_value=[]),
+    )
+
+
 @pytest.fixture
 def runner_with_mocks():
     service = AgentRunnerService(_db())

@@ -10,8 +10,11 @@ import type { AnswerStyle, ChannelBot, ChannelPlatform } from "@/types/channels"
 
 vi.mock("@/hooks/use-channel-bots", () => ({
   useCopySlackManifest: () => ({ mutate: vi.fn(), isPending: false }),
+  // What "inherit" resolves to is the transcription fields' concern, mocked below.
+  useChannelBot: () => null,
 }));
-vi.mock("@/components/channels/transcription-fields", () => ({
+vi.mock("@/components/channels/transcription-fields", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/channels/transcription-fields")>()),
   TranscriptionFields: () => null,
 }));
 

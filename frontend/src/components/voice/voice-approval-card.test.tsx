@@ -43,7 +43,7 @@ describe("VoiceApprovalCard", () => {
         onDecide={vi.fn()}
       />,
     );
-    expect(screen.getByRole("group", { name: "Approve Published page?" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Approve Published app?" })).toBeInTheDocument();
     expect(screen.queryByText(/You said/)).toBeNull();
   });
 
