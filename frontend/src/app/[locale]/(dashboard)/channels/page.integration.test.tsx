@@ -308,10 +308,14 @@ describe("the channels page", () => {
         },
       ],
     ] as const) {
-      await userEvent.click(await screen.findByRole("button", { name: "Register a channel" }));
+      await userEvent.click(
+        (await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!,
+      );
       await userEvent.type(screen.getByLabelText(/Name/), "Acme Support");
       await userEvent.type(screen.getByLabelText(/Bot token/), "a-long-enough-token");
       await userEvent.type(screen.getByLabelText(/Server URL/), "https://mattermost.acme.com");
+      // Transcription waits under More options, beside the answer style.
+      await userEvent.click(screen.getByRole("button", { name: "More options" }));
       await userEvent.click(screen.getByRole("radio", { name: choice }));
       await userEvent.click(screen.getByRole("button", { name: "Register" }));
 
@@ -321,6 +325,10 @@ describe("the channels page", () => {
           name: "Acme Support",
           token: "a-long-enough-token",
           api_base_url: "https://mattermost.acme.com",
+          ack_reaction: null,
+          stream_answers: true,
+          step_display: "timeline",
+          rate_answers: true,
           ...sent,
         }),
       );

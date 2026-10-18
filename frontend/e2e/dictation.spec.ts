@@ -128,8 +128,7 @@ test.afterAll(async ({ playwright }, testInfo) => {
  *
  * "Live" is the same wait `chat.spec.ts` makes. The microphone's own wait is
  * the assertion the settings landed: with `server` not yet read, or no agent
- * picked, the button carries the same name but is `aria-disabled` and explains
- * itself instead of recording.
+ * picked, the `+` offers no voice input and the composer explains why instead.
  */
 async function readyComposer(page: Page) {
   await page.goto("/chat");
@@ -137,13 +136,21 @@ async function readyComposer(page: Page) {
 
   const input = page.getByRole("textbox", { name: "Type a message..." });
   await expect(input).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Voice input" })).toBeEnabled();
+  await page.getByRole("button", { name: "Add to message" }).click();
+  await expect(page.getByRole("menuitem", { name: /Voice input/ })).toBeVisible();
+  await page.keyboard.press("Escape");
   return input;
+}
+
+/** Start recording from the composer's `+`, where the microphone lives. */
+async function startDictating(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Add to message" }).click();
+  await page.getByRole("menuitem", { name: /Voice input/ }).click();
 }
 
 /** Record for at least a second: anything shorter is refused before it is sent. */
 async function recordASecond(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Voice input" }).click();
+  await startDictating(page);
   await expect(page.getByRole("timer", { name: "Recording time" })).toHaveText(/0:0[1-9]/);
   await page.getByRole("button", { name: "Stop and transcribe" }).click();
 }
@@ -250,7 +257,7 @@ test.describe("Server dictation", () => {
     });
 
     const composer = await readyComposer(page);
-    await page.getByRole("button", { name: "Voice input" }).click();
+    await startDictating(page);
 
     // Nothing is pressed: the organization's 10 s limit stops it.
     const strip = page.getByTestId("dictation-strip");

@@ -584,10 +584,6 @@ class TestPaidSurfacesKeepAFloorWhileRedisIsDown:
     bounds a stranger's spend on a public link: failing open there would make a
     Redis outage unlimited paid calls (Codex on #2138)."""
 
-    @pytest.fixture(autouse=True)
-    def _fresh_floor(self, monkeypatch):
-        monkeypatch.setattr(rate_limit, "_floor", rate_limit.LocalWindows())
-
     async def test_an_address_is_held_to_its_allowance_with_no_limiter(self, monkeypatch):
         monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_MINUTE", 6)
         monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE", 100)

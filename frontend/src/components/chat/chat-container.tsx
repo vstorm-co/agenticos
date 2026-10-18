@@ -505,10 +505,12 @@ export function ChatContainer({
   // jumped to its foot on each answer (#2074).
   // An empty conversation is not followed at all: its welcome reads from the
   // top, and in a narrow window - the Architect's, the test panel - following
-  // the foot scrolled the greeting and the face above it out of view.
-  const emptyRef = useRef(messages.length === 0);
+  // the foot scrolled the greeting and the face above it out of view. A call is
+  // content even before any of its turns is saved: its captions are followed.
+  const empty = messages.length === 0 && callPhase === "idle";
+  const emptyRef = useRef(empty);
   useEffect(() => {
-    emptyRef.current = messages.length === 0;
+    emptyRef.current = empty;
     const container = scrollContainerRef.current;
     if (emptyRef.current) {
       container?.scrollTo({ top: 0 });
@@ -516,7 +518,7 @@ export function ChatContainer({
     }
     if (userScrolledUpRef.current) return;
     container?.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  }, [messages, empty]);
   // And on growth the messages do not announce: an answer's last words are
   // revealed over frames after its message has stopped changing.
   const holdFollow = useCallback(() => emptyRef.current || userScrolledUpRef.current, []);
@@ -1043,9 +1045,10 @@ function ChatUI({
   // at the bottom stays there; one who scrolled up is left where they are.
   useLayoutEffect(() => {
     const scroller = scrollContainerRef.current;
-    if (scroller === null || userScrolledUpRef.current || messages.length === 0) return;
+    const empty = messages.length === 0 && voice.call.phase === "idle";
+    if (scroller === null || userScrolledUpRef.current || empty) return;
     scroller.scrollTop = scroller.scrollHeight;
-  }, [dockHeight, scrollContainerRef, userScrolledUpRef, messages.length]);
+  }, [dockHeight, scrollContainerRef, userScrolledUpRef, messages.length, voice.call.phase]);
   return (
     <div className="relative flex h-full w-full">
       {/* The column no longer carries the width. The scroller does, and the

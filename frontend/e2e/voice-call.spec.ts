@@ -307,6 +307,6 @@ test("an organization with calls off offers no call button at all", async ({ pag
   const answered = page.waitForResponse("**/api/agents/*/voice");
   await chatWithSeededAgent(page);
   await answered;
-  await expect(page.getByRole("button", { name: "Voice input" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add to message" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Start a voice call" })).toHaveCount(0);
 });
