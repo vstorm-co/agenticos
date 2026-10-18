@@ -1,5 +1,5 @@
 ---
-source_sha: "60dde7e73718"
+source_sha: "334e30b5b4f6"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -63,6 +63,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony |
 | `charts` | Wykresy | analiza | `create_chart` | — | — |
+| `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany |
 | `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
@@ -1086,6 +1087,54 @@ też workspace (capability `sandbox`), ten sam obraz jest zapisywany w nim pod
 `/output`, żeby późniejszy krok `execute` mógł coś z niego zbudować — złożyć PDF,
 slajd, stronę. Agent bez workspace'u nadal generuje i pokazuje obrazy; po prostu
 nie ma gdzie niczego z nich zbudować.
+
+## Wizualizacje { #visuals }
+
+`draw` — *Narysuj w rozmowie: diagram, mapę, przepływ, explainer, scenę 3D.*
+`revise_visual` — *Zmień wizual dokładnymi zamianami, bez rysowania go od nowa.*
+`read_visual` — *Przeczytaj wizual z tej rozmowy w obecnej postaci, z naniesionymi poprawkami.*
+
+Rysuje w samym czacie. `kind` to `svg` dla diagramów i ilustracji, `mermaid` dla
+schematów blokowych, sekwencji i diagramów ER albo `html` dla wszystkiego, co
+interaktywne - suwaków, `<canvas>`, three.js. Bez konfiguracji; dostarczany skill
+`visual-design` niesie styl i trzy szablony, a Builder podpina go przy włączeniu
+Wizualizacji.
+
+**Pojawia się w trakcie pisania.** Rysunek to argument `content` wywołania. Konsola
+czyta go ze strumieniowanych argumentów i wysyła do ramki pod wiadomością, więc SVG
+i HTML rosną na ekranie, a Mermaid przerysowuje się po każdej pełnej linii. Skrypty
+startują raz, po zakończeniu wywołania: do tego czasu znaczniki są pokazywane bez
+skryptów i atrybutów `on*`, więc w połowie napisana scena nigdy nie rusza.
+
+**Żyje w rozmowie.** Zapisywane jest tylko wywołanie narzędzia, które transkrypt i tak
+przechowuje, więc przeładowanie i udostępniony wątek rysują je ponownie. Wcześniejsza
+tura trafia do modelu tylko jako tekst, dlatego capability wymienia w instrukcjach
+wcześniejsze wizuale rozmowy - po id i tytule - a `read_visual` przywraca jeden przed
+poprawką.
+
+**Model słyszy, jak się wyrenderował.** Gdy ktoś patrzy w czacie, konsola zgłasza błędy
+skryptów, nieudane ładowania i odrzucone żądania każdego rysunku, a `draw` czeka na ten
+raport do dziesięciu sekund, zanim odpowie - więc model poprawia zepsuty rysunek przez
+`revise_visual` w tej samej turze. Gdy nikt nie patrzy, odpowiada od razu i mówi, że
+rysunek nie został sprawdzony.
+
+**Poprawki** to dokładne zamiany, ta sama reguła co edycje `publish_artifact`, i każda
+jest osobnym wizualem pod wiadomością, która ją zrobiła. Rysunek za duży na aplikację
+(`ARTIFACT_MAX_BYTES`), SVG, które nie jest jednym elementem `<svg>`, albo rysunek,
+który ładuje cokolwiek z innej witryny, to ponowienie z informacją, co zmienić.
+
+**Obrazy.** `images` wnosi do rysunku do sześciu obrazów, każdy pod nazwą, której
+rysunek używa jako `{{image:NAME}}`: obraz załączony do rozmowy, plik w workspace
+albo adres `https://`. Adres działa tylko dla agenta, który już czyta sieć - z
+włączonym `web_fetch` albo `browser_use` - i tylko na hoście, który któryś z nich
+by przeczytał: ich `allowed_domains` i `blocked_domains` ograniczają też obrazy, a
+pobierania nie można przekierować na inny host. Każdy obraz ma najwyżej 2 MiB, a
+wizual niesie tylko obrazy, których jego rysunek wciąż używa, najwyżej sześć przez
+wszystkie rewizje.
+
+**Ma izolację aplikacji.** Ramka to sandbox aplikacji - nieprzezroczysty origin,
+`connect-src 'none'`, nic zdalnego poza zestawem bibliotek deploymentu, który zawiera
+teraz three.js i Mermaid. Zobacz [Wizualizacje](../artifacts.md#visuals).
 
 ## Aplikacje { #artifacts }
 

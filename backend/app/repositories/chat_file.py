@@ -56,6 +56,26 @@ async def get_in_conversation(
     return result.scalar_one_or_none()
 
 
+async def latest_named_in_conversation(
+    db: AsyncSession, filename: str, *, conversation_id: UUID
+) -> ChatFile | None:
+    """The newest attachment of this name on one of the thread's turns.
+
+    The scope is :func:`get_in_conversation`'s: a file is reached only where its
+    message is in this conversation, so a name cannot reach another thread's
+    upload. The newest, because a person who sends `logo.png` twice means the one
+    they just sent.
+    """
+    result = await db.execute(
+        select(ChatFile)
+        .join(Message, Message.id == ChatFile.message_id)
+        .where(ChatFile.filename == filename, Message.conversation_id == conversation_id)
+        .order_by(ChatFile.created_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def link_to_message(
     db: AsyncSession, *, message_id: UUID, file_ids: Iterable[UUID], user_id: UUID
 ) -> int:

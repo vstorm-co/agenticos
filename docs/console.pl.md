@@ -1,5 +1,5 @@
 ---
-source_sha: "9766a1c697e8"
+source_sha: "27d973f8560b"
 ---
 
 # Konsola { #the-console }
@@ -289,6 +289,16 @@ klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera,
 Enter zaczyna nową linię, a załącznik i
 dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
 przybliżał.
+
+**Rysunki.** Agent z [Wizualizacjami](reference/capabilities.md#visuals) rysuje pod
+swoją wiadomością - diagram, explainer z suwakami, scenę 3D - a ty widzisz, jak powstaje
+w trakcie pisania; jego skrypty startują po zakończeniu. Panel pokazuje cały rysunek,
+dopasowany do rozmowy, z przyciskami do pełnego ekranu, pokazania kodu, pobrania,
+skopiowania SVG jako obrazu, powiększenia i zapisu jako
+[aplikacji](artifacts.md#visuals) z linkiem do udostępnienia. Gdy rysunek zgłosi błąd,
+agent już o nim wie; **Napraw** prosi go ponownie. Na telefonie stuknięcie otwiera go na
+pełnym ekranie. Karta **Ostatnie wizualizacje** na dashboardzie pokazuje najnowsze
+rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
 
 **Oglądanie przeglądania.** Gdy agent z
 [przeglądarką](reference/capabilities.md#browser-automation) zaczyna na stronie, jego

@@ -3,13 +3,15 @@
 import { useState } from "react";
 
 import { McpBindingDialog } from "@/components/agents/mcp-binding-dialog";
+import { useBranding } from "@/components/branding/branding-provider";
 import { CardStatus, McpServerCard } from "@/components/mcp/mcp-server-card";
+import { PlatformServerCard } from "./platform-server-card";
 import { Checkbox, Pager, SearchInput, Switch, useListControls } from "@/components/ui";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import { entryForConnection } from "@/lib/mcp-servers";
 import type { McpConnectionRecord, McpToolInfo } from "@/lib/mcp-connections-api";
 import type { AccountRef } from "@/components/agents/mcp-binding-dialog";
-import type { McpServerRef } from "@/types/agents";
+import type { McpServerRef, PlatformMcpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
 import { useTranslations } from "next-intl";
 
@@ -117,6 +119,7 @@ export function McpServerPicker({
   disabled,
 }: McpServerPickerProps) {
   const t = useTranslations("agents");
+  const { appName } = useBranding();
   const [connectedOnly, setConnectedOnly] = useState(false);
   const known = new Set(connections.map((connection) => connection.id));
   const catalogKeys = new Set(catalog.map((entry) => entry.key));
@@ -136,6 +139,9 @@ export function McpServerPicker({
           ? []
           : [ref.catalog_key],
   );
+
+  const platform =
+    value.find((ref): ref is PlatformMcpServerRef => ref.account === "platform") ?? null;
 
   /** Replace every binding this row held with `next` - several, one, or none. */
   const rebind = (row: CardRow, next: AccountRef[]) => {
@@ -191,6 +197,13 @@ export function McpServerPicker({
       row.name.toLowerCase().includes(query) || row.description.toLowerCase().includes(query),
   });
 
+  // The built-in card answers a search as the catalog's do, so a query matching
+  // none of them does not leave it standing beside "no matches".
+  const query = list.query.trim().toLowerCase();
+  const platformMatches =
+    query === "" ||
+    [appName, t("platformServerDescription")].some((text) => text.toLowerCase().includes(query));
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -209,6 +222,20 @@ export function McpServerPicker({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {/* First, and on every page a search does not rule out: the one server
+            that needs no connection, because it is this deployment (#2190). */}
+        {list.page === 0 && !connectedOnly && platformMatches && (
+          <PlatformServerCard
+            binding={platform}
+            onChange={(next) =>
+              onChange([
+                ...value.filter((ref) => ref.account !== "platform"),
+                ...(next === null ? [] : [next]),
+              ])
+            }
+            disabled={disabled}
+          />
+        )}
         {list.visible.map((row) => (
           <ServerCard
             key={row.key}

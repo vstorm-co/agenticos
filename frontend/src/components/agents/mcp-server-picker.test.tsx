@@ -3,10 +3,16 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { bindingKey, McpServerPicker } from "./mcp-server-picker";
+import { NEW_PLATFORM_BINDING } from "./platform-server-card";
 import type { McpConnectionRecord } from "@/lib/mcp-connections-api";
 import type { OrgMcpConnectionRecord } from "@/lib/org-mcp-connections-api";
 import type { McpServerRef, OrgMcpServerRef, PersonalMcpServerRef } from "@/types/agents";
 import type { McpCatalogEntry } from "@/types/mcp";
+
+vi.mock("@/hooks", async (original) => ({
+  ...(await original<typeof import("@/hooks")>()),
+  usePlatformMcpTools: () => ({ tools: [], isLoading: false, error: null }),
+}));
 
 function entry(overrides: Partial<McpCatalogEntry> = {}): McpCatalogEntry {
   return { ...GITHUB, ...overrides };
@@ -167,6 +173,36 @@ describe("McpServerPicker", () => {
     await userEvent.click(screen.getByRole("switch", { name: "Use GitHub in this agent" }));
 
     expect(onChange).toHaveBeenCalledWith([bound("c1")]);
+  });
+
+  it("offers this platform's own server first, and binds it beside the others", async () => {
+    const onChange = vi.fn();
+    const { unmount } = render(
+      picker({ connections: [connection()], value: [bound("c1")], onChange }),
+    );
+    const [first] = screen.getAllByRole("group");
+    expect(within(first as HTMLElement).getByText("Built in")).toBeInTheDocument();
+
+    await userEvent.click(within(first as HTMLElement).getByRole("switch"));
+    expect(onChange).toHaveBeenLastCalledWith([bound("c1"), NEW_PLATFORM_BINDING]);
+    unmount();
+
+    render(
+      picker({ connections: [connection()], value: [NEW_PLATFORM_BINDING, bound("c1")], onChange }),
+    );
+    await userEvent.click(
+      within(screen.getAllByRole("group")[0] as HTMLElement).getByRole("switch"),
+    );
+    expect(onChange).toHaveBeenLastCalledWith([bound("c1")]);
+  });
+
+  it("lets a search rule out the built-in server as it rules out the others", async () => {
+    render(picker({ connections: [connection()], value: [], onChange: vi.fn() }));
+    expect(screen.getByText("Built in")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText("Search servers…"), "github");
+    expect(screen.queryByText("Built in")).toBeNull();
+    expect(screen.getByText("GitHub")).toBeInTheDocument();
   });
 
   it("drops a binding rather than writing it twice", async () => {

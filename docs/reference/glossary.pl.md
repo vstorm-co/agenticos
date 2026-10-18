@@ -1,5 +1,5 @@
 ---
-source_sha: "911fcf1c1d12"
+source_sha: "6cf7abf21033"
 ---
 
 # Słownik { #glossary }
@@ -84,5 +84,6 @@ w [Capabilities](capabilities.md).
 | Myślenie | `thinking` |
 | Limity wyników narzędzi | `tool_output_limits` |
 | Wyszukiwanie narzędzi | `tool_search` |
+| Wizualizacje | `visuals` |
 | Czytanie stron | `web_fetch` |
 | Wyszukiwanie w internecie | `web_research` |

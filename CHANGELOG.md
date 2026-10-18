@@ -17,6 +17,47 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **The AgenticOS MCP server for any agent** (#2190). The platform's own MCP
+  server is the first card under an agent's **MCP servers**: switched on, the
+  agent reads the platform's agents, runs, spend, knowledge bases, skills and
+  members as whoever it runs for, with exactly their permissions, and every
+  tool that changes something waits for approval. The card's settings narrow the tools
+  and can hold every call. The **Claude Code like** template binds it.
+  `GET /api/v1/agents/platform-mcp-tools` lists the tools a binding chooses
+  from. See [MCP](docs/mcp.md#giving-it-to-an-agent).
+- **Agents draw in the conversation** (#2171). A new **Visuals** capability
+  gives an agent `draw`, `revise_visual` and `read_visual`: an SVG diagram, a
+  Mermaid flow, or a whole HTML page with sliders, `<canvas>` or three.js,
+  drawn under its message while it is written and kept in the conversation. The
+  drawing runs in a frame with exactly an app's sandbox, and the console tells
+  the model what broke in the person's browser so it fixes it in the same turn.
+  A drawing can use a photo attached to the thread, a workspace file, or - for
+  an agent that already reads the web - a picture from an address. From the
+  panel: full screen, zoom, the code, download, copy as image, fix it, and
+  **Save to Apps** with versions. A shared thread shows its drawings, the
+  dashboard gains a **Recent visuals** card, and with `VISUAL_RENDER_CDP_URL` a
+  chat app gets the drawing as a picture. The bundled `visual-design` skill
+  carries the house style and templates; the library set gains three.js 0.186.0
+  and Mermaid 12.1.0. `seed-skills --skill` installs one bundled skill.
+- **An agent's skills, context files and knowledge bases are listed with the
+  attached ones first**, in a capability's panel, ten to a page.
+
+### Fixed
+
+- **An agent installed from a template is visible to the whole organization.**
+  It was installed private, so a colleague could not see it until somebody
+  shared it by hand. A template's instructions ship with the product, so there
+  is nothing private in them to protect; a clone or a promoted specialist
+  still starts private.
+- **A deploy that waits for its images no longer drops its connection.** The
+  deploy job's SSH session sat silent while a merge's images were still being
+  built, and the host dropped it four minutes in, failing the deploy with
+  nothing changed. It now sends keepalives for as long as the wait lasts.
+- **A conversation shared by link opens again.** Its route promised a member's
+  conversation and returned the link's narrower shape, so every link answered 500.
+
 ## [1.4.0] - 2026-10-18
 
 ### Added
@@ -127,10 +168,6 @@ Two things are versioned separately from this file and worth knowing about:
   it, the box cycles through examples built from the agent's own servers,
   capabilities, delegates and skills, and `/`, sliding from one to the next;
   clicking into it or sending clears them.
-
-### Fixed
-
-### Changed
 
 ## [1.1.1] - 2026-10-16
 

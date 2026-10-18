@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wind turbine</title>
+  <style>
+    :root { color-scheme: light dark; }
+    html, body { margin: 0; height: 100%; overflow: hidden; }
+    body { background: #e4e4e7; }
+    @media (prefers-color-scheme: dark) { body { background: #18181b; } }
+    canvas { display: block; }
+    .hint { position: fixed; left: 12px; bottom: 10px; font: 12px system-ui, sans-serif; opacity: .6; color: CanvasText; }
+  </style>
+  <script type="importmap">
+    { "imports": { "three": "./lib/three-0.186.0/three.module.js",
+                   "three/addons/": "./lib/three-0.186.0/addons/" } }
+  </script>
+</head>
+<body>
+  <div class="hint">Drag to turn, scroll to zoom</div>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 200);
+    camera.position.set(13, 8, 17);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0, 5, 0);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, dark ? 0x222233 : 0x8899aa, 1.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+    sun.position.set(6, 12, 8);
+    scene.add(sun);
+
+    const white = new THREE.MeshStandardMaterial({ color: 0xf4f4f5, roughness: 0.5 });
+    const grass = new THREE.MeshStandardMaterial({ color: dark ? 0x3f6b4a : 0x7fb069, roughness: 0.9 });
+
+    const ground = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 0.4, 48), grass);
+    ground.position.y = -0.2;
+    scene.add(ground);
+
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.35, 8, 24), white);
+    tower.position.y = 4;
+    scene.add(tower);
+
+    const nacelle = new THREE.Group();
+    nacelle.position.set(0, 8.1, 0);
+    scene.add(nacelle);
+    nacelle.add(new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.9, 6, 16).rotateZ(Math.PI / 2), white));
+
+    const rotor = new THREE.Group();
+    rotor.position.set(0.75, 0, 0);
+    nacelle.add(rotor);
+    rotor.add(new THREE.Mesh(new THREE.SphereGeometry(0.25, 24, 16), white));
+    for (let i = 0; i < 3; i += 1) {
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 3.6, 0.3), white);
+      blade.position.y = 1.9;
+      const arm = new THREE.Group();
+      arm.rotation.x = (i * Math.PI * 2) / 3;
+      arm.add(blade);
+      rotor.add(arm);
+    }
+
+    addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    renderer.setAnimationLoop(() => {
+      if (!still) rotor.rotation.x += 0.03;
+      controls.update();
+      renderer.render(scene, camera);
+    });
+  </script>
+</body>
+</html>

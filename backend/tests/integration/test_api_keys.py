@@ -34,6 +34,7 @@ from app.main import app
 from app.schemas.api_key import ApiKeyCreate
 from app.services import rate_limit
 from app.services.api_key import ApiKeyService
+from app.services.platform_mcp import PlatformApi, platform_tools
 
 pytestmark = pytest.mark.anyio
 
@@ -851,3 +852,42 @@ class TestTheAssistantsCredential:
         async with get_db_context() as elsewhere:
             caller = await ApiKeyService(elsewhere).authenticate(minted)
         assert caller.user.id == owner.id
+
+
+class TestThePlatformServerAsAnAgentsBinding:
+    """An agent binding AgenticOS's own MCP server acts as whoever it runs for (#2190).
+
+    Through the very tools a run is handed, called in-process against the real
+    API: what a Viewer could not do in the console, their agent cannot do through
+    the platform's tools either, and what they could, it can.
+    """
+
+    async def test_a_viewer_s_agent_reads_but_cannot_create_an_agent(
+        self, db: AsyncSession, client: Client
+    ) -> None:
+        owner = await _person(db)
+        organization = await _organization(db, owner)
+        viewer = await _join(db, organization, OrgRoleName.VIEWER)
+        credential = await ApiKeyService(db).issue_for_run(
+            AuthContext(user_id=viewer.id, organization_id=organization.id, role="viewer")
+        )
+        refusals: list[str] = []
+
+        def refuse(message: str) -> dict[str, str]:
+            refusals.append(message)
+            return {"refused": message}
+
+        tools = {
+            tool.name: tool.function
+            for tool in platform_tools(
+                PlatformApi(app, token=lambda: credential, on_refusal=refuse)
+            )
+        }
+
+        async with client():
+            listed = await tools["list_agents"]()
+            created = await tools["create_agent_draft"](name="Sneaky", instructions="Do it.")
+
+        assert "items" in listed
+        assert "refused" in created
+        assert refusals and refusals[0].startswith("403")

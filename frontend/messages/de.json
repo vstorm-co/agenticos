@@ -789,7 +789,23 @@
     "capabilityShelfEnabled": "{enabled} von {total} an",
     "capabilityShelfPrevious": "Zurück in {shelf}",
     "capabilityShelfNext": "Mehr in {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Eingebaut, keine Werkzeuge} =1 {1 Werkzeug} other {# Werkzeuge}}"
+    "capabilityToolCount": "{count, plural, =0 {Eingebaut, keine Werkzeuge} =1 {1 Werkzeug} other {# Werkzeuge}}",
+    "visualDesignDetail": "Binden Sie den Skill visual-design, und der Agent zeichnet nach seinem Stil und seinen Vorlagen - Architekturdiagramme, Erklärungen mit Schiebereglern, 3D-Szenen. Das Einschalten von Visuals bindet ihn automatisch; der Agent liest ihn über die Capability Skills.",
+    "visualDesignMissing": "Diese Organisation hat keinen Skill visual-design. Installieren Sie die mitgelieferten Skills, um ihn hinzuzufügen.",
+    "visualDesignHeading": "Zeichenstil",
+    "platformServerDescription": "Die eigenen Werkzeuge dieser Plattform: Agents, Runs, Ausgaben, Wissensbasen, Skills und Mitglieder - der Agent kann Fragen zur Plattform beantworten und in ihr handeln.",
+    "platformServerBadge": "Eingebaut",
+    "platformAsksBeforeWrites": "Fragt vor jeder Änderung",
+    "platformAsksEveryCall": "Fragt vor jedem Aufruf",
+    "platformAsWhoeverAsks": "Handelt als die fragende Person",
+    "platformActsAsWhoeverAsks": "Jedes Werkzeug handelt als die Person, für die der Agent läuft, mit genau ihren Berechtigungen. Nichts Neues wird gewährt: Was sie in der Konsole nicht durfte, kann der Agent auch hier nicht.",
+    "platformUseIt": "In diesem Agent nutzen",
+    "platformApproval": "Freigabe",
+    "platformWritesHint": "Lesen ist frei; Anlegen, Ausführen oder Ändern wartet auf die Freigabe der Person.",
+    "platformAllHint": "Jeder Aufruf wartet auf Freigabe, auch Lesen.",
+    "platformTools": "Werkzeuge, die dieser Agent aufrufen darf",
+    "platformWritesBadge": "ändert etwas",
+    "platformRemove": "Aus diesem Agent entfernen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1414,7 +1430,13 @@
       "scrollingPage": "Scrollt",
       "scrollPage": "Gescrollt",
       "goingBack": "Geht zurück",
-      "goBack": "Zurückgegangen"
+      "goBack": "Zurückgegangen",
+      "drawingVisual": "Zeichnet",
+      "drawVisual": "Hat ein Visual gezeichnet",
+      "revisingVisual": "Überarbeitet ein Visual",
+      "reviseVisual": "Hat ein Visual überarbeitet",
+      "readingVisual": "Liest ein Visual",
+      "readVisual": "Hat ein Visual gelesen"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -1540,6 +1562,44 @@
       "skill": "Folge <chip></chip> und entwirf eine Antwort an diesen Kunden",
       "collection": "Was sagt <chip></chip> zu Kündigungsfristen?",
       "slash": "Tippen Sie <command></command>, um das Gespräch zusammenzufassen, oder / für alle Befehle"
+    },
+    "visuals": {
+      "drawing": "Zeichnet…",
+      "revising": "Überarbeitet…",
+      "unfinished": "Unvollständig",
+      "revisionOf": "Überarbeitung von {title}",
+      "showCode": "Code anzeigen",
+      "showVisual": "Visual anzeigen",
+      "fullScreen": "Vollbild",
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "zoomReset": "Zoom zurücksetzen",
+      "zoomLevel": "{zoom, number, percent}",
+      "download": "Herunterladen",
+      "copyImage": "Als Bild kopieren",
+      "imageCopied": "Bild kopiert",
+      "copyImageFailed": "Das Bild konnte nicht kopiert werden",
+      "renderError": "Die Zeichnung hat einen Fehler gemeldet",
+      "stalled": "Die Zeichnung reagierte nicht mehr und wurde geschlossen.",
+      "reload": "Neu laden",
+      "baseMissing": "Das Visual, das diese Überarbeitung ändert, ist im geladenen Teil der Unterhaltung nicht enthalten.",
+      "close": "Schließen",
+      "fixIt": "Beheben",
+      "fixItPrompt": "Das Visual „{title}“ ({id}) hat diese Fehler gemeldet:\n{errors}\nBitte behebe sie.",
+      "saveToApps": "In Apps speichern",
+      "updateApp": "App aktualisieren",
+      "saveDescription": "Als App gespeichert bekommt es einen Link, Versionen und Freigaben. Unter einem Namen gespeichert, den Sie schon haben, wird es eine neue Version dieser App.",
+      "saveTitleLabel": "Titel",
+      "saveName": "Name",
+      "saveNameHint": "Kleinbuchstaben, Ziffern und Bindestriche. Derselbe Name aktualisiert die App.",
+      "save": "Speichern",
+      "saving": "Wird gespeichert…",
+      "cancel": "Abbrechen",
+      "savedToast": "Als App gespeichert, Version {version}",
+      "savedUnchanged": "Die App hat bereits genau diese Version",
+      "savedBadge": "Gespeichert · v{version}",
+      "openApp": "Öffnen",
+      "openInConsole": "In AgenticOS sichtbar"
     }
   },
   "common": {
@@ -2178,6 +2238,15 @@
         "nothingWaiting": "Nichts wartet",
         "spent": "Ausgegeben",
         "spentLabel": "{amount} ausgegeben"
+      },
+      "recent-visuals": {
+        "title": "Neueste Visuals",
+        "description": "Diagramme, Erklärungen und Szenen, die Ihre Agents zuletzt für Sie gezeichnet haben.",
+        "app": "App",
+        "empty": {
+          "title": "Noch nichts gezeichnet",
+          "description": "Bitten Sie einen Agent mit Visuals, etwas zu zeichnen - ein Diagramm, eine Erklärung, eine 3D-Szene - und es erscheint hier."
+        }
       }
     },
     "edit": {
@@ -3333,6 +3402,10 @@
         "title": "Ein Budget setzen (optional)",
         "body": "Begrenzen Sie, was dieser Agent in einem Monat ausgeben darf und wie viele Schritte ein Run gehen darf, und wählen Sie, wer erfährt, wenn er ein Limit erreicht. So stoppt sich ein Agent selbst, der sich im Kreis dreht oder davonläuft. Wählen Sie Weiter, um fortzufahren."
       },
+      "flow-agent-platform-mcp": {
+        "title": "In der Plattform handeln lassen (optional)",
+        "body": "Der eigene Server dieser Plattform braucht keine Verbindung: eingeschaltet beantwortet der Agent Fragen zu Agents, Runs und Wissen hier, als die Person, mit der er spricht - und fragt, bevor er etwas ändert."
+      },
       "flow-agent-mcp": {
         "title": "MCP-Server hinzufügen (optional)",
         "body": "MCP-Server geben dem Agent Tools aus anderen Systemen, die Sie verbunden haben. Hängen Sie hier welche an oder wählen Sie Weiter, um fortzufahren."
@@ -3720,6 +3793,10 @@
       "agent-identity": {
         "title": "Geben Sie ihm einen erkennbaren Namen",
         "body": "Den Namen wählt man im Chat aus und findet ihn im Katalog. Ein Duplikat beginnt mit dem Namen seiner Vorlage und einem Zusatz, benennen Sie es also hier um; das Handle, über das andere Agents es erreichen, bleibt gleich."
+      },
+      "chat-visual": {
+        "title": "Zeichnungen",
+        "body": "Ein Agent mit Visuals zeichnet hier Diagramme, Erklärungen und 3D-Szenen, live während er sie schreibt. Öffnen Sie eine im Vollbild, laden Sie sie herunter, fragen Sie danach oder speichern Sie sie als App mit einem Link zum Teilen."
       }
     },
     "chooseLanguage": "Sprache"
@@ -6627,6 +6704,14 @@
       "example2": "Drei Wettbewerber und ihre Preise finden",
       "needs": "Nichts, mit DuckDuckGo. Brave, Exa oder Tavily brauchen ihren API-Schlüssel im Vault.",
       "never": "Schickt nie Ihre Dokumente an die Suchmaschine, nur die Suchwörter."
+    },
+    "visuals": {
+      "name": "Visuals",
+      "does": "Zeichnet im Gespräch - ein Diagramm, eine Architekturkarte, eine Erklärung mit Schiebereglern, eine 3D-Szene - live, während der Agent sie schreibt. Eine Zeichnung lässt sich als App speichern.",
+      "example1": "Unser Bestellablauf als Diagramm",
+      "example2": "Ein 3D-Modell des Lagers zum Drehen",
+      "needs": "Nichts weiter. Der Skill visual-design lässt die Zeichnungen gestaltet aussehen.",
+      "never": "Greift nie aufs Netz zu - eine Zeichnung läuft abgeschottet, wie die Seite einer App."
     }
   },
   "capabilityCategories": {

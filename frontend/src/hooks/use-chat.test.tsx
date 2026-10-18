@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { useChat } from "./use-chat";
+import { useVisualImagesStore, useVisualStreamStore } from "@/stores/visual-stream-store";
 import { ApiError } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
@@ -416,6 +417,59 @@ describe("useChat - the streamed answer", () => {
       },
     ]);
     expect(streaming()?.parts?.filter((part) => part.type === "tool")).toHaveLength(1);
+  });
+
+  it("gathers a drawing's arguments for its panel, and drops them once the call is whole", () => {
+    vi.useFakeTimers();
+    try {
+      useVisualStreamStore.setState({ args: {} });
+      renderHook(() => useChat(), { wrapper });
+      receive("model_request_start", {});
+      receive("part_start", {
+        index: 1,
+        part_type: "ToolCallPart",
+        tool_name: "draw",
+        tool_call_id: "tc-draw",
+      });
+      const before = streaming()?.toolCalls;
+
+      receive("tool_call_delta", { index: 1, args_delta: '{"title": "Flow"' });
+      act(() => vi.advanceTimersByTime(100));
+
+      expect(useVisualStreamStore.getState().args).toEqual({ "tc-draw": '{"title": "Flow"' });
+      expect(streaming()?.toolCalls).toBe(before);
+
+      receive("tool_call", { tool_call_id: "tc-draw", tool_name: "draw", args: { title: "Flow" } });
+      expect(useVisualStreamStore.getState().args).toEqual({});
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a drawing's pictures when the socket sends them", () => {
+    useVisualImagesStore.setState({ images: {} });
+    renderHook(() => useChat(), { wrapper });
+
+    receive("visual_images", {
+      tool_call_id: "tc-draw",
+      images: { logo: "data:image/png;base64,AA" },
+    });
+
+    expect(useVisualImagesStore.getState().images).toEqual({
+      "tc-draw": { logo: "data:image/png;base64,AA" },
+    });
+  });
+
+  it("tells the running turn how a drawing rendered", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.reportVisual("tc-draw", ["boom"]));
+
+    expect(lastFrame()).toEqual({
+      type: "visual_report",
+      tool_call_id: "tc-draw",
+      errors: ["boom"],
+    });
   });
 
   it("ignores a delta for a part that is not a tool call it drew", () => {

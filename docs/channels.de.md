@@ -1,5 +1,5 @@
 ---
-source_sha: "00ecbdffeaef"
+source_sha: "07cb36a7d778"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -951,7 +951,8 @@ schalten das Streaming ab, womit die Antwort wieder einmal pro Sekunde bearbeite
 wird. Dasselbe geschieht von selbst, wenn Slack das Streaming verweigert.
 
 Eine Markdown-Tabelle in der Antwort wird als Slack-Tabelle gezeichnet, ein
-Diagramm kommt wie immer als Bild. Ist die fertige Antwort nicht das, was gestreamt
+Diagramm kommt wie immer als Bild. Ebenso ein [Visual](reference/capabilities.md#visuals),
+gezeichnet vom Browser des Deployments, wenn `VISUAL_RENDER_CDP_URL` ihn nennt. Ist die fertige Antwort nicht das, was gestreamt
 wurde - ein Output-Guardrail hat etwas geschwärzt -, wird die Nachricht ganz neu
 geschrieben.
 

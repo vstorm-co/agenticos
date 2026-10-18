@@ -104,6 +104,19 @@ describe("ContextGallery", () => {
     expect(screen.getByRole("checkbox", { name: "glossary" })).not.toBeChecked();
   });
 
+  it("shows the attached files first", () => {
+    render(
+      <ContextGallery
+        files={[file(), file({ id: "c2", name: "escalation" })]}
+        total={2}
+        selectedIds={["c2"]}
+        onToggle={vi.fn()}
+      />,
+    );
+    const shown = screen.getAllByRole("checkbox").map((box) => box.getAttribute("aria-label"));
+    expect(shown).toEqual(["escalation", "glossary"]);
+  });
+
   it("attaches the file that was pressed", async () => {
     const onToggle = vi.fn();
     render(<ContextGallery files={[file()]} total={1} selectedIds={[]} onToggle={onToggle} />);

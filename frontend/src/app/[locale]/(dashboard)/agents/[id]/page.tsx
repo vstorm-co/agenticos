@@ -140,6 +140,8 @@ import {
   withCapability,
   withContextFiles,
   withSkills,
+  withVisuals,
+  VISUALS_ID,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
 import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
@@ -755,6 +757,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const toggleCapability = (capabilityId: string) => {
     const on = spec.capabilities.some((binding) => binding.id === capabilityId);
+    if (capabilityId === VISUALS_ID && !on) {
+      update(withVisuals(spec, skills));
+      return;
+    }
     update({ capabilities: withCapability(spec.capabilities, capabilityId, !on) });
   };
 

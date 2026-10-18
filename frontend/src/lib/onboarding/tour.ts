@@ -160,6 +160,8 @@ export const TOUR_STEPS: readonly TourStep[] = [
   // organization whose agents carry no planning capability would otherwise wait
   // four seconds for a strip that never mounts.
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
+  // Only where an agent has drawn something in the conversation on screen.
+  { id: "chat-visual", page: ROUTES.CHAT, target: "chat-visual", optional: true },
   { id: "chat-model-picker", page: ROUTES.CHAT, target: "chat-model-picker" },
   // Inside the same popover as the model, so the walk opens it - `activate` on a
   // popover's trigger clicks it - and the next stop finds it already open.

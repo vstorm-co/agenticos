@@ -1,5 +1,5 @@
 ---
-source_sha: "00ecbdffeaef"
+source_sha: "07cb36a7d778"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -893,7 +893,8 @@ edytowanej raz na sekundę. Strumieniowanie wraca do tego trybu także samo, gdy
 Slack odmówi jego rozpoczęcia.
 
 Tabela Markdown w odpowiedzi jest rysowana jako tabela Slacka, a wykres przychodzi
-jako obrazek, jak zawsze. Jeśli gotowa odpowiedź nie jest tym, co zostało
+jako obrazek, jak zawsze. Tak samo [wizual](reference/capabilities.md#visuals), narysowany
+przeglądarką wdrożenia, gdy `VISUAL_RENDER_CDP_URL` ją wskazuje. Jeśli gotowa odpowiedź nie jest tym, co zostało
 wystrumieniowane - guardrail wyjściowy coś zredagował - wiadomość jest przepisywana
 w całości.
 

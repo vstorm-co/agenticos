@@ -120,31 +120,18 @@ def _media_type(path: str | None, fmt: str | None) -> ArtifactMediaType | str:
 
 
 def apply_edits(source: str, edits: list[ArtifactEdit]) -> str:
-    """The page with every edit applied in order.
-
-    Each `old` must occur exactly once in the page as the edits before it left it:
-    not at all means the model is editing from a memory of the page rather than the
-    page, and more than once means the edit does not say which one it means.
+    """The page with every edit applied in order - see :func:`artifacts.apply_replacements`.
 
     Raises:
-        ValueError: The first edit that does not name exactly one place, in words
-            the model can act on.
+        ValueError: The first edit that does not name exactly one place.
     """
-    text = source
-    for number, edit in enumerate(edits, start=1):
-        found = text.count(edit.old)
-        if found == 0:
-            raise ValueError(
-                f"Edit {number}: its `old` text is not in the page. Copy it exactly from "
-                "`read_artifact`, whitespace included."
-            )
-        if found > 1:
-            raise ValueError(
-                f"Edit {number}: its `old` text appears {found} times. Include more of the "
-                "surrounding text so it names one place."
-            )
-        text = text.replace(edit.old, edit.new, 1)
-    return text
+    try:
+        return artifacts.apply_replacements(source, [(edit.old, edit.new) for edit in edits])
+    except ValueError as missed:
+        # The wording the tool has always used: `read_artifact` is where to copy from.
+        raise ValueError(
+            str(missed).replace("Copy it exactly,", "Copy it exactly from `read_artifact`,")
+        ) from missed
 
 
 def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
@@ -178,8 +165,12 @@ def build_artifacts_toolset() -> FunctionToolset[AgentDeps]:
         `window.Chart`), `lib/d3-7.9.0.min.js` (d3, `window.d3`),
         `lib/lucide-1.46.0.min.js` (icons: write `<i data-lucide="calendar"></i>`) and,
         after those, `lib/agenticos-2.js` (`window.AO`: chart defaults in the product's
-        style, number formatting, icons, tabs); `lib/agenticos-1.css` stays served for
-        pages published against it. Keep to the product's look: graphite,
+        style, number formatting, icons, tabs); `lib/mermaid-12.1.0.min.js`
+        (`window.mermaid`) for diagrams; three.js as ES modules through an import map
+        (`"three": "./lib/three-0.186.0/three.module.js"`, with
+        `lib/three-0.186.0/three.core.js` beside it and
+        `lib/three-0.186.0/addons/controls/OrbitControls.js` under `three/addons/`);
+        `lib/agenticos-1.css` stays served for pages published against it. Keep to the product's look: graphite,
         no accent colour, green and red only for better and worse, icons rather than
         emoji unless the person asked for emoji. Before building a page, load the
         `artifact-pages` skill if it is available - it has the components and two

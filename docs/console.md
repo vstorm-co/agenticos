@@ -279,6 +279,16 @@ the keyboard and the conversation stays on its last message while it opens,
 Enter starts a new line, and attaching a file or dictating sits behind one
 **+**. Fields are never small enough for iOS to zoom into them.
 
+**Drawings.** An agent with [Visuals](reference/capabilities.md#visuals) draws
+under its message - a diagram, an explainer with sliders, a 3D scene - and you watch
+it appear while it is written; its scripts start once it is complete. The panel shows
+the whole drawing, sized to the conversation, with buttons to open it full screen,
+show its code, download it, copy an SVG as an image, zoom in, and save it as an
+[app](artifacts.md#visuals) with a link you can share. When a drawing reports an
+error, the agent has already been told; **Fix it** asks again. On a phone a tap opens
+it full screen. The dashboard's **Recent visuals** card shows the latest ones drawn for
+you, each opening the conversation it was drawn in.
+
 **Watching a browse.** When an agent with the
 [web browser](reference/capabilities.md#browser-automation) starts on a page, its
 browser draws under the agent's message, live: a window with the address and the page

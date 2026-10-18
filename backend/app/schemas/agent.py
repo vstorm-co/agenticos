@@ -604,6 +604,19 @@ class McpCatalog(BaseSchema):
     )
 
 
+class PlatformMcpTool(BaseSchema):
+    name: str = Field(description="The tool's name on the platform's MCP server")
+    description: str = Field(description="The first line of what the model reads")
+    writes: bool = Field(
+        description="Whether it changes something - held for approval under `approval: writes`"
+    )
+
+
+class PlatformMcpToolList(BaseSchema):
+    items: list[PlatformMcpTool]
+    total: int
+
+
 class CapabilityCatalog(BaseSchema):
     items: list[CapabilityCatalogEntry]
     total: int

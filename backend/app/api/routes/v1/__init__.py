@@ -43,6 +43,7 @@ from app.api.routes.v1 import skill_changes
 from app.api.routes.v1 import workspaces as agent_workspaces
 from app.api.routes.v1 import skills as agent_skills
 from app.api.routes.v1 import artifacts
+from app.api.routes.v1 import visuals
 from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import memory as memory_files
 from app.api.routes.v1 import browser_sign_ins
@@ -108,6 +109,7 @@ v1_router.include_router(context_files.router, prefix="/context", tags=["context
 v1_router.include_router(artifacts.router, prefix="/apps", tags=["apps"])
 v1_router.include_router(artifacts.public_router, prefix="/public/apps", tags=["apps:public"])
 v1_router.include_router(artifacts.router, prefix="/artifacts", tags=["apps"], deprecated=True)
+v1_router.include_router(visuals.router, prefix="/visuals", tags=["visuals"])
 v1_router.include_router(
     artifacts.public_router, prefix="/public/artifacts", tags=["apps:public"], deprecated=True
 )

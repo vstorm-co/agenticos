@@ -868,7 +868,8 @@ question, or turn streaming off, which falls back to a reply edited once a
 second. Streaming also falls back on its own where Slack refuses to start one.
 
 A Markdown table in the answer is drawn as a Slack table, and a chart arrives as
-an image, as it always did. If the finished answer is not what was streamed - an
+an image, as it always did. So does a [visual](reference/capabilities.md#visuals), drawn by
+the deployment's browser when `VISUAL_RENDER_CDP_URL` names one. If the finished answer is not what was streamed - an
 output guardrail redacted something - the streamed message is rewritten whole.
 
 ### Scopes and events

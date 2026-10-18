@@ -1,5 +1,5 @@
 ---
-source_sha: "9766a1c697e8"
+source_sha: "27d973f8560b"
 ---
 
 # La consola { #the-console }
@@ -296,6 +296,17 @@ escritura queda sobre el teclado y la conversación en su último mensaje mientr
 se abre, Enter empieza una
 línea nueva, y adjuntar un archivo o dictar están detrás de un único **+**. Los
 campos nunca son tan pequeños como para que iOS haga zoom en ellos.
+
+**Dibujos.** Un agente con [Visuals](reference/capabilities.md#visuals) dibuja bajo
+su mensaje - un diagrama, una explicación con controles deslizantes, una escena 3D - y
+usted lo ve aparecer mientras se escribe; sus scripts arrancan cuando está completo. El
+panel muestra el dibujo entero, ajustado a la conversación, con botones para abrirlo a
+pantalla completa, mostrar su código, descargarlo, copiar un SVG como imagen, ampliarlo
+y guardarlo como [aplicación](artifacts.md#visuals) con un enlace para
+compartir. Cuando un dibujo informa de un error, el agente ya lo sabe; **Corregir**
+vuelve a pedírselo. En un teléfono, un toque lo abre a pantalla completa.
+La tarjeta **Recent visuals** del panel muestra los últimos dibujados para usted, y
+cada uno abre la conversación en la que se dibujó.
 
 **Ver un recorrido.** Cuando un agent con el
 [navegador web](reference/capabilities.md#browser-automation) empieza en una página, su

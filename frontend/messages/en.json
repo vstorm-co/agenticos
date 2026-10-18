@@ -789,7 +789,23 @@
     "capabilityShelfEnabled": "{enabled} of {total} on",
     "capabilityShelfPrevious": "Earlier in {shelf}",
     "capabilityShelfNext": "More in {shelf}",
-    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}"
+    "capabilityToolCount": "{count, plural, =0 {Built in, no tools} =1 {1 tool} other {# tools}}",
+    "visualDesignDetail": "Bind the visual-design skill and the agent draws from its house style and templates - architecture diagrams, explainers with sliders, 3D scenes. Switching Visuals on binds it for you; the agent reads it through the Skills capability.",
+    "visualDesignMissing": "This organization has no visual-design skill. Seed the bundled skills to add it.",
+    "visualDesignHeading": "Drawing style",
+    "platformServerDescription": "This platform's own tools: agents, runs, spend, knowledge bases, skills and members - so the agent can answer questions about the platform and act in it.",
+    "platformServerBadge": "Built in",
+    "platformAsksBeforeWrites": "Asks before any change",
+    "platformAsksEveryCall": "Asks before every call",
+    "platformAsWhoeverAsks": "Acts as whoever asks",
+    "platformActsAsWhoeverAsks": "Every tool acts as the person the agent runs for, with exactly their permissions. Nothing new is granted: what they could not do in the console, the agent cannot do here either.",
+    "platformUseIt": "Use it in this agent",
+    "platformApproval": "Approval",
+    "platformWritesHint": "Reading is free; creating, running or changing anything waits for the person to approve it.",
+    "platformAllHint": "Every call waits for approval, reading included.",
+    "platformTools": "Tools this agent may call",
+    "platformWritesBadge": "changes something",
+    "platformRemove": "Remove from this agent"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1414,7 +1430,13 @@
       "scrollingPage": "Scrolling",
       "scrollPage": "Scrolled",
       "goingBack": "Going back",
-      "goBack": "Went back"
+      "goBack": "Went back",
+      "drawingVisual": "Drawing",
+      "drawVisual": "Drew a visual",
+      "revisingVisual": "Revising a visual",
+      "reviseVisual": "Revised a visual",
+      "readingVisual": "Reading a visual",
+      "readVisual": "Read a visual"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1540,6 +1562,44 @@
       "skill": "Follow <chip></chip> and draft a reply to this customer",
       "collection": "What does <chip></chip> say about notice periods?",
       "slash": "Type <command></command> to summarise this conversation, or / for every command"
+    },
+    "visuals": {
+      "drawing": "Drawing…",
+      "revising": "Revising…",
+      "unfinished": "Unfinished",
+      "revisionOf": "Revision of {title}",
+      "showCode": "Show code",
+      "showVisual": "Show visual",
+      "fullScreen": "Full screen",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "zoomReset": "Reset zoom",
+      "zoomLevel": "{zoom, number, percent}",
+      "download": "Download",
+      "copyImage": "Copy as image",
+      "imageCopied": "Image copied",
+      "copyImageFailed": "The image could not be copied",
+      "renderError": "The drawing reported an error",
+      "stalled": "The drawing stopped responding, so it was closed.",
+      "reload": "Reload",
+      "baseMissing": "The visual this revises is not in the loaded conversation.",
+      "close": "Close",
+      "fixIt": "Fix it",
+      "fixItPrompt": "The visual “{title}” ({id}) reported these errors:\n{errors}\nPlease fix it.",
+      "saveToApps": "Save to Apps",
+      "updateApp": "Update the app",
+      "saveDescription": "Saved as an app, it gets a link, versions and sharing. Saving under a name you already have adds a version to that app.",
+      "saveTitleLabel": "Title",
+      "saveName": "Name",
+      "saveNameHint": "Lower-case letters, digits and hyphens. The same name again updates the app.",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "savedToast": "Saved as an app, version {version}",
+      "savedUnchanged": "The app already has exactly this version",
+      "savedBadge": "Saved · v{version}",
+      "openApp": "Open",
+      "openInConsole": "Shown in AgenticOS"
     }
   },
   "common": {
@@ -2178,6 +2238,15 @@
         "nothingWaiting": "Nothing waiting",
         "spent": "Spent",
         "spentLabel": "{amount} spent"
+      },
+      "recent-visuals": {
+        "title": "Recent visuals",
+        "description": "Diagrams, explainers and scenes your agents drew for you lately.",
+        "app": "App",
+        "empty": {
+          "title": "Nothing drawn yet",
+          "description": "Ask an agent with Visuals to draw something - a diagram, an explainer, a 3D scene - and it appears here."
+        }
       }
     },
     "edit": {
@@ -3451,6 +3520,10 @@
         "title": "Set a budget (optional)",
         "body": "Cap what this agent can spend in a month and how many steps one run may take, and choose who's told when it reaches a limit. It's how an agent that loops or runs away stops itself. Choose Next to move on."
       },
+      "flow-agent-platform-mcp": {
+        "title": "Let it act in the platform (optional)",
+        "body": "This platform's own server needs no connection: switched on, the agent can answer questions about agents, runs and knowledge here, as whoever it talks to - and asks before changing anything."
+      },
       "flow-agent-mcp": {
         "title": "Add MCP servers (optional)",
         "body": "MCP servers give the agent tools from other systems you've connected. Attach any here, or choose Next to move on."
@@ -3838,6 +3911,10 @@
       "agent-identity": {
         "title": "Call it something recognizable",
         "body": "The name is what people pick in chat and find in the catalog. A duplicate starts as its source with a suffix, so rename it here; the handle other agents reach it by stays the same."
+      },
+      "chat-visual": {
+        "title": "Drawings",
+        "body": "An agent with Visuals draws diagrams, explainers and 3D scenes here, live while it writes them. Open one full screen, download it, ask about it, or save it as an app with a link you can share."
       }
     },
     "chooseLanguage": "Language"
@@ -6744,6 +6821,14 @@
       "example2": "Find three competitors and their prices",
       "needs": "Nothing, with DuckDuckGo. Brave, Exa or Tavily need their API key in the vault.",
       "never": "Never sends your documents to the search engine, only the search words."
+    },
+    "visuals": {
+      "name": "Visuals",
+      "does": "Draws in the conversation - a diagram, an architecture map, an explainer with sliders, a 3D scene - live while the agent writes it. A drawing can be saved as an app.",
+      "example1": "Our order flow as a diagram",
+      "example2": "A 3D model of the warehouse you can turn",
+      "needs": "Nothing extra. The visual-design skill makes the drawings look designed.",
+      "never": "Never reaches the network - a drawing runs sealed off, like an app's page."
     }
   },
   "capabilityCategories": {

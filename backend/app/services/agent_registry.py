@@ -1076,9 +1076,15 @@ class AgentRegistryService:
         ]
 
     async def install_template(
-        self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.PRIVATE
+        self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.ORG
     ) -> TemplateInstallResult:
         """Create a draft agent from a shipped template, with its skills.
+
+        Visible to the organization, as an agent from the create form is. The
+        reason `create` defaults to private - a copy must not publish somebody's
+        private instructions to the tenant - does not reach a template: its
+        instructions ship with the product. Installed private, every template
+        agent had to be found and re-shared by hand before a colleague could see it.
 
         A **draft**, deliberately. The template cannot name a model - this
         platform has no organization-wide default, because a model an agent did
@@ -1134,10 +1140,11 @@ class AgentRegistryService:
         # The least-exposing value, deliberately. `org` is what a person picks in
         # the create form, and `AgentCreate.visibility` carries that choice to the
         # route - so the default here only ever reaches the callers that make an
-        # agent without anybody choosing: a clone, a promoted specialist, a
-        # template install. Defaulting those to `org` published a copy of a
-        # private agent to the whole tenant, which is what a colleague then read
-        # the instructions out of.
+        # agent without anybody choosing: a clone and a promoted specialist.
+        # Defaulting those to `org` published a copy of a private agent to the
+        # whole tenant, which is what a colleague then read the instructions out
+        # of. A template install passes `org` itself: its instructions ship with
+        # the product.
         visibility: Visibility = Visibility.PRIVATE,
         categories: list[str] | None = None,
         tags: list[str] | None = None,

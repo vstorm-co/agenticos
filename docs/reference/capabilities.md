@@ -56,6 +56,7 @@ browser is pointed at the deployment's browser service
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona |
 | `charts` | Charts | analysis | `create_chart` | — | — |
+| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — |
@@ -1028,6 +1029,56 @@ also has a workspace (the `sandbox` capability), the same image is written into 
 under `/output`, so a later `execute` step can build with it — assemble a PDF, a
 slide, a page. An agent without a workspace still generates and shows images; it
 simply has nowhere to build with them.
+
+## Visuals
+
+`draw` — *Draw a picture in the conversation: a diagram, a map, a flow, an
+explainer, a 3D scene.*
+`revise_visual` — *Change a visual by exact replacements, without drawing it again.*
+`read_visual` — *Read a visual in this conversation as it now is, revisions applied.*
+
+Draws in the chat itself. `kind` is `svg` for diagrams and illustrations,
+`mermaid` for flowcharts, sequences and ER diagrams, or `html` for anything
+interactive - sliders, `<canvas>`, three.js. No configuration; the bundled
+`visual-design` skill carries the house style and three templates, and the
+Builder binds it when Visuals is switched on.
+
+**It appears while it is written.** The drawing is the call's `content` argument.
+The console reads it from the streamed tool-call arguments and posts it into a
+frame under the message, so SVG and HTML grow on screen as the model writes them
+and Mermaid redraws at each complete line. Scripts run once, when the call is
+complete: until then the markup is shown with every script and `on*` handler
+removed, so a half-written scene never starts.
+
+**It lives in the conversation.** Nothing is stored but the tool call, which the
+transcript already keeps, so a reload and a shared thread draw it again. An
+earlier turn reaches the model as its text alone, so the capability names the
+conversation's earlier visuals in its instructions, by id and title, and
+`read_visual` brings one back before a revision.
+
+**The model hears how it rendered.** While somebody watches in the web chat, the
+console reports each drawing's script errors, failed loads and refused requests,
+and `draw` waits up to ten seconds for that report before it answers - so the
+model fixes a broken drawing with `revise_visual` in the same turn. With nobody
+watching it answers at once and says the drawing was not checked.
+
+**Revisions** are exact replacements, the rule `publish_artifact` edits follow,
+and each is a visual of its own under the message that made it. A drawing too
+large for an app (`ARTIFACT_MAX_BYTES`), an SVG that is not one `<svg>` element,
+or one that loads anything from another site is a retry naming what to change.
+
+**Pictures.** `images` brings up to six pictures into a drawing, each by a name
+the drawing uses as `{{image:NAME}}`: an image attached to the conversation, a
+file in the workspace, or an `https://` address. An address works only for an
+agent that already reads the web - `web_fetch` or `browser_use` switched on - and
+only on a host one of them would read: their `allowed_domains` and
+`blocked_domains` bound the pictures too, and the download may not be redirected
+to another host. Each picture is at most 2 MiB, and a visual carries only the
+pictures its drawing still uses, six at most across its revisions.
+
+**It has an app's isolation.** The frame is the app sandbox - an opaque origin,
+`connect-src 'none'`, nothing remote but the deployment's library set, which now
+includes three.js and Mermaid. See [Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }
 

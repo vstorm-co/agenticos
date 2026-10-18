@@ -18,6 +18,7 @@ import { WorkspaceFiles } from "./workspace-files";
 import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse } from "@/lib/browse";
 import { LiveBrowsesProvider } from "./browser-card";
+import { ConversationVisualsProvider } from "./visual-panel";
 import { BrowserPanel } from "./browser-panel";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList } from "./message-list";
@@ -252,6 +253,7 @@ export function ChatContainer({
     sendAskUserResponses,
     pendingConnection,
     sendConnectionResponse,
+    reportVisual,
   } = useChat({
     conversationId: currentConversationId,
     onConversationCreated: handleConversationCreated,
@@ -551,11 +553,14 @@ export function ChatContainer({
       agentFixed={agentFixed}
       testingDraft={testing?.draft ?? false}
       incomingFiles={incomingFiles}
+      onVisualReport={reportVisual}
     />
   );
 }
 
 interface ChatUIProps {
+  /** Tell the running turn how one of its drawings rendered. */
+  onVisualReport?: (toolCallId: string, errors: string[]) => void;
   /** Replaces the generic empty-conversation suggestions. */
   emptyState?: (onPick: (prompt: string) => void) => React.ReactNode;
   agentFixed: boolean;
@@ -690,6 +695,7 @@ function ChatUI({
   agentFixed,
   testingDraft,
   incomingFiles,
+  onVisualReport,
 }: ChatUIProps) {
   const t = useTranslations("chat");
   // Opened by the composer's microphone button; the glow around the box reads
@@ -828,7 +834,14 @@ function ChatUI({
               </div>
             ) : (
               <LiveBrowsesProvider value={{ browses, onComment: commentOnPage }}>
-                <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
+                <ConversationVisualsProvider
+                  messages={messages}
+                  conversationId={conversationId}
+                  onReport={onVisualReport}
+                  onCompose={(text) => setIncoming({ id: Date.now(), files: [], text })}
+                >
+                  <MessageList messages={messages} onRegenerate={onRegenerate} pins={pins} />
+                </ConversationVisualsProvider>
               </LiveBrowsesProvider>
             )}
             {/* After the transcript, not inside it: a delegation is a second agent's

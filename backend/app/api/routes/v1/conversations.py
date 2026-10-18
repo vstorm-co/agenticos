@@ -1,7 +1,7 @@
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 
 from app.api.deps import (
     ActiveOrg,
@@ -10,10 +10,14 @@ from app.api.deps import (
     ConversationSvc,
     CurrentUser,
     MessageRatingSvc,
+    VisualSvc,
     WorkspaceSvc,
+    require,
 )
+from app.api.routes.v1._artifact_bytes import visual_image_response
 from app.api.routes.v1._workspace_bytes import file_response
 from app.core.exceptions import NotFoundError
+from app.core.permissions import Perm
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationList,
@@ -28,11 +32,13 @@ from app.schemas.conversation_share import (
     ConversationShareCreate,
     ConversationShareList,
     ConversationShareRead,
+    SharedConversationRead,
 )
 from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
 )
+from app.schemas.visual import VisualPublish, VisualPublished
 from app.schemas.workspace import (
     WorkspaceFileContent,
     WorkspaceFileRead,
@@ -55,7 +61,7 @@ async def list_shared_with_me(
     return ConversationList(items=items, total=total)
 
 
-@router.get("/shared/{token}", response_model=ConversationReadWithMessages)
+@router.get("/shared/{token}", response_model=SharedConversationRead)
 async def get_shared_conversation(
     token: str,
     share_service: ConversationShareSvc,
@@ -153,6 +159,55 @@ async def get_conversation(
         user_id=current_user.id,
         ctx=ctx,
     )
+
+
+@router.post(
+    "/{conversation_id}/visuals/{visual_id}/publish",
+    response_model=VisualPublished,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.ARTIFACTS_EDIT))],
+)
+async def publish_visual(
+    conversation_id: UUID, visual_id: str, data: VisualPublish, service: VisualSvc, ctx: Auth
+) -> Any:
+    """Save a visual from this conversation as an app, or as a new version of one.
+
+    The visual is rebuilt from the transcript - revisions applied - and published
+    under the agent whose turn drew it, owned by the caller.
+    """
+    return await service.publish(ctx, conversation_id, visual_id, data)
+
+
+@router.post(
+    "/{conversation_id}/visuals/{visual_id}/thumbnail",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def put_visual_thumbnail(
+    conversation_id: UUID,
+    visual_id: str,
+    service: VisualSvc,
+    ctx: Auth,
+    file: UploadFile = File(...),
+) -> None:
+    """Keep the thumbnail the console made of a drawing, for the dashboard's tile."""
+    await service.save_thumbnail(ctx, conversation_id, visual_id, await file.read())
+
+
+@router.get(
+    "/{conversation_id}/visuals/{visual_id}/images/{name}",
+    response_class=Response,
+)
+async def get_visual_image(
+    conversation_id: UUID, visual_id: str, name: str, service: VisualSvc, ctx: Auth
+) -> Response:
+    """One image a visual uses, for the console to put into the drawing.
+
+    Read with the conversation's own access: whoever may read the thread may see
+    the pictures drawn in it.
+    """
+    data, media_type = await service.image(ctx, conversation_id, visual_id, name)
+    return visual_image_response(data, media_type)
 
 
 @router.patch("/{conversation_id}", response_model=ConversationRead)

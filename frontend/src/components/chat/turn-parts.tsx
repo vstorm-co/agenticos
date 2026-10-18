@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 
 import { useLinger, useSmoothText } from "@/hooks/use-smooth-text";
 import { toolEntry } from "@/lib/tool-catalog";
+import { isVisualTool } from "@/lib/visuals";
 import { cn } from "@/lib/utils";
 import { useInChatScope } from "@/stores/chat-scope-context";
 import type { DelegateRef } from "@/lib/delegations";
@@ -16,6 +17,7 @@ import { TurnBrowses } from "./browser-card";
 import { MarkdownContent } from "./markdown-content";
 import { RichText } from "./mention-chip";
 import { ToolCallCard } from "./tool-call-card";
+import { TurnVisuals } from "./visual-panel";
 import { YouFace } from "./you-face";
 import { useTurnElapsed, WorkFold, WorkingLine } from "./work-fold";
 
@@ -98,6 +100,7 @@ export function TurnParts({
           ))}
         </AgentSteps>
         {browses && <TurnBrowses calls={browseCalls([run])} />}
+        {browses && <TurnVisuals calls={visualCalls([run])} />}
       </div>
     ) : run.part.type === "thinking" ? (
       <ThinkingBlock
@@ -144,6 +147,7 @@ export function TurnParts({
         {split.folded.map((run) => render(run, false))}
       </WorkFold>
       <TurnBrowses calls={browseCalls(split.folded)} />
+      <TurnVisuals calls={visualCalls(split.folded)} />
       {split.shown.map((run) => render(run))}
     </>
   );
@@ -427,6 +431,21 @@ export function browseCalls(runs: PartRun[]): ToolCall[] {
           driving = true;
           return [call];
         })
+      : [],
+  );
+}
+
+/**
+ * The calls that draw in these runs, in the order they were made. Like a browse,
+ * a drawing is shown whether or not the steps around it fold: it is what the
+ * turn produced, not a step of the work.
+ */
+export function visualCalls(runs: PartRun[]): ToolCall[] {
+  return runs.flatMap((run) =>
+    run.kind === "tools"
+      ? run.parts.flatMap((part) =>
+          part.toolCall && isVisualTool(part.toolCall.name) ? [part.toolCall] : [],
+        )
       : [],
   );
 }

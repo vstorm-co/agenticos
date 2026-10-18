@@ -1,5 +1,5 @@
 ---
-source_sha: "00ecbdffeaef"
+source_sha: "07cb36a7d778"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -902,7 +902,8 @@ transmisión, que vuelve a una respuesta editada una vez por segundo. Lo mismo
 ocurre solo si Slack se niega a empezarla.
 
 Una tabla Markdown en la respuesta se dibuja como una tabla de Slack, y un gráfico
-llega como imagen, como siempre. Si la respuesta terminada no es lo transmitido -
+llega como imagen, como siempre. También un [visual](reference/capabilities.md#visuals),
+dibujado por el navegador del despliegue cuando `VISUAL_RENDER_CDP_URL` lo indica. Si la respuesta terminada no es lo transmitido -
 un guardrail de salida redactó algo -, el mensaje se reescribe entero.
 
 ### Scopes y events { #scopes-and-events }

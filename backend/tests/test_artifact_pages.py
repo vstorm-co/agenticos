@@ -940,5 +940,5 @@ class TestTheBundledSkill:
         from app.agents.capabilities.artifacts._toolset import build_artifacts_toolset
 
         tool = build_artifacts_toolset().tools["publish_artifact"]
-        for name in artifacts.ARTIFACT_LIBRARY:
+        for name in set(artifacts.ARTIFACT_LIBRARY) - artifacts.FRAME_ONLY_LIBRARY:
             assert f"lib/{name}" in (tool.description or "")

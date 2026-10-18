@@ -142,6 +142,7 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "routines",
         "notifications",
         "artifacts",
+        "recent-visuals",
     }
 )
 

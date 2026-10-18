@@ -89,3 +89,17 @@ export interface McpCatalog {
  */
 export type McpConnectionState =
   "not-connected" | "needs-authorization" | "disabled" | "error" | "connected";
+
+/** One tool of this deployment's own MCP server, as a binding chooses from (#2190). */
+export interface PlatformMcpTool {
+  name: string;
+  /** The first line of what the model reads. */
+  description: string;
+  /** Whether it changes something - held for approval under `approval: writes`. */
+  writes: boolean;
+}
+
+export interface PlatformMcpToolList {
+  items: PlatformMcpTool[];
+  total: number;
+}
