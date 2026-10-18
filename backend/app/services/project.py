@@ -28,6 +28,7 @@ from app.repositories import (
     agent_repo,
     agent_workspace_repo,
     conversation_repo,
+    organization_assistant_repo,
     project_repo,
     resource_grant_repo,
 )
@@ -472,4 +473,10 @@ class ProjectService:
         if agent.status == AgentStatus.ARCHIVED.value or agent.current_version_id is None:
             raise refused_field(
                 "default_agent_id", "Choose a published agent - a new chat starts with it"
+            )
+        assistant = await organization_assistant_repo.for_agent(self.db, agent.id)
+        if assistant is not None and not assistant.enabled:
+            raise refused_field(
+                "default_agent_id",
+                "The assistant is switched off in this organization - choose another agent",
             )

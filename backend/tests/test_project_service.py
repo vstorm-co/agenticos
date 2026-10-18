@@ -186,6 +186,9 @@ class TestCreatingAndChanging:
         service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT, Perm.AGENTS_RUN)
         with (
             patch.object(module.agent_repo, "get", AsyncMock(return_value=MagicMock())),
+            patch.object(
+                module.organization_assistant_repo, "for_agent", AsyncMock(return_value=None)
+            ),
             patch.object(module.project_repo, "update", AsyncMock(return_value=project)) as update,
             patch.object(module, "record_audit", AsyncMock()) as audited,
         ):
@@ -217,6 +220,22 @@ class TestCreatingAndChanging:
         ):
             await service.update(_ctx(), project.id, ProjectUpdate(default_agent_id=uuid.uuid4()))
         assert "published agent" in refused.value.message
+
+    async def test_a_switched_off_assistant_is_refused_as_the_default(self) -> None:
+        project = _project()
+        service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT, Perm.AGENTS_RUN)
+        agent = MagicMock(id=uuid.uuid4(), status="published", current_version_id=uuid.uuid4())
+        with (
+            patch.object(module.agent_repo, "get", AsyncMock(return_value=agent)),
+            patch.object(
+                module.organization_assistant_repo,
+                "for_agent",
+                AsyncMock(return_value=MagicMock(enabled=False)),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await service.update(_ctx(), project.id, ProjectUpdate(default_agent_id=agent.id))
+        assert "switched off" in refused.value.message
 
     async def test_a_runtime_change_is_refused_once_the_container_exists(self) -> None:
         """A run reattaches the container, so the new runtime would be claimed while
