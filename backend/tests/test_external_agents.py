@@ -6,13 +6,18 @@ import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import SecretStr, ValidationError
 
 from app.agents.spec import AgentSpec, ExternalAgentRef
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, Perm
 from app.core.secret_kinds import ApiKeySecret, SecretKind
 from app.schemas.a2a import AgentCard
@@ -147,6 +152,49 @@ class TestRegistering:
             assert (await service.refresh(CTX, row.id)).description == "Now also NDAs."
             await service.delete(CTX, row.id)
         deleted.assert_awaited_once()
+
+    @pytest.mark.security
+    async def test_a_member_changes_only_their_own_registration(self) -> None:
+        """Every agent delegating to a registration depends on it, so a member who
+        edits only their own agents cannot remove or repoint somebody else's."""
+        member = AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role="member")
+        theirs = _row(created_by_user_id=uuid.uuid4())
+        mine = _row(created_by_user_id=member.user_id)
+        with (
+            patch.object(module.external_agent_repo, "get", AsyncMock(side_effect=[theirs, mine])),
+            patch.object(module.external_agent_repo, "delete", AsyncMock()) as deleted,
+            patch.object(module, "record_audit", AsyncMock()),
+        ):
+            service = ExternalAgentService(MagicMock())
+            with pytest.raises(AuthorizationError):
+                await service.delete(member, theirs.id)
+            await service.delete(member, mine.id)
+        deleted.assert_awaited_once_with(ANY, mine)
+
+    async def test_a_card_that_moves_the_agent_to_another_host_is_audited(self) -> None:
+        moved = CARD.model_copy(update={"url": "https://elsewhere.example.net/a2a"})
+        row = _row()
+        with (
+            patch.object(module.external_agent_repo, "get", AsyncMock(return_value=row)),
+            patch.object(module, "fetch_card", AsyncMock(side_effect=[CARD, moved])),
+            patch.object(module.external_agent_repo, "update", AsyncMock(return_value=row)),
+            patch.object(module, "record_audit", AsyncMock()) as audited,
+        ):
+            service = ExternalAgentService(MagicMock())
+            await service.refresh(CTX, row.id)
+            audited.assert_not_awaited()
+            await service.refresh(CTX, row.id)
+
+        assert audited.await_args.kwargs["action"] == "external_agent.moved"
+        assert audited.await_args.kwargs["details"] == {
+            "from_host": "agents.example.com",
+            "endpoint_host": "elsewhere.example.net",
+        }
+
+    @pytest.mark.security
+    async def test_a_listed_card_address_keeps_no_credential(self) -> None:
+        signed = _row(card_url="https://bot:pw@agents.example.com:8443/card.json?sig=s3cret")
+        assert module.read(signed).card_url == "https://agents.example.com:8443/card.json"
 
     @pytest.mark.security
     async def test_another_organizations_registration_is_not_found(self) -> None:

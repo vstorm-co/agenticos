@@ -1,5 +1,5 @@
 ---
-source_sha: "40de7d6f6a69"
+source_sha: "7fabea1dc83b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1597,6 +1597,12 @@ token. El spec de un agent nombra registros en `external_agents`, y los ajustes 
 delegación los muestran junto a los agents propios de la organización. La clave de
 un registro se presta a cada run, como la de una capability, así que publicar
 rechaza un registro cuya clave quien publica no puede ver en el vault.
+
+Cada agent que delega en un registro depende de él, así que actualizarlo o
+eliminarlo le corresponde a quien lo registró, o a quien edita todos los agents.
+Una actualización cuya card lleva el agent a otro host queda en la auditoría, porque
+ese host recibe desde entonces las peticiones y la clave. La lista muestra la
+dirección de una card sin su query, donde una dirección firmada lleva su credencial.
 
 Para el modelo que delega, un agent remoto es un delegado más, llamado por su nombre
 con la misma herramienta `task`. Cada llamada es un `message/send` de A2A con la

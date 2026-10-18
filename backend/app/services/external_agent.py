@@ -10,14 +10,20 @@ picking one as a delegate needs.
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm, Scope
 from app.core.secret_kinds import SecretKind
 from app.db.models.external_agent import ExternalAgent
 from app.repositories import external_agent_repo
@@ -40,7 +46,7 @@ def read(agent: ExternalAgent) -> ExternalAgentRead:
         slug=agent.slug,
         name=agent.name,
         description=agent.description,
-        card_url=agent.card_url,
+        card_url=_without_query(agent.card_url),
         endpoint_url=agent.endpoint_url,
         secret_id=agent.secret_id,
         skills=[
@@ -112,9 +118,14 @@ class ExternalAgentService:
         return read(agent)
 
     async def refresh(self, ctx: AuthContext, agent_id: UUID) -> ExternalAgentRead:
-        """Read the card again - a remote agent changes on its own side."""
-        agent = await self._get(ctx, agent_id)
+        """Read the card again - a remote agent changes on its own side.
+
+        A card that moves the agent to another host is audited as registering
+        was: that host now receives the organization's requests and its key.
+        """
+        agent = await self._changeable(ctx, agent_id)
         card = await self._card(agent.card_url, typed=False)
+        moved_from = _host(agent.endpoint_url)
         updated = await external_agent_repo.update(
             self.db,
             agent=agent,
@@ -125,11 +136,21 @@ class ExternalAgentService:
                 "card": _stored(card),
             },
         )
+        if _host(card.url) != moved_from:
+            await record_audit(
+                self.db,
+                actor_user_id=ctx.subject_id,
+                organization_id=ctx.organization_id,
+                action="external_agent.moved",
+                target_type="external_agent",
+                target_id=str(agent_id),
+                details={"from_host": moved_from, "endpoint_host": _host(card.url)},
+            )
         return read(updated)
 
     async def delete(self, ctx: AuthContext, agent_id: UUID) -> None:
         """Remove a registration. An agent still delegating to it is refused at its next run."""
-        agent = await self._get(ctx, agent_id)
+        agent = await self._changeable(ctx, agent_id)
         await external_agent_repo.delete(self.db, agent)
         await record_audit(
             self.db,
@@ -147,6 +168,25 @@ class ExternalAgentService:
         if agent is None:
             raise NotFoundError(
                 message="Remote agent not found", details={"external_agent_id": str(agent_id)}
+            )
+        return agent
+
+    async def _changeable(self, ctx: AuthContext, agent_id: UUID) -> ExternalAgent:
+        """A registration this caller may refresh or remove: their own, or any for
+        somebody who edits every agent - every agent delegating to it depends on it.
+
+        Raises:
+            NotFoundError: If the organization has no such registration.
+            AuthorizationError: If it is somebody else's and the caller edits only
+                their own agents.
+        """
+        agent = await self._get(ctx, agent_id)
+        if agent.created_by_user_id != ctx.subject_id and (
+            ctx.scope_for(Perm.AGENTS_EDIT) is not Scope.ALL
+        ):
+            raise AuthorizationError(
+                message="Only whoever registered this remote agent, or an admin, may change it",
+                details={"external_agent_id": str(agent_id)},
             )
         return agent
 
@@ -171,6 +211,13 @@ def _stored(card: AgentCard) -> dict[str, Any]:
 
 
 def _host(url: str) -> str:
-    from urllib.parse import urlparse
+    return urlsplit(url).hostname or ""
 
-    return urlparse(url).hostname or ""
+
+def _without_query(url: str) -> str:
+    """A card address as anyone who lists it sees it: a signed one keeps its
+    credential in the query, which only the server that fetches it needs."""
+    parts = urlsplit(url)
+    # The netloc without any `user:password@` in front of it.
+    host = parts.netloc.rpartition("@")[2]
+    return urlunsplit((parts.scheme, host, parts.path, "", ""))

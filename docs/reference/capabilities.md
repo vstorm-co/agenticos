@@ -1492,6 +1492,12 @@ list them beside the organization's own agents. A registration's key is lent to
 every run, as a capability's is, so publishing refuses one whose key the publisher
 cannot see in the vault.
 
+Every agent delegating to a registration depends on it, so refreshing or removing
+one is for whoever registered it, or for somebody who edits every agent. A refresh
+whose card moves the agent to another host is audited, since that host now gets the
+requests and the key. The list shows a card's address without its query, where a
+signed address keeps its credential.
+
 To the delegating model a remote agent is one more delegate, called by its handle
 with the same `task` tool. Each call is one A2A `message/send` carrying the latest
 request, and the remote agent's `contextId` is carried from one call to the next

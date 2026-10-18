@@ -1,5 +1,5 @@
 ---
-source_sha: "40de7d6f6a69"
+source_sha: "7fabea1dc83b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1567,6 +1567,12 @@ token. Spec agenta wskazuje rejestracje w `external_agents`, a ustawienia
 delegowania pokazują je obok własnych agentów organizacji. Klucz rejestracji jest
 pożyczany każdemu runowi, jak klucz capability, więc publikacja odmawia rejestracji,
 której klucza publikujący nie widzi w vault.
+
+Od rejestracji zależy każdy agent, który do niej deleguje, więc odświeżyć albo usunąć
+ją może ten, kto ją zarejestrował, albo ktoś, kto edytuje wszystkie agenty.
+Odświeżenie, po którym karta przenosi agenta na inny host, trafia do audytu, bo ten
+host dostaje odtąd żądania i klucz. Lista pokazuje adres karty bez zapytania, w
+którym podpisany adres trzyma swoje poświadczenie.
 
 Dla delegującego modelu zdalny agent to po prostu kolejny delegat, wywoływany po
 nazwie tym samym narzędziem `task`. Każde wywołanie to jedno A2A `message/send` z

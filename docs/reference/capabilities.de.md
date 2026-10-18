@@ -1,5 +1,5 @@
 ---
-source_sha: "40de7d6f6a69"
+source_sha: "7fabea1dc83b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1685,6 +1685,13 @@ Bearer-Token mitgeht. Die Spec eines Agent nennt Registrierungen in
 Agents der Organisation. Der Key einer Registrierung wird jedem Run geliehen, wie der
 einer Capability, darum lehnt das Veröffentlichen eine Registrierung ab, deren Key
 die veröffentlichende Person im Vault nicht sehen kann.
+
+Jeder Agent, der an eine Registrierung delegiert, hängt von ihr ab, darum darf sie
+nur aktualisieren oder entfernen, wer sie registriert hat, oder wer jeden Agent
+bearbeitet. Eine Aktualisierung, deren Karte den Agent auf einen anderen Host
+verlegt, wird auditiert, denn dieser Host bekommt nun die Anfragen und den Key. Die
+Liste zeigt die Adresse einer Karte ohne ihre Query, in der eine signierte Adresse
+ihr Credential trägt.
 
 Für das delegierende Modell ist ein Remote Agent ein weiterer Delegierter, über
 seinen Namen mit demselben Tool `task` aufgerufen. Jeder Aufruf ist ein A2A
