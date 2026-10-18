@@ -3761,7 +3761,7 @@
       },
       "projects-list": {
         "title": "Twoje projekty",
-        "body": "Projekty, które masz, i te udostępnione tobie lub twoim działom. Twoje czaty w każdym zostają twoje."
+        "body": "Projekty, które masz, i te udostępnione tobie lub twoim działom. Każdy czat w projekcie mogą czytać i dołączyć do niego wszyscy jego członkowie."
       },
       "project-tabs": {
         "title": "Czaty, pliki i instrukcje",
