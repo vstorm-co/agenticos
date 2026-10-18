@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import shlex
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -74,6 +75,9 @@ _CLAUDE_QUIET = frozenset({"TodoWrite"})
 """Bookkeeping calls, not steps a person would recognise as work."""
 
 _CLAUDE_WRITING_TOOLS = "Edit,MultiEdit,Write,NotebookEdit,Bash"
+
+_SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,63}")
+"""What both harnesses name a session with - a UUID, or Codex's thread id."""
 """What a read-only Claude Code session is not given at all - the shell included.
 
 The shell because no list of command prefixes keeps it read-only: a rule is a
@@ -197,9 +201,16 @@ def invocation(
 
     `api_key` is None only for Codex on a ChatGPT sign-in, whose tokens are in its
     `auth.json` rather than the environment.
+
+    The task goes last, after `--`: it is the model's text, and one opening on a
+    dash would otherwise be read as a flag. A session id is what an earlier
+    task's output said, and one that is not an id starts a fresh session rather
+    than reach the command line.
     """
+    if session_id is not None and not _SESSION_ID.fullmatch(session_id):
+        session_id = None
     if harness == "claude_code":
-        argv = ["claude", "-p", task, "--output-format", "stream-json", "--verbose"]
+        argv = ["claude", "-p", "--output-format", "stream-json", "--verbose"]
         argv += (
             [
                 "--permission-mode",
@@ -216,6 +227,7 @@ def invocation(
             argv += ["--model", model]
         if session_id:
             argv += ["--resume", session_id]
+        argv += ["--", task]
         env = {
             # Claude Code refuses to skip its prompts as root outside a sandbox;
             # this is one, and the platform's approval gate is where a person says yes.
@@ -247,7 +259,7 @@ def invocation(
     argv += ["--json", "--skip-git-repo-check", "--dangerously-bypass-approvals-and-sandbox"]
     if model:
         argv += ["-m", model]
-    argv.append(task)
+    argv += ["--", task]
     return Invocation(argv=argv, env={} if api_key is None else {"CODEX_API_KEY": api_key})
 
 

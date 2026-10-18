@@ -216,7 +216,8 @@ class TestTheCommand:
             session_id=None,
             base_url=None,
         )
-        assert command.argv[:3] == ["claude", "-p", "Find the bug"]
+        assert command.argv[:2] == ["claude", "-p"]
+        assert command.argv[-2:] == ["--", "Find the bug"]
         flags = command.argv[command.argv.index("--permission-mode") :]
         assert flags[:4] == [
             "--permission-mode",
@@ -241,7 +242,14 @@ class TestTheCommand:
             base_url="https://openrouter.ai/api",
         )
         assert "--dangerously-skip-permissions" in command.argv
-        assert command.argv[-4:] == ["--model", "anthropic/claude-sonnet-5.5", "--resume", "s-1"]
+        assert command.argv[-6:] == [
+            "--model",
+            "anthropic/claude-sonnet-5.5",
+            "--resume",
+            "s-1",
+            "--",
+            "Apply it",
+        ]
         assert command.env["ANTHROPIC_BASE_URL"] == "https://openrouter.ai/api"
         assert command.env["ANTHROPIC_AUTH_TOKEN"] == "sk-or"
         assert command.env["ANTHROPIC_API_KEY"] == ""
@@ -259,13 +267,27 @@ class TestTheCommand:
         )
         assert fresh.argv[:2] == ["codex", "exec"]
         assert "--dangerously-bypass-approvals-and-sandbox" in fresh.argv
-        assert fresh.argv[-3:] == ["-m", "gpt-5.5-codex", "Do it"]
+        assert fresh.argv[-4:] == ["-m", "gpt-5.5-codex", "--", "Do it"]
         assert fresh.env == {"CODEX_API_KEY": "sk-o"}
 
         resumed = invocation(
             "codex", "edit", "Do it", api_key="sk-o", model=None, session_id="th-1", base_url=None
         )
         assert resumed.argv[:4] == ["codex", "exec", "resume", "th-1"]
+
+    @pytest.mark.parametrize("harness", ["claude_code", "codex"])
+    def test_a_task_or_a_session_that_looks_like_a_flag_is_never_one(self, harness: str) -> None:
+        command = invocation(
+            harness,  # type: ignore[arg-type]
+            "edit",
+            "--help",
+            api_key="sk-o",
+            model=None,
+            session_id="--dangerously-skip-permissions",
+            base_url=None,
+        )
+        assert command.argv[-2:] == ["--", "--help"]
+        assert "--resume" not in command.argv and "resume" not in command.argv
 
     def test_codex_has_no_read_only_mode_to_run(self) -> None:
         """Its read-only mode is a sandbox of its own, which cannot start in a container."""
@@ -712,6 +734,23 @@ class TestSpendOfATaskThatDidNotFinish:
         with metered_by(ledger), pytest.raises(anyio.get_cancelled_exc_class()):
             await _call(codex, harness="codex")
         assert ledger.input_tokens > 0
+
+    async def test_a_sandbox_lost_mid_task_still_books_what_it_spent(self) -> None:
+        class _LostAfterAStep(_Shell):
+            polls = 0
+
+            async def _poll(self, command: str) -> CommandResult:
+                self.polls += 1
+                if self.polls > 1:
+                    raise WorkspaceUnavailableError("gone")
+                return await super()._poll(command)
+
+        shell = _LostAfterAStep(events=_lines(_SPENDING), hangs=True)
+        ledger = SpendLedger()
+        with metered_by(ledger):
+            answer = await _call(shell)
+        assert answer == "Claude Code could not run in this sandbox (WorkspaceUnavailableError)."
+        assert ledger.input_tokens == 105
 
 
 class TestRunningATask:
@@ -1407,6 +1446,18 @@ class TestCodexOnASignIn:
         answer = await self._run(shell, _Store(), shared_sandbox=True)
         assert "only in a sandbox nobody else's tasks share" in answer
         assert shell.commands == []
+
+    @pytest.mark.security
+    async def test_a_group_chat_never_gets_a_persons_sign_in(self) -> None:
+        """Everybody in a Slack or Telegram room runs in its conversation's
+        container, whatever scope the sandbox has - shared all the same."""
+        store = _Store()
+        ctx = _ctx(_Shell(), audience=RunAudience(user_id=RUNNER, room_key="room:slack:C1"))
+        answer = await _tools("codex", api_key=None, sign_in=lambda _org: store)[
+            "run_coding_agent"
+        ].function(ctx, task="Look")
+        assert "only in a sandbox nobody else's tasks share" in answer
+        assert store.asked_for == []
 
     async def test_a_sign_in_removed_from_the_vault_is_an_answer(self) -> None:
         answer = await self._run(_Shell(), _Store(gone=True))

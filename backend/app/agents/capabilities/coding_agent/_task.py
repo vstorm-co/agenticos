@@ -220,10 +220,14 @@ async def _poll(
     """The events written since `offset`, and the exit code once the task's group is gone.
 
     Whether the group lives is asked first, so a group already gone has written
-    every event the read that follows returns.
+    every event the read that follows returns. A runtime without `pgrep` asks
+    the group's leader instead - the shell that waits for the harness - rather
+    than read the missing command as a task that ended.
     """
     line = (
-        f"alive=; pgrep -g {group} > /dev/null 2>&1 && alive=1; "
+        "alive=; if command -v pgrep > /dev/null 2>&1; "
+        f"then pgrep -g {group} > /dev/null 2>&1 && alive=1; "
+        f"else kill -0 {group} 2> /dev/null && alive=1; fi; "
         f"tail -c +{offset + 1} {shlex.quote(files.events)} 2>/dev/null "
         f"| head -c {CHUNK_BYTES} | base64 | tr -d '\\n'; echo; "
         f'if [ -n "$alive" ]; then echo {_RUNNING}; '

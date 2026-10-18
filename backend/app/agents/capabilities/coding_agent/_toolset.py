@@ -235,11 +235,13 @@ def build_coding_toolset(
         # In a container other people's runs work in, their tasks run as the
         # same user and can read the tokens wherever they are written; a person's
         # subscription is theirs alone, so it runs only where nobody else does.
-        if shared_sandbox:
+        # A group chat is shared the same way whatever the sandbox's scope says:
+        # everybody in the room runs in its conversation's container.
+        if shared_sandbox or _in_room(ctx.deps):
             return (
                 f"{label} runs on a ChatGPT sign-in only in a sandbox nobody else's tasks "
-                "share, and this one is shared - a project's, or the whole agent's. Say "
-                "that the agent needs an OpenAI API key for Codex here."
+                "share, and this one is shared - a project's, a group chat's, or the whole "
+                "agent's. Say that the agent needs an OpenAI API key for Codex here."
             )
         source = sign_in(organization_id)
         # The tokens are written where Codex reads them, and anything Codex runs
@@ -343,6 +345,10 @@ def build_coding_toolset(
             )
         except _SANDBOX_FAILURES as failed:
             logger.warning("%s could not run in the workspace: %s", label, failed)
+            if seen:
+                # The sandbox went mid-task, after the harness had started work:
+                # what it spent is spent, as for a task that was stopped.
+                _book(spent(seen))
             return f"{label} could not run in this sandbox ({type(failed).__name__})."
         except BaseException:
             # Stopped mid-task: the harness has already spent what it spent, and
@@ -425,6 +431,12 @@ def _person(deps: object) -> UUID | None:
     """
     audience = getattr(deps, "audience", None)
     return audience.user_id if isinstance(audience, RunAudience) else None
+
+
+def _in_room(deps: object) -> bool:
+    """Whether the run answers a group chat, where several people's turns share one sandbox."""
+    audience = getattr(deps, "audience", None)
+    return isinstance(audience, RunAudience) and audience.room_key is not None
 
 
 UNREPORTED = "coding-agent:unreported"
