@@ -87,6 +87,20 @@ async def test_a_success_with_no_length_is_zero_seconds_and_a_null_length(record
     assert (written["units"], written["unit"], written["audio_ms"]) == (0, "seconds", None)
 
 
+@pytest.mark.parametrize("length", [float("inf"), float("nan")])
+async def test_a_length_that_is_not_finite_is_recorded_as_unmeasured(
+    recorded: Any, length: float
+) -> None:
+    """A JSON `1e999` parses to `inf`, and rounding it raised before the
+    savepoint could catch anything - a 500 for a transcript that worked."""
+    await transcription_usage.record(
+        _db(), _CALL, input_bytes=1024, audio_seconds=length, duration_ms=800
+    )
+
+    written = recorded.await_args.kwargs
+    assert (written["status"], written["units"], written["audio_ms"]) == ("succeeded", 0, None)
+
+
 async def test_a_failure_counts_nothing_but_keeps_the_length_and_the_stage(recorded: Any) -> None:
     failure = ExternalServiceError(
         message="The transcription provider did not answer in time.",

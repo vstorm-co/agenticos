@@ -346,7 +346,7 @@ class OrganizationService:
             raise AuthorizationError(
                 message="Changing whether chats may waive approvals requires 'approvals:decide'"
             )
-        if wants_minutes and not role_has(membership.role, Perm.BUDGETS_MANAGE):
+        if wants_minutes and not holds(Perm.BUDGETS_MANAGE):
             raise AuthorizationError(
                 message="Changing the monthly call minutes requires 'budgets:manage'"
             )

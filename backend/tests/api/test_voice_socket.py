@@ -7,6 +7,8 @@ from uuid import uuid4
 import pytest
 
 from app.api.routes.v1.voice import voice_websocket
+from app.core.permissions import AuthContext
+from app.services.api_key import KeyCaller
 from app.services.voice.session import socket_caller
 
 pytestmark = pytest.mark.anyio
@@ -24,6 +26,29 @@ async def test_a_socket_without_a_user_is_closed_4001():
     socket = _socket()
     await voice_websocket(socket, user=None, organization=SimpleNamespace(id=uuid4()))
     socket.close.assert_awaited_once_with(code=4001, reason="Unauthorized")
+
+
+@pytest.mark.security
+async def test_an_api_key_is_refused_before_the_call_is_put_through():
+    """A key narrowed to some scopes would otherwise call with its issuer's whole
+    membership: `socket_caller` reads the role, not the key (Codex on #2204)."""
+    org_id = uuid4()
+    socket = _socket()
+    socket.state.api_key_caller = KeyCaller(
+        user=MagicMock(),
+        organization=MagicMock(id=org_id),
+        context=AuthContext(user_id=uuid4(), organization_id=org_id, role="owner"),
+        api_key_id=uuid4(),
+        prefix="aos_0123abcd",
+    )
+    with patch("app.api.routes.v1.voice.socket_caller", AsyncMock()) as admit:
+        await voice_websocket(socket, user=MagicMock(), organization=MagicMock(id=org_id))
+
+    socket.close.assert_awaited_once_with(
+        code=4003, reason="API keys are not accepted on the voice socket"
+    )
+    admit.assert_not_awaited()
+    socket.accept.assert_not_awaited()
 
 
 async def test_a_member_is_a_caller_bound_to_their_organization_and_token():

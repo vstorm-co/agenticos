@@ -17,6 +17,7 @@ from app.api.deps import (
 )
 from app.core.permissions import Perm
 from app.schemas.voice import VoiceReadinessRead, VoiceUsageRead
+from app.services.api_key import KeyCaller
 from app.services.voice import VoiceCallSession, socket_caller
 
 router = APIRouter()
@@ -83,6 +84,12 @@ async def voice_websocket(
     """
     if user is None:
         await websocket.close(code=4001, reason="Unauthorized")
+        return
+    # A call is a person at the microphone, as a chat turn is a person at the
+    # keyboard: `socket_caller` rebuilds authority from the issuer's membership,
+    # which would widen a key past the scopes it was issued with.
+    if isinstance(getattr(websocket.state, "api_key_caller", None), KeyCaller):
+        await websocket.close(code=4003, reason="API keys are not accepted on the voice socket")
         return
     caller = await socket_caller(user, organization, auth_token=websocket.state.auth_token)
     if caller is None:

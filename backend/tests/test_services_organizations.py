@@ -1174,6 +1174,26 @@ class TestVoiceSettings:
 
         repo.set_voice_monthly_minutes.assert_not_awaited()
 
+    @pytest.mark.security
+    @pytest.mark.anyio
+    async def test_a_key_without_budgets_manage_cannot_lift_the_minutes(self, service, org, repo):
+        """An owner's key narrowed to `org:settings` holds only that, not the
+        owner's whole role: `null` would lift the cap (Codex on #2204)."""
+        from app.core.permissions import Perm
+
+        with (
+            self._as(service, org, "owner"),
+            pytest.raises(AuthorizationError, match="budgets:manage"),
+        ):
+            await service.update(
+                uuid.uuid4(),
+                OrganizationUpdate(voice_monthly_minutes=None),
+                uuid.uuid4(),
+                key_scopes=frozenset({Perm.ORG_SETTINGS}),
+            )
+
+        repo.set_voice_monthly_minutes.assert_not_awaited()
+
     @pytest.mark.anyio
     async def test_clearing_the_monthly_minutes_leaves_only_the_budgets(self, service, org, repo):
         with self._as(service, org, "owner"):

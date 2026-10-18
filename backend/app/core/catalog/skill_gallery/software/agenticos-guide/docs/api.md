@@ -324,7 +324,10 @@ The console socket authenticates as `/ws/agent` does: the token as a
 `Sec-WebSocket-Protocol` entry `access_token.<JWT>` (or the same-origin cookie),
 never in the query string, and the organization as `?organization_id=`. It
 closes with `4001` without a valid session and `4003` when the caller is not a
-member. The embed socket closes with `4029` past a rate limit and `4003` for any
+member or authenticated with an organization API key: a call is a person at the
+microphone, as a chat turn is a person at the keyboard.
+
+The embed socket closes with `4029` past a rate limit and `4003` for any
 refusal about the embed. Every heartbeat re-checks the session, so a call does
 not outlive a sign-out.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "47eb19869118"
+source_sha: "35b4b38a6819"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -356,7 +356,11 @@ Das Socket der Konsole authentifiziert sich wie `/ws/agent`: das Token als
 Eintrag `access_token.<JWT>` in `Sec-WebSocket-Protocol` (oder das
 Same-Origin-Cookie), nie im Query-String, und die Organisation als
 `?organization_id=`. Es schließt mit `4001` ohne gültige Session und mit `4003`,
-wenn der Aufrufer kein Mitglied ist. Das Embed-Socket schließt mit `4029`
+wenn der Aufrufer kein Mitglied ist oder sich mit einem API-Schlüssel der
+Organisation authentifiziert: Ein Anruf ist ein Mensch am Mikrofon, so wie ein
+Chat-Turn ein Mensch an der Tastatur ist.
+
+Das Embed-Socket schließt mit `4029`
 jenseits eines Rate-Limits und mit `4003` bei jeder Ablehnung, die das Embed
 betrifft. Jeder Heartbeat prüft die Session erneut, sodass ein Anruf eine
 Abmeldung nicht überdauert.

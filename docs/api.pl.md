@@ -1,5 +1,5 @@
 ---
-source_sha: "47eb19869118"
+source_sha: "35b4b38a6819"
 ---
 
 # API HTTP { #the-http-api }
@@ -333,7 +333,10 @@ Socket konsoli uwierzytelnia się tak jak `/ws/agent`: token jako wpis
 `Sec-WebSocket-Protocol` `access_token.<JWT>` (albo ciasteczko z tego samego
 originu), nigdy w query stringu, a organizację jako `?organization_id=`.
 Zamyka się z kodem `4001` bez ważnej sesji i z `4003`, gdy wywołujący nie jest
-członkiem. Socket embeda zamyka się z `4029` po przekroczeniu rate limitu
+członkiem albo uwierzytelnił się kluczem API organizacji: rozmowa to człowiek
+przy mikrofonie, tak jak tura czatu to człowiek przy klawiaturze.
+
+Socket embeda zamyka się z `4029` po przekroczeniu rate limitu
 i z `4003` przy każdej odmowie dotyczącej embeda. Każdy heartbeat sprawdza
 sesję ponownie, więc rozmowa nie przetrwa wylogowania.
 

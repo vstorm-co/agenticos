@@ -98,9 +98,12 @@ async def record(
 
     Returns the row, or `None` when it could not be written: a database refusal
     is logged and stays inside the savepoint, because the transcript the caller
-    is holding is worth more than its bookkeeping.
+    is holding is worth more than its bookkeeping. A length that is not finite -
+    a provider's or a chat platform's `inf` or `NaN` - is no length at all, and
+    is recorded as unmeasured rather than raised out of the rounding.
     """
-    audio_ms = None if audio_seconds is None else max(0, round(audio_seconds * 1000))
+    measured = audio_seconds is not None and math.isfinite(audio_seconds)
+    audio_ms = max(0, round(audio_seconds * 1000)) if measured else None
     if failure is None:
         status = MLCallStatus.SUCCEEDED.value
         units = 0 if audio_ms is None else math.ceil(audio_ms / 1000)

@@ -1,5 +1,5 @@
 ---
-source_sha: "47eb19869118"
+source_sha: "35b4b38a6819"
 ---
 
 # La API HTTP { #the-http-api }
@@ -342,7 +342,10 @@ El socket de la consola se autentica igual que `/ws/agent`: el token como una
 entrada `access_token.<JWT>` de `Sec-WebSocket-Protocol` (o la cookie del mismo
 origen), nunca en la query string, y la organización como `?organization_id=`.
 Se cierra con `4001` sin una sesión válida y con `4003` cuando quien llama no es
-miembro. El socket del embed se cierra con `4029` al pasar un rate limit y con
+miembro o se autentica con una clave API de la organización: una llamada es una
+persona ante el micrófono, como un turno de chat es una persona ante el teclado.
+
+El socket del embed se cierra con `4029` al pasar un rate limit y con
 `4003` ante cualquier rechazo relativo al embed. Cada latido vuelve a comprobar
 la sesión, así que una llamada no sobrevive a un cierre de sesión.
 
