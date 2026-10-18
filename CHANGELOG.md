@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- **Models on a ChatGPT subscription.** The `openai_codex` provider runs OpenAI
+  models through the Codex backend on a person's own ChatGPT plan instead of a
+  metered API key. **Sign in with ChatGPT** - in the vault, when adding a model
+  and in the chat's model picker - stores a private `openai_codex` secret whose
+  tokens the vault keeps current as they rotate; **Reconnect** renews one. A
+  run reaches a sign-in only for the person asking who may see it in the vault:
+  never for a visitor, an API key's holder, background work or an approver
+  resuming somebody else's run. See
+  [Running on a ChatGPT subscription](docs/models.md#running-on-a-chatgpt-subscription).
 - **Several people in one chat with the agent.** A conversation's open sockets
   share a room: a bar over the transcript shows who else has the chat open, with
   Invite for its owner, and a turn somebody asks is followed live by everybody
@@ -69,8 +78,8 @@ Two things are versioned separately from this file and worth knowing about:
   instructions after its own. Start one from the project's **New chat** or the
   composer's **+** or its `@`; upload files and folders on its **Files** tab; share it with
   people, departments or the organization (`projects:view`, `projects:use`,
-  `projects:edit`). Chats stay their authors' own, and a deleted project leaves
-  them as ordinary chats. The sidebar lists your recent projects, the chat list
+  `projects:edit`). A deleted project leaves its chats as ordinary chats of
+  whoever started them. The sidebar lists your recent projects, the chat list
   files each project's chats under it, and the dashboard has a **Projects** card. A
   project opens on its files, which can be dropped anywhere on the tab and show
   their progress as they go up; its **Apps** tab lists the apps its chats
