@@ -211,6 +211,32 @@ class TestCreatingAndChanging:
             await service.update(_ctx(), project.id, ProjectUpdate(default_agent_id=uuid.uuid4()))
         assert "published agent" in refused.value.message
 
+    async def test_a_runtime_change_is_refused_once_the_container_exists(self) -> None:
+        """A run reattaches the container, so the new runtime would be claimed while
+        commands still ran in the old one."""
+        project = _project(runtime="python")
+        service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT)
+        opened = AsyncMock(return_value=[MagicMock(session_id=None), MagicMock(session_id="s-1")])
+        with (
+            patch.object(module.agent_workspace_repo, "list_for_project", opened),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await service.update(_ctx(), project.id, ProjectUpdate(runtime="workbench"))
+        assert refused.value.details["fields"][0]["field"] == "runtime"
+
+    async def test_a_runtime_change_before_any_container_is_taken(self) -> None:
+        project = _project(runtime="python")
+        service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT)
+        with (
+            patch.object(
+                module.agent_workspace_repo, "list_for_project", AsyncMock(return_value=[])
+            ),
+            patch.object(module.project_repo, "update", AsyncMock(return_value=project)) as update,
+            patch.object(module, "record_audit", AsyncMock()),
+        ):
+            await service.update(_ctx(), project.id, ProjectUpdate(runtime="workbench"))
+        assert update.await_args.kwargs["update_data"] == {"runtime": "workbench"}
+
     async def test_renaming_without_a_new_default_agent_checks_no_agent(self) -> None:
         project = _project()
         service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT)

@@ -24,7 +24,13 @@ from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.conversation import Conversation
 from app.db.models.project import Project
 from app.db.updates import writable
-from app.repositories import agent_repo, conversation_repo, project_repo, resource_grant_repo
+from app.repositories import (
+    agent_repo,
+    agent_workspace_repo,
+    conversation_repo,
+    project_repo,
+    resource_grant_repo,
+)
 from app.schemas.project import ProjectCreate, ProjectList, ProjectRead, ProjectUpdate
 from app.services.access import (
     AGENT,
@@ -252,6 +258,8 @@ class ProjectService:
         update_data = writable(data, over=Project)
         if update_data.get("default_agent_id") is not None:
             await self._check_default_agent(ctx, update_data["default_agent_id"])
+        if update_data.get("runtime", project.runtime) != project.runtime:
+            await self._check_runtime_change(ctx, project)
         updated = await project_repo.update(self.db, project=project, update_data=update_data)
         await record_audit(
             self.db,
@@ -435,6 +443,23 @@ class ProjectService:
             target_id=str(project.id),
             details={"path": path},
         )
+
+    async def _check_runtime_change(self, ctx: AuthContext, project: Project) -> None:
+        """Refuse a new runtime once the project's container exists.
+
+        A container keeps the runtime it was started on - a run reattaches it -
+        so the new one would be claimed, and briefed to agents, while their
+        commands still ran in the old environment.
+        """
+        opened = await agent_workspace_repo.list_for_project(
+            self.db, organization_id=ctx.organization_id, project_id=project.id
+        )
+        if any(row.session_id for row in opened):
+            raise refused_field(
+                "runtime",
+                "This project's container is already running on its runtime, which cannot "
+                "change - start a new project for another one",
+            )
 
     async def _check_default_agent(self, ctx: AuthContext, agent_id: UUID) -> None:
         """One the setter may run, and that runs at all: a new chat starts with it,
