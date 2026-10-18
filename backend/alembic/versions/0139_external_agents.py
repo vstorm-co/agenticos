@@ -65,6 +65,10 @@ def upgrade() -> None:
         ["organization_id"],
         unique=False,
     )
+    # Deleting a secret finds the registrations it cascades to through this column.
+    op.create_index(
+        op.f("external_agents_secret_id_idx"), "external_agents", ["secret_id"], unique=False
+    )
     op.add_column(
         "agents",
         sa.Column("a2a_enabled", sa.Boolean(), server_default="false", nullable=False),
@@ -73,5 +77,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_column("agents", "a2a_enabled")
+    op.drop_index(op.f("external_agents_secret_id_idx"), table_name="external_agents")
     op.drop_index(op.f("external_agents_organization_id_idx"), table_name="external_agents")
     op.drop_table("external_agents")

@@ -50,6 +50,8 @@ class ExternalAgent(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("organization_secrets.id", ondelete="CASCADE"),
         nullable=True,
+        # The cascade from a deleted secret finds its registrations through this.
+        index=True,
     )
     """The vault secret sent as its bearer token, if it asks for one.
 
