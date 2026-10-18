@@ -1,5 +1,5 @@
 ---
-source_sha: "59f96aa2d00c"
+source_sha: "148eb2fa3872"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -812,6 +812,9 @@ Aufgabe ist die des Runs, und ihre `contextId` ist das Gespräch, unter dem der 
 abgelegt wird; sie erneut zu senden, setzt dieses Gespräch fort. Ein Run, der für
 eine Freigabe anhält, antwortet `input-required`; entschieden wird in der Konsole,
 und `tasks/get` liest, wo er seitdem steht.
+
+Eine Aufgabe liest, wer sie gesendet hat, oder wer jeden Run lesen darf
+(`runs:view`); für alle anderen ist ihre ID unbekannt.
 
 Synchron beantwortet: `message/stream`, Push-Benachrichtigungen und `tasks/cancel`
 werden namentlich abgelehnt, und die Karte sagt, dass Streaming nicht angeboten wird.

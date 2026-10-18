@@ -1,5 +1,5 @@
 ---
-source_sha: "59f96aa2d00c"
+source_sha: "148eb2fa3872"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -769,6 +769,9 @@ tarea es el del run y su `contextId` es la conversación en la que se archiva el
 así que volver a enviarlo continúa esa conversación. Un run que se detiene en una
 aprobación responde `input-required`; se decide en la consola, y `tasks/get` lee
 dónde está desde entonces.
+
+Una tarea la lee quien la envió, o quien puede leer todos los runs
+(`runs:view`); para cualquier otro su id es desconocido.
 
 Se responde de forma síncrona: `message/stream`, las notificaciones push y
 `tasks/cancel` se rechazan por su nombre, y la card dice que no se ofrece streaming.

@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthorizationError, NotFoundError
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.repositories import agent_repo, conversation_repo
@@ -242,7 +242,9 @@ class A2AServerService:
             run = await runner.get_run(ctx, run_id)
         except (NotFoundError, AuthorizationError) as missing:
             raise _RpcError(TASK_NOT_FOUND, "No such task") from missing
-        if run.agent_id != agent.id:
+        # Whoever asked for the task reads it, and so does anybody who may read
+        # every run - not anyone in the organization who learns its id.
+        if run.agent_id != agent.id or not (run.user_id == ctx.user_id or ctx.has(Perm.RUNS_VIEW)):
             raise _RpcError(TASK_NOT_FOUND, "No such task")
         answer = await self._answer(run)
         parked = await runner.parked_calls(ctx, run)

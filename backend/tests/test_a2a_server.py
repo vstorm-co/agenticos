@@ -37,7 +37,13 @@ def _agent(**overrides: Any) -> MagicMock:
 
 
 def _run(status: str = RunStatus.COMPLETED.value, **overrides: Any) -> MagicMock:
-    run = MagicMock(id=uuid.uuid4(), conversation_id=uuid.uuid4(), status=status, error=None)
+    run = MagicMock(
+        id=uuid.uuid4(),
+        conversation_id=uuid.uuid4(),
+        status=status,
+        error=None,
+        user_id=CTX.user_id,
+    )
     for field, value in overrides.items():
         setattr(run, field, value)
     return run
@@ -266,6 +272,26 @@ class TestReadingATask:
 
         served.runner.get_run.side_effect = NotFoundError(message="Run not found")
         assert (await _ask(served, self._get(str(uuid.uuid4()))))["error"]["code"] == -32001
+
+    @pytest.mark.security
+    async def test_somebody_else_s_task_is_not_found_unless_they_may_read_every_run(
+        self,
+    ) -> None:
+        """A task id is not a bearer token: knowing one is not reading its answer."""
+        agent = _agent()
+        served = _Served(agent)
+        served.runner.get_run.return_value = _run(agent_id=agent.id, user_id=uuid.uuid4())
+        with patch.object(
+            module.conversation_repo, "get_messages_by_run", AsyncMock(return_value=[])
+        ):
+            assert (await _ask(served, self._get(str(uuid.uuid4()))))["error"]["code"] == -32001
+
+            operator = AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role="operator")
+            with served:
+                answer = await A2AServerService(MagicMock()).handle(
+                    operator, uuid.uuid4(), self._get(str(uuid.uuid4()))
+                )
+        assert answer["result"]["status"]["state"] == "completed"
 
     async def test_a_task_needs_an_id(self) -> None:
         assert (await _ask(_Served(_agent()), self._get(None)))["error"]["code"] == -32602

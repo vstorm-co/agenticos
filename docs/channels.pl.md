@@ -1,5 +1,5 @@
 ---
-source_sha: "59f96aa2d00c"
+source_sha: "148eb2fa3872"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -762,6 +762,9 @@ obowiązują budżet, bramka zatwierdzeń, audit trail i Activity. Id zadania to
 runa, a jego `contextId` to rozmowa, do której run trafia, więc ponowne wysłanie go
 kontynuuje tę rozmowę. Run zatrzymany na zatwierdzeniu odpowiada `input-required`;
 decyzję podejmuje się w konsoli, a `tasks/get` odczytuje, na czym potem stanął.
+
+Zadanie odczyta ten, kto je wysłał, albo ktoś, kto może czytać wszystkie runy
+(`runs:view`); dla każdego innego jego id jest nieznane.
 
 Odpowiedź jest synchroniczna: `message/stream`, powiadomienia push i `tasks/cancel`
 są odrzucane z nazwy, a karta mówi, że streaming nie jest oferowany. Agent, który

@@ -740,6 +740,9 @@ continues that conversation. A run that stops for an approval answers
 `input-required`; it is decided in the console, and `tasks/get` reads where it
 stands since.
 
+A task is read by whoever sent it, or by somebody who may read every
+run (`runs:view`); to anyone else its id is unknown.
+
 Answered synchronously: `message/stream`, push notifications and `tasks/cancel` are
 refused by name, and the card says streaming is not offered. An agent that is not
 served — off, unpublished, archived or another organization's — answers `404`, card
