@@ -5820,6 +5820,7 @@
     "chatgptCallbackLabel": "Address ChatGPT sent you to",
     "chatgptOpenAgain": "Open the sign-in again",
     "chatgptPersonal": "This runs models on your own ChatGPT subscription and counts against its limits, so it is stored as yours alone.",
+    "chatgptNameOf": "{name} - {person}",
     "chatgptReconnect": "Reconnect",
     "chatgptReconnectBody": "Sign in with ChatGPT again. The new sign-in replaces the old one, and every model using this secret keeps working.",
     "chatgptReconnectNamed": "Reconnect {name}",

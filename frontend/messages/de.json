@@ -5703,6 +5703,7 @@
     "chatgptCallbackLabel": "Adresse, an die ChatGPT Sie weitergeleitet hat",
     "chatgptOpenAgain": "Anmeldung erneut öffnen",
     "chatgptPersonal": "Modelle laufen damit auf Ihrem eigenen ChatGPT-Abonnement und zählen gegen dessen Limits, daher wird die Anmeldung nur für Sie gespeichert.",
+    "chatgptNameOf": "{name} - {person}",
     "chatgptReconnect": "Neu verbinden",
     "chatgptReconnectBody": "Melden Sie sich erneut mit ChatGPT an. Die neue Anmeldung ersetzt die alte, und jedes Modell mit diesem Secret läuft weiter.",
     "chatgptReconnectNamed": "{name} neu verbinden",

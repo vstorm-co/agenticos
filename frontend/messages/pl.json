@@ -5590,6 +5590,7 @@
     "chatgptCallbackLabel": "Adres, na który odesłał Cię ChatGPT",
     "chatgptOpenAgain": "Otwórz logowanie ponownie",
     "chatgptPersonal": "Modele działają wtedy na Twojej własnej subskrypcji ChatGPT i zużywają jej limity, dlatego logowanie jest zapisywane jako tylko Twoje.",
+    "chatgptNameOf": "{name} - {person}",
     "chatgptReconnect": "Połącz ponownie",
     "chatgptReconnectBody": "Zaloguj się przez ChatGPT jeszcze raz. Nowe logowanie zastępuje stare, a każdy model korzystający z tego sekretu działa dalej.",
     "chatgptReconnectNamed": "Połącz ponownie {name}",

@@ -464,9 +464,6 @@ CALLS: tuple[Call, ...] = (
             "value": {"kind": "api_key", "api_key": "not-a-real-key"},
         },
     ),
-    # A ChatGPT sign-in is a secret written by finishing an OAuth flow rather
-    # than by posting a value, so it is the same write under the same gate.
-    Call("POST", "/secrets/openai-codex/sign-in", Perm.SECRETS_EDIT),
     Call(
         "POST",
         "/secrets/openai-codex",

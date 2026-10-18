@@ -117,13 +117,14 @@ async def create_secret(data: SecretCreate, service: SecretSvc, ctx: Auth) -> An
     )
 
 
-@router.post(
-    "/openai-codex/sign-in",
-    response_model=OpenAICodexSignIn,
-    dependencies=[Depends(require(Perm.SECRETS_EDIT))],
-)
+@router.post("/openai-codex/sign-in", response_model=OpenAICodexSignIn)
 async def start_openai_codex_sign_in(service: OpenAICodexSvc, ctx: Auth) -> Any:
-    """Begin a ChatGPT sign-in. The address it ends on is redeemable once, by you."""
+    """Begin a ChatGPT sign-in. The address it ends on is redeemable once, by you.
+
+    Open to any member: starting stores nothing in the vault, and what the
+    address is redeemed for - a new secret, or reconnecting one somebody may
+    edit through a grant - is authorized when it is.
+    """
     return OpenAICodexSignIn(authorization_url=await service.start_sign_in(ctx))
 
 

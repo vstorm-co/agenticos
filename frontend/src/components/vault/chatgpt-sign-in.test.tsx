@@ -2,12 +2,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render as baseRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { toast } from "sonner";
 
 import { ChatGPTSignInSteps, InlineChatGPTSignIn } from "./chatgpt-sign-in";
 import { AddSecretDialog, RotateSecretDialog } from "./secret-dialog";
 import { ApiError } from "@/lib/api-error";
+import { useAuthStore } from "@/stores";
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import type { Secret, SecretKindInfo } from "@/types/secrets";
@@ -225,6 +226,32 @@ describe("the inline sign-in beside a model picker", () => {
       visibility: "private",
     });
     expect(screen.getByLabelText("Address ChatGPT sent you to")).toHaveValue("");
+  });
+
+  it("names the sign-in for whose it is, so a second person's does not collide", async () => {
+    useAuthStore.setState({
+      user: {
+        id: "u-2",
+        email: "anna@acme.test",
+        full_name: "Anna Nowak",
+        is_active: true,
+        created_at: "2026-10-18T00:00:00Z",
+      },
+    });
+    onTestFinished(() => {
+      useAuthStore.setState({ user: null });
+    });
+    mount();
+
+    await userEvent.type(screen.getByLabelText("Address ChatGPT sent you to"), CALLBACK);
+    await userEvent.click(screen.getByRole("button", { name: "Save sign-in" }));
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith(
+        "/secrets/openai-codex",
+        expect.objectContaining({ name: "ChatGPT - Anna Nowak" }),
+      ),
+    );
   });
 
   it("puts a refused paste under the field it was pasted into", async () => {

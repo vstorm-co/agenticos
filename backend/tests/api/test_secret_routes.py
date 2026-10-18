@@ -220,6 +220,18 @@ class TestSigningInWithChatGPT:
             "authorization_url": "https://auth.openai.com/oauth/authorize?state=s"
         }
 
+    async def test_a_viewer_may_start_one_to_reconnect_a_secret_granted_to_them(
+        self, client, codex
+    ) -> None:
+        """Starting stores nothing; the reconnect it ends in checks the grant."""
+        app.dependency_overrides[deps.get_auth_context] = lambda: AuthContext(
+            user_id=uuid.uuid4(), organization_id=_ORGANIZATION_ID, role=OrgRoleName.VIEWER
+        )
+        async with client() as opened:
+            response = await opened.post(_url("/openai-codex/sign-in"))
+
+        assert response.status_code == 200
+
     async def test_finishing_stores_it_private_unless_told_otherwise(self, client, codex) -> None:
         callback = "http://localhost:1455/auth/callback?code=the-code&state=s"
         async with client() as opened:

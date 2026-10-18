@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button, FormField, Input } from "@/components/ui";
 import { useChatGPTSignIn, usePermissions } from "@/hooks";
 import { getErrorMessage, submitFailure } from "@/lib/api-error";
+import { useAuthStore } from "@/stores";
 import { Perm } from "@/types/permissions";
 
 interface ChatGPTSignInStepsProps {
@@ -137,6 +138,12 @@ export function InlineChatGPTSignIn({
   const { can } = usePermissions();
   const [callbackUrl, setCallbackUrl] = useState("");
   const [error, setError] = useState<string | undefined>(undefined);
+  // Named for whose it is: a secret's name is unique across the organization,
+  // so the second person signing in under the bare suggestion was refused, with
+  // no field here to choose another.
+  const user = useAuthStore((state) => state.user);
+  const person = user?.full_name || user?.email;
+  const name = person ? t("chatgptNameOf", { name: suggestedName, person }) : suggestedName;
 
   if (!can(Perm.secretsEdit)) {
     return <p className="text-muted-foreground text-xs">{t("storingNeedsPermission")}</p>;
@@ -144,7 +151,7 @@ export function InlineChatGPTSignIn({
 
   const submit = () => {
     create.mutate(
-      { name: suggestedName, callback_url: callbackUrl.trim(), visibility: "private" },
+      { name, callback_url: callbackUrl.trim(), visibility: "private" },
       {
         onSuccess: (secret) => {
           setCallbackUrl("");
