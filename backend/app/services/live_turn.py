@@ -83,14 +83,6 @@ def configure(redis: RedisClient | None) -> None:
     _redis = redis
 
 
-_END_IF_OURS = """
-if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) end
-return 0
-"""
-"""Take the conversation's marker down only if it still names this turn - atomically,
-so a turn begun between the check and the delete keeps its own."""
-
-
 @dataclass(frozen=True)
 class Turn:
     """One running turn's handle: what its frames are kept under."""
@@ -103,6 +95,12 @@ class Turn:
 
 
 def _live_key(conversation_id: str) -> str:
+    """The conversation's running turns, oldest first - a list, not one value.
+
+    Two teammates can each have a turn running in one chat. One value named only
+    the newest, and the newer turn ending first took it down while the older was
+    still being written, which then streamed to nobody.
+    """
     return f"turn:{conversation_id}:live"
 
 
@@ -116,7 +114,10 @@ async def begin(conversation_id: str) -> Turn | None:
         return None
     turn = Turn(conversation_id, uuid.uuid4().hex)
     try:
-        await _redis.raw.set(_live_key(conversation_id), turn.token, ex=TTL_SECONDS)
+        pipe = _redis.raw.pipeline()
+        pipe.rpush(_live_key(conversation_id), turn.token)
+        pipe.expire(_live_key(conversation_id), TTL_SECONDS)
+        await pipe.execute()
     except Exception:
         logger.exception("live_turn_begin_failed")
         return None
@@ -133,13 +134,13 @@ async def publish(turn: Turn, kind: str, data: Any) -> None:
 async def end(turn: Turn) -> None:
     """Close the turn's trace: its followers stop, and it expires soon after. Never raises.
 
-    The conversation stops reading as live only if this was still its latest
-    turn; a newer one somebody started meanwhile is still being written.
+    Only this turn leaves the conversation's running ones: another somebody
+    started, before or after it, is still being written and still followed.
     """
     if _redis is None:
         return
     with contextlib.suppress(Exception):
-        await _redis.raw.eval(_END_IF_OURS, 1, _live_key(turn.conversation_id), turn.token)
+        await _redis.raw.lrem(_live_key(turn.conversation_id), 0, turn.token)
     await _append(turn, END, {"conversation_id": turn.conversation_id}, ttl=ENDED_TTL_SECONDS)
 
 
@@ -163,18 +164,17 @@ async def _append(turn: Turn, kind: str, data: Any, *, ttl: int) -> None:
 
 
 async def live_token(conversation_id: str) -> str | None:
-    """Which turn is being written in the conversation now, or `None` for none."""
+    """The newest turn being written in the conversation now, or `None` for none."""
     if _redis is None:
         return None
     try:
-        token = await _redis.raw.get(_live_key(conversation_id))
+        running = await _redis.list_range(_live_key(conversation_id))
     except Exception:
         # Following is a view, as everything else here: Redis being away must
         # not close the chat socket that asked - it reads as nothing running.
         logger.exception("live_turn_is_live_failed")
         return None
-    # A string: the client decodes responses.
-    return None if token is None else str(token)
+    return running[-1] if running else None
 
 
 async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, Any]]:

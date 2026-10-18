@@ -101,14 +101,13 @@ class _Store:
     async def get(self, key: str) -> str | None:
         return self.values.get(key)
 
-    async def eval(self, _script: str, _numkeys: int, key: str, token: str) -> int:
-        """`_END_IF_OURS`: delete the marker only while it names this turn."""
+    async def lrem(self, key: str, _count: int, value: str) -> int:
         if self.fail:
             raise ConnectionError("redis went away")
-        if self.values.get(key) != token:
-            return 0
-        del self.values[key]
-        return 1
+        kept = [item for item in self.lists.get(key, []) if item != value]
+        removed = len(self.lists.get(key, [])) - len(kept)
+        self.lists[key] = kept
+        return removed
 
     async def delete(self, *keys: str) -> None:
         if self.fail:
@@ -140,6 +139,8 @@ class _Store:
         return _PubSub(self)
 
     async def list_range(self, key: str) -> list[str]:
+        if self.fail:
+            raise ConnectionError("redis went away")
         return list(self.lists.get(key, []))
 
 
@@ -231,6 +232,21 @@ class TestKeepingATurn:
             ("text_delta", {"content": "second"}),
             (live_turn.END, {"conversation_id": CONVERSATION}),
         ]
+        assert await live_turn.live_token(CONVERSATION) is None
+
+    async def test_an_older_turn_still_running_is_followed_when_the_newer_ends(
+        self, store: _Store
+    ) -> None:
+        """The newer turn finishing first took the conversation's one marker down,
+        and the older answer, still being written, streamed to nobody."""
+        older = await _begin()
+        newer = await _begin()
+        assert await live_turn.live_token(CONVERSATION) == newer.token
+
+        await live_turn.end(newer)
+
+        assert await live_turn.live_token(CONVERSATION) == older.token
+        await live_turn.end(older)
         assert await live_turn.live_token(CONVERSATION) is None
 
     async def test_the_seam_between_trace_and_channel_loses_and_repeats_nothing(
@@ -447,7 +463,11 @@ class TestFollowingFromAnotherSocket:
             )
             await session.process_message(_message("yes, do that"))
 
-        (trace,) = [key for key in store.lists if key.startswith(f"turn:{_CONVERSATION}:")]
+        (trace,) = [
+            key
+            for key in store.lists
+            if key.startswith(f"turn:{_CONVERSATION}:") and key.endswith(":trace")
+        ]
         prompt = json.loads(store.lists[trace][0])["data"]
         assert prompt["reply_to"]["excerpt"] == "Plan: A, B"
 
@@ -458,7 +478,11 @@ class TestFollowingFromAnotherSocket:
         with _chat(AsyncMock(return_value=_finished_turn())):
             await session.process_message(_message())
 
-        (trace,) = [key for key in store.lists if key.startswith(f"turn:{_CONVERSATION}:")]
+        (trace,) = [
+            key
+            for key in store.lists
+            if key.startswith(f"turn:{_CONVERSATION}:") and key.endswith(":trace")
+        ]
         frames = [json.loads(raw) for raw in store.lists[trace]]
         kept = [frame["type"] for frame in frames]
         # Who asked, and which agent answers - what a follower draws the turn by.
