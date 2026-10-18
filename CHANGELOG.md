@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-18
+
 ### Fixed
 
 - **A host that falls behind skips sweep ticks instead of running every one.**
