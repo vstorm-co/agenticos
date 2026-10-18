@@ -87,7 +87,7 @@ async def messages_in(
     kept: list[Message] = []
     thread: UUID | None = None
     theirs = False
-    for message, project_id in result.tuples().all():
+    for message, project_id in result.all():
         if message.conversation_id != thread:
             thread, theirs = message.conversation_id, False
         if project_id is None:

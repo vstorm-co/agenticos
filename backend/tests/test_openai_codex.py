@@ -102,10 +102,10 @@ class TestTheVaultAsTheProvidersCredentialSource:
 class TestTakingBackWhatATaskRotated:
     """A task's `auth.json` is whatever anything it ran left there."""
 
-    async def _swap(self, held, rotated):
+    async def _swap(self, held, rotated, *, gone: bool = False):
         org_id = uuid.uuid4()
-        row = _row(org_id, held)
-        source = VaultCodexCredentials(organization_id=org_id, secret_id=row.id)
+        row = None if gone else _row(org_id, held)
+        source = VaultCodexCredentials(organization_id=org_id, secret_id=uuid.uuid4())
         update = AsyncMock()
         with (
             patch.object(openai_codex, "get_db_context", _session),
@@ -129,6 +129,11 @@ class TestTakingBackWhatATaskRotated:
             access_token="a-x", refresh_token="r-x", account_id="acct-someone-else"
         )
         stored, update = await self._swap(_pair("1"), other)
+        assert stored is False
+        update.assert_not_awaited()
+
+    async def test_a_sign_in_deleted_while_the_task_ran_is_not_restored(self):
+        stored, update = await self._swap(_pair("1"), _pair("2"), gone=True)
         assert stored is False
         update.assert_not_awaited()
 
