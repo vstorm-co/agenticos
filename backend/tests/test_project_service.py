@@ -15,7 +15,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
+from pydantic_ai.workspaces import Workspace, WorkspaceRef
+from pydantic_ai_backends.workspaces import StateWorkspaceBackend
 
+from app.agents.capabilities.sandbox._capped import CappedStateBackend
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.project import Project
@@ -404,19 +407,26 @@ class TestFiles:
         ("given", "kept"),
         [
             ("reports/q3.pdf", "reports/q3.pdf"),
-            ("  /notes/a.md/ ".strip(" "), "notes/a.md"),
+            # As a stored project lists it: the leading slash is the project's root.
+            ("/notes/a.md/", "notes/a.md"),
             ("a/./b", "a/b"),
         ],
     )
     def test_a_path_inside_the_project_is_kept_tidy(self, given: str, kept: str) -> None:
-        if given.startswith("/"):
-            with pytest.raises(BadRequestError):
-                project_path(given)
-            return
         assert project_path(given) == kept
 
     @pytest.mark.parametrize(
-        "path", ["", ".", "../etc/passwd", "a/../../b", "/abs", ".agenticos/x", "skills/s/SKILL.md"]
+        "path",
+        [
+            "",
+            ".",
+            "/",
+            "../etc/passwd",
+            "/../etc",
+            "a/../../b",
+            "/.agenticos/x",
+            "skills/s/SKILL.md",
+        ],
     )
     def test_a_path_outside_it_or_in_the_platforms_own_folders_is_refused(self, path: str) -> None:
         with pytest.raises(BadRequestError):
@@ -505,6 +515,25 @@ class TestFiles:
         assert container.run.await_args.args[0] == ["rm", "-rf", "--", "docs"]
         container.remove.assert_awaited_once_with("notes.md")
         assert service.workspaces.close.await_count == 3
+
+    async def test_a_stored_projects_file_is_removed_by_the_path_its_listing_gave(self) -> None:
+        """A stored project lists `/reports/q3.pdf`, and removing it by that path was
+        refused as outside the project - every file, on a deployment without sandboxd."""
+        document = CappedStateBackend({}, (), max_bytes=10_000_000)
+        workspace = Workspace(
+            StateWorkspaceBackend({"k": document}, ref=WorkspaceRef(provider="state", id="k"))
+        )
+        await workspace.write_bytes("reports/q3.pdf", b"x")
+        (listed,) = document.files
+        project = _project()
+        service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_USE)
+        service.workspaces.open_project = AsyncMock(
+            return_value=MagicMock(workspace=workspace, kind="state")
+        )
+        with patch.object(module, "record_audit", AsyncMock()):
+            await service.remove(_ctx(), project.id, path=listed)
+
+        assert listed.startswith("/") and document.files == {}
 
     async def test_a_removal_the_container_refused_is_not_reported_as_done(self) -> None:
         """A folder an agent made read-only stays; the answer and the audit must say so."""

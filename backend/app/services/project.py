@@ -57,15 +57,17 @@ def project_path(path: str) -> str:
     """A path inside a project's container, as a person may name one.
 
     Relative to the container's working directory and inside it, never in a
-    directory the platform keeps for itself.
+    directory the platform keeps for itself. A leading `/` names the project's
+    own root: a stored project lists its files as `/reports/q3.pdf`, and that
+    is the path a person removes it by.
 
     Raises:
-        BadRequestError: For an absolute path, one that leaves the directory, or
-            one in a directory the platform keeps.
+        BadRequestError: For a path that leaves the directory, or one in a
+            directory the platform keeps.
     """
     cleaned = path.strip().strip("/")
     normal = posixpath.normpath(cleaned) if cleaned else ""
-    if not normal or normal == "." or normal.startswith("..") or path.strip().startswith("/"):
+    if not normal or normal == "." or normal.startswith(".."):
         raise BadRequestError(
             message="Name a path inside the project, such as reports/q3.pdf",
             details={"path": path},
