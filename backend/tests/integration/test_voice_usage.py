@@ -179,3 +179,31 @@ async def test_a_deleted_agents_calls_still_count_without_a_name(db):
     )
 
     assert rows == [(None, None, 180, 1), (support.id, "Support", 60, 1)]
+
+
+async def test_a_call_across_the_windows_edge_counts_its_part_in_each_window(db):
+    """The breakdown and the month's figure the limit reads must agree: a call
+    across the month's turn spends some of each month (review of #2159)."""
+    turn = datetime.now(UTC) - timedelta(hours=1)
+    organization, user = await _organization(db)
+    support = await _agent(db, organization, user, "Support")
+    await _call(
+        db,
+        support,
+        user,
+        started=turn - timedelta(minutes=10),
+        ended=turn + timedelta(minutes=5),
+    )
+
+    before = await voice_call_repo.usage_by_agent(
+        db, organization_id=organization.id, start=turn - timedelta(days=1), end=turn
+    )
+    after = await voice_call_repo.usage_by_agent(
+        db, organization_id=organization.id, start=turn, end=turn + timedelta(days=1)
+    )
+    month = await voice_call_repo.seconds_since(db, organization_id=organization.id, since=turn)
+
+    # Counted as a call where it started; its seconds where they were spent.
+    assert before == [(support.id, "Support", 600, 1)]
+    assert after == [(support.id, "Support", 300, 0)]
+    assert month == 300

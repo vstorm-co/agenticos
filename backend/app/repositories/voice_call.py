@@ -4,7 +4,7 @@ except :func:`list_unhung` and :func:`claim_unhung`, which belong to the reaper.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -16,6 +16,12 @@ from app.db.models.agent import Agent
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
 
 _CHAIN_DEPTH = 20
+
+_LONGEST_CONNECTION = timedelta(hours=2)
+"""Longer than any one connection lasts - the providers end a session within the
+hour, and a quiet row stops at its last heartbeat - so a call that started before
+`since` minus this cannot reach past `since`. Twice the hour, because a bound
+too tight drops minutes from the month and one too loose only reads more rows."""
 """A chain is one call reconnected; twenty reconnects is a loop, not a call."""
 
 
@@ -196,7 +202,11 @@ async def seconds_since(db: AsyncSession, *, organization_id: UUID, since: datet
     began = func.greatest(VoiceCall.started_at, since)
     result = await db.execute(
         select(func.coalesce(func.sum(extract("epoch", until - began)), 0)).where(
-            VoiceCall.organization_id == organization_id, until > since
+            VoiceCall.organization_id == organization_id,
+            until > since,
+            # The range the organization's index can use: this runs on every
+            # heartbeat of every live call, and on a stranger's config fetch.
+            VoiceCall.started_at > since - _LONGEST_CONNECTION,
         )
     )
     return int(result.scalar_one())
@@ -205,30 +215,33 @@ async def seconds_since(db: AsyncSession, *, organization_id: UUID, since: datet
 async def usage_by_agent(
     db: AsyncSession, *, organization_id: UUID, start: datetime, end: datetime
 ) -> list[tuple[UUID | None, str | None, int, int]]:
-    """Per agent, most seconds first: call seconds and calls started in `[start, end)`.
+    """Per agent, most seconds first: call seconds in `[start, end)`, and calls started in it.
 
-    Seconds are counted like :func:`seconds_since`. A reconnect is its own row
-    but not a second call, so only the first connection of a chain is counted -
-    which means a reconnect inside the window whose first connection started
-    before it adds its seconds and no call. Calls of a deleted agent (their
-    `agent_id` cleared) come back together as one row with no id and no name,
-    so the rows still add up to every call in the window.
+    Seconds are counted like :func:`seconds_since`, clipped to the window at both
+    ends: a call running across the month's turn counts its part in each month, so
+    the agents add up to the figure the limit is checked against. A reconnect is
+    its own row but not a second call, and a call is counted where its first
+    connection started. Calls of a deleted agent (their `agent_id` cleared) come
+    back together as one row with no id and no name, so the rows still add up to
+    every call in the window.
     """
     until = func.coalesce(VoiceCall.ended_at, VoiceCall.heartbeat_at)
-    seconds = func.coalesce(func.sum(extract("epoch", until - VoiceCall.started_at)), 0)
+    inside = func.least(until, end) - func.greatest(VoiceCall.started_at, start)
+    seconds = func.coalesce(func.sum(extract("epoch", inside)), 0)
     result = await db.execute(
         select(
             VoiceCall.agent_id,
             Agent.name,
             seconds,
-            func.count().filter(VoiceCall.resume_of.is_(None)),
+            func.count().filter(VoiceCall.resume_of.is_(None), VoiceCall.started_at >= start),
         )
         .select_from(VoiceCall)
         .outerjoin(Agent, Agent.id == VoiceCall.agent_id)
         .where(
             VoiceCall.organization_id == organization_id,
-            VoiceCall.started_at >= start,
+            until > start,
             VoiceCall.started_at < end,
+            VoiceCall.started_at > start - _LONGEST_CONNECTION,
         )
         .group_by(VoiceCall.agent_id, Agent.name)
         .order_by(seconds.desc(), Agent.name.asc().nullslast())
@@ -243,18 +256,24 @@ async def chain_seconds(db: AsyncSession, call_id: UUID) -> int | None:
     again: a sum stopped at the bound would leave the oldest connections' time
     out and hand it back to the reconnect, and Activity (`chains_for_runs`)
     counts no connection past it.
+
+    A connection taken over from another worker was closed at its last heartbeat,
+    up to a beat before the provider hung it up; it counts to the hang-up, or
+    each hop would hand that beat back to the call's cap.
     """
+    hung = extract("epoch", VoiceCall.hung_up_at - VoiceCall.started_at)
+    seconds = func.greatest(VoiceCall.seconds, func.coalesce(func.floor(hung), 0))
     total = 0
     current: UUID | None = call_id
     for _ in range(_CHAIN_DEPTH - 1):
         row = (
             await db.execute(
-                select(VoiceCall.seconds, VoiceCall.resume_of).where(VoiceCall.id == current)
+                select(seconds.label("seconds"), VoiceCall.resume_of).where(VoiceCall.id == current)
             )
         ).one_or_none()
         if row is None:
             return total
-        total += row.seconds
+        total += int(row.seconds)
         current = row.resume_of
         if current is None:
             return total

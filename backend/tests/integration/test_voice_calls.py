@@ -194,6 +194,27 @@ async def test_a_chain_sums_every_connection(db, voice_rows):
     assert await voice_call_repo.chain_seconds(db, second.id) == 150
 
 
+async def test_a_connection_taken_over_counts_to_its_hang_up_not_its_last_beat(db, voice_rows):
+    """A reconnect from another worker closes the old connection at its last
+    heartbeat, a beat before the hang-up; that beat stays in the call's time, or
+    every hop would hand it back to the cap (review of #2159)."""
+    started = datetime.now(UTC) - timedelta(minutes=2)
+    first = await _call(db, voice_rows, started=started)
+    await voice_call_repo.end(
+        db,
+        first.id,
+        at=started + timedelta(seconds=60),
+        reason=VoiceEndReason.DISCONNECTED,
+        cost_usd=Decimal(0),
+        seconds=60,
+        guardrail_hits=0,
+    )
+    await voice_call_repo.mark_hung_up(db, first.id, at=started + timedelta(seconds=74))
+    second = await _call(db, voice_rows, resume_of=first.id)
+
+    assert await voice_call_repo.chain_seconds(db, second.id) == 74
+
+
 async def test_a_second_end_keeps_the_first_reason_and_the_larger_figures(db, voice_rows):
     """A reconnect ends a half-open connection early; its owner's later teardown
     must not lose the final cost and seconds (Task 17's takeover)."""
