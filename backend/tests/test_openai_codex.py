@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qs, urlsplit
 
+import httpx2
 import pytest
 from pydantic_ai.providers.openai_codex import CredentialsRefreshError, OpenAICodexCredentials
 
@@ -13,6 +14,7 @@ from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import OpenAICodexSecret, SecretKind, seal_secret, unseal_secret
 from app.core.vault import VaultScope
+from app.db.models.resource_grant import Visibility
 from app.services import openai_codex
 from app.services.openai_codex import OpenAICodexService, VaultCodexCredentials
 
@@ -264,6 +266,30 @@ class TestSigningIn:
 
         assert update.await_args.args[1] == secret_id
         assert update.await_args.kwargs["value"].access_token.get_secret_value() == "access-new"
+
+    async def test_chatgpt_out_of_reach_is_a_refusal_to_start_again_not_a_500(self):
+        ctx = _ctx()
+        service = OpenAICodexService(MagicMock(), _redis())
+        url = await service.start_sign_in(ctx)
+
+        with (
+            patch.object(
+                openai_codex.OpenAICodexOAuthFlow,
+                "exchange_code",
+                AsyncMock(side_effect=httpx2.ConnectTimeout("timed out")),
+            ),
+            pytest.raises(BadRequestError) as exc,
+        ):
+            await service.create(
+                ctx,
+                callback_url=_callback(url),
+                name="ChatGPT",
+                description=None,
+                visibility=Visibility.PRIVATE,
+            )
+
+        assert "could not be reached" in exc.value.message
+        assert exc.value.details["fields"][0]["field"] == "callback_url"
 
     async def test_an_address_redeems_once(self):
         ctx = _ctx()

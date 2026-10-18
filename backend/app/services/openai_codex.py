@@ -31,6 +31,7 @@ import logging
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
+import httpx2
 from pydantic_ai.providers.openai_codex import (
     CredentialsRefreshError,
     OpenAICodexCredentials,
@@ -242,6 +243,14 @@ class OpenAICodexService:
             raise refused_field(
                 "callback_url",
                 "ChatGPT did not accept this sign-in - it may have expired. Start again",
+            ) from None
+        except httpx2.HTTPError:
+            # A timeout or a failed connection says nothing about the code, but
+            # the pending sign-in is spent already, so the person starts again.
+            logger.warning("ChatGPT could not be reached to finish a sign-in", exc_info=True)
+            raise refused_field(
+                "callback_url",
+                "ChatGPT could not be reached to finish this sign-in. Start again",
             ) from None
         return _as_secret(credentials)
 
