@@ -26,12 +26,21 @@ CONVERSATION_ID = uuid4()
 BASE = f"{settings.API_V1_STR}/conversations/{CONVERSATION_ID}/visuals/toolu_1"
 
 
+def _db() -> AsyncMock:
+    """A session for routes whose service is mocked: no query reaches it.
+
+    A function rather than `AsyncMock` itself, which FastAPI would read the
+    constructor of as the dependency's parameters.
+    """
+    return AsyncMock()
+
+
 @pytest.fixture
 def service(mock_redis: MagicMock) -> Iterator[MagicMock]:
     service = MagicMock()
     app.dependency_overrides[deps.get_visual_service] = lambda: service
     app.dependency_overrides[deps.get_redis] = lambda: mock_redis
-    app.dependency_overrides[deps.get_db_session] = lambda: AsyncMock()
+    app.dependency_overrides[deps.get_db_session] = _db
     yield service
     app.dependency_overrides.clear()
 
@@ -124,7 +133,7 @@ async def test_a_thread_opened_by_its_link_carries_its_drawings(mock_redis: Magi
         id=uuid4(), conversation_id=conversation.id, permission="view", share_token="tok"
     )
     app.dependency_overrides[deps.get_redis] = lambda: mock_redis
-    app.dependency_overrides[deps.get_db_session] = lambda: AsyncMock()
+    app.dependency_overrides[deps.get_db_session] = _db
     try:
         with (
             patch(
