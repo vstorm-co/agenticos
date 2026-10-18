@@ -71,9 +71,11 @@ class ProjectRead(BaseSchema):
         description="`service` - a container with a shell - or `state`, files the platform stores"
     )
     runtime: str | None = None
-    chat_count: int = Field(default=0, description="How many of the caller's own chats it holds")
+    chat_count: int = Field(
+        default=0, description="How many chats it holds, whoever started them; archived ones aside"
+    )
     last_active_at: datetime | None = Field(
-        default=None, description="When the caller's latest chat in it was active"
+        default=None, description="When its latest chat was active, whoever wrote in it"
     )
     shared_groups: list[str] = Field(default_factory=list)
     can_use: bool = Field(default=False, description="Whether the caller may chat and add files")

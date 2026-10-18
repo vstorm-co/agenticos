@@ -246,6 +246,28 @@ class TestAProjectsChatsInEveryMembersList:
         assert await service.visible_project_ids(anna.id, org.id) == []
 
 
+class TestAStarterWhoLeaves:
+    async def test_their_project_chats_stay_and_their_own_are_untouched(self, db) -> None:
+        """A project's chat is its members' to keep; the account going takes it
+        off the starter, not out of the project."""
+        kacper, anna = await _user(db), await _user(db)
+        org = await _org(db, (kacper, "owner"), (anna, "member"))
+        project = await _project(db, org, kacper, visibility=Visibility.ORG.value)
+        in_project = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=anna.id, title="Plan", project_id=project.id
+        )
+        own = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=anna.id, title="Mine"
+        )
+
+        await conversation_repo.release_project_chats(db, user_id=anna.id)
+
+        await db.refresh(in_project)
+        await db.refresh(own)
+        assert (in_project.user_id, in_project.project_id) == (None, project.id)
+        assert own.user_id == anna.id
+
+
 class TestRatingATeammatesAnswer:
     async def test_whoever_reads_the_chat_rates_its_answers_and_nobody_else(self, db) -> None:
         kacper, anna, stranger = await _user(db), await _user(db), await _user(db)

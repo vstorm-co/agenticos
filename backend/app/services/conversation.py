@@ -638,7 +638,7 @@ class ConversationService:
 
         A project chat's console turn naming nobody is one whose writer's
         account has since gone - every earlier one was given its owner by
-        migration 0137 - and says so, rather than reading as the reader's own
+        `0141_message_author_user.py` - and says so, rather than reading as the reader's own
         "You" or as whoever started the thread.
         """
         in_project = getattr(conversation, "project_id", None) is not None
