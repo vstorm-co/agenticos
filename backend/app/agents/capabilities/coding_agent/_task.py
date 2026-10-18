@@ -42,6 +42,18 @@ POLL_SECONDS = 1.5
 CHUNK_BYTES = 256 * 1024
 """The most of the events file one poll carries back; a longer backlog is read at once again."""
 
+MAX_LINE_BYTES = 8 * 1024 * 1024
+"""The longest event line kept: one past it is dropped whole rather than held open."""
+
+MAX_STRING_CHARS = 32_000
+"""How much of any one string an event keeps once read.
+
+A task runs for up to an hour in this worker's memory, and a harness repeats a
+file it read or a command's output inside its events - the bulk of what it
+writes. What the report and the ledger read - names, paths, usage numbers, the
+answer - fits well inside this.
+"""
+
 STOP_GRACE_SECONDS = 3
 """How long a stopped harness has to exit before its process group is killed."""
 
@@ -68,11 +80,18 @@ class _Reader:
 
     offset: int = 0
     pending: bytes = b""
+    # Inside a line past `MAX_LINE_BYTES`, whose end is dropped when it comes.
+    skipping: bool = False
     events: list[dict[str, Any]] = field(default_factory=list)
 
     def take(self, chunk: bytes) -> list[dict[str, Any]]:
         self.offset += len(chunk)
-        *lines, self.pending = (self.pending + chunk).split(b"\n")
+        *lines, pending = (self.pending + chunk).split(b"\n")
+        if self.skipping and lines:
+            lines, self.skipping = lines[1:], False
+        if len(pending) > MAX_LINE_BYTES:
+            pending, self.skipping = b"", True
+        self.pending = pending
         fresh = [event for line in lines if (event := _event(line)) is not None]
         self.events += fresh
         return fresh
@@ -91,7 +110,18 @@ def _event(line: bytes) -> dict[str, Any] | None:
         parsed = json.loads(line)
     except ValueError:
         return None
-    return parsed if isinstance(parsed, dict) else None
+    return _trimmed(parsed) if isinstance(parsed, dict) else None
+
+
+def _trimmed(value: Any) -> Any:
+    """`value` with every string cut to `MAX_STRING_CHARS`, however deep."""
+    if isinstance(value, str):
+        return value if len(value) <= MAX_STRING_CHARS else value[:MAX_STRING_CHARS]
+    if isinstance(value, dict):
+        return {key: _trimmed(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_trimmed(item) for item in value]
+    return value
 
 
 def task_files(name: str) -> TaskFiles:

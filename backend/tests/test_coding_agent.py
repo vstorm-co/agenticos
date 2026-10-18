@@ -436,6 +436,23 @@ class TestReadingCodex:
     def test_lines_that_are_not_events_are_skipped(self) -> None:
         assert _task._Reader().take(b'npm warn\n{"type": "x"}\n[1, 2]\n') == [{"type": "x"}]
 
+    def test_an_event_keeps_no_string_past_its_ceiling(self) -> None:
+        """A task runs for up to an hour in the worker's memory, and a harness
+        repeats every file it read inside its events."""
+        output = "x" * (_task.MAX_STRING_CHARS + 10)
+        line = json.dumps({"type": "tool", "result": [{"text": output}], "tokens": 7})
+        (event,) = _task._Reader().take(line.encode() + b"\n")
+        assert len(event["result"][0]["text"]) == _task.MAX_STRING_CHARS
+        assert event["tokens"] == 7
+
+    def test_a_line_past_its_ceiling_is_dropped_whole(self, monkeypatch) -> None:
+        monkeypatch.setattr(_task, "MAX_LINE_BYTES", 16)
+        reader = _task._Reader()
+        assert reader.take(b'{"type": "a"}\n{"type": "huge", "x": "') == [{"type": "a"}]
+        assert reader.pending == b"" and reader.skipping
+        assert reader.take(b'yyyy"}\n{"type": "b"}\n') == [{"type": "b"}]
+        assert not reader.skipping
+
 
 _TASK_FILE = re.compile(r"\.agenticos/coding-agent/[0-9a-f]+\.(?:jsonl|err|exit)")
 GROUP = 4242
