@@ -63,6 +63,9 @@ class Project(Base, TimestampMixin):
         PG_UUID(as_uuid=True),
         ForeignKey("sandbox_connections.id", ondelete="SET NULL"),
         nullable=True,
+        # Deleting a connection, and refusing to while a project is on it, look
+        # projects up by this column.
+        index=True,
     )
     """Which connection the container runs on; `None` takes the organization's default."""
     runtime: Mapped[str | None] = mapped_column(String(64), nullable=True)

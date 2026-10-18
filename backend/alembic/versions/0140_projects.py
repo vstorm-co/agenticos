@@ -75,6 +75,13 @@ def upgrade() -> None:
         op.f("projects_organization_id_idx"), "projects", ["organization_id"], unique=False
     )
     op.create_index(op.f("projects_owner_user_id_idx"), "projects", ["owner_user_id"], unique=False)
+    # Deleting a connection finds the projects on it through this column.
+    op.create_index(
+        op.f("projects_sandbox_connection_id_idx"),
+        "projects",
+        ["sandbox_connection_id"],
+        unique=False,
+    )
     op.add_column("agent_workspaces", sa.Column("project_id", sa.UUID(), nullable=True))
     op.alter_column("agent_workspaces", "agent_id", existing_type=sa.UUID(), nullable=True)
     op.create_index(
@@ -115,6 +122,7 @@ def downgrade() -> None:
     op.execute("DELETE FROM agent_workspaces WHERE agent_id IS NULL")
     op.alter_column("agent_workspaces", "agent_id", existing_type=sa.UUID(), nullable=False)
     op.drop_column("agent_workspaces", "project_id")
+    op.drop_index(op.f("projects_sandbox_connection_id_idx"), table_name="projects")
     op.drop_index(op.f("projects_owner_user_id_idx"), table_name="projects")
     op.drop_index(op.f("projects_organization_id_idx"), table_name="projects")
     op.drop_table("projects")
