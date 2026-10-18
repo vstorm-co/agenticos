@@ -285,8 +285,8 @@ class StatsService:
             StatusCount(status=value or "", runs=runs) for value, runs in breakdown.by_status
         ]
         by_model = [
-            ModelCount(model_label=value, provider=provider, runs=runs)
-            for value, provider, runs in breakdown.by_model
+            ModelCount(model_label=value, provider=provider, runs=runs, tool_args_repaired=repaired)
+            for value, provider, runs, repaired in breakdown.by_model
         ]
         by_agent = [
             AgentCount(agent_id=agent_id, name=name, runs=runs)

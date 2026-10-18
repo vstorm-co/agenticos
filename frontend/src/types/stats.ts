@@ -60,6 +60,8 @@ export interface ModelCount {
   /** Which provider served it; one model through two providers is two rows. */
   provider: string | null;
   runs: number;
+  /** Tool calls of these runs whose malformed arguments were repaired, not retried. */
+  tool_args_repaired?: number;
 }
 
 export interface LatencyMs {

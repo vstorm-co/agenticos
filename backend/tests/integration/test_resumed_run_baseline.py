@@ -259,3 +259,26 @@ async def _one_request(guard: BudgetGuard) -> None:
     await guard.wrap_model_request(
         MagicMock(), request_context=MagicMock(), handler=AsyncMock(return_value=response)
     )
+
+
+class TestTheRepairCount:
+    async def test_a_finish_with_no_count_keeps_what_earlier_segments_counted(self, db) -> None:
+        """An approval that expires finishes the run without running a model, and
+        must not wipe the repairs its first segment counted (#2105)."""
+        org = await _org(db)
+        run = await _run_that_spent(db, org=org, agent=await _agent(db, org), cost=Decimal("1"))
+        run.tool_args_repaired = 2
+        await db.flush()
+
+        finished = await agent_run_repo.finish_run(
+            db,
+            run=run,
+            status=RunStatus.FAILED.value,
+            input_tokens=run.input_tokens,
+            output_tokens=run.output_tokens,
+            cost_usd=run.cost_usd,
+            cost_is_partial=False,
+            ended_at=datetime.now(UTC),
+        )
+
+        assert finished.tool_args_repaired == 2

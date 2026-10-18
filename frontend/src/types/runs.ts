@@ -32,6 +32,8 @@ export interface AgentRun {
   cost_usd: string;
   /** True when a model in this run had no price; the cost is a floor. */
   cost_is_partial: boolean;
+  /** Tool calls whose malformed JSON arguments were repaired rather than retried. */
+  tool_args_repaired?: number;
   logfire_trace_id: string | null;
   /**
    * Where this run's trace can be read, resolved server-side. Sent on the

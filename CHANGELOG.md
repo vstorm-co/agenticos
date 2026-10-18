@@ -29,6 +29,17 @@ Two things are versioned separately from this file and worth knowing about:
   restarts. On-demand deployments (ingestion, syncs, cleanup) and the usage
   reports, whose runs each cover a period of their own, keep no limit.
 
+## [1.3.0] - 2026-10-18
+
+### Added
+
+- **Malformed tool calls are repaired instead of retried** (#2105). A model
+  that sends a tool call with broken JSON - a trailing comma, single quotes, an
+  object cut short - no longer pays for a retry: every agent repairs the syntax
+  before validation, and the call still goes through approval and guardrails.
+  Open-weight models on Ollama or vLLM do this most. Each run counts its
+  repairs, shown on the run and per model on the dashboard's model card.
+
 ## [1.2.1] - 2026-10-18
 
 ### Fixed

@@ -1769,6 +1769,7 @@
           "description": "Podział modeli pojawi się z pierwszym uruchomieniem.",
           "title": "Brak uruchomień w tym okresie"
         },
+        "modelRepaired": "{model} · naprawione: {repaired}",
         "notRecorded": "nie zarejestrowano",
         "title": "Modele za uruchomieniami",
         "description": "Które modele stoją za runami - tak, jak zapisał to każdy run.",
@@ -4388,6 +4389,7 @@
       "model": "Model",
       "modelFilter": "Filtruj według modelu",
       "modelRunHadNo": "Model w tym runie nie miał ceny, więc to wartość minimalna",
+      "toolArgsRepaired": "{count, plural, one {Naprawiono błędne argumenty jednego wywołania narzędzia zamiast je ponawiać} few {Naprawiono błędne argumenty # wywołań narzędzi zamiast je ponawiać} many {Naprawiono błędne argumenty # wywołań narzędzi zamiast je ponawiać} other {Naprawiono błędne argumenty # wywołań narzędzi zamiast je ponawiać}}",
       "modelSettings": "Ustawienia modelu",
       "monthToDate": "Od początku miesiąca",
       "narrowedToOneAgent": "Zawężone do jednego agenta, łącznie z tym, co zrobił jako czyjś delegat.",

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -70,6 +70,7 @@ from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
+from app.agents.tool_repair import CountedRepair, RepairTally
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
 logger = logging.getLogger(__name__)
@@ -146,6 +147,9 @@ class BuiltAgent:
     # capability list, where a capability with one gated tool and one ungated
     # one has no single answer.
     approval_required_tools: frozenset[str]
+    # How many of the run's tool calls arrived malformed and were repaired, read
+    # by whoever persists the run - see `app/agents/tool_repair.py`.
+    repairs: RepairTally = field(default_factory=RepairTally)
 
 
 def build_agent(
@@ -341,7 +345,11 @@ def build_agent(
     # accident. The gate is attached even when nothing is gated, so that adding
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
+    repairs = RepairTally()
     capabilities: list[Any] = [
+        # First, so every hook after it - the approval gate and the guardrails
+        # among them - sees the arguments the tool will actually be called with.
+        CountedRepair(tally=repairs),
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
         # instructions.
@@ -415,6 +423,7 @@ def build_agent(
         model_label=model_spec.label,
         approval_required_tools=approval_required,
         usage_limits=UsageLimits(request_limit=spec.max_steps or DEFAULT_MAX_STEPS),
+        repairs=repairs,
     )
 
 

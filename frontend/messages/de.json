@@ -1769,6 +1769,7 @@
           "description": "Die Modellverteilung erscheint mit dem ersten Run.",
           "title": "Keine Runs in diesem Zeitraum"
         },
+        "modelRepaired": "{model} · {repaired} repariert",
         "notRecorded": "nicht erfasst",
         "title": "Modelle hinter den Runs",
         "description": "Welche Modelle hinter den Runs stehen, so wie jeder Run sein eigenes erfasst hat.",
@@ -4500,6 +4501,7 @@
       "model": "Modell",
       "modelFilter": "Nach Modell filtern",
       "modelRunHadNo": "Für ein Modell in diesem Run gab es keinen Preis, dies ist also eine Untergrenze",
+      "toolArgsRepaired": "{count, plural, =1 {Die fehlerhaften Argumente eines Tool-Aufrufs wurden repariert statt wiederholt} other {Die fehlerhaften Argumente von # Tool-Aufrufen wurden repariert statt wiederholt}}",
       "modelSettings": "Modelleinstellungen",
       "monthToDate": "Monat bis heute",
       "narrowedToOneAgent": "Auf einen Agent eingegrenzt, einschließlich dessen, was er als Delegat für jemanden getan hat.",
