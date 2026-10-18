@@ -8,6 +8,7 @@ import {
   type VoiceConversationProps,
 } from "@/components/agents/voice-conversation-fields";
 import { ChoiceGroup } from "@/components/settings/choice-group";
+import { ProviderIcon } from "@/components/vault/provider-icon";
 import { SpeechKeyField, useSpeechKeyCheck } from "@/components/vault/speech-key-field";
 import {
   Card,
@@ -286,7 +287,10 @@ function PairFields({
                 : t("voiceProviderNoKey", { name: entry.name });
               return (
                 <SelectItem key={entry.provider} value={entry.provider} textValue={label}>
-                  {label}
+                  <span className="flex items-center gap-2">
+                    <ProviderIcon provider={entry.provider} className="h-3.5 w-3.5" />
+                    {label}
+                  </span>
                 </SelectItem>
               );
             })}
