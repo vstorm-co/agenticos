@@ -1,0 +1,167 @@
+# The task-queue benchmark. Run through ./run.sh, which brings up one backend at a
+# time on a fresh project. Workers get the same budget whatever they are (3 CPUs,
+# 4 GB - the production VPS's share for background work); the services a backend
+# brings with it (Prefect's server, Hatchet's engine) get their own, and are
+# measured too.
+name: tqbench
+
+x-worker: &worker
+  image: tqbench:latest
+  environment: &env
+    BENCH_POSTGRES_DSN: postgresql://bench:bench@postgres:5432/bench
+    BENCH_REDIS_URL: redis://redis:6379/0
+    BENCH_CONCURRENCY: ${BENCH_CONCURRENCY:-20}
+    BENCH_SWEEP_SECONDS: ${BENCH_SWEEP_SECONDS:-60}
+    BENCH_RUN_LABEL: ${BENCH_RUN_LABEL:-adhoc}
+    BENCH_IMPORT_APP: ${BENCH_IMPORT_APP:-1}
+    BENCH_FAIR: ${BENCH_FAIR:-0}
+    PREFECT_API_URL: http://prefect-server:4200/api
+    PREFECT_RUNNER_SERVER_HOST: 127.0.0.1
+    PREFECT_LOCAL_STORAGE_PATH: /prefect-storage
+    BENCH_PREFECT_LIMIT: ${BENCH_PREFECT_LIMIT:-5}
+    HATCHET_CLIENT_TOKEN: ${HATCHET_CLIENT_TOKEN:-}
+    HATCHET_CLIENT_HOST_PORT: hatchet:7077
+    HATCHET_CLIENT_TLS_STRATEGY: none
+    PYTHONUNBUFFERED: "1"
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+  deploy:
+    resources:
+      limits: {cpus: "${BENCH_WORKER_CPUS:-3}", memory: "${BENCH_WORKER_MEM:-4g}"}
+  restart: "no"
+  # Root, so every worker can write the shared volume Prefect's background tasks
+  # pass their parameters through.
+  user: root
+  volumes:
+    - prefect-storage:/prefect-storage
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment: {POSTGRES_USER: bench, POSTGRES_PASSWORD: bench, POSTGRES_DB: bench}
+    command: ["postgres", "-c", "max_connections=400", "-c", "shared_buffers=256MB"]
+    volumes: ['./initdb:/docker-entrypoint-initdb.d:ro']
+    healthcheck: {test: ["CMD", "pg_isready", "-U", "bench"], interval: 2s, retries: 30}
+    deploy: {resources: {limits: {cpus: "2", memory: 1g}}}
+
+  redis:
+    image: valkey/valkey:8-alpine
+    healthcheck: {test: ["CMD", "valkey-cli", "ping"], interval: 2s, retries: 30}
+    deploy: {resources: {limits: {cpus: "1", memory: 512m}}}
+
+  prefect-server:
+    profiles: [prefect]
+    image: prefecthq/prefect:3.8.8-python3.12
+    command: prefect server start --host 0.0.0.0
+    environment:
+      PREFECT_SERVER_API_HOST: 0.0.0.0
+      PREFECT_API_DATABASE_CONNECTION_URL: ${PREFECT_DB_URL:-sqlite+aiosqlite:////root/.prefect/prefect.db}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+      interval: 3s
+      retries: 60
+    depends_on: {postgres: {condition: service_healthy}}
+    deploy: {resources: {limits: {cpus: "1.5", memory: 1g}}}
+
+  hatchet:
+    profiles: [hatchet]
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
+    environment:
+      DATABASE_URL: postgresql://bench:bench@postgres:5432/hatchet?sslmode=disable
+      SERVER_AUTH_COOKIE_DOMAIN: localhost
+      SERVER_AUTH_COOKIE_INSECURE: "t"
+      SERVER_GRPC_BIND_ADDRESS: 0.0.0.0
+      SERVER_GRPC_INSECURE: "t"
+      SERVER_GRPC_BROADCAST_ADDRESS: hatchet:7077
+      SERVER_GRPC_PORT: "7077"
+      SERVER_URL: http://localhost:8888
+      SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
+      SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS: hatchet:7077
+    volumes: ['hatchet-config:/config']
+    depends_on: {postgres: {condition: service_healthy}}
+    deploy: {resources: {limits: {cpus: "1.5", memory: 1g}}}
+
+  # One worker service per backend. Names start with `w-` so the driver knows
+  # what to kill in the failure scenario.
+  w-pgqueue:
+    !!merge <<: *worker
+    profiles: [pgqueue]
+    command: python -m bench.backends.pgqueue
+
+  w-celery-prefork:
+    !!merge <<: *worker
+    profiles: [celery-prefork]
+    command: celery -A bench.backends.celery_app worker -B --pool prefork --concurrency ${BENCH_PROCESSES:-6} -Q bench --loglevel WARNING
+
+  w-celery-threads:
+    !!merge <<: *worker
+    profiles: [celery-threads]
+    command: celery -A bench.backends.celery_app worker -B --pool threads --concurrency ${BENCH_CONCURRENCY:-20} -Q bench --loglevel WARNING
+
+  w-taskiq:
+    !!merge <<: *worker
+    profiles: [taskiq]
+    command: taskiq worker bench.backends.taskiq_app:broker --workers ${BENCH_PROCESSES:-2} --max-async-tasks ${BENCH_CONCURRENCY:-20}
+
+  w-taskiq-scheduler:
+    !!merge <<: *worker
+    profiles: [taskiq]
+    command: taskiq scheduler bench.backends.taskiq_app:scheduler
+    deploy: {resources: {limits: {cpus: "0.25", memory: 512m}}}
+
+  w-dramatiq:
+    !!merge <<: *worker
+    profiles: [dramatiq]
+    command: dramatiq bench.backends.dramatiq_app --processes ${BENCH_PROCESSES:-2} --threads ${BENCH_CONCURRENCY:-20}
+
+  w-saq:
+    !!merge <<: *worker
+    profiles: [saq]
+    command: saq bench.backends.saq_app.settings --workers ${BENCH_PROCESSES:-2}
+
+  w-procrastinate:
+    !!merge <<: *worker
+    profiles: [procrastinate]
+    command: python -m bench.backends.procrastinate_app
+
+  w-hatchet:
+    !!merge <<: *worker
+    profiles: [hatchet]
+    command: python -m bench.backends.hatchet_app
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      hatchet: {condition: service_started}
+
+  w-prefect-serve:
+    !!merge <<: *worker
+    profiles: [prefect-serve]
+    command: python -m bench.backends.prefect_serve
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      prefect-server: {condition: service_healthy}
+
+  w-prefect-tasks:
+    !!merge <<: *worker
+    profiles: [prefect-tasks]
+    command: python -m bench.backends.prefect_tasks
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      prefect-server: {condition: service_healthy}
+
+  driver:
+    !!merge <<: *worker
+    profiles: [driver]
+    command: ["true"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./results:/results
+      - prefect-storage:/prefect-storage
+    deploy: {resources: {limits: {cpus: "1", memory: 2g}}}
+
+volumes:
+  hatchet-config:
+  prefect-storage:

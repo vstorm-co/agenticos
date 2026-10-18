@@ -1,0 +1,5 @@
+# Raw runs are large and machine-specific; the report and summary.json are committed.
+results/*.events.csv
+results/*.log
+results/*.json
+!results/summary.json
