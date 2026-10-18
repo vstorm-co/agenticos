@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "5f8911d3c1de"
+source_sha: "07581e857110"
 ---
 
 # Proyectos { #projects }
@@ -111,6 +111,9 @@ agents responden en él, cuándo se movió por última vez o quién está trabaj
 los nombres al pasar el ratón; quien lo tiene abierto ahora mismo va primero, con
 un punto verde. Un chat fuera de un proyecto sigue siendo de su
 autor, como en el resto de la consola.
+
+Un chat de un proyecto no se comparte por separado, ni por enlace ni con una
+persona: se lee a través del proyecto, así que comparte el proyecto.
 
 **Trabajar juntos en un chat.** Varias personas pueden estar a la vez en un chat
 de un proyecto. Una barra sobre la transcripción muestra quién más lo tiene

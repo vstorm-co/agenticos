@@ -127,7 +127,7 @@ async def test_a_thread_opened_by_its_link_carries_its_drawings(mock_redis: Magi
         ],
     )
     conversation = SimpleNamespace(
-        id=uuid4(), organization_id=uuid4(), title="Shared", messages=[message]
+        id=uuid4(), organization_id=uuid4(), project_id=None, title="Shared", messages=[message]
     )
     share = SimpleNamespace(
         id=uuid4(), conversation_id=conversation.id, permission="view", share_token="tok"

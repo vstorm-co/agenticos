@@ -102,6 +102,9 @@ latest faces, with every name on hover; whoever has it open right now comes
 first, with a green dot. A chat
 outside any project stays its author's own, as everywhere else in the console.
 
+A project's chat is not shared on its own, by link or with a person: it is read
+through the project, so share the project instead.
+
 **Working in one chat together.** Several people can be in a project's chat at
 once. A bar over the transcript shows who else has it open, and its owner can
 invite somebody from there. While one of them writes, the others see their face and

@@ -277,17 +277,21 @@ function ConversationItem({
                 <Pencil className="h-4 w-4" />
                 {t("rename")}
               </button>
-              <button
-                className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onShare();
-                  setShowMenu(false);
-                }}
-              >
-                <Share2 className="h-4 w-4" />
-                {t("share")}
-              </button>
+              {/* Not for a project's chat: who reads it is the project's to say,
+                  and the server refuses a share of one. */}
+              {!conversation.project_id && (
+                <button
+                  className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm whitespace-nowrap max-md:min-h-11 [&_svg]:shrink-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShare();
+                    setShowMenu(false);
+                  }}
+                >
+                  <Share2 className="h-4 w-4" />
+                  {t("share")}
+                </button>
+              )}
               {/* In the menu as well as on the row: the hover control does not
                   exist on a touch screen until something is long-pressed. */}
               <button

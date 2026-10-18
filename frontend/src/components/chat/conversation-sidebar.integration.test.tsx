@@ -535,6 +535,23 @@ describe("the favourites band", () => {
     );
   });
 
+  it("offers no share on a project's chat - the project decides who reads it", async () => {
+    serve([
+      { ...conversation("c-1", "Launch plan"), project_id: "p-1" },
+      conversation("c-2", "My notes"),
+    ] as ReturnType<typeof conversation>[]);
+    mount();
+    await within(list()).findByText("Launch plan");
+
+    const [inProject, ownChat] = within(list()).getAllByRole("button", {
+      name: "Conversation actions",
+    });
+    await userEvent.click(inProject!);
+    expect(within(list()).queryByRole("button", { name: "Share" })).toBeNull();
+    await userEvent.click(ownChat!);
+    expect(within(list()).getByRole("button", { name: "Share" })).toBeInTheDocument();
+  });
+
   it("draws no star on a starred row, since the band it sits in says so", async () => {
     serve([conversation("c-1", "Rota cover", true)]);
     mount();
