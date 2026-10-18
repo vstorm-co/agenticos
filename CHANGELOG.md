@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-18
+
 ### Added
 
 - **The AgenticOS MCP server for any agent** (#2190). The platform's own MCP
