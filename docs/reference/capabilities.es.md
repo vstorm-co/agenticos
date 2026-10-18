@@ -1,5 +1,5 @@
 ---
-source_sha: "2ee501a26cc8"
+source_sha: "b70c863fb6a5"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1192,6 +1192,8 @@ del padre, y los archivos que escribe son los que ve el padre.
 anotan en el registro del run como cualquier petición al modelo, y el budget se
 comprueba antes de cada tarea. Codex no nombra ningún modelo en sus eventos, así que
 sin `model` su uso se anota sin precio y el coste del run se marca como parcial.
+Igual se anota una tarea que termina antes de que su harness diga cuánto gastó:
+fallida, agotado su tiempo o detenida.
 
 ## Visuals { #visuals }
 

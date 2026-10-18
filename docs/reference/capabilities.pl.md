@@ -1,5 +1,5 @@
 ---
-source_sha: "2ee501a26cc8"
+source_sha: "b70c863fb6a5"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1176,7 +1176,9 @@ rodzic.
 **Jej koszt jest mierzony.** Oba harnessy raportują tokeny per model, które trafiają
 do księgi runa jak każde żądanie do modelu, a budżet jest sprawdzany przed każdym
 zadaniem. Codex nie podaje modelu w swoich zdarzeniach, więc bez ustawionego `model`
-jego zużycie jest księgowane bez ceny, a koszt runa oznaczony jako częściowy.
+jego zużycie jest księgowane bez ceny, a koszt runa oznaczony jako częściowy. Tak
+samo księgowane jest zadanie, które kończy się, zanim harness poda, ile wydał -
+nieudane, przerwane limitem czasu albo zatrzymane.
 
 ## Wizualizacje { #visuals }
 

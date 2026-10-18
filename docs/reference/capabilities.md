@@ -1117,7 +1117,9 @@ the ones the parent sees.
 **Its spend is metered.** Both harnesses report their tokens per model, which are
 booked to the run's ledger like any model request, and the budget is checked before
 each task. Codex names no model in its events, so with no `model` set its usage is
-booked unpriced and the run's cost is marked partial.
+booked unpriced and the run's cost is marked partial. A task that ends before its
+harness reports what it spent - failed, timed out or stopped - is booked the same
+way.
 
 ## Visuals
 

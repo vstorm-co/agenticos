@@ -1,5 +1,5 @@
 ---
-source_sha: "2ee501a26cc8"
+source_sha: "b70c863fb6a5"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1249,7 +1249,8 @@ die, die der Elternteil sieht.
 werden wie jede Modellanfrage im Ledger des Runs gebucht, und das Budget wird vor
 jeder Aufgabe geprüft. Codex nennt in seinen Ereignissen kein Modell, daher wird
 seine Nutzung ohne gesetztes `model` ohne Preis gebucht und die Kosten des Runs als
-unvollständig markiert.
+unvollständig markiert. Ebenso gebucht wird eine Aufgabe, die endet, bevor ihr
+Harness meldet, was sie verbraucht hat - fehlgeschlagen, abgelaufen oder gestoppt.
 
 ## Visuals { #visuals }
 
