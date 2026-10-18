@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.db.models.agent import AgentStatus
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.conversation import Conversation
 from app.db.models.project import Project
@@ -436,8 +437,14 @@ class ProjectService:
         )
 
     async def _check_default_agent(self, ctx: AuthContext, agent_id: UUID) -> None:
+        """One the setter may run, and that runs at all: a new chat starts with it,
+        and a draft or an archived agent refused that chat's first message."""
         agent = await agent_repo.get(self.db, agent_id, organization_id=ctx.organization_id)
         if agent is None or not await resolve_access(
             self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT
         ):
             raise refused_field("default_agent_id", "Choose a default agent you can run")
+        if agent.status == AgentStatus.ARCHIVED.value or agent.current_version_id is None:
+            raise refused_field(
+                "default_agent_id", "Choose a published agent - a new chat starts with it"
+            )

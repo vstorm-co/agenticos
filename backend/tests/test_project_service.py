@@ -192,6 +192,25 @@ class TestCreatingAndChanging:
             "fields": ["default_agent_id", "instructions"]
         }
 
+    @pytest.mark.parametrize(
+        ("status", "version"),
+        [("draft", None), ("archived", uuid.uuid4())],
+        ids=["never-published", "archived"],
+    )
+    async def test_a_default_agent_that_cannot_answer_is_refused(
+        self, status: str, version: uuid.UUID | None
+    ) -> None:
+        """A new chat starts with it, and its first message was refused."""
+        project = _project()
+        service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT, Perm.AGENTS_RUN)
+        agent = MagicMock(status=status, current_version_id=version)
+        with (
+            patch.object(module.agent_repo, "get", AsyncMock(return_value=agent)),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await service.update(_ctx(), project.id, ProjectUpdate(default_agent_id=uuid.uuid4()))
+        assert "published agent" in refused.value.message
+
     async def test_renaming_without_a_new_default_agent_checks_no_agent(self) -> None:
         project = _project()
         service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT)
