@@ -22,6 +22,7 @@ from app.agents.capabilities._registry import (
 )
 from app.agents.capabilities.coding_agent._capability import CodingAgent
 from app.agents.capabilities.coding_agent._toolset import RUN_DESCRIPTION
+from app.agents.capabilities.sandbox import SHARED_SCOPES, WORKSPACE_SCOPE_RESOURCE
 from app.core.secret_kinds import ApiKeySecret, OpenAICodexSecret, SecretKind, SecretRequirement
 from app.services.openai_codex import VaultCodexCredentials
 
@@ -209,4 +210,5 @@ def _build(ctx: CapabilityBuildContext) -> CodingAgent:
         timeout_seconds=config.timeout_minutes * 60,
         api_key=api_key,
         sign_in=sign_in,
+        shared_sandbox=ctx.resources.get(WORKSPACE_SCOPE_RESOURCE) in SHARED_SCOPES,
     )

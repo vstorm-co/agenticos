@@ -1,5 +1,5 @@
 ---
-source_sha: "b3593229af33"
+source_sha: "4df026dac07c"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -1229,7 +1229,10 @@ Aufgaben teilen sich nie eines, und die Sitzungen, die Codex fortsetzt, werden j
 Unterhaltung daneben gehalten. Von Codex erneuerte Tokens
 werden über dasselbe Secret zurückversiegelt. Alles, was Codex ausführt, kann diese
 Datei lesen, darum wird die Anmeldung nur für eine Person übergeben, die sie selbst im
-Vault sehen darf - den Agent auszuführen ist nie ein Weg zum Abo eines anderen.
+Vault sehen darf - den Agent auszuführen ist nie ein Weg zum Abo eines anderen -,
+und nur in einer Sandbox, die keine Aufgaben anderer teilen: Im Container eines
+Projekts oder einer Sandbox auf Agent-Ebene läuft die Aufgabe einer anderen Person als
+derselbe Benutzer und könnte sie lesen.
 Ein API-Key ist etwas anderes: Er gehört dem Agent, wie das Token eines Bots in
 Slack, also nutzt ihn jeder Run, wer auch immer gefragt hat - und alles, was eine
 Aufgabe ausführt, kann ihn lesen. Binde einen Key, den alle teilen dürfen, die den

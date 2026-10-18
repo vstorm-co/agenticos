@@ -1,5 +1,5 @@
 ---
-source_sha: "b3593229af33"
+source_sha: "4df026dac07c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -1174,7 +1174,10 @@ comparten uno, y las sesiones que Codex reanuda se guardan por conversación a s
 lado. Los tokens que Codex renovó se sellan de nuevo
 sobre el mismo secreto. Todo lo que Codex ejecuta puede leer ese archivo, así que el
 inicio de sesión solo se entrega a una persona que puede verlo en el vault - ejecutar
-el agent nunca es un camino a la suscripción de otro. Una clave API es distinta:
+el agent nunca es un camino a la suscripción de otro -, y solo en un sandbox que no
+comparten tareas de otras personas: en el contenedor de un proyecto, o en uno a nivel
+de agent, la tarea de otra persona se ejecuta como el mismo usuario y podría leerlo.
+Una clave API es distinta:
 es del agent, como el token de un bot en Slack, así que cada run la usa, sea quien
 sea quien preguntó - y todo lo que ejecuta una tarea puede leerla. Vincula una
 clave que puedan compartir todos los que pueden ejecutar el agent. Trabajar con una suscripción

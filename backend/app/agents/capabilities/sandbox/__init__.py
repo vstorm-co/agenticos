@@ -36,7 +36,9 @@ from app.agents.capabilities.sandbox._identity import (
 )
 
 __all__ = [
+    "SHARED_SCOPES",
     "WORKSPACE_RESOURCE",
+    "WORKSPACE_SCOPE_RESOURCE",
     "BackendKind",
     "SandboxConfig",
     "SessionScope",
@@ -44,6 +46,12 @@ __all__ = [
     "WorkspaceScopeUnavailable",
     "scope_key",
 ]
+
+WORKSPACE_SCOPE_RESOURCE = "workspace_scope"
+"""Whose the run's workspace is - its `SessionScope` - beside `WORKSPACE_RESOURCE`."""
+
+SHARED_SCOPES: frozenset[str] = frozenset({"project", "agent", "channel"})
+"""Scopes whose container other people's runs work in too, as the same user."""
 
 WORKSPACE_RESOURCE = "workspace"
 """Where the runner leaves the workspace it opened for this run.

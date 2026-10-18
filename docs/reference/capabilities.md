@@ -1100,7 +1100,9 @@ once never share one, and the sessions Codex resumes are kept per conversation
 beside it. Any tokens Codex
 refreshed are sealed back over the same secret. Whatever Codex runs can read that
 file, so the sign-in is handed over only for a person who may see it in the vault
-themselves - running the agent is never a way to somebody else's subscription.
+themselves - running the agent is never a way to somebody else's subscription -
+and only in a sandbox nobody else's tasks share: in a project's container, or an
+agent-scoped one, another person's task runs as the same user and could read it.
 An API key is different: it is the agent's, as a bot's token is in Slack, so
 every run uses it, whoever asked - and anything a task runs can read it. Bind a
 key that everyone who may run the agent may share.

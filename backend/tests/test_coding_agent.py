@@ -1134,6 +1134,31 @@ class TestConfiguringIt:
         )
         assert isinstance(built, CodingAgent) and built.api_key is None
 
+    @pytest.mark.parametrize(
+        ("scope", "shared"),
+        [
+            ("project", True),
+            ("agent", True),
+            ("channel", True),
+            ("conversation", False),
+            (None, False),
+        ],
+    )
+    def test_the_builder_says_whether_others_work_in_the_sandbox(
+        self, scope: str | None, shared: bool
+    ) -> None:
+        definition = get("coding_agent")
+        binding = CapabilityBinding(capability_id="coding_agent")
+        built = definition.builder(
+            CapabilityBuildContext(
+                binding=binding,
+                config=None,
+                resources={} if scope is None else {"workspace_scope": scope},
+                secret=None,
+            )
+        )
+        assert isinstance(built, CodingAgent) and built.shared_sandbox is shared
+
 
 class TestPublishing:
     @staticmethod
@@ -1372,6 +1397,15 @@ class TestCodexOnASignIn:
         )
         await self._run(shell, store)
         assert store.saved == []
+
+    @pytest.mark.security
+    async def test_a_shared_sandbox_never_gets_a_persons_sign_in(self) -> None:
+        """Another person's task runs as the same user in a project's container and
+        could read the tokens wherever they were written."""
+        shell = _Shell()
+        answer = await self._run(shell, _Store(), shared_sandbox=True)
+        assert "only in a sandbox nobody else's tasks share" in answer
+        assert shell.commands == []
 
     async def test_a_sign_in_removed_from_the_vault_is_an_answer(self) -> None:
         answer = await self._run(_Shell(), _Store(gone=True))

@@ -33,6 +33,9 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
     # A ChatGPT sign-in, as where its tokens live for an organization - ids, not
     # tokens - rather than as the tokens themselves; see `_build`.
     sign_in: SignIn | None = None
+    # Whether other people's runs work in the same container - a project's, an
+    # agent's, a channel's - where a sign-in's tokens could be read by them.
+    shared_sandbox: bool = False
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
     )
@@ -60,6 +63,7 @@ class CodingAgent(AbstractCapability[AgentDepsT]):
                 base_url=self.base_url,
                 api_key=self.api_key,
                 sign_in=self.sign_in,
+                shared_sandbox=self.shared_sandbox,
                 timeout_seconds=self.timeout_seconds,
             )
         return self._toolset

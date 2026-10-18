@@ -1,5 +1,5 @@
 ---
-source_sha: "b3593229af33"
+source_sha: "4df026dac07c"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1160,7 +1160,9 @@ osobno dla każdej rozmowy. Tokeny odświeżone
 przez Codex są pieczętowane z powrotem w tym samym sekrecie. Wszystko, co Codex
 uruchomi, może przeczytać ten plik, więc logowanie jest przekazywane tylko osobie,
 która sama może je zobaczyć w vault - uruchomienie agenta nigdy nie daje dostępu do
-cudzej subskrypcji. Klucz API jest czym innym: należy do agenta, jak token bota w
+cudzej subskrypcji - i tylko w sandboxie, którego nie dzielą zadania innych osób: w
+kontenerze projektu albo sandboxie na poziomie agenta zadanie innej osoby działa
+jako ten sam użytkownik i mogłoby je przeczytać. Klucz API jest czym innym: należy do agenta, jak token bota w
 Slacku, więc używa go każdy run, ktokolwiek pytał - i wszystko, co uruchomi
 zadanie, może go odczytać. Podpinaj klucz, który mogą dzielić wszyscy, którzy mogą
 uruchamiać agenta. Praca na prywatnej subskrypcji podlega warunkom Anthropic i OpenAI dla tych

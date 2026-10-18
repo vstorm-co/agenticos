@@ -135,6 +135,7 @@ def build_coding_toolset(
     api_key: str | None,
     timeout_seconds: int,
     sign_in: SignIn | None = None,
+    shared_sandbox: bool = False,
 ) -> FunctionToolset[Any]:
     """The tool, bound to one harness, its access, its model and its key.
 
@@ -227,6 +228,15 @@ def build_coding_toolset(
         organization_id = getattr(ctx.deps, "organization_id", None)
         if not isinstance(organization_id, UUID):
             return f"{label} on a ChatGPT sign-in runs only inside an organization."
+        # In a container other people's runs work in, their tasks run as the
+        # same user and can read the tokens wherever they are written; a person's
+        # subscription is theirs alone, so it runs only where nobody else does.
+        if shared_sandbox:
+            return (
+                f"{label} runs on a ChatGPT sign-in only in a sandbox nobody else's tasks "
+                "share, and this one is shared - a project's, or the whole agent's. Say "
+                "that the agent needs an OpenAI API key for Codex here."
+            )
         source = sign_in(organization_id)
         # The tokens are written where Codex reads them, and anything Codex runs
         # can read them there too: a task - or a repository's text it obeys - can
