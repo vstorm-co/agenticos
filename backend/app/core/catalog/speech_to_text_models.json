@@ -5,14 +5,20 @@
     "base_url": "https://api.openai.com/v1",
     "models": [
       {
+        "id": "gpt-transcribe",
+        "name": "GPT Transcribe",
+        "description": "OpenAI's current transcription model and the one it recommends. Most accurate of the set, and cheap per minute.",
+        "language_field": "languages"
+      },
+      {
         "id": "gpt-4o-transcribe",
         "name": "GPT-4o Transcribe",
-        "description": "Most accurate of the OpenAI set, and the slowest. Good with accents and crosstalk."
+        "description": "The previous generation, kept for setups that already use it. Good with accents and crosstalk."
       },
       {
         "id": "gpt-4o-mini-transcribe",
         "name": "GPT-4o mini Transcribe",
-        "description": "Cheaper and quicker, at some cost on hard audio. A sensible default for chat voice notes."
+        "description": "The previous generation's cheaper model, kept for setups that already use it."
       },
       {
         "id": "whisper-1",
@@ -47,8 +53,8 @@
     "models": [
       {
         "id": "voxtral-mini-latest",
-        "name": "Voxtral Mini",
-        "description": "Mistral's speech model. European hosting, which is sometimes the deciding factor."
+        "name": "Voxtral Mini Transcribe 2",
+        "description": "Mistral's transcription model, among the cheapest per minute. European hosting, which is sometimes the deciding factor."
       }
     ]
   }

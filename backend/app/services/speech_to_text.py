@@ -41,6 +41,14 @@ RecordingFormat = Literal["webm", "wav"]
 documents neither WebM nor Opus.
 """
 
+LanguageField = Literal["language", "languages"]
+"""How a model is told which language a recording is in.
+
+`language`, one ISO-639-1 code, is the field OpenAI defined and Groq and
+Mistral serve. OpenAI's `gpt-transcribe` replaces it with a `languages` list
+and says not to send both - so the model's entry says which it takes.
+"""
+
 DictationUnavailable = Literal["no_provider", "not_offered", "no_key"]
 """Why a recording for an agent would not reach a provider.
 
@@ -58,6 +66,7 @@ class SpeechToTextModel:
     id: str
     name: str
     description: str
+    language_field: LanguageField = "language"
 
 
 @dataclass(frozen=True)

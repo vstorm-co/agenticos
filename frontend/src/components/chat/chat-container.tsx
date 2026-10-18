@@ -79,6 +79,7 @@ import { qk } from "@/lib/query-keys";
 import { dictate, type DictationSend } from "@/lib/dictation-api";
 import { Perm } from "@/types/permissions";
 import { dictationHint, DictationStrip } from "./dictation-strip";
+import { AGENT_DICTATION_ANCHOR } from "@/components/agents/voice-card";
 import { VoiceCallButton } from "@/components/voice/voice-call-button";
 import { voiceFailureHint } from "@/components/voice/voice-call-strip";
 import {
@@ -861,7 +862,7 @@ function ChatUI({
   // edit agents - the Voice card sits on the agent's Build tab.
   const agentVoiceHref =
     selectedAgentId !== null && can(Perm.agentsEdit)
-      ? `${ROUTES.AGENT_DETAIL(selectedAgentId)}#agent-voice`
+      ? `${ROUTES.AGENT_DETAIL(selectedAgentId)}#${AGENT_DICTATION_ANCHOR}`
       : null;
   const hasAgent = selectedAgentId !== null;
   const dictationReady = hasAgent && status?.ready === true;

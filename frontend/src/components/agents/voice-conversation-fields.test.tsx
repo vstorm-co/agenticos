@@ -151,7 +151,7 @@ describe("VoiceConversationFields", () => {
   it("turning calls on picks the first provider's first model and its default voice", async () => {
     const { onChange } = mount({ value: null });
     expect(screen.queryByLabelText("Call provider")).toBeNull();
-    await userEvent.click(screen.getByRole("switch", { name: "Take voice calls" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Allow voice calls" }));
     expect(onChange).toHaveBeenCalledWith({ ...OPENAI });
     // Every key, in the spec's order, so the draft compares equal to what is stored.
     expect(Object.keys(onChange.mock.calls[0]![0])).toEqual(Object.keys(EMPTY));
@@ -160,20 +160,20 @@ describe("VoiceConversationFields", () => {
   it("cannot be turned on before the catalog has anything to offer", () => {
     state.providers = [];
     mount({ value: undefined });
-    expect(screen.getByRole("switch", { name: "Take voice calls" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Allow voice calls" })).toBeDisabled();
   });
 
   it("says why calls cannot be turned on when the catalog could not be read", () => {
     state.providers = [];
     state.isError = true;
     mount({ value: null });
-    expect(screen.getByRole("switch", { name: "Take voice calls" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Allow voice calls" })).toBeDisabled();
     expect(screen.getByRole("alert")).toHaveTextContent("could not be loaded");
   });
 
   it("turning calls off writes null", async () => {
     const { onChange } = mount();
-    await userEvent.click(screen.getByRole("switch", { name: "Take voice calls" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Allow voice calls" }));
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
@@ -379,7 +379,7 @@ describe("VoiceConversationFields", () => {
 
   it("locks everything for somebody who may not edit", () => {
     mount({ disabled: true });
-    expect(screen.getByRole("switch", { name: "Take voice calls" })).toBeDisabled();
+    expect(screen.getByRole("switch", { name: "Allow voice calls" })).toBeDisabled();
     expect(screen.getByLabelText("Longest call (minutes)")).toBeDisabled();
   });
 });

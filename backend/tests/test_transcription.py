@@ -354,7 +354,7 @@ class TestWhetherAKeyIsUsable:
 
 class TestTheLanguage:
     async def test_the_language_is_sent_when_one_is_set(self, monkeypatch):
-        provider, model = _offered()
+        provider, model = "openai", "whisper-1"
         client = _responds({"text": "cześć"})
 
         with patch("app.services.transcription.httpx.AsyncClient", return_value=client):
@@ -369,6 +369,26 @@ class TestTheLanguage:
             )
 
         assert client.post.await_args.kwargs["data"] == {"model": model, "language": "pl"}
+
+    async def test_a_model_that_takes_a_list_is_sent_languages_and_not_language(self):
+        """`gpt-transcribe` replaces `language` with `languages` and refuses both."""
+        client = _responds({"text": "cześć"})
+
+        with patch("app.services.transcription.httpx.AsyncClient", return_value=client):
+            await TranscriptionService(MagicMock()).transcribe(
+                _recording(),
+                organization_id=ORG,
+                secret_id=KEY,
+                shared_key=True,
+                provider="openai",
+                model="gpt-transcribe",
+                language="pl",
+            )
+
+        assert client.post.await_args.kwargs["data"] == {
+            "model": "gpt-transcribe",
+            "languages[]": "pl",
+        }
 
     async def test_no_language_sends_only_the_model(self, monkeypatch):
         """Left out rather than sent empty, so the engine detects the language."""

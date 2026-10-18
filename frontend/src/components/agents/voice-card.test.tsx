@@ -98,7 +98,10 @@ describe("the agent's Voice card", () => {
   it("inherits by default and names what it inherits", () => {
     mount();
 
-    expect(screen.getByRole("radio", { name: "Inherit" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Organization's" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
     expect(
       screen.getByText("From the organization: OpenAI · gpt-4o-transcribe"),
     ).toBeInTheDocument();
@@ -109,7 +112,7 @@ describe("the agent's Voice card", () => {
   it("chooses a whole pair at once, on a provider with a key, and no key yet", async () => {
     const { onChange } = mount();
 
-    await userEvent.click(screen.getByRole("radio", { name: "Choose" }));
+    await userEvent.click(screen.getByRole("radio", { name: "This agent's own" }));
 
     // In the spec's order, with explicit nulls, so the draft compares equal to
     // what the server stores.
@@ -197,7 +200,7 @@ describe("the agent's Voice card", () => {
   it("returns to inherit as no block at all, key and all", async () => {
     const { onChange } = mount(pair("groq", "whisper-large-v3"));
 
-    await userEvent.click(screen.getByRole("radio", { name: "Inherit" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Organization's" }));
 
     expect(onChange).toHaveBeenCalledWith(null);
   });
@@ -205,7 +208,7 @@ describe("the agent's Voice card", () => {
   it("keeps a pinned language when the pair goes back to inherit", async () => {
     const { onChange } = mount(pair("groq", "whisper-large-v3", "pl"));
 
-    await userEvent.click(screen.getByRole("radio", { name: "Inherit" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Organization's" }));
 
     expect(onChange).toHaveBeenCalledWith({
       provider: null,
@@ -268,7 +271,7 @@ describe("the agent's Voice card", () => {
     state.keyed.clear();
     const { onChange } = mount();
 
-    await userEvent.click(screen.getByRole("radio", { name: "Choose" }));
+    await userEvent.click(screen.getByRole("radio", { name: "This agent's own" }));
 
     expect(onChange).toHaveBeenCalledWith({
       provider: "openai",
@@ -280,7 +283,10 @@ describe("the agent's Voice card", () => {
 
   it("shows a half-made pair from a draft as a choice still to finish", () => {
     mount({ provider: null, model: "whisper-1", language: null, secret_id: null });
-    expect(screen.getByRole("radio", { name: "Choose" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "This agent's own" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
     expect(screen.queryByRole("button", { name: "choose key" })).not.toBeInTheDocument();
   });
 
@@ -308,14 +314,14 @@ describe("the agent's Voice card", () => {
     state.org = null;
     mount();
 
-    expect(screen.getByRole("radio", { name: "Choose" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "This agent's own" })).toBeDisabled();
     expect(screen.queryByText(/so this only changes/)).not.toBeInTheDocument();
   });
 
   it("is read-only for a caller who may not edit the agent", () => {
     render(<VoiceCard value={null} onChange={vi.fn()} disabled />);
 
-    expect(screen.getByRole("radio", { name: "Choose" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "This agent's own" })).toBeDisabled();
     expect(screen.getByLabelText("Language")).toBeDisabled();
   });
 
@@ -327,18 +333,39 @@ describe("the agent's Voice card", () => {
       hasGuardrails: false,
     };
 
-    it("are not shown where the page does not ask for them", () => {
+    it("are not offered where the page does not ask for them", () => {
       mount();
-      expect(screen.queryByRole("heading", { name: "Voice conversations" })).toBeNull();
+      expect(screen.queryByRole("tab", { name: "Voice calls" })).toBeNull();
+      expect(screen.getByRole("tab", { name: "Dictation" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
     });
 
-    it("sit under the transcription settings, capped at the organization's longest call", () => {
+    it("open on their own tab, apart from dictation, capped at the organization's longest call", async () => {
       state.org = { ...state.org!, voice_max_call_seconds: 900 };
       render(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} disabled />);
-      expect(screen.getByRole("heading", { name: "Voice conversations" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Voice calls" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
       expect(screen.getByTestId("voice-conversation-fields")).toHaveTextContent(
         "max 900 disabled true",
       );
+      // Dictation's settings are on the other tab, not stacked beneath.
+      expect(screen.queryByLabelText("Language")).toBeNull();
+      await userEvent.click(screen.getByRole("tab", { name: "Dictation" }));
+      expect(screen.getByLabelText("Language")).toBeInTheDocument();
+    });
+
+    it("give way to the Dictation tab for a link to the dictation setup", () => {
+      window.history.replaceState({}, "", "/agents/a1#agent-voice-dictation");
+      render(<VoiceCard value={null} onChange={vi.fn()} conversation={conversation} />);
+      expect(screen.getByRole("tab", { name: "Dictation" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      window.history.replaceState({}, "", "/");
     });
 
     it("use the server's default cap before the organization is read", () => {

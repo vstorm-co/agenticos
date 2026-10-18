@@ -1,6 +1,7 @@
 "use client";
 
 import { Info } from "lucide-react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -22,6 +23,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
 } from "@/components/ui";
 import { useOrganizationList } from "@/hooks";
 import { useLanguageName } from "@/hooks/use-language-name";
@@ -33,6 +38,14 @@ import type { SpeechToTextSpec } from "@/types/agents";
 const INHERIT = "inherit";
 
 type PairMode = "inherit" | "choose";
+
+/**
+ * What a link to this agent's dictation setup ends in - the composer's crossed-out
+ * microphone. The card scrolls into view on it and opens on its Dictation tab.
+ */
+export const AGENT_DICTATION_ANCHOR = "agent-voice-dictation";
+
+type VoiceTab = "calls" | "dictation";
 
 /** The organization's longest call before its settings are read - the server's default. */
 const DEFAULT_MAX_CALL_SECONDS = 600;
@@ -117,94 +130,108 @@ export function VoiceCard({ value, onChange, disabled, conversation }: VoiceCard
         })
       : null;
   const engine = org?.chat_dictation ?? null;
+  // The card renders once the agent has loaded, in the browser, so the hash a
+  // link arrived with is there to read.
+  const [tab, setTab] = useState<VoiceTab>(() =>
+    !conversation || window.location.hash === `#${AGENT_DICTATION_ANCHOR}` ? "dictation" : "calls",
+  );
 
   return (
     // The anchor the composer's crossed-out microphone links to.
     <Card id="agent-voice" data-tour="agent-voice" className="scroll-mt-20">
+      <span id={AGENT_DICTATION_ANCHOR} className="block scroll-mt-20" aria-hidden />
       <CardHeader>
         <CardTitle>{t("voiceTitle")}</CardTitle>
         <CardDescription>{t("voiceDescription")}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <Notes engine={engine} orgHasPair={orgPair !== null} choosing={mode === "choose"} />
-        <div className="space-y-2">
-          <p id="agent-voice-pair" className="text-sm font-medium">
-            {t("voicePair")}
-          </p>
-          <ChoiceGroup
-            labelledBy="agent-voice-pair"
-            value={mode}
-            disabled={disabled || providers.length === 0}
-            options={[
-              { value: "inherit", label: t("voicePairInherit") },
-              { value: "choose", label: t("voicePairChoose") },
-            ]}
-            onChange={choose}
-          />
-          {mode === "inherit" && (
-            <p className="text-muted-foreground text-xs">
-              {orgPair ? t("voiceInherits", { pair: orgPair }) : t("voiceOrgNoPair")}
-            </p>
+      {/* Two things people do with their voice, told apart rather than stacked:
+          a call is a live, two-way conversation on a realtime model; dictation
+          turns speech into text on a transcription model. Each is set up on its
+          own tab, under one sentence saying what it is. */}
+      <CardContent>
+        <Tabs value={tab} onValueChange={(next) => setTab(next as VoiceTab)}>
+          <TabsList>
+            {conversation && <TabsTrigger value="calls">{t("voiceTabCalls")}</TabsTrigger>}
+            <TabsTrigger value="dictation">{t("voiceTabDictation")}</TabsTrigger>
+          </TabsList>
+          {conversation && (
+            <TabsContent value="calls" className="mt-4 space-y-4">
+              <p className="text-muted-foreground text-sm">{t("voiceCallsLead")}</p>
+              <VoiceConversationFields
+                {...conversation}
+                orgMaxSeconds={org?.voice_max_call_seconds ?? DEFAULT_MAX_CALL_SECONDS}
+                disabled={disabled}
+              />
+            </TabsContent>
           )}
-        </div>
-        {mode === "choose" && (
-          <PairFields
-            providers={providers}
-            provider={provider}
-            model={model}
-            secretId={secretId}
-            hasKey={hasKey}
-            disabled={disabled}
-            onChange={write}
-          />
-        )}
-        <FormField
-          label={t("voiceLanguage")}
-          htmlFor="agent-voice-language"
-          description={t("voiceLanguageHint")}
-        >
-          <Select
-            value={language ?? INHERIT}
-            disabled={disabled}
-            onValueChange={(next) => write({ language: next === INHERIT ? null : next })}
-          >
-            <SelectTrigger id="agent-voice-language">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={INHERIT}>
-                {t("voiceLanguageInherit", {
-                  language: org?.speech_to_text_language
-                    ? languageName(org.speech_to_text_language)
-                    : t("voiceLanguageAuto"),
-                })}
-              </SelectItem>
-              {languages
-                .map((code) => ({ code, name: languageName(code) }))
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map(({ code, name }) => (
-                  <SelectItem key={code} value={code}>
-                    {t("voiceLanguageOption", { name, code })}
+          <TabsContent value="dictation" className="mt-4 space-y-4">
+            <p className="text-muted-foreground text-sm">{t("voiceDictationLead")}</p>
+            <Notes engine={engine} orgHasPair={orgPair !== null} choosing={mode === "choose"} />
+            <div className="space-y-2">
+              <p id="agent-voice-pair" className="text-sm font-medium">
+                {t("voicePair")}
+              </p>
+              <ChoiceGroup
+                labelledBy="agent-voice-pair"
+                value={mode}
+                disabled={disabled || providers.length === 0}
+                options={[
+                  { value: "inherit", label: t("voicePairInherit") },
+                  { value: "choose", label: t("voicePairChoose") },
+                ]}
+                onChange={choose}
+              />
+              {mode === "inherit" && (
+                <p className="text-muted-foreground text-xs">
+                  {orgPair ? t("voiceInherits", { pair: orgPair }) : t("voiceOrgNoPair")}
+                </p>
+              )}
+            </div>
+            {mode === "choose" && (
+              <PairFields
+                providers={providers}
+                provider={provider}
+                model={model}
+                secretId={secretId}
+                hasKey={hasKey}
+                disabled={disabled}
+                onChange={write}
+              />
+            )}
+            <FormField
+              label={t("voiceLanguage")}
+              htmlFor="agent-voice-language"
+              description={t("voiceLanguageHint")}
+            >
+              <Select
+                value={language ?? INHERIT}
+                disabled={disabled}
+                onValueChange={(next) => write({ language: next === INHERIT ? null : next })}
+              >
+                <SelectTrigger id="agent-voice-language">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={INHERIT}>
+                    {t("voiceLanguageInherit", {
+                      language: org?.speech_to_text_language
+                        ? languageName(org.speech_to_text_language)
+                        : t("voiceLanguageAuto"),
+                    })}
                   </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </FormField>
-        {conversation && (
-          <section
-            aria-labelledby="agent-voice-conversations"
-            className="border-border border-t pt-5"
-          >
-            <h3 id="agent-voice-conversations" className="mb-3 text-sm font-semibold">
-              {t("voiceConversationTitle")}
-            </h3>
-            <VoiceConversationFields
-              {...conversation}
-              orgMaxSeconds={org?.voice_max_call_seconds ?? DEFAULT_MAX_CALL_SECONDS}
-              disabled={disabled}
-            />
-          </section>
-        )}
+                  {languages
+                    .map((code) => ({ code, name: languageName(code) }))
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(({ code, name }) => (
+                      <SelectItem key={code} value={code}>
+                        {t("voiceLanguageOption", { name, code })}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
@@ -297,7 +324,13 @@ function PairFields({
           </SelectContent>
         </Select>
       </FormField>
-      <FormField label={t("voiceModel")} htmlFor="agent-voice-model">
+      <FormField
+        label={t("voiceModel")}
+        htmlFor="agent-voice-model"
+        // What the catalog says about the one chosen: which to reach for is the
+        // question the picker is asked.
+        description={chosen?.models.find((entry) => entry.id === model)?.description}
+      >
         <Select
           value={model ?? undefined}
           disabled={disabled}

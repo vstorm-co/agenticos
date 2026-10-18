@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import BadRequestError, ConfigurationError, ExternalServiceError
 from app.services import speech_to_text
 from app.services.organization_secret import OrganizationSecretService
+from app.services.speech_to_text import LanguageField
 
 logger = logging.getLogger(__name__)
 
@@ -217,12 +218,15 @@ class TranscriptionService:
                 message=f"No usable {provider} key is chosen for transcription here.",
                 details={"reason": "not_configured", **context},
             )
+        # `is_offered` above found it.
+        offered = next(candidate for candidate in entry.models if candidate.id == model)
         return await self._post(
             recording,
             base_url=entry.base_url,
             api_key=api_key,
             model=model,
             language=language,
+            language_field=offered.language_field,
             response_format=entry.response_format,
             context=context,
         )
@@ -251,6 +255,7 @@ class TranscriptionService:
         api_key: str,
         model: str,
         language: str | None,
+        language_field: LanguageField,
         response_format: str | None,
         context: dict[str, str],
     ) -> TranscriptionResult:
@@ -263,7 +268,8 @@ class TranscriptionService:
         headers = {"Authorization": f"Bearer {api_key}"}
         data = {"model": model}
         if language is not None:
-            data["language"] = language
+            # A list field, form-encoded the way OpenAI's own clients send one.
+            data["languages[]" if language_field == "languages" else "language"] = language
         if response_format is not None:
             data["response_format"] = response_format
         try:

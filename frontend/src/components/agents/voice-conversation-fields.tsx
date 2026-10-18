@@ -4,6 +4,7 @@ import { Info } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
 
+import { ProviderIcon } from "@/components/vault/provider-icon";
 import { SpeechKeyField } from "@/components/vault/speech-key-field";
 import {
   FormField,
@@ -151,8 +152,15 @@ function BlockFields({ block, providers, write, disabled, ...rest }: BlockFields
             </SelectTrigger>
             <SelectContent>
               {providers.map((candidate) => (
-                <SelectItem key={candidate.provider} value={candidate.provider}>
-                  {candidate.name}
+                <SelectItem
+                  key={candidate.provider}
+                  value={candidate.provider}
+                  textValue={candidate.name}
+                >
+                  <span className="flex items-center gap-2">
+                    <ProviderIcon provider={candidate.provider} className="h-3.5 w-3.5" />
+                    {candidate.name}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -221,6 +229,7 @@ function ModelField({ entry, block, disabled, write }: PartProps & { entry: Real
     <FormField
       label={entry.deployment ? t("voiceConversationBaseModel") : t("voiceConversationModel")}
       htmlFor="agent-voice-call-model"
+      description={entry.models.find((candidate) => candidate.id === block[key])?.description}
     >
       <Select
         value={block[key] ?? undefined}

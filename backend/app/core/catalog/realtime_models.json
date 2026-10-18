@@ -3,22 +3,9 @@
     "provider": "openai",
     "models": [
       {
-        "id": "gpt-realtime",
-        "name": "GPT Realtime",
-        "description": "OpenAI's realtime speech model. Natural voices and reliable tool calls.",
-        "transport": "webrtc",
-        "input_sample_rate": 24000,
-        "output_sample_rate": 24000,
-        "voices": ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"],
-        "default_voice": "marin",
-        "supports_thinking": false,
-        "context_window": 32000,
-        "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.30"}
-      },
-      {
         "id": "gpt-realtime-2.1",
         "name": "GPT Realtime 2.1",
-        "description": "The newer realtime model, with reasoning and a longer context.",
+        "description": "OpenAI's current realtime model: reasoning, reliable tool calls and a long context. The default to start with.",
         "transport": "webrtc",
         "input_sample_rate": 24000,
         "output_sample_rate": 24000,
@@ -40,6 +27,32 @@
         "supports_thinking": true,
         "context_window": 32000,
         "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.10"}
+      },
+      {
+        "id": "gpt-realtime-2",
+        "name": "GPT Realtime 2",
+        "description": "The first reasoning realtime model, superseded by 2.1 at the same price. For agents already tuned on it.",
+        "transport": "webrtc",
+        "input_sample_rate": 24000,
+        "output_sample_rate": 24000,
+        "voices": ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"],
+        "default_voice": "marin",
+        "supports_thinking": true,
+        "context_window": 128000,
+        "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.30"}
+      },
+      {
+        "id": "gpt-realtime",
+        "name": "GPT Realtime",
+        "description": "The original realtime model, without reasoning. Kept for agents already using it.",
+        "transport": "webrtc",
+        "input_sample_rate": 24000,
+        "output_sample_rate": 24000,
+        "voices": ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"],
+        "default_voice": "marin",
+        "supports_thinking": false,
+        "context_window": 32000,
+        "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.30"}
       }
     ]
   },
@@ -66,9 +79,35 @@
     "provider": "google",
     "models": [
       {
-        "id": "gemini-2.5-flash-native-audio-latest",
-        "name": "Gemini 2.5 Flash native audio",
-        "description": "Gemini Live through this deployment's relay. Not verified live.",
+        "id": "gemini-3.8-live",
+        "name": "Gemini 3.8 Live",
+        "description": "Google's current Live model, for low-latency voice agents. Through the relay. Not verified live.",
+        "transport": "relay",
+        "input_sample_rate": 16000,
+        "output_sample_rate": 24000,
+        "voices": ["Puck", "Charon", "Kore", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr"],
+        "default_voice": "Puck",
+        "supports_thinking": false,
+        "context_window": 131072,
+        "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.06"}
+      },
+      {
+        "id": "gemini-3.8-live-extended-thinking",
+        "name": "Gemini 3.8 Live Extended Thinking",
+        "description": "Gemini 3.8 Live with more reasoning in the background, for harder requests. Through the relay. Not verified live.",
+        "transport": "relay",
+        "input_sample_rate": 16000,
+        "output_sample_rate": 24000,
+        "voices": ["Puck", "Charon", "Kore", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr"],
+        "default_voice": "Puck",
+        "supports_thinking": true,
+        "context_window": 131072,
+        "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.06"}
+      },
+      {
+        "id": "gemini-3.1-flash-live-preview",
+        "name": "Gemini 3.1 Flash Live (preview)",
+        "description": "The previous Gemini Live model, now legacy; prefer 3.8. Through the relay. Not verified live.",
         "transport": "relay",
         "input_sample_rate": 16000,
         "output_sample_rate": 24000,
@@ -79,9 +118,9 @@
         "pricing": {"kind": "tokens", "worst_case_usd_per_minute": "0.06"}
       },
       {
-        "id": "gemini-3.1-flash-live-preview",
-        "name": "Gemini 3.1 Flash Live (preview)",
-        "description": "The newer Gemini Live model, through the relay. Preview. Not verified live.",
+        "id": "gemini-2.5-flash-native-audio-latest",
+        "name": "Gemini 2.5 Flash native audio",
+        "description": "The older Gemini Live generation, now legacy. Through the relay. Not verified live.",
         "transport": "relay",
         "input_sample_rate": 16000,
         "output_sample_rate": 24000,
@@ -97,9 +136,22 @@
     "provider": "xai",
     "models": [
       {
+        "id": "grok-voice-3.0",
+        "name": "Grok Voice 3.0",
+        "description": "The current Grok Voice model, pinned: the version does not move under a published agent. Through the relay. Not verified live.",
+        "transport": "relay",
+        "input_sample_rate": 24000,
+        "output_sample_rate": 24000,
+        "voices": ["Ara", "Rex", "Sal", "Eve", "Leo"],
+        "default_voice": "Ara",
+        "supports_thinking": false,
+        "context_window": 128000,
+        "pricing": {"kind": "per_minute", "worst_case_usd_per_minute": "0.08", "usd_per_minute": "0.08"}
+      },
+      {
         "id": "grok-voice-latest",
         "name": "Grok Voice",
-        "description": "xAI's voice agent, billed per connected minute, through the relay. Not verified live.",
+        "description": "Whichever Grok Voice model xAI currently points its latest alias at (3.0 today). Through the relay. Not verified live.",
         "transport": "relay",
         "input_sample_rate": 24000,
         "output_sample_rate": 24000,
