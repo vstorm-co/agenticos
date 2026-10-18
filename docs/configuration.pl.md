@@ -1,5 +1,5 @@
 ---
-source_sha: "fe5e40f816b6"
+source_sha: "4e88b18915c7"
 ---
 
 # Konfiguracja { #configuration }
@@ -544,6 +544,18 @@ a specjalista, do którego agent deleguje — napisany inline albo wymyślony
 w trakcie runu przez model — dziedziczy tryb. Jedno
 ograniczenie, zanim na tym polegasz: podpięcie tej instrumentacji jest
 best-effort, a błąd jest logowany, gdy run trwa dalej.
+
+Przy `ENVIRONMENT=production` żaden span nie trafia na konsolę. Eksporter
+konsolowy Logfire wypisuje jedną linię na każde wywołanie SQL i Redisa, około
+czterdziestu na zapytanie, do logu kontenera, którego nikt nie przeszuka. W
+produkcji span istnieje więc tylko tam, dokąd wysyła go token, a bez tokenu wolne
+zapytanie nie zostawia żadnego śladu. `agenticos cmd doctor` zgłasza to w linii
+`tracing`. W innych środowiskach konsola dalej wypisuje spany dla tego, kto patrzy
+na serwer.
+
+Daj każdemu wdrożeniu własne `LOGFIRE_ENVIRONMENT`, na przykład `local` na
+laptopie i `production` na serwerze. Jeden projekt może wtedy trzymać oba i nadal
+je rozróżniać.
 
 | Zmienna | Domyślnie | Opis |
 |----------|---------|-------------|

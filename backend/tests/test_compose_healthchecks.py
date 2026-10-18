@@ -214,3 +214,31 @@ def test_the_browser_goes_out_through_the_egress_proxy_by_default(compose_file: 
         assert (
             "BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}" in environment
         ), name
+
+
+@pytest.mark.parametrize("file_name", COMPOSE_FILES)
+def test_a_python_probe_imports_only_the_standard_library(file_name: str) -> None:
+    """Each probe is a fresh interpreter every 15-30s. Importing httpx doubled
+    what one cost on the production host - 956 ms against 431 ms with `urllib` -
+    on a machine already short of CPU (#2228)."""
+    probes = [
+        (name, " ".join(service["healthcheck"]["test"]))
+        for name, service in _services(file_name).items()
+        if "healthcheck" in service and service["healthcheck"]["test"][1:2] == ["python"]
+    ]
+    assert probes, f"{file_name}: no Python probe - the parametrization is stale"
+    for name, probe in probes:
+        assert "import urllib.request" in probe, f"{file_name}: {name} probes with {probe}"
+
+
+@pytest.mark.parametrize(
+    "file_name", ["docker-compose-prod.yml", "docker-compose-prod.frontend.yml"]
+)
+def test_every_production_service_caps_its_log(file_name: str) -> None:
+    """Docker keeps a `json-file` log until the container is removed, and nothing
+    on the host rotates it: prod held 570 MB and growing (#2228)."""
+    for name, service in _services(file_name).items():
+        options = (service.get("logging") or {}).get("options") or {}
+        assert options.get("max-size") and options.get("max-file"), (
+            f"{file_name}: {name} logs without a cap"
+        )

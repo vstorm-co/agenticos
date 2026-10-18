@@ -1,5 +1,5 @@
 ---
-source_sha: "fe5e40f816b6"
+source_sha: "4e88b18915c7"
 ---
 
 # Configuración { #configuration }
@@ -558,6 +558,18 @@ contenido, y un especialista al que delega — escrito inline o inventado a mita
 del run por el modelo — hereda el modo. Un límite antes de confiar en ello:
 fijar esa instrumentación es best-effort y un fallo se
 registra mientras el run sigue.
+
+Con `ENVIRONMENT=production` ningún span se imprime en la consola. El exportador
+de consola de Logfire escribe una línea por cada llamada a SQL y a Redis, unas
+cuarenta por petición, en un log de contenedor que nadie puede consultar. En
+producción un span existe, por tanto, solo donde lo envía el token, y sin token
+una petición lenta no deja rastro alguno. `agenticos cmd doctor` lo informa en
+su línea `tracing`. En los demás entornos la consola sigue imprimiendo spans para
+quien esté mirando el servidor.
+
+Da a cada despliegue su propio `LOGFIRE_ENVIRONMENT`, por ejemplo `local` en un
+portátil y `production` en el servidor. Un mismo proyecto puede entonces guardar
+ambos y seguir distinguiéndolos.
 
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|

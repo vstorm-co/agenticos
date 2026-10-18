@@ -26,6 +26,18 @@ Two things are versioned separately from this file and worth knowing about:
   whole application. Every compose file that runs `--workers` now waits
   `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` seconds, 60 by default. A blocked event
   loop is still the watchdog's to catch (#2223).
+- **A slow production deployment can be diagnosed without reading raw logs.**
+  - Every service in the production compose files caps its log at five files
+    of 20 MB. Prod held 570 MB and growing.
+  - Postgres preloads `pg_stat_statements`, and migration
+    `0143_pg_stat_statements` creates the extension. Where the role may not,
+    the migration logs a notice and goes on.
+  - With `ENVIRONMENT=production` Logfire no longer prints a console line per
+    SQL and Redis call.
+  - `doctor` gains `query statistics` and `tracing` lines, which say whether
+    either is recording.
+  - Health probes use `urllib` instead of importing httpx, which halves the
+    cost of the interpreter each one starts every 15-30 seconds (#2228).
 
 ## [1.6.3] - 2026-10-18
 

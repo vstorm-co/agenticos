@@ -538,6 +538,17 @@ the model — inherits the mode. One limit
 before relying on it: attaching that instrumentation is best-effort, and a
 failure is logged while the run continues.
 
+With `ENVIRONMENT=production` no span is printed to the console. Logfire's console
+exporter writes one line per SQL and Redis call, about forty per request, into a
+container log nobody can query. So in production a span exists only where the
+token sends it, and with no token a slow request leaves no trace at all.
+`agenticos cmd doctor` reports that as its `tracing` line. Elsewhere the console
+keeps printing spans for whoever is watching the server.
+
+Give each deployment its own `LOGFIRE_ENVIRONMENT`, such as `local` on a laptop
+and `production` on the server. One project can then hold both and still keep
+them apart.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LOGFIRE_TOKEN` | (none) | Pydantic Logfire token. Get one at https://logfire.pydantic.dev |

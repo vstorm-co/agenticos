@@ -1,5 +1,5 @@
 ---
-source_sha: "1d47e59ae582"
+source_sha: "64fce98b00b5"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -78,6 +78,18 @@ sind Worker, die uvicorns Supervisor getötet hat, weil sie seinen Ping zu spät
 beantwortet haben, keine Worker, die ausgefallen sind. Er wartet
 [`UVICORN_WORKER_HEALTHCHECK_TIMEOUT`](configuration.md#a-worker-whose-event-loop-has-stopped-turning)
 Sekunden, standardmäßig 60. Prüfe den CPU-Steal des Hosts, bevor du den Wert erhöhst.
+
+Zwei Einstellungen halten ein langsames Deployment diagnostizierbar:
+
+- **Jedes Log ist begrenzt.** Jeder Dienst in den Produktions-Compose-Dateien
+  schreibt höchstens fünf Dateien zu 20 MB. Docker behält das Log eines
+  Containers standardmäßig, bis der Container entfernt wird, und nichts auf dem
+  Host rotiert es.
+- **Postgres zeichnet auf, was jede Anweisung kostet.** Der Dienst `db` lädt
+  `pg_stat_statements` beim Start vor, und eine Migration legt die Erweiterung
+  an. Wo die Datenbankrolle sie nicht anlegen darf, protokolliert die Migration
+  einen Hinweis und läuft weiter. `agenticos cmd doctor` gibt in jedem Fall eine
+  Zeile `query statistics` aus.
 
 !!! note "Die Datenbank ist auf ihr eigenes Limit hin abgestimmt"
 

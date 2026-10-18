@@ -1,5 +1,5 @@
 ---
-source_sha: "fe5e40f816b6"
+source_sha: "4e88b18915c7"
 ---
 
 # Konfiguration { #configuration }
@@ -573,6 +573,18 @@ geschrieben oder vom Model mitten im Run erfunden —, erbt den Modus. Eine Gren
 bevor man sich darauf verlässt: das
 Anheften dieser Instrumentierung ist Best Effort, ein Fehlschlag wird
 protokolliert und der Run läuft weiter.
+
+Mit `ENVIRONMENT=production` wird kein Span auf die Konsole geschrieben. Der
+Konsolen-Exporter von Logfire schreibt eine Zeile pro SQL- und Redis-Aufruf, etwa
+vierzig pro Anfrage, in ein Container-Log, das niemand abfragen kann. In der
+Produktion existiert ein Span also nur dort, wohin das Token ihn schickt, und ohne
+Token hinterlässt eine langsame Anfrage gar keine Spur. `agenticos cmd doctor`
+meldet das in seiner Zeile `tracing`. Anderswo schreibt die Konsole weiter Spans
+für den, der den Server beobachtet.
+
+Gib jedem Deployment sein eigenes `LOGFIRE_ENVIRONMENT`, etwa `local` auf dem
+Laptop und `production` auf dem Server. Ein Projekt kann dann beide aufnehmen und
+sie trotzdem auseinanderhalten.
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
