@@ -151,6 +151,16 @@ def images_problem(images: list[VisualImage]) -> str | None:
     return None
 
 
+DELEGATED = (
+    "You are working for another agent, and a drawing made here is never shown to "
+    "the person: it stays in this delegation. Say in your result what the drawing "
+    "should show - the parts, the flow, the numbers - so the agent you work for can "
+    "draw it in the conversation."
+)
+"""What `draw` and `revise_visual` answer in a delegated run - an answer, not a
+retry: drawing again from the same delegation could never be seen either."""
+
+
 @dataclass
 class VisualsToolset:
     """The three tools, and which of this run's drawings actually returned."""
@@ -235,6 +245,8 @@ class VisualsToolset:
             The user is already looking at it: do not repeat its source or describe
             it at length. Pass the id to `read_visual` to read it back.
         """
+        if ctx.deps.delegated:
+            return DELEGATED
         found = visuals.visual_kind(kind)
         if found is None:
             return steer(ctx, "`kind` must be `svg`, `mermaid` or `html`.")
@@ -286,6 +298,8 @@ class VisualsToolset:
             build on, and how it rendered when somebody is watching. When an edit
             does not apply, what to fix.
         """
+        if ctx.deps.delegated:
+            return DELEGATED
         if not edits:
             return steer(ctx, "`edits` is empty. Pass at least one replacement.")
         try:

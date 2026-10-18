@@ -27,6 +27,7 @@ from app.agents.capabilities.artifacts._toolset import ArtifactEdit
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, Visuals, web_reach
 from app.agents.capabilities.visuals._reach import WebReach
 from app.agents.capabilities.visuals._toolset import (
+    DELEGATED,
     READ_LIMIT,
     VisualImage,
     VisualsToolset,
@@ -104,6 +105,32 @@ def _reports(errors: list[str] | None) -> VisualReports:
 
 async def _resolved(reports: VisualReports, call_id: str, errors: list[str]) -> None:
     reports.resolve(call_id, errors)
+
+
+class TestADelegatedRun:
+    """Its tool calls stay in its own run, so nothing it draws is shown in the
+    conversation; claiming otherwise left the person with nothing on screen."""
+
+    async def test_a_drawing_says_it_would_not_be_seen_and_keeps_nothing(self) -> None:
+        tools = VisualsToolset()
+        result = await tools.draw(
+            _ctx(_deps(delegated=True)), title="Flow", kind="svg", height=480, content=SVG
+        )
+
+        assert result == DELEGATED
+        assert tools.drawn == set()
+
+    async def test_a_revision_says_the_same(self) -> None:
+        tools = VisualsToolset()
+        result = await tools.revise_visual(
+            _ctx(_deps(delegated=True)), visual_id="v", edits=[], title=None
+        )
+
+        assert result == DELEGATED
+
+    def test_every_delegation_is_marked_whatever_its_parent_is(self) -> None:
+        assert _deps().clone_for_subagent().delegated is True
+        assert _deps(delegated=True).clone_for_subagent(max_depth=1).delegated is True
 
 
 class TestDraw:

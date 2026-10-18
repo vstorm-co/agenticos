@@ -101,6 +101,11 @@ class AgentDeps:
     # would wait for ever, so a delegate's question is declined instead.
     parks_questions: bool = False
 
+    # True in a delegated run. What it shows is not the conversation's: its tool
+    # calls stay in its own run, so a tool whose result is meant to be seen there
+    # - a drawing - has to say so rather than claim the person can see it.
+    delegated: bool = False
+
     # Set when the surface can hold a run for human approval. A tool that needs
     # approval and finds this None must refuse rather than proceed unattended.
     request_approval: ApprovalCallback | None = None
@@ -161,6 +166,9 @@ class AgentDeps:
         person, in the same panel. A delegate whose browse is silent is the one
         run nobody can see, and it is the one most worth seeing.
 
+        `delegated` is set, not inherited: whatever the parent is, this run is a
+        delegate, and a drawing it makes is never shown in the conversation.
+
         What it does **not** inherit: `kb_collection_names`. Those come from the
         delegate's own spec, and inheriting the parent's would hand a specialist a
         collection nobody granted it. The delegate's own are put back by the
@@ -195,5 +203,6 @@ class AgentDeps:
             request_approval=self.request_approval,
             subagent_events=self.subagent_events,
             browser_events=self.browser_events,
+            delegated=True,
             metadata=dict(self.metadata),
         )
