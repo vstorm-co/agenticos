@@ -296,19 +296,25 @@ class TestListing:
     async def test_each_project_says_what_the_caller_may_do_and_how_many_chats_it_holds(
         self,
     ) -> None:
-        agent = MagicMock(id=uuid.uuid4())
+        agent = MagicMock(id=uuid.uuid4(), status="published", current_version_id=uuid.uuid4())
         agent.name = "Researcher"
         hidden = MagicMock(id=uuid.uuid4())
         hidden.name = "Private agent"
+        # Runnable when it was set, archived since: a new chat would be refused.
+        archived = MagicMock(id=uuid.uuid4(), status="archived", current_version_id=uuid.uuid4())
+        archived.name = "Old agent"
         mine = _project(default_agent_id=agent.id)
         # A default agent the reader may not see: neither named nor identified.
         theirs = _project(default_agent_id=hidden.id)
+        stale = _project(default_agent_id=archived.id)
         service = _service(None)
         with (
             patch.object(module, "visible_resource_ids", AsyncMock(return_value=None)),
             patch.object(module, "shared_with_group", AsyncMock(return_value=None)),
             patch.object(
-                module.project_repo, "list_visible", AsyncMock(return_value=([mine, theirs], 2))
+                module.project_repo,
+                "list_visible",
+                AsyncMock(return_value=([mine, theirs, stale], 3)),
             ) as listed,
             patch.object(
                 module.project_repo,
@@ -318,23 +324,27 @@ class TestListing:
             patch.object(
                 module,
                 "groups_sharing",
-                AsyncMock(return_value={mine.id: ["Finance"], theirs.id: []}),
+                AsyncMock(return_value={mine.id: ["Finance"], theirs.id: [], stale.id: []}),
             ),
             patch.object(
                 module,
                 "accessible_ids",
-                AsyncMock(side_effect=[{mine.id}, {mine.id}, {agent.id}]),
+                AsyncMock(side_effect=[{mine.id}, {mine.id}, {agent.id, archived.id}]),
             ) as accessible,
             patch.object(
                 module.agent_repo,
                 "get_many",
-                AsyncMock(return_value={agent.id: agent, hidden.id: hidden}),
+                AsyncMock(return_value={agent.id: agent, hidden.id: hidden, archived.id: archived}),
+            ),
+            patch.object(
+                module.organization_assistant_repo, "for_agent", AsyncMock(return_value=None)
             ),
         ):
             page = await service.list_projects(_ctx(), search="lau")
 
         assert listed.await_args.kwargs["see_all"] is True
-        first, second = page.items
+        first, second, third = page.items
+        assert (third.default_agent_id, third.default_agent_name) == (None, None)
         assert (first.chat_count, first.can_use, first.can_edit) == (3, True, True)
         assert (first.default_agent_id, first.default_agent_name) == (agent.id, "Researcher")
         assert (second.default_agent_id, second.default_agent_name) == (None, None)

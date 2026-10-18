@@ -19,7 +19,7 @@ from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
-from app.db.models.agent import AgentStatus
+from app.db.models.agent import Agent, AgentStatus
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.conversation import Conversation
 from app.db.models.project import Project
@@ -183,6 +183,13 @@ class ProjectService:
         runnable_agents = await accessible_ids(
             self.db, ctx, list(agents.values()), Perm.AGENTS_RUN, resource_type=AGENT
         )
+        # And one that still answers at all: a default archived, unpublished or
+        # switched off since it was set is offered no more than one never allowed.
+        runnable_agents = {
+            agent.id
+            for agent in agents.values()
+            if agent.id in runnable_agents and await self._answers(agent)
+        }
         reads = []
         for project in projects:
             count, last = activity.get(project.id, (0, None))
@@ -462,6 +469,14 @@ class ProjectService:
                 "change - start a new project for another one",
             )
 
+    async def _answers(self, agent: Agent) -> bool:
+        """Whether a chat started with this agent gets an answer: published, not
+        archived, and not an assistant its organization switched off."""
+        if agent.status == AgentStatus.ARCHIVED.value or agent.current_version_id is None:
+            return False
+        assistant = await organization_assistant_repo.for_agent(self.db, agent.id)
+        return assistant is None or assistant.enabled
+
     async def _check_default_agent(self, ctx: AuthContext, agent_id: UUID) -> None:
         """One the setter may run, and that runs at all: a new chat starts with it,
         and a draft or an archived agent refused that chat's first message."""
@@ -470,13 +485,9 @@ class ProjectService:
             self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT
         ):
             raise refused_field("default_agent_id", "Choose a default agent you can run")
-        if agent.status == AgentStatus.ARCHIVED.value or agent.current_version_id is None:
-            raise refused_field(
-                "default_agent_id", "Choose a published agent - a new chat starts with it"
-            )
-        assistant = await organization_assistant_repo.for_agent(self.db, agent.id)
-        if assistant is not None and not assistant.enabled:
+        if not await self._answers(agent):
             raise refused_field(
                 "default_agent_id",
-                "The assistant is switched off in this organization - choose another agent",
+                "Choose a published agent, not one archived or switched off - a new chat "
+                "starts with it",
             )
