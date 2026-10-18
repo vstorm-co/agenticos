@@ -1702,7 +1702,8 @@ denen eine signierte Adresse ihr Credential trägt.
 Wird der Key gelöscht, den eine Registrierung sendet, wird die Registrierung mit
 gelöscht, statt ohne Key weiter aufzurufen. Ein Key geht nur an einen
 HTTPS-Endpoint, darum wird eine Karte mit reinem HTTP für eine Registrierung mit Key
-abgelehnt.
+abgelehnt. Eine Adresse mit Benutzername oder Passwort wird gleich abgelehnt: Ein
+Credential gehört in den Vault.
 
 Für das delegierende Modell ist ein Remote Agent ein weiterer Delegierter, über
 seinen Namen mit demselben Tool `task` aufgerufen. Jeder Aufruf ist ein A2A

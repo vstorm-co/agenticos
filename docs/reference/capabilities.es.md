@@ -1613,7 +1613,8 @@ firmada lleva su credencial.
 
 Borrar la clave que envía un registro borra el registro, en lugar de dejarlo
 llamando sin ella. Una clave solo se envía a un endpoint HTTPS, así que una card con
-HTTP sin cifrar se rechaza para un registro que tiene clave.
+HTTP sin cifrar se rechaza para un registro que tiene clave. Una dirección con
+nombre de usuario o contraseña se rechaza de entrada: una credencial va al vault.
 
 Para el modelo que delega, un agent remoto es un delegado más, llamado por su nombre
 con la misma herramienta `task`. Cada llamada es un `message/send` de A2A con la
