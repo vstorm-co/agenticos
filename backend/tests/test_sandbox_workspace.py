@@ -1025,6 +1025,18 @@ class TestWorkspacesAreScopedToTheirReader:
 
         listed.assert_not_called()
 
+    @pytest.mark.security
+    async def test_a_projects_workspace_is_not_read_by_id_even_by_an_operator(
+        self, monkeypatch, mock_db_session
+    ):
+        """A project's files are read through the project, whose sharing decides
+        who may; `connections:manage` is not a way around it."""
+        row = _row(files={}, scope="project", project_id=uuid4())
+        monkeypatch.setattr(workspace_repo, "get", AsyncMock(return_value=row))
+
+        with pytest.raises(NotFoundError):
+            await SandboxWorkspaceService(mock_db_session).files_of(_ctx(), row.id)
+
 
 class TestListingAStoredWorkspace:
     """What "what the agent is keeping" has to include.

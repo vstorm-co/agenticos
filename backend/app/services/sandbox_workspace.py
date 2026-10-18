@@ -1499,7 +1499,13 @@ class SandboxWorkspaceService:
         that serves it by id is not access control. The query is reused rather than
         reimplemented for exactly that reason: two copies of "who can see this"
         disagree eventually, and the one that is wrong is the one nobody reads.
+
+        Never a project's, whoever asks: it is read through the project, whose
+        sharing decides who may - `connections:manage` included, since the
+        listing leaves it out for them too.
         """
+        if row.project_id is not None:
+            return False
         if self._sees_every_workspace(ctx):
             return True
         visible = await workspace_repo.list_for_reader(
