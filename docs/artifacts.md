@@ -166,14 +166,27 @@ scrolls once the drawing outgrows it. *Show code*, *Download* (`.svg`, `.html`,
 or the Mermaid source) and *Copy as image* for an SVG are above it, and an error
 the drawing reports comes with *Fix it*, which asks the agent.
 
+**Downloading one.** A file opened from disk has no frame around it, so the
+download carries what the frame enforced. An SVG keeps the drawing and loses
+what could run or reach out: scripts, handlers, embedded documents and any
+reference outside the file. A page opens with the frame's policy ahead of
+everything it wrote, and loads its libraries from this deployment's artifact
+origin.
+
 **Saving one as an app.** *Save to Apps* takes a title and a name, both filled
 in, and publishes the visual as a version of an app under the agent whose turn
-drew it, owned by the person saving it and private to them until they share it.
+drew it, in the environment that turn ran in, owned by the person saving it and
+private to them until they share it.
 The server rebuilds the visual from the transcript - revisions applied - rather
 than taking bytes from the browser, so the app is exactly what the agent drew.
 Saving under a name the person already has adds a version to that app, which is
 how a revision of a saved drawing updates the page it was shared as. Saving takes
 `artifacts:edit`.
+
+**From a delegate.** A drawing stays in the run that made it, so an agent
+working as another agent's delegate does not draw: `draw` tells it so, and it
+describes the picture in its result for the agent it works for to draw in the
+conversation.
 
 ## Who can open it
 

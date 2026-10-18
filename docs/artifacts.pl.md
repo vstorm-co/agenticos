@@ -1,5 +1,5 @@
 ---
-source_sha: "e6bbede74d46"
+source_sha: "06f8c1ff3994"
 ---
 
 # Aplikacje { #artifacts }
@@ -173,13 +173,23 @@ większe, strona skalowana, a ramka przewija się, gdy rysunek z niej wyrośnie.
 *Pokaż kod*, *Pobierz* (`.svg`, `.html` albo źródło Mermaid) i *Kopiuj jako obraz* dla
 SVG, a błąd zgłoszony przez rysunek przychodzi z *Napraw*, które prosi agenta.
 
+**Pobieranie.** Plik otwarty z dysku nie ma wokół siebie ramki, więc pobrany plik
+niesie to, co wymuszała ramka. SVG zachowuje rysunek i traci to, co mogłoby się
+uruchomić albo sięgnąć na zewnątrz: skrypty, handlery, osadzone dokumenty i każde
+odwołanie poza plik. Strona otwiera się z polityką ramki przed wszystkim, co
+napisała, i ładuje biblioteki z originu artefaktów tego wdrożenia.
+
 **Zapis jako aplikacja.** *Zapisz w Aplikacjach* bierze tytuł i nazwę, obie wypełnione,
 i publikuje wizual jako wersję aplikacji pod agentem, którego tura go narysowała,
-należącą do osoby, która zapisuje, i prywatną, dopóki jej nie udostępni. Serwer odtwarza
+w środowisku, w którym ta tura działała, należącą do osoby, która zapisuje, i prywatną, dopóki jej nie udostępni. Serwer odtwarza
 wizual z transkryptu - z naniesionymi poprawkami - zamiast brać bajty z przeglądarki,
 więc aplikacja jest dokładnie tym, co narysował agent. Zapis pod nazwą, którą osoba już
 ma, dodaje wersję tej aplikacji - w ten sposób poprawka zapisanego rysunku aktualizuje
 stronę, którą udostępniono. Zapis wymaga `artifacts:edit`.
+
+**Z delegata.** Rysunek zostaje w runie, który go zrobił, więc agent działający
+jako delegat innego agenta nie rysuje: `draw` mu to mówi, a on opisuje obraz w
+swoim wyniku, żeby agent, dla którego pracuje, narysował go w rozmowie.
 
 ## Kto może ją otworzyć { #who-can-open-it }
 

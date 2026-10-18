@@ -1,5 +1,5 @@
 ---
-source_sha: "e6bbede74d46"
+source_sha: "06f8c1ff3994"
 ---
 
 # Apps { #artifacts }
@@ -191,14 +191,26 @@ Darüber stehen *Code anzeigen*, *Herunterladen* (`.svg`, `.html` oder die
 Mermaid-Quelle) und *Als Bild kopieren* für ein SVG, und ein Fehler, den die Zeichnung
 meldet, kommt mit *Beheben*, das den Agent fragt.
 
+**Herunterladen.** Eine von der Festplatte geöffnete Datei hat keinen Rahmen um
+sich, also trägt der Download mit, was der Rahmen durchgesetzt hat. Ein SVG behält
+die Zeichnung und verliert, was laufen oder nach außen greifen könnte: Skripte,
+Handler, eingebettete Dokumente und jeden Verweis außerhalb der Datei. Eine Seite
+öffnet sich mit der Richtlinie des Rahmens vor allem, was sie geschrieben hat, und
+lädt ihre Bibliotheken vom Artefakt-Origin dieses Deployments.
+
 **Als App speichern.** *In Apps speichern* nimmt einen Titel und einen Namen, beide
 vorausgefüllt, und veröffentlicht das Visual als Version einer App unter dem Agent,
-dessen Turn es gezeichnet hat, im Besitz der Person, die speichert, und privat, bis
+dessen Turn es gezeichnet hat, in der Umgebung, in der dieser Turn lief, im Besitz der Person, die speichert, und privat, bis
 sie es teilt. Der Server baut das Visual aus dem Transkript neu - Überarbeitungen
 angewendet - statt Bytes aus dem Browser zu nehmen, sodass die App genau das ist, was
 der Agent gezeichnet hat. Unter einem Namen gespeichert, den die Person schon hat, wird
 es eine Version dieser App - so aktualisiert eine Überarbeitung einer gespeicherten
 Zeichnung die Seite, unter der sie geteilt wurde. Speichern erfordert `artifacts:edit`.
+
+**Aus einem Delegate.** Eine Zeichnung bleibt in dem Run, der sie gemacht hat, also
+zeichnet ein Agent, der als Delegate eines anderen Agents arbeitet, nicht: `draw`
+sagt es ihm, und er beschreibt das Bild in seinem Ergebnis, damit der Agent, für den
+er arbeitet, es im Gespräch zeichnet.
 
 ## Wer sie öffnen kann { #who-can-open-it }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "e6bbede74d46"
+source_sha: "06f8c1ff3994"
 ---
 
 # Aplicaciones { #artifacts }
@@ -184,14 +184,26 @@ página se escala y el marco se desplaza cuando el dibujo lo supera. Encima est�
 imagen* para un SVG, y un error que informa el dibujo viene con *Corregir*, que se lo
 pide al agente.
 
+**Descargarlo.** Un archivo abierto desde el disco no tiene marco alrededor, así que
+la descarga lleva lo que imponía el marco. Un SVG conserva el dibujo y pierde lo que
+podría ejecutarse o salir fuera: scripts, manejadores, documentos incrustados y
+cualquier referencia fuera del archivo. Una página se abre con la política del marco
+por delante de todo lo que escribió, y carga sus bibliotecas desde el origen de
+artefactos de este despliegue.
+
 **Guardarlo como aplicación.** *Guardar en Aplicaciones* toma un título y un nombre,
 ambos rellenados, y publica el visual como versión de una aplicación bajo el agente
-cuyo turno lo dibujó, propiedad de quien lo guarda y privada hasta que la comparta. El
+cuyo turno lo dibujó, en el entorno en el que corrió ese turno, propiedad de quien lo guarda y privada hasta que la comparta. El
 servidor reconstruye el visual a partir de la transcripción - con las revisiones
 aplicadas - en lugar de tomar bytes del navegador, así que la aplicación es exactamente
 lo que dibujó el agente. Guardarlo con un nombre que la persona ya tiene añade una
 versión a esa aplicación - así una revisión de un dibujo guardado actualiza la página con
 la que se compartió. Guardar requiere `artifacts:edit`.
+
+**Desde un delegado.** Un dibujo se queda en el run que lo hizo, así que un agente
+que trabaja como delegado de otro agente no dibuja: `draw` se lo dice, y describe la
+imagen en su resultado para que el agente para el que trabaja la dibuje en la
+conversación.
 
 ## Quién puede abrirla { #who-can-open-it }
 
