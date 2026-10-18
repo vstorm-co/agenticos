@@ -471,7 +471,7 @@ class ConversationService:
         return AuthContext(user_id=user_id, organization_id=organization_id, role=membership.role)
 
     async def _project_threads(self, user_id: UUID, organization_id: UUID) -> set[UUID]:
-        """Every teammate's chat in the projects this person may see.
+        """Every chat in the projects this person may see, their own included.
 
         A project's chats are its members', so `/chat` lists them with the
         reader's own, grouped under the project - not only the ones the reader
@@ -493,7 +493,7 @@ class ConversationService:
             shared_ids=[] if shared is None else shared,
         )
         return await conversation_repo.project_threads_in(
-            self.db, user_id=user_id, organization_id=organization_id, project_ids=project_ids
+            self.db, organization_id=organization_id, project_ids=project_ids
         )
 
     async def _project_allows(

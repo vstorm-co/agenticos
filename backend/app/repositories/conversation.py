@@ -6,7 +6,17 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Integer, Numeric, distinct, func, or_, select, type_coerce
+from sqlalchemy import (
+    ColumnElement,
+    Integer,
+    Numeric,
+    and_,
+    distinct,
+    func,
+    or_,
+    select,
+    type_coerce,
+)
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import update as sql_update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -295,19 +305,24 @@ def _reachable_by(user_id: UUID, participant_ids: Collection[UUID]) -> ColumnEle
     The default is therefore the narrow one. A caller that passes nothing gets
     owner-only, which fails safe - forgetting the participation step hides a
     thread rather than showing it to somebody who was removed.
+
+    Owning reaches only a chat outside any project. One in a project is
+    reached through the project, its starter's included: a person who lost the
+    project would otherwise still list a chat that answers 404 when opened.
     """
+    owned = and_(Conversation.user_id == user_id, Conversation.project_id.is_(None))
     if not participant_ids:
-        return Conversation.user_id == user_id
-    return or_(Conversation.user_id == user_id, Conversation.id.in_(participant_ids))
+        return owned
+    return or_(owned, Conversation.id.in_(participant_ids))
 
 
 async def project_threads_in(
-    db: AsyncSession, *, user_id: UUID, organization_id: UUID, project_ids: Sequence[UUID]
+    db: AsyncSession, *, organization_id: UUID, project_ids: Sequence[UUID]
 ) -> set[UUID]:
-    """Everybody else's chats in these projects - the caller decides which projects.
+    """Every chat in these projects, this person's own among them.
 
-    The caller passes only projects this person may see; their own chats are
-    listed without this.
+    The caller passes only projects this person may see: a project chat is
+    listed through its project, so one in a project they lost is not listed.
     """
     if not project_ids:
         return set()
@@ -315,7 +330,6 @@ async def project_threads_in(
         select(Conversation.id).where(
             Conversation.organization_id == organization_id,
             Conversation.project_id.in_(project_ids),
-            or_(Conversation.user_id.is_(None), Conversation.user_id != user_id),
         )
     )
     return set(result.scalars().all())

@@ -202,6 +202,28 @@ class TestAProjectsChatsInEveryMembersList:
         listed, total = await service.list_conversations(user_id=anna.id, organization_id=org.id)
         assert (listed, total) == ([], 0)
 
+    async def test_a_chat_its_starter_began_goes_with_the_project_too(self, db) -> None:
+        """Owning a project chat is not access to it: listed after the project
+        went, it answered 404 when opened."""
+        kacper, anna = await _user(db, "Kacper"), await _user(db, "Anna")
+        org = await _org(db, (kacper, "owner"), (anna, "member"))
+        project = await _project(db, org, kacper, visibility=Visibility.ORG.value)
+        mine = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=anna.id, title="Mine", project_id=project.id
+        )
+        outside = await conversation_repo.create_conversation(
+            db, organization_id=org.id, user_id=anna.id, title="Outside"
+        )
+        service = ConversationService(db)
+
+        listed, total = await service.list_conversations(user_id=anna.id, organization_id=org.id)
+        assert {c.id for c in listed} == {mine.id, outside.id} and total == 2
+
+        project.visibility = Visibility.PRIVATE.value
+        await db.flush()
+        listed, total = await service.list_conversations(user_id=anna.id, organization_id=org.id)
+        assert ([c.id for c in listed], total) == ([outside.id], 1)
+
     async def test_a_former_member_lists_nothing_of_it(self, db) -> None:
         kacper, anna = await _user(db), await _user(db)
         org = await _org(db, (kacper, "owner"), (anna, "member"))
