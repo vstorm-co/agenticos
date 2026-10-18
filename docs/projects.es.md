@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "5cf3318bf51a"
+source_sha: "5f8911d3c1de"
 ---
 
 # Proyectos { #projects }
@@ -125,7 +125,8 @@ quién preguntó qué y a qué se refiere «sí, hazlo».
 ## Borrar un proyecto { #deleting-a-project }
 
 Borrar un proyecto elimina su contenedor y todos sus archivos. Sus chats se
-conservan como chats normales, fuera de cualquier proyecto.
+conservan como chats normales, fuera de cualquier proyecto, salvo uno cuyo autor
+borró su cuenta: solo el proyecto llegaba a él, así que se va con el proyecto.
 
 ## Dónde aparecen los proyectos { #where-projects-show-up }
 

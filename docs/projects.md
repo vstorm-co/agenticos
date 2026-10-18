@@ -115,7 +115,8 @@ is about.
 ## Deleting a project
 
 Deleting a project removes its container and every file in it. Its chats are
-kept as ordinary chats, outside any project.
+kept as ordinary chats, outside any project - except one whose starter's account
+was deleted, which only the project still reached and which goes with it.
 
 ## Where projects show up
 

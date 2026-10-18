@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, false, func, or_, select
+from sqlalchemy import delete as delete_rows
 from sqlalchemy import update as update_rows
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -179,7 +180,19 @@ async def delete(db: AsyncSession, project: Project) -> None:
 
 async def detach_conversations(db: AsyncSession, *, project: Project) -> None:
     """Leave a deleted project's chats as ordinary ones - the foreign key does too,
-    and doing it here keeps the session's own rows in step with the database."""
+    and doing it here keeps the session's own rows in step with the database.
+
+    Except a chat whose starter's account is gone: the project was its only way
+    in, and outside it nobody could list or open it again, so it goes with the
+    project rather than stay behind unreachable.
+    """
+    await db.execute(
+        delete_rows(Conversation).where(
+            Conversation.organization_id == project.organization_id,
+            Conversation.project_id == project.id,
+            Conversation.user_id.is_(None),
+        )
+    )
     await db.execute(
         update_rows(Conversation)
         .where(

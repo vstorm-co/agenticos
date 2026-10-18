@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "5cf3318bf51a"
+source_sha: "5f8911d3c1de"
 ---
 
 # Projekte { #projects }
@@ -126,7 +126,9 @@ sich „ja, mach das“ bezieht.
 ## Ein Projekt löschen { #deleting-a-project }
 
 Das Löschen eines Projekts entfernt seinen Container und jede Datei darin. Seine
-Chats bleiben als normale Chats außerhalb jedes Projekts erhalten.
+Chats bleiben als normale Chats außerhalb jedes Projekts erhalten - außer einem, dessen
+Ersteller sein Konto gelöscht hat: Ihn erreichte nur noch das Projekt, darum geht er
+mit ihm.
 
 ## Wo Projekte erscheinen { #where-projects-show-up }
 

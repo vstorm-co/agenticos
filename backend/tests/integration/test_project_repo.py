@@ -128,6 +128,10 @@ async def test_deleting_a_project_keeps_its_chats_and_takes_its_container(db) ->
     chat = await conversation_repo.create_conversation(
         db, organization_id=org.id, user_id=alice.id, title="t", project_id=project.id
     )
+    # A starter's account deleted since: the project was its only way in.
+    orphan = await conversation_repo.create_conversation(
+        db, organization_id=org.id, user_id=None, title="o", project_id=project.id
+    )
     container = await workspace_repo.create(
         db,
         organization_id=org.id,
@@ -158,6 +162,7 @@ async def test_deleting_a_project_keeps_its_chats_and_takes_its_container(db) ->
         select(Conversation.id, Conversation.project_id).where(Conversation.id == chat.id)
     )
     assert kept.one() == (chat.id, None)
+    assert await db.scalar(select(Conversation.id).where(Conversation.id == orphan.id)) is None
     left = await db.scalar(select(AgentWorkspace.id).where(AgentWorkspace.id == container.id))
     assert left is None
 

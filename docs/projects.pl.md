@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "5cf3318bf51a"
+source_sha: "5f8911d3c1de"
 ---
 
 # Projekty { #projects }
@@ -117,7 +117,8 @@ ekranie i do agenta, który czyta wiadomość każdej osoby pod jej imieniem i w
 ## Usuwanie projektu { #deleting-a-project }
 
 Usunięcie projektu usuwa jego kontener i wszystkie pliki. Jego czaty zostają jako
-zwykłe czaty, poza jakimkolwiek projektem.
+zwykłe czaty, poza jakimkolwiek projektem - poza czatem, którego autor usunął konto:
+sięgał do niego już tylko projekt, więc znika razem z nim.
 
 ## Gdzie widać projekty { #where-projects-show-up }
 
