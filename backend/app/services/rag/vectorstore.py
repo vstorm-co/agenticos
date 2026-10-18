@@ -1330,9 +1330,39 @@ class PgVectorStore(BaseVectorStore):
             ]
 
 
+def _build_vector_store(
+    settings: RAGSettings,
+    embedding_service: EmbeddingService,
+    *,
+    engine: AsyncEngine,
+    resolver: EmbeddingResolver | None = None,
+) -> BaseVectorStore:
+    from app.core.config import settings as app_settings
+
+    resolve = resolver or embeddings_for_collection
+    if app_settings.VECTOR_STORE == "qdrant":
+        from app.services.rag.qdrant_vectorstore import QdrantVectorStore
+
+        return QdrantVectorStore(
+            settings=settings,
+            embedding_service=embedding_service,
+            resolver=resolve,
+            qdrant_url=app_settings.QDRANT_URL,
+            qdrant_api_key=app_settings.QDRANT_API_KEY or None,
+            physical_collection=app_settings.QDRANT_COLLECTION,
+            engine=engine,
+        )
+    return PgVectorStore(
+        settings=settings,
+        embedding_service=embedding_service,
+        resolver=resolve,
+        engine=engine,
+    )
+
+
 def process_vector_store(
     settings: RAGSettings, embedding_service: EmbeddingService
-) -> PgVectorStore:
+) -> BaseVectorStore:
     """A store on the process's vector engine, resolving embeddings per collection.
 
     The one construction the API's lifespan, its per-request fallback, the
@@ -1352,17 +1382,12 @@ def process_vector_store(
     capability, which cannot know which loop it is on and takes
     `unpooled_vector_store` instead (#1079).
     """
-    return PgVectorStore(
-        settings=settings,
-        embedding_service=embedding_service,
-        resolver=embeddings_for_collection,
-        engine=vector_engine,
-    )
+    return _build_vector_store(settings, embedding_service, engine=vector_engine)
 
 
 def unpooled_vector_store(
     settings: RAGSettings, embedding_service: EmbeddingService
-) -> PgVectorStore:
+) -> BaseVectorStore:
     """A store safe to use from any event loop, at one connect per query.
 
     The same construction as `process_vector_store` and the same resolver, on
@@ -1373,9 +1398,15 @@ def unpooled_vector_store(
     worker process hands the second a connection the first opened (#1079).
     `NullPool` keeps no connection to hand over, so one store serves every loop.
     """
-    return PgVectorStore(
-        settings=settings,
-        embedding_service=embedding_service,
-        resolver=embeddings_for_collection,
-        engine=agent_vector_engine,
-    )
+    return _build_vector_store(settings, embedding_service, engine=agent_vector_engine)
+
+
+def worker_vector_store(
+    settings: RAGSettings,
+    embedding_service: EmbeddingService,
+    *,
+    engine: AsyncEngine,
+    resolver: EmbeddingResolver | None = None,
+) -> BaseVectorStore:
+    """Store for Prefect flows that build and dispose their own SQLAlchemy engine."""
+    return _build_vector_store(settings, embedding_service, engine=engine, resolver=resolver)

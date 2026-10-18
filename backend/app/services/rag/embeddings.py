@@ -8,10 +8,22 @@ from app.core.exceptions import ConfigurationError
 from app.services.rag.config import RAGSettings
 from app.services.rag.models import Document
 
+
+def _dimension_mismatch_message(*, expected: int, got: int, model: str) -> str:
+    return (
+        f"The embedding provider returned {got} dimensions for '{model}', but this "
+        f"collection was created for {expected}. If the collection was created before "
+        "a catalog change, create a new knowledge base and upload again."
+    )
+
 # What a keyless endpoint is sent as its bearer token. The OpenAI SDK refuses to
 # build a client on an empty key and Ollama reads none, so the value only has to
 # be non-empty and obviously not a secret.
 _KEYLESS_PLACEHOLDER = "keyless"
+
+# Models whose hosted default width exceeds what pgvector can index, or differs
+# from the width this build records. OpenRouter accepts `dimensions` (MRL).
+_EMBEDDING_MODELS_REQUIRING_DIMENSIONS = frozenset({"qwen/qwen3-embedding-8b"})
 
 
 def _chunk_texts(document: Document) -> list[str]:
@@ -47,6 +59,7 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         base_url: str | None = None,
         key_origin: str | None = None,
         keyless: bool = False,
+        output_dimensions: int | None = None,
     ) -> None:
         """Initialize the OpenAI embedding provider.
 
@@ -62,12 +75,14 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
             keyless: The endpoint takes no credential - an Ollama server on the
                 deployment's own network. The SDK still insists on a non-empty
                 key, so a placeholder goes on the wire and the server ignores it.
+            output_dimensions: When set, passed to the API as `dimensions` (MRL).
         """
         self.model = model
         self._api_key = api_key
         self._base_url = base_url
         self._key_origin = key_origin
         self._keyless = keyless
+        self._output_dimensions = output_dimensions
         self._client: OpenAI | None = None
 
     @property
@@ -123,7 +138,10 @@ class OpenAIEmbeddingProvider(BaseEmbeddingProvider):
         return self._client
 
     def embed_queries(self, texts: list[str]) -> list[list[float]]:
-        response = self.client.embeddings.create(model=self.model, input=texts)
+        kwargs: dict[str, object] = {"model": self.model, "input": texts}
+        if self._output_dimensions is not None:
+            kwargs["dimensions"] = self._output_dimensions
+        response = self.client.embeddings.create(**kwargs)
         # Embedding tokens are spend like any other: booked to whichever run or
         # ingestion job is metering, priced by the same lookup as chat models.
         # This used to be dropped on the floor, which made every knowledge
@@ -177,29 +195,40 @@ class EmbeddingService:
         """
         config = settings.embeddings_config
         self.expected_dim = expected_dim if expected_dim is not None else config.dim
+        output_dimensions = (
+            self.expected_dim if config.model in _EMBEDDING_MODELS_REQUIRING_DIMENSIONS else None
+        )
         self.provider = OpenAIEmbeddingProvider(
             model=config.model,
             api_key=api_key or "",
             base_url=base_url,
             key_origin=key_origin,
             keyless=keyless,
+            output_dimensions=output_dimensions,
         )
 
     def embed_query(self, query: str) -> list[float]:
         result = self.provider.embed_queries([query])[0]
         if len(result) != self.expected_dim:
-            raise ValueError(
-                f"Embedding dimension mismatch: expected {self.expected_dim}, "
-                f"got {len(result)}. Check your embedding model configuration."
+            model = self.provider.model
+            raise ConfigurationError(
+                message=_dimension_mismatch_message(
+                    expected=self.expected_dim, got=len(result), model=model
+                ),
+                details={"model": model, "expected_dim": self.expected_dim, "got_dim": len(result)},
             )
         return result
 
     def embed_document(self, document: Document) -> list[list[float]]:
         results = self.provider.embed_document(document)
         if results and len(results[0]) != self.expected_dim:
-            raise ValueError(
-                f"Embedding dimension mismatch: expected {self.expected_dim}, "
-                f"got {len(results[0])}. Check your embedding model configuration."
+            model = self.provider.model
+            got = len(results[0])
+            raise ConfigurationError(
+                message=_dimension_mismatch_message(
+                    expected=self.expected_dim, got=got, model=model
+                ),
+                details={"model": model, "expected_dim": self.expected_dim, "got_dim": got},
             )
         return results
 

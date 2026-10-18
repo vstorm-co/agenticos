@@ -54,8 +54,7 @@ from app.services.rag.filters import Source
 from app.services.rag.ingestion import IngestionService
 from app.services.rag.models import IngestionResult, IngestionStatus
 from app.services.rag.provenance import iso_doc_date
-from app.services.rag.vectorstore import EmbeddingResolver
-from app.services.rag.vectorstore import PgVectorStore as VectorStore
+from app.services.rag.vectorstore import EmbeddingResolver, worker_vector_store
 from app.services.spend import assert_organization_within_budget
 from app.services.sync_source import SyncSourceService, SyncState, sync_fingerprint
 
@@ -177,11 +176,11 @@ async def _ingestion_service(
     try:
         yield IngestionService(
             processor=processor,
-            vector_store=VectorStore(
-                settings=rag_settings,
-                embedding_service=EmbeddingService(settings=rag_settings),
-                resolver=_announcing_resolver(organization_id),
+            vector_store=worker_vector_store(
+                rag_settings,
+                EmbeddingService(settings=rag_settings),
                 engine=engine,
+                resolver=_announcing_resolver(organization_id),
             ),
             tenant=tenant,
         )

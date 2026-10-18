@@ -367,6 +367,10 @@ class AuthContext:
     organization_id: UUID
     role: str
     is_app_admin: bool = False
+    """Extra permissions from minerp IAM JWT (B31.1), merged with org role."""
+    iam_permission_overlay: dict[Perm, Scope] | None = None
+    """Set when the active org is linked to Minerp IAM `tenants.id`."""
+    minerp_tenant_id: UUID | None = None
 
     channel_identity_id: UUID | None = None
     """The chat account that asked, when the asker is not a person.
@@ -459,7 +463,12 @@ class AuthContext:
             return {}
         if self.is_app_admin:
             return dict.fromkeys(Perm, Scope.ALL)
-        return dict(ROLE_PERMS.get(self.role, {}))
+        base = dict(ROLE_PERMS.get(self.role, {}))
+        if self.iam_permission_overlay:
+            for perm, scope in self.iam_permission_overlay.items():
+                current = base.get(perm, Scope.NONE)
+                base[perm] = current if current >= scope else scope
+        return base
 
     def scope_for(self, perm: Perm) -> Scope:
         """How far this permission reaches, or `Scope.NONE` if not held."""

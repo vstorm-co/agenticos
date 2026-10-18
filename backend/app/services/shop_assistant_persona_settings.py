@@ -7,7 +7,10 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import BadRequestError
+from app.schemas.shop_agent_background_job import ShopAgentBackgroundJobCreate
+from app.services.shop_agent_background_job_service import ShopAgentBackgroundJobService
 from app.db.models.shop_ai_settings import ShopAiSettings
 from app.repositories import shop_ai_settings as settings_repo
 from app.schemas.shop_assistant_persona import (
@@ -63,11 +66,45 @@ class ShopAssistantPersonaService:
             )
         if data.merchant_morning_digest_enabled is not None:
             row.merchant_morning_digest_enabled = data.merchant_morning_digest_enabled
+            await self._sync_morning_digest(
+                organization_id=organization_id,
+                minerp_tenant_id=minerp_tenant_id,
+                enabled=row.merchant_morning_digest_enabled,
+            )
 
         row.updated_at = datetime.now(UTC)
         await self.db.flush()
         await self.db.refresh(row)
         return self._to_read(row)
+
+    async def _sync_morning_digest(
+        self,
+        *,
+        organization_id: UUID,
+        minerp_tenant_id: UUID,
+        enabled: bool,
+    ) -> None:
+        if not settings.SHOP_AGENT_BACKGROUND_JOB_ENABLED:
+            return
+        goal = (
+            "Tóm tắt buổi sáng cho chủ shop: đơn hàng, chat chờ, sản phẩm bán chạy, "
+            "và việc cần chú ý từ MCP đã kết nối."
+        )
+        svc = ShopAgentBackgroundJobService(self.db)
+        if enabled:
+            try:
+                await svc.schedule(
+                    ShopAgentBackgroundJobCreate(
+                        job_type="digest",
+                        goal=goal,
+                        notify_channels=["in_app"],
+                        digest_interval_hours=24,
+                    ),
+                    minerp_tenant_id=minerp_tenant_id,
+                    organization_id=organization_id,
+                )
+            except BadRequestError:
+                pass
 
     @staticmethod
     def _to_read(row: ShopAiSettings) -> ShopAssistantPersonaRead:

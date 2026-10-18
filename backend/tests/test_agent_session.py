@@ -1048,6 +1048,58 @@ class TestATurnThatDidNotFinish:
         )
         assert "Error processing agent request" not in caplog.text
 
+    async def test_a_model_api_error_names_the_model_and_suggests_docker(self, caplog):
+        from pydantic_ai.exceptions import ModelAPIError
+
+        session = _session()
+
+        with (
+            _chat(
+                AsyncMock(
+                    side_effect=ModelAPIError("qwen3.6:35b", "connection refused"),
+                )
+            ),
+            caplog.at_level(logging.ERROR, logger="app.services.agent_session"),
+        ):
+            await session.process_message(_message())
+
+        message = _sent_events(session)[-1][1]["message"]
+        assert "ModelAPIError" in message
+        assert "qwen3.6:35b" in message
+        assert "host.docker.internal" in message
+
+    async def test_a_model_http_error_names_the_status_code(self, caplog):
+        """404 vs 401 vs 502 are different fixes; the chat frame carries the code,
+        not the provider body."""
+        from pydantic_ai.exceptions import ModelHTTPError
+
+        session = _session()
+
+        with (
+            _chat(
+                AsyncMock(
+                    side_effect=ModelHTTPError(
+                        status_code=404,
+                        model_name="qwen3.6:35b",
+                        body={"error": "model not found"},
+                    )
+                )
+            ),
+            caplog.at_level(logging.ERROR, logger="app.services.agent_session"),
+        ):
+            await session.process_message(_message())
+
+        assert _sent_events(session)[-1] == (
+            "error",
+            {
+                "message": (
+                    "The agent could not finish this turn (ModelHTTPError, HTTP 404). "
+                    "Check the agent's model profile — provider, model id, API key and base URL — "
+                    "then try again. The server log has the full error."
+                )
+            },
+        )
+
     @pytest.mark.parametrize(
         ("failure", "named"), [(RuntimeError, "RuntimeError"), (TimeoutError, "TimeoutError")]
     )

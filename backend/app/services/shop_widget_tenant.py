@@ -18,4 +18,7 @@ async def require_org_for_shop_tenant(db: AsyncSession, tenant_id: UUID) -> Orga
             message="No organization linked to shop tenant",
             details={"tenant_id": str(tenant_id)},
         )
+    from app.services.shop_ai_entitlement import require_shop_ai_entitlement
+
+    await require_shop_ai_entitlement(db, minerp_tenant_id=tenant_id)
     return org

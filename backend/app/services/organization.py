@@ -53,6 +53,7 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
         name=org.name,
         slug=org.slug,
         is_personal=org.is_personal,
+        minerp_tenant_id=org.minerp_tenant_id,
         avatar_url=org.avatar_url,
         avatar_color=org.avatar_color,
         member_count=member_count,

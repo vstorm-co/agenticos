@@ -198,6 +198,71 @@ async def probe_redis(redis: RedisClient) -> SystemCheck:
 
 
 async def probe_vector_store(db: AsyncSession) -> SystemCheck:
+    """Ask whether the configured vector backend can serve embeddings."""
+    from app.core.config import settings
+
+    if settings.VECTOR_STORE == "qdrant":
+        return await _probe_qdrant_vector_store()
+
+    return await _probe_pgvector_store(db)
+
+
+async def _probe_qdrant_vector_store() -> SystemCheck:
+    """Reach Qdrant and report whether the physical collection exists yet."""
+    import asyncio
+
+    from app.core.config import settings
+    from app.services.rag.qdrant_client import create_qdrant_client
+
+    start = perf_counter()
+    try:
+        async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
+
+            def _check() -> tuple[bool, int]:
+                client = create_qdrant_client(
+                    url=settings.QDRANT_URL,
+                    api_key=settings.QDRANT_API_KEY or None,
+                )
+                exists = client.collection_exists(settings.QDRANT_COLLECTION)
+                count = 0
+                if exists:
+                    count = int(
+                        client.count(settings.QDRANT_COLLECTION, exact=False).count or 0
+                    )
+                return exists, count
+
+            exists, count = await asyncio.to_thread(_check)
+    except TimeoutError:
+        return _timed_out("vector_store", "the Qdrant health query")
+    except Exception as exc:
+        logger.warning("Qdrant vector store health probe failed", exc_info=True)
+        return SystemCheck(
+            key="vector_store",
+            status="unhealthy",
+            detail=f"Qdrant at {settings.QDRANT_URL} is unreachable: {exc}",
+        )
+    if not exists:
+        return SystemCheck(
+            key="vector_store",
+            status="unconfigured",
+            detail=(
+                f"Qdrant reachable; collection {settings.QDRANT_COLLECTION!r} "
+                "is created on first document ingestion"
+            ),
+            latency_ms=_elapsed_ms(start),
+        )
+    return SystemCheck(
+        key="vector_store",
+        status="healthy",
+        detail=(
+            f"Qdrant {settings.QDRANT_URL}, collection {settings.QDRANT_COLLECTION!r}, "
+            f"~{count} vector(s)"
+        ),
+        latency_ms=_elapsed_ms(start),
+    )
+
+
+async def _probe_pgvector_store(db: AsyncSession) -> SystemCheck:
     """Ask Postgres whether it can hold embeddings at all.
 
     The vector store is pgvector in this same database, so there is no second

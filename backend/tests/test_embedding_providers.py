@@ -61,6 +61,13 @@ class TestAKeylessProvider:
         assert entry.base_url == "https://openrouter.ai/api/v1"
         assert not entry.keyless
 
+    def test_openrouter_serves_qwen3_embedding_8b_at_1536(self):
+        entry = embedding_providers.require("openrouter", model="qwen/qwen3-embedding-8b", dim=1536)
+
+        assert entry.provider == "openrouter"
+        assert entry.serves("qwen/qwen3-embedding-8b", 1536)
+        assert not entry.serves("qwen/qwen3-embedding-8b", 4096)
+
 
 class TestTheFirstEntry:
     def test_the_first_entry_is_openrouter_and_reordering_it_is_a_decision(self):

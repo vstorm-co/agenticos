@@ -128,6 +128,10 @@ async def _checked_url(url: str) -> str:
         BadRequestError: If the URL is malformed or points inside the
             deployment's network.
     """
+    from app.integrations.minerp_shop.constants import is_minerp_internal_url
+
+    if is_minerp_internal_url(url):
+        return url.strip()
     try:
         return await validate_mcp_url(url)
     except UrlRefusedError as exc:
@@ -702,16 +706,28 @@ class McpConnectionService:
         self, db_connection: McpConnection
     ) -> tuple[McpConnection, list[McpToolInfo], str | None]:
         """Talk to the server, record what happened, and report its tools."""
+        from app.integrations.minerp_shop.constants import is_minerp_internal_shop_connection
+        from app.integrations.minerp_shop.toolset import internal_shop_tool_infos
+
         tools: list[McpToolInfo] = []
         error: str | None = None
-        headers = await _resolve_auth_headers(self.db, db_connection)
-        if headers is None:
-            error = "This plugin needs to be authorized before it can connect."
+        if is_minerp_internal_shop_connection(
+            url=db_connection.url,
+            catalog_key=db_connection.catalog_key,
+        ):
+            tools = [
+                McpToolInfo(name=name, description=desc)
+                for name, desc in internal_shop_tool_infos()
+            ]
         else:
-            try:
-                tools = await probe_mcp_server(db_connection.url, headers)
-            except Exception as exc:
-                error = probe_error_message(exc)
+            headers = await _resolve_auth_headers(self.db, db_connection)
+            if headers is None:
+                error = "This plugin needs to be authorized before it can connect."
+            else:
+                try:
+                    tools = await probe_mcp_server(db_connection.url, headers)
+                except Exception as exc:
+                    error = probe_error_message(exc)
         db_connection = await mcp_connection_repo.update(
             self.db,
             db_connection=db_connection,
@@ -1846,6 +1862,7 @@ async def build_toolsets_for_agent(
     spent here has to be persisted by the same transaction that recorded the run.
     """
     specs: list[McpServerSpec] = []
+    internal_reachable: list[tuple[McpServerSpec, Any]] = []
     bindings: dict[int, str] = {}
     unavailable: list[UnavailableBinding] = []
     found = await mcp_connection_repo.get_org_scoped_by_ids(
@@ -1876,6 +1893,26 @@ async def build_toolsets_for_agent(
                 organization_id,
             )
             continue
+        from app.integrations.minerp_shop.constants import is_minerp_internal_shop_connection
+        from app.integrations.minerp_shop.toolset import build_minerp_internal_shop_toolset
+
+        if is_minerp_internal_shop_connection(
+            url=connection.url,
+            catalog_key=connection.catalog_key,
+        ):
+            internal_spec = McpServerSpec(
+                name=connection.name,
+                url=connection.url,
+                headers={},
+                allowed_tools=None,
+            )
+            internal_toolset = build_minerp_internal_shop_toolset(
+                connection_name=connection.name,
+                allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
+            )
+            internal_reachable.append((internal_spec, internal_toolset))
+            bindings[id(internal_spec)] = f"the connection {connection.name!r}"
+            continue
         headers = await _resolve_auth_headers(db, connection)
         if headers is None:
             # OAuth not authorized / expired, or an undecryptable bearer token.
@@ -1905,7 +1942,7 @@ async def build_toolsets_for_agent(
     # bound twice is the same binding on both sides: dropped, nothing to report.
     reachable = [
         (spec, toolset) for spec, toolset in await probe_toolsets(specs) if toolset is not None
-    ]
+    ] + internal_reachable
     dropped: set[int] = set()
     for prefix, held in prefix_collisions((spec.name, spec) for spec, _ in reachable).items():
         kept = held[0]

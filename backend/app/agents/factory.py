@@ -150,6 +150,7 @@ def build_agent(
     model_spec: ModelRequestSpec,
     *,
     organization_id: UUID,
+    minerp_tenant_id: UUID | None = None,
     agent_id: UUID | None = None,
     run_id: UUID | None = None,
     conversation_id: UUID | None = None,
@@ -296,6 +297,7 @@ def build_agent(
 
     deps = AgentDeps(
         organization_id=organization_id,
+        minerp_tenant_id=minerp_tenant_id,
         agent_id=agent_id,
         run_id=run_id,
         user_id=user_id,

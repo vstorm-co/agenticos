@@ -61,6 +61,28 @@ class TestProviderMetering:
         assert vectors == [[0.1, 0.2]]
         assert ledger.entries == []
 
+    def test_qwen_asks_openrouter_for_the_indexable_width(self):
+        create = MagicMock(
+            return_value=MagicMock(
+                data=[MagicMock(embedding=[0.0] * 1536)],
+                usage=None,
+            )
+        )
+        provider = OpenAIEmbeddingProvider(
+            model="qwen/qwen3-embedding-8b",
+            api_key="key",
+            output_dimensions=1536,
+        )
+        provider._client = MagicMock(embeddings=MagicMock(create=create))
+
+        provider.embed_queries(["xin chào"])
+
+        create.assert_called_once_with(
+            model="qwen/qwen3-embedding-8b",
+            input=["xin chào"],
+            dimensions=1536,
+        )
+
 
 class TestDescriberMetering:
     """The vision model reads every image ingestion describes - that is spend.

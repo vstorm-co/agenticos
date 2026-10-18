@@ -344,6 +344,49 @@ class Settings(BaseSettings):
     # B51 — after native deterministic/FAQ/handoff, forward LLM turns to multi-agent.
     SHOP_AI_NATIVE_WIDGET_LLM_STRANGLER: bool = True
     SHOP_AI_NATIVE_MERCHANT_LLM_STRANGLER: bool = True
+    # B62 — Studio background report/digest jobs on Agentra OLTP.
+    SHOP_AGENT_BACKGROUND_JOB_ENABLED: bool = True
+    # B64 — workflow llm_generate + Studio email Generate (one-shot OpenAI-compatible).
+    SHOP_AI_NATIVE_LLM_GENERATE_ENABLED: bool = True
+    SHOP_AI_LLM_GENERATE_API_KEY: str = ""
+    SHOP_AI_LLM_GENERATE_BASE_URL: str = ""
+    SHOP_AI_LLM_GENERATE_MODEL: str = "gpt-4o-mini"
+    SHOP_AI_LLM_GENERATE_TEMPERATURE: float = 0.5
+    # B65 — Shop Zalo OA OAuth (Studio connect).
+    SHOP_AI_NATIVE_ZALO_OAUTH_ENABLED: bool = True
+    # B66 — Shop channel-bots CRUD (Zalo/Messenger CSKH rows on Agentra).
+    SHOP_AI_NATIVE_CHANNEL_BOTS_ENABLED: bool = True
+    # B67 — Shop channel session inbox (list/claim/reply; Zalo/Messenger adapters deferred).
+    SHOP_AI_NATIVE_CHANNEL_SESSIONS_ENABLED: bool = True
+    # B68 — Zalo OA webhook + shop CSKH inbound on channel_sessions.
+    SHOP_AI_NATIVE_CHANNEL_INBOUND_ENABLED: bool = True
+    SHOP_AI_NATIVE_CHANNEL_QUEUE_NOTIFY_ENABLED: bool = True
+    SHOP_AI_NATIVE_CHANNEL_LLM_STRANGLER: bool = True
+    ZALO_OA_WEBHOOK_SECRET: str = ""
+    # B69 — Meta Messenger Page webhook.
+    MESSENGER_APP_SECRET: str = ""
+    MESSENGER_VERIFY_TOKEN: str = ""
+    # B70/B73 — when True, require active IAM CDC replica row for service shop_ai.
+    SHOP_AI_NATIVE_ENTITLEMENT_CHECK_ENABLED: bool = False
+    # B74 — Prefect deployment `shop-catalog-sync-nightly` (86400s ≈ multi-agent Celery beat).
+    SHOP_AI_CATALOG_SYNC_NIGHTLY_ENABLED: bool = True
+    SHOP_AI_CATALOG_SYNC_NIGHTLY_INTERVAL_SEC: float = 86400.0
+    # B75 — Prefect beat for due shop digest jobs (morning digest persona).
+    SHOP_AGENT_BACKGROUND_DIGEST_ENABLED: bool = True
+    SHOP_AGENT_BACKGROUND_DIGEST_INTERVAL_SEC: float = 3600.0
+    # B76 — Zalo OA OAuth access token refresh.
+    SHOP_AI_ZALO_OAUTH_REFRESH_ENABLED: bool = True
+    SHOP_AI_ZALO_OAUTH_REFRESH_INTERVAL_SEC: float = 3600.0
+    # B78 — channel inbound full agent via multi-agent widget/chat after native paths.
+    SHOP_AI_NATIVE_CHANNEL_AGENT_ENABLED: bool = False
+    SHOP_AI_NATIVE_CHANNEL_AGENT_STRANGLER: bool = True
+    ZALO_OA_APP_ID: str = ""
+    ZALO_OA_APP_SECRET: str = ""
+    ZALO_OA_OAUTH_REDIRECT_URI: str = "http://localhost:8800/api/v1/shop-oauth/zalo/callback"
+    SHOP_AI_ZALO_OAUTH_SUCCESS_REDIRECT: str = "http://localhost:3000/studio/agents/zalo"
+    SHOP_AI_ZALO_OAUTH_FAILURE_REDIRECT: str = "http://localhost:3000/studio/agents/zalo"
+    SHOP_AI_ZALO_OAUTH_STATE_TTL_SEC: int = 600
+    SHOP_ZALO_OAUTH_STATE_SECRET: str = ""
 
     FRONTEND_URL: str = "http://localhost:3000"
     PUBLIC_BASE_URL: str = "http://localhost:8000"

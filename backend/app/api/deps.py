@@ -366,6 +366,7 @@ from app.core.exceptions import (
 )
 from app.services import rate_limit
 from app.core.security import encode_untrusted, verify_token
+from app.services.access_auth import resolve_user_from_access_token
 from app.db.models.user import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
@@ -376,6 +377,7 @@ oauth2_scheme_optional = OAuth2PasswordBearer(
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
+    db: DBSession,
     user_service: UserSvc,
     impersonation: ImpersonationSvc,
     session: SessionSvc,
@@ -397,25 +399,7 @@ async def get_current_user(
             ended, or the user is not found.
     """
 
-    payload = verify_token(token)
-    if payload is None:
-        raise AuthenticationError(message="Invalid or expired token")
-
-    if payload.get("type") != "access":
-        raise AuthenticationError(message="Invalid token type")
-
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise AuthenticationError(message="Invalid token payload")
-
-    await impersonation.verify(payload=payload, token=token, subject=user_id)
-    await session.verify_access_session(payload=payload, subject=user_id)
-
-    user = await user_service.get_by_id(UUID(user_id))
-    if not user.is_active:
-        raise AuthenticationError(message="User account is disabled")
-
-    return user
+    return await resolve_user_from_access_token(db, token)
 
 
 # There is deliberately no role-based dependency here. Authorization inside an
@@ -465,22 +449,45 @@ from app.repositories import member_repo as _member_repo
 async def get_active_organization(
     user: CurrentUser,
     db: DBSession,
-    x_organization_id: UUID | None = Header(None),
+    token: Annotated[str, Depends(oauth2_scheme)],
+    x_organization_id: UUID | None = Header(None, alias="X-Organization-Id"),
 ) -> Organization:
     """Resolve the active Organization for the current request.
 
-    Reads `X-Organization-Id` header. Falls back to the user's Personal Org
-    when the header is absent. Raises 404 if the user is not a member.
+    Reads `X-Organization-Id` header. With Minerp IAM, syncs team orgs from JWT
+    `tenant_ids`, prefers a mapped tenant org as default, and enforces tenant access.
+    Falls back to the user's Personal Org when the header is absent. Raises 404 if
+    the user is not a member.
     """
+    from app.core.config import settings
+    from app.core.iam_auth import is_iam_access_payload, verify_iam_token
+    from app.core.iam_tenant import iam_may_access_minerp_tenant
+    from app.services.minerp_tenant_sync import (
+        pick_default_organization_for_iam_user,
+        sync_tenant_orgs_from_iam_payload,
+    )
+
+    iam_payload = None
+    if settings.IAM_AUTH_ENABLED:
+        iam_payload = verify_iam_token(token)
+        if iam_payload and is_iam_access_payload(iam_payload):
+            await sync_tenant_orgs_from_iam_payload(db, user_id=user.id, payload=iam_payload)
 
     if x_organization_id is None:
-        org = await organization_repo.get_personal_for_user(db, user.id)
-        if not org:
-            raise NotFoundError(message="Personal organization not found - please re-register")
-        return org
+        if iam_payload and is_iam_access_payload(iam_payload):
+            preferred = await pick_default_organization_for_iam_user(
+                db, user_id=user.id, payload=iam_payload
+            )
+            if preferred is not None:
+                x_organization_id = preferred
+        if x_organization_id is None:
+            org = await organization_repo.get_personal_for_user(db, user.id)
+            if not org:
+                raise NotFoundError(message="Personal organization not found - please re-register")
+            return org
 
     membership = await member_repo.get(db, organization_id=x_organization_id, user_id=user.id)
-    if not membership:
+    if not membership and not user.is_app_admin:
         raise NotFoundError(
             message="Organization not found or access denied",
             details={"org_id": str(x_organization_id)},
@@ -490,6 +497,17 @@ async def get_active_organization(
         raise NotFoundError(
             message="Organization not found", details={"org_id": str(x_organization_id)}
         )
+    if (
+        org.minerp_tenant_id is not None
+        and iam_payload
+        and is_iam_access_payload(iam_payload)
+        and not user.is_app_admin
+    ):
+        if not iam_may_access_minerp_tenant(iam_payload, org.minerp_tenant_id):
+            raise AuthorizationError(
+                message="Minerp tenant access denied for this organization",
+                details={"minerp_tenant_id": str(org.minerp_tenant_id)},
+            )
     return org
 
 
@@ -666,7 +684,12 @@ def get_sharing_service(db: DBSession) -> SharingService:
 SharingSvc = Annotated[SharingService, Depends(get_sharing_service)]
 
 
-async def get_auth_context(user: CurrentUser, org: ActiveOrg, db: DBSession) -> AuthContext:
+async def get_auth_context(
+    user: CurrentUser,
+    org: ActiveOrg,
+    db: DBSession,
+    token: Annotated[str, Depends(oauth2_scheme)],
+) -> AuthContext:
     """Build the caller's authorization context for the active organization.
 
     One membership lookup per request; everything downstream reads permissions
@@ -678,11 +701,34 @@ async def get_auth_context(user: CurrentUser, org: ActiveOrg, db: DBSession) -> 
             message="Organization not found or access denied",
             details={"org_id": str(org.id)},
         )
+
+    from app.core.config import settings
+    from app.core.iam_auth import is_iam_access_payload, verify_iam_token
+    from app.core.iam_permission_bridge import (
+        iam_implies_app_admin,
+        overlay_from_iam_codes,
+    )
+
+    is_app_admin = user.is_app_admin
+    iam_overlay = None
+    if settings.IAM_AUTH_ENABLED:
+        payload = verify_iam_token(token)
+        if payload and is_iam_access_payload(payload):
+            codes = list(payload.get("permissions") or [])
+            iam_overlay = overlay_from_iam_codes(codes) or None
+            if iam_implies_app_admin(
+                codes=codes,
+                has_global_scope=bool(payload.get("has_global_scope")),
+            ):
+                is_app_admin = True
+
     return AuthContext(
         user_id=user.id,
         organization_id=org.id,
         role=membership.role if membership else "",
-        is_app_admin=user.is_app_admin,
+        is_app_admin=is_app_admin,
+        iam_permission_overlay=iam_overlay,
+        minerp_tenant_id=org.minerp_tenant_id,
     )
 
 

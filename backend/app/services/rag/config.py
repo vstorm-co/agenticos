@@ -137,10 +137,18 @@ def get_supported_formats(parser_name: str = "pymupdf") -> set[str]:
     return PARSER_FORMATS.get(parser_name, PYMUPDF_FORMATS)
 
 
+# pgvector HNSW on `halfvec` supports at most this width; wider models cannot be
+# indexed. See `PgVectorStore._distance_expr`.
+PGVECTOR_MAX_INDEXABLE_EMBEDDING_DIM = 4000
+
 EMBEDDING_DIMENSIONS: dict[str, int] = {
     "text-embedding-3-small": 1536,
     "text-embedding-3-large": 3072,
     "text-embedding-ada-002": 1536,
+    # OpenRouter's default is 4096, above pgvector's HNSW limit (4000 on
+    # `halfvec`). Ingest requests 1536 via the embeddings API (MRL) so the
+    # collection uses a plain `vector` index like `text-embedding-3-small`.
+    "qwen/qwen3-embedding-8b": 1536,
     "voyage-3": 1024,
     "voyage-3-lite": 512,
     "voyage-code-3": 1024,

@@ -25,6 +25,10 @@ async def test_inbox_summary_counts_widget_queued() -> None:
             "app.services.shop_live_agent_inbox.widget_handling_repo.count_by_handling_mode_for_organization",
             new=AsyncMock(return_value=3),
         ),
+        patch(
+            "app.services.shop_live_agent_inbox.shop_channel_session_repo.count_by_handling_mode_for_shop",
+            new=AsyncMock(return_value=0),
+        ),
     ):
         summary = await ShopLiveAgentInboxService(db).build_summary(
             organization_id=org_id,

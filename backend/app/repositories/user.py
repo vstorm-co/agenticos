@@ -121,6 +121,7 @@ async def create(
     is_app_admin: bool = False,
     oauth_provider: str | None = None,
     oauth_id: str | None = None,
+    id: UUID | None = None,
 ) -> User:
     """Create a new user.
 
@@ -132,15 +133,18 @@ async def create(
     `is_app_admin` is the one privilege a user carries on their own row, and it
     administers the deployment rather than any organization.
     """
-    user = User(
-        email=email,
-        hashed_password=hashed_password,
-        full_name=full_name,
-        is_active=is_active,
-        is_app_admin=is_app_admin,
-        oauth_provider=oauth_provider,
-        oauth_id=oauth_id,
-    )
+    user_kwargs: dict[str, Any] = {
+        "email": email,
+        "hashed_password": hashed_password,
+        "full_name": full_name,
+        "is_active": is_active,
+        "is_app_admin": is_app_admin,
+        "oauth_provider": oauth_provider,
+        "oauth_id": oauth_id,
+    }
+    if id is not None:
+        user_kwargs["id"] = id
+    user = User(**user_kwargs)
     db.add(user)
     await db.flush()
     await db.refresh(user)

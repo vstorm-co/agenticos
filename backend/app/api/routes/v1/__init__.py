@@ -39,6 +39,8 @@ from app.api.routes.v1 import context as context_files
 from app.api.routes.v1 import memory as memory_files
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import telegram_webhook
+from app.api.routes.v1 import messenger_webhook
+from app.api.routes.v1 import zalo_webhook
 from app.api.routes.v1 import slack_webhook
 from app.api.routes.v1 import mattermost_webhook
 from app.api.routes.v1 import embed as embed_widget
@@ -61,6 +63,7 @@ from app.api.routes.v1 import notifications
 from app.api.routes.v1 import admin_announcements
 from app.api.routes.v1 import internal_minerp
 from app.api.routes.v1 import internal_shop_ai
+from app.api.routes.v1 import shop_zalo_oauth
 
 v1_router = APIRouter()
 
@@ -158,6 +161,8 @@ v1_router.include_router(admin_users.router, prefix="/admin/users", tags=["admin
 v1_router.include_router(channels.router, prefix="/channels", tags=["channels"])
 
 v1_router.include_router(telegram_webhook.router, prefix="/telegram", tags=["telegram"])
+v1_router.include_router(zalo_webhook.router, prefix="/zalo", tags=["zalo"])
+v1_router.include_router(messenger_webhook.router, prefix="/messenger", tags=["messenger"])
 
 v1_router.include_router(slack_webhook.router, prefix="/slack", tags=["slack"])
 
@@ -188,3 +193,4 @@ v1_router.include_router(
 )
 v1_router.include_router(internal_minerp.router)
 v1_router.include_router(internal_shop_ai.router)
+v1_router.include_router(shop_zalo_oauth.router, tags=["shop:zalo-oauth"])

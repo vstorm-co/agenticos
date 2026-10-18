@@ -113,6 +113,25 @@ async def list_shop_catalog_items(*, tenant_id: str, limit: int = 8) -> dict:
     return await _get_json(path=f"/internal/shop-ai/catalog/items?{params}", tenant_id=tenant_id)
 
 
+async def get_catalog_item(*, tenant_id: str, item_id: str) -> dict:
+    safe_id = item_id.strip()
+    return await _get_json(
+        path=f"/internal/shop-ai/catalog/items/{safe_id}",
+        tenant_id=tenant_id,
+    )
+
+
+async def list_catalog_items(
+    *,
+    tenant_id: str,
+    cursor: int = 0,
+    limit: int = 100,
+    active_only: bool = True,
+) -> dict:
+    params = f"cursor={cursor}&limit={limit}&active_only={'true' if active_only else 'false'}"
+    return await _get_json(path=f"/internal/shop-ai/catalog/items?{params}", tenant_id=tenant_id)
+
+
 def format_tool_result(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False, default=str)
 

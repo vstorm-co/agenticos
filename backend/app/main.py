@@ -182,6 +182,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
     from app.services.channels.mattermost import MattermostAdapter
     from app.services.channels.slack import SlackAdapter
     from app.services.channels.telegram import TelegramAdapter
+    from app.services.channels.messenger import MessengerAdapter
+    from app.services.channels.zalo import ZaloAdapter
 
     # A previous lifespan in this process (a test, a reload) may have declined
     # intake on its way down; this one is serving, so permit it again (#1119).
@@ -207,6 +209,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState, None]:
         await _start_channel_polling("slack")
     except (OSError, ValueError, RuntimeError) as _slack_exc:
         logger.error("Slack: failed to start Socket Mode: %s", _slack_exc)
+
+    register_adapter(ZaloAdapter())
+    register_adapter(MessengerAdapter())
 
     # Started once startup is done and stopped only at the very end, so it
     # covers serving and shutdown: a worker whose event loop stops turning is

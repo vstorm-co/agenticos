@@ -118,6 +118,14 @@ COPY frontend/licenses/texts /app/licenses/texts
 # Add venv to path
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Minerp stack image identity (override at build: --build-arg MINERP_OCI_TITLE=...)
+ARG MINERP_OCI_TITLE=Minerp Agentra
+ARG MINERP_OCI_VENDOR=KLABSYSTEM
+LABEL org.opencontainers.image.title="${MINERP_OCI_TITLE}" \
+    org.opencontainers.image.vendor="${MINERP_OCI_VENDOR}" \
+    com.klabsystem.stack="minerp_v2" \
+    com.klabsystem.service="agentra"
+
 # Create non-root user and writable directories
 RUN adduser --disabled-password --gecos "" appuser && \
     mkdir -p /app/media /app/data /app/chroma_data /app/models_cache && \

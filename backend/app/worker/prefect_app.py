@@ -46,7 +46,10 @@ from app.worker.tasks.report_tasks import (
     weekly_usage_report_flow,
 )
 from app.worker.tasks.run_tasks import stale_run_sweep_flow
+from app.worker.tasks.shop_agent_background_job import shop_agent_background_digest_flow
+from app.worker.tasks.shop_catalog_sync import shop_catalog_sync_nightly_flow
 from app.worker.tasks.shop_live_agent_tasks import shop_live_agent_idle_release_flow
+from app.worker.tasks.shop_zalo_oauth_refresh import shop_zalo_oauth_refresh_flow
 from app.worker.tasks.teardown_tasks import (
     external_state_cleanup_flow,
     teardown_reservation_sweep_flow,
@@ -147,6 +150,27 @@ async def main() -> None:
             schedules=[_every(settings.SHOP_LIVE_AGENT_IDLE_BEAT_INTERVAL_SEC)],
         )
     )
+    if settings.SHOP_AI_CATALOG_SYNC_NIGHTLY_ENABLED:
+        deployments.append(
+            await shop_catalog_sync_nightly_flow.ato_deployment(
+                name="shop-catalog-sync-nightly",
+                schedules=[_every(settings.SHOP_AI_CATALOG_SYNC_NIGHTLY_INTERVAL_SEC)],
+            )
+        )
+    if settings.SHOP_AGENT_BACKGROUND_DIGEST_ENABLED:
+        deployments.append(
+            await shop_agent_background_digest_flow.ato_deployment(
+                name="shop-agent-background-digest",
+                schedules=[_every(settings.SHOP_AGENT_BACKGROUND_DIGEST_INTERVAL_SEC)],
+            )
+        )
+    if settings.SHOP_AI_ZALO_OAUTH_REFRESH_ENABLED:
+        deployments.append(
+            await shop_zalo_oauth_refresh_flow.ato_deployment(
+                name="shop-zalo-oauth-refresh",
+                schedules=[_every(settings.SHOP_AI_ZALO_OAUTH_REFRESH_INTERVAL_SEC)],
+            )
+        )
     # Hourly, against a threshold measured in days: precision here buys nothing,
     # and an approval expiring 40 minutes late has cost nobody anything. One
     # query an hour, which on the ordinary sweep returns no rows and stops.

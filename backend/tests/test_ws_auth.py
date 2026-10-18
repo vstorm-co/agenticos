@@ -41,13 +41,15 @@ class TestAuthenticateSocketToken:
         user = _user()
         with (
             patch(
-                "app.services.ws_auth.verify_token",
+                "app.services.access_auth.verify_token",
                 return_value=_payload(str(user.id)),
             ),
-            patch("app.services.ws_auth.ImpersonationService") as impersonation,
-            patch("app.services.ws_auth.UserService") as user_service,
+            patch("app.services.access_auth.ImpersonationService") as impersonation,
+            patch("app.services.access_auth.SessionService") as session_svc,
+            patch("app.services.access_auth.UserService") as user_service,
         ):
             impersonation.return_value.verify = AsyncMock(return_value=None)
+            session_svc.return_value.verify_access_session = AsyncMock(return_value=None)
             user_service.return_value.get_by_id = AsyncMock(return_value=user)
             resolved = await authenticate_socket_token(MagicMock(), "token")
 
@@ -60,12 +62,14 @@ class TestAuthenticateSocketToken:
         db = MagicMock()
         payload = _payload(str(user.id))
         with (
-            patch("app.services.ws_auth.verify_token", return_value=payload),
-            patch("app.services.ws_auth.ImpersonationService") as impersonation,
-            patch("app.services.ws_auth.UserService") as user_service,
+            patch("app.services.access_auth.verify_token", return_value=payload),
+            patch("app.services.access_auth.ImpersonationService") as impersonation,
+            patch("app.services.access_auth.SessionService") as session_svc,
+            patch("app.services.access_auth.UserService") as user_service,
         ):
             verify = AsyncMock(return_value=None)
             impersonation.return_value.verify = verify
+            session_svc.return_value.verify_access_session = AsyncMock(return_value=None)
             user_service.return_value.get_by_id = AsyncMock(return_value=user)
             await authenticate_socket_token(db, "the-token")
 
@@ -74,7 +78,8 @@ class TestAuthenticateSocketToken:
 
     async def test_an_unverifiable_token_is_refused(self) -> None:
         with (
-            patch("app.services.ws_auth.verify_token", return_value=None),
+            patch("app.services.access_auth.verify_token", return_value=None),
+            patch("app.services.access_auth.verify_iam_token", return_value=None),
             pytest.raises(AuthenticationError, match="Invalid or expired token"),
         ):
             await authenticate_socket_token(MagicMock(), "token")
@@ -82,7 +87,7 @@ class TestAuthenticateSocketToken:
     async def test_a_non_access_token_is_refused(self) -> None:
         with (
             patch(
-                "app.services.ws_auth.verify_token",
+                "app.services.access_auth.verify_token",
                 return_value=_payload(str(uuid4()), token_type="refresh"),
             ),
             pytest.raises(AuthenticationError, match="Invalid token type"),
@@ -91,7 +96,7 @@ class TestAuthenticateSocketToken:
 
     async def test_a_token_without_a_subject_is_refused(self) -> None:
         with (
-            patch("app.services.ws_auth.verify_token", return_value={"type": "access"}),
+            patch("app.services.access_auth.verify_token", return_value={"type": "access"}),
             pytest.raises(AuthenticationError, match="Invalid token payload"),
         ):
             await authenticate_socket_token(MagicMock(), "token")
@@ -101,28 +106,32 @@ class TestAuthenticateSocketToken:
         propagates unchanged, so the socket closes with the reason it minted."""
         with (
             patch(
-                "app.services.ws_auth.verify_token",
+                "app.services.access_auth.verify_token",
                 return_value=_payload(str(uuid4())),
             ),
-            patch("app.services.ws_auth.ImpersonationService") as impersonation,
+            patch("app.services.access_auth.ImpersonationService") as impersonation,
+            patch("app.services.access_auth.SessionService") as session_svc,
             pytest.raises(AuthenticationError, match="Impersonation has ended"),
         ):
             impersonation.return_value.verify = AsyncMock(
                 side_effect=AuthenticationError(message="Impersonation has ended")
             )
+            session_svc.return_value.verify_access_session = AsyncMock(return_value=None)
             await authenticate_socket_token(MagicMock(), "token")
 
     async def test_an_unknown_subject_is_refused(self) -> None:
         with (
             patch(
-                "app.services.ws_auth.verify_token",
+                "app.services.access_auth.verify_token",
                 return_value=_payload(str(uuid4())),
             ),
-            patch("app.services.ws_auth.ImpersonationService") as impersonation,
-            patch("app.services.ws_auth.UserService") as user_service,
+            patch("app.services.access_auth.ImpersonationService") as impersonation,
+            patch("app.services.access_auth.SessionService") as session_svc,
+            patch("app.services.access_auth.UserService") as user_service,
             pytest.raises(AuthenticationError, match="User not found"),
         ):
             impersonation.return_value.verify = AsyncMock(return_value=None)
+            session_svc.return_value.verify_access_session = AsyncMock(return_value=None)
             user_service.return_value.get_by_id = AsyncMock(
                 side_effect=NotFoundError(message="User not found")
             )
@@ -132,14 +141,16 @@ class TestAuthenticateSocketToken:
         user = _user(is_active=False)
         with (
             patch(
-                "app.services.ws_auth.verify_token",
+                "app.services.access_auth.verify_token",
                 return_value=_payload(str(user.id)),
             ),
-            patch("app.services.ws_auth.ImpersonationService") as impersonation,
-            patch("app.services.ws_auth.UserService") as user_service,
+            patch("app.services.access_auth.ImpersonationService") as impersonation,
+            patch("app.services.access_auth.SessionService") as session_svc,
+            patch("app.services.access_auth.UserService") as user_service,
             pytest.raises(AuthenticationError, match="User account is disabled"),
         ):
             impersonation.return_value.verify = AsyncMock(return_value=None)
+            session_svc.return_value.verify_access_session = AsyncMock(return_value=None)
             user_service.return_value.get_by_id = AsyncMock(return_value=user)
             await authenticate_socket_token(MagicMock(), "token")
 
@@ -158,10 +169,12 @@ class TestAuthenticateSocketToken:
         user = _user()
         token = create_access_token(str(user.id), expires_delta=timedelta(seconds=-1))
         with (
-            patch("app.services.ws_auth.ImpersonationService") as impersonation,
-            patch("app.services.ws_auth.UserService") as user_service,
+            patch("app.services.access_auth.ImpersonationService") as impersonation,
+            patch("app.services.access_auth.SessionService") as session_svc,
+            patch("app.services.access_auth.UserService") as user_service,
         ):
             impersonation.return_value.verify = AsyncMock(return_value=None)
+            session_svc.return_value.verify_access_session = AsyncMock(return_value=None)
             user_service.return_value.get_by_id = AsyncMock(return_value=user)
             resolved = await authenticate_socket_token(MagicMock(), token, allow_expired=True)
 
@@ -176,12 +189,14 @@ class TestAuthenticateSocketToken:
             str(uuid4()), act=str(uuid4()), expires_delta=timedelta(seconds=-1)
         )
         with (
-            patch("app.services.ws_auth.ImpersonationService") as impersonation,
+            patch("app.services.access_auth.ImpersonationService") as impersonation,
+            patch("app.services.access_auth.SessionService") as session_svc,
             pytest.raises(AuthenticationError, match="Impersonation has ended"),
         ):
             impersonation.return_value.verify = AsyncMock(
                 side_effect=AuthenticationError(message="Impersonation has ended")
             )
+            session_svc.return_value.verify_access_session = AsyncMock(return_value=None)
             await authenticate_socket_token(MagicMock(), token, allow_expired=True)
 
     async def test_a_revoked_ordinary_session_closes_the_socket(self) -> None:
@@ -213,8 +228,10 @@ class TestAuthenticateSocketToken:
         token = create_access_token(str(user.id), sid=str(uuid4()))
         with (
             patch("app.services.session.session_repo.get_by_id", AsyncMock(return_value=row)),
-            patch("app.services.ws_auth.UserService") as user_service,
+            patch("app.services.access_auth.ImpersonationService") as impersonation,
+            patch("app.services.access_auth.UserService") as user_service,
         ):
+            impersonation.return_value.verify = AsyncMock(return_value=None)
             user_service.return_value.get_by_id = AsyncMock(return_value=user)
             resolved = await authenticate_socket_token(MagicMock(), token, allow_expired=True)
 

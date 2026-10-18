@@ -374,6 +374,17 @@
     "icon": "resend"
   },
   {
+    "key": "anymail",
+    "name": "AnyMail",
+    "description": "Search, read, draft and send mail and manage calendar events on any IMAP mailbox.",
+    "category": "communication",
+    "auth": "oauth",
+    "url": "https://anymailmcp.com/mcp",
+    "docs_url": "https://anymailmcp.com",
+    "token_hint": "",
+    "icon": ""
+  },
+  {
     "key": "posthog",
     "name": "PostHog",
     "description": "Query and manage product analytics.",
@@ -1075,6 +1086,17 @@
     "url": "https://mcp.lusha.com/mcp",
     "docs_url": "https://docs.lusha.com/apis/openapi/mcp-server",
     "token_hint": "A Lusha API key. Every lookup spends a credit, so give the agent one on a plan with a cap.",
+    "icon": ""
+  },
+  {
+    "key": "minerp_internal_shop",
+    "name": "Minerp shop CSKH",
+    "description": "Read-only Shop catalog, orders, and bestsellers via storefront BFF (tenant from org).",
+    "category": "minerp",
+    "auth": "none",
+    "url": "minerp-internal://minerp_internal_shop",
+    "docs_url": "",
+    "token_hint": "",
     "icon": ""
   },
   {

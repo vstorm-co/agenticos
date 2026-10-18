@@ -42,6 +42,19 @@ class ChannelSession(Base, TimestampMixin):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    handling_mode: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="ai",
+        server_default="ai",
+        index=True,
+    )
+    claimed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
+    claimed_by_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     turn_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     thread_backfilled_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from app.services.rag.vectorstore import PgVectorStore
+    from app.services.rag.vectorstore import BaseVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -167,31 +167,29 @@ async def _submit_cleanup_run(
 
 
 @asynccontextmanager
-async def _vector_store() -> AsyncIterator[PgVectorStore]:
-    """A `PgVectorStore` on an engine built for one run and disposed after it.
+async def _vector_store() -> AsyncIterator[BaseVectorStore]:
+    """A vector store on an engine built for one run and disposed after it.
 
     A pooled connection made on one flow's event loop breaks on the next, so each run
     that touches vector tables builds and disposes its own engine - the reason
     `rag_tasks._ingestion_service` does too (#948).
     """
-    from app.services.embedding_resolution import embeddings_for_collection
     from app.services.rag.embeddings import EmbeddingService
-    from app.services.rag.vectorstore import PgVectorStore
+    from app.services.rag.vectorstore import BaseVectorStore, worker_vector_store
 
     rag_settings = settings.rag
     engine = create_async_engine(settings.DATABASE_URL)
     try:
-        yield PgVectorStore(
-            settings=rag_settings,
-            embedding_service=EmbeddingService(settings=rag_settings),
-            resolver=embeddings_for_collection,
+        yield worker_vector_store(
+            rag_settings,
+            EmbeddingService(settings=rag_settings),
             engine=engine,
         )
     finally:
         await engine.dispose()
 
 
-async def _drop_then_release(store: PgVectorStore, db: AsyncSession, collection: str) -> bool:
+async def _drop_then_release(store: BaseVectorStore, db: AsyncSession, collection: str) -> bool:
     """Drop a reserved collection's vector table, then free its reservation.
 
     Dropped first and released only then, so a claim never sees the name free while

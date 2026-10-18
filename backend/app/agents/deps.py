@@ -53,6 +53,7 @@ class AgentDeps:
     """Everything a tool may need that the model must not control."""
 
     organization_id: UUID | None = None
+    minerp_tenant_id: UUID | None = None
     user_id: str | None = None
     user_name: str | None = None
     agent_id: UUID | None = None
@@ -152,6 +153,7 @@ class AgentDeps:
         """
         return AgentDeps(
             organization_id=self.organization_id,
+            minerp_tenant_id=self.minerp_tenant_id,
             user_id=self.user_id,
             user_name=self.user_name,
             agent_id=self.agent_id,

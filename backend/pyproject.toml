@@ -179,6 +179,9 @@ dependencies = [
     # the kind of arithmetic a dependency exists to own.
     "croniter>=3.0.0",
     "mem0ai>=2.2.1",
+    # RAG + mem0 both use Qdrant. Pin minor to match `qdrant/qdrant:v1.12.x` in compose
+    # (transitive mem0 otherwise resolves qdrant-client 1.19+ and warns on every connect).
+    "qdrant-client>=1.12.0,<1.13.0",
     "requests>=2.34.2",
     "xlrd>=2.0.2",
     "odfpy>=1.4.1",

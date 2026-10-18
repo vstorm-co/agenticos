@@ -10,8 +10,9 @@ read-through that created the settings row would let a stranger provoke an
 nothing was upserted.
 
 **A cleared field means the built-in, not a blank.** An operator who empties the
-name input is asking for `agenticos` back, not for a sign-in page with no name on
-it - so `""` becomes `None` at the boundary rather than reaching the column.
+name input is asking for the built-in name back, not for a sign-in page with no
+name on it - so `""` becomes `None` at the boundary rather than reaching the
+column.
 
 **An image's name is ours.** The stored filename is minted from the validated
 content type, never taken from the upload: this file is served from the origin the

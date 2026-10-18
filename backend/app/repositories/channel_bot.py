@@ -1,11 +1,17 @@
 """ChannelBot repository (PostgreSQL async)."""
 
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.channel_bot import ChannelBot
+from app.db.models.channel_bot import (
+    AUTH_METHOD_OAUTH,
+    AUTH_METHOD_TOKEN_PASTE,
+    BOT_KIND_PLATFORM,
+    ChannelBot,
+)
 from app.services.channels.base import DEFAULT_ACCESS_POLICY
 
 
@@ -113,6 +119,13 @@ async def create(
     slack_app_token_encrypted: str | None = None,
     speech_to_text_provider: str | None = None,
     speech_to_text_model: str | None = None,
+    minerp_tenant_id: UUID | None = None,
+    bot_kind: str = BOT_KIND_PLATFORM,
+    default_kb_id: UUID | None = None,
+    auth_method: str = AUTH_METHOD_TOKEN_PASTE,
+    refresh_token_encrypted: str | None = None,
+    token_expires_at: datetime | None = None,
+    zalo_oa_id: str | None = None,
 ) -> ChannelBot:
     """Create a new channel bot owned by an organization."""
     bot = ChannelBot(
@@ -130,6 +143,13 @@ async def create(
         access_policy=access_policy or dict(DEFAULT_ACCESS_POLICY),
         slack_signing_secret_encrypted=slack_signing_secret_encrypted,
         slack_app_token_encrypted=slack_app_token_encrypted,
+        minerp_tenant_id=minerp_tenant_id,
+        bot_kind=bot_kind,
+        default_kb_id=default_kb_id,
+        auth_method=auth_method,
+        refresh_token_encrypted=refresh_token_encrypted,
+        token_expires_at=token_expires_at,
+        zalo_oa_id=zalo_oa_id,
     )
     db.add(bot)
     await db.flush()
@@ -185,6 +205,30 @@ async def list_for_org(
         .where(ChannelBot.organization_id == organization_id)
         .order_by(ChannelBot.created_at.desc())
         .offset(skip)
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def list_zalo_oauth_expiring(
+    db: AsyncSession,
+    *,
+    within_hours: int = 2,
+    limit: int = 200,
+) -> list[ChannelBot]:
+    """OAuth Zalo bots whose access token expires soon (D3 B76)."""
+    cutoff = datetime.now(UTC) + timedelta(hours=within_hours)
+    result = await db.execute(
+        select(ChannelBot)
+        .where(
+            ChannelBot.platform == "zalo",
+            ChannelBot.auth_method == AUTH_METHOD_OAUTH,
+            ChannelBot.is_active.is_(True),
+            ChannelBot.refresh_token_encrypted.is_not(None),
+            ChannelBot.token_expires_at.is_not(None),
+            ChannelBot.token_expires_at <= cutoff,
+        )
+        .order_by(ChannelBot.token_expires_at.asc())
         .limit(limit)
     )
     return list(result.scalars().all())

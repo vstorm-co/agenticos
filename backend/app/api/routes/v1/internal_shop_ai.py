@@ -24,6 +24,36 @@ from app.schemas.shop_merchant_assistant import (
     ShopMerchantAssistantChatOut,
 )
 from app.schemas.shop_widget import ShopWidgetChatIn, ShopWidgetChatOut, ShopWidgetPollOut
+from app.schemas.shop_agent_background_job import (
+    ShopAgentBackgroundJobCreate,
+    ShopAgentBackgroundJobList,
+    ShopAgentBackgroundJobRead,
+)
+from app.schemas.shop_catalog_sync import (
+    ShopCatalogSyncItemOut,
+    ShopCatalogSyncItemQueued,
+    ShopCatalogSyncRunOut,
+    ShopCatalogSyncSettingsPatch,
+    ShopCatalogSyncStatusRead,
+)
+from app.schemas.shop_email_generate import ShopEmailGenerateIn
+from app.schemas.shop_llm_generate import ShopLlmGenerateIn, ShopLlmGenerateOut
+from app.schemas.shop_channel_bot import (
+    ShopChannelBotCreate,
+    ShopChannelBotList,
+    ShopChannelBotRead,
+    ShopChannelBotUpdate,
+)
+from app.schemas.shop_channel_conversation import (
+    ShopChannelMessageList,
+    ShopChannelMessageRead,
+    ShopChannelSessionClaimIn,
+    ShopChannelSessionList,
+    ShopChannelSessionRead,
+    ShopChannelSessionReplyIn,
+)
+from app.schemas.shop_ai_strangler_status import ShopAiStranglerStatusRead
+from app.schemas.shop_zalo_oauth import ShopZaloOAuthStartIn, ShopZaloOAuthStartOut
 from app.schemas.shop_widget_quality import (
     ShopChatQualityReportRead,
     ShopChatQualitySummaryRead,
@@ -103,7 +133,20 @@ from app.services.shop_faq_sync import ShopFaqService
 from app.services.shop_live_agent_analytics import ShopLiveAgentAnalyticsService
 from app.services.shop_live_agent_inbox import ShopLiveAgentInboxService
 from app.services.shop_live_agent_settings import ShopLiveAgentSettingsService
+from app.services.shop_agent_background_job_service import ShopAgentBackgroundJobService
+from app.services.shop_catalog_sync import (
+    ShopCatalogSyncService,
+    queue_catalog_item_sync_after_commit,
+)
+from app.services.shop_email_generate import ShopEmailGenerateService
+from app.services.shop_llm_generate import ShopLlmGenerateService
+from app.services.shop_channel_bot_service import ShopChannelBotService
+from app.services.shop_channel_conversation import ShopChannelConversationService
+from app.services.shop_zalo_oauth_flow import start_shop_zalo_oauth
+from app.db.models.channel_bot import BOT_KIND_SHOP_CSKH
+from app.core.config import settings as app_settings
 from app.services.shop_widget_quality import ShopWidgetQualityService
+from app.services.shop_ai_strangler_status import build_shop_ai_strangler_status_for_db
 from app.services.shop_widget_tenant import require_org_for_shop_tenant
 from app.services.shop_widget_chat_native import (
     native_widget_poll,
@@ -163,6 +206,12 @@ async def _assert_org_matches_tenant(
                 "x_tenant_id": str(tenant_id),
             },
         )
+
+
+@router.get("/strangler-status", response_model=ShopAiStranglerStatusRead)
+async def shop_ai_strangler_status(_api_key: ValidAPIKey, db: DBSession) -> Any:
+    """Ops: D3 native feature flags, route matrix, IAM replica counts (B73/B79)."""
+    return await build_shop_ai_strangler_status_for_db(db)
 
 
 @router.get("/mcp/catalog", response_model=ShopMcpCatalogList)
@@ -1029,6 +1078,534 @@ async def get_widget_chat_quality_summary_route(
         minerp_tenant_id=tenant_id,
         days=days,
     )
+
+
+@router.get("/channel/sessions", response_model=ShopChannelSessionList)
+async def list_shop_channel_sessions_route(
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+    platform: str = Query("zalo", min_length=2, max_length=20),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_CHANNEL_SESSIONS_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request,
+            subpath="channel/sessions",
+            tenant_id=tenant_id,
+        )
+    return await ShopChannelConversationService(db).list_sessions(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        platform=platform,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.get(
+    "/channel/sessions/{session_id}/messages",
+    response_model=ShopChannelMessageList,
+)
+async def list_shop_channel_session_messages_route(
+    session_id: UUID,
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=500),
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_CHANNEL_SESSIONS_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request,
+            subpath=f"channel/sessions/{session_id}/messages",
+            tenant_id=tenant_id,
+        )
+    return await ShopChannelConversationService(db).list_messages(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        session_id=session_id,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.get(
+    "/channel/sessions/{session_id}/messages/search",
+    response_model=ShopChannelMessageList,
+)
+async def search_shop_channel_session_messages_route(
+    session_id: UUID,
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+    q: str = Query(..., min_length=1, max_length=200),
+    limit: int = Query(100, ge=1, le=200),
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_CHANNEL_SESSIONS_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request,
+            subpath=f"channel/sessions/{session_id}/messages/search",
+            tenant_id=tenant_id,
+        )
+    return await ShopChannelConversationService(db).search_messages(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        session_id=session_id,
+        query=q,
+        limit=limit,
+    )
+
+
+@router.post("/channel/sessions/{session_id}/claim", response_model=ShopChannelSessionRead)
+async def claim_shop_channel_session_route(
+    session_id: UUID,
+    body: ShopChannelSessionClaimIn,
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_CHANNEL_SESSIONS_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request,
+            subpath=f"channel/sessions/{session_id}/claim",
+            tenant_id=tenant_id,
+        )
+    return await ShopChannelConversationService(db).claim_session(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        session_id=session_id,
+        claimed_by_user_id=body.claimed_by_user_id,
+        claimed_by_name=body.claimed_by_name,
+    )
+
+
+@router.post("/channel/sessions/{session_id}/release", response_model=ShopChannelSessionRead)
+async def release_shop_channel_session_route(
+    session_id: UUID,
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_CHANNEL_SESSIONS_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request,
+            subpath=f"channel/sessions/{session_id}/release",
+            tenant_id=tenant_id,
+        )
+    return await ShopChannelConversationService(db).release_session(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        session_id=session_id,
+    )
+
+
+@router.post(
+    "/channel/sessions/{session_id}/reply",
+    response_model=ShopChannelMessageRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def reply_shop_channel_session_route(
+    session_id: UUID,
+    body: ShopChannelSessionReplyIn,
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_CHANNEL_SESSIONS_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request,
+            subpath=f"channel/sessions/{session_id}/reply",
+            tenant_id=tenant_id,
+        )
+    return await ShopChannelConversationService(db).reply_session(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        session_id=session_id,
+        text=body.text,
+        staff_user_id=body.staff_user_id,
+        staff_name=body.staff_name,
+    )
+
+
+@router.post(
+    "/channel/sessions/{session_id}/messages/{message_id}/promote-faq-suggestion",
+    response_model=ShopFaqSuggestionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def promote_shop_channel_message_to_faq_route(
+    session_id: UUID,
+    message_id: UUID,
+    body: ShopFaqInboxPromoteIn,
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_CHANNEL_SESSIONS_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request,
+            subpath=(
+                f"channel/sessions/{session_id}/messages/{message_id}/promote-faq-suggestion"
+            ),
+            tenant_id=tenant_id,
+        )
+    return await ShopChannelConversationService(db).promote_message_to_faq_suggestion(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        session_id=session_id,
+        message_id=message_id,
+        kb_id=body.kb_id,
+    )
+
+
+@router.get("/channel-bots", response_model=ShopChannelBotList)
+async def list_shop_channel_bots_route(
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_CHANNEL_BOTS_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request,
+            subpath="channel-bots",
+            tenant_id=tenant_id,
+        )
+    return await ShopChannelBotService(db).list_for_tenant(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.post(
+    "/channel-bots",
+    response_model=ShopChannelBotRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_shop_channel_bot_route(
+    data: ShopChannelBotCreate,
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_CHANNEL_BOTS_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request,
+            subpath="channel-bots",
+            tenant_id=tenant_id,
+        )
+    if data.tenant_id != tenant_id:
+        raise BadRequestError(
+            message="tenant_id must match X-Tenant-Id",
+            details={"header": str(tenant_id), "body": str(data.tenant_id)},
+        )
+    if data.bot_kind != BOT_KIND_SHOP_CSKH:
+        raise BadRequestError(message="bot_kind must be shop_cskh")
+    return await ShopChannelBotService(db).create(
+        data,
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+    )
+
+
+@router.patch("/channel-bots/{bot_id}", response_model=ShopChannelBotRead)
+async def update_shop_channel_bot_route(
+    bot_id: UUID,
+    data: ShopChannelBotUpdate,
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_CHANNEL_BOTS_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request,
+            subpath=f"channel-bots/{bot_id}",
+            tenant_id=tenant_id,
+        )
+    return await ShopChannelBotService(db).update(
+        bot_id,
+        data,
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+    )
+
+
+@router.delete(
+    "/channel-bots/{bot_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+async def delete_shop_channel_bot_route(
+    bot_id: UUID,
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> None:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_CHANNEL_BOTS_ENABLED:
+        await proxy_shop_ai_request(
+            request=request,
+            subpath=f"channel-bots/{bot_id}",
+            tenant_id=tenant_id,
+        )
+        return
+    await ShopChannelBotService(db).delete(
+        bot_id,
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+    )
+
+
+@router.get("/zalo-oauth/status")
+async def zalo_oauth_status_route(_api_key: ValidAPIKey) -> Any:
+    app_id = (app_settings.ZALO_OA_APP_ID or "").strip()
+    app_secret = (app_settings.ZALO_OA_APP_SECRET or "").strip()
+    redirect_uri = (app_settings.ZALO_OA_OAUTH_REDIRECT_URI or "").strip()
+    return {
+        "configured": bool(app_id and app_secret and redirect_uri),
+        "redirect_uri": redirect_uri or None,
+    }
+
+
+@router.post("/zalo-oauth/start", response_model=ShopZaloOAuthStartOut)
+async def start_zalo_oauth_route(
+    data: ShopZaloOAuthStartIn,
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_ZALO_OAUTH_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request, subpath="zalo-oauth/start", tenant_id=tenant_id
+        )
+    result = await start_shop_zalo_oauth(
+        db,
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        name=data.name,
+        default_kb_id=data.default_kb_id,
+        bot_id=data.bot_id,
+        return_url=data.return_url,
+        failure_url=data.failure_url,
+    )
+    return ShopZaloOAuthStartOut(**result)
+
+
+@router.post("/llm-generate", response_model=ShopLlmGenerateOut)
+async def llm_generate_route(
+    data: ShopLlmGenerateIn,
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_LLM_GENERATE_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request, subpath="llm-generate", tenant_id=tenant_id
+        )
+    return await ShopLlmGenerateService().generate(data)
+
+
+@router.post("/email-generate")
+async def email_generate_route(
+    data: ShopEmailGenerateIn,
+    request: Request,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    if data.tenant_id is not None and data.tenant_id != tenant_id:
+        raise BadRequestError(
+            message="tenant_id must match X-Tenant-Id",
+            details={"header": str(tenant_id), "body": str(data.tenant_id)},
+        )
+    await require_org_for_shop_tenant(db, tenant_id)
+    if not app_settings.SHOP_AI_NATIVE_LLM_GENERATE_ENABLED:
+        return await proxy_shop_ai_request(
+            request=request, subpath="email-generate", tenant_id=tenant_id
+        )
+    return await ShopEmailGenerateService().generate(data)
+
+
+@router.get("/catalog-sync", response_model=ShopCatalogSyncStatusRead)
+async def get_catalog_sync_status_route(
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    return await ShopCatalogSyncService(db).get_status(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+    )
+
+
+@router.patch("/catalog-sync", response_model=ShopCatalogSyncStatusRead)
+async def patch_catalog_sync_settings_route(
+    data: ShopCatalogSyncSettingsPatch,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    return await ShopCatalogSyncService(db).set_enabled(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        enabled=data.enabled,
+    )
+
+
+@router.post("/catalog-sync/run", response_model=ShopCatalogSyncRunOut)
+async def run_catalog_sync_route(
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    return await ShopCatalogSyncService(db).run(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        manual=True,
+    )
+
+
+@router.post(
+    "/catalog-sync/items/{item_id}",
+    response_model=ShopCatalogSyncItemQueued,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def queue_catalog_item_sync_route(
+    item_id: UUID,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+    action: str = Query("auto", pattern="^(auto|upsert|tombstone)$"),
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    queue_catalog_item_sync_after_commit(
+        db,
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        item_id=item_id,
+        action=action,
+    )
+    return ShopCatalogSyncItemQueued(item_id=item_id, action=action)
+
+
+@router.post(
+    "/catalog-sync/items/{item_id}/sync",
+    response_model=ShopCatalogSyncItemOut,
+)
+async def sync_catalog_item_now_route(
+    item_id: UUID,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+    action: str = Query("auto", pattern="^(auto|upsert|tombstone)$"),
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    return await ShopCatalogSyncService(db).sync_item_by_id(
+        organization_id=org.id,
+        minerp_tenant_id=tenant_id,
+        item_id=item_id,
+        action=action,
+    )
+
+
+@router.get("/background-jobs", response_model=ShopAgentBackgroundJobList)
+async def list_background_jobs_route(
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    await require_org_for_shop_tenant(db, tenant_id)
+    return await ShopAgentBackgroundJobService(db).list_for_tenant(
+        tenant_id,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.post(
+    "/background-jobs",
+    response_model=ShopAgentBackgroundJobRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_background_job_route(
+    data: ShopAgentBackgroundJobCreate,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    org = await require_org_for_shop_tenant(db, tenant_id)
+    return await ShopAgentBackgroundJobService(db).schedule(
+        data,
+        minerp_tenant_id=tenant_id,
+        organization_id=org.id,
+    )
+
+
+@router.get("/background-jobs/{job_id}", response_model=ShopAgentBackgroundJobRead)
+async def get_background_job_route(
+    job_id: UUID,
+    db: DBSession,
+    _api_key: ValidAPIKey,
+    x_tenant_id: Annotated[str | None, Header(alias="X-Tenant-Id")] = None,
+) -> Any:
+    tenant_id = _parse_tenant_header(x_tenant_id)
+    await require_org_for_shop_tenant(db, tenant_id)
+    return await ShopAgentBackgroundJobService(db).get_read_for_tenant(tenant_id, job_id)
 
 
 @router.get("/live-agent/inbox-summary", response_model=ShopLiveAgentInboxSummaryRead)

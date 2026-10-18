@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import WebSocket, WebSocketDisconnect
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import ModelMessage
 
 from app.agents.ask_user import QuestionItem, asking_delegate, render_answer
@@ -108,10 +109,66 @@ def _turn_failed(exc: Exception) -> str:
     `GuardrailBlocked` are caught above and passed through whole, because their
     messages are written in this repository.
     """
+    http = _model_http_error(exc)
+    if http is not None:
+        if http.status_code == 402:
+            return (
+                "The model provider refused the request for want of credit (HTTP 402). "
+                "Add credit to the account behind the agent's model profile, or start a "
+                "new conversation with less history."
+            )
+        return (
+            f"The agent could not finish this turn (ModelHTTPError, HTTP {http.status_code}). "
+            "Check the agent's model profile — provider, model id, API key and base URL — "
+            "then try again. The server log has the full error."
+        )
+    api = _model_api_error(exc)
+    if api is not None:
+        return (
+            f"The agent could not finish this turn (ModelAPIError, model {api.model_name!r}). "
+            "The backend usually could not reach the model server — wrong endpoint, Ollama not "
+            "running, or a timeout. If Agenticos runs in Docker, the endpoint must not be "
+            "localhost:11434; use http://host.docker.internal:11434/v1 from the app container. "
+            "The server log has the full error."
+        )
     return (
         f"The agent could not finish this turn ({type(exc).__name__}). "
         "Try again; the server log has the full error."
     )
+
+
+def _walk_failure_nodes(exc: BaseException) -> list[BaseException]:
+    """Every exception nested in groups, causes and contexts."""
+    seen: set[int] = set()
+    stack: list[BaseException] = [exc]
+    nodes: list[BaseException] = []
+    while stack:
+        node = stack.pop()
+        if id(node) in seen:
+            continue
+        seen.add(id(node))
+        nodes.append(node)
+        if isinstance(node, BaseExceptionGroup):
+            stack.extend(node.exceptions)
+        if node.__cause__ is not None:
+            stack.append(node.__cause__)
+        if node.__context__ is not None and node.__context__ is not node.__cause__:
+            stack.append(node.__context__)
+    return nodes
+
+
+def _model_http_error(exc: BaseException) -> ModelHTTPError | None:
+    for node in _walk_failure_nodes(exc):
+        if isinstance(node, ModelHTTPError):
+            return node
+    return None
+
+
+def _model_api_error(exc: BaseException) -> ModelAPIError | None:
+    for node in _walk_failure_nodes(exc):
+        if isinstance(node, ModelAPIError) and not isinstance(node, ModelHTTPError):
+            return node
+    return None
 
 
 class AgentSession:

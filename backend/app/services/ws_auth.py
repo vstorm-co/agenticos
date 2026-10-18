@@ -18,11 +18,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from app.core.exceptions import AuthenticationError, NotFoundError
-from app.core.security import verify_token
-from app.services.impersonation import ImpersonationService
-from app.services.session import SessionService
-from app.services.user import UserService
+from app.services.access_auth import resolve_user_from_access_token
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,26 +60,4 @@ async def authenticate_socket_token(
             or an impersonation that has ended, or resolves to a user who is unknown or
             suspended.
     """
-    payload = verify_token(token, verify_exp=not allow_expired)
-    if payload is None:
-        raise AuthenticationError(message="Invalid or expired token")
-
-    if payload.get("type") != "access":
-        raise AuthenticationError(message="Invalid token type")
-
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise AuthenticationError(message="Invalid token payload")
-
-    await ImpersonationService(db).verify(payload=payload, token=token, subject=user_id)
-    await SessionService(db).verify_access_session(payload=payload, subject=user_id)
-
-    try:
-        user = await UserService(db).get_by_id(UUID(user_id))
-    except NotFoundError:
-        raise AuthenticationError(message="User not found") from None
-
-    if not user.is_active:
-        raise AuthenticationError(message="User account is disabled")
-
-    return user
+    return await resolve_user_from_access_token(db, token, allow_expired=allow_expired)

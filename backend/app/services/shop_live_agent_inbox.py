@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories import organization as organization_repo
+from app.repositories import shop_channel_session as shop_channel_session_repo
 from app.repositories import shop_widget_handling as widget_handling_repo
 from app.schemas.shop_live_agent_inbox import ShopLiveAgentInboxSummaryRead
 from app.services.shop_channel_handling import HANDLING_MODE_QUEUED
@@ -31,6 +32,12 @@ async def release_idle_human_sessions(
         tenant_id=tenant_id,
         idle_before=idle_before,
     )
+    await shop_channel_session_repo.release_idle_human_sessions_for_shop(
+        db,
+        organization_id=organization_id,
+        minerp_tenant_id=tenant_id,
+        idle_before=idle_before,
+    )
 
 
 async def release_idle_human_sessions_all_shop_orgs(db: AsyncSession) -> dict[str, int]:
@@ -48,6 +55,12 @@ async def release_idle_human_sessions_all_shop_orgs(db: AsyncSession) -> dict[st
             db,
             organization_id=org.id,
             tenant_id=org.minerp_tenant_id,
+            idle_before=idle_before,
+        )
+        widget_rows_released += await shop_channel_session_repo.release_idle_human_sessions_for_shop(
+            db,
+            organization_id=org.id,
+            minerp_tenant_id=org.minerp_tenant_id,
             idle_before=idle_before,
         )
         released_orgs += 1
@@ -78,9 +91,20 @@ class ShopLiveAgentInboxService:
             organization_id,
             handling_mode=HANDLING_MODE_QUEUED,
         )
-        # Channel live-agent OLTP not on Agentra yet — counts stay 0 until D3 channel slice.
-        zalo = 0
-        messenger = 0
+        zalo = await shop_channel_session_repo.count_by_handling_mode_for_shop(
+            self.db,
+            organization_id=organization_id,
+            minerp_tenant_id=tenant_id,
+            handling_mode=HANDLING_MODE_QUEUED,
+            platform="zalo",
+        )
+        messenger = await shop_channel_session_repo.count_by_handling_mode_for_shop(
+            self.db,
+            organization_id=organization_id,
+            minerp_tenant_id=tenant_id,
+            handling_mode=HANDLING_MODE_QUEUED,
+            platform="messenger",
+        )
         return ShopLiveAgentInboxSummaryRead(
             queued_widget_count=widget,
             queued_zalo_count=zalo,

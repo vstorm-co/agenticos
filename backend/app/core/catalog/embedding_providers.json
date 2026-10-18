@@ -7,7 +7,8 @@
     "models": [
       { "model": "text-embedding-3-small", "dim": 1536 },
       { "model": "text-embedding-3-large", "dim": 3072 },
-      { "model": "text-embedding-ada-002", "dim": 1536 }
+      { "model": "text-embedding-ada-002", "dim": 1536 },
+      { "model": "qwen/qwen3-embedding-8b", "dim": 1536 }
     ]
   },
   {

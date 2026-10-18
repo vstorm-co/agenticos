@@ -60,6 +60,7 @@ from app.repositories import local_service_repo, organization_secret_repo
 from app.services.model_profile import ModelProfileService
 from app.services.rag.config import (
     EMBEDDING_DIMENSIONS,
+    PGVECTOR_MAX_INDEXABLE_EMBEDDING_DIM,
     PdfParser,
     RAGSettings,
 )
@@ -461,7 +462,14 @@ def chosen_embedding(model: str | None) -> tuple[str, int]:
             f"'{model}' is not an embedding model this build knows. "
             f"Choose one of: {', '.join(sorted(EMBEDDING_DIMENSIONS))}.",
         )
-    return model, EMBEDDING_DIMENSIONS[model]
+    dim = EMBEDDING_DIMENSIONS[model]
+    if dim > PGVECTOR_MAX_INDEXABLE_EMBEDDING_DIM:
+        raise refused_field(
+            "embedding_model",
+            f"'{model}' produces {dim}-wide vectors, but this deployment can index "
+            f"at most {PGVECTOR_MAX_INDEXABLE_EMBEDDING_DIM}. Choose a smaller model.",
+        )
+    return model, dim
 
 
 def rag_settings_for(

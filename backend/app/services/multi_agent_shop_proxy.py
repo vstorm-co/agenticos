@@ -80,6 +80,61 @@ def _filter_response_headers(headers: httpx.Headers) -> dict[str, str]:
     }
 
 
+def shop_ai_proxy_headers(
+    *,
+    api_key: str,
+    tenant_id: UUID,
+    organization_id: UUID | None = None,
+    content_type: str | None = "application/json",
+) -> dict[str, str]:
+    headers: dict[str, str] = {
+        settings.API_KEY_HEADER: api_key,
+        "X-Tenant-Id": str(tenant_id),
+    }
+    if organization_id is not None:
+        headers["X-Organization-Id"] = str(organization_id)
+    if content_type:
+        headers["Content-Type"] = content_type
+    headers["Accept"] = "application/json"
+    return headers
+
+
+async def post_shop_ai_json(
+    *,
+    subpath: str,
+    tenant_id: UUID,
+    payload: dict,
+    organization_id: UUID | None = None,
+) -> dict:
+    """Server-side POST to multi-agent shop-ai (B78 channel agent strangler)."""
+    _, api_key = _multi_agent_base_and_key()
+    url = _upstream_url(subpath, "")
+    headers = shop_ai_proxy_headers(
+        api_key=api_key,
+        tenant_id=tenant_id,
+        organization_id=organization_id,
+    )
+    timeout = httpx.Timeout(_timeout_for_subpath(subpath))
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            upstream = await client.post(url, headers=headers, json=payload)
+    except httpx.HTTPError as exc:
+        raise ExternalServiceError(
+            message="Shop AI upstream unavailable",
+            details={"upstream": "multi-agent", "subpath": subpath},
+        ) from exc
+    if upstream.status_code >= 400:
+        raise ExternalServiceError(
+            message="Shop AI upstream rejected request",
+            details={
+                "upstream": "multi-agent",
+                "subpath": subpath,
+                "status_code": upstream.status_code,
+            },
+        )
+    return upstream.json()
+
+
 def _forward_headers(request: Request, *, api_key: str, tenant_id: UUID) -> dict[str, str]:
     headers: dict[str, str] = {
         settings.API_KEY_HEADER: api_key,

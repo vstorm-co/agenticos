@@ -1,13 +1,19 @@
 """ChannelBot model - one row per registered bot instance (PostgreSQL async)."""
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
 from app.services.channels.base import DEFAULT_ACCESS_POLICY
+
+BOT_KIND_PLATFORM = "platform"
+BOT_KIND_SHOP_CSKH = "shop_cskh"
+AUTH_METHOD_TOKEN_PASTE = "token_paste"
+AUTH_METHOD_OAUTH = "oauth"
 
 
 class ChannelBot(Base, TimestampMixin):
@@ -81,6 +87,27 @@ class ChannelBot(Base, TimestampMixin):
         nullable=False,
         default=lambda: dict(DEFAULT_ACCESS_POLICY),
     )
+    # Shop CSKH (D3 B65+) — scoped by minerp tenant + org.
+    minerp_tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+    bot_kind: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=BOT_KIND_PLATFORM, server_default=BOT_KIND_PLATFORM
+    )
+    default_kb_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("knowledge_bases.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    auth_method: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=AUTH_METHOD_TOKEN_PASTE,
+        server_default=AUTH_METHOD_TOKEN_PASTE,
+    )
+    refresh_token_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    zalo_oa_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
     @property
     def has_webhook_secret(self) -> bool:

@@ -366,6 +366,16 @@ class ChannelMessageRouter:
 
         session = await self._resolve_session(incoming, bot, identity, db)
 
+        from app.services.shop_channel_inbound import handle_shop_channel_inbound
+
+        if await handle_shop_channel_inbound(
+            db,
+            bot=bot,
+            session=session,
+            incoming=incoming,
+        ):
+            return
+
         try:
             await self._check_rate_limit(bot, str(identity.id))
         except BadRequestError as exc:
@@ -1156,6 +1166,12 @@ class ChannelMessageRouter:
         cmd = text.split(maxsplit=1)[0].lower().split("@")[0]  # strip @botname suffix
 
         if cmd == "/start":
+            from app.db.models.channel_bot import BOT_KIND_SHOP_CSKH
+
+            if getattr(bot, "bot_kind", None) == BOT_KIND_SHOP_CSKH:
+                from app.services.shop_channel_handling import shop_cskh_welcome_message
+
+                return shop_cskh_welcome_message(bot.name or "Shop")
             return (
                 f"Welcome! I'm {bot.name}. How can I help you today?\n\n"
                 "Use /help to see available commands."

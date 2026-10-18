@@ -79,6 +79,10 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     name: str
     slug: str
     is_personal: bool
+    minerp_tenant_id: _ID | None = Field(
+        default=None,
+        description="Minerp IAM tenant when this team org is a merchant workspace.",
+    )
     avatar_url: str | None = None
     avatar_color: int | None = None
     member_count: int = 0
