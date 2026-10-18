@@ -156,5 +156,43 @@ async def test_cancelling_the_worker_stops_every_sweep() -> None:
     )
     await asyncio.sleep(0)
     task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
+    await asyncio.gather(task, return_exceptions=True)
+
+    assert task.cancelled()
+
+
+class TestTheSyncCheck:
+    """`dispatch_due_syncs`: one yes-or-no query, and a flow run only for a yes."""
+
+    @staticmethod
+    def _wire(monkeypatch: pytest.MonkeyPatch, *, due: bool) -> Any:
+        from contextlib import asynccontextmanager
+        from unittest.mock import AsyncMock
+
+        from app.worker.tasks import rag_tasks
+
+        @asynccontextmanager
+        async def session() -> Any:
+            yield object()
+
+        monkeypatch.setattr(rag_tasks, "get_worker_db_context", session)
+        monkeypatch.setattr(
+            rag_tasks.sync_source_repo, "any_due_for_sync", AsyncMock(return_value=due)
+        )
+        submitted = AsyncMock()
+        monkeypatch.setattr("prefect.deployments.run_deployment", submitted)
+        return rag_tasks, submitted
+
+    async def test_a_due_source_starts_the_sync_check_without_waiting_for_it(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        rag_tasks, submitted = self._wire(monkeypatch, due=True)
+
+        assert await rag_tasks.dispatch_due_syncs() is True
+        submitted.assert_awaited_once_with(name="rag-sync-check/rag-sync-check", timeout=0)
+
+    async def test_nothing_due_starts_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        rag_tasks, submitted = self._wire(monkeypatch, due=False)
+
+        assert await rag_tasks.dispatch_due_syncs() is False
+        submitted.assert_not_awaited()

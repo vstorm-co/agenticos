@@ -351,15 +351,13 @@ async def probe_model_access(db: AsyncSession) -> SystemCheck:
     )
 
 
-_SWEEP = "agent-triggers-check"
-"""The trigger heartbeat, one of the worker's in-process sweeps (`app/worker/sweeps.py`).
-
-It stands for all of them: they run in one process on one loop, so when it stops
-finishing ticks, the others have stopped with it.
-"""
-
 _SWEEP_SECONDS = 60
-"""The sweep's interval in `app/worker/prefect_app.py`."""
+"""The sweeps' interval in `app/worker/prefect_app.py`.
+
+Every sweep is checked, not one standing for the rest: each runs as its own task
+and fails on its own - a mailbox poll that hangs leaves the trigger heartbeat
+ticking.
+"""
 
 _PREFECT_DEPLOYMENT = "mcp-connection-sweep"
 """The most frequent deployment Prefect still schedules, as `prefect_app` registers it.
@@ -444,7 +442,10 @@ async def probe_scheduler(redis: RedisClient) -> SystemCheck:
     start = perf_counter()
     try:
         async with asyncio.timeout(PROBE_TIMEOUT_SECONDS):
-            swept_at = await worker_heartbeat.last(redis, _SWEEP)
+            swept = {
+                sweep: await worker_heartbeat.last(redis, sweep)
+                for sweep in worker_heartbeat.SWEEPS
+            }
             ran_at = await _last_prefect_run()
     except TimeoutError:
         return _timed_out("scheduler", "Redis or the Prefect API")
@@ -457,17 +458,22 @@ async def probe_scheduler(redis: RedisClient) -> SystemCheck:
         )
     latency = _elapsed_ms(start)
     prefect_interval = max(_PREFECT_SECONDS, settings.WORKER_MIN_INTERVAL_SECONDS)
-    problem = _stale(f"the worker's {_SWEEP} sweep", swept_at, _SWEEP_SECONDS) or _stale(
-        f"Prefect's {_PREFECT_DEPLOYMENT} deployment", ran_at, prefect_interval
-    )
-    # `_stale` answers a problem for a missing time, so past this both are set.
-    if problem is not None or swept_at is None or ran_at is None:
+    problems = [
+        problem
+        for sweep, swept_at in swept.items()
+        if (problem := _stale(f"the worker's {sweep} sweep", swept_at, _SWEEP_SECONDS))
+    ]
+    if problem := _stale(f"Prefect's {_PREFECT_DEPLOYMENT} deployment", ran_at, prefect_interval):
+        problems.append(problem)
+    times = [at for at in swept.values() if at is not None]
+    # `_stale` answers a problem for a missing time, so past this every time is set.
+    if problems or ran_at is None or len(times) < len(swept):
         return SystemCheck(
             key="scheduler",
             status="unhealthy",
             detail=(
-                f"{problem}; check that the worker is up and the Prefect server log for "
-                "scheduler errors"
+                f"{'; '.join(problems)}; check that the worker is up, its log for the "
+                "sweep's errors, and the Prefect server log for scheduler errors"
             ),
             latency_ms=latency,
         )
@@ -476,7 +482,8 @@ async def probe_scheduler(redis: RedisClient) -> SystemCheck:
         key="scheduler",
         status="healthy",
         detail=(
-            f"the {_SWEEP} sweep ticked {(now - swept_at).total_seconds():.0f}s ago, and "
+            f"all {len(times)} sweeps ticked within "
+            f"{(now - min(times)).total_seconds():.0f}s, and "
             f"{_PREFECT_DEPLOYMENT} completed {(now - ran_at).total_seconds() / 60:.0f} min ago"
         ),
         latency_ms=latency,

@@ -434,7 +434,7 @@ class TestSchedulerProbe:
         check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
 
         assert check.status == "healthy"
-        assert "agent-triggers-check sweep ticked 40s ago" in check.detail
+        assert "all 4 sweeps ticked within 40s" in check.detail
         assert "mcp-connection-sweep completed 9 min ago" in check.detail
         assert check.latency_ms is not None
 
@@ -462,6 +462,25 @@ class TestSchedulerProbe:
         assert check.status == "unhealthy"
         assert "last completed 120 min ago" in check.detail
         assert "expected every 60s" in check.detail
+
+    async def test_one_sweep_that_stopped_is_unhealthy_however_well_the_rest_tick(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Each sweep is its own task: a mailbox poll that hangs leaves the
+        trigger heartbeat ticking, and the probe must still say so."""
+        now = datetime.now(UTC)
+        _heartbeat(monkeypatch, sweep=now, prefect=now)
+
+        async def last(_redis: object, sweep: str) -> datetime | None:
+            return now - timedelta(hours=1) if sweep == "portal-poll" else now
+
+        monkeypatch.setattr(health.worker_heartbeat, "last", last)
+
+        check = await health.probe_scheduler(_Redis())  # type: ignore[arg-type]
+
+        assert check.status == "unhealthy"
+        assert "portal-poll sweep last completed 60 min ago" in check.detail
+        assert "agent-triggers-check" not in check.detail
 
     async def test_a_scheduler_that_never_ran_anything_is_unhealthy(
         self, monkeypatch: pytest.MonkeyPatch

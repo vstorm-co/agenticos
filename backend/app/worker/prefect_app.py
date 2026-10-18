@@ -82,6 +82,47 @@ SWEEPS = (
 )
 """The minute-scale work, in this process - see `app/worker/sweeps.py`."""
 
+RETIRED_DEPLOYMENTS = (
+    "agent-triggers-check/agent-triggers-check",
+    "portal-poll/portal-poll",
+    "notification-delivery-sweep/notification-delivery-sweep",
+)
+"""The deployments `SWEEPS` replaced (#2213), by their "<flow>/<deployment>" handle."""
+
+_UNSCHEDULED = ("rag-sync-check/rag-sync-check",)
+"""Deployments that kept their name but lost their schedule when their sweep took it."""
+
+
+async def retire_minute_deployments() -> None:
+    """Remove what Prefect still schedules for the work `SWEEPS` now does.
+
+    A deployment and its schedule live in Prefect's database, not in this code,
+    and registering the deployments that remain does not touch the ones that do
+    not: left there, the server would go on creating a run a minute for each that
+    nothing serves - the Late backlog `SWEEPS` exists to end. Missing is fine;
+    anything else is logged, and the worker starts regardless.
+    """
+    from prefect.client.orchestration import get_client
+    from prefect.exceptions import ObjectNotFound
+
+    async with get_client() as client:
+        for name in RETIRED_DEPLOYMENTS + _UNSCHEDULED:
+            try:
+                deployment = await client.read_deployment_by_name(name)
+                if name in RETIRED_DEPLOYMENTS:
+                    await client.delete_deployment(deployment.id)
+                    logger.info("retired_deployment", extra={"deployment": name})
+                    continue
+                for schedule in await client.read_deployment_schedules(deployment.id):
+                    await client.delete_deployment_schedule(deployment.id, schedule.id)
+            except ObjectNotFound:
+                continue
+            except Exception:
+                logger.warning(
+                    "retiring_deployment_failed", extra={"deployment": name}, exc_info=True
+                )
+
+
 # The scheduled sweeps here work over current state, so a tick that arrives
 # while the previous one is still running has nothing of its own to do. Without
 # a limit those ticks queue: on 2026-10-17 the production host fell behind, each
@@ -276,14 +317,16 @@ async def main() -> None:
     # unhealthy rather than as fine. Before this, the runner inherited the API's
     # HTTP probe from the shared image and was unhealthy from the second it
     # started, which is a status nobody can act on.
+    await retire_minute_deployments()
     redis = RedisClient()
     await redis.connect()
     try:
         async with asyncio.TaskGroup() as group:
-            group.create_task(
-                aserve(*deployments, limit=settings.PREFECT_RUNNER_LIMIT, webserver=True)
-            )
-            group.create_task(run_sweeps(SWEEPS, redis))
+            sweeping = group.create_task(run_sweeps(SWEEPS, redis))
+            await aserve(*deployments, limit=settings.PREFECT_RUNNER_LIMIT, webserver=True)
+            # The runner stopped - through its `/shutdown` endpoint, say - so nothing
+            # would run what the sweeps submit: they stop with it, and the process exits.
+            sweeping.cancel()
     finally:
         await redis.close()
 

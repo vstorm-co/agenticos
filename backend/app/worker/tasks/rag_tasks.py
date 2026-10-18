@@ -360,7 +360,7 @@ async def dispatch_due_syncs() -> bool:
     from prefect.deployments import run_deployment
 
     async with get_worker_db_context() as db:
-        due = await sync_source_repo.get_due_for_sync(db)
+        due = await sync_source_repo.any_due_for_sync(db)
     if not due:
         return False
     # `run_deployment` is sync-compatible: see `dispatch_trigger_fire`.

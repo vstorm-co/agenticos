@@ -1,5 +1,6 @@
 """The Prefect runner registers its deployments with a ceiling on concurrency."""
 
+import asyncio
 from datetime import timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -12,6 +13,9 @@ from app.worker import prefect_app
 
 pytestmark = pytest.mark.anyio
 
+# Kept before the autouse fixture below stands a stub in for it.
+_RETIRE = prefect_app.retire_minute_deployments
+
 
 @pytest.fixture(autouse=True)
 def sweeps(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
@@ -23,10 +27,14 @@ def sweeps(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     redis = MagicMock(connect=AsyncMock(), close=AsyncMock())
     monkeypatch.setattr(prefect_app, "RedisClient", MagicMock(return_value=redis))
 
-    async def run_sweeps(sweeps: Any, client: Any) -> None:
+    def run_sweeps(sweeps: Any, client: Any) -> Any:
+        # Recorded at the call: the runner below returns at once, and the task is
+        # cancelled before its body would have run.
         seen["sweeps"], seen["redis"] = sweeps, client
+        return asyncio.sleep(0)
 
     monkeypatch.setattr(prefect_app, "run_sweeps", run_sweeps)
+    monkeypatch.setattr(prefect_app, "retire_minute_deployments", AsyncMock())
     seen["client"] = redis
     return seen
 
@@ -208,3 +216,105 @@ async def test_the_minute_sweeps_run_in_this_process_beside_the_runner(
         call.args[0].name: call.args[0] for call in captured_runner.add_deployment.call_args_list
     }
     assert not registered["rag-sync-check"].schedules
+
+
+def test_every_sweep_the_worker_runs_is_one_the_health_probe_checks() -> None:
+    """A sweep added here and not there would stop with nobody told."""
+    from app.services import worker_heartbeat
+
+    assert tuple(sweep.name for sweep in prefect_app.SWEEPS) == worker_heartbeat.SWEEPS
+
+
+async def test_the_sweeps_stop_when_the_runner_does(
+    captured_runner: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A runner stopped through `/shutdown` runs nothing more, so the sweeps must
+    not go on claiming triggers and submitting runs for it."""
+    stopped = asyncio.Event()
+
+    async def forever(*_: object) -> None:
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            stopped.set()
+            raise
+
+    monkeypatch.setattr(prefect_app, "run_sweeps", forever)
+
+    async def runs_a_while() -> None:
+        await asyncio.sleep(0.05)
+
+    captured_runner.start = AsyncMock(side_effect=runs_a_while)
+
+    await asyncio.wait_for(prefect_app.main(), timeout=5)
+
+    assert stopped.is_set()
+
+
+class TestRetiringTheMinuteDeployments:
+    """What Prefect still schedules for work the sweeps took over."""
+
+    @staticmethod
+    def _client(monkeypatch: pytest.MonkeyPatch, known: dict[str, Any]) -> MagicMock:
+        from prefect.exceptions import ObjectNotFound
+
+        client = MagicMock()
+
+        async def read(name: str) -> Any:
+            found = known.get(name)
+            if found is None:
+                raise ObjectNotFound(http_exc=Exception(name))
+            if isinstance(found, Exception):
+                raise found
+            return found
+
+        client.read_deployment_by_name = AsyncMock(side_effect=read)
+        client.delete_deployment = AsyncMock()
+        client.read_deployment_schedules = AsyncMock(
+            return_value=[MagicMock(id="s-1"), MagicMock(id="s-2")]
+        )
+        client.delete_deployment_schedule = AsyncMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=False)
+        monkeypatch.setattr("prefect.client.orchestration.get_client", lambda: client)
+        return client
+
+    async def test_the_replaced_deployments_go_and_the_sync_check_loses_its_schedule(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Left behind, each would still get a run a minute that nothing serves -
+        the Late backlog the sweeps exist to end."""
+        known = {name: MagicMock(id=f"d-{name}") for name in prefect_app.RETIRED_DEPLOYMENTS}
+        known["rag-sync-check/rag-sync-check"] = MagicMock(id="d-sync")
+        client = self._client(monkeypatch, known)
+
+        await _RETIRE()
+
+        assert [call.args[0] for call in client.delete_deployment.await_args_list] == [
+            f"d-{name}" for name in prefect_app.RETIRED_DEPLOYMENTS
+        ]
+        assert [call.args for call in client.delete_deployment_schedule.await_args_list] == [
+            ("d-sync", "s-1"),
+            ("d-sync", "s-2"),
+        ]
+
+    async def test_a_fresh_database_with_none_of_them_is_fine(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        client = self._client(monkeypatch, {})
+
+        await _RETIRE()
+
+        client.delete_deployment.assert_not_awaited()
+        client.delete_deployment_schedule.assert_not_awaited()
+
+    async def test_a_failure_is_logged_and_the_worker_still_starts(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        name = prefect_app.RETIRED_DEPLOYMENTS[0]
+        client = self._client(monkeypatch, {name: RuntimeError("database is locked")})
+
+        await _RETIRE()
+
+        assert "retiring_deployment_failed" in caplog.text
+        client.delete_deployment.assert_not_awaited()
