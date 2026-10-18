@@ -234,12 +234,8 @@ class TestReadingATask:
         served = _Served(agent)
         run = _run(agent_id=agent.id)
         served.runner.get_run.return_value = run
-        turns = [
-            MagicMock(role="user", content="Hi"),
-            MagicMock(role="assistant", content="Hello."),
-        ]
         with patch.object(
-            module.conversation_repo, "get_messages_by_run", AsyncMock(return_value=turns)
+            module.conversation_repo, "last_answer_of_run", AsyncMock(return_value="Hello.")
         ):
             task = (await _ask(served, self._get(str(run.id))))["result"]
 
@@ -259,7 +255,7 @@ class TestReadingATask:
         served = _Served(agent)
         served.runner.get_run.return_value = _run(status, agent_id=agent.id)
         with patch.object(
-            module.conversation_repo, "get_messages_by_run", AsyncMock(return_value=[])
+            module.conversation_repo, "last_answer_of_run", AsyncMock(return_value=None)
         ):
             task = (await _ask(served, self._get(str(uuid.uuid4()))))["result"]
         assert task["status"]["state"] == state
@@ -282,7 +278,7 @@ class TestReadingATask:
         served = _Served(agent)
         served.runner.get_run.return_value = _run(agent_id=agent.id, user_id=uuid.uuid4())
         with patch.object(
-            module.conversation_repo, "get_messages_by_run", AsyncMock(return_value=[])
+            module.conversation_repo, "last_answer_of_run", AsyncMock(return_value=None)
         ):
             assert (await _ask(served, self._get(str(uuid.uuid4()))))["error"]["code"] == -32001
 

@@ -251,10 +251,12 @@ class A2AServerService:
         return self._task_for(run, answer, parked).model_dump(by_alias=True, exclude_none=True)
 
     async def _answer(self, run: AgentRun) -> str:
-        """What the run said last - read back off its turns, which is where an answer lives."""
-        turns = await conversation_repo.get_messages_by_run(self.db, run.id, limit=200)
-        answers = [turn.content for turn in turns if turn.role == "assistant" and turn.content]
-        return answers[-1] if answers else ""
+        """What the run said last - read back off its turns, which is where an answer lives.
+
+        The newest, however long the run: read oldest first and capped, a run
+        past the cap answered with something it said early on.
+        """
+        return await conversation_repo.last_answer_of_run(self.db, run.id) or ""
 
     @staticmethod
     def _task_for(run: AgentRun, answer: str, parked: list[ParkedCall]) -> Task:

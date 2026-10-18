@@ -1275,6 +1275,22 @@ async def get_messages_by_run(
     return list(result.scalars().all())
 
 
+async def last_answer_of_run(db: AsyncSession, run_id: UUID) -> str | None:
+    """The latest assistant turn one run wrote that says something, or `None`."""
+    result = await db.execute(
+        select(Message.content)
+        .where(
+            Message.run_id == run_id,
+            Message.role == "assistant",
+            Message.content.is_not(None),
+            Message.content != "",
+        )
+        .order_by(Message.ordinal.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def count_messages_by_run(db: AsyncSession, run_id: UUID) -> int:
     """Count the turns one run produced."""
     query = select(func.count(Message.id)).where(Message.run_id == run_id)
