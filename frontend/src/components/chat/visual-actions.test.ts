@@ -63,6 +63,7 @@ describe("a downloaded SVG", () => {
         "<script>steal()</script>" +
         "<style>@import url(https://evil.example/a.css); rect { fill: url(#g); background: url(https://evil.example/b) }</style>" +
         '<a href="javascript:steal()"><rect width="2" height="1" onclick="steal()"/></a>' +
+        '<circle r="1" fill="url(#g)" style="stroke: url(https://evil.example/c)"/>' +
         '<image href="https://evil.example/pixel?data=secret"/>' +
         '<use xlink:href="#shape"/>' +
         '<animate attributeName="href" to="javascript:steal()"/>' +
@@ -74,6 +75,8 @@ describe("a downloaded SVG", () => {
     expect(file.text).toContain("<rect");
     expect(file.text).toContain('xlink:href="#shape"');
     expect(file.text).toContain("url(#g)");
+    expect(file.text).toContain('fill="url(#g)"');
+    expect(file.text).toContain('style="stroke: none"');
   });
 
   it("saves nothing for an SVG the browser could not parse", () => {
