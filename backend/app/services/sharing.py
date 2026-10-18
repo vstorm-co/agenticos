@@ -40,6 +40,7 @@ _CONSOLE_PATHS = {
     "secret": "/vault",
     "artifact": "/apps/{id}",
     "mcp_connection": "/mcp-servers",
+    "project": "/projects/{id}",
 }
 """Where the console opens a shared resource of each kind."""
 
