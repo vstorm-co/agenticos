@@ -26,6 +26,13 @@ Two things are versioned separately from this file and worth knowing about:
   README, its figures and the docs count 29 built-in capabilities and 28 model
   providers. `docs/assets/readme/frames.mjs` sets a screenshot on a photograph.
 
+### Fixed
+
+- **Work while tools run has its picture.** The capability showed a lone initial
+  among the Toolbox's dioramas; it now has its scene - a tool still busy at the
+  back while the agent gets on with its list - and a test fails when a
+  capability is registered without one.
+
 ## [1.6.0] - 2026-10-18
 
 ### Added
