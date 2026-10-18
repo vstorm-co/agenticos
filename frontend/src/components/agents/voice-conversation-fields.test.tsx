@@ -316,42 +316,30 @@ describe("VoiceConversationFields", () => {
     ).toBeInTheDocument();
   });
 
-  it("caps the longest call at the organization's maximum", async () => {
+  it("offers lengths up to the organization's limit, the limit itself first", async () => {
     const { onChange } = mount();
-    await userEvent.type(screen.getByLabelText("Longest call (minutes)"), "20");
-    expect(screen.getByText("At most 10 minutes in this organization.")).toBeInTheDocument();
-    expect(onChange).toHaveBeenLastCalledWith({ ...OPENAI, max_call_seconds: 1200 });
+    await userEvent.click(screen.getByLabelText("Longest call"));
+    const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+    expect(options).toEqual(["Organization's limit (10 min)", "5 min"]);
+    await userEvent.click(screen.getByRole("option", { name: "5 min" }));
+    expect(onChange).toHaveBeenLastCalledWith({ ...OPENAI, max_call_seconds: 300 });
   });
 
-  it("stores the longest call in seconds, empty as the organization's, and refuses a non-count", async () => {
+  it("goes back to the organization's limit as no length at all", async () => {
     const { onChange } = mount({ value: { ...OPENAI, max_call_seconds: 300 } });
-    const field = screen.getByLabelText("Longest call (minutes)");
-    expect(field).toHaveValue("5");
-    await userEvent.clear(field);
+    await choose("Longest call", "Organization's limit (10 min)");
     expect(onChange).toHaveBeenLastCalledWith({ ...OPENAI });
-    onChange.mockClear();
-    await userEvent.type(field, "x");
-    expect(screen.getByText("Enter between 1 and 50 minutes.")).toBeInTheDocument();
-    expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("follows a longest call changed underneath", () => {
-    const { onChange, view } = mount({ value: { ...OPENAI, max_call_seconds: 300 } });
-    view.rerender(
-      <VoiceConversationFields
-        value={{ ...OPENAI, max_call_seconds: 600 }}
-        onChange={onChange}
-        capabilityIds={[]}
-        hasGuardrails={false}
-        orgMaxSeconds={600}
-      />,
-    );
-    expect(screen.getByLabelText("Longest call (minutes)")).toHaveValue("10");
+  it("still shows a stored length over the organization's limit, and says it is", () => {
+    mount({ value: { ...OPENAI, max_call_seconds: 1200 } });
+    expect(screen.getByLabelText("Longest call")).toHaveTextContent("20 min");
+    expect(screen.getByText("At most 10 minutes in this organization.")).toBeInTheDocument();
   });
 
   it("writes the voice note, and an emptied one as null", async () => {
     const { onChange } = mount({ value: { ...OPENAI, voice_note: "x" } });
-    const note = screen.getByLabelText("Voice note");
+    const note = screen.getByRole("textbox", { name: "Instructions for calls" });
     await userEvent.type(note, "y");
     expect(onChange).toHaveBeenLastCalledWith({ ...OPENAI, voice_note: "xy" });
     await userEvent.clear(note);
@@ -367,7 +355,7 @@ describe("VoiceConversationFields", () => {
 
   it("writes a block that empties out as null", async () => {
     const { onChange } = mount({ value: { ...EMPTY, voice_note: "x" } });
-    await userEvent.clear(screen.getByLabelText("Voice note"));
+    await userEvent.clear(screen.getByRole("textbox", { name: "Instructions for calls" }));
     expect(onChange).toHaveBeenLastCalledWith(null);
   });
 
@@ -380,6 +368,6 @@ describe("VoiceConversationFields", () => {
   it("locks everything for somebody who may not edit", () => {
     mount({ disabled: true });
     expect(screen.getByRole("switch", { name: "Allow voice calls" })).toBeDisabled();
-    expect(screen.getByLabelText("Longest call (minutes)")).toBeDisabled();
+    expect(screen.getByLabelText("Longest call")).toBeDisabled();
   });
 });

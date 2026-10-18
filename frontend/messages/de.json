@@ -823,12 +823,11 @@
     "voiceConversationLanguage": "Gesprochene Sprache",
     "voiceConversationLanguageHint": "Die Sprache, in der der Agent in Anrufen spricht.",
     "voiceConversationFollowCaller": "Sprache des Anrufers",
-    "voiceConversationMaxLength": "Maximale Anrufdauer (Minuten)",
-    "voiceConversationMaxHint": "Leer lassen, um das Limit der Organisation zu verwenden.",
-    "voiceConversationMaxInvalid": "Geben Sie einen Wert zwischen 1 und 50 Minuten ein.",
+    "voiceConversationMaxLength": "Längster Anruf",
+    "voiceConversationMaxHint": "Ein Agent kann Anrufe früher beenden als die Organisation, nie später.",
     "voiceConversationMaxOverOrg": "{minutes, plural, one {Höchstens # Minute in dieser Organisation.} other {Höchstens # Minuten in dieser Organisation.}}",
-    "voiceConversationNote": "Hinweis für Anrufe",
-    "voiceConversationNoteHint": "Wird in Anrufen nach dem eingebauten Sprechstil an die Anweisungen des Agents angehängt.",
+    "voiceConversationNote": "Anweisungen für Anrufe",
+    "voiceConversationNoteHint": "Wird nur während Anrufen an die Anweisungen des Agents angehängt, nach seinem eingebauten Sprechstil: wie er begrüßt, wie lange er spricht, was er sagt, bevor ein Tool läuft.",
     "voiceConversationUnavailable": "In Anrufen nicht verfügbar",
     "voiceConversationGuardrails": "Guardrails prüfen Transkripte während eines Anrufs und unterbrechen den Agent, wenn seine Worte einen Treffer auslösen, aber gesprochene Worte lassen sich nicht filtern, bevor sie zu hören sind. Das Ergebnis eines Tools wird weiterhin geprüft, bevor der Agent es liest; Tool-Argumente werden nicht geprüft.",
     "voiceConversationRecorded": "Anrufe werden als Text in der Unterhaltung festgehalten. Es wird kein Audio gespeichert.",
@@ -836,7 +835,10 @@
     "voiceTabCalls": "Sprachanrufe",
     "voiceTabDictation": "Diktieren",
     "voiceCallsLead": "Ein Gespräch in Echtzeit in beide Richtungen: Der Agent hört zu, antwortet laut und behält seine Tools. Man ruft ihn aus dem Chat, dem Website-Widget und der gehosteten Seite an. Läuft auf einem Echtzeit-Sprachmodell.",
-    "voiceDictationLead": "Sprache wird zu Text, den die Person vor dem Senden liest: das Mikrofon im Chat und Sprachnachrichten an die Channel-Bots dieses Agents. Läuft auf einem Transkriptionsmodell."
+    "voiceDictationLead": "Sprache wird zu Text, den die Person vor dem Senden liest: das Mikrofon im Chat und Sprachnachrichten an die Channel-Bots dieses Agents. Läuft auf einem Transkriptionsmodell.",
+    "voiceConversationNotePlaceholder": "Begrüße die anrufende Person mit Namen. Antworte in zwei Sätzen und frage dann, ob sie mehr Details möchte.",
+    "voiceConversationMaxOrg": "Limit der Organisation ({minutes} Min.)",
+    "voiceConversationMaxMinutes": "{minutes} Min."
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",

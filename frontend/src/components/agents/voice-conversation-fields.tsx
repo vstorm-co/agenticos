@@ -2,7 +2,7 @@
 
 import { Info } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useId, useState } from "react";
+import { useId } from "react";
 
 import { ProviderIcon } from "@/components/vault/provider-icon";
 import { SpeechKeyField } from "@/components/vault/speech-key-field";
@@ -10,16 +10,15 @@ import {
   FormField,
   Input,
   Label,
+  MarkdownEditor,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
   Switch,
-  Textarea,
 } from "@/components/ui";
 import { useCapabilityCatalog } from "@/hooks/use-agents";
-import { useChanged } from "@/hooks/use-changed";
 import { useLanguageName } from "@/hooks/use-language-name";
 import { useSpeechToTextProviders } from "@/hooks/use-model-providers";
 import { useRealtimeModels } from "@/hooks/use-realtime-models";
@@ -28,6 +27,8 @@ import type { RealtimeModel, RealtimeProvider } from "@/types/voice";
 
 /** Radix `SelectItem` refuses `""`, so following the caller needs a value of its own. */
 const FOLLOW_CALLER = "caller";
+/** The longest call left to the organization, for the same reason. */
+const ORG_LIMIT = "org";
 const MAX_MINUTES = 50;
 const NOTE_LIMIT = 1000;
 
@@ -197,17 +198,22 @@ function BlockFields({ block, providers, write, disabled, ...rest }: BlockFields
         <LanguageField block={block} disabled={disabled} write={write} />
       </div>
       <LongestCall {...rest} block={block} disabled={disabled} write={write} />
+      {/* The same editor as the agent's instructions, which this adds to: Markdown,
+          with a preview, rather than a bare box under a name nobody could read. */}
       <FormField
         label={t("voiceConversationNote")}
         htmlFor="agent-voice-call-note"
         description={t("voiceConversationNoteHint")}
       >
-        <Textarea
-          rows={3}
+        <MarkdownEditor
+          id="agent-voice-call-note"
+          label={t("voiceConversationNote")}
+          rows={5}
           maxLength={NOTE_LIMIT}
+          placeholder={t("voiceConversationNotePlaceholder")}
           value={block.voice_note ?? ""}
           disabled={disabled}
-          onChange={(event) => write({ voice_note: event.target.value || null })}
+          onChange={(next) => write({ voice_note: next || null })}
         />
       </FormField>
       <Limitations capabilityIds={rest.capabilityIds} hasGuardrails={rest.hasGuardrails} />
@@ -319,7 +325,16 @@ function LanguageField({ block, disabled, write }: PartProps) {
   );
 }
 
-/** Minutes as typed, kept here so a half-typed or refused value is not lost. */
+/** How long a call may run, in minutes: the organization's limit, or a shorter one. */
+const CALL_LENGTHS = [5, 10, 15, 20, 30, 45, MAX_MINUTES] as const;
+
+/**
+ * The longest call, picked from lengths rather than typed: a number field took a
+ * value it then refused, and its empty state said nothing until read about.
+ * "The organization's limit" is the first choice and says what that is; only
+ * lengths up to it are offered, since an agent may shorten a call and never
+ * lengthen it - plus a stored length no longer on the list, so it still shows.
+ */
 function LongestCall({
   block,
   disabled,
@@ -327,41 +342,40 @@ function LongestCall({
   orgMaxSeconds,
 }: PartProps & { orgMaxSeconds: number }) {
   const t = useTranslations("agents");
-  const stored =
-    block.max_call_seconds === null ? "" : String(Math.round(block.max_call_seconds / 60));
-  const [text, setText] = useState(stored);
-  if (useChanged(stored)) setText(stored);
-  const minutes = Number(text.trim());
-  const invalid =
-    text.trim() !== "" && !(Number.isInteger(minutes) && minutes >= 1 && minutes <= MAX_MINUTES);
-  const overOrg = !invalid && text.trim() !== "" && minutes * 60 > orgMaxSeconds;
+  const orgMinutes = Math.floor(orgMaxSeconds / 60);
+  const stored = block.max_call_seconds === null ? null : Math.round(block.max_call_seconds / 60);
+  const lengths = [
+    ...new Set([...CALL_LENGTHS.filter((m) => m < orgMinutes), ...(stored ? [stored] : [])]),
+  ].sort((a, b) => a - b);
+  const overOrg = stored !== null && stored > orgMinutes;
   return (
     <FormField
       label={t("voiceConversationMaxLength")}
       htmlFor="agent-voice-call-max"
       description={overOrg ? undefined : t("voiceConversationMaxHint")}
-      error={
-        invalid
-          ? t("voiceConversationMaxInvalid")
-          : overOrg
-            ? t("voiceConversationMaxOverOrg", { minutes: Math.floor(orgMaxSeconds / 60) })
-            : null
-      }
+      error={overOrg ? t("voiceConversationMaxOverOrg", { minutes: orgMinutes }) : null}
     >
-      <Input
-        inputMode="numeric"
-        className="w-24"
-        value={text}
+      <Select
+        value={stored === null ? ORG_LIMIT : String(stored)}
         disabled={disabled}
-        onChange={(event) => {
-          const typed = event.target.value;
-          setText(typed);
-          const next = Number(typed.trim());
-          if (typed.trim() === "") write({ max_call_seconds: null });
-          else if (Number.isInteger(next) && next >= 1 && next <= MAX_MINUTES)
-            write({ max_call_seconds: next * 60 });
-        }}
-      />
+        onValueChange={(next) =>
+          write({ max_call_seconds: next === ORG_LIMIT ? null : Number(next) * 60 })
+        }
+      >
+        <SelectTrigger id="agent-voice-call-max" className="sm:w-1/2">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ORG_LIMIT}>
+            {t("voiceConversationMaxOrg", { minutes: orgMinutes })}
+          </SelectItem>
+          {lengths.map((minutes) => (
+            <SelectItem key={minutes} value={String(minutes)}>
+              {t("voiceConversationMaxMinutes", { minutes })}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </FormField>
   );
 }

@@ -823,12 +823,11 @@
     "voiceConversationLanguage": "Spoken language",
     "voiceConversationLanguageHint": "The language the agent speaks in calls.",
     "voiceConversationFollowCaller": "Follow the caller",
-    "voiceConversationMaxLength": "Longest call (minutes)",
-    "voiceConversationMaxHint": "Empty uses the organization's limit.",
-    "voiceConversationMaxInvalid": "Enter between 1 and 50 minutes.",
+    "voiceConversationMaxLength": "Longest call",
+    "voiceConversationMaxHint": "An agent can end calls sooner than the organization does, never later.",
     "voiceConversationMaxOverOrg": "{minutes, plural, one {At most # minute in this organization.} other {At most # minutes in this organization.}}",
-    "voiceConversationNote": "Voice note",
-    "voiceConversationNoteHint": "Added to the agent's instructions in calls, after the built-in spoken style.",
+    "voiceConversationNote": "Instructions for calls",
+    "voiceConversationNoteHint": "Added to the agent's instructions only during calls, after its built-in speaking style: how to greet, how long to talk, what to say before a tool runs.",
     "voiceConversationUnavailable": "Not available in calls",
     "voiceConversationGuardrails": "Guardrails check transcripts during a call and cut the agent off when its words hit one, but spoken words cannot be filtered before they are heard. A tool's result is still screened before the agent reads it; tool arguments are not screened.",
     "voiceConversationRecorded": "Calls are recorded as text in the conversation. No audio is kept.",
@@ -836,7 +835,10 @@
     "voiceTabCalls": "Voice calls",
     "voiceTabDictation": "Dictation",
     "voiceCallsLead": "A live, two-way conversation: the agent listens, answers out loud and keeps its tools. People call it from the chat, the website widget and the hosted page. Runs on a realtime voice model.",
-    "voiceDictationLead": "Speech turned into text that the person reads before sending: the microphone in the chat, and voice notes sent to this agent's channel bots. Runs on a transcription model."
+    "voiceDictationLead": "Speech turned into text that the person reads before sending: the microphone in the chat, and voice notes sent to this agent's channel bots. Runs on a transcription model.",
+    "voiceConversationNotePlaceholder": "Greet the caller by name. Keep each answer to two sentences, then ask whether they want more detail.",
+    "voiceConversationMaxOrg": "Organization's limit ({minutes} min)",
+    "voiceConversationMaxMinutes": "{minutes} min"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",

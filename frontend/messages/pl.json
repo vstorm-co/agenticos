@@ -823,12 +823,11 @@
     "voiceConversationLanguage": "Język mówiony",
     "voiceConversationLanguageHint": "Język, w którym agent mówi w rozmowach.",
     "voiceConversationFollowCaller": "Dopasuj do rozmówcy",
-    "voiceConversationMaxLength": "Maksymalna długość rozmowy (min)",
-    "voiceConversationMaxHint": "Puste pole oznacza limit organizacji.",
-    "voiceConversationMaxInvalid": "Wpisz od 1 do 50 minut.",
+    "voiceConversationMaxLength": "Najdłuższa rozmowa",
+    "voiceConversationMaxHint": "Agent może kończyć rozmowy wcześniej niż organizacja, nigdy później.",
     "voiceConversationMaxOverOrg": "{minutes, plural, one {W tej organizacji najwyżej # minuta.} few {W tej organizacji najwyżej # minuty.} many {W tej organizacji najwyżej # minut.} other {W tej organizacji najwyżej # minuty.}}",
-    "voiceConversationNote": "Uwagi do głosu",
-    "voiceConversationNoteHint": "Dodawane do instrukcji agenta w rozmowach, po wbudowanym stylu mówionym.",
+    "voiceConversationNote": "Instrukcje do rozmów",
+    "voiceConversationNoteHint": "Dodawane do instrukcji agenta tylko w trakcie rozmów, po wbudowanym stylu mówienia: jak się przywitać, jak długo mówić, co powiedzieć przed uruchomieniem narzędzia.",
     "voiceConversationUnavailable": "Niedostępne w rozmowach",
     "voiceConversationGuardrails": "Guardraile sprawdzają transkrypcje w trakcie rozmowy i przerywają agentowi, gdy jego słowa trafią na regułę, ale wypowiedzianych słów nie da się odfiltrować, zanim zostaną usłyszane. Wynik narzędzia nadal jest sprawdzany, zanim agent go przeczyta; argumenty narzędzi nie są sprawdzane.",
     "voiceConversationRecorded": "Rozmowy są zapisywane jako tekst w konwersacji. Dźwięk nie jest przechowywany.",
@@ -836,7 +835,10 @@
     "voiceTabCalls": "Rozmowy głosowe",
     "voiceTabDictation": "Dyktowanie",
     "voiceCallsLead": "Rozmowa na żywo w obie strony: agent słucha, odpowiada na głos i zachowuje swoje narzędzia. Można do niego zadzwonić z czatu, z widgetu na stronie i ze strony hostowanej. Działa na modelu głosowym czasu rzeczywistego.",
-    "voiceDictationLead": "Mowa zamieniona na tekst, który osoba czyta przed wysłaniem: mikrofon w czacie oraz wiadomości głosowe wysłane do botów kanałów tego agenta. Działa na modelu transkrypcji."
+    "voiceDictationLead": "Mowa zamieniona na tekst, który osoba czyta przed wysłaniem: mikrofon w czacie oraz wiadomości głosowe wysłane do botów kanałów tego agenta. Działa na modelu transkrypcji.",
+    "voiceConversationNotePlaceholder": "Przywitaj rozmówcę po imieniu. Odpowiadaj w dwóch zdaniach, a potem zapytaj, czy chce więcej szczegółów.",
+    "voiceConversationMaxOrg": "Limit organizacji ({minutes} min)",
+    "voiceConversationMaxMinutes": "{minutes} min"
   },
   "auth": {
     "agreeToTerms": "Tworząc konto, akceptujesz nasz <terms>Regulamin</terms> i <privacy>Politykę prywatności</privacy>.",
