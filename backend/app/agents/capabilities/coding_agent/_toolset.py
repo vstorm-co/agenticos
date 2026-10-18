@@ -50,6 +50,7 @@ from app.agents.capabilities.coding_agent._narration import Narration
 from app.agents.capabilities.coding_agent._task import (
     Outcome,
     clean_up,
+    outline,
     remember_session,
     remembered_session,
     run_detached,
@@ -327,7 +328,9 @@ def build_coding_toolset(
         seen: list[dict[str, Any]] = []
 
         async def shown(events: list[dict[str, Any]]) -> None:
-            seen.extend(events)
+            # Kept only for what a stopped task spent, which an outline still says:
+            # whole, they were a second copy of an hour of output.
+            seen.extend(outline(event) for event in events)
             for event in events:
                 await narration.shown(live_items(harness, event))
 

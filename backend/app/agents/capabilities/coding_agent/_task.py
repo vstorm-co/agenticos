@@ -113,7 +113,7 @@ class _Reader:
             fresh.append(event)
             self.retained += len(line)
             outlined = self.retained > MAX_RETAINED_BYTES
-            self.events.append(_trimmed(event, OUTLINE_CHARS) if outlined else event)
+            self.events.append(outline(event) if outlined else event)
         return fresh
 
     def rest(self) -> list[dict[str, Any]]:
@@ -131,6 +131,11 @@ def _event(line: bytes) -> dict[str, Any] | None:
     except ValueError:
         return None
     return _trimmed(parsed) if isinstance(parsed, dict) else None
+
+
+def outline(event: dict[str, Any]) -> dict[str, Any]:
+    """An event with its strings cut to `OUTLINE_CHARS`: kinds, ids, paths and usage, no content."""
+    return _trimmed(event, OUTLINE_CHARS)
 
 
 def _trimmed(value: Any, limit: int = MAX_STRING_CHARS) -> Any:
