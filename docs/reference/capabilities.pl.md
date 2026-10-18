@@ -1,5 +1,5 @@
 ---
-source_sha: "fb758598b7d2"
+source_sha: "eeee8d7347a9"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -1583,7 +1583,8 @@ zapytania i danych logowania, w których podpisany adres trzyma poświadczenie.
 
 Usunięcie klucza, który wysyła rejestracja, usuwa rejestrację, zamiast zostawić ją
 wołającą bez klucza. Klucz trafia tylko do endpointu HTTPS, więc karta ze zwykłym
-HTTP jest odrzucana dla rejestracji, która ma klucz.
+HTTP jest odrzucana dla rejestracji, która ma klucz. Adres z nazwą użytkownika lub
+hasłem jest odrzucany od razu: poświadczenie trafia do vault.
 
 Dla delegującego modelu zdalny agent to po prostu kolejny delegat, wywoływany po
 nazwie tym samym narzędziem `task`. Każde wywołanie to jedno A2A `message/send` z

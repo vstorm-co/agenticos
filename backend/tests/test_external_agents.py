@@ -224,6 +224,15 @@ class TestRegistering:
         }
 
     @pytest.mark.security
+    def test_an_address_carrying_a_password_is_refused_before_it_is_stored(self) -> None:
+        """Stored as configuration and read by whoever reads the table; a key is
+        the vault's."""
+        with pytest.raises(ValidationError, match="user name or password"):
+            ExternalAgentCreate(card_url="https://bot:pw@agents.example.com")
+        with pytest.raises(ValidationError, match="user name or password"):
+            AgentCard(name="x", url="https://bot:pw@agents.example.com/a2a")
+
+    @pytest.mark.security
     async def test_a_listed_address_keeps_no_credential(self) -> None:
         signed = _row(
             card_url="https://bot:pw@agents.example.com:8443/card.json?sig=s3cret",

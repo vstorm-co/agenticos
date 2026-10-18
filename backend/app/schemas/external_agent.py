@@ -1,9 +1,10 @@
 """Remote A2A agents registered to delegate to (#2092)."""
 
 from datetime import datetime
+from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from app.schemas.base import BaseSchema
 
@@ -28,6 +29,18 @@ class ExternalAgentCreate(BaseSchema):
         default=None,
         description="An API key secret sent as its bearer token, when it asks for one.",
     )
+
+    @field_validator("card_url")
+    @classmethod
+    def _no_credential_in_the_address(cls, card_url: str) -> str:
+        """The address is stored as configuration; a key belongs in the vault."""
+        parsed = urlsplit(card_url.strip())
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError(
+                "The card's address must not carry a user name or password - "
+                "store the key in the vault and pick it here"
+            )
+        return card_url
 
 
 class ExternalAgentSkill(BaseSchema):

@@ -1507,7 +1507,8 @@ their query or userinfo, where a signed address keeps its credential.
 
 Deleting the key a registration sends deletes the registration, rather than leave it
 calling without one. A key is sent only to an HTTPS endpoint, so a card that
-advertises plain HTTP is refused for a registration that has one.
+advertises plain HTTP is refused for a registration that has one. An address that
+carries a user name or password is refused outright: a credential goes in the vault.
 
 To the delegating model a remote agent is one more delegate, called by its handle
 with the same `task` tool. Each call is one A2A `message/send` carrying the latest

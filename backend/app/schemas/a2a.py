@@ -139,6 +139,10 @@ class AgentCard(_Wire):
         parsed = urlsplit(url)
         if parsed.scheme not in ("http", "https") or not parsed.hostname:
             raise ValueError("An agent card's url must be an http or https address")
+        # Stored and shown as configuration, so it carries no credential: a key is
+        # the vault's, sent as the bearer token.
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("An agent card's url must not carry a user name or password")
         return url
 
 
