@@ -94,6 +94,35 @@ describe("useAgents", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/agents", undefined);
   });
 
+  it("reads every page, so a picker is not cut off after the first", async () => {
+    const agent = (id: string) => ({ id, name: id });
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [agent("a1"), agent("a2")], total: 4 })
+      .mockResolvedValueOnce({ items: [agent("a3"), agent("a4")], total: 4 });
+    const { result } = renderHook(() => useAgents({ includeArchived: true }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.agents).toHaveLength(4));
+    expect(apiClient.get).toHaveBeenLastCalledWith("/agents", {
+      params: [
+        ["include_archived", "true"],
+        ["skip", "2"],
+        ["limit", "100"],
+      ],
+    });
+  });
+
+  it("stops at a page that comes back empty, whatever the total said", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [{ id: "a1", name: "a1" }], total: 9 })
+      .mockResolvedValueOnce({ items: [], total: 9 });
+    const { result } = renderHook(() => useAgents(), { wrapper });
+
+    await waitFor(() => expect(result.current.agents).toHaveLength(1));
+    expect(apiClient.get).toHaveBeenCalledTimes(2);
+  });
+
   it("posts a whole spec when creating", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ items: [], total: 0 });
     vi.mocked(apiClient.post).mockResolvedValue({ id: "a1", name: "Support" });

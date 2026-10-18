@@ -41,6 +41,29 @@ export interface PromoteSpecialist {
  * version pointer change as a side effect of publishing, and guessing what the
  * server did is how a Builder starts showing a draft as published.
  */
+/**
+ * Every agent the list names, not its first page.
+ *
+ * The route pages at 50 by default and 100 at most, and what reads this - the
+ * chat's agent picker, a project's default agent, the run filters - is a picker
+ * that silently lacked whoever came after the first page. The first request is
+ * the one it always was; the rest are asked for only when the total says so.
+ */
+async function everyAgent(params: ReturnType<typeof agentListParams>): Promise<AgentList> {
+  const first = await apiClient.get<AgentList>("/agents", params ? { params } : undefined);
+  const base: [string, string][] =
+    params === undefined ? [] : Array.isArray(params) ? params : Object.entries(params);
+  const items = [...first.items];
+  while (items.length < first.total) {
+    const page = await apiClient.get<AgentList>("/agents", {
+      params: [...base, ["skip", String(items.length)], ["limit", "100"]],
+    });
+    if (page.items.length === 0) break;
+    items.push(...page.items);
+  }
+  return { ...first, items };
+}
+
 export function useAgents({
   includeArchived = false,
   enabled = true,
@@ -64,10 +87,7 @@ export function useAgents({
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: qk.agents.list(includeArchived, facetCategories, facetTags),
-    queryFn: () => {
-      const params = agentListParams(includeArchived, facetCategories, facetTags);
-      return apiClient.get<AgentList>("/agents", params ? { params } : undefined);
-    },
+    queryFn: () => everyAgent(agentListParams(includeArchived, facetCategories, facetTags)),
     // How a surface without agents:view stays out of the network log - the
     // run table's agent column and the filter bar both read this gated.
     enabled,
