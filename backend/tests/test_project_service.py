@@ -282,7 +282,12 @@ class TestCreatingAndChanging:
     async def test_deleting_purges_the_container_keeps_the_chats_and_drops_the_grants(self) -> None:
         project = _project()
         service = _service(project, Perm.PROJECTS_VIEW, Perm.PROJECTS_EDIT)
+        orphan = uuid.uuid4()
         with (
+            patch.object(
+                module.project_repo, "ownerless_chat_ids", AsyncMock(return_value=[orphan])
+            ),
+            patch.object(module.ConversationService, "forget_stored_files", AsyncMock()) as forgot,
             patch.object(module.project_repo, "detach_conversations", AsyncMock()) as detached,
             patch.object(module.resource_grant_repo, "delete_for_resource", AsyncMock()) as grants,
             patch.object(module.project_repo, "delete", AsyncMock()) as deleted,
@@ -290,6 +295,8 @@ class TestCreatingAndChanging:
         ):
             await service.delete(_ctx(), project.id)
         service.workspaces.purge_project.assert_awaited_once()
+        # The chats deleted with it take their files: nothing else would unlink them.
+        assert forgot.await_args.args[1] == [orphan]
         detached.assert_awaited_once()
         assert grants.await_args.kwargs["resource_type"] == "project"
         deleted.assert_awaited_once()

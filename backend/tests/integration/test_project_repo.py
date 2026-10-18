@@ -156,6 +156,7 @@ async def test_deleting_a_project_keeps_its_chats_and_takes_its_container(db) ->
     every = await workspace_repo.list_for_project(db, organization_id=org.id, project_id=project.id)
     assert {row.id for row in every} == {container.id, moved.id}
 
+    assert await project_repo.ownerless_chat_ids(db, project=project) == [orphan.id]
     await project_repo.detach_conversations(db, project=project)
     await project_repo.delete(db, project)
     kept = await db.execute(

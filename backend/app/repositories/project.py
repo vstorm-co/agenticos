@@ -178,6 +178,18 @@ async def delete(db: AsyncSession, project: Project) -> None:
     await db.flush()
 
 
+async def ownerless_chat_ids(db: AsyncSession, *, project: Project) -> list[UUID]:
+    """The chats :func:`detach_conversations` deletes rather than detaches."""
+    result = await db.execute(
+        select(Conversation.id).where(
+            Conversation.organization_id == project.organization_id,
+            Conversation.project_id == project.id,
+            Conversation.user_id.is_(None),
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def detach_conversations(db: AsyncSession, *, project: Project) -> None:
     """Leave a deleted project's chats as ordinary ones - the foreign key does too,
     and doing it here keeps the session's own rows in step with the database.

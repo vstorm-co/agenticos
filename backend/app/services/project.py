@@ -286,6 +286,10 @@ class ProjectService:
         """Delete a project and its files; its chats stay, as ordinary chats."""
         project = await self.get(ctx, project_id, perm=Perm.PROJECTS_EDIT)
         await self.workspaces.purge_project(ctx, project)
+        # The chats that go with it take their attachments and offloaded media.
+        await ConversationService(self.db).forget_stored_files(
+            ctx.organization_id, await project_repo.ownerless_chat_ids(self.db, project=project)
+        )
         await project_repo.detach_conversations(self.db, project=project)
         await resource_grant_repo.delete_for_resource(
             self.db,

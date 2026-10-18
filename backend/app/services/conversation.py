@@ -1173,24 +1173,39 @@ class ConversationService:
             for_write=True,
             include_favourite=False,
         )
-        attachments = await personal_data_repo.attachment_paths_in(self.db, conversation_id)
+        await self.forget_stored_files(organization_id, [conversation_id])
         await conversation_repo.delete_conversation(self.db, db_conversation=conversation)
+        return True
+
+    async def forget_stored_files(
+        self, organization_id: UUID, conversation_ids: Sequence[UUID]
+    ) -> None:
+        """Delete, once the transaction commits, what these threads keep outside the database.
+
+        Called before the threads are deleted: the attachments' paths are read
+        from rows that cascade away with them - see :meth:`delete_conversation`.
+        """
+        attachments = [
+            path
+            for conversation_id in conversation_ids
+            for path in await personal_data_repo.attachment_paths_in(self.db, conversation_id)
+        ]
         if attachments:
             spawn_after_commit(
                 self.db,
                 delete_files_best_effort(attachments),
                 name="delete-conversation-attachments",
             )
-        # And whatever the `media` capability offloaded out of this thread's
+        # And whatever the `media` capability offloaded out of a thread's
         # compacted history. Those objects are content-addressed, so nothing
         # records that they are still referenced - the thread's own prefix is
         # their lifetime, and this is where it ends (#55).
-        spawn_after_commit(
-            self.db,
-            delete_prefix_best_effort(prefix_for(organization_id, conversation_id)),
-            name="delete-conversation-media",
-        )
-        return True
+        for conversation_id in conversation_ids:
+            spawn_after_commit(
+                self.db,
+                delete_prefix_best_effort(prefix_for(organization_id, conversation_id)),
+                name="delete-conversation-media",
+            )
 
     async def get_message(self, message_id: UUID) -> Message:
         message = await conversation_repo.get_message_by_id(self.db, message_id)
