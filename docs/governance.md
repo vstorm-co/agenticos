@@ -886,6 +886,9 @@ agent's tools are folded into one `run_code` tool: the model writes a short Pyth
 script that runs in the Monty sandbox and calls the tools in loops and in
 parallel, up to `max_tool_calls` per script.
 
+At most four of a script's calls run at once, and the rest wait, so a script
+fanning out over hundreds of sandboxed calls cannot open them all together.
+
 Each call from a script goes through the same guardrails, budget and permission
 checks as a direct call. A tool that needs approval is never folded in: it stays
 an ordinary call, and the run stops for the person as it always does. The run view

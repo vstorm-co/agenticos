@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
+import anyio
 import pytest
 from pydantic_ai import Agent
 from pydantic_ai.capabilities import AbstractCapability
@@ -19,6 +20,7 @@ from pydantic_ai.tools import ToolDefinition
 
 from app.agents.code_mode import (
     ARGS_PREVIEW_CHARS,
+    CONCURRENT_CALLS,
     RECORDED_CALLS,
     CodeCalls,
     _preview,
@@ -244,6 +246,36 @@ async def test_a_script_past_the_listed_calls_counts_the_rest() -> None:
     (run,) = as_payload(recorder)["code_runs"]
     assert len(run["calls"]) == RECORDED_CALLS
     assert run["omitted_calls"] == 5
+
+
+@pytest.mark.security
+async def test_a_script_runs_only_a_few_of_its_calls_at_once() -> None:
+    """A gather over many calls must not open a sandbox per call all at once."""
+    offered: list[list[str]] = []
+    script = "import asyncio\nawait asyncio.gather(*[update_record(n=i) for i in range(20)])"
+    agent = Agent[AgentDeps, str](
+        FunctionModel(_writes(script, offered)),
+        capabilities=[
+            code_mode(approval_required=frozenset(), asking=frozenset(), max_tool_calls=100),
+            CodeCalls(recorder=RunRecorder()),
+        ],
+    )
+    running = 0
+    most = 0
+
+    @agent.tool_plain
+    async def update_record(n: int) -> str:
+        """Update one record."""
+        nonlocal running, most
+        running += 1
+        most = max(most, running)
+        await anyio.sleep(0.01)
+        running -= 1
+        return "ok"
+
+    await agent.run("Update them all.", deps=AgentDeps())
+
+    assert 1 < most <= CONCURRENT_CALLS
 
 
 async def test_a_run_past_the_kept_scripts_still_runs_them_unrecorded() -> None:

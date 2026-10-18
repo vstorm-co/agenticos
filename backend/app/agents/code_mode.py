@@ -24,6 +24,7 @@ rather than one opaque `run_code` step.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
@@ -55,8 +56,24 @@ CODE_CHARS = 20_000
 RECORDED_CALLS = 100
 """How many of one script's calls the manifest lists; the rest are counted."""
 
+CONCURRENT_CALLS = 4
+"""How many of one script's tool calls run at once.
 
-_script: ContextVar[dict[str, Any] | None] = ContextVar("code_mode_script", default=None)
+`max_tool_calls` bounds how many a script makes, not how many run together: an
+`asyncio.gather` over hundreds of `run_python` calls would otherwise open as many
+sandboxes at once, each with its own memory and time allowance. The rest wait.
+"""
+
+
+@dataclass
+class _Running:
+    """A `run_code` script while it runs: its manifest entry and its call gate."""
+
+    record: dict[str, Any]
+    gate: asyncio.Semaphore
+
+
+_script: ContextVar[_Running | None] = ContextVar("code_mode_script", default=None)
 """The script a tool call is being made from, if it is being made from one."""
 
 
@@ -99,20 +116,22 @@ class CodeCalls(AbstractCapability[AgentDeps]):
             }
             if len(self.recorder.code_runs) < RECORDED_SCRIPTS:
                 self.recorder.code_runs.append(script)
-            token = _script.set(script)
+            token = _script.set(_Running(script, asyncio.Semaphore(CONCURRENT_CALLS)))
             try:
                 return await handler(args)
             finally:
                 _script.reset(token)
-        script = _script.get()
-        if script is None:
+        running = _script.get()
+        if running is None:
             return await handler(args)
+        script = running.record
         made: dict[str, Any] = {"tool": tool_def.name, "args": _preview(args), "status": "failed"}
         if len(script["calls"]) < RECORDED_CALLS:
             script["calls"].append(made)
         else:
             script["omitted_calls"] += 1
-        result = await handler(args)
+        async with running.gate:
+            result = await handler(args)
         made["status"] = "returned"
         return result
 

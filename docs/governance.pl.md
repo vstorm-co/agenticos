@@ -1,5 +1,5 @@
 ---
-source_sha: "4068c02d9c78"
+source_sha: "6172cb7982f8"
 ---
 
 # Governance { #governance }
@@ -954,6 +954,9 @@ ponownie cały kontekst. Z włączonym *Trybem kodu* (`code_mode` w specu, obok
 limitów w Builderze) narzędzia agenta są zwijane w jedno narzędzie `run_code`:
 model pisze krótki skrypt Pythona, który działa w sandboksie Monty i wywołuje
 narzędzia w pętlach i równolegle, do `max_tool_calls` na skrypt.
+
+Naraz działają najwyżej cztery wywołania skryptu, a reszta czeka, więc skrypt
+rozsyłający setki wywołań w sandboksie nie otworzy ich wszystkich jednocześnie.
 
 Każde wywołanie ze skryptu przechodzi przez te same guardraile, budżet i
 sprawdzenia uprawnień co wywołanie bezpośrednie. Narzędzie wymagające

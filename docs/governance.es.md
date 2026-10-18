@@ -1,5 +1,5 @@
 ---
-source_sha: "4068c02d9c78"
+source_sha: "6172cb7982f8"
 ---
 
 # Governance { #governance }
@@ -939,6 +939,10 @@ límites en el Builder) las herramientas del agente se pliegan en una sola
 herramienta `run_code`: el modelo escribe un script corto de Python que corre en
 el sandbox Monty y llama a las herramientas en bucles y en paralelo, hasta
 `max_tool_calls` por script.
+
+Como mucho cuatro llamadas de un script corren a la vez y el resto espera, así que
+un script que reparte cientos de llamadas en el sandbox no puede abrirlas todas
+juntas.
 
 Cada llamada desde un script pasa por los mismos guardrails, el mismo budget y
 las mismas comprobaciones de permisos que una llamada directa. Una herramienta

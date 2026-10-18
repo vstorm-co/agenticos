@@ -1,5 +1,5 @@
 ---
-source_sha: "4068c02d9c78"
+source_sha: "6172cb7982f8"
 ---
 
 # Governance { #governance }
@@ -1020,6 +1020,10 @@ Turn schickt den ganzen Kontext erneut. Mit eingeschaltetem *Code-Modus*
 ein einziges `run_code`-Tool gefaltet: Das Modell schreibt ein kurzes
 Python-Skript, das in der Monty-Sandbox läuft und die Tools in Schleifen und
 parallel aufruft, bis zu `max_tool_calls` pro Skript.
+
+Höchstens vier Aufrufe eines Skripts laufen gleichzeitig, der Rest wartet, sodass
+ein Skript, das Hunderte Sandbox-Aufrufe auffächert, sie nicht alle zugleich
+öffnet.
 
 Jeder Aufruf aus einem Skript durchläuft dieselben Guardrails, dasselbe Budget
 und dieselben Berechtigungsprüfungen wie ein direkter Aufruf. Ein Tool, das eine
