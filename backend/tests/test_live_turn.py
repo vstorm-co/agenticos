@@ -812,6 +812,24 @@ class TestTheRoom:
             await session._follow(CONVERSATION, "token")
         assert _sent_events(session) == [(live_turn.END, {"conversation_id": CONVERSATION})]
 
+    async def test_a_busy_room_asks_about_its_reader_once_a_while(self) -> None:
+        """Each keystroke announced asked again: a credential, membership and
+        conversation query per reader per announcement."""
+        session = _session()
+        typing = {"type": "typing", "by": str(uuid4())}
+        room = self._room(events=[typing, typing, typing])
+        reads = AsyncMock(return_value=True)
+        with (
+            patch.object(session, "_still_reads", reads),
+            patch.multiple("app.services.agent_session.chat_room", **room),
+            patch(
+                "app.services.agent_session.conversation_repo.users_by_id",
+                AsyncMock(return_value={}),
+            ),
+        ):
+            await session._hear_room(CONVERSATION)
+        assert reads.await_count == 1
+
     async def test_an_open_chat_keeps_saying_its_reader_is_here(self) -> None:
         session = _session()
         join = AsyncMock(side_effect=[None, asyncio.CancelledError()])

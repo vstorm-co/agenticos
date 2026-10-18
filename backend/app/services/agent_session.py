@@ -70,6 +70,14 @@ logger = logging.getLogger(__name__)
 RECHECK_SECONDS = 30.0
 """How often a turn being followed asks again whether its reader may still read it."""
 
+ROOM_READS_FOR_SECONDS = 5.0
+"""How long a room's reader, once asked, is taken to still read it.
+
+Every piece of a room's news asks again - each keystroke announced, each
+arrival - and in a busy room that was a credential, membership and conversation
+query per reader per announcement. A reader removed is still cut off within
+this long."""
+
 ROOM_RETRY_SECONDS = 5.0
 """How long a socket whose room subscription failed waits before listening again."""
 
@@ -246,6 +254,9 @@ class AgentSession:
         # This socket's own entry in the room, beside the person's other tabs.
         self._socket = uuid4().hex
         self._room_task: asyncio.Task[None] | None = None
+        # Until when the room this socket is in was last found readable - see
+        # `ROOM_READS_FOR_SECONDS`.
+        self._reads_until = float("-inf")
         # When this socket last told its room the person is typing - see `typing`.
         self._typed_at = float("-inf")
         # Set by `shutdown`. A room joined or a turn followed after it - by a turn
@@ -1289,6 +1300,8 @@ class AgentSession:
             return
         await self._leave_room()
         self._room = conversation_id
+        # Found readable for the last room, not this one.
+        self._reads_until = float("-inf")
         await chat_room.join(conversation_id, self.user.id, self._socket)
         if self._closed or self._room != conversation_id:
             # `shutdown` - or another room - came in while joining, and its leave
@@ -1349,7 +1362,7 @@ class AgentSession:
         """Pass on the room's news until it ends or this person may no longer read it."""
         await self._send_presence(conversation_id)
         async for event in chat_room.events(conversation_id):
-            if not await self._still_reads(conversation_id):
+            if not await self._reads_lately(conversation_id):
                 self._stop_following()
                 self._room = self._room_task = None
                 await chat_room.leave(conversation_id, self.user.id, self._socket)
@@ -1360,6 +1373,15 @@ class AgentSession:
                 await self._send_typing(conversation_id, event.get("by"))
             else:
                 await self._follow_if_running(conversation_id)
+
+    async def _reads_lately(self, conversation_id: str) -> bool:
+        """`_still_reads`, answered from the last time it said yes when that was lately."""
+        if time.monotonic() < self._reads_until:
+            return True
+        if not await self._still_reads(conversation_id):
+            return False
+        self._reads_until = time.monotonic() + ROOM_READS_FOR_SECONDS
+        return True
 
     async def _still_reads(self, conversation_id: str) -> bool:
         """Whether this person may still read the conversation, as of now.
