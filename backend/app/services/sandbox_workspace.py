@@ -863,11 +863,16 @@ class SandboxWorkspaceService:
         # of what this session loaded at `open`. Without it the identity map answers
         # with the row as it was, and a flush by another run - another person under
         # `agent` scope, the same person on a second surface - is invisible by
-        # construction. One SELECT per finish is what the detection below costs.
+        # construction. Locked from this read to the commit: two flushes that both
+        # read the same version before either wrote would each skip the merge,
+        # and the later write would erase the earlier. Locked, the second waits,
+        # reads the first's version and merges onto it.
         row = (
             None
             if workspace.row_id is None
-            else await self.db.get(AgentWorkspace, workspace.row_id, populate_existing=True)
+            else await self.db.get(
+                AgentWorkspace, workspace.row_id, populate_existing=True, with_for_update=True
+            )
         )
         if row is None:
             # The conversation was deleted while the run was in flight. The files

@@ -811,6 +811,8 @@ class TestOpeningAndClosing:
         await service.close(workspace)
 
         assert mock_db_session.get.await_args.kwargs["populate_existing"] is True
+        # Held to the commit, so a second flush waits and merges onto this one.
+        assert mock_db_session.get.await_args.kwargs["with_for_update"] is True
 
     async def test_the_skills_tree_from_before_the_move_is_not_persisted_again(
         self, monkeypatch, mock_db_session
