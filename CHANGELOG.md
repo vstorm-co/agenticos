@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-18
+
 ### Added
 
 - **Malformed tool calls are repaired instead of retried** (#2105). A model
