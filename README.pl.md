@@ -1,4 +1,4 @@
-<!-- source_sha: 07dd9c8b324e -->
+<!-- source_sha: c387ac336e59 -->
 
 <div align="center">
 
@@ -88,7 +88,7 @@ Konsola otwiera się na tym, co zrobiły Twoje agenty, decyzjach czekających na
 
 Agent prowadzący przekazuje części zadania kolegom i spisuje, co znaleźli - widzisz, kogo zapytał i co każdy odpowiedział.
 
-<a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="Brief agenta Chief of Staff przed posiedzeniem zarządu, napisany z odpowiedzi Support Desk i Sales Researcher, z oboma agentami podpisanymi pod spodem" width="100%"></a>
+<a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="Brief Chief of Staff przed przeglądem cen, napisany z odpowiedzi Sales Researchera i Finance Analysta: ceny Ramp i Bill.com w dolarach, marża, której Finance nie mógł podać bez rachunku wyników, i trzy punkty na spotkanie" width="100%"></a>
 
 ### Prawdziwa przeglądarka, prosto w czacie
 
@@ -106,7 +106,7 @@ Włączasz narzędzia z ilustrowanych kart, a potem dajesz wersji roboczej prawd
 
 Agent publikuje dashboard albo raport jako stronę ze stałym linkiem i wersjami.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Dashboard zarządu za Q3 2026, który Finance Analyst opublikował z czatu jako aplikację: karty KPI, przychody i koszty w miesiącach, trend marży, przychody według regionów i najwięksi klienci, w jednym kolorze akcentu" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Kalkulator ROI, który agent Visuals Lab narysował w czacie, zapisany jako aplikacja z własnym linkiem: suwaki faktur, minut i stawki godzinowej, 69 120 USD oszczędności rocznie i miesięczny koszt przed i po" width="100%"></a>
 
 ### Ponad 4700 serwerów MCP
 

@@ -1,4 +1,4 @@
-<!-- source_sha: 07dd9c8b324e -->
+<!-- source_sha: c387ac336e59 -->
 
 <div align="center">
 
@@ -88,7 +88,7 @@ La consola se abre con lo que hicieron tus agents, las decisiones que te esperan
 
 Un agente principal reparte partes de una tarea entre compañeros y redacta lo que encontraron - ves a quién preguntó y qué dijo cada uno.
 
-<a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="El informe de un agente Chief of Staff para una reunión del consejo, escrito con lo que respondieron Support Desk y Sales Researcher, con los dos agentes nombrados debajo" width="100%"></a>
+<a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="El resumen de un agente Chief of Staff para una revisión de precios, escrito con lo que respondieron Sales Researcher y Finance Analyst: los precios de Ramp y Bill.com en dólares, el margen que Finance no pudo dar sin una cuenta de resultados y tres puntos para la reunión" width="100%"></a>
 
 ### Un navegador real, dentro del chat
 
@@ -106,7 +106,7 @@ Activa herramientas desde tarjetas ilustradas y dale al borrador un trabajo real
 
 Un agente publica un dashboard o un informe como página con enlace estable y versiones.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="El dashboard del consejo del Q3 2026 que un Finance Analyst publicó desde el chat como app: tarjetas KPI, ingresos frente a costes por mes, la tendencia del margen, ingresos por región y los principales clientes, en un solo color de acento" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="Una calculadora de ROI que un agente Visuals Lab dibujó en el chat, guardada como app con su propio enlace: controles de facturas, minutos y coste por hora, 69.120 $ ahorrados al año y el coste mensual antes y después" width="100%"></a>
 
 ### Más de 4.700 servidores MCP
 

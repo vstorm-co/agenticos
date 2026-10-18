@@ -30,11 +30,11 @@ const FRAMES = [
   { name: "visuals", source: "visual-roi", background: "cta", crop: [500, 40, 1100, 900], width: 1300 },
   { name: "research", source: "research-table", background: "meadow-bg", crop: [240, 0, 1360, 1000], width: 1380 },
   { name: "dashboard", source: "dashboard", background: "hero-bg", crop: [0, 0, 1600, 1000], width: 1380 },
-  { name: "subagents", source: "old-subagents", background: "meadow-bg", crop: [0, 0, 1600, 1000], width: 1380 },
-  { name: "browser", source: "old-browser", background: "night", crop: [0, 0, 1600, 1000], width: 1380 },
-  { name: "builder-test", source: "old-builder-test", background: "hero-bg", crop: [0, 0, 1600, 1000], width: 1380 },
-  { name: "app", source: "old-app", background: "cta", crop: [0, 0, 1600, 1000], width: 1380 },
-  { name: "mcp-servers", source: "old-mcp-servers", background: "storm", crop: [0, 0, 1600, 1000], width: 1380 },
+  { name: "subagents", source: "subagents", background: "meadow-bg", crop: [0, 0, 1600, 1000], width: 1380 },
+  { name: "browser", source: "old-browser", background: "night", crop: [300, 0, 1300, 1000], width: 1380 },
+  { name: "builder-test", source: "builder-test", background: "hero-bg", crop: [0, 0, 1600, 1000], width: 1380 },
+  { name: "app", source: "app-roi", background: "cta", crop: [0, 0, 1600, 840], width: 1380 },
+  { name: "mcp-servers", source: "mcp-servers", background: "storm", crop: [0, 0, 1600, 1000], width: 1380 },
 ];
 
 const only = new Set(process.argv.slice(2));

@@ -86,7 +86,7 @@ Open the console to what your agents did, the calls waiting on you and the conve
 
 A lead agent hands parts of a task to colleagues and writes up what they found - you see who it asked, and what each said.
 
-<a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="A Chief of Staff agent's brief for a board call, written from what Support Desk and Sales Researcher answered, with the two agents named under it" width="100%"></a>
+<a href="docs/assets/readme/highlight-subagents.webp"><img src="docs/assets/readme/highlight-subagents.webp" alt="A Chief of Staff agent's pricing review brief, written from what Sales Researcher and Finance Analyst answered: Ramp and Bill.com pricing in dollars, the margin figure Finance could not give without a P&L, and three bullets for the meeting" width="100%"></a>
 
 ### A real browser, right in the chat
 
@@ -104,7 +104,7 @@ Switch tools on from illustrated cards, then give the draft a real job in the te
 
 An agent publishes a dashboard or a report as a page with a stable link and versions.
 
-<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="The Q3 2026 board dashboard a Finance Analyst published from chat as an app: KPI cards, revenue against costs by month, the margin trend, revenue by region and the top customers, in one accent colour" width="100%"></a>
+<a href="docs/assets/readme/highlight-app.webp"><img src="docs/assets/readme/highlight-app.webp" alt="An ROI calculator a Visuals Lab agent drew in chat, saved as an app with its own link: sliders for invoices, minutes and hourly cost, $69,120 saved per year, and monthly cost before and after" width="100%"></a>
 
 ### 4,700+ MCP servers
 
