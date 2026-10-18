@@ -43,7 +43,7 @@ from app.agents.capabilities.browser_use import (
     validate_cdp_url,
 )
 from app.agents.capabilities.browser_use._route import check_address
-from app.agents.capabilities.coding_agent import CODING_AGENT_ID
+from app.agents.capabilities.coding_agent import CODING_AGENT_ID, CodingAgentConfig
 from app.agents.capabilities.subagents import SubagentsConfig
 from app.agents.default_instructions import DEFAULT_INSTRUCTIONS
 from app.agents.mcp import PLATFORM_MCP_PREFIX, prefix_collisions
@@ -68,6 +68,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import field_problems, refused_field
 from app.core.permissions import AuthContext, Perm
+from app.core.secret_kinds import SecretKind
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.credential import ModelProfile
@@ -1752,6 +1753,17 @@ class AgentRegistryService:
             return [
                 f"Capability '{binding.id}' needs a {requirement.kind.value} secret, but "
                 f"'{secret.name}' holds a {secret.kind}"
+            ]
+        # A sign-in is accepted for the coding agent only because Codex runs on
+        # one; switched to Claude Code, it would refuse every task at run time.
+        if (
+            isinstance(config, CodingAgentConfig)
+            and secret.kind == SecretKind.OPENAI_CODEX.value
+            and config.harness != "codex"
+        ):
+            return [
+                f"'{secret.name}' is a ChatGPT sign-in, which only Codex runs on - pick an "
+                "Anthropic key or Claude subscription token for Claude Code"
             ]
         return []
 
