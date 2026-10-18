@@ -517,7 +517,9 @@ function parseColorGlyph(name: string, svg: string): Glyph {
     gradients.set(id, shading ? null : middle!);
   }
   const body = svg.replace(/<defs>[\s\S]*?<\/defs>/g, "");
-  if (/<(use|mask|clipPath|filter|image|text|pattern)\b|\btransform=|\bstyle=|\bclip-path=/.test(body)) {
+  if (
+    /<(use|mask|clipPath|filter|image|text|pattern)\b|\btransform=|\bstyle=|\bclip-path=/.test(body)
+  ) {
     throw new GlyphError(`${name}: markup a flat path cannot carry`);
   }
 
