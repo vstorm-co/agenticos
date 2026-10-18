@@ -1297,6 +1297,14 @@ class AgentSession:
                     # than stay deaf - and uncounted - until a reload.
                     logger.warning("chat_room_listen_failed", exc_info=True)
                     await asyncio.sleep(ROOM_RETRY_SECONDS)
+                    # Asked again before going back in: access may have gone while
+                    # Redis was away, and rejoining shows who is here at once.
+                    if not await self._still_reads(conversation_id):
+                        self._stop_following()
+                        self._room = self._room_task = None
+                        with contextlib.suppress(Exception):
+                            await chat_room.leave(conversation_id, self.user.id, self._socket)
+                        return
                     with contextlib.suppress(Exception):
                         await chat_room.join(conversation_id, self.user.id, self._socket)
                 else:

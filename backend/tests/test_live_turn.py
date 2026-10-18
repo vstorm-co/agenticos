@@ -615,6 +615,23 @@ class TestTheRoom:
         # Back in the room's count, as on entering it.
         assert room["join"].await_count == 2
 
+    async def test_access_lost_while_redis_was_away_keeps_the_socket_out(self, monkeypatch) -> None:
+        """Rejoining shows who is here at once, so it is asked again first."""
+        monkeypatch.setattr("app.services.agent_session.ROOM_RETRY_SECONDS", 0)
+        session = _session()
+
+        async def gone(_conversation: str) -> AsyncIterator[dict[str, Any]]:
+            raise ConnectionError("Redis went away")
+            yield {}
+
+        room = self._room()
+        room["events"] = gone
+        await self._enter(session, CONVERSATION, room, reads=False)
+
+        assert room["join"].await_count == 1
+        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id, session._socket)
+        assert session._room is None
+
     async def test_a_typing_frame_reaches_only_the_room_this_socket_is_in(self) -> None:
         session = _session()
         with patch("app.services.agent_session.chat_room.typing", AsyncMock()) as typed:
