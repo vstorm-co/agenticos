@@ -162,10 +162,12 @@ async def events(conversation_id: str) -> AsyncGenerator[dict[str, Any]]:
     try:
         await pubsub.subscribe(_channel(conversation_id))
     except Exception:
-        # The room is a view: without Redis nobody hears it, and nothing fails.
+        # Raised, not swallowed: ending quietly read as the room having nothing
+        # more to say, and the socket stopped listening for good. The listener
+        # retries a failure - see `AgentSession._in_room`.
         logger.exception("chat_room_subscribe_failed")
         await pubsub.aclose()
-        return
+        raise
     try:
         async for message in pubsub.listen():
             if message.get("type") != "message":

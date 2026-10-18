@@ -201,6 +201,11 @@ class TestWhatTheRoomHears:
             await chat_room.turn_begun(ROOM, uuid4())
         assert store.published == []
 
-    async def test_a_room_redis_will_not_subscribe_to_hears_nothing(self, store: _Store) -> None:
-        with patch.object(_PubSub, "subscribe", side_effect=ConnectionError("gone")):
-            assert [event async for event in chat_room.events(ROOM)] == []
+    async def test_a_room_redis_will_not_subscribe_to_says_so(self, store: _Store) -> None:
+        """Ended quietly, it read as a room with nothing more to say, and the socket
+        stopped listening for good; raised, its listener tries again."""
+        with (
+            patch.object(_PubSub, "subscribe", side_effect=ConnectionError("gone")),
+            pytest.raises(ConnectionError),
+        ):
+            [event async for event in chat_room.events(ROOM)]
