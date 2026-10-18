@@ -366,6 +366,13 @@ class OpenWorkspace:
     container-backed one, which keeps its files on the host rather than here.
     """
 
+    opened_files: dict[str, Any] = field(default_factory=dict)
+    opened_directories: tuple[str, ...] = ()
+    """The document as this run loaded it, which is what tells the flush what the
+    run changed from what somebody else stored in between. A shallow copy: the
+    file entries themselves are shared with the document, never mutated in place.
+    """
+
     document: CappedStateBackend | None = None
     """The stored document a `state` workspace works in, flushed back at close."""
 
@@ -597,6 +604,8 @@ class SandboxWorkspaceService:
             scope_key=key,
             row_id=row.id if row is not None else None,
             opened_version=row.version if row is not None else None,
+            opened_files=dict(row.files or {}) if row is not None else {},
+            opened_directories=tuple(row.directories or ()) if row is not None else (),
         )
 
     async def _open_service(
@@ -867,13 +876,14 @@ class SandboxWorkspaceService:
         document = workspace.document
         if document is None:  # pragma: no cover - `open` sets one on every `state` workspace
             raise RuntimeError("A state workspace was opened without its document")
-        self._warn_if_overtaken(workspace, row, document.files)
 
         def dropped(path: str) -> bool:
             return _is_legacy_skill(path) or (not keep_spills and _is_spill(path))
 
         files = {path: data for path, data in document.files.items() if not dropped(path)}
         directories = sorted(path for path in document.directories if not dropped(path))
+        if workspace.opened_version is not None and row.version != workspace.opened_version:
+            files, directories = self._merged(workspace, row, files, directories)
         await workspace_repo.save_files(
             self.db,
             workspace=row,
@@ -883,33 +893,54 @@ class SandboxWorkspaceService:
         )
 
     @staticmethod
-    def _warn_if_overtaken(
-        workspace: OpenWorkspace, row: AgentWorkspace, files: dict[str, FileData]
-    ) -> None:
-        """Say so when this flush is about to overwrite somebody else's.
+    def _merged(
+        workspace: OpenWorkspace,
+        row: AgentWorkspace,
+        files: dict[str, FileData],
+        directories: list[str],
+    ) -> tuple[dict[str, FileData], list[str]]:
+        """This run's changes laid over what somebody else stored since it opened.
 
-        The write still happens - see `save_files` for why refusing it would lose
-        the finished turn's work to protect a turn that already finished - so this
-        is the whole of the mechanism, and without it the overwrite was silent.
+        Two runs holding one workspace - a project's teammates, every user of an
+        `agent`-scoped one - each load the document and store it at the end, and
+        storing it whole let the second erase whatever the first had written in
+        between. So only what this run changed from the document it loaded is
+        applied, path by path, over the stored one: a file it wrote or removed
+        is its, and everything else stays as the other run left it.
 
-        The paths it lost are named rather than counted. "A file went missing" is
-        the report that arrives, and the only thing that makes it actionable is
-        knowing which file and which two workspaces.
+        A path both runs changed takes this run's version, the later one, and is
+        logged by name - "a file went missing" is the report that arrives, and
+        only the path and the two versions make it actionable.
         """
-        opened = workspace.opened_version
-        if opened is None or row.version == opened:
-            return
-        overwritten = sorted(set(row.files or {}) - set(files))
-        logger.warning(
-            "workspace_flush_overtaken",
-            extra={
-                "scope_key": workspace.scope_key,
-                "scope": workspace.scope,
-                "opened_version": opened,
-                "found_version": row.version,
-                "paths_lost": overwritten,
-            },
+        base, theirs = workspace.opened_files, dict(row.files or {})
+        merged = dict(theirs)
+        conflicts: list[str] = []
+        for path in set(base) | set(files):
+            mine = files.get(path)
+            if mine == base.get(path):
+                continue
+            if theirs.get(path) != base.get(path) and theirs.get(path) != mine:
+                conflicts.append(path)
+            if mine is None:
+                merged.pop(path, None)
+            else:
+                merged[path] = mine
+        base_dirs, mine_dirs = set(workspace.opened_directories), set(directories)
+        merged_dirs = (set(row.directories or ()) | (mine_dirs - base_dirs)) - (
+            base_dirs - mine_dirs
         )
+        if conflicts:
+            logger.warning(
+                "workspace_flush_conflict",
+                extra={
+                    "scope_key": workspace.scope_key,
+                    "scope": workspace.scope,
+                    "opened_version": workspace.opened_version,
+                    "found_version": row.version,
+                    "paths_overwritten": sorted(conflicts),
+                },
+            )
+        return merged, sorted(merged_dirs)
 
     async def _settle_session(self, workspace: OpenWorkspace) -> bool:
         """Record which session this workspace is now, and whether it was lost.

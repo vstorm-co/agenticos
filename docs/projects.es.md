@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "a4bdb4a17fb4"
+source_sha: "5cf3318bf51a"
 ---
 
 # Proyectos { #projects }
@@ -52,7 +52,9 @@ Responda el agent que responda, un run en un chat del proyecto trabaja en el
 El contenedor es una sesión de [sandbox](sandbox.md) cuando el despliegue tiene
 un servicio de sandbox, así que los archivos del proyecto también se pueden
 ejecutar, no solo leer. Sin él, el proyecto guarda sus archivos como un workspace
-almacenado, que lee y escribe igual pero no tiene shell. Un proyecto se queda en
+almacenado, que lee y escribe igual pero no tiene shell; si dos chats escriben a la
+vez, cada uno conserva lo que escribió, y donde ambos cambiaron un mismo archivo
+queda la escritura posterior. Un proyecto se queda en
 la conexión de sandbox en la que se creó, así que esa conexión no se puede eliminar
 mientras un proyecto guarde archivos en ella.
 

@@ -76,8 +76,8 @@ async def save_files(
     finished.
 
     Comparing it is the *service's* job, and it does it before calling this -
-    `_flush_state` re-reads the committed row and logs `workspace_flush_overtaken`
-    with the paths the write is about to drop. See
+    `_flush_state` re-reads the committed row and, when another run stored one
+    since, hands over this run's changes merged onto it. See
     :class:`~app.db.models.agent_workspace.AgentWorkspace.version` for which scopes
     can reach the race at all.
     """

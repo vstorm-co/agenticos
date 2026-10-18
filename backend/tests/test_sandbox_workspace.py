@@ -684,20 +684,17 @@ class TestOpeningAndClosing:
 
         assert handle in saved.await_args.kwargs["files"]
 
-    async def test_a_flush_overtaken_by_another_run_says_which_paths_it_dropped(
+    async def test_a_flush_overtaken_by_another_run_keeps_what_that_run_stored(
         self, monkeypatch, mock_db_session, caplog
     ):
-        """The last flush wins, and this is what stops it winning silently.
-
-        Reachable under the scopes whose purpose is sharing - `agent`, `channel`,
-        `user` - where two runs hold one workspace and the socket's own guard does
-        not apply. `version` documented this detection long before anything read
-        the column.
-        """
-        opened = _row(version=4)
+        """Stored whole, the second flush erased what the first had written in
+        between - two teammates in a project, two users of an `agent`-scoped
+        workspace. Only what this run changed is laid over the stored document."""
+        opened = _row(version=4, files={"/shared.txt": {"content": ["v1"]}})
         monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=opened))
         monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=opened))
-        monkeypatch.setattr(workspace_repo, "save_files", AsyncMock(return_value=opened))
+        saved = AsyncMock(return_value=opened)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
         service = SandboxWorkspaceService(mock_db_session)
 
         workspace = await service.open(
@@ -705,18 +702,78 @@ class TestOpeningAndClosing:
         )
         assert workspace is not None
         await workspace.workspace.write_text("/mine.txt", "this run's work")
-        # Somebody else finished in between: the committed row has moved on, and
-        # holds a file this run never saw.
-        overtaken = _row(version=5, files={"/theirs.txt": {"content": ["gone"]}})
+        # Somebody else finished in between, with a file this run never saw.
+        overtaken = _row(
+            version=5,
+            files={"/shared.txt": {"content": ["v1"]}, "/theirs.txt": {"content": ["kept"]}},
+        )
         mock_db_session.get = AsyncMock(return_value=overtaken)
 
         with caplog.at_level(logging.WARNING):
             await service.close(workspace)
 
-        [record] = [r for r in caplog.records if r.message == "workspace_flush_overtaken"]
-        assert record.opened_version == 4
-        assert record.found_version == 5
-        assert record.paths_lost == ["/theirs.txt"]
+        stored = saved.await_args.kwargs["files"]
+        assert set(stored) == {"/mine.txt", "/shared.txt", "/theirs.txt"}
+        assert stored["/theirs.txt"] == {"content": ["kept"]}
+        assert not [r for r in caplog.records if r.message == "workspace_flush_conflict"]
+
+    async def test_a_path_both_runs_changed_is_this_runs_and_named(
+        self, monkeypatch, mock_db_session, caplog
+    ):
+        opened = _row(
+            version=4,
+            files={
+                "/plan.md": {
+                    "content": ["v1"],
+                    "created_at": "2026-10-18T00:00:00Z",
+                    "modified_at": "2026-10-18T00:00:00Z",
+                },
+                "/old.txt": {
+                    "content": ["x"],
+                    "created_at": "2026-10-18T00:00:00Z",
+                    "modified_at": "2026-10-18T00:00:00Z",
+                },
+            },
+        )
+        monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=opened))
+        monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=opened))
+        saved = AsyncMock(return_value=opened)
+        monkeypatch.setattr(workspace_repo, "save_files", saved)
+        service = SandboxWorkspaceService(mock_db_session)
+
+        workspace = await service.open(
+            _spec(session_scope="agent"), ctx=_ctx(), identity=_identity()
+        )
+        assert workspace is not None
+        await workspace.workspace.write_text("/plan.md", "mine")
+        await workspace.workspace.remove("/old.txt")
+        mock_db_session.get = AsyncMock(
+            return_value=_row(
+                version=5,
+                files={
+                    "/plan.md": {
+                        "content": ["theirs"],
+                        "created_at": "2026-10-18T00:00:00Z",
+                        "modified_at": "2026-10-18T00:00:00Z",
+                    },
+                    "/old.txt": {
+                        "content": ["x"],
+                        "created_at": "2026-10-18T00:00:00Z",
+                        "modified_at": "2026-10-18T00:00:00Z",
+                    },
+                },
+            )
+        )
+
+        with caplog.at_level(logging.WARNING):
+            await service.close(workspace)
+
+        stored = saved.await_args.kwargs["files"]
+        # The later write wins where both wrote; a removal this run made holds.
+        assert set(stored) == {"/plan.md"} and stored["/plan.md"]["content"] == ["mine"]
+        [record] = [r for r in caplog.records if r.message == "workspace_flush_conflict"]
+        assert (record.opened_version, record.found_version) == (4, 5)
+        assert record.paths_overwritten == ["/plan.md"]
         assert record.scope == "agent"
 
     async def test_an_uncontested_flush_says_nothing(self, monkeypatch, mock_db_session, caplog):
@@ -736,7 +793,7 @@ class TestOpeningAndClosing:
         with caplog.at_level(logging.WARNING):
             await service.close(workspace)
 
-        assert not [r for r in caplog.records if r.message == "workspace_flush_overtaken"]
+        assert not [r for r in caplog.records if r.message == "workspace_flush_conflict"]
 
     async def test_the_committed_row_is_read_rather_than_the_one_already_loaded(
         self, monkeypatch, mock_db_session

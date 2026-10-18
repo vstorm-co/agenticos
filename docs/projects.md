@@ -49,7 +49,8 @@ container** rather than in a workspace of its own:
 The container is a [sandbox](sandbox.md) session when the deployment runs a
 sandbox service, so the project's files can be run as well as read. Without
 one, the project keeps its files as a stored workspace, which reads and writes
-the same way but has no shell. A project stays on the sandbox connection it was
+the same way but has no shell; two chats writing to it at once each keep what
+they wrote, and where both changed one file, the later write stands. A project stays on the sandbox connection it was
 created on, so that connection cannot be deleted while a project keeps its files
 there.
 
