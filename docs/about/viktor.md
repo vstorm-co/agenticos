@@ -19,7 +19,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | What you get | One shared "AI employee" per workspace | Any number of agents, each a versioned spec |
 | Where it runs | Viktor's cloud, hosted on AWS us-east-1 | Your infrastructure, with Docker Compose |
 | Source | Proprietary | Apache-2.0 |
-| Models | OpenAI, Anthropic, Google and Kimi presets; your own OpenRouter key | 27 providers, including Ollama and LiteLLM on your own hardware |
+| Models | OpenAI, Anthropic, Google and Kimi presets; your own OpenRouter key | 28 providers, including Ollama and LiteLLM on your own hardware |
 | Knowledge | Workspace memory and connected tools | Document collections in your Postgres, with five sync connectors |
 | Surfaces | Slack, Teams, Discord, its own email inbox, web, desktop and mobile apps, API | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Access | Workspace level; its pages differ on role-based access | Six roles, 27 permissions and per-resource grants, per organization |

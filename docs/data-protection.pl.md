@@ -1,5 +1,5 @@
 ---
-source_sha: "34dbca8551c9"
+source_sha: "7c8b1c007d56"
 ---
 
 # Ochrona danych { #data-protection }
@@ -32,7 +32,7 @@ tak i oprogramowanie współpracuje:
 
 | Zagadnienie | Lokalna odpowiedź |
 |---|---|
-| Model czatowy | Profil `ollama` albo `litellm` — bezkluczowy, wskazujący endpoint, który hostujesz. Każdy z 27 providerów z `base_url` przyjmie też Twój gateway |
+| Model czatowy | Profil `ollama` albo `litellm` — bezkluczowy, wskazujący endpoint, który hostujesz. Każdy z 28 providerów z `base_url` przyjmie też Twój gateway |
 | Parsowanie dokumentów | `pymupdf`, wartość domyślna, działa w workerze. OCR LiteParse też działa w workerze albo na serwerze OCR zarejestrowanym jako usługa lokalna. LlamaParse to wybór per kolekcja, wymagający klucza w vault; bez niego nic nie jest parsowane poza wdrożeniem |
 | Embeddingi | Ollama, którą hostujesz, zarejestrowana jako usługa lokalna w Knowledge → Integrations i wybrana per kolekcja jako provider `ollama`. Bezkluczowa i jedyny provider, którego może użyć kolekcja app-scoped |
 | Trace'y | Zostaw `LOGFIRE_TOKEN` nieustawiony i nie wiąż żadnego tokenu `observability` ze specem ani ze środowiskiem. Runy dalej zapisują id trace'u lokalnie |

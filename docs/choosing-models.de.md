@@ -1,5 +1,5 @@
 ---
-source_sha: "365083b43da8"
+source_sha: "1b24107e2e10"
 ---
 
 # Ein Modell wählen { #choosing-a-model }
@@ -46,7 +46,7 @@ bezahlen ist der häufigste Weg, auf dem ein Agent-Budget verschwindet.
 
 ## Geschlossene Modelle oder offene Gewichte { #closed-models-or-open-weights }
 
-Beide sind hier gleichrangig. Die 27 Provider umfassen die geschlossenen
+Beide sind hier gleichrangig. Die 28 Provider umfassen die geschlossenen
 Frontier-Labore, die Open-Weights-Hoster und zwei Einträge ohne Schlüssel —
 [Ollama](models.md) und einen LiteLLM-Proxy — für Modelle, die auf Ihrer eigenen
 Hardware laufen.
@@ -88,7 +88,7 @@ ist eines, das man überdenken sollte.
 
 ## Ein Gateway davorsetzen { #putting-a-gateway-in-front }
 
-Drei der 27 sind keine Modellanbieter, sondern Router: **OpenRouter**, **Vercel AI
+Drei der 28 sind keine Modellanbieter, sondern Router: **OpenRouter**, **Vercel AI
 Gateway** und ein **LiteLLM-Proxy**, den Sie selbst betreiben. Jeder gibt Ihnen
 einen Schlüssel und einen Endpunkt vor vielen Modellen.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "365083b43da8"
+source_sha: "1b24107e2e10"
 ---
 
 # Wybór modelu { #choosing-a-model }
@@ -46,7 +46,7 @@ najczęstszy sposób, w jaki znika budżet agenta.
 
 ## Modele zamknięte czy otwarte wagi { #closed-models-or-open-weights }
 
-Jedno i drugie jest tu traktowane równorzędnie. Wśród 27 providerów są zamknięte
+Jedno i drugie jest tu traktowane równorzędnie. Wśród 28 providerów są zamknięte
 laboratoria z czołówki, hostingi modeli o otwartych wagach oraz dwie pozycje bez
 klucza — [Ollama](models.md) i proxy LiteLLM — dla modeli działających na
 sprzęcie, który należy do ciebie.
@@ -86,7 +86,7 @@ przemyśleć.
 
 ## Postawienie gatewaya z przodu { #putting-a-gateway-in-front }
 
-Trzy z tych 27 to nie dostawcy modeli, tylko routery: **OpenRouter**, **Vercel AI
+Trzy z tych 28 to nie dostawcy modeli, tylko routery: **OpenRouter**, **Vercel AI
 Gateway** i **proxy LiteLLM**, które uruchamiasz sam. Każdy daje jeden klucz
 i jeden endpoint przed wieloma modelami.
 

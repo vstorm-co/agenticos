@@ -19,7 +19,7 @@ Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS bas
 | What you get | A managed platform for enterprise AI coworkers | A self-hosted layer for a company's agents |
 | Where it runs | Locally, in your cloud or in OpenAI's | Your infrastructure, with Docker Compose |
 | Source | Proprietary | Apache-2.0 |
-| Models | OpenAI | 27 providers, including local models |
+| Models | OpenAI | 28 providers, including local models |
 | Company context | Connected to CRMs and data warehouses | Knowledge bases synced from Drive, S3, SharePoint, OneDrive, websites and git; 4,700+ MCP servers |
 | Governance | Per-agent permissions, evaluations, dashboards | Roles and per-resource grants, approvals, budgets checked before each model request, a tamper-evident audit log |
 | Pricing | Not published | No licence fee; you pay model providers and infrastructure |
@@ -32,7 +32,7 @@ Frontier is a product you license. AgenticOS is Apache-2.0: you can read every l
 
 ### Any model
 
-Frontier is built around OpenAI's models. An AgenticOS agent uses a [model profile](../models.md#a-model-profile) over 27 providers, with fallbacks, including models on your own hardware.
+Frontier is built around OpenAI's models. An AgenticOS agent uses a [model profile](../models.md#a-model-profile) over 28 providers, with fallbacks, including models on your own hardware.
 
 ### Governance without a sales call
 
@@ -48,7 +48,7 @@ Frontier is built around OpenAI's models. An AgenticOS agent uses a [model profi
 
 ### Is AgenticOS an open-source alternative to OpenAI Frontier?
 
-Yes. Both give a company many agents with permissions and shared context. AgenticOS is Apache-2.0, runs on your infrastructure and works with any of 27 model providers.
+Yes. Both give a company many agents with permissions and shared context. AgenticOS is Apache-2.0, runs on your infrastructure and works with any of 28 model providers.
 
 ### Does AgenticOS have evaluations like Frontier?
 

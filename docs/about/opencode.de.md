@@ -1,5 +1,5 @@
 ---
-source_sha: "5f956391f056"
+source_sha: "a91191c7e4f7"
 title: "AgenticOS vs OpenCode"
 seo_title: "AgenticOS vs OpenCode: Open-Source-Agent-Tools im Vergleich"
 description: "OpenCode ist ein MIT-Coding-Agent für einen Entwickler, AgenticOS eine Apache-2.0-Plattform für KI-Agents im Unternehmen, mit Rollen, Budgets und Audit-Logs."
@@ -18,7 +18,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Für wen | Ein Entwickler, in einem Repository | Eine Organisation: Fachabteilungen, Endbenutzer und Entwickler |
 | Wo es läuft | Der Rechner des Entwicklers; `opencode serve` für einen lokalen HTTP-Server | Ein gemeinsamer Dienst auf Ihrer Infrastruktur |
 | Quellcode | MIT | Apache-2.0 |
-| Modelle | 75+ Provider über Models.dev, einschließlich lokaler | 27 Provider, einschließlich lokaler |
+| Modelle | 75+ Provider über Models.dev, einschließlich lokaler | 28 Provider, einschließlich lokaler |
 | Benutzer und Zugriff | Ein Benutzer; Zen-Teams haben Admin und Member | Organisationen, sechs Rollen, 27 Berechtigungen, Grants pro Ressource |
 | Freigaben | `allow`, `ask` oder `deny` pro Werkzeug, an der Tastatur beantwortet | Eine Person mit `approvals:decide`, aus einer gemeinsamen Warteschlange |
 | Ausgabenkontrolle | Monatliche Limits auf dem Zen-Gateway | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |

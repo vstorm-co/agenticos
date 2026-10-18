@@ -1,5 +1,5 @@
 ---
-source_sha: "30a97fa6f902"
+source_sha: "84981176907c"
 title: "AgenticOS vs ChatGPT"
 seo_title: "AgenticOS vs ChatGPT Enterprise: selbstgehostete Alternative"
 description: "ChatGPT Business, Enterprise und Workspace-Agents im Vergleich mit AgenticOS: selbst gehostet, jedes Modell, acht Oberflächen, Budgets pro Agent und Audit-Logs."
@@ -19,7 +19,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | --- | --- | --- |
 | Wo es läuft | Cloud von OpenAI; Speicherresidenz in zehn Regionen bei Enterprise | Ihre Infrastruktur |
 | Quellcode | Proprietär | Apache-2.0 |
-| Modelle | Nur OpenAI | 27 Provider, OpenAI eingeschlossen, und lokale Modelle |
+| Modelle | Nur OpenAI | 28 Provider, OpenAI eingeschlossen, und lokale Modelle |
 | Agents erstellen | Workspace-Agents, in Research Preview, mit Versionen und Freigabe | Veröffentlichte Agents mit Versionen, Umgebungen und YAML-Export |
 | Oberflächen eines Agents | ChatGPT, Slack, Zeitpläne, ein API-Trigger | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost, Zeitpläne und Event-Trigger |
 | API | Der Trigger gibt `202 Accepted` zurück, ohne Run-ID und ohne Antwort | `POST /agents/{id}/run` gibt den Run und seine Antwort zurück |
@@ -38,7 +38,7 @@ Ein AgenticOS-Agent antwortet über die [HTTP-API](../channels.md#the-public-api
 
 ### Das Modell ist Ihre Entscheidung { #the-model-is-your-decision }
 
-ChatGPT nutzt Modelle von OpenAI. AgenticOS erreicht [27 Provider](../models.md#providers), darunter OpenAI und Azure OpenAI, dazu Anthropic, Google, Mistral, Bedrock und selbst gehostete Modelle. Wenn irgendwo ein besseres oder günstigeres Modell erscheint, ändern Sie ein einziges [Modellprofil](../models.md#a-model-profile). Nichts wird neu veröffentlicht.
+ChatGPT nutzt Modelle von OpenAI. AgenticOS erreicht [28 Provider](../models.md#providers), darunter OpenAI und Azure OpenAI, dazu Anthropic, Google, Mistral, Bedrock und selbst gehostete Modelle. Wenn irgendwo ein besseres oder günstigeres Modell erscheint, ändern Sie ein einziges [Modellprofil](../models.md#a-model-profile). Nichts wird neu veröffentlicht.
 
 ### Ein Budget pro Agent { #a-budget-per-agent }
 

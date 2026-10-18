@@ -1,5 +1,5 @@
 ---
-source_sha: "34dbca8551c9"
+source_sha: "7c8b1c007d56"
 ---
 
 # Protección de datos { #data-protection }
@@ -34,7 +34,7 @@ configura así y el software coopera:
 
 | Asunto | La respuesta local |
 |---|---|
-| El modelo de chat | Un perfil `ollama` o `litellm` — sin clave, apuntando a un endpoint que alojas tú. Cualquiera de los 27 providers con `base_url` admite también una pasarela tuya |
+| El modelo de chat | Un perfil `ollama` o `litellm` — sin clave, apuntando a un endpoint que alojas tú. Cualquiera de los 28 providers con `base_url` admite también una pasarela tuya |
 | Parseo de documentos | `pymupdf`, el valor por defecto, se ejecuta en el worker. El OCR de LiteParse también, o en un servidor de OCR que registres como servicio local. LlamaParse es una elección por colección que necesita una clave del vault; sin ella no se parsea nada fuera |
 | Embeddings | Un Ollama que alojas tú, registrado como servicio local en Knowledge → Integrations y elegido por colección como provider `ollama`. Sin clave, y el único provider que puede usar una colección app-scoped |
 | Trazas | Deja `LOGFIRE_TOKEN` sin definir y no vincules ningún token `observability` a un spec ni a un entorno. Los runs siguen registrando localmente un id de traza |

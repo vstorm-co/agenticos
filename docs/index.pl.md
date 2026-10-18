@@ -1,5 +1,5 @@
 ---
-source_sha: "ef634a1ced73"
+source_sha: "4d356103b6b2"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -240,7 +240,7 @@ przyszło pytanie.
 | **Agenci** | Budowani w UI, wersjonowani przy publikacji, eksportowalni jako YAML do Twojego własnego repozytorium git |
 | **[Capabilities](reference/capabilities.md)** | Wyszukiwanie w wiedzy, wyszukiwanie i pobieranie z sieci, prawdziwa przeglądarka, Python, sandbox z plikami i powłoką, wykresy, obrazy, delegacja, planowanie, guardraile — włączane per agent |
 | **[Integracje](mcp.md)** | Zgodne serwery MCP, z 59 popularnymi w wyborze — GitHub, Linear, Notion, Slack, Stripe, Postgres |
-| **[Modele](models.md)** | 27 providerów, klucze per organizacja, fallbacki oraz hostowana u siebie Ollama albo proxy LiteLLM |
+| **[Modele](models.md)** | 28 providerów, klucze per organizacja, fallbacki oraz hostowana u siebie Ollama albo proxy LiteLLM |
 | **[Wiedza](file-processing.md)** | Wyszukiwanie po Twoich dokumentach z trzema parserami PDF, własnym chunkingiem, OCR-em i opisem obrazów — per kolekcja, nadpisywalne per wgranie. Synchronizacja Google Drive i S3 |
 | **[Skille](skills.md)** | Spisane know-how, które agent wczytuje tylko wtedy, gdy uzna je za istotne |
 | **[Nadzór](governance.md)** | Miesięczne budżety, zatwierdzanie przez człowieka, ślad audytowy, alerty per agent |
