@@ -15,6 +15,7 @@ import {
   listProjectChats,
   listProjectFiles,
   listProjects,
+  projectOfConversation,
   removeProjectPath,
   updateProject,
   uploadProjectFile,
@@ -213,6 +214,15 @@ export function useProjectFiles(projectId: string) {
 export const PROJECT_CHATS_PAGE = 50;
 const PROJECT_CHATS_POLL_MS = 20_000;
 
+/** The project a conversation is in, or null; nothing is asked for a new chat. */
+export function useProjectOfConversation(conversationId: string | null) {
+  return useQuery({
+    queryKey: qk.conversations.projectOf(conversationId ?? ""),
+    queryFn: () => projectOfConversation(conversationId as string),
+    enabled: conversationId !== null,
+  });
+}
+
 /**
  * The project's chats, a page at a time, most recently active first.
  *
@@ -223,7 +233,7 @@ const PROJECT_CHATS_POLL_MS = 20_000;
 export function useProjectChats(projectId: string) {
   const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
     useInfiniteQuery({
-      queryKey: [...qk.conversations.all(), "project", projectId] as const,
+      queryKey: qk.conversations.inProject(projectId),
       queryFn: ({ pageParam }) => listProjectChats(projectId, pageParam, PROJECT_CHATS_PAGE),
       // Who is in each chat, and whose run is at work, change while the page is
       // open; asked again on the same cadence a room's heartbeat keeps.

@@ -10,6 +10,14 @@ type Node = Tree["children"][number];
 let loading: Promise<Highlighter> | null = null;
 
 /**
+ * The most text coloured, in characters. Highlighting runs on the main thread
+ * in one call, and a log or a minified bundle of megabytes froze the tab for as
+ * long as it took; past this the plain characters are drawn, as for a language
+ * with no grammar.
+ */
+export const HIGHLIGHT_UP_TO = 200_000;
+
+/**
  * The grammars, fetched once and only by a viewer that has code to colour.
  *
  * The same `common` set and the same `hljs-*` classes the chat's fenced blocks
@@ -48,7 +56,7 @@ export function useHighlighted(text: string, language: string | null): ReactNode
   const [done, setDone] = useState<{ key: string; nodes: ReactNode[] } | null>(null);
 
   useEffect(() => {
-    if (language === null) return;
+    if (language === null || text.length > HIGHLIGHT_UP_TO) return;
     let current = true;
     void highlighter().then((lowlight) => {
       if (!current || !lowlight.registered(language)) return;

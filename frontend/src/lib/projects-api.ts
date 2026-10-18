@@ -10,7 +10,7 @@ import { apiClient } from "./api-client";
 import type { FileText } from "./file-access";
 import { postWithProgress } from "./upload-with-progress";
 import type { WorkspaceFiles } from "./sandbox-workspaces-api";
-import type { ProjectChat } from "@/types/conversation";
+import type { Conversation, ProjectChat } from "@/types/conversation";
 import type { Project, ProjectCreate, ProjectList, ProjectUpdate } from "@/types/projects";
 
 const ROOT = "/projects";
@@ -55,6 +55,12 @@ export async function listProjectChats(
   limit: number,
 ): Promise<ProjectChatList> {
   return apiClient.get<ProjectChatList>(`${ROOT}/${id}/chats?skip=${skip}&limit=${limit}`);
+}
+
+/** The project a conversation was started in, or null for one outside any. */
+export async function projectOfConversation(conversationId: string): Promise<string | null> {
+  const conversation = await apiClient.get<Conversation>(`/conversations/${conversationId}`);
+  return conversation.project_id ?? null;
 }
 
 export async function listProjectFiles(id: string): Promise<WorkspaceFiles> {

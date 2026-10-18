@@ -9,13 +9,12 @@ import { useSearchParams } from "next/navigation";
 
 import { ProjectPickerDialog } from "@/components/projects/project-picker-dialog";
 import { useConversations } from "@/hooks/use-conversations";
+import { useProjectOfConversation } from "@/hooks/use-projects";
 import { getProject } from "@/lib/projects-api";
-import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { qk } from "@/lib/query-keys";
 import { setUrlParam } from "@/lib/utils";
 import { useAgentSelectionStore, useConversationStore } from "@/stores";
-import type { Conversation } from "@/types/conversation";
 
 /**
  * The project a chat is in, beside who answers it.
@@ -42,12 +41,7 @@ export function ProjectChip({
   const { startNewChat } = useConversations();
   const tookArrival = useRef(false);
 
-  const { data: started } = useQuery({
-    queryKey: [...qk.conversations.all(), "project-of", conversationId ?? ""] as const,
-    queryFn: () => apiClient.get<Conversation>(`/conversations/${conversationId}`),
-    enabled: conversationId !== null,
-    select: (conversation) => conversation.project_id ?? null,
-  });
+  const { data: started } = useProjectOfConversation(conversationId);
   const projectId = conversationId === null ? pending : (started ?? null);
 
   const { data: project, isError: unreadable } = useQuery({

@@ -1,7 +1,7 @@
 import { render, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { toReact, useHighlighted } from "./code-highlight";
+import { HIGHLIGHT_UP_TO, toReact, useHighlighted } from "./code-highlight";
 
 describe("colouring code", () => {
   it("is nothing until the grammars arrive, then the code in hljs classes", async () => {
@@ -18,6 +18,13 @@ describe("colouring code", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(none.result.current).toBeNull();
     expect(unknown.result.current).toBeNull();
+  });
+
+  it("leaves text too long to colour without freezing the tab plain", async () => {
+    const huge = renderHook(() => useHighlighted("x".repeat(HIGHLIGHT_UP_TO + 1), "python"));
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(huge.result.current).toBeNull();
   });
 
   it("never shows one file's colours over the next", async () => {

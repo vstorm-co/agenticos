@@ -15,7 +15,10 @@ vi.mock("next/navigation", () => ({
   permanentRedirect: vi.fn(),
 }));
 vi.mock("@/lib/api-client", () => ({ apiClient: { get: vi.fn() } }));
-vi.mock("@/lib/projects-api", () => ({ getProject: vi.fn() }));
+vi.mock("@/lib/projects-api", async (original) => ({
+  ...(await original<typeof import("@/lib/projects-api")>()),
+  getProject: vi.fn(),
+}));
 const setUrlParam = vi.fn();
 vi.mock("@/lib/utils", async (original) => ({
   ...(await original<typeof import("@/lib/utils")>()),

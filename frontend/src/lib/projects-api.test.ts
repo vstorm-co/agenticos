@@ -37,6 +37,14 @@ describe("the projects client", () => {
     expect(apiClient.delete).toHaveBeenLastCalledWith("/projects/p-1");
   });
 
+  it("reads which project a conversation is in, and none for one outside", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ id: "c-1", project_id: "p-1" });
+    expect(await api.projectOfConversation("c-1")).toBe("p-1");
+    expect(apiClient.get).toHaveBeenLastCalledWith("/conversations/c-1");
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ id: "c-2" });
+    expect(await api.projectOfConversation("c-2")).toBeNull();
+  });
+
   it("reads a file's bytes, for a download too, and its text from them", async () => {
     await api.readProjectBytes("p-1", "docs/a b.md");
     expect(apiClient.raw).toHaveBeenLastCalledWith("/projects/p-1/files/raw?path=docs%2Fa%20b.md");

@@ -365,6 +365,10 @@ export const qk = {
      */
     recent: (limit: number) => ["conversations", "recent", limit] as const,
     messages: (id: string) => ["conversations", id, "messages"] as const,
+    /** One project's chats, paged - under `all()` so a chat's change refreshes it. */
+    inProject: (projectId: string) => ["conversations", "project", projectId] as const,
+    /** Which project a conversation is in - fixed once it exists. */
+    projectOf: (id: string) => ["conversations", "project-of", id] as const,
   },
   conversationShares: {
     all: () => ["conversation-shares"] as const,
