@@ -44,7 +44,6 @@ logger = logging.getLogger(__name__)
 
 _SPEECH_FIELDS = frozenset(
     {
-        "chat_dictation",
         "speech_to_text_provider",
         "speech_to_text_model",
         "speech_to_text_secret_id",
@@ -52,12 +51,7 @@ _SPEECH_FIELDS = frozenset(
         "dictation_max_seconds",
     }
 )
-"""The `/chat` dictation settings (#1797), validated together when any is named."""
-
-_VOICE_FIELDS = frozenset(
-    {"voice_conversations_enabled", "voice_in_chat", "voice_max_call_seconds"}
-)
-"""Voice conversations (#54), under `org:settings` with the metadata."""
+"""The organization's speech-to-text default (#1797), validated together when any is named."""
 
 
 def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRead:
@@ -78,22 +72,11 @@ def _org_read(org: Organization, member_count: int, role: str) -> OrganizationRe
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
-        chat_dictation=org.chat_dictation,
         speech_to_text_provider=org.speech_to_text_provider,
         speech_to_text_model=org.speech_to_text_model,
         speech_to_text_secret_id=org.speech_to_text_secret_id,
         speech_to_text_language=org.speech_to_text_language,
         dictation_max_seconds=org.dictation_max_seconds,
-        voice_conversations_enabled=org.voice_conversations_enabled,
-        voice_in_chat=org.voice_in_chat,
-        voice_max_call_seconds=org.voice_max_call_seconds,
-        voice_monthly_minutes=org.voice_monthly_minutes,
-        chat_dictation_ready=speech_to_text.dictation_ready(
-            engine=org.chat_dictation,
-            provider=org.speech_to_text_provider,
-            model=org.speech_to_text_model,
-            secret_id=org.speech_to_text_secret_id,
-        ),
         created_at=org.created_at,
         updated_at=org.updated_at,
     )
@@ -312,12 +295,11 @@ class OrganizationService:
         approval should not be able to switch the queue off for every
         conversation (#925).
 
-        The `/chat` dictation fields fall under `org:settings` with the metadata,
-        and are validated only when one of them is named - so a rename never
-        trips over a dictation setup that went stale (#1797).
+        The speech-to-text default falls under `org:settings` with the metadata,
+        and is validated only when one of its fields is named - so a rename never
+        trips over a default that went stale (#1797). Calls and dictation are
+        switched on per agent, so nothing else about voice is the organization's.
 
-        `budgets:manage` also decides the monthly call minutes, which bound
-        spend; the other voice settings fall under `org:settings` (#54).
         `key_scopes` are those of the API key the request came with, `None` for
         a session: each field's permission must be one the key was issued for
         too, or a key narrowed to `org:settings` reaches the budget and the
@@ -331,10 +313,8 @@ class OrganizationService:
         wants_budget = "monthly_budget_usd" in data.model_fields_set
         wants_color = "avatar_color" in data.model_fields_set
         wants_waiver = "chat_may_waive_approvals" in data.model_fields_set
-        wants_minutes = "voice_monthly_minutes" in data.model_fields_set
         wants_metadata = bool(
-            data.model_fields_set
-            - {"monthly_budget_usd", "chat_may_waive_approvals", "voice_monthly_minutes"}
+            data.model_fields_set - {"monthly_budget_usd", "chat_may_waive_approvals"}
         )
         if wants_metadata and not holds(Perm.ORG_SETTINGS):
             raise AuthorizationError(message="Only Owner or Admin can update the organization")
@@ -345,10 +325,6 @@ class OrganizationService:
         if wants_waiver and not holds(Perm.APPROVALS_DECIDE):
             raise AuthorizationError(
                 message="Changing whether chats may waive approvals requires 'approvals:decide'"
-            )
-        if wants_minutes and not holds(Perm.BUDGETS_MANAGE):
-            raise AuthorizationError(
-                message="Changing the monthly call minutes requires 'budgets:manage'"
             )
 
         if wants_budget:
@@ -371,26 +347,6 @@ class OrganizationService:
         if data.model_fields_set & _SPEECH_FIELDS:
             org = await self._apply_speech_settings(org, data)
 
-        if wants_minutes:
-            # Keyed on the field being named: `null` lifts the minutes cap.
-            org = await organization_repo.set_voice_monthly_minutes(
-                self.db, org, minutes=data.voice_monthly_minutes
-            )
-
-        if data.model_fields_set & _VOICE_FIELDS:
-            # `null` on a field that cannot be empty leaves the stored value.
-            org = await organization_repo.set_voice_settings(
-                self.db,
-                org,
-                enabled=(
-                    org.voice_conversations_enabled
-                    if data.voice_conversations_enabled is None
-                    else data.voice_conversations_enabled
-                ),
-                in_chat=org.voice_in_chat if data.voice_in_chat is None else data.voice_in_chat,
-                max_call_seconds=data.voice_max_call_seconds or org.voice_max_call_seconds,
-            )
-
         return await organization_repo.update(
             self.db,
             org,
@@ -407,22 +363,19 @@ class OrganizationService:
         the catalog offers, and it is sent with a key named beside it - an
         organization-visible API key for that provider
         (`SpeechToTextSettingsService.key_problem`), since the platform spends
-        it for everybody. `server` does not need a pair here, because an agent
-        may carry its own (`SpeechToTextSpec`); readiness is per agent.
+        it for everybody. No pair here is allowed: an agent may carry its own
+        (`SpeechToTextSpec`), and one that has none dictates in the browser.
 
         Only what the request changes is checked: the pair and its key when it
-        names the provider, the model or the key, and when it names `server`.
-        A rename, or a switch to `off` or `browser`, never trips over a pair
-        that went stale after its model was withdrawn or its key deleted. A
+        names the provider, the model or the key. A rename never trips over a
+        pair that went stale after its model was withdrawn or its key deleted. A
         refusal names a field the request sent.
 
         `null` clears the provider, the model, the key and the language; on the
-        engine and the length, which cannot be empty, it leaves the stored value
-        alone. Clearing the pair clears its key with it - a key left behind
+        length, which cannot be empty, it leaves the stored value alone. Clearing the pair clears its key with it - a key left behind
         would ride along to whichever provider is chosen next.
         """
         named = data.model_fields_set
-        engine = data.chat_dictation or org.chat_dictation
         provider = (
             data.speech_to_text_provider
             if "speech_to_text_provider" in named
@@ -452,11 +405,8 @@ class OrganizationService:
             else None
         )
         key_named = "speech_to_text_secret_id" in named
-        asks_server = data.chat_dictation == "server"
-        if pair_field is not None or key_named or asks_server:
-            # The engine is named when neither the pair nor the key is, so the
-            # field is one sent.
-            field = pair_field or ("speech_to_text_secret_id" if key_named else "chat_dictation")
+        if pair_field is not None or key_named:
+            field = pair_field or "speech_to_text_secret_id"
             key_field = "speech_to_text_secret_id" if key_named else field
             if provider is None or model is None:
                 if provider is not None or model is not None:
@@ -480,8 +430,6 @@ class OrganizationService:
                 )
                 if problem is not None:
                     raise refused_field(key_field, problem)
-            # `server` with no pair here is allowed: an agent may carry its own,
-            # and an agent without one shows a mic that explains it is not set up.
         if (
             "speech_to_text_language" in named
             and language is not None
@@ -493,7 +441,6 @@ class OrganizationService:
         return await organization_repo.set_speech_settings(
             self.db,
             org,
-            chat_dictation=engine,
             provider=provider,
             model=model,
             secret_id=secret_id,

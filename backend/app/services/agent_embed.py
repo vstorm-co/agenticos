@@ -129,10 +129,7 @@ _SERVER_DICTATION_UNAVAILABLE = (
 )
 
 
-_VOICE_UNAVAILABLE = (
-    "Voice calls need the organization's voice switch on and a voice set up on this "
-    "agent's Voice card."
-)
+_VOICE_UNAVAILABLE = "Voice calls need a voice set up on this agent's Voice card, and published."
 
 
 class EmbedDenied(Exception):
@@ -859,14 +856,14 @@ class AgentEmbedService:
         """Whether a public config offers a call, and over which transport (#54).
 
         Offered only while a call would start for a visitor - the embed's switch,
-        a published agent, and a ready voice on the embed surface - and otherwise
+        a published agent, and its Voice section ready - and otherwise
         sent as off with no transport: a visitor gets no call button rather than
         one that fails, and nothing about the operator's setup.
         """
         if not enabled or agent is None or not _runs(agent):
             return False, None
         readiness = await VoiceSettingsService(self.db).readiness(
-            organization_id=embed.organization_id, agent=agent, surface="embed"
+            organization_id=embed.organization_id, agent=agent
         )
         if not readiness.available or readiness.transport is None:
             return False, None
@@ -879,18 +876,16 @@ class AgentEmbedService:
 
         Only the switch is checked, not every save of an embed already on: a key
         deleted since must not make the page impossible to rename, and the public
-        config already sends such an embed as off. A month whose minutes are used
-        up is not refused - the setup is complete, and calls start again when the
-        month turns.
+        config already sends such an embed as off.
         """
         if not isinstance(after, PageConfig | WidgetConfig) or not after.voice_conversation:
             return
         if isinstance(before, PageConfig | WidgetConfig) and before.voice_conversation:
             return
         readiness = await VoiceSettingsService(self.db).readiness(
-            organization_id=agent.organization_id, agent=agent, surface="embed"
+            organization_id=agent.organization_id, agent=agent
         )
-        if readiness.unavailable not in (None, "minutes_exhausted"):
+        if not readiness.available:
             raise refused_field("config.voice_conversation", _VOICE_UNAVAILABLE)
 
     async def _widget_faces(self, embed: AgentEmbed, agent: Agent | None) -> tuple[str, str | None]:

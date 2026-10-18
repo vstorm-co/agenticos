@@ -6,7 +6,7 @@ sideband leaves it talking and billing. So each connection writes a row at
 setup carrying the provider's call id, the key, the worker holding it and a
 heartbeat; the reaper hangs up any row whose heartbeat went stale or whose end
 was recorded without a confirmed hang-up. Each reconnect is its own row linked
-by `resume_of`, so minutes and budgets carry over the chain. Monthly minutes
+by `resume_of`, so a call's time and budget carry over the chain. Call minutes
 are summed from these rows, never from run durations.
 
 `agent_runs.modality` (`text` default, `voice`) rather than a new
@@ -14,8 +14,8 @@ are summed from these rows, never from run durations.
 questions, and a call in the widget is still the widget. Existing runs take
 the server default `text`.
 
-Revision ID: 0144_voice_calls
-Revises: 0143_org_voice_settings
+Revision ID: 0143_voice_calls
+Revises: 0142_dictation_compressed_audio
 Create Date: 2026-10-14
 """
 
@@ -25,8 +25,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0144_voice_calls"
-down_revision: str | None = "0143_org_voice_settings"
+revision: str = "0143_voice_calls"
+down_revision: str | None = "0142_dictation_compressed_audio"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -74,7 +74,7 @@ def upgrade() -> None:
         ),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint(
-            "end_reason IS NULL OR end_reason IN ('user', 'time_limit', 'budget', 'minutes', 'disconnected', 'revoked', 'guardrail', 'error', 'shutdown', 'reaped', 'abandoned')",
+            "end_reason IS NULL OR end_reason IN ('user', 'time_limit', 'budget', 'disconnected', 'revoked', 'guardrail', 'error', 'shutdown', 'reaped', 'abandoned')",
             name=op.f("voice_calls_ck_voice_calls_end_reason_check"),
         ),
         sa.CheckConstraint(

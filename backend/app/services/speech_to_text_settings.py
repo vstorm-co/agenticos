@@ -176,6 +176,15 @@ class SpeechToTextSettingsService:
         override = await self._override(agent, version_id=agent.current_version_id)
         return resolve(organization=organization, agent=override)
 
+    async def dictates_on_provider(self, agent: Agent) -> bool:
+        """Whether the agent's published Dictation switch sends `/chat` dictation to a provider.
+
+        Off, the composer uses the browser's own recognition: dictation is
+        switched on in the agent, and nothing at the organization's level does it.
+        """
+        override = await self._override(agent, version_id=agent.current_version_id)
+        return override is not None and override.dictation
+
     async def for_bot(self, bot: ChannelBot, *, inherited: bool = False) -> BotSpeechToText:
         """What this bot's voice notes transcribe with, through the agent it serves.
 

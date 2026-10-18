@@ -13,7 +13,7 @@ import json
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -197,10 +197,13 @@ async def _run_through_setup(engine, org, user, call_id, run_id, seed, frames):
         await asyncio.wait_for(session.run(), timeout=10)
     async with sessions() as fresh:
         row = (await fresh.execute(select(VoiceCall).where(VoiceCall.id == call_id))).scalar_one()
-        used = await voice_call_repo.seconds_since(
-            fresh, organization_id=org.id, since=datetime(2000, 1, 1, tzinfo=UTC)
+        usage = await voice_call_repo.usage_by_agent(
+            fresh,
+            organization_id=org.id,
+            start=datetime(2000, 1, 1, tzinfo=UTC),
+            end=datetime.now(UTC) + timedelta(days=1),
         )
-    return row, used
+    return row, sum(seconds for _agent, _name, seconds, _calls in usage)
 
 
 async def test_a_calls_row_starts_when_the_call_is_ready_so_setup_is_not_its_minutes(db, engine):

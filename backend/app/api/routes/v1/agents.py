@@ -610,17 +610,17 @@ async def dictation_status(agent_id: UUID, registry: AgentRegistrySvc, ml: MLSvc
     and a 404 for an agent the caller may not run. Read before the microphone is
     offered, so nobody records only to be refused, and for the format to record
     in - WAV, unless the deployment accepts compressed audio and the provider
-    takes WebM. `server_available` is the same answer without the `/chat`
-    engine, for the embed form.
+    takes WebM. The composer always has the browser's own recognition; `engine`
+    says whether the agent's Dictation switch sends it to a provider instead.
+    `server_available` is the provider half alone, for the embed form.
 
-    An agent with nothing published answers from the organization's settings,
-    never with a refusal.
+    An agent with nothing published answers `browser`, never with a refusal.
     """
     agent = await registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
     status = await ml.dictation_status(ctx, agent=agent)
     return DictationStatusRead(
         engine=status.engine,
-        ready=status.ready,
+        requested=status.requested,
         server_available=status.server_available,
         unavailable=status.unavailable,
         max_seconds=status.max_seconds,

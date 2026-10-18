@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from pydantic import ValidationError
@@ -43,12 +43,7 @@ def _org_row(*, name: str) -> Organization:
         # never flushed - so an unset boolean reaches the response schema as None
         # and fails it, which is the honest failure rather than one to coerce away.
         chat_may_waive_approvals=False,
-        chat_dictation="browser",
         dictation_max_seconds=300,
-        voice_conversations_enabled=False,
-        voice_in_chat=True,
-        voice_max_call_seconds=600,
-        voice_monthly_minutes=600,
         created_at=datetime(2026, 7, 31, tzinfo=UTC),
         updated_at=None,
     )
@@ -577,7 +572,6 @@ class TestOrganizationService:
     @staticmethod
     def _speech_org(**fields: object) -> MagicMock:
         org = MagicMock()
-        org.chat_dictation = fields.get("chat_dictation", "browser")
         org.speech_to_text_provider = fields.get("provider")
         org.speech_to_text_model = fields.get("model")
         org.speech_to_text_secret_id = fields.get("secret_id")
@@ -597,24 +591,6 @@ class TestOrganizationService:
     @staticmethod
     def _as_owner(org: MagicMock) -> AsyncMock:
         return AsyncMock(return_value=(org, MagicMock(role=OrgRole.OWNER.value)))
-
-    @pytest.mark.anyio
-    async def test_server_dictation_without_an_organization_pair_is_allowed(self, service):
-        """An agent may carry its own pair (`SpeechToTextSpec`), so `server` with
-        none here is a setup where only those agents dictate - not a refusal."""
-        org = self._speech_org()
-        with (
-            patch.object(service, "get_for_user", new=self._as_owner(org)),
-            patch(
-                "app.services.organization.organization_repo.set_speech_settings",
-                new=AsyncMock(return_value=org),
-            ) as written,
-        ):
-            await service.update(
-                uuid.uuid4(), OrganizationUpdate(chat_dictation="server"), requester_id=uuid.uuid4()
-            )
-        assert written.await_args.kwargs["chat_dictation"] == "server"
-        assert written.await_args.kwargs["provider"] is None
 
     @pytest.mark.anyio
     async def test_a_pair_the_catalog_does_not_offer_is_refused_on_the_model(self, service):
@@ -646,10 +622,9 @@ class TestOrganizationService:
         assert raised.value.details["fields"][0]["field"] == "speech_to_text_provider"
 
     @pytest.mark.anyio
-    async def test_clearing_the_pair_under_server_is_allowed(self, service):
-        """Stored `server`, request clears only the pair: agents with their own
-        pair keep dictating, the rest show a mic that is not set up."""
-        org = self._speech_org(chat_dictation="server", provider="openai", model="whisper-1")
+    async def test_clearing_the_pair_is_allowed(self, service):
+        """Agents with their own pair keep dictating on it; the rest dictate in the browser."""
+        org = self._speech_org(provider="openai", model="whisper-1")
         with (
             patch.object(service, "get_for_user", new=self._as_owner(org)),
             patch(
@@ -665,20 +640,6 @@ class TestOrganizationService:
         assert written.await_args.kwargs["model"] is None
 
     @pytest.mark.anyio
-    async def test_asking_for_server_on_a_stale_pair_is_refused_on_the_engine(self, service):
-        """Switching to `server` checks the stored pair it would run on; the
-        refusal marks the engine, the only field sent."""
-        org = self._speech_org(provider="openai", model="withdrawn-model")
-        with (
-            patch.object(service, "get_for_user", new=self._as_owner(org)),
-            pytest.raises(BadRequestError) as raised,
-        ):
-            await service.update(
-                uuid.uuid4(), OrganizationUpdate(chat_dictation="server"), requester_id=uuid.uuid4()
-            )
-        assert raised.value.details["fields"][0]["field"] == "chat_dictation"
-
-    @pytest.mark.anyio
     async def test_an_unknown_language_is_refused(self, service):
         with (
             patch.object(service, "get_for_user", new=self._as_owner(self._speech_org())),
@@ -692,7 +653,7 @@ class TestOrganizationService:
         assert raised.value.details["fields"][0]["field"] == "speech_to_text_language"
 
     @pytest.mark.anyio
-    async def test_a_valid_server_setup_writes_all_six_settings(self, service, key_check):
+    async def test_a_valid_setup_writes_all_five_settings(self, service, key_check):
         """The fields the request left out keep their stored values - here the
         language - and the ones it named replace them. The key is checked as
         the platform spends it: for everybody, so with no member's view."""
@@ -711,7 +672,6 @@ class TestOrganizationService:
             await service.update(
                 uuid.uuid4(),
                 OrganizationUpdate(
-                    chat_dictation="server",
                     speech_to_text_provider="openai",
                     speech_to_text_model="gpt-4o-transcribe",
                     speech_to_text_secret_id=_SPEECH_KEY,
@@ -720,7 +680,6 @@ class TestOrganizationService:
                 requester_id=uuid.uuid4(),
             )
         assert write.await_args.kwargs == {
-            "chat_dictation": "server",
             "provider": "openai",
             "model": "gpt-4o-transcribe",
             "secret_id": _SPEECH_KEY,
@@ -804,8 +763,8 @@ class TestOrganizationService:
 
     @pytest.mark.anyio
     async def test_clearing_the_pair_and_the_language_with_null_clears_them(self, service):
-        """`null` on a named field clears it; on the engine and the length, which
-        cannot be empty, it leaves the stored value alone."""
+        """`null` on a named field clears it; on the length, which cannot be
+        empty, it leaves the stored value alone."""
         org = self._speech_org(
             provider="openai",
             model="whisper-1",
@@ -828,7 +787,6 @@ class TestOrganizationService:
                 uuid.uuid4(),
                 OrganizationUpdate.model_validate(
                     {
-                        "chat_dictation": None,
                         "speech_to_text_provider": None,
                         "speech_to_text_model": None,
                         "speech_to_text_language": None,
@@ -839,7 +797,6 @@ class TestOrganizationService:
             )
         # The key goes with the pair it was chosen for.
         assert write.await_args.kwargs == {
-            "chat_dictation": "browser",
             "provider": None,
             "model": None,
             "secret_id": None,
@@ -849,9 +806,9 @@ class TestOrganizationService:
 
     @pytest.mark.anyio
     async def test_a_rename_does_not_revalidate_a_dictation_setup_that_went_stale(self, service):
-        """Engine `server` whose model was withdrawn must not block renaming the
+        """A default whose model was withdrawn must not block renaming the
         organization: the speech fields are checked only when one is named."""
-        org = self._speech_org(chat_dictation="server", provider="openai", model="withdrawn-model")
+        org = self._speech_org(provider="openai", model="withdrawn-model")
         with (
             patch.object(service, "get_for_user", new=self._as_owner(org)),
             patch(
@@ -870,30 +827,6 @@ class TestOrganizationService:
         assert rename.await_args.kwargs["name"] == "Renamed"
 
     @pytest.mark.anyio
-    @pytest.mark.parametrize("engine", ["off", "browser"])
-    async def test_switching_off_server_dictation_on_a_stale_pair_is_allowed(self, service, engine):
-        """An admin turning off broken server dictation must not have to pick a
-        new model first: the stored pair is not checked unless the request
-        names it or asks for `server`."""
-        org = self._speech_org(chat_dictation="server", provider="openai", model="withdrawn-model")
-        with (
-            patch.object(service, "get_for_user", new=self._as_owner(org)),
-            patch(
-                "app.services.organization.organization_repo.set_speech_settings",
-                new=AsyncMock(return_value=org),
-            ) as write,
-            patch(
-                "app.services.organization.organization_repo.update",
-                new=AsyncMock(return_value=org),
-            ),
-        ):
-            await service.update(
-                uuid.uuid4(), OrganizationUpdate(chat_dictation=engine), requester_id=uuid.uuid4()
-            )
-        assert write.await_args.kwargs["chat_dictation"] == engine
-        assert write.await_args.kwargs["model"] == "withdrawn-model"
-
-    @pytest.mark.anyio
     async def test_speech_settings_need_org_settings(self, service):
         member = AsyncMock(return_value=(self._speech_org(), MagicMock(role=OrgRole.MEMBER.value)))
         with (
@@ -905,29 +838,11 @@ class TestOrganizationService:
             pytest.raises(AuthorizationError),
         ):
             await service.update(
-                uuid.uuid4(), OrganizationUpdate(chat_dictation="off"), requester_id=uuid.uuid4()
+                uuid.uuid4(),
+                OrganizationUpdate(dictation_max_seconds=60),
+                requester_id=uuid.uuid4(),
             )
         write.assert_not_awaited()
-
-    def test_the_read_says_whether_dictation_is_ready(self):
-        from app.services.organization import _org_read
-
-        org = _org_row(name="Acme")
-        org.chat_dictation = "server"
-        org.speech_to_text_provider = "openai"
-        org.speech_to_text_model = "gpt-4o-transcribe"
-        org.speech_to_text_secret_id = _SPEECH_KEY
-        read = _org_read(org, member_count=1, role=OrgRole.OWNER.value)
-        assert read.chat_dictation == "server"
-        assert read.speech_to_text_model == "gpt-4o-transcribe"
-        assert read.speech_to_text_secret_id == _SPEECH_KEY
-        assert read.chat_dictation_ready is True
-
-        # A deleted key sets the column null: the pair is there, a key is not.
-        org.speech_to_text_secret_id = None
-        assert (
-            _org_read(org, member_count=1, role=OrgRole.OWNER.value).chat_dictation_ready is False
-        )
 
 
 class TestOrganizationResponses:
@@ -1103,115 +1018,3 @@ class TestTeardownWiring:
             if hasattr(meta, "dependency")
         ]
         assert get_organization_teardown_service in wired
-
-
-class TestVoiceSettings:
-    """The organization's voice conversations section (#54): who may change what."""
-
-    @pytest.fixture
-    def service(self):
-        db = MagicMock()
-        db.flush = AsyncMock()
-        db.refresh = AsyncMock()
-        return OrganizationService(db)
-
-    @pytest.fixture
-    def org(self):
-        return MagicMock(
-            voice_conversations_enabled=False, voice_in_chat=True, voice_max_call_seconds=600
-        )
-
-    @pytest.fixture
-    def repo(self, org):
-        with (
-            patch(
-                "app.services.organization.organization_repo.set_voice_settings",
-                new=AsyncMock(return_value=org),
-            ) as settings_write,
-            patch(
-                "app.services.organization.organization_repo.set_voice_monthly_minutes",
-                new=AsyncMock(return_value=org),
-            ) as minutes_write,
-            patch(
-                "app.services.organization.organization_repo.update",
-                new=AsyncMock(return_value=org),
-            ),
-        ):
-            yield MagicMock(
-                set_voice_settings=settings_write, set_voice_monthly_minutes=minutes_write
-            )
-
-    def _as(self, service, org, role: str):
-        return patch.object(
-            service, "get_for_user", new=AsyncMock(return_value=(org, MagicMock(role=role)))
-        )
-
-    @pytest.mark.anyio
-    async def test_switching_voice_on_needs_org_settings(self, service, org, repo):
-        with self._as(service, org, "builder"), pytest.raises(AuthorizationError):
-            await service.update(
-                uuid.uuid4(), OrganizationUpdate(voice_conversations_enabled=True), uuid.uuid4()
-            )
-
-        repo.set_voice_settings.assert_not_awaited()
-
-    @pytest.mark.security
-    @pytest.mark.anyio
-    async def test_the_monthly_minutes_need_budgets_manage_not_org_settings(
-        self, service, org, repo, monkeypatch
-    ):
-        """The minutes bound spend, so they are a budget manager's to move, like the cap."""
-        from app.core.permissions import ROLE_PERMS, Perm, Scope
-
-        monkeypatch.setitem(ROLE_PERMS, "test:settings-only", {Perm.ORG_SETTINGS: Scope.ALL})
-        with (
-            self._as(service, org, "test:settings-only"),
-            pytest.raises(AuthorizationError, match="budgets:manage"),
-        ):
-            await service.update(
-                uuid.uuid4(), OrganizationUpdate(voice_monthly_minutes=1200), uuid.uuid4()
-            )
-
-        repo.set_voice_monthly_minutes.assert_not_awaited()
-
-    @pytest.mark.security
-    @pytest.mark.anyio
-    async def test_a_key_without_budgets_manage_cannot_lift_the_minutes(self, service, org, repo):
-        """An owner's key narrowed to `org:settings` holds only that, not the
-        owner's whole role: `null` would lift the cap (Codex on #2204)."""
-        from app.core.permissions import Perm
-
-        with (
-            self._as(service, org, "owner"),
-            pytest.raises(AuthorizationError, match="budgets:manage"),
-        ):
-            await service.update(
-                uuid.uuid4(),
-                OrganizationUpdate(voice_monthly_minutes=None),
-                uuid.uuid4(),
-                key_scopes=frozenset({Perm.ORG_SETTINGS}),
-            )
-
-        repo.set_voice_monthly_minutes.assert_not_awaited()
-
-    @pytest.mark.anyio
-    async def test_clearing_the_monthly_minutes_leaves_only_the_budgets(self, service, org, repo):
-        with self._as(service, org, "owner"):
-            await service.update(
-                uuid.uuid4(), OrganizationUpdate(voice_monthly_minutes=None), uuid.uuid4()
-            )
-
-        repo.set_voice_monthly_minutes.assert_awaited_once_with(ANY, org, minutes=None)
-        repo.set_voice_settings.assert_not_awaited()
-
-    @pytest.mark.anyio
-    async def test_naming_a_voice_field_leaves_the_others_alone(self, service, org, repo):
-        with self._as(service, org, "owner"):
-            await service.update(
-                uuid.uuid4(), OrganizationUpdate(voice_conversations_enabled=True), uuid.uuid4()
-            )
-
-        repo.set_voice_settings.assert_awaited_once_with(
-            ANY, org, enabled=True, in_chat=True, max_call_seconds=600
-        )
-        repo.set_voice_monthly_minutes.assert_not_awaited()

@@ -108,6 +108,14 @@ async def _call(db, ctx_rows, *, started=None, resume_of=None, user_id=None):
     )
 
 
+async def _seconds(db, organization_id, *, since: datetime) -> int:
+    """Call seconds from `since` on, as the usage figure sums them."""
+    rows = await voice_call_repo.usage_by_agent(
+        db, organization_id=organization_id, start=since, end=datetime.now(UTC) + timedelta(days=1)
+    )
+    return sum(seconds for _agent, _name, seconds, _calls in rows)
+
+
 async def test_minutes_count_ended_calls_and_open_calls_up_to_their_heartbeat(db, voice_rows):
     now = datetime.now(UTC)
     ended = await _call(db, voice_rows, started=now - timedelta(minutes=10))
@@ -125,9 +133,7 @@ async def test_minutes_count_ended_calls_and_open_calls_up_to_their_heartbeat(db
         db, live.id, at=now - timedelta(minutes=1), cost_usd=Decimal("0.02"), seconds=60
     )
 
-    used = await voice_call_repo.seconds_since(
-        db, organization_id=voice_rows[0].id, since=now - timedelta(days=1)
-    )
+    used = await _seconds(db, voice_rows[0].id, since=now - timedelta(days=1))
 
     assert used == 180 + 60
 
@@ -333,7 +339,7 @@ async def test_a_call_running_across_the_month_boundary_counts_its_part_after_it
         guardrail_hits=0,
     )
 
-    used = await voice_call_repo.seconds_since(db, organization_id=voice_rows[0].id, since=since)
+    used = await _seconds(db, voice_rows[0].id, since=since)
 
     assert used == 300
 

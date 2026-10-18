@@ -26,13 +26,7 @@ class _World:
     """Everything the starter reads, as a happy path a test then breaks one piece of."""
 
     def __init__(self):
-        self.org = SimpleNamespace(
-            id=uuid4(),
-            voice_conversations_enabled=True,
-            voice_in_chat=True,
-            voice_max_call_seconds=600,
-            voice_monthly_minutes=600,
-        )
+        self.org = SimpleNamespace(id=uuid4())
         self.user_id = uuid4()
         self.agent = SimpleNamespace(
             id=uuid4(), organization_id=self.org.id, current_version_id=uuid4(), status="published"
@@ -82,15 +76,9 @@ def world(monkeypatch):
         realtime=MagicMock(),
     )
     monkeypatch.setattr(
-        f"{_M}.organization_repo.get_by_id", AsyncMock(side_effect=lambda db, oid: w.org)
-    )
-    monkeypatch.setattr(
         f"{_M}.AgentRegistryService.get", AsyncMock(side_effect=lambda ctx, aid, perm: w.agent)
     )
     monkeypatch.setattr(f"{_M}.VoiceSettingsService.published_spec", AsyncMock(return_value=spec))
-    monkeypatch.setattr(
-        f"{_M}.VoiceSettingsService.minutes_left_seconds", AsyncMock(return_value=36_000)
-    )
     monkeypatch.setattr(
         f"{_M}.conversation_repo.create_conversation", AsyncMock(return_value=w.conversation)
     )
@@ -147,8 +135,6 @@ async def test_a_started_call_is_committed_with_its_row_and_a_voice_run(world):
 @pytest.mark.parametrize(
     ("breaks", "reason"),
     [
-        (lambda w: setattr(w.org, "voice_conversations_enabled", False), "voice_off"),
-        (lambda w: setattr(w.org, "voice_in_chat", False), "voice_off"),
         (lambda w: setattr(w, "headroom", Decimal("0.50")), "budget"),
         (lambda w: setattr(w, "open_calls", 1), "busy"),
     ],
@@ -464,13 +450,6 @@ async def test_a_webrtc_call_needs_an_offer(world):
     )
 
 
-async def test_a_month_with_less_than_a_minute_left_is_refused(world, monkeypatch):
-    monkeypatch.setattr(
-        f"{_M}.VoiceSettingsService.minutes_left_seconds", AsyncMock(return_value=30)
-    )
-    assert await _refusal(world) == "minutes_exhausted"
-
-
 async def test_a_voice_key_deleted_since_publish_is_refused(world, monkeypatch):
     monkeypatch.setattr(
         f"{_M}.OrganizationSecretService.resolve_for_bindings", AsyncMock(return_value={})
@@ -738,19 +717,6 @@ async def test_a_visitor_calls_with_no_approver_and_approval_tools_left_out(worl
     assert prepare.kwargs["voice"].options.anonymous is True
     assert prepare.kwargs["acts_for_sender"] is False
     assert started.bridge._decider is None
-
-
-@pytest.mark.security
-async def test_a_visitor_is_not_told_the_organizations_minutes_but_a_member_is(world):
-    """The monthly allowance is the organization's business, not a stranger's on its site."""
-    starter, _ = _starter()
-    frame = StartFrame(type="start", agent_id=world.agent.id, sdp_offer=_OFFER)
-
-    visitor = await starter.start(_visitor(world), frame)
-    member = await starter.start(world.caller(), frame)
-
-    assert visitor.minutes_left is None
-    assert member.minutes_left == 600
 
 
 async def test_a_members_call_asks_its_questions_on_the_call_view(world):
@@ -1023,38 +989,24 @@ async def test_a_caller_with_neither_a_person_nor_an_embed_holds_no_line(world, 
     db.commit.assert_awaited_once()
 
 
-@pytest.mark.security
-async def test_a_visitor_is_shown_the_calls_own_cap_while_the_months_minutes_still_bind(
-    world, monkeypatch
-):
-    """Two minutes left this month, a ten-minute cap: the visitor sees ten, the server ends at two."""
-    from app.db.models.voice_call import VoiceEndReason
+async def test_a_call_runs_to_the_agents_own_longest_call(world, monkeypatch):
+    """Nothing about the organization bounds it: an agent naming 20 minutes gets 20."""
+    from app.agents.spec import AgentSpec, VoiceSpec
 
-    monkeypatch.setattr(
-        f"{_M}.VoiceSettingsService.minutes_left_seconds", AsyncMock(return_value=120)
+    spec = AgentSpec(
+        name="a",
+        voice=VoiceSpec(
+            provider="openai", model="gpt-realtime", secret_id=uuid4(), max_call_seconds=1200
+        ),
     )
+    monkeypatch.setattr(f"{_M}.VoiceSettingsService.published_spec", AsyncMock(return_value=spec))
     starter, _ = _starter()
-    frame = StartFrame(type="start", agent_id=world.agent.id, sdp_offer=_OFFER)
 
-    visitor = await starter.start(_visitor(world), frame)
-    member = await starter.start(world.caller(), frame)
-
-    assert visitor.cap_seconds == member.cap_seconds == 120
-    assert visitor.cap_reason is member.cap_reason is VoiceEndReason.MINUTES
-    assert visitor.shown_cap_seconds == 600
-    assert member.shown_cap_seconds == 120
-
-
-async def test_a_call_whose_own_time_cap_binds_ends_on_its_time_limit(world):
-    from app.db.models.voice_call import VoiceEndReason
-
-    starter, _ = _starter()
     started = await starter.start(
         _visitor(world), StartFrame(type="start", agent_id=world.agent.id, sdp_offer=_OFFER)
     )
 
-    assert started.cap_seconds == started.shown_cap_seconds == 600
-    assert started.cap_reason is VoiceEndReason.TIME_LIMIT
+    assert started.cap_seconds == 1200
 
 
 async def test_a_start_that_fails_past_its_checks_rolls_back_what_it_wrote(world, monkeypatch):

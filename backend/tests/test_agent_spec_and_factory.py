@@ -220,6 +220,15 @@ class TestSpeechToTextOverride:
 
         assert spec.speech_to_text is None
 
+    def test_the_dictation_switch_alone_is_a_block_and_off_alone_is_none(self):
+        """On, it is the whole point of the block - the organization's pair, sent to
+        its provider. Off with nothing else is the default, so it collapses too."""
+        on = AgentSpec(name="Support", speech_to_text={"dictation": True})
+        off = AgentSpec(name="Support", speech_to_text={"dictation": False, "language": None})
+
+        assert on.speech_to_text is not None and on.speech_to_text.dictation
+        assert off.speech_to_text is None
+
     def test_an_unknown_key_in_the_block_is_refused(self):
         """`extra="forbid"`, like every other block: a typo must not be dropped."""
         with pytest.raises(ValidationError):

@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent
 from app.db.models.organization import (
-    DictationEngine,
     Organization,
     OrganizationMember,
     OrgRole,
@@ -263,48 +262,24 @@ async def set_speech_settings(
     db: AsyncSession,
     org: Organization,
     *,
-    chat_dictation: DictationEngine,
     provider: str | None,
     model: str | None,
     secret_id: UUID | None,
     language: str | None,
     max_seconds: int,
 ) -> Organization:
-    """Write all six speech settings at once (#1797).
+    """Write all five speech settings at once (#1797).
 
-    One setter for the six because they are validated together - the pair is
+    One setter for the five because they are validated together - the pair is
     both-or-neither and must be one the catalog offers, and its key goes with
     it - and because :func:`update` skips a `None` argument, so it cannot clear
     a provider, a key or a language.
     """
-    org.chat_dictation = chat_dictation
     org.speech_to_text_provider = provider
     org.speech_to_text_model = model
     org.speech_to_text_secret_id = secret_id
     org.speech_to_text_language = language
     org.dictation_max_seconds = max_seconds
-    await db.flush()
-    await db.refresh(org)
-    return org
-
-
-async def set_voice_settings(
-    db: AsyncSession, org: Organization, *, enabled: bool, in_chat: bool, max_call_seconds: int
-) -> Organization:
-    """Write the voice switch, the chat switch and the call cap together (#54)."""
-    org.voice_conversations_enabled = enabled
-    org.voice_in_chat = in_chat
-    org.voice_max_call_seconds = max_call_seconds
-    await db.flush()
-    await db.refresh(org)
-    return org
-
-
-async def set_voice_monthly_minutes(
-    db: AsyncSession, org: Organization, *, minutes: int | None
-) -> Organization:
-    """The monthly call minutes; `None` leaves only the budgets (#54)."""
-    org.voice_monthly_minutes = minutes
     await db.flush()
     await db.refresh(org)
     return org

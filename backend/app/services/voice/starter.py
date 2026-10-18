@@ -1,9 +1,9 @@
 """Starting a call: every refusal before anything is spent (#54).
 
-In order, and each refusal rolls back whatever was flushed: the organization's
-switch, the agent and the caller's access to it, the Voice section, the
-conversation's ownership, the resume rules, the month's minutes, the key, a
-price that can be computed, the budget against the call's worst case, and the
+In order, and each refusal rolls back whatever was flushed: the agent and the
+caller's access to it, the Voice section - calls are switched on in the agent,
+not the organization - the conversation's ownership, the resume rules, the key,
+a price that can be computed, the budget against the call's worst case, and the
 caller's concurrent calls. Then the call row and the run are committed - the
 first commit of the call (amendment 5) - so approval rows, heartbeats and the
 reaper can see them.
@@ -38,7 +38,6 @@ from app.db.models.agent_run import RunSurface
 from app.db.models.conversation import Conversation
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
 from app.repositories import conversation_repo, embed_visitor_repo, voice_call_repo
-from app.repositories import organization as organization_repo
 from app.schemas.voice import StartFrame
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService, PreparedRun, VoiceRun
@@ -54,12 +53,7 @@ from app.services.voice.meter import UsageMeter
 from app.services.voice.questions import VoiceQuestions
 from app.services.voice.reaper import close_orphaned
 from app.services.voice.registry import LIVE_CALLS, WORKER_ID
-from app.services.voice.settings import (
-    ResolvedVoice,
-    VoiceSettingsService,
-    resolve_voice,
-    voice_switched_on,
-)
+from app.services.voice.settings import ResolvedVoice, VoiceSettingsService, resolve_voice
 from app.services.voice.transcript import SessionFactory, TurnWriter
 from app.services.voice.transport import refuse_data_channel
 
@@ -99,12 +93,7 @@ class StartedCall:
     model: RealtimeModel
     cost_limit: Decimal | None
     cap_seconds: int
-    """When the server ends the call: the tightest of its time cap and the month's minutes."""
-    cap_reason: VoiceEndReason
-    """Which of the two `cap_seconds` is, and so what the call ends as when it is reached."""
-    shown_cap_seconds: int
-    """The cap the caller is told. A visitor's leaves the month's minutes out."""
-    minutes_left: int | None
+    """When the server ends the call: the agent's longest call, less what a reconnect's chain used."""
     resume_token: str
     """What this connection's caller must present to resume it; the row holds its hash."""
     conversation_id: UUID
@@ -148,9 +137,6 @@ class VoiceCallStarter:
 
     async def _start(self, caller: VoiceCaller, frame: StartFrame) -> StartedCall:
         ctx = caller.ctx
-        organization = await organization_repo.get_by_id(self.db, ctx.organization_id)
-        if organization is None or not voice_switched_on(organization, caller.surface):
-            raise VoiceRefused("voice_off", "Voice conversations are switched off here.")
         agent_id = caller.agent_id or frame.agent_id
         if agent_id is None:
             raise VoiceRefused("no_agent", "Pick an agent to call.")
@@ -174,19 +160,10 @@ class VoiceCallStarter:
         chain_elapsed = await self._resume(
             caller, frame, agent_id=agent.id, conversation_id=conversation_id
         )
-        left = await voice_settings.minutes_left_seconds(organization)
-        time_cap = limits.call_cap_seconds(
-            org_max=organization.voice_max_call_seconds,
-            agent_max=resolved.max_call_seconds,
-            chain_elapsed=chain_elapsed,
-            minutes_left=None,
+        cap = limits.call_cap_seconds(
+            agent_max=resolved.max_call_seconds, chain_elapsed=chain_elapsed
         )
-        cap = time_cap if left is None else min(time_cap, left)
         if cap < limits.MIN_CALL_SECONDS:
-            if left is not None and left < limits.MIN_CALL_SECONDS:
-                raise VoiceRefused(
-                    "minutes_exhausted", "This organization has no call minutes left this month."
-                )
             # A reconnect whose call has used its longest time already.
             raise VoiceRefused("call_limit", "This call has reached its time limit.")
 
@@ -309,16 +286,6 @@ class VoiceCallStarter:
             model=model,
             cost_limit=headroom,
             cap_seconds=cap,
-            cap_reason=(
-                VoiceEndReason.MINUTES
-                if left is not None and left < time_cap
-                else VoiceEndReason.TIME_LIMIT
-            ),
-            # A visitor is told the call's own cap, never the organization's
-            # remaining minutes; the server still ends the call at `cap_seconds`.
-            shown_cap_seconds=time_cap if caller.anonymous else cap,
-            # The organization's monthly allowance is not a visitor's to read.
-            minutes_left=None if left is None or caller.anonymous else left // 60,
             resume_token=resume_token,
             conversation_id=conversation_id,
             bridge=bridge,

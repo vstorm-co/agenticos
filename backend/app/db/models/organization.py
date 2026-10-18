@@ -50,14 +50,6 @@ Declared beside the CHECK constraints that make it true, the way
 the same place the database enforces them.
 """
 
-DictationEngine = Literal["off", "browser", "server"]
-"""How `/chat` dictation transcribes (#1797): not at all, in the browser's own
-speech service, or on the organization's provider through this deployment.
-
-Declared beside `ck_organization_chat_dictation`, which makes it true, for the
-reason `MembershipSourceLiteral` is.
-"""
-
 
 class InvitationStatus(enum.StrEnum):
     PENDING = "pending"
@@ -112,14 +104,9 @@ class Organization(Base, TimestampMixin):
         Boolean, nullable=False, default=False, server_default="false"
     )
 
-    # How `/chat` dictation turns speech into text (#1797). `browser` is today's
-    # Web Speech API and the default, so an upgrade changes nobody's microphone;
-    # `server` sends the recording through this deployment to the provider below.
-    chat_dictation: Mapped[DictationEngine] = mapped_column(
-        String(16), nullable=False, default="browser", server_default="browser"
-    )
     # A pair from the speech-to-text catalog, both or neither, and the default an
-    # agent or a channel bot inherits.
+    # agent or a channel bot inherits (#1797). Whether `/chat` dictation uses it
+    # is each agent's switch; without one the browser transcribes.
     speech_to_text_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
     speech_to_text_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # The vault key the pair above is sent with: an org-visible `api_key` whose
@@ -140,24 +127,6 @@ class Organization(Base, TimestampMixin):
     # The composer stops a recording here; the server's byte cap derives from it.
     dictation_max_seconds: Mapped[int] = mapped_column(
         Integer, nullable=False, default=300, server_default="300"
-    )
-
-    # Voice conversations (#54). Off until an admin turns them on. The cap and
-    # the monthly minutes bound what a call can cost before any budget does:
-    # 600 s calls and 600 minutes a month by default, the minutes nullable to
-    # leave only the budgets. `voice_in_chat` is whether `/chat` offers a call
-    # once voice is on; the widget and the hosted page are switched per embed.
-    voice_conversations_enabled: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false"
-    )
-    voice_in_chat: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True, server_default="true"
-    )
-    voice_max_call_seconds: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=600, server_default="600"
-    )
-    voice_monthly_minutes: Mapped[int | None] = mapped_column(
-        Integer, nullable=True, default=600, server_default="600"
     )
 
     # How long this organization's data lives, per class, in days. `None` on the
@@ -191,10 +160,6 @@ class Organization(Base, TimestampMixin):
             name="ck_organization_budget_positive",
         ),
         CheckConstraint(
-            "chat_dictation IN ('off', 'browser', 'server')",
-            name="ck_organization_chat_dictation",
-        ),
-        CheckConstraint(
             "(speech_to_text_provider IS NULL) = (speech_to_text_model IS NULL)",
             name="ck_organization_speech_pair",
         ),
@@ -207,15 +172,6 @@ class Organization(Base, TimestampMixin):
         CheckConstraint(
             "speech_to_text_secret_id IS NULL OR speech_to_text_provider IS NOT NULL",
             name="ck_organization_speech_key_needs_pair",
-        ),
-        # 50 minutes at most: OpenAI ends a session at 60, and our cap must land first.
-        CheckConstraint(
-            "voice_max_call_seconds BETWEEN 60 AND 3000",
-            name="ck_organization_voice_max_call_seconds",
-        ),
-        CheckConstraint(
-            "voice_monthly_minutes IS NULL OR voice_monthly_minutes > 0",
-            name="ck_organization_voice_monthly_minutes",
         ),
     )
 

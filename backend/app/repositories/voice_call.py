@@ -16,13 +16,13 @@ from app.db.models.agent import Agent
 from app.db.models.voice_call import VoiceCall, VoiceEndReason
 
 _CHAIN_DEPTH = 20
+"""A chain is one call reconnected; twenty reconnects is a loop, not a call."""
 
 _LONGEST_CONNECTION = timedelta(hours=2)
 """Longer than any one connection lasts - the providers end a session within the
 hour, and a quiet row stops at its last heartbeat - so a call that started before
-`since` minus this cannot reach past `since`. Twice the hour, because a bound
-too tight drops minutes from the month and one too loose only reads more rows."""
-"""A chain is one call reconnected; twenty reconnects is a loop, not a call."""
+a window's start minus this cannot reach into it. Twice the hour, because a bound
+too tight drops minutes from the window and one too loose only reads more rows."""
 
 
 @dataclass(frozen=True)
@@ -191,35 +191,14 @@ async def count_open_for_embed(db: AsyncSession, *, embed_id: UUID, fresh_since:
     return int(result.scalar_one())
 
 
-async def seconds_since(db: AsyncSession, *, organization_id: UUID, since: datetime) -> int:
-    """Call seconds this organization used since `since`: to `ended_at`, else to the last heartbeat.
-
-    A call that began before `since` and went on past it counts its part after
-    `since`, so a call started just before the month turns spends the new month's
-    minutes for the time it runs in it.
-    """
-    until = func.coalesce(VoiceCall.ended_at, VoiceCall.heartbeat_at)
-    began = func.greatest(VoiceCall.started_at, since)
-    result = await db.execute(
-        select(func.coalesce(func.sum(extract("epoch", until - began)), 0)).where(
-            VoiceCall.organization_id == organization_id,
-            until > since,
-            # The range the organization's index can use: this runs on every
-            # heartbeat of every live call, and on a stranger's config fetch.
-            VoiceCall.started_at > since - _LONGEST_CONNECTION,
-        )
-    )
-    return int(result.scalar_one())
-
-
 async def usage_by_agent(
     db: AsyncSession, *, organization_id: UUID, start: datetime, end: datetime
 ) -> list[tuple[UUID | None, str | None, int, int]]:
     """Per agent, most seconds first: call seconds in `[start, end)`, and calls started in it.
 
-    Seconds are counted like :func:`seconds_since`, clipped to the window at both
-    ends: a call running across the month's turn counts its part in each month, so
-    the agents add up to the figure the limit is checked against. A reconnect is
+    Seconds run to `ended_at`, else to the last heartbeat, clipped to the window
+    at both ends: a call running across the month's turn counts its part in each
+    month. A reconnect is
     its own row but not a second call, and a call is counted where its first
     connection started. Calls of a deleted agent (their `agent_id` cleared) come
     back together as one row with no id and no name, so the rows still add up to

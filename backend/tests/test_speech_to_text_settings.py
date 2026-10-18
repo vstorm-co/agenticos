@@ -372,6 +372,32 @@ class TestForAnAgent:
             assert await _service().for_agent(_agent()) is None
 
 
+class TestTheAgentsDictationSwitch:
+    """Dictation in `/chat` goes to a provider only when the agent says so (#1797)."""
+
+    @pytest.mark.parametrize(
+        ("block", "on"),
+        [
+            ({"dictation": True}, True),
+            ({"dictation": False, "language": "pl"}, False),
+            ({"provider": "openai", "model": "whisper-1"}, False),
+            (None, False),
+        ],
+        ids=["switched-on", "switched-off", "a-pair-alone-is-not-the-switch", "no-block"],
+    )
+    async def test_the_published_switch_decides(self, block, on):
+        with patch(
+            f"{_MODULE}.agent_repo.get_version", new=AsyncMock(return_value=_version(block))
+        ):
+            assert await _service().dictates_on_provider(_agent()) is on
+
+    async def test_an_archived_agent_never_dictates_on_its_provider(self):
+        get_version = AsyncMock(return_value=_version({"dictation": True}))
+        with patch(f"{_MODULE}.agent_repo.get_version", new=get_version):
+            assert await _service().dictates_on_provider(_agent(status="archived")) is False
+        get_version.assert_not_awaited()
+
+
 def _exposure(*, environment_id: uuid.UUID | None = None) -> SimpleNamespace:
     return SimpleNamespace(environment_id=environment_id)
 

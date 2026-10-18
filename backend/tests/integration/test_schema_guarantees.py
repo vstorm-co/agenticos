@@ -922,23 +922,15 @@ class TestOrganizationBudgetConstraint:
 
 
 class TestOrganizationSpeechConstraints:
-    """The `/chat` dictation settings (#1797), and the rows the columns refuse."""
+    """The organization's speech-to-text default (#1797), and the rows the columns refuse."""
 
-    async def test_an_existing_organization_dictates_in_the_browser(self, db):
-        """What its microphone already did, so an upgrade moves nobody's audio."""
+    async def test_an_existing_organization_has_no_default(self, db):
+        """No pair, so an upgrade sends nobody's audio to a new vendor."""
         org = await _org(db)
         await db.refresh(org)
 
-        assert org.chat_dictation == "browser"
         assert org.dictation_max_seconds == 300
         assert org.speech_to_text_provider is None
-
-    async def test_an_engine_nothing_serves_is_refused(self, db):
-        org = await _org(db)
-        org.chat_dictation = "loud"
-
-        with pytest.raises(IntegrityError):
-            await db.flush()
 
     async def test_a_provider_without_a_model_is_refused(self, db):
         """Half a pair is a server engine with nothing to call."""
@@ -956,9 +948,8 @@ class TestOrganizationSpeechConstraints:
         with pytest.raises(IntegrityError):
             await db.flush()
 
-    async def test_a_full_server_setup_is_stored(self, db):
+    async def test_a_full_default_is_stored(self, db):
         org = await _org(db)
-        org.chat_dictation = "server"
         org.speech_to_text_provider = "openai"
         org.speech_to_text_model = "gpt-4o-transcribe"
         org.speech_to_text_language = "pl"
@@ -966,7 +957,10 @@ class TestOrganizationSpeechConstraints:
         await db.flush()
         await db.refresh(org)
 
-        assert (org.chat_dictation, org.speech_to_text_model) == ("server", "gpt-4o-transcribe")
+        assert (org.speech_to_text_provider, org.speech_to_text_model) == (
+            "openai",
+            "gpt-4o-transcribe",
+        )
 
     async def test_a_key_with_no_pair_is_refused(self, db):
         """A key left behind by a cleared pair would ride along to the next provider."""

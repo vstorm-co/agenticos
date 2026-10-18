@@ -175,12 +175,10 @@ async def test_deleting_an_agent_keeps_its_calls_minutes(db):
 
     row = await voice_call_repo.get(db, call_id, organization_id=org_id)
     assert row is not None and row.agent_id is None
-    assert (
-        await voice_call_repo.seconds_since(
-            db, organization_id=org_id, since=now - timedelta(days=1)
-        )
-        == 60
+    usage = await voice_call_repo.usage_by_agent(
+        db, organization_id=org_id, start=now - timedelta(days=1), end=now + timedelta(days=1)
     )
+    assert [(agent, seconds) for agent, _name, seconds, _calls in usage] == [(None, 60)]
 
 
 async def test_a_page_of_calls_reads_its_chains_in_a_bounded_number_of_queries(db, engine):

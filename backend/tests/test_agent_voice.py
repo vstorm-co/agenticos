@@ -233,6 +233,7 @@ def _capabilities_of(built: BuiltAgent) -> list[object]:
     return found
 
 
+@pytest.mark.security
 @pytest.mark.parametrize("anonymous", [False, True])
 def test_a_text_agent_working_for_a_call_settles_approvals_with_the_caller(anonymous):
     """The call's text twin and its delegates: nobody resumes a call, so nothing parks."""

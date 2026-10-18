@@ -5,39 +5,22 @@ from decimal import Decimal
 import pytest
 
 from app.services import realtime_models
-from app.services.voice.limits import (
-    budget_refuses,
-    call_cap_seconds,
-    minutes_left_seconds,
-    worst_case_usd,
-)
+from app.services.voice.limits import budget_refuses, call_cap_seconds, worst_case_usd
 
 
 @pytest.mark.parametrize(
-    ("org_max", "agent_max", "elapsed", "left", "expected"),
+    ("agent_max", "elapsed", "expected"),
     [
-        (600, None, 0, None, 600),
-        (600, 300, 0, None, 300),
-        (600, 900, 0, None, 600),  # the agent cannot exceed the organization
-        (3000, None, 0, None, 3000),
-        (600, None, 200, None, 400),  # a reconnect carries the chain's minutes
-        (600, None, 0, 120, 120),  # the month's minutes bind first
-        (600, None, 700, None, 0),
+        (None, 0, 600),  # an agent that names none gets ten minutes
+        (300, 0, 300),
+        (3000, 0, 3000),
+        (3600, 0, 3000),  # never past the ceiling below the provider's hour
+        (None, 200, 400),  # a reconnect carries the chain's time
+        (None, 700, 0),
     ],
 )
-def test_the_cap_is_the_tightest_limit(org_max, agent_max, elapsed, left, expected):
-    assert (
-        call_cap_seconds(
-            org_max=org_max, agent_max=agent_max, chain_elapsed=elapsed, minutes_left=left
-        )
-        == expected
-    )
-
-
-def test_minutes_left_is_none_when_only_budgets_bind():
-    assert minutes_left_seconds(monthly_minutes=None, used_seconds=10_000) is None
-    assert minutes_left_seconds(monthly_minutes=10, used_seconds=300) == 300
-    assert minutes_left_seconds(monthly_minutes=10, used_seconds=900) == 0
+def test_the_cap_is_the_agents_longest_call_less_the_chain(agent_max, elapsed, expected):
+    assert call_cap_seconds(agent_max=agent_max, chain_elapsed=elapsed) == expected
 
 
 def test_the_worst_case_is_the_cap_times_the_worst_minute():

@@ -30,8 +30,6 @@ def _service() -> MagicMock:
         seconds=720,
         calls=4,
         by_agent=[AgentMinutes(agent_id=uuid4(), agent_name="Support", seconds=720, calls=4)],
-        month_seconds=900,
-        monthly_minutes=600,
     )
     return MagicMock(usage=AsyncMock(return_value=usage))
 
@@ -73,7 +71,8 @@ async def test_the_window_reaches_the_service_and_the_minutes_come_back():
 
     assert response.status_code == 200
     body = response.json()
-    assert (body["seconds"], body["calls"], body["monthly_minutes"]) == (720, 4, 600)
+    assert (body["seconds"], body["calls"]) == (720, 4)
+    assert "monthly_minutes" not in body
     assert body["by_agent"][0]["agent_name"] == "Support"
     assert service.usage.await_args.kwargs["start"] == datetime(2026, 9, 1, tzinfo=UTC)
     assert service.usage.await_args.kwargs["end"] == datetime(2026, 10, 1, tzinfo=UTC)

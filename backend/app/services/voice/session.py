@@ -42,7 +42,6 @@ from app.repositories import (
     member_repo,
     voice_call_repo,
 )
-from app.repositories import organization as organization_repo
 from app.schemas.voice import (
     AnswerFrame,
     AnswersFrame,
@@ -74,7 +73,7 @@ from app.services.voice.pump import EventPump
 from app.services.voice.registry import LIVE_CALLS
 from app.services.voice.relay import AudioRelay
 from app.services.voice.seed import seed_history, summariser
-from app.services.voice.settings import VoiceSettingsService, agent_takes_calls, voice_switched_on
+from app.services.voice.settings import agent_takes_calls
 from app.services.voice.starter import StartedCall, VoiceCaller, VoiceCallStarter
 from app.services.voice.transcript import SessionFactory
 from app.services.voice.transport import send_audio_frame, send_frame
@@ -108,20 +107,18 @@ hold End, a closed tab and shutdown off until the library's own timeouts."""
 NOTICES: dict[VoiceEndReason, str] = {
     VoiceEndReason.TIME_LIMIT: "In one short sentence, tell the person the call is ending now and why: it has reached its time limit.",
     VoiceEndReason.BUDGET: "In one short sentence, tell the person the call is ending now and why: calls with you are not available right now.",
-    VoiceEndReason.MINUTES: "In one short sentence, tell the person the call is ending now and why: this month's call minutes are used up.",
 }
 
 VISITOR_UNAVAILABLE = "Calls are not available right now."
 """What a visitor refused for one of `_OPERATORS_REASONS` is told instead of the reason's words."""
 
-_OPERATORS_REASONS = frozenset({"not_configured", "not_priced", "minutes_exhausted", "budget"})
+_OPERATORS_REASONS = frozenset({"not_configured", "not_priced", "budget"})
 """Refusals whose words are written for whoever runs the agent: its Voice card, its
-model's price, the organization's minutes and budget. Not a visitor's to read."""
+model's price and the organization's budget. Not a visitor's to read."""
 
 _STATUS = {
     VoiceEndReason.USER: RunStatus.COMPLETED,
     VoiceEndReason.TIME_LIMIT: RunStatus.COMPLETED,
-    VoiceEndReason.MINUTES: RunStatus.COMPLETED,
     VoiceEndReason.GUARDRAIL: RunStatus.COMPLETED,
     VoiceEndReason.BUDGET: RunStatus.BUDGET_EXCEEDED,
     VoiceEndReason.DISCONNECTED: RunStatus.CANCELLED,
@@ -186,9 +183,6 @@ async def still_allowed(
         return None
     if not await resolve_access(db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT):
         return None
-    organization = await organization_repo.get_by_id(db, organization_id)
-    if not voice_switched_on(organization, caller.surface):
-        return None
     return ctx
 
 
@@ -230,12 +224,10 @@ message - its run, agent and version ids, its model, tokens, cost and tool calls
 is the organization's, as `ready` keeps the run's id from a visitor."""
 
 
-_NEUTRAL_TO_VISITORS = frozenset(
-    {"budget", "minutes", "minutes_exhausted", "not_configured", "not_priced"}
-)
+_NEUTRAL_TO_VISITORS = frozenset({"budget", "not_configured", "not_priced"})
 """Reasons that are the operator's to know: a visitor is told `unavailable` instead,
-code and all - the words were already neutral, the code said the month's minutes or
-the budget had run out to anyone reading the page's frames."""
+code and all - the words were already neutral, the code said the budget had run
+out to anyone reading the page's frames."""
 
 VISITOR_REASON = "unavailable"
 
@@ -299,8 +291,8 @@ class VoiceCallSession:
         self._group: anyio.abc.TaskGroup | None = None
         self._noticing = False
         # `time.monotonic()` when the call was ready: the origin of its cap, its
-        # seconds and its metered time, as the row's `started_at` is of its
-        # minutes. None while it is set up, which counts toward none of them.
+        # seconds and its metered time, as the row's `started_at` is of the
+        # call's seconds. None while it is set up, which counts toward none of them.
         self._started_at: float | None = None
         # A visitor sees what the embed's operator agreed to show (`_visible`); a
         # member on the console sees every frame. Read once, at admission, as the
@@ -471,8 +463,9 @@ class VoiceCallSession:
                 transport=started.resolved.entry.transport,
                 input_sample_rate=started.resolved.entry.input_sample_rate,
                 output_sample_rate=started.resolved.entry.output_sample_rate,
-                cap_seconds=started.shown_cap_seconds,
-                minutes_left=started.minutes_left,
+                # Whole seconds, rounded down: the caller's timer counts them and
+                # must never show more time than the server will hold the call.
+                cap_seconds=int(started.cap_seconds),
                 resume_token=started.resume_token,
             )
             if not self._caller.anonymous:
@@ -608,17 +601,6 @@ class VoiceCallSession:
                         # A reconnect on another worker ended this half-open connection (Task 17).
                         self.request_end(VoiceEndReason.DISCONNECTED)
                         return
-                    organization = await organization_repo.get_by_id(
-                        db, self._caller.ctx.organization_id
-                    )
-                    left = (
-                        None
-                        if organization is None
-                        else await VoiceSettingsService(db).minutes_left_seconds(organization)
-                    )
-            if left is not None and left <= 0:
-                await self._end_with_notice(pump, session, VoiceEndReason.MINUTES)
-                return
             budget = started.prepared.built.budget
             # Other runs spend while a call lasts; re-read their spend each heartbeat
             # rather than trusting the figure read when the call began.
@@ -688,21 +670,16 @@ class VoiceCallSession:
         return check
 
     async def _cap(self, started: StartedCall, pump: EventPump, session: RealtimeSession) -> None:
-        """End the call at its cap, as whichever limit set it: its time, or the month's minutes.
-
-        A visitor whose call the minutes cut short is not warned a minute ahead:
-        the warning would time the organization's remaining minutes for them.
-        """
-        reason = started.cap_reason
+        """End the call at the agent's longest call, warned a minute ahead."""
         left = started.cap_seconds - self._elapsed()
         warn_at = left - limits.WARN_SECONDS
-        if warn_at > 0 and (reason is VoiceEndReason.TIME_LIMIT or not self._caller.anonymous):
+        if warn_at > 0:
             await anyio.sleep(warn_at)
             await self._send(LimitFrame(type="limit", seconds_left=limits.WARN_SECONDS))
             await anyio.sleep(limits.WARN_SECONDS)
         else:
             await anyio.sleep(max(left, 0))
-        await self._end_with_notice(pump, session, reason)
+        await self._end_with_notice(pump, session, VoiceEndReason.TIME_LIMIT)
 
     async def _end_with_notice(
         self, pump: EventPump, session: RealtimeSession, reason: VoiceEndReason
@@ -721,7 +698,7 @@ class VoiceCallSession:
             # speaking after the notice's own response, not an earlier answer's.
             done = pump.arm_output_done()
             try:
-                await session.send(self._notice(reason), respond=True)
+                await session.send(NOTICES[reason], respond=True)
             except UsageLimitExceeded:
                 # The cost limit is spent, so the notice cannot be said: the call
                 # ends on the budget, which is what spent it.
@@ -731,13 +708,6 @@ class VoiceCallSession:
                 await done.wait()
         finally:
             self.request_end(reason)
-
-    def _notice(self, reason: VoiceEndReason) -> str:
-        """What the agent is asked to say. A visitor hears the month's minutes as calls not
-        being available, as on the hosted page: the allowance is not theirs to know."""
-        if self._caller.anonymous and reason is VoiceEndReason.MINUTES:
-            return NOTICES[VoiceEndReason.BUDGET]
-        return NOTICES[reason]
 
     async def _teardown(
         self,

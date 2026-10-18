@@ -717,6 +717,14 @@ class SpeechToTextSpec(BaseModel):
             "provider. Set with the pair, and only with it."
         ),
     )
+    dictation: bool = Field(
+        default=False,
+        description=(
+            "Send dictation in the `/chat` composer to the provider this block resolves to. "
+            "Off - and on while no pair or key resolves - the browser's own speech "
+            "recognition transcribes it, which costs nothing"
+        ),
+    )
 
 
 class VoiceSpec(BaseModel):
@@ -732,8 +740,8 @@ class VoiceSpec(BaseModel):
     reason `SpeechToTextSpec` gives: the Builder autosaves a draft between
     picking a provider and picking its model.
 
-    Capabilities that cannot run by voice do not block publishing; they are
-    unavailable in calls and the Builder lists them.
+    Capabilities a realtime session cannot carry do not block publishing; a
+    call hands them to the agent's text model (`app/agents/hand_off.py`).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -768,7 +776,7 @@ class VoiceSpec(BaseModel):
         default=None,
         ge=60,
         le=3000,
-        description="The longest call; at most the organization's maximum",
+        description="The longest call, 60-3000 s; null is 600 s (10 minutes)",
     )
     voice_note: str | None = Field(
         default=None, max_length=1000, description="Extra spoken-style guidance appended in calls"
@@ -1623,15 +1631,15 @@ class AgentSpec(BaseModel):
     def _an_empty_override_is_no_override(
         cls, value: SpeechToTextSpec | None
     ) -> SpeechToTextSpec | None:
-        """A block with every field null says nothing, so it is stored as absent.
+        """A block with every field at its default says nothing, so it is stored as absent.
 
-        The Builder's Voice card writes all three fields explicitly and sends the
+        The Builder's Voice card writes every field explicitly and sends the
         block back with nulls when somebody returns everything to "inherit".
         Collapsing it here keeps one spelling for "inherits everything", so a
         draft that went there and back compares equal to the version it started
         from rather than showing as an unpublished change.
         """
-        if value is None or value.model_dump(exclude_none=True):
+        if value is None or value.model_dump(exclude_defaults=True):
             return value
         return None
 

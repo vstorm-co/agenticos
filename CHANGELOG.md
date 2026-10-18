@@ -23,11 +23,10 @@ Two things are versioned separately from this file and worth knowing about:
   agent and talk to it, with barge-in; the agent keeps its tools, knowledge,
   in-call approvals (the exact arguments shown, 60 seconds to decide, only the
   caller with `approvals:decide` deciding) and budgets, and every turn is saved
-  as text in the conversation with no audio stored. Calls are off until an
-  organization turns them on (new organization voice columns,
-  `0143_org_voice_settings.py`: the switch, `/chat` offering calls, the longest
-  call - 10 minutes by default, 50 at most - and 600 monthly call minutes by
-  default, the minutes gated on `budgets:manage`). An agent's spec gains an
+  as text in the conversation with no audio stored. Calls are switched on in the
+  agent, not the organization: a published agent with a Voice section takes
+  them, for as long as its own longest call (10 minutes by default, 50 at most),
+  bounded by the budgets. An agent's spec gains an
   optional `voice` block - provider, model or Azure deployment and base model,
   key, voice, language, longest call, voice note - picked from a new realtime
   catalog (`GET /api/v1/providers/realtime-models`) and refused at publish when
@@ -35,11 +34,11 @@ Two things are versioned separately from this file and worth knowing about:
   `/api/v1/ws/voice`: OpenAI over WebRTC with a server sideband (no data
   channel, no client secret), Azure OpenAI, Gemini Live and xAI through a relay,
   those three **not verified live**. Each call is a run (`agent_runs.modality`,
-  and a `voice_calls` row per connection, `0144_voice_calls.py`), hung up on
+  and a `voice_calls` row per connection, `0143_voice_calls.py`), hung up on
   every exit, heartbeated every 15 seconds and swept every minute for a dead
   worker's calls; one call per person (`VOICE_MAX_CALLS_PER_USER`); one
   automatic reconnect within 10 seconds, seeded with text. Turns are messages
-  with a `turn_id` and an `interrupted` marker (`0145_message_voice_turns.py`).
+  with a `turn_id` and an `interrupted` marker (`0144_message_voice_turns.py`).
   `GET /api/v1/agents/{agent_id}/voice` says whether a call would start,
   `GET /api/v1/voice/usage` reports call minutes, `GET /api/v1/runs` takes
   `?modality=`, and Activity shows a call as one row with a microphone badge.
@@ -60,7 +59,8 @@ Two things are versioned separately from this file and worth knowing about:
   `live`, `hand_off` or `never`, and readiness no longer lists unavailable
   capabilities. See [Voice conversations](docs/voice.md).
 - **Dictation in `/chat` on the organization's own speech-to-text provider
-  (#1797).** With the organization's engine set to Server, the composer records
+  (#1797).** With the agent's Dictation switch on (`speech_to_text.dictation`),
+  the composer records
   in any browser, `POST /api/v1/agents/{agent_id}/dictation` transcribes the
   recording, and the text lands at the caret for editing, never sent by itself.
   Anyone who may run the agent may dictate to it. Refusals carry
@@ -73,11 +73,10 @@ Two things are versioned separately from this file and worth knowing about:
   organization's limit and how many words it inserted - on a hosted page too.
   See [Dictation in chat](docs/ml-services.md#dictation-in-chat).
 - **A Voice card on the organization's Members page.** For `org:settings`
-  holders: the dictation engine (Off, Browser or Server), the provider and model
-  from the speech-to-text catalog, a language and the longest recording, stored
-  in six new organization columns (`0138_org_speech_settings.py`), the key
-  among them. The provider, model, key and language are shown whatever the
-  engine, as the default channel bots inherit too.
+  holders: the default provider and model from the speech-to-text catalog, its
+  key, a language and the longest recording, stored in five new organization
+  columns (`0138_org_speech_settings.py`) - the default agents and channel bots
+  inherit. Without an agent's switch on, `/chat` dictates in the browser.
 - **An agent can transcribe on its own engine (#1797).** An optional
   `speech_to_text` block on the agent spec (provider, model and key together,
   the language on its own), set on a Voice card on the Build tab and live once

@@ -9,7 +9,6 @@ not the person waiting for an answer.
 from __future__ import annotations
 
 from dataclasses import replace
-from uuid import uuid4
 
 import pytest
 
@@ -128,37 +127,6 @@ class TestDictationSettings:
             for code in speech_to_text.LANGUAGES
         )
         assert {"en", "pl", "de", "es"} <= set(speech_to_text.LANGUAGES)
-
-    @pytest.mark.parametrize(
-        ("engine", "pair", "keyed", "ready"),
-        [
-            ("server", "offered", True, True),
-            ("server", "offered", False, False),
-            ("server", None, False, False),
-            ("server", "withdrawn", True, False),
-            ("browser", "offered", True, False),
-            ("off", "offered", True, False),
-        ],
-    )
-    def test_dictation_is_ready_only_on_the_server_with_an_offered_pair_and_its_key(
-        self, engine: str, pair: str | None, keyed: bool, ready: bool
-    ):
-        """A model withdrawn from the catalog since it was chosen, or a key
-        deleted since, reads as not ready, so the composer disables the mic
-        instead of failing on a recording."""
-        entry = speech_to_text.providers()[0]
-        provider, model = {
-            "offered": (entry.provider, entry.models[0].id),
-            "withdrawn": (entry.provider, "a-model-nobody-offers"),
-            None: (None, None),
-        }[pair]
-        secret_id = uuid4() if keyed else None
-        assert (
-            speech_to_text.dictation_ready(
-                engine=engine, provider=provider, model=model, secret_id=secret_id
-            )
-            is ready
-        )
 
 
 class TestTheCatalogRoute:

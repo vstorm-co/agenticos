@@ -78,13 +78,9 @@ VOICE_JS = r"""(function () {
     user: COPY.ended,
     time_limit: "The call reached its time limit.",
     call_limit: "The call reached its time limit.",
-    // The organization's monthly minutes are not the visitor's to know about.
-    minutes: "This assistant can't take calls right now. Please type your message instead.",
-    minutes_exhausted: "This assistant can't take calls right now. Please type your message instead.",
     budget: "This assistant can't take calls right now. Please type your message instead.",
     unavailable: "This assistant can't take calls right now. Please type your message instead.",
     line_busy: "All lines are busy. Try again in a few minutes, or type your message.",
-    voice_off: "Calls are switched off here.",
     revoked: "Calls were switched off here.",
     guardrail: "The call was ended by a content rule.",
     shutdown: "The server restarted. Press the call button to call again.",

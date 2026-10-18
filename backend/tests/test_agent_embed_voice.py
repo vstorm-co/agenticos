@@ -63,32 +63,19 @@ def test_an_embed_written_before_voice_existed_reads_as_off():
     )
 
 
-@pytest.mark.parametrize("unavailable", ["org_off", "no_voice", "no_key", "not_offered"])
+@pytest.mark.parametrize("unavailable", ["no_voice", "no_key", "not_offered"])
 async def test_switching_calls_on_is_refused_while_none_would_start(unavailable):
     agent = _agent()
     with (
         patch(
             f"{_M}.VoiceSettingsService.readiness", AsyncMock(return_value=_readiness(unavailable))
-        ) as readiness,
+        ),
         pytest.raises(BadRequestError) as refused,
     ):
         await _service()._check_voice_conversation(
             agent, before=None, after=WidgetConfig(voice_conversation=True)
         )
     assert refused.value.details["fields"][0]["field"] == "config.voice_conversation"
-    # The embed surface, not `/chat`'s: the organization's chat switch has no say here.
-    assert readiness.await_args.kwargs["surface"] == "embed"
-
-
-async def test_a_month_out_of_minutes_does_not_stop_the_switch():
-    """The setup is complete; calls start again when the month turns."""
-    with patch(
-        f"{_M}.VoiceSettingsService.readiness",
-        AsyncMock(return_value=_readiness("minutes_exhausted")),
-    ):
-        await _service()._check_voice_conversation(
-            _agent(), before=None, after=PageConfig(voice_conversation=True)
-        )
 
 
 async def test_switching_calls_on_where_one_would_start_is_accepted():

@@ -182,6 +182,7 @@ async def test_the_text_twins_steps_are_shown_and_saved_on_the_turn_that_handed_
     assert ("tool", {"name": "write_file", "status": "done"}) in frames
 
 
+@pytest.mark.security
 async def test_a_twin_waiting_on_an_approval_says_so():
     pump, frames, _, _ = _pump()
     await pump.worker_event(DeferredToolRequestsEvent(requests=DeferredToolRequests()))

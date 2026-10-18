@@ -19,9 +19,8 @@ from uuid import UUID
 from pydantic import Field
 
 from app.db.models.ml_service_call import MLServiceCall, TranscriptionSurface
-from app.db.models.organization import DictationEngine
 from app.schemas.base import BaseSchema, TimestampSchema
-from app.services.speech_to_text import DictationUnavailable, RecordingFormat
+from app.services.speech_to_text import ComposerDictation, DictationUnavailable, RecordingFormat
 
 if TYPE_CHECKING:
     from app.repositories.ml_service_call import UsageSummary
@@ -133,20 +132,22 @@ class DictationRead(BaseSchema):
 class DictationStatusRead(BaseSchema):
     """Whether the composer may offer server dictation for one agent, and how."""
 
-    engine: DictationEngine = Field(description="The organization's dictation engine for `/chat`")
-    ready: bool = Field(
+    engine: ComposerDictation = Field(
         description=(
-            "The engine is `server`, the agent is not archived, a provider and model "
-            "resolve for it, the catalog offers them and a usable key is named beside "
-            "them. Configured, not proven: a revoked key fails on the first recording."
+            "How the composer transcribes for this agent: `server` when its Dictation switch "
+            "is on, it is not archived, a provider and model resolve, the catalog offers them "
+            "and a usable key is named - configured, not proven: a revoked key fails on the "
+            "first recording. Otherwise `browser`, the browser's own recognition"
         )
+    )
+    requested: bool = Field(
+        description="The agent's published Dictation switch: send dictation to its provider"
     )
     server_available: bool = Field(
         description=(
-            "`ready` without the engine or the archive check: a provider and model "
-            "resolve for this agent, "
-            "the catalog offers them and a usable key is named. What a hosted page or a "
-            "widget set to `server` needs, since the `/chat` engine does not gate them."
+            "A provider and model resolve for this agent, the catalog offers them and a usable "
+            "key is named, whatever the switch. What a hosted page or a widget set to `server` "
+            "needs, since they have a switch of their own."
         )
     )
     unavailable: DictationUnavailable | None = Field(

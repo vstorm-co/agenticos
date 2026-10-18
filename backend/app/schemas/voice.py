@@ -16,16 +16,12 @@ Sdp = Annotated[str, StringConstraints(strip_whitespace=False)]
 
 class VoiceReadinessRead(BaseSchema):
     available: bool
-    unavailable: (
-        Literal["org_off", "not_in_chat", "no_voice", "not_offered", "no_key", "minutes_exhausted"]
-        | None
-    ) = None
+    unavailable: Literal["no_voice", "not_offered", "no_key"] | None = None
     transport: Literal["webrtc", "relay"] | None = None
     provider: str | None = None
     model: str | None = None
-    cap_seconds: int = Field(description="The longest this call could run, after the minutes left")
-    minutes_left: int | None = Field(
-        default=None, description="This month's remaining call minutes; null = budgets only"
+    cap_seconds: int = Field(
+        description="The longest this call could run: the agent's longest call"
     )
 
 
@@ -126,7 +122,6 @@ class ReadyFrame(BaseSchema):
     input_sample_rate: int
     output_sample_rate: int
     cap_seconds: int
-    minutes_left: int | None = None
     resume_token: str = Field(
         description=(
             "What a reconnect of this connection sends as `start.resume_token`. Sent only "
@@ -291,7 +286,7 @@ class AgentMinutesRead(BaseSchema):
 
 
 class VoiceUsageRead(BaseSchema):
-    """Call time over a window, by agent, and this month's against the organization's limit."""
+    """Call time over a window, by agent."""
 
     start: datetime
     end: datetime
@@ -299,10 +294,4 @@ class VoiceUsageRead(BaseSchema):
     calls: int
     by_agent: list[AgentMinutesRead] = Field(
         description="Most seconds first; one row with no id for deleted agents"
-    )
-    month_seconds: int = Field(
-        description="Call seconds this calendar month, what the limit counts"
-    )
-    monthly_minutes: int | None = Field(
-        description="The organization's monthly call minutes; null = budgets only"
     )

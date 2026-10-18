@@ -1,7 +1,7 @@
 """Voice conversations (#54): whether an agent can take a call, the call's socket, its minutes."""
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, WebSocket
@@ -29,26 +29,17 @@ async def voice_readiness(
     registry: AgentRegistrySvc,
     voice: VoiceSettingsSvc,
     ctx: Auth,
-    surface: Literal["web", "embed"] = Query(
-        default="web",
-        description=(
-            "Where the call would come from: `web` for `/chat`, which the organization's "
-            "chat switch also gates, or `embed` for a widget or hosted page, which the "
-            "embed form reads before offering its voice switch"
-        ),
-    ),
 ) -> Any:
     """Whether a call to this agent would start, and why not.
 
-    Anyone who may run the agent, a grant included; a 404 for one they may not.
-    Per-resource, so no route gate: the registry decides (`resolve_access`).
-    Read before the call button is offered, so nobody grants the microphone
-    only to be refused.
+    Calls are switched on in the agent: a published Voice section with a key
+    takes them, wherever the call comes from. Anyone who may run the agent, a
+    grant included; a 404 for one they may not. Per-resource, so no route gate:
+    the registry decides (`resolve_access`). Read before the call button is
+    offered, so nobody grants the microphone only to be refused.
     """
     agent = await registry.get(ctx, agent_id, perm=Perm.AGENTS_RUN)
-    readiness = await voice.readiness(
-        organization_id=ctx.organization_id, agent=agent, surface=surface
-    )
+    readiness = await voice.readiness(organization_id=ctx.organization_id, agent=agent)
     return VoiceReadinessRead.model_validate(readiness)
 
 
@@ -63,11 +54,10 @@ async def voice_usage(
     start: datetime = Query(description="Calls started at or after this instant"),
     end: datetime = Query(description="Calls started before this instant"),
 ) -> Any:
-    """Call minutes over a window, by agent, and this month's against the organization's limit.
+    """Call minutes over a window, by agent.
 
-    Counted from the call rows the monthly limit reads, so the dashboard figure
-    and the refusal at the limit agree. A reconnect is not a second call. An
-    `end` not after `start` is refused with 422.
+    Counted from the call rows, so a reconnect is not a second call. An `end`
+    not after `start` is refused with 422.
     """
     return VoiceUsageRead.model_validate(await service.usage(ctx, start=start, end=end))
 

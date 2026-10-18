@@ -47,6 +47,9 @@ def _run(modality: str) -> AgentRun:
         cost_is_partial=False,
         is_test=False,
         tool_args_repaired=0,
+        cache_read_tokens=0,
+        cache_write_tokens=0,
+        cache_busts=0,
         started_at=datetime.now(UTC),
     )
 

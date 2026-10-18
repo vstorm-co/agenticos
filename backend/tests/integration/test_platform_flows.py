@@ -3531,9 +3531,8 @@ class TestDictationReadinessFollowsTheAgent:
         self, db, name: str, *, visibility: Visibility = Visibility.ORG
     ) -> tuple[Tenant, Agent, uuid.UUID]:
         """An organization with no provider of its own, and an agent publishing
-        a Groq override with a Groq key named beside it."""
+        a Groq override with a Groq key named beside it and its Dictation switch on."""
         tenant = await _tenant(db, name=name)
-        tenant.organization.chat_dictation = "server"
         await _default_model(db, tenant)
         key = await OrganizationSecretService(db).create(
             tenant.ctx,
@@ -3548,7 +3547,11 @@ class TestDictationReadinessFollowsTheAgent:
             spec=AgentSpec(
                 name="Polish desk",
                 speech_to_text=SpeechToTextSpec(
-                    provider="groq", model="whisper-large-v3", language="pl", secret_id=key.id
+                    provider="groq",
+                    model="whisper-large-v3",
+                    language="pl",
+                    secret_id=key.id,
+                    dictation=True,
                 ),
             ),
         )
@@ -3572,7 +3575,7 @@ class TestDictationReadinessFollowsTheAgent:
         assert response.status_code == 200
         assert response.json() == {
             "engine": "server",
-            "ready": True,
+            "requested": True,
             "server_available": True,
             "unavailable": None,
             "max_seconds": 300,
@@ -3606,7 +3609,7 @@ class TestDictationReadinessFollowsTheAgent:
             f"{settings.API_V1_STR}/agents/{agent.id}/dictation"
         )
 
-        assert response.json()["ready"] is True
+        assert response.json()["engine"] == "server"
 
     async def test_a_deleted_key_leaves_the_agent_asking_for_one(self, db, as_caller) -> None:
         """The spec still names it, but nothing is opened in its place."""
@@ -3617,7 +3620,8 @@ class TestDictationReadinessFollowsTheAgent:
             f"{settings.API_V1_STR}/agents/{agent.id}/dictation"
         )
 
-        assert response.json()["ready"] is False
+        # The browser transcribes meanwhile, and the composer can say why.
+        assert response.json()["engine"] == "browser"
         assert response.json()["unavailable"] == "no_key"
         assert response.json()["provider"] == "groq"
 

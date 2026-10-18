@@ -8,9 +8,9 @@ id and the key - and two clocks: `ended_at` (our side finished) and
 `hung_up_at` (the provider confirmed). The reaper works on rows with no
 `hung_up_at` whose heartbeat went stale or whose end was recorded.
 
-Each reconnect is its own row and its own run, linked by `resume_of`, so minutes
-and budgets carry over the chain while every connection stays attributable.
-Monthly minutes are summed from these rows, never from run durations.
+Each reconnect is its own row and its own run, linked by `resume_of`, so a
+call's time and budget carry over the chain while every connection stays
+attributable. Call minutes are summed from these rows, never from run durations.
 """
 
 from __future__ import annotations
@@ -33,7 +33,6 @@ class VoiceEndReason(enum.StrEnum):
     USER = "user"
     TIME_LIMIT = "time_limit"
     BUDGET = "budget"
-    MINUTES = "minutes"
     DISCONNECTED = "disconnected"
     REVOKED = "revoked"
     GUARDRAIL = "guardrail"
@@ -53,7 +52,7 @@ class VoiceCall(Base, TimestampMixin):
         CheckConstraint("transport IN ('webrtc', 'relay')", name="ck_voice_calls_transport"),
         CheckConstraint("surface IN ('web', 'embed')", name="ck_voice_calls_surface"),
         CheckConstraint(
-            "end_reason IS NULL OR end_reason IN ('user', 'time_limit', 'budget', 'minutes', "
+            "end_reason IS NULL OR end_reason IN ('user', 'time_limit', 'budget', "
             "'disconnected', 'revoked', 'guardrail', 'error', 'shutdown', 'reaped', 'abandoned')",
             name="ck_voice_calls_end_reason",
         ),

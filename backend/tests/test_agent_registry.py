@@ -15,7 +15,6 @@ the run history keeps saying what was actually live at the time.
 """
 
 import uuid
-from types import SimpleNamespace
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -2112,25 +2111,6 @@ class TestVoiceProblems:
             "Voice: 'Prod' holds a api_key, and an Azure OpenAI key is required for voice conversations"
         ]
 
-    @pytest.mark.anyio
-    @pytest.mark.usefixtures("keys_pass")
-    async def test_a_call_longer_than_the_organization_allows_is_refused(
-        self, service, ctx, monkeypatch
-    ):
-        monkeypatch.setattr(
-            f"{REGISTRY_PATH}.organization_repo.get_by_id",
-            AsyncMock(return_value=SimpleNamespace(voice_max_call_seconds=600)),
-        )
-        problems = await service._voice_problems(
-            ctx,
-            VoiceSpec(
-                provider="openai", model="gpt-realtime", secret_id=uuid4(), max_call_seconds=900
-            ),
-        )
-        assert problems == [
-            "Voice: the longest call is 900 s, and this organization allows at most 600 s"
-        ]
-
 
 class TestVoiceProblemsAtTheEdges:
     """The rest of the Voice section's publish refusals (#54)."""
@@ -2165,18 +2145,11 @@ class TestVoiceProblemsAtTheEdges:
         assert problems == ["Voice: 'xx' is not a language code calls accept"]
 
     @pytest.mark.anyio
-    @pytest.mark.parametrize(
-        ("organization", "seconds"),
-        [(None, 3000), (SimpleNamespace(voice_max_call_seconds=600), 600)],
-    )
-    async def test_a_call_within_the_organizations_longest_passes(
-        self, monkeypatch, organization, seconds
-    ):
+    @pytest.mark.parametrize("seconds", [None, 60, 3000])
+    async def test_any_longest_call_the_field_allows_passes(self, monkeypatch, seconds):
+        """The organization sets no limit of its own: the spec field's bounds are all."""
         monkeypatch.setattr(
             f"{REGISTRY_PATH}.provider_keys.key_problem", AsyncMock(return_value=None)
-        )
-        monkeypatch.setattr(
-            f"{REGISTRY_PATH}.organization_repo.get_by_id", AsyncMock(return_value=organization)
         )
         problems = await AgentRegistryService(_db())._voice_problems(
             _ctx(),

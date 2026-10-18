@@ -780,6 +780,20 @@ def org_read() -> Any:
 
 
 @pytest.fixture(autouse=True)
+def switch() -> Any:
+    """The agent's published Dictation switch, on unless a test turns it off.
+
+    It is what sends `/chat` dictation to a provider; the tests below are about
+    what happens once it does. Read for real in `test_speech_to_text_settings.py`.
+    """
+    with patch(
+        "app.services.ml.facade.SpeechToTextSettingsService.dictates_on_provider",
+        new=AsyncMock(return_value=True),
+    ) as on:
+        yield on
+
+
+@pytest.fixture(autouse=True)
 def compressed() -> Any:
     """The deployment's `dictation_compressed_audio`, off unless a test turns it on."""
     with patch(
@@ -807,7 +821,6 @@ def _published(override: dict[str, str] | None) -> tuple[SimpleNamespace, AsyncM
 
 def _speech_org(**overrides: object) -> SimpleNamespace:
     fields: dict[str, object] = {
-        "chat_dictation": "server",
         "speech_to_text_provider": "openai",
         "speech_to_text_model": "gpt-4o-transcribe",
         "speech_to_text_secret_id": _ORG_KEY,
@@ -941,7 +954,6 @@ async def test_an_agent_override_makes_dictation_work_where_the_org_has_no_pair(
     [
         (_speech_org(), None, {"openai"}, True, "openai", None),
         (_speech_org(), None, set(), False, "openai", "no_key"),
-        (_speech_org(chat_dictation="browser"), None, {"openai"}, False, "openai", None),
         (
             _speech_org(speech_to_text_model="withdrawn"),
             None,
@@ -979,7 +991,6 @@ async def test_an_agent_override_makes_dictation_work_where_the_org_has_no_pair(
     ids=[
         "org-pair",
         "no-key",
-        "browser-engine",
         "withdrawn-model",
         "no-pair",
         "agent-pair-without-org-pair",
@@ -995,8 +1006,8 @@ async def test_dictation_readiness_follows_the_resolved_pair(
     provider: str | None,
     unavailable: str | None,
 ) -> None:
-    """Ready needs the server engine, a pair that resolves for this agent, the
-    catalog still offering it and a usable key named beside it. The provider is
+    """The provider dictates once the agent's switch is on and a pair resolves for
+    it, the catalog still offers it and a usable key is named beside it. The provider is
     returned regardless, because the composer records in its format, and
     `unavailable` says which of the three is missing."""
     agent, get_version = _published(agent_override)
@@ -1012,20 +1023,43 @@ async def test_dictation_readiness_follows_the_resolved_pair(
     ):
         status = await MLService(_db()).dictation_status(_ctx(), agent=agent)
 
-    assert (status.ready, status.provider, status.unavailable) == (ready, provider, unavailable)
-    assert status.engine == org.chat_dictation
+    assert (status.engine == "server", status.provider, status.unavailable) == (
+        ready,
+        provider,
+        unavailable,
+    )
+    assert status.requested
     assert status.max_seconds == org.dictation_max_seconds
 
 
-async def test_the_embed_form_learns_availability_without_the_chat_engine() -> None:
-    """A hosted page or a widget on `server` is not gated by the `/chat` engine,
-    so the form asks `server_available` - and the format is the catalog's."""
+async def test_with_the_agents_switch_off_the_composer_dictates_in_the_browser(
+    switch: AsyncMock,
+) -> None:
+    """Free and always there: the provider is used only when the agent asks for it."""
+    switch.return_value = False
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch("app.services.ml.facade.TranscriptionService.has_key", new=_has_key({"openai"})),
+    ):
+        status = await MLService(_db()).dictation_status(_ctx(), agent=_AGENT)
+
+    assert (status.engine, status.requested, status.server_available) == ("browser", False, True)
+
+
+async def test_the_embed_form_learns_availability_without_the_agents_switch(
+    switch: AsyncMock,
+) -> None:
+    """A hosted page or a widget on `server` is not gated by the agent's `/chat`
+    switch, so the form asks `server_available` - and the format is the catalog's."""
+    switch.return_value = False
     with (
         patch(
             "app.services.ml.facade.organization_repo.get_by_id",
             new=AsyncMock(
                 return_value=_speech_org(
-                    chat_dictation="browser",
                     speech_to_text_provider="mistral",
                     speech_to_text_model="voxtral-mini-latest",
                 )
@@ -1038,7 +1072,7 @@ async def test_the_embed_form_learns_availability_without_the_chat_engine() -> N
     ):
         status = await MLService(_db()).dictation_status(_ctx(), agent=_AGENT)
 
-    assert (status.ready, status.server_available, status.format) == (False, True, "wav")
+    assert (status.engine, status.server_available, status.format) == ("browser", True, "wav")
 
 
 @pytest.mark.parametrize(
@@ -1088,7 +1122,7 @@ async def test_a_visitors_dictation_is_recorded_against_its_surface_and_no_perso
     with (
         patch(
             "app.services.ml.facade.organization_repo.get_by_id",
-            new=AsyncMock(return_value=_speech_org(chat_dictation="off")),
+            new=AsyncMock(return_value=_speech_org()),
         ),
         patch(
             "app.services.ml.facade.TranscriptionService.transcribe",
@@ -1097,7 +1131,7 @@ async def test_a_visitors_dictation_is_recorded_against_its_surface_and_no_perso
     ):
         text = await MLService(_db()).transcribe_dictation(
             call,
-            organization=_speech_org(chat_dictation="off"),
+            organization=_speech_org(),
             agent=_AGENT,
             content=pcm_wav(1.25),
             mime_type="audio/wav",
@@ -1258,7 +1292,8 @@ async def test_a_shut_gate_is_not_configured_and_resolves_nothing(recorded: Any)
 
 
 async def test_dictation_readiness_for_an_unpublished_agent_answers_from_the_org() -> None:
-    """Never a refusal: the composer asks before the agent has anything published."""
+    """Never a refusal: the composer asks before the agent has anything published,
+    and the organization's default is what a published switch would reach."""
     with (
         patch(
             "app.services.ml.facade.organization_repo.get_by_id",
@@ -1271,7 +1306,7 @@ async def test_dictation_readiness_for_an_unpublished_agent_answers_from_the_org
     ):
         status = await MLService(_db()).dictation_status(_ctx(), agent=_AGENT)
 
-    assert (status.ready, status.provider) == (True, "openai")
+    assert (status.server_available, status.provider) == (True, "openai")
 
 
 async def test_an_archived_agent_is_never_ready_to_dictate_to() -> None:
@@ -1290,7 +1325,7 @@ async def test_an_archived_agent_is_never_ready_to_dictate_to() -> None:
     ):
         status = await MLService(_db()).dictation_status(_ctx(), agent=agent)
 
-    assert (status.ready, status.server_available) == (False, True)
+    assert (status.engine, status.server_available) == ("browser", True)
 
 
 async def test_a_recording_for_an_archived_agent_is_refused_before_the_provider() -> None:
@@ -1326,7 +1361,6 @@ async def test_dictation_readiness_with_no_organization_is_not_found() -> None:
     ("org", "content", "mime", "reason"),
     [
         (None, b"a", "audio/webm", "not_configured"),
-        (_speech_org(chat_dictation="browser"), b"a", "audio/webm", "not_configured"),
         (
             _speech_org(speech_to_text_provider=None, speech_to_text_model=None),
             b"a",
@@ -1356,7 +1390,6 @@ async def test_dictation_readiness_with_no_organization_is_not_found() -> None:
     ],
     ids=[
         "no-org",
-        "browser-engine",
         "no-pair",
         "empty",
         "mp3",
@@ -1392,6 +1425,29 @@ async def test_a_dictation_is_refused_with_a_reason_and_the_refusal_recorded(
     transcribe.assert_not_awaited()
     assert recorded.await_args.kwargs["status"] == "failed"
     db.commit.assert_awaited()
+
+
+async def test_a_recording_for_an_agent_whose_switch_is_off_is_refused(
+    recorded: Any, switch: AsyncMock
+) -> None:
+    """Off, the composer dictates in the browser; a recording posted anyway is
+    refused before the provider is paid."""
+    switch.return_value = False
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id",
+            new=AsyncMock(return_value=_speech_org()),
+        ),
+        patch("app.services.ml.facade.TranscriptionService.transcribe", new=AsyncMock()) as sent,
+        pytest.raises(ConfigurationError) as refused,
+    ):
+        await MLService(_db()).dictate(
+            _ctx(), agent=_AGENT, content=pcm_wav(1), mime_type="audio/wav"
+        )
+
+    assert refused.value.details == {"reason": "not_configured"}
+    sent.assert_not_awaited()
+    assert recorded.await_args.kwargs["status"] == "failed"
 
 
 async def test_a_pcm_recording_at_the_limit_and_its_grace_is_transcribed(recorded: Any) -> None:

@@ -43,10 +43,8 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
-    "tests/test_voice_limits.py::test_minutes_left_is_none_when_only_budgets_bind": "arithmetic for an organization without a minutes cap, no refusal",
     "tests/test_agent_realtime.py::test_azure_builds_from_the_azure_secret_with_the_deployment_name": "builds a client from a secret of the right kind, no refusal",
     "tests/test_agent_voice.py::test_a_voice_agent_resolves_approvals_inline": "assembly wiring of the inline approval handler, no refusal",
-    "tests/test_services_organizations.py::TestVoiceSettings::test_clearing_the_monthly_minutes_leaves_only_the_budgets": "clearing the minutes cap writes null for a budget manager, no refusal",
     "tests/integration/test_channel_prompts.py::test_an_approval_prompt_must_name_its_approval": "a table check constraint on a prompt row, no refusal of a caller",
     "tests/test_ask_user.py::test_a_parked_question_s_step_waits_for_an_answer_and_any_other_for_approval": "the stored step status a parked call reads, no refusal",
     "tests/test_channel_prompts.py::TestOffering::test_each_approval_and_each_question_is_its_own_message": "what a chat is offered, display, no refusal",

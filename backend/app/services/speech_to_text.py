@@ -25,7 +25,6 @@ read: they are what a text run uses.
 
 from dataclasses import dataclass
 from typing import Literal
-from uuid import UUID
 
 from pydantic import TypeAdapter
 
@@ -48,6 +47,12 @@ LanguageField = Literal["language", "languages"]
 Mistral serve. OpenAI's `gpt-transcribe` replaces it with a `languages` list
 and says not to send both - so the model's entry says which it takes.
 """
+
+ComposerDictation = Literal["browser", "server"]
+"""How the `/chat` composer transcribes for one agent: the browser's own speech
+recognition, free and always there, or the agent's provider through this
+deployment - only when the agent's Dictation switch is on and a pair and key
+resolve for it."""
 
 DictationUnavailable = Literal["no_provider", "not_offered", "no_key"]
 """Why a recording for an agent would not reach a provider.
@@ -271,23 +276,3 @@ every catalogued provider accepts as the `language` form field. A code outside i
 is refused at the organization's PATCH rather than sent to a provider that
 answers with its own error text.
 """
-
-
-def dictation_ready(
-    *, engine: str, provider: str | None, model: str | None, secret_id: UUID | None
-) -> bool:
-    """Whether `/chat` dictation would reach a server engine, from settings alone.
-
-    "Configured", not "working": it reads the organization's columns and this
-    catalog and never opens the vault, because it is computed for every
-    organization in a member's list. The key counts as named while its column
-    holds one - a deleted key sets it null - and a key that went private since
-    is caught when a recording arrives, as `not_configured`.
-    """
-    return (
-        engine == "server"
-        and provider is not None
-        and model is not None
-        and secret_id is not None
-        and is_offered(provider, model)
-    )

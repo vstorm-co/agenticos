@@ -103,8 +103,6 @@ def _started(
     *,
     transport="webrtc",
     cap=600,
-    cap_reason=VoiceEndReason.TIME_LIMIT,
-    shown_cap=None,
 ):
     @asynccontextmanager
     async def realtime_session(rt, *, provider_session):
@@ -132,9 +130,6 @@ def _started(
         settings={},
         cost_limit=Decimal("5"),
         cap_seconds=cap,
-        cap_reason=cap_reason,
-        shown_cap_seconds=cap if shown_cap is None else shown_cap,
-        minutes_left=600,
         resume_token="resume-token-of-this-connection",
         conversation_id=uuid4(),
         secret=ApiKeySecret(api_key=SecretStr(_SECRET_VALUE)),
@@ -201,7 +196,6 @@ async def _run(
     seed=AsyncMock(return_value=[]),
     own_row=SimpleNamespace(ended_at=None),
     hang=None,
-    minutes_left=None,
     end=None,
     notice_seconds=0.05,
     caller=None,
@@ -221,13 +215,6 @@ async def _run(
         patch(f"{_M}.VoiceCallStarter.start", AsyncMock(side_effect=start)),
         patch(f"{_M}.hang_up", hang or AsyncMock(return_value=True)) as hung,
         patch(f"{_M}.seed_history", seed),
-        patch(
-            f"{_M}.organization_repo.get_by_id",
-            AsyncMock(return_value=SimpleNamespace(voice_monthly_minutes=None)),
-        ),
-        patch(
-            f"{_M}.VoiceSettingsService.minutes_left_seconds", AsyncMock(return_value=minutes_left)
-        ),
         patch(f"{_M}.voice_call_repo") as repo,
         patch(
             f"{_M}.agent_run_repo.expire_pending_approvals", expire or AsyncMock(return_value=0)
@@ -384,7 +371,6 @@ def _allowed_world(monkeypatch, broken: str | None):
     from app.core.exceptions import AuthenticationError
 
     agent = SimpleNamespace(current_version_id=uuid4(), status="published")
-    org = SimpleNamespace(voice_conversations_enabled=True, voice_in_chat=True)
     member = SimpleNamespace(role="member")
     embed = SimpleNamespace(
         agent_id=_EMBED_AGENT,
@@ -402,10 +388,6 @@ def _allowed_world(monkeypatch, broken: str | None):
         agent.current_version_id = None
     if broken == "archived":
         agent.status = "archived"
-    if broken == "voice_off":
-        org.voice_conversations_enabled = False
-    if broken == "chat_off":
-        org.voice_in_chat = False
     if broken == "embed_gone":
         embed = None
     if broken == "embed_paused":
@@ -419,14 +401,11 @@ def _allowed_world(monkeypatch, broken: str | None):
     monkeypatch.setattr(f"{_M}.authenticate_socket_token", auth)
     monkeypatch.setattr(f"{_M}.member_repo.get", AsyncMock(return_value=member))
     monkeypatch.setattr(f"{_M}.agent_repo.get", AsyncMock(return_value=agent))
-    monkeypatch.setattr(f"{_M}.organization_repo.get_by_id", AsyncMock(return_value=org))
     monkeypatch.setattr(f"{_M}.resolve_access", access)
     return auth
 
 
-@pytest.mark.parametrize(
-    "broken", ["token", "member", "grant", "unpublished", "archived", "voice_off", "chat_off"]
-)
+@pytest.mark.parametrize("broken", ["token", "member", "grant", "unpublished", "archived"])
 async def test_a_call_stops_being_allowed_when_access_goes(monkeypatch, broken):
     """Review Focus 5, on the real check rather than a stub of it."""
     from app.services.voice.session import still_allowed
@@ -493,7 +472,7 @@ async def test_a_refused_start_tells_the_client_why_and_holds_no_call():
     from app.services.voice.exceptions import VoiceRefused
 
     socket = FakeSocket([_START])
-    refused = VoiceRefused("voice_off", "Voice conversations are switched off here.")
+    refused = VoiceRefused("no_agent", "Pick an agent to call.")
     with patch(f"{_M}.VoiceCallStarter.start", AsyncMock(side_effect=refused)):
         session = VoiceCallSession(socket, _caller(), sessions=_sessions)
         await asyncio.wait_for(session.run(), timeout=2)
@@ -502,8 +481,8 @@ async def test_a_refused_start_tells_the_client_why_and_holds_no_call():
     assert socket.sent == [
         {
             "type": "ended",
-            "reason": "voice_off",
-            "message": "Voice conversations are switched off here.",
+            "reason": "no_agent",
+            "message": "Pick an agent to call.",
         }
     ]
 
@@ -514,13 +493,12 @@ async def test_a_refused_start_tells_the_client_why_and_holds_no_call():
     [
         ("not_configured", "This agent's voice key is gone. Choose another on its Voice card."),
         ("not_priced", "This model's price is unknown, so its budget could not be enforced."),
-        ("minutes_exhausted", "This organization has no call minutes left this month."),
         ("budget", "There is not enough budget left for a call."),
     ],
 )
 async def test_a_visitor_refused_for_the_operators_reasons_is_not_told_them(reason, message):
     """The words are written for the people who run the agent - its Voice card, its price,
-    the organization's minutes and budget. A visitor gets the reason code their page turns
+    the organization's budget. A visitor gets the reason code their page turns
     into its own copy, and words that say only that calls are not available."""
     from app.services.voice.exceptions import VoiceRefused
 
@@ -532,8 +510,8 @@ async def test_a_visitor_refused_for_the_operators_reasons_is_not_told_them(reas
             VoiceCallSession(socket, _visitor(), sessions=_sessions).run(), timeout=2
         )
 
-    # The code too: `minutes_exhausted` or `budget` said the organization had run
-    # out to anyone reading the page's frames.
+    # The code too: `budget` said the organization had run out to anyone reading
+    # the page's frames.
     assert socket.sent == [
         {"type": "ended", "reason": "unavailable", "message": "Calls are not available right now."}
     ]
@@ -644,21 +622,9 @@ async def test_a_session_that_simply_stops_is_an_error():
     assert {"type": "state", "state": "agent_speaking"} in socket.sent
 
 
-async def test_a_month_out_of_minutes_ends_the_call_with_a_notice():
-    socket = FakeSocket([_START])
-    realtime = FakeRealtime(hold=True)
-
-    _, repo = await _run(socket, _started(realtime), heartbeat=0.01, minutes_left=0)
-
-    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.MINUTES
-    assert realtime.sent and "minutes" in realtime.sent[0].lower()
-
-
 async def test_a_healthy_heartbeat_keeps_the_call_going_and_records_it():
     socket = FakeSocket([_START, 0.1, json.dumps({"type": "end"})])
-    _, repo = await _run(
-        socket, _started(FakeRealtime(hold=True)), heartbeat=0.01, minutes_left=600
-    )
+    _, repo = await _run(socket, _started(FakeRealtime(hold=True)), heartbeat=0.01)
     assert repo.heartbeat.await_count >= 2
     assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.USER
 
@@ -689,7 +655,7 @@ async def test_without_a_given_check_the_heartbeat_asks_the_real_one():
 async def test_a_minute_before_the_cap_the_call_view_is_warned(monkeypatch):
     monkeypatch.setattr("app.services.voice.limits.WARN_SECONDS", 1)
     socket = FakeSocket([_START])
-    started = _started(FakeRealtime(hold=True), cap=1.05, shown_cap=1)  # warned in 0.05 s
+    started = _started(FakeRealtime(hold=True), cap=1.05)  # warned in 0.05 s
     _, repo = await _run(socket, started)
     assert {"type": "limit", "seconds_left": 1} in socket.sent
     assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.TIME_LIMIT
@@ -789,17 +755,6 @@ async def test_a_visitors_call_ends_when_its_embed_is_paused_or_its_calls_switch
 
     _allowed_world(monkeypatch, broken)
     assert await still_allowed(MagicMock(), _visitor(), agent_id=_EMBED_AGENT) is None
-
-
-async def test_a_visitors_call_ends_when_the_organization_switches_voice_off(monkeypatch):
-    """The embed surface has no `/chat` switch, but the organization's own one still ends it."""
-    from app.services.voice.session import still_allowed
-
-    _allowed_world(monkeypatch, "chat_off")
-    visitor = _visitor()
-    assert await still_allowed(MagicMock(), visitor, agent_id=_EMBED_AGENT) is _PUBLISHER
-    _allowed_world(monkeypatch, "voice_off")
-    assert await still_allowed(MagicMock(), visitor, agent_id=_EMBED_AGENT) is None
 
 
 async def test_an_answer_cut_off_by_the_end_is_still_booked():
@@ -1061,7 +1016,6 @@ async def test_a_visitors_call_ends_when_the_publishers_role_no_longer_runs_the_
     [
         (VoiceEndReason.TIME_LIMIT, "time limit"),
         (VoiceEndReason.BUDGET, "not available right now"),
-        (VoiceEndReason.MINUTES, "minutes"),
     ],
 )
 def test_a_limit_notice_asks_the_agent_to_say_why_the_call_ends(reason, why):
@@ -1236,49 +1190,19 @@ async def test_a_visitor_told_a_tool_needs_approval_is_not_sent_its_arguments():
     assert socket.sent == [{"type": "approval_unavailable", "tool": "send_invoice", "args": {}}]
 
 
-async def test_a_call_whose_months_minutes_bound_its_cap_ends_as_minutes_not_on_time():
+async def test_a_visitor_is_warned_before_the_calls_own_time_limit(monkeypatch):
+    """The cap is the agent's longest call, not the organization's allowance, so a
+    visitor is told it and warned a minute ahead like anyone else."""
+    monkeypatch.setattr("app.services.voice.limits.WARN_SECONDS", 1)
     socket = FakeSocket([_START])
-    realtime = FakeRealtime(hold=True)
-    started = _started(realtime, cap=0, cap_reason=VoiceEndReason.MINUTES)
-
-    _, repo = await _run(socket, started)
-
-    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.MINUTES
-    assert {"type": "notice", "kind": "minutes"} in socket.sent
-    assert realtime.sent == [NOTICES[VoiceEndReason.MINUTES]]
-
-
-@pytest.mark.security
-async def test_a_visitor_never_learns_the_organizations_minutes_from_the_cap_or_the_notice(
-    monkeypatch,
-):
-    """The ready frame, the one-minute warning and the spoken notice would each give them away."""
-    monkeypatch.setattr("app.services.voice.limits.WARN_SECONDS", 0.02)
-    socket = FakeSocket([_START])
-    realtime = FakeRealtime(hold=True)
-    started = _started(realtime, cap=0.04, cap_reason=VoiceEndReason.MINUTES, shown_cap=600)
+    started = _started(FakeRealtime(hold=True), cap=1.05)  # warned in 0.05 s
 
     _, repo = await _run(socket, started, caller=_visitor())
 
     ready = next(frame for frame in socket.sent if frame["type"] == "ready")
-    assert ready["cap_seconds"] == 600
-    assert not [frame for frame in socket.sent if frame["type"] == "limit"]
-    assert realtime.sent and "minute" not in realtime.sent[0].lower()
-    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.MINUTES
-    # Recorded as minutes; sent as nothing more than unavailable.
-    assert {f["kind"] for f in socket.sent if f["type"] == "notice"} <= {"unavailable"}
-    assert [f["reason"] for f in socket.sent if f["type"] == "ended"] == ["unavailable"]
-
-
-async def test_a_member_is_still_told_the_reason_by_its_code():
-    socket = FakeSocket([_START])
-    started = _started(
-        FakeRealtime(hold=True), cap=0.04, cap_reason=VoiceEndReason.MINUTES, shown_cap=600
-    )
-
-    await _run(socket, started)
-
-    assert [f["reason"] for f in socket.sent if f["type"] == "ended"] == ["minutes"]
+    assert ready["cap_seconds"] == 1
+    assert {"type": "limit", "seconds_left": 1} in socket.sent
+    assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.TIME_LIMIT
 
 
 async def test_a_shutdown_asked_for_while_the_call_starts_opens_no_provider_call():
@@ -1330,7 +1254,7 @@ async def test_a_call_never_ends_before_its_callers_timer_reaches_the_cap():
     """The caller's timer starts when `ready` arrives, so the call's clock must not
     start before `ready` has gone - not even by a slow write of its `started_at`."""
     socket = _TimedSocket([_START])
-    started = _started(FakeRealtime(hold=True), cap=0.6, shown_cap=1)
+    started = _started(FakeRealtime(hold=True), cap=0.6)
 
     async def slow_write(*args, **kwargs):
         await asyncio.sleep(0.3)
@@ -1344,7 +1268,7 @@ async def test_time_spent_setting_a_call_up_counts_toward_neither_its_cap_nor_it
     """The caller's timer starts at `ready`, so the call's clock does: a slow setup
     (a long thread's summary) must not end the call early by its own length."""
     socket = _TimedSocket([_START])
-    started = _started(FakeRealtime(hold=True), cap=0.6, shown_cap=1)
+    started = _started(FakeRealtime(hold=True), cap=0.6)
 
     async def slow_seed(own, *, conversation_id, context_window, summarise):
         await asyncio.sleep(1.2)

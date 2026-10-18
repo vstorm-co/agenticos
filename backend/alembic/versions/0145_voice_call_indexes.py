@@ -1,6 +1,6 @@
 """Voice calls: an index under every column a lookup or a parent's delete filters on (#54).
 
-`0144_voice_calls` indexed only the organization's minutes, the sweep's
+`0143_voice_calls` indexed only the organization's minutes, the sweep's
 heartbeat, the run and the user. Three things read `voice_calls` by another
 column, and each scanned the table:
 
@@ -16,8 +16,8 @@ would serve the embed's count but not an embed's delete, which must find every
 call it ever had. The table is new in this release, so building them is cheap
 and needs no `CONCURRENTLY`.
 
-Revision ID: 0146_voice_call_indexes
-Revises: 0145_message_voice_turns
+Revision ID: 0145_voice_call_indexes
+Revises: 0144_message_voice_turns
 Create Date: 2026-10-15
 """
 
@@ -25,8 +25,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0146_voice_call_indexes"
-down_revision: str | None = "0145_message_voice_turns"
+revision: str = "0145_voice_call_indexes"
+down_revision: str | None = "0144_message_voice_turns"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

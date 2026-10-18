@@ -44,7 +44,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.local_service import LocalServiceKind
 from app.db.models.ml_service_call import MLCallStatus, MLServiceCall, TranscriptionSurface
-from app.db.models.organization import DictationEngine, Organization
+from app.db.models.organization import Organization
 from app.repositories import ml_service_call_repo
 from app.repositories import organization as organization_repo
 from app.repositories.ml_service_call import CallFilters, UsageSummary
@@ -53,7 +53,7 @@ from app.services.deployment_settings import DeploymentSettingsService
 from app.services.local_service import LocalServiceService
 from app.services.ml import audio_duration, parsing, pcm_wav, pii
 from app.services.ml.catalog import SERVICE_CATALOG, MLServiceEntry
-from app.services.speech_to_text import DictationUnavailable, RecordingFormat
+from app.services.speech_to_text import ComposerDictation, DictationUnavailable, RecordingFormat
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 from app.services.transcription import Recording, TranscriptionService
 from app.services.transcription_usage import TranscriptionCall
@@ -128,8 +128,8 @@ class ServerDictation:
 class DictationStatus:
     """What the composer needs before offering the microphone for one agent."""
 
-    engine: DictationEngine
-    ready: bool
+    engine: ComposerDictation
+    requested: bool
     server_available: bool
     unavailable: DictationUnavailable | None
     max_seconds: int
@@ -313,8 +313,8 @@ class MLService:
         """Transcribe a composer recording for one agent (#1797).
 
         The caller has already proven run access on `agent`. The gate is the
-        organization's engine for `/chat`: anything but `server` refuses as
-        `not_configured`. Everything after the gate is `transcribe_dictation`,
+        agent's published Dictation switch: off, the composer transcribes in the
+        browser, and a recording posted anyway refuses as `not_configured`. Everything after the gate is `transcribe_dictation`,
         which the hosted page and the widget share. A compressed recording
         whose length cannot be read - where the deployment accepts compressed
         audio at all - is accepted here, under the byte cap: the caller is a
@@ -322,8 +322,8 @@ class MLService:
         browser whose container this does not read.
 
         Raises:
-            ConfigurationError: `reason="not_configured"` - the engine is not
-                `server`, the agent is archived, no pair resolves, or no usable
+            ConfigurationError: `reason="not_configured"` - the agent's switch
+                is off, the agent is archived, no pair resolves, or no usable
                 key is named beside it.
             BadRequestError: `reason` `empty`, `unsupported_type` or `too_large`.
             ExternalServiceError: `reason` `provider_error` or `timeout`.
@@ -346,7 +346,12 @@ class MLService:
                 model=None,
                 agent_id=agent.id,
             ),
-            organization=org if org is not None and org.chat_dictation == "server" else None,
+            organization=(
+                org
+                if org is not None
+                and await SpeechToTextSettingsService(self.db).dictates_on_provider(agent)
+                else None
+            ),
             agent=agent,
             content=content,
             mime_type=mime_type,
@@ -370,7 +375,7 @@ class MLService:
         **No `AuthContext`, on purpose.** The composer has a signed-in member; the
         hosted page and the widget have a stranger, and nothing about them belongs
         in a context. So the caller decides whether this surface may dictate at
-        all - the organization's `/chat` engine for the composer, the embed's own
+        all - the agent's Dictation switch for the composer, the embed's own
         `dictation` setting for a page or a widget - and says who the call is
         attributed to in `call`. `organization` is `None` when that gate is shut,
         and the refusal is then the same `not_configured` either way. Usage is
@@ -527,17 +532,17 @@ class MLService:
     async def dictation_status(self, ctx: AuthContext, *, agent: Agent) -> DictationStatus:
         """Whether the composer can dictate to this agent, and on which provider.
 
-        Read before the microphone is offered, so a recording is not made only
-        to be refused. `ready` is the organization's `/chat` engine being
-        `server` *and* `server_dictation` saying a provider is there to reach;
+        Read before the microphone is offered. The composer always has the
+        browser's own recognition; `engine` is `server` only where the agent's
+        published Dictation switch is on (`requested`) *and* `server_dictation`
+        says a provider is there to reach - otherwise the browser transcribes, so
+        a missing key costs a member the provider, never the microphone.
         `server_available` is the second half alone, which is what the embed
-        form asks - a hosted page and a widget have a switch of their own and
-        the `/chat` engine does not gate them.
+        form asks - a hosted page and a widget have a switch of their own.
 
-        An agent with nothing published answers from the organization alone,
-        as dictation itself would - never a refusal. An archived agent is never
-        `ready`: nobody chats with it, so a microphone offered for it would
-        only spend the organization's provider credit on text with nowhere to go.
+        An archived agent never dictates on its provider: nobody chats with it,
+        so a recording for it would spend the organization's credit on text with
+        nowhere to go.
         """
         org = await organization_repo.get_by_id(self.db, ctx.organization_id)
         if org is None:
@@ -546,13 +551,14 @@ class MLService:
                 details={"organization_id": ctx.organization_id},
             )
         server = await self.server_dictation(agent)
+        requested = await SpeechToTextSettingsService(self.db).dictates_on_provider(agent)
         return DictationStatus(
-            engine=org.chat_dictation,
-            ready=(
-                org.chat_dictation == "server"
-                and server.available
-                and agent.status != AgentStatus.ARCHIVED.value
+            engine=(
+                "server"
+                if requested and server.available and agent.status != AgentStatus.ARCHIVED.value
+                else "browser"
             ),
+            requested=requested,
             server_available=server.available,
             unavailable=server.unavailable,
             max_seconds=org.dictation_max_seconds,

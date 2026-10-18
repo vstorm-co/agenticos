@@ -34,39 +34,19 @@ def test_a_section_without_a_key_or_outside_the_catalog_resolves_to_nothing():
     assert resolve_voice(None) is None
 
 
-def _org(**overrides):
-    values = {
-        "id": uuid4(),
-        "voice_conversations_enabled": True,
-        "voice_in_chat": True,
-        "voice_max_call_seconds": 600,
-        "voice_monthly_minutes": 600,
-    }
-    values.update(overrides)
-    return SimpleNamespace(**values)
-
-
-async def _readiness(org, spec, *, used_seconds=0, surface="web", key=True):
+async def _readiness(spec, *, key=True):
     service = VoiceSettingsService(MagicMock())
     agent = SimpleNamespace(
-        id=uuid4(), organization_id=org.id, current_version_id=uuid4(), status="published"
+        id=uuid4(), organization_id=uuid4(), current_version_id=uuid4(), status="published"
     )
     with (
-        patch(
-            "app.services.voice.settings.organization_repo.get_by_id",
-            new=AsyncMock(return_value=org),
-        ),
         patch.object(service, "published_spec", new=AsyncMock(return_value=spec)),
-        patch(
-            "app.services.voice.settings.voice_call_repo.seconds_since",
-            new=AsyncMock(return_value=used_seconds),
-        ),
         patch(
             "app.services.voice.settings.organization_secret_repo.get",
             new=AsyncMock(return_value=SimpleNamespace(id=_KEY) if key else None),
         ),
     ):
-        return await service.readiness(organization_id=org.id, agent=agent, surface=surface)
+        return await service.readiness(organization_id=agent.organization_id, agent=agent)
 
 
 _READY = AgentSpec(
@@ -76,41 +56,37 @@ _READY = AgentSpec(
 )
 
 
-async def test_a_configured_agent_is_ready():
-    readiness = await _readiness(_org(), _READY)
+async def test_an_agent_with_a_voice_section_is_ready_whatever_the_organization():
+    """Calls are switched on in the agent; the organization has no call settings."""
+    readiness = await _readiness(_READY)
     assert readiness.available and readiness.transport == "webrtc"
-    assert readiness.cap_seconds == 600 and readiness.minutes_left == 600
+    assert readiness.cap_seconds == 600
+
+
+async def test_the_cap_is_the_agents_own_longest_call():
+    spec = _READY.model_copy(
+        update={"voice": _READY.voice.model_copy(update={"max_call_seconds": 1200})}
+    )
+    assert (await _readiness(spec)).cap_seconds == 1200
 
 
 @pytest.mark.parametrize(
-    ("org", "spec", "used", "reason"),
+    ("spec", "reason"),
     [
-        (_org(voice_conversations_enabled=False), _READY, 0, "org_off"),
-        (_org(voice_in_chat=False), _READY, 0, "not_in_chat"),
-        (_org(), AgentSpec(name="a"), 0, "no_voice"),
-        (
-            _org(),
-            AgentSpec(name="a", voice=VoiceSpec(provider="openai", model="gpt-realtime")),
-            0,
-            "no_key",
-        ),
-        (_org(), _READY, 600 * 60, "minutes_exhausted"),
+        (AgentSpec(name="a"), "no_voice"),
+        (AgentSpec(name="a", voice=VoiceSpec(provider="openai", model="gpt-realtime")), "no_key"),
     ],
 )
-async def test_each_reason_a_call_is_not_offered(org, spec, used, reason):
-    readiness = await _readiness(org, spec, used_seconds=used)
+async def test_each_reason_a_call_is_not_offered(spec, reason):
+    readiness = await _readiness(spec)
     assert not readiness.available and readiness.unavailable == reason
 
 
 async def test_a_published_key_deleted_from_the_vault_since_is_no_key():
     """The spec keeps the deleted key's id, so only the vault's row says it is gone:
     offering the call would ask for the microphone only for the start to refuse it."""
-    readiness = await _readiness(_org(), _READY, key=False)
+    readiness = await _readiness(_READY, key=False)
     assert not readiness.available and readiness.unavailable == "no_key"
-
-
-async def test_an_embed_ignores_the_chat_switch():
-    assert (await _readiness(_org(voice_in_chat=False), _READY, surface="embed")).available
 
 
 def test_a_provider_without_calls_or_an_azure_section_without_a_deployment_resolves_to_nothing():
@@ -134,30 +110,10 @@ def test_the_label_names_the_model_and_the_voice():
 
 async def test_a_model_withdrawn_from_the_catalog_is_not_offered():
     spec = AgentSpec(name="a", voice=VoiceSpec(provider="openai", model="gpt-4o", secret_id=_KEY))
-    readiness = await _readiness(_org(), spec)
+    readiness = await _readiness(spec)
     assert (readiness.available, readiness.unavailable, readiness.transport) == (
         False,
         "not_offered",
-        None,
-    )
-
-
-async def test_an_organization_that_is_gone_offers_no_call():
-    service = VoiceSettingsService(MagicMock())
-    agent = SimpleNamespace(
-        id=uuid4(), organization_id=uuid4(), current_version_id=uuid4(), status="published"
-    )
-    with (
-        patch(
-            "app.services.voice.settings.organization_repo.get_by_id",
-            new=AsyncMock(return_value=None),
-        ),
-        patch.object(service, "published_spec", new=AsyncMock(return_value=_READY)),
-    ):
-        readiness = await service.readiness(organization_id=agent.organization_id, agent=agent)
-    assert (readiness.unavailable, readiness.cap_seconds, readiness.minutes_left) == (
-        "org_off",
-        0,
         None,
     )
 
@@ -192,45 +148,12 @@ async def test_a_version_that_is_gone_has_no_spec_to_call():
 
 
 def test_a_refusal_carries_its_reason_for_the_client():
-    refused = VoiceRefused("org_off", "Voice conversations are off in this organization")
+    refused = VoiceRefused("no_agent", "Pick an agent to call.")
     assert (refused.reason, refused.details, refused.status_code) == (
-        "org_off",
-        {"reason": "org_off"},
+        "no_agent",
+        {"reason": "no_agent"},
         400,
     )
-
-
-async def test_an_organization_with_no_minutes_cap_is_not_summed_on_every_heartbeat(monkeypatch):
-    """The month's seconds are a SUM over every call; without a cap there is nothing to count against."""
-    summed = AsyncMock(return_value=1234)
-    monkeypatch.setattr("app.services.voice.settings.voice_call_repo.seconds_since", summed)
-    organization = SimpleNamespace(id=uuid4(), voice_monthly_minutes=None)
-
-    left = await VoiceSettingsService(MagicMock()).minutes_left_seconds(organization)
-
-    assert left is None
-    summed.assert_not_awaited()
-
-
-@pytest.mark.parametrize(
-    ("enabled", "in_chat", "surface", "on"),
-    [
-        (True, True, "web", True),
-        (True, False, "web", False),
-        (True, False, "embed", True),
-        (False, True, "web", False),
-        (False, True, "embed", False),
-    ],
-)
-def test_one_switch_check_decides_the_button_the_start_and_the_heartbeat(
-    enabled, in_chat, surface, on
-):
-    """Written once, so the entry button, a start and a mid-call revocation cannot disagree."""
-    from app.services.voice.settings import voice_switched_on
-
-    organization = SimpleNamespace(voice_conversations_enabled=enabled, voice_in_chat=in_chat)
-    assert voice_switched_on(organization, surface) is on
-    assert voice_switched_on(None, surface) is False
 
 
 @pytest.mark.parametrize(

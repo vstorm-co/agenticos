@@ -1,13 +1,11 @@
-"""Organization speech-to-text settings for /chat dictation (#1797).
+"""The organization's speech-to-text default (#1797).
 
-Five typed columns rather than a JSONB document, because the rules span them and
-the database can hold them: the engine is one of three values, the provider and
-model are a pair from the speech-to-text catalog (both or neither), and the
-longest recording is bounded. A CHECK on each means a half-written setup is a
-constraint violation rather than a composer that fails on its first recording.
-
-Every existing organization gets `browser`, which is what its microphone already
-does - the Web Speech API - so nobody's audio moves to a new vendor on upgrade.
+Typed columns rather than a JSONB document, because the rules span them and the
+database can hold them: the provider and model are a pair from the
+speech-to-text catalog (both or neither), and the longest recording is bounded.
+A CHECK on each means a half-written setup is a constraint violation rather than
+a composer that fails on its first recording. Whether `/chat` dictation uses the
+pair is each agent's switch, so no organization's microphone changes on upgrade.
 
 The key the pair is sent with is a column too, `speech_to_text_secret_id`: a
 named vault key rather than one looked up per recording, because with two keys
@@ -36,10 +34,6 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.add_column(
-        "organizations",
-        sa.Column("chat_dictation", sa.String(16), nullable=False, server_default="browser"),
-    )
-    op.add_column(
         "organizations", sa.Column("speech_to_text_provider", sa.String(32), nullable=True)
     )
     op.add_column("organizations", sa.Column("speech_to_text_model", sa.String(255), nullable=True))
@@ -61,11 +55,6 @@ def upgrade() -> None:
         ["speech_to_text_secret_id"],
         ["id"],
         ondelete="SET NULL",
-    )
-    op.create_check_constraint(
-        op.f("organizations_ck_organization_chat_dictation_check"),
-        "organizations",
-        "chat_dictation IN ('off', 'browser', 'server')",
     )
     op.create_check_constraint(
         op.f("organizations_ck_organization_speech_pair_check"),
@@ -101,15 +90,11 @@ def downgrade() -> None:
     op.drop_constraint(
         op.f("organizations_ck_organization_speech_pair_check"), "organizations", type_="check"
     )
-    op.drop_constraint(
-        op.f("organizations_ck_organization_chat_dictation_check"), "organizations", type_="check"
-    )
     for column in (
         "speech_to_text_secret_id",
         "dictation_max_seconds",
         "speech_to_text_language",
         "speech_to_text_model",
         "speech_to_text_provider",
-        "chat_dictation",
     ):
         op.drop_column("organizations", column)

@@ -229,6 +229,7 @@ async def test_a_call_opens_the_sandbox_for_its_text_twin_and_hands_work_to_it(r
     assert prepared.hand_off is not None
 
 
+@pytest.mark.security
 @pytest.mark.anyio
 async def test_the_twin_is_the_agents_text_run_settling_approvals_with_the_caller(
     runner_with_mocks,
