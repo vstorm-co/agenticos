@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-10-18
+
 ### Fixed
 
 - **Work while tools run has its picture.** The capability showed a lone initial
