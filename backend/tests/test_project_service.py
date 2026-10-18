@@ -14,6 +14,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
@@ -164,6 +165,12 @@ class TestCreatingAndChanging:
         assert create.await_args.kwargs["backend"] == "state"
         assert create.await_args.kwargs["visibility"] == "private"
         assert sharing.restrict_to.await_args.kwargs["group_ids"] == [group]
+
+    def test_a_team_project_is_refused_rather_than_kept_hidden(self) -> None:
+        """No role reaches a project at team scope, so it was its creator's alone."""
+        with pytest.raises(ValidationError):
+            ProjectCreate(name="Launch", visibility=Visibility.TEAM)
+        assert ProjectCreate(name="Launch", visibility="org").visibility is Visibility.ORG
 
     async def test_a_default_agent_must_be_one_the_caller_can_run(self) -> None:
         service = _service(None)

@@ -1,6 +1,7 @@
 """Projects: a shared container, standing instructions and the chats held in them."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -16,7 +17,9 @@ MAX_INSTRUCTIONS = 20_000
 class ProjectCreate(AudienceChoice):
     """A new project. Private to its creator unless an audience is named."""
 
-    visibility: Visibility = Field(
+    # Not `team`: no role reaches a project at team scope, so a team project was
+    # one only its creator could see, whatever the request said.
+    visibility: Literal[Visibility.PRIVATE, Visibility.ORG] = Field(
         default=Visibility.PRIVATE,
         description=(
             "`private` - the default - is the creator and whoever they share it with; "
