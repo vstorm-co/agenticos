@@ -76,6 +76,7 @@ class _Served:
             get_run=AsyncMock(),
         )
         self.conversations = MagicMock(for_api_run=AsyncMock(return_value=(uuid.uuid4(), None)))
+        self.registry = MagicMock(get=AsyncMock(return_value=agent))
 
     def __enter__(self) -> _Served:
         self._patches = [
@@ -87,6 +88,7 @@ class _Served:
             ),
             patch.object(module, "AgentRunnerService", return_value=self.runner),
             patch.object(module, "ConversationService", return_value=self.conversations),
+            patch.object(module, "AgentRegistryService", return_value=self.registry),
         ]
         for started in self._patches:
             started.start()
@@ -223,6 +225,21 @@ class TestSendingATask:
     ) -> None:
         answer = await _ask(_Served(_agent()), body)
         assert answer["error"]["code"] == code
+
+
+class TestWhoMayRunIt:
+    @pytest.mark.security
+    async def test_an_agent_the_caller_may_not_run_opens_no_conversation(self) -> None:
+        """Refused only by the run, the request still committed, and each refusal
+        left an empty thread behind."""
+        served = _Served(_agent())
+        served.registry.get.side_effect = NotFoundError(message="Agent not found")
+
+        answer = await _ask(served, _send())
+
+        assert answer["error"]["code"] == -32600
+        served.conversations.for_api_run.assert_not_awaited()
+        served.runner.execute.assert_not_awaited()
 
 
 class TestContinuingATask:

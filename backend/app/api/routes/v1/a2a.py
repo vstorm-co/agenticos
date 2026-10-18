@@ -37,15 +37,16 @@ async def a2a_request(agent_id: UUID, request: Request, service: A2AServerSvc, c
 
     Answered with HTTP 200 and a JSON-RPC result or error, as A2A expects. Each
     task is an ordinary run, recorded on the `a2a` surface, under the caller's
-    key and its scopes. Only a request that runs the agent counts against the
-    caller's run allowance: a client polling a task it started reads it every
-    few seconds, and charged for that it ran out within a minute - before the
-    answer it was waiting for.
+    key and its scopes. Only `message/send`, the one request that runs the
+    agent, counts against the caller's run allowance: a client polling a task it
+    started reads it every few seconds, and charged for that it ran out within a
+    minute - before the answer it was waiting for. A refused or unknown method
+    starts nothing either.
     """
     try:
         body = await request.json()
     except ValueError:
         return {"jsonrpc": "2.0", "id": None, "error": {"code": PARSE_ERROR, "message": "Not JSON"}}
-    if not isinstance(body, dict) or body.get("method") != "tasks/get":
+    if isinstance(body, dict) and body.get("method") == "message/send":
         await limit_agent_run(ctx)
     return await service.handle(ctx, agent_id, body)

@@ -61,8 +61,21 @@ async def test_a_message_that_runs_the_agent_is_counted(
     assert service.handle.await_args.args[1] == AGENT
 
 
-async def test_reading_a_task_is_not(service: MagicMock, limiter: AsyncMock) -> None:
-    await _post({"jsonrpc": "2.0", "id": 1, "method": "tasks/get", "params": {"id": "t"}})
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"jsonrpc": "2.0", "id": 1, "method": "tasks/get", "params": {"id": "t"}},
+        {"jsonrpc": "2.0", "id": 1, "method": "tasks/cancel", "params": {"id": "t"}},
+        {"jsonrpc": "2.0", "id": 1, "method": "message/stream", "params": {}},
+        [1, 2],
+    ],
+    ids=["tasks-get", "tasks-cancel", "refused-method", "not-a-request"],
+)
+async def test_nothing_that_starts_no_run_is_counted(
+    service: MagicMock, limiter: AsyncMock, body: object
+) -> None:
+    """A probe or a refused request spent the allowance a later message needed."""
+    await _post(body)
     limiter.assert_not_awaited()
     service.handle.assert_awaited_once()
 

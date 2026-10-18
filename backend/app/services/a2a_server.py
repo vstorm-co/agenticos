@@ -49,6 +49,7 @@ from app.schemas.a2a import (
     TaskStatus,
 )
 from app.schemas.agent import ParkedCall
+from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.conversation import ConversationService
 
@@ -214,6 +215,9 @@ class A2AServerService:
         runner = AgentRunnerService(self.db)
         conversation_id: UUID | None = conversation
         try:
+            # Before the conversation opens, not after: refused by the run, the
+            # request still committed, and each refusal left an empty thread.
+            await AgentRegistryService(self.db).get(ctx, agent.id, perm=Perm.AGENTS_RUN)
             conversation_id, history = await ConversationService(self.db).for_api_run(
                 ctx, conversation, prompt=prompt
             )
