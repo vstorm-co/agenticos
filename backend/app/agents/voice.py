@@ -36,6 +36,7 @@ from app.agents.capabilities import get as capability_def
 from app.agents.capabilities.skills import Skills
 from app.agents.capabilities.thinking import ThinkingConfig
 from app.agents.deps import AgentDeps
+from app.agents.mcp import NEEDS_APPROVAL
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 
 DeferredHandler = Callable[
@@ -157,7 +158,10 @@ class WithoutApprovalTools(AbstractCapability[AgentDeps]):
     """Leaves gated tools out of an anonymous caller's session.
 
     A visitor on a widget or a hosted page can approve nothing, so the tool is
-    never offered rather than offered and refused.
+    never offered rather than offered and refused. `names` are the capability
+    tools the spec gates; an MCP server's tool says so itself, in the verdict
+    its binding's policy stamped on it (#2060) - read here the way `ApprovalGate`
+    reads it, only for a tool no capability owns.
     """
 
     names: frozenset[str]
@@ -165,7 +169,14 @@ class WithoutApprovalTools(AbstractCapability[AgentDeps]):
     async def prepare_tools(
         self, ctx: RunContext[AgentDeps], tool_defs: list[ToolDefinition]
     ) -> list[ToolDefinition]:
-        return [tool for tool in tool_defs if tool.name not in self.names]
+        return [
+            tool
+            for tool in tool_defs
+            if tool.name not in self.names
+            and not (
+                tool.capability_id is None and (tool.metadata or {}).get(NEEDS_APPROVAL) is True
+            )
+        ]
 
 
 _UNAVAILABLE = "agenticos_unavailable"

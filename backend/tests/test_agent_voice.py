@@ -33,6 +33,7 @@ from app.agents.capabilities import load_builtins
 from app.agents.capabilities.clock import Clock
 from app.agents.capabilities.skills import Skills
 from app.agents.factory import BuiltAgent, build_agent
+from app.agents.mcp import NEEDS_APPROVAL
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec, CapabilityBindingSpec, SubagentRef
 from app.agents.voice import (
@@ -188,11 +189,32 @@ async def test_skills_reach_a_call_as_toolless_leaves_with_their_file_tool():
 @pytest.mark.anyio
 async def test_an_anonymous_call_leaves_approval_tools_out():
     gate = WithoutApprovalTools(names=frozenset({"send_email"}))
-    defs = [SimpleNamespace(name="send_email"), SimpleNamespace(name="get_weather")]
+    defs = [
+        SimpleNamespace(name="send_email", capability_id="email", metadata=None),
+        SimpleNamespace(name="get_weather", capability_id="weather", metadata=None),
+    ]
 
     kept = await gate.prepare_tools(SimpleNamespace(), defs)
 
     assert [d.name for d in kept] == ["get_weather"]
+
+
+@pytest.mark.security
+@pytest.mark.anyio
+async def test_an_anonymous_call_leaves_out_an_mcp_tool_its_binding_gates():
+    """An MCP binding's approval is stamped on the tool (#2060), not named in the
+    spec's capability gates - a visitor must not be offered it either."""
+    gate = WithoutApprovalTools(names=frozenset())
+    defs = [
+        SimpleNamespace(name="crm_update", capability_id=None, metadata={NEEDS_APPROVAL: True}),
+        SimpleNamespace(name="crm_read", capability_id=None, metadata={NEEDS_APPROVAL: False}),
+        # A capability's tool is not released or gated by metadata.
+        SimpleNamespace(name="clock_now", capability_id="clock", metadata={NEEDS_APPROVAL: True}),
+    ]
+
+    kept = await gate.prepare_tools(SimpleNamespace(), defs)
+
+    assert [d.name for d in kept] == ["crm_read", "clock_now"]
 
 
 def test_a_voice_agent_resolves_approvals_inline():
