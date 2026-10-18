@@ -38,6 +38,15 @@ Two things are versioned separately from this file and worth knowing about:
     either is recording.
   - Health probes use `urllib` instead of importing httpx, which halves the
     cost of the interpreter each one starts every 15-30 seconds (#2228).
+- **Two pollers on one Telegram token stop fighting.** Telegram ends one of
+  two `getUpdates` requests on every poll, and aiogram retries for ever, so on
+  prod two copies of one bot ended each other's polls for fifteen minutes. The
+  adapter now hears the conflict:
+  - a worker that does not hold the bot's stream lease closes its copy;
+  - the holder keeps polling and marks the bot down with "another process is
+    polling this bot's token".
+
+  The log now names the worker each stream opens and closes on (#2224).
 
 ## [1.6.3] - 2026-10-18
 
