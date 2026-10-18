@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent_workspace import AgentWorkspace
@@ -39,25 +40,40 @@ async def create(
     connection_id: UUID | None = None,
     files: dict[str, Any] | None = None,
 ) -> AgentWorkspace:
-    workspace = AgentWorkspace(
-        organization_id=organization_id,
-        agent_id=agent_id,
-        project_id=project_id,
-        conversation_id=conversation_id,
-        owner_ref=owner_ref,
-        scope=scope,
-        scope_key=scope_key,
-        backend=backend,
-        connection_id=connection_id,
-        files=files,
-        bytes_total=0,
-        version=0,
-        last_used_at=datetime.now(UTC),
+    """The workspace under this key - the one created here, or one created first.
+
+    Two first opens of one key at once - two teammates the first to work in a
+    project - both find no row and both insert. The unique key decides, and the
+    one that loses takes the row the other wrote rather than failing its request.
+    """
+    await db.execute(
+        pg_insert(AgentWorkspace)
+        .values(
+            id=uuid4(),
+            organization_id=organization_id,
+            agent_id=agent_id,
+            project_id=project_id,
+            conversation_id=conversation_id,
+            owner_ref=owner_ref,
+            scope=scope,
+            scope_key=scope_key,
+            backend=backend,
+            connection_id=connection_id,
+            files=files,
+            bytes_total=0,
+            version=0,
+            last_used_at=datetime.now(UTC),
+        )
+        .on_conflict_do_nothing(constraint="uq_agent_workspace_scope")
     )
-    db.add(workspace)
-    await db.flush()
-    await db.refresh(workspace)
-    return workspace
+    # Inserted here or there, the key now names exactly one row.
+    result = await db.execute(
+        select(AgentWorkspace).where(
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.scope_key == scope_key,
+        )
+    )
+    return result.scalar_one()
 
 
 async def save_files(
