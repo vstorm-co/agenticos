@@ -166,6 +166,12 @@ describe("the routines widget", () => {
     expect(screen.getByText("guardrail blocked")).toBeVisible();
   });
 
+  it("marks a routine stopped for looping as a failure", () => {
+    renderWidget([trigger()], [run({ status: "loop_stopped" })]);
+
+    expect(screen.getByText("stopped looping")).toBeVisible();
+  });
+
   it("shows the cadence and what the last run cost", () => {
     renderWidget([trigger()]);
 

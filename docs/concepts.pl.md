@@ -1,5 +1,5 @@
 ---
-source_sha: "111d48326705"
+source_sha: "efe226528843"
 ---
 
 # Koncepcje { #concepts }
@@ -311,6 +311,7 @@ działającą platformę:
 | `failed` | zepsuł się |
 | `budget_exceeded` | dobił do limitu — limit wydatków robiący swoje |
 | `guardrail_blocked` | został odrzucony przez [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | powtarzał te same wywołania narzędzi po ostrzeżeniu i został [zatrzymany](governance.md#step-limits) |
 | `cancelled` | został zatrzymany: przyciskiem stop w kompozytorze, przez zerwany socket, przez delegację anulowaną z góry. Na każdej powierzchni, nie tylko na strumieniowej |
 | `awaiting_approval` | zaparkował na zatwierdzeniu i jest **wznawialny** — jego historia wiadomości jest zapisana, więc decyzja dotyczy rozmowy, do której należy |
 

@@ -1358,6 +1358,17 @@ class TestRecordingADelegation:
     they corrupt the session and take the parent's run row with them.
     """
 
+    async def test_a_delegate_the_loop_guard_stopped_is_recorded_as_such(self):
+        """The library has three outcomes and calls it `failed`; the row says why (#2086)."""
+        agent_id, version_id = uuid.uuid4(), uuid.uuid4()
+        outcome = _outcome(
+            status="failed", loop_stopped=True, agent_id=agent_id, agent_version_id=version_id
+        )
+
+        result = await _record(outcome, attribution={version_id: _model()})
+
+        assert result.only.status is RunStatus.LOOP_STOPPED
+
     async def test_a_delegation_is_described_and_its_id_answered_immediately(self):
         agent_id, version_id = uuid.uuid4(), uuid.uuid4()
         model = _model(secret_id=uuid.uuid4())

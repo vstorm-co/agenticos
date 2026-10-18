@@ -67,6 +67,27 @@ export interface CapabilityBindingSpec {
  * tokens, cost and tool names but no message text or tool arguments. */
 export type TraceContent = "full" | "none";
 
+/** Mirrors `RunReviewerSpec`: a second model that reviews a run while it goes (#2106). */
+export interface RunReviewerSpec {
+  /** What its corrections are attributed to. `^[a-z0-9][a-z0-9_-]{0,39}$`. */
+  name: string;
+  /** Null in a draft; publish requires one. */
+  model_profile_id: string | null;
+  /** What to look for. Empty in a draft; publish requires it. */
+  instructions: string;
+  /** Review every N model requests. */
+  every: number;
+  /** How many tokens of the most recent run each review reads. */
+  window: number;
+}
+
+/** Mirrors `CodeModeSpec`: many tool calls from one sandboxed script (#2107). */
+export interface CodeModeSpec {
+  enabled: boolean;
+  /** How many tool calls one script may make. */
+  max_tool_calls: number;
+}
+
 /** Where this agent's traces go, when not to the deployment's own project. */
 export interface ObservabilitySpec {
   /** An organization secret holding a Logfire write token - an id, never a token. */
@@ -79,6 +100,13 @@ export interface ObservabilitySpec {
 }
 
 /** The agent's half of the two budget levels; the organization's cap is the other. */
+/** Mirrors `LoopGuardSpec`: identical calls in a row, and cycle repeats, that count as a loop. */
+export interface LoopGuardSpec {
+  enabled: boolean;
+  repeats: number;
+  cycles: number;
+}
+
 export interface BudgetSpec {
   monthly_usd?: number | null;
 }
@@ -327,6 +355,12 @@ export interface AgentSpec {
   subagents?: SubagentRef[];
   /** Model requests one run may make; null uses the platform default of 100. */
   max_steps?: number | null;
+  /** When a run looping on its tool calls is warned, then stopped; defaulted server side. */
+  loop_guard?: LoopGuardSpec;
+  /** Second models that review the run while it goes; defaulted to none server side. */
+  reviewers?: RunReviewerSpec[];
+  /** Whether tools are called from one sandboxed script; defaulted off server side. */
+  code_mode?: CodeModeSpec;
   budget?: BudgetSpec | null;
   /**
    * Optional here, required on the wire.

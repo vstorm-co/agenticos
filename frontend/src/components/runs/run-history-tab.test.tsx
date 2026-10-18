@@ -240,13 +240,15 @@ describe("run history controls", () => {
     expect(lastOptions()).toMatchObject({ statuses: ["failed"] });
   });
 
-  it("problems is failed and stopped-by-budget together, the way they are stored apart", async () => {
+  it("problems is failed, stopped-by-budget and stopped-for-looping together", async () => {
     renderTab();
 
     await userEvent.click(screen.getByRole("combobox", { name: "Filter by status" }));
     await userEvent.click(screen.getByRole("option", { name: "Problems" }));
 
-    expect(lastOptions()).toMatchObject({ statuses: ["failed", "budget_exceeded"] });
+    expect(lastOptions()).toMatchObject({
+      statuses: ["failed", "budget_exceeded", "loop_stopped"],
+    });
   });
 
   it("narrows to one surface", async () => {

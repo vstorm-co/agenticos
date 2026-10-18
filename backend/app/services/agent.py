@@ -14,7 +14,6 @@ import logging
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -354,8 +353,8 @@ async def persist_assistant_turn(
     try:
         async with get_db_context() as db:
             conv_service = get_conversation_service(db)
-            spent_in, spent_out, spent_usd = (
-                (0, 0, Decimal(0))
+            spent = (
+                conversation_repo.Attributed()
                 if run_id is None
                 else await conversation_repo.attributed_to_run(db, run_id)
             )
@@ -382,9 +381,19 @@ async def persist_assistant_turn(
                     # cumulative, so stamping both with it counts the parked half
                     # twice. Nothing is attributed yet on an ordinary turn, where
                     # the difference is the whole of it.
-                    input_tokens=None if usage is None else usage.input_tokens - spent_in,
-                    output_tokens=None if usage is None else usage.output_tokens - spent_out,
-                    cost_usd=None if usage is None else usage.cost_usd - spent_usd,
+                    input_tokens=None if usage is None else usage.input_tokens - spent.input_tokens,
+                    output_tokens=None
+                    if usage is None
+                    else usage.output_tokens - spent.output_tokens,
+                    cache_read_tokens=(
+                        None if usage is None else usage.cache_read_tokens - spent.cache_read_tokens
+                    ),
+                    cache_write_tokens=(
+                        None
+                        if usage is None
+                        else usage.cache_write_tokens - spent.cache_write_tokens
+                    ),
+                    cost_usd=None if usage is None else usage.cost_usd - spent.cost_usd,
                     # Beside the total, because without it the total lies: a turn
                     # that reached an unpriced model is booked at zero for that
                     # request, and rendered identically to one measured exactly

@@ -58,6 +58,7 @@ describe("the Runs figure and the Spend figure", () => {
           by_provider: [],
           by_key: [],
           by_day: [],
+          cache_by_agent_model: [],
         };
       }
       if (path === "/approvals") return { items: [], total: 0 };

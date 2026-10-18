@@ -17,6 +17,60 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- **Prompt-cache busts are flagged on the run** (#2109). A request whose cached
+  prompt prefix collapsed is marked in the run's request waterfall - *cache
+  bust* when the prefix moved, *cache expired* when the provider's retention had
+  passed - with how many cached tokens it did not read back, and logged with the
+  agent and model. The first request of a turn is compared with what the
+  previous turn cached. The counts are kept on the run, and **Runs → Spend**
+  shows a *Prompt cache* card per agent and model with the busts, expiries and
+  cached tokens not read back over the window.
+- **Code mode: many tool calls from one sandboxed script** (#2107). An agent
+  with *Code mode* on writes a short Python script that calls its tools in loops
+  and in parallel inside the Monty sandbox, instead of one model turn per call -
+  ten record updates take one turn, not ten. Calls from a script go through the
+  same guardrails, budget and permission checks; a tool that needs approval stays
+  an ordinary call. The run view lists each script and the calls it made. Off by
+  default; switched on in the Builder beside the limits.
+- **Run reviewers: a second model that steers a run while it goes** (#2106).
+  An agent can carry up to five reviewers, each a usually cheaper model with one
+  concern ("claims without a source"). Every few requests a reviewer reads the
+  recent run and sends one short correction when it drifts; the run's model gets
+  it with the reviewer's name, and the run view lists it. Its calls are budgeted
+  and booked like the run's own, and a reviewer that cannot review never fails
+  the run. Set in the Builder beside the limits.
+- **Tool-call loops are stopped early, with the reason** (#2086). A run that
+  calls one tool with the same arguments again and again, or goes round a short
+  cycle of calls, is told it is looping; if it goes on, it ends as
+  `loop_stopped` and says which tools - before the step limit or the budget runs
+  out. On for every agent; the Builder sets the thresholds or switches it off
+  beside "Max steps". Chat apps, embeds and run notifications say why too.
+- **A run shows how much of its input the cache served** (#2170). Runs and
+  answers now keep `cache_read_tokens` and `cache_write_tokens` beside the input
+  total, in the run API, the run's request record, the run view and the cost
+  under each answer - so a run can be reconciled with the provider's console.
+  The cost was already priced from this split: the bundled prices match
+  Anthropic's current list (a Sonnet 5.5 cache read is 5% of the input rate).
+
+### Fixed
+
+- **The web chat remembers the plan between messages** (#2162). A checklist an
+  agent wrote in the chat was gone by the next message, so asking it to start
+  step two got "No plan yet." The chat now keeps the plan a turn ended on, as
+  the API, chat apps and triggers already did, and a stopped turn hands its
+  step back as still to do.
+
+### Changed
+
+- **Prompt caching on every provider that takes it** (#2169). Caching now uses
+  Pydantic AI's provider-neutral `cache` setting instead of Anthropic's and
+  OpenRouter's own flags, so Bedrock's Anthropic and Nova models and OpenAI from
+  GPT-5.6 are cached too, and providers that cache by themselves are unchanged.
+  A model profile turns it off with `cache: false`; a profile that sets a
+  provider's own flag keeps it.
+
 ## [1.3.1] - 2026-10-18
 
 ### Fixed
@@ -71,6 +125,10 @@ Two things are versioned separately from this file and worth knowing about:
   it, the box cycles through examples built from the agent's own servers,
   capabilities, delegates and skills, and `/`, sliding from one to the next;
   clicking into it or sending clears them.
+
+### Fixed
+
+### Changed
 
 ## [1.1.1] - 2026-10-16
 

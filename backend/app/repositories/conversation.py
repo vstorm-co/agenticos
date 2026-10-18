@@ -869,7 +869,17 @@ async def conversation_cost(
     return int(input_tokens), int(output_tokens), Decimal(cost_usd), partial
 
 
-async def attributed_to_run(db: AsyncSession, run_id: UUID) -> tuple[int, int, Decimal]:
+class Attributed(NamedTuple):
+    """What a run's messages already claim of what the run spent."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: Decimal = Decimal(0)
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+
+
+async def attributed_to_run(db: AsyncSession, run_id: UUID) -> Attributed:
     """What this run's messages already claim of what the run spent.
 
     A run row carries *cumulative* totals, and one run can write more than one
@@ -886,10 +896,14 @@ async def attributed_to_run(db: AsyncSession, run_id: UUID) -> tuple[int, int, D
             type_coerce(func.coalesce(func.sum(Message.input_tokens), 0), Integer),
             type_coerce(func.coalesce(func.sum(Message.output_tokens), 0), Integer),
             type_coerce(func.coalesce(func.sum(Message.cost_usd), 0), Numeric),
+            type_coerce(func.coalesce(func.sum(Message.cache_read_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.cache_write_tokens), 0), Integer),
         ).where(Message.run_id == run_id)
     )
-    input_tokens, output_tokens, cost_usd = result.one()
-    return int(input_tokens), int(output_tokens), Decimal(cost_usd)
+    input_tokens, output_tokens, cost_usd, cache_read, cache_write = result.one()
+    return Attributed(
+        int(input_tokens), int(output_tokens), Decimal(cost_usd), int(cache_read), int(cache_write)
+    )
 
 
 class RunOutcome(NamedTuple):
@@ -1083,6 +1097,8 @@ async def create_message(
     tokens_used: int | None = None,
     input_tokens: int | None = None,
     output_tokens: int | None = None,
+    cache_read_tokens: int | None = None,
+    cache_write_tokens: int | None = None,
     cost_usd: Decimal | None = None,
     cost_is_partial: bool | None = None,
     context_used_tokens: int | None = None,
@@ -1105,6 +1121,8 @@ async def create_message(
         tokens_used=tokens_used,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_write_tokens=cache_write_tokens,
         cost_usd=cost_usd,
         cost_is_partial=cost_is_partial,
         context_used_tokens=context_used_tokens,

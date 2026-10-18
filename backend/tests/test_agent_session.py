@@ -94,6 +94,7 @@ from app.agents.capabilities.subagents import Delegation
 from app.agents.compaction_events import CompactionEvent
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.deps import AgentDeps
+from app.agents.loop_guard import ToolLoopStopped
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import (
     SubagentFinished,
@@ -723,6 +724,8 @@ class TestATurnThatFinished:
                 "usage": {
                     "input_tokens": 1200,
                     "output_tokens": 340,
+                    "cache_read_tokens": 0,
+                    "cache_write_tokens": 0,
                     "cost_usd": "0.0042",
                     # Beside the figure, because without it the figure lies on a
                     # run that reached an unpriced model (#772).
@@ -1089,6 +1092,19 @@ class TestATurnThatDidNotFinish:
             "error",
             {"message": "This request was blocked by an input guardrail."},
         )
+        assert "Error processing agent request" not in caplog.text
+
+    async def test_a_run_stopped_for_looping_tells_the_person_why(self, caplog):
+        session = _session()
+        stopped = ToolLoopStopped("Stopped: the agent called `search` 4 times in a row.")
+
+        with (
+            _chat(AsyncMock(side_effect=stopped)),
+            caplog.at_level(logging.ERROR, logger="app.services.agent_session"),
+        ):
+            await session.process_message(_message())
+
+        assert _sent_events(session)[-1] == ("error", {"message": str(stopped)})
         assert "Error processing agent request" not in caplog.text
 
     @pytest.mark.parametrize(

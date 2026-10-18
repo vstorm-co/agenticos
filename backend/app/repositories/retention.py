@@ -50,6 +50,7 @@ _RETIRABLE = (
     RunStatus.CANCELLED,
     RunStatus.BUDGET_EXCEEDED,
     RunStatus.GUARDRAIL_BLOCKED,
+    RunStatus.LOOP_STOPPED,
 )
 
 

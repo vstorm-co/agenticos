@@ -56,6 +56,7 @@ from app.agents.capabilities.planning import PLANNING_STORE_RESOURCE
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
+from app.agents.loop_guard import ToolLoopStopped
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -90,6 +91,7 @@ from app.services.agent_runner import (
     _answer_only,
     _classify_output,
     _connect_on_use,
+    _spend_already_booked,
     _with_account_notes,
     _with_personal_service_gaps,
     month_start,
@@ -1655,6 +1657,40 @@ class TestSkillChangesARunProposed:
         assert finish_run.await_args.kwargs["tool_args_repaired"] == 5
 
     @pytest.mark.anyio
+    async def test_the_run_row_keeps_the_cache_split_its_cost_came_from(self):
+        """`input_tokens` includes the cache reads and writes, priced apart - the
+        row keeps how many of each, so a run can be reconciled with the provider's
+        console (#2170)."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.ledger.record(
+            "claude-sonnet-5-5",
+            RequestUsage(input_tokens=1000, cache_read_tokens=700, cache_write_tokens=200),
+            "anthropic",
+        )
+
+        with patch(
+            "app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()
+        ) as finish_run:
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        finished = finish_run.await_args.kwargs
+        assert (finished["cache_read_tokens"], finished["cache_write_tokens"]) == (700, 200)
+
+    def test_a_resumed_runs_opening_balance_carries_its_cache_split(self):
+        run = MagicMock(
+            model_label="claude-sonnet-5-5",
+            input_tokens=1000,
+            output_tokens=10,
+            cache_read_tokens=700,
+            cache_write_tokens=200,
+            cost_usd=Decimal("1"),
+            cost_is_partial=False,
+        )
+        entry = _spend_already_booked(run)
+        assert (entry.cache_read_tokens, entry.cache_write_tokens) == (700, 200)
+
+    @pytest.mark.anyio
     async def test_what_the_agent_changed_becomes_a_proposal(self):
         service = AgentRunnerService(_db())
         prepared = _prepared()
@@ -1872,6 +1908,27 @@ class TestRunAccounting:
         assert output == ""
         assert finish.call_args.kwargs["status"] == RunStatus.GUARDRAIL_BLOCKED.value
         assert finish.call_args.kwargs["error"] == "This request was blocked by an input guardrail."
+
+    @pytest.mark.anyio
+    async def test_a_run_stopped_for_looping_is_its_own_outcome_and_says_why(self):
+        """Not a failure: the guard warned the model and stopped it when it looped
+        again (#2086). The reason names the tools, never their arguments."""
+        service = AgentRunnerService(_db())
+        prepared = _prepared()
+        prepared.built.agent.run = AsyncMock(
+            side_effect=ToolLoopStopped("Stopped: the agent called `search` 4 times in a row.")
+        )
+
+        with (
+            patch.object(service, "prepare", new=AsyncMock(return_value=prepared)),
+            patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+            patch.object(service, "_notify", new=AsyncMock()),
+        ):
+            output, _ = await service.execute(_ctx(), uuid.uuid4(), "hello")
+
+        assert output == ""
+        assert finish.call_args.kwargs["status"] == RunStatus.LOOP_STOPPED.value
+        assert "`search`" in finish.call_args.kwargs["error"]
 
     @pytest.mark.anyio
     async def test_a_successful_run_returns_its_answer(self):
@@ -2634,6 +2691,33 @@ class TestParking:
 
         kept = conversations.return_value.keep_plan
         assert [item["content"] for item in kept.await_args.args[1]] == ["Write the next fix"]
+
+    @pytest.mark.anyio
+    async def test_a_run_outside_a_conversation_keeps_no_plan(self):
+        """An API call with no thread has nowhere to keep a checklist, and the
+        chat calls this for every turn - with or without one."""
+        prepared = _prepared()
+        await prepared.plan_store.set_items([PlanItem(content="Write the fix")])
+
+        with patch("app.services.agent_runner.ConversationService") as conversations:
+            await AgentRunnerService(_db()).keep_plan(prepared, status=RunStatus.COMPLETED)
+
+        conversations.assert_not_called()
+
+    @pytest.mark.anyio
+    async def test_an_interrupted_run_puts_down_the_step_it_kept(self):
+        prepared = _prepared(conversation_id=uuid.uuid4())
+        await prepared.plan_store.set_items(
+            [PlanItem(content="Write the fix", status=TaskStatus.in_progress)]
+        )
+
+        with patch("app.services.agent_runner.ConversationService") as conversations:
+            conversations.return_value.keep_plan = AsyncMock()
+            await AgentRunnerService(_db()).keep_plan(prepared, status=RunStatus.CANCELLED)
+
+        kept = conversations.return_value.keep_plan.await_args.args
+        assert kept[0] == prepared.run.conversation_id
+        assert [item["status"] for item in kept[1]] == ["pending"]
 
     @pytest.mark.anyio
     async def test_a_parked_runs_transcript_marks_the_call_that_is_waiting(self):
@@ -4346,6 +4430,31 @@ class TestTheBrowsersStepModel:
             await service.prepare(_ctx(), agent.id)
         return build.call_args.kwargs["resources"], resolve
 
+    async def _built_call(self, spec: AgentSpec, *, resolve: Any = None) -> tuple[Any, AsyncMock]:
+        """The whole `build_agent` call, for a test about an argument beside `resources`."""
+        service = AgentRunnerService(_db())
+        agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
+        resolver = AsyncMock(
+            side_effect=resolve
+            or (lambda ctx, profile_id=None: MagicMock(label="m", build=MagicMock()))
+        )
+        with (
+            patch.object(
+                service.registry,
+                "get_runnable_spec",
+                new=AsyncMock(return_value=(agent, spec, agent.current_version_id)),
+            ),
+            patch.object(service.models, "resolve", new=resolver),
+            patch.object(service.skills, "resolve_for_agent", new=AsyncMock(return_value=[])),
+            patch(
+                "app.services.agent_runner.agent_run_repo.create_run",
+                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
+            ),
+            patch("app.services.agent_runner.build_agent") as build,
+        ):
+            await service.prepare(_ctx(), agent.id)
+        return build.call_args, resolver
+
     @pytest.mark.anyio
     async def test_a_named_step_model_is_resolved_and_handed_to_the_browser(self):
         profile = uuid.uuid4()
@@ -4366,6 +4475,43 @@ class TestTheBrowsersStepModel:
 
         assert BROWSER_STEP_MODEL_RESOURCE in resources
         assert profile in [call.kwargs.get("profile_id") for call in resolve.await_args_list]
+
+    @pytest.mark.anyio
+    async def test_each_reviewers_model_is_resolved_and_kept_out_of_resources(self):
+        """Where the vault and the session are, for the reason the step model is; and
+        not in `resources`, which every capability reads - it holds a credential (#2106)."""
+        profile = uuid.uuid4()
+        spec = AgentSpec(
+            name="Researcher",
+            reviewers=[{"name": "sources", "model_profile_id": str(profile), "instructions": "x"}],
+        )
+
+        built, resolve = await self._built_call(spec)
+
+        assert set(built.kwargs["reviewer_models"]) == {profile}
+        assert not any("reviewer" in key for key in built.kwargs["resources"])
+        assert profile in [call.kwargs.get("profile_id") for call in resolve.await_args_list]
+
+    @pytest.mark.anyio
+    async def test_a_reviewer_whose_model_no_longer_resolves_is_left_out(self):
+        """An optional reviewer must not take a healthy agent offline."""
+        gone = uuid.uuid4()
+        spec = AgentSpec(
+            name="Researcher",
+            reviewers=[
+                {"name": "sources", "model_profile_id": str(gone), "instructions": "x"},
+                {"name": "draft"},
+            ],
+        )
+
+        def resolve(ctx, profile_id=None):
+            if profile_id == gone:
+                raise NotFoundError(message="Model profile not found")
+            return MagicMock(label="m", build=MagicMock())
+
+        built, _ = await self._built_call(spec, resolve=resolve)
+
+        assert built.kwargs["reviewer_models"] == {}
 
     @pytest.mark.anyio
     @pytest.mark.parametrize(

@@ -1037,6 +1037,8 @@ class ConversationService:
             # which is why it is now all of them.
             input_tokens=data.input_tokens,
             output_tokens=data.output_tokens,
+            cache_read_tokens=data.cache_read_tokens,
+            cache_write_tokens=data.cache_write_tokens,
             cost_usd=data.cost_usd,
             cost_is_partial=data.cost_is_partial,
             context_used_tokens=data.context_used_tokens,

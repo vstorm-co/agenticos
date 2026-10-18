@@ -380,6 +380,95 @@ class BudgetSpec(BaseModel):
     monthly_usd: float | None = Field(default=None, gt=0)
 
 
+class LoopGuardSpec(BaseModel):
+    """How this agent is stopped when it loops on its tool calls (#2086).
+
+    On for every agent, including one published before it existed: a run that
+    calls the same tool with the same arguments again and again spends its
+    budget and returns nothing. The first loop is a warning to the model; a loop
+    after the warning ends the run as `loop_stopped`, with the reason. Calls
+    with different arguments are never a loop. See `app/agents/loop_guard.py`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    repeats: int = Field(
+        default=4,
+        ge=2,
+        le=20,
+        description="How many identical calls in a row - same tool, same arguments - are a loop.",
+    )
+    cycles: int = Field(
+        default=3,
+        ge=2,
+        le=10,
+        description="How many times a cycle of two or three different calls may repeat.",
+    )
+
+
+class RunReviewerSpec(BaseModel):
+    """A second model that reads a run while it goes, and steers it (#2106).
+
+    Every `every` model requests it reads the most recent `window` tokens of the
+    run and either lets it be or sends one short correction, which the run's model
+    receives on its next request, attributed to the reviewer by `name`. Its calls
+    are checked against the budget and booked on the run like any other; one
+    refused for budget is skipped, never failing the run. See
+    `app/agents/run_reviewer.py`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(
+        pattern=r"^[a-z0-9][a-z0-9_-]{0,39}$",
+        description="What its steering is attributed to, in the run history and to the model.",
+    )
+    model_profile_id: UUID | None = Field(
+        default=None,
+        description=(
+            "The model it reviews with - usually a cheaper one than the agent's own. "
+            "Optional in a draft, required to publish."
+        ),
+    )
+    instructions: str = Field(
+        default="",
+        max_length=4000,
+        description=(
+            "What to look for, such as claims without a source, or work nobody asked "
+            "for. Optional in a draft, required to publish."
+        ),
+    )
+    every: int = Field(default=10, ge=1, le=100, description="Review every N model requests.")
+    window: int = Field(
+        default=20_000,
+        ge=1_000,
+        le=200_000,
+        description="How many tokens of the most recent run each review reads.",
+    )
+
+
+class CodeModeSpec(BaseModel):
+    """Whether the agent calls its tools from one sandboxed script (#2107).
+
+    Off by default: it changes how the model works, from one call per turn to a
+    `run_code` script that calls many, which pays off for an agent that works
+    through records or fans out over an MCP server and is noise for one that calls
+    a tool now and then. A tool that needs approval is never called from a script.
+    See `app/agents/code_mode.py`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    max_tool_calls: int = Field(
+        default=100,
+        ge=1,
+        le=500,
+        description="How many tool calls one script may make.",
+    )
+
+
 class AlertAudience(StrEnum):
     """Who an agent's alert reaches.
 
@@ -1224,6 +1313,31 @@ class AgentSpec(BaseModel):
         ),
     )
 
+    loop_guard: LoopGuardSpec = Field(
+        default_factory=LoopGuardSpec,
+        description=(
+            "When a run that loops on its tool calls is warned and then stopped. "
+            "Defaulted, so every agent has it; switch it off or change the thresholds here."
+        ),
+    )
+
+    reviewers: list[RunReviewerSpec] = Field(
+        default_factory=list,
+        max_length=5,
+        description=(
+            "Second models that review the run while it goes and steer it - one per "
+            "concern. Empty, so an agent without one makes no extra model calls."
+        ),
+    )
+
+    code_mode: CodeModeSpec = Field(
+        default_factory=CodeModeSpec,
+        description=(
+            "Whether the agent calls its tools from one sandboxed `run_code` script. "
+            "Defaulted off, so a spec written before it existed is unchanged."
+        ),
+    )
+
     budget: BudgetSpec | None = None
 
     notifications: NotificationSpec = Field(
@@ -1379,6 +1493,16 @@ class AgentSpec(BaseModel):
         if duplicates:
             raise ValueError(f"Capability bound more than once: {', '.join(duplicates)}")
         return capabilities
+
+    @field_validator("reviewers")
+    @classmethod
+    def _one_reviewer_per_name(cls, reviewers: list[RunReviewerSpec]) -> list[RunReviewerSpec]:
+        """Steering is attributed by name, so two reviewers cannot share one."""
+        counts = Counter(reviewer.name for reviewer in reviewers)
+        duplicates = sorted(name for name, count in counts.items() if count > 1)
+        if duplicates:
+            raise ValueError(f"Reviewer named more than once: {', '.join(duplicates)}")
+        return reviewers
 
     @field_validator("subagents")
     @classmethod

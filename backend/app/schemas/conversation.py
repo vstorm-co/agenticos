@@ -169,6 +169,14 @@ class MessageCreate(MessageBase):
     output_tokens: int | None = Field(
         default=None, ge=0, description="Completion tokens this turn produced"
     )
+    cache_read_tokens: int | None = Field(
+        default=None, ge=0, description="Of the prompt tokens, those read from the provider's cache"
+    )
+    cache_write_tokens: int | None = Field(
+        default=None,
+        ge=0,
+        description="Of the prompt tokens, those written to the provider's cache",
+    )
     cost_usd: Decimal | None = Field(
         default=None, ge=0, description="What this turn cost, at the same scale as a run's"
     )
@@ -259,6 +267,20 @@ class MessageRead(MessageBase, TimestampSchema):
         ),
     )
     output_tokens: int | None = None
+    cache_read_tokens: int | None = Field(
+        default=None,
+        description=(
+            "Of `input_tokens`, those served from the provider's cache - priced at a "
+            "fraction of the input rate. Null when not recorded"
+        ),
+    )
+    cache_write_tokens: int | None = Field(
+        default=None,
+        description=(
+            "Of `input_tokens`, those written to the provider's cache - priced above "
+            "the input rate. Null when not recorded"
+        ),
+    )
     cost_usd: Decimal | None = None
     cost_is_partial: bool | None = Field(
         default=None,

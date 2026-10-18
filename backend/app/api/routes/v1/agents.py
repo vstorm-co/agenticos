@@ -672,5 +672,7 @@ async def run_agent(
         cost_is_partial=run.cost_is_partial,
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
+        cache_read_tokens=run.cache_read_tokens,
+        cache_write_tokens=run.cache_write_tokens,
         parked=await service.parked_calls(ctx, run),
     )

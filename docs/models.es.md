@@ -1,5 +1,5 @@
 ---
-source_sha: "0b5ae075ae8b"
+source_sha: "a05656e86cf3"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -62,12 +62,17 @@ Por perfil, y sobrescribibles por agent a través de `model_settings` del spec:
 `temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Ver
 [la referencia del spec](reference/spec.md#model-settings).
 
-**El caché de prompts está activado por defecto** en los perfiles de Anthropic y
-OpenRouter. Cada petición de un run vuelve a enviar las instrucciones, los esquemas
-de herramientas y todo el historial, así que cada petición marca las instrucciones,
-las herramientas y su último mensaje como puntos de caché y lee la anterior desde
-la caché. Un perfil desactiva cualquiera de ellos poniéndolo a `false` -
-`anthropic_cache_messages`, `openrouter_cache_instructions`, etcétera.
+**El caché de prompts está activado por defecto**, mediante el ajuste `cache` de
+Pydantic AI, neutral respecto al proveedor. Cada petición de un run vuelve a enviar
+las instrucciones, los esquemas de herramientas y todo el historial, así que el
+prefijo estable y la conversación se marcan como puntos de caché y cada petición
+lee la anterior desde la caché. Se aplica donde un proveedor admite caché
+explícita - Anthropic, los modelos Anthropic y Nova de Bedrock, los modelos
+Anthropic y Gemini de OpenRouter, OpenAI desde GPT-5.6 - y no cambia nada en uno
+que cachea por su cuenta, como Google. Un perfil lo apaga con `cache: false`, o
+cachea solo instrucciones y herramientas con `cache: {"messages": false}`. Un
+indicador propio de un proveedor que el perfil ya fija, como
+`anthropic_cache_messages`, sigue mandando para ese perfil.
 
 El esfuerzo de razonamiento **no** está aquí. Es
 [la capability `thinking`](reference/capabilities.md#thinking), porque «razona
