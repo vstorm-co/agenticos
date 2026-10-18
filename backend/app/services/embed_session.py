@@ -1235,7 +1235,7 @@ WIDGET_JS = r"""(function () {
         mic.style.color = accent;
         mic.setAttribute("aria-label", "Stop dictating");
       };
-      return;
+      return { abandon: function () { if (listening) listening.abort(); } };
     }
 
     var ROW = "display:none;flex:1;align-items:center;gap:8px;min-width:0";
@@ -1409,11 +1409,19 @@ WIDGET_JS = r"""(function () {
       stop.focus();
       watchLevel(ctx);
       var limit = config.dictation_max_seconds;
+      var warned = false;
       ticker = setInterval(function () {
         var elapsed = Math.floor((Date.now() - startedAt) / 1000);
-        status.textContent = clock(elapsed);
         var left = limit - elapsed;
-        if (left <= NEAR_LIMIT_SECONDS) say(clock(Math.max(0, left)) + " left. At " + clock(limit) + " the recording stops and is transcribed.", false);
+        // The ticking count goes in the clock, which is not live; the note, which
+        // is, says once that the end is near - a screen reader read every second.
+        status.textContent = left <= NEAR_LIMIT_SECONDS
+          ? clock(elapsed) + " (" + clock(Math.max(0, left)) + " left)"
+          : clock(elapsed);
+        if (left <= NEAR_LIMIT_SECONDS && !warned) {
+          warned = true;
+          say("Under " + NEAR_LIMIT_SECONDS + " seconds left. At " + clock(limit) + " the recording stops and is transcribed.", false);
+        }
         // The person said it: a recording that reaches the limit is
         // transcribed, never thrown away.
         if (left <= 0 && recorder && recorder.recording()) recorder.stop();
@@ -1458,12 +1466,17 @@ WIDGET_JS = r"""(function () {
     cancel.onclick = abandon;
     parts.panel.addEventListener("keydown", function (event) {
       if (phase === "idle") return;
-      if (event.key === "Escape") { event.preventDefault(); abandon(); }
+      // Escape is the recording's while one runs, not the panel's: it cancels
+      // the dictation and leaves the panel open.
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); abandon(); }
       else if (event.key === "Enter" && event.target !== stop && event.target !== cancel) {
         event.preventDefault();
         stop.onclick();
       }
     });
+    // For the panel closing: a recording whose controls are hidden would run on
+    // to the limit unseen, and be transcribed and paid for.
+    return { abandon: function () { if (phase !== "idle") abandon(); } };
   }
 
   // A visitor's voice call (#54) lives in its own script, fetched the first time
@@ -1530,7 +1543,7 @@ WIDGET_JS = r"""(function () {
     form.appendChild(input);
     form.appendChild(send);
     panel.appendChild(form);
-    mountVoice({ form: form, input: input, send: send, panel: panel });
+    var dictation = mountVoice({ form: form, input: input, send: send, panel: panel });
     var callParts = { form: form, input: input, send: send, panel: panel, log: log, bubble: bubble };
 
     var launcher = el("button", "aos-launcher");
@@ -1769,8 +1782,10 @@ WIDGET_JS = r"""(function () {
       launcher.setAttribute("aria-expanded", open ? "true" : "false");
       if (open && !socket) { connect(); greet(); }
       if (open && config.voice_conversation) loadVoice(callParts);
-      // Closing the panel ends a call: no call goes on with its End button hidden.
+      // Closing the panel ends a call and a dictation: neither goes on with its
+      // controls hidden.
       if (!open && voiceCall) voiceCall.end();
+      if (!open && dictation) dictation.abandon();
       if (open) input.focus();
       else launcher.focus();
     }

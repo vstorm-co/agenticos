@@ -268,3 +268,29 @@ def test_closing_the_panel_ends_a_call():
     opening = RENDERED.split("function setOpen")[1].split("launcher.onclick")[0]
     assert "if (!open && voiceCall) voiceCall.end();" in opening
     assert "voiceCall = mountCall(parts, config)" in RENDERED
+
+
+def test_closing_the_panel_abandons_a_dictation():
+    """A recording with its Stop and Cancel hidden would run on to the limit
+    unseen, then be transcribed and paid for (review of #2138)."""
+    opening = RENDERED.split("function setOpen")[1].split("launcher.onclick")[0]
+    assert "if (!open && dictation) dictation.abandon();" in opening
+    assert "var dictation = mountVoice(" in RENDERED
+    voice = RENDERED.split("function mountVoice")[1].split("function loadVoice")[0]
+    assert 'return { abandon: function () { if (phase !== "idle") abandon(); } };' in voice
+    assert "return { abandon: function () { if (listening) listening.abort(); } };" in voice
+
+
+def test_escape_cancels_a_dictation_without_closing_the_panel():
+    voice = RENDERED.split("function mountVoice")[1].split("function loadVoice")[0]
+    assert "event.preventDefault(); event.stopPropagation(); abandon();" in voice
+
+
+def test_the_last_seconds_are_announced_once_and_counted_where_nothing_reads_them():
+    voice = RENDERED.split("function mountVoice")[1].split("function loadVoice")[0]
+    ticker = voice.split("ticker = setInterval")[1].split("}, 1000);")[0]
+    assert "if (left <= NEAR_LIMIT_SECONDS && !warned)" in ticker
+    assert "warned = true;" in ticker
+    # The ticking count is the clock's, which is `aria-live="off"`.
+    assert 'status.setAttribute("aria-live", "off");' in voice
+    assert "status.textContent = left <= NEAR_LIMIT_SECONDS" in ticker
