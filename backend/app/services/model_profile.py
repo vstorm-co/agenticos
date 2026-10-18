@@ -7,6 +7,7 @@ profile ids; everything below deals in ciphertext.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -22,7 +23,12 @@ from app.agents.model_resolver import (
     get_provider,
 )
 from app.core.audit import record_audit
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import (
@@ -376,8 +382,28 @@ class ModelProfileService:
         *,
         profile_id: UUID | None = None,
     ) -> ModelRequestSpec:
-        """Resolve the model a run should use, credentials included."""
-        return await self.resolve_for_organization(ctx.organization_id, profile_id=profile_id)
+        """Resolve the model a run should use, credentials included.
+
+        A ChatGPT sign-in is one person's subscription, so a run reaches it only
+        for somebody who may see it in the vault - a model shared with the whole
+        organization does not lend everybody that person's plan. A fallback on
+        one is left out of the chain rather than failing the run.
+
+        Raises:
+            AuthorizationError: If the model itself runs on a sign-in the
+                caller may not use.
+        """
+        spec = await self.resolve_for_organization(ctx.organization_id, profile_id=profile_id)
+        if not await _may_spend(spec.credential, ctx.user_id):
+            raise AuthorizationError(
+                message=(
+                    f"Model '{spec.label}' runs on somebody's own ChatGPT sign-in, "
+                    "which only they can use"
+                ),
+                details={"profile_id": str(spec.profile_id)},
+            )
+        usable = [entry for entry in spec.fallbacks if await _may_spend(entry[0], ctx.user_id)]
+        return spec if len(usable) == len(spec.fallbacks) else replace(spec, fallbacks=usable)
 
     async def resolve_for_organization(
         self,
@@ -461,3 +487,14 @@ class ModelProfileService:
             # a run actually reaches is not known until one has refused.
             context_length=profile.context_length,
         )
+
+
+async def _may_spend(credential: ResolvedCredential, user_id: UUID | None) -> bool:
+    """Whether this person's run may use the credential - only a sign-in is anyone's own.
+
+    A caller with no person behind it reaches nobody's sign-in.
+    """
+    source = credential.credential_source
+    if not isinstance(source, VaultCodexCredentials):
+        return True
+    return user_id is not None and await source.visible_to(user_id)

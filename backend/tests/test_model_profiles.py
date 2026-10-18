@@ -22,12 +22,18 @@ from pydantic_ai.models.openrouter import OpenRouterModel
 
 from app.agents.model_resolver import (
     PROVIDERS,
+    ModelRequestSpec,
     ProviderSpec,
     ResolvedCredential,
     build_model,
     get_provider,
 )
-from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
+from app.core.exceptions import (
+    AlreadyExistsError,
+    AuthorizationError,
+    BadRequestError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import (
     ApiKeySecret,
@@ -712,6 +718,75 @@ class TestResolution:
 
         assert fetch.call_args.args[1] == [link.id for link in chain[:MAX_FALLBACK_DEPTH]]
         assert [model for _, model in spec.fallbacks] == ["gpt-0", "gpt-1", "gpt-2"]
+
+
+class TestASignInIsItsOwnersAlone:
+    """A ChatGPT sign-in is one person's subscription: a model shared with the
+    organization must not lend everybody that person's plan."""
+
+    @staticmethod
+    def _spec(primary: ResolvedCredential, *fallbacks: ResolvedCredential) -> ModelRequestSpec:
+        return ModelRequestSpec(
+            profile_id=uuid.uuid4(),
+            label="ChatGPT",
+            provider="openai_codex",
+            model="gpt-5.6",
+            params={},
+            credential=primary,
+            secret_id=None,
+            fallbacks=[(fallback, "gpt-5.6") for fallback in fallbacks],
+        )
+
+    @staticmethod
+    def _sign_in() -> ResolvedCredential:
+        return ResolvedCredential(
+            provider="openai_codex",
+            secret=codex_secret(),
+            credential_source=VaultCodexCredentials(
+                organization_id=uuid.uuid4(), secret_id=uuid.uuid4()
+            ),
+        )
+
+    @staticmethod
+    def _key() -> ResolvedCredential:
+        return ResolvedCredential(provider="openai", secret=ApiKeySecret(api_key="sk-test-123456"))
+
+    async def _resolve(self, spec: ModelRequestSpec, *, sees: bool, ctx: AuthContext | None = None):
+        with (
+            patch.object(
+                ModelProfileService, "resolve_for_organization", AsyncMock(return_value=spec)
+            ),
+            patch.object(VaultCodexCredentials, "visible_to", AsyncMock(return_value=sees)),
+        ):
+            return await ModelProfileService(_db()).resolve(ctx or _ctx())
+
+    @pytest.mark.anyio
+    async def test_its_owner_runs_on_it(self):
+        spec = self._spec(self._sign_in())
+        assert await self._resolve(spec, sees=True) is spec
+
+    @pytest.mark.anyio
+    async def test_anybody_else_is_refused_by_the_model_s_name(self):
+        with pytest.raises(AuthorizationError) as exc:
+            await self._resolve(self._spec(self._sign_in()), sees=False)
+        assert "Model 'ChatGPT'" in exc.value.message
+
+    @pytest.mark.anyio
+    async def test_a_caller_with_no_person_behind_it_reaches_nobody_s(self):
+        ctx = AuthContext(user_id=None, organization_id=uuid.uuid4(), role=OrgRoleName.OWNER)
+        with pytest.raises(AuthorizationError):
+            await self._resolve(self._spec(self._sign_in()), sees=True, ctx=ctx)
+
+    @pytest.mark.anyio
+    async def test_a_fallback_on_somebody_s_sign_in_is_left_out_of_the_chain(self):
+        key = self._key()
+        resolved = await self._resolve(self._spec(key, self._sign_in(), key), sees=False)
+        assert [credential for credential, _ in resolved.fallbacks] == [key]
+
+    @pytest.mark.anyio
+    async def test_a_key_is_the_agent_s_whoever_runs_it(self):
+        spec = self._spec(self._key(), self._key())
+        assert await self._resolve(spec, sees=False) is spec
 
 
 class TestProviderLookup:
