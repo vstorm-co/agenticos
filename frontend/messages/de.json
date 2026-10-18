@@ -5771,7 +5771,9 @@
       "running": "läuft",
       "pending": "startet",
       "cancelled": "abgebrochen",
-      "awaiting_approval": "wartet auf Freigabe"
+      "awaiting_approval": "wartet auf Freigabe",
+      "guardrail_blocked": "vom Guardrail gestoppt",
+      "loop_stopped": "gestoppt: Schleife"
     },
     "noMessagesYet": "Noch keine Nachrichten",
     "noMessagesDescription": "Dieser Trigger ist noch nicht gelaufen. Seine Runs erscheinen hier, sobald er auslöst.",

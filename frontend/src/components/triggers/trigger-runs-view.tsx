@@ -123,11 +123,19 @@ export function TriggerRunsView({
   );
 }
 
+const STOPPED = new Set<AgentRun["status"]>([
+  "failed",
+  "budget_exceeded",
+  "guardrail_blocked",
+  "loop_stopped",
+]);
+
 /** One fire: when it ran, how it went, what it cost, and a way into it. */
 function FireRow({ run }: { run: AgentRun }) {
   const t = useTranslations("triggers");
   const locale = useLocale();
-  const failed = run.status === "failed" || run.status === "budget_exceeded";
+  // Every way a run ends without finishing its work: the run view is where "why" is.
+  const failed = STOPPED.has(run.status);
   const done = run.status === "completed";
   const Mark = failed ? XCircle : done ? CheckCircle2 : PlayCircle;
 

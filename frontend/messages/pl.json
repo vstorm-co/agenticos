@@ -5660,7 +5660,9 @@
       "running": "w toku",
       "pending": "uruchamia się",
       "cancelled": "anulowany",
-      "awaiting_approval": "czeka na zatwierdzenie"
+      "awaiting_approval": "czeka na zatwierdzenie",
+      "guardrail_blocked": "zablokowany przez zabezpieczenie",
+      "loop_stopped": "zatrzymany: pętla"
     },
     "noMessagesYet": "Brak wiadomości",
     "noMessagesDescription": "Ten wyzwalacz jeszcze się nie uruchomił. Jego uruchomienia pojawią się tutaj, gdy zadziała.",

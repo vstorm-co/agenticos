@@ -5888,7 +5888,9 @@
       "running": "running",
       "pending": "starting",
       "cancelled": "cancelled",
-      "awaiting_approval": "awaiting approval"
+      "awaiting_approval": "awaiting approval",
+      "guardrail_blocked": "blocked by a guardrail",
+      "loop_stopped": "stopped: looping"
     },
     "noMessagesYet": "No messages yet",
     "noMessagesDescription": "This trigger has not run yet. Its runs will appear here once it fires.",
