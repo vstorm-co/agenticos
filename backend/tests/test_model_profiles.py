@@ -753,9 +753,7 @@ class TestASignInIsItsOwnersAlone:
 
     async def _resolve(self, spec: ModelRequestSpec, *, sees: bool, ctx: AuthContext | None = None):
         with (
-            patch.object(
-                ModelProfileService, "resolve_for_organization", AsyncMock(return_value=spec)
-            ),
+            patch.object(ModelProfileService, "_resolve_in", AsyncMock(return_value=spec)),
             patch.object(VaultCodexCredentials, "visible_to", AsyncMock(return_value=sees)),
         ):
             return await ModelProfileService(_db()).resolve(ctx or _ctx())
@@ -781,6 +779,30 @@ class TestASignInIsItsOwnersAlone:
     async def test_a_fallback_on_somebody_s_sign_in_is_left_out_of_the_chain(self):
         key = self._key()
         resolved = await self._resolve(self._spec(key, self._sign_in(), key), sees=False)
+        assert [credential for credential, _ in resolved.fallbacks] == [key]
+
+    @pytest.mark.anyio
+    async def test_background_work_never_runs_on_one(self):
+        """Ingestion describing a document's images is nobody's run, long after the
+        upload: a collection editor must not route it through another member's
+        subscription."""
+        with (
+            patch.object(
+                ModelProfileService,
+                "_resolve_in",
+                AsyncMock(return_value=self._spec(self._sign_in())),
+            ),
+            pytest.raises(BadRequestError, match="background work cannot use"),
+        ):
+            await ModelProfileService(_db()).resolve_for_organization(uuid.uuid4())
+
+        key = self._key()
+        with patch.object(
+            ModelProfileService,
+            "_resolve_in",
+            AsyncMock(return_value=self._spec(key, self._sign_in(), key)),
+        ):
+            resolved = await ModelProfileService(_db()).resolve_for_organization(uuid.uuid4())
         assert [credential for credential, _ in resolved.fallbacks] == [key]
 
     @pytest.mark.anyio

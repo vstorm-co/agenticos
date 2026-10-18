@@ -1,5 +1,5 @@
 ---
-source_sha: "c7749aa0027b"
+source_sha: "b982f2042ecb"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -248,9 +248,9 @@ jego id.
       CLI. Refresh tokeny są jednorazowe, więc to z nich, które odświeżyłoby się
       pierwsze, wylogowałoby drugie.
     - **To nie jest poświadczenie organizacji.** Sekret jest domyślnie tworzony
-      jako prywatny. Każdy, kto może edytować profil modelu w organizacji, wciąż
-      może skierować na ten sekret któryś profil, a wtedy każdy agent na tym
-      profilu wydaje subskrypcję tej osoby. Zachowaj profil dla siebie.
+      jako prywatny, a model na nim działa tylko dla kogoś, kto może zobaczyć to
+      logowanie w vault. Dla każdego innego i dla pracy w tle, jak opisywanie
+      obrazów z dokumentu, model jest odrzucany, a fallback na nim pomijany.
     - **Pokazany wydatek to nie twój rachunek.** Run jest wyceniany według
       stawek API OpenAI dla tego samego modelu, bo to na tym może opierać się
       [budżet](governance.md#budgets). Samą subskrypcję OpenAI rozlicza według

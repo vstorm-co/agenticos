@@ -393,7 +393,7 @@ class ModelProfileService:
             AuthorizationError: If the model itself runs on a sign-in the
                 caller may not use.
         """
-        spec = await self.resolve_for_organization(ctx.organization_id, profile_id=profile_id)
+        spec = await self._resolve_in(ctx.organization_id, profile_id=profile_id)
         if not await _may_spend(spec.credential, ctx.user_id):
             raise AuthorizationError(
                 message=(
@@ -412,6 +412,34 @@ class ModelProfileService:
         profile_id: UUID | None = None,
     ) -> ModelRequestSpec:
         """The same resolution, for work that has an organization but no caller.
+
+        Not on somebody's ChatGPT sign-in: work with no person behind it -
+        ingestion describing a document's images, long after the upload - is
+        nobody's run, and a subscription is spent only in its owner's. A
+        fallback on one is left out of the chain.
+
+        Raises:
+            BadRequestError: If the model itself runs on a ChatGPT sign-in.
+        """
+        spec = await self._resolve_in(organization_id, profile_id=profile_id)
+        if not await _may_spend(spec.credential, None):
+            raise BadRequestError(
+                message=(
+                    f"Model '{spec.label}' runs on somebody's own ChatGPT sign-in, which "
+                    "background work cannot use - pick a model on an API key"
+                ),
+                details={"profile_id": str(spec.profile_id)},
+            )
+        usable = [entry for entry in spec.fallbacks if await _may_spend(entry[0], None)]
+        return spec if len(usable) == len(spec.fallbacks) else replace(spec, fallbacks=usable)
+
+    async def _resolve_in(
+        self,
+        organization_id: UUID,
+        *,
+        profile_id: UUID | None = None,
+    ) -> ModelRequestSpec:
+        """The profile and its fallbacks with their credentials, whoever is asking.
 
         Which model an organization runs on is a fact about that organization,
         not a permission decision - nothing here consults a role, and the

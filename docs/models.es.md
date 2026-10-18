@@ -1,5 +1,5 @@
 ---
-source_sha: "c7749aa0027b"
+source_sha: "b982f2042ecb"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -251,9 +251,10 @@ el secreto, que vuelve a iniciar sesión sin cambiar su id.
       concesión propia de la CLI. Los refresh tokens son de un solo uso, así que
       cualquiera de los dos que renovara primero cerraría la sesión del otro.
     - **No es una credencial de la organización.** Un secreto se crea privado
-      por defecto. Cualquiera que pueda editar un perfil de modelo en la
-      organización puede aun así apuntar uno a él, y cada agent en ese perfil
-      gasta entonces la suscripción de esa persona. Guarda el perfil para ti.
+      por defecto, y un modelo sobre él solo funciona para quien puede ver ese
+      inicio de sesión en el vault. Para cualquier otro, y para el trabajo en
+      segundo plano como describir las imágenes de un documento, el modelo se
+      rechaza y un fallback sobre él se omite.
     - **El gasto mostrado no es tu factura.** Un run se tarifa a los precios de
       la API de OpenAI para el mismo modelo, que es lo que un
       [budget](governance.md#budgets) puede razonar. La suscripción en sí la
