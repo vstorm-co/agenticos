@@ -241,6 +241,8 @@ class Message(Base, TimestampMixin):
         UUID(as_uuid=True),
         ForeignKey("messages.id", ondelete="SET NULL"),
         nullable=True,
+        # Every message deletion looks its replies up through this column.
+        index=True,
     )
     # Which frozen spec answered, not just which agent. An agent is rewritten;
     # what it said last Tuesday was said by one version of it, and "why did it

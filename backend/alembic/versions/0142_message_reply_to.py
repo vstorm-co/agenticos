@@ -27,8 +27,18 @@ def upgrade() -> None:
         ["id"],
         ondelete="SET NULL",
     )
+    # Deleting a message makes Postgres find every reply to it, and without an
+    # index on the referencing column that is a scan of all messages - per
+    # deleted message, when a whole conversation goes.
+    op.create_index(
+        op.f("messages_reply_to_message_id_idx"),
+        "messages",
+        ["reply_to_message_id"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
+    op.drop_index(op.f("messages_reply_to_message_id_idx"), table_name="messages")
     op.drop_constraint("messages_reply_to_message_id_fkey", "messages", type_="foreignkey")
     op.drop_column("messages", "reply_to_message_id")
