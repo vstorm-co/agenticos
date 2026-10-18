@@ -1,4 +1,4 @@
-<!-- source_sha: 1c1f9bb567c5 -->
+<!-- source_sha: 61b67c1ce6aa -->
 
 <div align="center">
 
@@ -20,6 +20,7 @@
   <a href="#-znajdź-swoją-ścieżkę">Twoja ścieżka</a> &middot;
   <a href="#-co-jest-dostępne-już-dziś">Co jest dostępne</a> &middot;
   <a href="#-najczęściej-zadawane-pytania">FAQ</a> &middot;
+  <a href="https://vstorm-co.github.io/vstormos-landing/">Strona</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/presentation/">Prezentacja wprowadzająca</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/pl/">Dokumentacja</a>
 </p>

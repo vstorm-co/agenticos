@@ -18,6 +18,7 @@
   <a href="#-find-your-path">Find your path</a> &middot;
   <a href="#-what-ships-today">What ships</a> &middot;
   <a href="#-frequently-asked-questions">FAQ</a> &middot;
+  <a href="https://vstorm-co.github.io/vstormos-landing/">Website</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/presentation/">Introduction deck</a> &middot;
   <a href="https://vstorm-co.github.io/agenticos/">Documentation</a>
 </p>
