@@ -27,6 +27,7 @@ from pydantic_ai.exceptions import UserError
 from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
+from pydantic_ai.usage import RequestUsage
 from pydantic_ai.workspaces import WorkspaceError
 
 from app.agents.capabilities._failures import steer
@@ -408,7 +409,18 @@ def _person(deps: object) -> UUID | None:
         return None
 
 
+UNREPORTED = "coding-agent:unreported"
+"""What a task is booked as when the harness ended before saying what it spent."""
+
+
 def _book(usage: Usage) -> None:
-    """Put each model the session ran on the run's ledger, priced by its tokens."""
+    """Put each model the session ran on the run's ledger, priced by its tokens.
+
+    A task that failed, timed out or was stopped before the harness reported its
+    usage may still have spent tokens: it is booked as one unpriced call, so the
+    run's cost says it is a floor rather than reading as complete.
+    """
+    if not usage.by_model:
+        record_ambient_usage(UNREPORTED, RequestUsage(), provider=usage.provider)
     for model_name, spent in usage.by_model.items():
         record_ambient_usage(model_name, spent, provider=usage.provider)

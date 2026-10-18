@@ -63,6 +63,7 @@ from app.agents.capabilities.coding_agent._toolset import (
     HOME_ENV,
     READ_AUTH,
     SESSIONS_ENV,
+    UNREPORTED,
     WRITE_AUTH,
     build_coding_toolset,
 )
@@ -911,7 +912,11 @@ class TestRunningATask:
             )
         # The session file cannot be read or written; the task still runs and reports.
         assert CodingReport.model_validate_json(raw).outcome == "failed"
-        assert ledger.entries == []
+        # It ran, so it may have spent: one unpriced call makes the run's cost
+        # a floor rather than a total that reads as complete.
+        assert [(entry.model_name, entry.priced) for entry in ledger.entries] == [
+            (UNREPORTED, False)
+        ]
 
     async def test_an_agent_with_no_sandbox_is_told_to_say_so(self) -> None:
         answer = await _call(None)
