@@ -1,5 +1,5 @@
 ---
-source_sha: "f7d2868390c2"
+source_sha: "f4d50356bd4f"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -804,6 +804,11 @@ wpuszczony, więc odrzucone żądanie też się liczy: każdy, kto ma link, moż
 wyczerpać jego dziesięć na minutę i zostawić odwiedzających stronę z odmową do
 końca tej minuty. Organizację nic to nie kosztuje, bo żaden provider nie jest
 wywoływany, ale to sposób, żeby mikrofon na stronie przestał działać.
+
+Gdy Redis wdrożenia jest nieosiągalny, te limity **nie znikają**: każdy
+worker liczy te same limity we własnej pamięci, dopóki Redis nie wróci. Pułap
+to wtedy limit razy liczba workerów API, a nie brak pułapu. Tak samo działają
+limity startów rozmów głosowych.
 
 **Długość jest mierzona, zanim provider zostanie wywołany**, a nagranie dłuższe
 niż `dictation_max_seconds` jest odrzucane jako `too_large`, z trzema sekundami

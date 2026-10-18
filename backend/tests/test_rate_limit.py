@@ -577,3 +577,69 @@ class TestAVisitorsDictation:
         assert client.count_in_window.await_args.args[0] == (
             "ratelimit:embed_dictation:key:pk_abc:visitor:customer-42"
         )
+
+
+class TestPaidSurfacesKeepAFloorWhileRedisIsDown:
+    """A dictation or a call is a paid provider call, and the limit is all that
+    bounds a stranger's spend on a public link: failing open there would make a
+    Redis outage unlimited paid calls (Codex on #2138)."""
+
+    @pytest.fixture(autouse=True)
+    def _fresh_floor(self, monkeypatch):
+        monkeypatch.setattr(rate_limit, "_floor", rate_limit.LocalWindows())
+
+    async def test_an_address_is_held_to_its_allowance_with_no_limiter(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_MINUTE", 6)
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE", 100)
+
+        decisions = [
+            await rate_limit.embed_dictation_allowed(_connection(), public_key="pk_abc")
+            for _ in range(7)
+        ]
+
+        assert [d.allowed for d in decisions] == [True] * 6 + [False]
+        assert decisions[-1].metered is False
+        assert decisions[-1].retry_after_seconds == 60
+
+    async def test_rotating_addresses_meet_the_links_ceiling_when_redis_throws(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE", 10)
+        broken = MagicMock()
+        broken.count_in_window = AsyncMock(side_effect=ConnectionError("redis is down"))
+        rate_limit.configure(broken)
+
+        decisions = [
+            await rate_limit.embed_dictation_allowed(
+                _connection(f"203.0.113.{n}"), public_key="pk_abc"
+            )
+            for n in range(11)
+        ]
+
+        assert [d.allowed for d in decisions] == [True] * 10 + [False]
+
+    async def test_a_signed_in_visitor_and_a_caller_of_voice_are_floored_too(self, monkeypatch):
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_DICTATION_PER_MINUTE", 1)
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_MINUTE", 1)
+        monkeypatch.setattr(settings, "RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE", 100)
+
+        visitor = [
+            await rate_limit.embed_dictation_visitor_allowed(public_key="pk", visitor="v")
+            for _ in range(2)
+        ]
+        voice = [
+            await rate_limit.embed_voice_allowed(_connection(), public_key="pk") for _ in range(2)
+        ]
+
+        assert [d.allowed for d in visitor] == [True, False]
+        assert [d.allowed for d in voice] == [True, False]
+
+    async def test_a_metered_answer_is_the_shared_limiters_alone(self):
+        # The shared count says first, first: a floor counting these too would
+        # refuse the second of a one-attempt allowance.
+        rate_limit.configure(_redis([1, 1]))
+        limit = Limit(attempts=1, window_seconds=60)
+
+        decisions = [
+            await rate_limit.consume_floored(surface="s", caller="c", limit=limit) for _ in range(2)
+        ]
+
+        assert [(d.allowed, d.metered) for d in decisions] == [(True, True), (True, True)]

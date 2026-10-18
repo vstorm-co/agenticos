@@ -1,5 +1,5 @@
 ---
-source_sha: "f7d2868390c2"
+source_sha: "f4d50356bd4f"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -811,6 +811,12 @@ puede agotar sus diez por minuto y dejar a los visitantes de la página
 rechazados el resto de ese minuto. A la organización no le cuesta nada, porque
 no se llama a ningún provider, pero es una forma de hacer fallar el micrófono
 de una página.
+
+Mientras el Redis del despliegue no está disponible, estos límites **no se
+abren**: cada worker cuenta las mismas cuotas en su propia memoria hasta que
+Redis vuelve. El techo pasa a ser la cuota por el número de workers de la API,
+en lugar de ningún techo. Los límites de inicio de las llamadas de voz se
+comportan igual.
 
 **La duración se mide antes de llamar al provider**, y una grabación más larga
 que `dictation_max_seconds` se rechaza como `too_large`, con tres segundos de

@@ -44,6 +44,8 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from starlette.requests import HTTPConnection
@@ -165,6 +167,64 @@ async def consume(*, surface: str, caller: str, limit: Limit) -> Decision:
     if used > limit.attempts:
         return Decision(allowed=False, retry_after_seconds=limit.window_seconds)
     return Decision(allowed=True, retry_after_seconds=0)
+
+
+class LocalWindows:
+    """A per-process fixed window, for the attempts the shared limiter could not count.
+
+    `consume` is the limit that holds across workers, and it fails open when
+    Redis is down or nobody configured one. For a public widget's socket that is
+    the documented trade; where the limit is a production control - a channel
+    bot's per-sender `rate_limit_rpm` (`SECURITY.md`), and every surface where a
+    stranger's attempt is a paid call (`consume_floored`) - a limiter that
+    vanishes for the length of a Redis outage lets a caller go as fast as they
+    like until it recovers. So this stands in for exactly that stretch: wrong by
+    the worker count, which is the defect the shared limiter exists to fix, and
+    still a floor where there would have been none.
+
+    Bounded: every write drops the windows that have expired, so the map is the
+    size of the callers seen in the last minute, not of every caller since the
+    process started - which is what the dict this replaces did.
+    """
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
+        self._windows: dict[str, tuple[int, float]] = {}
+        self._clock = clock
+
+    def __len__(self) -> int:
+        return len(self._windows)
+
+    def consume(self, caller: str, *, attempts: int, window_seconds: int) -> bool:
+        now = self._clock()
+        for key in [
+            k for k, (_n, opened) in self._windows.items() if now - opened >= window_seconds
+        ]:
+            del self._windows[key]
+        count, opened = self._windows.get(caller, (0, now))
+        self._windows[caller] = (count + 1, opened)
+        return count < attempts
+
+
+_floor = LocalWindows()
+
+
+async def consume_floored(*, surface: str, caller: str, limit: Limit) -> Decision:
+    """`consume`, with a per-process floor for as long as it cannot count.
+
+    For the surfaces where a stranger's attempt costs the organization money -
+    a dictation, a voice call - and the limit is all that bounds it: failing
+    open there turns a Redis outage into unlimited paid calls on a public link.
+    """
+    decision = await consume(surface=surface, caller=caller, limit=limit)
+    if decision.metered:
+        return decision
+    if _floor.consume(
+        f"{surface}:{_bounded(caller)}",
+        attempts=limit.attempts,
+        window_seconds=limit.window_seconds,
+    ):
+        return decision
+    return Decision(allowed=False, retry_after_seconds=limit.window_seconds, metered=False)
 
 
 async def exhausted(*, surface: str, caller: str, limit: Limit) -> bool:
@@ -373,14 +433,14 @@ async def embed_dictation_allowed(connection: HTTPConnection, *, public_key: str
     organization nothing - no provider is called - and is the price of
     counting before the database read rather than after it.
     """
-    by_address = await consume(
+    by_address = await consume_floored(
         surface="embed_dictation",
         caller=f"ip:{caller_ip(connection)}",
         limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_MINUTE),
     )
     if not by_address.allowed:
         return by_address
-    return await consume(
+    return await consume_floored(
         surface="embed_dictation",
         caller=f"key:{public_key}",
         limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_LINK_PER_MINUTE),
@@ -394,7 +454,7 @@ async def embed_dictation_visitor_allowed(*, public_key: str, visitor: str) -> D
     visitor cannot mint - unlike a hosted page's continuity key, which is why a
     page has no counter of this kind.
     """
-    return await consume(
+    return await consume_floored(
         surface="embed_dictation",
         caller=f"key:{public_key}:visitor:{visitor}",
         limit=Limit(attempts=settings.RATE_LIMIT_EMBED_DICTATION_PER_MINUTE),
@@ -416,14 +476,14 @@ async def embed_voice_allowed(connection: HTTPConnection, *, public_key: str) ->
     the link's allowance too; that costs the organization nothing, since no provider
     is called.
     """
-    by_address = await consume(
+    by_address = await consume_floored(
         surface="embed_voice",
         caller=f"ip:{caller_ip(connection)}",
         limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_MINUTE),
     )
     if not by_address.allowed:
         return by_address
-    return await consume(
+    return await consume_floored(
         surface="embed_voice",
         caller=f"key:{public_key}",
         limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_LINK_PER_MINUTE),
@@ -439,7 +499,7 @@ async def embed_voice_visitor_allowed(*, public_key: str, visitor: str) -> Decis
     connect from. Their open calls are bounded with everybody's by
     `VOICE_MAX_CALLS_PER_EMBED`.
     """
-    return await consume(
+    return await consume_floored(
         surface="embed_voice",
         caller=f"key:{public_key}:visitor:{visitor}",
         limit=Limit(attempts=settings.RATE_LIMIT_EMBED_VOICE_PER_MINUTE),

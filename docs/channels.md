@@ -780,6 +780,11 @@ ten a minute and leave the page's visitors refused for the rest of that minute.
 That costs the organization nothing, since no provider is called, but it is a
 way to make a page's microphone fail.
 
+While the deployment's Redis cannot be reached, these limits **do not open**:
+each worker counts the same allowances in its own memory until Redis is back.
+The ceiling is then the allowance times the number of API workers, rather than
+no ceiling at all. A voice call's start limits behave the same way.
+
 **The length is measured before the provider is called**, and a recording
 longer than `dictation_max_seconds` is refused as `too_large`, with three
 seconds' grace for the browser's once-a-second stop. By default a recording is

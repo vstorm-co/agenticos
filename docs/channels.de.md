@@ -1,5 +1,5 @@
 ---
-source_sha: "f7d2868390c2"
+source_sha: "f4d50356bd4f"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -856,6 +856,12 @@ seine zehn pro Minute aufbrauchen, und die Besucher der Seite werden für den
 Rest dieser Minute abgewiesen. Die Organisation kostet das nichts, weil kein
 Provider aufgerufen wird, aber es ist ein Weg, das Mikrofon einer Seite
 scheitern zu lassen.
+
+Ist das Redis des Deployments nicht erreichbar, **fallen diese Limits nicht
+weg**: Jeder Worker zählt dieselben Kontingente im eigenen Speicher, bis Redis
+wieder da ist. Die Obergrenze ist dann das Kontingent mal die Zahl der
+API-Worker statt gar keiner. Die Limits für den Start von Sprachanrufen
+verhalten sich genauso.
 
 **Die Länge wird gemessen, bevor der Provider aufgerufen wird**, und eine
 Aufnahme, die länger als `dictation_max_seconds` ist, wird als `too_large`
