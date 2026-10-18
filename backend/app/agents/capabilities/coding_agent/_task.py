@@ -54,6 +54,17 @@ writes. What the report and the ledger read - names, paths, usage numbers, the
 answer - fits well inside this.
 """
 
+MAX_RETAINED_BYTES = 32 * 1024 * 1024
+"""How much of a task's events is kept as read for its report; past it, the outline.
+
+Every event still reaches the person as it happens. Past this, an event is kept
+with each string cut to `OUTLINE_CHARS`: its kind, ids, paths, tool names and
+usage numbers - what the report and the ledger read - survive, and the file
+contents and command output that are the bulk of a long task do not.
+"""
+
+OUTLINE_CHARS = 200
+
 STOP_GRACE_SECONDS = 3
 """How long a stopped harness has to exit before its process group is killed."""
 
@@ -83,6 +94,8 @@ class _Reader:
     # Inside a line past `MAX_LINE_BYTES`, whose end is dropped when it comes.
     skipping: bool = False
     events: list[dict[str, Any]] = field(default_factory=list)
+    # The bytes of the lines kept whole so far - see `MAX_RETAINED_BYTES`.
+    retained: int = 0
 
     def take(self, chunk: bytes) -> list[dict[str, Any]]:
         self.offset += len(chunk)
@@ -92,8 +105,15 @@ class _Reader:
         if len(pending) > MAX_LINE_BYTES:
             pending, self.skipping = b"", True
         self.pending = pending
-        fresh = [event for line in lines if (event := _event(line)) is not None]
-        self.events += fresh
+        fresh: list[dict[str, Any]] = []
+        for line in lines:
+            event = _event(line)
+            if event is None:
+                continue
+            fresh.append(event)
+            self.retained += len(line)
+            outlined = self.retained > MAX_RETAINED_BYTES
+            self.events.append(_trimmed(event, OUTLINE_CHARS) if outlined else event)
         return fresh
 
     def rest(self) -> list[dict[str, Any]]:
@@ -113,14 +133,14 @@ def _event(line: bytes) -> dict[str, Any] | None:
     return _trimmed(parsed) if isinstance(parsed, dict) else None
 
 
-def _trimmed(value: Any) -> Any:
-    """`value` with every string cut to `MAX_STRING_CHARS`, however deep."""
+def _trimmed(value: Any, limit: int = MAX_STRING_CHARS) -> Any:
+    """`value` with every string cut to `limit`, however deep."""
     if isinstance(value, str):
-        return value if len(value) <= MAX_STRING_CHARS else value[:MAX_STRING_CHARS]
+        return value if len(value) <= limit else value[:limit]
     if isinstance(value, dict):
-        return {key: _trimmed(item) for key, item in value.items()}
+        return {key: _trimmed(item, limit) for key, item in value.items()}
     if isinstance(value, list):
-        return [_trimmed(item) for item in value]
+        return [_trimmed(item, limit) for item in value]
     return value
 
 

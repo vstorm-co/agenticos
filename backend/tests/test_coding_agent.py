@@ -445,6 +445,22 @@ class TestReadingCodex:
         assert len(event["result"][0]["text"]) == _task.MAX_STRING_CHARS
         assert event["tokens"] == 7
 
+    def test_past_its_budget_a_task_keeps_each_events_outline(self, monkeypatch) -> None:
+        """Bounded lines still add up over an hour: past the budget an event is kept
+        with its strings cut short, so the report still reads kinds, paths and
+        usage, while every event still reaches the person whole."""
+        monkeypatch.setattr(_task, "MAX_RETAINED_BYTES", 1500)
+        reader = _task._Reader()
+        output = "x" * 1000
+        line = json.dumps({"type": "user", "content": output, "usage": {"input_tokens": 7}})
+        first, second = reader.take(f"{line}\n{line}\n".encode())
+
+        assert first["content"] == second["content"] == output
+        kept_whole, outlined = reader.events
+        assert kept_whole["content"] == output
+        assert len(outlined["content"]) == _task.OUTLINE_CHARS
+        assert outlined["usage"] == {"input_tokens": 7}
+
     def test_a_line_past_its_ceiling_is_dropped_whole(self, monkeypatch) -> None:
         monkeypatch.setattr(_task, "MAX_LINE_BYTES", 16)
         reader = _task._Reader()
