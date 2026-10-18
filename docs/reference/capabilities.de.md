@@ -1,5 +1,5 @@
 ---
-source_sha: "516b5c5d6230"
+source_sha: "40de7d6f6a69"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -63,6 +63,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — |
 | `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona |
 | `charts` | Diagramme | analysis | `create_chart` | — | — |
+| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich |
 | `coding_agent` | Coding Agent | analysis | `run_coding_agent` | `sandbox:execute` | erforderlich |
 | `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — |
@@ -1249,6 +1250,59 @@ werden wie jede Modellanfrage im Ledger des Runs gebucht, und das Budget wird vo
 jeder Aufgabe geprüft. Codex nennt in seinen Ereignissen kein Modell, daher wird
 seine Nutzung ohne gesetztes `model` ohne Preis gebucht und die Kosten des Runs als
 unvollständig markiert.
+
+## Visuals { #visuals }
+
+`draw` — *Zeichnet im Gespräch: ein Diagramm, eine Karte, einen Ablauf, eine Erklärung, eine 3D-Szene.*
+`revise_visual` — *Ändert ein Visual durch exakte Ersetzungen, ohne es neu zu zeichnen.*
+`read_visual` — *Liest ein Visual dieses Gesprächs, wie es jetzt ist, mit angewendeten Überarbeitungen.*
+
+Zeichnet im Chat selbst. `kind` ist `svg` für Diagramme und Illustrationen,
+`mermaid` für Flussdiagramme, Sequenzen und ER-Diagramme oder `html` für alles
+Interaktive - Schieberegler, `<canvas>`, three.js. Keine Konfiguration; der
+mitgelieferte Skill `visual-design` trägt den Stil und drei Vorlagen, und der Builder
+bindet ihn, wenn Visuals eingeschaltet wird.
+
+**Es erscheint, während es geschrieben wird.** Die Zeichnung ist das Argument
+`content` des Aufrufs. Die Konsole liest es aus den gestreamten Argumenten und gibt
+es in einen Rahmen unter der Nachricht, sodass SVG und HTML auf dem Bildschirm wachsen
+und Mermaid bei jeder vollständigen Zeile neu zeichnet. Skripte laufen einmal, wenn der
+Aufruf vollständig ist: bis dahin wird das Markup ohne Skripte und `on*`-Attribute
+gezeigt, sodass eine halb geschriebene Szene nie startet.
+
+**Es lebt im Gespräch.** Gespeichert wird nur der Tool-Aufruf, den das Transkript
+ohnehin hält, sodass ein Neuladen und ein geteilter Thread es wieder zeichnen. Ein
+früherer Turn erreicht das Modell nur als Text, deshalb nennt die Capability die
+früheren Visuals des Gesprächs in ihren Anweisungen, mit ID und Titel, und
+`read_visual` holt eines vor einer Überarbeitung zurück.
+
+**Das Modell erfährt, wie es gerendert wurde.** Während jemand im Web-Chat zusieht,
+meldet die Konsole die Skriptfehler, fehlgeschlagenen Ladevorgänge und abgelehnten
+Anfragen jeder Zeichnung, und `draw` wartet bis zu zehn Sekunden auf diesen Bericht,
+bevor es antwortet - so behebt das Modell eine kaputte Zeichnung mit `revise_visual` im
+selben Turn. Sieht niemand zu, antwortet es sofort und sagt, dass die Zeichnung nicht
+geprüft wurde.
+
+**Überarbeitungen** sind exakte Ersetzungen, dieselbe Regel wie bei den Edits von
+`publish_artifact`, und jede ist ein eigenes Visual unter der Nachricht, die sie gemacht
+hat. Eine Zeichnung, die für eine App zu groß ist (`ARTIFACT_MAX_BYTES`), ein SVG, das
+nicht ein einzelnes `<svg>`-Element ist, oder eine, die etwas von einer anderen Website
+lädt, ist ein Retry, der sagt, was zu ändern ist.
+
+**Bilder.** `images` bringt bis zu sechs Bilder in eine Zeichnung, jedes unter
+einem Namen, den die Zeichnung als `{{image:NAME}}` verwendet: ein an das Gespräch
+angehängtes Bild, eine Datei im Workspace oder eine `https://`-Adresse. Eine
+Adresse funktioniert nur für einen Agent, der das Web bereits liest - mit
+eingeschaltetem `web_fetch` oder `browser_use` - und nur auf einem Host, den einer
+von beiden lesen würde: ihre `allowed_domains` und `blocked_domains` begrenzen
+auch die Bilder, und der Download darf nicht auf einen anderen Host umgeleitet
+werden. Jedes Bild hat höchstens 2 MiB, und ein Visual trägt nur die Bilder, die
+seine Zeichnung noch verwendet, über alle Revisionen höchstens sechs.
+
+**Es hat die Isolation einer App.** Der Rahmen ist die App-Sandbox - ein opaker
+Origin, `connect-src 'none'`, nichts Entferntes außer dem Bibliothekssatz des
+Deployments, der jetzt three.js und Mermaid enthält. Siehe
+[Visuals](../artifacts.md#visuals).
 
 ## Apps { #artifacts }
 

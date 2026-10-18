@@ -61,7 +61,8 @@ export type WidgetId =
   | "routines"
   | "notifications"
   | "artifacts"
-  | "projects";
+  | "projects"
+  | "recent-visuals";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -563,6 +564,15 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r2",
     category: "workspace",
     seeAll: ROUTES.PROJECTS,
+  },
+  // The drawings agents made for the caller (#2171). Gated on running agents, the
+  // one thing that makes a drawing: `GET /visuals` lists only the caller's own.
+  "recent-visuals": {
+    id: "recent-visuals",
+    gate: holds(Perm.agentsRun),
+    defaultSpan: "s12",
+    defaultRows: "r3",
+    category: "workspace",
   },
   "shared-with-you": {
     id: "shared-with-you",

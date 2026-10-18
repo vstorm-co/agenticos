@@ -105,17 +105,38 @@ async def finish_run(
     error: str | None = None,
     logfire_trace_id: str | None = None,
     paused_state: dict[str, Any] | None = None,
+    tool_args_repaired: int | None = None,
+    cache_read_tokens: int | None = None,
+    cache_write_tokens: int | None = None,
+    cache_busts: int = 0,
+    cache_expiries: int = 0,
+    cache_missed_tokens: int = 0,
 ) -> AgentRun:
     run.status = status
     run.input_tokens = input_tokens
     run.output_tokens = output_tokens
+    # Left alone by a caller that passes none - a path that ran no model and
+    # carries the totals over - rather than zeroed under them.
+    if cache_read_tokens is not None:
+        run.cache_read_tokens = cache_read_tokens
+    if cache_write_tokens is not None:
+        run.cache_write_tokens = cache_write_tokens
     run.cost_usd = cost_usd
     run.cost_is_partial = cost_is_partial
+    # Left alone by a path that ran no model - an approval that expired - so it
+    # does not wipe what the run's earlier segments counted.
+    if tool_args_repaired is not None:
+        run.tool_args_repaired = tool_args_repaired
     run.ended_at = ended_at
     run.error = error
     # Written on every finish, not only when parking: a run that ended must not
     # keep the state it was parked with, or it can be resumed a second time.
     run.paused_state = paused_state
+    # Added, not set: a run parked on an approval is finished once per stretch
+    # it runs, each with a recorder of its own.
+    run.cache_busts += cache_busts
+    run.cache_expiries += cache_expiries
+    run.cache_missed_tokens += cache_missed_tokens
     if logfire_trace_id is not None:
         run.logfire_trace_id = logfire_trace_id
     db.add(run)
@@ -148,6 +169,11 @@ async def record_delegated_run(
     started_at: datetime,
     ended_at: datetime,
     error: str | None = None,
+    cache_read_tokens: int = 0,
+    cache_write_tokens: int = 0,
+    cache_busts: int = 0,
+    cache_expiries: int = 0,
+    cache_missed_tokens: int = 0,
 ) -> AgentRun:
     """Write a delegated run that is already over, in one insert.
 
@@ -182,6 +208,11 @@ async def record_delegated_run(
         secret_id=secret_id,
         status=status,
         input_tokens=input_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_write_tokens=cache_write_tokens,
+        cache_busts=cache_busts,
+        cache_expiries=cache_expiries,
+        cache_missed_tokens=cache_missed_tokens,
         output_tokens=output_tokens,
         cost_usd=cost_usd,
         cost_is_partial=cost_is_partial,
@@ -965,6 +996,48 @@ async def spend_by_agent(
     ]
 
 
+async def cache_collapses(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    since: datetime,
+    until: datetime | None = None,
+) -> list[tuple[UUID, str, str, str | None, int, int, int, int]]:
+    """Prompt-cache busts and expiries per agent and model over a window (#2109).
+
+    Returns (agent_id, agent_name, agent_slug, model_label, busts, expiries,
+    missed_tokens, run_count) rows, for pairs with at least one of either, most
+    busts first. Every run counts, a delegate's too: each row is its own requests.
+    """
+    collapsed = or_(AgentRun.cache_busts > 0, AgentRun.cache_expiries > 0)
+    busts = func.sum(AgentRun.cache_busts)
+    result = await db.execute(
+        select(
+            Agent.id,
+            Agent.name,
+            Agent.slug,
+            AgentRun.model_label,
+            busts,
+            func.sum(AgentRun.cache_expiries),
+            func.sum(AgentRun.cache_missed_tokens),
+            func.count(AgentRun.id),
+        )
+        .join(Agent, Agent.id == AgentRun.agent_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.started_at >= since,
+            *([] if until is None else [AgentRun.started_at <= until]),
+            collapsed,
+        )
+        .group_by(Agent.id, Agent.name, Agent.slug, AgentRun.model_label)
+        .order_by(busts.desc(), Agent.name)
+    )
+    return [
+        (agent_id, name, slug, model, int(b), int(e), int(missed), int(runs))
+        for agent_id, name, slug, model, b, e, missed, runs in result.all()
+    ]
+
+
 def _own_cost() -> ColumnElement[Decimal]:
     """What a run spent *itself*, with its delegations' share taken back out.
 
@@ -1346,7 +1419,7 @@ class WindowBreakdown:
     by_day: list[tuple[date, int, int, Decimal]]
     by_surface: list[tuple[str | None, int]]
     by_status: list[tuple[str | None, int]]
-    by_model: list[tuple[str | None, str | None, int]]
+    by_model: list[tuple[str | None, str | None, int, int]]
     by_provider: list[tuple[str | None, Decimal]]
 
 
@@ -1372,6 +1445,7 @@ async def window_breakdown(
     runs = func.count(AgentRun.id)
     completed = func.count(AgentRun.id).filter(AgentRun.status == RunStatus.COMPLETED.value)
     cost = func.coalesce(func.sum(AgentRun.cost_usd), 0)
+    repaired = func.coalesce(func.sum(AgentRun.tool_args_repaired), 0)
     result = await db.execute(
         select(
             func.grouping(day),
@@ -1387,6 +1461,7 @@ async def window_breakdown(
             runs,
             completed,
             cost,
+            repaired,
         )
         .where(*conditions)
         .group_by(
@@ -1402,12 +1477,12 @@ async def window_breakdown(
     by_day: list[tuple[date, int, int, Decimal]] = []
     by_surface: list[tuple[str | None, int]] = []
     by_status: list[tuple[str | None, int]] = []
-    by_model: list[tuple[str | None, str | None, int]] = []
+    by_model: list[tuple[str | None, str | None, int, int]] = []
     by_provider: list[tuple[str | None, Decimal]] = []
     for row in result.all():
         g_day, g_surface, g_status, g_model, g_provider = row[0], row[1], row[2], row[3], row[4]
         day_value, surface, status, model_label, provider = row[5], row[6], row[7], row[8], row[9]
-        run_count, completed_count, cost_usd = row[10], row[11], row[12]
+        run_count, completed_count, cost_usd, repaired_count = row[10], row[11], row[12], row[13]
         if g_day == 0:
             by_day.append((day_value, run_count, completed_count, Decimal(cost_usd)))
         elif g_surface == 0:
@@ -1415,7 +1490,7 @@ async def window_breakdown(
         elif g_status == 0:
             by_status.append((status, run_count))
         elif g_model == 0:
-            by_model.append((model_label, provider, run_count))
+            by_model.append((model_label, provider, run_count, int(repaired_count)))
         elif g_provider == 0:
             by_provider.append((provider, Decimal(cost_usd)))
     # Largest group first, ties broken by the label so the order is the same

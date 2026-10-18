@@ -252,6 +252,7 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
     Call("GET", "/agents/prompt-variables", Perm.AGENTS_VIEW),
     Call("GET", "/agents/templates", Perm.AGENTS_VIEW),
+    Call("GET", "/agents/platform-mcp-tools", Perm.AGENTS_VIEW),
     Call(
         "POST",
         "/agents/templates/install",
@@ -1204,6 +1205,8 @@ class TestResumeAnswersWithWhatTheContinuationDid:
             cost_usd=Decimal("0.02"),
             input_tokens=13,
             output_tokens=7,
+            cache_read_tokens=9,
+            cache_write_tokens=2,
         )
 
         class _Resuming:
@@ -1250,6 +1253,11 @@ class TestResumeAnswersWithWhatTheContinuationDid:
         # updates it, rather than putting the same command in the turn twice.
         assert response.json()["settled"] == [{"tool_call_id": "call-0", "result": "read 6 sheets"}]
         assert response.json()["conversation_id"] == str(run.conversation_id)
+        # The cache split, so the resumed turn's cost can be read like any other (#2170).
+        assert (response.json()["cache_read_tokens"], response.json()["cache_write_tokens"]) == (
+            9,
+            2,
+        )
 
 
 # -- the stats routes, whose gate is the scope parameter ----------------------
@@ -1566,10 +1574,15 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # 403 that names nothing, and the link's bucket counts every attempt.
         ("POST", f"{V1}/public/apps/{{public_key}}/unlock"),
         ("POST", f"{V1}/public/artifacts/{{public_key}}/unlock"),
-        # The library set a published page may load (#1971): three static files
-        # this repository ships, named in `ARTIFACT_LIBRARY`, which a page in an
-        # opaque origin fetches with no credentials by construction.
-        ("GET", f"{V1}/artifact-content/lib/{{name}}"),
+        # The library set a published page may load (#1971): static files this
+        # repository ships, named in `ARTIFACT_LIBRARY` - a path, since three.js
+        # keeps its package layout (#2171) - which a page in an opaque origin
+        # fetches with no credentials by construction.
+        ("GET", f"{V1}/artifact-content/lib/{{name:path}}"),
+        # The renderer a visual is drawn in (#2171): one fixed page holding no
+        # drawing - the console posts it in - under the app sandbox policy, framed
+        # only by the console.
+        ("GET", f"{V1}/artifact-content/visual-frame"),
         # The document another site frames for a public link (#1973). The key is
         # the capability, as for the link itself, and its policy lets only the
         # origins the artifact names frame it.

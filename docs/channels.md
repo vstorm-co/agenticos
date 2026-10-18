@@ -375,6 +375,7 @@ be wrong here" or "this is not built yet" — never silence.
 | Delegation frames | yes | **no, deliberately**: attaching a sink makes the library open a *streamed* request per child, so a delegate whose provider cannot stream breaks the moment somebody watches it |
 | Approvals: parks the run | yes | yes | yes |
 | Approvals: a path to the decision | yes (`/runs`) | one sentence, deliberately: a stranger holding a link is not shown a URL into somebody's console | yes — the result carries `parked`, naming what is waiting and the approval to post to |
+| `@`-mentions | yes (`mentions`) | **no, not yet**: a widget has no menu to pick from, and a visitor's mention would need the same as-them check | **no, not yet**: a script names what to use in the message itself |
 
 ### `environment_id` on the socket, and why it is the publisher's
 
@@ -893,7 +894,8 @@ question, or turn streaming off, which falls back to a reply edited once a
 second. Streaming also falls back on its own where Slack refuses to start one.
 
 A Markdown table in the answer is drawn as a Slack table, and a chart arrives as
-an image, as it always did. If the finished answer is not what was streamed - an
+an image, as it always did. So does a [visual](reference/capabilities.md#visuals), drawn by
+the deployment's browser when `VISUAL_RENDER_CDP_URL` names one. If the finished answer is not what was streamed - an
 output guardrail redacted something - the streamed message is rewritten whole.
 
 ### Scopes and events
@@ -1492,6 +1494,14 @@ agent that does well in the console and badly in Slack shows it.
   take effect immediately, for the same reason: the stream is reopened to match
   whatever the row now says. It is opened *after* the transaction commits, so a
   registration that fails leaves no connection behind.
+- **One connection per bot, however many API workers.** Telegram allows one
+  `getUpdates` per bot and two Mattermost sockets would each receive every
+  event, so the worker holding a bot's connection holds a lease on it in the
+  shared Redis and renews it every 10 seconds. The others leave that bot alone.
+  A worker that shuts down hands its bots to another within about 10 seconds,
+  and one that dies within about 40. An edit served by another worker opens the
+  new connection at once, and the old one closes at its holder's next renewal.
+  With Redis unreachable, every worker connects, as before.
 - **A binding's instructions may name what only the platform knows.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` - filled in when a run starts, from the same calls the channel

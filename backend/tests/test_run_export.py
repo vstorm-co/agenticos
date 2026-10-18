@@ -69,6 +69,8 @@ def _run(**overrides) -> SimpleNamespace:
         "provider": "openai",
         "input_tokens": 100,
         "output_tokens": 50,
+        "cache_read_tokens": 70,
+        "cache_write_tokens": 20,
         "cost_usd": Decimal("0.1234"),
         "cost_is_partial": False,
         "started_at": _WINDOW[0],
@@ -159,6 +161,10 @@ class TestRunsExport:
         rows = _parsed(result.content)
         assert rows[0] == run_export._RUNS_HEADER
         assert rows[1][0] == str(run.id)
+        # The cache split, so the export reconciles with a provider's invoice (#2170).
+        header = rows[0]
+        assert rows[1][header.index("cache_read_tokens")] == "70"
+        assert rows[1][header.index("cache_write_tokens")] == "20"
         assert result.row_count == 1
         assert result.filename.startswith("runs_export_")
         assert result.filename.endswith(".csv")

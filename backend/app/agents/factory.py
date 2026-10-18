@@ -14,8 +14,8 @@ just another client" true rather than aspirational.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -26,8 +26,10 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import AbstractToolset
 from pydantic_ai.usage import UsageLimits
+from pydantic_ai_harness.guardrails import GuardrailResult
 
 from app.agents.audience import RunAudience
+from app.agents.cache_watch import CacheWatch
 from app.agents.capabilities import build as build_capabilities
 from app.agents.capabilities.approval import (
     ApprovalGate,
@@ -50,6 +52,7 @@ from app.agents.capabilities.compaction import (
     build_gauge,
 )
 from app.agents.capabilities.conversation_search import CONVERSATION_SEARCH_CAPABILITY_ID
+from app.agents.capabilities.guardrails import GuardrailsConfig, input_screen
 from app.agents.capabilities.media import (
     CONVERSATION_RESOURCE as MEDIA_CONVERSATION_RESOURCE,
 )
@@ -63,13 +66,19 @@ from app.agents.capabilities.system_reminders import (
     ReminderState,
     SystemReminders,
 )
+from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
+from app.agents.code_mode import CodeCalls, code_mode
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
+from app.agents.loop_guard import LoopGuard
 from app.agents.manifest import RecordingModel, RunRecorder
-from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
+from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
+from app.agents.run_reviewer import RunReviewer
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
+from app.agents.tool_call_ids import UniqueToolCallIds
+from app.agents.tool_repair import CountedRepair, RepairTally
 from app.core.secret_kinds import ApiKeySecret, StorableSecret
 
 logger = logging.getLogger(__name__)
@@ -146,6 +155,9 @@ class BuiltAgent:
     # capability list, where a capability with one gated tool and one ungated
     # one has no single answer.
     approval_required_tools: frozenset[str]
+    # How many of the run's tool calls arrived malformed and were repaired, read
+    # by whoever persists the run - see `app/agents/tool_repair.py`.
+    repairs: RepairTally = field(default_factory=RepairTally)
 
 
 def build_agent(
@@ -162,6 +174,7 @@ def build_agent(
     granted_scopes: frozenset[str] | None = None,
     resources: dict[str, Any] | None = None,
     secrets: Mapping[UUID, StorableSecret] | None = None,
+    reviewer_models: Mapping[UUID, ModelRequestSpec] | None = None,
     extra_toolsets: list[AbstractToolset[Any]] | None = None,
     extra_capabilities: Sequence[AbstractCapability[AgentDeps]] = (),
     agent_period_spend: PeriodSpendLookup | None = None,
@@ -278,6 +291,9 @@ def build_agent(
             # delete the bytes is the conversation, not a setting.
             MEDIA_ORGANIZATION_RESOURCE: organization_id,
             MEDIA_CONVERSATION_RESOURCE: conversation_id,
+            # Where the agent's web readers may go: a drawing fetches an image by
+            # address only from a host one of them would itself reach.
+            WEB_REACH_RESOURCE: web_reach(bindings),
         },
         secrets=secrets,
     )
@@ -342,7 +358,22 @@ def build_agent(
     # accident. The gate is attached even when nothing is gated, so that adding
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
+    repairs = RepairTally()
+    # Wrapped, so what the provider is handed is written down as it is handed
+    # over. Reconstructing the prompt and the tool schemas from the spec
+    # afterwards would be a second implementation of everything above this line.
+    # Made before the capabilities, because a run reviewer, code mode and
+    # `CacheWatch` write onto it.
+    recorder = RunRecorder()
+    asking = (
+        frozenset({CONNECT_ACCOUNT})
+        if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
+        else frozenset()
+    )
     capabilities: list[Any] = [
+        # First, so every hook after it - the approval gate and the guardrails
+        # among them - sees the arguments the tool will actually be called with.
+        CountedRepair(tally=repairs),
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
         # instructions.
@@ -355,23 +386,53 @@ def build_agent(
         ApprovalGate(
             required_tool_names=approval_required,
             gate_every_tool=gate_every_tool,
-            asking_tool_names=(
-                frozenset({CONNECT_ACCOUNT})
-                if any(isinstance(extra, ConnectOnUse) for extra in extra_capabilities)
-                else frozenset()
-            ),
+            asking_tool_names=asking,
         ),
         *configured,
         *extra_capabilities,
+        # After the configured ones, so a compaction that rebuilds the request in
+        # its own before hook cannot drop the loop warning.
+        *(
+            [LoopGuard(repeats=spec.loop_guard.repeats, cycles=spec.loop_guard.cycles)]
+            if spec.loop_guard.enabled
+            else []
+        ),
+        *_reviewers(spec, reviewer_models or {}, recorder),
+        # Off unless the spec asks, and never under a session that asks before
+        # every tool: nothing could be folded into a script there.
+        *(
+            [
+                code_mode(
+                    approval_required=approval_required,
+                    asking=asking,
+                    max_tool_calls=spec.code_mode.max_tool_calls,
+                ),
+                CodeCalls(recorder=recorder),
+            ]
+            if spec.code_mode.enabled and not gate_every_tool
+            else []
+        ),
+        # Every agent: a moved cache prefix costs the most on exactly the long,
+        # tool-heavy runs nobody is watching the invoice of (#2109).
+        CacheWatch(
+            recorder=recorder,
+            marks_key=(
+                None if conversation_id is None else f"{conversation_id}/{agent_id}/{spec.name}"
+            ),
+            agent_id=agent_id,
+        ),
         # Every agent, not only one that compacts. The warning is most useful to
         # exactly the agent that will not: it is the one that reaches the ceiling
         # and gets refused by the provider.
         build_gauge(gauge),
+        # Every agent: a provider that numbers its calls afresh on each response
+        # would otherwise give a later drawing or approval an earlier one's id.
+        UniqueToolCallIds(),
     ]
 
     # Profile settings first, agent overrides second - the agent is the more
-    # specific statement of intent. Under both, the provider's prompt caching,
-    # which a profile can still turn off by setting it false.
+    # specific statement of intent. Under both, prompt caching, which a profile
+    # can still turn off with `cache: false`.
     #
     # A setting the author never chose is absent from the dump rather than
     # present as `None`, which is what keeps this merge honest in both
@@ -380,16 +441,12 @@ def build_agent(
     # parameter however it is spelled. See `ModelSettingsSpec`.
     model_settings = ModelSettings(
         **{
-            **PROMPT_CACHE_DEFAULTS.get(model_spec.provider, {}),
+            **PROMPT_CACHE,
             **model_spec.params,
             **spec.model_settings.model_dump(),
         }
     )
 
-    # Wrapped, so what the provider is handed is written down as it is handed
-    # over. Reconstructing the prompt and the tool schemas from the spec
-    # afterwards would be a second implementation of everything above this line.
-    recorder = RunRecorder()
     agent = PydanticAgent[AgentDeps, str | DeferredToolRequests](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
@@ -416,7 +473,57 @@ def build_agent(
         model_label=model_spec.label,
         approval_required_tools=approval_required,
         usage_limits=UsageLimits(request_limit=spec.max_steps or DEFAULT_MAX_STEPS),
+        repairs=repairs,
     )
+
+
+def _reviewers(
+    spec: AgentSpec, models: Mapping[UUID, ModelRequestSpec], recorder: RunRecorder
+) -> list[RunReviewer]:
+    """The spec's run reviewers, each on the model the runner resolved for it (#2106).
+
+    A reviewer still a draft - no model or nothing to look for - or whose model did
+    not resolve is left out with a warning rather than failing the run it was meant
+    to watch. Its window is held to what its own model can read, with room left for
+    its instructions and its answer, so a cheap model's smaller context does not
+    turn every review into a refused request.
+
+    Its corrections pass through the agent's input guardrail before they reach the
+    model, as a person's mid-run words do: past the first request the input edge no
+    longer looks, and a reviewer quotes the run it read.
+    """
+    screen = _input_screen(spec)
+    reviewers: list[RunReviewer] = []
+    for reviewer in spec.reviewers:
+        model = None if reviewer.model_profile_id is None else models.get(reviewer.model_profile_id)
+        if model is None or not reviewer.instructions.strip():
+            logger.warning(
+                "Run reviewer %s is incomplete or unresolved; not reviewing", reviewer.name
+            )
+            continue
+        window = reviewer.window
+        if model.context_length:
+            window = max(1_000, min(window, model.context_length * 3 // 4))
+        reviewers.append(
+            RunReviewer(
+                name=reviewer.name,
+                model=model.build(),
+                model_settings=ModelSettings(**model.params),
+                instructions=reviewer.instructions,
+                every=reviewer.every,
+                window=window,
+                recorder=recorder,
+                screen=screen,
+            )
+        )
+    return reviewers
+
+
+def _input_screen(spec: AgentSpec) -> Callable[[str], GuardrailResult] | None:
+    for binding in spec.capabilities:
+        if binding.id == "guardrails" and binding.enabled:
+            return input_screen(GuardrailsConfig.model_validate(binding.config))
+    return None
 
 
 def _defer_for_tool_search(

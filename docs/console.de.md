@@ -1,5 +1,5 @@
 ---
-source_sha: "9d87b1a0a462"
+source_sha: "feaf26c4bab8"
 ---
 
 # Die Konsole { #the-console }
@@ -281,6 +281,23 @@ gesendet wird. Die eingebauten liefert das Produkt mit; eigene schreiben Sie
 unter **Settings → Slash commands**, und jeden eingebauten, den Sie nie nutzen,
 können Sie ausblenden. Sie gehören Ihnen, nicht der Organisation.
 
+**`@` zeigt dem Agent, was er nutzen soll.** Tippen Sie `@`, und ein Menü bietet in
+dieser Reihenfolge, was der Agent nutzen kann: seine MCP-Server, die Agents, an die
+er Arbeit übergibt (wenn die Delegations-Capability an ist), seine Capabilities -
+**Sandbox**, **Web research** - seine Skills, dann seine Wissensbasen und
+Kontextdateien. Die Auswahl bleibt als `@Name` in Ihrem Text, mit ihrem Logo
+markiert, und der Agent wird angewiesen, sie zu nutzen - die Werkzeuge eines
+Servers oder einer Capability, die Suche einer Wissensbasis, einen Skill -, ohne
+dass ihr Inhalt eingefügt wird. Einen Agent zu nennen übergibt ihm die Arbeit; wer
+antwortet, ändert es nie. Löschen Sie `@Name`, und die Auswahl ist weg. Ein
+eingefügter Link zeigt das Symbol seiner Website über dem Feld und in der
+gesendeten Nachricht. Eine Erwähnung erweitert nie, was der Agent erreicht: Der
+Server prüft jede erneut als Sie, gegen das, was der Agent bereits hat. Im
+Testpanel des Builders liest das Menü den Entwurf, den Sie testen. Solange ein Gespräch leer ist, zeigt das Feld nacheinander
+Beispiele aus dem, was der Agent nutzen kann - seinem Server, einer Capability,
+einem Delegierten, einem Skill - und `/`; sie verschwinden, sobald Sie
+hineinklicken.
+
 **Während der Agent arbeitet**, wartet das, was Sie senden, auf seine Antwort, wie
 in jedem Chat: Es steht in einer Warteschlange über dem Eingabefeld und geht
 hinaus, wenn der Run endet. Ziehen Sie eine Nachricht in der Warteschlange oder
@@ -309,6 +326,17 @@ Eingabefeld bleibt über der Tastatur und die Unterhaltung bei ihrer letzten
 Nachricht, wenn sie aufgeht, Enter
 beginnt eine neue Zeile, und Anhängen oder Diktieren liegen hinter einem **+**.
 Felder sind nie so klein, dass iOS hineinzoomt.
+
+**Zeichnungen.** Ein Agent mit [Visuals](reference/capabilities.md#visuals)
+zeichnet unter seiner Nachricht - ein Diagramm, eine Erklärung mit Schiebereglern, eine
+3D-Szene - und Sie sehen sie entstehen, während sie geschrieben wird; ihre Skripte
+starten, wenn sie vollständig ist. Das Panel zeigt die ganze Zeichnung, passend zum
+Gespräch, mit Schaltflächen für Vollbild, Code, Herunterladen, Kopieren eines SVG als
+Bild, Zoomen und Speichern als [App](artifacts.md#visuals) mit einem Link zum
+Teilen. Meldet eine Zeichnung einen Fehler, weiß der Agent schon davon; **Beheben**
+fragt erneut. Auf einem Telefon öffnet ein Tippen sie im Vollbild.
+Die Karte **Neueste Visuals** auf dem Dashboard zeigt die zuletzt für Sie
+gezeichneten, jede öffnet das Gespräch, in dem sie entstand.
 
 **Einem Durchlauf zusehen.** Beginnt ein Agent mit dem
 [Webbrowser](reference/capabilities.md#browser-automation) auf einer Seite, erscheint

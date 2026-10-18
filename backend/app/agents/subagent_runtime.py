@@ -292,6 +292,11 @@ class DelegationOutcome:
     input_tokens: int
     output_tokens: int
     cost_is_partial: bool = False
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    loop_stopped: bool = False
+    """The delegate was stopped by the loop guard - recorded as `loop_stopped`,
+    which `status` (the library's three outcomes) cannot say."""
     agent_id: UUID | None = None
     agent_version_id: UUID | None = None
     error: str | None = None
@@ -349,6 +354,8 @@ class DelegationSpend:
     billed_cost_usd: Decimal = Decimal(0)
     billed_input_tokens: int = 0
     billed_output_tokens: int = 0
+    billed_cache_read_tokens: int = 0
+    billed_cache_write_tokens: int = 0
     billed_has_unpriced_models: bool = False
     """The same four numbers again, but for what this delegation's *row* is owed
     rather than what its *panel* shows (agenticos#228).

@@ -1,7 +1,7 @@
 """Projects: a shared container, instructions and the chats held in them.
 
-Revision ID: 0136_projects
-Revises: 0135_external_agents
+Revision ID: 0140_projects
+Revises: 0139_external_agents
 Create Date: 2026-10-17
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0136_projects"
-down_revision: str | None = "0135_external_agents"
+revision: str = "0140_projects"
+down_revision: str | None = "0139_external_agents"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

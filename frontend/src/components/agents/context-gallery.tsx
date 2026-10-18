@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { Check, FileText, Plus } from "lucide-react";
 
-import { Badge, Pager, SearchInput, useListControls } from "@/components/ui";
+import {
+  Badge,
+  Pager,
+  PICKER_PAGE_SIZE,
+  SearchInput,
+  useChosenFirst,
+  useListControls,
+} from "@/components/ui";
 import { GroupsChip } from "@/components/sharing/audience-chip";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -42,8 +49,10 @@ export function ContextGallery({
   const known = new Set(files.map((file) => file.id));
   const orphaned = files.length >= total ? selectedIds.filter((id) => !known.has(id)) : [];
 
+  const ordered = useChosenFirst(files, selectedIds);
   const list = useListControls({
-    items: files,
+    items: ordered,
+    pageSize: PICKER_PAGE_SIZE,
     matches: (file, query) =>
       file.name.toLowerCase().includes(query) ||
       (file.description ?? "").toLowerCase().includes(query),

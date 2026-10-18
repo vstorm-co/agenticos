@@ -1,5 +1,5 @@
 ---
-source_sha: "1b7f3c282f31"
+source_sha: "0698462cb81b"
 ---
 
 # Dodaj zadanie w tle { #add-a-background-task }
@@ -104,4 +104,10 @@ uv run --directory backend python -m app.worker.prefect_app
     reszta czeka w kolejce. Każdy run to proces, który importuje całą aplikację,
     więc wybieraj najdłuższy interwał, który wciąż odpowiada na pytanie.
 
-Interwał decyduje też o tym, ile pracy czeka po przestoju.
+Interwał decyduje też o tym, ile pracy czeka po przestoju. Przekaż
+`concurrency_limit=_ONE_AT_A_TIME`, gdy flow przegląda bieżący stan, jak sweepy w
+`prefect_app.py`: serwer odrzuca wtedy tick, który przychodzi, gdy poprzedni
+jeszcze trwa, zanim runner uruchomi dla niego proces, więc host, który nie
+nadąża, gubi ticki zamiast wykonywać każdy. Nie dawaj go deploymentowi
+uruchamianemu na żądanie, gdzie każdy run to osobna praca, ani flow, którego run
+obejmuje własny okres, jak raporty użycia czy digest powyżej.

@@ -1,5 +1,5 @@
 ---
-source_sha: "1986f3e8ba0a"
+source_sha: "365083b43da8"
 ---
 
 # Wybór modelu { #choosing-a-model }
@@ -72,6 +72,17 @@ otwartych wagach u siebie bywa lepszą decyzją inżynierską, nie tylko tańsz�
     u ciebie nie ma dostawcy, do którego można eskalować. Wybierz to, gdy wymaga
     tego miejsce przechowywania danych albo gdy twój wolumen naprawdę przerasta
     sprzęt — a nie po to, by zaoszczędzić na czterdziestu rozmowach dziennie.
+
+**Zepsute wywołania narzędzi są naprawiane i liczone.** Modele z otwartymi
+wagami wysyłają wywołanie narzędzia z błędnym JSON-em - przecinkiem na końcu,
+pojedynczymi cudzysłowami, obiektem uciętym w połowie - znacznie częściej niż
+modele z czołówki. Każdy agent naprawia składnię, zanim argumenty zostaną
+zwalidowane, więc zepsute wywołanie trafia do narzędzia za pierwszym razem,
+zamiast kosztować ponowienie; brakujące pole albo zły typ nadal nie przechodzą
+walidacji, a naprawione wywołanie nadal przechodzi przez zatwierdzanie i
+guardraile. Każdy run liczy swoje naprawy, widoczne na runie i per model na
+karcie modeli w dashboardzie - model, który potrzebuje ich wiele, warto
+przemyśleć.
 
 ## Postawienie gatewaya z przodu { #putting-a-gateway-in-front }
 

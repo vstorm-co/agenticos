@@ -108,6 +108,13 @@ class ModelCount(BaseSchema):
         ),
     )
     runs: int
+    tool_args_repaired: int = Field(
+        default=0,
+        description=(
+            "Tool calls of these runs whose malformed arguments were repaired rather "
+            "than retried - how often this model sends broken JSON"
+        ),
+    )
 
 
 class LatencyMs(BaseSchema):

@@ -44,6 +44,9 @@ import { PromptVariablesPanel } from "@/components/agents/prompt-variables-panel
 import { insertVariable } from "@/lib/variable-completion";
 import { useRemoteDraft } from "@/hooks/use-remote-draft";
 import { AlertsPanel } from "@/components/agents/alerts-panel";
+import { LoopGuardFields } from "@/components/agents/loop-guard-fields";
+import { ReviewersCard } from "@/components/agents/reviewers-card";
+import { CodeModeField } from "@/components/agents/code-mode-field";
 import { CapabilityWorkbench } from "@/components/agents/capability-workbench";
 import { A2aPanel } from "@/components/agents/a2a-panel";
 import { EmbedsPanel } from "@/components/agents/embeds-panel";
@@ -138,6 +141,8 @@ import {
   withCapability,
   withContextFiles,
   withSkills,
+  withVisuals,
+  VISUALS_ID,
 } from "@/lib/agent-spec";
 import { useContextFiles } from "@/hooks/use-context";
 import { getErrorMessage, type FieldProblem } from "@/lib/api-error";
@@ -753,6 +758,10 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const toggleCapability = (capabilityId: string) => {
     const on = spec.capabilities.some((binding) => binding.id === capabilityId);
+    if (capabilityId === VISUALS_ID && !on) {
+      update(withVisuals(spec, skills));
+      return;
+    }
     update({ capabilities: withCapability(spec.capabilities, capabilityId, !on) });
   };
 
@@ -1667,12 +1676,27 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     {t("howManyModelRequests")}
                   </p>
                 </div>
+                <LoopGuardFields
+                  value={spec.loop_guard}
+                  onChange={(loop_guard) => update({ loop_guard })}
+                  disabled={!canEdit}
+                />
+                <CodeModeField
+                  value={spec.code_mode}
+                  onChange={(code_mode) => update({ code_mode })}
+                  disabled={!canEdit}
+                />
               </CardContent>
             </Card>
             {/* Beside the budget rather than in a settings page of its own: the two
               questions are "how much may this agent spend" and "who is told when
               it stops", and answering the first without the second is how a run
               stops quietly. */}
+            <ReviewersCard
+              value={spec.reviewers}
+              onChange={(reviewers) => update({ reviewers })}
+              disabled={!canEdit}
+            />
             <AlertsPanel
               value={spec.notifications}
               onChange={(notifications) => update({ notifications })}

@@ -73,6 +73,19 @@
     "sessionsCouldNotBeRead": "Die Sitzungen konnten nicht gelesen werden."
   },
   "agents": {
+    "reviewersTitle": "Run-Reviewer",
+    "reviewersDescription": "Ein zweites, meist günstigeres Modell liest den Run alle paar Requests und schickt eine kurze Korrektur, wenn er abdriftet. Seine Aufrufe zählen wie jeder andere gegen das Budget, und ein Run ohne Reviewer macht keine zusätzlichen Aufrufe.",
+    "reviewerName": "Name",
+    "reviewerModel": "Modell, mit dem er prüft",
+    "reviewerInstructions": "Worauf er achtet",
+    "reviewerInstructionsPlaceholder": "Markiere Behauptungen ohne Quelle unter den Seiten, die der Agent gelesen hat.",
+    "reviewerEvery": "Alle N Requests",
+    "reviewerWindow": "Gelesene Tokens",
+    "addReviewer": "Reviewer hinzufügen",
+    "removeReviewer": "Reviewer {name} entfernen",
+    "codeMode": "Code-Modus",
+    "codeModeHint": "Der Agent ruft seine Tools aus einem kurzen Python-Skript in einer Sandbox auf - Schleifen, Bedingungen, viele Aufrufe auf einmal - statt eines Modell-Turns pro Aufruf. Lohnt sich, um Datensätze abzuarbeiten oder über einen MCP-Server auszufächern. Tools, die eine Freigabe brauchen, bleiben normale Aufrufe.",
+    "codeModeMaxCalls": "Tool-Aufrufe pro Skript",
     "accentColour": "Akzentfarbe",
     "actsOutsideWorld": "wirkt auf die Außenwelt",
     "actsWorld": "wirkt auf die Welt",
@@ -472,6 +485,7 @@
     "runCompleted": "Abgeschlossen",
     "runFailed": "Fehlgeschlagen",
     "runGuardrailBlocked": "Vom Guardrail gestoppt",
+    "runLoopStopped": "Gestoppt: Schleife",
     "runRunning": "Läuft",
     "runningThemOneAt": "Sie nacheinander laufen zu lassen macht eine Unterhaltung leichter nachvollziehbar und leichter freizugeben.",
     "runs": "Runs",
@@ -796,7 +810,23 @@
     "chatgptSignInName": "ChatGPT für Codex",
     "claudeTokenHint": "Mit einem Claude-Pro- oder -Max-Abo: Führen Sie <code>claude setup-token</code> auf Ihrem eigenen Rechner aus und fügen Sie das ausgegebene Token hier als Key hinzu. Ein Anthropic-API-Key funktioniert ebenfalls.",
     "capabilityHasNoToolSettings": "Sie hatte früher Einstellungen pro Tool, die es nicht mehr gibt. Jetzt gilt die Freigabe unten.",
-    "useCapabilityApproval": "Auf die Capability übertragen"
+    "useCapabilityApproval": "Auf die Capability übertragen",
+    "visualDesignDetail": "Binden Sie den Skill visual-design, und der Agent zeichnet nach seinem Stil und seinen Vorlagen - Architekturdiagramme, Erklärungen mit Schiebereglern, 3D-Szenen. Das Einschalten von Visuals bindet ihn automatisch; der Agent liest ihn über die Capability Skills.",
+    "visualDesignMissing": "Diese Organisation hat keinen Skill visual-design. Installieren Sie die mitgelieferten Skills, um ihn hinzuzufügen.",
+    "visualDesignHeading": "Zeichenstil",
+    "platformServerDescription": "Die eigenen Werkzeuge dieser Plattform: Agents, Runs, Ausgaben, Wissensbasen, Skills und Mitglieder - der Agent kann Fragen zur Plattform beantworten und in ihr handeln.",
+    "platformServerBadge": "Eingebaut",
+    "platformAsksBeforeWrites": "Fragt vor jeder Änderung",
+    "platformAsksEveryCall": "Fragt vor jedem Aufruf",
+    "platformAsWhoeverAsks": "Handelt als die fragende Person",
+    "platformActsAsWhoeverAsks": "Jedes Werkzeug handelt als die Person, für die der Agent läuft, mit genau ihren Berechtigungen. Nichts Neues wird gewährt: Was sie in der Konsole nicht durfte, kann der Agent auch hier nicht.",
+    "platformUseIt": "In diesem Agent nutzen",
+    "platformApproval": "Freigabe",
+    "platformWritesHint": "Lesen ist frei; Anlegen, Ausführen oder Ändern wartet auf die Freigabe der Person.",
+    "platformAllHint": "Jeder Aufruf wartet auf Freigabe, auch Lesen.",
+    "platformTools": "Werkzeuge, die dieser Agent aufrufen darf",
+    "platformWritesBadge": "ändert etwas",
+    "platformRemove": "Aus diesem Agent entfernen"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -1262,6 +1292,7 @@
     "title": "Chat",
     "tokensDetail": "{input, number} Eingabe · {output, number} Ausgabe-Token",
     "tokensDetailPartial": "{input, number} Eingabe · {output, number} Ausgabe-Token - eine Untergrenze: Für ein Modell in diesem Run gab es keinen Preis",
+    "tokensWithCache": "{detail} - von der Eingabe {read, number} aus dem Cache gelesen und {write, number} hineingeschrieben",
     "toolApprovalRequired": "Tool-Freigabe erforderlich",
     "draftProposalTitle": "Ein neuer Agent-Entwurf",
     "draftProposalIn": "Wird in {organization} angelegt",
@@ -1435,7 +1466,13 @@
       "runCodingAgent": "Arbeit an den Coding Agent übergeben",
       "runningCodingAgent": "Der Coding Agent arbeitet",
       "codingStepRunning": "{kind, select, read {Liest} search {Sucht} edit {Bearbeitet} command {Führt aus} web {Schlägt nach} other {Arbeitet an}}",
-      "codingStepDone": "{kind, select, read {Gelesen} search {Gesucht} edit {Bearbeitet} command {Ausgeführt} web {Nachgeschlagen} other {Verwendet}}"
+      "codingStepDone": "{kind, select, read {Gelesen} search {Gesucht} edit {Bearbeitet} command {Ausgeführt} web {Nachgeschlagen} other {Verwendet}}",
+      "drawingVisual": "Zeichnet",
+      "drawVisual": "Hat ein Visual gezeichnet",
+      "revisingVisual": "Überarbeitet ein Visual",
+      "reviseVisual": "Hat ein Visual überarbeitet",
+      "readingVisual": "Liest ein Visual",
+      "readVisual": "Hat ein Visual gelesen"
     },
     "turnWasStopped": "gestoppt",
     "unfavourite": "Aus den Favoriten entfernen",
@@ -1527,6 +1564,7 @@
     "sendNow": "Jetzt senden",
     "sendNowHint": "Jetzt in die laufende Aufgabe senden, statt nach der Antwort",
     "sendNowNotWithFiles": "Eine Nachricht mit Dateien wartet auf die Antwort",
+    "sendNowNotWithMentions": "Eine Nachricht mit Verweisen wartet auf die Antwort",
     "queuedCount": "{count, plural, =1 {1 Nachricht in der Warteschlange} other {# Nachrichten in der Warteschlange}}",
     "sentIntoTask": "in die Aufgabe gesendet",
     "moveUp": "Nach oben",
@@ -1553,7 +1591,69 @@
     "openPageNamed": "{name} öffnen",
     "showMore": "Mehr anzeigen",
     "showLess": "Weniger anzeigen",
-    "openApp": "App öffnen"
+    "openApp": "App öffnen",
+    "mentions": {
+      "menu": "Dem Agent zeigen",
+      "loading": "Lädt, was dieser Agent nutzen kann…",
+      "failed": "Was dieser Agent nutzen kann, ließ sich nicht laden.",
+      "nothing": "Nichts, was dieser Agent nutzen kann, passt.",
+      "full": "Eine Nachricht kann auf höchstens {count, plural, one {# Ding} other {# Dinge}} verweisen.",
+      "kind": {
+        "mcp": "MCP-Server",
+        "capability": "Capabilities",
+        "agent": "Agents",
+        "collection": "Wissensbasen",
+        "skill": "Skills",
+        "context": "Kontextdateien"
+      }
+    },
+    "hints": {
+      "mention": "Tippen Sie <key>@</key>, um dem Agent einen Server, einen anderen Agent oder einen Skill zu nennen",
+      "mcp": "Hol die Neuigkeiten der Woche aus <chip></chip> und fasse sie zusammen",
+      "capability": "Nutze <chip></chip>, um die angehängte Tabelle durchzuarbeiten",
+      "agent": "Bitte <chip></chip>, die Zahlen zu prüfen",
+      "skill": "Folge <chip></chip> und entwirf eine Antwort an diesen Kunden",
+      "collection": "Was sagt <chip></chip> zu Kündigungsfristen?",
+      "slash": "Tippen Sie <command></command>, um das Gespräch zusammenzufassen, oder / für alle Befehle"
+    },
+    "visuals": {
+      "drawing": "Zeichnet…",
+      "revising": "Überarbeitet…",
+      "unfinished": "Unvollständig",
+      "revisionOf": "Überarbeitung von {title}",
+      "showCode": "Code anzeigen",
+      "showVisual": "Visual anzeigen",
+      "fullScreen": "Vollbild",
+      "zoomIn": "Vergrößern",
+      "zoomOut": "Verkleinern",
+      "zoomReset": "Zoom zurücksetzen",
+      "zoomLevel": "{zoom, number, percent}",
+      "download": "Herunterladen",
+      "copyImage": "Als Bild kopieren",
+      "imageCopied": "Bild kopiert",
+      "copyImageFailed": "Das Bild konnte nicht kopiert werden",
+      "renderError": "Die Zeichnung hat einen Fehler gemeldet",
+      "stalled": "Die Zeichnung reagierte nicht mehr und wurde geschlossen.",
+      "reload": "Neu laden",
+      "baseMissing": "Das Visual, das diese Überarbeitung ändert, ist im geladenen Teil der Unterhaltung nicht enthalten.",
+      "close": "Schließen",
+      "fixIt": "Beheben",
+      "fixItPrompt": "Das Visual „{title}“ ({id}) hat diese Fehler gemeldet:\n{errors}\nBitte behebe sie.",
+      "saveToApps": "In Apps speichern",
+      "updateApp": "App aktualisieren",
+      "saveDescription": "Als App gespeichert bekommt es einen Link, Versionen und Freigaben. Unter einem Namen gespeichert, den Sie schon haben, wird es eine neue Version dieser App.",
+      "saveTitleLabel": "Titel",
+      "saveName": "Name",
+      "saveNameHint": "Kleinbuchstaben, Ziffern und Bindestriche. Derselbe Name aktualisiert die App.",
+      "save": "Speichern",
+      "saving": "Wird gespeichert…",
+      "cancel": "Abbrechen",
+      "savedToast": "Als App gespeichert, Version {version}",
+      "savedUnchanged": "Die App hat bereits genau diese Version",
+      "savedBadge": "Gespeichert · v{version}",
+      "openApp": "Öffnen",
+      "openInConsole": "In AgenticOS sichtbar"
+    }
   },
   "common": {
     "archiveNamedConfirm": "{name} archivieren?",
@@ -1797,6 +1897,7 @@
           "description": "Die Modellverteilung erscheint mit dem ersten Run.",
           "title": "Keine Runs in diesem Zeitraum"
         },
+        "modelRepaired": "{model} · {repaired} repariert",
         "notRecorded": "nicht erfasst",
         "title": "Modelle hinter den Runs",
         "description": "Welche Modelle hinter den Runs stehen, so wie jeder Run sein eigenes erfasst hat.",
@@ -2088,6 +2189,7 @@
           "failed": "fehlgeschlagen",
           "budget_exceeded": "über Budget",
           "guardrail_blocked": "vom Guardrail gestoppt",
+          "loop_stopped": "Schleife gestoppt",
           "running": "läuft",
           "cancelled": "abgebrochen",
           "awaiting_approval": "wartet auf Freigabe"
@@ -2196,6 +2298,15 @@
         "empty": {
           "title": "Noch keine Projekte",
           "description": "Ein Projekt hält Anweisungen und Dateien, die jeder Chat darin teilt."
+        }
+      },
+      "recent-visuals": {
+        "title": "Neueste Visuals",
+        "description": "Diagramme, Erklärungen und Szenen, die Ihre Agents zuletzt für Sie gezeichnet haben.",
+        "app": "App",
+        "empty": {
+          "title": "Noch nichts gezeichnet",
+          "description": "Bitten Sie einen Agent mit Visuals, etwas zu zeichnen - ein Diagramm, eine Erklärung, eine 3D-Szene - und es erscheint hier."
         }
       }
     },
@@ -2362,6 +2473,16 @@
       "dismissAll": "Tipps ausblenden",
       "dismiss": "Tipp {title} ausblenden",
       "tips": {
+        "mentions": {
+          "title": "Dem Agent mit @ etwas zeigen",
+          "body": "Tippen Sie im Chat @, um dem Agent einen seiner Server, Capabilities, Skills oder einen anderen Agent zu geben. Es erscheint als Chip, und der Agent nutzt genau das.",
+          "cta": "Im Chat ausprobieren"
+        },
+        "commands": {
+          "title": "Abkürzungen mit /",
+          "body": "Tippen Sie / im Chat für Befehle - zusammenfassen, erklären, neu beginnen - oder schreiben Sie eigene unter Einstellungen → Slash-Befehle.",
+          "cta": "Chat öffnen"
+        },
         "mcp": {
           "title": "Aus Claude Code oder Cursor heraus nutzen",
           "body": "AgenticOS ist auch ein MCP-Server: Verbinden Sie Claude Code, Codex oder Cursor und bauen, starten und lesen Sie Agents, ohne sie zu verlassen.",
@@ -3345,6 +3466,10 @@
         "title": "Ein Budget setzen (optional)",
         "body": "Begrenzen Sie, was dieser Agent in einem Monat ausgeben darf und wie viele Schritte ein Run gehen darf, und wählen Sie, wer erfährt, wenn er ein Limit erreicht. So stoppt sich ein Agent selbst, der sich im Kreis dreht oder davonläuft. Wählen Sie Weiter, um fortzufahren."
       },
+      "flow-agent-platform-mcp": {
+        "title": "In der Plattform handeln lassen (optional)",
+        "body": "Der eigene Server dieser Plattform braucht keine Verbindung: eingeschaltet beantwortet der Agent Fragen zu Agents, Runs und Wissen hier, als die Person, mit der er spricht - und fragt, bevor er etwas ändert."
+      },
       "flow-agent-mcp": {
         "title": "MCP-Server hinzufügen (optional)",
         "body": "MCP-Server geben dem Agent Tools aus anderen Systemen, die Sie verbunden haben. Hängen Sie hier welche an oder wählen Sie Weiter, um fortzufahren."
@@ -3752,6 +3877,10 @@
       "project-tabs": {
         "title": "Chats, Dateien und Anweisungen",
         "body": "Beginne einen Chat im Projekt, füge Dateien und Ordner hinzu, in denen seine Agents arbeiten, und lege fest, was jeder Agent hier gesagt bekommt."
+      },
+      "chat-visual": {
+        "title": "Zeichnungen",
+        "body": "Ein Agent mit Visuals zeichnet hier Diagramme, Erklärungen und 3D-Szenen, live während er sie schreibt. Öffnen Sie eine im Vollbild, laden Sie sie herunter, fragen Sie danach oder speichern Sie sie als App mit einem Link zum Teilen."
       }
     },
     "chooseLanguage": "Sprache"
@@ -4039,6 +4168,10 @@
       "mapMayInventSpecialists": "Darf mitten im Run Spezialisten erfinden",
       "mapSurfaces": "Oberflächen",
       "maxStepsPerRun": "Max. Schritte pro Run",
+      "loopGuard": "Tool-Aufruf-Schleifen stoppen",
+      "loopGuardHint": "Ein Run, der immer wieder dieselben Aufrufe macht, wird aufgefordert, anders vorzugehen, und gestoppt, wenn er weitermacht - mit Begründung, bevor die Schritte oder das Budget ausgehen.",
+      "loopRepeats": "Identische Aufrufe in Folge",
+      "loopCycles": "Zyklus-Wiederholungen",
       "mcpServers": "MCP-Server",
       "mcpServersDescription": "Externe Tools, die dieser Agent aufrufen darf, aus <servers>dem Katalog</servers>. Binden Sie einen Server an das Konto der Organisation, das für alle antwortet, oder an das eigene Konto jeder Person, das sie selbst verbindet. Die Verbindung eines Mitglieds wird nie direkt gebunden – ein Agent, den alle ausführen, kann nicht davon abhängen, wessen Credential dahintersteht.",
       "model": "Modell",
@@ -4549,6 +4682,8 @@
       "model": "Modell",
       "modelFilter": "Nach Modell filtern",
       "modelRunHadNo": "Für ein Modell in diesem Run gab es keinen Preis, dies ist also eine Untergrenze",
+      "toolArgsRepaired": "{count, plural, =1 {Die fehlerhaften Argumente eines Tool-Aufrufs wurden repariert statt wiederholt} other {Die fehlerhaften Argumente von # Tool-Aufrufen wurden repariert statt wiederholt}}",
+      "cacheSplit": "Von der Eingabe {read, number} aus dem Cache des Anbieters gelesen und {write, number} hineingeschrieben - getrennt bepreist",
       "modelSettings": "Modelleinstellungen",
       "monthToDate": "Monat bis heute",
       "narrowedToOneAgent": "Auf einen Agent eingegrenzt, einschließlich dessen, was er als Delegat für jemanden getan hat.",
@@ -4596,6 +4731,15 @@
       "recordWasTrimmed": "Dieser Eintrag wurde auf seine Größengrenze gekürzt – die Nachrichten und womöglich die Argumentschemata sind weggefallen.",
       "reject": "Ablehnen",
       "requestDetail": "{input} ein, {output} aus · {messages} Nachrichten mitgeführt · beendet {finish}",
+      "reviewerCorrections": "{count, plural, =1 {1 Korrektur eines Reviewers} other {# Korrekturen von Reviewern}}",
+      "reviewerCorrectionBy": "{reviewer}, nach Request {request}",
+      "codeRuns": "{count, plural, =1 {1 Skript} other {# Skripte}}",
+      "codeRunCalls": "{count, plural, =0 {Es hat kein Tool aufgerufen} =1 {Es hat 1 Tool aufgerufen} other {Es hat # Tools aufgerufen}}",
+      "codeRunOmittedCalls": "{count, plural, =1 {und 1 weiterer Aufruf, nicht aufgeführt} other {und # weitere Aufrufe, nicht aufgeführt}}",
+      "cacheBust": "Cache gebrochen",
+      "cacheExpired": "Cache abgelaufen",
+      "cacheBustDetail": "{missed, number} gecachte Tokens nicht aus dem Cache gelesen - davor im Prompt hat sich etwas geändert",
+      "cacheExpiredDetail": "{missed, number} gecachte Tokens nicht aus dem Cache gelesen - der Cache des Anbieters war abgelaufen",
       "requestIndex": "#{index}",
       "requests": "{count, plural, =0 {Anfragen} =1 {1 Anfrage} other {# Anfragen}}",
       "resizeRunDetail": "Die Größe der Run-Details ändern",
@@ -4685,7 +4829,16 @@
       "spendOverTimeHint": "Was jeder Tag des Zeitraums gekostet hat, in UTC-Tagen.",
       "actionInService": "{action} in {service}",
       "approvalDetails": "Details",
-      "approvalNoArguments": "Es nimmt nichts entgegen."
+      "approvalNoArguments": "Es nimmt nichts entgegen.",
+      "cache": {
+        "title": "Prompt-Cache",
+        "description": "Anfragen, deren gecachter Prompt nicht zurückgelesen wurde. Ein Bust ist ein Präfix, das sich verschoben hat - Tools neu sortiert, ein Zeitstempel in den Anweisungen - und zum vollen Eingabepreis berechnet wurde; ein Ablauf hatte den Cache des Anbieters überdauert.",
+        "agentAndModel": "Agent und Modell",
+        "noModel": "Modell nicht erfasst",
+        "busts": "Busts",
+        "expiries": "Abläufe",
+        "missedTokens": "Verfehlte Cache-Tokens"
+      }
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -5794,7 +5947,9 @@
       "running": "läuft",
       "pending": "startet",
       "cancelled": "abgebrochen",
-      "awaiting_approval": "wartet auf Freigabe"
+      "awaiting_approval": "wartet auf Freigabe",
+      "guardrail_blocked": "vom Guardrail gestoppt",
+      "loop_stopped": "gestoppt: Schleife"
     },
     "noMessagesYet": "Noch keine Nachrichten",
     "noMessagesDescription": "Dieser Trigger ist noch nicht gelaufen. Seine Runs erscheinen hier, sobald er auslöst.",
@@ -6656,6 +6811,14 @@
       "example2": "Drei Wettbewerber und ihre Preise finden",
       "needs": "Nichts, mit DuckDuckGo. Brave, Exa oder Tavily brauchen ihren API-Schlüssel im Vault.",
       "never": "Schickt nie Ihre Dokumente an die Suchmaschine, nur die Suchwörter."
+    },
+    "visuals": {
+      "name": "Visuals",
+      "does": "Zeichnet im Gespräch - ein Diagramm, eine Architekturkarte, eine Erklärung mit Schiebereglern, eine 3D-Szene - live, während der Agent sie schreibt. Eine Zeichnung lässt sich als App speichern.",
+      "example1": "Unser Bestellablauf als Diagramm",
+      "example2": "Ein 3D-Modell des Lagers zum Drehen",
+      "needs": "Nichts weiter. Der Skill visual-design lässt die Zeichnungen gestaltet aussehen.",
+      "never": "Greift nie aufs Netz zu - eine Zeichnung läuft abgeschottet, wie die Seite einer App."
     }
   },
   "capabilityCategories": {

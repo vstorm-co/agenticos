@@ -1,5 +1,6 @@
 "use client";
 
+import type { Mentionable } from "@/types/mention";
 import type { ApprovalMode } from "@/components/chat/chat-controls";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -11,6 +12,8 @@ import { clientId } from "@/lib/ids";
 import { useChatStore, useAuthStore, useInChatScope, useOrgStore } from "@/stores";
 import { useTenantId } from "@/hooks/use-organizations";
 import { useAgentSelectionStore } from "@/stores";
+import { addVisualImages, appendVisualArgs, dropVisualArgs } from "@/stores/visual-stream-store";
+import { isVisualTool } from "@/lib/visuals";
 import { Perm } from "@/types/permissions";
 import type {
   ActionRequest,
@@ -62,6 +65,8 @@ export interface QueuedMessage {
   content: string;
   fileIds?: string[];
   files?: ChatMessageFile[];
+  /** What the person pointed the agent at with `@`, sent with the message (#2189). */
+  mentions?: Mentionable[];
 }
 
 /** One conversation, including the one a first question has not named yet. */
@@ -184,6 +189,8 @@ export function useChat(options: UseChatOptions = {}) {
   // The tool calls whose arguments are still streaming, by part index, so a turn
   // that ends before `tool_call` arrives can mark them unfinished.
   const streamingCallsRef = useRef<Map<number, string>>(new Map());
+  // The streaming calls that draw, whose arguments are shown as they arrive.
+  const visualCallsRef = useRef<Set<string>>(new Set());
   // Whether the next text delta opens a new model response, and so a new part.
   const newResponseRef = useRef(false);
   // Outbound queue: messages typed while agent is busy / socket offline. Held
@@ -613,6 +620,7 @@ export function useChat(options: UseChatOptions = {}) {
           };
           if (currentMessageIdRef.current && tool_name && tool_call_id) {
             streamingCallsRef.current.set(index, tool_call_id);
+            if (isVisualTool(tool_name)) visualCallsRef.current.add(tool_call_id);
             addToolCallPart(currentMessageIdRef.current, {
               id: tool_call_id,
               name: tool_name,
@@ -625,9 +633,28 @@ export function useChat(options: UseChatOptions = {}) {
 
         // How far the arguments have streamed is not drawn: a byte count beside
         // the step said nothing a reader could use, and writing it into the store
-        // on every frame re-rendered the turn hundreds of times a second.
-        case "tool_call_delta":
+        // on every frame re-rendered the turn hundreds of times a second. A
+        // drawing is the exception - it is shown as it is written - and its text
+        // gathers outside the chat store (`visual-stream-store`).
+        case "tool_call_delta": {
+          const { index, args_delta } = wsEvent.data as { index: number; args_delta: unknown };
+          const callId = streamingCallsRef.current.get(index);
+          if (callId !== undefined && visualCallsRef.current.has(callId)) {
+            appendVisualArgs(callId, args_delta);
+          }
           break;
+        }
+
+        // A drawing's pictures, sent before it is rendered: its call is not in the
+        // transcript until the turn ends, so the panel could not ask for them.
+        case "visual_images": {
+          const { tool_call_id, images } = wsEvent.data as {
+            tool_call_id: string;
+            images: Record<string, string>;
+          };
+          addVisualImages(tool_call_id, images);
+          break;
+        }
 
         case "text_delta": {
           // Append to the ordered parts timeline (extends the trailing
@@ -666,6 +693,7 @@ export function useChat(options: UseChatOptions = {}) {
               args,
               status: "running",
             };
+            if (visualCallsRef.current.delete(tool_call_id)) dropVisualArgs(tool_call_id);
             const drawn = chatApi
               .getState()
               .messages.find((m) => m.id === currentMessageIdRef.current)
@@ -1061,7 +1089,7 @@ export function useChat(options: UseChatOptions = {}) {
   }, [hasAccessToken, connect, disconnect]);
 
   const doSend = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
+    (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
       // The previous turn's panels belong to the previous turn. Cleared here rather
       // than on `complete` so they survive it - which is the whole point - and a
       // late frame from a background delegation of the turn before is dropped by
@@ -1118,6 +1146,7 @@ export function useChat(options: UseChatOptions = {}) {
         // may be addressed to it yet - a reply to it included.
         isTemporaryId: true,
         replyTo: replyTo ?? undefined,
+        mentions,
       });
       setIsProcessing(true);
       const payload: Record<string, unknown> = {
@@ -1130,6 +1159,10 @@ export function useChat(options: UseChatOptions = {}) {
       // chat into the project and ignores the field on every turn after.
       const projectId = conversationApi.getState().pendingProjectId;
       if (!conversationId && projectId) payload.project_id = projectId;
+      // Resolved again on the server as the person, against what the agent reaches.
+      if (mentions?.length) {
+        payload.mentions = mentions.map((mention) => ({ kind: mention.kind, id: mention.id }));
+      }
       // A model profile from the vault - the agent runs on it for this turn
       // instead of the model its spec names, and the run records which.
       if (modelProfileRef.current) payload.model_profile_id = modelProfileRef.current;
@@ -1173,7 +1206,7 @@ export function useChat(options: UseChatOptions = {}) {
   );
 
   const sendChatMessage = useCallback(
-    (content: string, fileIds?: string[], files?: ChatMessageFile[]) => {
+    (content: string, fileIds?: string[], files?: ChatMessageFile[], mentions?: Mentionable[]) => {
       // While the agent works a message waits for its answer, as in any chat;
       // "Send now" on the queued message is how it joins the running task
       // instead (#2087) - see `sendQueuedNow`.
@@ -1182,11 +1215,11 @@ export function useChat(options: UseChatOptions = {}) {
       // drainer effect below pops the head as soon as the agent is idle.
       if (isProcessing || !isConnected) {
         const id = clientId();
-        messageQueueRef.current.push({ id, content, fileIds, files });
+        messageQueueRef.current.push({ id, content, fileIds, files, mentions });
         setQueuedMessages([...messageQueueRef.current]);
         return;
       }
-      doSend(content, fileIds, files);
+      doSend(content, fileIds, files, mentions);
     },
     [isProcessing, isConnected, doSend],
   );
@@ -1200,7 +1233,16 @@ export function useChat(options: UseChatOptions = {}) {
   const sendQueuedNow = useCallback(
     (id: string) => {
       const queued = messageQueueRef.current.find((q) => q.id === id);
-      if (!queued || !isProcessing || !isConnected || queued.fileIds?.length) return;
+      // Mentions travel with a message, never with a correction: the steer frame
+      // carries text alone, so one sent now would lose what it pointed at.
+      if (
+        !queued ||
+        !isProcessing ||
+        !isConnected ||
+        queued.fileIds?.length ||
+        queued.mentions?.length
+      )
+        return;
       messageQueueRef.current = messageQueueRef.current.filter((q) => q.id !== id);
       setQueuedMessages([...messageQueueRef.current]);
       setSteers((waiting) => [...waiting, { id: clientId(), text: queued.content }]);
@@ -1516,6 +1558,8 @@ export function useChat(options: UseChatOptions = {}) {
           usage: {
             input_tokens: resumed.input_tokens,
             output_tokens: resumed.output_tokens,
+            cache_read_tokens: resumed.cache_read_tokens ?? null,
+            cache_write_tokens: resumed.cache_write_tokens ?? null,
             cost_usd: resumed.cost_usd ?? "0",
             cost_is_partial: resumed.cost_is_partial,
             // A resume is not told where the run stands against its budget, and
@@ -1955,7 +1999,7 @@ export function useChat(options: UseChatOptions = {}) {
       if (next) {
         // Small debounce so the UI shows the queue clearing visibly before
         // the next user bubble lands; also avoids racing the WS state flip.
-        setTimeout(() => doSend(next.content, next.fileIds, next.files), 100);
+        setTimeout(() => doSend(next.content, next.fileIds, next.files, next.mentions), 100);
       }
     }
   }, [isProcessing, isConnected, interruptedFor, doSend]);
@@ -1987,6 +2031,15 @@ export function useChat(options: UseChatOptions = {}) {
   // screen. A value from the thread somebody just left is not a value about this one.
   const onThisConversation =
     liveUsage !== null && liveUsage.conversationId === activeConversationId;
+
+  // How a drawing rendered in this tab, for the `draw` call still waiting on it:
+  // the model hears a script error while it can still fix it (#2171).
+  const reportVisual = useCallback(
+    (toolCallId: string, errors: string[]) => {
+      sendMessage({ type: "visual_report", tool_call_id: toolCallId, errors });
+    },
+    [sendMessage],
+  );
 
   return {
     messages,
@@ -2028,6 +2081,8 @@ export function useChat(options: UseChatOptions = {}) {
     connect,
     disconnect,
     sendMessage: sendChatMessage,
+    /** Tell the running turn how one of its drawings rendered. */
+    reportVisual,
     stopGeneration,
     clearMessages,
     queuedMessages,

@@ -3,6 +3,7 @@ import asyncio
 import contextlib
 import logging
 import time
+from collections.abc import Mapping
 from typing import Any, NamedTuple
 from uuid import UUID, uuid4
 
@@ -25,8 +26,10 @@ from app.agents.capabilities.guardrails import GuardrailBlocked
 from app.agents.compaction_events import CompactionEvent
 from app.agents.connect_on_use import ConnectionRequest
 from app.agents.failures import run_failure_summary
+from app.agents.loop_guard import ToolLoopStopped
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEvent
+from app.agents.visual_reports import VisualReports
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError, NotFoundError
 from app.db.models.chat_file import ChatFile
@@ -48,6 +51,7 @@ from app.services.agent_chat import (
     requested_agent_id,
     requested_approval_mode,
     requested_environment_id,
+    requested_mentions,
     requested_model_profile_id,
     requested_testing,
     requested_time_zone,
@@ -216,6 +220,8 @@ class AgentSession:
         # What the person adds to the running turn (#2087). Set for the length of
         # a turn by `process_message`, None between turns.
         self._steering: SteeringInbox | None = None
+        # How the turn's drawings rendered in this tab (#2171), for the same span.
+        self._visual_reports: VisualReports | None = None
         # The running turn's agent and run, and how the turn ended - read by
         # `shutdown` to tell a person who left before the answer came (#2108).
         self._turn_agent_id: UUID | None = None
@@ -297,6 +303,19 @@ class AgentSession:
             if not await self._reauthorize():
                 return
             inbox.add(text)
+            return
+
+        if msg_type == "visual_report":
+            reports = self._visual_reports
+            call_id = data.get("tool_call_id")
+            raw = data.get("errors")
+            if reports is None or not isinstance(call_id, str) or not isinstance(raw, list):
+                return
+            if self._turn_task is None or self._turn_task.done():
+                return
+            if not await self._reauthorize():
+                return
+            reports.resolve(call_id, [str(error) for error in raw])
             return
 
         if msg_type == "connect_account_response":
@@ -497,6 +516,27 @@ class AgentSession:
         if agent_id is None:
             await self._emit("error", {"message": _PICK_AN_AGENT})
             return
+        # What the person pointed at with `@`, resolved as them against what the
+        # agent can reach (#2189). It never changes which agent answers.
+        try:
+            mention_refs = requested_mentions(data)
+            if mention_refs:
+                async with get_db_context() as db:
+                    resolved = await ChatAgentRunner(db).mentions(
+                        user=self.user,
+                        organization_id=self.organization_id,
+                        agent_id=agent_id,
+                        refs=mention_refs,
+                        # The test panel's draft, so a mention resolves against
+                        # what that run reaches rather than the published version.
+                        draft=requested_testing(data).draft,
+                    )
+                mentioned, mention_note = resolved.mentions, resolved.note
+            else:
+                mentioned, mention_note = [], None
+        except AppException as exc:
+            await send_event(self.websocket, "error", {"message": exc.message})
+            return
         # `conversation_id: null` is the console's new chat, and it starts one. The
         # session used to read it as "no id given" and carry on in the conversation
         # this socket had open, so after New chat - or after deleting the open
@@ -518,6 +558,7 @@ class AgentSession:
                 project_id=_wire_text(data.get("project_id")),
                 # The message this turn answers, where the person replied to one.
                 reply_to=_wire_text(data.get("reply_to")),
+                mentions=mentioned,
             )
         except AppException as e:
             # Every refusal the write can raise, not only the cross-org one:
@@ -578,6 +619,8 @@ class AgentSession:
 
         steering = SteeringInbox(on_applied=steered)
         self._steering = steering
+        visual_reports = VisualReports(send_images=self._visual_images)
+        self._visual_reports = visual_reports
         # The run row, as soon as `prepare` opens one. A list because the
         # callback is `list.append` and a turn opens at most one run - it is
         # empty when the run was refused before it existed.
@@ -621,7 +664,11 @@ class AgentSession:
                     user=self.user,
                     organization_id=self.organization_id,
                     agent_id=agent_id,
-                    user_input=prompt.for_model or user_message,
+                    user_input=(
+                        prompt.for_model or user_message
+                        if mention_note is None
+                        else f"{prompt.for_model or user_message}\n\n{mention_note}"
+                    ),
                     message_history=model_history,
                     attachments=attachments,
                     conversation_id=(
@@ -652,6 +699,7 @@ class AgentSession:
                     # as a test either way (#2074).
                     testing=requested_testing(data),
                     steering=steering,
+                    visual_reports=visual_reports,
                 )
             # `turn.output` is what the run *ended* with; a turn that parked ended
             # with nothing, so its words are on the timeline (#509).
@@ -743,7 +791,7 @@ class AgentSession:
             )
         except WebSocketDisconnect:
             raise
-        except (AppException, BudgetExceeded, GuardrailBlocked) as exc:
+        except (AppException, BudgetExceeded, GuardrailBlocked, ToolLoopStopped) as exc:
             # A refusal - an agent that is unpublished, archived, or not theirs
             # to see - a budget stop, and a guardrail block are the platform
             # working, not a crash. The client is told plainly; nothing answers
@@ -768,6 +816,7 @@ class AgentSession:
                 await self._follow_if_running(finished)
             self._current_timeline = None
             self._steering = None
+            self._visual_reports = None
             late = steering.unapplied()
             if late:
                 # Sent after the agent's last request, so no request carried them.
@@ -1006,6 +1055,12 @@ class AgentSession:
         """
         frame = event.model_dump(mode="json")
         await self._emit(event.kind, frame)
+
+    async def _visual_images(self, tool_call_id: str, images: Mapping[str, str]) -> None:
+        """A drawing's images, for the tab about to render it (#2171)."""
+        await send_event(
+            self.websocket, "visual_images", {"tool_call_id": tool_call_id, "images": dict(images)}
+        )
 
     async def _browser_event(self, event: BrowserEvent) -> bool:
         """Forward one frame from a browse in progress, under the frame's own name.

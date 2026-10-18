@@ -63,6 +63,7 @@ export default defineConfig({
         "src/components/dashboard/widgets/sandbox-*.tsx",
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
+        "src/components/dashboard/widgets/recent-visuals.tsx",
         "src/components/dashboard/widgets/recent-failures.tsx",
         // The notifications card (#1598).
         "src/components/dashboard/widgets/notifications.tsx",
@@ -145,6 +146,12 @@ export default defineConfig({
         "src/components/chat/chat-controls.tsx",
         // A phone's `+` sheet for attaching and dictating (#2066).
         "src/components/chat/composer-sheet.tsx",
+        // `@`-mentions in the composer and the transcript (#2189).
+        "src/components/chat/mention-chip.tsx",
+        "src/components/chat/composer-editor.tsx",
+        "src/components/chat/composer-hints.tsx",
+        "src/components/chat/link-favicon.tsx",
+        "src/components/chat/mention-palette.tsx",
         "src/components/chat/connect-account-prompt.tsx",
         "src/components/chat/connect-services-card.tsx",
         "src/components/chat/your-connections.tsx",
@@ -159,6 +166,11 @@ export default defineConfig({
         "src/components/chat/message-cost.tsx",
         "src/components/chat/turn-action.ts",
         "src/components/chat/turn-parts.tsx",
+        "src/components/chat/shared-visuals.tsx",
+        "src/components/chat/visual-actions.ts",
+        "src/components/chat/visual-frame.tsx",
+        "src/components/chat/visual-panel.tsx",
+        "src/components/chat/visual-save-dialog.tsx",
         "src/components/chat/work-fold.tsx",
         "src/components/chat/you-face.tsx",
         "src/components/chat/message-item.tsx",

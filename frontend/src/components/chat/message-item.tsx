@@ -1,5 +1,7 @@
 "use client";
 
+import { MentionChip } from "./mention-chip";
+import { stillMentioned } from "@/lib/mentions";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import { cn } from "@/lib/utils";
@@ -108,6 +110,11 @@ export function MessageItem({
   const t = useTranslations("chat");
   const tInput = useTranslations("chat.input");
   const isUser = message.role === "user";
+  // A mention sits in the text it was typed into; only one the text does not
+  // carry - a turn sent before that was so - is shown as a chip beside it.
+  const unplaced = (message.mentions ?? []).filter(
+    (item) => stillMentioned(message.content, [item]).length === 0,
+  );
   const updateMessage = useChatStore((state) => state.updateMessage);
   const setReplyTo = useChatStore((state) => state.setReplyTo);
   const tReply = useTranslations("chat.reply");
@@ -241,6 +248,13 @@ export function MessageItem({
           isUser ? "flex max-w-[85%] flex-col items-end" : "w-full",
         )}
       >
+        {isUser && unplaced.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {unplaced.map((item) => (
+              <MentionChip key={`${item.kind}:${item.id}`} item={item} />
+            ))}
+          </div>
+        )}
         {isUser &&
           (() => {
             const attachments: AttachmentDisplay[] =
@@ -521,6 +535,7 @@ function MessageBody({
               showCursor={!isUser && Boolean(message.isStreaming)}
               isUser={isUser}
               onCiteClick={onCiteClick}
+              mentions={isUser ? message.mentions : undefined}
             />
           )}
           {legacyCalls.length > 0 && (

@@ -16,6 +16,7 @@ complete one is worse than no document.
 
 from __future__ import annotations
 
+import json
 from contextlib import ExitStack
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -41,16 +42,20 @@ from sqlalchemy.dialects import postgresql
 
 from app.agents.manifest import (
     MAX_PAYLOAD_BYTES,
+    MAX_RECORDED_REVIEWS,
+    RECORDED_SCRIPTS,
     RecordedRequest,
     RecordingModel,
     RunRecorder,
     _size,
     as_payload,
+    carried_over,
     fit,
 )
 from app.db.models.agent_run import RunStatus
 from app.db.models.run_manifest import RunManifest
 from app.repositories import run_manifest_repo
+from app.schemas.run_manifest import ManifestCodeRun
 from app.services.agent_runner import AgentRunnerService
 
 pytestmark = pytest.mark.anyio
@@ -361,6 +366,23 @@ class TestARecordTooLargeToKeep:
         assert payload["messages"] == []
         assert payload["instructions"] == "Be brief."
 
+    def test_scripts_keep_what_they_called_when_their_arguments_do_not_fit(self):
+        """Thirty scripts of a hundred calls are bigger than the ceiling on their own."""
+        script = {
+            "tool_call_id": "c-1",
+            "code": "x" * 20_000,
+            "calls": [{"tool": "lookup", "args": "a" * 200, "status": "returned"}] * 100,
+            "omitted_calls": 0,
+        }
+        payload, truncated = fit(self._payload(code_runs=[script] * 30))
+        assert truncated
+        assert len(json.dumps(payload, default=str).encode()) <= MAX_PAYLOAD_BYTES
+        (first, *_) = payload["code_runs"]
+        assert first["calls"][0] == {"tool": "lookup", "args": "", "status": "returned"}
+        assert len(first["code"]) < 1_000
+        # The trimmed record still reads back: the route builds this schema from it.
+        assert ManifestCodeRun.model_validate(first).calls[0].args == ""
+
     def test_a_schema_goes_before_the_sentence_that_explains_it(self):
         """What is left of a tool is its name and its description - the half that
         explains behaviour, and the half readable nowhere else."""
@@ -550,6 +572,7 @@ class TestTheRunnerWritesItHoweverTheRunEnded:
             patch.object(service, "_write_delegations", new=AsyncMock()),
             patch.object(service, "_notify", new=AsyncMock()),
             patch.object(service.workspaces, "close", new=AsyncMock()),
+            patch(f"{_MODULE}.run_manifest_repo.get_by_run", new=AsyncMock(return_value=None)),
         ):
             stack.enter_context(patched)
 
@@ -603,3 +626,82 @@ class TestTheRunnerWritesItHoweverTheRunEnded:
                 )
             )
             await service.finish(prepared, status=RunStatus.FAILED)
+
+
+class TestAResumedRunKeepsItsCorrections:
+    """A parked run is recorded twice, and the second recording replaces the first;
+    a run reviewer's corrections from before the park must survive it (#2106)."""
+
+    def test_earlier_corrections_go_in_front_of_this_segments(self) -> None:
+        earlier = {"reviews": [{"reviewer": "a", "after_request": 3, "steer": "x"}]}
+        payload = {
+            "instructions": "y",
+            "reviews": [{"reviewer": "a", "after_request": 6, "steer": "z"}],
+        }
+
+        merged = carried_over(earlier, payload)
+
+        assert [review["after_request"] for review in merged["reviews"]] == [3, 6]
+        assert merged["instructions"] == "y"
+
+    def test_a_record_with_none_changes_nothing(self) -> None:
+        payload = {"reviews": []}
+        assert carried_over({}, payload) is payload
+
+    def test_the_kept_corrections_stay_bounded(self) -> None:
+        many = [{"reviewer": "a", "after_request": n, "steer": "x"} for n in range(80)]
+        merged = carried_over({"reviews": many}, {"reviews": many})
+        assert len(merged["reviews"]) == MAX_RECORDED_REVIEWS
+
+
+class TestAResumedRunKeepsItsScripts:
+    """A parked run is recorded twice, and the second recording replaces the first;
+    the scripts code mode ran before the park - and the calls they made - must
+    survive it (#2107)."""
+
+    def test_earlier_scripts_go_in_front_of_this_segments(self) -> None:
+        earlier = {"code_runs": [{"tool_call_id": "a", "code": "x", "calls": []}]}
+        payload = {"code_runs": [{"tool_call_id": "b", "code": "y", "calls": []}]}
+
+        merged = carried_over(earlier, payload)
+
+        assert [run["tool_call_id"] for run in merged["code_runs"]] == ["a", "b"]
+
+    def test_a_record_with_none_changes_nothing(self) -> None:
+        payload = {"code_runs": []}
+        assert carried_over({}, payload) is payload
+
+    def test_the_kept_scripts_stay_bounded(self) -> None:
+        many = [{"tool_call_id": str(n), "code": "x", "calls": []} for n in range(40)]
+        merged = carried_over({"code_runs": many}, {"code_runs": many})
+        assert len(merged["code_runs"]) == RECORDED_SCRIPTS
+
+    @pytest.mark.anyio
+    async def test_the_runner_writes_the_merged_record(self) -> None:
+        recorder = RunRecorder()
+        recorder.instructions = "Be brief."
+        recorder.reviews.append({"reviewer": "a", "after_request": 6, "steer": "z"})
+        recorder.code_runs.append({"tool_call_id": "b", "code": "y", "calls": []})
+        service = AgentRunnerService(MagicMock(commit=AsyncMock(), begin_nested=MagicMock()))
+        service.db.begin_nested.return_value.__aenter__ = AsyncMock()
+        service.db.begin_nested.return_value.__aexit__ = AsyncMock(return_value=False)
+        prepared = MagicMock()
+        prepared.built.recorder = recorder
+        earlier = MagicMock(
+            payload={
+                "reviews": [{"reviewer": "a", "after_request": 3, "steer": "x"}],
+                "code_runs": [{"tool_call_id": "a", "code": "x", "calls": []}],
+            }
+        )
+        written = AsyncMock()
+
+        with (
+            patch(f"{_MODULE}.run_manifest_repo.get_by_run", new=AsyncMock(return_value=earlier)),
+            patch(f"{_MODULE}.run_manifest_repo.record", new=written),
+        ):
+            await service._record_manifest(prepared)
+
+        reviews = written.await_args.kwargs["payload"]["reviews"]
+        assert [review["after_request"] for review in reviews] == [3, 6]
+        codes = [run["tool_call_id"] for run in written.await_args.kwargs["payload"]["code_runs"]]
+        assert codes == ["a", "b"]

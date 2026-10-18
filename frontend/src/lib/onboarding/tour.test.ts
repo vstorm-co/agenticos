@@ -185,6 +185,7 @@ describe("stepsForPage", () => {
       "chat-agent-picker",
       "chat-composer",
       "chat-plan",
+      "chat-visual",
       "chat-model-picker",
       "chat-approval-mode",
       "chat-your-connections",

@@ -1491,6 +1491,45 @@ class TestValidateSpec:
         assert any(problem.startswith("Collection not found:") for problem in problems)
 
     @pytest.mark.anyio
+    async def test_a_draft_reviewer_saves_but_is_refused_at_publish(self):
+        """A row added in the Builder starts without a model or a focus; the draft
+        keeps it, and publishing says what is missing (#2106)."""
+        spec = _spec(model_profile_id=uuid.uuid4(), reviewers=[{"name": "sources"}])
+
+        with (
+            patch(
+                f"{REGISTRY_PATH}.credential_repo.get_profile",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert refused.value.details["problems"] == [
+            "Reviewer 'sources': pick the model it reviews with",
+            "Reviewer 'sources': say what it looks for",
+        ]
+
+    @pytest.mark.anyio
+    async def test_a_reviewer_on_a_profile_from_nowhere_is_refused_at_publish(self):
+        """A reviewer's model is a reference to a profile, like the agent's own (#2106)."""
+        spec = _spec(
+            model_profile_id=uuid.uuid4(),
+            reviewers=[
+                {"name": "sources", "model_profile_id": str(uuid.uuid4()), "instructions": "x"}
+            ],
+        )
+        found = AsyncMock(side_effect=[MagicMock(), None])
+
+        with (
+            patch(f"{REGISTRY_PATH}.credential_repo.get_profile", new=found),
+            pytest.raises(BadRequestError) as refused,
+        ):
+            await AgentRegistryService(_db()).validate_spec(_ctx(), spec)
+
+        assert refused.value.details["problems"] == ["The selected model profile no longer exists"]
+
+    @pytest.mark.anyio
     async def test_a_browser_step_model_from_nowhere_is_refused_at_publish(self, monkeypatch):
         """The step model is a reference to a profile, like the agent's own - one
         deleted since, or another organization's, would fail every browse."""
@@ -3834,6 +3873,9 @@ class TestAgentTemplates:
         assert result.skills_installed == ["Clinical procedure lookup"]
         # The skills it expects are installed before the agent that binds them.
         skills.return_value.install_gallery.assert_awaited_once()
+        # Visible to the organization: installed private, every template agent
+        # had to be found and re-shared by hand before a colleague could see it.
+        assert create.await_args.kwargs["visibility"] is Visibility.ORG
 
     @pytest.mark.anyio
     async def test_a_bundled_skill_is_bound_without_a_gallery_install(self):

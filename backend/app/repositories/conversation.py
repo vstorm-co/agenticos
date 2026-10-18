@@ -902,6 +902,97 @@ async def recent_tool_calls(
     return [ToolCallSeen(*row) for row in result.all()]
 
 
+class ToolCallArgs(NamedTuple):
+    """A recorded call's name and arguments, and the agent and run whose turn made it."""
+
+    tool_call_id: str
+    tool_name: str
+    args: dict[str, Any]
+    agent_id: UUID | None = None
+    run_id: UUID | None = None
+
+
+def _succeeded(result_prefixes: Collection[str]) -> ColumnElement[bool]:
+    """A completed call whose result says it did its work.
+
+    `completed` alone does not: a call refused with a retry prompt, or steered
+    away with a sentence, is stored completed too.
+    """
+    return or_(*(ToolCall.result.startswith(prefix, autoescape=True) for prefix in result_prefixes))
+
+
+async def tool_calls_named(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    names: Collection[str],
+    result_prefixes: Collection[str],
+    limit: int,
+) -> list[ToolCallArgs]:
+    """The conversation's latest calls of these tools that succeeded, oldest first.
+
+    A call succeeded when it completed with a result opening on one of
+    `result_prefixes` - see `_succeeded`.
+    """
+    newest = (
+        select(ToolCall.tool_call_id, ToolCall.tool_name, ToolCall.args, ToolCall.started_at)
+        .join(Message, Message.id == ToolCall.message_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            ToolCall.tool_name.in_(names),
+            ToolCall.status == "completed",
+            _succeeded(result_prefixes),
+        )
+        .order_by(ToolCall.started_at.desc())
+        .limit(limit)
+        .subquery()
+    )
+    result = await db.execute(
+        select(newest.c.tool_call_id, newest.c.tool_name, newest.c.args).order_by(
+            newest.c.started_at.asc()
+        )
+    )
+    return [ToolCallArgs(*row) for row in result.all()]
+
+
+async def tool_call_in_conversation(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    tool_call_id: str,
+    names: Collection[str],
+    result_prefixes: Collection[str],
+) -> ToolCallArgs | None:
+    """One succeeded call of these tools, by the provider's id, within one conversation.
+
+    Succeeded as `tool_calls_named` means it.
+
+    The conversation is the boundary: the id is the model's to name, and a call in
+    any other conversation is not one it may reach.
+    """
+    result = await db.execute(
+        select(
+            ToolCall.tool_call_id,
+            ToolCall.tool_name,
+            ToolCall.args,
+            Message.agent_id,
+            Message.run_id,
+        )
+        .join(Message, Message.id == ToolCall.message_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            ToolCall.tool_call_id == tool_call_id,
+            ToolCall.tool_name.in_(names),
+            ToolCall.status == "completed",
+            _succeeded(result_prefixes),
+        )
+        .order_by(ToolCall.started_at.desc())
+        .limit(1)
+    )
+    row = result.first()
+    return ToolCallArgs(*row) if row is not None else None
+
+
 async def get_message_by_id(db: AsyncSession, message_id: UUID) -> Message | None:
     """Get message by ID."""
     return await db.get(Message, message_id)
@@ -975,7 +1066,17 @@ async def conversation_cost(
     return int(input_tokens), int(output_tokens), Decimal(cost_usd), partial
 
 
-async def attributed_to_run(db: AsyncSession, run_id: UUID) -> tuple[int, int, Decimal]:
+class Attributed(NamedTuple):
+    """What a run's messages already claim of what the run spent."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: Decimal = Decimal(0)
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+
+
+async def attributed_to_run(db: AsyncSession, run_id: UUID) -> Attributed:
     """What this run's messages already claim of what the run spent.
 
     A run row carries *cumulative* totals, and one run can write more than one
@@ -992,10 +1093,14 @@ async def attributed_to_run(db: AsyncSession, run_id: UUID) -> tuple[int, int, D
             type_coerce(func.coalesce(func.sum(Message.input_tokens), 0), Integer),
             type_coerce(func.coalesce(func.sum(Message.output_tokens), 0), Integer),
             type_coerce(func.coalesce(func.sum(Message.cost_usd), 0), Numeric),
+            type_coerce(func.coalesce(func.sum(Message.cache_read_tokens), 0), Integer),
+            type_coerce(func.coalesce(func.sum(Message.cache_write_tokens), 0), Integer),
         ).where(Message.run_id == run_id)
     )
-    input_tokens, output_tokens, cost_usd = result.one()
-    return int(input_tokens), int(output_tokens), Decimal(cost_usd)
+    input_tokens, output_tokens, cost_usd, cache_read, cache_write = result.one()
+    return Attributed(
+        int(input_tokens), int(output_tokens), Decimal(cost_usd), int(cache_read), int(cache_write)
+    )
 
 
 class RunOutcome(NamedTuple):
@@ -1189,6 +1294,8 @@ async def create_message(
     tokens_used: int | None = None,
     input_tokens: int | None = None,
     output_tokens: int | None = None,
+    cache_read_tokens: int | None = None,
+    cache_write_tokens: int | None = None,
     cost_usd: Decimal | None = None,
     cost_is_partial: bool | None = None,
     context_used_tokens: int | None = None,
@@ -1215,6 +1322,8 @@ async def create_message(
         tokens_used=tokens_used,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_write_tokens=cache_write_tokens,
         cost_usd=cost_usd,
         cost_is_partial=cost_is_partial,
         context_used_tokens=context_used_tokens,

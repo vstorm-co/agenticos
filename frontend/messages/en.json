@@ -73,6 +73,19 @@
     "sessionsCouldNotBeRead": "The sessions could not be read."
   },
   "agents": {
+    "reviewersTitle": "Run reviewers",
+    "reviewersDescription": "A second, usually cheaper model reads the run every few requests and sends one short correction when it drifts. Its calls count against the budget like any other, and a run without a reviewer makes no extra calls.",
+    "reviewerName": "Name",
+    "reviewerModel": "Model it reviews with",
+    "reviewerInstructions": "What to look for",
+    "reviewerInstructionsPlaceholder": "Flag claims that have no source among the pages the agent read.",
+    "reviewerEvery": "Every N requests",
+    "reviewerWindow": "Tokens it reads",
+    "addReviewer": "Add a reviewer",
+    "removeReviewer": "Remove reviewer {name}",
+    "codeMode": "Code mode",
+    "codeModeHint": "The agent calls its tools from one short Python script in a sandbox - loops, conditions, many calls at once - instead of one model turn per call. Worth it for working through records or fanning out over an MCP server. Tools that need approval stay ordinary calls.",
+    "codeModeMaxCalls": "Tool calls per script",
     "accentColour": "Accent colour",
     "actsOutsideWorld": "acts on the outside world",
     "actsWorld": "acts on the world",
@@ -472,6 +485,7 @@
     "runCompleted": "Completed",
     "runFailed": "Failed",
     "runGuardrailBlocked": "Blocked by guardrail",
+    "runLoopStopped": "Stopped: looping",
     "runRunning": "Running",
     "runningThemOneAt": "Running them one at a time makes a conversation easier to follow, and easier to approve.",
     "runs": "Runs",
@@ -796,7 +810,23 @@
     "chatgptSignInName": "ChatGPT for Codex",
     "claudeTokenHint": "On a Claude Pro or Max subscription: run <code>claude setup-token</code> on your own computer and add the token it prints as a key here. An Anthropic API key works too.",
     "capabilityHasNoToolSettings": "It used to have settings per tool, which it no longer has. Its approval is the one below now.",
-    "useCapabilityApproval": "Move to the capability"
+    "useCapabilityApproval": "Move to the capability",
+    "visualDesignDetail": "Bind the visual-design skill and the agent draws from its house style and templates - architecture diagrams, explainers with sliders, 3D scenes. Switching Visuals on binds it for you; the agent reads it through the Skills capability.",
+    "visualDesignMissing": "This organization has no visual-design skill. Seed the bundled skills to add it.",
+    "visualDesignHeading": "Drawing style",
+    "platformServerDescription": "This platform's own tools: agents, runs, spend, knowledge bases, skills and members - so the agent can answer questions about the platform and act in it.",
+    "platformServerBadge": "Built in",
+    "platformAsksBeforeWrites": "Asks before any change",
+    "platformAsksEveryCall": "Asks before every call",
+    "platformAsWhoeverAsks": "Acts as whoever asks",
+    "platformActsAsWhoeverAsks": "Every tool acts as the person the agent runs for, with exactly their permissions. Nothing new is granted: what they could not do in the console, the agent cannot do here either.",
+    "platformUseIt": "Use it in this agent",
+    "platformApproval": "Approval",
+    "platformWritesHint": "Reading is free; creating, running or changing anything waits for the person to approve it.",
+    "platformAllHint": "Every call waits for approval, reading included.",
+    "platformTools": "Tools this agent may call",
+    "platformWritesBadge": "changes something",
+    "platformRemove": "Remove from this agent"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -1262,6 +1292,7 @@
     "title": "Chat",
     "tokensDetail": "{input, number} input · {output, number} output tokens",
     "tokensDetailPartial": "{input, number} input · {output, number} output tokens - a floor: some model in this run had no price",
+    "tokensWithCache": "{detail} - of the input, {read, number} read from the cache and {write, number} written to it",
     "toolApprovalRequired": "Tool approval required",
     "draftProposalTitle": "A new agent draft",
     "draftProposalIn": "Created in {organization}",
@@ -1435,7 +1466,13 @@
       "runCodingAgent": "Hand the work to the coding agent",
       "runningCodingAgent": "The coding agent is working",
       "codingStepRunning": "{kind, select, read {Reading} search {Searching} edit {Editing} command {Running} web {Looking up} other {Working on}}",
-      "codingStepDone": "{kind, select, read {Read} search {Searched} edit {Edited} command {Ran} web {Looked up} other {Used}}"
+      "codingStepDone": "{kind, select, read {Read} search {Searched} edit {Edited} command {Ran} web {Looked up} other {Used}}",
+      "drawingVisual": "Drawing",
+      "drawVisual": "Drew a visual",
+      "revisingVisual": "Revising a visual",
+      "reviseVisual": "Revised a visual",
+      "readingVisual": "Reading a visual",
+      "readVisual": "Read a visual"
     },
     "turnWasStopped": "stopped",
     "unfavourite": "Remove from favourites",
@@ -1527,6 +1564,7 @@
     "sendNow": "Send now",
     "sendNowHint": "Send it into the running task now, instead of after the answer",
     "sendNowNotWithFiles": "A message with files waits for the answer",
+    "sendNowNotWithMentions": "A message pointing at something waits for the answer",
     "queuedCount": "{count, plural, =1 {1 message queued} other {# messages queued}}",
     "sentIntoTask": "sent into the task",
     "moveUp": "Move up",
@@ -1553,7 +1591,69 @@
     "openPageNamed": "Open {name}",
     "showMore": "Show more",
     "showLess": "Show less",
-    "openApp": "Open the app"
+    "openApp": "Open the app",
+    "mentions": {
+      "menu": "Point the agent at",
+      "loading": "Loading what this agent can use…",
+      "failed": "Could not load what this agent can use.",
+      "nothing": "Nothing this agent can use matches.",
+      "full": "You can point at {count, plural, one {# thing} other {# things}} at most in one message.",
+      "kind": {
+        "mcp": "MCP servers",
+        "capability": "Capabilities",
+        "agent": "Agents",
+        "collection": "Knowledge bases",
+        "skill": "Skills",
+        "context": "Context files"
+      }
+    },
+    "hints": {
+      "mention": "Type <key>@</key> to point the agent at a server, a teammate or a skill",
+      "mcp": "Pull this week's updates from <chip></chip> and summarise them",
+      "capability": "Use <chip></chip> to work through the attached spreadsheet",
+      "agent": "Ask <chip></chip> to double-check the numbers",
+      "skill": "Follow <chip></chip> and draft a reply to this customer",
+      "collection": "What does <chip></chip> say about notice periods?",
+      "slash": "Type <command></command> to summarise this conversation, or / for every command"
+    },
+    "visuals": {
+      "drawing": "Drawing…",
+      "revising": "Revising…",
+      "unfinished": "Unfinished",
+      "revisionOf": "Revision of {title}",
+      "showCode": "Show code",
+      "showVisual": "Show visual",
+      "fullScreen": "Full screen",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "zoomReset": "Reset zoom",
+      "zoomLevel": "{zoom, number, percent}",
+      "download": "Download",
+      "copyImage": "Copy as image",
+      "imageCopied": "Image copied",
+      "copyImageFailed": "The image could not be copied",
+      "renderError": "The drawing reported an error",
+      "stalled": "The drawing stopped responding, so it was closed.",
+      "reload": "Reload",
+      "baseMissing": "The visual this revises is not in the loaded conversation.",
+      "close": "Close",
+      "fixIt": "Fix it",
+      "fixItPrompt": "The visual “{title}” ({id}) reported these errors:\n{errors}\nPlease fix it.",
+      "saveToApps": "Save to Apps",
+      "updateApp": "Update the app",
+      "saveDescription": "Saved as an app, it gets a link, versions and sharing. Saving under a name you already have adds a version to that app.",
+      "saveTitleLabel": "Title",
+      "saveName": "Name",
+      "saveNameHint": "Lower-case letters, digits and hyphens. The same name again updates the app.",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "savedToast": "Saved as an app, version {version}",
+      "savedUnchanged": "The app already has exactly this version",
+      "savedBadge": "Saved · v{version}",
+      "openApp": "Open",
+      "openInConsole": "Shown in AgenticOS"
+    }
   },
   "common": {
     "archiveNamedConfirm": "Archive {name}?",
@@ -1797,6 +1897,7 @@
           "description": "The model mix appears with the first run.",
           "title": "No runs in this period"
         },
+        "modelRepaired": "{model} · {repaired} repaired",
         "notRecorded": "not recorded",
         "title": "Models behind the runs",
         "description": "Which models are behind the runs, as each run recorded its own.",
@@ -2088,6 +2189,7 @@
           "failed": "failed",
           "budget_exceeded": "over budget",
           "guardrail_blocked": "guardrail blocked",
+          "loop_stopped": "stopped looping",
           "running": "running",
           "cancelled": "cancelled",
           "awaiting_approval": "awaiting approval"
@@ -2196,6 +2298,15 @@
         "empty": {
           "title": "No projects yet",
           "description": "A project keeps instructions and files that every chat in it shares."
+        }
+      },
+      "recent-visuals": {
+        "title": "Recent visuals",
+        "description": "Diagrams, explainers and scenes your agents drew for you lately.",
+        "app": "App",
+        "empty": {
+          "title": "Nothing drawn yet",
+          "description": "Ask an agent with Visuals to draw something - a diagram, an explainer, a 3D scene - and it appears here."
         }
       }
     },
@@ -2362,6 +2473,16 @@
       "dismissAll": "Hide tips",
       "dismiss": "Hide the tip {title}",
       "tips": {
+        "mentions": {
+          "title": "Point the agent with @",
+          "body": "In the chat, type @ to hand the agent one of its servers, capabilities, skills or teammates. It shows as a chip, and the agent uses exactly that.",
+          "cta": "Try it in chat"
+        },
+        "commands": {
+          "title": "Shortcuts with /",
+          "body": "Type / in the chat for commands - summarise, explain, start over - or write your own under Settings → Slash commands.",
+          "cta": "Open the chat"
+        },
         "mcp": {
           "title": "Use it from Claude Code or Cursor",
           "body": "AgenticOS is an MCP server too: connect Claude Code, Codex or Cursor and build agents, run them and read results without leaving them.",
@@ -3463,6 +3584,10 @@
         "title": "Set a budget (optional)",
         "body": "Cap what this agent can spend in a month and how many steps one run may take, and choose who's told when it reaches a limit. It's how an agent that loops or runs away stops itself. Choose Next to move on."
       },
+      "flow-agent-platform-mcp": {
+        "title": "Let it act in the platform (optional)",
+        "body": "This platform's own server needs no connection: switched on, the agent can answer questions about agents, runs and knowledge here, as whoever it talks to - and asks before changing anything."
+      },
       "flow-agent-mcp": {
         "title": "Add MCP servers (optional)",
         "body": "MCP servers give the agent tools from other systems you've connected. Attach any here, or choose Next to move on."
@@ -3870,6 +3995,10 @@
       "project-tabs": {
         "title": "Chats, files and instructions",
         "body": "Start a chat in the project, add files and folders its agents work in, and set what every agent here is told."
+      },
+      "chat-visual": {
+        "title": "Drawings",
+        "body": "An agent with Visuals draws diagrams, explainers and 3D scenes here, live while it writes them. Open one full screen, download it, ask about it, or save it as an app with a link you can share."
       }
     },
     "chooseLanguage": "Language"
@@ -4157,6 +4286,10 @@
       "mapMayInventSpecialists": "May invent specialists mid-run",
       "mapSurfaces": "Surfaces",
       "maxStepsPerRun": "Max steps per run",
+      "loopGuard": "Stop tool-call loops",
+      "loopGuardHint": "A run that keeps making the same calls is told to change approach, and stopped if it goes on - with the reason, before the steps or the budget run out.",
+      "loopRepeats": "Identical calls in a row",
+      "loopCycles": "Cycle repeats",
       "mcpServers": "MCP servers",
       "mcpServersDescription": "External tools this agent may call, from <servers>the catalog</servers>. Bind a server to the organization's account, which answers for everybody, or to each person's own account, which they connect themselves. A member's connection is never bound directly - an agent everyone runs cannot depend on whose credential is behind it.",
       "model": "Model",
@@ -4667,6 +4800,8 @@
       "model": "Model",
       "modelFilter": "Filter by model",
       "modelRunHadNo": "A model in this run had no price, so this is a floor",
+      "toolArgsRepaired": "{count, plural, =1 {Repaired one tool call's malformed arguments instead of retrying it} other {Repaired # tool calls' malformed arguments instead of retrying them}}",
+      "cacheSplit": "Of the input, {read, number} read from the provider's cache and {write, number} written to it - priced apart from the rest",
       "modelSettings": "Model settings",
       "monthToDate": "Month to date",
       "narrowedToOneAgent": "Narrowed to one agent, including what it did as somebody's delegate.",
@@ -4714,6 +4849,15 @@
       "recordWasTrimmed": "This record was trimmed to fit its size limit - the messages, and possibly the argument schemas, were dropped.",
       "reject": "Reject",
       "requestDetail": "{input} in, {output} out · {messages} messages carried · finished {finish}",
+      "reviewerCorrections": "{count, plural, =1 {1 reviewer correction} other {# reviewer corrections}}",
+      "reviewerCorrectionBy": "{reviewer}, after request {request}",
+      "codeRuns": "{count, plural, =1 {1 script} other {# scripts}}",
+      "codeRunCalls": "{count, plural, =0 {It called no tools} =1 {It made 1 tool call} other {It made # tool calls}}",
+      "codeRunOmittedCalls": "{count, plural, =1 {and 1 more call, not listed} other {and # more calls, not listed}}",
+      "cacheBust": "cache bust",
+      "cacheExpired": "cache expired",
+      "cacheBustDetail": "{missed, number} cached tokens not read back from the cache - something before them in the prompt changed",
+      "cacheExpiredDetail": "{missed, number} cached tokens not read back from the cache - the provider's cache had expired",
       "requestIndex": "#{index}",
       "requests": "{count, plural, =0 {Requests} =1 {1 request} other {# requests}}",
       "resizeRunDetail": "Resize the run detail",
@@ -4803,7 +4947,16 @@
       "spendOverTimeHint": "What each day of the window cost, in UTC days.",
       "actionInService": "{action} in {service}",
       "approvalDetails": "Details",
-      "approvalNoArguments": "It takes nothing."
+      "approvalNoArguments": "It takes nothing.",
+      "cache": {
+        "title": "Prompt cache",
+        "description": "Requests whose cached prompt was not read back. A bust is a prefix that moved - tools reordered, a timestamp in the instructions - and was billed at the full input rate; an expiry had outlived the provider's cache.",
+        "agentAndModel": "Agent and model",
+        "noModel": "model not recorded",
+        "busts": "Busts",
+        "expiries": "Expiries",
+        "missedTokens": "Cached tokens missed"
+      }
     },
     "sandboxes": {
       "addConnection": "Add connection",
@@ -5911,7 +6064,9 @@
       "running": "running",
       "pending": "starting",
       "cancelled": "cancelled",
-      "awaiting_approval": "awaiting approval"
+      "awaiting_approval": "awaiting approval",
+      "guardrail_blocked": "blocked by a guardrail",
+      "loop_stopped": "stopped: looping"
     },
     "noMessagesYet": "No messages yet",
     "noMessagesDescription": "This trigger has not run yet. Its runs will appear here once it fires.",
@@ -6773,6 +6928,14 @@
       "example2": "Find three competitors and their prices",
       "needs": "Nothing, with DuckDuckGo. Brave, Exa or Tavily need their API key in the vault.",
       "never": "Never sends your documents to the search engine, only the search words."
+    },
+    "visuals": {
+      "name": "Visuals",
+      "does": "Draws in the conversation - a diagram, an architecture map, an explainer with sliders, a 3D scene - live while the agent writes it. A drawing can be saved as an app.",
+      "example1": "Our order flow as a diagram",
+      "example2": "A 3D model of the warehouse you can turn",
+      "needs": "Nothing extra. The visual-design skill makes the drawings look designed.",
+      "never": "Never reaches the network - a drawing runs sealed off, like an app's page."
     }
   },
   "capabilityCategories": {

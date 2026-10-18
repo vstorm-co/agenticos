@@ -81,6 +81,7 @@ async def get_redis(request: Request) -> RedisClient:
 Redis = Annotated[RedisClient, Depends(get_redis)]
 
 
+from app.services.mentions import MentionService
 from app.services.personal_data import PersonalDataService
 from app.services.browser_sign_in import BrowserSignInService
 from app.services.user import UserService
@@ -89,6 +90,7 @@ from app.services.impersonation import ImpersonationService
 from app.services.ws_auth import authenticate_socket_key, authenticate_socket_token
 from app.services.oauth_exchange import OAuthExchangeService
 from app.services.conversation import ConversationService
+from app.services.visual import VisualService
 from app.services.local_service import LocalServiceService
 from app.services.ml import MLService
 from app.services.sandbox_connection import SandboxConnectionService
@@ -134,6 +136,13 @@ def get_conversation_service(db: DBSession) -> ConversationService:
 
 
 ConversationSvc = Annotated[ConversationService, Depends(get_conversation_service)]
+
+
+def get_visual_service(db: DBSession) -> VisualService:
+    return VisualService(db)
+
+
+VisualSvc = Annotated[VisualService, Depends(get_visual_service)]
 
 
 def get_sandbox_workspace_service(db: DBSession) -> SandboxWorkspaceService:
@@ -768,6 +777,13 @@ def get_context_service(db: DBSession) -> ContextService:
 
 
 ContextSvc = Annotated[ContextService, Depends(get_context_service)]
+
+
+def get_mention_service(db: DBSession) -> MentionService:
+    return MentionService(db)
+
+
+MentionSvc = Annotated[MentionService, Depends(get_mention_service)]
 
 from app.services.artifact import ArtifactService
 

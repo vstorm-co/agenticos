@@ -1,5 +1,5 @@
 ---
-source_sha: "1d259295c6c5"
+source_sha: "59f96aa2d00c"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -386,6 +386,7 @@ estaría mal» o bien «esto todavía no está construido» — nunca silencio.
 | Frames de delegación | sí | **no, deliberadamente**: enganchar un sink hace que la biblioteca abra una petición *en streaming* por cada hijo, así que un delegado cuyo proveedor no sabe hacer streaming se rompe en cuanto alguien mira |
 | Aprobaciones: aparcan la ejecución | sí | sí | sí |
 | Aprobaciones: un camino hasta la decisión | sí (`/runs`) | una frase, deliberadamente: a un desconocido con un enlace no se le enseña una URL a la consola de otra persona | sí — el resultado lleva `parked`, que nombra qué espera y a qué aprobación enviar la decisión |
+| Menciones `@` | sí (`mentions`) | **no, todavía no**: un widget no tiene menú del que elegir, y la mención de un visitante necesitaría la misma comprobación en su nombre | **no, todavía no**: un script nombra qué usar en el propio mensaje |
 
 ### `environment_id` en el socket, y por qué es de quien publica { #environment_id-on-the-socket-and-why-it-is-the-publishers }
 
@@ -927,7 +928,8 @@ transmisión, que vuelve a una respuesta editada una vez por segundo. Lo mismo
 ocurre solo si Slack se niega a empezarla.
 
 Una tabla Markdown en la respuesta se dibuja como una tabla de Slack, y un gráfico
-llega como imagen, como siempre. Si la respuesta terminada no es lo transmitido -
+llega como imagen, como siempre. También un [visual](reference/capabilities.md#visuals),
+dibujado por el navegador del despliegue cuando `VISUAL_RENDER_CDP_URL` lo indica. Si la respuesta terminada no es lo transmitido -
 un guardrail de salida redactó algo -, el mensaje se reescribe entero.
 
 ### Scopes y events { #scopes-and-events }
@@ -1556,6 +1558,14 @@ Slack lo muestra.
   inmediato, por la misma razón: el stream se vuelve a abrir para coincidir con lo
   que la fila dice ahora. Se abre *después* de que la transacción confirme, así que
   un registro que falla no deja ninguna conexión detrás.
+- **Una conexión por bot, tenga los workers de API que tenga.** Telegram permite
+  un `getUpdates` por bot y dos sockets de Mattermost recibirían cada evento, así
+  que el worker que tiene la conexión de un bot tiene también un lease sobre ella
+  en el Redis compartido y lo renueva cada 10 segundos. Los demás no tocan ese
+  bot. Un worker que se apaga pasa sus bots a otro en unos 10 segundos, y uno que
+  cae, en unos 40. Una edición que atiende otro worker abre la conexión nueva al
+  momento, y la vieja se cierra en la siguiente renovación de quien la tenía. Con
+  Redis inalcanzable, se conecta cada worker, como antes.
 - **Las instrucciones de una vinculación pueden nombrar lo que solo sabe la
   plataforma.** `{channel_name}`, `{channel_purpose}`, `{channel_topic}`,
   `{member_count}`, `{member_list}` - rellenados cuando arranca un run, con las

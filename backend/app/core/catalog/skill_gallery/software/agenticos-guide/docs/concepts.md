@@ -301,6 +301,7 @@ correctly:
 | `failed` | broke |
 | `budget_exceeded` | reached a cap — a spending limit doing its job |
 | `guardrail_blocked` | was refused by a [guardrail](reference/capabilities.md#guardrails) |
+| `loop_stopped` | kept repeating the same tool calls after it was warned, and was [stopped](governance.md#step-limits) |
 | `cancelled` | was stopped: the composer's stop button, a socket that went away, a delegation cancelled from above. On every surface, not only the streaming one |
 | `awaiting_approval` | parked on an approval, and is **resumable** — its message history is stored, so the decision applies to the conversation it belongs to |
 

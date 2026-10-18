@@ -99,6 +99,7 @@ async def _run(
     provider: str | None = None,
     model_label: str | None = None,
     cost: Decimal = Decimal("0"),
+    tool_args_repaired: int = 0,
 ) -> AgentRunModel:
     run = AgentRunModel(
         id=uuid.uuid4(),
@@ -110,6 +111,7 @@ async def _run(
         provider=provider,
         model_label=model_label,
         cost_usd=cost,
+        tool_args_repaired=tool_args_repaired,
         started_at=started_at,
         ended_at=(
             started_at + timedelta(seconds=duration_seconds)
@@ -678,6 +680,7 @@ class TestTheGroupingSetsBreakdown:
             model_label="claude-sonnet-5",
             provider="anthropic",
             cost=Decimal("0.70"),
+            tool_args_repaired=3,
         )
 
         breakdown = await agent_run_repo.window_breakdown(
@@ -688,9 +691,12 @@ class TestTheGroupingSetsBreakdown:
         # happens to be missing its surface: GROUPING tells the two apart.
         assert dict(breakdown.by_surface) == {"web": 1, "embed": 1}
         assert dict(breakdown.by_status) == {RunStatus.COMPLETED.value: 2}
-        assert {(model, provider): runs for model, provider, runs in breakdown.by_model} == {
-            (None, None): 1,
-            ("claude-sonnet-5", "anthropic"): 1,
+        assert {
+            (model, provider): (runs, repaired)
+            for model, provider, runs, repaired in breakdown.by_model
+        } == {
+            (None, None): (1, 0),
+            ("claude-sonnet-5", "anthropic"): (1, 3),
         }
         assert dict(breakdown.by_provider) == {None: Decimal("0.30"), "anthropic": Decimal("0.70")}
         assert breakdown.by_day == [(START.date(), 2, 2, Decimal("1.00"))]

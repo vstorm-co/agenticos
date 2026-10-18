@@ -247,6 +247,21 @@ ones ship with the product; you can write your own under
 **Settings → Slash commands**, and hide any built-in you never use. They are
 yours, not the organization's.
 
+**`@` points the agent at something.** Type `@` and a menu offers what the agent
+can use, in this order: its MCP servers, the agents it hands work to (with the
+delegation capability on), its capabilities - **Sandbox**, **Web research** -
+its skills, then its knowledge bases and context files. The pick stays in your
+text as `@Name`, marked with its logo, and the agent is told to use it - a
+server's tools, a capability's tools, a knowledge base's search, a skill -
+without the thing's content being pasted in. Naming an agent hands it the work;
+it never changes who answers. Delete the `@Name` and the pick is gone. A link you
+paste shows its site's icon above the box and in the sent message. A mention never
+widens what the agent may reach: the server checks each one again as you, against
+what the agent already has. In the Builder's test panel the menu reads the draft
+you are testing. While a conversation is empty, the box cycles through examples
+built from what the agent can use - its server, a capability, a delegate, a
+skill - and `/`; they are gone the moment you click into it.
+
 **While the agent works**, what you send waits for its answer, as in any chat:
 it sits in a queue above the composer and goes out when the run ends. Drag a
 queued message, or use its arrows, to change the order. **Send now** puts it into
@@ -270,6 +285,16 @@ with everything it has done so far, and goes on drawing it as it arrives.
 the keyboard and the conversation stays on its last message while it opens,
 Enter starts a new line, and attaching a file or dictating sits behind one
 **+**. Fields are never small enough for iOS to zoom into them.
+
+**Drawings.** An agent with [Visuals](reference/capabilities.md#visuals) draws
+under its message - a diagram, an explainer with sliders, a 3D scene - and you watch
+it appear while it is written; its scripts start once it is complete. The panel shows
+the whole drawing, sized to the conversation, with buttons to open it full screen,
+show its code, download it, copy an SVG as an image, zoom in, and save it as an
+[app](artifacts.md#visuals) with a link you can share. When a drawing reports an
+error, the agent has already been told; **Fix it** asks again. On a phone a tap opens
+it full screen. The dashboard's **Recent visuals** card shows the latest ones drawn for
+you, each opening the conversation it was drawn in.
 
 **Watching a browse.** When an agent with the
 [web browser](reference/capabilities.md#browser-automation) starts on a page, its

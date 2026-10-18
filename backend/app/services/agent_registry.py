@@ -1097,9 +1097,15 @@ class AgentRegistryService:
         ]
 
     async def install_template(
-        self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.PRIVATE
+        self, ctx: AuthContext, key: str, *, visibility: Visibility = Visibility.ORG
     ) -> TemplateInstallResult:
         """Create a draft agent from a shipped template, with its skills.
+
+        Visible to the organization, as an agent from the create form is. The
+        reason `create` defaults to private - a copy must not publish somebody's
+        private instructions to the tenant - does not reach a template: its
+        instructions ship with the product. Installed private, every template
+        agent had to be found and re-shared by hand before a colleague could see it.
 
         A **draft**, deliberately. The template cannot name a model - this
         platform has no organization-wide default, because a model an agent did
@@ -1155,10 +1161,11 @@ class AgentRegistryService:
         # The least-exposing value, deliberately. `org` is what a person picks in
         # the create form, and `AgentCreate.visibility` carries that choice to the
         # route - so the default here only ever reaches the callers that make an
-        # agent without anybody choosing: a clone, a promoted specialist, a
-        # template install. Defaulting those to `org` published a copy of a
-        # private agent to the whole tenant, which is what a colleague then read
-        # the instructions out of.
+        # agent without anybody choosing: a clone and a promoted specialist.
+        # Defaulting those to `org` published a copy of a private agent to the
+        # whole tenant, which is what a colleague then read the instructions out
+        # of. A template install passes `org` itself: its instructions ship with
+        # the product.
         visibility: Visibility = Visibility.PRIVATE,
         categories: list[str] | None = None,
         tags: list[str] | None = None,
@@ -1418,6 +1425,15 @@ class AgentRegistryService:
             problems.add(["No model selected - pick one before publishing"])
         else:
             problems.add(await self._model_profile_problems(ctx, spec.model_profile_id))
+        # And each reviewer's, refused here rather than when a run first reaches
+        # its cadence and finds nothing to review with.
+        for reviewer in spec.reviewers:
+            if reviewer.model_profile_id is None:
+                problems.add([f"Reviewer '{reviewer.name}': pick the model it reviews with"])
+            else:
+                problems.add(await self._model_profile_problems(ctx, reviewer.model_profile_id))
+            if not reviewer.instructions.strip():
+                problems.add([f"Reviewer '{reviewer.name}': say what it looks for"])
 
         problems.add(await self._collection_problems(ctx, spec.collection_ids))
         problems.add(await self._skill_problems(ctx, spec.skill_ids))

@@ -1,5 +1,5 @@
 ---
-source_sha: "1986f3e8ba0a"
+source_sha: "365083b43da8"
 ---
 
 # Ein Modell wählen { #choosing-a-model }
@@ -74,6 +74,17 @@ technische Entscheidung, nicht nur die günstigere.
     eskalieren können. Wählen Sie das, wenn Datenresidenz es verlangt oder Ihr
     Volumen die Hardware wirklich weit übersteigt — nicht, um bei vierzig
     Unterhaltungen am Tag Geld zu sparen.
+
+**Kaputte Tool-Aufrufe werden repariert und gezählt.** Modelle mit offenen
+Gewichten senden einen Tool-Aufruf mit fehlerhaftem JSON - ein Komma am Ende,
+einfache Anführungszeichen, ein abgeschnittenes Objekt - weit häufiger als
+Frontier-Modelle. Jeder Agent repariert die Syntax, bevor die Argumente validiert
+werden, sodass ein kaputter Aufruf sein Tool beim ersten Versuch erreicht, statt
+eine Wiederholung zu kosten; ein fehlendes Feld oder ein falscher Typ scheitert
+weiterhin an der Validierung, und ein reparierter Aufruf durchläuft weiterhin
+Freigabe und Guardrails. Jeder Run zählt seine Reparaturen, sichtbar am Run und
+pro Modell auf der Modellkarte des Dashboards - ein Modell, das viele braucht,
+ist eines, das man überdenken sollte.
 
 ## Ein Gateway davorsetzen { #putting-a-gateway-in-front }
 

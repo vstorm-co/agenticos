@@ -1,7 +1,7 @@
 """Agents served over A2A, and remote A2A agents to delegate to (#2092).
 
-Revision ID: 0135_external_agents
-Revises: 0134_channel_prompt_free_text
+Revision ID: 0139_external_agents
+Revises: 0138_visuals
 Create Date: 2026-10-16
 """
 
@@ -12,8 +12,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0135_external_agents"
-down_revision: str | None = "0134_channel_prompt_free_text"
+revision: str = "0139_external_agents"
+down_revision: str | None = "0138_visuals"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

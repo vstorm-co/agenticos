@@ -1,5 +1,5 @@
 ---
-source_sha: "3409285bde3b"
+source_sha: "1eecb93af547"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -1034,6 +1034,29 @@ hier angelegten Entwurf veröffentlicht eine Person in der Konsole.
 Verbundene Anwendungen stehen unter **Einstellungen → MCP-Clients**, wo das
 Trennen ihren Zugriff samt jedem Token beendet. Aufrufe, die etwas ändern,
 warten auf eine Freigabe, wie [oben](#which-calls-wait-for-a-person) beschrieben.
+
+### Ihn einem Agent geben { #giving-it-to-an-agent }
+
+Derselbe Server ist auch eine MCP-Bindung, die jeder Agent haben kann, sodass ein
+Agent „was ist gestern fehlgeschlagen“ oder „welche Agents nutzen diese
+Wissensbasis“ aus den eigenen Daten der Plattform beantwortet. Im Builder ist er
+die erste Karte unter **MCP-Server**, benannt nach dieser Installation; sie
+einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes}]`.
+
+- **Er handelt als die Person, für die der Agent läuft.** Ein Run erzeugt einen
+  kurzlebigen Schlüssel mit den Berechtigungen dieser Person, sodass der Agent
+  eines Viewers liest, was der Viewer lesen darf, und nichts anlegt. Nichts Neues
+  wird gewährt, und wo niemand hinter dem Run steht - ein öffentliches Widget, ein
+  Zeitplan im Namen von niemandem - fehlt die Bindung.
+- **Änderungen warten auf Freigabe.** `writes`, der Standard, hält jedes Werkzeug,
+  das etwas ändert (`create_agent_draft`, `run_agent`, `invite_member` und die
+  übrigen), zur Freigabe zurück; `all` auch das Lesen. `none` wird nicht
+  angeboten: Diese Werkzeuge handeln mit der Befugnis eines Menschen.
+- **Die Werkzeuge lassen sich einschränken** in den Einstellungen der Karte, die
+  jedes Werkzeug auflisten und die ändernden markieren.
+
+Die Vorlage **Claude Code like** bindet ihn genau so, sodass ein neuer Agent daraus
+die Plattform sofort nachschlagen kann.
 
 ## Was MCP Ihnen nicht bringt { #what-mcp-does-not-get-you }
 

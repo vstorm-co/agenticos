@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.mention import MentionKind
 
 if TYPE_CHECKING:
     from app.db.models.user import User
@@ -47,6 +48,10 @@ class MessagePart(BaseSchema):
 
     A `steer` entry is what the person added while the agent was working, stored
     where it reached the model (#2087): the transcript says when the course changed.
+
+    A `mention` entry is on a *user* turn: something the person pointed the agent at
+    with `@` (#2189), stored by kind, id and name so the transcript draws the chip
+    they picked rather than text that only looks like one.
     """
 
     # The one schema in this module that must not strip its strings. `BaseSchema`
@@ -61,7 +66,7 @@ class MessagePart(BaseSchema):
         str_strip_whitespace=False,
     )
 
-    type: Literal["text", "thinking", "tool", "ask_user", "steer"] = Field(
+    type: Literal["text", "thinking", "tool", "ask_user", "steer", "mention"] = Field(
         description="What this entry is."
     )
     text: str | None = Field(
@@ -84,6 +89,12 @@ class MessagePart(BaseSchema):
             "agent asked it itself, and on every question stored before this field "
             "existed."
         ),
+    )
+    mention_kind: MentionKind | None = Field(
+        default=None, description="What was mentioned, for a `mention` entry."
+    )
+    mention_id: str | None = Field(
+        default=None, description="Which one, for a `mention` entry; its name is in `text`."
     )
 
 
@@ -157,8 +168,8 @@ class MessageCreate(MessageBase):
     parts: list[MessagePart] | None = Field(
         default=None,
         description=(
-            "The turn's timeline, in the order it happened. Null on a user turn and "
-            "on any assistant turn written before it was recorded."
+            "The turn's timeline, in the order it happened, or a user turn's "
+            "`mention` entries. Null on any turn written before it was recorded."
         ),
     )
     tokens_used: int | None = Field(default=None, ge=0, description="Token count")
@@ -167,6 +178,14 @@ class MessageCreate(MessageBase):
     )
     output_tokens: int | None = Field(
         default=None, ge=0, description="Completion tokens this turn produced"
+    )
+    cache_read_tokens: int | None = Field(
+        default=None, ge=0, description="Of the prompt tokens, those read from the provider's cache"
+    )
+    cache_write_tokens: int | None = Field(
+        default=None,
+        ge=0,
+        description="Of the prompt tokens, those written to the provider's cache",
     )
     cost_usd: Decimal | None = Field(
         default=None, ge=0, description="What this turn cost, at the same scale as a run's"
@@ -292,6 +311,20 @@ class MessageRead(MessageBase, TimestampSchema):
         ),
     )
     output_tokens: int | None = None
+    cache_read_tokens: int | None = Field(
+        default=None,
+        description=(
+            "Of `input_tokens`, those served from the provider's cache - priced at a "
+            "fraction of the input rate. Null when not recorded"
+        ),
+    )
+    cache_write_tokens: int | None = Field(
+        default=None,
+        description=(
+            "Of `input_tokens`, those written to the provider's cache - priced above "
+            "the input rate. Null when not recorded"
+        ),
+    )
     cost_usd: Decimal | None = None
     cost_is_partial: bool | None = Field(
         default=None,

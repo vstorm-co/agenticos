@@ -1,4 +1,5 @@
 import type { ChatPerson } from "./conversation";
+import type { Mentionable } from "./mention";
 
 export type MessageRole = "user" | "assistant" | "system";
 /** Rating values for message feedback. */
@@ -44,6 +45,8 @@ export interface ChatMessage {
   fileIds?: string[];
   /** Full file metadata for rendering attachments. */
   files?: ChatMessageFile[];
+  /** What a person's message pointed the agent at with `@`, drawn as chips (#2189). */
+  mentions?: Mentionable[];
   /** Conversation ID for this message */
   conversationId?: string;
   /** Who typed a user turn, when it was somebody signed in. In a project's chat
@@ -222,6 +225,7 @@ export type WSEventType =
   | "thinking_delta"
   | "part_start"
   | "tool_call_delta"
+  | "visual_images"
   | "tool_call"
   | "tool_result"
   | "final_result"
@@ -350,6 +354,10 @@ export interface BrowserFrame {
 export interface TurnUsage {
   input_tokens: number;
   output_tokens: number;
+  /** Of `input_tokens`, those read from the provider's cache - priced at a fraction. */
+  cache_read_tokens?: number | null;
+  /** Of `input_tokens`, those written to the provider's cache - priced above it. */
+  cache_write_tokens?: number | null;
   /** The turn's cost as a Decimal string, the shape every REST surface uses. */
   cost_usd: string;
   /**

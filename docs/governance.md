@@ -853,11 +853,81 @@ The other kind of runaway is a tool loop: cheap per call, and it never finishes.
 budget only bills for that. `max_steps` caps how many model requests one run may
 make and is what actually stops it.
 
+The loop guard stops most loops sooner, and says why. Every agent has it, on by
+default. When a run calls one tool with the same arguments four times in a row,
+or goes round a cycle of two or three calls three times, the model is told it is
+looping and to change approach. If the calls after that warning loop again, the
+run ends as `loop_stopped`, with a reason naming the tools - never their
+arguments. Calls with different arguments are never a loop, and only the run's
+own calls count. The Builder sets both thresholds, or switches the guard off,
+beside `max_steps` (`loop_guard` in the spec).
+
+### Run reviewers { #run-reviewers }
+
+A long run drifts: instructions fade, claims pile up without a source, the agent
+wanders off the request. An agent can carry up to five reviewers (`reviewers` in
+the spec, *Run reviewers* in the Builder beside the limits), each a second,
+usually cheaper model with one concern. Every `every` model requests a reviewer
+reads the most recent `window` tokens of the run and either lets it be or sends
+one short correction, which the run's model receives on its next request with the
+reviewer's name on it. The run view lists each correction and who sent it.
+
+A reviewer's calls are checked against the agent's and the organization's budget
+before they are made and booked on the run, priced as the reviewer's model. One
+refused for budget is skipped, and a reviewer that fails is logged; neither fails
+the run. An agent without a reviewer makes no extra model calls.
+
+### Code mode { #code-mode }
+
+An agent that works through records - update ten rows, then summarise them - pays
+a model turn per dependent call, and every turn re-sends the whole context. With
+*Code mode* on (`code_mode` in the spec, beside the limits in the Builder) the
+agent's tools are folded into one `run_code` tool: the model writes a short Python
+script that runs in the Monty sandbox and calls the tools in loops and in
+parallel, up to `max_tool_calls` per script.
+
+At most four of a script's calls run at once, and the rest wait, so a script
+fanning out over hundreds of sandboxed calls cannot open them all together.
+
+Each call from a script goes through the same guardrails, budget and permission
+checks as a direct call. A tool that needs approval is never folded in: it stays
+an ordinary call, and the run stops for the person as it always does. The run view
+lists each script and every call it made.
+
 ### Reporting
 
 A run that could not be priced - a model `genai-prices` does not know - is
 recorded at zero with a warning and the total is flagged as a **floor** rather
 than guessed at. The UI shows that as a `+` next to the figure.
+
+**Cache reads and writes are kept apart.** A run's input tokens include the ones
+the provider served from its prompt cache and the ones it wrote to it, and the
+three are priced apart - on Claude Sonnet 5.5 a cache read costs 5% of the input
+rate and a write 125%. Each run and each answer stores `cache_read_tokens` and
+`cache_write_tokens` beside the total, the cost is priced from that split, and the
+run view and the cost under each answer show it - which is what reconciles a run
+with the provider's console.
+
+**A run's cost includes its delegations.** The run somebody started carries the
+whole ledger, delegates included; a delegation's own row divides the same money by
+agent, and the run view says its delegations are already inside the figure above
+them. Adding the two counts the delegations twice.
+
+**A prompt cache that stops hitting is flagged.** Caching pays only while the
+start of each request stays identical; a reordered tool list or a timestamp in
+the instructions makes the provider charge full price for tokens it had cached.
+Every agent reads the provider's own cache figures on each response, and a
+request whose cached prefix collapsed is marked in the run's request waterfall -
+*cache bust* while the provider should still have held it, *cache expired* once
+its retention passed - with how many cached tokens it did not read back, and logged with
+the agent and model. The first request of a turn is compared with what the
+previous turn cached, when the same API worker serves both.
+
+The counts are kept on each run, so **Runs → Spend** adds up where the cache did
+not hold: a *Prompt cache* card, one row per agent and model, with its busts,
+expiries and the cached tokens they did not read back over the window - a
+measure of the miss, not of what was billed again, since a compaction can also
+shrink the prompt the cache held. The card is not shown while every cache held.
 
 ## Approvals
 

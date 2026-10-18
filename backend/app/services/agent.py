@@ -11,10 +11,9 @@ Framework-specific concerns (multimodal input, streaming events) stay in the rou
 
 import json
 import logging
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -37,6 +36,7 @@ from app.schemas.conversation import (
     ToolCallComplete,
     ToolCallCreate,
 )
+from app.schemas.mention import Mentionable
 from app.services.conversation import ConversationService
 from app.services.project import ProjectService
 from app.services.transcript import what_arrived
@@ -207,6 +207,7 @@ async def persist_user_turn(
     organization_id: UUID,
     project_id: str | None = None,
     reply_to: str | None = None,
+    mentions: Sequence[Mentionable] = (),
 ) -> PersistedPrompt:
     """Resolve the conversation, persist the user message, and link any uploaded files.
 
@@ -293,7 +294,21 @@ async def persist_user_turn(
                 )
             user_msg = await conv_service.add_message(
                 UUID(current_conversation_id),
-                MessageCreate(role="user", content=content, reply_to_message_id=replied),
+                MessageCreate(
+                    role="user",
+                    content=content,
+                    reply_to_message_id=replied,
+                    parts=[
+                        MessagePart(
+                            type="mention",
+                            mention_kind=mention.kind,
+                            mention_id=mention.id,
+                            text=mention.name,
+                        )
+                        for mention in mentions
+                    ]
+                    or None,
+                ),
                 organization_id=organization_id,
                 user_id=user.id,
             )
@@ -406,8 +421,8 @@ async def persist_assistant_turn(
     try:
         async with get_db_context() as db:
             conv_service = get_conversation_service(db)
-            spent_in, spent_out, spent_usd = (
-                (0, 0, Decimal(0))
+            spent = (
+                conversation_repo.Attributed()
                 if run_id is None
                 else await conversation_repo.attributed_to_run(db, run_id)
             )
@@ -434,9 +449,19 @@ async def persist_assistant_turn(
                     # cumulative, so stamping both with it counts the parked half
                     # twice. Nothing is attributed yet on an ordinary turn, where
                     # the difference is the whole of it.
-                    input_tokens=None if usage is None else usage.input_tokens - spent_in,
-                    output_tokens=None if usage is None else usage.output_tokens - spent_out,
-                    cost_usd=None if usage is None else usage.cost_usd - spent_usd,
+                    input_tokens=None if usage is None else usage.input_tokens - spent.input_tokens,
+                    output_tokens=None
+                    if usage is None
+                    else usage.output_tokens - spent.output_tokens,
+                    cache_read_tokens=(
+                        None if usage is None else usage.cache_read_tokens - spent.cache_read_tokens
+                    ),
+                    cache_write_tokens=(
+                        None
+                        if usage is None
+                        else usage.cache_write_tokens - spent.cache_write_tokens
+                    ),
+                    cost_usd=None if usage is None else usage.cost_usd - spent.cost_usd,
                     # Beside the total, because without it the total lies: a turn
                     # that reached an unpriced model is booked at zero for that
                     # request, and rendered identically to one measured exactly

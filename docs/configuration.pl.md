@@ -1,5 +1,5 @@
 ---
-source_sha: "d81e5264a713"
+source_sha: "8b507fb78e82"
 ---
 
 # Konfiguracja { #configuration }
@@ -59,6 +59,7 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na które może wskazywać self-hostowana usługa pamięci mem0. `base_url` pochodzi ze speca agenta, więc bez allowlisty Builder, który może podpiąć (ale nie odczytać) współdzielony klucz mem0, mógłby wycelować go we własny serwer i przechwycić klucz z nagłówka żądania. Pusta wartość odrzuca self-hostowane mem0 i dopuszcza wyłącznie zarządzaną chmurę; dodaj zaufaną nazwę hosta, aby włączyć wdrożenie self-hosted. Zobacz [sekrety](secrets.md) |
 | `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Nazwy hostów, na których agent może prowadzić Chromium. `cdp_url` pochodzi ze speca agenta, który pisze każdy z uprawnieniem `edit` na tym agencie, więc adres jest kontrolowany przez tenanta, a żądanie wykonuje to wdrożenie — dokładnie ten kształt problemu, dla którego istnieje `MEM0_ALLOWED_HOSTS`, i powód, dla którego jest to allowlista, a nie guard SSRF, przez który przechodzi każdy inny adres podany przez tenanta. Ten guard dopuszcza wyłącznie adresy *publiczne*, więc odrzuca izolowaną usługę przeglądarki w sieci samego wdrożenia, którą [capability](reference/capabilities.md#browser-automation) każe uruchomić, a przyjmuje debugger CDP wystawiony do internetu, co jest gorsze. Dopasowanie jest dokładne i niewrażliwe na wielkość liter, bez globów. Pusta wartość odrzuca automatyzację przeglądarki całkowicie |
 | `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Przeglądarka, w której osoba loguje się do strony z **Ustawienia → Logowania**, gdzie żaden agent jej nie wskazuje - usługa `browser` z compose to `http://browser:9222`. Jej host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Strona musi mieć publiczny adres i oglądać ją może tylko osoba, która ją otworzyła. Puste ukrywa tę opcję |
+| `VISUAL_RENDER_CDP_URL` | `""` (puste) | Przeglądarka, którą [wizual](reference/capabilities.md#visuals) jest rysowany do obrazka tam, gdzie nie działa ramka - w odpowiedzi na Slacku, Telegramie czy Mattermoście i w miniaturze strony na dashboardzie. Serwis `browser` z compose to `http://browser:9222`; jego host musi być w `BROWSER_CDP_ALLOWED_HOSTS`. Rysunek niczego stamtąd nie osiąga: każde jego żądanie obsługuje wdrożenie albo je odrzuca. Puste wysyła do aplikacji czatu odpowiedź bez obrazka |
 | `BROWSER_EGRESS_PROXY` | `""` (empty); compose ustawia `http://browser-egress:3128` | Proxy, przez które przeglądarka wdrożenia łączy się z każdą stroną. Usługa `browser-egress` z compose to `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): sama rozwiązuje każdy host, odrzuca adresy prywatne, loopback, link-local i metadanych i łączy się z adresem, który sprawdziła, więc ani przekierowanie, ani DNS rebinding nie wprowadzi strony do wnętrza sieci. Używane przez każde przeglądanie bez proxy organizacji i nie na przeglądarce hostowanej. Wewnętrzne narzędzie, które agent ma przeglądać, wymaga wyjątku w `docker/browser-egress/squid.conf`. Puste wypuszcza przeglądarkę bezpośrednio: ustaw `BROWSER_EGRESS_PROXY=` w głównym `.env` tylko dla przeglądarki spoza compose, która nie dosięgnie proxy. Bez proxy każda strona jest sprawdzana przy pierwszym żądaniu w karcie, a potem przeglądarka sama rozwiązuje jej nazwę, więc nazwa, która później w tej samej karcie wskaże adres prywatny, nie zostanie wychwycona |
 | `FILE_IO_MAX_WORKERS` | `8` | Rozmiar dedykowanej puli wątków, która wykonuje blokującą pracę na plikach — parsowanie uploadu oraz odczyt i zapis jego bajtów. Trzymana poza domyślnym współdzielonym executorem `asyncio`, który obsługuje też `bcrypt` i DNS przypiętych hostów, żeby fala uploadów nie zostawiła logowania i wychodzących żądań w kolejce za nimi ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Podnieś ją na hoście, który parsuje wiele uploadów naraz. Musi być dodatnią liczbą całkowitą — `0` lub wartość ujemna zostaje odrzucona przy starcie |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Jak długo może trwać pojedyncza konwersja DOC na tekst przez LibreOffice, zanim zostanie zabita. Znacznie poniżej 600s bazy wiedzy, bo to interaktywny upload |
@@ -441,6 +442,10 @@ każdy run zaplanowany w czasie, gdy go nie było, i startuje tyle, na ile pozwa
 limit. Bez limitu trzy dni przestoju to 71 procesów i 6 GiB. Podnieś go, jeśli
 ingestia kolejkuje się za synchronizacjami na maszynie z zapasem pamięci; obniż na
 małym hoście.
+
+Zaplanowane sweepy niewiele do tej zaległości dokładają: każdy wykonuje jeden
+tick naraz, a resztę zaległych ticków serwer odrzuca, zanim runner uruchomi dla
+nich proces. Wyjątkiem są raporty użycia, bo każdy run obejmuje własny okres.
 
 Dwie zmienne `PREFECT_RUNNER_SERVER_*` należą do Prefecta, a pliki compose
 przypinają je, żeby kontener runnera miał status zdrowia, który coś znaczy. Runner

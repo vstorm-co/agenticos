@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "6172cb7982f8"
 ---
 
 # Governance { #governance }
@@ -901,11 +901,92 @@ La otra clase de desbocamiento es un bucle de herramientas: barato por llamada, 
 termina nunca. Un budget solo factura eso. `max_steps` limita cuántas peticiones al
 modelo puede hacer un run y es lo que de verdad lo detiene.
 
+El guardián de bucles detiene la mayoría antes, y dice por qué. Lo tiene cada
+agente, activado por defecto. Cuando un run llama a una herramienta con los
+mismos argumentos cuatro veces seguidas, o recorre tres veces un ciclo de dos o
+tres llamadas, se le dice al modelo que está en un bucle y que cambie de enfoque.
+Si las llamadas tras ese aviso vuelven a entrar en bucle, el run termina como
+`loop_stopped`, con un motivo que nombra las herramientas - nunca sus
+argumentos.
+
+Llamadas con argumentos distintos nunca son un bucle, y solo cuentan
+las llamadas del propio run. El Builder fija ambos umbrales, o apaga el
+guardián, junto a `max_steps` (`loop_guard` en el spec).
+
+### Revisores del run { #run-reviewers }
+
+Un run largo deriva: las instrucciones se desvanecen, se acumulan afirmaciones sin
+fuente, el agente se aleja de la petición. Un agente puede llevar hasta cinco
+revisores (`reviewers` en el spec, *Revisores del run* en el Builder junto a los
+límites), cada uno un segundo modelo, normalmente más barato, con un solo
+cometido. Cada `every` peticiones al modelo un revisor lee los últimos `window`
+tokens del run y lo deja seguir o envía una corrección breve, que el modelo del
+run recibe en su siguiente petición con el nombre del revisor. La vista del run
+lista cada corrección y quién la envió.
+
+Las llamadas de un revisor se comprueban contra el budget del agente y de la
+organización antes de hacerse y se anotan en el run, al precio del modelo del
+revisor. Una rechazada por el budget se omite, y un revisor que falla queda
+registrado; ninguna de las dos hace fallar el run. Un agente sin revisor no hace
+llamadas de modelo adicionales.
+
+### Modo código { #code-mode }
+
+Un agente que recorre registros - actualiza diez filas y luego las resume - paga
+un turno de modelo por cada llamada dependiente, y cada turno reenvía todo el
+contexto. Con el *Modo código* activado (`code_mode` en el spec, junto a los
+límites en el Builder) las herramientas del agente se pliegan en una sola
+herramienta `run_code`: el modelo escribe un script corto de Python que corre en
+el sandbox Monty y llama a las herramientas en bucles y en paralelo, hasta
+`max_tool_calls` por script.
+
+Como mucho cuatro llamadas de un script corren a la vez y el resto espera, así que
+un script que reparte cientos de llamadas en el sandbox no puede abrirlas todas
+juntas.
+
+Cada llamada desde un script pasa por los mismos guardrails, el mismo budget y
+las mismas comprobaciones de permisos que una llamada directa. Una herramienta
+que necesita aprobación nunca se pliega: sigue siendo una llamada normal, y el run
+se detiene para la persona como siempre. La vista del run lista cada script y
+cada llamada que hizo.
+
 ### Informes { #reporting }
 
 Un run que no se pudo tarifar — un modelo que `genai-prices` no conoce — se registra
 a cero con un aviso y el total se marca como un **suelo** en vez de adivinarse. La UI
 lo muestra como un `+` junto a la cifra.
+
+**Las lecturas y escrituras de caché se llevan aparte.** Los tokens de entrada de
+un run incluyen los que el proveedor sirvió desde su caché de prompts y los que
+escribió en ella, y los tres se tarifan aparte - en Claude Sonnet 5.5 una lectura
+de caché cuesta el 5 % de la tarifa de entrada y una escritura el 125 %. Cada run
+y cada respuesta guardan `cache_read_tokens` y `cache_write_tokens` junto al
+total, el coste se calcula a partir de ese reparto, y la vista del run y el coste
+bajo cada respuesta lo muestran - que es lo que concilia un run con la consola del
+proveedor.
+
+**El coste de un run incluye sus delegaciones.** El run que alguien inició lleva
+todo el ledger, delegados incluidos; la fila propia de una delegación reparte el
+mismo dinero por agente, y la vista del run dice que sus delegaciones ya están
+dentro de la cifra de arriba. Sumar ambas cuenta las delegaciones dos veces.
+
+**Una caché de prompts que deja de acertar se señala.** La caché solo compensa
+mientras el principio de cada petición sigue idéntico; una lista de herramientas
+reordenada o una marca de tiempo en las instrucciones hacen que el proveedor
+cobre a precio completo tokens que tenía en caché. Cada agente lee las cifras de
+caché del proveedor en cada respuesta, y una petición cuyo prefijo en caché se
+hundió se marca en la cascada de peticiones del run - *caché rota* cuando el
+proveedor aún debía conservarla, *caché caducada* cuando pasó su retención - con
+cuántos tokens en caché no leyó, y se registra con el agente y el modelo.
+La primera petición de un turno se compara con lo que guardó el turno anterior,
+cuando el mismo worker de API atiende ambos.
+
+Los recuentos se guardan en cada run, así que **Runs → Spend** suma dónde no
+aguantó la caché: una tarjeta *Prompt cache*, una fila por agent y modelo, con
+sus busts, expiraciones y los tokens en caché que no se leyeron de vuelta en la
+ventana - una medida del fallo, no de lo que se volvió a cobrar, ya que una
+compactación también puede acortar el prompt que la caché guardaba.
+La tarjeta no aparece mientras todas las cachés aguantaron.
 
 ## Aprobaciones { #approvals }
 

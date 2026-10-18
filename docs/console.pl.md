@@ -1,5 +1,5 @@
 ---
-source_sha: "9d87b1a0a462"
+source_sha: "feaf26c4bab8"
 ---
 
 # Konsola { #the-console }
@@ -259,6 +259,20 @@ Wbudowane przychodzą razem z produktem; własne możesz napisać w
 **Settings → Slash commands**, a każdą wbudowaną, z której nie korzystasz,
 ukryć. Należą do ciebie, nie do organizacji.
 
+**`@` wskazuje agentowi, czego użyć.** Wpisz `@`, a menu pokaże, czego agent może
+użyć, w tej kolejności: jego serwery MCP, agentów, którym przekazuje pracę (przy
+włączonej capability delegowania), jego capabilities - **Sandbox**, **Web
+research** - jego skille, a potem bazy wiedzy i pliki kontekstu. Wybór zostaje w
+twoim tekście jako `@Nazwa`, oznaczony swoim logo, a agent dostaje polecenie, by z
+niego skorzystał - z narzędzi serwera, narzędzi capability, wyszukiwania w bazie
+wiedzy, skilla - bez wklejania samej treści. Wskazanie agenta przekazuje mu pracę;
+nigdy nie zmienia tego, kto odpowiada. Usuń `@Nazwa`, a wybór znika. Wklejony link
+pokazuje ikonę swojej strony nad polem i w wysłanej wiadomości. Wzmianka nigdy nie
+poszerza tego, do czego agent sięga: serwer sprawdza każdą ponownie jako ty, wobec
+tego, co agent już ma. W panelu testowym Buildera menu czyta testowany szkic. Dopóki rozmowa jest pusta, pole pokazuje po kolei
+przykłady zbudowane z tego, czego agent może użyć - jego serwera, capability,
+delegata, skilla - oraz `/`; znikają, gdy tylko w nie klikniesz.
+
 **Gdy agent pracuje**, to, co wysyłasz, czeka na jego odpowiedź, jak w każdym
 czacie: stoi w kolejce nad kompozytorem i wychodzi, gdy run się skończy.
 Przeciągnij wiadomość w kolejce albo użyj jej strzałek, żeby zmienić kolejność.
@@ -284,6 +298,16 @@ klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera,
 Enter zaczyna nową linię, a załącznik i
 dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
 przybliżał.
+
+**Rysunki.** Agent z [Wizualizacjami](reference/capabilities.md#visuals) rysuje pod
+swoją wiadomością - diagram, explainer z suwakami, scenę 3D - a ty widzisz, jak powstaje
+w trakcie pisania; jego skrypty startują po zakończeniu. Panel pokazuje cały rysunek,
+dopasowany do rozmowy, z przyciskami do pełnego ekranu, pokazania kodu, pobrania,
+skopiowania SVG jako obrazu, powiększenia i zapisu jako
+[aplikacji](artifacts.md#visuals) z linkiem do udostępnienia. Gdy rysunek zgłosi błąd,
+agent już o nim wie; **Napraw** prosi go ponownie. Na telefonie stuknięcie otwiera go na
+pełnym ekranie. Karta **Ostatnie wizualizacje** na dashboardzie pokazuje najnowsze
+rysunki zrobione dla ciebie, a każdy otwiera rozmowę, w której powstał.
 
 **Oglądanie przeglądania.** Gdy agent z
 [przeglądarką](reference/capabilities.md#browser-automation) zaczyna na stronie, jego

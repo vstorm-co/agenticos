@@ -113,6 +113,160 @@ Two things are versioned separately from this file and worth knowing about:
   a second box inside it; JSON and the Source view of Markdown and HTML are
   coloured too.
 
+## [1.5.0] - 2026-10-18
+
+### Added
+
+- **The AgenticOS MCP server for any agent** (#2190). The platform's own MCP
+  server is the first card under an agent's **MCP servers**: switched on, the
+  agent reads the platform's agents, runs, spend, knowledge bases, skills and
+  members as whoever it runs for, with exactly their permissions, and every
+  tool that changes something waits for approval. The card's settings narrow the tools
+  and can hold every call. The **Claude Code like** template binds it.
+  `GET /api/v1/agents/platform-mcp-tools` lists the tools a binding chooses
+  from. See [MCP](docs/mcp.md#giving-it-to-an-agent).
+- **Agents draw in the conversation** (#2171). A new **Visuals** capability
+  gives an agent `draw`, `revise_visual` and `read_visual`: an SVG diagram, a
+  Mermaid flow, or a whole HTML page with sliders, `<canvas>` or three.js,
+  drawn under its message while it is written and kept in the conversation. The
+  drawing runs in a frame with exactly an app's sandbox, and the console tells
+  the model what broke in the person's browser so it fixes it in the same turn.
+  A drawing can use a photo attached to the thread, a workspace file, or - for
+  an agent that already reads the web - a picture from an address. From the
+  panel: full screen, zoom, the code, download, copy as image, fix it, and
+  **Save to Apps** with versions. A shared thread shows its drawings, the
+  dashboard gains a **Recent visuals** card, and with `VISUAL_RENDER_CDP_URL` a
+  chat app gets the drawing as a picture. The bundled `visual-design` skill
+  carries the house style and templates; the library set gains three.js 0.186.0
+  and Mermaid 12.1.0. `seed-skills --skill` installs one bundled skill.
+- **An agent's skills, context files and knowledge bases are listed with the
+  attached ones first**, in a capability's panel, ten to a page.
+
+### Fixed
+
+- **An agent installed from a template is visible to the whole organization.**
+  It was installed private, so a colleague could not see it until somebody
+  shared it by hand. A template's instructions ship with the product, so there
+  is nothing private in them to protect; a clone or a promoted specialist
+  still starts private.
+- **A deploy that waits for its images no longer drops its connection.** The
+  deploy job's SSH session sat silent while a merge's images were still being
+  built, and the host dropped it four minutes in, failing the deploy with
+  nothing changed. It now sends keepalives for as long as the wait lasts.
+- **A conversation shared by link opens again.** Its route promised a member's
+  conversation and returned the link's narrower shape, so every link answered 500.
+
+## [1.4.0] - 2026-10-18
+
+### Added
+
+- **Prompt-cache busts are flagged on the run** (#2109). A request whose cached
+  prompt prefix collapsed is marked in the run's request waterfall - *cache
+  bust* when the prefix moved, *cache expired* when the provider's retention had
+  passed - with how many cached tokens it did not read back, and logged with the
+  agent and model. The first request of a turn is compared with what the
+  previous turn cached. The counts are kept on the run, and **Runs → Spend**
+  shows a *Prompt cache* card per agent and model with the busts, expiries and
+  cached tokens not read back over the window.
+- **Code mode: many tool calls from one sandboxed script** (#2107). An agent
+  with *Code mode* on writes a short Python script that calls its tools in loops
+  and in parallel inside the Monty sandbox, instead of one model turn per call -
+  ten record updates take one turn, not ten. Calls from a script go through the
+  same guardrails, budget and permission checks; a tool that needs approval stays
+  an ordinary call. The run view lists each script and the calls it made. Off by
+  default; switched on in the Builder beside the limits.
+- **Run reviewers: a second model that steers a run while it goes** (#2106).
+  An agent can carry up to five reviewers, each a usually cheaper model with one
+  concern ("claims without a source"). Every few requests a reviewer reads the
+  recent run and sends one short correction when it drifts; the run's model gets
+  it with the reviewer's name, and the run view lists it. Its calls are budgeted
+  and booked like the run's own, and a reviewer that cannot review never fails
+  the run. Set in the Builder beside the limits.
+- **Tool-call loops are stopped early, with the reason** (#2086). A run that
+  calls one tool with the same arguments again and again, or goes round a short
+  cycle of calls, is told it is looping; if it goes on, it ends as
+  `loop_stopped` and says which tools - before the step limit or the budget runs
+  out. On for every agent; the Builder sets the thresholds or switches it off
+  beside "Max steps". Chat apps, embeds and run notifications say why too.
+- **A run shows how much of its input the cache served** (#2170). Runs and
+  answers now keep `cache_read_tokens` and `cache_write_tokens` beside the input
+  total, in the run API, the run's request record, the run view and the cost
+  under each answer - so a run can be reconciled with the provider's console.
+  The cost was already priced from this split: the bundled prices match
+  Anthropic's current list (a Sonnet 5.5 cache read is 5% of the input rate).
+
+### Fixed
+
+- **The web chat remembers the plan between messages** (#2162). A checklist an
+  agent wrote in the chat was gone by the next message, so asking it to start
+  step two got "No plan yet." The chat now keeps the plan a turn ended on, as
+  the API, chat apps and triggers already did, and a stopped turn hands its
+  step back as still to do.
+
+### Changed
+
+- **Prompt caching on every provider that takes it** (#2169). Caching now uses
+  Pydantic AI's provider-neutral `cache` setting instead of Anthropic's and
+  OpenRouter's own flags, so Bedrock's Anthropic and Nova models and OpenAI from
+  GPT-5.6 are cached too, and providers that cache by themselves are unchanged.
+  A model profile turns it off with `cache: false`; a profile that sets a
+  provider's own flag keeps it.
+
+## [1.3.1] - 2026-10-18
+
+### Fixed
+
+- **A host that falls behind skips sweep ticks instead of running every one.**
+  Every scheduled sweep (the four minute-ticks and the slower sweeps) now runs
+  one tick at a time: Prefect refuses the tick that arrives while the previous
+  one is still running, before the runner starts a process for it. Before, every
+  tick ran: on 2026-10-17 the production host fell behind, each queued tick was
+  another process importing the application on a saturated CPU, and eight hours
+  later ~1,650 runs were Late and the API's workers were being starved into
+  restarts. On-demand deployments (ingestion, syncs, cleanup) and the usage
+  reports, whose runs each cover a period of their own, keep no limit.
+
+## [1.3.0] - 2026-10-18
+
+### Added
+
+- **Malformed tool calls are repaired instead of retried** (#2105). A model
+  that sends a tool call with broken JSON - a trailing comma, single quotes, an
+  object cut short - no longer pays for a retry: every agent repairs the syntax
+  before validation, and the call still goes through approval and guardrails.
+  Open-weight models on Ollama or vLLM do this most. Each run counts its
+  repairs, shown on the run and per model on the dashboard's model card.
+
+## [1.2.1] - 2026-10-18
+
+### Fixed
+
+- **One connection per chat-app bot, however many API workers** (#2168). With
+  two workers, every polling bot had two connections: Telegram terminated one
+  `getUpdates` after the other about fourteen times a minute, and two Mattermost
+  sockets would each receive every event. A worker now holds a bot's connection
+  under a lease in the shared Redis; the others leave it alone and take it over
+  when its holder stops.
+
+## [1.2.0] - 2026-10-17
+
+### Added
+
+- **`@`-mentions in the chat composer** (#2189). Typing `@` offers what the
+  agent can use - its MCP servers, the agents it delegates to, its capabilities
+  (`@Sandbox`, `@Web research`), skills, knowledge bases and context files - in
+  the chat, the Builder's test panel and the Architect. A pick stays in the text
+  as `@Name` with its logo; the model is told to use it, never handed its
+  content, and naming an agent hands it the work without changing who answers.
+  A pasted link shows its site's icon in the composer and the message. Mentions
+  are resolved again on the server as the person, so one can never widen what
+  the agent reaches. `GET /api/v1/agents/{id}/mentionables` lists what is
+  offered.
+- **The empty composer shows what to ask.** While a conversation has nothing in
+  it, the box cycles through examples built from the agent's own servers,
+  capabilities, delegates and skills, and `/`, sliding from one to the next;
+  clicking into it or sending clears them.
+
 ## [1.1.1] - 2026-10-16
 
 ### Fixed

@@ -123,6 +123,17 @@ describe("TriggerRow run list", () => {
     expect(drawer.getByText(/failed/)).toBeVisible();
   });
 
+  it("marks a fire the loop guard stopped as one that did not finish", async () => {
+    serveRuns([run({ id: "r1", status: "loop_stopped" })]);
+    render(<TriggerRow trigger={trigger()} />, { wrapper });
+
+    await userEvent.click(screen.getByRole("button", OPEN));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/stopped: looping/)).toBeVisible();
+    expect(dialog.querySelector(".text-destructive")).not.toBeNull();
+  });
+
   it("says what each fire cost, which the transcript could not", async () => {
     serveRuns([run()]);
     render(<TriggerRow trigger={trigger()} />, { wrapper });

@@ -12,7 +12,7 @@ from decimal import Decimal
 from importlib import import_module
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic import ValidationError
@@ -23,22 +23,29 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RequestUsage, RunUsage
+from pydantic_ai_harness import CodeMode
 
 from app.agents.audience import RunAudience
 from app.agents.capabilities import all_capabilities, load_builtins
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.capabilities.budget import BudgetScope, SpendLimit
 from app.agents.capabilities.compaction import ReportContextSize
+from app.agents.code_mode import CodeCalls
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse, PendingService
 from app.agents.factory import _AUDIENCE_AWARE, DEFAULT_MAX_STEPS, BuiltAgent, build_agent
+from app.agents.loop_guard import LoopGuard
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
+from app.agents.run_reviewer import RunReviewer
 from app.agents.spec import (
     SPEC_VERSION,
     AgentSpec,
     AlertAudience,
     AlertSpec,
+    CodeModeSpec,
+    LoopGuardSpec,
     NotificationSpec,
 )
+from app.agents.tool_repair import CountedRepair
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import ApiKeySecret
 
@@ -290,36 +297,42 @@ class TestFactory:
         assert settings["temperature"] == 0.9
         assert settings["max_tokens"] == 100
 
-    @pytest.mark.parametrize(
-        ("provider", "setting"),
-        [("anthropic", "anthropic_cache_messages"), ("openrouter", "openrouter_cache_messages")],
-    )
-    def test_a_provider_that_caches_prompts_is_asked_to_by_default(
-        self, provider: str, setting: str
-    ):
+    @pytest.mark.parametrize("provider", ["anthropic", "openrouter", "bedrock", "openai", "google"])
+    def test_every_provider_is_asked_to_cache_prompts_by_default(self, provider: str):
         """A long history re-sent uncached on every request is what drained an
-        OpenRouter account mid-run; a profile can still switch it off."""
-        on = build_agent(
+        OpenRouter account mid-run. The setting is provider-neutral, so Bedrock and
+        OpenAI are cached too, and a provider that caches implicitly ignores it (#2169)."""
+        built = build_agent(
             AgentSpec(name="x"),
             replace(_model_spec(), provider=provider),
             organization_id=uuid.uuid4(),
         )
-        off = build_agent(
+
+        assert built.agent.model_settings is not None
+        assert built.agent.model_settings.get("cache") is True
+        assert not [key for key in built.agent.model_settings if key.endswith("_cache_messages")]
+
+    @pytest.mark.parametrize(
+        ("params", "setting", "value"),
+        [
+            ({"cache": False}, "cache", False),
+            ({"cache": {"messages": False}}, "cache", {"messages": False}),
+            # A profile written against the old per-provider flags keeps them; Pydantic
+            # AI lets a provider-specific flag override the neutral setting.
+            ({"anthropic_cache_messages": False}, "anthropic_cache_messages", False),
+        ],
+    )
+    def test_a_profile_still_decides_its_own_caching(
+        self, params: dict[str, object], setting: str, value: object
+    ):
+        built = build_agent(
             AgentSpec(name="x"),
-            replace(_model_spec({setting: False}), provider=provider),
+            replace(_model_spec(params), provider="anthropic"),
             organization_id=uuid.uuid4(),
         )
 
-        assert on.agent.model_settings is not None
-        assert on.agent.model_settings.get(setting) is True
-        assert off.agent.model_settings is not None
-        assert off.agent.model_settings.get(setting) is False
-
-    def test_a_provider_without_prompt_caching_is_sent_none_of_it(self):
-        built = build_agent(AgentSpec(name="x"), _model_spec(), organization_id=uuid.uuid4())
-
         assert built.agent.model_settings is not None
-        assert not [key for key in built.agent.model_settings if "cache" in key]
+        assert built.agent.model_settings.get(setting) == value
 
     def test_ungranted_scope_stops_the_build(self):
         spec = AgentSpec(name="x", capabilities=[{"id": "knowledge"}])
@@ -658,6 +671,156 @@ class TestBudgetComposition:
         )
 
         assert self._lookups(built)[BudgetScope.AGENT] is None
+
+
+class TestRepairingToolArguments:
+    """Every agent repairs malformed tool-call arguments, first of all (#2105)."""
+
+    def test_the_repair_runs_before_every_other_hook_and_counts_on_the_built_agent(self):
+        built = build_agent(AgentSpec(name="Clerk"), _model_spec(), organization_id=uuid.uuid4())
+        attached: list[object] = []
+        built.agent.root_capability.apply(attached.append)
+
+        repair = next(one for one in attached if isinstance(one, CountedRepair))
+        gate = next(one for one in attached if isinstance(one, ApprovalGate))
+        assert attached.index(repair) < attached.index(gate)
+        assert repair.tally is built.repairs
+        assert built.repairs.count == 0
+
+
+class TestStoppingToolLoops:
+    """Every agent has the loop guard, on by default (#2086)."""
+
+    def test_a_spec_written_before_it_existed_loads_with_it_on(self):
+        spec = AgentSpec.from_yaml("name: Clerk\ninstructions: Answer briefly.\n")
+        assert spec.loop_guard == LoopGuardSpec(enabled=True, repeats=4, cycles=3)
+        assert AgentSpec.from_yaml(spec.to_yaml()) == spec
+
+    def test_the_factory_attaches_it_with_the_agents_thresholds_and_not_when_off(self):
+        def guards(spec: AgentSpec) -> list[LoopGuard]:
+            built = build_agent(spec, _model_spec(), organization_id=uuid.uuid4())
+            attached: list[object] = []
+            built.agent.root_capability.apply(attached.append)
+            return [one for one in attached if isinstance(one, LoopGuard)]
+
+        (guard,) = guards(AgentSpec(name="Clerk", loop_guard=LoopGuardSpec(repeats=6, cycles=2)))
+        assert (guard.repeats, guard.cycles) == (6, 2)
+        assert guards(AgentSpec(name="Clerk", loop_guard=LoopGuardSpec(enabled=False))) == []
+
+    @pytest.mark.parametrize("field", [{"repeats": 1}, {"cycles": 11}, {"other": 1}])
+    def test_a_threshold_out_of_range_is_refused(self, field: dict[str, int]):
+        with pytest.raises(ValidationError):
+            LoopGuardSpec.model_validate(field)
+
+
+class TestRunReviewers:
+    """A second model that reviews the run while it goes (#2106)."""
+
+    def test_a_spec_written_before_reviewers_loads_with_none(self):
+        spec = AgentSpec.from_yaml("name: Clerk\ninstructions: Answer briefly.\n")
+        assert spec.reviewers == []
+
+    def test_two_reviewers_with_one_name_are_refused(self):
+        reviewer = {"name": "sources", "model_profile_id": str(uuid.uuid4()), "instructions": "x"}
+        with pytest.raises(ValidationError, match="Reviewer named more than once"):
+            AgentSpec(name="Clerk", reviewers=[reviewer, reviewer])
+
+    def _reviewers(self, spec: AgentSpec, models: dict | None = None) -> list[RunReviewer]:
+        built = build_agent(
+            spec, _model_spec(), organization_id=uuid.uuid4(), reviewer_models=models or {}
+        )
+        attached: list[object] = []
+        built.agent.root_capability.apply(attached.append)
+        return [one for one in attached if isinstance(one, RunReviewer)]
+
+    def test_an_agent_without_one_gets_no_reviewer(self):
+        assert self._reviewers(AgentSpec(name="Clerk")) == []
+
+    def test_each_reviewer_runs_on_the_model_resolved_for_it(self, caplog):
+        resolved, missing = uuid.uuid4(), uuid.uuid4()
+        model = MagicMock(params={"temperature": 0.0}, context_length=None)
+        spec = AgentSpec(
+            name="Clerk",
+            reviewers=[
+                {
+                    "name": "sources",
+                    "model_profile_id": str(resolved),
+                    "instructions": "x",
+                    "every": 4,
+                },
+                {"name": "scope", "model_profile_id": str(missing), "instructions": "y"},
+                {"name": "draft", "model_profile_id": str(resolved)},
+            ],
+        )
+
+        (reviewer,) = self._reviewers(spec, {resolved: model})
+
+        assert (reviewer.name, reviewer.every, reviewer.model) == ("sources", 4, model.build())
+        assert reviewer.model_settings == {"temperature": 0.0}
+        assert reviewer.screen is None
+        assert "scope is incomplete or unresolved" in caplog.text
+        assert "draft is incomplete or unresolved" in caplog.text
+
+    def test_the_window_is_held_to_what_the_reviewers_model_can_read(self):
+        profile = uuid.uuid4()
+        small = MagicMock(params={}, context_length=8_000)
+        spec = AgentSpec(
+            name="Clerk",
+            reviewers=[
+                {
+                    "name": "a",
+                    "model_profile_id": str(profile),
+                    "instructions": "x",
+                    "window": 20_000,
+                }
+            ],
+        )
+
+        (reviewer,) = self._reviewers(spec, {profile: small})
+
+        assert reviewer.window == 6_000
+
+    def test_corrections_are_screened_by_the_agents_input_guardrail(self):
+        profile = uuid.uuid4()
+        spec = AgentSpec(
+            name="Clerk",
+            capabilities=[{"id": "guardrails", "config": {"redact_secrets_in": True}}],
+            reviewers=[{"name": "a", "model_profile_id": str(profile), "instructions": "x"}],
+        )
+
+        (reviewer,) = self._reviewers(spec, {profile: MagicMock(params={}, context_length=None)})
+
+        assert reviewer.screen is not None
+
+
+class TestCodeMode:
+    """Many tool calls from one sandboxed script, when the spec asks for it (#2107)."""
+
+    def test_a_spec_written_before_it_existed_loads_with_it_off(self):
+        spec = AgentSpec.from_yaml("name: Clerk\ninstructions: Answer briefly.\n")
+        assert spec.code_mode == CodeModeSpec(enabled=False, max_tool_calls=100)
+
+    @staticmethod
+    def _attached(spec: AgentSpec, **kwargs: Any) -> list[object]:
+        built = build_agent(spec, _model_spec(), organization_id=uuid.uuid4(), **kwargs)
+        attached: list[object] = []
+        built.agent.root_capability.apply(attached.append)
+        return attached
+
+    def test_it_is_added_only_when_the_spec_asks(self):
+        on = AgentSpec(name="Clerk", code_mode=CodeModeSpec(enabled=True, max_tool_calls=25))
+
+        assert not [
+            one for one in self._attached(AgentSpec(name="Clerk")) if isinstance(one, CodeMode)
+        ]
+        (mode,) = [one for one in self._attached(on) if isinstance(one, CodeMode)]
+        assert mode.max_tool_calls == 25
+        assert [one for one in self._attached(on) if isinstance(one, CodeCalls)]
+
+    def test_a_session_that_asks_before_every_tool_gets_no_code_mode(self):
+        on = AgentSpec(name="Clerk", code_mode=CodeModeSpec(enabled=True))
+        attached = self._attached(on, gate_every_tool=True)
+        assert not [one for one in attached if isinstance(one, CodeMode | CodeCalls)]
 
 
 class TestAskingAboutEveryTool:

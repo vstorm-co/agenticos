@@ -38,6 +38,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from app.agents.capabilities.budget import SpendLedger
 from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE
 from app.agents.capabilities.subagents import SubagentsConfig
+from app.agents.manifest import RecordedRequest, RunRecorder
 from app.agents.spec import (
     AgentSpec,
     CapabilityBindingSpec,
@@ -634,6 +635,32 @@ class TestSharingACapabilityWithADelegate:
 
 
 class TestAPublishedDelegate:
+    async def test_it_is_built_with_its_own_reviewers_models(self):
+        """An agent reviewed when called directly is reviewed as a delegate too:
+        `_reviewers` leaves out any reviewer whose model was not resolved (#2106)."""
+        delegate_id = uuid.uuid4()
+        reviewer_profile = uuid.uuid4()
+        pinned = _version(
+            delegate_id,
+            AgentSpec(
+                name="Research Bot",
+                reviewers=[
+                    {
+                        "name": "sources",
+                        "model_profile_id": str(reviewer_profile),
+                        "instructions": "Flag claims without a source.",
+                    }
+                ],
+            ),
+        )
+        spec = _delegating(
+            subagents=[SubagentRef(agent_id=delegate_id, agent_version_id=pinned.id)]
+        )
+
+        prepared = await _prepare(spec, versions={pinned.id: pinned})
+
+        assert set(prepared.built("research-bot")["reviewer_models"]) == {reviewer_profile}
+
     async def test_it_runs_the_version_it_is_pinned_to(self):
         """Not whatever is published now, and not what the parent's environment
         resolves: `get_runnable_spec` resolves an environment, so a delegate
@@ -1358,6 +1385,17 @@ class TestRecordingADelegation:
     they corrupt the session and take the parent's run row with them.
     """
 
+    async def test_a_delegate_the_loop_guard_stopped_is_recorded_as_such(self):
+        """The library has three outcomes and calls it `failed`; the row says why (#2086)."""
+        agent_id, version_id = uuid.uuid4(), uuid.uuid4()
+        outcome = _outcome(
+            status="failed", loop_stopped=True, agent_id=agent_id, agent_version_id=version_id
+        )
+
+        result = await _record(outcome, attribution={version_id: _model()})
+
+        assert result.only.status is RunStatus.LOOP_STOPPED
+
     async def test_a_delegation_is_described_and_its_id_answered_immediately(self):
         agent_id, version_id = uuid.uuid4(), uuid.uuid4()
         model = _model(secret_id=uuid.uuid4())
@@ -1651,6 +1689,53 @@ class TestWritingTheQueuedRows:
         # And no environment: that column says which environment resolved the
         # version, and a delegate's version came from a pin.
         assert "environment_id" not in written
+
+    async def test_a_delegates_cache_busts_go_on_its_own_row_not_the_parents(self):
+        """The Spend card groups busts by each row's agent and model, so a delegate's
+        must not be counted under the parent's (#2109). It is built once per run,
+        so a second call to it carries none of the first's."""
+        delegate_id = uuid.uuid4()
+        first, second = self._queued(agent_id=delegate_id), self._queued(agent_id=delegate_id)
+        prepared = self._prepared([first, second])
+        prepared.run.agent_id = uuid.uuid4()
+        prepared.built.recorder = RunRecorder()
+
+        def busted() -> RunRecorder:
+            recorder = RunRecorder()
+            recorder.requests.append(
+                RecordedRequest(
+                    index=0,
+                    started_at=datetime.now(UTC),
+                    duration_ms=1,
+                    model="m",
+                    message_count=1,
+                    input_tokens=10,
+                    output_tokens=1,
+                    cache_read_tokens=0,
+                    tool_calls=[],
+                    finish_reason="stop",
+                    cache="bust",
+                    cache_missed_tokens=900,
+                )
+            )
+            return recorder
+
+        # The parent's own inline specialist is built as the parent's agent.
+        prepared.delegate_recorders = [(delegate_id, busted()), (prepared.run.agent_id, busted())]
+        service = AgentRunnerService(_db())
+
+        with (
+            patch(f"{RUNNER}.agent_run_repo.finish_run", new=AsyncMock()) as finish,
+            patch(f"{RUNNER}.agent_run_repo.record_delegated_run", new=AsyncMock()) as write,
+        ):
+            await service.finish(prepared, status=RunStatus.COMPLETED)
+
+        assert finish.await_args.kwargs["cache_busts"] == 1
+        rows = [call.kwargs for call in write.await_args_list]
+        assert [(row["cache_busts"], row["cache_missed_tokens"]) for row in rows] == [
+            (1, 900),
+            (0, 0),
+        ]
 
     async def test_the_parent_row_is_written_before_the_rows_that_reference_it(self):
         """They carry `parent_run_id`. The parent's row exists from the start of

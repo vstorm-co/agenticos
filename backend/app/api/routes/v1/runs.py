@@ -38,6 +38,7 @@ from app.schemas.agent_run import (
     ApprovalDecision,
     ApprovalList,
     ApprovalRead,
+    CacheByAgentModel,
     CostByAgent,
     CostByDay,
     CostByKey,
@@ -613,6 +614,23 @@ async def get_spend(
         by_day=[
             CostByDay(day=day, cost_usd=cost, run_count=runs)
             for day, cost, runs in await service.spend_by_day(ctx, since=since, until=to_date)
+        ],
+        # Where a cost investigation looks for full-price tokens the provider
+        # could have served from cache (#2109).
+        cache_by_agent_model=[
+            CacheByAgentModel(
+                agent_id=agent_id,
+                agent_name=name,
+                agent_slug=slug,
+                model_label=model,
+                busts=busts,
+                expiries=expiries,
+                missed_tokens=missed,
+                run_count=runs,
+            )
+            for agent_id, name, slug, model, busts, expiries, missed, runs in (
+                await service.cache_collapses(ctx, since=since, until=to_date)
+            )
         ],
     )
 

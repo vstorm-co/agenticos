@@ -1,7 +1,7 @@
 """Who typed a user turn, now that a project's chat has several writers.
 
-Revision ID: 0137_message_author_user
-Revises: 0136_projects
+Revision ID: 0141_message_author_user
+Revises: 0140_projects
 Create Date: 2026-10-17
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0137_message_author_user"
-down_revision: str | None = "0136_projects"
+revision: str = "0141_message_author_user"
+down_revision: str | None = "0140_projects"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -1,7 +1,7 @@
 """Which earlier message a turn answers, in a chat several people talk in.
 
-Revision ID: 0138_message_reply_to
-Revises: 0137_message_author_user
+Revision ID: 0142_message_reply_to
+Revises: 0141_message_author_user
 Create Date: 2026-10-17
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0138_message_reply_to"
-down_revision: str | None = "0137_message_author_user"
+revision: str = "0142_message_reply_to"
+down_revision: str | None = "0141_message_author_user"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

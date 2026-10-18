@@ -93,6 +93,7 @@ from app.agents.ask_user import (
     wire_questions,
 )
 from app.agents.audience import RunAudience, derive_audience
+from app.agents.cache_watch import tally
 from app.agents.capabilities.approval import (
     ApprovalDecision,
     ApprovalGranted,
@@ -152,7 +153,9 @@ from app.agents.connect_on_use import (
 from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
-from app.agents.manifest import as_payload, fit
+from app.agents.loop_guard import ToolLoopStopped
+from app.agents.manifest import RunRecorder, as_payload, carried_over, fit
+from app.agents.mcp import PLATFORM_MCP_PREFIX
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
 from app.agents.spec import (
@@ -245,6 +248,7 @@ from app.services.mcp_connection import (
     PersonalServiceGapKind,
     UnavailableBinding,
     UnavailablePersonalService,
+    UnavailablePlatformServer,
     UnavailablePrefixCollision,
     build_toolsets_for_agent,
     connect_personal_toolset,
@@ -539,6 +543,12 @@ class DelegationFrame(BaseModel):
     )
     billed_input_tokens: int = Field(default=0, description="The billed share, in input tokens")
     billed_output_tokens: int = Field(default=0, description="The billed share, in output tokens")
+    billed_cache_read_tokens: int = Field(
+        default=0, description="Of the billed input tokens, those read from the provider's cache"
+    )
+    billed_cache_write_tokens: int = Field(
+        default=0, description="Of the billed input tokens, those written to the provider's cache"
+    )
     billed_cost_is_partial: bool = Field(
         default=False,
         description="Whether the billed share went unpriced, making `billed_cost_usd` a floor",
@@ -955,6 +965,8 @@ def _delegation_frames(
                 billed_cost_usd=entry.spent.billed_cost_usd,
                 billed_input_tokens=entry.spent.billed_input_tokens,
                 billed_output_tokens=entry.spent.billed_output_tokens,
+                billed_cache_read_tokens=entry.spent.billed_cache_read_tokens,
+                billed_cache_write_tokens=entry.spent.billed_cache_write_tokens,
                 billed_cost_is_partial=entry.spent.billed_has_unpriced_models,
                 started_at=entry.started_at,
                 delegations=frames(by_parent.get(entry.task_id, [])),
@@ -1061,6 +1073,8 @@ def _resume_plan(state: PausedRunState, decided_args: Mapping[str, dict[str, Any
                 billed_cost_usd=frame.billed_cost_usd,
                 billed_input_tokens=frame.billed_input_tokens,
                 billed_output_tokens=frame.billed_output_tokens,
+                billed_cache_read_tokens=frame.billed_cache_read_tokens,
+                billed_cache_write_tokens=frame.billed_cache_write_tokens,
                 billed_has_unpriced_models=frame.billed_cost_is_partial,
             )
             started[frame.tool_call_id] = frame.started_at
@@ -1132,6 +1146,8 @@ class RecordedDelegation:
     started_at: datetime
     ended_at: datetime
     error: str | None = None
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 @dataclass
@@ -1211,6 +1227,11 @@ class PreparedRun:
     Named rather than dropped: an agent told its file was delivered will tell the
     user the same.
     """
+
+    delegate_recorders: list[tuple[UUID, RunRecorder]] = field(default_factory=list)
+    """Each delegate's agent id and request recording, so `finish` can count the
+    cache busts it hit on the row that answers for that agent - a delegate's agent
+    is built and discarded inside a tool call, and its recorder with it."""
 
     delegations: list[RecordedDelegation] = field(default_factory=list)
     """What this run delegated, waiting to be written by `finish`.
@@ -1537,6 +1558,7 @@ _INTERRUPTED = frozenset(
         RunStatus.CANCELLED,
         RunStatus.BUDGET_EXCEEDED,
         RunStatus.GUARDRAIL_BLOCKED,
+        RunStatus.LOOP_STOPPED,
     }
 )
 """The endings that leave the plan with nobody working it - see `put_down`. A
@@ -1694,6 +1716,13 @@ def _binding_gap_briefing(
     gap: UnavailableBinding, surface: RunSurface, *, sender_present: bool
 ) -> str:
     """One paragraph for a binding this turn could not honour, model-facing."""
+    if isinstance(gap, UnavailablePlatformServer):
+        return (
+            f"This platform's own tools ({PLATFORM_MCP_PREFIX}_*) are not available this "
+            "turn: they act as the person you are talking to, and nobody signed in is "
+            "behind this message. If asked about the platform itself, say you cannot "
+            "look it up from here rather than guessing."
+        )
     if isinstance(gap, UnavailablePrefixCollision):
         if gap.server == gap.kept:
             # Same name on both sides - an organization connection and a personal
@@ -1901,6 +1930,9 @@ class _Delegation:
     queued: list[RecordedDelegation]
     """Where the recorder leaves a finished delegation for `finish` to write."""
 
+    recorders: list[tuple[UUID, RunRecorder]]
+    """Where each delegate built for this run leaves its agent id and request recording."""
+
     attribution: dict[UUID, ModelRequestSpec]
     """Which model each pinned delegate resolved to, keyed by version id.
 
@@ -1982,6 +2014,7 @@ def _delegate_builder(
     resources: dict[str, Any],
     secrets: Mapping[UUID, StorableSecret],
     extra_toolsets: list[AbstractToolset[Any]],
+    reviewer_models: Mapping[UUID, ModelRequestSpec] | None = None,
 ) -> Callable[[], PydanticAgent[Any, Any]]:
     """A closure that builds one delegate, with nothing left to look up.
 
@@ -1998,7 +2031,7 @@ def _delegate_builder(
     """
 
     def build() -> PydanticAgent[Any, Any]:
-        return build_agent(
+        built = build_agent(
             delegation.render_variables(spec),
             model,
             organization_id=delegation.ctx.organization_id,
@@ -2011,6 +2044,10 @@ def _delegate_builder(
             resources=resources,
             secrets=secrets,
             extra_toolsets=extra_toolsets,
+            # Its own reviewers, resolved with everything else: without their
+            # models `_reviewers` leaves each one out, and an agent reviewed when
+            # called directly would run unreviewed as a delegate.
+            reviewer_models=reviewer_models,
             # The person waiting on the parent is the person a delegate has to
             # ask, so the gate reaches the same queue rather than refusing
             # because a delegation has no channel of its own.
@@ -2020,7 +2057,10 @@ def _delegate_builder(
             # delegate meters nothing the parent can see, and the parent's cap
             # stops binding at exactly the moment delegation multiplies spend.
             shared_budget=delegation.budget.guard,
-        ).agent
+        )
+        # Kept so `finish` counts its cache busts on the row of the agent that hit them.
+        delegation.recorders.append((agent_id, built.recorder))
+        return built.agent
 
     return build
 
@@ -2094,6 +2134,8 @@ def _spend_already_booked(run: AgentRun) -> SpendEntry:
         model_name=run.model_label or "unknown",
         input_tokens=run.input_tokens,
         output_tokens=run.output_tokens,
+        cache_read_tokens=run.cache_read_tokens or 0,
+        cache_write_tokens=run.cache_write_tokens or 0,
         cost_usd=run.cost_usd,
         priced=not run.cost_is_partial,
     )
@@ -2532,6 +2574,30 @@ class AgentRunnerService:
             prepared.built.deps.on_compaction = on_compaction
         return prepared
 
+    async def _reviewer_models(
+        self, ctx: AuthContext, spec: AgentSpec
+    ) -> dict[UUID, ModelRequestSpec]:
+        """Each run reviewer's model, by profile id - those that still resolve (#2106).
+
+        A reviewer is optional to the run it watches: one whose profile was deleted
+        since publish, or whose key no longer unseals, is left out with a warning
+        rather than taking the agent offline.
+        """
+        models: dict[UUID, ModelRequestSpec] = {}
+        for reviewer in spec.reviewers:
+            profile_id = reviewer.model_profile_id
+            if profile_id is None or profile_id in models:
+                continue
+            try:
+                models[profile_id] = await self.models.resolve(ctx, profile_id=profile_id)
+            except AppException:
+                logger.warning(
+                    "Run reviewer %s cannot resolve its model; the run goes on without it",
+                    reviewer.name,
+                    exc_info=True,
+                )
+        return models
+
     async def _allowed_approval_mode(
         self, ctx: AuthContext, requested: ApprovalMode, *, surface: RunSurface
     ) -> ApprovalMode:
@@ -2716,6 +2782,11 @@ class AgentRunnerService:
         # here" are worse than none, because the model keeps trying.
         if channel_directory is not None:
             resources[CHANNEL_DIRECTORY_RESOURCE] = channel_directory
+        # Resolved here for the reason the browser's step model is: the vault and
+        # the session are here, and the factory has neither. Handed to it apart
+        # from `resources`, which every capability reads and a log line may carry:
+        # a resolved model holds its unsealed credential.
+        reviewer_models = await self._reviewer_models(ctx, spec)
         step_profile = _browser_step_profile(spec)
         if step_profile is not None:
             # Built here, where the vault and the session are: a fast model for
@@ -2977,6 +3048,7 @@ class AgentRunnerService:
         run_budget = _RunBudget()
         runtimes: list[SubagentRuntime] = []
         delegations: list[RecordedDelegation] = []
+        delegate_recorders: list[tuple[UUID, RunRecorder]] = []
         stash = DelegationStash(
             resuming=resuming,
             spent=already_spent,
@@ -2998,6 +3070,7 @@ class AgentRunnerService:
             render_variables=render_variables,
             runtimes=runtimes,
             delegations=delegations,
+            delegate_recorders=delegate_recorders,
             stash=stash,
         )
         if runtime is not None:
@@ -3032,6 +3105,7 @@ class AgentRunnerService:
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,
+            reviewer_models=reviewer_models,
             extra_toolsets=[*(extra_toolsets or []), *spec_toolsets],
             extra_capabilities=() if on_use is None else (on_use,),
             agent_period_spend=agent_period_spend,
@@ -3079,6 +3153,7 @@ class AgentRunnerService:
                 if isinstance(gap, UnavailablePersonalService)
             ],
             delegations=delegations,
+            delegate_recorders=delegate_recorders,
             stash=stash,
             ctx=ctx,
             plan_store=plan_store,
@@ -3112,6 +3187,7 @@ class AgentRunnerService:
         render_variables: Callable[[AgentSpec], AgentSpec],
         runtimes: list[SubagentRuntime],
         delegations: list[RecordedDelegation],
+        delegate_recorders: list[tuple[UUID, RunRecorder]],
         stash: DelegationStash,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
@@ -3169,6 +3245,7 @@ class AgentRunnerService:
             render_variables=render_variables,
             record=self._delegation_recorder(run=run, attribution=attribution, queued=delegations),
             queued=delegations,
+            recorders=delegate_recorders,
             attribution=attribution,
             runtimes=runtimes,
             stash=stash,
@@ -3632,6 +3709,7 @@ class AgentRunnerService:
                 resources=delegate_resources,
                 secrets=secrets,
                 extra_toolsets=toolsets,
+                reviewer_models=await self._reviewer_models(ctx, runnable),
             ),
             max_steps=runnable.max_steps,
             preferred_mode=ref.preferred_mode,
@@ -3774,12 +3852,18 @@ class AgentRunnerService:
                 agent_id=outcome.agent_id,
                 agent_version_id=outcome.agent_version_id,
                 task_id=outcome.task_id,
-                status=_DELEGATION_RUN_STATUS[outcome.status],
+                status=(
+                    RunStatus.LOOP_STOPPED
+                    if outcome.loop_stopped
+                    else _DELEGATION_RUN_STATUS[outcome.status]
+                ),
                 model_label=model.label,
                 provider=model.provider,
                 secret_id=model.secret_id,
                 input_tokens=outcome.input_tokens,
                 output_tokens=outcome.output_tokens,
+                cache_read_tokens=outcome.cache_read_tokens,
+                cache_write_tokens=outcome.cache_write_tokens,
                 cost_usd=outcome.cost_usd,
                 # Whether *this delegation's* own requests were priced, not the
                 # run's. A parent on a model `genai-prices` does not know makes the
@@ -3827,7 +3911,15 @@ class AgentRunnerService:
         per delegation loses that one row and nothing else.
         """
         parent = prepared.run
+        # One delegate's agent is built once per run, however often it is called,
+        # so its busts are known per agent: they go on its first row, whose agent
+        # and model are what the Spend card groups by.
+        unclaimed: dict[UUID, list[RunRecorder]] = {}
+        for agent_id, recorder in prepared.delegate_recorders:
+            if agent_id != parent.agent_id:
+                unclaimed.setdefault(agent_id, []).append(recorder)
         for delegation in prepared.delegations:
+            cache = tally(*unclaimed.pop(delegation.agent_id, []))
             try:
                 async with self.db.begin_nested():
                     await agent_run_repo.record_delegated_run(
@@ -3853,11 +3945,16 @@ class AgentRunnerService:
                         status=delegation.status.value,
                         input_tokens=delegation.input_tokens,
                         output_tokens=delegation.output_tokens,
+                        cache_read_tokens=delegation.cache_read_tokens,
+                        cache_write_tokens=delegation.cache_write_tokens,
                         cost_usd=delegation.cost_usd,
                         cost_is_partial=delegation.cost_is_partial,
                         started_at=delegation.started_at,
                         ended_at=delegation.ended_at,
                         error=delegation.error,
+                        cache_busts=cache.busts,
+                        cache_expiries=cache.expiries,
+                        cache_missed_tokens=cache.missed_tokens,
                     )
             except Exception:
                 logger.exception(
@@ -3973,6 +4070,28 @@ class AgentRunnerService:
         except Exception:
             logger.exception("skill_proposal_record_failed", extra={"run_id": str(prepared.run.id)})
 
+    async def keep_plan(self, prepared: PreparedRun, *, status: RunStatus) -> None:
+        """Store the checklist the turn ended on, so the next turn starts from it.
+
+        Every surface that runs a turn in a conversation calls this on its way
+        out - the web chat as much as `_run` (#1077, #2162). A run with no
+        conversation has nowhere to keep one and writes nothing.
+
+        `keep_plan` treats an empty list as no plan, so an agent that binds no
+        planning capability writes nothing, and a run that emptied a stored plan
+        records that it did. An interrupted run puts its step in progress down
+        (`put_down`). The one turn that writes nothing is the one whose store was
+        opened empty over a finished plan: it did nothing to the checklist, and
+        `[]` would delete the row #1221 keeps.
+        """
+        if prepared.run.conversation_id is None:
+            return
+        checklist = await dump_plan(prepared.plan_store)
+        if status in _INTERRUPTED:
+            checklist = put_down(checklist)
+        if checklist or not prepared.finished_plan_withheld:
+            await ConversationService(self.db).keep_plan(prepared.run.conversation_id, checklist)
+
     async def finish(
         self,
         prepared: PreparedRun,
@@ -4038,18 +4157,39 @@ class AgentRunnerService:
             else self._parked_tree(prepared, paused_state, await dump_plan(prepared.plan_store))
         )
         ledger = prepared.built.ledger
+        # This row's own requests, and an inline or invented specialist's, which
+        # has no row and is built as this agent; a published delegate's go on its
+        # own row in `_write_delegations`, so the Spend card names the agent and
+        # model that actually missed the cache.
+        cache = tally(
+            prepared.built.recorder,
+            *(
+                recorder
+                for agent_id, recorder in prepared.delegate_recorders
+                if agent_id == prepared.run.agent_id
+            ),
+        )
         finished = await agent_run_repo.finish_run(
             self.db,
             run=prepared.run,
             status=status.value,
             input_tokens=ledger.input_tokens,
             output_tokens=ledger.output_tokens,
+            cache_read_tokens=ledger.cache_read_tokens,
+            cache_write_tokens=ledger.cache_write_tokens,
             cost_usd=ledger.total_usd,
             cost_is_partial=ledger.has_unpriced_models,
             ended_at=datetime.now(UTC),
             error=error,
             logfire_trace_id=current_trace_id(),
             paused_state=None if parked is None else parked.model_dump(mode="json"),
+            # Added to what the run's earlier segments counted: a resumed run is
+            # the same row, built again with a fresh tally.
+            tool_args_repaired=(prepared.run.tool_args_repaired or 0)
+            + prepared.built.repairs.count,
+            cache_busts=cache.busts,
+            cache_expiries=cache.expiries,
+            cache_missed_tokens=cache.missed_tokens,
         )
         # After the parent's row and on every path out of the run, for the reason
         # the parent's row is written on every path: a delegation that spent money
@@ -4101,7 +4241,13 @@ class AgentRunnerService:
         if not recorder.requests and recorder.instructions is None:
             return
         try:
-            payload, truncated = fit(as_payload(recorder))
+            payload = as_payload(recorder)
+            previous = await run_manifest_repo.get_by_run(
+                self.db, prepared.run.id, prepared.run.organization_id
+            )
+            if previous is not None:
+                payload = carried_over(previous.payload, payload)
+            payload, truncated = fit(payload)
             async with self.db.begin_nested():
                 await run_manifest_repo.record(
                     self.db,
@@ -4284,7 +4430,8 @@ class AgentRunnerService:
             # silently" gap this module's own docstring names.
             if status is RunStatus.COMPLETED:
                 await notifications.run_completed(run, agent=agent)
-            elif status is RunStatus.FAILED:
+            elif status in (RunStatus.FAILED, RunStatus.LOOP_STOPPED):
+                # A run stopped for looping produced nothing either, and says why.
                 await notifications.run_failed(run, agent=agent, error=error)
         # Whatever the outcome: a failed run spent money too.
         await notifications.department_budget_warnings(run)
@@ -5061,6 +5208,13 @@ class AgentRunnerService:
             error = str(exc)
             logger.info("Run %s blocked by a %s guardrail", prepared.run.id, exc.edge)
             finished_cleanly = True
+        except ToolLoopStopped as exc:
+            # The guard warned the model and it looped again - the platform
+            # stopping a run that was spending for nothing, not a malfunction.
+            status = RunStatus.LOOP_STOPPED
+            error = str(exc)
+            logger.info("Run %s stopped for looping: %s", prepared.run.id, exc)
+            finished_cleanly = True
         except Exception as exc:
             error = run_failure_summary(exc)
             logger.exception("Agent run %s failed", prepared.run.id)
@@ -5131,20 +5285,7 @@ class AgentRunnerService:
                             prepared.run.conversation_id,
                             prepared.built.reminder_state.snapshot(),
                         )
-                    # The checklist the turn ended on, so the next turn starts
-                    # from it rather than from nothing. `keep_plan` treats an empty
-                    # list as no plan, so an agent that binds no planning
-                    # capability writes nothing, and a run that emptied a stored
-                    # plan records that it did.
-                    #
-                    # The one turn that writes nothing is the one whose store was
-                    # opened empty over a finished plan: it did nothing to the
-                    # checklist, and `[]` would delete the row #1221 keeps.
-                    checklist = await dump_plan(prepared.plan_store)
-                    if status in _INTERRUPTED:
-                        checklist = put_down(checklist)
-                    if checklist or not prepared.finished_plan_withheld:
-                        await conversations.keep_plan(prepared.run.conversation_id, checklist)
+                    await self.keep_plan(prepared, status=status)
                 await self.db.commit()
                 await change_feed.publish_run(prepared.run, "updated")
             except Exception:
@@ -5537,6 +5678,14 @@ class AgentRunnerService:
         further down.
         """
         return await agent_run_repo.spend_by_provider(
+            self.db, organization_id=ctx.organization_id, since=since, until=until
+        )
+
+    async def cache_collapses(
+        self, ctx: AuthContext, *, since: datetime, until: datetime | None = None
+    ) -> list[tuple[UUID, str, str, str | None, int, int, int, int]]:
+        """Prompt-cache busts and expiries per agent and model, over the Spend tab's window."""
+        return await agent_run_repo.cache_collapses(
             self.db, organization_id=ctx.organization_id, since=since, until=until
         )
 

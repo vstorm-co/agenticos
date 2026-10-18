@@ -1,5 +1,5 @@
 ---
-source_sha: "4d7e8773dd9e"
+source_sha: "6172cb7982f8"
 ---
 
 # Governance { #governance }
@@ -983,12 +983,93 @@ Die andere Art von Ausreißer ist eine Tool-Schleife: billig je Aufruf, und sie
 wird nie fertig. Ein Budget rechnet dafür nur ab. `max_steps` deckelt, wie viele
 Modellanfragen ein Run stellen darf, und ist das, was sie tatsächlich stoppt.
 
+Der Schleifenwächter stoppt die meisten Schleifen früher und sagt, warum. Jeder
+Agent hat ihn, standardmäßig eingeschaltet. Ruft ein Run ein Tool viermal in
+Folge mit denselben Argumenten auf oder durchläuft er einen Zyklus aus zwei oder
+drei Aufrufen dreimal, wird dem Modell gesagt, dass es in einer Schleife steckt
+und anders vorgehen soll. Laufen die Aufrufe nach dieser Warnung wieder in eine
+Schleife, endet der Run als `loop_stopped`, mit einer Begründung, die die Tools
+nennt - nie ihre Argumente. Aufrufe mit anderen Argumenten sind nie eine
+Schleife, und nur die Aufrufe des Runs selbst zählen. Der Builder setzt beide
+Schwellen oder schaltet den Wächter aus, neben `max_steps` (`loop_guard` im
+Spec).
+
+### Run-Reviewer { #run-reviewers }
+
+Ein langer Run driftet: Anweisungen verblassen, Behauptungen ohne Quelle häufen
+sich, der Agent entfernt sich von der Anfrage. Ein Agent kann bis zu fünf
+Reviewer haben (`reviewers` im Spec, *Run-Reviewer* im Builder neben den
+Limits), jeder ein zweites, meist günstigeres Modell mit einem Anliegen. Alle
+`every` Modell-Requests liest ein Reviewer die letzten `window` Tokens des Runs
+und lässt ihn entweder laufen oder schickt eine kurze Korrektur, die das Modell
+des Runs beim nächsten Request mit dem Namen des Reviewers erhält. Die
+Run-Ansicht listet jede Korrektur und wer sie geschickt hat.
+
+Die Aufrufe eines Reviewers werden vor dem Absenden gegen das Budget des Agents
+und der Organisation geprüft und auf dem Run gebucht, bepreist als das Modell des
+Reviewers. Ein wegen des Budgets abgelehnter Aufruf wird übersprungen, und ein
+Reviewer, der scheitert, wird geloggt; keines von beiden lässt den Run scheitern.
+Ein Agent ohne Reviewer macht keine zusätzlichen Modellaufrufe.
+
+### Code-Modus { #code-mode }
+
+Ein Agent, der Datensätze abarbeitet - zehn Zeilen aktualisieren, dann
+zusammenfassen -, zahlt für jeden abhängigen Aufruf einen Modell-Turn, und jeder
+Turn schickt den ganzen Kontext erneut. Mit eingeschaltetem *Code-Modus*
+(`code_mode` im Spec, neben den Limits im Builder) werden die Tools des Agents in
+ein einziges `run_code`-Tool gefaltet: Das Modell schreibt ein kurzes
+Python-Skript, das in der Monty-Sandbox läuft und die Tools in Schleifen und
+parallel aufruft, bis zu `max_tool_calls` pro Skript.
+
+Höchstens vier Aufrufe eines Skripts laufen gleichzeitig, der Rest wartet, sodass
+ein Skript, das Hunderte Sandbox-Aufrufe auffächert, sie nicht alle zugleich
+öffnet.
+
+Jeder Aufruf aus einem Skript durchläuft dieselben Guardrails, dasselbe Budget
+und dieselben Berechtigungsprüfungen wie ein direkter Aufruf. Ein Tool, das eine
+Freigabe braucht, wird nie hineingefaltet: Es bleibt ein normaler Aufruf, und der
+Run hält wie immer für die Person an. Die Run-Ansicht listet jedes Skript und
+jeden Aufruf, den es gemacht hat.
+
 ### Berichte { #reporting }
 
 Ein Run, der sich nicht bepreisen ließ — ein Modell, das `genai-prices` nicht
 kennt —, wird mit einer Warnung bei null festgehalten, und die Summe wird als
 **Untergrenze** gekennzeichnet, statt geraten zu werden. Die UI zeigt das als ein
 `+` neben der Zahl.
+
+**Cache-Lese- und Schreibvorgänge werden getrennt geführt.** Die Eingabetokens
+eines Runs enthalten die, die der Anbieter aus seinem Prompt-Cache bedient hat,
+und die, die er hineingeschrieben hat, und alle drei werden getrennt bepreist -
+bei Claude Sonnet 5.5 kostet ein Cache-Lesevorgang 5 % des Eingabepreises und ein
+Schreibvorgang 125 %. Jeder Run und jede Antwort speichert `cache_read_tokens` und
+`cache_write_tokens` neben der Summe, die Kosten werden aus dieser Aufteilung
+berechnet, und die Run-Ansicht und die Kosten unter jeder Antwort zeigen sie -
+damit lässt sich ein Run mit der Konsole des Anbieters abgleichen.
+
+**Die Kosten eines Runs enthalten seine Delegationen.** Der Run, den jemand
+gestartet hat, trägt das ganze Ledger, Delegates eingeschlossen; die eigene Zeile
+einer Delegation teilt dasselbe Geld nach Agent auf, und die Run-Ansicht sagt,
+dass ihre Delegationen schon in der Zahl darüber stecken. Beide zu addieren zählt
+die Delegationen doppelt.
+
+**Ein Prompt-Cache, der nicht mehr trifft, wird markiert.** Caching lohnt sich
+nur, solange der Anfang jedes Requests gleich bleibt; eine umgestellte Tool-Liste
+oder ein Zeitstempel in den Anweisungen lässt den Anbieter den vollen Preis für
+Tokens berechnen, die er im Cache hatte. Jeder Agent liest bei jeder Antwort die
+Cache-Zahlen des Anbieters, und ein Request, dessen gecachter Präfix
+eingebrochen ist, wird im Request-Wasserfall des Runs markiert - *Cache
+gebrochen*, solange der Anbieter ihn noch hätte halten sollen, *Cache
+abgelaufen*, wenn die Aufbewahrung vorbei war - mit der Zahl der gecachten
+Tokens, die er nicht zurückgelesen hat, und mit Agent und Modell geloggt. Der erste Request eines
+Turns wird mit dem verglichen, was der vorige Turn gecacht hat, wenn derselbe
+API-Worker beide bedient.
+
+Die Zahlen werden an jedem Run gespeichert, daher summiert **Runs → Spend**, wo
+der Cache nicht gehalten hat: eine Karte *Prompt-Cache*, eine Zeile pro Agent
+und Modell, mit Busts, Abläufen und den gecachten Tokens, die nicht zurückgelesen
+wurden, im Zeitraum - ein Maß für den Fehlgriff, nicht für erneut Berechnetes, da
+auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
 
 ## Freigaben { #approvals }
 

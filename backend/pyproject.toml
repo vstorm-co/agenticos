@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.1.1"
+version = "1.5.0"
 description = "OS for your agents."
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
@@ -662,6 +662,7 @@ include = [
     # held to rather than reporting it.
     "app/services/rate_limit.py",
     "app/services/agent_chat.py",
+    "app/services/mentions.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
     # What the model is actually told about each tool, read off the built
@@ -703,6 +704,7 @@ include = [
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
+    "app/services/channels/stream_lease.py",
     "app/services/channels/feedback.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
@@ -830,6 +832,12 @@ include = [
     "app/services/artifact.py",
     "app/api/routes/v1/_artifact_bytes.py",
     "app/api/routes/v1/artifacts.py",
+    "app/db/models/visual.py",
+    "app/schemas/visual.py",
+    "app/repositories/visual.py",
+    "app/services/visual.py",
+    "app/services/visual_render.py",
+    "app/api/routes/v1/visuals.py",
     "app/db/models/api_key.py",
     "app/schemas/api_key.py",
     "app/repositories/api_key.py",
@@ -1080,6 +1088,7 @@ include = [
     # held to rather than reporting it.
     "app/services/rate_limit.py",
     "app/services/agent_chat.py",
+    "app/services/mentions.py",
     "app/services/agent_environment.py",
     "app/services/agent_exposure.py",
     # What the model is actually told about each tool, read off the built
@@ -1124,6 +1133,7 @@ include = [
     "app/services/skill_workspace.py",
     "app/services/channels/attachments.py",
     "app/services/channels/dedupe.py",
+    "app/services/channels/stream_lease.py",
     "app/services/channels/feedback.py",
     "app/services/channels/membership.py",
     "app/services/channels/mentions.py",
@@ -1281,6 +1291,12 @@ include = [
     "app/services/artifact.py",
     "app/api/routes/v1/_artifact_bytes.py",
     "app/api/routes/v1/artifacts.py",
+    "app/db/models/visual.py",
+    "app/schemas/visual.py",
+    "app/repositories/visual.py",
+    "app/services/visual.py",
+    "app/services/visual_render.py",
+    "app/api/routes/v1/visuals.py",
     "app/db/models/api_key.py",
     "app/schemas/api_key.py",
     "app/repositories/api_key.py",
