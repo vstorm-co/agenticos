@@ -1,5 +1,5 @@
 ---
-source_sha: "3b30b65cd3fd"
+source_sha: "9e4a39e96b30"
 title: "Rozmowy głosowe"
 seo_title: "Rozmowy głosowe: rozmawiaj z opublikowanym agentem"
 description: "Zadzwoń do opublikowanego agenta i porozmawiaj z nim: modele realtime, zatwierdzenia w rozmowie, limity czasu i minut, bezpieczne rozłączanie i transkrypcje."
@@ -143,19 +143,45 @@ utrzymujący się zalew kończy rozmowę.
 Rozmowa uruchamia agenta opisanego przez jego opublikowany spec, zbudowanego
 przez tę samą fabrykę co run tekstowy. Różnice wynikają z sesji realtime: jej
 narzędzia są ustalane w chwili połączenia, nie może się wstrzymać na
-zatwierdzenie, a niektóre capabilities nie mogą w niej działać wcale.
+zatwierdzenie i nie udźwignie workspace'u, przeglądarki ani delegatów. Te
+rozmowa przekazuje zamiast tego modelowi tekstowemu agenta.
 
 | Głosowo | Capabilities |
 |---|---|
 | Bez zmian | zegar (czas w instrukcjach jest ustalany w chwili połączenia), kontekst, wiedza, research w sieci, pobieranie stron, wykresy, artefakty, wykonywanie kodu, wyszukiwanie w konwersacjach, pliki pamięci, pamięć mem0, planowanie, limity wyjścia narzędzi, generowanie obrazów |
+| Na ekranie | pytania do użytkownika: w `/chat` karta pytań pojawia się w widoku rozmowy i jest też czytana na głos, a rozmówca stuka odpowiedź albo ją mówi; rozmowa z widgetu ani strony hostowanej ich nie dostaje |
 | Dostosowane | skille: ładowane na żądanie jako instrukcje, bez narzędzi, którymi run tekstowy je czyta |
 | Pominięte | wyszukiwanie narzędzi: narzędzia MCP, które by odroczyło, są przekazywane rozmowie bezpośrednio |
 | Zmapowane | thinking: staje się własnym ustawieniem rozumowania modelu realtime, o ile model je ma |
-| Niedostępne | sandbox, browser use, wybór przeglądarki, subagenty |
+| Przekazane | sandbox, browser use, subagenty, praca w trakcie narzędzi: robi to model tekstowy agenta, zob. [Przekazywanie pracy](#handing-work-off) |
 
-Karta Głos w Builderze wymienia capabilities, których ten agent nie może używać
-w rozmowach. Nie blokują one publikacji; agent ma powiedzieć wprost, że nie może
-tego zrobić w rozmowie, i zaproponować czat tekstowy.
+Karta Głos w Builderze wymienia capabilities, które ten agent w rozmowach
+przekazuje.
+
+### Przekazywanie pracy { #handing-work-off }
+
+Gdy agent ma capability, której rozmowa nie udźwignie, jego rozmowa dostaje
+jeszcze jedno narzędzie, `hand_off`. Model rozmowy opisuje zadanie, a ten sam
+agent wykonuje je na własnym modelu tekstowym, tym z zakładki Build: z sandboxem,
+przeglądarką i subagentami, w tym samym workspace'ie, w ramach tego samego
+budżetu. Odpowiada tym, co zrobił, a model rozmowy mówi to na głos.
+
+- **Rozmowa w tym czasie trwa.** Agent najpierw mówi, że nad tym pracuje, a pasek
+  rozmowy pokazuje każdy krok w trakcie.
+- **Każdy krok zostaje.** Kroki są zapisywane przy turze, która przekazała pracę,
+  więc konwersacja pokazuje je potem tak, jak pokazuje kroki czatu.
+- **Zatwierdzenia należą do rozmowy.** Narzędzie wymagające zatwierdzenia,
+  wywołane przez model tekstowy albo jego subagenta, pokazuje tę samą kartę
+  zatwierdzenia co narzędzie wywołane przez rozmowę. Rozmowa gościa i tu nie ma
+  narzędzi wymagających zatwierdzenia.
+- **Jedno przekazanie naraz.** Każde kontynuuje to, co w tej rozmowie zrobiło
+  poprzednie, więc „teraz wyślij ten plik” działa po „spisz to”.
+- **Porażka jest mówiona, nie ukrywana.** Przekazanie, któremu skończy się budżet
+  albo kroki, albo którego model zawiedzie, wraca jako zdanie wypowiadane przez
+  agenta; rozmowa trwa dalej.
+
+Przekazanie trwa tyle, ile sama praca, często minutę lub dłużej, i wydaje na
+model tekstowy oprócz modelu rozmowy.
 
 **Wbudowany styl mówiony.** Każda rozmowa dodaje do instrukcji agenta te same
 wskazówki: krótkie zdania; żadnego markdownu, list, tabel ani linków czytanych na

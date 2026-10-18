@@ -27,7 +27,6 @@ const READY: VoiceReadiness = {
   model: "gpt-realtime",
   cap_seconds: 600,
   minutes_left: 540,
-  unavailable_capabilities: [],
 };
 
 describe("useVoiceReadiness", () => {

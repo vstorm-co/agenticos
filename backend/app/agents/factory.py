@@ -191,6 +191,7 @@ def build_agent(
     recorded_overhead: int | None = None,
     recorded_reminder_state: dict[str, Any] | None = None,
     voice: VoiceOptions | None = None,
+    answering_call: VoiceOptions | None = None,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
@@ -255,6 +256,11 @@ def build_agent(
             inline through `voice.on_deferred`, and the instructions go in as
             `instructions=`. The caller sets usage limits itself - `usage_limits`
             on the result is a text run's and must not be passed to a session.
+        answering_call: Build a text agent that works for a live call - the
+            agent's text twin the call hands a task to, and every delegate under
+            it (#54). A text run in every respect but two: a gated call is put to
+            the caller through `answering_call.on_deferred` rather than parked,
+            because nobody resumes a call, and a visitor's carries no gated tool.
 
     Raises:
         BadRequestError: If the spec references an unknown tool, an invalid tool
@@ -265,9 +271,11 @@ def build_agent(
     refuse_ungateable_approvals(spec)
     bindings = spec.bindings()
     if voice is not None:
-        # Again here, though the runner already stripped the spec: a caller that
-        # builds a voice agent from an unstripped spec must still get none of them.
-        bindings = [binding for binding in bindings if capability_def(binding.capability_id).voice]
+        # Only what runs on the realtime model. The runner strips what a call can
+        # never use; what it hands off stays on the spec for the text twin.
+        bindings = [
+            binding for binding in bindings if capability_def(binding.capability_id).voice == "live"
+        ]
     # Built before the capabilities, not after: compaction reads it to decide
     # whether this window has room for a summary at all, and the reading is
     # filled by the capability appended at the end of the list below.
@@ -319,6 +327,8 @@ def build_agent(
     # registry metadata and the spec's overrides are both in hand, so a surface
     # never has to re-derive it from two sources.
     approval_required = approval_required_tools(spec)
+    # The call this agent answers to, as a realtime session or as text working for one.
+    call = voice or answering_call
 
     # Derived (or restored) by the caller, because only the runner knows whether
     # this is a fresh request or a resume - and a resume must not re-derive it from
@@ -395,13 +405,13 @@ def build_agent(
         ),
         *configured,
         *extra_capabilities,
+        *(() if voice is None else (AnswerUnknownTools(),)),
         *(
             ()
-            if voice is None
+            if call is None
             else (
-                HandleDeferredToolCalls(handler=voice.on_deferred),
-                AnswerUnknownTools(),
-                *((WithoutApprovalTools(names=approval_required),) if voice.anonymous else ()),
+                HandleDeferredToolCalls(handler=call.on_deferred),
+                *((WithoutApprovalTools(names=approval_required),) if call.anonymous else ()),
             )
         ),
         # Every agent, not only one that compacts. The warning is most useful to

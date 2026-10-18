@@ -82,8 +82,8 @@ vi.mock("@/hooks/use-realtime-models", () => ({
 vi.mock("@/hooks/use-agents", () => ({
   useCapabilityCatalog: () => ({
     capabilities: [
-      { id: "sandbox", name: "Sandbox", voice: false },
-      { id: "knowledge", name: "Knowledge", voice: true },
+      { id: "sandbox", name: "Sandbox", voice: "hand_off" },
+      { id: "knowledge", name: "Knowledge", voice: "live" },
     ],
     isLoading: false,
   }),
@@ -292,16 +292,16 @@ describe("VoiceConversationFields", () => {
     expect(onChange).toHaveBeenLastCalledWith({ ...OPENAI });
   });
 
-  it("lists the capabilities a call cannot use", () => {
+  it("lists the capabilities a call hands to the agent's text model", () => {
     mount({ capabilityIds: ["sandbox", "knowledge", "unknown"] });
-    expect(screen.getByText("Not available in calls")).toBeInTheDocument();
+    expect(screen.getByText("Done by the agent's text model in calls")).toBeInTheDocument();
     expect(screen.getByText("Sandbox")).toBeInTheDocument();
     expect(screen.queryByText("Knowledge")).toBeNull();
   });
 
-  it("lists nothing when every capability can run in a call", () => {
+  it("lists nothing when every capability runs on the call's own model", () => {
     mount({ capabilityIds: ["knowledge"] });
-    expect(screen.queryByText("Not available in calls")).toBeNull();
+    expect(screen.queryByText("Done by the agent's text model in calls")).toBeNull();
   });
 
   it("says plainly that guardrails cannot filter speech before it is heard", () => {

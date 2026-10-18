@@ -125,7 +125,7 @@ class SandboxConfig(BaseModel):
 
 @register(
     id="sandbox",
-    voice=False,
+    voice="hand_off",
     name="Sandbox",
     category="analysis",
     description="Read, write and run things in a workspace that persists between turns.",

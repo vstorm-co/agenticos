@@ -12,8 +12,11 @@ the spike (`.dev-agent/54/spike-findings.md` §2-3):
 - only `instructions=` reaches the session, never `system_prompt=`;
 - model-request hooks never run, so `thinking` is mapped onto the realtime
   settings instead;
-- four capabilities cannot run at all and are stripped, from the spec before
-  the run is assembled and again in the factory.
+- the capabilities a session cannot carry - a workspace, a browser, delegates -
+  run in the agent's text twin instead, which the call hands a task to through
+  one tool (`hand_off`): the same spec on the agent's own text model, in the same
+  workspace, under the same budget, with its approvals put to the caller as the
+  call's own are.
 """
 
 from __future__ import annotations
@@ -55,8 +58,10 @@ the spike's 'Acme heard as Ahmad'. `{actions}` is `MEMBER_ACTIONS` or
 `VISITOR_ACTIONS`."""
 
 MEMBER_ACTIONS = """- When a tool needs approval, say that you are asking for it and wait. Never say an action is done until its result arrives.
-- If a decision is denied or times out, say so plainly."""
-"""How a member's call speaks about acting: a member can approve a gated tool."""
+- If a decision is denied or times out, say so plainly.
+- When you ask the person questions with a tool, say them and their choices aloud too: they can answer by voice or on screen."""
+"""How a member's call speaks about acting: a member can approve a gated tool, and
+sees the questions card a visitor's call does not draw."""
 
 VISITOR_ACTIONS = """- If you cannot do something on this call, say so plainly and do not offer to do it. Never say an action is done until its result arrives."""
 """How a visitor's call speaks about acting. A visitor's session carries no gated
@@ -280,26 +285,28 @@ def thinking_effort(spec: AgentSpec) -> ThinkingEffort | Literal[True] | None:
     return True if effort is None else effort
 
 
-def voice_unavailable(spec: AgentSpec) -> list[str]:
-    """The enabled capabilities a call cannot use, by id, for the Builder to list."""
+def handed_off(spec: AgentSpec) -> list[str]:
+    """The enabled capabilities a call hands to the agent's text twin, by id."""
     return sorted(
         binding.id
         for binding in spec.capabilities
-        if binding.enabled and not capability_def(binding.id).voice
+        if binding.enabled and capability_def(binding.id).voice == "hand_off"
     )
 
 
 def without_voice_unavailable(spec: AgentSpec) -> AgentSpec:
-    """This spec with nothing a call cannot run: stripped before the run is assembled.
+    """This spec without what a call cannot use at all: stripped before the run is assembled.
 
-    Before, not only in the factory, because `_assemble` acts on the bindings
-    first - it opens a sandbox workspace and resolves delegates - and a call
-    must not open a container or a delegation it can never use.
+    Only what is `never` in a call. What the call hands off stays, because
+    `_assemble` opens the sandbox and resolves the delegates its text twin
+    works with; the factory leaves them off the realtime agent itself.
     """
-    unavailable = set(voice_unavailable(spec))
     return spec.model_copy(
         update={
-            "capabilities": [b for b in spec.capabilities if b.id not in unavailable],
-            "subagents": [],
+            "capabilities": [
+                binding
+                for binding in spec.capabilities
+                if capability_def(binding.id).voice != "never"
+            ]
         }
     )

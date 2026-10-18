@@ -45,6 +45,7 @@ from app.repositories import (
 from app.repositories import organization as organization_repo
 from app.schemas.voice import (
     AnswerFrame,
+    AnswersFrame,
     ApprovalFrame,
     ApprovalSettledFrame,
     ApprovalUnavailableFrame,
@@ -55,6 +56,7 @@ from app.schemas.voice import (
     MuteFrame,
     NoticeFrame,
     PlayedFrame,
+    QuestionsSettledFrame,
     ReadyFrame,
     ServerFrame,
     StartFrame,
@@ -402,6 +404,8 @@ class VoiceCallSession:
             else None
         )
         pump = self._pump = EventPump(started=started, send=self._send, relay=relay)
+        if started.prepared.hand_off is not None:
+            started.prepared.hand_off.watch = pump.worker_event
         LIVE_CALLS.bind(started.call_id, self)
         try:
             # After the first commit, so inside this `try`: a failure here still
@@ -547,6 +551,10 @@ class VoiceCallSession:
                 return
             if isinstance(frame, ApprovalFrame):
                 await self._decide(started, frame)
+            elif isinstance(frame, AnswersFrame):
+                if not started.questions.answer(frame.id, frame.answers):
+                    # Answered aloud first, or after the wait ran out: the card closes.
+                    await self._send(QuestionsSettledFrame(type="questions_settled", id=frame.id))
             elif relay is None:
                 continue
             elif isinstance(frame, bytes):

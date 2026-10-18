@@ -189,7 +189,6 @@ function offered(transport: VoiceTransport): VoiceReadiness {
     model: null,
     cap_seconds: 0,
     minutes_left: null,
-    unavailable_capabilities: [],
   };
 }
 

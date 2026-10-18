@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Literal
 
 import anyio
 from pydantic_ai.messages import (
+    AgentStreamEvent,
     DeferredToolRequestsEvent,
     FunctionToolCallEvent,
     FunctionToolResultEvent,
@@ -229,7 +230,32 @@ class EventPump:
             if self._relay is not None:
                 await self._barge_in(self._relay, session)
             await self._state("interrupted")
-        elif isinstance(event, FunctionToolCallEvent):
+        elif isinstance(
+            event, FunctionToolCallEvent | FunctionToolResultEvent | DeferredToolRequestsEvent
+        ):
+            await self._tool_event(event)
+        elif isinstance(event, RealtimeTurnCompleteEvent):
+            self._completes_to_notice -= 1
+            await self._finish_response(session)
+        elif isinstance(event, RealtimeSessionErrorEvent):
+            await self._send(NoticeFrame(type="notice", kind="provider_error"))
+
+    async def worker_event(self, event: AgentStreamEvent) -> None:
+        """One event from the call's text twin, working on a hand-off (`app/agents/hand_off.py`).
+
+        Its steps are the call's steps: shown as they run, and saved on the turn
+        that handed the work off - the hand-off's own response completes only once
+        the twin has answered, so they land in the same message, after it.
+        """
+        if isinstance(
+            event, FunctionToolCallEvent | FunctionToolResultEvent | DeferredToolRequestsEvent
+        ):
+            await self._tool_event(event)
+
+    async def _tool_event(
+        self, event: FunctionToolCallEvent | FunctionToolResultEvent | DeferredToolRequestsEvent
+    ) -> None:
+        if isinstance(event, FunctionToolCallEvent):
             part = event.part
             self._tools[part.tool_call_id] = SpokenToolCall(
                 tool_call_id=part.tool_call_id,
@@ -251,13 +277,8 @@ class EventPump:
                     tool.result = tool_result_text(event.part.content)
                 tool.completed_at = datetime.now(UTC)
                 await self._send(ToolFrame(type="tool", name=tool.tool_name, status="done"))
-        elif isinstance(event, DeferredToolRequestsEvent):
+        else:
             await self._state("awaiting_approval")
-        elif isinstance(event, RealtimeTurnCompleteEvent):
-            self._completes_to_notice -= 1
-            await self._finish_response(session)
-        elif isinstance(event, RealtimeSessionErrorEvent):
-            await self._send(NoticeFrame(type="notice", kind="provider_error"))
 
     async def _delta(self, index: int, delta: SpeechPartDelta, session: RealtimeSession) -> None:
         piece = delta.transcript_delta
@@ -297,6 +318,7 @@ class EventPump:
         await self._send(self._caption(index, part.speaker, final=text))
         if part.speaker == "user":
             self.heard = text
+            self._started.questions.heard(text)
             saved = await self._started.writer.user_turn(text, turn_id=self._turn(index, "user"))
             if saved is not None:
                 await self._send(_saved(saved))

@@ -1,5 +1,5 @@
 ---
-source_sha: "02abd111614b"
+source_sha: "cc5a76355164"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -59,12 +59,12 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `conversation_search` | Conversaciones anteriores | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | tal cual |
 | `web_research` | Búsqueda web | research | `web_search` | `web:read` | para servicios de pago | tal cual |
 | `web_fetch` | Leer páginas web | research | `web_fetch` | `web:fetch` | — | tal cual |
-| `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | no disponible |
+| `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | delegada |
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | no disponible |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | para Daytona | delegada |
 | `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
 | `image_generation` | Generación de imágenes | analysis | `generate_image` | — | obligatoria | tal cual |
-| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | no disponible |
+| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | delegada |
 | `planning` | Planificación | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | tal cual |
 | `thinking` | Razonamiento | reasoning | ninguna, a propósito | — | — | mapeada |
 | `system_reminders` | Recordatorio de instrucciones | reasoning | ninguna, a propósito | — | — | sin efecto |
@@ -76,7 +76,7 @@ guarda archivos. El navegador web apunta al servicio de navegador del despliegue
 | `tool_output_limits` | Límites de resultados de herramientas | utility | `read_tool_result` | — | — | tal cual |
 | `artifacts` | Aplicaciones | utility | `publish_artifact`, `read_artifact` | — | — | tal cual |
 | `channel_tools` | Información del canal de chat | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | no disponible |
-| `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | no disponible |
+| `ask_user` | Preguntar al usuario | utility | `ask_user_question` | — | — | en pantalla |
 
 Siete de ellas no tienen herramientas a propósito. `thinking` cambia cómo trabaja
 el modelo, no qué puede alcanzar, `clock` pone la fecha en las instrucciones,
@@ -103,10 +103,14 @@ cargan como instrucciones bajo demanda, sin su herramienta de lectura. La
 búsqueda de herramientas *descartada* da a la llamada sus herramientas MCP
 directamente, porque las herramientas de una llamada quedan fijas cuando se
 conecta. El razonamiento *mapeado* se convierte en el propio ajuste de
-razonamiento del modelo en tiempo real. *No disponible* queda fuera de las
-llamadas, y la tarjeta Voice del Builder la enumera para un agent que la tiene;
-no bloquea la publicación. La consulta del canal de chat está entre ellas
-porque una llamada nunca se hace en un canal. *Sin efecto* marca tres que
+razonamiento del modelo en tiempo real. *Delegada* se ejecuta en el
+modelo de texto propio del agent, al que la llamada pasa una tarea
+([Pasar trabajo](../voice.md#handing-work-off)); la tarjeta Voice del Builder
+las enumera para un agent que las tiene, igual que trabajar mientras corren
+herramientas, que solo manda al fondo una herramienta delegada. *En pantalla*
+hace sus preguntas en la tarjeta de la vista de la llamada en `/chat`. La
+consulta del canal de chat *no está disponible*, porque una llamada nunca se
+hace en un canal. *Sin efecto* marca tres que
 actúan sobre las peticiones al modelo de un run de texto y sobre su historial
 almacenado, que una llamada no envía.
 
@@ -114,8 +118,9 @@ Los guardrails revisan las transcripciones de la llamada. El resultado de una
 herramienta se revisa, y se bloquea, antes de que el agent lo lea; la
 comprobación antes de que una herramienta se ejecute es la aprobación, para las
 herramientas que la necesitan. Los guardrails no revisan los argumentos de una
-herramienta. La API del catálogo lleva la columna como la marca `voice` de cada
-capability.
+herramienta. La API del catálogo lleva cómo participa cada capability
+en una llamada en el campo `voice`: `live` en el propio modelo de la llamada,
+`hand_off` o `never`.
 
 **Una de ellas no está en el Toolbox en absoluto.** `channel_tools` se elige por
 bot vinculado en *Where this agent is available*, y la publicación rechaza un spec

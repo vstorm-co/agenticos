@@ -1,5 +1,5 @@
 ---
-source_sha: "a1eb59456056"
+source_sha: "f716d62c8038"
 ---
 
 # Konsola { #the-console }
@@ -448,14 +448,16 @@ miejsca w konsoli.
   limitu, by polegać tylko na budżetach. Pierwsze trzy wymagają `org:settings`;
   minuty wymagają `budgets:manage`, a dla wszystkich innych są tylko do odczytu.
   Posiadacz `runs:view` widzi też, ile minut z tego miesiąca zużyły rozmowy.
-- **Karta Głos (Voice) agenta**, w sekcji **Rozmowy głosowe (Voice
-  conversations)**: **Odbieraj rozmowy głosowe (Take voice calls)**, potem
-  provider i model rozmów (dla Azure nazwa wdrożenia i jej model bazowy), klucz,
-  głos, język mówiony (albo **Jak osoba dzwoniąca (Follow the caller)**),
-  najdłuższa rozmowa i uwagi do głosu. Karta wymienia, czego agent nie może
-  używać w rozmowach, mówi, że guardraile nie mogą odfiltrować wypowiedzianych
-  słów, zanim zostaną usłyszane, i że rozmowy są zapisywane jako tekst, bez
-  przechowywania dźwięku. Działa, gdy agent zostanie opublikowany.
+- **Karta Głos (Voice) agenta**, na zakładce **Rozmowy głosowe (Voice
+  calls)**: **Zezwól na rozmowy głosowe (Allow voice calls)**, potem provider i
+  model rozmów (dla Azure nazwa wdrożenia i jej model bazowy), klucz, głos,
+  język mówiony (albo **Dopasuj do rozmówcy (Follow the caller)**), **Najdłuższa
+  rozmowa (Longest call)** i **Instrukcje do rozmów (Instructions for calls)**.
+  Karta wymienia, co agent w rozmowach
+  [przekazuje swojemu modelowi tekstowemu](voice.md#handing-work-off), mówi, że
+  guardraile nie mogą odfiltrować wypowiedzianych słów, zanim zostaną usłyszane,
+  i że rozmowy są zapisywane jako tekst, bez przechowywania dźwięku. Działa, gdy
+  agent zostanie opublikowany.
 - **Przełącznik Rozmowy głosowe (Voice calls) embeda**, w formularzach widgetu
   i hostowanej strony — zobacz
   [Kanały](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
@@ -498,7 +500,11 @@ narzędzie, jego dokładne argumenty i to, co według transkrypcji powiedziałe�
 z 60-sekundowym odliczaniem. Decydują tylko jej przyciski; powiedzenie „tak”
 niczego nie zatwierdza. Bez `approvals:decide` karta informuje, że narzędzie
 wymaga zatwierdzenia, którego nie możesz udzielić głosem, i proponuje zakończyć
-rozmowę i pisać dalej. **Limity** są wypowiadane: minutę przed końcem
+rozmowę i pisać dalej. **Pytania** agenta pojawiają się jako karta pytań z
+czatu i są też czytane na głos: stuknij odpowiedź albo po prostu ją powiedz.
+Praca, którą agent [przekazuje swojemu modelowi tekstowemu](voice.md#handing-work-off),
+pokazuje w pasku każdy krok w trakcie, a kroki zostają potem przy turze.
+**Limity** są wypowiadane: minutę przed końcem
 najdłuższej rozmowy dostajesz ostrzeżenie, a gdy skończy się czas, budżet albo
 minuty miesiąca, agent mówi jedno zdanie i rozmowa się kończy.
 

@@ -35,7 +35,6 @@ def wired() -> Iterator[SimpleNamespace]:
                 model="gpt-realtime",
                 cap_seconds=600,
                 minutes_left=600,
-                unavailable_capabilities=["sandbox"],
             )
         )
     )

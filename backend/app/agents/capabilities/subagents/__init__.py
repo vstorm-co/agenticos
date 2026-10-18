@@ -164,7 +164,7 @@ class SubagentsConfig(BaseModel):
 
 @register(
     id="subagents",
-    voice=False,
+    voice="hand_off",
     name="Subagents",
     category="reasoning",
     description="Hand part of a job to another agent, or to a specialist defined here.",

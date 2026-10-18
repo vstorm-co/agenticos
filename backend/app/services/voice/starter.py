@@ -51,6 +51,7 @@ from app.services.voice.approvals import SendFrame, VoiceApprovalBridge
 from app.services.voice.exceptions import VoiceRefused
 from app.services.voice.guard import TranscriptGuard
 from app.services.voice.meter import UsageMeter
+from app.services.voice.questions import VoiceQuestions
 from app.services.voice.reaper import close_orphaned
 from app.services.voice.registry import LIVE_CALLS, WORKER_ID
 from app.services.voice.settings import (
@@ -108,6 +109,7 @@ class StartedCall:
     """What this connection's caller must present to resume it; the row holds its hash."""
     conversation_id: UUID
     bridge: VoiceApprovalBridge
+    questions: VoiceQuestions
     guard: TranscriptGuard
     meter: UsageMeter
     writer: TurnWriter
@@ -239,6 +241,11 @@ class VoiceCallStarter:
             ),
         )
         bridge.attach(prepared.approvals)
+        questions = VoiceQuestions(send=self._send)
+        if caller.surface == "web":
+            # The console's call view draws the card; a widget's and a hosted
+            # page's do not, and with no channel the agent is offered no `ask_user`.
+            prepared.built.deps.ask_questions = questions
         headroom = await prepared.built.budget.headroom()
         if limits.budget_refuses(
             headroom=headroom, worst=limits.worst_case_usd(cap_seconds=cap, entry=resolved.entry)
@@ -315,6 +322,7 @@ class VoiceCallStarter:
             resume_token=resume_token,
             conversation_id=conversation_id,
             bridge=bridge,
+            questions=questions,
             guard=TranscriptGuard.for_spec(prepared.spec),
             meter=UsageMeter(
                 prepared.built.ledger,

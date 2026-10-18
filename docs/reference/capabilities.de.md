@@ -1,5 +1,5 @@
 ---
-source_sha: "02abd111614b"
+source_sha: "cc5a76355164"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -59,12 +59,12 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `conversation_search` | Frühere Gespräche | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | unverändert |
 | `web_research` | Websuche | research | `web_search` | `web:read` | für kostenpflichtige Dienste | unverändert |
 | `web_fetch` | Webseiten lesen | research | `web_fetch` | `web:fetch` | — | unverändert |
-| `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | nicht verfügbar |
+| `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | nicht verfügbar |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | für Daytona | übergeben |
 | `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich | unverändert |
-| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | nicht verfügbar |
+| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | übergeben |
 | `planning` | Planung | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | unverändert |
 | `thinking` | Nachdenken | reasoning | keine, mit Absicht | — | — | abgebildet |
 | `system_reminders` | Erinnerung an Anweisungen | reasoning | keine, mit Absicht | — | — | ohne Wirkung |
@@ -76,7 +76,7 @@ hält er nur Dateien. Der Webbrowser zeigt auf den Browser-Dienst der Installati
 | `tool_output_limits` | Grenzen für Tool-Ergebnisse | utility | `read_tool_result` | — | — | unverändert |
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | unverändert |
 | `channel_tools` | Infos zum Chat-Kanal | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | nicht verfügbar |
-| `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | nicht verfügbar |
+| `ask_user` | Rückfragen | utility | `ask_user_question` | — | — | auf dem Bildschirm |
 
 Sieben davon haben absichtlich keine Tools. `thinking` verändert, wie das Modell
 arbeitet, statt was es erreichen kann, `clock` schreibt das Datum in die
@@ -103,18 +103,23 @@ unten unter [Delegation](#delegation) erklärt.
 Instruktionen geladen, ohne ihr Lese-Tool. *Entfällt*: Die Tool-Suche gibt dem
 Anruf seine MCP-Tools direkt, weil die Tools eines Anrufs beim Verbinden
 feststehen. *Abgebildet*: Das Nachdenken wird zur eigenen Reasoning-Einstellung
-des Realtime-Modells. *Nicht verfügbar* wird aus Anrufen weggelassen, und die
-Karte Stimme (Voice) im Builder listet es für einen Agent auf, der es hat; die
-Veröffentlichung blockiert es nicht. Die Chat-Kanal-Abfrage gehört dazu, weil
-ein Anruf nie über einen Kanal geführt wird. *Ohne Wirkung* kennzeichnet drei,
+des Realtime-Modells. *Übergeben* läuft im eigenen
+Textmodell des Agenten, dem der Anruf eine Aufgabe übergibt
+([Arbeit übergeben](../voice.md#handing-work-off)); die Karte Stimme (Voice) im
+Builder listet diese für einen Agent auf, der sie hat, ebenso das Arbeiten
+während Tools laufen, das ein übergebenes Tool nur in den Hintergrund schickt.
+*Auf dem Bildschirm* stellt seine Fragen auf der Karte der Anrufansicht in
+`/chat`. Die Chat-Kanal-Abfrage ist *nicht verfügbar*, weil ein Anruf nie über
+einen Kanal geführt wird. *Ohne Wirkung* kennzeichnet drei,
 die auf den Modellanfragen eines Text-Runs und deren gespeicherter Historie
 arbeiten, die ein Anruf nicht sendet.
 
 Guardrails prüfen die Transkripte des Anrufs. Das Ergebnis eines Tools wird
 geprüft und blockiert, bevor der Agent es liest; die Prüfung, bevor ein Tool
 läuft, ist die Freigabe, für Tools, die eine brauchen. Guardrails prüfen die
-Argumente eines Tools nicht. Die Katalog-API führt die Spalte als Flag `voice`
-jeder Capability.
+Argumente eines Tools nicht. Die Katalog-API führt, wie jede Capability an einem Anruf
+teilnimmt, im Feld `voice`: `live` auf dem eigenen Modell des Anrufs,
+`hand_off` oder `never`.
 
 **Eine davon steht gar nicht in der Toolbox.** `channel_tools` wird pro gebundenem
 Bot unter *Where this agent is available* gewählt, und die Veröffentlichung lehnt

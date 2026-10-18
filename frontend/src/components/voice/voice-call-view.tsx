@@ -5,9 +5,11 @@ import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 
 import { Spinner } from "@/components/ui";
+import { QuestionPrompt } from "@/components/ui/question-prompt";
 import { ThinkingOrb } from "@/components/ui/thinking-orb";
 import type { VoiceSession } from "@/hooks/use-voice-session";
 import { toolCaption } from "@/lib/agent-step-captions";
+import { toAskUserQuestions } from "@/lib/ask-user-questions";
 import { glideOrJump } from "@/lib/motion";
 import { scrollWithin } from "@/lib/scroll-within";
 import { viewState } from "@/lib/voice/call-reducer";
@@ -51,7 +53,8 @@ function AgentRow({ children }: { children: ReactNode }) {
  * the bar. Turns arrive as ordinary messages with the live caption inside
  * them; while the agent thinks or runs a tool it says so where its answer will
  * be; an approval appears as a card with the exact arguments, and stays as the
- * record once decided; and the call's end lands as a summary card. Saved turns
+ * record once decided; questions the agent asks appear as the chat's card, which
+ * a tap or the caller's own words answer; and the call's end lands as a summary card. Saved turns
  * reach the conversation itself, and `hidden` - the turns it already holds -
  * keeps each from being drawn twice.
  */
@@ -84,7 +87,7 @@ export function VoiceCallFeed({
   const t = useTranslations("chat");
   const tTools = useTranslations("chat.tools");
   const { call } = session;
-  const { approval } = call;
+  const { approval, questions } = call;
   const now = useSecondClock(approval !== null);
   if (call.phase === "idle") return null;
   const live = callActive(session);
@@ -142,6 +145,15 @@ export function VoiceCallFeed({
             now={now}
             canDecide={canDecide}
             onDecide={(approve) => session.decide(approval.id, approve)}
+          />
+        </AgentRow>
+      )}
+      {live && questions && (
+        <AgentRow>
+          <QuestionPrompt
+            key={questions.id}
+            questions={toAskUserQuestions(questions.questions)}
+            onComplete={(answers) => session.answer(questions.id, answers)}
           />
         </AgentRow>
       )}

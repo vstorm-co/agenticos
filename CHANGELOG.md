@@ -51,7 +51,14 @@ Two things are versioned separately from this file and worth knowing about:
   Voice minutes card and the walkthrough stops for both voice settings. Calls
   run in an inline call bar: in `/chat`, on the hosted page (without approval
   controls) and in the widget, whose `voice.js` loads only when calls are on.
-  See [Voice conversations](docs/voice.md).
+  What a realtime session cannot carry - sandbox, browser use, subagents, work
+  while tools run - the call hands to the same agent on its own text model
+  through one `hand_off` tool: same workspace, same budget, its approvals on
+  the call's card, its steps shown live and saved on the turn. In `/chat` the
+  agent's `ask_user` questions appear on the call view's card and can be
+  answered by a tap or aloud. The capability catalog's `voice` field is now
+  `live`, `hand_off` or `never`, and readiness no longer lists unavailable
+  capabilities. See [Voice conversations](docs/voice.md).
 - **Dictation in `/chat` on the organization's own speech-to-text provider
   (#1797).** With the organization's engine set to Server, the composer records
   in any browser, `POST /api/v1/agents/{agent_id}/dictation` transcribes the

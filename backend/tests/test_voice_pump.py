@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import pytest
 from pydantic_ai.messages import (
+    DeferredToolRequestsEvent,
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     PartDeltaEvent,
@@ -17,6 +18,7 @@ from pydantic_ai.messages import (
     RetryPromptPart,
     SpeechPart,
     SpeechPartDelta,
+    TextPart,
     ToolCallPart,
     ToolReturnPart,
 )
@@ -26,6 +28,7 @@ from pydantic_ai.realtime import (
     RealtimeOutputSpeechStartEvent,
     RealtimeTurnCompleteEvent,
 )
+from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.usage import RunUsage
 
 from app.services.voice.guard import TranscriptGuard
@@ -69,6 +72,7 @@ def _pump(*, guard=None, affordable=True, relay=None):
         writer=_Writer(),
         guard=guard or TranscriptGuard(None),
         meter=MagicMock(book_response=MagicMock(return_value=Decimal("0.01"))),
+        questions=MagicMock(),
         prepared=SimpleNamespace(
             built=SimpleNamespace(
                 budget=SimpleNamespace(can_afford_next_request=AsyncMock(return_value=affordable))
@@ -147,6 +151,50 @@ async def test_a_finished_response_is_booked_saved_with_its_tools_and_checked_ag
     ].result == "18C"
     assert ("state", {"state": "tool_running"}) in frames
     assert not pump.budget_exhausted
+
+
+async def test_the_text_twins_steps_are_shown_and_saved_on_the_turn_that_handed_off():
+    pump, frames, started, _ = _pump()
+    hand_off = ToolCallPart(tool_name="hand_off", args={"task": "Draft it"}, tool_call_id="h1")
+    step = ToolCallPart(tool_name="write_file", args={"path": "a.md"}, tool_call_id="w1")
+    await pump.handle(FunctionToolCallEvent(part=hand_off), _SESSION)
+    await pump.worker_event(FunctionToolCallEvent(part=step))
+    await pump.worker_event(
+        FunctionToolResultEvent(
+            part=ToolReturnPart(tool_name="write_file", content="written", tool_call_id="w1")
+        )
+    )
+    await pump.worker_event(PartStartEvent(index=0, part=TextPart(content="Done")))
+    await pump.handle(
+        FunctionToolResultEvent(
+            part=ToolReturnPart(tool_name="hand_off", content="Wrote a.md", tool_call_id="h1")
+        ),
+        _SESSION,
+    )
+    await pump.handle(RealtimeTurnCompleteEvent(), _SESSION)
+
+    tools = started.writer.assistant_turn.await_args.kwargs["tools"]
+    assert [(t.tool_name, t.result) for t in tools] == [
+        ("hand_off", "Wrote a.md"),
+        ("write_file", "written"),
+    ]
+    assert ("tool", {"name": "write_file", "status": "running"}) in frames
+    assert ("tool", {"name": "write_file", "status": "done"}) in frames
+
+
+async def test_a_twin_waiting_on_an_approval_says_so():
+    pump, frames, _, _ = _pump()
+    await pump.worker_event(DeferredToolRequestsEvent(requests=DeferredToolRequests()))
+    assert frames[-1] == ("state", {"state": "awaiting_approval"})
+
+
+async def test_what_the_caller_says_answers_an_open_questions_card():
+    pump, _, started, _ = _pump()
+    await pump.handle(
+        PartEndEvent(index=0, part=SpeechPart(speaker="user", transcript="The second one")),
+        _SESSION,
+    )
+    started.questions.heard.assert_called_once_with("The second one")
 
 
 @pytest.mark.security
@@ -392,9 +440,7 @@ async def test_the_relays_exact_playback_wins_over_the_estimate():
 
 
 async def test_provider_events_become_states_and_notices():
-    from pydantic_ai.messages import DeferredToolRequestsEvent
     from pydantic_ai.realtime import RealtimeResponseInterruptedEvent, RealtimeSessionErrorEvent
-    from pydantic_ai.tools import DeferredToolRequests
 
     pump, frames, _, _ = _pump()
     await pump.handle(RealtimeResponseInterruptedEvent(), _SESSION)

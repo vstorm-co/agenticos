@@ -27,7 +27,6 @@ class VoiceReadinessRead(BaseSchema):
     minutes_left: int | None = Field(
         default=None, description="This month's remaining call minutes; null = budgets only"
     )
-    unavailable_capabilities: list[str] = Field(default_factory=list)
 
 
 class StartFrame(BaseSchema):
@@ -67,6 +66,20 @@ class ApprovalFrame(BaseSchema):
     decision: Literal["approve", "deny"]
 
 
+class AnswersFrame(BaseSchema):
+    """The person on the call answering the questions card the call is waiting on."""
+
+    type: Literal["answers"]
+    id: str = Field(max_length=64)
+    answers: list[dict[str, object]] = Field(
+        max_length=10,
+        description=(
+            "One entry per question, in order, as the chat's question card answers: "
+            "`selected` labels, a typed `answer`, or `skipped`"
+        ),
+    )
+
+
 class MuteFrame(BaseSchema):
     """The caller's microphone muted or unmuted."""
 
@@ -88,7 +101,7 @@ class PlayedFrame(BaseSchema):
 
 
 ClientFrame = Annotated[
-    StartFrame | ApprovalFrame | MuteFrame | EndFrame | PlayedFrame,
+    StartFrame | ApprovalFrame | AnswersFrame | MuteFrame | EndFrame | PlayedFrame,
     Field(discriminator="type"),
 ]
 
@@ -204,6 +217,22 @@ class ApprovalSettledFrame(BaseSchema):
     outcome: Literal["approved", "denied", "expired"]
 
 
+class QuestionsFrame(BaseSchema):
+    """Questions the agent is waiting on the person to answer, as the chat's card draws them."""
+
+    type: Literal["questions"]
+    id: str
+    questions: list[dict[str, object]]
+    timeout_seconds: int
+
+
+class QuestionsSettledFrame(BaseSchema):
+    """The questions card is answered - by a tap or aloud - or no longer waited on."""
+
+    type: Literal["questions_settled"]
+    id: str
+
+
 class NoticeFrame(BaseSchema):
     """Something the call view says in words: a guardrail hit, a provider error, a limit."""
 
@@ -243,6 +272,8 @@ ServerFrame = Annotated[
     | ApprovalRequiredFrame
     | ApprovalUnavailableFrame
     | ApprovalSettledFrame
+    | QuestionsFrame
+    | QuestionsSettledFrame
     | NoticeFrame
     | LimitFrame
     | EndedFrame

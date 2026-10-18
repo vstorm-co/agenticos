@@ -429,13 +429,14 @@ set it up.
   limit to rely on budgets alone. The first three need `org:settings`; the
   minutes need `budgets:manage` and are read-only to anybody else. A holder of
   `runs:view` also sees how many of this month's minutes calls have used.
-- **The agent's Voice card**, under **Voice conversations**: **Take voice
+- **The agent's Voice card**, on its **Voice calls** tab: **Allow voice
   calls**, then the call provider and model (for Azure, the deployment name and
   its base model), the key, the voice, the spoken language (or **Follow the
-  caller**), the longest call and a voice note. The card lists what the agent
-  cannot use in calls, says that guardrails cannot filter spoken words before
-  they are heard, and that calls are recorded as text with no audio kept. It
-  takes effect when the agent is published.
+  caller**), the **Longest call** and **Instructions for calls**. The card lists
+  what the agent [hands to its text model](voice.md#handing-work-off) in calls,
+  says that guardrails cannot filter spoken words before they are heard, and
+  that calls are recorded as text with no audio kept. It takes effect when the
+  agent is published.
 - **An embed's Voice calls switch**, in the widget and hosted page forms - see
   [Channels](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
 
@@ -472,7 +473,11 @@ the conversation says so where its answer will appear.
 tool, its exact arguments and what you were heard to say, with a 60-second
 countdown. Only its buttons decide; saying "yes" does not. Without
 `approvals:decide` the card says the tool needs an approval you cannot give by
-voice, and offers to end the call and continue in text. **Limits** are spoken:
+voice, and offers to end the call and continue in text. **Questions** the agent
+asks appear as the chat's question card, read aloud as well: tap an answer, or
+just say it. Work the agent [hands to its text model](voice.md#handing-work-off)
+shows each step in the bar while it runs, and the steps stay on the turn
+afterwards. **Limits** are spoken:
 a minute before the longest call ends you are warned, and when the time, the
 budget or the month's minutes run out the agent says one sentence and the call
 ends.

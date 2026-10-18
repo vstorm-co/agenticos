@@ -2,7 +2,7 @@
 title: "Sprachgespräche"
 seo_title: "Sprachgespräche: mit einem veröffentlichten Agent sprechen"
 description: "Einen veröffentlichten Agent anrufen und mit ihm sprechen: Realtime-Modelle, Freigaben im Anruf, Minutenlimits, Auflege-Sicherungen, Transkripte als Text."
-source_sha: "3b30b65cd3fd"
+source_sha: "9e4a39e96b30"
 ---
 
 # Sprachgespräche { #voice-conversations }
@@ -149,21 +149,49 @@ spricht, wird verworfen, und eine anhaltende Flut beendet den Anruf.
 Ein Anruf führt den Agent aus, den sein veröffentlichter Spec beschreibt, gebaut
 von derselben Factory wie ein Text-Run. Die Unterschiede kommen von der
 Realtime-Sitzung: Ihre Tools stehen fest, sobald der Anruf verbunden ist, sie
-kann nicht für eine Freigabe pausieren, und manche Capabilities können in ihr
-überhaupt nicht laufen.
+kann nicht für eine Freigabe pausieren, und sie trägt keinen Workspace, keinen
+Browser und keine Delegates. Diese übergibt der Anruf stattdessen dem eigenen
+Textmodell des Agenten.
 
 | Per Sprache | Capabilities |
 |---|---|
 | Unverändert | clock (die Uhrzeit in den Anweisungen steht fest, sobald der Anruf verbunden ist), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, mem0 memory, planning, tool output limits, image generation |
+| Auf dem Bildschirm | ask the user: In `/chat` erscheint die Fragekarte in der Anrufansicht und wird auch vorgelesen; der Anrufer tippt eine Antwort an oder sagt sie. Ein Anruf aus einem Widget oder einer gehosteten Seite bekommt sie nicht |
 | Angepasst | skills: bei Bedarf als Anweisungen geladen, ohne die Tools, mit denen ein Text-Run sie liest |
 | Weggelassen | tool search: Die MCP-Tools, die sie zurückgestellt hätte, werden dem Anruf direkt übergeben |
 | Abgebildet | thinking: wird zur eigenen Reasoning-Einstellung des Realtime-Modells, wo das Modell eine hat |
-| Nicht verfügbar | sandbox, browser use, browser choice, subagents |
+| Übergeben | sandbox, browser use, subagents, Arbeiten während Tools laufen: erledigt das Textmodell des Agenten, siehe [Arbeit übergeben](#handing-work-off) |
 
 Die Karte Stimme im Builder listet die Capabilities auf, die dieser Agent in
-Anrufen nicht nutzen kann. Sie blockieren das Veröffentlichen nicht; der Agent
-wird angewiesen, klar zu sagen, dass er das in einem Anruf nicht kann, und den
-Text-Chat vorzuschlagen.
+Anrufen übergibt.
+
+### Arbeit übergeben { #handing-work-off }
+
+Hat der Agent eine Capability, die ein Anruf nicht trägt, bekommt sein Anruf ein
+weiteres Tool, `hand_off`. Das Modell des Anrufs beschreibt die Aufgabe, und
+derselbe Agent führt sie auf seinem eigenen Textmodell aus, dem aus seinem
+Build-Tab: mit Sandbox, Browser und Subagents, im selben Workspace, unter
+demselben Budget. Er antwortet mit dem, was er getan hat, und das Modell des
+Anrufs sagt es laut.
+
+- **Der Anruf läuft währenddessen weiter.** Der Agent sagt zuerst, dass er daran
+  arbeitet, und die Anrufleiste zeigt jeden Schritt, während er läuft.
+- **Jeder Schritt bleibt erhalten.** Die Schritte werden am Turn gespeichert, der
+  die Arbeit übergeben hat, und die Unterhaltung zeigt sie danach wie die eines
+  Chats.
+- **Freigaben gehören dem Anruf.** Ein freigabepflichtiges Tool, das das
+  Textmodell oder einer seiner Subagents aufruft, zeigt dieselbe Freigabekarte
+  wie eines, das der Anruf aufruft. Auch hier trägt der Anruf eines Besuchers
+  kein freigabepflichtiges Tool.
+- **Eine Übergabe nach der anderen.** Jede setzt fort, was die letzte in diesem
+  Anruf getan hat, sodass „jetzt schick die Datei“ nach „schreib es auf“
+  funktioniert.
+- **Ein Fehlschlag wird gesagt, nicht verborgen.** Eine Übergabe, der Budget
+  oder Schritte ausgehen oder deren Modell versagt, kommt als Satz zurück, den
+  der Agent sagt; der Anruf läuft weiter.
+
+Eine Übergabe dauert so lange wie die Arbeit, oft eine Minute oder länger, und
+verbraucht zusätzlich zum Modell des Anrufs auch das Textmodell.
 
 **Eingebauter Sprechstil.** Jeder Anruf hängt dieselbe Anleitung an die
 Anweisungen des Agents an: kurze Sätze; kein Markdown, keine Listen, Tabellen

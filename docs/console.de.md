@@ -1,5 +1,5 @@
 ---
-source_sha: "a1eb59456056"
+source_sha: "f716d62c8038"
 ---
 
 # Die Konsole { #the-console }
@@ -491,12 +491,13 @@ unterbrechen. Drei Stellen in der Konsole richten ihn ein.
   `org:settings`; die Minuten brauchen `budgets:manage` und sind für alle anderen
   schreibgeschützt. Wer `runs:view` hat, sieht außerdem, wie viele der Minuten
   dieses Monats Anrufe verbraucht haben.
-- **Die Karte Stimme (Voice) des Agents**, unter **Sprachgespräche (Voice
-  conversations)**: **Sprachanrufe annehmen (Take voice calls)**, dann Provider
-  und Modell für Anrufe (bei Azure der Name des Deployments und sein
-  Basismodell), der Schlüssel, die Stimme, die gesprochene Sprache (oder **Wie
-  die anrufende Person (Follow the caller)**), der längste Anruf und ein Hinweis
-  zur Stimme. Die Karte listet auf, was der Agent in Anrufen nicht benutzen kann,
+- **Die Karte Stimme (Voice) des Agents**, auf ihrem Tab **Sprachanrufe (Voice
+  calls)**: **Sprachanrufe erlauben (Allow voice calls)**, dann Provider und
+  Modell für Anrufe (bei Azure der Name des Deployments und sein Basismodell),
+  der Schlüssel, die Stimme, die gesprochene Sprache (oder **Sprache des
+  Anrufers (Follow the caller)**), **Längster Anruf (Longest call)** und
+  **Anweisungen für Anrufe (Instructions for calls)**. Die Karte listet auf, was
+  der Agent in Anrufen [seinem Textmodell übergibt](voice.md#handing-work-off),
   sagt, dass Guardrails gesprochene Worte nicht filtern können, bevor sie zu
   hören sind, und dass Anrufe als Text festgehalten werden, ohne dass Audio
   gespeichert wird. Sie wird wirksam, sobald der Agent veröffentlicht ist.
@@ -545,7 +546,11 @@ das Tool, seine exakten Argumente und was von Ihnen verstanden wurde, mit einem
 60-Sekunden-Countdown. Entschieden wird nur über ihre Schaltflächen; ein
 gesprochenes „Ja“ genügt nicht. Ohne `approvals:decide` sagt die Karte, dass das
 Tool eine Freigabe braucht, die Sie per Stimme nicht erteilen können, und bietet
-an, den Anruf zu beenden und schriftlich fortzufahren. **Limits** werden
+an, den Anruf zu beenden und schriftlich fortzufahren. **Fragen** des Agents
+erscheinen als die Fragekarte des Chats und werden auch vorgelesen: Tippen Sie
+eine Antwort an oder sagen Sie sie einfach. Arbeit, die der Agent
+[seinem Textmodell übergibt](voice.md#handing-work-off), zeigt jeden Schritt in
+der Leiste, während er läuft, und die Schritte bleiben danach am Turn. **Limits** werden
 ausgesprochen: Eine Minute vor dem Ende des längsten Anrufs werden Sie gewarnt,
 und wenn die Zeit, das Budget oder die Minuten des Monats aufgebraucht sind,
 sagt der Agent einen Satz, und der Anruf endet.

@@ -76,10 +76,9 @@ _READY = AgentSpec(
 )
 
 
-async def test_a_configured_agent_is_ready_and_lists_what_a_call_cannot_use():
+async def test_a_configured_agent_is_ready():
     readiness = await _readiness(_org(), _READY)
     assert readiness.available and readiness.transport == "webrtc"
-    assert readiness.unavailable_capabilities == ["sandbox"]
     assert readiness.cap_seconds == 600 and readiness.minutes_left == 600
 
 

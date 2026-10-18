@@ -682,7 +682,6 @@ describe("the chat container - a voice call (#54)", () => {
     model: "gpt-realtime",
     cap_seconds: 600,
     minutes_left: 540,
-    unavailable_capabilities: [],
   };
   const LIVE_CALL = {
     ...initialCall,

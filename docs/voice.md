@@ -134,20 +134,44 @@ than anyone speaks is dropped, and a sustained flood ends the call.
 
 A call runs the agent its published spec describes, built by the same factory as
 a text run. The differences come from the realtime session: its tools are fixed
-when the call connects, it cannot pause for an approval, and some capabilities
-cannot run in it at all.
+when the call connects, it cannot pause for an approval, and it cannot carry a
+workspace, a browser or delegates. Those the call hands to the agent's own text
+model instead.
 
 | By voice | Capabilities |
 |---|---|
 | As-is | clock (the time in the instructions is fixed when the call connects), context, knowledge, web research, web fetch, charts, artifacts, code execution, conversation search, memory files, mem0 memory, planning, tool output limits, image generation |
+| On screen | ask the user: in `/chat` the question card appears in the call view, read aloud as well, and the caller taps an answer or says it; a widget's or hosted page's call is not offered it |
 | Adapted | skills: loaded as instructions on demand, without the tools a text run uses to read them |
 | Dropped | tool search: the MCP tools it would have deferred are passed to the call directly |
 | Mapped | thinking: becomes the realtime model's own reasoning setting, where the model has one |
-| Not available | sandbox, browser use, browser choice, subagents |
+| Handed off | sandbox, browser use, subagents, work while tools run: done by the agent's text model, see [Handing work off](#handing-work-off) |
 
-The Builder's Voice card lists the capabilities this agent cannot use in calls.
-They do not block publishing; the agent is told to say plainly that it cannot do
-that on a call and to suggest text chat.
+The Builder's Voice card lists the capabilities this agent hands off in calls.
+
+### Handing work off
+
+When the agent has a capability a call cannot carry, its call gets one more
+tool, `hand_off`. The call's model describes the task, and the same agent runs
+it on its own text model, the one its Build tab names: with the sandbox, the
+browser and the subagents, in the same workspace, under the same budget. It
+answers with what it did, and the call's model says that aloud.
+
+- **The call goes on meanwhile.** The agent says it is working on it first, and
+  the call bar shows each step as it runs.
+- **Each step is kept.** The steps are saved on the turn that handed the work
+  off, so the conversation shows them afterwards as it shows a chat's.
+- **Approvals are the call's.** A gated tool the text model calls, or one of its
+  subagents calls, shows the same approval card as one the call makes. A
+  visitor's call carries no gated tool here either.
+- **One hand-off at a time.** Each continues from what the last one did in that
+  call, so "now send that file" works after "write it up".
+- **A failure is said, not hidden.** A hand-off that runs out of budget or
+  steps, or whose model fails, comes back as a sentence the agent says; the
+  call goes on.
+
+A hand-off takes as long as the work does, often a minute or more, and spends on
+the text model as well as the call's.
 
 **Built-in spoken style.** Every call adds the same guidance to the agent's
 instructions: short sentences; no markdown, lists, tables or links read aloud;

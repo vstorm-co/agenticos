@@ -123,6 +123,7 @@ def _started(
                 can_afford_next_request=AsyncMock(return_value=True), refresh_baselines=MagicMock()
             )
         ),
+        hand_off=None,
     )
     return SimpleNamespace(
         call_id=uuid4(),
@@ -147,6 +148,7 @@ def _started(
             ),
         ),
         bridge=MagicMock(decide=AsyncMock(return_value=True)),
+        questions=MagicMock(answer=MagicMock(return_value=True)),
         guard=SimpleNamespace(
             hits=0, screen=lambda text, speaker: SimpleNamespace(text=text, blocked=False)
         ),
@@ -897,6 +899,33 @@ async def test_a_decision_the_bridge_cannot_take_closes_the_card_and_the_call_go
         {"type": "approval_settled", "id": "a2", "outcome": "expired"},
     ]
     assert repo.end.await_args.kwargs["reason"] is VoiceEndReason.USER
+
+
+async def test_answers_to_the_questions_card_reach_the_calls_questions():
+    answers = json.dumps({"type": "answers", "id": "q1", "answers": [{"selected": ["Yes"]}]})
+    stale = json.dumps({"type": "answers", "id": "q2", "answers": []})
+    socket = FakeSocket([_START, answers, stale, json.dumps({"type": "end"})])
+    started = _started(FakeRealtime(hold=True))
+    started.questions.answer = MagicMock(side_effect=[True, False])
+
+    await _run(socket, started)
+
+    assert started.questions.answer.call_args_list[0].args == ("q1", [{"selected": ["Yes"]}])
+    # A card answered aloud first, or after its wait, is closed rather than left open.
+    settled = [frame for frame in socket.sent if frame["type"] == "questions_settled"]
+    assert settled == [{"type": "questions_settled", "id": "q2"}]
+
+
+async def test_the_calls_text_twin_reports_its_steps_to_the_calls_pump():
+    socket = FakeSocket([_START, json.dumps({"type": "end"})])
+    started = _started(FakeRealtime(hold=True))
+    started.prepared.hand_off = SimpleNamespace(watch=None)
+    sessions: list[VoiceCallSession] = []
+
+    await _run(socket, started, during_start=sessions.append)
+
+    pump = sessions[0]._pump
+    assert pump is not None and started.prepared.hand_off.watch == pump.worker_event
 
 
 @pytest.mark.security

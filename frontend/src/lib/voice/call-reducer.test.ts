@@ -128,6 +128,37 @@ describe("callReducer", () => {
     expect(next.savedTurns).toBe(1);
   });
 
+  it("holds the questions card until it settles, and drops it when the call drops", () => {
+    const questions = [
+      { question: "Which size?", header: "Size", options: [], allow_custom: true },
+    ];
+    const asked = callReducer(live(), {
+      type: "frame",
+      now: 5000,
+      frame: { type: "questions", id: "q1", questions, timeout_seconds: 120 },
+    });
+    expect(asked.questions).toEqual({ id: "q1", questions });
+    const other = callReducer(asked, {
+      type: "frame",
+      now: 6000,
+      frame: { type: "questions_settled", id: "q2" },
+    });
+    expect(other).toBe(asked);
+    const answered = callReducer(asked, {
+      type: "frame",
+      now: 6000,
+      frame: { type: "questions_settled", id: "q1" },
+    });
+    expect(answered.questions).toBeNull();
+    for (const action of [
+      { type: "socket_lost", willRetry: true } as const,
+      { type: "media_failed", now: 7000 } as const,
+      { type: "frame", now: 7000, frame: { type: "ended", reason: "user" } } as const,
+    ]) {
+      expect(callReducer(asked, action).questions).toBeNull();
+    }
+  });
+
   it("drops a pending and a settled approval when the call ends, and keeps the first end time", () => {
     const asked = callReducer(live(), {
       type: "frame",

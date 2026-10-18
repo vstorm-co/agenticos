@@ -15,6 +15,7 @@ import {
 } from "@/lib/voice/pcm";
 import { audioOnlyOffer, consoleVoiceUrl, embedVoiceUrl } from "@/lib/voice/sdp";
 import { useAuthStore, useOrgStore, useVoiceCallStore } from "@/stores";
+import type { AskUserAnswer } from "@/types/chat";
 import type {
   VoiceClientFrame,
   VoiceSavedTurn,
@@ -87,6 +88,8 @@ export interface VoiceSession {
   setMuted: (muted: boolean) => void;
   pressToTalk: (down: boolean) => void;
   decide: (approvalId: string, approve: boolean) => void;
+  /** Answer the questions card the call is waiting on; the server closes it. */
+  answer: (questionsId: string, answers: AskUserAnswer[]) => void;
   dismissUnavailable: () => void;
   /** Forget an ended call: its summary, or why it could not start. A live call is left alone. */
   dismiss: () => void;
@@ -512,6 +515,12 @@ export function useVoiceSession(
     [send],
   );
 
+  const answer = useCallback(
+    (questionsId: string, answers: AskUserAnswer[]) =>
+      send({ type: "answers", id: questionsId, answers }),
+    [send],
+  );
+
   const dismissUnavailable = useCallback(() => dispatch({ type: "dismiss_unavailable" }), []);
 
   const dismiss = useCallback(() => {
@@ -527,6 +536,7 @@ export function useVoiceSession(
     setMuted,
     pressToTalk,
     decide,
+    answer,
     dismissUnavailable,
     dismiss,
   };

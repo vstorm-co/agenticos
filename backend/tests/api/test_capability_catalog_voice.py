@@ -29,10 +29,10 @@ def member() -> Iterator[None]:
 
 
 @pytest.mark.usefixtures("member")
-async def test_the_catalog_says_which_capabilities_a_call_cannot_use(client: AsyncClient):
+async def test_the_catalog_says_which_capabilities_a_call_hands_off(client: AsyncClient):
     resp = await client.get(f"{settings.API_V1_STR}/agents/capabilities")
 
     assert resp.status_code == 200
     by_id = {item["id"]: item for item in resp.json()["items"]}
-    assert by_id["sandbox"]["voice"] is False
-    assert by_id["knowledge"]["voice"] is True
+    assert by_id["sandbox"]["voice"] == "hand_off"
+    assert by_id["knowledge"]["voice"] == "live"

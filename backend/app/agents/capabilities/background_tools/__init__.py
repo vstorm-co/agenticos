@@ -10,7 +10,7 @@ BACKGROUND_TOOLS_CAPABILITY_ID = "background_tools"
 
 @register(
     id=BACKGROUND_TOOLS_CAPABILITY_ID,
-    voice=False,
+    voice="hand_off",
     name="Work while tools run",
     category="reasoning",
     description=(

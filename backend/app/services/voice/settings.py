@@ -15,7 +15,6 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec, VoiceSpec
-from app.agents.voice import voice_unavailable
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.organization import Organization
 from app.repositories import agent_repo, organization_secret_repo, voice_call_repo
@@ -123,7 +122,6 @@ class VoiceReadiness:
     model: str | None
     cap_seconds: int
     minutes_left: int | None
-    unavailable_capabilities: list[str]
 
 
 class VoiceSettingsService:
@@ -210,5 +208,4 @@ class VoiceSettingsService:
             model=None if resolved is None else resolved.model,
             cap_seconds=cap,
             minutes_left=None if left is None else left // 60,
-            unavailable_capabilities=[] if spec is None else voice_unavailable(spec),
         )

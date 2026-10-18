@@ -45,7 +45,7 @@ const DEFINITION: CapabilityCatalogEntry = {
   category: "analysis",
   description: "Generate an image from a text description.",
   side_effecting: true,
-  voice: true,
+  voice: "live",
   scopes: [],
   tools: [{ id: "generate_image", name: "generate_image", description: "Draw." }],
   contracts: [],

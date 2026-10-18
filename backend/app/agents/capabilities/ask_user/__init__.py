@@ -16,7 +16,6 @@ ASK_USER_CAPABILITY_ID = "ask_user"
 
 @register(
     id=ASK_USER_CAPABILITY_ID,
-    voice=False,
     name="Ask the user",
     category="utility",
     description=(

@@ -48,7 +48,7 @@ import logging
 import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -278,6 +278,10 @@ class ProviderExecuted(BaseModel):
         return frozenset(self.tools)
 
 
+VoiceSupport = Literal["live", "hand_off", "never"]
+"""How a capability takes part in a voice call: see `CapabilityDef.voice`."""
+
+
 @dataclass(frozen=True)
 class CapabilityDef:
     """A registered capability and everything needed to expose and build it."""
@@ -307,17 +311,17 @@ class CapabilityDef:
     instructions.
     """
 
-    voice: bool = True
-    """Whether the capability can run inside a voice call (#54).
+    voice: VoiceSupport = "live"
+    """How the capability takes part in a voice call (#54).
 
-    False for those a realtime session cannot carry: `sandbox` (realtime sets
-    an unavailable workspace), `browser_use` (minutes long and visual),
-    `subagents` and `background_tools` (background work whose parked approvals
-    or late results have no way back into a call), and `ask_user` (a card of
-    questions a caller cannot see). Such a binding never blocks publishing; it is left
-    out of calls, and the Builder's Voice card lists it. Also false for
+    `live` runs on the call's realtime model. `hand_off` runs in the agent's
+    text twin, which the call hands a task to (`app/agents/voice.py`): the
+    capabilities a realtime session cannot carry - `sandbox` (realtime sets an
+    unavailable workspace), `browser_use` (its loop drives the run's own model,
+    which in a call speaks), `subagents`, and `background_tools`, which only
+    sends those away. The Builder's Voice card lists them. `never` is
     `channel_tools`, which a call never has a channel to describe for; no spec
-    binds it, so the Builder never lists it.
+    binds it.
     """
 
     scopes: frozenset[str] = frozenset()
@@ -415,7 +419,7 @@ def register(
     config_schema: type[BaseModel] | None = None,
     side_effecting: bool = False,
     selectable: bool = True,
-    voice: bool = True,
+    voice: VoiceSupport = "live",
     scopes: Iterable[str] = (),
     secret: SecretRequirement | None = None,
     provider_executed: ProviderExecuted | None = None,

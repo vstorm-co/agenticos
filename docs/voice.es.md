@@ -1,5 +1,5 @@
 ---
-source_sha: "3b30b65cd3fd"
+source_sha: "9e4a39e96b30"
 title: "Conversaciones de voz"
 seo_title: "Conversaciones de voz: habla con un agent publicado"
 description: "Llama a un agent publicado y habla con él: modelos realtime, aprobaciones en la llamada, límites de tiempo y minutos, redes de seguridad y transcripciones."
@@ -145,20 +145,46 @@ avalancha sostenida termina la llamada.
 Una llamada ejecuta el agent que describe su spec publicado, construido por la
 misma factory que un run de texto. Las diferencias vienen de la sesión realtime:
 sus herramientas quedan fijadas cuando se conecta la llamada, no puede pausarse
-para una aprobación y algunas capabilities no pueden ejecutarse en ella en
-absoluto.
+para una aprobación y no puede llevar un workspace, un navegador ni delegados.
+Eso la llamada lo pasa al modelo de texto propio del agent.
 
 | Por voz | Capabilities |
 |---|---|
 | Tal cual | reloj (la hora de las instrucciones queda fijada cuando se conecta la llamada), contexto, conocimiento, investigación web, lectura de páginas web, gráficos, artefactos, ejecución de código, búsqueda de conversaciones, archivos de memoria, memoria mem0, planificación, límites de salida de herramientas, generación de imágenes |
+| En pantalla | preguntar al usuario: en `/chat` la tarjeta de preguntas aparece en la vista de la llamada y además se lee en voz alta; quien llama toca una respuesta o la dice. Una llamada desde un widget o una página alojada no la recibe |
 | Adaptada | skills: se cargan como instrucciones bajo demanda, sin las herramientas que usa un run de texto para leerlos |
 | Eliminada | búsqueda de herramientas: las herramientas MCP que habría diferido se pasan directamente a la llamada |
 | Traducida | razonamiento (thinking): se convierte en el ajuste de razonamiento propio del modelo realtime, cuando el modelo lo tiene |
-| No disponible | sandbox, automatización del navegador, elección de navegador, subagents |
+| Delegada | sandbox, automatización del navegador, subagents, trabajar mientras corren herramientas: lo hace el modelo de texto del agent, ver [Pasar trabajo](#handing-work-off) |
 
-La tarjeta Voice del Builder enumera las capabilities que este agent no puede
-usar en llamadas. No bloquean la publicación; al agent se le indica que diga
-claramente que no puede hacer eso en una llamada y que sugiera el chat de texto.
+La tarjeta Voice del Builder enumera las capabilities que este agent pasa a su
+modelo de texto en las llamadas.
+
+### Pasar trabajo { #handing-work-off }
+
+Cuando el agent tiene una capability que una llamada no puede llevar, su
+llamada recibe una herramienta más, `hand_off`. El modelo de la llamada describe
+la tarea y el mismo agent la ejecuta en su propio modelo de texto, el que indica
+su pestaña Build: con el sandbox, el navegador y los subagents, en el mismo
+workspace y con el mismo presupuesto. Responde con lo que hizo, y el modelo de
+la llamada lo dice en voz alta.
+
+- **La llamada sigue mientras tanto.** El agent dice primero que está en ello, y
+  la barra de la llamada muestra cada paso mientras se ejecuta.
+- **Cada paso se guarda.** Los pasos se guardan en el turno que pasó el trabajo,
+  así que la conversación los muestra después como muestra los de un chat.
+- **Las aprobaciones son de la llamada.** Una herramienta con aprobación que
+  llama el modelo de texto, o uno de sus subagents, muestra la misma tarjeta de
+  aprobación que una que llama la llamada. La llamada de un visitante tampoco
+  lleva aquí herramientas con aprobación.
+- **Un traspaso cada vez.** Cada uno continúa lo que hizo el anterior en esa
+  llamada, así que «ahora envía ese archivo» funciona después de «redáctalo».
+- **Un fallo se dice, no se oculta.** Un traspaso que se queda sin presupuesto o
+  sin pasos, o cuyo modelo falla, vuelve como una frase que dice el agent; la
+  llamada sigue.
+
+Un traspaso dura lo que dura el trabajo, a menudo un minuto o más, y gasta en el
+modelo de texto además del de la llamada.
 
 **Estilo hablado integrado.** Cada llamada añade la misma guía a las
 instrucciones del agent: frases cortas; nada de markdown, listas, tablas ni

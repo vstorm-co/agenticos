@@ -500,10 +500,10 @@ class CapabilityCatalogEntry(BaseSchema):
         )
     )
     scopes: list[str]
-    voice: bool = Field(
+    voice: Literal["live", "hand_off", "never"] = Field(
         description=(
-            "Whether this capability can run in a voice call; the Builder lists the ones "
-            "that cannot"
+            "How this capability takes part in a voice call: `live` on the call's own model, "
+            "`hand_off` in the agent's text model the call hands a task to, `never` not at all"
         )
     )
     contracts: list[CapabilityToolContract] = Field(

@@ -52,12 +52,12 @@ browser is pointed at the deployment's browser service
 | `conversation_search` | Past conversations | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | as-is |
 | `web_research` | Web search | research | `web_search` | `web:read` | for paid services | as-is |
 | `web_fetch` | Read web pages | research | `web_fetch` | `web:fetch` | — | as-is |
-| `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | not available |
+| `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | not available |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | for Daytona | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required | as-is |
-| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | not available |
+| `subagents` | Subagents | reasoning | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | handed off |
 | `planning` | Planning | reasoning | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | as-is |
 | `thinking` | Thinking | reasoning | none, by design | — | — | mapped |
 | `system_reminders` | Instruction reminders | reasoning | none, by design | — | — | no effect |
@@ -69,7 +69,7 @@ browser is pointed at the deployment's browser service
 | `tool_output_limits` | Tool output limits | utility | `read_tool_result` | — | — | as-is |
 | `artifacts` | Apps | utility | `publish_artifact`, `read_artifact` | — | — | as-is |
 | `channel_tools` | Chat channel lookup | channels | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | not available |
-| `ask_user` | Ask the user | utility | `ask_user_question` | — | — | not available |
+| `ask_user` | Ask the user | utility | `ask_user_question` | — | — | on screen |
 
 Seven of those have no tools on purpose. `thinking` changes how the model runs
 rather than what it can reach, `clock` puts the date in the instructions,
@@ -93,16 +93,20 @@ both explained under [Delegation](#delegation) below.
 *As-is* runs unchanged. *Adapted* skills load as instructions on demand,
 without their reading tool. *Dropped* tool search gives the call its MCP tools
 directly, because a call's tools are fixed when it connects. *Mapped* thinking
-becomes the realtime model's own reasoning setting. *Not available* is left out
-of calls, and the Builder's Voice card lists it for an agent that has it; it
-does not block publishing. Chat channel lookup is among them because a call is
-never made on a channel. *No effect* marks three that work on a text run's
-model requests and their stored history, which a call does not send.
+becomes the realtime model's own reasoning setting. *Handed off* runs in the
+agent's own text model, which the call hands a task to
+([Handing work off](../voice.md#handing-work-off)); the Builder's Voice card
+lists those for an agent that has them, and so does Work while tools run, which
+only sends a handed-off tool to the background. *On screen* asks its questions on
+the call view's card in `/chat`. Chat channel lookup is *not available*, because
+a call is never made on a channel. *No effect* marks three that work on a text
+run's model requests and their stored history, which a call does not send.
 
 Guardrails screen the call's transcripts. A tool's result is screened, and
 blocked, before the agent reads it; the check before a tool runs is the
 approval, for tools that need one. Guardrails do not screen a tool's arguments.
-The catalog API carries the column as each capability's `voice` flag.
+The catalog API carries how each capability takes part as its `voice` field:
+`live` on the call's own model, `hand_off`, or `never`.
 
 **One of them is not in the Toolbox at all.** `channel_tools` is chosen per bound
 bot under *Where this agent is available*, and publishing refuses a spec that

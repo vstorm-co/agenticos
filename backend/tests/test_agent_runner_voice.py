@@ -10,7 +10,9 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_ai.toolsets import FunctionToolset
 
+from app.agents.hand_off import HAND_OFF_TOOL
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.agents.voice import VoiceOptions
 from app.core.permissions import AuthContext, OrgRoleName
@@ -188,23 +190,80 @@ async def test_a_text_run_stays_text(runner_with_mocks):
     assert runner_with_mocks.build_agent.call_args.kwargs["voice"] is None
 
 
-@pytest.mark.anyio
-async def test_a_voice_run_never_opens_a_sandbox(runner_with_mocks):
+def _runnable(runner_with_mocks: SimpleNamespace, *capability_ids: str) -> MagicMock:
     agent = MagicMock(id=uuid.uuid4(), current_version_id=uuid.uuid4())
     runner_with_mocks.runnable.return_value = (
         agent,
         AgentSpec(
             name="a",
             model_profile_id=uuid.uuid4(),
-            capabilities=[CapabilityBindingSpec(id="sandbox")],
+            capabilities=[CapabilityBindingSpec(id=cap) for cap in capability_ids],
         ),
         agent.current_version_id,
     )
+    return agent
 
-    await runner_with_mocks.service.prepare(_ctx(), agent.id, voice=_voice())
+
+def _tool_names(toolsets: list[Any]) -> set[str]:
+    return {
+        name
+        for toolset in toolsets
+        if isinstance(toolset, FunctionToolset)
+        for name in toolset.tools
+    }
+
+
+@pytest.mark.anyio
+async def test_a_call_opens_the_sandbox_for_its_text_twin_and_hands_work_to_it(runner_with_mocks):
+    """The realtime model cannot carry a workspace; the twin it hands off to can."""
+    agent = _runnable(runner_with_mocks, "sandbox", "clock")
+    voice = _voice()
+
+    prepared = await runner_with_mocks.service.prepare(_ctx(), agent.id, voice=voice)
 
     opened_spec = runner_with_mocks.opened.call_args.args[0]
-    assert opened_spec.capabilities == []
+    assert [binding.id for binding in opened_spec.capabilities] == ["sandbox", "clock"]
+    call_build = runner_with_mocks.build_agent.call_args.kwargs
+    assert call_build["voice"] is voice.options
+    assert HAND_OFF_TOOL in _tool_names(call_build["extra_toolsets"])
+    assert prepared.hand_off is not None
+
+
+@pytest.mark.anyio
+async def test_the_twin_is_the_agents_text_run_settling_approvals_with_the_caller(
+    runner_with_mocks,
+):
+    agent = _runnable(runner_with_mocks, "sandbox")
+    voice = _voice()
+    prepared = await runner_with_mocks.service.prepare(_ctx(), agent.id, voice=voice)
+    assert prepared.hand_off is not None
+
+    prepared.hand_off._build()
+
+    twin = runner_with_mocks.build_agent.call_args
+    assert twin.kwargs["answering_call"] is voice.options
+    assert "voice" not in twin.kwargs
+    assert [binding.id for binding in twin.args[0].capabilities] == ["sandbox"]
+    assert HAND_OFF_TOOL not in _tool_names(twin.kwargs["extra_toolsets"])
+
+
+@pytest.mark.anyio
+async def test_a_call_with_nothing_to_hand_off_has_no_twin(runner_with_mocks):
+    agent = _runnable(runner_with_mocks, "clock")
+
+    prepared = await runner_with_mocks.service.prepare(_ctx(), agent.id, voice=_voice())
+
+    assert prepared.hand_off is None
+    assert not _tool_names(runner_with_mocks.build_agent.call_args.kwargs["extra_toolsets"])
+
+
+@pytest.mark.anyio
+async def test_a_text_run_has_no_twin_whatever_it_binds(runner_with_mocks):
+    agent = _runnable(runner_with_mocks, "sandbox")
+
+    prepared = await runner_with_mocks.service.prepare(_ctx(), agent.id)
+
+    assert prepared.hand_off is None
 
 
 @pytest.mark.anyio

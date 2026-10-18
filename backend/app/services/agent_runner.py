@@ -101,6 +101,7 @@ from app.agents.ask_user import (
     wire_questions,
 )
 from app.agents.audience import RunAudience, derive_audience
+from app.agents.capabilities import get as capability_def
 from app.agents.capabilities.approval import (
     ApprovalDecision,
     ApprovalGranted,
@@ -159,6 +160,7 @@ from app.agents.connect_on_use import (
 from app.agents.deps import AgentDeps, CompactionSink
 from app.agents.factory import BuiltAgent, build_agent
 from app.agents.failures import run_failure_summary
+from app.agents.hand_off import CallWorker
 from app.agents.manifest import as_payload, fit
 from app.agents.model_resolver import ModelRequestSpec
 from app.agents.observability import current_trace_id
@@ -191,7 +193,7 @@ from app.agents.subagent_runtime import (
     ResumedDelegation,
     SubagentRuntime,
 )
-from app.agents.voice import VoiceOptions, without_voice_unavailable
+from app.agents.voice import VoiceOptions, handed_off, without_voice_unavailable
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -1178,6 +1180,10 @@ class PreparedRun:
     run is over.
     """
 
+    hand_off: CallWorker | None = None
+    """A call's text twin, when the call hands work off (#54): the session points
+    its steps at the call's event pump."""
+
     materialised_skills: MaterialisedSkills | None = None
     """The skill files written into that workspace, as they were written.
 
@@ -1935,6 +1941,14 @@ class _Delegation:
     output_screen: ScreenedStream | None = None
     """The run's own output check, for what every level of the tree streams."""
 
+    answering_call: VoiceOptions | None = None
+    """The call the tree works for, when a call's text twin delegates (#54).
+
+    A delegate in a call cannot park on an approval - nobody resumes a call - so
+    each one settles its own gated calls with the caller, as the twin does.
+    Parked instead, the delegate's approval would surface as one on the twin's
+    `task` call, which no approval row answers."""
+
     profiles: dict[str, ModelRequestSpec] = field(default_factory=dict)
     """The organization's model catalog, resolved at most once and only if asked for.
 
@@ -2035,6 +2049,7 @@ def _delegate_builder(
             # delegate meters nothing the parent can see, and the parent's cap
             # stops binding at exactly the moment delegation multiplies spend.
             shared_budget=delegation.budget.guard,
+            answering_call=delegation.answering_call,
         ).agent
 
     return build
@@ -2964,6 +2979,9 @@ class AgentRunnerService:
                 else None
             ),
         )
+        # What a call's realtime model is told: the briefings below describe a
+        # workspace and skill files only its text twin can reach.
+        spoken_spec = spec
         materialised: MaterialisedSkills | None = None
         started_with: set[str] | None = None
         if workspace is not None:
@@ -3031,6 +3049,7 @@ class AgentRunnerService:
             runtimes=runtimes,
             delegations=delegations,
             stash=stash,
+            answering_call=None if voice is None else voice.options,
         )
         if runtime is not None:
             resources[SUBAGENT_RUNTIME_RESOURCE] = runtime
@@ -3050,8 +3069,43 @@ class AgentRunnerService:
             room_key=memory_room_key,
             via_api_key=ctx.api_key_id is not None,
         )
+        hand_off: CallWorker | None = None
+        handed = [] if voice is None else handed_off(spec)
+        if voice is not None and handed:
+            call = voice.options
+            twin_spec = spec
+
+            def build_twin() -> BuiltAgent:
+                # The agent's own text run in every respect but its approvals,
+                # which the call settles: built like a delegate, on the run's
+                # guard, so its spend is the call's and the call's caps bind it.
+                return build_agent(
+                    twin_spec,
+                    model_spec,
+                    organization_id=ctx.organization_id,
+                    agent_id=agent.id,
+                    run_id=run.id,
+                    conversation_id=run.conversation_id,
+                    user_id=None if audience_user_id is None else str(audience_user_id),
+                    user_name=user_name,
+                    audience=audience,
+                    granted_scopes=DEFAULT_GRANTED_SCOPES,
+                    resources=resources,
+                    secrets=secrets,
+                    extra_toolsets=[*(extra_toolsets or []), *spec_toolsets],
+                    request_approval=channel,
+                    gate_every_tool=approval_mode is ApprovalMode.ASK_ALL,
+                    shared_budget=run_budget.guard,
+                    answering_call=call,
+                )
+
+            hand_off = CallWorker(
+                build_twin,
+                workspace=None if workspace is None else workspace.workspace,
+                capability_names=[capability_def(capability_id).name for capability_id in handed],
+            )
         built = build_agent(
-            spec,
+            spoken_spec if voice is not None else spec,
             model_spec,
             organization_id=ctx.organization_id,
             agent_id=agent.id,
@@ -3064,7 +3118,11 @@ class AgentRunnerService:
             granted_scopes=DEFAULT_GRANTED_SCOPES,
             resources=resources,
             secrets=secrets,
-            extra_toolsets=[*(extra_toolsets or []), *spec_toolsets],
+            extra_toolsets=[
+                *(extra_toolsets or []),
+                *spec_toolsets,
+                *(() if hand_off is None else (hand_off.toolset(),)),
+            ],
             extra_capabilities=() if on_use is None else (on_use,),
             agent_period_spend=agent_period_spend,
             org_period_spend=org_period_spend,
@@ -3099,6 +3157,7 @@ class AgentRunnerService:
             built=built,
             approvals=channel,
             workspace=workspace,
+            hand_off=hand_off,
             materialised_skills=materialised,
             mcp_origins=resolved.origins,
             workspace_at_start=started_with,
@@ -3146,6 +3205,7 @@ class AgentRunnerService:
         runtimes: list[SubagentRuntime],
         delegations: list[RecordedDelegation],
         stash: DelegationStash,
+        answering_call: VoiceOptions | None = None,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
 
@@ -3172,6 +3232,8 @@ class AgentRunnerService:
                 continuation finds one. Given to every level of the tree, because
                 the run being continued is the one somebody started however deep
                 the delegation that parked it was.
+            answering_call: The call the tree works for, when it is a call's
+                text twin that delegates (#54): see `_Delegation.answering_call`.
 
         Raises:
             BadRequestError: If a pin names a version that is gone, if a delegate
@@ -3206,6 +3268,7 @@ class AgentRunnerService:
             runtimes=runtimes,
             stash=stash,
             output_screen=_output_screen(spec),
+            answering_call=answering_call,
         )
         # `max_depth` counts levels of delegation *including this agent's own*, so
         # the budget left below this level is one less. The subtraction is the whole

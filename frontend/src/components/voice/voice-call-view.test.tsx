@@ -108,6 +108,7 @@ function fake(call: CallState, overrides: Partial<VoiceSession> = {}): VoiceSess
     setMuted: vi.fn(),
     pressToTalk: vi.fn(),
     decide: vi.fn(),
+    answer: vi.fn(),
     dismissUnavailable: vi.fn(),
     dismiss: vi.fn(),
     ...overrides,
@@ -236,6 +237,28 @@ describe("the call view", () => {
       />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent("The call didn't start. The call ended");
+  });
+
+  it("asks the agent's questions on the chat's card and sends what was picked", () => {
+    const answer = vi.fn();
+    const questions = frame({
+      type: "questions",
+      id: "q1",
+      questions: [
+        {
+          question: "Which size?",
+          header: "Size",
+          options: [{ label: "Small" }, { label: "Large" }],
+          allow_custom: true,
+        },
+      ],
+      timeout_seconds: 120,
+    });
+    render(<View session={fake(live(questions), { answer })} />);
+    fireEvent.click(screen.getByRole("button", { name: /Large/ }));
+    expect(answer).toHaveBeenCalledWith("q1", [
+      expect.objectContaining({ selected: ["Large"], skipped: false }),
+    ]);
   });
 
   it("keeps a decided approval in the conversation as its record", () => {

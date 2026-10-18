@@ -74,6 +74,7 @@ def world(monkeypatch):
         built=SimpleNamespace(
             budget=SimpleNamespace(headroom=AsyncMock(side_effect=lambda: w.headroom)),
             ledger=MagicMock(),
+            deps=SimpleNamespace(ask_questions=None),
         ),
         approvals=MagicMock(),
         spec=spec,
@@ -750,6 +751,27 @@ async def test_a_visitor_is_not_told_the_organizations_minutes_but_a_member_is(w
 
     assert visitor.minutes_left is None
     assert member.minutes_left == 600
+
+
+async def test_a_members_call_asks_its_questions_on_the_call_view(world):
+    starter, _ = _starter()
+
+    started = await starter.start(
+        world.caller(), StartFrame(type="start", agent_id=world.agent.id, sdp_offer=_OFFER)
+    )
+
+    assert started.prepared.built.deps.ask_questions is started.questions
+
+
+async def test_a_visitors_call_has_no_questions_card_to_ask_on(world):
+    """A widget or a hosted page draws no card, so the agent is offered no `ask_user`."""
+    starter, _ = _starter()
+
+    started = await starter.start(
+        _visitor(world), StartFrame(type="start", agent_id=world.agent.id, sdp_offer=_OFFER)
+    )
+
+    assert started.prepared.built.deps.ask_questions is None
 
 
 async def test_a_page_visitor_calls_into_the_thread_their_key_holds(world, monkeypatch):

@@ -1,4 +1,5 @@
 import type { MicFailure } from "@/hooks/use-dictation";
+import type { WireQuestion } from "@/types/runs";
 import type {
   VoiceActivity,
   VoiceEndReason,
@@ -40,6 +41,12 @@ export interface PendingVoiceApproval {
   timeoutSeconds: number;
 }
 
+/** Questions the call is waiting on the caller to answer, by a tap or aloud. */
+export interface PendingVoiceQuestions {
+  id: string;
+  questions: WireQuestion[];
+}
+
 /** An approval the call has settled, kept on screen as the record until the next turn lands. */
 export interface SettledVoiceApproval {
   approval: PendingVoiceApproval;
@@ -64,6 +71,7 @@ export interface CallState {
   approval: PendingVoiceApproval | null;
   settled: SettledVoiceApproval | null;
   approvalUnavailable: { tool: string; args: Record<string, unknown> } | null;
+  questions: PendingVoiceQuestions | null;
   tool: string | null;
   notice: string | null;
   endReason: VoiceEndReason | null;
@@ -112,6 +120,7 @@ export const initialCall: CallState = {
   approval: null,
   settled: null,
   approvalUnavailable: null,
+  questions: null,
   tool: null,
   notice: null,
   endReason: null,
@@ -186,6 +195,10 @@ function onFrame(state: CallState, frame: VoiceServerFrame, now: number): CallSt
             settled: { approval: state.approval, outcome: frame.outcome },
           }
         : state;
+    case "questions":
+      return { ...state, questions: { id: frame.id, questions: frame.questions } };
+    case "questions_settled":
+      return state.questions?.id === frame.id ? { ...state, questions: null } : state;
     case "notice":
       return { ...state, notice: frame.kind };
     case "limit":
@@ -202,6 +215,7 @@ function onFrame(state: CallState, frame: VoiceServerFrame, now: number): CallSt
         endedAt: state.endedAt ?? now,
         approval: null,
         settled: null,
+        questions: null,
       };
     default:
       // `answer` and `clear_playback` are the media's.
@@ -226,7 +240,9 @@ export function callReducer(state: CallState, action: CallAction): CallState {
       return { ...initialCall, phase: "ended", failure: action.failure };
     case "socket_lost":
       if (state.phase === "ended") return state;
-      if (action.willRetry) return { ...state, phase: "reconnecting", approval: null };
+      if (action.willRetry) {
+        return { ...state, phase: "reconnecting", approval: null, questions: null };
+      }
       return {
         ...state,
         phase: "ended",
@@ -243,6 +259,7 @@ export function callReducer(state: CallState, action: CallAction): CallState {
         endedAt: state.endedAt ?? action.now,
         approval: null,
         settled: null,
+        questions: null,
       };
     case "muted":
       return { ...state, muted: action.muted };

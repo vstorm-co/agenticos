@@ -4,6 +4,9 @@
  * the realtime catalog.
  */
 
+import type { AskUserAnswer } from "./chat";
+import type { WireQuestion } from "./runs";
+
 export type VoiceTransport = "webrtc" | "relay";
 
 /** Where a call comes from: `/chat`, or a widget or hosted page. */
@@ -65,8 +68,6 @@ export interface VoiceReadiness {
   cap_seconds: number;
   /** This month's remaining call minutes; null when only the budgets bound calls. */
   minutes_left: number | null;
-  /** Capabilities of this agent a call cannot use. */
-  unavailable_capabilities: string[];
 }
 
 /** A finished turn, as the message it was saved as. */
@@ -122,6 +123,9 @@ export type VoiceServerFrame =
     }
   | { type: "approval_unavailable"; tool: string; args: Record<string, unknown> }
   | { type: "approval_settled"; id: string; outcome: "approved" | "denied" | "expired" }
+  /** Questions the agent waits on - the chat's card; a tap or the caller's words answer it. */
+  | { type: "questions"; id: string; questions: WireQuestion[]; timeout_seconds: number }
+  | { type: "questions_settled"; id: string }
   | { type: "notice"; kind: string; message?: string | null }
   | { type: "limit"; seconds_left: number }
   | { type: "ended"; reason: VoiceEndReason; message?: string | null }
@@ -144,6 +148,7 @@ export type VoiceClientFrame =
       context?: VoiceStartContext;
     }
   | { type: "approval"; id: string; decision: "approve" | "deny" }
+  | { type: "answers"; id: string; answers: AskUserAnswer[] }
   | { type: "mute"; muted: boolean }
   | { type: "end" }
   | { type: "played"; bytes: number };

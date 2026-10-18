@@ -547,6 +547,24 @@ export const FRAMEWORK_TOOLS: Record<string, ToolEntry> = {
 };
 
 /**
+ * Tools a voice call adds that no capability registers (#54).
+ *
+ * `hand_off` is how a call's realtime model hands a task to the agent's own text
+ * model, which has the sandbox, the browser and the delegates a call cannot
+ * carry. Out of `TOOL_CATALOG` for the reason `FRAMEWORK_TOOLS` is: the drift
+ * check there is against the capability registry, and the backend checks this
+ * table against the tool's own name instead.
+ */
+export const CALL_TOOLS: Record<string, ToolEntry> = {
+  hand_off: {
+    kind: "delegate",
+    render: "generic",
+    captionKey: "workingInText",
+    displayNameKey: "workedInText",
+  },
+};
+
+/**
  * Tools no agent emits any more, kept for the conversations that recorded them.
  *
  * A stored turn holds the tool name it actually called and the result it actually
@@ -576,7 +594,9 @@ export const LEGACY_TOOLS: Record<string, ToolEntry> = {
 
 /** What this side knows about `name`, or null for a tool it has never heard of. */
 export function toolEntry(name: string): ToolEntry | null {
-  return TOOL_CATALOG[name] ?? FRAMEWORK_TOOLS[name] ?? LEGACY_TOOLS[name] ?? null;
+  return (
+    TOOL_CATALOG[name] ?? FRAMEWORK_TOOLS[name] ?? CALL_TOOLS[name] ?? LEGACY_TOOLS[name] ?? null
+  );
 }
 
 /**

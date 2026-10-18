@@ -380,7 +380,7 @@ function LongestCall({
   );
 }
 
-/** What a call cannot do: capabilities left out, guardrails after the fact, and no audio kept. */
+/** How a call differs: work handed to the text model, guardrails after the fact, no audio kept. */
 function Limitations({
   capabilityIds,
   hasGuardrails,
@@ -390,19 +390,20 @@ function Limitations({
 }) {
   const t = useTranslations("agents");
   const { capabilities } = useCapabilityCatalog();
-  const unavailable = capabilities.filter(
-    (entry) => !entry.voice && capabilityIds.includes(entry.id),
+  const handedOff = capabilities.filter(
+    (entry) => entry.voice === "hand_off" && capabilityIds.includes(entry.id),
   );
   return (
     <div className="space-y-2 text-xs">
-      {unavailable.length > 0 && (
+      {handedOff.length > 0 && (
         <div>
-          <p className="font-medium">{t("voiceConversationUnavailable")}</p>
+          <p className="font-medium">{t("voiceConversationHandedOff")}</p>
           <ul className="text-muted-foreground mt-1 list-disc pl-5">
-            {unavailable.map((entry) => (
+            {handedOff.map((entry) => (
               <li key={entry.id}>{entry.name}</li>
             ))}
           </ul>
+          <p className="text-muted-foreground mt-1">{t("voiceConversationHandedOffHint")}</p>
         </div>
       )}
       {hasGuardrails && (

@@ -1,5 +1,5 @@
 ---
-source_sha: "a1eb59456056"
+source_sha: "f716d62c8038"
 ---
 
 # La consola { #the-console }
@@ -457,14 +457,15 @@ lugares de la consola la configuran.
   los minutos necesitan `budgets:manage` y son de solo lectura para cualquier
   otro. Quien tiene `runs:view` ve además cuántos de los minutos de este mes han
   usado las llamadas.
-- **La tarjeta Voice del agent**, bajo **Voice conversations**: **Take voice
+- **La tarjeta Voice del agent**, en su pestaña **Voice calls**: **Allow voice
   calls**, y después el provider y el modelo de la llamada (en Azure, el nombre
   del deployment y su modelo base), la clave, la voz, el idioma hablado (o
-  **Follow the caller**), la llamada más larga y una nota de voz. La tarjeta
-  enumera lo que el agent no puede usar en las llamadas, dice que las
-  salvaguardas no pueden filtrar las palabras habladas antes de que se oigan, y
-  que las llamadas se registran como texto sin conservar el audio. Entra en
-  vigor cuando se publica el agent.
+  **Follow the caller**), **Longest call** e **Instructions for calls**. La
+  tarjeta enumera lo que el agent
+  [pasa a su modelo de texto](voice.md#handing-work-off) en las llamadas, dice
+  que las salvaguardas no pueden filtrar las palabras habladas antes de que se
+  oigan, y que las llamadas se registran como texto sin conservar el audio.
+  Entra en vigor cuando se publica el agent.
 - **El interruptor Voice calls de un embed**, en los formularios del widget y de
   la página alojada - ver
   [Canales](channels.md#voice-calls-on-a-widget-or-a-hosted-page).
@@ -507,6 +508,10 @@ muestra la herramienta, sus argumentos exactos y lo que se te oyó decir, con un
 cuenta atrás de 60 segundos. Solo deciden sus botones; decir «sí» no basta. Sin
 `approvals:decide` la tarjeta avisa de que la herramienta necesita una aprobación
 que no puedes dar por voz, y te ofrece terminar la llamada y seguir por escrito.
+**Las preguntas** del agent aparecen como la tarjeta de preguntas del chat y
+además se leen en voz alta: toca una respuesta o simplemente dila. El trabajo
+que el agent [pasa a su modelo de texto](voice.md#handing-work-off) muestra cada
+paso en la barra mientras se ejecuta, y los pasos quedan después en el turno.
 **Los límites** se dicen en voz alta: un minuto antes de que acabe la llamada más
 larga se te avisa, y cuando se agotan el tiempo, el budget o los minutos del mes,
 el agent dice una frase y la llamada termina.

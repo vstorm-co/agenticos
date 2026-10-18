@@ -632,8 +632,12 @@ export interface CapabilityCatalogEntry {
    * catalog, the spec or the model; only the agent runner ever reads one.
    */
   requires_secret: SecretRequirement | null;
-  /** Whether it can run in a voice call; the Voice card lists the ones that cannot (#54). */
-  voice: boolean;
+  /**
+   * How it takes part in a voice call (#54): `live` on the call's own model,
+   * `hand_off` in the agent's text model the call hands a task to - the Voice
+   * card lists those - and `never` not at all.
+   */
+  voice: "live" | "hand_off" | "never";
   /**
    * How the starter agent (the Claude Code like template) binds this capability,
    * or null where it does not. Marked Recommended, and what a new agent starts with.

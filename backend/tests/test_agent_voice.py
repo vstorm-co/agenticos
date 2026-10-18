@@ -40,14 +40,15 @@ from app.agents.voice import (
     CALL_BRIEFING,
     SPOKEN_STYLE,
     UNAVAILABLE_TOOL,
+    AnswerUnknownTools,
     VoiceOptions,
     WithoutApprovalTools,
     enabled_binding,
+    handed_off,
     thinking_effort,
     voice_configured,
     voice_instructions,
     voice_skills,
-    voice_unavailable,
     without_voice_unavailable,
 )
 from app.core.secret_kinds import ApiKeySecret
@@ -68,29 +69,31 @@ def _spec(*ids: str, enabled: bool = True) -> AgentSpec:
     )
 
 
-def test_the_builder_lists_what_a_call_cannot_use():
-    assert voice_unavailable(_spec("clock", "sandbox", "browser_use")) == ["browser_use", "sandbox"]
+def test_a_call_hands_off_what_its_realtime_model_cannot_carry():
+    spec = _spec("clock", "sandbox", "browser_use", "subagents", "background_tools", "ask_user")
+    assert handed_off(spec) == ["background_tools", "browser_use", "sandbox", "subagents"]
 
 
 def test_channel_lookups_are_not_offered_in_a_call():
     """A call is never made on a channel, so there is nothing for them to look up."""
-    assert capability_def("channel_tools").voice is False
+    assert capability_def("channel_tools").voice == "never"
 
 
-def test_a_disabled_binding_is_not_listed():
-    assert voice_unavailable(_spec("sandbox", enabled=False)) == []
+def test_a_disabled_binding_is_not_handed_off():
+    assert handed_off(_spec("sandbox", enabled=False)) == []
 
 
-def test_stripping_removes_the_unavailable_bindings_and_every_delegate():
-    spec = _spec("clock", "sandbox", "subagents").model_copy(
+def test_stripping_keeps_what_the_text_twin_works_with():
+    """The sandbox opens and the delegates resolve for the twin; only what a call
+    can never use goes."""
+    spec = _spec("clock", "sandbox", "subagents", "channel_tools").model_copy(
         update={"subagents": [SubagentRef(agent_id=uuid4(), agent_version_id=uuid4())]}
     )
 
     stripped = without_voice_unavailable(spec)
 
-    assert [b.id for b in stripped.capabilities] == ["clock"]
-    assert stripped.subagents == []
-    assert spec.subagents  # the original is untouched
+    assert [b.id for b in stripped.capabilities] == ["clock", "sandbox", "subagents"]
+    assert stripped.subagents == spec.subagents
 
 
 def _model_spec() -> ModelRequestSpec:
@@ -222,6 +225,32 @@ def test_a_voice_agent_resolves_approvals_inline():
     found: list[object] = []
     built.agent.root_capability.apply(found.append)
     assert any(isinstance(c, HandleDeferredToolCalls) for c in found)
+
+
+def _capabilities_of(built: BuiltAgent) -> list[object]:
+    found: list[object] = []
+    built.agent.root_capability.apply(found.append)
+    return found
+
+
+@pytest.mark.parametrize("anonymous", [False, True])
+def test_a_text_agent_working_for_a_call_settles_approvals_with_the_caller(anonymous):
+    """The call's text twin and its delegates: nobody resumes a call, so nothing parks."""
+    spec = AgentSpec(name="a", capabilities=[CapabilityBindingSpec(id="sandbox")])
+    built = build_agent(
+        spec,
+        _model_spec(),
+        organization_id=uuid4(),
+        answering_call=VoiceOptions(on_deferred=_deny, anonymous=anonymous),
+    )
+
+    found = _capabilities_of(built)
+    assert any(isinstance(c, HandleDeferredToolCalls) for c in found)
+    assert any(isinstance(c, WithoutApprovalTools) for c in found) is anonymous
+    # A text run in every other respect: its sandbox, and no realtime-only stand-ins.
+    assert len(built.capabilities) == 1
+    assert not any(isinstance(c, AnswerUnknownTools) for c in found)
+    assert built.agent._system_prompts
 
 
 def test_a_sandbox_binding_never_reaches_a_call():

@@ -1,5 +1,5 @@
 ---
-source_sha: "02abd111614b"
+source_sha: "cc5a76355164"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -59,12 +59,12 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — | bez zmian |
 | `web_research` | Wyszukiwanie w internecie | badania | `web_search` | `web:read` | dla usług płatnych | bez zmian |
 | `web_fetch` | Czytanie stron | badania | `web_fetch` | `web:fetch` | — | bez zmian |
-| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | niedostępna |
+| `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
-| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | niedostępna |
+| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute` | `sandbox:execute` | dla Daytony | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany | bez zmian |
-| `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | niedostępna |
+| `subagents` | Subagenci | rozumowanie | `task`, `check_task`, `wait_tasks`, `list_active_tasks`, `answer_subagent`, `send_message_to_subagent`, `soft_cancel_task`, `hard_cancel_task`, `create_agent`, `delegate` | `agents:delegate` | — | przekazana |
 | `planning` | Planowanie | rozumowanie | `write_plan`, `read_plan`, `add_task`, `update_task_status`, `update_task_statuses`, `remove_task`, `add_subtask`, `set_dependency`, `get_available_tasks` | — | — | bez zmian |
 | `thinking` | Myślenie | rozumowanie | brak, celowo | — | — | odwzorowana |
 | `system_reminders` | Przypomnienia instrukcji | rozumowanie | brak, celowo | — | — | bez efektu |
@@ -76,7 +76,7 @@ Przeglądarka jest kierowana do usługi przeglądarki wdrożenia
 | `tool_output_limits` | Limity wyników narzędzi | użytkowe | `read_tool_result` | — | — | bez zmian |
 | `artifacts` | Aplikacje | użytkowe | `publish_artifact`, `read_artifact` | — | — | bez zmian |
 | `channel_tools` | Informacje o kanale czatu | kanały | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history` | — | — | niedostępna |
-| `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | niedostępna |
+| `ask_user` | Pytania do użytkownika | narzędzia | `ask_user_question` | — | — | na ekranie |
 
 Siedem z nich celowo nie ma narzędzi. `thinking` zmienia sposób, w jaki model
 pracuje, a nie to, do czego sięga, `clock` wstawia datę do instrukcji,
@@ -103,18 +103,21 @@ model.** Delegowanie jest jedynym miejscem, w którym jedno różni się od drug
 instrukcje, bez narzędzia do ich czytania. *Pominięta*: wyszukiwanie narzędzi
 daje rozmowie jej narzędzia MCP bezpośrednio, bo narzędzia rozmowy są ustalane
 w chwili połączenia. *Odwzorowana*: myślenie staje się własnym ustawieniem
-rozumowania modelu realtime. *Niedostępna* jest pomijana w rozmowach, a karta
-Głos (Voice) w Builderze wymienia ją dla agenta, który ją ma; nie blokuje to
-publikacji. Podgląd kanału czatu jest wśród nich, bo rozmowy nigdy nie prowadzi
-się w kanale. *Bez efektu* oznacza trzy capability, które działają na żądaniach
+rozumowania modelu realtime. *Przekazana* działa w modelu tekstowym
+agenta, któremu rozmowa przekazuje zadanie
+([Przekazywanie pracy](../voice.md#handing-work-off)); karta Głos (Voice) w
+Builderze wymienia je dla agenta, który je ma, tak jak pracę w trakcie narzędzi,
+która tylko wysyła przekazane narzędzie w tło. *Na ekranie* zadaje pytania na
+karcie w widoku rozmowy w `/chat`. Podgląd kanału czatu jest *niedostępny*, bo
+rozmowy nigdy nie prowadzi się w kanale. *Bez efektu* oznacza trzy capability, które działają na żądaniach
 do modelu w tekstowym runie i na ich zapisanej historii, a tych rozmowa nie
 wysyła.
 
 Guardraile sprawdzają transkrypcje rozmowy. Wynik narzędzia jest sprawdzany i
 blokowany, zanim agent go przeczyta; sprawdzeniem przed wykonaniem narzędzia
 jest zatwierdzenie, dla narzędzi, które go wymagają. Guardraile nie sprawdzają
-argumentów narzędzia. API katalogu niesie tę kolumnę jako flagę `voice` każdej
-capability.
+argumentów narzędzia. API katalogu podaje, jak każda capability bierze udział w rozmowie, w polu
+`voice`: `live` na własnym modelu rozmowy, `hand_off` albo `never`.
 
 **Jedna z nich w ogóle nie jest w Toolboksie.** `channel_tools` wybiera się
 osobno dla każdego powiązanego bota, w sekcji *Where this agent is available*, a
