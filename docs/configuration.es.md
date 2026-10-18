@@ -1,5 +1,5 @@
 ---
-source_sha: "8b507fb78e82"
+source_sha: "fe5e40f816b6"
 ---
 
 # Configuración { #configuration }
@@ -1252,6 +1252,7 @@ que este ajuste es; apagado, el límite sigue siendo seguro pero compartido.
 | Variable | Por defecto | Descripción |
 |----------|---------|-------------|
 | `EVENT_LOOP_WEDGED_AFTER` | `15` | Segundos que el bucle de eventos puede dejar de girar antes de que el worker se mate y se reemplace. `0` o menos apaga la comprobación |
+| `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` | `60` | Segundos que el supervisor de uvicorn espera a que un worker responda a su ping antes de reemplazarlo, allí donde `--workers` es mayor que 1. La leen los ficheros de compose, no la aplicación |
 
 Un worker que está *vivo pero no responde* —bloqueado en un lock, dando vueltas en una
 llamada síncrona, esperando en un socket que nunca responde— no tiene código de salida,
@@ -1297,6 +1298,18 @@ No puede ver un proceso que no está corriendo en absoluto —`kill -STOP`, un c
 congelado— porque un vigilante dentro de un proceso parado está parado también. Ese
 caso es el que ya cubren los supervisores: el latido del supervisor de recarga se
 queda viejo y el ping por tubería de producción se queda sin respuesta.
+
+Ese ping espera `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` segundos, 60 por defecto. El
+valor por defecto del propio uvicorn es 5, y un host al que le falta CPU —steal en
+un VPS compartido, la construcción de una imagen, un atasco de ejecuciones de
+flow— no llega a 5 segundos con workers que están vivos y sirviendo.
+
+El supervisor
+los mata entonces, y mata a sus reemplazos antes de que terminen de importar la
+aplicación, y cada reinicio suma una importación a la presión que lo causó. En el
+log aparece como `Child process [N] died` sin una línea del vigilante encima. Como
+un bucle bloqueado lo juzga el vigilante, el ping solo tiene que notar un proceso
+parado, y para eso basta un minuto.
 
 ## Docker / producción { #docker-production }
 

@@ -1210,6 +1210,7 @@ stays safe but shared.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `EVENT_LOOP_WEDGED_AFTER` | `15` | Seconds the event loop may stop turning before the worker is killed and replaced. `0` or below switches the check off |
+| `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` | `60` | Seconds uvicorn's supervisor waits for a worker to answer its ping before replacing it, wherever `--workers` is above 1. Read by the compose files, not by the application |
 
 A worker that is *alive but not answering* — deadlocked on a lock, spinning in a
 synchronous call, blocked on a socket that never answers — has no exit code, so
@@ -1254,6 +1255,18 @@ It cannot see a process that is not running at all — `kill -STOP`, a frozen
 cgroup — because a watchdog inside a stopped process is stopped too. That case
 is the one the supervisors already cover: the reload supervisor's beat goes
 stale and production's pipe ping goes unanswered.
+
+That ping waits `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` seconds, 60 by default.
+Uvicorn's own default is 5, and a host short of CPU — steal on a shared VPS, an
+image build, a backlog of flow runs — misses 5 seconds with workers that are
+alive and serving.
+
+The supervisor then kills them and kills their replacements
+before they finish importing the application, and every restart adds an import's
+worth of CPU to the pressure that caused it. The log shows it as
+`Child process [N] died` with no watchdog line above it. Since a blocked loop
+is the watchdog's to judge, the ping only has to notice a stopped process, and a
+minute is soon enough for that.
 
 ## Docker / production
 

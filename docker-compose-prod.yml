@@ -73,16 +73,20 @@ services:
     # production exactly as much as it does locally.
     #
     # --workers puts uvicorn's own `Multiprocess` supervisor at PID 1, and it is
-    # deliberately left there (#358): it pings each worker and replaces one that
-    # does not answer within `timeout_worker_healthcheck`, which covers a worker
-    # that died, hung or was stopped. What it cannot cover is a worker whose
-    # event loop is blocked, because the ping is answered by a thread
-    # (`Process.always_pong`) that keeps answering regardless - so the one
-    # stack with cover had cover against the least likely failure. The worker
-    # now judges its own loop (`app/core/watchdog.py`) and kills itself, which
-    # this supervisor already replaces twice a second. Subclassing it instead
-    # would have meant owning four upstream call sites in the one process whose
-    # job is to survive whatever killed the worker.
+    # deliberately left there (#358): it replaces a worker that died, and pings
+    # the live ones over a pipe. What the ping cannot see is a worker whose
+    # event loop is blocked, because a thread (`Process.always_pong`) answers it
+    # regardless - so the worker judges its own loop (`app/core/watchdog.py`)
+    # and kills itself, which this supervisor replaces twice a second.
+    # Subclassing it instead would have meant owning four upstream call sites
+    # in the one process whose job is to survive whatever killed the worker.
+    #
+    # That leaves the ping one job: a process that is stopped outright. Its
+    # default window of 5 seconds is shorter than a starved host takes to
+    # answer, and on prod it killed live workers and their half-started
+    # replacements 17 times in 20 minutes (#2223) - each one an import of the
+    # whole application, added to the CPU pressure that got it killed. A
+    # minute costs nothing the watchdog does not already cover.
     #
     # How many workers is a deployment's decision, not a constant: each one is a
     # *spawned* process that imports the application on its own - 460 MiB
@@ -93,7 +97,9 @@ services:
     # default; lower both together.
     command: >-
       uvicorn app.main:app --host 0.0.0.0 --port 8000
-      --workers ${UVICORN_WORKERS:-4} --ws websockets-sansio
+      --workers ${UVICORN_WORKERS:-4}
+      --timeout-worker-healthcheck ${UVICORN_WORKER_HEALTHCHECK_TIMEOUT:-60}
+      --ws websockets-sansio
     networks:
       data:
       edge:

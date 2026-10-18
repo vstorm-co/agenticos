@@ -106,7 +106,9 @@ services:
     # chat is a WebSocket.
     command: >-
       uvicorn app.main:app --host 0.0.0.0 --port 8000
-      --workers ${UVICORN_WORKERS:-1} --ws websockets-sansio
+      --workers ${UVICORN_WORKERS:-1}
+      --timeout-worker-healthcheck ${UVICORN_WORKER_HEALTHCHECK_TIMEOUT:-60}
+      --ws websockets-sansio
     networks:
       - backend
       - browser

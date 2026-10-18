@@ -1,5 +1,5 @@
 ---
-source_sha: "de38073f9286"
+source_sha: "1d47e59ae582"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -69,6 +69,13 @@ obsługującego ruch, kiedy
 zastępuje zaklinowane rodzeństwo. Jeden worker to ustawienie, którego należy
 unikać: zablokowana pętla zdarzeń jest wtedy całym wdrożeniem, dopóki worker się
 nie zabije.
+
+Host, któremu brakuje CPU, daje inny objaw: wpisy `Child process [N] died` w logu
+`app` bez werdyktu watchdoga nad nimi, a każda strona działa wolno. To workery,
+które supervisor uvicorna zabił za spóźnioną odpowiedź na ping, a nie workery,
+które padły. Czeka on
+[`UVICORN_WORKER_HEALTHCHECK_TIMEOUT`](configuration.md#a-worker-whose-event-loop-has-stopped-turning)
+sekund, domyślnie 60. Zanim to podniesiesz, sprawdź CPU steal na hoście.
 
 !!! note "Baza danych jest strojona wobec własnego limitu"
 

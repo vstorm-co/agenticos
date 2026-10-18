@@ -1,5 +1,5 @@
 ---
-source_sha: "de38073f9286"
+source_sha: "1d47e59ae582"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -70,6 +70,13 @@ Dos workers bastan para un equipo de diez y aun así dejan uno atendiendo mientr
 reemplaza a un hermano atascado. Un solo worker es el ajuste que hay que evitar:
 un bucle de eventos bloqueado es entonces todo el despliegue, hasta que se mata a
 sí mismo.
+
+Un host al que le falta CPU muestra otro síntoma: líneas `Child process [N] died`
+en el log de `app` sin un veredicto del watchdog encima, mientras todas las
+páginas van lentas. Son workers que el supervisor de uvicorn mató por responder
+tarde a su ping, no workers que fallaron. Espera
+[`UVICORN_WORKER_HEALTHCHECK_TIMEOUT`](configuration.md#a-worker-whose-event-loop-has-stopped-turning)
+segundos, 60 por defecto. Mira el steal de CPU del host antes de subirlo.
 
 !!! note "La base de datos está ajustada contra su propio límite"
 

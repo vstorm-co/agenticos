@@ -17,6 +17,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A host short of CPU no longer restarts the API in a loop.** Uvicorn's
+  supervisor killed any worker that took more than 5 seconds to answer its ping.
+  On a starved host it hit live workers and then their replacements before they
+  had started, 17 times in 20 minutes on prod, and each restart re-imported the
+  whole application. Every compose file that runs `--workers` now waits
+  `UVICORN_WORKER_HEALTHCHECK_TIMEOUT` seconds, 60 by default. A blocked event
+  loop is still the watchdog's to catch (#2223).
+
 ## [1.6.3] - 2026-10-18
 
 ### Fixed

@@ -1,5 +1,5 @@
 ---
-source_sha: "de38073f9286"
+source_sha: "1d47e59ae582"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -71,6 +71,13 @@ bedienen, während
 ein festgefahrenes Geschwister ersetzt. Ein Worker ist die Einstellung, die es zu
 vermeiden gilt: eine blockierte Event Loop ist dann das gesamte Deployment, bis
 es sich selbst beendet.
+
+Ein Host, dem CPU fehlt, zeigt ein anderes Symptom: Zeilen `Child process [N] died`
+im Log von `app` ohne Watchdog-Urteil darüber, während jede Seite langsam ist. Das
+sind Worker, die uvicorns Supervisor getötet hat, weil sie seinen Ping zu spät
+beantwortet haben, keine Worker, die ausgefallen sind. Er wartet
+[`UVICORN_WORKER_HEALTHCHECK_TIMEOUT`](configuration.md#a-worker-whose-event-loop-has-stopped-turning)
+Sekunden, standardmäßig 60. Prüfe den CPU-Steal des Hosts, bevor du den Wert erhöhst.
 
 !!! note "Die Datenbank ist auf ihr eigenes Limit hin abgestimmt"
 
