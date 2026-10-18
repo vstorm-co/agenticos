@@ -5,6 +5,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from prefect.client.schemas.objects import ConcurrencyLimitStrategy
 
 from app.core.config import settings
 from app.worker import prefect_app
@@ -96,6 +97,35 @@ async def test_every_deployment_is_registered_before_the_runner_starts(
         "notification-retention-sweep",
     }
     assert captured_runner.start.await_count == 1
+
+
+async def test_a_scheduled_sweep_skips_a_tick_rather_than_queueing_it(
+    captured_runner: MagicMock,
+) -> None:
+    """A host that falls behind must shed ticks, not stack them.
+
+    On 2026-10-17 production fell behind its four minute-ticks: each queued tick
+    was another process importing the application on a saturated CPU, so each
+    one ran slower than the last, and eight hours later ~1,650 runs were Late and
+    the API's workers were being starved into restarts. A sweep covers current
+    state, so the tick that finds its predecessor still running is cancelled by
+    the server - and the on-demand deployments keep no limit, because every
+    ingestion or cleanup run there is its own piece of work.
+    """
+    await prefect_app.main()
+
+    registered: list[Any] = [call.args[0] for call in captured_runner.add_deployment.call_args_list]
+    scheduled = [deployment for deployment in registered if deployment.schedules]
+    on_demand = [deployment for deployment in registered if not deployment.schedules]
+    assert scheduled and on_demand
+    for deployment in scheduled:
+        assert deployment.concurrency_limit == 1, deployment.name
+        assert deployment.concurrency_options is not None, deployment.name
+        assert (
+            deployment.concurrency_options.collision_strategy == ConcurrencyLimitStrategy.CANCEL_NEW
+        )
+    for deployment in on_demand:
+        assert deployment.concurrency_limit is None, deployment.name
 
 
 class TestTheIntervalFloor:

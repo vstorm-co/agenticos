@@ -1,5 +1,5 @@
 ---
-source_sha: "1b7f3c282f31"
+source_sha: "3e952b03b0a2"
 ---
 
 # Añade una tarea en segundo plano { #add-a-background-task }
@@ -86,6 +86,7 @@ from app.worker.tasks.reports import nightly_digest_flow
 deployments.append(await nightly_digest_flow.ato_deployment(
     name="daily-digest",
     schedules=[CronSchedule(cron="0 9 * * *")],  # Daily at 9 AM
+    concurrency_limit=_ONE_AT_A_TIME,  # A late tick is skipped, not queued
 ))
 ```
 
@@ -104,4 +105,9 @@ uv run --directory backend python -m app.worker.prefect_app
     el resto hace cola. Cada run es un proceso que importa la aplicación entera,
     así que prefiere el intervalo más largo que siga respondiendo a la pregunta.
 
-El intervalo decide también cuánto trabajo queda esperando tras una caída.
+El intervalo decide también cuánto trabajo queda esperando tras una caída. Pasa
+`concurrency_limit=_ONE_AT_A_TIME`, como hace cada deployment programado en
+`prefect_app.py`: el servidor cancela entonces un tick que llega mientras el
+anterior sigue en marcha, o que se ha quedado Late detrás de él, así que una
+máquina que no da abasto descarta ticks en lugar de apilarlos. No lo pongas en
+un deployment bajo demanda, donde cada run es un trabajo propio.

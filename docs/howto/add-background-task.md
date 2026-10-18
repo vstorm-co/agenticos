@@ -81,6 +81,7 @@ from app.worker.tasks.reports import nightly_digest_flow
 deployments.append(await nightly_digest_flow.ato_deployment(
     name="daily-digest",
     schedules=[CronSchedule(cron="0 9 * * *")],  # Daily at 9 AM
+    concurrency_limit=_ONE_AT_A_TIME,  # A late tick is skipped, not queued
 ))
 ```
 
@@ -99,4 +100,9 @@ uv run --directory backend python -m app.worker.prefect_app
     queue. Every run is a process that imports the whole application, so prefer
     the longest interval that still answers the question.
 
-The interval also decides how much work is waiting after downtime.
+The interval also decides how much work is waiting after downtime. Pass
+`concurrency_limit=_ONE_AT_A_TIME`, as every scheduled deployment in
+`prefect_app.py` does: the server then cancels a tick that arrives while the
+previous one is still running, or that has gone Late behind it, so a host that
+falls behind sheds ticks instead of stacking them. Leave it off an on-demand
+deployment, where every run is its own piece of work.

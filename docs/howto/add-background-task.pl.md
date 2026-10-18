@@ -1,5 +1,5 @@
 ---
-source_sha: "1b7f3c282f31"
+source_sha: "3e952b03b0a2"
 ---
 
 # Dodaj zadanie w tle { #add-a-background-task }
@@ -86,6 +86,7 @@ from app.worker.tasks.reports import nightly_digest_flow
 deployments.append(await nightly_digest_flow.ato_deployment(
     name="daily-digest",
     schedules=[CronSchedule(cron="0 9 * * *")],  # Daily at 9 AM
+    concurrency_limit=_ONE_AT_A_TIME,  # A late tick is skipped, not queued
 ))
 ```
 
@@ -104,4 +105,9 @@ uv run --directory backend python -m app.worker.prefect_app
     reszta czeka w kolejce. Każdy run to proces, który importuje całą aplikację,
     więc wybieraj najdłuższy interwał, który wciąż odpowiada na pytanie.
 
-Interwał decyduje też o tym, ile pracy czeka po przestoju.
+Interwał decyduje też o tym, ile pracy czeka po przestoju. Przekaż
+`concurrency_limit=_ONE_AT_A_TIME`, jak każdy zaplanowany deployment w
+`prefect_app.py`: serwer anuluje wtedy tick, który przychodzi, gdy poprzedni
+jeszcze trwa, albo który się za nim spóźnił (Late), więc host, który nie
+nadąża, gubi ticki zamiast je piętrzyć. Nie dawaj go deploymentowi
+uruchamianemu na żądanie, gdzie każdy run to osobna praca.

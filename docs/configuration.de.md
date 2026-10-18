@@ -1,5 +1,5 @@
 ---
-source_sha: "d81e5264a713"
+source_sha: "dceb1e6ed488"
 ---
 
 # Konfiguration { #configuration }
@@ -460,6 +460,10 @@ während seiner Abwesenheit geplant wurde, und startet so viele, wie das Limit
 zulässt. Ohne Cap waren drei Tage Ausfall 71 Prozesse und 6 GiB. Heben Sie es an,
 wenn die Ingestion auf einer Maschine mit freiem Speicher hinter Syncs wartet;
 senken Sie es auf einem kleinen Host.
+
+Geplante Sweeps gehören nicht zu diesem
+Rückstand nach dem Neustart: Jeder läuft mit einem Tick zur Zeit, und die Ticks,
+die inzwischen Late geworden sind, bricht der Server ab.
 
 Die beiden `PREFECT_RUNNER_SERVER_*`-Variablen gehören Prefect, und die
 Compose-Dateien pinnen sie, damit der Container des Runners einen Health-Status

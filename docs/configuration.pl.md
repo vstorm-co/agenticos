@@ -1,5 +1,5 @@
 ---
-source_sha: "d81e5264a713"
+source_sha: "dceb1e6ed488"
 ---
 
 # Konfiguracja { #configuration }
@@ -441,6 +441,10 @@ każdy run zaplanowany w czasie, gdy go nie było, i startuje tyle, na ile pozwa
 limit. Bez limitu trzy dni przestoju to 71 procesów i 6 GiB. Podnieś go, jeśli
 ingestia kolejkuje się za synchronizacjami na maszynie z zapasem pamięci; obniż na
 małym hoście.
+
+Zaplanowane sweepy nie wchodzą do tej zaległości po restarcie:
+każdy wykonuje jeden tick naraz, a ticki, które w tym czasie się spóźniły (Late),
+serwer anuluje.
 
 Dwie zmienne `PREFECT_RUNNER_SERVER_*` należą do Prefecta, a pliki compose
 przypinają je, żeby kontener runnera miał status zdrowia, który coś znaczy. Runner

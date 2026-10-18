@@ -17,6 +17,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- **A host that falls behind skips sweep ticks instead of queueing them.** Every
+  scheduled deployment (the four minute-ticks and the slower sweeps) now runs one
+  tick at a time, and Prefect cancels the tick that arrives while the previous one
+  is still running, or that has gone Late behind it. Before, the ticks queued: on
+  2026-10-17 the production host fell behind, each queued tick was another process
+  importing the application on a saturated CPU, and eight hours later ~1,650 runs
+  were Late and the API's workers were being starved into restarts. On-demand
+  deployments (ingestion, syncs, cleanup) keep no limit.
+
 ## [1.2.1] - 2026-10-18
 
 ### Fixed

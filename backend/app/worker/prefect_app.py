@@ -9,7 +9,9 @@ or to your Prefect Cloud workspace URL + PREFECT_API_KEY for Cloud mode.
 
 At most PREFECT_RUNNER_LIMIT runs execute at once; the rest queue.  Each run is a
 separate process that imports the whole application, so an uncapped runner meeting
-a backlog is an out-of-memory kill rather than a slow afternoon.
+a backlog is an out-of-memory kill rather than a slow afternoon.  Scheduled
+deployments also run one at a time each, so a host that falls behind skips ticks
+rather than queueing them - see `_ONE_AT_A_TIME`.
 
 The runner also serves its own health endpoint, so that a container orchestrator
 can tell a runner that is polling from one that has stopped.  Where it listens is
@@ -23,6 +25,7 @@ import logging
 from datetime import timedelta
 
 from prefect import aserve
+from prefect.client.schemas.objects import ConcurrencyLimitConfig, ConcurrencyLimitStrategy
 from prefect.client.schemas.schedules import IntervalSchedule
 
 from app.core.config import settings
@@ -59,6 +62,20 @@ from app.worker.tasks.trigger_tasks import (
 
 logger = logging.getLogger(__name__)
 
+# Every scheduled deployment here is a sweep over current state, so a tick that
+# arrives while the previous one is still running has nothing of its own to do.
+# Without a limit those ticks queue: on 2026-10-17 the production host fell
+# behind, each queued tick was another process importing the application on a
+# saturated CPU, which made every tick slower still, and ~1,650 Late runs had
+# piled up eight hours later with the API's workers starved into restarts.
+# `CANCEL_NEW` makes the server cancel the surplus tick - at the move to Pending,
+# and also at the move to Late, so a backlog never forms in the first place. A
+# run whose process died holds its slot only until its lease lapses (300s by
+# default); the engine renews the lease while the run is alive.
+_ONE_AT_A_TIME = ConcurrencyLimitConfig(
+    limit=1, collision_strategy=ConcurrencyLimitStrategy.CANCEL_NEW
+)
+
 
 def _every(seconds: float) -> IntervalSchedule:
     """The interval a deployment declares, never faster than the configured floor.
@@ -92,6 +109,7 @@ async def main() -> None:
         await check_scheduled_syncs_flow.ato_deployment(
             name="rag-sync-check",
             schedules=[_every(60)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # On-demand: one fired run per due trigger, submitted by the heartbeat below.
@@ -109,6 +127,7 @@ async def main() -> None:
         await check_agent_triggers_flow.ato_deployment(
             name="agent-triggers-check",
             schedules=[_every(60)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Daily: drop sandbox operations past the retention window. The window is
@@ -118,6 +137,7 @@ async def main() -> None:
         await sweep_sandbox_operations_flow.ato_deployment(
             name="sandbox-log-sweep",
             schedules=[_every(86400)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Every minute: read the connected accounts nobody pushes to. A separate
@@ -128,6 +148,7 @@ async def main() -> None:
         await poll_portal_grants_flow.ato_deployment(
             name="portal-poll",
             schedules=[_every(60)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Every 15 minutes: often enough that a dead grant is noticed within one
@@ -138,6 +159,7 @@ async def main() -> None:
         await mcp_connection_sweep_flow.ato_deployment(
             name="mcp-connection-sweep",
             schedules=[_every(900)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Hourly, against a threshold measured in days: precision here buys nothing,
@@ -147,6 +169,7 @@ async def main() -> None:
         await approval_expiry_sweep_flow.ato_deployment(
             name="approval-expiry-sweep",
             schedules=[_every(3600)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Hourly for the same reason as the approval sweep: the invitation TTL is
@@ -155,6 +178,7 @@ async def main() -> None:
         await invitation_expiry_sweep_flow.ato_deployment(
             name="invitation-expiry-sweep",
             schedules=[_every(3600)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Hourly like the sweeps above, and for the same arithmetic: the ceiling is
@@ -164,6 +188,7 @@ async def main() -> None:
         await stale_run_sweep_flow.ato_deployment(
             name="stale-run-sweep",
             schedules=[_every(3600)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Hourly, against a threshold measured in hours: a teardown reservation whose
@@ -174,6 +199,7 @@ async def main() -> None:
         await teardown_reservation_sweep_flow.ato_deployment(
             name="teardown-reservation-sweep",
             schedules=[_every(3600)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Daily: apply every organization's retention policy. Every period is
@@ -185,6 +211,7 @@ async def main() -> None:
         await retention_sweep_flow.ato_deployment(
             name="retention-sweep",
             schedules=[_every(86400)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Usage reports. An interval rather than a cron because the schedule only
@@ -195,12 +222,14 @@ async def main() -> None:
         await weekly_usage_report_flow.ato_deployment(
             name="weekly-usage-report",
             schedules=[_every(7 * 86_400)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     deployments.append(
         await monthly_usage_report_flow.ato_deployment(
             name="monthly-usage-report",
             schedules=[_every(30 * 86_400)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Every minute, matching the other frequent sweeps here: defining the flow
@@ -210,6 +239,7 @@ async def main() -> None:
         await notification_delivery_sweep_flow.ato_deployment(
             name="notification-delivery-sweep",
             schedules=[_every(60)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     # Daily, matching the sandbox-log sweep above: drop notifications past their
@@ -220,6 +250,7 @@ async def main() -> None:
         await notification_retention_sweep_flow.ato_deployment(
             name="notification-retention-sweep",
             schedules=[_every(86400)],
+            concurrency_limit=_ONE_AT_A_TIME,
         )
     )
     logger.info(

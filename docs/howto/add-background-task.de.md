@@ -1,5 +1,5 @@
 ---
-source_sha: "1b7f3c282f31"
+source_sha: "3e952b03b0a2"
 ---
 
 # Einen Hintergrund-Task hinzufügen { #add-a-background-task }
@@ -88,6 +88,7 @@ from app.worker.tasks.reports import nightly_digest_flow
 deployments.append(await nightly_digest_flow.ato_deployment(
     name="daily-digest",
     schedules=[CronSchedule(cron="0 9 * * *")],  # Daily at 9 AM
+    concurrency_limit=_ONE_AT_A_TIME,  # A late tick is skipped, not queued
 ))
 ```
 
@@ -108,4 +109,9 @@ uv run --directory backend python -m app.worker.prefect_app
     Frage noch beantwortet.
 
 Das Intervall entscheidet auch darüber, wie viel Arbeit sich nach einer Ausfallzeit
-angesammelt hat.
+angesammelt hat. Übergeben Sie `concurrency_limit=_ONE_AT_A_TIME`, wie es jedes
+geplante Deployment in `prefect_app.py` tut: Der Server bricht dann einen Tick ab,
+der eintrifft, während der vorige noch läuft, oder der hinter ihm Late geworden
+ist, sodass ein Host, der nicht nachkommt, Ticks verwirft, statt sie zu stapeln.
+Lassen Sie es bei einem Deployment auf Abruf weg, bei dem jeder Run eigene Arbeit
+ist.
