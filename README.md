@@ -146,9 +146,9 @@ It runs on your own infrastructure with Docker Compose and works with 28 model p
 
 **How AgenticOS fits into a company:** departments such as finance, operations or the board use shared agents in web chat, Slack or a private workspace. Your systems call agents through the API, and events or schedules start them automatically. Every request passes the same controls: roles, budgets, approvals, guardrails and a recorded run. Your data, vectors, code sandboxes, the credential vault and optional local models stay on your infrastructure. Hosted models, SaaS tools and document sources outside are used only when you configure them.
 
-<img src="docs/assets/readme/figures.webp" alt="28 built-in capabilities, switched on per agent; 8 places an agent answers; 28 model providers, hosted, your cloud or local; 5 document sync sources; 4,700+ MCP servers in the gallery; 29 tutorials, each with a check you can run." width="100%">
+<img src="docs/assets/readme/figures.webp" alt="29 built-in capabilities, switched on per agent; 8 places an agent answers; 28 model providers, hosted, your cloud or local; 5 document sync sources; 4,700+ MCP servers in the gallery; 29 tutorials, each with a check you can run." width="100%">
 
-<p align="center"><sub><b>At a glance:</b> 28 built-in capabilities · 8 places an agent answers · 28 model providers · 5 document sync sources · 4,700+ MCP servers · 29 tutorials.</sub></p>
+<p align="center"><sub><b>At a glance:</b> 29 built-in capabilities · 8 places an agent answers · 28 model providers · 5 document sync sources · 4,700+ MCP servers · 29 tutorials.</sub></p>
 
 ## ✨ What you can do
 
@@ -313,10 +313,10 @@ Security is layered. Credentials sit in an envelope-encrypted vault. Code runs i
 
 ## 📦 What ships today
 
-<img src="docs/assets/readme/capabilities.webp" alt="28 built-in capabilities in six groups: knowledge and memory, web, files code and output, how it works, safety and limits, chat channels." width="100%">
+<img src="docs/assets/readme/capabilities.webp" alt="29 built-in capabilities in six groups: knowledge and memory, web, files code and output, how it works, safety and limits, chat channels." width="100%">
 
 <details>
-<summary>All 28 built-in capabilities, as text</summary>
+<summary>All 29 built-in capabilities, as text</summary>
 
 - **Knowledge and memory:** knowledge search with citations, skills, context, memory, memory through mem0, past conversations.
 - **Web:** web search (DuckDuckGo by default; Tavily, Brave or Exa with a key), reading web pages, and a web browser the agent drives and you can take over.

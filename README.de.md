@@ -1,4 +1,4 @@
-<!-- source_sha: 36bf5d8d1518 -->
+<!-- source_sha: a0fda49a887b -->
 
 <div align="center">
 
@@ -148,9 +148,9 @@ Es läuft mit Docker Compose auf deiner eigenen Infrastruktur und arbeitet mit 2
 
 **Wie sich AgenticOS in ein Unternehmen einfügt:** Abteilungen wie Finanzen, Betrieb oder Vorstand nutzen gemeinsame Agenten im Webchat, in Slack oder in einem privaten Workspace. Deine Systeme rufen Agenten über die API auf, und Ereignisse oder Zeitpläne starten sie automatisch. Jede Anfrage durchläuft dieselben Kontrollen: Rollen, Budgets, Freigaben, Guardrails und einen aufgezeichneten Run. Deine Daten, Vektoren, Code-Sandboxes, der Vault für Zugangsdaten und optionale lokale Modelle bleiben auf deiner Infrastruktur. Gehostete Modelle, SaaS-Werkzeuge und externe Dokumentquellen werden nur genutzt, wenn du sie konfigurierst.
 
-<img src="docs/assets/readme/figures.webp" alt="28 integrierte Capabilities, pro Agent einschaltbar; 8 Orte, an denen ein Agent antwortet; 28 Modellanbieter, gehostet, in deiner Cloud oder lokal; 5 Quellen für die Dokumentsynchronisation; über 4.700 MCP-Server in der Galerie; 29 Tutorials, jedes mit einer Prüfung, die du ausführen kannst." width="100%">
+<img src="docs/assets/readme/figures.webp" alt="29 integrierte Capabilities, pro Agent einschaltbar; 8 Orte, an denen ein Agent antwortet; 28 Modellanbieter, gehostet, in deiner Cloud oder lokal; 5 Quellen für die Dokumentsynchronisation; über 4.700 MCP-Server in der Galerie; 29 Tutorials, jedes mit einer Prüfung, die du ausführen kannst." width="100%">
 
-<p align="center"><sub><b>Auf einen Blick:</b> 28 integrierte Capabilities · 8 Orte, an denen ein Agent antwortet · 28 Modellanbieter · 5 Synchronisationsquellen für Dokumente · über 4.700 MCP-Server · 29 Tutorials.</sub></p>
+<p align="center"><sub><b>Auf einen Blick:</b> 29 integrierte Capabilities · 8 Orte, an denen ein Agent antwortet · 28 Modellanbieter · 5 Synchronisationsquellen für Dokumente · über 4.700 MCP-Server · 29 Tutorials.</sub></p>
 
 ## ✨ Was du damit machen kannst
 
@@ -315,10 +315,10 @@ Sicherheit ist geschichtet. Zugangsdaten liegen in einem Vault mit Envelope-Vers
 
 ## 📦 Was heute enthalten ist
 
-<img src="docs/assets/readme/capabilities.webp" alt="28 integrierte Capabilities in sechs Gruppen: Wissen und Gedächtnis, Web, Dateien, Code und Ausgabe, Arbeitsweise, Sicherheit und Limits, Chatkanäle." width="100%">
+<img src="docs/assets/readme/capabilities.webp" alt="29 integrierte Capabilities in sechs Gruppen: Wissen und Gedächtnis, Web, Dateien, Code und Ausgabe, Arbeitsweise, Sicherheit und Limits, Chatkanäle." width="100%">
 
 <details>
-<summary>Alle 28 integrierten Capabilities als Text</summary>
+<summary>Alle 29 integrierten Capabilities als Text</summary>
 
 - **Wissen und Gedächtnis:** Wissenssuche mit Quellenangaben, Skills, Kontext, Memory, Memory über mem0, frühere Unterhaltungen.
 - **Web:** Websuche (standardmäßig DuckDuckGo; Tavily, Brave oder Exa mit Schlüssel), Webseiten lesen und ein Webbrowser, den der Agent steuert und den du übernehmen kannst.

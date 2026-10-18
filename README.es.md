@@ -1,4 +1,4 @@
-<!-- source_sha: 36bf5d8d1518 -->
+<!-- source_sha: a0fda49a887b -->
 
 <div align="center">
 
@@ -148,9 +148,9 @@ Funciona en tu propia infraestructura con Docker Compose y es compatible con 28 
 
 **Cómo encaja AgenticOS en una empresa:** departamentos como finanzas, operaciones o la dirección usan agentes compartidos en el chat web, Slack o un workspace privado. Tus sistemas llaman a los agentes mediante la API, y los eventos o las programaciones los inician automáticamente. Cada solicitud pasa por los mismos controles: roles, budgets, aprobaciones, guardrails y un run registrado. Tus datos, vectores, sandboxes de código, el vault de credenciales y los modelos locales opcionales permanecen en tu infraestructura. Los modelos alojados, las herramientas SaaS y las fuentes de documentos externas solo se usan cuando las configuras.
 
-<img src="docs/assets/readme/figures.webp" alt="28 capabilities integradas, activadas por agente; 8 lugares donde responde un agente; 28 providers de modelos, alojados, en tu nube o locales; 5 fuentes de sincronización de documentos; más de 4700 servidores MCP en la galería; 29 tutoriales, cada uno con una comprobación que puedes ejecutar." width="100%">
+<img src="docs/assets/readme/figures.webp" alt="29 capabilities integradas, activadas por agente; 8 lugares donde responde un agente; 28 providers de modelos, alojados, en tu nube o locales; 5 fuentes de sincronización de documentos; más de 4700 servidores MCP en la galería; 29 tutoriales, cada uno con una comprobación que puedes ejecutar." width="100%">
 
-<p align="center"><sub><b>De un vistazo:</b> 28 capabilities integradas · 8 lugares donde responde un agente · 28 providers de modelos · 5 fuentes de sincronización de documentos · más de 4700 servidores MCP en la galería · 29 tutoriales.</sub></p>
+<p align="center"><sub><b>De un vistazo:</b> 29 capabilities integradas · 8 lugares donde responde un agente · 28 providers de modelos · 5 fuentes de sincronización de documentos · más de 4700 servidores MCP en la galería · 29 tutoriales.</sub></p>
 
 ## ✨ Qué puedes hacer
 
@@ -315,10 +315,10 @@ La seguridad funciona por capas. Las credenciales están en un vault con cifrado
 
 ## 📦 Qué incluye hoy
 
-<img src="docs/assets/readme/capabilities.webp" alt="28 capabilities integradas en seis grupos: conocimiento y memoria, web, archivos, código y resultados, cómo trabaja, seguridad y límites, canales de chat." width="100%">
+<img src="docs/assets/readme/capabilities.webp" alt="29 capabilities integradas en seis grupos: conocimiento y memoria, web, archivos, código y resultados, cómo trabaja, seguridad y límites, canales de chat." width="100%">
 
 <details>
-<summary>Las 28 capabilities integradas, en texto</summary>
+<summary>Las 29 capabilities integradas, en texto</summary>
 
 - **Conocimiento y memoria:** búsqueda en el conocimiento con citas, skills, contexto, memoria, memoria mediante mem0, conversaciones anteriores.
 - **Web:** búsqueda web (DuckDuckGo por defecto; Tavily, Brave o Exa con una clave), lectura de páginas web y un navegador web que el agente maneja y que puedes tomar tú.

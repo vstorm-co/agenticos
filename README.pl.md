@@ -1,4 +1,4 @@
-<!-- source_sha: 36bf5d8d1518 -->
+<!-- source_sha: a0fda49a887b -->
 
 <div align="center">
 
@@ -148,9 +148,9 @@ Działa na Twojej infrastrukturze z Docker Compose i współpracuje z 28 dostawc
 
 **Jak AgenticOS wpisuje się w firmę:** działy takie jak finanse, operacje czy zarząd korzystają ze wspólnych agentów w czacie internetowym, Slacku lub prywatnym workspace. Twoje systemy wywołują agentów przez API, a zdarzenia lub harmonogramy uruchamiają ich automatycznie. Każde żądanie przechodzi przez te same kontrole: role, budżety, zatwierdzenia, guardraile i zapis runa. Twoje dane, wektory, sandboxy kodu, vault z poświadczeniami i opcjonalne modele lokalne pozostają na Twojej infrastrukturze. Modele hostowane, narzędzia SaaS i zewnętrzne źródła dokumentów są używane tylko wtedy, gdy je skonfigurujesz.
 
-<img src="docs/assets/readme/figures.webp" alt="28 wbudowanych capabilities, włączanych dla każdego agenta osobno; 8 miejsc, w których agent odpowiada; 28 dostawców modeli: hostowanych, w Twojej chmurze lub lokalnych; 5 źródeł synchronizacji dokumentów; ponad 4700 serwerów MCP w galerii; 29 poradników, każdy ze sprawdzianem, który możesz uruchomić." width="100%">
+<img src="docs/assets/readme/figures.webp" alt="29 wbudowanych capabilities, włączanych dla każdego agenta osobno; 8 miejsc, w których agent odpowiada; 28 dostawców modeli: hostowanych, w Twojej chmurze lub lokalnych; 5 źródeł synchronizacji dokumentów; ponad 4700 serwerów MCP w galerii; 29 poradników, każdy ze sprawdzianem, który możesz uruchomić." width="100%">
 
-<p align="center"><sub><b>W skrócie:</b> 28 wbudowanych capabilities · 8 miejsc, w których agent odpowiada · 28 dostawców modeli · 5 źródeł synchronizacji dokumentów · ponad 4700 serwerów MCP · 29 poradników.</sub></p>
+<p align="center"><sub><b>W skrócie:</b> 29 wbudowanych capabilities · 8 miejsc, w których agent odpowiada · 28 dostawców modeli · 5 źródeł synchronizacji dokumentów · ponad 4700 serwerów MCP · 29 poradników.</sub></p>
 
 ## ✨ Co możesz zrobić
 
@@ -315,10 +315,10 @@ Bezpieczeństwo jest warstwowe. Poświadczenia są przechowywane w vaulcie z szy
 
 ## 📦 Co jest dostępne już dziś
 
-<img src="docs/assets/readme/capabilities.webp" alt="28 wbudowanych capabilities w sześciu grupach: wiedza i pamięć, sieć, pliki, kod i wyniki, sposób działania, bezpieczeństwo i limity, kanały czatu." width="100%">
+<img src="docs/assets/readme/capabilities.webp" alt="29 wbudowanych capabilities w sześciu grupach: wiedza i pamięć, sieć, pliki, kod i wyniki, sposób działania, bezpieczeństwo i limity, kanały czatu." width="100%">
 
 <details>
-<summary>Wszystkie 28 wbudowanych capabilities w formie tekstu</summary>
+<summary>Wszystkie 29 wbudowanych capabilities w formie tekstu</summary>
 
 - **Wiedza i pamięć:** wyszukiwanie w wiedzy z cytatami, skills, kontekst, pamięć, pamięć przez mem0, dawne rozmowy.
 - **Sieć:** wyszukiwanie w sieci (domyślnie DuckDuckGo; Tavily, Brave lub Exa z kluczem), czytanie stron oraz przeglądarka, którą prowadzi agent, a Ty możesz ją przejąć.
