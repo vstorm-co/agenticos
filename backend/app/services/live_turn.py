@@ -157,6 +157,11 @@ async def _append(turn: Turn, kind: str, data: Any, *, ttl: int) -> None:
             pipe.ltrim(trace, -HISTORY_LIMIT, -1)
             pipe.expire(trace, ttl)
         pipe.expire(turn.key("seq"), ttl)
+        # The conversation's list of running turns lives as long as one of them
+        # is still writing: set only at `begin`, it expired under a turn longer
+        # than an hour, which nobody returning could then follow.
+        if kind != END:
+            pipe.expire(_live_key(turn.conversation_id), ttl)
         pipe.publish(turn.key("events"), body)
         await pipe.execute()
     except Exception:

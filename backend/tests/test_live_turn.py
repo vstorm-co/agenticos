@@ -81,6 +81,7 @@ class _Store:
     def __init__(self) -> None:
         self.values: dict[str, str] = {}
         self.lists: dict[str, list[str]] = {}
+        self.expiries: dict[str, list[int]] = {}
         self.published: list[tuple[str, str]] = []
         self.on_subscribe: Callable[[], Any] | None = None
         self.on_listen: Callable[[], Any] | None = None
@@ -125,8 +126,8 @@ class _Store:
     async def ltrim(self, key: str, start: int, _end: int) -> None:
         self.lists[key] = self.lists[key][start:]
 
-    async def expire(self, key: str, _ttl: int) -> None:
-        return None
+    async def expire(self, key: str, ttl: int) -> None:
+        self.expiries.setdefault(key, []).append(ttl)
 
     async def publish(self, channel: str, data: str) -> None:
         self.published.append((channel, data))
@@ -233,6 +234,18 @@ class TestKeepingATurn:
             (live_turn.END, {"conversation_id": CONVERSATION}),
         ]
         assert await live_turn.live_token(CONVERSATION) is None
+
+    async def test_a_turn_still_writing_keeps_the_conversation_live(self, store: _Store) -> None:
+        """Set only when a turn began, the list expired under a turn running past an
+        hour; every frame renews it, and the frame that ends a turn does not."""
+        turn = await _begin()
+        live = f"turn:{CONVERSATION}:live"
+        store.expiries.pop(live, None)
+
+        await live_turn.publish(turn, "text_delta", {"content": "x"})
+        assert store.expiries[live] == [live_turn.TTL_SECONDS]
+        await live_turn.end(turn)
+        assert store.expiries[live] == [live_turn.TTL_SECONDS]
 
     async def test_an_older_turn_still_running_is_followed_when_the_newer_ends(
         self, store: _Store
