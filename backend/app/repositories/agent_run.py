@@ -171,6 +171,9 @@ async def record_delegated_run(
     error: str | None = None,
     cache_read_tokens: int = 0,
     cache_write_tokens: int = 0,
+    cache_busts: int = 0,
+    cache_expiries: int = 0,
+    cache_missed_tokens: int = 0,
 ) -> AgentRun:
     """Write a delegated run that is already over, in one insert.
 
@@ -207,6 +210,9 @@ async def record_delegated_run(
         input_tokens=input_tokens,
         cache_read_tokens=cache_read_tokens,
         cache_write_tokens=cache_write_tokens,
+        cache_busts=cache_busts,
+        cache_expiries=cache_expiries,
+        cache_missed_tokens=cache_missed_tokens,
         output_tokens=output_tokens,
         cost_usd=cost_usd,
         cost_is_partial=cost_is_partial,

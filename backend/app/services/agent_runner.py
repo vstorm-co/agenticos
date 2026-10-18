@@ -1219,10 +1219,10 @@ class PreparedRun:
     user the same.
     """
 
-    delegate_recorders: list[RunRecorder] = field(default_factory=list)
-    """Every delegate's request recording, so `finish` counts the cache busts the
-    whole tree hit - a delegate's agent is built and discarded inside a tool call,
-    and its recorder with it."""
+    delegate_recorders: list[tuple[UUID, RunRecorder]] = field(default_factory=list)
+    """Each delegate's agent id and request recording, so `finish` can count the
+    cache busts it hit on the row that answers for that agent - a delegate's agent
+    is built and discarded inside a tool call, and its recorder with it."""
 
     delegations: list[RecordedDelegation] = field(default_factory=list)
     """What this run delegated, waiting to be written by `finish`.
@@ -1858,8 +1858,8 @@ class _Delegation:
     queued: list[RecordedDelegation]
     """Where the recorder leaves a finished delegation for `finish` to write."""
 
-    recorders: list[RunRecorder]
-    """Where each delegate built for this run leaves its request recording."""
+    recorders: list[tuple[UUID, RunRecorder]]
+    """Where each delegate built for this run leaves its agent id and request recording."""
 
     attribution: dict[UUID, ModelRequestSpec]
     """Which model each pinned delegate resolved to, keyed by version id.
@@ -1942,6 +1942,7 @@ def _delegate_builder(
     resources: dict[str, Any],
     secrets: Mapping[UUID, StorableSecret],
     extra_toolsets: list[AbstractToolset[Any]],
+    reviewer_models: Mapping[UUID, ModelRequestSpec] | None = None,
 ) -> Callable[[], PydanticAgent[Any, Any]]:
     """A closure that builds one delegate, with nothing left to look up.
 
@@ -1971,6 +1972,10 @@ def _delegate_builder(
             resources=resources,
             secrets=secrets,
             extra_toolsets=extra_toolsets,
+            # Its own reviewers, resolved with everything else: without their
+            # models `_reviewers` leaves each one out, and an agent reviewed when
+            # called directly would run unreviewed as a delegate.
+            reviewer_models=reviewer_models,
             # The person waiting on the parent is the person a delegate has to
             # ask, so the gate reaches the same queue rather than refusing
             # because a delegation has no channel of its own.
@@ -1981,8 +1986,8 @@ def _delegate_builder(
             # stops binding at exactly the moment delegation multiplies spend.
             shared_budget=delegation.budget.guard,
         )
-        # Its requests are the run's too: kept so `finish` counts their cache busts.
-        delegation.recorders.append(built.recorder)
+        # Kept so `finish` counts its cache busts on the row of the agent that hit them.
+        delegation.recorders.append((agent_id, built.recorder))
         return built.agent
 
     return build
@@ -2961,7 +2966,7 @@ class AgentRunnerService:
         run_budget = _RunBudget()
         runtimes: list[SubagentRuntime] = []
         delegations: list[RecordedDelegation] = []
-        delegate_recorders: list[RunRecorder] = []
+        delegate_recorders: list[tuple[UUID, RunRecorder]] = []
         stash = DelegationStash(
             resuming=resuming,
             spent=already_spent,
@@ -3100,7 +3105,7 @@ class AgentRunnerService:
         render_variables: Callable[[AgentSpec], AgentSpec],
         runtimes: list[SubagentRuntime],
         delegations: list[RecordedDelegation],
-        delegate_recorders: list[RunRecorder],
+        delegate_recorders: list[tuple[UUID, RunRecorder]],
         stash: DelegationStash,
     ) -> SubagentRuntime | None:
         """The delegation tree this run may reach, or `None` if it delegates to none.
@@ -3583,6 +3588,7 @@ class AgentRunnerService:
                 resources=delegate_resources,
                 secrets=secrets,
                 extra_toolsets=toolsets,
+                reviewer_models=await self._reviewer_models(ctx, runnable),
             ),
             max_steps=runnable.max_steps,
             preferred_mode=ref.preferred_mode,
@@ -3784,7 +3790,15 @@ class AgentRunnerService:
         per delegation loses that one row and nothing else.
         """
         parent = prepared.run
+        # One delegate's agent is built once per run, however often it is called,
+        # so its busts are known per agent: they go on its first row, whose agent
+        # and model are what the Spend card groups by.
+        unclaimed: dict[UUID, list[RunRecorder]] = {}
+        for agent_id, recorder in prepared.delegate_recorders:
+            if agent_id != parent.agent_id:
+                unclaimed.setdefault(agent_id, []).append(recorder)
         for delegation in prepared.delegations:
+            cache = tally(*unclaimed.pop(delegation.agent_id, []))
             try:
                 async with self.db.begin_nested():
                     await agent_run_repo.record_delegated_run(
@@ -3817,6 +3831,9 @@ class AgentRunnerService:
                         started_at=delegation.started_at,
                         ended_at=delegation.ended_at,
                         error=delegation.error,
+                        cache_busts=cache.busts,
+                        cache_expiries=cache.expiries,
+                        cache_missed_tokens=cache.missed_tokens,
                     )
             except Exception:
                 logger.exception(
@@ -4019,7 +4036,18 @@ class AgentRunnerService:
             else self._parked_tree(prepared, paused_state, await dump_plan(prepared.plan_store))
         )
         ledger = prepared.built.ledger
-        cache = tally(prepared.built.recorder, *prepared.delegate_recorders)
+        # This row's own requests, and an inline or invented specialist's, which
+        # has no row and is built as this agent; a published delegate's go on its
+        # own row in `_write_delegations`, so the Spend card names the agent and
+        # model that actually missed the cache.
+        cache = tally(
+            prepared.built.recorder,
+            *(
+                recorder
+                for agent_id, recorder in prepared.delegate_recorders
+                if agent_id == prepared.run.agent_id
+            ),
+        )
         finished = await agent_run_repo.finish_run(
             self.db,
             run=prepared.run,
