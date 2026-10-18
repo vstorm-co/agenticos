@@ -2533,6 +2533,7 @@ body .tour-spotlight {
 /* The agent's step in the stepped level meter. */
 .voice-meter-agent {
   background: #4d7cff;
+}
 /* A control the AI Architect pointed at (#2063): a ring that pulses three times
    and is gone, so the reader's eye lands on it without a coach mark to dismiss. */
 .assistant-highlight {
