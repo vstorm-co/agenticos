@@ -30,6 +30,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
  * capability, and that capability is a weather lookup behind an API key.
  */
 const WEATHER: CapabilityCatalogEntry = {
+  recommended: null,
   id: "weather",
   name: "Weather",
   category: "utility",
@@ -236,6 +237,50 @@ describe("CapabilitySettings secret picker", () => {
     await userEvent.click(screen.getByRole("option", { name: /Weather API key/ }));
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ secret_id: "sec-1" }));
+  });
+
+  describe("a key the configuration can use but does not need", () => {
+    // A browser's proxy may sign in with a username and password, or be reached
+    // without one; a hosted browser always needs its key.
+    const BROWSER: CapabilityCatalogEntry = {
+      ...WEATHER,
+      requires_secret: {
+        kind: "api_key",
+        description: "The hosted browser's key, or the proxy's username:password",
+        required_when: { field: "connection", equals: ["hosted"] },
+        optional_when: { field: "connection", equals: ["proxy"] },
+        purpose: null,
+      },
+    };
+
+    it("is offered with a way to choose none, and none is no problem", async () => {
+      serve([API_KEY_SECRET]);
+      const onChange = vi.fn();
+      mount(binding({ config: { connection: "proxy" }, secret_id: "sec-1" }), {
+        definition: BROWSER,
+        onChange,
+      });
+
+      await userEvent.click(await screen.findByLabelText("Secret"));
+      await userEvent.click(screen.getByRole("option", { name: "No secret" }));
+
+      expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ secret_id: null }));
+    });
+
+    it("says nothing is missing while none is chosen", async () => {
+      serve([API_KEY_SECRET]);
+      mount(binding({ config: { connection: "proxy" } }), { definition: BROWSER });
+
+      await waitFor(() => expect(picker()).toHaveTextContent("No secret"));
+      expect(screen.queryByText(/No secret selected/)).not.toBeInTheDocument();
+    });
+
+    it("is not offered where nothing would read it", async () => {
+      serve([API_KEY_SECRET]);
+      mount(binding({ config: {} }), { definition: BROWSER });
+
+      await waitFor(() => expect(screen.queryByLabelText("Secret")).toBeNull());
+    });
   });
 
   it("sends somebody to the vault for a secret that is more than one field", async () => {
@@ -515,7 +560,7 @@ const KNOWLEDGE: CapabilityCatalogEntry = {
     properties: {
       default_top_k: {
         type: "integer",
-        title: "Default top k",
+        title: "Passages per search",
         description: "How many chunks a search returns.",
       },
     },
@@ -550,7 +595,7 @@ describe("a capability configuration refused at publish", () => {
       { wrapper },
     );
 
-    const input = await screen.findByLabelText(/Default top k/);
+    const input = await screen.findByLabelText(/Passages per search/);
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAccessibleDescription(
       expect.stringContaining("Input should be less than or equal to 50"),
@@ -570,7 +615,7 @@ describe("a capability configuration refused at publish", () => {
       { wrapper },
     );
 
-    expect(await screen.findByLabelText(/Default top k/)).not.toHaveAttribute(
+    expect(await screen.findByLabelText(/Passages per search/)).not.toHaveAttribute(
       "aria-invalid",
       "true",
     );
@@ -591,7 +636,7 @@ describe("a capability configuration refused at publish", () => {
       { wrapper },
     );
 
-    expect(await screen.findByLabelText(/Default top k/)).not.toHaveAttribute(
+    expect(await screen.findByLabelText(/Passages per search/)).not.toHaveAttribute(
       "aria-invalid",
       "true",
     );

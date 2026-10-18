@@ -1,3 +1,5 @@
+import type { Mentionable } from "./mention";
+
 export type MessageRole = "user" | "assistant" | "system";
 /** Rating values for message feedback. */
 export enum RatingValue {
@@ -28,6 +30,8 @@ export interface ChatMessage {
   fileIds?: string[];
   /** Full file metadata for rendering attachments. */
   files?: ChatMessageFile[];
+  /** What a person's message pointed the agent at with `@`, drawn as chips (#2189). */
+  mentions?: Mentionable[];
   /** Conversation ID for this message */
   conversationId?: string;
   /** The published agent that produced this assistant turn. Absent means the
@@ -65,6 +69,11 @@ export interface ChatMessage {
   turnId?: string;
   /** The caller talked over this spoken answer, so it is trimmed to roughly what was heard. */
   interrupted?: boolean;
+  /**
+   * How long the run behind this turn was open, from the stored run. Absent on a
+   * live turn, which times itself, and on a turn written outside a run.
+   */
+  runDurationMs?: number;
   /** True if message ID is a temporary client-minted id, not yet replaced by server ID */
   isTemporaryId?: boolean;
   /**
@@ -99,13 +108,15 @@ export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
   result?: unknown;
-  status: "pending" | "running" | "completed" | "error" | "awaiting_approval" | "unfinished";
-  /**
-   * How much of the arguments has streamed, in characters, while the model is
-   * still writing them - the `pending` state. A large argument (a whole report
-   * handed to `write_file`) takes minutes, and this is what shows it is moving.
-   */
-  argsChars?: number;
+  status:
+    | "pending"
+    | "running"
+    | "completed"
+    | "error"
+    | "awaiting_approval"
+    /** A question its person left unanswered; answering it continues the run (#2064). */
+    | "awaiting_answer"
+    | "unfinished";
   /**
    * `awaiting_approval` is its own state, not a kind of running. A parked call
    * produces no result *ever* until somebody decides, so a spinner is a lie that
@@ -121,13 +132,13 @@ export interface ToolCall {
 }
 
 /** The kinds of segment a turn is built from, live and replayed alike. */
-export type MessagePartType = "thinking" | "text" | "tool" | "ask_user";
+export type MessagePartType = "thinking" | "text" | "tool" | "ask_user" | "steer";
 
 /** One ordered segment of an assistant turn. */
 export interface MessagePart {
   id: string;
   type: MessagePartType;
-  /** Text for "thinking"/"text" parts. */
+  /** Text for "thinking"/"text" parts, and what the person added for a "steer" (#2087). */
   content?: string;
   /** Tool invocation for "tool" parts. */
   toolCall?: ToolCall;
@@ -202,6 +213,8 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "steer_applied"
+  | "steer_unapplied"
   | "connect_account"
   | "compaction_started"
   | "compaction_finished"
@@ -238,7 +251,11 @@ export type WSEventType =
   | "browser_opened"
   | "browser_step"
   | "browser_frame"
-  | "browser_finished";
+  | "browser_finished"
+  | "browser_held"
+  | "browser_released"
+  | "browser_needs_person"
+  | "browser_pointer";
 
 /**
  * How a browse ended, and all four are ordinary.
@@ -260,8 +277,16 @@ export type BrowseOutcome = "done" | "blocked" | "exhausted" | "failed";
  * would caption the wrong page.
  */
 export interface BrowserFrame {
-  kind: "browser_opened" | "browser_step" | "browser_frame" | "browser_finished";
-  /** Which `browse_page` call this belongs to; one turn can browse twice. */
+  kind:
+    | "browser_opened"
+    | "browser_step"
+    | "browser_frame"
+    | "browser_finished"
+    | "browser_held"
+    | "browser_released"
+    | "browser_needs_person"
+    | "browser_pointer";
+  /** Which `browse_web` call this belongs to; one turn can browse twice. */
   call_id: string;
   step: number;
   url?: string | null;
@@ -270,12 +295,21 @@ export interface BrowserFrame {
   max_steps?: number | null;
   /** On the opening frame: the task the model handed over. */
   goal?: string | null;
-  /** CLICK, TYPE_TEXT, SELECT, SCROLL, WAIT, DONE or BLOCKED. */
+  /** CLICK, TYPE_TEXT, SELECT, SCROLL, NAVIGATE, BACK, WAIT, DONE or BLOCKED. */
   operation?: string | null;
-  /** The element as the page labelled it - never an index the client never saw. */
+  /** The element as the page labelled it, or the address opened - never an index. */
   target?: string | null;
-  /** How likely the engine found this pick, when the decision model reports one. */
-  confidence?: number | null;
+  /** What the browsing model said the step is for. Model-written, rendered as data. */
+  reason?: string | null;
+  /** On the opening frame: the run, which with `call_id` addresses the live view. */
+  run_id?: string | null;
+  /** On `browser_held`: who took the browser over. */
+  by?: string | null;
+  /** Who took the browser over, by id - how a viewer tells it is them. */
+  by_user_id?: string | null;
+  /** On `browser_pointer`: where the agent is about to press, as fractions of the viewport. */
+  x?: number | null;
+  y?: number | null;
   /** On `browser_frame`: the viewport as a `data:` URL. */
   image?: string | null;
   outcome?: BrowseOutcome | null;
@@ -362,6 +396,8 @@ export interface ActionRequest {
   tool_call_id: string;
   tool_name: string;
   args: Record<string, unknown>;
+  /** Which of a service's accounts the call acts as, where its binding names one. */
+  account?: string | null;
 }
 
 export interface ReviewConfig {
@@ -400,15 +436,26 @@ export interface Decision {
   };
 }
 
+export interface AskUserChoice {
+  label: string;
+  description?: string | null;
+}
+
 export interface AskUserQuestion {
   question: string;
-  options: string[];
+  /** A short label for the question, shown as a chip (#2064). */
+  header?: string | null;
+  options: AskUserChoice[];
+  /** Whether several options may be picked. */
+  multiSelect?: boolean;
   /** Whether the user may type a free-form answer instead of picking an option. */
   allowCustom: boolean;
 }
 
 export interface AskUserAnswer {
   answer: string;
+  /** The labels picked, when the person chose from the options. */
+  selected?: string[];
   skipped: boolean;
 }
 
@@ -653,8 +700,7 @@ export interface Delegation {
 }
 
 /** Why a personal MCP service could not be reached on this turn. */
-export type PersonalServiceGapKind =
-  "nobody_to_speak_as" | "not_connected" | "undecided" | "unauthorized";
+export type PersonalServiceGapKind = "nobody_to_speak_as" | "not_connected" | "unauthorized";
 
 /**
  * One of the agent's personal MCP services this person cannot reach yet.

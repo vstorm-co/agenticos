@@ -58,17 +58,26 @@ function profilesStatus(query: { isSuccess: boolean; isError: boolean }): Profil
  * run with no key at all - three questions a hardcoded list of four providers
  * answered wrongly for the other twenty.
  */
-export function useModelProviders() {
-  const tErrors = useTranslations("errors");
-  const t = useTranslations("settings");
-  const queryClient = useQueryClient();
-
-  const catalog = useQuery({
+/**
+ * The deployment's provider catalog alone - names and marks - for a surface
+ * that only labels providers, such as the dashboard's spend card, and has no
+ * reason to read the organization's model profiles beside it.
+ */
+export function useProviderCatalog() {
+  return useQuery({
     queryKey: qk.providers.catalog(),
     queryFn: () => apiClient.get<ProviderCatalog>("/providers/catalog"),
     // Fixed until the platform is redeployed.
     staleTime: Infinity,
   });
+}
+
+export function useModelProviders() {
+  const tErrors = useTranslations("errors");
+  const t = useTranslations("settings");
+  const queryClient = useQueryClient();
+
+  const catalog = useProviderCatalog();
 
   const profiles = useQuery({
     queryKey: qk.providers.modelProfiles(),

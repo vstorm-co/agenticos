@@ -23,6 +23,13 @@
 # inherits.
 
 services:
+  browser:
+    # Built from this tree, like the backend, so a change to the browser image is
+    # tried before it is published.
+    build:
+      context: ./docker/browser
+    image: agenticos_browser:dev
+
   migrate:
     image: agenticos_backend:dev
     pull_policy: never

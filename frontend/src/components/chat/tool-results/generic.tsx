@@ -39,7 +39,7 @@ export function RawToolView({ toolCall, resultText }: { toolCall: ToolCall; resu
       ) : (
         <div className="group relative">
           <div className="mb-1 flex items-center justify-between">
-            <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+            <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
               {t("arguments")}
             </p>
             <CopyButton
@@ -55,7 +55,7 @@ export function RawToolView({ toolCall, resultText }: { toolCall: ToolCall; resu
       {toolCall.result !== undefined && resultText !== "" && (
         <div className="group relative">
           <div className="mb-1 flex items-center justify-between">
-            <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+            <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
               {t("result")}
             </p>
             <CopyButton text={resultText} className="opacity-0 group-hover:opacity-100" />
@@ -103,7 +103,7 @@ export function GenericToolResult({
       {!isEmptyArgs(toolCall.args) && (
         <div className="group relative">
           <div className="mb-1 flex items-center justify-between">
-            <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+            <p className="text-muted-foreground font-mono text-xs tracking-wider uppercase">
               {t("arguments")}
             </p>
             <CopyButton

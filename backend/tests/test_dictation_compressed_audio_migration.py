@@ -1,4 +1,4 @@
-"""Migration `0110_dictation_compressed_audio`: the switch arrives off, and leaves cleanly.
+"""Migration `0140_dictation_compressed_audio`: the switch arrives off, and leaves cleanly.
 
 The row a deployment already holds has to read as off after the upgrade - raw
 PCM is the format whose length cannot lie, and accepting the others is a risk
@@ -24,7 +24,7 @@ from app.core.config import settings
 
 SCRATCH_DATABASE = f"agenticos_dictation_audio_test_p{os.getpid()}"
 _MIGRATION = (
-    Path(__file__).parents[1] / "alembic" / "versions" / "0110_dictation_compressed_audio.py"
+    Path(__file__).parents[1] / "alembic" / "versions" / "0140_dictation_compressed_audio.py"
 )
 
 

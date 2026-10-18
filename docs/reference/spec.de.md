@@ -1,5 +1,5 @@
 ---
-source_sha: "fe0087d9fc16"
+source_sha: "9a12f4081212"
 ---
 
 # Der Agent-Spec { #the-agent-spec }
@@ -12,6 +12,17 @@ Aus der Quelle generiert, weil die Begründung in den Docstrings steht — und
 deshalb bleibt die generierte Felddokumentation unten englisch.
 
 ::: app.agents.spec.AgentSpec
+
+## Variablen { #variables }
+
+`{{name}}` in `instructions` wird zu Beginn jedes Runs ausgefüllt: mit einer
+Systemvariable, die die Plattform kennt (Datum und Uhrzeit, die angemeldete
+Person und ihre [Gruppen](../departments.md), die Organisation, der Agent, der
+Kanal), oder mit einer der eigenen
+`variables` des Agents. `time_zone` bestimmt, welche Uhr `{{current_time}}` liest.
+Die Veröffentlichung lehnt einen Namen ab, der keines von beiden ist.
+
+::: app.agents.spec.PromptVariableSpec
 
 ## Delegation { #delegation }
 

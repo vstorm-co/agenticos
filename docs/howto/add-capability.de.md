@@ -1,5 +1,5 @@
 ---
-source_sha: "35c351a5e658"
+source_sha: "512bef978a71"
 ---
 
 # Eine Capability hinzufügen { #add-a-capability }
@@ -125,7 +125,12 @@ __all__ = ["Weather"]
 
 
 class WeatherConfig(BaseModel):
-    units: str = Field(default="metric", pattern="^(metric|imperial)$")
+    units: str = Field(
+        default="metric",
+        pattern="^(metric|imperial)$",
+        title="Units",
+        description="metric for °C and km/h, imperial for °F and mph.",
+    )
 
 
 @register(
@@ -159,11 +164,18 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   Umschreibungen, die auseinanderlaufen.
 - **`config_schema`** erzeugt das Formular im Builder und wird beim
   Veröffentlichen validiert, sodass ein schlechter Wert scheitert, während jemand
-  auf ein Formular schaut, statt mitten in einem Run.
+  auf ein Formular schaut, statt mitten in einem Run. Jedes Feld bekommt einen
+  `title` und eine `description`, geschrieben für die Person, die es ausfüllt,
+  und dieselben zwei Texte unter `capabilityConfig.<id>.<feld>` in
+  `frontend/messages/en.json`, `pl.json` und `de.json`. Ohne Titel zeigt das
+  Formular den Feldnamen, auf Englisch, in jeder Sprache;
+  `tests/test_capability_registry.py` scheitert an einem Feld ohne Titel oder
+  ohne Katalogeintrag und an einem englischen Eintrag, der vom Schema abweicht.
 - **`scopes`** werden beim Bauen abgelehnt, wenn die Organisation sie nicht
   gewährt hat.
-- **`side_effecting=True`** leitet die Tools der Capability durch das
-  Approval-Gate.
+- **`side_effecting=True`** kennzeichnet die Tools der Capability als auf die Welt
+  einwirkend, und der Builder sagt das neben der Freigabe-Wahl. Es stellt nichts
+  hinter ein Gate: Kein Tool wartet auf eine Person, bis ein Autor darum bittet.
 - **Ein `None` als Rückgabe** heißt "steuert zu *diesem* Agent nichts bei", und
   die Capability wird gar nicht erst angehängt. `knowledge` tut das, wenn keine
   Collections gebunden sind: Ein Suchwerkzeug, das immer leer zurückkommt, ist
@@ -219,7 +231,7 @@ Commit-Nachricht.
     `test_every_file_in_a_platform_package_is_gated` gibt es, damit das so
     bleibt. Diese Listen zu bearbeiten ist für ein neues Plattform-*Paket*
     außerhalb der bereits erfassten Globs. Siehe `## Testing` in
-    `CLAUDE.md` und `tests/test_capability_registry.py` für den Stil.
+    `AGENTS.md` und `tests/test_capability_registry.py` für den Stil.
 
 Was sich besonders zu prüfen lohnt:
 

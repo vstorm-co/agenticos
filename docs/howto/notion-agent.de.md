@@ -1,5 +1,5 @@
 ---
-source_sha: "d73b776f3671"
+source_sha: "287cc6ab95e1"
 title: "Notion von einem Agent aus durchsuchen und aktualisieren"
 description: "Verbinden Sie Notion als MCP-Server, lassen Sie einen Agent aus einer Seite antworten, die er selbst findet, und verlangen Sie die Prüfung durch einen Menschen, bevor er etwas anhängt."
 ---
@@ -51,9 +51,9 @@ Das Modell ruft ein Such-Tool auf, öffnet die Seite, die passend aussieht, und 
 
 ## Ablauf: Meeting-Notizen anhängen, und ein Mensch entscheidet { #workflow-append-meeting-notes-with-a-person-deciding }
 
-Bei diesem Ablauf lohnt sich Genauigkeit, denn **MCP-Tools haben keine eigene Genehmigung pro Tool**. Der Builder sagt es direkt: *"MCP tools are outside the approval gate entirely: an approval set on a capability does not cover them, so anything these servers can do, this agent can do without asking."* Ein Schreib-Tool, das Sie im Spec benennen können, etwa `execute` oder `send_email`, hat einen Schalter `required`/`never`/`default`. Ein Notion-Schreib-Tool, das beim Verbinden entdeckt wird, bekommt nie einen, weil nichts es im Code deklariert hat. Siehe [was MCP Ihnen nicht gibt](../mcp.md#what-mcp-does-not-get-you).
+Bei diesem Ablauf lohnt sich Genauigkeit. Ein Notion-Schreib-Tool wird beim Verbinden entdeckt, keine Capability deklariert es, und was es für eine Person zurückhält, ist die eigene **approval**-Regel der Notion-Bindung: Öffnen Sie im Tab **MCP servers** des Agenten die **Tools** von Notion und stellen Sie **Changes things** auf **Ask first** (die Regel `writes`), dann wartet jeder Aufruf, den der Server nicht als schreibgeschützt markiert, auf eine Person, mit den genauen Argumenten auf der Karte. Das verlässt sich darauf, welche Tools laut Server nur lesen; stellen Sie auch **Reads** auf **Ask first** (`all`), wenn Sie lieber jeden Aufruf freigeben. Siehe [welche Aufrufe auf eine Person warten](../mcp.md#which-calls-wait-for-a-person).
 
-Die Schranke, die es erreicht, gehört der Konversation selbst. Bevor sie den Agent um einen Schreibvorgang bittet, öffnet die Person, die mit ihm spricht, **Chat controls → Approval mode** und wählt **Ask about everything**. Das ist eine Session-Einstellung, die "reaches further than the spec's gate on purpose, to the tools no capability owns" (siehe [wie oft eine Konversation gefragt werden will](../governance.md#how-much-one-conversation-wants-to-be-asked)). Mit dieser Einstellung:
+Auch die Konversation selbst kann mehr verlangen. Bevor sie den Agent um einen Schreibvorgang bittet, öffnet die Person, die mit ihm spricht, **Chat controls → Approval mode** und wählt **Ask about everything**. Das ist eine Session-Einstellung, die "reaches further than the spec's gate on purpose, to the tools no capability owns" (siehe [wie oft eine Konversation gefragt werden will](../governance.md#how-much-one-conversation-wants-to-be-asked)). Mit dieser Einstellung:
 
 ```text
 Append these notes to the Q3 onboarding checklist page: attendees Ana and Marek, decided to move the kickoff to Monday, action item for Marek to update the calendar invite.

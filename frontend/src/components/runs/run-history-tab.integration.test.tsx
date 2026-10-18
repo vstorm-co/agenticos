@@ -112,6 +112,8 @@ describe("the rated-down filter", () => {
 
     expect(await screen.findByText("No runs in this window")).toBeVisible();
     expect(screen.queryByText("No runs rated down")).toBeNull();
+    // An empty window offers the next step, not only a filter to widen (#2075).
+    await userEvent.click(screen.getByRole("button", { name: "Ask an agent" }));
   });
 });
 

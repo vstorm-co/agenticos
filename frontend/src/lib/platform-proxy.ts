@@ -34,6 +34,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
+import { CONSOLE_TAB_HEADER } from "@/lib/console-tab";
 import { bffRefusal } from "@/lib/server-api";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
@@ -129,6 +130,8 @@ export function platformProxy(): ProxyHandlers {
     const url = `${BACKEND_URL}/api/v1${path}${request.nextUrl.search}`;
 
     const organizationId = request.headers.get(ORG_HEADER);
+    // Which tab made a write, for the change feed to echo back (#2061).
+    const consoleTab = request.headers.get(CONSOLE_TAB_HEADER);
     // The caller's own content type rather than a fixed one: a file upload is
     // multipart with a boundary only the browser knows, and rewriting that to
     // `application/json` makes FastAPI reject the body it was just handed.
@@ -140,6 +143,7 @@ export function platformProxy(): ProxyHandlers {
         Authorization: `Bearer ${accessToken}`,
         ...(contentType ? { "Content-Type": contentType } : {}),
         ...(organizationId ? { [ORG_HEADER]: organizationId } : {}),
+        ...(consoleTab ? { [CONSOLE_TAB_HEADER]: consoleTab } : {}),
       },
       // Bytes, not text, and buffered rather than streamed. Reading the body as
       // an ArrayBuffer keeps a PDF's bytes intact, and keeping it buffered is

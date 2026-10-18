@@ -82,6 +82,30 @@ describe("conversationMessageToChatMessage", () => {
     expect(message.timestamp).toEqual(new Date("2026-07-31T12:00:00Z"));
   });
 
+  it("draws a person's mentions as the chips they picked, never as timeline blocks", () => {
+    const user = conversationMessageToChatMessage(
+      raw({
+        role: "user",
+        parts: [
+          { type: "mention", mention_kind: "mcp", mention_id: "gdrive", text: "Google Drive" },
+          { type: "mention", mention_kind: "skill", mention_id: "s-1", text: null },
+          { type: "mention", mention_kind: null, mention_id: "broken" },
+        ],
+      }),
+    );
+    expect(user.mentions).toEqual([
+      { kind: "mcp", id: "gdrive", name: "Google Drive" },
+      { kind: "skill", id: "s-1", name: "s-1" },
+    ]);
+    expect(user.parts).toBeUndefined();
+
+    const answer = conversationMessageToChatMessage(
+      raw({ parts: [{ type: "mention", mention_kind: "mcp", mention_id: "x", text: "X" }] }),
+    );
+    expect(answer.parts).toEqual([]);
+    expect(conversationMessageToChatMessage(raw()).mentions).toBeUndefined();
+  });
+
   it("renames a failed tool call to the status the UI knows", () => {
     // The backend says `failed`; every renderer in the chat branches on `error`,
     // and an unrecognised status renders as still-running forever.
@@ -297,6 +321,20 @@ describe("a replayed turn whose run was stopped", () => {
     for (const status of ["completed", "running", "failed", "budget_exceeded", null]) {
       expect(conversationMessageToChatMessage(raw({ run_status: status })).wasStopped).toBe(false);
     }
+  });
+});
+
+describe("how long a replayed turn's run took", () => {
+  it("carries the run's span, which folds the work into one line", () => {
+    expect(conversationMessageToChatMessage(raw({ run_duration_ms: 12_400 })).runDurationMs).toBe(
+      12_400,
+    );
+  });
+
+  it("says nothing for a run with no end", () => {
+    expect(conversationMessageToChatMessage(raw({ run_duration_ms: null })).runDurationMs).toBe(
+      undefined,
+    );
   });
 });
 

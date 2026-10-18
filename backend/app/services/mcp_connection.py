@@ -29,10 +29,13 @@ spec names.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import re
 import secrets
+from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID
@@ -47,15 +50,24 @@ from app.agents.connect_on_use import OwnAccountGap, ServiceOutcome
 from app.agents.mcp import (
     McpServerSpec,
     McpToolInfo,
+    ToolOrigins,
+    platform_spec,
     prefix_collisions,
     probe_error_message,
     probe_mcp_server,
     probe_toolsets,
+    tool_prefix,
     validate_mcp_url,
 )
 from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
-from app.agents.spec import McpServerRef, PersonalMcpServerRef
+from app.agents.spec import (
+    McpServerRef,
+    OrgMcpServerRef,
+    PersonalMcpServerRef,
+    PlatformMcpServerRef,
+)
 from app.core.audit import record_audit
+from app.core.background import spawn_after_commit
 from app.core.config import settings
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -64,29 +76,46 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.field_errors import refused_field
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import GithubAppSecret, SecretKind
 from app.core.vault import SealedSecret, VaultScope, current_key_version, seal, unseal
 from app.db.locks import LockScope, hold_name
-from app.db.models.mcp_connection import McpConnection
+from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED, McpConnection
+from app.db.models.resource_grant import Visibility
 from app.db.session import get_db_context
 from app.db.updates import writable
-from app.repositories import mcp_connection_repo, mcp_registry_server_repo
+from app.repositories import (
+    conversation_repo,
+    mcp_connection_repo,
+    mcp_registry_server_repo,
+    resource_grant_repo,
+)
 from app.schemas.mcp_connection import (
     McpConnectionCreate,
     McpConnectionUpdate,
+    McpSignInProbeResult,
+    McpToolCallRead,
     OrgMcpConnectionCreate,
     OrgMcpConnectionUpdate,
 )
+from app.schemas.resource_grant import AudienceChoice
+from app.schemas.resource_usage import AgentUsage
 from app.services import portal_catalog, portals
+from app.services.access import MCP_CONNECTION, accessible_ids, resolve_access
 from app.services.impersonation import refuse_binding_while_impersonating
 from app.services.mcp_catalog import get_entry
+from app.services.notifications import NotificationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.portals import github_app, github_oauth, google_oauth
 from app.services.portals.github_app import GitHubAppPortalAdapter
+from app.services.resource_usage import agents_using_mcp
+from app.services.sharing import SharingService
 
 logger = logging.getLogger(__name__)
+
+RECENT_CALLS = 50
+"""How many of a server's latest tool calls its audit list shows."""
 
 
 def _oauth_redirect_uri() -> str:
@@ -478,13 +507,112 @@ async def sweep_oauth_connections(db: AsyncSession) -> dict[str, int]:
             db_connection=connection,
             update_data={
                 "last_status": "ok" if healthy else "error",
-                "last_error": None if healthy else "Authorization expired - reconnect this server",
+                "last_error": None if healthy else AUTHORIZATION_EXPIRED,
                 "last_checked_at": datetime.now(UTC),
             },
         )
         counts["refreshed" if healthy else "needs_authorization"] += 1
 
     return counts
+
+
+async def _reach(url: str, headers: dict[str, str]) -> tuple[list[McpToolInfo], str | None]:
+    """The server's tools, or the sentence saying why it did not answer."""
+    try:
+        return await probe_mcp_server(url, headers), None
+    except Exception as exc:
+        return [], probe_error_message(exc)
+
+
+async def _record_check(
+    db: AsyncSession, connection: McpConnection, tools: list[McpToolInfo], error: str | None
+) -> McpConnection:
+    """Write one check's outcome where the console reads it."""
+    return await mcp_connection_repo.update(
+        db,
+        db_connection=connection,
+        update_data={
+            "last_status": "error" if error else "ok",
+            "last_error": error,
+            "last_checked_at": datetime.now(UTC),
+            # Only on a probe that answered. A failed one says nothing about
+            # what the server offers, and blanking the list would leave an
+            # agent author with nothing to choose from because the server
+            # was briefly unreachable.
+            **({"last_tools": [asdict(tool) for tool in tools]} if error is None else {}),
+        },
+    )
+
+
+async def record_reachability(
+    db: AsyncSession, connection: McpConnection, *, reachable: bool
+) -> None:
+    """Open or close an organization server's outage, and say so once each way (#2100).
+
+    Called by every check that reached the point of dialling the server - the
+    console's test, the scheduled check, a run's probe before its turn. Most
+    calls change nothing: the server is up and was, or down and was. The
+    repository decides who opened or closed it, so concurrent checks agree on
+    one notification. A member's own connection is nobody else's to be told
+    about and is left alone.
+    """
+    if connection.scope != "org" or connection.organization_id is None:
+        return
+    if reachable == (connection.unreachable_since is None):
+        return
+    notifications = NotificationService(db)
+    if reachable:
+        since = await mcp_connection_repo.close_outage(db, connection=connection)
+        if since is not None:
+            await notifications.mcp_server_recovered(
+                connection, organization_id=connection.organization_id, since=since
+            )
+        return
+    now = datetime.now(UTC)
+    if await mcp_connection_repo.open_outage(db, connection=connection, at=now):
+        await notifications.mcp_server_down(
+            connection, organization_id=connection.organization_id, since=now
+        )
+
+
+async def check_organization_servers(db: AsyncSession) -> dict[str, int]:
+    """Dial every enabled organization server and record whether it answered (#2100).
+
+    The scheduled half of the outage notice. A run finds a dead server only
+    when somebody uses an agent bound to it; this finds it within one sweep
+    either way, so whoever manages it can hear before a person does. Servers
+    are dialled concurrently and written one at a time - the session is not
+    shared across tasks. A server whose credential is not usable is skipped:
+    renewing grants is the OAuth sweep's business, not an outage.
+    """
+    counts = {"answered": 0, "unreachable": 0, "skipped": 0}
+    targets: list[tuple[McpConnection, dict[str, str]]] = []
+    for connection in await mcp_connection_repo.list_org_servers_to_check(db):
+        headers = await _resolve_auth_headers(db, connection)
+        if headers is None:
+            counts["skipped"] += 1
+            continue
+        targets.append((connection, headers))
+    outcomes = await asyncio.gather(*(_reach(c.url, headers) for c, headers in targets))
+    for (connection, _), (tools, error) in zip(targets, outcomes, strict=True):
+        connection = await _record_check(db, connection, tools, error)
+        await record_reachability(db, connection, reachable=error is None)
+        counts["answered" if error is None else "unreachable"] += 1
+    return counts
+
+
+async def _record_run_reachability(observed: list[tuple[UUID, bool]]) -> None:
+    """Record what a run's probes found, each server in its own short transaction.
+
+    Off the run's own transaction on purpose: an outage write locks the
+    server's row, and a run holding locks on several servers, in its own
+    binding order, could deadlock with another run holding them in another.
+    """
+    for connection_id, reachable in observed:
+        async with get_db_context() as db:
+            connection = await mcp_connection_repo.get_by_id(db, connection_id)
+            if connection is not None:
+                await record_reachability(db, connection, reachable=reachable)
 
 
 async def _resolve_auth_headers(
@@ -548,6 +676,14 @@ class McpConnectionService:
             raise AlreadyExistsError(
                 message="MCP connection with this name already exists",
                 details={"name": data.name},
+            )
+        if data.catalog_key is not None:
+            _refuse_an_unnamed_second_account(
+                await mcp_connection_repo.list_user_scoped_by_catalog_key(
+                    self.db, user_id=user_id, catalog_key=data.catalog_key
+                ),
+                name=data.name,
+                label=data.label,
             )
         token = data.auth_token.strip() if data.auth_token else None
         if token:
@@ -702,31 +838,42 @@ class McpConnectionService:
         self, db_connection: McpConnection
     ) -> tuple[McpConnection, list[McpToolInfo], str | None]:
         """Talk to the server, record what happened, and report its tools."""
-        tools: list[McpToolInfo] = []
-        error: str | None = None
         headers = await _resolve_auth_headers(self.db, db_connection)
         if headers is None:
+            # A grant to renew, not a server that stopped answering: no outage
+            # is opened or closed by it.
             error = "This plugin needs to be authorized before it can connect."
-        else:
-            try:
-                tools = await probe_mcp_server(db_connection.url, headers)
-            except Exception as exc:
-                error = probe_error_message(exc)
-        db_connection = await mcp_connection_repo.update(
-            self.db,
-            db_connection=db_connection,
-            update_data={
-                "last_status": "error" if error else "ok",
-                "last_error": error,
-                "last_checked_at": datetime.now(UTC),
-                # Only on a probe that answered. A failed one says nothing about
-                # what the server offers, and blanking the list would leave an
-                # agent author with nothing to choose from because the server
-                # was briefly unreachable.
-                **({"last_tools": [asdict(tool) for tool in tools]} if error is None else {}),
-            },
-        )
+            return await _record_check(self.db, db_connection, [], error), [], error
+        tools, error = await _reach(db_connection.url, headers)
+        db_connection = await _record_check(self.db, db_connection, tools, error)
+        await record_reachability(self.db, db_connection, reachable=error is None)
         return db_connection, tools, error
+
+    async def probe_sign_in(self, url: str) -> McpSignInProbeResult:
+        """Whether a server added by its address lets people sign in with OAuth (#2073).
+
+        The discovery `oauth_start` runs before it registers anything - RFC 9728
+        protected-resource metadata, then RFC 8414 - so the form can offer sign-in
+        for a server nobody curated, rather than asking for a token it does not
+        use. The address is checked as any connection's is.
+        """
+        checked = await _checked_url(url)
+        try:
+            server = await mcp_oauth.discover(checked)
+        except OAuthError:
+            return McpSignInProbeResult(sign_in=False, registers_clients=False)
+        return McpSignInProbeResult(
+            sign_in=True, registers_clients=server.registration_endpoint is not None
+        )
+
+    async def _refuse_an_unnamed_second_org_account(
+        self, ctx: AuthContext, *, catalog_key: str, name: str, label: str | None
+    ) -> None:
+        """`_refuse_an_unnamed_second_account`, for the organization's own accounts."""
+        first = await mcp_connection_repo.get_org_scoped_by_catalog_key(
+            self.db, organization_id=ctx.organization_id, catalog_key=catalog_key
+        )
+        _refuse_an_unnamed_second_account([first] if first else [], name=name, label=label)
 
     async def oauth_start_for_org(
         self,
@@ -735,10 +882,16 @@ class McpConnectionService:
         name: str,
         url: str,
         catalog_key: str | None = None,
+        label: str | None = None,
         client_id: str | None = None,
         client_secret: SecretStr | None = None,
+        audience: AudienceChoice | None = None,
     ) -> str:
         """Begin the OAuth flow for a server the *organization* will own.
+
+        `audience` narrows a new connection to groups or people (#2072), from the
+        moment its row is staged; re-authorizing an existing one leaves who sees
+        it alone.
 
         The grant is still one person's - somebody clicks consent, and the
         tokens that come back are theirs at the provider. What differs is who
@@ -758,24 +911,46 @@ class McpConnectionService:
                 refusal #1438 made for personal connections (#1490).
         """
         refuse_binding_while_impersonating("Connecting an integration")
-        return await self._oauth_start(
-            name=name,
-            url=url,
-            client_id=client_id,
-            client_secret=client_secret,
-            existing=await mcp_connection_repo.get_org_scoped_by_name(
-                self.db, organization_id=ctx.organization_id, name=name
-            ),
-            vault_scope=VaultScope.organization(ctx.organization_id),
-            create=lambda **kwargs: mcp_connection_repo.create_org_scoped(
+        chosen = audience or AudienceChoice()
+        existing = await mcp_connection_repo.get_org_scoped_by_name(
+            self.db, organization_id=ctx.organization_id, name=name
+        )
+        # Only a new row: authorizing an existing account again is not a second one.
+        if existing is None and catalog_key is not None:
+            await self._refuse_an_unnamed_second_org_account(
+                ctx, catalog_key=catalog_key, name=name, label=label
+            )
+
+        async def create(**kwargs: Any) -> McpConnection:
+            connection = await mcp_connection_repo.create_org_scoped(
                 self.db,
                 organization_id=ctx.organization_id,
                 created_by_user_id=ctx.subject_id,
                 allowed_tools=None,
                 catalog_key=catalog_key,
                 sealed_token=None,
+                visibility=chosen.visibility.value,
+                label=_stored_label(label),
                 **kwargs,
-            ),
+            )
+            if chosen.group_ids or chosen.user_ids:
+                await SharingService(self.db).restrict_to(
+                    ctx,
+                    connection,
+                    resource_type=MCP_CONNECTION,
+                    group_ids=chosen.group_ids,
+                    user_ids=chosen.user_ids,
+                )
+            return connection
+
+        return await self._oauth_start(
+            name=name,
+            url=url,
+            client_id=client_id,
+            client_secret=client_secret,
+            existing=existing,
+            vault_scope=VaultScope.organization(ctx.organization_id),
+            create=create,
         )
 
     async def oauth_start(
@@ -785,6 +960,7 @@ class McpConnectionService:
         name: str,
         url: str,
         catalog_key: str | None = None,
+        label: str | None = None,
         client_id: str | None = None,
         client_secret: SecretStr | None = None,
     ) -> str:
@@ -807,12 +983,22 @@ class McpConnectionService:
                 message=f"Unknown catalog server: {catalog_key}",
                 details={"catalog_key": catalog_key},
             )
+        existing = await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=name)
+        # Only a new row: authorizing an existing account again is not a second one.
+        if existing is None and catalog_key is not None:
+            _refuse_an_unnamed_second_account(
+                await mcp_connection_repo.list_user_scoped_by_catalog_key(
+                    self.db, user_id=user_id, catalog_key=catalog_key
+                ),
+                name=name,
+                label=label,
+            )
         return await self._oauth_start(
             name=name,
             url=url,
             client_id=client_id,
             client_secret=client_secret,
-            existing=await mcp_connection_repo.get_by_name(self.db, user_id=user_id, name=name),
+            existing=existing,
             vault_scope=VaultScope.user(user_id),
             create=lambda **kwargs: mcp_connection_repo.create(
                 self.db,
@@ -820,6 +1006,7 @@ class McpConnectionService:
                 auth_token=None,
                 allowed_tools=None,
                 catalog_key=catalog_key,
+                label=_stored_label(label),
                 **kwargs,
             ),
         )
@@ -1386,7 +1573,7 @@ class McpConnectionService:
             poll_cursor = await _initial_poll_cursor(
                 portal_key=connection.portal_key, access_token=access_token
             )
-        return await mcp_connection_repo.update(
+        connection = await mcp_connection_repo.update(
             self.db,
             db_connection=connection,
             update_data={
@@ -1412,6 +1599,14 @@ class McpConnectionService:
                 "last_checked_at": datetime.now(UTC),
             },
         )
+        if connection.purpose == "portal":
+            return connection
+        # Listed now, with the consent just granted, rather than on somebody's
+        # first click of Check: a server connected from the Builder or a chat
+        # has its tools to choose from by the time the person is back there.
+        # `_probe` records a server that will not answer as the error it is.
+        connection, _, _ = await self._probe(connection)
+        return connection
 
     async def _get_owned(
         self, *, user_id: UUID, connection_id: UUID, for_update: bool = False
@@ -1438,9 +1633,52 @@ class McpConnectionService:
         return db_connection
 
     async def list_for_org(self, ctx: AuthContext) -> tuple[list[McpConnection], int]:
-        return await mcp_connection_repo.list_org_scoped(
+        """The organization's servers the caller reaches: every one not narrowed to
+        groups, and those narrowed to theirs (#2072)."""
+        rows, _ = await mcp_connection_repo.list_org_scoped(
             self.db, organization_id=ctx.organization_id
         )
+        narrowed = [row for row in rows if row.visibility != Visibility.ORG.value]
+        reached = await accessible_ids(
+            self.db, ctx, narrowed, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+        )
+        kept = [row for row in rows if row.visibility == Visibility.ORG.value or row.id in reached]
+        return kept, len(kept)
+
+    async def used_by(
+        self, ctx: AuthContext, connections: list[McpConnection]
+    ) -> dict[UUID, list[AgentUsage]]:
+        """The agents binding each of these connections that the caller may see (#2072)."""
+        return await agents_using_mcp(self.db, ctx, [row.id for row in connections])
+
+    async def recent_calls(
+        self, ctx: AuthContext, *, connection_id: UUID, limit: int = RECENT_CALLS
+    ) -> list[McpToolCallRead]:
+        """What agents asked one organization server to do, newest first (#2072).
+
+        Found by the connection each call recorded, so a member's own connection
+        that shares the server's name is not listed here, and calls from before it
+        was recorded are not listed at all. The tool is named without the prefix
+        the server's current name gives it. The caller must reach the server;
+        arguments and results are never read.
+        """
+        connection = await self._get_org(ctx, connection_id)
+        prefix = tool_prefix(connection.name)
+        calls = await conversation_repo.recent_tool_calls(
+            self.db, organization_id=ctx.organization_id, connection_id=connection.id, limit=limit
+        )
+        return [
+            McpToolCallRead(
+                tool=call.tool_name.removeprefix(f"{prefix}_"),
+                status=call.status,
+                started_at=call.started_at,
+                duration_ms=call.duration_ms,
+                agent_id=call.agent_id,
+                agent_name=call.agent_name,
+                run_id=call.run_id,
+            )
+            for call in calls
+        ]
 
     async def _known_catalog_key(self, catalog_key: str) -> bool:
         """Whether a key names a server this deployment can identify.
@@ -1483,6 +1721,10 @@ class McpConnectionService:
                 message="This organization already has an MCP server with that name",
                 details={"name": data.name},
             )
+        if data.catalog_key is not None:
+            await self._refuse_an_unnamed_second_org_account(
+                ctx, catalog_key=data.catalog_key, name=data.name, label=data.label
+            )
         token = data.auth_token.strip() if data.auth_token else None
         if token:
             refuse_binding_while_impersonating("Adding an integration token")
@@ -1500,6 +1742,7 @@ class McpConnectionService:
                 catalog_key=data.catalog_key,
                 is_enabled=data.is_enabled,
                 label=_stored_label(data.label),
+                visibility=data.visibility.value,
             )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -1517,6 +1760,14 @@ class McpConnectionService:
             # the name and where it points, both of which are already public.
             details={"name": data.name, "url": url, "catalog_key": data.catalog_key},
         )
+        if data.group_ids or data.user_ids:
+            await SharingService(self.db).restrict_to(
+                ctx,
+                connection,
+                resource_type=MCP_CONNECTION,
+                group_ids=data.group_ids,
+                user_ids=data.user_ids,
+            )
         return connection
 
     async def update_for_org(
@@ -1622,6 +1873,12 @@ class McpConnectionService:
 
         await AgentTriggerService(self.db).release_connection(ctx, connection_id)
         await mcp_connection_repo.delete(self.db, db_connection=db_connection)
+        await resource_grant_repo.delete_for_resource(
+            self.db,
+            organization_id=ctx.organization_id,
+            resource_type=MCP_CONNECTION.key,
+            resource_id=connection_id,
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -1728,12 +1985,45 @@ class McpConnectionService:
             organization_id=ctx.organization_id,
             for_update=for_update,
         )
-        if db_connection is None:
+        # A server narrowed to groups is not there for anybody outside them - the
+        # same refusal as a missing one (#2072). One left to the organization is
+        # everybody's who got past the route's gate, including a trigger's author
+        # reaching a portal grant without managing servers at all.
+        if db_connection is None or (
+            db_connection.visibility != Visibility.ORG.value
+            and not await resolve_access(
+                self.db, ctx, db_connection, Perm.MCP_MANAGE, resource_type=MCP_CONNECTION
+            )
+        ):
             raise NotFoundError(
                 message="MCP connection not found",
                 details={"connection_id": str(connection_id)},
             )
         return db_connection
+
+
+def _refuse_an_unnamed_second_account(
+    others: Sequence[McpConnection], *, name: str, label: str | None
+) -> None:
+    """Refuse a second account on one service that says nothing about which one it is.
+
+    Two accounts of one server show as the same service name everywhere a person
+    picks or approves one, and each answers under a prefix of its own (#2125); the
+    label is what tells "Outlook" from "Outlook - info@". The first account needs
+    none, and connecting the same one again under its own name is a
+    re-authorization, not a second account.
+
+    Raises:
+        BadRequestError: Naming `label`, when another account on the service exists
+            and this one has no label.
+    """
+    if _stored_label(label) is not None:
+        return
+    if any(other.name != name for other in others):
+        raise refused_field(
+            "label",
+            "You already have an account on this service. Name this one so you can tell them apart.",
+        )
 
 
 def _stored_label(label: str | None) -> str | None:
@@ -1800,6 +2090,22 @@ UnavailableBinding = UnavailablePersonalService | UnavailablePrefixCollision
 
 
 @dataclass(frozen=True)
+class AccountNote:
+    """One of several accounts on one service a turn reaches, and its tool prefix.
+
+    Written only where a service answers through more than one account - two
+    of the organization's Outlook connections, or a person's own work and
+    private Notion - because there the prefixes alone do not say which mailbox
+    `outlook_info_send` writes from, and the model has to be told (#2125).
+    """
+
+    service: str
+    prefix: str
+    account: str
+    whose: Literal["organization", "personal"]
+
+
+@dataclass(frozen=True)
 class ResolvedMcpToolsets:
     """What a spec's MCP bindings amount to for one turn.
 
@@ -1812,6 +2118,12 @@ class ResolvedMcpToolsets:
 
     toolsets: list[Any]
     unavailable: list[UnavailableBinding]
+    accounts: list[AccountNote] = field(default_factory=list)
+    """The accounts of each service reached through more than one, by prefix."""
+    origins: dict[str, UUID] = field(default_factory=dict)
+    """Each tool an organization connection serves, by the name the model calls,
+    mapped to that connection. Filled as the run lists its tools, so read it once
+    the run has run - it is what the transcript records each call against."""
 
 
 async def build_toolsets_for_agent(
@@ -1820,6 +2132,7 @@ async def build_toolsets_for_agent(
     organization_id: UUID,
     refs: Sequence[McpServerRef],
     sender_user_id: UUID | None = None,
+    platform_credential: str | None = None,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -1838,29 +2151,57 @@ async def build_toolsets_for_agent(
     account. The binding is then reported unavailable rather than quietly
     skipped, so the run can say so and say where the person connects one.
 
-    A person holding two accounts to one service is left alone rather than
-    guessed at: they nominate one in their own connections, and until they do
-    the binding is unavailable to them (#1342).
+    A **platform** binding is this deployment's own `/mcp`, reached in-process
+    with `platform_credential` - minted by the runner for the person the run is
+    for, and `None` where there is nobody, which leaves the server out.
+
+    A person holding several accounts on one service is reached through every
+    one of them, or those the binding names by label: each under its own tool
+    prefix, and listed on `accounts` so the run can be told which is which
+    (#2125).
 
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
     """
     specs: list[McpServerSpec] = []
     bindings: dict[int, str] = {}
+    # Which service and account each spec reaches, for the accounts briefing.
+    reaches: dict[int, AccountNote] = {}
+    # Whether each organization server had an outage open when this run read it.
+    outage_open: dict[UUID, bool] = {}
     unavailable: list[UnavailableBinding] = []
     found = await mcp_connection_repo.get_org_scoped_by_ids(
         db,
-        connection_ids=[
-            ref.connection_id for ref in refs if not isinstance(ref, PersonalMcpServerRef)
-        ],
+        connection_ids=[ref.connection_id for ref in refs if isinstance(ref, OrgMcpServerRef)],
         organization_id=organization_id,
     )
     for ref in refs:
-        if isinstance(ref, PersonalMcpServerRef):
-            spec, gap = await _personal_spec(db, ref, sender_user_id=sender_user_id)
-            if spec is not None:
+        if isinstance(ref, PlatformMcpServerRef):
+            # This platform's own server, as whoever the run is for. Nobody to
+            # act as - a visitor, a schedule - is no credential and no server.
+            if platform_credential is not None:
+                # Never below `writes`: the credential is the asker's own authority,
+                # an Admin's included, and an agent anybody published must not
+                # invite, revoke or reconfigure with it without asking them first.
+                spec = platform_spec(
+                    platform_credential,
+                    allowed_tools=ref.allowed_tools,
+                    approval="all" if ref.approval == "all" else "writes",
+                )
                 specs.append(spec)
-                bindings[id(spec)] = f"each person's own {ref.catalog_key}"
+                bindings[id(spec)] = "this platform's own server"
+            continue
+        if isinstance(ref, PersonalMcpServerRef):
+            own, gap = await _personal_specs(db, ref, sender_user_id=sender_user_id)
+            for account in own:
+                specs.append(account.spec)
+                bindings[id(account.spec)] = f"each person's own {ref.catalog_key}"
+                reaches[id(account.spec)] = AccountNote(
+                    service=ref.catalog_key,
+                    prefix=tool_prefix(account.spec.name),
+                    account=account.label,
+                    whose="personal",
+                )
             if gap is not None:
                 unavailable.append(UnavailablePersonalService(ref.catalog_key, gap))
             continue
@@ -1892,9 +2233,22 @@ async def build_toolsets_for_agent(
             url=connection.url,
             headers=headers,
             allowed_tools=_narrowed_tools(connection.allowed_tools, ref.allowed_tools),
+            approval=ref.approval,
+            include_instructions=connection.include_instructions,
+            # Its label, where it has one: an organization holding two accounts on a
+            # service names the second (#2125), and an approval should say which.
+            account=connection.label,
+            connection_id=connection.id,
         )
         specs.append(spec)
         bindings[id(spec)] = f"the connection {connection.name!r}"
+        reaches[id(spec)] = AccountNote(
+            service=connection.catalog_key or connection.name,
+            prefix=tool_prefix(connection.name),
+            account=connection.label or connection.name,
+            whose="organization",
+        )
+        outage_open[connection.id] = connection.unreachable_since is not None
     # The same prefix arithmetic publish refuses a collision with, applied to the
     # servers that answered their probe: a duplicate reaching pydantic-ai aborts
     # the turn, so the loser is dropped - but reported on `unavailable`, not left
@@ -1903,9 +2257,20 @@ async def build_toolsets_for_agent(
     # not both lose the turn and be reported as the one attached; among those
     # reachable, the first in binding order keeps the prefix. One connection
     # bound twice is the same binding on both sides: dropped, nothing to report.
-    reachable = [
-        (spec, toolset) for spec, toolset in await probe_toolsets(specs) if toolset is not None
-    ]
+    probed = await probe_toolsets(specs)
+    reachable = [(spec, toolset) for spec, toolset in probed if toolset is not None]
+    # Only what looks like news is handed on: the row read above says whether an
+    # outage is open, and a server found as it was recorded needs no write.
+    changed: list[tuple[UUID, bool]] = []
+    for spec, toolset in probed:
+        connection_id = spec.connection_id
+        if connection_id is None or connection_id not in outage_open:
+            continue
+        answered = toolset is not None
+        if answered == outage_open[connection_id]:
+            changed.append((connection_id, answered))
+    if changed:
+        spawn_after_commit(db, _record_run_reachability(changed), name="mcp-reachability")
     dropped: set[int] = set()
     for prefix, held in prefix_collisions((spec.name, spec) for spec, _ in reachable).items():
         kept = held[0]
@@ -1922,53 +2287,118 @@ async def build_toolsets_for_agent(
                     kept_binding=bindings[id(kept)],
                 )
             )
+    origins: dict[str, UUID] = {}
+    attached = [(spec, toolset) for spec, toolset in reachable if id(spec) not in dropped]
     return ResolvedMcpToolsets(
-        toolsets=[toolset for spec, toolset in reachable if id(spec) not in dropped],
+        toolsets=[
+            toolset
+            if spec.connection_id is None
+            else ToolOrigins(toolset, connection_id=spec.connection_id, seen=origins)
+            for spec, toolset in attached
+        ],
         unavailable=unavailable,
+        accounts=_several_accounts(
+            [reaches[id(spec)] for spec, _ in attached if id(spec) in reaches]
+        ),
+        origins=origins,
     )
 
 
-async def _personal_spec(
+def _several_accounts(notes: list[AccountNote]) -> list[AccountNote]:
+    """The notes of every service this turn reaches through more than one account."""
+    per_service = Counter(note.service for note in notes)
+    return [note for note in notes if per_service[note.service] > 1]
+
+
+@dataclass(frozen=True)
+class _OwnAccount:
+    """One of a person's own accounts on a service, as a server, and what they call it."""
+
+    spec: McpServerSpec
+    label: str
+
+
+async def _personal_specs(
     db: AsyncSession, ref: PersonalMcpServerRef, *, sender_user_id: UUID | None
-) -> tuple[McpServerSpec | None, PersonalServiceGapKind | None]:
-    """The sender's own connection to this service as a server spec, or why not."""
+) -> tuple[list[_OwnAccount], PersonalServiceGapKind | None]:
+    """The sender's own accounts on this service as servers, or why there are none."""
     if sender_user_id is None:
-        return None, "nobody_to_speak_as"
-    own = await _own_spec(db, ref, user_id=sender_user_id)
-    return (own, None) if isinstance(own, McpServerSpec) else (None, own)
+        return [], "nobody_to_speak_as"
+    own = await _own_specs(db, ref, user_id=sender_user_id)
+    return (own, None) if isinstance(own, list) else ([], own)
 
 
-async def _own_spec(
+async def _own_specs(
     db: AsyncSession, ref: PersonalMcpServerRef, *, user_id: UUID
-) -> McpServerSpec | OwnAccountGap:
-    """One person's own connection to this service as a server spec, or why not.
+) -> list[_OwnAccount] | OwnAccountGap:
+    """One person's own accounts on this service as servers, or why there are none.
 
-    The tool prefix is the catalog key rather than the connection's name: the
-    agent presents `notion_search` to everyone, whatever each person called
-    their own Notion. The allowlist is the binding's ceiling intersected with
-    the person's own - the same fold an organization binding makes, with the
+    Every account they hold - the one marked default first, else the first
+    connected. That one's tool prefix is the catalog key, so an agent presents
+    `notion_search` to everyone whatever each person called their own Notion; every other account adds its label to the
+    key (#2125). The allowlist is the binding's ceiling intersected with the
+    person's own - the same fold an organization binding makes, with the
     administrator's side coming from the spec because there is no connection
     row of the organization's to read it from.
+
+    An account whose credential no longer works is left out and the rest
+    answer; only when none does is the gap `unauthorized`.
     """
     owned = await mcp_connection_repo.list_user_scoped_by_catalog_key(
         db, user_id=user_id, catalog_key=ref.catalog_key
     )
-    connection = _nominated(owned)
-    if connection is None:
-        return "undecided" if owned else "not_connected"
-    headers = await _resolve_auth_headers(db, connection)
-    if headers is None:
-        logger.info(
-            "Skipping the sender's own %r connection for this run: no usable credentials",
-            ref.catalog_key,
+    if not owned:
+        return "not_connected"
+    primary = next((account for account in owned if account.is_default), owned[0])
+    accounts: list[_OwnAccount] = []
+    taken: set[str] = set()
+    for account in [primary, *(other for other in owned if other is not primary)]:
+        headers = await _resolve_auth_headers(db, account)
+        if headers is None:
+            logger.info(
+                "Skipping one of the sender's own %r connections for this run: "
+                "no usable credentials",
+                ref.catalog_key,
+            )
+            continue
+        name = ref.catalog_key if account is primary else _extra_prefix(ref.catalog_key, account)
+        if name in taken:
+            # Two labels that read the same as a tool name (`Sales US`, `Sales-US`)
+            # would share one prefix, and the resolver keeps only the first.
+            name = f"{name[:55]}-{account.id.hex[:8]}"
+        taken.add(name)
+        spec = McpServerSpec(
+            name=name,
+            url=account.url,
+            headers=headers,
+            allowed_tools=_narrowed_tools(ref.allowed_tools, account.allowed_tools),
+            approval=ref.approval,
+            include_instructions=account.include_instructions,
+            # Named on an approval wherever it is a question: one of several accounts
+            # on the service, or one its person labelled.
+            account=_account_name(account) if len(owned) > 1 else account.label,
         )
-        return "unauthorized"
-    return McpServerSpec(
-        name=ref.catalog_key,
-        url=connection.url,
-        headers=headers,
-        allowed_tools=_narrowed_tools(ref.allowed_tools, connection.allowed_tools),
-    )
+        accounts.append(_OwnAccount(spec=spec, label=_account_name(account)))
+    return accounts or "unauthorized"
+
+
+def _account_name(account: McpConnection) -> str:
+    """What a person calls one of their accounts: its label, else its name."""
+    return account.label or account.name
+
+
+def _extra_prefix(catalog_key: str, account: McpConnection) -> str:
+    """The server name a person's second, third... account on a service answers under.
+
+    The key and the account's own label, so `outlook` and `outlook-info` sit
+    side by side and the tool names say which mailbox each one is. The key is
+    not repeated where the label already starts with it (`notion-2`, not
+    `notion-notion-2`), and an account whose label holds nothing a tool name
+    can carry falls back to its id.
+    """
+    slug = re.sub(r"[^a-z0-9]+", "-", _account_name(account).casefold()).strip("-")
+    slug = "" if slug == catalog_key else slug.removeprefix(f"{catalog_key}-")
+    return f"{catalog_key}-{slug or account.id.hex[:8]}"[:64]
 
 
 async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) -> ServiceOutcome:
@@ -1981,10 +2411,12 @@ async def connect_personal_toolset(ref: PersonalMcpServerRef, *, user_id: UUID) 
     refresh spent on the way is committed with that session.
     """
     async with get_db_context() as db:
-        own = await _own_spec(db, ref, user_id=user_id)
-    if not isinstance(own, McpServerSpec):
+        own = await _own_specs(db, ref, user_id=user_id)
+    if not isinstance(own, list):
         return own
-    ((_, toolset),) = await probe_toolsets([own])
+    # One account answers the turn that waited - their default, else their
+    # first; any others of theirs join from their next message on.
+    ((_, toolset),) = await probe_toolsets([own[0].spec])
     return "unreachable" if toolset is None else toolset
 
 
@@ -2007,17 +2439,3 @@ def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> 
         return connection
     within = set(binding)
     return [tool for tool in connection if tool in within]
-
-
-def _nominated(owned: list[McpConnection]) -> McpConnection | None:
-    """Which of a member's accounts on one service to speak as, if any is clear.
-
-    One account needs no nomination - there is nothing to choose between - so it
-    answers whether or not it is marked. Several answer only the one marked
-    default, which a partial unique index keeps to at most one; several with none
-    marked answer nothing, because picking the older workspace silently is worse
-    than telling the person to pick (#1342).
-    """
-    if len(owned) == 1:
-        return owned[0]
-    return next((account for account in owned if account.is_default), None)

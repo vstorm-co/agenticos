@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { KeyRound } from "lucide-react";
 import { toast } from "sonner";
 
+import { ProviderIcon } from "@/components/vault/provider-icon";
 import { ProviderRow } from "@/components/vault/provider-row";
 import { useSecretPurposes } from "@/hooks";
 import { cn } from "@/lib/utils";
@@ -29,6 +31,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  MoreOptions,
   Textarea,
 } from "@/components/ui";
 import { kindInfo } from "@/hooks";
@@ -42,7 +45,13 @@ import type {
 } from "@/types/secrets";
 import type { StorableSecretKind } from "@/types/secrets";
 import { useTranslations } from "next-intl";
-import { DIALOG_CONFIRM, DIALOG_FORM } from "@/lib/dialog-sizes";
+import {
+  DIALOG_BODY,
+  DIALOG_COLUMN,
+  DIALOG_CONFIRM,
+  DIALOG_FORM,
+  DIALOG_SCROLL_GUTTER,
+} from "@/lib/dialog-sizes";
 
 /** What the backend accepts, so an over-long value is refused before it is sent. */
 const MAX_NAME = 128;
@@ -214,34 +223,32 @@ export function AddSecretDialog({
         onOpenChange(next);
       }}
     >
-      {/* Wider than the default dialog. Six questions stacked in 512px is a
-          form that scrolls before it is read; at this width the pairs that
-          belong together sit on one line and the whole thing fits on a screen. */}
-      <DialogContent className={DIALOG_FORM}>
+      {/* One column that scrolls as a whole, in the order somebody fills it:
+          what it is for, which service, the key itself, what to call it and
+          who may use it - the note folded away. The cards with a subtitle each,
+          the paired selects and a scroll box inside the dialog read as a form
+          about the form. */}
+      <DialogContent className={cn(DIALOG_FORM, DIALOG_COLUMN)}>
         <DialogHeader>
           <DialogTitle>{t("addSecret")}</DialogTitle>
           <DialogDescription>{t("encryptedBoundOrganizationAgent")}</DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[65vh] scrollbar-thin space-y-5 overflow-y-auto px-1">
-          {/* First, because it decides everything below it: which shape the
-              form asks for, what the key unlocks, and where it can be picked. */}
-          {/* Two steps rather than one list of thirty-one. The first question
-              has three answers and rules out most of the second - picking
-              "Web search" turns a scroll through every model provider into a
-              choice between three services. */}
+        <div className={cn(DIALOG_BODY, "space-y-5")}>
           {/* A caption over a group of buttons, not a `Label`: a label names
-              one control, and this one names three. `role="group"` with
-              `aria-labelledby` is how a screen reader is told the same thing
-              the heading tells everyone else. */}
+              one control, and this one names five. */}
           <div className="space-y-2">
             <p id="secret-purpose-family" className="text-sm leading-none font-medium">
               {t("what")}
             </p>
+            {/* A tile per kind of key, each wearing the marks of the services it
+                covers - "Model provider" says less at a glance than the OpenAI,
+                Anthropic and Gemini marks do. Taken from the catalog, so a new
+                service shows up here without a change to this file. */}
             <div
               role="group"
               aria-labelledby="secret-purpose-family"
-              className="grid grid-cols-3 gap-2"
+              className="grid grid-cols-2 gap-2 sm:grid-cols-3"
             >
               {PURPOSE_GROUPS.map((group) => (
                 <button
@@ -249,92 +256,92 @@ export function AddSecretDialog({
                   type="button"
                   onClick={() => chooseCategory(group.id)}
                   aria-pressed={category === group.id}
+                  title={t(`${group.words}Hint`)}
                   className={cn(
-                    "rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
+                    "flex flex-col items-start gap-2 rounded-xl border p-3 text-left text-sm font-medium transition-colors",
                     category === group.id
-                      ? "border-brand bg-brand/5 text-foreground"
-                      : "border-input hover:bg-accent/50 text-muted-foreground",
+                      ? "border-foreground bg-accent text-foreground"
+                      : "border-input text-muted-foreground hover:text-foreground hover:bg-accent/60",
                   )}
                 >
-                  <span className="block font-medium">{t(group.words)}</span>
-                  <span className="text-muted-foreground block text-xs">
-                    {t(`${group.words}Hint`)}
+                  <span className="text-foreground flex h-5 items-center gap-1.5" aria-hidden>
+                    {group.id === "other" ? (
+                      <KeyRound className="h-4 w-4" />
+                    ) : (
+                      purposes
+                        .filter((entry) => entry.category === group.id)
+                        .slice(0, 3)
+                        .map((entry) => (
+                          <ProviderIcon
+                            key={entry.id}
+                            provider={entry.id}
+                            brand={entry.icon}
+                            className="h-4 w-4"
+                          />
+                        ))
+                    )}
                   </span>
+                  {t(group.words)}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* The two questions that decide what this key is and who it is for,
-              side by side: at this width they read as one decision, which is
-              what they are. */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="secret-purpose">
-                {category === "other" ? t("service") : t("whichOne")}
-              </Label>
-              {/* The entry that is in force, fallback included - the raw choice
+          <div className="space-y-2">
+            <Label htmlFor="secret-purpose">
+              {category === "other" ? t("service") : t("whichOne")}
+            </Label>
+            {/* The entry that is in force, fallback included - the raw choice
                   is empty until somebody picks, and a trigger bound to it read as
                   blank while the hint under it already named the first service. */}
-              <Select value={chosen?.id ?? ""} onValueChange={choosePurpose}>
-                <SelectTrigger id="secret-purpose">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="max-h-80">
-                  {inCategory.map((entry) => (
-                    <SelectItem key={entry.id} value={entry.id} textValue={entry.label}>
-                      {/* The mark, where there is one. A vault is scanned rather
+            <Select value={chosen?.id ?? ""} onValueChange={choosePurpose}>
+              <SelectTrigger id="secret-purpose">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-80">
+                {inCategory.map((entry) => (
+                  <SelectItem key={entry.id} value={entry.id} textValue={entry.label}>
+                    {/* The mark, where there is one. A vault is scanned rather
                           than read, and a logo is what the eye lands on. */}
-                      <ProviderRow provider={entry.id} name={entry.label} brand={entry.icon} />
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">
-                {chosen?.description ?? t("namingServiceWhatLets")}
-                {chosen?.help_url && (
-                  <>
-                    {" "}
-                    <a
-                      href={chosen.help_url}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="underline underline-offset-4"
-                    >
-                      {t("whereDoIGet2")}
-                    </a>
-                  </>
-                )}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="secret-visibility">{t("whoCanUse")}</Label>
-              <Select
-                value={visibility}
-                onValueChange={(next) => setVisibility(next as SecretVisibility)}
-              >
-                <SelectTrigger id="secret-visibility">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="org">{t("everyoneOrganization")}</SelectItem>
-                  <SelectItem value="private">{t("onlyMe")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">
-                {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")}{" "}
-                {t("eitherWayAgentRunsWithIt")}
-              </p>
-            </div>
+                    <ProviderRow provider={entry.id} name={entry.label} brand={entry.icon} />
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              {chosen?.description ?? t("namingServiceWhatLets")}
+              {chosen?.help_url && (
+                <>
+                  {" "}
+                  <a
+                    href={chosen.help_url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="underline underline-offset-4"
+                  >
+                    {t("whereDoIGet2")}
+                  </a>
+                </>
+              )}
+            </p>
           </div>
+
+          {info && (
+            <SecretFields
+              info={info}
+              value={value}
+              onChange={setValue}
+              disabled={isPending}
+              idPrefix="secret"
+              errors={errors}
+            />
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField
               label={t("name")}
               htmlFor="secret-name"
               error={errors.name}
-              description={t("howYouWillRecognise")}
               // Full width unless the Kind select is beside it: a lone half-width
               // input with empty space to its right reads as a field that failed
               // to render its neighbour.
@@ -370,30 +377,41 @@ export function AddSecretDialog({
             )}
           </div>
 
-          <FormField
-            label={t("noteOptional")}
-            htmlFor="secret-description"
-            error={errors.description}
-            description={t("shownNextPickerWhich")}
-          >
-            <Textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={2}
-              maxLength={MAX_DESCRIPTION}
-            />
-          </FormField>
+          <div className="space-y-2">
+            <Label htmlFor="secret-visibility">{t("whoCanUse")}</Label>
+            <Select
+              value={visibility}
+              onValueChange={(next) => setVisibility(next as SecretVisibility)}
+            >
+              <SelectTrigger id="secret-visibility">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="org">{t("everyoneOrganization")}</SelectItem>
+                <SelectItem value="private">{t("onlyMe")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              {visibility === "org" ? t("sharedAccountAnyoneHere") : t("yoursAloneYouCan")}{" "}
+              {t("eitherWayAgentRunsWithIt")}
+            </p>
+          </div>
 
-          {info && (
-            <SecretFields
-              info={info}
-              value={value}
-              onChange={setValue}
-              disabled={isPending}
-              idPrefix="secret"
-              errors={errors}
-            />
-          )}
+          <MoreOptions label={t("moreOptions")}>
+            <FormField
+              label={t("noteOptional")}
+              htmlFor="secret-description"
+              error={errors.description}
+              description={t("shownNextPickerWhich")}
+            >
+              <Textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={2}
+                maxLength={MAX_DESCRIPTION}
+              />
+            </FormField>
+          </MoreOptions>
         </div>
 
         <DialogFooter>
@@ -477,7 +495,7 @@ export function RotateSecretDialog({
         </DialogHeader>
 
         {secret && info && (
-          <div className="max-h-[60vh] scrollbar-thin space-y-4 overflow-y-auto px-1">
+          <div className={cn("max-h-[60vh] space-y-4 overflow-y-auto pl-1", DIALOG_SCROLL_GUTTER)}>
             <p className="text-muted-foreground text-xs">
               {t("nameCurrentlyEnds", { name: info.name })}{" "}
               <span className="font-mono">····{secret.hint}</span>

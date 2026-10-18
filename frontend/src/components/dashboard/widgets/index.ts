@@ -14,6 +14,8 @@ import { TopPeopleWidget } from "./top-people";
 import { AgentsAdoptionWidget } from "./agents-adoption";
 import { ApprovalsWidget } from "./approvals";
 import { BudgetHeadroomWidget } from "./budget-headroom";
+import { DepartmentQualityWidget } from "./department-quality";
+import { DepartmentSpendWidget } from "./department-spend";
 import { ConversationsWidget } from "./conversations";
 import { HealthWidget } from "./health";
 import { KnowledgeFreshnessWidget } from "./knowledge-freshness";
@@ -22,6 +24,7 @@ import { McpHealthWidget } from "./mcp-health";
 import { MembersWidget } from "./members";
 import { ModelMixWidget } from "./model-mix";
 import { MyActivityWidget } from "./my-activity";
+import { MySummaryWidget } from "./my-summary";
 import { MyAgentsWidget } from "./my-agents";
 import { MyQualityWidget } from "./my-quality";
 import { MyTopAgentsWidget } from "./my-top-agents";
@@ -72,6 +75,8 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   approvals: ApprovalsWidget,
   "recent-failures": RecentFailuresWidget,
   "budget-headroom": BudgetHeadroomWidget,
+  "department-spend": DepartmentSpendWidget,
+  "department-quality": DepartmentQualityWidget,
   "mcp-health": McpHealthWidget,
   "knowledge-freshness": KnowledgeFreshnessWidget,
   members: MembersWidget,
@@ -79,6 +84,7 @@ export const WIDGET_COMPONENTS: Record<WidgetId, ComponentType<DashboardWidgetPr
   "my-agents": MyAgentsWidget,
   conversations: ConversationsWidget,
   "my-activity": MyActivityWidget,
+  "my-summary": MySummaryWidget,
   "my-top-agents": MyTopAgentsWidget,
   "my-quality": MyQualityWidget,
   "shared-with-you": SharedWithYouWidget,

@@ -112,3 +112,25 @@ export function useChannelBot(botId: string | null): ChannelBot | null {
   });
   return data ?? null;
 }
+
+/**
+ * Copy a Slack bot's app manifest to the clipboard (#2067).
+ *
+ * The manifest is the whole Slack app - its events, buttons, `/agent`, the
+ * assistant pane and App Home - pointed at this deployment, so creating the app
+ * in Slack is pasting it rather than filling in six screens by hand.
+ */
+export function useCopySlackManifest() {
+  const tErrors = useTranslations("errors");
+  const t = useTranslations("pages.channels");
+  return useMutation({
+    mutationFn: async (botId: string) => {
+      const manifest = await apiClient.get<Record<string, unknown>>(
+        `/channels/bots/${botId}/slack-manifest`,
+      );
+      await navigator.clipboard.writeText(JSON.stringify(manifest, null, 2));
+    },
+    onSuccess: () => toast.success(t("slackManifestCopied")),
+    onError: (error) => toast.error(getErrorMessage(error, tErrors)),
+  });
+}

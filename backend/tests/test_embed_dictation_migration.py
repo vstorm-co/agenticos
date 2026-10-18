@@ -1,4 +1,4 @@
-"""Migration `0109_embed_dictation`: `allow_voice` rewritten as `dictation`, and back.
+"""Migration `0139_embed_dictation`: `allow_voice` rewritten as `dictation`, and back.
 
 The rewrite lives only in the migration's SQL, and a mistake in it fails
 silently: the config schema ignores unknown keys, so a page whose row kept
@@ -25,7 +25,7 @@ from sqlalchemy import Engine, create_engine, text
 from app.core.config import settings
 
 SCRATCH_DATABASE = f"agenticos_embed_dictation_test_p{os.getpid()}"
-_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0109_embed_dictation.py"
+_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0139_embed_dictation.py"
 
 
 def _url(database: str) -> str:

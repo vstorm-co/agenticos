@@ -315,6 +315,10 @@ class TestOneFlatList:
         assert body["items"][0]["path"] == "/report.csv"
         assert body["items"][0]["agent_name"] == "Analyst"
         assert body["items"][0]["access_label"] == "Whoever is in that conversation"
+        # The agent's face travels with each file, for a reader without agents:view.
+        assert body["items"][0]["agent_slug"] == "analyst"
+        assert body["items"][0]["agent_has_avatar"] is True
+        assert body["items"][0]["agent_id"] == str(_row().agent_id)
 
     async def test_the_literal_path_is_not_read_as_a_workspace_id(self, client, service) -> None:
         """Starlette matches in declaration order, so `files` under `{workspace_id}`

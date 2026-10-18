@@ -43,6 +43,27 @@ export interface McpCatalogEntry {
   reviewed?: boolean;
   /** Brand mark to draw, by name. Null falls back to a monogram. */
   icon: string | null;
+  /** The last catalog check found it answering as this entry says (#2103). */
+  verified?: boolean;
+  /** What that check found; absent or null when it was never checked. */
+  check?: McpCatalogCheck | null;
+}
+
+/** What `agenticos cmd mcp-catalog-check` found when it last called a server. */
+export interface McpCatalogCheck {
+  outcome:
+    | "open"
+    | "sign_in"
+    | "token"
+    | "unreachable"
+    | "broken"
+    | "refused"
+    | "duplicate"
+    | "self_hosted";
+  checked_at: string;
+  /** Tools it listed without a credential; null where it could not. */
+  tools: number | null;
+  read_only_tools: number | null;
 }
 
 export interface McpCatalog {

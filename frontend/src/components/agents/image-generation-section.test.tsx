@@ -39,6 +39,7 @@ const GOOGLE = {
 };
 
 const DEFINITION: CapabilityCatalogEntry = {
+  recommended: null,
   id: "image_generation",
   name: "Image generation",
   category: "analysis",

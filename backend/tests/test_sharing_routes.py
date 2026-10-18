@@ -19,6 +19,7 @@ from app.api.routes.v1._sharing_loaders import (
     load_artifact,
     load_collection,
     load_context,
+    load_mcp_connection,
     load_secret,
     load_skill,
 )
@@ -27,6 +28,7 @@ from app.api.routes.v1.sharing import (
     artifact_sharing_router,
     collection_sharing_router,
     context_sharing_router,
+    mcp_connection_sharing_router,
     secret_sharing_router,
     skill_sharing_router,
 )
@@ -41,6 +43,7 @@ ROUTERS = (
     ("context", context_sharing_router),
     ("secrets", secret_sharing_router),
     ("artifacts", artifact_sharing_router),
+    ("mcp-connections", mcp_connection_sharing_router),
 )
 
 LOADERS = (
@@ -49,7 +52,8 @@ LOADERS = (
     ("skill", load_skill, "Skill not found", "skill_id"),
     ("context", load_context, "Context file not found", "context_id"),
     ("secret", load_secret, "Secret not found", "secret_id"),
-    ("artifact", load_artifact, "Artifact not found", "artifact_id"),
+    ("artifact", load_artifact, "App not found", "artifact_id"),
+    ("mcp_connection", load_mcp_connection, "MCP connection not found", "connection_id"),
 )
 
 
@@ -114,10 +118,21 @@ class TestResourceLoaders:
         self, kind, loader, message, detail_key
     ):
         organization_id = uuid.uuid4()
-        row = MagicMock(organization_id=organization_id)
+        # `scope` is read by the MCP server's loader alone; an organization's.
+        row = MagicMock(organization_id=organization_id, scope="org")
         db = MagicMock(get=AsyncMock(return_value=row))
 
         assert await loader(db, uuid.uuid4(), organization_id) is row
+
+    @pytest.mark.anyio
+    async def test_a_member_s_own_mcp_connection_is_nobody_else_s_to_share(self):
+        """A personal row carries no organization to match; refused as missing."""
+        organization_id = uuid.uuid4()
+        row = MagicMock(organization_id=organization_id, scope="user")
+        db = MagicMock(get=AsyncMock(return_value=row))
+
+        with pytest.raises(NotFoundError):
+            await load_mcp_connection(db, uuid.uuid4(), organization_id)
 
 
 class TestHandlerBehaviour:

@@ -27,16 +27,21 @@ policy and the mention handling are shared with Slack and Telegram.
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import contextlib
 import json
 import logging
 import re
 import secrets
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import parse_qs
 
 import httpx
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 
 from app.agents.capabilities.channel_tools import (
     ChannelDetails,
@@ -51,23 +56,62 @@ from app.services.channels import connection_state
 from app.services.channels.attachments import routed_type
 from app.services.channels.base import (
     ChannelAdapter,
+    FeedbackComment,
     IncomingAttachment,
     IncomingMessage,
+    IncomingPress,
     OutgoingMessage,
+    PromptMessage,
+    feedback_value,
     split_thread,
     supervise_stream,
     thread_key,
 )
 from app.services.channels.exceptions import ChannelNotConfigured
 from app.services.channels.router import ChannelMessageRouter
+from app.services.channels.webhooks import inbound_actions_url, inbound_dialogs_url, sign_press
 
 logger = logging.getLogger(__name__)
+
+FEEDBACK_DIALOG = "aos_feedback_comment"
+"""The `callback_id` of the "what was wrong?" dialog (#2084)."""
 
 # Mattermost closes an idle socket; the client is expected to keep it warm.
 _PING_SECONDS = 30.0
 _HTTP_TIMEOUT = 20.0
 _FILE_INFO_CONCURRENCY = 4
 """How many `GET /files/{id}/info` lookups one webhook post runs at once."""
+
+TRIGGER_MAX_AGE = timedelta(minutes=5)
+"""How old a press's trigger id may be. Mattermost relays a press at once."""
+
+
+def trigger_presser(trigger_id: str, public_key_der: bytes, *, now: datetime) -> str | None:
+    """The user a Mattermost trigger id was minted for, if its server signed it lately.
+
+    A press's body is not signed - its `user_id` is whatever the request says -
+    but the trigger id beside it is: the server mints it per press as
+    `<client id>:<user id>:<ms>:[<channel id>:]<base64 ECDSA signature>`, over
+    everything before the signature, with the key whose public half it publishes
+    in its client config. Older servers leave the channel out; both are read.
+    """
+    try:
+        parts = base64.b64decode(trigger_id, validate=True).decode().split(":")
+        minted = datetime.fromtimestamp(int(parts[2]) / 1000, UTC)
+        signature = base64.b64decode(parts[-1], validate=True)
+        key = serialization.load_der_public_key(public_key_der)
+    except (binascii.Error, UnicodeDecodeError, ValueError, IndexError):
+        return None
+    if len(parts) < 4 or abs(now - minted) > TRIGGER_MAX_AGE:
+        return None
+    if not isinstance(key, ec.EllipticCurvePublicKey):
+        return None
+    signed = ":".join(parts[:-1]) + ":"
+    try:
+        key.verify(signature, signed.encode(), ec.ECDSA(hashes.SHA256()))
+    except InvalidSignature:
+        return None
+    return parts[1] or None
 
 
 def _posted_at(create_at: Any) -> datetime | None:
@@ -134,6 +178,8 @@ class MattermostAdapter(ChannelAdapter):
         # content and answers about it.
         self._own_names: dict[str, str] = {}
         self._seq: dict[str, int] = {}
+        # Each server's public signing key, which proves who pressed a button.
+        self._signing_keys: dict[str, bytes] = {}
 
     def remember_server(self, bot_id: str, api_base_url: str) -> None:
         """Record which Mattermost server a bot belongs to."""
@@ -252,6 +298,283 @@ class MattermostAdapter(ChannelAdapter):
                 json={"message": msg.text},
             )
         response.raise_for_status()
+
+    async def send_prompt(self, bot_token: str, prompt: PromptMessage) -> None:
+        """An approval or a question as an interactive message, a button per choice.
+
+        Mattermost posts a press to the button's integration URL - this
+        deployment's - with the `context` it was given. Nothing in that request is
+        signed by Mattermost, so the context carries this deployment's own
+        signature over the bot and the value, and a press without it is ignored.
+        """
+        if not prompt.api_base_url:
+            raise ValueError("Mattermost bot has no server URL. Set it on the bot before sending.")
+        channel_id, root_id = split_thread(prompt.platform_chat_id)
+        bot_id = prompt.bot_id
+        body: dict[str, Any] = {
+            "channel_id": channel_id,
+            "message": prompt.text,
+            "props": {
+                "attachments": [
+                    {
+                        "text": "",
+                        "actions": [
+                            {
+                                "id": f"aos{index}",
+                                "name": choice.label,
+                                "style": {"primary": "primary", "danger": "danger"}.get(
+                                    choice.style or "", "default"
+                                ),
+                                "integration": {
+                                    "url": inbound_actions_url(bot_id),
+                                    "context": {
+                                        "value": choice.value,
+                                        "text": prompt.text,
+                                        "signature": sign_press(bot_id, choice.value),
+                                    },
+                                },
+                            }
+                            for index, choice in enumerate(prompt.choices)
+                        ],
+                    }
+                ]
+            },
+        }
+        if root_id:
+            body["root_id"] = root_id
+        async with self._client() as client:
+            response = await client.post(
+                f"{prompt.api_base_url.rstrip('/')}/api/v4/posts",
+                headers=self._headers(bot_token),
+                json=body,
+            )
+        response.raise_for_status()
+
+    async def offer_feedback(
+        self, bot_token: str, msg: OutgoingMessage, handle: str, run_id: str, *, bot_id: str
+    ) -> None:
+        """Thumbs under a finished answer, signed like any other button of ours (#2084)."""
+        base_url = (msg.api_base_url or "").rstrip("/")
+        actions = [
+            {
+                "id": f"aosfb{index}",
+                "name": label,
+                "integration": {
+                    "url": inbound_actions_url(bot_id),
+                    "context": {
+                        "value": value,
+                        "text": msg.text,
+                        "signature": sign_press(bot_id, value),
+                    },
+                },
+            }
+            for index, (label, value) in enumerate(
+                (
+                    (":+1: Helpful", feedback_value(run_id, helpful=True)),
+                    (":-1: Not helpful", feedback_value(run_id, helpful=False)),
+                )
+            )
+        ]
+        async with self._client() as client:
+            response = await client.put(
+                f"{base_url}/api/v4/posts/{handle}/patch",
+                headers=self._headers(bot_token),
+                json={"props": {"attachments": [{"text": "", "actions": actions}]}},
+            )
+        response.raise_for_status()
+
+    async def acknowledge_message(
+        self, bot_token: str, incoming: IncomingMessage, reaction: str
+    ) -> None:
+        """React to the question with the bot's chosen emoji, as the bot (#2084)."""
+        base_url = self._base_urls.get(incoming.bot_id)
+        if not base_url or not incoming.message_id:
+            return
+        own = self._own_ids.get(incoming.bot_id) or await self._own_user_id(
+            incoming.bot_id, bot_token
+        )
+        if own is None:
+            return
+        async with self._client() as client:
+            response = await client.post(
+                f"{base_url}/api/v4/reactions",
+                headers=self._headers(bot_token),
+                json={"user_id": own, "post_id": incoming.message_id, "emoji_name": reaction},
+            )
+        response.raise_for_status()
+
+    async def ask_feedback_comment(
+        self, bot_token: str, press: IncomingPress, run_id: str, *, bot_id: str
+    ) -> None:
+        """Open the "what was wrong?" dialog for whoever pressed thumbs-down.
+
+        Mattermost signs nothing a dialog sends back, so its state carries our
+        signature over the run, as a button's context does.
+        """
+        base_url = self._base_urls.get(bot_id)
+        if base_url is None or press.trigger_id is None:
+            return
+        dialog = {
+            "callback_id": FEEDBACK_DIALOG,
+            "title": "What was wrong?",
+            "submit_label": "Send",
+            "elements": [
+                {
+                    "display_name": "Tell the agent's builders",
+                    "name": "comment",
+                    "type": "textarea",
+                    "max_length": 2000,
+                }
+            ],
+            # Bound to the person whose proven press opened it: the submission's
+            # `user_id` is unsigned, and a replayed state must not rate as
+            # somebody else.
+            "state": (
+                f"{run_id}:{press.platform_user_id}:"
+                f"{sign_press(bot_id, f'{run_id}:{press.platform_user_id}')}"
+            ),
+        }
+        async with self._client() as client:
+            response = await client.post(
+                f"{base_url}/api/v4/actions/dialogs/open",
+                headers=self._headers(bot_token),
+                json={
+                    "trigger_id": press.trigger_id,
+                    "url": inbound_dialogs_url(bot_id),
+                    "dialog": dialog,
+                },
+            )
+        response.raise_for_status()
+
+    async def settle_feedback(self, bot_token: str, press: IncomingPress, helpful: bool) -> None:
+        """Take the thumbs off, saying which was pressed - Mattermost's buttons do not."""
+        await self.settle_prompt(
+            bot_token, press, ":+1: Rated helpful" if helpful else ":-1: Rated not helpful"
+        )
+
+    async def settle_prompt(self, bot_token: str, press: IncomingPress, text: str) -> None:
+        """Take the buttons off the pressed post, leaving what was asked and chosen."""
+        base_url = self._base_urls.get(press.bot_id)
+        if press.message_id is None or base_url is None:
+            return
+        shown = f"{press.prompt_text}\n**{text}**" if press.prompt_text else f"**{text}**"
+        async with self._client() as client:
+            response = await client.put(
+                f"{base_url}/api/v4/posts/{press.message_id}/patch",
+                headers=self._headers(bot_token),
+                json={"message": shown, "props": {"attachments": []}},
+            )
+        response.raise_for_status()
+
+    @staticmethod
+    def parse_command(form: dict[str, str], bot_id: str) -> IncomingMessage | None:
+        """`/agent <question>`, asked in the channel it was typed in (#2084).
+
+        A direct message's channel is named `<user>__<user>`, which is how a
+        private chat is told from a room - the same rule the event stream reads
+        off its channel type.
+        """
+        text = (form.get("text") or "").strip()
+        channel = form.get("channel_id", "")
+        if not text or not channel:
+            return None
+        return IncomingMessage(
+            platform="mattermost",
+            bot_id=bot_id,
+            platform_user_id=form.get("user_id", ""),
+            platform_chat_id=channel,
+            chat_type="private" if "__" in form.get("channel_name", "") else "group",
+            text=text,
+            raw=dict(form),
+            platform_username=form.get("user_name"),
+            message_id=form.get("trigger_id"),
+            addressed=True,
+            platform_team_id=form.get("team_id"),
+        )
+
+    async def pressed_by(self, base_url: str, payload: dict[str, Any]) -> bool:
+        """Whether the press's `user_id` is the person the server says pressed.
+
+        Checked against the trigger id the server signed, so a participant who
+        learned a button's context cannot press it as somebody with more say.
+        The key is read once per server, and read again once when a trigger does
+        not verify against it, in case the server's key changed. No key, no press.
+        """
+        claimed = str(payload.get("user_id") or "")
+        trigger = payload.get("trigger_id")
+        if not claimed or not isinstance(trigger, str) or not base_url:
+            return False
+        presser = None
+        for fresh in (False, True):
+            key = await self._signing_key(base_url.rstrip("/"), fresh=fresh)
+            if key is None:
+                return False
+            presser = trigger_presser(trigger, key, now=datetime.now(UTC))
+            if presser is not None:
+                break
+        return presser == claimed
+
+    async def _signing_key(self, base_url: str, *, fresh: bool) -> bytes | None:
+        if not fresh and base_url in self._signing_keys:
+            return self._signing_keys[base_url]
+        async with self._client() as client:
+            response = await client.get(
+                f"{base_url}/api/v4/config/client", params={"format": "old"}
+            )
+        response.raise_for_status()
+        encoded = response.json().get("AsymmetricSigningPublicKey")
+        if not isinstance(encoded, str) or not encoded:
+            return None
+        self._signing_keys[base_url] = base64.b64decode(encoded)
+        return self._signing_keys[base_url]
+
+    @staticmethod
+    def parse_press(payload: dict[str, Any], bot_id: str) -> IncomingPress | None:
+        """A pressed button, if its context carries this deployment's signature."""
+        context = payload.get("context") or {}
+        value = context.get("value")
+        signature = context.get("signature")
+        if not isinstance(value, str) or not isinstance(signature, str):
+            return None
+        if not secrets.compare_digest(signature, sign_press(bot_id, value)):
+            return None
+        return IncomingPress(
+            platform="mattermost",
+            bot_id=bot_id,
+            platform_user_id=str(payload.get("user_id", "")),
+            platform_chat_id=str(payload.get("channel_id", "")),
+            value=value,
+            platform_username=payload.get("user_name"),
+            message_id=payload.get("post_id"),
+            prompt_text=context.get("text") if isinstance(context.get("text"), str) else None,
+            trigger_id=payload.get("trigger_id"),
+        )
+
+    @staticmethod
+    def parse_feedback_comment(payload: dict[str, Any], bot_id: str) -> FeedbackComment | None:
+        """A submitted "what was wrong?" dialog, if its state carries our signature.
+
+        The state names the run and the person who opened the dialog, both under
+        the signature, and the submission must come from that person.
+        """
+        if payload.get("cancelled") or payload.get("callback_id") != FEEDBACK_DIALOG:
+            return None
+        run_id, _, rest = str(payload.get("state") or "").partition(":")
+        user_id, _, signature = rest.partition(":")
+        if not run_id or not user_id or str(payload.get("user_id", "")) != user_id:
+            return None
+        if not secrets.compare_digest(signature, sign_press(bot_id, f"{run_id}:{user_id}")):
+            return None
+        text = str((payload.get("submission") or {}).get("comment") or "").strip()
+        if not text:
+            return None
+        return FeedbackComment(
+            platform="mattermost",
+            bot_id=bot_id,
+            platform_user_id=user_id,
+            run_id=run_id,
+            text=text,
+        )
 
     async def typing(self, bot_id: str, msg: OutgoingMessage) -> None:
         """Say the bot is composing, over the socket we already hold.

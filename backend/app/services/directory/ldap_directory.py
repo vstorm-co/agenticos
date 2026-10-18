@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 import ssl
 import uuid
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 
@@ -251,7 +251,7 @@ class LdapDirectory:
         return self._identity(entry, groups)
 
     @contextmanager
-    def _service_connection(self) -> Iterator[Connection]:
+    def _service_connection(self) -> Generator[Connection, None, None]:
         """A connection bound as the service account (or anonymously), closed afterwards."""
         connection = self._connect(self._config.bind_dn, self._config.bind_password)
         try:

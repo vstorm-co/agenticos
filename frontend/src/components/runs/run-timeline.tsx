@@ -11,6 +11,7 @@ import { MessageCost } from "@/components/chat/message-cost";
 import { FileCard, FileViewer } from "@/components/files";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
 import { useRunTranscript } from "@/hooks";
+import { toolDisplayName } from "@/lib/agent-step-captions";
 import { conversationMessageToChatMessage } from "@/lib/conversation-to-chat";
 import { getRunFileUrl, runAttachmentAccess } from "@/lib/file-api";
 import { isRenderSafeImage, suffixOf } from "@/lib/file-kinds";
@@ -172,7 +173,7 @@ function TimelineGroup({
   const stamp = first?.created_at;
 
   return (
-    <li ref={ref} className={cn("rounded-lg border", anchored ? "border-primary/40" : "")}>
+    <li ref={ref}>
       <button
         type="button"
         aria-expanded={open}
@@ -194,7 +195,7 @@ function TimelineGroup({
         )}
       </button>
       {open && (
-        <ol className="space-y-4 border-t px-3 py-3">
+        <ol className="space-y-4 px-1 pt-3">
           {group.items.map((item) => (
             <TimelineTurn
               key={item.id}
@@ -430,18 +431,42 @@ function CopyablePanel({
 
 function RawToolCall({ toolCall }: { toolCall: ToolCall }) {
   const t = useTranslations("pages.runs");
+  const tTools = useTranslations("chat.tools");
   const args = JSON.stringify(toolCall.args, null, 2);
   const result =
     typeof toolCall.result === "string"
       ? toolCall.result
       : JSON.stringify(toolCall.result, null, 2);
   return (
-    <details className="rounded-md border">
-      <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 font-mono text-xs select-none">
-        <span>{toolCall.name}</span>
-        <span className="text-muted-foreground">{toolCall.status}</span>
+    <details className="group/tool bg-muted/40 rounded-lg">
+      {/* What the step did in words, with the tool's own id beside it for the
+          reader matching it against a trace - and how it ended as a dot and a
+          word rather than the raw state name. */}
+      <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs select-none">
+        <ChevronRight
+          className="text-muted-foreground h-3.5 w-3.5 shrink-0 transition-transform group-open/tool:rotate-90"
+          aria-hidden
+        />
+        <span className="text-foreground font-medium">
+          {toolDisplayName(toolCall.name, tTools)}
+        </span>
+        <span className="text-muted-foreground truncate font-mono">{toolCall.name}</span>
+        <span className="text-muted-foreground ml-auto flex shrink-0 items-center gap-1.5">
+          <span
+            aria-hidden
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              toolCall.status === "completed"
+                ? "bg-success"
+                : toolCall.status === "error"
+                  ? "bg-destructive"
+                  : "bg-muted-foreground/50",
+            )}
+          />
+          {t("toolState", { status: toolCall.status })}
+        </span>
       </summary>
-      <div className="space-y-2 border-t p-3">
+      <div className="space-y-2 px-3 pt-1 pb-3">
         <div className="group flex items-center justify-between gap-2">
           <p className="text-muted-foreground text-xs tracking-wide uppercase">{t("toolInput")}</p>
           <CopyButton text={args} />

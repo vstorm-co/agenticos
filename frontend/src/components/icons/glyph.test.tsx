@@ -48,4 +48,17 @@ describe("GlyphIcon", () => {
     expect(svg).toHaveAttribute("viewBox", "0 0 24 24");
     expect(svg).toHaveClass("h-5", "w-5");
   });
+
+  it("draws a coloured brand in its colour, unless the caller asks for the text colour", () => {
+    const coloured = { ...ONE_PATH, color: "#D97757" };
+
+    expect(render(<GlyphIcon glyph={coloured} />).container.firstElementChild).toHaveAttribute(
+      "fill",
+      "#D97757",
+    );
+    expect(render(<GlyphIcon glyph={coloured} mono />).container.firstElementChild).toHaveAttribute(
+      "fill",
+      "currentColor",
+    );
+  });
 });

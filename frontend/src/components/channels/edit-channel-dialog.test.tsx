@@ -15,6 +15,12 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     has_webhook_secret: false,
     has_slack_signing_secret: false,
     has_slack_app_token: false,
+    has_command_token: false,
+    command_url: null,
+    ack_reaction: null,
+    stream_answers: true,
+    step_display: "timeline",
+    rate_answers: true,
     connection: null,
     transcribe_voice_notes: true,
     speech_to_text_provider: null,
@@ -34,6 +40,14 @@ function draft(overrides: Partial<ChannelBotDraft> = {}): ChannelBotDraft {
     webhookSecret: "",
     signingSecret: "",
     appToken: "",
+    commandToken: "",
+    webhookMode: false,
+    answerStyle: {
+      ack_reaction: null,
+      stream_answers: true,
+      step_display: "timeline",
+      rate_answers: true,
+    },
     transcription: { mode: "inherit", provider: null, model: null, secretId: null },
     ...overrides,
   };
@@ -131,6 +145,38 @@ describe("the patch an edited bot sends", () => {
     );
 
     expect(patch).toEqual({ token: "111:AAA-replacement" });
+  });
+
+  it("sends how the bot answers, and which way Slack connects, only when they changed", () => {
+    expect(
+      botPatch(
+        bot(),
+        draft({
+          webhookMode: true,
+          answerStyle: {
+            ack_reaction: "eyes",
+            stream_answers: false,
+            step_display: "plan",
+            rate_answers: false,
+          },
+        }),
+      ),
+    ).toEqual({
+      webhook_mode: true,
+      ack_reaction: "eyes",
+      stream_answers: false,
+      step_display: "plan",
+      rate_answers: false,
+    });
+  });
+
+  it("sends a Mattermost bot's slash command token once typed", () => {
+    expect(
+      botPatch(
+        bot({ platform: "mattermost", api_base_url: "https://mm" }),
+        draft({ serverUrl: "https://mm", commandToken: " cmd-token " }),
+      ),
+    ).toEqual({ command_token: "cmd-token" });
   });
 });
 

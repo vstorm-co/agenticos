@@ -28,6 +28,7 @@ import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 import type { Agent, AgentStatus } from "@/types/agents";
 import { useTranslations } from "next-intl";
+import { MAX_AGENT_CATEGORIES, MAX_AGENT_TAGS } from "@/lib/agent-labels";
 
 type Filter = "all" | AgentStatus;
 
@@ -54,6 +55,7 @@ function AgentsCard({
   const t = useTranslations("pages.agents");
   return (
     <ListCard
+      namedByPage
       title={t("catalog")}
       counted={
         visible === null
@@ -142,37 +144,43 @@ export default function AgentsPage() {
   // container's own controls slot, like every list card's.
   const galleryControls = (
     <div data-tour="agents-filters" className="flex flex-wrap items-center gap-2">
-      <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
-        <SelectTrigger className="w-40" aria-label={t("filterByStatus")}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {FILTERS.map((entry) => (
-            <SelectItem key={entry.value} value={entry.value}>
-              {entry.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
       <SearchInput value={query} onChange={setQuery} placeholder={t("searchAgents2")} />
-      <LabelFilter
-        options={categoryOptions}
-        selected={categories}
-        onChange={setCategories}
-        ariaLabel={t("filterByCategory")}
-        allLabel={t("allCategories")}
-        countLabel={(count) => t("categoryCount", { count })}
-        clearLabel={t("clearFilter")}
-      />
-      <LabelFilter
-        options={tagOptions}
-        selected={tags}
-        onChange={setTags}
-        ariaLabel={t("filterByTag")}
-        allLabel={t("allTags")}
-        countLabel={(count) => t("tagCount", { count })}
-        clearLabel={t("clearFilter")}
-      />
+      {/* Wrapped under the search on a phone: a row swiped sideways hid its
+          last filter past the screen's edge. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={filter} onValueChange={(value) => setFilter(value as Filter)}>
+          <SelectTrigger size="sm" className="w-32 sm:w-36" aria-label={t("filterByStatus")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {FILTERS.map((entry) => (
+              <SelectItem key={entry.value} value={entry.value}>
+                {entry.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <LabelFilter
+          options={categoryOptions}
+          selected={categories}
+          onChange={setCategories}
+          ariaLabel={t("filterByCategory")}
+          allLabel={t("allCategories")}
+          countLabel={(count) => t("categoryCount", { count })}
+          clearLabel={t("clearFilter")}
+          max={MAX_AGENT_CATEGORIES}
+        />
+        <LabelFilter
+          options={tagOptions}
+          selected={tags}
+          onChange={setTags}
+          ariaLabel={t("filterByTag")}
+          allLabel={t("allTags")}
+          countLabel={(count) => t("tagCount", { count })}
+          clearLabel={t("clearFilter")}
+          max={MAX_AGENT_TAGS}
+        />
+      </div>
     </div>
   );
 
@@ -241,7 +249,17 @@ export default function AgentsPage() {
                       label: t("clearFilters"),
                       onClick: clearFilters,
                     }
-                  : undefined
+                  : canEdit
+                    ? {
+                        label: (
+                          <>
+                            <Plus className="h-3.5 w-3.5" />
+                            {t("newAgent")}
+                          </>
+                        ),
+                        onClick: () => setCreateOpen(true),
+                      }
+                    : undefined
               }
             />
           ) : (

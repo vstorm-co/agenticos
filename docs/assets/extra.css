@@ -22,18 +22,9 @@
 
 .agenticos-hero__mark {
   width: 5rem;
-  /* The mascot is 16 by 20, not square: pinning both axes would squash him. */
-  height: auto;
+  height: 5rem;
   margin: 0 auto 1.25rem;
   display: block;
-}
-
-/* Amigo is drawn on a 16-pixel grid, so he is exact only at multiples of 16.
-   The header logo and the hero both land in between, where the browser's
-   default smoothing turns hard pixel edges into a smear. */
-.agenticos-hero__mark,
-.md-header__button.md-logo img {
-  image-rendering: pixelated;
 }
 
 .agenticos-hero__name {

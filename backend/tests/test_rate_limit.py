@@ -153,6 +153,45 @@ class TestDegradingRatherThanRefusing:
         assert "unmetered" in caplog.text
 
 
+class TestReadingWithoutCounting:
+    """`exhausted`: the check made before work that is counted only if it fails."""
+
+    async def test_nothing_is_exhausted_without_a_limiter_or_a_readable_count(self):
+        assert await rate_limit.exhausted(surface="s", caller="c", limit=Limit(1)) is False
+
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=ConnectionError("redis is down"))
+        rate_limit.configure(client)
+        assert await rate_limit.exhausted(surface="s", caller="c", limit=Limit(1)) is False
+
+    @pytest.mark.parametrize(("stored", "over"), [(None, False), ("0", False), ("1", True)])
+    async def test_it_reads_the_window_and_counts_nothing(self, stored, over):
+        client = MagicMock()
+        client.get = AsyncMock(return_value=stored)
+        client.count_in_window = AsyncMock()
+        rate_limit.configure(client)
+
+        assert await rate_limit.exhausted(surface="s", caller="c", limit=Limit(1)) is over
+        assert client.get.await_args.args == ("ratelimit:s:c",)
+        client.count_in_window.assert_not_awaited()
+
+
+class TestAKeyReadWithoutBeingSpent:
+    """`/mcp` reads a key's allowance; the API its tool calls reach spends it."""
+
+    @pytest.mark.parametrize(("stored", "refused"), [(None, False), ("600", True)])
+    async def test_the_allowance_is_read_and_nothing_is_counted(self, stored, refused):
+        client = MagicMock()
+        client.get = AsyncMock(side_effect=lambda key: stored if ":api_key:" in key else None)
+        client.count_in_window = AsyncMock()
+        rate_limit.configure(client)
+
+        answer = await rate_limit.key_attempt_refused(_connection(), "aos_x", count=False)
+
+        assert (answer is not None) is refused
+        client.count_in_window.assert_not_awaited()
+
+
 class TestWhichAddressIsCounted:
     def test_the_socket_and_the_request_are_read_the_same_way(self):
         """Both are `HTTPConnection`, and the widget's handshake needs the same

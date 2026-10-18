@@ -39,6 +39,19 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+describe("listing sync sources", () => {
+  it("lists every source the caller reaches, or one collection's", async () => {
+    await rag.listSyncSources();
+    await rag.listSyncSources("Policies & HR");
+
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/rag/sync/sources");
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      2,
+      "/rag/sync/sources?collection_name=Policies%20%26%20HR",
+    );
+  });
+});
+
 describe("search and parsed documents", () => {
   it("sends a search as a body, because a query is not a path", async () => {
     await rag.searchDocuments({ query: "refunds", limit: 5 });
@@ -154,5 +167,21 @@ describe("downloading a knowledge-base document", () => {
     const init = vi.mocked(fetch).mock.calls[0]![1] as { headers: Record<string, string> };
     expect(init.headers["X-Organization-Id"]).toBe("org-b");
     click.mockRestore();
+  });
+});
+
+describe("finding the document a citation names", () => {
+  it("asks the base for exactly that name, escaped", async () => {
+    const doc = { id: "d1", filename: "Q3 & Q4.md" };
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ items: [doc], total: 1 });
+
+    await expect(rag.findKBDocument("kb1", "Q3 & Q4.md")).resolves.toBe(doc);
+    expect(apiClient.get).toHaveBeenCalledWith(
+      "/kb/kb1/documents?filename=Q3%20%26%20Q4.md&limit=1",
+    );
+  });
+
+  it("is null once the base no longer holds it", async () => {
+    await expect(rag.findKBDocument("kb1", "gone.md")).resolves.toBeNull();
   });
 });

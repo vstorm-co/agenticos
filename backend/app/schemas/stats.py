@@ -40,6 +40,31 @@ class DayCount(BaseSchema):
     cost_usd: Decimal
 
 
+class TimeBucket(BaseSchema):
+    """One step of the timeline: the runs that started in it, completed and cost."""
+
+    start: datetime
+    runs: int
+    completed: int
+    cost_usd: Decimal
+
+
+class Timeline(BaseSchema):
+    """The window's runs over time, at a step chosen for how much there is.
+
+    A day is the wrong step for an organization whose every run happened this
+    afternoon: thirty points, twenty-nine of them zero, and the whole story
+    squeezed into the last pixel. The server picks the finest step - a minute
+    up to a week - that draws the span between the window's first run and now
+    in at most 48 points, and shows at least 12 where the window has room, so
+    a quiet afternoon reads in minutes and a busy quarter in weeks. Dense:
+    steps with no runs carry zeroes.
+    """
+
+    step_seconds: int = Field(description="How wide each bucket is, in seconds")
+    buckets: list[TimeBucket]
+
+
 class SurfaceCount(BaseSchema):
     """Runs admitted by one surface, as recorded on the run.
 
@@ -75,7 +100,21 @@ class ModelCount(BaseSchema):
     """
 
     model_label: str | None
+    provider: str | None = Field(
+        default=None,
+        description=(
+            "Which provider served it, as recorded on the run. One model reached "
+            "through two providers - Claude direct and through OpenRouter - is two rows."
+        ),
+    )
     runs: int
+    tool_args_repaired: int = Field(
+        default=0,
+        description=(
+            "Tool calls of these runs whose malformed arguments were repaired rather "
+            "than retried - how often this model sends broken JSON"
+        ),
+    )
 
 
 class LatencyMs(BaseSchema):
@@ -232,6 +271,7 @@ class UsageStats(BaseSchema):
     total_runs: int | None = None
     previous_total_runs: int | None = None
     by_day: list[DayCount] | None = None
+    timeline: Timeline | None = None
     by_surface: list[SurfaceCount] | None = None
     by_agent: list[AgentCount] | None = None
     by_status: list[StatusCount] | None = None

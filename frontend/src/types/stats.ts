@@ -19,6 +19,25 @@ export interface DayCount {
   cost_usd: string;
 }
 
+/** One step of a timeline: the runs that started in it. Mirrors `TimeBucket`. */
+export interface TimeBucket {
+  /** ISO timestamp, UTC. */
+  start: string;
+  runs: number;
+  completed: number;
+  /** A serialised Decimal. Display only - never arithmetic. */
+  cost_usd: string;
+}
+
+/**
+ * The window's runs at a step the server chose for how much there is - minutes
+ * for one afternoon, weeks for a quarter. Dense: empty steps carry zeroes.
+ */
+export interface Timeline {
+  step_seconds: number;
+  buckets: TimeBucket[];
+}
+
 export interface SurfaceCount {
   surface: string;
   runs: number;
@@ -38,7 +57,11 @@ export interface StatusCount {
 export interface ModelCount {
   /** Null when the run recorded no label - its own row, never folded into a model. */
   model_label: string | null;
+  /** Which provider served it; one model through two providers is two rows. */
+  provider: string | null;
   runs: number;
+  /** Tool calls of these runs whose malformed arguments were repaired, not retried. */
+  tool_args_repaired?: number;
 }
 
 export interface LatencyMs {
@@ -101,6 +124,7 @@ export interface UsageStats {
   total_runs: number | null;
   previous_total_runs: number | null;
   by_day: DayCount[] | null;
+  timeline: Timeline | null;
   by_surface: SurfaceCount[] | null;
   by_agent: AgentCount[] | null;
   by_status: StatusCount[] | null;
@@ -145,4 +169,12 @@ export interface RatingsSummary {
   with_comments: number;
   /** Sparse - days nobody rated are absent. */
   ratings_by_day: RatingsByDay[];
+  /** Thumbs per surface the answer was given on - web, slack and the rest (#2084). */
+  ratings_by_surface?: SurfaceRatings[];
+}
+
+export interface SurfaceRatings {
+  surface: string;
+  likes: number;
+  dislikes: number;
 }

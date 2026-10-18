@@ -79,7 +79,7 @@ export function RetentionForm({ policy, isSaving, saved, onSave }: RetentionForm
         </p>
       ) : null}
 
-      <div className="overflow-x-auto">
+      <div className="-mx-1 overflow-x-auto px-1">
         <table className="w-full min-w-[34rem] text-sm">
           <thead>
             <tr className="border-b">

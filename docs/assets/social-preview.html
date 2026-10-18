@@ -1,313 +1,105 @@
 <!doctype html>
+<!--
+  The source of docs/assets/social-preview.png - the card GitHub shows for the
+  repository and every docs page carries as its Open Graph image. A template:
+  `node docs/assets/readme-banner/render.mjs --social` fills it with the
+  Toolbox's own cards, as it does the README banner, renders it at 2x and
+  downsizes it to 1280x640, so a changed illustration or mark reaches the card
+  by running that again.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>AgenticOS - social preview</title>
-<!--
-  The source of docs/assets/social-preview.gif and .png, kept because the card it
-  replaced was a finished PNG with nothing behind it: the mark changed, the card
-  kept showing the old one, and no check noticed.
-
-  The desert is drawn by scripts/gen_social_bg.py - 160 by 80 pixels, one per
-  eight here, dithered rather than blended. Amigo is a 16-pixel sprite, and a
-  smooth gradient behind a sprite reads as a drawing pasted onto somebody else's
-  artwork; an ordered dither puts the ground on the same grid the character is
-  on.
-
-  Everything that moves moves in whole pixels, for the same reason. Open it in a
-  browser and it runs. Render it with:
-
-    frames: load ?frame=N&of=48 for N in 0..47, screenshot 1280x640 at dpr 2
-    downscale: each frame to 1280x640, Lanczos
-    assemble: any GIF writer, 110ms a frame, one palette shared by every frame
-
-  Type comes from Google Fonts rather than the repository's woff2 files, because
-  this is rendered once by hand and a relative path out of docs/ into frontend/
-  would not survive the docs build.
--->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@700&amp;family=Inter:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --ink: #F5F4EF;
-    --dim: #8E95A1;
-    --sun: #F2C14E;
-    --cycle: 5.28s;
-    --cell: 6px;          /* one sprite pixel */
-    --travel: 216px;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; background: #0B0C0F; }
-
+/*CAPCSS*/
+  :root { --ground: #100e18; --tile: #2b2547; --ink: #f4f2fb; --dim: #a19cb8; --blob: #bbd1ff; }
+  html, body { margin: 0; background: var(--ground); }
   .card {
-    position: relative;
-    width: 1280px;
-    height: 640px;
-    overflow: hidden;
-    background: #1b1033;
-    font-family: Inter, system-ui, sans-serif;
-    color: var(--ink);
+    position: relative; width: 1280px; height: 640px; overflow: hidden;
+    background: var(--ground); font-family: Inter, system-ui, sans-serif; color: var(--ink);
   }
+  .dots { position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,0.07) 1.2px, transparent 1.2px); background-size: 28px 28px; }
+  .glow { position: absolute; width: 1000px; height: 1000px; right: -260px; top: -200px; background: radial-gradient(closest-side, rgba(120,110,220,0.30), rgba(120,110,220,0) 70%); }
+  .left { position: absolute; left: 72px; top: 0; bottom: 0; width: 600px; display: flex; flex-direction: column; justify-content: center; gap: 24px; z-index: 3; }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .brand svg { width: 80px; height: 80px; }
+  .brand span { font-size: 72px; font-weight: 800; letter-spacing: -0.035em; }
+  .tag { font-size: 40px; white-space: nowrap; line-height: 1.2; font-weight: 500; color: #d9d5ec; letter-spacing: -0.015em; }
+  .tag b { color: var(--blob); font-weight: 700; }
+  .sub { font-family: "Geist Mono", monospace; font-size: 19px; line-height: 1.7; color: var(--dim); }
+  .sub i { font-style: normal; color: var(--ink); }
+  .by { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-family: "Geist Mono", monospace; font-size: 17px; color: var(--dim); }
+  .by svg { height: 28px; width: auto; }
+  .url { position: absolute; left: 0; bottom: 48px; font-family: "Geist Mono", monospace; font-size: 18px; color: var(--ink); }
+  .url em { font-style: normal; color: var(--dim); }
 
-  .scene {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    image-rendering: pixelated;
-  }
-  /* Enough shade for white text to sit on the bright half of a sunset, and no
-     more: the dither has to stay legible as dither. */
-  .veil {
-    position: absolute;
-    inset: 0;
-    /* Reaching zero well before the sun, on purpose. A gradient laid over a flat
-       disc turns it into a ramp, and a 256-colour palette renders a ramp that
-       shallow as vertical bands - which is what the first GIF of this did. */
-    background: linear-gradient(96deg, rgba(8,6,14,.93) 0%, rgba(8,6,14,.83) 26%,
-                rgba(8,6,14,.4) 46%, rgba(8,6,14,0) 63%);
-  }
-
-  /* The first stars of the evening, on the grid everything else is on. */
-  .star {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    background: #f6e7c4;
-    opacity: 0;
-    animation: twinkle var(--cycle) steps(1, end) infinite;
-  }
-  @keyframes twinkle {
-    0%, 33% { opacity: 0; }
-    34%, 62% { opacity: 0.75; }
-    63%, 100% { opacity: 0; }
-  }
-
-  /* Two birds crossing, half a loop apart, so one is always in frame. */
-  .bird {
-    position: absolute;
-    animation: fly var(--cycle) linear infinite;
-  }
-  .bird svg { display: block; image-rendering: pixelated; }
-  @keyframes fly {
-    from { transform: translateX(0); }
-    to { transform: translateX(-1304px); }
-  }
-
-  .copy { position: absolute; left: 72px; top: 104px; width: 560px; z-index: 2; }
-  .meta {
-    font-family: "Geist Mono", ui-monospace, monospace;
-    font-size: 14px;
-    letter-spacing: 0.15em;
-    color: var(--dim);
-    text-transform: uppercase;
-    margin: 0 0 20px;
-  }
-  /* A pixel face for a pixel card. The background is drawn on a 16-pixel grid
-     and so is the mascot; a smooth grotesque over them was the one element on
-     this card that belonged to a different drawing. The body copy stays a
-     proper sans - a display face this loud is a name, not a paragraph. */
-  h1 {
-    font-family: "Pixelify Sans", ui-monospace, monospace;
-    font-weight: 700;
-    font-size: 106px;
-    line-height: 0.95;
-    letter-spacing: -0.01em;
-    margin: 0;
-  }
-  .tag { margin: 20px 0 0; font-size: 27px; line-height: 1.38; color: #C3C6CD; }
-  .tag b { color: var(--ink); font-weight: 600; }
-  /* One verb at a time, in the colour of the sun behind it. */
-  .v1 { animation: lit-1 var(--cycle) steps(1, end) infinite; }
-  .v2 { animation: lit-2 var(--cycle) steps(1, end) infinite; }
-  .v3 { animation: lit-3 var(--cycle) steps(1, end) infinite; }
-  @keyframes lit-1 { 0%, 32.9% { color: var(--sun); } 33%, 100% { color: var(--ink); } }
-  @keyframes lit-2 { 0%, 32.9% { color: var(--ink); } 33%, 66.5% { color: var(--sun); } 66.6%, 100% { color: var(--ink); } }
-  @keyframes lit-3 { 0%, 66.5% { color: var(--ink); } 66.6%, 100% { color: var(--sun); } }
-
-  .repo {
-    position: absolute;
-    left: 72px;
-    bottom: 56px;
-    margin: 0;
-    font-family: "Geist Mono", ui-monospace, monospace;
-    font-size: 17px;
-    color: var(--dim);
-    z-index: 2;
-  }
-  .repo b { color: #C3C6CD; font-weight: 400; }
-
-  .walker {
-    position: absolute;
-    left: 760px;
-    bottom: 84px;
-    width: calc(16 * var(--cell));
-    height: calc(19 * var(--cell));
-    z-index: 2;
-    animation: pace var(--cycle) steps(24, end) infinite;
-  }
-  .walker svg { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
-  .step-b { opacity: 0; }
-  .sprite { animation: bob 0.44s steps(1, end) infinite; }
-  .step-a { animation: step-a 0.44s steps(1, end) infinite; }
-  .step-b { animation: step-b 0.44s steps(1, end) infinite; }
-  @keyframes pace {
-    0% { transform: translateX(0); }
-    50% { transform: translateX(var(--travel)); }
-    100% { transform: translateX(0); }
-  }
-  @keyframes bob {
-    0%, 49% { transform: translateY(0); }
-    50%, 100% { transform: translateY(-6px); }
-  }
-  @keyframes step-a { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
-  @keyframes step-b { 0%, 49% { opacity: 0; } 50%, 100% { opacity: 1; } }
-
-  @media (prefers-reduced-motion: reduce) {
-    .star, .bird, .walker, .sprite, .step-a, .step-b, .v1, .v2, .v3 { animation: none; }
-  }
-  /* One frame, for the renderer: every animation off and the same values set
-     directly, so a captured frame is exact rather than whatever the wall clock
-     happened to be when the shutter went. */
-  body.frozen * { animation: none !important; }
+  .wall { position: absolute; left: 660px; top: -30px; height: 760px; display: flex; gap: 20px; transform: rotate(-5deg); transform-origin: left top; }
+  .col { display: flex; flex-direction: column; gap: 20px; }
+  .c0 { margin-top: 40px; } .c1 { margin-top: -30px; } .c2 { margin-top: 30px; } .c3 { margin-top: -20px; }
+  .cardx { flex-shrink: 0; width: 236px; background: #fff; border-radius: 18px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.25), 0 24px 48px -12px rgba(0,0,0,0.6); }
+  .cardx .cap-art { background: oklch(97.8% 0.002 265); }
+  .lbl { padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 3px; color: oklch(17.5% 0.004 265); }
+  .lbl b { font-size: 15px; font-weight: 650; }
+  .lbl span { font-size: 12.5px; color: oklch(45% 0.006 265); }
+  .fade { position: absolute; inset: 0; pointer-events: none; z-index: 2;
+    background: linear-gradient(90deg, var(--ground) 0, var(--ground) 600px, rgba(16,14,24,0.0) 720px, rgba(16,14,24,0) 1200px, rgba(16,14,24,0.55) 1280px),
+                linear-gradient(180deg, rgba(16,14,24,0.5) 0, rgba(16,14,24,0) 50px, rgba(16,14,24,0) 580px, rgba(16,14,24,0.6) 640px); }
+  .b { position: absolute; z-index: 4; }
+  .b svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 12px 18px rgba(0,0,0,0.5)); }
+  /* Every period divides the six-second loop, so the GIF repeats without a seam. */
+  .b { animation: bob var(--bob) ease-in-out var(--bobd) infinite; }
+  .b .eyes { transform-box: fill-box; transform-origin: center; animation: blink var(--blink) linear var(--blinkd) infinite; }
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-9px) rotate(-2deg); } }
+  @keyframes blink { 0%, 90%, 100% { transform: scaleY(1); } 93% { transform: scaleY(0.12); } 96% { transform: scaleY(1); } }
 </style>
 </head>
 <body>
 <div class="card">
-  <img class="scene" src="social-preview-bg.png" alt="">
+  <div class="dots"></div>
+  <div class="glow"></div>
+  <div class="wall"><!--CARDS--></div>
+  <div class="fade"></div>
 
-  <div class="sky">
-    <span class="star" style="left:214px;top:96px;animation-delay:-0.00s"></span>
-    <span class="star" style="left:392px;top:62px;animation-delay:-1.80s"></span>
-    <span class="star" style="left:556px;top:128px;animation-delay:-3.27s"></span>
-    <span class="star" style="left:742px;top:78px;animation-delay:-0.95s"></span>
-    <span class="star" style="left:928px;top:112px;animation-delay:-4.22s"></span>
-    <span class="star" style="left:1108px;top:58px;animation-delay:-2.53s"></span>
-    <span class="star" style="left:318px;top:168px;animation-delay:-3.75s"></span>
-    <span class="bird" id="bird1" style="left:1280px;top:298px">
-      <svg viewBox="0 0 3 2" width="24" height="16"><rect x="0" y="0" width="1" height="1" fill="#3a1e33"/><rect x="2" y="0" width="1" height="1" fill="#3a1e33"/><rect x="1" y="1" width="1" height="1" fill="#3a1e33"/></svg>
-    </span>
-    <span class="bird" id="bird2" style="left:1280px;top:344px;animation-delay:-2.64s">
-      <svg viewBox="0 0 3 2" width="18" height="12"><rect x="0" y="0" width="1" height="1" fill="#4a2c17"/><rect x="2" y="0" width="1" height="1" fill="#4a2c17"/><rect x="1" y="1" width="1" height="1" fill="#4a2c17"/></svg>
-    </span>
+  <div class="left">
+    <div class="brand">
+      <svg viewBox="0 0 104 104"><rect width="104" height="104" rx="30" fill="#2b2547"/><g transform="translate(10 10) scale(0.84)"><path fill="#bbd1ff" d="M84.91 51.44C84.91 71.47 72.07 83.63 50.89 83.63C29.72 83.63 16.87 71.47 16.87 51.44C16.87 31.41 29.72 19.26 50.89 19.26C72.07 19.26 84.91 31.41 84.91 51.44Z"/><g fill="#0b0f18"><path d="M47.24 45.43C47.13 52.95 46.91 53.47 43.77 53.42C40.64 53.37 40.43 52.85 40.54 45.34C40.65 37.82 40.87 37.3 44.01 37.35C47.14 37.4 47.35 37.92 47.24 45.43Z"/><path d="M65.15 45.55C65.37 54.87 65.14 55.52 61.7 55.6C58.26 55.68 58 55.04 57.79 45.72C57.57 36.41 57.79 35.76 61.24 35.68C64.68 35.59 64.93 36.24 65.15 45.55Z"/></g></g></svg>
+      <span>AgenticOS</span>
+    </div>
+    <div class="tag">Open-source <b>AI teammates</b><br>for your company.</div>
+    <div class="sub"><i>Build, run and govern AI agents</i><br>on your own servers · Apache-2.0</div>
+    <div class="by">by <!--VSTORM--></div>
+    <div class="url">github.com/<em>vstorm-co/agenticos</em></div>
   </div>
-
-  <div class="veil"></div>
-
-  <div class="copy">
-    <p class="meta">Self-hosted &middot; Apache-2.0 &middot; Open source</p>
-    <h1>AgenticOS</h1>
-    <p class="tag">One place to <b class="v1">build</b>, <b class="v2">run</b> and <b class="v3">govern</b> your company&rsquo;s AI agents.</p>
-  </div>
-
-  <div class="walker" id="walker">
-    <svg viewBox="0 -1 16 20" shape-rendering="crispEdges" class="sprite" id="sprite" aria-label="Amigo, the AgenticOS pet">
-        <rect x="6" y="0" width="4" height="1" fill="#4a2c17"/>
-        <rect x="5" y="1" width="1" height="1" fill="#4a2c17"/>
-        <rect x="6" y="1" width="4" height="1" fill="#d99a5b"/>
-        <rect x="10" y="1" width="1" height="1" fill="#4a2c17"/>
-        <rect x="4" y="2" width="1" height="1" fill="#4a2c17"/>
-        <rect x="5" y="2" width="6" height="1" fill="#d99a5b"/>
-        <rect x="11" y="2" width="1" height="1" fill="#4a2c17"/>
-        <rect x="0" y="3" width="1" height="1" fill="#4a2c17"/>
-        <rect x="1" y="3" width="14" height="1" fill="#d99a5b"/>
-        <rect x="15" y="3" width="1" height="1" fill="#4a2c17"/>
-        <rect x="1" y="4" width="1" height="1" fill="#4a2c17"/>
-        <rect x="2" y="4" width="12" height="1" fill="#8e1b1b"/>
-        <rect x="14" y="4" width="1" height="1" fill="#4a2c17"/>
-        <rect x="4" y="5" width="1" height="1" fill="#4a2c17"/>
-        <rect x="5" y="5" width="6" height="1" fill="#f1c27d"/>
-        <rect x="11" y="5" width="1" height="1" fill="#4a2c17"/>
-        <rect x="4" y="6" width="1" height="1" fill="#4a2c17"/>
-        <rect x="5" y="6" width="1" height="1" fill="#ffffff"/>
-        <rect x="6" y="6" width="1" height="1" fill="#1a1f2e"/>
-        <rect x="7" y="6" width="2" height="1" fill="#f1c27d"/>
-        <rect x="9" y="6" width="1" height="1" fill="#ffffff"/>
-        <rect x="10" y="6" width="1" height="1" fill="#1a1f2e"/>
-        <rect x="11" y="6" width="1" height="1" fill="#4a2c17"/>
-        <rect x="4" y="7" width="1" height="1" fill="#4a2c17"/>
-        <rect x="5" y="7" width="2" height="1" fill="#1a1f2e"/>
-        <rect x="7" y="7" width="2" height="1" fill="#f1c27d"/>
-        <rect x="9" y="7" width="2" height="1" fill="#1a1f2e"/>
-        <rect x="11" y="7" width="1" height="1" fill="#4a2c17"/>
-        <rect x="4" y="8" width="1" height="1" fill="#4a2c17"/>
-        <rect x="5" y="8" width="2" height="1" fill="#1a1f2e"/>
-        <rect x="7" y="8" width="2" height="1" fill="#f1c27d"/>
-        <rect x="9" y="8" width="2" height="1" fill="#1a1f2e"/>
-        <rect x="11" y="8" width="1" height="1" fill="#4a2c17"/>
-        <rect x="3" y="9" width="1" height="1" fill="#4a2c17"/>
-        <rect x="4" y="9" width="3" height="1" fill="#5b3a1e"/>
-        <rect x="7" y="9" width="2" height="1" fill="#f1c27d"/>
-        <rect x="9" y="9" width="3" height="1" fill="#5b3a1e"/>
-        <rect x="12" y="9" width="1" height="1" fill="#4a2c17"/>
-        <rect x="3" y="10" width="1" height="1" fill="#4a2c17"/>
-        <rect x="4" y="10" width="8" height="1" fill="#c8412b"/>
-        <rect x="12" y="10" width="1" height="1" fill="#4a2c17"/>
-        <rect x="2" y="11" width="1" height="1" fill="#4a2c17"/>
-        <rect x="3" y="11" width="2" height="1" fill="#c8412b"/>
-        <rect x="5" y="11" width="6" height="1" fill="#2e8b57"/>
-        <rect x="11" y="11" width="2" height="1" fill="#c8412b"/>
-        <rect x="13" y="11" width="1" height="1" fill="#4a2c17"/>
-        <rect x="1" y="12" width="1" height="1" fill="#4a2c17"/>
-        <rect x="2" y="12" width="12" height="1" fill="#c8412b"/>
-        <rect x="14" y="12" width="1" height="1" fill="#4a2c17"/>
-        <rect x="1" y="13" width="1" height="1" fill="#4a2c17"/>
-        <rect x="2" y="13" width="1" height="1" fill="#c8412b"/>
-        <rect x="3" y="13" width="10" height="1" fill="#2e8b57"/>
-        <rect x="13" y="13" width="1" height="1" fill="#c8412b"/>
-        <rect x="14" y="13" width="1" height="1" fill="#4a2c17"/>
-        <rect x="1" y="14" width="1" height="1" fill="#4a2c17"/>
-        <rect x="2" y="14" width="12" height="1" fill="#c8412b"/>
-        <rect x="14" y="14" width="1" height="1" fill="#4a2c17"/>
-        <rect x="1" y="15" width="1" height="1" fill="#4a2c17"/>
-        <rect x="2" y="15" width="1" height="1" fill="#c8412b"/>
-        <rect x="3" y="15" width="10" height="1" fill="#f2c14e"/>
-        <rect x="13" y="15" width="1" height="1" fill="#c8412b"/>
-        <rect x="14" y="15" width="1" height="1" fill="#4a2c17"/>
-        <rect x="1" y="16" width="14" height="1" fill="#4a2c17"/>
-      <rect class="amigo-eyelid" opacity="0" x="5" y="6" width="2" height="2" fill="#f1c27d"/>
-      <rect class="amigo-eyelid" opacity="0" x="9" y="6" width="2" height="2" fill="#f1c27d"/>
-      <g class="step-a" id="stepA"><rect x="3" y="17" width="3" height="2" fill="#4a2c17"/><rect x="10" y="17" width="3" height="2" fill="#4a2c17"/></g>
-      <g class="step-b" id="stepB" opacity="0"><rect x="4" y="17" width="3" height="2" fill="#4a2c17"/><rect x="9" y="17" width="3" height="2" fill="#4a2c17"/></g>
-    </svg>
-  </div>
-
-  <p class="repo"><b>github.com</b>/vstorm-co/agenticos</p>
+  <div id="blobs"></div>
 </div>
 <script>
-  // ?frame=N&of=M freezes the card on one exact frame of the loop.
-  const q = new URLSearchParams(location.search);
-  if (q.has("frame")) {
-    const of = Number(q.get("of") || 48);
-    const f = Number(q.get("frame")) % of;
-    const t = f / of;
-    const half = of / 2;
-    const tri = f < half ? f / half : (of - f) / half;   // 0 -> 1 -> 0
-    const css = getComputedStyle(document.documentElement);
-    const travel = parseFloat(css.getPropertyValue("--travel"));
-    const step = Math.floor(f / 2) % 2 === 0;            // one pose every two frames
-    const scene = Math.min(2, Math.floor(t * 3));
-    document.body.classList.add("frozen");
-
-    document.getElementById("walker").style.transform = `translateX(${Math.round(tri * travel)}px)`;
-    document.getElementById("sprite").style.transform = step ? "translateY(0)" : "translateY(-6px)";
-    document.getElementById("stepA").style.opacity = step ? "1" : "0";
-    document.getElementById("stepB").style.opacity = step ? "0" : "1";
-
-    document.querySelectorAll(".tag b").forEach((el, i) => {
-      el.style.color = i === scene ? "var(--sun)" : "var(--ink)";
-    });
-    document.querySelectorAll(".star").forEach((el) => {
-      const delay = -parseFloat(el.style.animationDelay) / 5.28;
-      const p = (t + delay) % 1;
-      el.style.opacity = p >= 0.34 && p < 0.63 ? "0.75" : "0";
-    });
-    [["bird1", 0], ["bird2", 0.5]].forEach(([id, phase]) => {
-      const p = (t + phase) % 1;
-      document.getElementById(id).style.transform = `translateX(${Math.round(-p * 1304)}px)`;
-    });
-  }
+const BLOBS = [
+  // [left, top, size, base, light, dark, look, bob s, bob delay, blink s, blink delay] - on the scenes or in the gaps, never on a label
+  [838, 214, 92, "#f28ab8", "#ffd0e4", "#c25587", 1, 3, 0, 6, -1.0],
+  [846, 18, 70, "#2fc39a", "#a3f2d6", "#16805f", -1, 2, -0.7, 3, -2.2],
+  [952, 346, 86, "#5b6cf0", "#b5bdff", "#3442b8", -1, 3, -1.4, 6, -3.9],
+  [968, 556, 72, "#f3a93c", "#ffe0a3", "#bf7414", -1, 2, -1.2, 6, -5.1],
+  [944, 128, 56, "#5cc9f5", "#c5ecff", "#2a8fc0", 1, 3, -2.1, 3, -0.4],
+  [896, 438, 56, "#9b7cf2", "#d6c8ff", "#6a4bc4", 1, 2, -0.3, 6, -2.9],
+];
+const path = "M84.91 51.44C84.91 71.47 72.07 83.63 50.89 83.63C29.72 83.63 16.87 71.47 16.87 51.44C16.87 31.41 29.72 19.26 50.89 19.26C72.07 19.26 84.91 31.41 84.91 51.44Z";
+const host = document.getElementById("blobs");
+BLOBS.forEach(([x, y, s, base, light, dark, look, bob, bobd, blink, blinkd], i) => {
+  host.insertAdjacentHTML("beforeend", `
+  <div class="b" style="left:${x}px;top:${y}px;width:${s}px;height:${s}px;--bob:${bob}s;--bobd:${bobd}s;--blink:${blink}s;--blinkd:${blinkd}s">
+    <svg viewBox="16 18 70 67">
+      <defs><radialGradient id="g${i}" cx="38%" cy="30%" r="80%">
+        <stop offset="0" stop-color="${light}"/><stop offset="0.45" stop-color="${base}"/><stop offset="1" stop-color="${dark}"/>
+      </radialGradient></defs>
+      <path d="${path}" fill="url(#g${i})"/>
+      <ellipse cx="37" cy="31" rx="9" ry="6" fill="#fff" opacity="0.55" transform="rotate(-25 37 31)"/>
+      <g fill="#1d1a2b" transform="translate(${look * 3} 2)"><g class="eyes">
+        <rect x="40.5" y="40" width="7" height="15" rx="3.5"/><rect x="56.5" y="40" width="7" height="15" rx="3.5"/>
+      </g></g>
+    </svg>
+  </div>`);
+});
 </script>
 </body>
 </html>

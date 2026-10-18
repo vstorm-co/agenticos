@@ -1,5 +1,6 @@
 "use client";
 
+import type { Visibility } from "@/types/sharing";
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -9,6 +10,7 @@ import { PAGE_SIZE } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { Skill, SkillList, SkillResource } from "@/types/providers";
+import { useCreatedToast } from "./use-created-toast";
 
 export interface NewSkill {
   name: string;
@@ -16,6 +18,10 @@ export interface NewSkill {
   content: string;
   /** A grouping label for the listing; omitted means uncategorized. */
   category?: string | null;
+  /** Who it reaches (#2072): the organization unless narrowed. */
+  visibility?: Visibility;
+  group_ids?: string[];
+  user_ids?: string[];
 }
 
 /** How the server may order a listing. */
@@ -30,6 +36,8 @@ export interface SkillQuery {
   sort?: SkillSort;
   skip?: number;
   limit?: number;
+  /** Only what is shared with this group (#2124); null for every group. */
+  groupId?: string | null;
 }
 
 /**
@@ -49,13 +57,22 @@ export function useSkills({
   sort = "name",
   skip = 0,
   limit = PAGE_SIZE,
+  groupId = null,
 }: SkillQuery = {}) {
   const tErrors = useTranslations("errors");
   const t = useTranslations("skills");
+  const created = useCreatedToast();
   const queryClient = useQueryClient();
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: qk.skills.list({ search, category: (categories ?? []).join(","), sort, skip, limit }),
+    queryKey: qk.skills.list({
+      search,
+      category: (categories ?? []).join(","),
+      sort,
+      skip,
+      limit,
+      groupId: groupId ?? "",
+    }),
     // The query string is built by hand because `category` repeats - the
     // server reads `?category=devops&category=data` as "either shelf" - and
     // `apiClient`'s params take one value per name.
@@ -66,6 +83,7 @@ export function useSkills({
       params.set("sort", sort);
       params.set("skip", String(skip));
       params.set("limit", String(limit));
+      if (groupId) params.set("group_id", groupId);
       return apiClient.get<SkillList>(`/skills?${params}`);
     },
     placeholderData: (previous) => previous,
@@ -88,7 +106,7 @@ export function useSkills({
     mutationFn: (skill: NewSkill) => apiClient.post<Skill>("/skills", skill),
     onSuccess: async (skill) => {
       await invalidate();
-      toast.success(t("created", { name: skill.name }));
+      created(t("created", { name: skill.name }), { kind: "skill", id: skill.id }, skill.name);
     },
   });
 

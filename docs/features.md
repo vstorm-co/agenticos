@@ -83,10 +83,10 @@ whatever its instructions say.
 | The agent can… | Switch on |
 |---|---|
 | **Answer from what your company knows** — your documents, your written procedures, and whatever was attached to this conversation | Knowledge search · Skills · Context |
-| **Remember, and look it up** — keep notes across conversations, recall a fact by meaning, or find what was actually said in a past conversation and read it back | Memory files · Memory (mem0) · Conversation search |
-| **Go and find out** — search the web, read one page properly, or drive a real browser through a site that needs clicking | Web search · Web fetch · Browser automation |
-| **Do the work, not describe it** — run Python over a file, keep a workspace with a shell, draw a chart, generate an image | Run Python · Files & shell · Charts · Image generation |
-| **Handle work too big for one answer** — delegate to specialists, keep a task list, think longer before replying, carry a long conversation without losing the start of it | Delegation · Planning · Thinking · Context management |
+| **Remember, and look it up** — keep notes across conversations, recall a fact by meaning, or find what was actually said in a past conversation and read it back | Memory · Memory (mem0) · Past conversations |
+| **Go and find out** — search the web, read one page properly, or drive a real browser through a site that needs clicking | Web search · Read web pages · Web browser |
+| **Do the work, not describe it** — run Python over a file, keep a workspace with a shell, draw a chart, generate an image | Calculations · Sandbox · Charts · Image generation |
+| **Handle work too big for one answer** — delegate to specialists, keep a task list, think longer before replying, carry a long conversation without losing the start of it | Delegation · Planning · Thinking · Long conversations |
 | **Stay inside the lines** — redact or block what must not pass, cap what one tool may return, know what today's date is | Guardrails · Tool output limits · Date and time |
 
 Each one carries its own settings, its own permission scope and — where it acts
@@ -114,11 +114,12 @@ endpoint.
 Connect a server and its tools appear in the Toolbox, namespaced so two servers
 offering `search` do not collide.
 
-**5,802 servers are in the picker.** 99 of the common ones — GitHub, Linear,
-Notion, Slack, Stripe, Postgres — arrive with their OAuth flows already wired,
-because somebody here connected each of them and checked it. The other 5,703 are
-mirrored from the public MCP registry and searchable by name: nobody here
-reviewed those, and the list says which kind a row is.
+**4,700+ servers are in the gallery** - the count the MCP servers page shows.
+The common ones - GitHub, Linear, Notion, Slack, Stripe, Postgres - arrive with
+their OAuth flows already wired, because somebody here connected each of them
+and checked it. The rest are mirrored from the public MCP registry and
+searchable by name: nobody here reviewed those, the list says which kind a row
+is, and a listing a check found dead, broken or duplicated is left out.
 
 !!! info
 
@@ -183,10 +184,11 @@ Checked **before** each model request, not tallied afterwards.
 A run that fails still records what it spent, because a budget that only counts
 successes is not a budget. Alerts fire at thresholds you set, per agent.
 
-## Approval for anything side-effecting
+## Approval where you want a person
 
-A tool that changes the outside world parks the run and waits for a person. Set
-it per capability, override it per tool.
+Choose which tools wait for a person before they run: per capability, overridden
+per tool, and per MCP server. Nothing waits until you ask, so a run in a channel
+or on a schedule is never parked on a gate nobody chose.
 
 An approval is decided once. A second decision on a decided approval is refused —
 which sounds obvious until you have seen the race that makes it necessary.

@@ -9,7 +9,19 @@ import { BrandingImageField } from "@/components/admin/branding-image-field";
 import { DictationAudioCard } from "@/components/admin/dictation-audio-card";
 import { DomainListField } from "@/components/admin/domain-list-field";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Button, FormField, Input, ListCard, Switch, Textarea } from "@/components/ui";
+import {
+  Button,
+  FormField,
+  Input,
+  ListCard,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Textarea,
+} from "@/components/ui";
 import {
   useDeploymentSettings,
   type DeploymentSettingsPatch,
@@ -226,19 +238,22 @@ export default function DeploymentSettingsPage() {
             htmlFor="signup-mode"
             description={t(`accessMode_${draft.signup_mode ?? "open"}`)}
           >
-            <select
-              id="signup-mode"
+            <Select
               value={draft.signup_mode ?? "open"}
-              onChange={(event) => set("signup_mode", event.target.value as SignupMode)}
+              onValueChange={(value) => set("signup_mode", value as SignupMode)}
               disabled={save.isPending}
-              className="border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 text-sm"
             >
-              {SIGNUP_MODES.map((mode) => (
-                <option key={mode} value={mode}>
-                  {t(`accessModeLabel_${mode}`)}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="signup-mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SIGNUP_MODES.map((mode) => (
+                  <SelectItem key={mode} value={mode}>
+                    {t(`accessModeLabel_${mode}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </FormField>
 
           <FormField
@@ -319,19 +334,22 @@ export default function DeploymentSettingsPage() {
           </FormField>
 
           <FormField label={t("noticeLevel")} htmlFor="announcement-level">
-            <select
-              id="announcement-level"
+            <Select
               value={draft.announcement_level ?? "info"}
-              onChange={(event) => set("announcement_level", event.target.value as NoticeLevel)}
+              onValueChange={(value) => set("announcement_level", value as NoticeLevel)}
               disabled={save.isPending}
-              className="border-border bg-background text-foreground h-10 w-full rounded-lg border px-3 text-sm"
             >
-              {NOTICE_LEVELS.map((level) => (
-                <option key={level} value={level}>
-                  {t(`noticeLevelLabel_${level}`)}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="announcement-level">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {NOTICE_LEVELS.map((level) => (
+                  <SelectItem key={level} value={level}>
+                    {t(`noticeLevelLabel_${level}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </FormField>
 
           <div className="border-border flex items-start justify-between gap-4 rounded-xl border p-4">

@@ -18,6 +18,7 @@ vi.mock("@/lib/api-client", async () => {
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const DELEGATION: CapabilityCatalogEntry = {
+  recommended: null,
   id: "subagents",
   name: "Delegation",
   category: "orchestration",

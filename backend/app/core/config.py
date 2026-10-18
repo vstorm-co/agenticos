@@ -281,6 +281,18 @@ class Settings(BaseSettings):
     # wrong hour. Long enough that a decision is never taken away from someone
     # who was going to make it; short enough that the queue has a ceiling.
     APPROVAL_EXPIRY_HOURS: int = 72
+    # How long an agent's unanswered `ask_user` question keeps its run parked
+    # before the run is ended with the question expired (#2064).
+    QUESTION_EXPIRY_HOURS: int = 24
+    # How long a chat turn goes on after the person who asked it has left - a
+    # closed tab, a quit app, a dropped connection - before it is stopped (#2108).
+    # The answer lands in the conversation and they are notified, so this bounds
+    # spend on an answer that may never be read rather than gating the feature.
+    # Long enough for a research or browsing task; a run still has its budget.
+    # At most two hours, the `RUNNING_HORIZON` past which the conversation list
+    # stops calling a run at work: a longer turn would go on unseen, and someone
+    # reopening the thread could ask again over an answer still being written.
+    CHAT_DETACHED_TURN_MINUTES: float = Field(default=60.0, gt=0, le=120)
     # How long a run may sit `running` before the sweep decides its process
     # died. The row is committed before the model is called (#12), so a worker
     # killed mid-run leaves it `running` with nothing left to finish it - in
@@ -573,6 +585,11 @@ class Settings(BaseSettings):
     # so the ceiling is about what one integration can do to a worker, not about
     # what a stranger can reach: this surface is authenticated.
     RATE_LIMIT_ML_PER_MINUTE: int = 30
+    # How many requests one organization API key may make per minute, across
+    # every public route. A key is a program, not a person, so the bound is on
+    # what one integration can do to the deployment; a run or an ML call is
+    # additionally counted against its own, smaller limit.
+    RATE_LIMIT_API_KEY_PER_MINUTE: int = 600
     # Composer dictations per person per minute (#1797). Its own bucket so a person
     # dictating does not spend an integration's ML quota, or the other way round.
     RATE_LIMIT_DICTATION_PER_MINUTE: int = 10
@@ -752,15 +769,19 @@ class Settings(BaseSettings):
     # as `MEM0_ALLOWED_HOSTS` does. Empty refuses browser automation outright.
     BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
 
-    # Where a browsing agent's decision model may run, beyond the vendor's own
-    # endpoint. `decision_base_url` is in the agent spec and the vault key is
-    # unsealed and handed to that address, so an author who may *bind* a shared
-    # TypeSafe key - without being able to read it - could point it at a server
-    # of their own and collect it from the request header. This is
-    # `MEM0_ALLOWED_HOSTS` again, one field along, and the answer is the same
-    # one. Empty allows only the vendor endpoint, which is the default and the
-    # configuration nobody has to think about.
-    DECISION_MODEL_ALLOWED_HOSTS: list[str] = []
+    # The browser a person signs in to a site with from Settings (#2129). An
+    # agent's browser is named in its spec; signing in from Settings involves no
+    # agent, so the deployment names the one it runs - the compose `browser`
+    # service, `http://browser:9222`. Its host has to be in
+    # `BROWSER_CDP_ALLOWED_HOSTS` like any agent's. Empty hides the option.
+    BROWSER_SIGN_IN_CDP_URL: str = ""
+
+    # The proxy the deployment's own browser reaches every site through - the
+    # compose `browser-egress` service, `http://browser-egress:3128`, which refuses
+    # anything inside the deployment's network and connects to the address it
+    # checked. Used by every browse that has no proxy of the organization's own
+    # and is not on a hosted browser; empty sends the browser straight out.
+    BROWSER_EGRESS_PROXY: str = ""
 
     @field_validator("CORS_ORIGINS")
     @classmethod

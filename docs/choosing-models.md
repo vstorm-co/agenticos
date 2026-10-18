@@ -68,6 +68,15 @@ decision as well as the cheaper one.
     residency requires it or when your volume genuinely dwarfs the hardware —
     not to save money on forty conversations a day.
 
+**Broken tool calls are repaired, and counted.** Open-weight models send a
+tool call with malformed JSON - a trailing comma, single quotes, an object cut
+short - far more often than frontier ones. Every agent repairs the syntax before
+the arguments are validated, so a broken call reaches its tool on the first
+attempt instead of costing a retry; a missing field or a wrong type still fails
+validation, and a repaired call still goes through approval and guardrails. Each
+run counts its repairs, shown on the run and per model on the dashboard's model
+card - a model that needs many is one to reconsider.
+
 ## Putting a gateway in front
 
 Three of the 27 are not model vendors but routers: **OpenRouter**, **Vercel AI
@@ -94,7 +103,7 @@ So before changing the model, check three things:
 - **`default_top_k` on the knowledge capability.** Eight chunks where three
   would do is the most common quiet overspend.
 - **Instructions that repeat themselves.** They are read on every single turn.
-- **[Context management](reference/capabilities.md)**, which keeps a long
+- **[Long conversations](reference/capabilities.md)**, which keeps a long
   conversation inside the window instead of re-sending all of it.
 
 [Budgets](governance.md#budgets) are the backstop, not the plan: a budget stops a

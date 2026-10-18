@@ -1,5 +1,5 @@
 ---
-source_sha: "54c544558f40"
+source_sha: "c73cac16d216"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team i Enterprise: agenci na własność"
 description: "Claude Team i Enterprise a AgenticOS: agenci self-hosted na Claude lub dowolnym modelu, budżety per agent, zatwierdzenia, logi audytu, bez opłaty za stanowisko."
@@ -41,7 +41,7 @@ Plany Claude korzystają wyłącznie z modeli Claude. AgenticOS sięga do [27 pr
 
 ### Zatwierdzenie przez kogoś innego niż zlecający { #approval-by-someone-other-than-the-requester }
 
-W Cowork osoba uruchamiająca zadanie zatwierdza akcje zapisu albo włącza automatyczne zatwierdzanie. Strony Anthropic nie opisują zatwierdzenia kierowanego do kogoś innego. W AgenticOS narzędzie capability ze skutkami ubocznymi [wstrzymuje run](../governance.md#approvals). [Alert](../governance.md#alerts) trafia do wybranych przez Ciebie członków, a rozstrzygnąć go może tylko ktoś z `approvals:decide`, i to jeden raz.
+W Cowork osoba uruchamiająca zadanie zatwierdza akcje zapisu albo włącza automatyczne zatwierdzanie. Strony Anthropic nie opisują zatwierdzenia kierowanego do kogoś innego. W AgenticOS narzędzie, które autor agenta objął bramką, [wstrzymuje run](../governance.md#approvals). [Alert](../governance.md#alerts) trafia do wybranych przez Ciebie członków, a rozstrzygnąć go może tylko ktoś z `approvals:decide`, i to jeden raz.
 
 ### Koszt per agent, a nie per stanowisko { #cost-per-agent-not-per-seat }
 

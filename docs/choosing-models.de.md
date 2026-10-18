@@ -1,5 +1,5 @@
 ---
-source_sha: "5d457ec305b9"
+source_sha: "365083b43da8"
 ---
 
 # Ein Modell wählen { #choosing-a-model }
@@ -75,6 +75,17 @@ technische Entscheidung, nicht nur die günstigere.
     Volumen die Hardware wirklich weit übersteigt — nicht, um bei vierzig
     Unterhaltungen am Tag Geld zu sparen.
 
+**Kaputte Tool-Aufrufe werden repariert und gezählt.** Modelle mit offenen
+Gewichten senden einen Tool-Aufruf mit fehlerhaftem JSON - ein Komma am Ende,
+einfache Anführungszeichen, ein abgeschnittenes Objekt - weit häufiger als
+Frontier-Modelle. Jeder Agent repariert die Syntax, bevor die Argumente validiert
+werden, sodass ein kaputter Aufruf sein Tool beim ersten Versuch erreicht, statt
+eine Wiederholung zu kosten; ein fehlendes Feld oder ein falscher Typ scheitert
+weiterhin an der Validierung, und ein reparierter Aufruf durchläuft weiterhin
+Freigabe und Guardrails. Jeder Run zählt seine Reparaturen, sichtbar am Run und
+pro Modell auf der Modellkarte des Dashboards - ein Modell, das viele braucht,
+ist eines, das man überdenken sollte.
+
 ## Ein Gateway davorsetzen { #putting-a-gateway-in-front }
 
 Drei der 27 sind keine Modellanbieter, sondern Router: **OpenRouter**, **Vercel AI
@@ -102,7 +113,7 @@ Prüfen Sie also drei Dinge, bevor Sie das Modell wechseln:
 - **`default_top_k` bei der Knowledge-Capability.** Acht Chunks, wo drei genügen
   würden, sind die häufigste stille Mehrausgabe.
 - **Instruktionen, die sich wiederholen.** Sie werden bei jedem einzelnen Zug gelesen.
-- **[Kontextverwaltung](reference/capabilities.md)**, die eine lange Unterhaltung
+- **[Lange Gespräche](reference/capabilities.md)**, die eine lange Unterhaltung
   im Fenster hält, statt sie vollständig erneut zu senden.
 
 [Budgets](governance.md#budgets) sind das Auffangnetz, nicht der Plan: Ein Budget

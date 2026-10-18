@@ -1,5 +1,5 @@
 ---
-source_sha: "e316c5cbceb6"
+source_sha: "268a42ff6540"
 ---
 
 # Funciones { #features }
@@ -90,10 +90,10 @@ capability que está desactivada, diga lo que diga en sus instrucciones.
 | El agent puede… | Qué activar |
 |---|---|
 | **Responder a partir de lo que tu empresa sabe** — tus documentos, tus procedimientos escritos y lo que se haya adjuntado a esta conversación | Knowledge search · Skills · Context |
-| **Recordar, y consultarlo** — llevar notas de una conversación a otra, recuperar un dato por su significado, o encontrar lo que se dijo realmente en una conversación pasada y releerlo | Memory files · Memory (mem0) · Conversation search |
-| **Ir a averiguarlo** — buscar en la web, leer una página como es debido, o conducir un navegador real por un sitio que exige clics | Web search · Web fetch · Browser automation |
-| **Hacer el trabajo, no describirlo** — ejecutar Python sobre un archivo, mantener un workspace con una shell, dibujar un gráfico, generar una imagen | Run Python · Files & shell · Charts · Image generation |
-| **Afrontar trabajo demasiado grande para una sola respuesta** — delegar en especialistas, llevar una lista de tareas, pensar más antes de responder, sostener una conversación larga sin perder su principio | Delegation · Planning · Thinking · Context management |
+| **Recordar, y consultarlo** — llevar notas de una conversación a otra, recuperar un dato por su significado, o encontrar lo que se dijo realmente en una conversación pasada y releerlo | Memory · Memory (mem0) · Past conversations |
+| **Ir a averiguarlo** — buscar en la web, leer una página como es debido, o conducir un navegador real por un sitio que exige clics | Web search · Read web pages · Web browser |
+| **Hacer el trabajo, no describirlo** — ejecutar Python sobre un archivo, mantener un workspace con una shell, dibujar un gráfico, generar una imagen | Calculations · Sandbox · Charts · Image generation |
+| **Afrontar trabajo demasiado grande para una sola respuesta** — delegar en especialistas, llevar una lista de tareas, pensar más antes de responder, sostener una conversación larga sin perder su principio | Delegation · Planning · Thinking · Long conversations |
 | **No salirse de la raya** — censurar o bloquear lo que no debe pasar, limitar lo que una tool puede devolver, saber qué día es hoy | Guardrails · Tool output limits · Date and time |
 
 Cada una trae sus propios ajustes, su propio scope de permisos y — cuando actúa
@@ -121,12 +121,13 @@ devuelve jamás.
 Conecta un servidor y sus tools aparecen en la Toolbox, con espacio de nombres
 propio para que dos servidores que ofrecen `search` no choquen.
 
-**Hay 5.802 servidores en el selector.** 99 de los más habituales — GitHub,
-Linear, Notion, Slack, Stripe, Postgres — llegan con sus flujos de OAuth ya
-cableados, porque aquí alguien conectó cada uno de ellos y lo comprobó. Los
-otros 5.703 están replicados del registro público de MCP y se pueden buscar por
-nombre: a esos no los ha revisado nadie de aquí, y la lista dice de qué tipo es
-cada fila.
+**Hay más de 4.700 servidores en la galería**: la cifra que muestra la página
+MCP servers. Los más habituales - GitHub, Linear, Notion, Slack, Stripe,
+Postgres - llegan con sus flujos de OAuth ya cableados, porque aquí alguien
+conectó cada uno de ellos y lo comprobó. El resto están replicados del registro
+público de MCP y se pueden buscar por nombre: a esos no los ha revisado nadie de
+aquí, la lista dice de qué tipo es cada fila, y una entrada que una comprobación
+encontró caída, rota o duplicada no aparece.
 
 !!! info
 
@@ -198,10 +199,11 @@ Un run que falla registra igualmente lo que gastó, porque un budget que solo
 cuenta los éxitos no es un budget. Las alertas se disparan en los umbrales que tú
 fijes, por agent.
 
-## Aprobación para cualquier cosa con efectos secundarios { #approval-for-anything-side-effecting }
+## Aprobación donde quieras a una persona { #approval-where-you-want-a-person }
 
-Una tool que cambia el mundo exterior aparca el run y espera a una persona.
-Configúralo por capability, anúlalo por tool.
+Elige qué tools esperan a una persona antes de ejecutarse: por capability, anulado
+por tool, y por servidor MCP. Nada espera hasta que lo pidas, así que un run en un
+canal o en un horario nunca se aparca en una puerta que nadie eligió.
 
 Una aprobación se decide una sola vez. Una segunda decisión sobre una aprobación
 ya decidida se rechaza — lo que suena obvio hasta que has visto la race condition

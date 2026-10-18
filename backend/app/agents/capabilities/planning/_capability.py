@@ -345,6 +345,22 @@ def still_open(items: list[dict[str, Any]] | None) -> list[dict[str, Any]] | Non
     return items
 
 
+def put_down(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The checklist of a run that ended without finishing: nothing in progress.
+
+    A step is `in_progress` because a run is working it. A run that failed, was
+    stopped or ran out of budget is working nothing, and a step recorded that way
+    reached the next turn as work under way - the tail reminder and `read_plan`
+    told a fresh run it was already doing something nobody was doing (#2149). Such
+    a step goes back to `pending`: still to do, not being done. Every other status
+    is the plan's own and stays.
+    """
+    return [
+        {**item, "status": "pending"} if item.get("status") == "in_progress" else item
+        for item in items
+    ]
+
+
 async def dump_plan(store: PlanStore) -> list[dict[str, Any]]:
     """The store's steps as JSON, for `PausedRunState.plan` and for the conversation.
 

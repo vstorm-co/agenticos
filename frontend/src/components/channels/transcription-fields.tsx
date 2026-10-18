@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { ProviderIcon } from "@/components/vault/provider-icon";
 import { useSpeechToTextProviders } from "@/hooks/use-model-providers";
 import type { ChannelPlatform, InheritedSpeechToText } from "@/types/channels";
 
@@ -186,7 +187,10 @@ export function TranscriptionFields({
                     : t("transcriptionProviderNoKey", { name: entry.name });
                   return (
                     <SelectItem key={entry.provider} value={entry.provider} textValue={label}>
-                      {label}
+                      <span className="flex items-center gap-2">
+                        <ProviderIcon provider={entry.provider} className="h-3.5 w-3.5" />
+                        {label}
+                      </span>
                     </SelectItem>
                   );
                 })}

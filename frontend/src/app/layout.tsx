@@ -6,6 +6,7 @@ import { BrandingProvider } from "@/components/branding/branding-provider";
 import { PublicConfigProvider } from "@/components/public-config/public-config-provider";
 import { MotionScript } from "@/components/theme/motion-script";
 import { readBranding } from "@/lib/branding-server";
+import { LOGO_VERSION } from "@/lib/logo.generated";
 import { readPublicConfig } from "@/lib/public-config";
 import { SITE, siteOrigin } from "@/lib/seo";
 
@@ -177,10 +178,13 @@ export async function generateMetadata(): Promise<Metadata> {
       // whatever the operator uploaded, and claiming 32x32 PNG for a 512px WebP is
       // how a browser rejects an icon on a Content-Type mismatch. /icon.tsx and
       // /apple-icon.tsx do render PNGs via next/og, so those keep their declaration.
+      // The built-in ones carry the mark's version: browsers keep a favicon
+      // long past any cache header, so a new mark under the same URL stays the
+      // old one in every tab that ever opened the console.
       icon: faviconUrl
         ? [{ url: faviconUrl }]
-        : [{ url: "/icon", sizes: "32x32", type: "image/png" }],
-      apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
+        : [{ url: `/icon?v=${LOGO_VERSION}`, sizes: "32x32", type: "image/png" }],
+      apple: [{ url: `/apple-icon?v=${LOGO_VERSION}`, sizes: "180x180", type: "image/png" }],
     },
     manifest: "/manifest.webmanifest",
   };
@@ -193,6 +197,9 @@ export const viewport: Viewport = {
   // Required for env(safe-area-inset-*) to evaluate non-zero on iOS notches -
   // used by the mobile bottom tab bar.
   viewportFit: "cover",
+  // An on-screen keyboard shrinks the layout rather than sliding over it, so
+  // the chat's composer stays above it where the browser supports it (#2066).
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#F5F2E8" },
     { media: "(prefers-color-scheme: dark)", color: SITE.themeColor },

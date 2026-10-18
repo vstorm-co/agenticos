@@ -2,7 +2,7 @@
 source_sha: "7cb876b5ef26"
 ---
 
-<!-- source_sha: 7cb876b5ef26 -->
+<!-- source_sha: 6ba9e8a85274 -->
 
 # Współtworzenie AgenticOS
 
@@ -40,7 +40,7 @@ lokalnie jest w porządku, a na produkcji zostaje odrzucone.
 
 ## Uruchamianie testów
 
-Pełny obraz jest w [`CLAUDE.md`](CLAUDE.md#testing). Krótka wersja:
+Pełny obraz jest w [`AGENTS.md`](AGENTS.md#testing). Krótka wersja:
 
 ```bash
 make test               # backend, with the coverage gate

@@ -41,6 +41,12 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     has_webhook_secret: true,
     has_slack_signing_secret: false,
     has_slack_app_token: false,
+    has_command_token: false,
+    command_url: null,
+    ack_reaction: null,
+    stream_answers: true,
+    step_display: "timeline",
+    rate_answers: true,
     connection: null,
     transcribe_voice_notes: true,
     speech_to_text_provider: null,
@@ -264,7 +270,7 @@ describe("the channels page", () => {
     vi.mocked(apiClient.post).mockResolvedValue(bot());
     await mount();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Register a channel" }));
+    await userEvent.click((await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!);
     await userEvent.type(screen.getByLabelText(/Name/), "Acme Support");
     await userEvent.type(screen.getByLabelText(/Bot token/), "a-long-enough-token");
     await userEvent.type(screen.getByLabelText(/Server URL/), "https://mattermost.acme.com");
@@ -276,6 +282,10 @@ describe("the channels page", () => {
         name: "Acme Support",
         token: "a-long-enough-token",
         api_base_url: "https://mattermost.acme.com",
+        ack_reaction: null,
+        stream_answers: true,
+        step_display: "timeline",
+        rate_answers: true,
       }),
     );
   });
@@ -323,7 +333,7 @@ describe("the channels page", () => {
     serve([]);
     await mount();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Register a channel" }));
+    await userEvent.click((await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!);
     await userEvent.type(screen.getByLabelText(/Name/), "Acme Support");
     await userEvent.type(screen.getByLabelText(/Bot token/), "a-long-enough-token");
 
@@ -334,7 +344,7 @@ describe("the channels page", () => {
     serve([]);
     await mount();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Register a channel" }));
+    await userEvent.click((await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!);
     await userEvent.click(screen.getByRole("button", { name: "Slack" }));
 
     expect(screen.getByLabelText(/Signing secret/)).toBeVisible();
@@ -348,7 +358,7 @@ describe("the channels page", () => {
     vi.mocked(apiClient.post).mockResolvedValue(bot());
     await mount();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Register a channel" }));
+    await userEvent.click((await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!);
     await userEvent.type(screen.getByLabelText(/Server URL/), "https://mattermost.acme.com");
     await userEvent.click(screen.getByRole("button", { name: "Slack" }));
     await userEvent.type(screen.getByLabelText(/Name/), "Acme Slack");
@@ -360,6 +370,12 @@ describe("the channels page", () => {
         platform: "slack",
         name: "Acme Slack",
         token: "xoxb-a-long-token",
+        // Slack calls this deployment unless told the deployment connects out.
+        webhook_mode: true,
+        ack_reaction: null,
+        stream_answers: true,
+        step_display: "timeline",
+        rate_answers: true,
       }),
     );
   });
@@ -623,5 +639,33 @@ describe("the channels page", () => {
 
     expect(await screen.findByText(/channels:manage/)).toBeVisible();
     expect(apiClient.get).not.toHaveBeenCalled();
+  });
+
+  it("connects a Slack bot out to Slack, with the app token, when there is no public address", async () => {
+    serve([]);
+    vi.mocked(apiClient.post).mockResolvedValue(bot());
+    await mount();
+    await userEvent.click((await screen.findAllByRole("button", { name: "Add channel" })).at(-1)!);
+    await userEvent.click(screen.getByRole("button", { name: "Slack" }));
+    await userEvent.click(screen.getByRole("radio", { name: /AgenticOS connects to Slack/ }));
+    await userEvent.type(screen.getByLabelText(/Name/), "Acme Slack");
+    await userEvent.type(screen.getByLabelText(/Bot token/), "xoxb-a-long-token");
+    await userEvent.type(screen.getByLabelText(/App-level token/), "xapp-1-token");
+    // The reaction waits under More options, picked from a list.
+    await userEvent.click(screen.getByRole("button", { name: "More options" }));
+    await userEvent.click(screen.getByRole("combobox", { name: /React to a question with/ }));
+    await userEvent.click(await screen.findByRole("option", { name: /eyes/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Register" }));
+
+    await waitFor(() =>
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/channels/bots",
+        expect.objectContaining({
+          webhook_mode: false,
+          slack_app_token: "xapp-1-token",
+          ack_reaction: "eyes",
+        }),
+      ),
+    );
   });
 });

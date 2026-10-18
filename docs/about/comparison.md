@@ -17,7 +17,10 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | A company chat assistant, or agents your organization owns | Claude Team and Enterprise, ChatGPT Business and Enterprise | [Claude](claude-apps.md) · [ChatGPT](chatgpt.md) |
 | A builder inside a vendor's cloud suite | Microsoft Copilot Studio, Google Gemini Enterprise | [Copilot Studio](copilot-studio.md) · [Gemini Enterprise](gemini-enterprise.md) |
 | A self-hosted builder or automation tool | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
-| A teammate service in Slack or Teams | Viktor | [Viktor](viktor.md) |
+| An always-on AI teammate with its own computer | OpenAI dots, Grok Bot, Viktor | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) |
+| A vendor's platform or control plane for company agents | OpenAI Frontier, Microsoft Agent 365 | [Frontier](openai-frontier.md) · [Agent 365](microsoft-agent-365.md) |
+| A hosted agent runtime for developers | Claude Managed Agents | [Managed Agents](claude-managed-agents.md) |
+| An open-source personal agent | OpenClaw, NVIDIA NemoClaw | [OpenClaw](openclaw.md) |
 | A delivered enterprise platform | Wonderful | [Wonderful](wonderful.md) |
 | A coding agent, or a layer for everyone else | Claude Code, OpenAI Codex, OpenCode | [Claude Code](claude-code.md) · [Codex](codex.md) · [OpenCode](opencode.md) |
 
@@ -33,6 +36,12 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | Dify | A visual LLM app and workflow builder | Self-hosted or Dify Cloud | Modified Apache 2.0 with conditions | Many, including Ollama |
 | n8n | Workflow automation with AI agent nodes | Self-hosted or n8n Cloud | Sustainable Use License | Many, including Ollama |
 | Viktor | One AI teammate per Slack or Teams workspace | Viktor's cloud | Proprietary | OpenAI, Anthropic, Google, Kimi |
+| OpenAI dots | Always-on agents in ChatGPT, each with a cloud computer | OpenAI's cloud | Proprietary | OpenAI only |
+| Grok Bot | Named teammates on a shared cloud computer | xAI's cloud | Proprietary | Grok only |
+| OpenAI Frontier | A platform to manage enterprise AI coworkers | Locally, your cloud or OpenAI's | Proprietary | OpenAI |
+| Microsoft Agent 365 | A control plane over agents across Microsoft 365 | Microsoft's cloud | Proprietary | Through the agents it governs |
+| Claude Managed Agents | A hosted agent runtime for developers | Anthropic's cloud | Proprietary | Claude only |
+| OpenClaw / NemoClaw | An open-source personal agent; NVIDIA's enterprise distribution | Your machine or server | Open source | Many |
 | Wonderful | An enterprise AI platform with deployment teams | SaaS, single-tenant, your cloud or on-premises | Proprietary | Model-agnostic, routed per task |
 | Claude Code | A coding agent for developers | Developer machines, Anthropic cloud | Proprietary | Claude only |
 | OpenAI Codex | A coding agent for developers | Developer machines, OpenAI cloud | CLI Apache-2.0, cloud proprietary | OpenAI; the CLI also takes others |
@@ -54,6 +63,12 @@ Sovereignty here means four things you decide: where the product runs, which mod
 | Dify | Self-hosted or Dify Cloud | Many, including Ollama | Apache 2.0 with conditions: a multi-tenant service needs written permission, and the logo may not be changed | Sign-in: email; SSO on Enterprise · Audit: Enterprise · Spend: provider billing or Cloud message credits |
 | n8n | Self-hosted or n8n Cloud in Frankfurt | Many, including Ollama | Sustainable Use License: internal business, non-commercial or personal use; paid features need a licence key that contacts n8n's licence server daily | Sign-in: SSO on paid plans · Audit: log streaming on Enterprise · Spend: execution quotas per plan |
 | Viktor | Viktor's cloud, on AWS us-east-1 | OpenAI, Anthropic, Google and Kimi presets, or your own OpenRouter key | Proprietary | Sign-in: SAML SSO on Enterprise · Audit: audit logs on Enterprise · Spend: credit pool, limits tailored on Enterprise |
+| OpenAI dots | OpenAI's cloud; the Pro plan was not offered in the EEA, Switzerland or the UK at launch | OpenAI only | Proprietary | Sign-in: ChatGPT accounts · Audit: not stated for dots · Spend: included in the plan |
+| Grok Bot | xAI's cloud | Grok only | Proprietary | Sign-in: xAI or Cursor accounts · Audit: announced as coming · Spend: plan price, no stated cap |
+| OpenAI Frontier | Locally, your cloud or OpenAI's | OpenAI | Proprietary | Sign-in, audit and spend: not stated publicly; per-agent permissions and dashboards announced |
+| Microsoft Agent 365 | Microsoft's cloud | Through the agents it governs | Proprietary | Sign-in: Entra ID · Audit: Purview · Spend: Microsoft 365 licensing |
+| Claude Managed Agents | Anthropic's cloud | Claude only | Proprietary | Sign-in: Anthropic API keys · Audit: not stated · Spend: tokens plus a session-hour fee, organisation limits |
+| OpenClaw / NemoClaw | Your machine or server | Many | Open source; NemoClaw is NVIDIA's distribution | Sign-in, audit and access control: minimal in OpenClaw; added by NemoClaw |
 | Wonderful | Multi-tenant SaaS, single-tenant, your cloud, or air-gapped on-premises | Routed per task by the platform | Proprietary; agents and configuration export through its UI or API | Sign-in: not stated on its pages · Audit: audit logs in its AI Gateway · Spend: budget caps per team |
 
 Dify and n8n also run on your own servers with local models, and Wonderful offers air-gapped on-premises deployment. Among the products in this table, AgenticOS is the one where all four answers stay with you.
@@ -82,7 +97,7 @@ A comparison that hides its own gaps is an advertisement. Check these against yo
 - There is no evaluation harness and no trace dashboard. Ratings and run history exist. See [where it is not finished](index.md#where-this-one-is-not-finished).
 - There is no Microsoft Teams, WhatsApp, voice or email conversation channel.
 - There is no visual workflow canvas. Multi-step work uses delegation, planning and triggers.
-- Approval settings reach capability tools. MCP tools are gated per conversation, not per tool. See [what MCP does not get you](../mcp.md#what-mcp-does-not-get-you).
+- An MCP server's tools wait for approval by the server's own read-only marks, so a tool it mislabels as read-only runs unasked. See [what MCP does not get you](../mcp.md#what-mcp-does-not-get-you).
 - Deployment is Docker Compose on one host. There are no Kubernetes manifests.
 - You operate it, or you agree the operation with Vstorm or another partner.
 

@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from app.api.deps import Auth
+from app.api.public_api import PUBLIC
 from app.core.permissions import RESOURCE_PERMS, ROLE_PERMS, Perm
 from app.schemas.permissions import (
     MyPermissions,
@@ -18,7 +19,7 @@ from app.schemas.permissions import (
     RoleDefinition,
 )
 
-router = APIRouter()
+router = APIRouter(dependencies=[PUBLIC])
 
 
 @router.get("/me/permissions", response_model=MyPermissions)
@@ -26,6 +27,7 @@ async def get_my_permissions(ctx: Auth) -> Any:
     """Effective permissions for the caller in the active organization."""
     return MyPermissions(
         organization_id=str(ctx.organization_id),
+        user_id=str(ctx.user_id),
         role=ctx.role,
         is_app_admin=ctx.is_app_admin,
         permissions=[

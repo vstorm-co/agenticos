@@ -209,9 +209,11 @@ class TestTheDownRatedMarkerReachesTheRow:
             status="completed",
             input_tokens=10,
             output_tokens=5,
+            tool_args_repaired=0,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
             modality="text",
+            is_test=False,
             provider="openrouter",
             conversation_id=_CONVERSATION_ID,
         )
@@ -264,9 +266,11 @@ class TestTheDetailReadCarriesItsNeighbours:
             status="completed",
             input_tokens=10,
             output_tokens=5,
+            tool_args_repaired=0,
             cost_usd=Decimal("0.01"),
             cost_is_partial=False,
             modality="text",
+            is_test=False,
         )
         prev_id, next_id = uuid4(), uuid4()
         service = _service()

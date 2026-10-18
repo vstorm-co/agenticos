@@ -52,18 +52,18 @@ async def test_the_service_pages_and_reports_the_collection_total(
     captured: dict[str, object] = {}
 
     async def get_all(
-        _db: Any, *, collections: list[str], skip: int, limit: int
+        _db: Any, *, scopes: list[tuple[str, uuid.UUID | None]], skip: int, limit: int
     ) -> tuple[list[RAGDocument], int]:
-        captured.update(collections=collections, skip=skip, limit=limit)
+        captured.update(scopes=scopes, skip=skip, limit=limit)
         return page, 137
 
     monkeypatch.setattr(rag_document_repo, "get_all", get_all)
 
     result = await RAGDocumentService(db=cast("Any", None)).list_documents(
-        collections=["c1"], skip=50, limit=25
+        scopes=[("c1", None)], skip=50, limit=25
     )
 
-    assert captured == {"collections": ["c1"], "skip": 50, "limit": 25}
+    assert captured == {"scopes": [("c1", None)], "skip": 50, "limit": 25}
     assert len(result.items) == 2
     assert result.total == 137
 
@@ -73,7 +73,7 @@ def client(mock_db_session: Any, mock_redis: MagicMock) -> Iterator[AsyncClient]
     context = AuthContext(
         user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OWNER
     )
-    access = MagicMock(readable_names_for=AsyncMock(return_value=["c1"]))
+    access = MagicMock(readable_scopes_for=AsyncMock(return_value=[("c1", None)]))
     listing = RAGTrackedDocumentList(
         items=[_tracked_item(_doc()), _tracked_item(_doc())], total=137
     )
@@ -101,7 +101,7 @@ async def test_the_route_respects_limit_and_reports_a_larger_total(client: Async
     assert len(body["items"]) == 2
     assert body["total"] == 137
     opened.rag_doc_svc.list_documents.assert_awaited_once_with(  # type: ignore[attr-defined]
-        collections=["c1"], skip=0, limit=2
+        scopes=[("c1", None)], skip=0, limit=2
     )
 
 

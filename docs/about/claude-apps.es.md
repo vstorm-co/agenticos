@@ -1,5 +1,5 @@
 ---
-source_sha: "54c544558f40"
+source_sha: "c73cac16d216"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team y Enterprise: agents que son tuyos"
 description: "Compara Claude Team y Enterprise con AgenticOS: agents autoalojados con Claude u otro modelo, budgets por agent, aprobaciones, auditoría y sin coste por puesto."
@@ -41,7 +41,7 @@ Los planes de Claude usan solo modelos Claude. AgenticOS llega a [27 providers](
 
 ### Aprobación por alguien distinto del solicitante { #approval-by-someone-other-than-the-requester }
 
-En Cowork, la persona que ejecuta la tarea aprueba las acciones de escritura, o activa la aprobación automática. Las páginas de Anthropic no describen una aprobación dirigida a otra persona. En AgenticOS una herramienta de capability con efectos secundarios [detiene el run](../governance.md#approvals). La [alerta](../governance.md#alerts) llega a los miembros que elijas, y solo alguien que tenga `approvals:decide` puede decidirla, una sola vez.
+En Cowork, la persona que ejecuta la tarea aprueba las acciones de escritura, o activa la aprobación automática. Las páginas de Anthropic no describen una aprobación dirigida a otra persona. En AgenticOS una herramienta que el autor del agent puso tras una puerta [detiene el run](../governance.md#approvals). La [alerta](../governance.md#alerts) llega a los miembros que elijas, y solo alguien que tenga `approvals:decide` puede decidirla, una sola vez.
 
 ### Coste por agent, no por puesto { #cost-per-agent-not-per-seat }
 

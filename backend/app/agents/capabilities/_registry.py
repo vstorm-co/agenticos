@@ -310,10 +310,11 @@ class CapabilityDef:
     voice: bool = True
     """Whether the capability can run inside a voice call (#54).
 
-    False for the four a realtime session cannot carry: `sandbox` (realtime sets
-    an unavailable workspace), `browser_use` and `browser_choice` (minutes long
-    and visual), and `subagents` (background delegations whose parked approvals
-    have no way to resume). Such a binding never blocks publishing; it is left
+    False for those a realtime session cannot carry: `sandbox` (realtime sets
+    an unavailable workspace), `browser_use` (minutes long and visual),
+    `subagents` and `background_tools` (background work whose parked approvals
+    or late results have no way back into a call), and `ask_user` (a card of
+    questions a caller cannot see). Such a binding never blocks publishing; it is left
     out of calls, and the Builder's Voice card lists it. Also false for
     `channel_tools`, which a call never has a channel to describe for; no spec
     binds it, so the Builder never lists it.
@@ -661,7 +662,8 @@ def load_builtins() -> None:
 
     from app.agents.capabilities import (  # noqa: F401 - imported for side effects
         artifacts,
-        browser_choice,
+        ask_user,
+        background_tools,
         browser_use,
         channel_tools,
         charts,

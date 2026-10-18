@@ -195,7 +195,7 @@ unrelated to the diff.
 ### One run per branch
 
 `ci.yml` carries a concurrency group keyed on `github.ref`, so pushing again to a
-branch cancels its previous run. That matters because `CLAUDE.md` asks for a commit
+branch cancels its previous run. That matters because `AGENTS.md` asks for a commit
 and a push per finished piece: with nothing cancelling, 75 of the 369 runs in the
 first six days of August were superseded while still in flight — about 1,800 billed
 minutes answering questions about commits nobody was waiting on.
@@ -253,7 +253,7 @@ then reports as somebody else's cancellation.
 !!! important "The pull request description *is* the commit message that survives"
 
     `main` keeps one commit per pull request, built from the title and body rather
-    than from the branch's own commits. `CLAUDE.md` has the format.
+    than from the branch's own commits. `AGENTS.md` has the format.
 
 So `wip`, `fixup` and `try again` never reach it — and the description is not a
 courtesy.

@@ -28,10 +28,12 @@ def _row(**overrides: object) -> AgentRun:
         "status": RunStatus.COMPLETED.value,
         "input_tokens": 56,
         "output_tokens": 5,
+        "tool_args_repaired": 0,
         "cost_usd": Decimal("0.000030"),
         "cost_is_partial": False,
         # Set explicitly: a column default is applied on flush, and this row never is.
         "modality": "text",
+        "is_test": False,
     }
     return AgentRun(**{**defaults, **overrides})
 

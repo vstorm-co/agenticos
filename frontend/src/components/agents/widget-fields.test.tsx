@@ -127,3 +127,39 @@ describe("the bubble's microphone", () => {
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ dictation: "browser" }));
   });
 });
+
+describe("what the bubble offers before anybody types (#2006)", () => {
+  it("adds a suggested message, edits it and takes it off", async () => {
+    fields();
+    await userEvent.click(screen.getByRole("button", { name: "Add a suggested message" }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ quick_replies: [""] }));
+
+    onChange.mockClear();
+    fields({ quick_replies: ["Hours?", "Refunds?"] });
+    fireEvent.change(screen.getByLabelText("Suggested message 2"), {
+      target: { value: "Returns?" },
+    });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ quick_replies: ["Hours?", "Returns?"] }),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove suggested message 1" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ quick_replies: ["Refunds?"] }),
+    );
+  });
+
+  it("offers no fifth", () => {
+    fields({ quick_replies: ["a", "b", "c", "d"] });
+
+    expect(screen.queryByRole("button", { name: "Add a suggested message" })).toBeNull();
+  });
+
+  it("names the sources only when asked to", async () => {
+    fields();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /Name the sources/ }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ show_sources: true }));
+  });
+});

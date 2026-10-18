@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -41,6 +41,7 @@ from app.agents.capabilities.approval import (
     refuse_ungateable_approvals,
 )
 from app.agents.capabilities.artifacts import ARTIFACTS_CAPABILITY_ID
+from app.agents.capabilities.browser_use import BROWSER_CAPABILITY_ID
 from app.agents.capabilities.budget import (
     BudgetGuard,
     BudgetScope,
@@ -74,6 +75,8 @@ from app.agents.manifest import RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE_DEFAULTS, ModelRequestSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.spec import AgentSpec
+from app.agents.steering import Steering
+from app.agents.tool_repair import CountedRepair, RepairTally
 from app.agents.voice import (
     AnswerUnknownTools,
     VoiceOptions,
@@ -93,6 +96,7 @@ logger = logging.getLogger(__name__)
 _AUDIENCE_AWARE = frozenset(
     {
         ARTIFACTS_CAPABILITY_ID,
+        BROWSER_CAPABILITY_ID,
         MEMORY_FILES_CAPABILITY_ID,
         MEMORY_MEM0_CAPABILITY_ID,
         CONVERSATION_SEARCH_CAPABILITY_ID,
@@ -156,6 +160,9 @@ class BuiltAgent:
     # capability list, where a capability with one gated tool and one ungated
     # one has no single answer.
     approval_required_tools: frozenset[str]
+    # How many of the run's tool calls arrived malformed and were repaired, read
+    # by whoever persists the run - see `app/agents/tool_repair.py`.
+    repairs: RepairTally = field(default_factory=RepairTally)
 
 
 def build_agent(
@@ -177,6 +184,7 @@ def build_agent(
     agent_period_spend: PeriodSpendLookup | None = None,
     org_period_spend: PeriodSpendLookup | None = None,
     org_monthly_budget_usd: Decimal | None = None,
+    group_limits: Sequence[SpendLimit] = (),
     request_approval: ApprovalCallback | None = None,
     gate_every_tool: bool = False,
     shared_budget: BudgetGuard | None = None,
@@ -222,6 +230,9 @@ def build_agent(
             its neighbours' spending.
         org_monthly_budget_usd: The organization-wide cap, which applies on top
             of whatever the agent's own spec asks for.
+        group_limits: The monthly caps of the departments the person running
+            this is in (#2072), each metering its own members' spend. Built by
+            the caller, which knows who that person is; a spec does not.
         request_approval: How to put a gated tool call to a human. Omitted on a
             surface that cannot ask anyone, where the gate refuses instead.
         shared_budget: The guard - and therefore the ledger - of the run this
@@ -347,6 +358,7 @@ def build_agent(
                 agent_period_spend=agent_period_spend,
                 org_period_spend=org_period_spend,
                 org_monthly_budget_usd=org_monthly_budget_usd,
+                group_limits=group_limits,
             ),
         )
     )
@@ -358,11 +370,19 @@ def build_agent(
     # accident. The gate is attached even when nothing is gated, so that adding
     # a side-effecting capability to a spec is the only thing that has to be
     # right for approval to apply.
+    repairs = RepairTally()
     capabilities: list[Any] = [
+        # First, so every hook after it - the approval gate and the guardrails
+        # among them - sees the arguments the tool will actually be called with.
+        CountedRepair(tally=repairs),
         # Long conversations drift away from their instructions; re-stating the
         # system prompt is cheap insurance for an agent whose behaviour *is* its
         # instructions.
         ReinjectSystemPrompt(),
+        # Before every configured capability: it writes the person's mid-run
+        # words into the history, and a compaction strategy that rebuilds the
+        # request from that history must find them there.
+        Steering(),
         budget,
         ApprovalGate(
             required_tool_names=approval_required,
@@ -445,6 +465,7 @@ def build_agent(
         model_label=model_spec.label,
         approval_required_tools=approval_required,
         usage_limits=UsageLimits(request_limit=spec.max_steps or DEFAULT_MAX_STEPS),
+        repairs=repairs,
     )
 
 
@@ -494,6 +515,7 @@ def _spend_limits(
     agent_period_spend: PeriodSpendLookup | None,
     org_period_spend: PeriodSpendLookup | None,
     org_monthly_budget_usd: Decimal | None,
+    group_limits: Sequence[SpendLimit] = (),
 ) -> list[SpendLimit]:
     """Every ceiling this run is under, narrowest first.
 
@@ -518,7 +540,8 @@ def _spend_limits(
     the one nearest the person reading it. The organization's is deliberately
     last: it is the one an agent's author cannot raise, and hearing about it
     first would send them to somebody else for a limit they could have fixed
-    themselves.
+    themselves. A department's caps sit between the two: an author cannot
+    raise one either, but it binds fewer people than the organization's.
     """
     limits: list[SpendLimit] = []
     if spec.budget is not None and spec.budget.monthly_usd is not None:
@@ -529,6 +552,7 @@ def _spend_limits(
                 period_spend=agent_period_spend,
             )
         )
+    limits.extend(group_limits)
     if org_monthly_budget_usd is not None:
         limits.append(
             SpendLimit(

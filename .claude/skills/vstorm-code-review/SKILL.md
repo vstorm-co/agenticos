@@ -421,8 +421,8 @@ with it or that the PR explains why no durable update is needed. A code/document
 mismatch that changes expected behavior is a `correctness` candidate; absent
 documentation alone is an advisory, not a merge blocker.
 
-**Gather the governing conventions.** Locate the root `CLAUDE.md` and the
-`CLAUDE.md` in each modified directory, plus the §5 footgun list they point to, and
+**Gather the governing conventions.** Locate the root `AGENTS.md` and the
+`AGENTS.md` in each modified directory, plus the §5 footgun list they point to, and
 inject them into every finder's prompt — so all finders share one copy and each
 `style` finding cites the codified rule it violates (§4.4) instead of rediscovering
 it per-finder. If a project security checklist exists at
@@ -541,7 +541,7 @@ intended isolation boundary.
   instead. Classify `style` (usually `minor`/`nitpick`); if the duplicate diverges
   in behavior, `correctness`.
 - **Style and patterns.** Flag style only against **codified conventions** —
-  repository guidelines (`CLAUDE.md`), official style guides, and linter/formatter
+  repository guidelines (`AGENTS.md`), official style guides, and linter/formatter
   rules. Every `style` finding must **cite the specific codified rule** it violates,
   not reviewer taste. Uncodified personal preference is at most a `nitpick`.
 - **Deterministic quality gates.** Inspect the repository's configured gates, such
@@ -626,8 +626,8 @@ override it when it does not. Anything that cannot clear the bar stays a raised
 
 ## 5. Follow-ups & notes
 
-- **`CLAUDE.md` footgun list.** Maintain the concrete, greppable
-  language- and framework-pitfall checklist in `CLAUDE.md`, where §4.4's "cite the
+- **`AGENTS.md` footgun list.** Maintain the concrete, greppable
+  language- and framework-pitfall checklist in `AGENTS.md`, where §4.4's "cite the
   codified rule" points — not inline here, so the standard stays portable and
   project-agnostic.
 - **Dedicated issue-filing skill (to build).** Create a separate skill that files

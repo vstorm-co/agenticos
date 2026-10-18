@@ -6,6 +6,8 @@ export type RunStatus =
   | "failed"
   | "cancelled"
   | "awaiting_approval"
+  /** Parked on an agent's question its person left unanswered (#2064). */
+  | "awaiting_answer"
   | "budget_exceeded"
   | "guardrail_blocked";
 
@@ -39,6 +41,8 @@ export interface AgentRun {
   cost_usd: string;
   /** True when a model in this run had no price; the cost is a floor. */
   cost_is_partial: boolean;
+  /** Tool calls whose malformed JSON arguments were repaired rather than retried. */
+  tool_args_repaired?: number;
   logfire_trace_id: string | null;
   /**
    * Where this run's trace can be read, resolved server-side. Sent on the
@@ -65,6 +69,8 @@ export interface AgentRun {
    * it is `false` on any surface that does not, never absent.
    */
   down_rated: boolean;
+  /** Started from the Builder's test panel (#2074); optional on surfaces that predate it. */
+  is_test?: boolean;
   /**
    * The thread the run ran inside, or null when it ran with no conversation -
    * an API call, a resumed run. `AgentRunRead` has carried it all along; the
@@ -284,6 +290,11 @@ export interface ToolApproval {
   /** Shown in full: approving a tool name without its arguments is a rubber stamp. */
   tool_args: Record<string, unknown>;
   /**
+   * Which of a service's accounts the call acts as - a labelled connection, or one of
+   * several accounts on one service. Null where there is nothing to tell apart.
+   */
+  account?: string | null;
+  /**
    * Who started the run this call belongs to.
    *
    * Not on the approval itself - an approval belongs to a run and a run belongs to a
@@ -358,6 +369,14 @@ export interface CostByAgent {
   monthly_cap_usd: string | null;
 }
 
+/** One UTC day's spend - `GET /spend` sends only the days that had runs. */
+export interface CostByDay {
+  /** `YYYY-MM-DD`. */
+  day: string;
+  cost_usd: string;
+  run_count: number;
+}
+
 /** One model provider's share of the bill. */
 export interface CostByProvider {
   /** Null for runs recorded before this was tracked - shown as such, never folded in. */
@@ -403,6 +422,8 @@ export interface CostSummary {
   by_provider: CostByProvider[];
   /** Which key it went through, which is how a leaked or misused one is found. */
   by_key: CostByKey[];
+  /** Spend per UTC day over the window - days with no runs are absent. */
+  by_day: CostByDay[];
 }
 
 /**
@@ -420,6 +441,7 @@ export interface ParkedCall {
   tool_call_id: string | null;
   tool_name: string;
   tool_args: Record<string, unknown>;
+  account?: string | null;
 }
 
 /** One tool call an execution of a run made, and what came back from it. */
@@ -471,6 +493,8 @@ export interface ResumedRun {
    */
   settled?: SettledCall[];
   parked?: ParkedCall[];
+  /** The questions the run is now waiting on its person to answer, if it asked again. */
+  questions?: ParkedQuestion[];
   /** Serialised Decimal - never parse into a float for arithmetic. */
   cost_usd: string;
   /**
@@ -482,4 +506,19 @@ export interface ResumedRun {
   cost_is_partial: boolean;
   input_tokens: number;
   output_tokens: number;
+}
+
+/** One question as the server carries it, before the card's own shape (#2064). */
+export interface WireQuestion {
+  question: string;
+  header?: string | null;
+  options?: { label: string; description?: string | null }[];
+  multi_select?: boolean;
+  allow_custom: boolean;
+}
+
+/** An agent's question a run is waiting on its person to answer (#2064). */
+export interface ParkedQuestion {
+  tool_call_id: string;
+  questions: WireQuestion[];
 }

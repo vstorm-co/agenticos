@@ -185,8 +185,12 @@ export function TurnRail({ entries, className }: TurnRailProps) {
     <nav
       ref={navRef}
       aria-label={t("label")}
+      // Out of sight until the pointer comes near it: drawn all the time it sat
+      // beside every answer like a scrollbar nobody asked for. The padding is
+      // the "near" - a wider box to reach than the ticks themselves - and a
+      // keyboard focus inside shows it too.
       className={cn(
-        "pointer-events-auto absolute top-1/2 left-1 z-20 hidden -translate-y-1/2 flex-col items-center gap-1 @min-[68rem]/chat:flex",
+        "pointer-events-auto absolute top-1/2 left-0 z-20 hidden -translate-y-1/2 flex-col items-center gap-1 px-2 py-10 opacity-0 transition-opacity duration-200 focus-within:opacity-100 hover:opacity-100 @min-[68rem]/chat:flex",
         className,
       )}
     >

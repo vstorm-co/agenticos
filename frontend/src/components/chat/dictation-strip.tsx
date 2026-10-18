@@ -39,7 +39,12 @@ export interface StripHint {
  * Why the crossed-out microphone is crossed out, when somebody asked: nothing
  * set up, a pair with no key chosen for it, or no agent to dictate to.
  */
-export type DictationUnavailable = "not_ready" | "no_key" | "no_agent";
+/**
+ * Why the microphone is crossed out. `unchecked` is readiness that could not be
+ * read at all - a failed request, not a setup that is missing - so it says to try
+ * again rather than pointing at the Voice card.
+ */
+export type DictationUnavailable = "not_ready" | "no_key" | "no_agent" | "unchecked";
 
 export interface DictationHintInput {
   state: DictationState;
@@ -216,6 +221,19 @@ export function dictationHint(input: DictationHintInput, t: Translate): StripHin
       message: (
         <>
           {strong(t("hint.noAgentTitle"))} {t("hint.noAgentBody")}
+        </>
+      ),
+      actions: close,
+    };
+  }
+  if (unavailable === "unchecked") {
+    return {
+      key: "unchecked",
+      tone: "hint",
+      icon: MicOff,
+      message: (
+        <>
+          {strong(t("hint.uncheckedTitle"))} {t("hint.uncheckedBody")}
         </>
       ),
       actions: close,

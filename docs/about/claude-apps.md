@@ -40,7 +40,7 @@ Claude plans use Claude models only. AgenticOS reaches [27 providers](../models.
 
 ### Approval by someone other than the requester
 
-In Cowork, the person running the task approves write actions, or turns on automatic approval. Anthropic's pages do not describe an approval routed to someone else. In AgenticOS a side-effecting capability tool [parks the run](../governance.md#approvals). The [alert](../governance.md#alerts) goes to the members you choose, and only someone holding `approvals:decide` can decide it, once.
+In Cowork, the person running the task approves write actions, or turns on automatic approval. Anthropic's pages do not describe an approval routed to someone else. In AgenticOS a tool the agent's author gated [parks the run](../governance.md#approvals). The [alert](../governance.md#alerts) goes to the members you choose, and only someone holding `approvals:decide` can decide it, once.
 
 ### Cost per agent, not per seat
 

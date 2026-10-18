@@ -1,5 +1,5 @@
 ---
-source_sha: "0ceb552b4aa0"
+source_sha: "de38073f9286"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -297,8 +297,8 @@ docker compose --env-file backend/.env -f docker-compose-prod.yml \
   --org 'Your Company' --provider anthropic --api-key sk-ant-...
 ```
 
-La clave de provider que va aquí es con lo que funciona el agent de
-demostración. Sin ella el agent se crea y no puede responder; cualquier otro
+La clave de provider que va aquí es con lo que funcionan los dos agents de
+partida. Sin ella se crean y no pueden responder; cualquier otro
 provider se añade en el producto, por organización, desde el vault.
 
 !!! tip "Compruébalo desde fuera, no desde el host"
@@ -313,7 +313,7 @@ provider se añade en el producto, por organización, desde el vault.
     del host no puede ver.
 
 Después, una vez, a mano: inicia sesión, invita a alguien (lo que demuestra
-`SMTP_*`) y envía un mensaje al agent de demostración (lo que demuestra la clave
+`SMTP_*`) y envía un mensaje a Claude Code like (lo que demuestra la clave
 de provider y el WebSocket). Cada cosa recorre un camino que aquí no comprueba
 nada más.
 

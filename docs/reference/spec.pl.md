@@ -1,5 +1,5 @@
 ---
-source_sha: "fe0087d9fc16"
+source_sha: "9a12f4081212"
 ---
 
 # Spec agenta { #the-agent-spec }
@@ -12,6 +12,16 @@ Generowany ze źródła, bo uzasadnienie mieszka w docstringach — i dlatego
 wygenerowana niżej dokumentacja pól pozostaje po angielsku.
 
 ::: app.agents.spec.AgentSpec
+
+## Zmienne { #variables }
+
+`{{nazwa}}` w `instructions` jest uzupełniane na początku każdego runa: zmienną
+systemową, którą zna platforma (data i godzina, zalogowana osoba i jej
+[grupy](../departments.md), organizacja, agent, kanał), albo jedną z własnych `variables` agenta. `time_zone` decyduje,
+który zegar czyta `{{current_time}}`. Publikacja odrzuca nazwę, która nie jest
+żadną z nich.
+
+::: app.agents.spec.PromptVariableSpec
 
 ## Delegowanie { #delegation }
 

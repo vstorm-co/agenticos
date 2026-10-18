@@ -1,4 +1,4 @@
-"""Migration `0111_org_voice_settings`: voice arrives off, with the default limits.
+"""Migration `0141_org_voice_settings`: voice arrives off, with the default limits.
 
 An organization that exists before the upgrade must not start taking calls
 because of it: the switch reads off, and the limits read their defaults. So the
@@ -22,7 +22,7 @@ from sqlalchemy import Engine, create_engine, inspect, text
 from app.core.config import settings
 
 SCRATCH_DATABASE = f"agenticos_org_voice_test_p{os.getpid()}"
-_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0111_org_voice_settings.py"
+_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0141_org_voice_settings.py"
 
 
 def _url(database: str) -> str:

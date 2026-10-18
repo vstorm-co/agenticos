@@ -43,13 +43,17 @@ export function DictationUnavailable({ why, canSetUp, onExplain }: DictationUnav
       ? t("hint.noAgentTitle")
       : why === "no_key"
         ? t("hint.noKeyTitle")
-        : t("hint.notSetUpTitle");
+        : why === "unchecked"
+          ? t("hint.uncheckedTitle")
+          : t("hint.notSetUpTitle");
   const body =
     why === "no_agent"
       ? t("hint.noAgentBody")
       : why === "no_key"
         ? t("hint.noKeyBody")
-        : t("hint.notSetUpBody");
+        : why === "unchecked"
+          ? t("hint.uncheckedBody")
+          : t("hint.notSetUpBody");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -96,7 +100,7 @@ export function DictationUnavailable({ why, canSetUp, onExplain }: DictationUnav
       >
         <p className="font-semibold">{title}</p>
         <p className="text-muted-foreground mt-0.5">{body}</p>
-        {why !== "no_agent" && (
+        {why !== "no_agent" && why !== "unchecked" && (
           <p className="text-muted-foreground mt-2">
             {canSetUp ? t("pressToSetUp") : t("askAdmin")}
           </p>

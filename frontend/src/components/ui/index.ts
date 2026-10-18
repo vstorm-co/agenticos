@@ -6,7 +6,7 @@ export { SectionHeading } from "./section-heading";
 export { Input } from "./input";
 export { Label } from "./label";
 export { Textarea } from "./textarea";
-export { MarkdownEditor } from "./markdown-editor";
+export { MarkdownEditor, MarkdownModeToggle, type MarkdownMode } from "./markdown-editor";
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from "./card";
 export { Figure, FigureCard, DeltaChip, type FigureProps } from "./figure";
 export { AnimatedCounter, type AnimatedCounterProps } from "./animated-counter";
@@ -75,6 +75,8 @@ export {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
+  DropdownMenuItemText,
+  DESCRIBED_ITEM,
   DropdownMenuGroup,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -101,3 +103,4 @@ export { PaginationBar } from "./pagination-bar";
 
 export { DateRangePicker, type DateRange, type DateRangePickerProps } from "./date-range-picker";
 export { WizardSteps, WizardNav, type WizardStep } from "./wizard-steps";
+export { MoreOptions } from "./more-options";

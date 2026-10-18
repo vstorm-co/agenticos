@@ -1,5 +1,5 @@
 ---
-source_sha: "ff4961c85112"
+source_sha: "51103c7b1def"
 ---
 
 # Über AgenticOS { #about-agenticos }
@@ -85,7 +85,7 @@ Für ein Unternehmen, das mehr als drei Agents will und sie gesteuert haben will
   Instruktionen, schaltet Capabilities ein, zeigt auf eine Wissens-Collection und
   setzt ein Budget.
 - **Wer für die Rechnung verantwortlich ist**, bekommt Budgets, die einen Run
-  stoppen, Approvals für alles mit Nebenwirkung und eine Audit-Spur.
+  stoppen, Approvals für die Tools seiner Wahl und eine Audit-Spur.
 - **Der Entwickler** bekommt einen Spec, der als YAML in sein eigenes
   git-Repository exportiert, eine HTTP-API und eine Plattform, deren Quellcode er
   lesen kann.

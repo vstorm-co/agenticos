@@ -1,5 +1,5 @@
 ---
-source_sha: "d510b0c748f8"
+source_sha: "eaed0d094904"
 title: "Webseiten nach Zeitplan auf Änderungen prüfen"
 description: "Rufen Sie zwei Seiten nach Zeitplan ab, vergleichen Sie jede mit dem zuletzt festgehaltenen Stand, und melden Sie nur, was sich geändert hat."
 ---
@@ -36,8 +36,8 @@ Ein [Sandbox](../sandbox.md)-Workspace mit dem Scope **conversation** bleibt üb
 ## Den Agent bauen { #build-the-agent }
 
 1. Erstellen Sie unter **Agents → New agent** einen Agent und wählen Sie Ihr Modellprofil.
-2. Aktivieren Sie unter **Toolbox** **Web fetch**. Beschränken Sie `allowed_domains` auf `github.com` und `example.com`, damit der Agent nicht gebeten werden kann, etwas anderes abzurufen.
-3. Aktivieren Sie **Files & shell**. Lassen Sie das Backend auf **Files** (das Backend `state` - keine Shell, keine Sandbox-Verbindung) und den Scope auf **This conversation** - die Standardwerte sind genau das, was dieses Rezept braucht.
+2. Aktivieren Sie unter **Toolbox** **Read web pages**. Beschränken Sie `allowed_domains` auf `github.com` und `example.com`, damit der Agent nicht gebeten werden kann, etwas anderes abzurufen.
+3. Aktivieren Sie **Sandbox**. Lassen Sie das Backend auf **Files** (das Backend `state` - keine Shell, keine Sandbox-Verbindung) und den Scope auf **This conversation** - die Standardwerte sind genau das, was dieses Rezept braucht.
 4. Setzen Sie ein Budget und ein Schrittlimit für den Versuch. Jede festgehaltene Auslösung kostete etwa 0,07-0,14 USD.
 5. Setzen Sie die folgenden Instruktionen und klicken Sie dann auf **Publish**.
 

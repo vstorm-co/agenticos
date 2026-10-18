@@ -1,5 +1,5 @@
 ---
-source_sha: "0f382acc604e"
+source_sha: "3409285bde3b"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -37,6 +37,7 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
 | `auth_token` | Sellado en el [vault](secrets.md), nunca devuelto por ningún endpoint |
 | `allowed_tools` | Una lista de permitidos, o null para «todo lo que ofrezca el servidor». Una vinculación estrecha dentro de ella — ver más abajo |
 | `is_enabled` | Apagarla sin perder la credencial |
+| `include_instructions` | Añade las instrucciones propias del servidor en `initialize` a las del agent. Apagado por defecto - es texto del operador del servidor, leído como instrucciones del agent - y se enciende en el diálogo Edit de la conexión |
 | `last_status` | Qué encontró el último sondeo, y cuándo |
 
 !!! warning "Una dirección que este despliegue no debe alcanzar se rechaza, y el rechazo lo dice"
@@ -60,7 +61,13 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
 
 ### Personal o de toda la organización { #personal-or-organization-wide }
 
-Dos tipos, y la diferencia es lo importante.
+Dos tipos, y la diferencia es lo importante. El diálogo de conexión lo pregunta
+como una sola elección en palabras sencillas: **One shared account** (una cuenta
+compartida) - configurada una vez, normalmente por un admin con una cuenta de
+servicio, y usada por todos los agents - o **My own account** (tu propia cuenta),
+usada por ti y por los agents configurados para actuar como cada persona. Un
+servidor del catálogo con inicio de sesión (Notion, Linear, Gmail) recomienda la
+cuenta de cada persona; uno que pide una clave recomienda la compartida.
 
 **Personal** (MCP servers → You) está limitada a un miembro y la alcanza su propio
 asistente, y también un agent vinculado a la cuenta propia de cada persona cuando
@@ -71,9 +78,20 @@ personal no tiene ninguna, y su dueño puede pertenecer a varias, así que atarl
 la que estuviera activa cuando la añadió haría el token ilegible en el momento en
 que cambiara de una a otra.
 
-**Organización** está limitada a la organización, protegida por
-`connections:manage`, y es el único tipo que el spec de un agent publicado puede
-nombrar *por id*.
+**Organización** está limitada a la organización, protegida por `mcp:manage`, y
+es el único tipo que el spec de un agent publicado puede nombrar *por id*.
+
+Un servidor de la organización puede pertenecer a un departamento. En **Who can
+use it** el diálogo de conexión ofrece **Everyone**, por defecto, o **Some
+people**, que se encuentran escribiendo; el servidor pasa entonces a ser
+privado y compartido con cada uno a nivel `use`. Ellos y quien lo conectó lo ven y
+lo vinculan; owners y admins ven todos los servidores. Su botón **Who can use it**
+lo cambia después.
+
+Un agent que ya lo usa sigue funcionando para todos los que
+pueden ejecutarlo: la elección decide quién puede escoger el servidor, no quién
+recibe respuestas a través de él, por eso el Builder lo marca en
+[de dónde viene el conocimiento de un agent](departments.md#where-an-agents-knowledge-comes-from).
 
 Un agent publicado que alcanzara herramientas distintas según la sesión de quien
 lo construyó no podría revisarse ni razonarse, que es toda la razón de la
@@ -83,8 +101,11 @@ nombra el servicio, y quien habla con el agent aporta su propia conexión a él.
 
 ```
 GET  /api/v1/me/mcp-connections     personal
-GET  /api/v1/mcp-connections        organization, requires connections:manage
+GET  /api/v1/mcp-connections        organization, requires mcp:manage; each server
+                                    narrowed to groups only for them
 POST /api/v1/mcp-connections/{id}/test   probe it, list its tools, store the status
+GET  /api/v1/mcp-connections/{id}/sharing   who it is narrowed to, and the same
+                                            grant routes as an agent's
 ```
 
 ### Dos nombres, y responden a preguntas distintas { #two-names-and-they-answer-different-questions }
@@ -140,9 +161,32 @@ selector lo dice y apunta a la página de servidores, que es donde se comprueba 
 conexión. Una vinculación que ya nombra herramientas muestra esas, así que aquello
 a lo que está vinculada sigue visible y todavía se puede estrechar.
 
+### Qué llamadas esperan a una persona { #which-calls-wait-for-a-person }
+
+Cada vinculación tiene una política `approval` para las herramientas de su
+servidor. La predeterminada, `none`, deja pasar todas las llamadas, igual que las
+herramientas de una capability se ejecutan hasta que alguien las pone tras una
+puerta. `writes` retiene toda herramienta que el servidor no marque como de solo
+lectura (el `readOnlyHint` de MCP) hasta que una persona apruebe la llamada: la
+tarjeta muestra los argumentos exactos y se ejecutan los aprobados. `all` retiene
+todas las llamadas. La marca de solo lectura la declara el propio servidor, así que
+`writes` es tan estricta como honesto sea el servidor: elige `all` para un servidor
+que no controlas.
+
+La propia plantilla del Architect pide `writes` para el servidor
+de la plataforma, así que no crea nada sin la persona en cuyo nombre actúa. La
+vinculación de cualquier agent a ese servidor queda en al menos `writes`, también
+con `none`: sus herramientas actúan con la autoridad de quien pregunta, la de un
+Admin incluida.
+
+En el Builder, los ajustes de un servidor lo dicen por
+grupos: sus **lecturas** y las herramientas que **cambian cosas** se ejecutan sin
+preguntar o preguntan primero.
+
 ### A través de qué cuenta habla una vinculación { #whose-account-a-binding-speaks-through }
 
-Una vinculación es de uno de dos tipos, y el Builder pregunta cuál en la tarjeta.
+Una vinculación es de uno de dos tipos, y el Builder pregunta cuál en los ajustes
+del servidor, que también muestran tus propias cuentas en el servicio.
 
 **La cuenta de la organización** (`account: organization`) nombra una de las
 conexiones de la organización y responde por todo el mundo, en cualquier
@@ -173,14 +217,10 @@ canal sería entregárselo al canal.
     con el enlace que lo conecta (`/mcp-servers?connect=notion`), o con «envía
     `/link` a este bot primero» cuando lo que falta es la cuenta de chat.
 
-    Una persona que tiene *varias* conexiones propias a un mismo servicio elige
-    una, en MCP servers → You: la cuenta que marca como predeterminada es aquella
-    como la que habla un agent. Hasta que elija, el agent se lo pide — adivinar en
-    silencio el workspace más antiguo sería peor.
 
     El chat del dashboard pregunta cuando el agent necesita el servicio, no antes.
-    Un servicio que la persona no ha conectado, del que tiene varias conexiones o
-    que debe autorizar de nuevo se ofrece al modelo como `connect_account`: cuando
+    Un servicio que la persona no ha conectado o que debe autorizar de nuevo se
+    ofrece al modelo como `connect_account`: cuando
     una pregunta necesita Notion, el run se detiene en una tarjeta con el botón para
     conectar y, en cuanto la cuenta está conectada, el mismo run sigue con las
     herramientas de Notion. Si se omite, sigue sin ellas. Los controles del chat
@@ -215,9 +255,40 @@ intersecan.
     través de qué vinculación está hablando - en lugar de perderlo en una línea de
     log que nadie lee. Renombrar una de las dos conexiones es el arreglo del autor.
 
-Un agent vincula cada servicio una vez, de una manera. Un agent que necesita el
-Notion del manual de la organización *y* el propio de cada persona son dos agents,
-o el mismo servidor conectado dos veces bajo dos nombres.
+Un agent puede vincular un servicio de las dos maneras — el Notion del manual de
+la organización *y* el propio de cada persona — siempre que la conexión de la
+organización no se llame como la clave del catálogo, que es el prefijo que toma
+la cuenta propia de cada persona.
+
+### Varias cuentas de un mismo servidor { #several-accounts-of-one-server }
+
+Un agent puede leer a la vez el buzón de la empresa e `info@`. A una persona con
+varias cuentas propias en un servicio se la alcanza a través de **cada una de
+ellas**: la que marca como su cuenta principal en MCP servers → You (si no, la
+primera que conectó) conserva el prefijo simple, `outlook_send`, y cada cuenta
+más añade su etiqueta, `outlook_info_send` (dos etiquetas que se leen igual
+como nombre de herramienta, `Sales US` y `Sales-US`, se distinguen por el id
+corto de la cuenta en la segunda). Qué cuentas son las decide la
+persona con lo que conecta; la vinculación no lo limita.
+
+Las cuentas de la organización se vinculan una junto a otra del mismo modo: cada
+una de sus conexiones a un servidor es su propia vinculación, con su propio
+nombre y sus propias herramientas. En el Builder, los ajustes de un servidor
+listan sus cuentas vinculadas con **Add another account**. Cuando un run alcanza
+un servicio a través de más de una cuenta, una línea de sus instrucciones nombra
+cada cuenta junto a su prefijo y le pide al modelo que pregunte cuando no esté
+claro a cuál se refiere la persona.
+
+Una segunda cuenta en un servicio tiene que llevar nombre: su etiqueta es lo que
+distingue las dos en cada selector y cada aprobación, así que el formulario lo pide
+antes de conectar, y la API rechaza una segunda cuenta sin nombre en `label`.
+
+La aprobación dice entonces qué cuenta actúa. Una llamada a través de una
+conexión con etiqueta, o de una de varias cuentas en un mismo servicio, lleva el
+nombre de esa cuenta: el chat, Activity y el dashboard lo muestran junto a la
+acción, un mensaje de Slack o Telegram pregunta «to *send in Gmail* as *Work*», y
+el correo de aprobación lo indica tras la herramienta. Una sola cuenta sin
+etiqueta no tiene de qué distinguirse, así que no se añade nada.
 
 ## Autenticación { #authentication }
 
@@ -415,7 +486,18 @@ bearer token sigue funcionando hasta que llega el nuevo consentimiento.
 ## Qué pasa en un turno { #what-happens-on-a-turn }
 
 Cada servidor se sondea con una ida y vuelta corta de `tools/list` — 3 segundos —
-antes de que empiece el turno, y los sondeos corren a la vez.
+antes de que empiece el turno, y los sondeos corren a la vez. Un servidor que
+respondió a su sondeo en los últimos dos minutos, con la misma credencial, no se
+vuelve a sondear: el siguiente turno de la conversación lo conecta directamente. Si
+ha caído entretanto, ese turno sigue sin sus herramientas y el siguiente lo sondea
+de nuevo.
+
+El nombre de una herramienta llega al modelo como el prefijo unido al nombre propio
+del servidor, y los proveedores rechazan un nombre de más de 64 caracteres, o con
+algo que no sean letras, dígitos, `_` y `-`, rechazando la petición entera. Ese
+nombre se ajusta: los caracteres rechazados se sustituyen, el final se recorta y se
+añaden ocho dígitos hexadecimales de un hash, así que dos nombres largos siguen
+siendo dos herramientas. Al servidor se le sigue llamando por su nombre real.
 
 !!! warning "Un servidor inalcanzable se salta con un aviso, no lanza un error"
 
@@ -440,7 +522,11 @@ de conexión que el spec pueda guardar — así que la tarjeta abre el diálogo 
 conexión **ahí mismo**.
 
 Un servidor de token o sin credenciales se conecta sin salir de la página, y la
-nueva conexión queda marcada para el agent en cuanto existe.
+nueva conexión queda marcada para el agent en cuanto existe. Conectar comprueba el
+servidor, y sus herramientas aparecen enseguida a partir de esa comprobación, así
+que elegir un servidor, conectarlo y decidir qué puede llamar el agent es un solo
+camino. Una comprobación fallida dice por qué en el aviso, y la conexión se queda
+para corregirla.
 
 !!! info "OAuth abre una pestaña"
 
@@ -458,8 +544,10 @@ apaño: los nombres son únicos por organización y no por entrada de catálogo,
 nombre es el prefijo de herramientas, así que el modelo ve
 `notion_readonly_search` y `notion_admin_search` como herramientas distintas.
 
-Vincula la que deba tener el agent. El Builder lista una fila por conexión y
-etiqueta cada una con su nombre cuando una entrada tiene más de una.
+Vincula la que deba tener el agent, o varias una junto a otra — ver
+[varias cuentas de un mismo servidor](#several-accounts-of-one-server). El
+Builder muestra una tarjeta por servidor y lista sus cuentas en los ajustes del
+servidor, cada una con su etiqueta y su nombre.
 
 !!! tip "El nombre es toda la distinción"
 
@@ -483,6 +571,37 @@ primera, con un aviso que nombra a la perdedora. Los servidores gestionados por 
 despliegue van ordenados primero, así que ganan a una conexión de usuario que dé
 la casualidad de elegir el mismo nombre.
 
+### Estado, uso y llamadas { #health-users-and-calls }
+
+La tarjeta de un servidor en la página MCP servers dice cuándo una de sus cuentas
+no respondió en la última comprobación, y la lista de sus cuentas dice cuál y qué
+dijo; quien gestiona los servidores MCP puede volver a comprobarlo ahí.
+Una cuenta OAuth cuyo inicio de sesión no se pudo renovar se muestra como
+pendiente de autorización y no como inalcanzable, con **Autorizar** para volver
+a iniciar sesión.
+
+Cada quince minutos el despliegue comprueba cada servidor de la organización, y
+cada run comprueba antes del turno los servidores a los que está vinculado su
+agent. Cuando un servidor deja de responder, los administradores y los
+propietarios de los agents vinculados a él reciben una notificación **MCP server
+not answering** por esa caída, por muchas comprobaciones o runs que la detecten,
+y **MCP server answering again** cuando vuelve. La siguiente caída vuelve a
+avisar. Ambas llegan en la aplicación y por correo, y cada persona puede
+desactivar cualquiera en **Settings → Notifications**. La conexión propia de un
+miembro no envía ninguna, y un inicio de sesión que hay que renovar no cuenta
+como caída.
+
+En la página MCP, cada cuenta de la organización nombra los agents vinculados a
+ella, y **What agents asked it** lista las últimas llamadas a sus herramientas:
+qué herramienta, qué agent, cómo fue y en qué run. Lo que se preguntó y se
+respondió no se muestra: se queda en la conversación. Cada llamada registra la conexión que
+la atendió, así que la conexión propia de un miembro con el mismo nombre no
+aparece, y las llamadas anteriores a ese registro no aparecen en absoluto. API: `used_by` en
+`GET /api/v1/mcp-connections` y `GET /api/v1/mcp-connections/{id}/calls`.
+
+**Añadir a un agent** vincula una cuenta al borrador del agent elegido, y
+conectar una con una clave, o terminar su inicio de sesión, ofrece lo mismo.
+
 ## El catálogo { #the-catalog }
 
 Un selector que empieza vacío y pide una URL es un selector que nadie usa, así que
@@ -503,8 +622,8 @@ puede hacer esa promesa.
 
     Cruzado con este catálogo, **cuatro** de esos hosts pertenecían a una empresa
     que la mayoría de los lectores reconocería y faltaban aquí — CircleCI, New
-    Relic, Statsig y Lusha, los cuatro ya listados. El resto de los algo más de
-    5.000 sin cubrir son servidores de un solo proyecto, proxies en `workers.dev`,
+    Relic, Statsig y Lusha, los cuatro ya listados. El resto de los hosts
+    sin cubrir son servidores de un solo proyecto, proxies en `workers.dev`,
     herramientas de SEO y juegos: alfabéticamente, los primeros son una consulta de
     precios del suelo, una herramienta de licitación para contratistas y un
     servicio húngaro de presupuestos de ventanas.
@@ -517,7 +636,8 @@ puede hacer esa promesa.
 ### El registro está en la misma lista, y en la base de datos { #the-registry-is-in-the-same-list-and-in-the-database }
 
 Así que el espejo también se envía, y **/mcp es una sola lista con todos ellos** —
-el centenar curado primero, y luego 5.703 servidores replicados, paginados. No una
+el catálogo curado primero, y luego el registro replicado, paginados: más de
+4.700 servidores, la cifra que muestra la galería. No una
 rejilla curada con una búsqueda que llega más lejos: una lista, un paginador, un
 recuento.
 
@@ -528,8 +648,8 @@ revés, y la diferencia es que un catálogo no son datos de un tenant. La llena
 `agenticos cmd mcp-registry-sync`, desde la instantánea empaquetada o, con
 `--fetch`, desde el registro en vivo.
 
-Guardado en la base de datos porque un archivo no se puede paginar. Cinco mil
-setecientas tres entradas en memoria podrían responder a «servidores que casan con
+Guardado en la base de datos porque un archivo no se puede paginar. Miles de
+entradas en memoria podrían responder a «servidores que casan con
 'linear'» y no podrían responder a «la cuarta página de todos ellos» sin cargarlo
 todo y cortarlo. El ranking se movió a SQL con ello, por la misma razón: ordenar
 una página es ordenar lo que esa página haya contenido. Tres bandas — el servidor
@@ -552,9 +672,13 @@ no un listado:
   50 — así que la aritmética vive en `mcp_listing.page` con un test sobre ese
   límite, porque un error de uno ahí se salta un servidor o lo muestra dos veces en
   una lista donde nadie notaría cuál.
-- **Una categoría pide solo entradas del catálogo.** El espejo no tiene
-  categorías, así que responder a una con filas replicadas archivaría servidores
-  sin categoría bajo un encabezado que dice lo contrario.
+- **Una categoría también llega al espejo.** El registro no tiene categorías,
+  así que cada entrada recibe una al sincronizar a partir de su propio nombre y
+  descripción, contando las palabras por las que se reconoce cada categoría; una
+  entrada que no nombra ninguna se archiva en *other* en lugar de adivinarle un
+  encabezado. El filtro **Sign-in** pregunta por lo que pide un servidor - OAuth,
+  un token, nada -, y para una entrada replicada es lo que encontró la
+  comprobación del catálogo.
 - **Sin logo empaquetado.** La consola incrusta un favicon por host curado para
   que una insignia se dibuje sin conexión; a 1,9 KB cada uno, hacer eso para el
   espejo serían 10,5 MB de base64 en un módulo que carga el navegador. Las filas
@@ -587,15 +711,44 @@ Un servidor que no está en ninguna de las dos listas sigue siendo alcanzable:
     tipo, no miles de servidores que alguien revisó. Las dos formas son útiles, y no
     son la misma afirmación.
 
-!!! warning "Una promesa que hay que volver a hacer"
+### Cómo se mantiene el catálogo { #how-the-catalog-is-kept }
 
-    La promesa se degrada. El servidor de referencia oficial de Postgres se archivó
-    fuera de `modelcontextprotocol/servers` en 2025 y este catálogo siguió
-    enlazándolo, así que lo único que la entrada le ofrecía a un lector era un 404.
-    Nada comprueba estos enlaces — un test que sale a la internet pública es un test
-    que falla en el tren de alguien — así que releer el catálogo es un trabajo
-    humano periódico, y una entrada por la que nadie puede responder debería
-    borrarse en lugar de dejarse.
+La promesa se degrada. El servidor de referencia oficial de Postgres se archivó
+fuera de `modelcontextprotocol/servers` en 2025 y este catálogo siguió enlazándolo,
+así que lo único que la entrada le ofrecía a un lector era un 404. En octubre de
+2026 Linear había dejado `/sse`, Pipedrive se había mudado a otro host y doce
+entradas curadas tenían un servidor alojado que nadie había anotado. Por eso ahora
+se llama a cada servidor listado, como lo llama una primera conexión, con un
+comando:
+
+```bash
+uv run agenticos cmd mcp-catalog-check --report catalog-check.md
+```
+
+Envía a cada servidor el handshake de MCP sin credenciales y registra lo que pasó:
+respondió y listó sus herramientas (**open**, con cuántas solo leen), rechazó y
+publica metadatos OAuth (**sign in**), rechazó sin esos metadatos (**token**), o
+no respondió como un servidor MCP en absoluto (**unreachable**, **broken**, o
+**refused** para una dirección dentro de una red). Dos entradas del registro en
+una misma dirección son un solo servidor, y se queda el nombre más corto. No se
+inicia sesión en ningún sitio: si las herramientas funcionan una vez conectado es
+la prueba propia de la conexión.
+
+Lo que encontró se ve en las tarjetas. Un servidor que respondió dice **Checked**
+con la fecha, y sus recuentos de herramientas donde las listó. Un servidor curado
+que no respondió lo dice en rojo y sigue listado, porque alguien lo eligió; una
+entrada replicada que no respondió, o que repite otra, deja de ofrecerse. Una
+entrada curada que promete OAuth y no publicó los metadatos para ello no se marca
+como comprobada, porque su **Connect** es el botón que fallaría.
+
+La comprobación se ejecuta antes de cada versión con `--snapshot`, que escribe
+`app/core/catalog/mcp_checks.json`; `make platform-bootstrap` la carga, así que un
+despliegue nuevo empieza con aquello contra lo que se comprobó la versión. Ejecuta
+el comando en un despliegue para comprobar de nuevo; sus propios resultados se
+conservan por encima de los incluidos. `--source catalog` comprueba solo la lista
+curada en unos diez segundos; el registro entero tarda unos minutos. El informe
+lista cada entrada curada con lo que declara, lo que se encontró y por qué alguna
+no pasó.
 
 `(self-hosted)` más abajo significa que la entrada describe el servidor pero la
 URL la pones tú: o bien porque corre en tu propia infraestructura, o bien porque
@@ -612,7 +765,7 @@ el proveedor emite un endpoint por cuenta.
 | Vercel | oauth | `https://mcp.vercel.com/` |
 | Netlify | oauth | `https://mcp.netlify.com/mcp` |
 | Railway | token | `https://mcp.railway.app/mcp` |
-| Replit | oauth | self-hosted |
+| Replit | oauth | `https://mcp.replit.com/server/mcp` |
 | Hugging Face | token | `https://huggingface.co/mcp` |
 | Buildkite | oauth | `https://mcp.buildkite.com/mcp` |
 | Semgrep | token | `https://mcp.semgrep.ai/mcp` |
@@ -625,12 +778,12 @@ el proveedor emite un endpoint por cuenta.
 
 | Servidor | Auth | URL |
 |---|---|---|
-| Linear | oauth | `https://mcp.linear.app/sse` |
+| Linear | oauth | `https://mcp.linear.app/mcp` |
 | Jira & Confluence | oauth | `https://mcp.atlassian.com/v1/sse` |
 | Asana | oauth | `https://mcp.asana.com/sse` |
 | ClickUp | oauth | `https://mcp.clickup.com/mcp` |
-| Trello | oauth | self-hosted |
-| Todoist | oauth | self-hosted |
+| Trello | oauth | `https://mcp.trello.com/v1` |
+| Todoist | oauth | `https://ai.todoist.net/mcp` |
 | monday.com | oauth | `https://mcp.monday.com/mcp` |
 
 ### Datos y analítica { #data-and-analytics }
@@ -646,6 +799,7 @@ el proveedor emite un endpoint por cuenta.
 | Google BigQuery | oauth | self-hosted |
 | PostHog | token | `https://mcp.posthog.com/mcp` |
 | Mixpanel | token | `https://mcp.mixpanel.com/mcp` |
+| Google Analytics 4 | token | self-hosted |
 | Neon | oauth | `https://mcp.neon.tech/mcp` |
 | Amplitude | token | `https://mcp.amplitude.com/mcp` |
 | Firecrawl | token | `https://mcp.firecrawl.dev/mcp` |
@@ -660,6 +814,9 @@ el proveedor emite un endpoint por cuenta.
 | Servidor | Auth | URL |
 |---|---|---|
 | Slack | oauth | `https://mcp.slack.com/mcp` |
+| Microsoft Work IQ | oauth | `https://workiq.svc.cloud.microsoft/mcp` |
+| Outlook Mail (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_MailTools` |
+| Microsoft Teams (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_TeamsServer` |
 | Zoom | oauth | self-hosted |
 | Intercom | oauth | `https://mcp.intercom.com/sse` |
 | Notion | oauth | `https://mcp.notion.com/mcp` |
@@ -678,11 +835,11 @@ el proveedor emite un endpoint por cuenta.
 | Stripe | token | `https://mcp.stripe.com` |
 | PayPal | oauth | `https://mcp.paypal.com/sse` |
 | Xero | oauth | `https://mcp.xero.com/mcp` |
-| HubSpot | oauth | self-hosted |
+| HubSpot | oauth | `https://mcp.hubspot.com/` |
 | Shopify | oauth | self-hosted |
 | Attio | oauth | `https://mcp.attio.com/mcp` |
-| Pipedrive | oauth | `https://mcp.pipedrive.com/mcp` |
-| Lusha | token | `https://mcp.lusha.com/mcp` |
+| Pipedrive | oauth | `https://mcp.pipedrive.ai/mcp` |
+| Lusha | oauth | `https://mcp.lusha.com` |
 
 ### Observabilidad { #observability }
 
@@ -701,12 +858,14 @@ el proveedor emite un endpoint por cuenta.
 
 | Servidor | Auth | URL |
 |---|---|---|
-| Mailchimp | oauth | self-hosted |
+| Mailchimp | oauth | `https://ai-inc.mailchimp.com/claude/mcp/v2` |
 | Resend | token | `https://mcp.resend.com/mcp` |
 | Webflow | oauth | `https://mcp.webflow.com/mcp` |
 | Wix | oauth | `https://mcp.wix.com/mcp` |
-| WordPress.com | oauth | self-hosted |
-| Semrush | token | self-hosted |
+| WordPress.com | oauth | `https://public-api.wordpress.com/wpcom/v2/mcp/v1` |
+| Semrush | oauth | `https://mcp.semrush.com/v1/mcp` |
+| Meta Ads | oauth | `https://mcp.facebook.com/ads` |
+| Google Ads | token | self-hosted |
 | Similarweb | token | `https://mcp.similarweb.com/mcp` |
 | Figma | oauth | `https://mcp.figma.com/mcp` |
 | Miro | oauth | `https://mcp.miro.com/mcp` |
@@ -719,24 +878,28 @@ el proveedor emite un endpoint por cuenta.
 
 | Servidor | Auth | URL |
 |---|---|---|
-| Zapier | oauth | self-hosted |
+| Zapier | oauth | `https://mcp.zapier.com/api/mcp/mcp` |
 | Make | token | self-hosted |
 | n8n | token | self-hosted |
 | Box | oauth | `https://mcp.box.com/mcp` |
 | Dropbox | oauth | `https://mcp.dropbox.com/mcp` |
-| Calendly | oauth | self-hosted |
-| Typeform | oauth | self-hosted |
+| Calendly | oauth | `https://mcp.calendly.com/` |
+| Typeform | oauth | `https://api.typeform.com/mcp` |
 | SurveyMonkey | oauth | `https://mcp.surveymonkey.com/mcp` |
-| DeepL | token | self-hosted |
-| ElevenLabs | token | self-hosted |
+| DeepL | oauth | `https://mcp.deepl.com/v1/mcp` |
+| ElevenLabs | oauth | `https://api.elevenlabs.io/v1/mcp` |
 | Fireflies | token | `https://mcp.fireflies.ai/mcp` |
 | Egnyte | oauth | `https://mcp-server.egnyte.com/mcp` |
 | Apify | token | `https://mcp.apify.com` |
 | Tally | token | `https://api.tally.so/mcp` |
-| Pipedream | token | `https://remote.mcp.pipedream.net` |
+| Pipedream | oauth | `https://mcp.pipedream.net/v2` |
 | Composio | token | self-hosted |
 | Activepieces | token | `https://mcp.activepieces.com/mcp` |
 | Cal.com | token | `https://mcp.cal.com/mcp` |
+| Outlook Calendar (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_CalendarTools` |
+| Word (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_WordServer` |
+| SharePoint (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_SharePointRemoteServer` |
+| OneDrive (Work IQ) | oauth | `https://agent365.svc.cloud.microsoft/agents/servers/mcp_OneDriveRemoteServer` |
 
 ### Cualquier otra cosa { #anything-else }
 
@@ -749,16 +912,35 @@ aquí.
 introspeccionan al conectar, y nada de él necesita estar antes en el catálogo. El
 catálogo le ahorra a alguien buscar una URL; no es una puerta.
 
+Escribir la dirección de un servidor propio le pregunta si se puede iniciar sesión:
+el mismo descubrimiento que hace un flujo OAuth (RFC 9728, luego RFC 8414), sin
+registrar nada, mediante `POST /api/v1/me/mcp-connections/probe`. Si se puede,
+**OAuth** queda elegido y Conectar abre el inicio de sesión; si el servidor no
+registra aplicaciones por sí mismo, el diálogo pide un client ID y un secreto
+creados en el proveedor; si no publica metadatos OAuth, queda un token o ninguna
+credencial.
+
 Para añadir una entrada a la lista, ver
 [Añadir un servidor al catálogo de MCP](howto/add-mcp-server.md).
 
 <a id="outlook-setup"></a>
 
-### Correo y calendario de Outlook { #outlook-email-and-calendar }
+### Microsoft 365 y Outlook { #microsoft-365-and-outlook }
 
-Outlook está disponible mediante servicios MCP de terceros, no mediante un
-conector de buzón integrado. El registro incluido contiene entradas de MintMCP
-para correo y calendario:
+Microsoft publica sus propios servidores MCP para Microsoft 365, y el catálogo los
+lista: **Work IQ** - un endpoint para correo, reuniones, chats y archivos - y los
+servidores por aplicación de Mail, Calendar, Teams, SharePoint, OneDrive y Word.
+Cada uno necesita una licencia de Microsoft 365 Copilot y una aplicación
+registrada en Microsoft Entra: añade el permiso de Work IQ del servidor (para el
+correo, `WorkIQ-MailServer`) y la URL de redirección de esta consola, que muestra
+el diálogo de conexión, y escribe el client ID de la aplicación al conectar.
+
+Entra no registra un cliente en el acto, así que el client ID no es opcional. Microsoft
+marca los servidores por aplicación como mantenidos por compatibilidad y dirige
+los proyectos nuevos a Work IQ.
+
+Outlook también está disponible mediante servicios MCP de terceros. El registro
+incluido contiene entradas de MintMCP para correo y calendario:
 
 | Entrada del registro | URL del servidor |
 |---|---|
@@ -773,17 +955,77 @@ proveedor. Una entrada del registro no equivale a una prueba completa de la
 integración con AgenticOS. Revisa los modos de aprobación descritos abajo antes
 de activar herramientas de escritura.
 
+## AgenticOS como servidor MCP { #agenticos-as-an-mcp-server }
+
+Todo lo anterior es la plataforma llamando a otros servidores. También es uno:
+**`/mcp`** en el host de la API habla MCP sobre streamable HTTP, así que Claude
+Code, Claude Desktop o cualquier cliente MCP puede operar la organización —
+listar y crear agents, ejecutarlos, leer los runs y su coste, llenar y buscar
+bases de conocimiento, invitar a miembros.
+
+El servidor está construido sobre [FastMCP](https://gofastmcp.com): sirve el
+protocolo y los endpoints de OAuth 2.1, y AgenticOS aporta las herramientas y cada
+decisión detrás de un inicio de sesión.
+
+El cliente inicia sesión por el navegador: se registra, abre la página de
+consentimiento de la consola, donde eliges la organización y lo que puede hacer, y
+recibe un token que dura una hora y se renueva solo. No se pega ninguna clave.
+
+El registro no necesita credenciales, así que se limita por dirección como el
+inicio de sesión, y un cliente con el que nadie completó el inicio de sesión se
+olvida al cabo de un día.
+
+En la consola, **Settings → MCP clients** muestra la URL de este servidor y el comando o la configuración exactos para Claude Code, Codex, Claude Desktop, Cursor y VS Code, para las dos formas de iniciar sesión.
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp
+```
+
+O conéctate con una [clave de API de la organización](api.md#organization-api-keys),
+para un cliente que no puede abrir un navegador:
+
+```bash
+claude mcp add --transport http agenticos https://<your-deployment>/mcp \
+  --header "Authorization: Bearer $AGENTICOS_KEY"
+```
+
+La conexión actúa como el miembro que emitió la clave, dentro de los permisos de
+la clave. Cada herramienta es una llamada a la [API pública](api.md) con esa
+clave, así que se rechaza, se limita y se audita exactamente igual que la misma
+petición por HTTP; un rechazo vuelve como error de la herramienta nombrando el
+permiso que faltaba.
+
+| Herramienta | Necesita |
+|---|---|
+| `whoami` | — |
+| `list_agents`, `get_agent`, `list_capabilities` | `agents:view` |
+| `create_agent_draft` | `agents:edit` |
+| `discard_agent_draft` | `agents:edit`, sobre un borrador tuyo que nunca se publicó |
+| `run_agent` | `agents:run` |
+| `list_runs`, `get_run`, `get_spend` | `runs:view` |
+| `list_knowledge_bases`, `search_knowledge` | `collections:view` |
+| `list_embedding_models` | — |
+| `create_knowledge_base`, `add_document` | `collections:edit` |
+| `list_skills` | `skills:view` |
+| `list_members` | `members:view` |
+| `invite_member` | `members:manage` y `roles:manage` |
+
+A propósito no hay: publicar un agent, tocar credenciales ni borrar nada salvo
+un borrador de agent que quien llama creó y nunca publicó: deshacer un borrador
+creado por error. Un borrador creado aquí lo publica una persona en la consola. Las aplicaciones conectadas
+aparecen en **Settings → MCP clients**, donde desconectar una termina su acceso y
+el de cada token que tiene. Las llamadas que cambian
+algo esperan aprobación, como explica [la sección de arriba](#which-calls-wait-for-a-person).
+
 ## Lo que MCP no te da { #what-mcp-does-not-get-you }
 
 - **Una garantía de cobertura.** Las entradas del catálogo son metadatos. Las
   herramientas son del proveedor, y pueden cambiar bajo tus pies de un turno al
   siguiente.
-- **Cobertura automática de aprobación.** Los ajustes de aprobación de una
-  capability no cubren herramientas MCP. En el chat web, **Ask about everything**
-  (`ask_all`) también controla las llamadas MCP que ejecuta el runner; el modo
-  predeterminado **Follow the agent** no añade esa puerta. Restringe las
-  herramientas disponibles y revisa el modo de ejecución antes de activar una
-  conexión. Consulta los [modos de aprobación](governance.md#how-much-one-conversation-wants-to-be-asked).
+- **Aprobaciones que saben qué hace una herramienta.** La política `writes` confía
+  en que el servidor marque sus herramientas de solo lectura; una herramienta así
+  marcada que cambia algo se ejecuta sin preguntar. Usa `all` para un servidor que
+  no controlas y acota `allowed_tools`. Consulta [qué llamadas esperan](#which-calls-wait-for-a-person).
 - **Atribución de coste.** Lo que un servidor hace de su lado no está en el
   [budget](governance.md#budgets) de esta plataforma. Solo lo están los tokens del
   modelo.

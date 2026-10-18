@@ -1,5 +1,5 @@
 ---
-source_sha: "ebe8092adb19"
+source_sha: "0e00e8d61666"
 ---
 
 # Inicio de sesión con el directorio y grupos { #directory-sign-in-and-groups }
@@ -30,7 +30,7 @@ nativo. Véase
 
 Un grupo es un conjunto con nombre de miembros dentro de una organización:
 *Finanzas*, *Equipo de soporte*, *Administradores de la plataforma*. Un agent, un
-skill, una colección, un archivo de contexto, un secreto del vault o un artefacto
+skill, una colección, un archivo de contexto, un secreto del vault o una aplicación
 se comparten con un grupo igual que con una persona, desde el panel **Sharing**
 del recurso. Una sola concesión llega entonces a todos los del grupo.
 

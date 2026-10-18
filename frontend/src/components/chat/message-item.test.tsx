@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MessageItem } from "./message-item";
-import { mustShowEveryStep, runsOf } from "./turn-parts";
+import { foldWork, mustShowEveryStep, runsOf } from "./turn-parts";
 import { useAuthStore, useChatStore, useFilePreviewStore } from "@/stores";
+import { ChatScope } from "@/stores/chat-scope";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import type { Agent } from "@/types/agents";
 import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } from "@/types";
@@ -13,6 +14,10 @@ import type { ChatMessage, ChatMessageFile, MessagePart, ToolCall, TurnUsage } f
 // and hands them to each step, so a public surface can render the same step without
 // a session - the fetch would need one, and a query client to run it in.
 vi.mock("@/hooks", () => ({ useMcpToolServers: () => [] }));
+vi.mock("@/components/artifacts/artifact-thumbnail", () => ({
+  ArtifactThumbnail: ({ title }: { title: string }) => <span>thumbnail of {title}</span>,
+}));
+vi.mock("@/hooks/use-knowledge-bases", () => ({ useKnowledgeBaseFor: () => () => undefined }));
 vi.mock("./markdown-content", () => ({
   MarkdownContent: ({
     content,
@@ -87,6 +92,7 @@ function item(
     continuesTurn?: boolean;
     endsTurn?: boolean;
     turnUsage?: TurnUsage;
+    pins?: { pinned: readonly string[]; toggle: (prompt: string) => void };
   } = {},
 ) {
   return render(<MessageItem message={message(overrides)} {...props} />);
@@ -173,6 +179,16 @@ describe("a turn in the transcript", () => {
     expect(screen.queryByText("stopped")).toBeNull();
   });
 
+  it("shows what a question pointed the agent at as chips above it (#2189)", () => {
+    item({
+      role: "user",
+      content: "Find the brief",
+      mentions: [{ kind: "skill", id: "s-1", name: "refund-policy" }],
+    });
+    expect(screen.getByTitle("refund-policy")).toHaveTextContent("refund-policy");
+    expect(screen.queryByRole("button", { name: /Remove/ })).toBeNull();
+  });
+
   it("renders an answer as Markdown and a question as plain text", () => {
     const { unmount } = item();
     expect(screen.getByTestId("markdown")).toHaveTextContent("Refunds run to thirty days.");
@@ -181,6 +197,25 @@ describe("a turn in the transcript", () => {
     item({ role: "user", content: "How long?" });
     expect(screen.queryByTestId("markdown")).toBeNull();
     expect(screen.getByText("How long?")).toBeInTheDocument();
+  });
+
+  it("lets the test panel pin a question, and unpin it, from the question itself (#2075)", () => {
+    const toggle = vi.fn();
+    const { unmount } = item(
+      { role: "user", content: "Refunds?" },
+      { pins: { pinned: [], toggle } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Pin to ask again after each change" }));
+    unmount();
+
+    item({ role: "user", content: "Refunds?" }, { pins: { pinned: ["Refunds?"], toggle } });
+    fireEvent.click(screen.getByRole("button", { name: "Unpin this question" }));
+    expect(toggle.mock.calls).toEqual([["Refunds?"], ["Refunds?"]]);
+  });
+
+  it("offers no pin outside the test panel, nor on an answer", () => {
+    item({ role: "user", content: "Refunds?" });
+    expect(screen.queryByRole("button", { name: /Pin to ask again/ })).toBeNull();
   });
 
   it("names the agent that answered, and the version that did", () => {
@@ -231,6 +266,65 @@ describe("a turn in the transcript", () => {
     });
 
     expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+describe("a turn in the narrow chat beside a page (the Architect, the test panel)", () => {
+  const support = { id: "a-1", slug: "support", name: "Support" } as Agent;
+  function compact(
+    overrides: Partial<ChatMessage> = {},
+    props: { agent?: Agent; groupPosition?: "first" | "single"; continuesTurn?: boolean } = {},
+  ) {
+    return render(
+      <ChatScope agentId="a-1">
+        <MessageItem message={message(overrides)} {...props} />
+      </ChatScope>,
+    );
+  }
+
+  it("draws what the person sent into the task as their own message, at the narrow size", () => {
+    compact({
+      parts: [
+        { id: "p-1", type: "text", content: "Pulling the numbers." },
+        { id: "p-2", type: "steer", content: "use the EU numbers" },
+      ],
+    });
+
+    expect(screen.getByText("use the EU numbers")).toBeInTheDocument();
+    expect(screen.getByText("You").className).toContain("text-xs");
+  });
+
+  it("replays a stored question with nothing recorded as asked or answered", () => {
+    compact({ parts: [{ id: "p-1", type: "ask_user" }] });
+
+    expect(screen.getByText("Asked you")).toBeInTheDocument();
+  });
+
+  it("puts the face and the name on one line above an answer, with its version", () => {
+    compact({ agentVersion: 2 }, { agent: support, groupPosition: "first" });
+
+    expect(screen.getByText("Support")).toBeInTheDocument();
+    expect(screen.getByText(/v2/)).toBeInTheDocument();
+  });
+
+  it("calls an answer by a generic name when the agent is unknown, without a version", () => {
+    compact({});
+
+    expect(screen.getByText("Agent")).toBeInTheDocument();
+    expect(screen.queryByText(/v\d/)).toBeNull();
+  });
+
+  it("calls the person's own message theirs", () => {
+    compact({ role: "user", content: "Refunds?" }, { agent: support });
+
+    expect(screen.getByText("You")).toBeInTheDocument();
+    expect(screen.queryByText("Support")).toBeNull();
+  });
+
+  it("draws no second line for a segment continuing the same turn", () => {
+    compact({}, { agent: support, continuesTurn: true });
+
+    expect(screen.queryByText("Support")).toBeNull();
   });
 });
 
@@ -285,6 +379,9 @@ describe("the ordered timeline", () => {
         { id: "p-3", type: "text", content: "Thirty days." },
       ],
     });
+    // Finished, the work folds into one line above the answer; opened, it is in the
+    // order it happened.
+    fireEvent.click(screen.getByRole("button", { name: "Worked · 1 step" }));
 
     // Only the top level: the reasoning renders its own Markdown now, so its mock
     // sits *inside* the `details`. This is about the order of the parts, not of
@@ -308,6 +405,21 @@ describe("the ordered timeline", () => {
     expect(getByText("Which region?")).toBeInTheDocument();
     expect(getByText("You answered")).toBeInTheDocument();
     expect(getByText("eu-west-1")).toBeInTheDocument();
+  });
+
+  it("shows what the person added mid-run where it landed in the turn (#2087)", () => {
+    const { getByText } = item({
+      parts: [
+        { id: "p-1", type: "text", content: "Pulling the US numbers." },
+        { id: "p-2", type: "steer", content: "use the EU numbers" },
+        { id: "p-3", type: "text", content: "Switching to the EU numbers." },
+      ],
+    });
+
+    // As the person's own message, not an aside saying they "added" something.
+    expect(screen.queryByText("You added:")).toBeNull();
+    expect(getByText("You")).toBeInTheDocument();
+    expect(getByText("use the EU numbers")).toBeInTheDocument();
   });
 
   it("names the delegate that asked, where one did (#1042)", () => {
@@ -405,6 +517,39 @@ describe("the ordered timeline", () => {
   });
 });
 
+describe("an app the turn published", () => {
+  const publishing = {
+    toolCalls: [
+      {
+        id: "tc-1",
+        name: "publish_artifact",
+        args: {},
+        status: "completed" as const,
+        result: JSON.stringify({
+          kind: "artifact",
+          artifact_id: "app-1",
+          version_id: "v-2",
+          version: 2,
+          title: "Revenue dashboard",
+        }),
+      },
+    ],
+  };
+
+  it("is a card under the answer, opening the version this turn wrote", () => {
+    item(publishing);
+
+    const card = screen.getByRole("link", { name: /Revenue dashboard/ });
+    expect(card).toHaveAttribute("href", "/apps/app-1?version=v-2");
+  });
+
+  it("waits for the turn to finish", () => {
+    item({ ...publishing, isStreaming: true });
+
+    expect(screen.queryByRole("link", { name: /Revenue dashboard/ })).toBeNull();
+  });
+});
+
 describe("citations", () => {
   const withSources = {
     toolCalls: [
@@ -441,17 +586,17 @@ describe("citations", () => {
     expect(screen.getByRole("button", { name: /1 source/ })).toBeInTheDocument();
   });
 
-  it("marks which kinds of source an answer drew on", async () => {
-    // Two small icons rather than a sentence: a reader scanning a thread wants to
-    // know whether an answer came from their own documents or from the web.
-    const { container } = item({
+  it("stacks a mark for each document an answer drew on, by its kind", () => {
+    // A file's kind for a knowledge base passage, the web's globe for a page:
+    // a reader scanning a thread sees where an answer came from without opening it.
+    item({
       toolCalls: [
         {
           id: "tc-1",
           name: "search_documents",
           args: {},
           status: "completed",
-          result: "[1] Source: a.md (score: 0.8)\nOne.",
+          result: "[1] Source: a.md (score: 0.8)\nOne.\n[2] Source: a.md (score: 0.7)\nTwo.",
         },
         {
           id: "tc-2",
@@ -466,38 +611,21 @@ describe("citations", () => {
       ],
     });
 
+    // Two passages of one file are one source.
     const footer = screen.getByRole("button", { name: /2 sources/ });
-    expect(footer.querySelectorAll(".lucide-file-text")).toHaveLength(1);
     expect(footer.querySelectorAll(".lucide-globe")).toHaveLength(1);
-    expect(container.querySelector(".lucide-file-text")).not.toBeNull();
+    expect(footer.querySelectorAll("svg")).toHaveLength(3);
   });
 
-  it("shows only the web icon for an answer that came only from the web", () => {
-    const { container } = item({
-      toolCalls: [
-        {
-          id: "tc-1",
-          name: "web_search",
-          args: {},
-          status: "completed",
-          result: JSON.stringify({
-            kind: "web_search",
-            results: [{ title: "Hit", url: "https://a.example/" }],
-          }),
-        },
-      ],
-    });
-
-    expect(container.querySelectorAll(".lucide-globe")).toHaveLength(1);
-  });
-
-  it("opens the whole list from the footer, with nothing highlighted", async () => {
+  it("opens into the list of documents, and a document onto its passages", async () => {
     item({ ...withSources });
 
     await userEvent.click(screen.getByRole("button", { name: /2 sources/ }));
+    expect(useSourcesPanelStore.getState().isOpen).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: /policy\.md/ }));
 
     expect(useSourcesPanelStore.getState().isOpen).toBe(true);
-    expect(useSourcesPanelStore.getState().highlightedIndex).toBeNull();
+    expect(useSourcesPanelStore.getState().highlightedIndex).toBe(2);
   });
 
   it("opens on the citation that was clicked in the answer", async () => {
@@ -583,6 +711,18 @@ describe("what a person attached", () => {
     expect(screen.getByText("Makefile")).toBeInTheDocument();
   });
 
+  it("calls a long paste what it was, not the name invented for it", () => {
+    item({
+      role: "user",
+      content: "x",
+      files: [
+        file({ filename: "pasted-2026-10-12.txt", mime_type: "text/plain", file_type: "text" }),
+      ],
+    });
+
+    expect(screen.getByText("Pasted")).toBeInTheDocument();
+  });
+
   it("falls back to a link for a legacy attachment with only an id", () => {
     // Older messages stored ids and no metadata; the preview panel needs the
     // metadata, so those open in a tab instead.
@@ -647,6 +787,14 @@ describe("the footer", () => {
     expect(screen.queryByRole("button", { name: "rate" })).toBeNull();
   });
 
+  it("offers no rating on an answer the server never saved", () => {
+    // A turn that failed before `message_saved` keeps its client id, which the
+    // rating endpoint answers with "Message not found".
+    item({ isTemporaryId: true });
+
+    expect(screen.queryByRole("button", { name: "rate" })).toBeNull();
+  });
+
   it("writes a rating back into the message it belongs to", async () => {
     // The store is the source of truth for the transcript; a rating that only
     // lived in the button would vanish on the next re-render.
@@ -701,27 +849,13 @@ describe("the footer", () => {
 });
 
 describe("a turn split across several messages", () => {
-  it("joins the group visually, and stands a single one alone", () => {
-    const { container, unmount } = item({}, { groupPosition: "first" });
-    expect(container.querySelector(".ring-2")).not.toBeNull();
+  it("sits its parts closer together than two separate turns", () => {
+    const { container, unmount } = item({}, { groupPosition: "middle" });
+    expect(container.querySelector("[data-message-id]")).toHaveClass("pt-2");
     unmount();
 
     const single = item({}, { groupPosition: "single" });
-    expect(single.container.querySelector(".ring-2")).toBeNull();
-  });
-
-  it("draws the connector for a middle and a last message too", () => {
-    for (const position of ["middle", "last"] as const) {
-      const { container, unmount } = item({}, { groupPosition: position });
-      expect(container.querySelector(".ring-2"), position).not.toBeNull();
-      unmount();
-    }
-  });
-
-  it("never groups a person's own message", () => {
-    const { container } = item({ role: "user", content: "x" }, { groupPosition: "first" });
-
-    expect(container.querySelector(".ring-2")).toBeNull();
+    expect(single.container.querySelector("[data-message-id]")).toHaveClass("pt-3");
   });
 });
 
@@ -740,8 +874,9 @@ describe("what a turn cost, under the turn", () => {
   it("prices an assistant answer where the answer is", () => {
     item({ usage });
 
-    expect(screen.getByText(/\u21931,200/)).toBeVisible();
-    expect(screen.getByText(/\$0\.0125/)).toBeVisible();
+    // Rounded to the cent, the exact figure on hover, and no token counts.
+    expect(screen.getByText("$0.01")).toHaveAttribute("title", "$0.0125");
+    expect(screen.queryByText(/\u2193/)).toBeNull();
   });
 
   it("says nothing on a reloaded turn, which carries no measurement", () => {
@@ -795,6 +930,16 @@ describe("the runs a turn is made of", () => {
     expect(runsOf([])).toEqual([]);
   });
 
+  it("keeps a steer as its own run and drops an empty one (#2087)", () => {
+    const runs = runsOf([
+      { id: "s1", type: "steer", content: "shorter" },
+      { id: "s2", type: "steer", content: "" },
+    ]);
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.kind === "other" && runs[0].part.type).toBe("steer");
+  });
+
   it("keeps an ask_user part as its own run, empty content notwithstanding (#502)", () => {
     const runs = runsOf([
       { id: "q1", type: "ask_user", question: "Which region?", answer: "eu-west-1" },
@@ -840,6 +985,8 @@ describe("the step a reopened turn leaves open", () => {
       />,
     );
 
+    expect(screen.queryByTestId("tool-tc-a")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Worked · 1 step" }));
     expect(screen.getByTestId("tool-tc-a")).toHaveAttribute("data-open", "false");
   });
 
@@ -916,15 +1063,16 @@ describe("a segment that continues the turn above it", () => {
     expect(container.firstElementChild!.className).not.toContain("pb-0");
   });
 
-  it("keeps the gutter, so the whole turn stays in one column", () => {
+  it("draws no second face or name, so the turn reads as one message", () => {
     const { container } = item(
       {},
       { agent: { id: "a-1", slug: "support", name: "Support" } as Agent, continuesTurn: true },
     );
 
-    // The avatar slot is still rendered and still the same size - empty rather
-    // than absent, and hidden from a screen reader because it says nothing.
-    expect(container.querySelector('[aria-hidden="true"].rounded-full')).toBeInTheDocument();
+    // The face and the name head the turn once, over the full-width column, so a
+    // segment that continues it starts straight with its content.
+    expect(container.querySelector(".rounded-full")).toBeNull();
+    expect(screen.queryByText("Support")).toBeNull();
   });
 });
 
@@ -944,13 +1092,13 @@ describe("the footer of a turn drawn in several messages", () => {
     // The run reports what it has spent when it parks, so this used to put the
     // time, the tokens and the cost halfway up the answer.
     const { unmount } = item({ content: "Waiting.", usage: USAGE }, { endsTurn: false });
-    expect(screen.queryByText(/6,603/)).toBeNull();
+    expect(screen.queryByTitle("$0.0133")).toBeNull();
     unmount();
 
     // The same message where the turn does end, so the absence above is the
     // grouping and not a query that matches nothing.
     item({ content: "Waiting.", usage: USAGE });
-    expect(screen.getByText(/6,603/)).toBeInTheDocument();
+    expect(screen.getByTitle("$0.0133")).toBeInTheDocument();
   });
 
   it("draws the turn's figure under the message that ends it", () => {
@@ -958,12 +1106,95 @@ describe("the footer of a turn drawn in several messages", () => {
     // one turn, where the answer actually ends.
     item({ content: "Six sheets." }, { turnUsage: USAGE });
 
-    expect(screen.getByText(/6,603/)).toBeInTheDocument();
+    expect(screen.getByTitle("$0.0133")).toBeInTheDocument();
   });
 
   it("falls back to its own figure when it is the whole turn", () => {
     item({ content: "Six sheets.", usage: USAGE });
 
-    expect(screen.getByText(/6,603/)).toBeInTheDocument();
+    expect(screen.getByTitle("$0.0133")).toBeInTheDocument();
+  });
+});
+
+describe("the work before an answer", () => {
+  const call = (
+    id: string,
+    status: ToolCall["status"] = "completed",
+    name = "ls",
+  ): MessagePart => ({
+    id: `p-${id}`,
+    type: "tool",
+    toolCall: { id: `tc-${id}`, name, args: {}, status },
+  });
+  const text = (id: string, content: string): MessagePart => ({ id, type: "text", content });
+  const thought: MessagePart = { id: "p-th", type: "thinking", content: "Hmm." };
+
+  it("folds the thinking, the calls and the narration into one line above the answer", () => {
+    const split = foldWork(
+      runsOf([
+        thought,
+        text("n", "Let me check."),
+        call("a"),
+        call("b"),
+        text("ans", "Thirty days."),
+      ]),
+    );
+    expect(split?.steps).toBe(2);
+    expect(split?.folded).toHaveLength(3);
+    expect(split?.shown).toHaveLength(1);
+  });
+
+  it("folds nothing without an answer, or without work in front of it", () => {
+    expect(foldWork(runsOf([call("a")]))).toBeNull();
+    expect(foldWork(runsOf([text("ans", "Hello.")]))).toBeNull();
+    expect(foldWork(runsOf([text("n", "First."), text("ans", "Second.")]))).toBeNull();
+  });
+
+  it("keeps on the page what a person has to see", () => {
+    // A failure, a long passage that is an answer of its own, a question the agent
+    // asked and what the person added mid-run all stay where they were.
+    const long = text("long", "x".repeat(401));
+    const asked: MessagePart = { id: "p-q", type: "ask_user", question: "Which?", answer: "A" };
+    const steer: MessagePart = { id: "p-s", type: "steer", content: "Also B." };
+    const split = foldWork(
+      runsOf([call("a"), long, asked, steer, call("bad", "error"), text("ans", "Done.")]),
+    );
+    expect(split?.steps).toBe(1);
+    expect(split?.shown).toHaveLength(5);
+  });
+
+  it("times a reloaded turn by its run, under its last segment only", () => {
+    const parts = [call("a"), text("ans", "Done.")];
+    const { unmount } = item({ parts, runDurationMs: 12_400 });
+    expect(screen.getByRole("button", { name: "Worked for 12s · 1 step" })).toBeInTheDocument();
+    unmount();
+
+    item({ parts, runDurationMs: 12_400 }, { endsTurn: false });
+    expect(screen.getByRole("button", { name: "Worked · 1 step" })).toBeInTheDocument();
+  });
+
+  it("says the turn is working while it streams, and only once there is work", () => {
+    const { unmount } = item({ parts: [call("a", "running")], isStreaming: true });
+    expect(screen.getByRole("status")).toHaveTextContent("Working");
+    unmount();
+
+    item({ parts: [text("ans", "Thir")], isStreaming: true });
+    expect(screen.queryByText(/Working/)).not.toBeInTheDocument();
+  });
+
+  it("folds a stopped turn's work into one line that says it stopped, with no Done", () => {
+    const parts = [call("a"), call("b")];
+    item({ parts, runDurationMs: 12_400, wasStopped: true });
+
+    expect(screen.getByRole("button", { name: "Stopped after 12s · 2 steps" })).toBeInTheDocument();
+    expect(screen.queryByText("Done")).toBeNull();
+    // The line says it, so the footer does not say it again.
+    expect(screen.queryByText("stopped")).toBeNull();
+  });
+
+  it("keeps the footer's mark for a turn cut off with nothing to fold", () => {
+    item({ parts: [text("ans", "Half an ans")], wasStopped: true });
+
+    expect(screen.getByText("stopped")).toBeInTheDocument();
   });
 });

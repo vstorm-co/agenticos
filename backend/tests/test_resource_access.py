@@ -204,6 +204,48 @@ class TestGrantsWidenAccess:
             )
 
 
+class TestAKeyIsNotWidenedByAGrant:
+    """A grant answers what a *person* may do to one row; an API key is that
+    person's authority narrowed to what it was issued for (#1794). A read-only key
+    held by somebody with an edit grant must still not edit."""
+
+    @pytest.mark.anyio
+    async def test_an_edit_grant_does_not_let_a_read_only_key_edit(self):
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.VIEWER,
+            key_scopes=frozenset({Perm.COLLECTIONS_VIEW}),
+        )
+        resource = _resource(ctx.organization_id, owner_user_id=uuid.uuid4())
+
+        with _grant(GrantLevel.EDIT) as lookup:
+            assert not await resolve_access(
+                MagicMock(), ctx, resource, Perm.COLLECTIONS_EDIT, resource_type=COLLECTION
+            )
+            assert await resolve_access(
+                MagicMock(), ctx, resource, Perm.COLLECTIONS_VIEW, resource_type=COLLECTION
+            )
+        lookup.assert_awaited_once()
+
+    @pytest.mark.anyio
+    async def test_a_listing_through_grants_is_empty_for_a_key_without_the_permission(self):
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.MEMBER,
+            key_scopes=frozenset({Perm.AGENTS_VIEW}),
+        )
+        with patch(
+            "app.services.access.resource_grant_repo.list_shared_ids", new=AsyncMock()
+        ) as lookup:
+            result = await visible_resource_ids(
+                MagicMock(), ctx, resource_type=COLLECTION, perm=Perm.COLLECTIONS_VIEW
+            )
+        assert result == []
+        lookup.assert_not_awaited()
+
+
 class TestTenantBoundary:
     @pytest.mark.anyio
     async def test_another_organizations_resource_is_never_reachable(self):

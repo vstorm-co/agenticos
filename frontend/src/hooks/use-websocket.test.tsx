@@ -209,6 +209,24 @@ describe("connecting", () => {
     expect(first.close).toHaveBeenCalled();
   });
 
+  it("swaps the socket when the person it speaks for changes", () => {
+    // An impersonation or another account signing in, on the same address: the
+    // old socket is still authenticated as somebody else.
+    const { result, rerender } = renderHook(
+      ({ who }: { who: string }) => useWebSocket({ url: "wss://api/events", identity: who }),
+      { initialProps: { who: "ada" } },
+    );
+    act(() => result.current.connect());
+    act(() => latest().open());
+    const first = latest();
+
+    rerender({ who: "grace" });
+    act(() => result.current.connect());
+
+    expect(sockets()).toHaveLength(2);
+    expect(first.close).toHaveBeenCalled();
+  });
+
   it("replaces a socket that is neither open nor connecting", () => {
     const { result } = renderHook(() => useWebSocket({ url: "wss://api/chat" }));
     act(() => result.current.connect());
@@ -467,6 +485,36 @@ describe("disconnecting", () => {
     act(() => vi.advanceTimersByTime(150));
 
     expect(socket.close).toHaveBeenCalled();
+  });
+});
+
+describe("reopening", () => {
+  // Leaving a conversation whose turn is still running: the server serves one
+  // turn per socket, so the next conversation needs a socket of its own.
+  it("swaps the live socket for a fresh one at once, saying nothing about the old", () => {
+    const onClose = vi.fn();
+    const { result } = renderHook(() => useWebSocket({ url: "wss://api/chat", onClose }));
+    act(() => result.current.connect());
+    act(() => latest().open());
+    const old = latest();
+
+    act(() => result.current.reopen());
+
+    expect(old.close).toHaveBeenCalled();
+    expect(sockets()).toHaveLength(2);
+    // Disconnected until the new one opens, so nothing is sent into it early.
+    expect(result.current.isConnected).toBe(false);
+    act(() => latest().open());
+    expect(result.current.isConnected).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("opens one where there was none", () => {
+    const { result } = renderHook(() => useWebSocket({ url: "wss://api/chat" }));
+
+    act(() => result.current.reopen());
+
+    expect(sockets()).toHaveLength(1);
   });
 });
 

@@ -29,6 +29,8 @@ export interface RunFilters {
   model: string;
   /** Text runs or voice calls (#54). */
   modality: "all" | "text" | "voice";
+  /** Runs from the Builder's test panel: only them, none of them, or both (#2074). */
+  test: "all" | "only" | "hide";
 }
 
 export const DEFAULT_RUN_FILTERS: RunFilters = {
@@ -39,6 +41,7 @@ export const DEFAULT_RUN_FILTERS: RunFilters = {
   versionId: "all",
   model: "all",
   modality: "all",
+  test: "all",
 };
 
 /** The URL name of each filter. `person` reads better in a pasted link than `userId`. */
@@ -50,10 +53,12 @@ const PARAM: Record<keyof RunFilters, string> = {
   versionId: "version",
   model: "model",
   modality: "modality",
+  test: "test",
 };
 
 const RATINGS = new Set(["up", "down"]);
 const MODALITIES = new Set(["text", "voice"]);
+const TESTS = new Set(["only", "hide"]);
 
 /** Activity's three tabs, in the order the strip draws them. */
 export const RUNS_TABS = ["runs", "approvals", "spend"] as const;
@@ -88,6 +93,7 @@ export function parseRunFilters(params: URLSearchParams): RunFilters {
   const read = (key: keyof RunFilters) => params.get(PARAM[key])?.trim() || "all";
   const rated = read("rated");
   const modality = read("modality");
+  const test = read("test");
   return {
     status: read("status") as RunFilters["status"],
     surface: read("surface"),
@@ -96,6 +102,7 @@ export function parseRunFilters(params: URLSearchParams): RunFilters {
     versionId: read("versionId"),
     model: read("model"),
     modality: MODALITIES.has(modality) ? (modality as RunFilters["modality"]) : "all",
+    test: TESTS.has(test) ? (test as RunFilters["test"]) : "all",
   };
 }
 

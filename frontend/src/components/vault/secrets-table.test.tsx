@@ -6,9 +6,9 @@ import { SecretsTable } from "./secrets-table";
 import type { Secret, SecretPurpose } from "@/types/secrets";
 
 /**
- * The service filter, in the controls strip - not the second header row it
- * used to draw under the column names, which was the one filter in the product
- * living outside the shared list-card pattern.
+ * Every key the organization holds, one row each, named by what it is for.
+ * There is no service filter over them: an organization holds a handful of
+ * keys, and a select over five rows was a control nobody needed.
  */
 
 function secret(overrides: Partial<Secret>): Secret {
@@ -44,37 +44,34 @@ function renderTable(secrets: Secret[]) {
   );
 }
 
-describe("the service filter", () => {
-  it("narrows the keys to one service, and back to all of them", async () => {
+describe("the keys", () => {
+  it("lists every key, each named by the service it is for", () => {
     renderTable([
-      secret({ name: "openai-prod", purpose: "openai" }),
-      secret({ name: "internal-token", purpose: "custom" }),
+      secret({ name: "Main OpenAI", purpose: "openai" }),
+      secret({ name: "Scraper token" }),
     ]);
 
-    expect(screen.getByText("openai-prod")).toBeInTheDocument();
-    expect(screen.getByText("internal-token")).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("combobox", { name: "Filter by service" }));
-    await userEvent.click(screen.getByRole("option", { name: "OpenAI" }));
-
-    expect(screen.getByText("openai-prod")).toBeInTheDocument();
-    expect(screen.queryByText("internal-token")).toBeNull();
-
-    await userEvent.click(screen.getByRole("combobox", { name: "Filter by service" }));
-    await userEvent.click(screen.getByRole("option", { name: "Any service" }));
-
-    expect(screen.getByText("internal-token")).toBeInTheDocument();
+    expect(screen.getByText("Main OpenAI")).toBeInTheDocument();
+    expect(screen.getByText("OpenAI")).toBeInTheDocument();
+    expect(screen.getByText("Scraper token")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).toBeNull();
   });
 
-  it("offers only the services actually present, each once", async () => {
-    renderTable([
-      secret({ name: "one", purpose: "openai" }),
-      secret({ name: "two", purpose: "openai" }),
-    ]);
+  it("offers a manager the key's actions", async () => {
+    const onRotate = vi.fn();
+    render(
+      <SecretsTable
+        secrets={[secret({ name: "Main OpenAI", purpose: "openai" })]}
+        purposes={PURPOSES}
+        canManage
+        onShare={noop}
+        onRotate={onRotate}
+        onDelete={noop}
+      />,
+    );
 
-    await userEvent.click(screen.getByRole("combobox", { name: "Filter by service" }));
+    await userEvent.click(screen.getByRole("button", { name: "Rotate Main OpenAI" }));
 
-    expect(screen.getAllByRole("option", { name: "OpenAI" })).toHaveLength(1);
-    expect(screen.queryByRole("option", { name: "Custom service" })).toBeNull();
+    expect(onRotate).toHaveBeenCalled();
   });
 });

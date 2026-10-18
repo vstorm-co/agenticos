@@ -4,6 +4,7 @@ import { AlertTriangle } from "lucide-react";
 
 import { CapabilityDetail } from "@/components/agents/capability-settings";
 import { DelegateList } from "@/components/agents/delegate-list";
+import { useCapabilityFieldCopy } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
 import { SpecialistList } from "@/components/agents/specialist-list";
 import { Label, Switch } from "@/components/ui";
@@ -85,6 +86,7 @@ export function SubagentsSection({
   const t = useTranslations("agents");
   const { agents } = useAgents();
   const { can } = usePermissions();
+  const copyFor = useCapabilityFieldCopy(SUBAGENTS_ID);
 
   // A deployment that did not register the capability has nothing to configure,
   // and an empty section reads as something that failed to load.
@@ -153,6 +155,7 @@ export function SubagentsSection({
             schema={generatedFields(definition.config_schema)}
             value={binding?.config ?? {}}
             disabled={disabled}
+            copyFor={copyFor}
             onChange={(next) => setConfig(next)}
           />
         )}

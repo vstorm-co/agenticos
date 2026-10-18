@@ -16,7 +16,7 @@ import type { Period } from "@/lib/dashboard/period";
 import { CATEGORY_ORDER, type WidgetCategory, type WidgetDef } from "@/lib/dashboard/registry";
 import { cn } from "@/lib/utils";
 import { WIDGET_COMPONENTS } from "./widgets";
-import { DIALOG_BROAD, DIALOG_COLUMN } from "@/lib/dialog-sizes";
+import { DIALOG_BROAD, DIALOG_COLUMN, DIALOG_SCROLL_GUTTER } from "@/lib/dialog-sizes";
 
 interface AddWidgetDialogProps {
   /** The widgets the caller may add - already gated, so nothing here leaks. */
@@ -176,7 +176,7 @@ export function AddWidgetDialog({
           <div
             role="group"
             aria-label={t("edit.addTitle")}
-            className="min-h-0 space-y-4 overflow-y-auto pr-1"
+            className={cn("min-h-0 space-y-4 overflow-y-auto", DIALOG_SCROLL_GUTTER)}
           >
             {groups.length === 0 ? (
               <p className="text-muted-foreground py-8 text-center text-sm">

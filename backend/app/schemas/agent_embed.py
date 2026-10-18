@@ -12,7 +12,7 @@ import logging
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import Field, HttpUrl, field_validator, model_validator
+from pydantic import Field, HttpUrl, StringConstraints, field_validator, model_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.services.realtime_models import Transport
@@ -78,6 +78,22 @@ class WidgetConfig(BaseSchema):
     launcher_label: str = Field(default="Chat", max_length=24)
     dictation: DictationMode = Field(default="off", description=_DICTATION_DESCRIPTION)
     voice_conversation: bool = Field(default=False, description=_VOICE_CONVERSATION_DESCRIPTION)
+    quick_replies: list[Annotated[str, StringConstraints(min_length=1, max_length=60)]] = Field(
+        default_factory=list,
+        max_length=4,
+        description=(
+            "Suggested first messages offered under the greeting. A click sends one "
+            "as the visitor; they disappear once the conversation starts."
+        ),
+    )
+    show_sources: bool = Field(
+        default=False,
+        description=(
+            "Name the documents an answer drew on, under the answer. Only the names - "
+            "never the passages - and off by default, because a file name can say "
+            "more than the page it answers on was meant to."
+        ),
+    )
 
 
 class SocketConfig(BaseSchema):
@@ -201,7 +217,7 @@ class PageConfig(BaseSchema):
         published before the change would silently lose its microphone - the
         schema does not forbid extra keys - and the next re-dump of its config
         (a logo upload rewrites it) would erase the setting for good.
-        `0109_embed_dictation` rewrites the stored rows; this covers anything
+        `0139_embed_dictation` rewrites the stored rows; this covers anything
         that reaches the model without passing through that, a YAML or an API
         client written against the old field included.
         """
@@ -395,8 +411,21 @@ class PublicEmbedConfig(BaseSchema):
     accent: str
     position: Literal["left", "right"]
     launcher_label: str
+    quick_replies: list[str]
     requires_token: bool
     agent_name: str
+    avatar_url: str = Field(
+        description=(
+            "The agent's face: its uploaded picture on this API, or the face drawn "
+            "from its handle on the console. An image URL either way"
+        )
+    )
+    avatar_thinking_url: str | None = Field(
+        description=(
+            "The drawn face mid-thought, shown while a turn runs. Null for an "
+            "uploaded picture, which has no second expression"
+        )
+    )
     dictation: DictationMode = Field(
         default="off",
         description=(

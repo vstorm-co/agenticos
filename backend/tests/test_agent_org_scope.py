@@ -8,6 +8,7 @@ Covers the two halves of the WebSocket org boundary:
 
 import uuid
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
 
 import pytest
@@ -16,6 +17,7 @@ from fastapi import WebSocketException
 from app.api.deps import get_active_organization_ws
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.services.agent import persist_user_turn
+from app.services.api_key import KeyCaller
 from app.services.conversation import ConversationService
 
 
@@ -31,6 +33,27 @@ def _user(user_id=None):
     return user
 
 
+def _session_socket():
+    """A socket opened with a session token: nothing about a key on its state."""
+    socket = MagicMock()
+    socket.state = SimpleNamespace()
+    return socket
+
+
+def _key_socket(organization):
+    socket = MagicMock()
+    socket.state = SimpleNamespace(
+        api_key_caller=KeyCaller(
+            user=_user(),
+            organization=organization,
+            context=MagicMock(),
+            api_key_id=uuid.uuid4(),
+            prefix="aos_0123abcd",
+        )
+    )
+    return socket
+
+
 @asynccontextmanager
 async def _fake_db_context():
     db = MagicMock()
@@ -41,6 +64,26 @@ async def _fake_db_context():
 
 class TestActiveOrganizationWS:
     """Resolving the organization a WebSocket session runs as."""
+
+    @pytest.mark.anyio
+    async def test_a_key_socket_runs_in_the_key_s_organization(self):
+        """An organization key carries its organization, so the socket needs no
+        parameter and no membership read to know where it acts (#1794)."""
+        acme = _org()
+
+        org = await get_active_organization_ws(_key_socket(acme), _user(), organization_id=None)
+
+        assert org is acme
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_key_socket_naming_another_organization_is_refused(self):
+        with pytest.raises(WebSocketException) as refused:
+            await get_active_organization_ws(
+                _key_socket(_org()), _user(), organization_id=uuid.uuid4()
+            )
+
+        assert refused.value.code == 4003
 
     @pytest.mark.anyio
     async def test_falls_back_to_personal_org(self):
@@ -55,7 +98,7 @@ class TestActiveOrganizationWS:
                 new=AsyncMock(return_value=personal),
             ),
         ):
-            org = await get_active_organization_ws(user, organization_id=None)
+            org = await get_active_organization_ws(_session_socket(), user, organization_id=None)
 
         assert org.id == personal.id
 
@@ -70,7 +113,7 @@ class TestActiveOrganizationWS:
             ),
             pytest.raises(WebSocketException) as exc,
         ):
-            await get_active_organization_ws(_user(), organization_id=None)
+            await get_active_organization_ws(_session_socket(), _user(), organization_id=None)
 
         assert exc.value.code == 4001
 
@@ -87,7 +130,9 @@ class TestActiveOrganizationWS:
                 new=AsyncMock(return_value=requested),
             ),
         ):
-            org = await get_active_organization_ws(_user(), organization_id=requested.id)
+            org = await get_active_organization_ws(
+                _session_socket(), _user(), organization_id=requested.id
+            )
 
         assert org.id == requested.id
 
@@ -99,7 +144,9 @@ class TestActiveOrganizationWS:
             patch("app.api.deps._member_repo.get", new=AsyncMock(return_value=None)),
             pytest.raises(WebSocketException) as exc,
         ):
-            await get_active_organization_ws(_user(), organization_id=uuid.uuid4())
+            await get_active_organization_ws(
+                _session_socket(), _user(), organization_id=uuid.uuid4()
+            )
 
         assert exc.value.code == 4003
 
@@ -112,7 +159,9 @@ class TestActiveOrganizationWS:
             patch("app.api.deps.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
             pytest.raises(WebSocketException) as exc,
         ):
-            await get_active_organization_ws(_user(), organization_id=uuid.uuid4())
+            await get_active_organization_ws(
+                _session_socket(), _user(), organization_id=uuid.uuid4()
+            )
 
         assert exc.value.code == 4003
         assert exc.value.reason == "Organization access denied"
@@ -438,6 +487,35 @@ class TestPersistAssistantTurnRecordsWhatItCost:
         written = service.add_message.await_args.kwargs["data"]
         assert (written.input_tokens, written.output_tokens) == (1200, 300)
         assert written.cost_usd == Decimal("0.0125")
+
+    @pytest.mark.anyio
+    async def test_a_call_an_organization_server_served_is_stored_against_it(self):
+        """What a server's call log reads (#2072); a tool no organization
+        connection served is stored against none."""
+        from app.services.agent import persist_assistant_turn
+
+        service = self._conv_service()
+        linear = uuid.uuid4()
+
+        with (
+            patch("app.services.agent.get_db_context", _fake_db_context),
+            patch("app.services.agent.get_conversation_service", return_value=service),
+        ):
+            await persist_assistant_turn(
+                str(uuid.uuid4()),
+                "answered",
+                None,
+                [
+                    {"tool_call_id": "c1", "tool_name": "linear_search", "args": {}},
+                    {"tool_call_id": "c2", "tool_name": "web_search", "args": {}},
+                ],
+                organization_id=uuid.uuid4(),
+                mcp_origins={"linear_search": linear},
+            )
+
+        assert [
+            call.kwargs["mcp_connection_id"] for call in service.start_tool_call.await_args_list
+        ] == [linear, None]
 
     @pytest.mark.anyio
     async def test_a_turn_nobody_could_measure_records_nothing_rather_than_zero(self):

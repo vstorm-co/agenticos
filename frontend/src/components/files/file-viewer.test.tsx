@@ -270,7 +270,9 @@ describe("the two rows of chrome", () => {
     const heading = screen.getByRole("heading");
     const description = screen.getByText(/CSV/);
 
-    expect(heading.parentElement).toBe(description.parentElement);
+    // The name on the left, what kind of file and the download on the right -
+    // one row.
+    expect(heading.parentElement).toBe(description.parentElement?.parentElement);
   });
 
   it("still describes the dialog exactly once", () => {

@@ -31,23 +31,28 @@ vi.mock("@/hooks/use-mcp-connections", () => ({
 vi.mock("@/hooks/use-mcp-servers", () => ({
   useMcpCatalog: () => ({ servers: [NOTION], isLoading: false }),
 }));
-vi.mock("@/components/agents/connect-server-dialog", () => ({
-  ConnectOwnServerDialog: ({
-    entry,
-    onClose,
-  }: {
-    entry: McpCatalogEntry | null;
-    onClose: () => void;
-  }) =>
-    entry ? (
-      <div role="dialog">
-        connecting {entry.name}
-        <button type="button" onClick={onClose}>
-          close
+// The button and its dialog are tested on their own; here it only has to be
+// offered for the right entry, so clicking it renders a marker naming that one.
+vi.mock("@/components/agents/connect-server-dialog", async () => {
+  const { useState } = await import("react");
+  return {
+    ConnectOwnButton: ({ entry, label }: { entry: McpCatalogEntry; label: string }) => {
+      const [open, setOpen] = useState(false);
+      return open ? (
+        <div role="dialog">
+          connecting {entry.name}
+          <button type="button" onClick={() => setOpen(false)}>
+            close
+          </button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)}>
+          {label}
         </button>
-      </div>
-    ) : null,
-}));
+      );
+    },
+  };
+});
 
 const NOTION: McpCatalogEntry = {
   key: "notion",
@@ -69,12 +74,14 @@ function own(overrides: Partial<McpConnectionRecord> = {}): McpConnectionRecord 
     has_auth_token: true,
     allowed_tools: null,
     is_enabled: true,
+    include_instructions: false,
     auth_type: "oauth",
     oauth_authorized: true,
     authorized: true,
     last_status: "ok",
     last_error: null,
     last_checked_at: null,
+    visibility: "org",
     catalog_key: "notion",
     is_default: false,
     label: null,
@@ -124,25 +131,25 @@ describe("YourConnections", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("sends a person with several accounts and no default to the servers page", () => {
+  it("says connected with several accounts and none marked main - every one answers", () => {
     state.connections = [own(), own({ id: "m2", name: "notion-2" })];
-    const opened = vi.spyOn(window, "open").mockReturnValue(null);
     render(<YourConnections />);
 
-    expect(screen.getByText("Several accounts, none marked default")).toBeInTheDocument();
-    screen.getByRole("button", { name: "Open MCP servers" }).click();
-
-    expect(opened).toHaveBeenCalledWith("/mcp-servers", "_blank", "noopener");
+    expect(screen.getByText("Connected")).toBeInTheDocument();
   });
 
-  it("says when the chosen account no longer authorizes", () => {
+  it("says when the chosen account no longer authorizes", async () => {
     // The server decides usability now; the client reads `authorized` rather than
     // re-deriving it from OAuth consent alone (#1443).
     state.connections = [own({ oauth_authorized: false, authorized: false })];
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
     render(<YourConnections />);
 
     expect(screen.getByText("Needs authorizing again")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open MCP servers" })).toBeInTheDocument();
+    // In a new tab: the conversation, and the question in it, stay where they are.
+    await userEvent.click(screen.getByRole("button", { name: "Open MCP servers" }));
+    expect(open).toHaveBeenCalledWith("/mcp-servers", "_blank", "noopener");
+    open.mockRestore();
   });
 });
 

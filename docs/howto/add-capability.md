@@ -118,7 +118,12 @@ __all__ = ["Weather"]
 
 
 class WeatherConfig(BaseModel):
-    units: str = Field(default="metric", pattern="^(metric|imperial)$")
+    units: str = Field(
+        default="metric",
+        pattern="^(metric|imperial)$",
+        title="Units",
+        description="metric for °C and km/h, imperial for °F and mph.",
+    )
 
 
 @register(
@@ -151,10 +156,17 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   not two paraphrases that drift.
 - **`config_schema`** generates the Builder's form and is validated at publish,
   so a bad value fails while somebody is looking at a form rather than mid-run.
+  Give every field a `title` and a `description` written for the person filling
+  it in, and the same two under `capabilityConfig.<id>.<field>` in
+  `frontend/messages/en.json`, `pl.json` and `de.json`. Without a title the form
+  shows the field name, in English, in every language;
+  `tests/test_capability_registry.py` fails on a field with no title or no
+  catalog entry, and on an English entry that differs from the schema.
 - **`scopes`** are refused at build time when the organization has not granted
   them.
-- **`side_effecting=True`** routes the capability's tools through the approval
-  gate.
+- **`side_effecting=True`** marks the capability's tools as acting on the world,
+  and the Builder says so beside the approval choice. It gates nothing: no tool
+  waits for a person until an author asks.
 - **Returning `None`** means "contributes nothing to *this* agent" and the
   capability is not attached at all. `knowledge` does this when no collections
   are bound: a search tool that always returns empty is worse than none, because
@@ -206,7 +218,7 @@ reasoning lives, not in the commit message.
     `test_every_file_in_a_platform_package_is_gated` exists to keep that true.
     Editing those lists is for a new platform *package*, outside the ones already
     globbed. See `## Testing` in
-`CLAUDE.md`, and `tests/test_capability_registry.py` for the style.
+`AGENTS.md`, and `tests/test_capability_registry.py` for the style.
 
 Worth covering specifically:
 

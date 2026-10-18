@@ -1,4 +1,4 @@
-"""Migration `0115_voice_call_resume_token`: the column comes and goes, and old rows stay.
+"""Migration `0145_voice_call_resume_token`: the column comes and goes, and old rows stay.
 
 Run against real PostgreSQL, on a scratch database holding only a `voice_calls`
 with a row from before the revision.
@@ -20,7 +20,7 @@ from sqlalchemy import Engine, create_engine, inspect, text
 from app.core.config import settings
 
 SCRATCH_DATABASE = f"agenticos_voice_call_resume_token_test_p{os.getpid()}"
-_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0115_voice_call_resume_token.py"
+_MIGRATION = Path(__file__).parents[1] / "alembic" / "versions" / "0145_voice_call_resume_token.py"
 
 
 def _url(database: str) -> str:

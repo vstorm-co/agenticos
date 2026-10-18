@@ -15,6 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import { FileIcon } from "@/components/files";
+import { SourceViewer, type CitedFile } from "@/components/kb/source-viewer";
 import { ErrorState } from "@/components/states";
 import { useChanged } from "@/hooks/use-changed";
 import { ROUTES } from "@/lib/constants";
@@ -48,6 +50,7 @@ export function SearchTab({ kbs }: SearchTabProps) {
   const [results, setResults] = useState<RAGSearchResult[]>([]);
   const [status, setStatus] = useState<SearchStatus>("idle");
   const [tookMs, setTookMs] = useState(0);
+  const [opened, setOpened] = useState<CitedFile | null>(null);
 
   // Results from one organization mean nothing inside the next; a scope picked
   // there may not even exist here.
@@ -56,6 +59,7 @@ export function SearchTab({ kbs }: SearchTabProps) {
     setScope(ALL_BASES);
     setResults([]);
     setStatus("idle");
+    setOpened(null);
   }
 
   // Several bases may share one physical collection, so names are deduplicated on
@@ -182,25 +186,42 @@ export function SearchTab({ kbs }: SearchTabProps) {
             return (
               <div key={i} className="border-border bg-card rounded-xl border p-4">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <FileText className="text-muted-foreground h-3.5 w-3.5" />
-                  <span className="text-foreground text-xs font-medium">
-                    {String(result.metadata?.filename ?? "?")}
-                  </span>
+                  {source && typeof result.metadata?.filename === "string" ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpened({ kbId: source.id, filename: String(result.metadata.filename) })
+                      }
+                      title={t("openFile", { name: String(result.metadata.filename) })}
+                      className="text-foreground decoration-foreground/30 hover:decoration-foreground inline-flex items-center gap-1.5 text-xs font-medium underline underline-offset-2"
+                    >
+                      <FileIcon
+                        name={String(result.metadata.filename)}
+                        className="h-3.5 w-3.5 shrink-0"
+                      />
+                      {String(result.metadata.filename)}
+                    </button>
+                  ) : (
+                    <span className="text-foreground inline-flex items-center gap-1.5 text-xs font-medium">
+                      <FileText className="text-muted-foreground h-3.5 w-3.5" />
+                      {String(result.metadata?.filename ?? "?")}
+                    </span>
+                  )}
                   {result.metadata?.page_num != null && (
-                    <Badge variant="outline" className="font-mono text-[11px]">
+                    <Badge variant="outline" className="font-mono text-xs">
                       {t("page", { page: String(result.metadata.page_num) })}
                     </Badge>
                   )}
                   {source && (
                     <Link
                       href={ROUTES.RAG_DETAIL(source.id)}
-                      className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-[11px] font-medium"
+                      className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs font-medium"
                     >
                       <Database className="h-3 w-3" />
                       {source.name}
                     </Link>
                   )}
-                  <Badge variant="secondary" className="ml-auto font-mono text-[11px]">
+                  <Badge variant="secondary" className="ml-auto font-mono text-xs">
                     {result.score.toFixed(3)}
                   </Badge>
                 </div>
@@ -210,6 +231,7 @@ export function SearchTab({ kbs }: SearchTabProps) {
           })}
         </div>
       )}
+      {opened && <SourceViewer cited={opened} onClose={() => setOpened(null)} />}
     </div>
   );
 }

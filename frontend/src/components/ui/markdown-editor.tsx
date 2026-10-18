@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import type { RefObject } from "react";
+import type { KeyboardEvent, RefObject } from "react";
 import { Code2, Eye } from "lucide-react";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
-import { Textarea } from "@/components/ui/textarea";
+import { CodeArea } from "@/components/ui/code-area";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
 interface MarkdownEditorProps {
   value: string;
-  onChange: (next: string) => void;
+  /** The new text, and where the caret is in it. */
+  onChange: (next: string, caret: number) => void;
   /** The control's accessible name. Required: a placeholder is not a label. */
   label: string;
   placeholder?: string;
@@ -46,6 +47,14 @@ interface MarkdownEditorProps {
    * It applies to the source textarea, which is the only place text is entered.
    */
   maxLength?: number;
+  /** Keys in the source view, for a caller completing what is being typed. */
+  onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
+  /**
+   * Source or preview, held by the caller - which then draws
+   * `MarkdownModeToggle` itself, in a header of its own. Absent, the editor
+   * keeps the mode and draws the toggle above the field.
+   */
+  mode?: MarkdownMode;
 }
 
 /**
@@ -61,6 +70,8 @@ interface MarkdownEditorProps {
  * opened a form to edit should be editable when they get there; a file somebody
  * clicked in a tree is one they came to read.
  */
+export type MarkdownMode = "source" | "preview";
+
 export function MarkdownEditor({
   value,
   onChange,
@@ -73,59 +84,57 @@ export function MarkdownEditor({
   id,
   textareaRef,
   maxLength,
+  onKeyDown,
+  mode: controlledMode,
 }: MarkdownEditorProps) {
   const t = useTranslations("ui");
-  const [mode, setMode] = useState<"source" | "preview">("source");
+  const [ownMode, setOwnMode] = useState<MarkdownMode>("source");
+  const mode = controlledMode ?? ownMode;
 
   return (
-    <div className="border-input rounded-md border">
-      <div className="border-input flex items-center justify-between gap-2 border-b px-2 py-1.5">
-        <span className="text-muted-foreground text-xs">{t("markdown")}</span>
-        <div className="border-input flex items-center gap-0.5 rounded-md border p-0.5">
-          <ModeButton
-            icon={Code2}
-            label={t("source")}
-            active={mode === "source"}
-            onClick={() => setMode("source")}
-          />
-          <ModeButton
-            icon={Eye}
-            label={t("preview")}
-            active={mode === "preview"}
-            onClick={() => setMode("preview")}
+    <div className="space-y-1.5">
+      {/* The toggle sits above the field rather than in a bar inside it: a
+          strip reading "Markdown | Source Preview" boxed the text a second
+          time, inside whatever card already held it. A caller with a header
+          of its own takes the mode in hand and puts the toggle there. */}
+      {controlledMode === undefined && (
+        <div className="flex justify-end">
+          <MarkdownModeToggle mode={mode} onChange={setOwnMode} />
+        </div>
+      )}
+      {mode === "source" ? (
+        // The source shows its own structure - headings bold, markers dimmed,
+        // `{{variables}}` as tokens - and stays plain Markdown underneath. Sized
+        // by rows like the textarea it replaced, and still draggable taller.
+        <div
+          className="border-input bg-background resize-y overflow-hidden rounded-xl border"
+          style={{ height: `calc(${rows} * 1.5rem + 1.5rem + 2px)` }}
+        >
+          <CodeArea
+            name="field.md"
+            textareaRef={textareaRef}
+            id={id}
+            maxLength={maxLength}
+            aria-label={label}
+            invalid={invalid}
+            describedBy={describedBy}
+            value={value}
+            onChange={onChange}
+            onKeyDown={onKeyDown}
+            disabled={disabled}
+            placeholder={placeholder}
+            className="rounded-xl"
           />
         </div>
-      </div>
-
-      {mode === "source" ? (
-        // Borderless: the wrapper draws the border now, and two nested ones read
-        // as a field inside a field.
-        <Textarea
-          ref={textareaRef}
-          id={id}
-          maxLength={maxLength}
-          aria-label={label}
-          aria-invalid={invalid}
-          aria-describedby={describedBy}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          rows={rows}
-          disabled={disabled}
-          placeholder={placeholder}
-          className="resize-y rounded-none border-0 font-mono text-sm focus-visible:ring-0"
-        />
       ) : (
+        // As tall as the source it stands in for, and scrolled inside: a
+        // preview that grew to the whole document pushed the rest of the page
+        // a screen down and lost the field's shape.
         <div
-          // Named the same as the field it previews, so the two halves of one
-          // control are not two unrelated regions to a screen reader.
           role="region"
           aria-label={t("labelPreview", { label })}
-          className="overflow-auto p-3"
-          // Inline, not a class: Tailwind generates utilities by scanning the
-          // source, so a class built from a prop at runtime is a class that was
-          // never compiled. Matching the textarea's height keeps the panel from
-          // collapsing when the toggle is flipped on a short draft.
-          style={{ minHeight: `${rows * 1.5}rem` }}
+          className="border-input resize-y overflow-auto rounded-xl border p-3"
+          style={{ height: `calc(${rows} * 1.5rem + 1.5rem + 2px)` }}
         >
           {value.trim() === "" ? (
             <p className="text-muted-foreground text-sm">{t("nothingWrittenYet")}</p>
@@ -134,6 +143,33 @@ export function MarkdownEditor({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Source or preview, as a small segmented control - inside a field or a header. */
+export function MarkdownModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: MarkdownMode;
+  onChange: (mode: MarkdownMode) => void;
+}) {
+  const t = useTranslations("ui");
+  return (
+    <div className="border-input flex w-fit items-center gap-0.5 rounded-lg border p-0.5">
+      <ModeButton
+        icon={Code2}
+        label={t("source")}
+        active={mode === "source"}
+        onClick={() => onChange("source")}
+      />
+      <ModeButton
+        icon={Eye}
+        label={t("preview")}
+        active={mode === "preview"}
+        onClick={() => onChange("preview")}
+      />
     </div>
   );
 }
@@ -155,7 +191,7 @@ function ModeButton({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "inline-flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors",
+        "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs transition-colors",
         active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
       )}
     >

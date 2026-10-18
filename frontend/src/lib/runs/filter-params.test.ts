@@ -26,6 +26,7 @@ const narrowed: RunFilters = {
   versionId: "ver-2",
   model: "gpt-4o-mini",
   modality: "voice",
+  test: "only",
 };
 
 describe("run filters in the URL", () => {

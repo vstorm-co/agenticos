@@ -50,11 +50,26 @@ const MOVED_ROUTES: readonly { from: string; to: string }[] = [
   // path parameter Next matches and then drops — every organization's old URL
   // lands on the same list, which is the one the active organization owns.
   { from: "/orgs/:id/integrations", to: "/kb" },
+  // Apps were called artifacts until #2071, and a link to one sits in emails,
+  // notifications and old conversations.
+  { from: "/artifacts", to: "/apps" },
+  { from: "/artifacts/:id", to: "/apps/:id" },
+  // The files agents keep were "Agent files" at `/workspaces` until #2126; people
+  // looked for them as documents, and a workspace meant something else to them.
+  { from: "/workspaces", to: "/documents" },
+  { from: "/workspaces/:id", to: "/documents/:id" },
 ];
 
 const nextConfig: NextConfig = {
   output: "standalone",
   pageExtensions: ["ts", "tsx"],
+  // The development badge sits in the corner the console's own controls use.
+  devIndicators: false,
+  // The widget's face route reads the generator's motion stylesheet from disk,
+  // which nothing imports - so the standalone build would leave it behind.
+  outputFileTracingIncludes: {
+    "/api/public/face": ["./node_modules/blobatar/dist/motion.css"],
+  },
 
   async redirects() {
     // `localePrefix: "as-needed"` means both `/settings/providers` and

@@ -20,11 +20,21 @@ import httpx2
 import pymupdf
 import pytest
 from pydantic import ValidationError
-from pydantic_ai import ModelRetry
+from pydantic_ai import Agent, ModelRetry
 from pydantic_ai._run_context import RunContext
 from pydantic_ai.capabilities import WebFetch
 from pydantic_ai.common_tools import web_fetch as web_fetch_module
-from pydantic_ai.messages import BinaryContent
+from pydantic_ai.messages import (
+    BinaryContent,
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    RetryPromptPart,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.native_tools import WebFetchTool
 from pydantic_ai.tools import Tool
@@ -53,8 +63,12 @@ def _local_tool(capability: WebFetch[object]) -> Tool[object]:
     return local
 
 
-async def _fetch(capability: WebFetch[object], url: str) -> object:
-    return await _local_tool(capability).function(url=url)
+async def _fetch(capability: WebFetch[object], url: str, *, last_attempt: bool = False) -> object:
+    """One call of the tool, with an attempt left after it unless `last_attempt`."""
+    ctx = _context()
+    ctx.max_retries = 1
+    ctx.retry = 1 if last_attempt else 0
+    return await _local_tool(capability).function(ctx, url=url)
 
 
 class TestTheRefusal:
@@ -100,7 +114,8 @@ class TestTheRefusal:
             await _fetch(_built(), url)
 
     async def test_a_refusal_reaches_the_model_as_something_it_can_recover_from(self):
-        """`ModelRetry`, not a returned string and not an unhandled error.
+        """`ModelRetry` while the tool has an attempt left, not a returned string
+        and not an unhandled error.
 
         A refusal shaped like a result is one the model reads as "the page was
         empty" and answers around, and one that escapes the tool call takes the
@@ -108,6 +123,98 @@ class TestTheRefusal:
         """
         with pytest.raises(ModelRetry, match=re.escape("169.254.169.254")):
             await _fetch(_built(), "http://169.254.169.254/")
+
+    async def test_a_refusal_on_the_last_attempt_is_the_result(self):
+        """Raising again would end the run with `UnexpectedModelBehavior`."""
+        fetched = await _fetch(_built(), "http://169.254.169.254/", last_attempt=True)
+
+        assert isinstance(fetched, str)
+        assert "169.254.169.254" in fetched
+
+
+def _forbidden(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Answer every fetch with a 403, as a site that refuses bots does."""
+
+    async def download(url: str, **_: object) -> httpx2.Response:
+        request = httpx2.Request("GET", url)
+        response = httpx2.Response(403, request=request)
+        raise httpx2.HTTPStatusError("403 Forbidden", request=request, response=response)
+
+    monkeypatch.setattr(web_fetch_module, "safe_download", download)
+
+
+class TestARunThatMeetsRefusals:
+    """Pydantic AI counts retries per tool, not per URL.
+
+    With the default budget of one, the second site that answered 403 used to end
+    the run with `Tool 'web_fetch' exceeded max retries count of 1`, though the
+    model had asked for two different pages and either refusal was ordinary.
+    """
+
+    async def test_a_second_forbidden_page_does_not_end_the_run(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        _forbidden(monkeypatch)
+        urls = ["https://a.example.com/", "https://b.example.com/", "https://c.example.com/"]
+
+        def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            fetched = sum(
+                isinstance(part, ToolReturnPart | RetryPromptPart)
+                for message in messages
+                for part in message.parts
+            )
+            if fetched < len(urls):
+                return ModelResponse(parts=[ToolCallPart("web_fetch", {"url": urls[fetched]})])
+            return ModelResponse(parts=[TextPart("None of them would let me in.")])
+
+        agent = Agent(FunctionModel(model), capabilities=[_built()])
+
+        result = await agent.run("Read these pages.")
+
+        assert result.output == "None of them would let me in."
+        returned = [
+            part
+            for message in result.all_messages()
+            for part in message.parts
+            if isinstance(part, ToolReturnPart)
+        ]
+        assert returned
+        assert all("403" in str(part.content) for part in returned)
+
+    async def test_forbidden_pages_fetched_in_parallel_do_not_end_the_run(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Calls in one response all see the same attempt, and spend one retry between them.
+
+        So two refusals in the first response are both retries, and the two in the
+        next are both results, not a budget the first pair already exhausted.
+        """
+        _forbidden(monkeypatch)
+        batches = [
+            ["https://a.example.com/", "https://b.example.com/"],
+            ["https://c.example.com/", "https://d.example.com/"],
+        ]
+
+        def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            step = sum(isinstance(message, ModelResponse) for message in messages)
+            if step < len(batches):
+                return ModelResponse(
+                    parts=[ToolCallPart("web_fetch", {"url": url}) for url in batches[step]]
+                )
+            return ModelResponse(parts=[TextPart("None of them would let me in.")])
+
+        agent = Agent(FunctionModel(model), capabilities=[_built()])
+
+        result = await agent.run("Read these pages.")
+
+        assert result.output == "None of them would let me in."
+        answered = [
+            [type(part) for part in message.parts]
+            for message in result.all_messages()
+            if isinstance(message, ModelRequest)
+            and any(isinstance(part, RetryPromptPart | ToolReturnPart) for part in message.parts)
+        ]
+        assert answered == [[RetryPromptPart, RetryPromptPart], [ToolReturnPart, ToolReturnPart]]
 
 
 class TestWhoFetches:
@@ -426,6 +533,17 @@ class TestWhatADocumentBecomes:
             ModelRetry, match="application/octet-stream, which has no readable text"
         ):
             await _fetch(_built(), "https://example.com/blob")
+
+    async def test_a_binary_with_no_text_on_the_last_attempt_is_the_result(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        _serving(monkeypatch, "application/octet-stream", bytes(range(128, 256)))
+
+        fetched = await _fetch(_built(), "https://example.com/blob", last_attempt=True)
+
+        assert fetched == (
+            "https://example.com/blob returned application/octet-stream, which has no readable text"
+        )
 
     async def test_a_page_is_still_markdown(self, monkeypatch: pytest.MonkeyPatch):
         _serving(

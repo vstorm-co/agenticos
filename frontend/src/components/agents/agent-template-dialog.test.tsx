@@ -33,9 +33,9 @@ const CATALOG = {
           key: "healthcare/procedure-assistant",
           name: "Procedure Assistant",
           description: "Answers staff from your SOPs.",
-          capabilities: ["knowledge", "clock"],
+          capabilities: ["knowledge", "clock", "future_cap"],
           skills: ["healthcare/clinical-procedure-lookup"],
-          mcp: ["github"],
+          mcp: ["github", "acme-crm"],
           attach: ["collection"],
           budget_usd: 50,
           installed: false,
@@ -58,6 +58,11 @@ const CATALOG = {
   ],
 };
 
+const MCP_CATALOG = {
+  items: [{ key: "github", name: "GitHub", icon: "github" }],
+  total: 1,
+};
+
 const INSTALLED = {
   agent_id: "11111111-1111-1111-1111-111111111111",
   slug: "procedure-assistant",
@@ -74,7 +79,9 @@ function open() {
 describe("AgentTemplateDialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(apiClient.get).mockResolvedValue(CATALOG);
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+      path === "/agents/mcp-catalog" ? MCP_CATALOG : CATALOG,
+    );
     vi.mocked(apiClient.post).mockResolvedValue(INSTALLED);
   });
 
@@ -95,12 +102,18 @@ describe("AgentTemplateDialog", () => {
     await userEvent.click(await screen.findByText("Healthcare"));
 
     expect(screen.getByText("Procedure Assistant")).toBeInTheDocument();
-    expect(screen.getByText("knowledge")).toBeInTheDocument();
+    // A capability by the name the Toolbox gives it, never its registry id.
+    expect(screen.getByText("Knowledge search")).toBeInTheDocument();
+    expect(screen.queryByText("knowledge")).not.toBeInTheDocument();
+    // One the console has no words for yet shows the registry's id.
+    expect(screen.getByText("future_cap")).toBeInTheDocument();
     expect(screen.getByText("50 USD / month")).toBeInTheDocument();
     expect(screen.getByText("Installs 1 skill with it")).toBeInTheDocument();
-    // The honest line: it arrives as a draft and this is what it lacks.
-    expect(screen.getByText("You still attach: collection")).toBeInTheDocument();
-    expect(screen.getByText("Works well with: github")).toBeInTheDocument();
+    expect(screen.getByText("Works well with")).toBeInTheDocument();
+    // A server by its catalog name once the catalog answers.
+    expect(await screen.findByText("GitHub")).toBeInTheDocument();
+    // One the catalog does not hold keeps its key rather than vanishing.
+    expect(screen.getByText("acme-crm")).toBeInTheDocument();
   });
 
   it("offers no button for one the organization already has", async () => {
@@ -128,7 +141,7 @@ describe("AgentTemplateDialog", () => {
     );
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(toast.success).toHaveBeenCalledWith(
-      "Procedure Assistant created as a draft — pick a model, then publish",
+      "Procedure Assistant created as a draft - pick a model, then publish",
     );
   });
 

@@ -90,7 +90,7 @@ function finished(overrides: Partial<Delegation> = {}): Delegation {
 
 /** The panel is closed once a delegation is over, and the link is in the body. */
 async function openPanel() {
-  const header = await screen.findByRole("button", { name: /researcher/ });
+  const header = await screen.findByRole("button", { name: /Researcher/ });
   header.click();
 }
 
@@ -215,7 +215,7 @@ describe("promoting a specialist the model invented", () => {
       />,
       { wrapper: wrapperGranting("agents:edit") },
     );
-    (await screen.findByRole("button", { name: /research topics/ })).click();
+    (await screen.findByRole("button", { name: /Research topics/ })).click();
 
     expect(await screen.findByRole("button", { name: "Promote to a draft agent" })).toBeDisabled();
     expect(

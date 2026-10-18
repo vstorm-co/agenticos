@@ -37,6 +37,7 @@ class ContentGate(enum.Enum):
     RUNS_VIEW = "runs_view"
     COLLECTIONS_VIEW = "collections_view"
     ANNOUNCEMENT_AUDIENCE = "announcement_audience"
+    ARTIFACTS_VIEW = "artifacts_view"
 
 
 # Decision 1's "Content gated on" column, read by event type. A row with no
@@ -52,6 +53,7 @@ CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
     NotificationEventType.SECURITY_EVENT: ContentGate.ORG_ADMIN_OR_APP_ADMIN,
     NotificationEventType.CONFIGURATION_CHANGED: ContentGate.APP_ADMIN,
     NotificationEventType.ANNOUNCEMENT: ContentGate.ANNOUNCEMENT_AUDIENCE,
+    NotificationEventType.ARTIFACT_VERSION_PUBLISHED: ContentGate.ARTIFACTS_VIEW,
 }
 
 # `security_event` and `configuration_changed` bypass preference entirely on

@@ -1,5 +1,5 @@
 ---
-source_sha: "55ceaf417630"
+source_sha: "2ddef184267b"
 ---
 
 # Konfiguration { #configuration }
@@ -58,8 +58,9 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `ML_MAX_UPLOAD_SIZE_MB` | `25` | Was ein Aufruf der [ML-Dienste](ml-services.md) einreichen darf — ein Dokument zum Parsen, einen Scan zum Erkennen, eine Aufnahme zum Transkribieren. Eine eigene Einstellung, weil die Bytes innerhalb einer Anfrage geparst oder an eine Engine geschickt statt abgelegt werden, die Grenze also davon handelt, was ein einzelner synchroner Aufruf belegen darf. Sie liegt bei den 25 MB des Transkriptionsclients, der kleinsten Engine-Grenze hinter dieser Oberfläche |
 | `ML_MAX_CONCURRENT_PARSES` | `4` | Wie viele Dokumente ein Worker für die [ML-Dienste](ml-services.md) gleichzeitig parst. Ein Ratenlimit zählt Starts und sieht nicht, was noch läuft - ohne dies wäre das Minutenkontingent an OCR-Aufrufen ebenso viele Erkennungen gleichzeitig. Darüber wird ein Aufrufer mit `Retry-After` abgelehnt statt eingereiht |
 | `MEM0_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, auf die ein selbst gehosteter mem0-Memory-Dienst zeigen darf. Eine `base_url` kommt aus dem Spec eines Agents, ohne Allowlist könnte also ein Builder, der einen geteilten mem0-Key binden (aber nicht lesen) darf, ihn auf den eigenen Server richten und den Key aus dem Request-Header abgreifen. Leer lehnt selbst gehostetes mem0 ab und lässt nur die verwaltete Cloud zu; fügen Sie einen vertrauenswürdigen Hostnamen hinzu, um ein selbst gehostetes Deployment zu erlauben. Siehe [Secrets](secrets.md) |
-| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein browsender Agent ein Chromium steuern darf. Eine `cdp_url` kommt aus dem Spec eines Agents, den jeder mit `edit`-Recht darauf schreibt - die Adresse ist also mandantenkontrolliert und die Anfrage gehört diesem Deployment. Dieselbe Form, für die `MEM0_ALLOWED_HOSTS` existiert, und der Grund, warum hier eine Allowlist steht und nicht der SSRF-Schutz, durch den jede andere mandantengelieferte URL geht: Der lässt nur *öffentliche* Adressen zu, lehnt damit den isolierten Browser-Dienst im eigenen Netz des Deployments ab, den [die Capability](reference/capabilities.md#browser-automation-choose) zu betreiben verlangt, und akzeptiert einen ins Internet gestellten CDP-Debugger, was schlechter ist. Der Abgleich ist exakt und ohne Rücksicht auf Groß- und Kleinschreibung, ohne Globs. Leer lehnt Browser-Automatisierung vollständig ab |
-| `DECISION_MODEL_ALLOWED_HOSTS` | `[]` (empty) | Hosts, auf denen das Entscheidungsmodell eines browsenden Agents laufen darf, über den Endpunkt des Anbieters hinaus. `decision_base_url` kommt aus dem Spec eines Agents, und der Vault-Key wird entsiegelt in einen Request-Header an die genannte Adresse gelegt - ohne Allowlist könnte also ein Autor, der einen geteilten TypeSafe-Key *binden* darf (Binden ist nicht Lesen, und die API gibt den Wert nie zurück), ihn auf einen eigenen Server richten und abgreifen. Eine Freigabe hilft nicht: Derselbe Autor veröffentlicht die Bindung. Leer lässt nur den Endpunkt des Anbieters zu und ist die Voreinstellung. Siehe [Secrets](secrets.md) |
+| `BROWSER_CDP_ALLOWED_HOSTS` | `[]` (empty) | Hostnamen, an denen ein browsender Agent ein Chromium steuern darf. Eine `cdp_url` kommt aus dem Spec eines Agents, den jeder mit `edit`-Recht darauf schreibt - die Adresse ist also mandantenkontrolliert und die Anfrage gehört diesem Deployment. Dieselbe Form, für die `MEM0_ALLOWED_HOSTS` existiert, und der Grund, warum hier eine Allowlist steht und nicht der SSRF-Schutz, durch den jede andere mandantengelieferte URL geht: Der lässt nur *öffentliche* Adressen zu, lehnt damit den isolierten Browser-Dienst im eigenen Netz des Deployments ab, den [die Capability](reference/capabilities.md#browser-automation) zu betreiben verlangt, und akzeptiert einen ins Internet gestellten CDP-Debugger, was schlechter ist. Der Abgleich ist exakt und ohne Rücksicht auf Groß- und Kleinschreibung, ohne Globs. Leer lehnt Browser-Automatisierung vollständig ab |
+| `BROWSER_SIGN_IN_CDP_URL` | `""` (empty) | Der Browser, mit dem sich eine Person unter **Einstellungen → Anmeldungen** bei einer Website anmeldet, wo kein Agent einen nennt - der compose-Dienst `browser` ist `http://browser:9222`. Sein Host muss in `BROWSER_CDP_ALLOWED_HOSTS` stehen. Die Website muss eine öffentliche Adresse haben, und nur die Person, die ihn geöffnet hat, darf zusehen. Leer blendet die Option aus |
+| `BROWSER_EGRESS_PROXY` | `""` (empty); compose setzt `http://browser-egress:3128` | Der Proxy, über den der Browser der Installation jede Website erreicht. Der compose-Dienst `browser-egress` ist `http://browser-egress:3128` (`docker compose --profile browser up -d browser-egress`): Er löst jeden Host selbst auf, lehnt private, Loopback-, Link-Local- und Metadaten-Adressen ab und verbindet sich mit der geprüften Adresse, sodass weder eine Weiterleitung noch DNS-Rebinding eine Seite ins Netz bringt. Genutzt von jedem Durchlauf ohne Proxy der Organisation und nicht auf einem gehosteten Browser. Ein internes Werkzeug, das ein Agent besuchen soll, braucht eine Ausnahme in `docker/browser-egress/squid.conf`. Leer schickt den Browser direkt hinaus: Setze `BROWSER_EGRESS_PROXY=` in der Root-`.env` nur für einen Browser außerhalb von compose, der den Proxy nicht erreicht. Ohne Proxy wird jede Website bei ihrer ersten Anfrage in einem Tab geprüft, danach löst der Browser ihren Namen selbst auf; ein Name, der später im selben Tab auf eine private Adresse zeigt, wird also nicht erkannt |
 | `FILE_IO_MAX_WORKERS` | `8` | Größe des eigenen Thread-Pools, der blockierende Dateiarbeit ausführt — das Parsen eines Uploads und das Lesen oder Schreiben seiner Bytes. Bewusst außerhalb des gemeinsamen Default-Executors von `asyncio`, der auch `bcrypt` und DNS für gepinnte Hosts ausführt, damit eine Welle von Uploads Anmeldung und ausgehende Anfragen nicht dahinter warten lässt ([#1108](https://github.com/vstorm-co/agenticos/issues/1108)). Heben Sie ihn auf einem Host an, der viele Uploads gleichzeitig parst. Muss eine positive ganze Zahl sein — eine `0` oder ein negativer Wert wird beim Start abgelehnt |
 | `CHAT_CONVERT_TIMEOUT_SECONDS` | `60` | Wie lange eine einzelne DOC-zu-Text-Konvertierung durch LibreOffice laufen darf, bevor sie gekillt wird. Weit unter den 600s der Wissensdatenbank, weil dies ein interaktiver Upload ist |
 | `CHAT_CONVERT_MAX_CONCURRENCY` | `2` | Wie viele LibreOffice-Konvertierungen gleichzeitig laufen dürfen. Der Subprozess umgeht `FILE_IO_MAX_WORKERS`, daher wird er hier getrennt begrenzt |
@@ -480,6 +481,7 @@ Service-Definition ihre eigene.
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `APPROVAL_EXPIRY_HOURS` | `72` | Wie lange ein geparkter Tool-Aufruf wartet, bevor der stündliche Durchlauf ihn per Timeout ablehnt |
+| `QUESTION_EXPIRY_HOURS` | `24` | Wie lange ein Run auf die Antwort auf eine Frage des Agents wartet, bevor derselbe Durchlauf ihn beendet |
 
 Drei Tage, weil es ein Wochenende überspannen muss: Die Freigabe, die am
 Freitagnachmittag eintrifft, ist die, über die niemand entscheidet, und sie am
@@ -504,6 +506,18 @@ Run, den der Durchlauf trotzdem umstellt, wird durch seinen eigenen abschließen
 Schreibvorgang zurückgestellt —, setzen Sie sie also deutlich über Ihren längsten
 legitimen Run und nicht knapper. Siehe
 [Governance](governance.md#a-run-whose-process-died).
+
+### Ein verlassener Chat-Turn { #a-chat-turn-left-running }
+
+| Variable | Standard | Beschreibung |
+|----------|---------|-------------|
+| `CHAT_DETACHED_TURN_MINUTES` | `60` | Wie lange ein Chat-Turn weiterläuft, nachdem die fragende Person gegangen ist - geschlossener Tab, beendete App, abgebrochene Verbindung -, bevor er gestoppt wird; höchstens `120`, denn danach zeigt die Gesprächsliste den Turn nicht mehr als laufend |
+
+Die Antwort landet in der Unterhaltung und ihre Person wird benachrichtigt; der
+Wert begrenzt also die Ausgaben für eine Antwort, die vielleicht nie gelesen wird,
+statt etwas abzuschalten. Er muss Ihren längsten Recherche- oder Browser-Turn
+abdecken; ein Run bleibt ohnehin an das Budget seines Agenten gebunden. Siehe
+[Konsole](console.md#chat).
 
 ## KI-Modelle — in der App konfiguriert, nicht hier { #ai-models-configured-in-the-app-not-here }
 
@@ -713,16 +727,16 @@ genauso wie eine `gdrive`-Quelle einen Service-Account nennt. Endpunkt und Regio
 fallen weiterhin auf diese Einstellungen zurück, weil keines von beiden einen
 Principal nennt — sie sagen, wo der Store liegt, nicht, wer fragt.
 
-## Veröffentlichte Artefakte { #published-artifacts }
+## Veröffentlichte Apps { #published-artifacts }
 
 Seiten, die Agents mit der Capability `artifacts` veröffentlichen. Ihre Bytes
 liegen im Dateispeicher oben; diese Einstellungen begrenzen sie und sagen, von wo
-sie ausgeliefert werden. Siehe [Artefakte](artifacts.md).
+sie ausgeliefert werden. Siehe [Apps](artifacts.md).
 
 | Variable | Standard | Beschreibung |
 |----------|---------|-------------|
 | `ARTIFACT_MAX_BYTES` | 5 MiB | Eine Version einer Seite. Eine Veröffentlichung darüber wird mit einer Meldung abgelehnt, die das Modell liest |
-| `ARTIFACT_MAX_VERSIONS` | `20` | Pro Artefakt behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt, außer der öffentliche Link ist an sie angeheftet |
+| `ARTIFACT_MAX_VERSIONS` | `20` | Pro App behaltene Versionen. Die älteste wird entfernt, wenn eine neuere hinzukommt, außer der öffentliche Link ist an sie angeheftet |
 | `ARTIFACT_VIEW_TTL_SECONDS` | `300` | Wie lange sich eine signierte Inhaltsadresse öffnen lässt, höchstens 3600. Auch, wie lange eine offene Seite einen entzogenen Grant oder Link überdauert |
 | `ARTIFACT_ORIGIN` | (empty) | Von wo Inhalte ausgeliefert werden - die Seiten, ihr [Bibliothekssatz](artifacts.md#the-library-set) und das Einbettungsdokument. Leer liefert sie von `PUBLIC_BASE_URL` aus, isoliert durch ihre `sandbox`-Policy. Setzen Sie ihn auf einen Host auf einer separaten registrierbaren Domain, auf diese API geroutet, um die Seite zusätzlich auf eine andere Site zu legen |
 

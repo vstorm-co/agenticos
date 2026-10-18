@@ -170,14 +170,19 @@ export function ActiveSessions() {
             // page's session. `inert` takes it out of the tab order and blocks
             // every input method (#944).
             inert={isPlaceholderData}
-            className={cn("space-y-2 transition-opacity", isPlaceholderData && "opacity-50")}
+            className={cn(
+              // One bordered list with rules between rows, not a bordered box
+              // per device inside the section's own box.
+              "divide-border divide-y overflow-hidden rounded-xl border transition-opacity",
+              isPlaceholderData && "opacity-50",
+            )}
           >
             {sessions.map((session) => (
               <li
                 key={session.id}
                 className={cn(
-                  "border-border flex items-center justify-between gap-3 rounded-xl border px-4 py-3",
-                  session.is_current ? "bg-muted" : "bg-card hover:bg-accent",
+                  "flex items-center justify-between gap-3 px-4 py-3",
+                  session.is_current ? "bg-muted/60" : "hover:bg-accent/60",
                 )}
               >
                 <div className="flex min-w-0 items-center gap-3">
@@ -188,7 +193,7 @@ export function ActiveSessions() {
                     <p className="text-foreground flex items-center gap-2 text-sm font-medium">
                       <span className="truncate">{session.device_name || t("unknownDevice")}</span>
                       {session.is_current && (
-                        <span className="bg-card border-border text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium tracking-wide uppercase">
+                        <span className="bg-card border-border text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium tracking-wide uppercase">
                           {t("current")}
                         </span>
                       )}

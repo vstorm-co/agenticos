@@ -1,5 +1,5 @@
 ---
-source_sha: "217a295cc0a5"
+source_sha: "27fe488f738b"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -127,6 +127,13 @@ plik zamiast tekstu:
 | pdf, docx, spreadsheet, document, presentation, email | sparsowany tekst wklejony inline | zapisany do `uploads/`, z wyciągniętym tekstem obok, chyba że runtime umie go przeczytać (`email` dostaje go zawsze — `lit` nie czyta `.msg`); referencja i 20 pierwszych linii |
 | obraz | `BinaryContent` | `BinaryContent` **oraz** zapis; referencja podaje ścieżkę |
 | tiff | strona(-y) PNG jako `BinaryContent`, z odnotowanym limitem stron | zapisany oryginał `.tiff`; pokazane strony PNG, z odnotowanym limitem stron |
+
+**Kolejna tura nadal ma plik.** To, co załącznik dodał do promptu - wklejony
+tekst albo odwołanie z pierwszymi liniami - jest zapisywane przy wiadomości i
+odtwarzane razem z historią, więc pytanie „a co z marcem” trafia do modelu, który
+wciąż wie o pliku. Obraz jest w tej historii tylko nazwany, nie wysyłany ponownie;
+agent, który musi znów na niego spojrzeć, prosi o niego albo otwiera go z
+`uploads/`, jeśli ma workspace.
 
 **Wyciągnięty tekst idzie w parze z plikiem tylko tam, gdzie nic nie umie
 przeczytać oryginału.** Kiedyś `.txt` z parsowania zapisywany był obok każdego

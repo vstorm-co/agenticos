@@ -39,6 +39,7 @@ vi.mock("@/hooks", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const CHARTS: CapabilityCatalogEntry = {
+  recommended: null,
   id: "charts",
   name: "Charts",
   category: "analysis",
@@ -302,6 +303,7 @@ describe("what a specialist can do", () => {
         description: "How refunds work here.",
         category: null,
         enabled: true,
+        visibility: "org",
         file_count: 0,
         built_in: false,
         excerpt: "",

@@ -35,6 +35,11 @@ _NO_CORPUS = (
     "Nobody is identified in this conversation, so there are no past conversations to "
     "search. Answer from what you have here."
 )
+_UNATTENDED = (
+    "Searching past conversations is off for a run a trigger started, even one acting "
+    "as the person who set it up: their memory and their own connections are open "
+    "here, their conversations are not. Answer from what you have."
+)
 
 _MAX_TURN_CHARS = 1500
 """How much of one turn is written out before it is cut.
@@ -109,6 +114,8 @@ class ConversationSearchToolset(FunctionToolset[AgentDeps]):
             return _IN_A_ROOM
         if audience.user_id is None:
             return _NO_CORPUS
+        if not audience.searches_conversations:
+            return _UNATTENDED
         return deps.organization_id, audience.user_id
 
     async def search_conversations(

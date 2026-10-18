@@ -46,6 +46,10 @@ export interface WidgetConfig {
   dictation: EmbedDictation;
   /** Whether visitors are offered a voice call - see `PageConfig.voice_conversation`. */
   voice_conversation: boolean;
+  /** Up to four suggested first messages, offered under the greeting (#2006). */
+  quick_replies: string[];
+  /** Name the documents an answer drew on - the names only, never the passages. */
+  show_sources: boolean;
 }
 
 /**
@@ -199,6 +203,8 @@ export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
   launcher_label: "Chat",
   dictation: "off",
   voice_conversation: false,
+  quick_replies: [],
+  show_sources: false,
 };
 
 export const DEFAULT_SOCKET_CONFIG: SocketConfig = { kind: "socket" };

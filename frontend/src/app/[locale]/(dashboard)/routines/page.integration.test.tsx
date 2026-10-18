@@ -15,8 +15,34 @@ vi.mock("@/components/runs/scheduled-tab", () => ({
   ScheduledTab: () => <div data-testid="scheduled-tab" />,
 }));
 vi.mock("@/components/triggers/trigger-form-dialog", () => ({
-  TriggerFormDialog: ({ open, initialType }: { open: boolean; initialType?: string }) =>
-    open ? <div role="dialog" aria-label={`schedule-dialog:${initialType}`} /> : null,
+  TriggerFormDialog: ({
+    open,
+    initialType,
+    initialTemplate,
+    onOpenChange,
+  }: {
+    open: boolean;
+    initialType?: string;
+    initialTemplate?: { key: string } | null;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div
+        role="dialog"
+        aria-label={`schedule-dialog:${initialType}:${initialTemplate?.key ?? "blank"}`}
+      >
+        <button type="button" onClick={() => onOpenChange(false)}>
+          close
+        </button>
+      </div>
+    ) : null,
+}));
+vi.mock("@/components/triggers/routine-ideas", () => ({
+  RoutineIdeas: ({ onPick }: { onPick: (template: { key: string }) => void }) => (
+    <button type="button" onClick={() => onPick({ key: "daily-briefing" })}>
+      idea
+    </button>
+  ),
 }));
 vi.mock("@/components/triggers/new-event-trigger-dialog", () => ({
   NewEventTriggerDialog: ({ open }: { open: boolean }) =>
@@ -42,7 +68,25 @@ describe("RoutinesPage", () => {
 
     await user.click(screen.getByRole("button", { name: "New schedule" }));
 
-    expect(screen.getByRole("dialog", { name: "schedule-dialog:schedule" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "schedule-dialog:schedule:blank" }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens New schedule filled in from an idea, and forgets it once closed", async () => {
+    const user = userEvent.setup();
+    render(<RoutinesPage />);
+
+    await user.click(screen.getByRole("button", { name: "idea" }));
+    expect(
+      screen.getByRole("dialog", { name: "schedule-dialog:schedule:daily-briefing" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "close" }));
+    await user.click(screen.getByRole("button", { name: "New schedule" }));
+    expect(
+      screen.getByRole("dialog", { name: "schedule-dialog:schedule:blank" }),
+    ).toBeInTheDocument();
   });
 
   it("opens the portal picker dialog from New event trigger", async () => {

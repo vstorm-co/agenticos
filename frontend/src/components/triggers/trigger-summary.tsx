@@ -7,7 +7,7 @@ import type { Trigger } from "@/types/triggers";
 
 /**
  * What makes a trigger fire, in one line - "Every 15 minutes", "Daily at 09:00
- * UTC", "At 09:00 UTC on Mon, Tue", "On new GitHub issues".
+ * UTC", "Every Mon, Tue at 09:00 UTC", "On new GitHub issues".
  *
  * The sentence itself is `cadenceText`, because the dashboard's routines card
  * needs the same words as a string rather than as markup - a subtitle beside a

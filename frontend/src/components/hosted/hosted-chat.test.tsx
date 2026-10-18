@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render as renderBare, screen } from "@testing-library/react";
+import { act, fireEvent, render as renderBare, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -854,6 +854,9 @@ describe("a turn laid out the way web chat lays one out", () => {
     act(() => socket().deliver({ type: "text_delta", data: { content: "Thirty days." } }));
     act(() => socket().deliver({ type: "complete", data: {} }));
 
+    // Finished, the work folds into one line above the answer; opened, it is in
+    // the order it happened.
+    fireEvent.click(await screen.findByRole("button", { name: "Worked · 1 step" }));
     const said = await screen.findByText("Let me look.");
     const step = screen.getByRole("button", { name: /Post Invoice/ });
     const answered = await screen.findByText("Thirty days.");

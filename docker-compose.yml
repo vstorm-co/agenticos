@@ -86,6 +86,10 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-agenticos}
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # The browser profile's egress proxy, on by default so starting the browser
+      # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
+      # .env only for a browser outside compose that cannot reach it.
+      - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
       # Empty outside compose, so a bare `uvicorn` run degrades to "no container
       # workspace available" rather than erroring. Note what is absent here:
       # no docker.sock, which is the whole point of the sandbox service below.
@@ -105,6 +109,7 @@ services:
       --workers ${UVICORN_WORKERS:-1} --ws websockets-sansio
     networks:
       - backend
+      - browser
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -225,6 +230,10 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-agenticos}
       - REDIS_HOST=redis
       - PREFECT_API_URL=http://prefect-server:4200/api
+      # The browser profile's egress proxy, on by default so starting the browser
+      # starts the pinning path too. Set BROWSER_EGRESS_PROXY= (empty) in the root
+      # .env only for a browser outside compose that cannot reach it.
+      - BROWSER_EGRESS_PROXY=${BROWSER_EGRESS_PROXY-http://browser-egress:3128}
       # The runner's own health endpoint, started by app/worker/prefect_app.py.
       # 127.0.0.1 rather than 0.0.0.0 because the same webserver also serves
       # `/shutdown`, and the only caller that should reach it is the probe below,
@@ -234,6 +243,7 @@ services:
       - PREFECT_RUNNER_SERVER_PORT=8080
     networks:
       - backend
+      - browser
     depends_on:
       prefect-server:
         condition: service_healthy
@@ -346,6 +356,41 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # The browser the web browser capability drives (#2127). Behind a profile,
+  # because only an agent bound to `browser_use` needs one: `docker compose
+  # --profile browser up -d browser`. Never published - the API reaches it on the
+  # compose network as `http://browser:9222`, which `BROWSER_CDP_ALLOWED_HOSTS`
+  # has to name. A full Chromium with a window under a virtual display
+  # (`docker/browser`), so a site sees a desktop browser rather than a headless
+  # shell it refuses on sight (#2130). `TZ` and `BROWSER_LANG` are where and in
+  # which language it says it is.
+  browser:
+    image: ghcr.io/vstorm-co/agenticos-browser:${AGENTICOS_VERSION:-latest}
+    profiles: [browser]
+    environment:
+      - TZ=${BROWSER_TZ:-UTC}
+      - BROWSER_LANG=${BROWSER_LANG:-en-US}
+    # Room for pages that use shared memory; the default 64 MB crashes tabs.
+    shm_size: 1gb
+    networks:
+      - browser
+    restart: unless-stopped
+
+  # The browser's egress proxy (`docker/browser-egress`): the app and the runner
+  # default BROWSER_EGRESS_PROXY to it, so every browse without an organization
+  # proxy goes out through it. It resolves each host itself, refuses
+  # private, loopback, link-local and metadata addresses, and connects to the
+  # address it checked - so neither a redirect nor a name that rebinds between
+  # two lookups takes a page inside the deployment's network.
+  browser-egress:
+    image: ubuntu/squid:6.6-24.04_edge
+    profiles: [browser]
+    volumes:
+      - ./docker/browser-egress/squid.conf:/etc/squid/squid.conf:ro
+    networks:
+      - browser
+    restart: unless-stopped
+
   sandboxd:
     image: ghcr.io/vstorm-co/sandboxd:0.2
     profiles: [sandbox]
@@ -449,6 +494,11 @@ networks:
     # No fixed name: every service that joins this network is in this file, so
     # compose scopes it to the project, and two stacks on one host do not share
     # a bridge on which `db` and `app` resolve to the neighbour's containers.
+    driver: bridge
+  browser:
+    # The browser's own network, which only the API and the runner share with it
+    # to reach `browser:9222`. A page it is sent to - or redirected to - cannot
+    # reach the database, Redis, Prefect or MinIO, because nothing else is on it.
     driver: bridge
 
 volumes:
