@@ -1,5 +1,5 @@
 ---
-source_sha: "dff8f802d288"
+source_sha: "1e0ade0e3ea7"
 ---
 
 # Seguridad { #security }
@@ -113,7 +113,7 @@ agent del que depende el equipo.
 | Tabla | Al borrar | En la exportación | Por qué |
 |---|---|---|---|
 | `users` | Se borra | El perfil, sin el hash de la contraseña | La cuenta misma |
-| `conversations`, `messages`, `tool_calls` | Cascada | Los hilos que iniciaron, con cada turno | Suyos, y una transcripción sin un turno de cada dos no responde a nada |
+| `conversations`, `messages`, `tool_calls` | Cascada, salvo los chats de un proyecto, que se quedan con el equipo | Los hilos que iniciaron, con cada turno; en el chat de un proyecto, dondequiera que escribieron, solo sus turnos y las respuestas a ellos | Suyos, y una transcripción sin un turno de cada dos no responde a nada. El chat de un proyecto es de varias personas, y los turnos de los demás miembros son suyos |
 | `chat_files` | Cascada; los bytes se desvinculan tras el commit | No se enumera | La fila cascadea desde el mensaje y el fichero en disco no, así que las rutas se recogen antes del borrado y se desvinculan tras su commit; de otro modo los bytes sobreviven a la petición que pedía quitarlos: inalcanzables para nada y borrados por nadie. La transcripción del export nombra el adjunto; los bytes se descargan mientras la cuenta exista, no se empaquetan dentro |
 | `message_ratings` | Cascada | Sí | Una opinión que expresaron |
 | `sessions` | Cascada | Dispositivo, dirección y horas — nunca la credencial, que es un hash | Dónde iniciaron sesión |

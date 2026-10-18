@@ -42,7 +42,13 @@ from app.db.models.notification import (
 from app.db.models.notification_preference import NotificationChannelPreference
 from app.db.models.oauth import OAuthClient, OAuthGrant
 from app.db.models.organization import Organization, OrganizationMember
-from app.repositories import conversation_repo, personal_data_repo, session_repo, user_repo
+from app.repositories import (
+    conversation_repo,
+    personal_data_repo,
+    project_repo,
+    session_repo,
+    user_repo,
+)
 from app.services.conversation import ConversationService
 from app.services.file_storage import LocalFileStorage, delete_files_best_effort
 from app.services.memory import _native
@@ -398,6 +404,52 @@ class TestTheExport:
         export = await PersonalDataService(db).export(my_id, actor_user_id=my_id)
 
         assert export.conversations == []
+
+    @pytest.mark.security
+    async def test_a_project_chat_carries_their_turns_and_the_answers_to_them_only(self, db):
+        """A project's chat is several people's. Its starter's export must not hand
+        over a teammate's questions, and a teammate who typed there is owed theirs."""
+        starter = await _person(db, "export-starter@example.com")
+        teammate = await _person(db, "export-teammate@example.com")
+        organization, _ = await _org_and_agent(db)
+        project = await project_repo.create(
+            db,
+            organization_id=organization.id,
+            owner_user_id=starter.id,
+            name="Launch",
+            description="",
+            instructions="",
+            default_agent_id=None,
+            backend="state",
+            visibility="org",
+        )
+        chat = await conversation_repo.create_conversation(
+            db,
+            organization_id=organization.id,
+            user_id=starter.id,
+            title="Plan",
+            project_id=project.id,
+        )
+        for author, role, content in [
+            (starter, "user", "Mine?"),
+            (None, "assistant", "Answer to mine."),
+            (teammate, "user", "Theirs?"),
+            (None, "assistant", "Answer to theirs."),
+        ]:
+            await conversation_repo.create_message(
+                db,
+                conversation_id=chat.id,
+                role=role,
+                content=content,
+                author_user_id=None if author is None else author.id,
+            )
+
+        mine = await PersonalDataService(db).export(starter.id, actor_user_id=starter.id)
+        theirs = await PersonalDataService(db).export(teammate.id, actor_user_id=teammate.id)
+
+        assert [row["content"] for row in mine.messages] == ["Mine?", "Answer to mine."]
+        assert [row["title"] for row in theirs.conversations] == ["Plan"]
+        assert [row["content"] for row in theirs.messages] == ["Theirs?", "Answer to theirs."]
 
     async def test_the_request_is_recorded_even_when_it_is_your_own(self, db):
         """An export is the shape of a breach when the caller is not who they

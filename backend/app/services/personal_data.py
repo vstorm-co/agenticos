@@ -137,7 +137,7 @@ class PersonalDataService:
         conversations = await personal_data_repo.conversations_of(self.db, user_id)
         conversation_ids = [conversation.id for conversation in conversations]
         await self._refuse_if_too_large(conversation_ids)
-        messages = await personal_data_repo.messages_in(self.db, conversation_ids)
+        messages = await personal_data_repo.messages_in(self.db, conversation_ids, user_id=user_id)
         profile = personal_data_repo.as_rows([user], _PROFILE_FIELDS)[0]
         profile["id"] = str(user.id)
         export = PersonalDataExport(
