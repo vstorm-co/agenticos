@@ -248,6 +248,10 @@ class AgentSession:
         self._room_task: asyncio.Task[None] | None = None
         # When this socket last told its room the person is typing - see `typing`.
         self._typed_at = float("-inf")
+        # Set by `shutdown`. A room joined or a turn followed after it - by a turn
+        # still running past the socket, or an `attach` that was mid-query when
+        # the socket went - would count a closed tab as present until it expired.
+        self._closed = False
 
     async def handle_frame(self, data: dict[str, Any]) -> None:
         """Dispatch one incoming WebSocket frame.
@@ -339,6 +343,12 @@ class AgentSession:
             if not await self._reauthorize():
                 return
             await self._attach(data.get("conversation_id"))
+            return
+
+        if msg_type == "unfollow":
+            # Stop on a turn this socket only follows: it is somebody else's to
+            # stop, so this tab stops drawing it and stays in the room.
+            self._stop_following()
             return
 
         if msg_type == "typing":
@@ -457,6 +467,7 @@ class AgentSession:
         `stop` is untouched. `handle_frame` still cancels immediately there,
         because somebody asked.
         """
+        self._closed = True
         self._stop_following()
         await self._leave_room()
         task = self._turn_task
@@ -823,33 +834,41 @@ class AgentSession:
             if opened:
                 self._outcome = _Outcome(opened[0].run_id, agent_id, _turn_failed(exc))
         finally:
-            if self._live_turn is not None:
-                await live_turn.end(self._live_turn)
-            finished, self._live = self._live, None
-            self._live_turn = None
-            if finished is not None and finished == self._room:
-                # A teammate's turn begun while this socket wrote its own was
-                # not followed then; it is now, from its start.
-                await self._follow_if_running(finished)
-            self._current_timeline = None
-            self._steering = None
-            self._visual_reports = None
-            late = steering.unapplied()
-            if late:
-                # Sent after the agent's last request, so no request carried them.
-                # Handed back rather than dropped: the client sends them as the
-                # next message.
-                with contextlib.suppress(Exception):
-                    await self._emit("steer_unapplied", {"texts": late})
-            if not answered:
-                await self._persist_partial_turn(
-                    opened,
-                    agent_id=agent_id,
-                    output=timeline.text,
-                    tool_calls=collected_tool_calls,
-                    thinking=timeline.thinking,
-                    parts=timeline.stored(),
-                )
+            try:
+                # Before the trace ends: its end is what tells the others in the
+                # room to re-read the transcript, which must already hold this.
+                if not answered:
+                    await self._persist_partial_turn(
+                        opened,
+                        agent_id=agent_id,
+                        output=timeline.text,
+                        tool_calls=collected_tool_calls,
+                        thinking=timeline.thinking,
+                        parts=timeline.stored(),
+                    )
+            finally:
+                await self._end_live_turn(steering)
+
+    async def _end_live_turn(self, steering: SteeringInbox) -> None:
+        """Close the turn this socket was writing: its trace, and what it held for it."""
+        if self._live_turn is not None:
+            await live_turn.end(self._live_turn)
+        finished, self._live = self._live, None
+        self._live_turn = None
+        self._current_timeline = None
+        self._steering = None
+        self._visual_reports = None
+        late = steering.unapplied()
+        if late:
+            # Sent after the agent's last request, so no request carried them.
+            # Handed back rather than dropped: the client sends them as the
+            # next message.
+            with contextlib.suppress(Exception):
+                await self._emit("steer_unapplied", {"texts": late})
+        if finished is not None and finished == self._room:
+            # A teammate's turn begun while this socket wrote its own was
+            # not followed then; it is now, from its start.
+            await self._follow_if_running(finished)
 
     async def _tell_the_absent(self, outcome: _Outcome | None) -> None:
         """Notify the person a turn ended without, in the inbox and by email (#2108).
@@ -1248,25 +1267,39 @@ class AgentSession:
         One follower at a time: a turn somebody begins while another is followed
         is taken up when that one ends, by `_follow` itself.
         """
-        if conversation_id == self._live:
-            return
-        if self._follower is not None and not self._follower.done():
+        if self._closed or conversation_id == self._live or self._following():
             return
         token = await live_turn.live_token(conversation_id)
-        if token is None:
+        # Asked again past the await: the socket may have closed, this socket
+        # begun its own turn there, or another path started a follower meanwhile -
+        # two followers would draw the same turn twice.
+        if token is None or self._closed or conversation_id == self._live or self._following():
+            return
+        if conversation_id != self._room:
+            # Left for another conversation, or for none, while asking.
             return
         self._follower = asyncio.create_task(self._follow(conversation_id, token))
 
+    def _following(self) -> bool:
+        return self._follower is not None and not self._follower.done()
+
     async def _enter_room(self, conversation_id: str) -> None:
         """Be one of the people with this conversation open, and hear what happens in it."""
-        if self._room == conversation_id:
+        if self._closed or self._room == conversation_id:
             return
         await self._leave_room()
         self._room = conversation_id
         await chat_room.join(conversation_id, self.user.id, self._socket)
+        if self._closed or self._room != conversation_id:
+            # `shutdown` - or another room - came in while joining, and its leave
+            # ran before this join landed: undo it rather than stay counted.
+            await chat_room.leave(conversation_id, self.user.id, self._socket)
+            return
         self._room_task = asyncio.create_task(self._in_room(conversation_id))
 
     async def _leave_room(self) -> None:
+        # A turn followed in the room is the room's: leaving stops drawing it.
+        self._stop_following()
         room, task = self._room, self._room_task
         self._room, self._room_task = None, None
         if task is not None and not task.done():
@@ -1409,12 +1442,19 @@ class AgentSession:
         A teammate's turn begun while another was followed found this follower
         busy and was not taken up then; so when a turn ends, the conversation is
         asked again, and the newer turn is followed from its start.
+
+        A failure ends the following, not the socket: it is logged, and the tab
+        is told the turn is over so it re-reads the transcript rather than spin.
         """
-        while await self._follow_one(conversation_id, token):
-            newer = await live_turn.live_token(conversation_id)
-            if newer is None or newer == token or conversation_id == self._live:
-                return
-            token = newer
+        try:
+            while await self._follow_one(conversation_id, token):
+                newer = await live_turn.live_token(conversation_id)
+                if newer is None or newer == token or conversation_id == self._live:
+                    return
+                token = newer
+        except Exception:
+            logger.warning("chat_follow_failed", exc_info=True)
+            await send_event(self.websocket, live_turn.END, {"conversation_id": conversation_id})
 
     async def _follow_one(self, conversation_id: str, token: str) -> bool:
         """Forward one turn's frames until it ends, then say it has.

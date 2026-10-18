@@ -743,6 +743,75 @@ class TestTheRoom:
             await session.shutdown()
         room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id, session._socket)
 
+    async def test_a_socket_already_closed_joins_no_room_and_follows_nothing(
+        self, store: _Store
+    ) -> None:
+        """A turn running past its socket, or an attach mid-query when it went,
+        must not count a closed tab as here until its entry expires."""
+        await _begin()
+        session = _session()
+        room = self._room()
+        with patch.multiple("app.services.agent_session.chat_room", **room):
+            await session.shutdown()
+        await self._enter(session, CONVERSATION, room)
+        await session._follow_if_running(CONVERSATION)
+        room["join"].assert_not_awaited()
+        assert session._room is None and session._follower is None
+
+    async def test_a_socket_closing_while_it_joins_takes_the_join_back(self) -> None:
+        session = _session()
+        room = self._room()
+
+        async def closing(*_args: Any) -> None:
+            session._closed = True
+
+        room["join"] = AsyncMock(side_effect=closing)
+        await self._enter(session, CONVERSATION, room)
+        room["leave"].assert_awaited_once_with(CONVERSATION, session.user.id, session._socket)
+        assert session._room_task is None
+
+    async def test_a_turn_found_after_the_socket_closed_is_not_followed(
+        self, store: _Store
+    ) -> None:
+        turn = await _begin()
+        session = _session()
+        session._room = CONVERSATION
+
+        async def closing(_conversation: str) -> str:
+            session._closed = True
+            return turn.token
+
+        with patch.object(live_turn, "live_token", AsyncMock(side_effect=closing)):
+            await session._follow_if_running(CONVERSATION)
+        assert session._follower is None
+
+    async def test_a_turn_in_a_room_this_socket_left_is_not_followed(self, store: _Store) -> None:
+        await _begin()
+        session = _session()
+        session._room = str(uuid4())
+        await session._follow_if_running(CONVERSATION)
+        assert session._follower is None
+
+    async def test_unfollowing_stops_drawing_the_turn_and_stays_in_the_room(
+        self, store: _Store
+    ) -> None:
+        """Stop on a teammate's turn is not this person's to send: their tab stops
+        drawing it, and the room still counts them."""
+        session = _session()
+        session._room = CONVERSATION
+        follower = asyncio.create_task(asyncio.Event().wait())
+        session._follower = follower
+        await session.handle_frame({"type": "unfollow"})
+        await asyncio.gather(follower, return_exceptions=True)
+        assert follower.cancelled()
+        assert session._room == CONVERSATION
+
+    async def test_a_follow_that_fails_ends_the_turn_for_the_tab(self, store: _Store) -> None:
+        session = _session()
+        with patch.object(session, "_follow_one", AsyncMock(side_effect=RuntimeError("redis"))):
+            await session._follow(CONVERSATION, "token")
+        assert _sent_events(session) == [(live_turn.END, {"conversation_id": CONVERSATION})]
+
     async def test_an_open_chat_keeps_saying_its_reader_is_here(self) -> None:
         session = _session()
         join = AsyncMock(side_effect=[None, asyncio.CancelledError()])

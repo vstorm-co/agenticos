@@ -1056,6 +1056,32 @@ class TestATurnThatDidNotFinish:
             ("error", {"message": "Conversation belongs to a different organization"})
         ]
 
+    async def test_what_it_said_is_saved_before_the_room_hears_it_is_over(self):
+        """The trace's end is what tells a teammate's tab to re-read the
+        transcript; read before the partial answer is written, it shows none."""
+        session = _session()
+        order: list[str] = []
+
+        async def ended(_turn: Any) -> None:
+            order.append("end")
+
+        async def kept(*_args: Any, **_kwargs: Any) -> None:
+            order.append("persist")
+
+        with (
+            _chat(AsyncMock(side_effect=RuntimeError("model went away"))),
+            patch(
+                "app.services.agent_session.live_turn.begin",
+                AsyncMock(return_value=MagicMock()),
+            ),
+            patch("app.services.agent_session.live_turn.publish", AsyncMock()),
+            patch("app.services.agent_session.live_turn.end", side_effect=ended),
+            patch.object(session, "_persist_partial_turn", side_effect=kept),
+        ):
+            await session.process_message(_message())
+
+        assert order == ["persist", "end"]
+
     async def test_a_refused_run_is_reported_and_not_answered_by_anything_else(self):
         """An unpublished or archived agent, or one that is not theirs to see. The
         platform working, so it is said plainly - and nothing answers in the named
