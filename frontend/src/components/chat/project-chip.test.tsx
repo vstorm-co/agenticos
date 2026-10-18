@@ -80,6 +80,23 @@ describe("ProjectChip", () => {
     await waitFor(() => expect(useAgentSelectionStore.getState().selectedAgentId).toBe("a-1"));
   });
 
+  it("starts a new chat rather than reopen the one that was open before", async () => {
+    useConversationStore.getState().setCurrentConversationId("c-old");
+    useConversationStore.getState().setCurrentMessages([
+      {
+        id: "m-1",
+        role: "user",
+        content: "earlier",
+        created_at: "2026-10-18T10:00:00Z",
+      } as never,
+    ]);
+    params.mockReturnValue(new URLSearchParams("project=p-1"));
+    chip(null);
+
+    await waitFor(() => expect(useConversationStore.getState().currentConversationId).toBeNull());
+    expect(useConversationStore.getState().pendingProjectId).toBe("p-1");
+  });
+
   it("drops a project from a link that cannot be read, rather than keep it unseen", async () => {
     vi.mocked(getProject).mockRejectedValue(new Error("Project not found"));
     params.mockReturnValue(new URLSearchParams("project=p-gone"));

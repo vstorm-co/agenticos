@@ -30,6 +30,8 @@ export interface ChatState {
   updateToolCallPart: (messageId: string, toolCallId: string, update: Partial<ToolCall>) => void;
   setStreaming: (streaming: boolean) => void;
   clearMessages: () => void;
+  /** The same conversation read again: its messages go, a reply being written stays. */
+  rereadMessages: () => void;
   /** The message the next turn replies to, chosen with Reply; null for none. */
   replyTo: MessageReply | null;
   setReplyTo: (reply: MessageReply | null) => void;
@@ -142,6 +144,7 @@ const chatState: StateCreator<ChatState> = (set) => ({
 
   // Another conversation opened: a reply chosen in this one goes with it.
   clearMessages: () => set({ messages: [], replyTo: null }),
+  rereadMessages: () => set({ messages: [] }),
   setReplyTo: (replyTo) => set({ replyTo }),
 });
 

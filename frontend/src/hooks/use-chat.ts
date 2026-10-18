@@ -120,6 +120,31 @@ function withoutThread(threads: ReadonlySet<string>, id: string | null): Readonl
 const TYPING_EVERY_MS = 3000;
 const TYPING_SHOWN_MS = 6000;
 
+/** What a running turn streams - drawn only into a turn this tab writes or follows. */
+const TURN_FRAMES: ReadonlySet<string> = new Set([
+  "model_request_start",
+  "part_start",
+  "tool_call_delta",
+  "visual_images",
+  "text_delta",
+  "thinking_delta",
+  "tool_call",
+  "tool_result",
+  "final_result",
+  "subagent_start",
+  "subagent_text_delta",
+  "subagent_thinking_delta",
+  "subagent_tool_call",
+  "subagent_tool_result",
+  "subagent_awaiting_approval",
+  "subagent_complete",
+  "browser_opened",
+  "browser_step",
+  "browser_frame",
+  "browser_finished",
+  "complete",
+]);
+
 interface TypingPerson {
   conversationId: string;
   person: ChatPerson;
@@ -334,6 +359,14 @@ export function useChat(options: UseChatOptions = {}) {
   // The conversation whose turn this tab is following from another socket's
   // frames (`turn_attached`), or null. Its end is a re-read, not a `complete`.
   const followingRef = useRef<string | null>(null);
+  // A turn announced for a conversation other than the one on screen, whose
+  // frames are dropped until it ends or another is followed.
+  const declinedRef = useRef<string | null>(null);
+  // Whether this tab is writing a turn, readable from the frame handler.
+  const processingRef = useRef(isProcessing);
+  useEffect(() => {
+    processingRef.current = isProcessing;
+  }, [isProcessing]);
   // Who else has this conversation open, as its room last said - see `presence`.
   const [present, setPresent] = useState<{ conversationId: string; people: ChatPerson[] }>();
   // Who else is writing a message here, each until a while after their last
@@ -414,6 +447,17 @@ export function useChat(options: UseChatOptions = {}) {
   const handleWebSocketMessage = useCallback(
     (event: MessageEvent) => {
       const wsEvent: WSEvent = JSON.parse(event.data);
+      // The frames of a turn this tab declined to follow: a teammate's, in a room
+      // the tab has just left - another chat opened before the server heard.
+      // Drawn, they would land in the chat on screen.
+      if (
+        declinedRef.current !== null &&
+        TURN_FRAMES.has(wsEvent.type) &&
+        !processingRef.current &&
+        followingRef.current === null
+      ) {
+        return;
+      }
 
       // Opens the turn's message. It used to close a previous one first, which is
       // no longer reachable and would be the wrong place for it if it were: every
@@ -447,7 +491,11 @@ export function useChat(options: UseChatOptions = {}) {
         // comes, and every frame after this one is drawn exactly as a live turn's.
         case "turn_attached": {
           const { conversation_id } = wsEvent.data as { conversation_id: string };
-          if (conversation_id !== activeConversationId) break;
+          if (conversation_id !== activeConversationId) {
+            declinedRef.current = conversation_id;
+            break;
+          }
+          declinedRef.current = null;
           followingRef.current = conversation_id;
           setCurrentMessageId(null);
           setLeftRunning((threads) => withoutThread(threads, conversation_id));
@@ -517,6 +565,7 @@ export function useChat(options: UseChatOptions = {}) {
         // stored answer - its id, its cost, its rating - replaces the one drawn
         // from the frames.
         case "turn_followed_to_end": {
+          declinedRef.current = null;
           if (followingRef.current === null) break;
           followingRef.current = null;
           if (currentMessageIdRef.current) {
@@ -1151,6 +1200,8 @@ export function useChat(options: UseChatOptions = {}) {
         mentions,
       });
       setIsProcessing(true);
+      // Now, not after the render: the turn's first frame may come before it.
+      processingRef.current = true;
       const payload: Record<string, unknown> = {
         message: content,
         conversation_id: conversationId || null,
@@ -1839,7 +1890,7 @@ export function useChat(options: UseChatOptions = {}) {
     // A turn this tab only follows is not this socket's to stop: stop following.
     if (followingRef.current !== null) {
       followingRef.current = null;
-      sendMessage({ type: "attach", conversation_id: null });
+      sendMessage({ type: "unfollow" });
     } else {
       sendMessage({ type: "stop" });
     }
@@ -1942,17 +1993,19 @@ export function useChat(options: UseChatOptions = {}) {
   // being written in it, if one is. The server answers with `turn_attached` and
   // the turn so far, or with nothing when no turn is running there. Not while this
   // tab is writing a turn itself: that one already streams here.
-  const processingRef = useRef(isProcessing);
-  useEffect(() => {
-    processingRef.current = isProcessing;
-  }, [isProcessing]);
   //
   // Once its transcript is here, not before: the transcript replaces what the chat
   // holds when it lands, and a turn already drawn from the frames would go with it.
+  // A new chat has none to wait for, and says so at once: the socket leaves the
+  // room it was in, which otherwise went on counting this person there and sending
+  // them its turns.
   const transcriptHere =
     activeConversationId !== null && messages.at(-1)?.conversationId === activeConversationId;
+  const attachedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!isConnected || !transcriptHere || processingRef.current) return;
+    if (!isConnected || processingRef.current) return;
+    if (activeConversationId === null ? attachedRef.current === null : !transcriptHere) return;
+    attachedRef.current = activeConversationId;
     sendMessage({ type: "attach", conversation_id: activeConversationId });
   }, [isConnected, transcriptHere, activeConversationId, sendMessage]);
 

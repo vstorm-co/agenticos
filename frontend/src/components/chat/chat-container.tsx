@@ -145,7 +145,7 @@ export function ChatContainer({
     currentCost,
     isLoading: isConversationLoading,
   } = useConversationStore();
-  const { addMessage: addChatMessage } = useChatStore();
+  const { addMessage: addChatMessage, rereadMessages } = useChatStore();
   // The model override the picker holds, mirrored here because the context gauge
   // is a share of *its* window rather than of the agent's default.
   const [modelProfileId, setModelProfileId] = useState<string | null>(null);
@@ -393,7 +393,10 @@ export function ChatContainer({
 
   useEffect(() => {
     if (currentMessages.length > 0) {
-      clearMessages();
+      // Not `clearMessages`: a re-read of this same conversation - a followed
+      // turn ending, a teammate's answer landing - must not drop the reply
+      // somebody is in the middle of writing. A switch has already cleared it.
+      rereadMessages();
       currentMessages.forEach((msg) => {
         const message = conversationMessageToChatMessage(msg);
         addChatMessage({
@@ -407,7 +410,7 @@ export function ChatContainer({
         });
       });
     }
-  }, [currentMessages, addChatMessage, clearMessages]);
+  }, [currentMessages, addChatMessage, rereadMessages]);
 
   // Whether the reader has moved up to read, so the transcript stops following.
   useReaderScrolledUp(scrollContainerRef, userScrolledUpRef);

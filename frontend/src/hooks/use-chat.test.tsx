@@ -3424,6 +3424,37 @@ describe("useChat - coming back to a turn still being written", () => {
     expect(sent).toHaveBeenCalledWith({ type: "attach", conversation_id: "c-1" });
   });
 
+  it("leaves the room it was in when a new chat opens, and not before one was joined", () => {
+    const { rerender } = renderHook(
+      ({ conversationId }: { conversationId: string | null }) => useChat({ conversationId }),
+      { wrapper, initialProps: { conversationId: null as string | null } },
+    );
+    expect(sent).not.toHaveBeenCalled();
+
+    rerender({ conversationId: "c-1" });
+    storedQuestion();
+    rerender({ conversationId: null });
+
+    expect(sent).toHaveBeenLastCalledWith({ type: "attach", conversation_id: null });
+  });
+
+  it("draws nothing of a turn announced for a chat no longer on screen", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+
+    receive("turn_attached", { conversation_id: "c-other" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Somebody else's answer" });
+    expect(streaming()).toBeUndefined();
+
+    // Its end lets the next turn's frames through again.
+    receive("turn_followed_to_end", { conversation_id: "c-other" });
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "This chat's answer" });
+    expect(streaming()?.content).toContain("This chat's answer");
+  });
+
   it("draws the followed turn as it would have been drawn live, and re-reads it at the end", () => {
     const onTurnInterrupted = vi.fn();
     const { result } = renderHook(() => useChat({ conversationId: "c-1", onTurnInterrupted }), {
@@ -3615,7 +3646,7 @@ describe("useChat - coming back to a turn still being written", () => {
 
     act(() => result.current.stopGeneration());
 
-    expect(sent).toHaveBeenCalledWith({ type: "attach", conversation_id: null });
+    expect(sent).toHaveBeenCalledWith({ type: "unfollow" });
     expect(sent).not.toHaveBeenCalledWith({ type: "stop" });
     expect(result.current.isProcessing).toBe(false);
   });

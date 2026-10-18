@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { FolderKanban, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 
 import { ProjectPickerDialog } from "@/components/projects/project-picker-dialog";
+import { useConversations } from "@/hooks/use-conversations";
 import { getProject } from "@/lib/projects-api";
 import { apiClient } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
@@ -38,6 +39,8 @@ export function ProjectChip({
   const setPending = useConversationStore((state) => state.setPendingProjectId);
   const selectAgent = useAgentSelectionStore((state) => state.select);
   const [arrived] = useState(() => searchParams.get("project"));
+  const { startNewChat } = useConversations();
+  const tookArrival = useRef(false);
 
   const { data: started } = useQuery({
     queryKey: [...qk.conversations.all(), "project-of", conversationId ?? ""] as const,
@@ -54,12 +57,17 @@ export function ProjectChip({
     retry: false,
   });
 
-  // A project's New chat: start in it, with its default agent, once.
+  // A project's New chat: a new chat, in it, with its default agent - once. Not
+  // the chat that was open before: `/chat` reopens it, and the project would
+  // then name a conversation started somewhere else.
   useEffect(() => {
-    if (arrived === null) return;
+    if (arrived === null || tookArrival.current) return;
+    tookArrival.current = true;
+    // Clears any project chosen before, so it goes first.
+    void startNewChat();
     setPending(arrived);
     setUrlParam("project", null);
-  }, [arrived, setPending]);
+  }, [arrived, setPending, startNewChat]);
   // A choice that cannot be read - a deleted project, one no longer shared, a
   // mangled link - is dropped: kept, it drew no chip to clear it by and every
   // first message was refused for it.
