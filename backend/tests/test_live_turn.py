@@ -305,6 +305,18 @@ class TestKeepingATurn:
             assert await live_turn.live_token(CONVERSATION) is None
             assert await _followed() == []
 
+    async def test_redis_going_away_mid_follow_ends_it_quietly(self, store: _Store) -> None:
+        """Raised out of the follow, it killed the follower before it could say
+        the turn was over, and the reader's chat kept spinning until a reload."""
+        turn = await _begin()
+        await live_turn.publish(turn, "text_delta", {"content": "1"})
+
+        async def gone() -> None:
+            raise ConnectionError("Redis went away")
+
+        store.on_listen = gone
+        assert [kind for kind, _ in await _followed()] == ["text_delta"]
+
     async def test_without_redis_nothing_is_kept_or_followed(self) -> None:
         live_turn.configure(None)
         assert await live_turn.begin(CONVERSATION) is None

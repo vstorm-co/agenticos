@@ -181,14 +181,16 @@ async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, A
     """Every frame of one turn: what it has sent, then what it sends.
 
     Ends after the frame that closes the turn. Each frame is `{"seq", "type",
-    "data"}`, as the turn's socket sent it.
+    "data"}`, as the turn's socket sent it. Ends early, without that frame, when
+    Redis goes away: following is a view, and the follower then says the turn is
+    over rather than leave the reader's chat waiting on it.
     """
     if _redis is None:
         return
     turn = Turn(conversation_id, token)
     pubsub = _redis.raw.pubsub(ignore_subscribe_messages=True)
-    await pubsub.subscribe(turn.key("events"))
     try:
+        await pubsub.subscribe(turn.key("events"))
         last = 0
         for raw in await _redis.list_range(turn.key("trace")):
             frame = _frame(raw)
@@ -208,8 +210,11 @@ async def follow(conversation_id: str, token: str) -> AsyncGenerator[dict[str, A
             yield frame
             if frame["type"] == END:
                 return
+    except Exception:
+        logger.exception("live_turn_follow_failed")
     finally:
-        await pubsub.aclose()
+        with contextlib.suppress(Exception):
+            await pubsub.aclose()
 
 
 def _frame(raw: str) -> dict[str, Any] | None:
