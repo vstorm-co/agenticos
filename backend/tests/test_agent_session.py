@@ -1794,7 +1794,7 @@ class TestStreamingAModelResponse:
                 yield event
 
         collected = timeline if timeline is not None else TurnTimeline()
-        await _frames(session, timeline=collected).request(_events())
+        await _frames(session, timeline=collected).request(_events(), set())
         return collected.thinking
 
     async def test_a_part_that_starts_with_text_already_in_it_forwards_that_text(self):
@@ -1922,6 +1922,31 @@ class TestStreamingAModelResponse:
 
         assert _sent_events(session) == [
             ("tool_call_delta", {"index": 1, "args_delta": '{"team": '})
+        ]
+
+    async def test_a_call_reusing_an_id_the_conversation_holds_is_renamed_first(self):
+        """Before the console hears of it, and in the part the response keeps, so a
+        provider counting from `call_0` each turn cannot make a drawing overwrite
+        the last one (#2171)."""
+        session = _session()
+        part = ToolCallPart("draw", {}, tool_call_id="call_0")
+
+        async def _events() -> AsyncIterator[Any]:
+            yield PartStartEvent(index=0, part=part)
+
+        await _frames(session).request(_events(), {"call_0"})
+
+        assert part.tool_call_id == "call_0~2"
+        assert _sent_events(session) == [
+            (
+                "part_start",
+                {
+                    "index": 0,
+                    "part_type": "ToolCallPart",
+                    "tool_name": "draw",
+                    "tool_call_id": "call_0~2",
+                },
+            )
         ]
 
     async def test_the_frame_that_says_the_answer_has_started(self):
