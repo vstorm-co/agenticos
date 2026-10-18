@@ -173,15 +173,36 @@ async def test_a_projects_chat_list_holds_only_the_chats_started_in_it(db) -> No
         db, organization_id=org.id, user_id=alice.id, title="out"
     )
 
+    # A project's chats reach a reader through the projects they may see - the
+    # set the service passes - never through having started one.
+    through_project = await conversation_repo.project_threads_in(
+        db, organization_id=org.id, project_ids=[project.id]
+    )
+    assert through_project == {inside.id}
     listed = await conversation_repo.get_conversations_by_user(
-        db, alice.id, organization_id=org.id, project_id=project.id
+        db,
+        alice.id,
+        organization_id=org.id,
+        project_id=project.id,
+        participant_conversation_ids=through_project,
     )
     assert [conversation.id for conversation in listed] == [inside.id]
     assert (
         await conversation_repo.count_conversations(
-            db, alice.id, organization_id=org.id, project_id=project.id
+            db,
+            alice.id,
+            organization_id=org.id,
+            project_id=project.id,
+            participant_conversation_ids=through_project,
         )
         == 1
+    )
+    # Started there, but with the project out of reach: not listed at all.
+    assert (
+        await conversation_repo.get_conversations_by_user(
+            db, alice.id, organization_id=org.id, project_id=project.id
+        )
+        == []
     )
 
 

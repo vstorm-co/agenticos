@@ -254,6 +254,51 @@ describe("ProjectChats", () => {
     );
   });
 
+  it("opens a chat from its row, sorts by any column and marks one unread", async () => {
+    const anna = { ...KACPER, user_id: "u-2", name: "Anna" };
+    const chat = (id: string, title: string, owner: typeof KACPER | null, at: string) => ({
+      id,
+      title,
+      created_at: at,
+      updated_at: null,
+      owner,
+      seen_by: [],
+      working: null,
+      here: [],
+    });
+    chats.mockReturnValue({
+      chats: [
+        { ...chat("c-1", "Budget", KACPER, "2026-10-01T00:00:00Z"), unread: true },
+        chat("c-2", "", null, "2026-10-03T00:00:00Z"),
+        chat("c-3", "Agenda", anna, "2026-10-02T00:00:00Z"),
+      ],
+      total: 3,
+      isLoading: false,
+      error: null,
+    });
+    wrap(<ProjectChats project={aProject()} />);
+    const order = () =>
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => row.textContent ?? "");
+
+    expect(screen.getByRole("status", { name: "New answer" })).toBeInTheDocument();
+    // The title is a link of its own, so following it is not also a row click.
+    await userEvent.click(screen.getByRole("link", { name: /Agenda/ }));
+    expect(push).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("row", { name: /Budget/ }));
+    expect(push).toHaveBeenCalledWith("/chat?id=c-1");
+
+    for (const column of ["Chat", "Started by", "Last activity"]) {
+      await userEvent.click(screen.getByRole("button", { name: column }));
+      const once = order();
+      await userEvent.click(screen.getByRole("button", { name: column }));
+      // Turned around - a chat with no starter stays last either way.
+      expect(order()).not.toEqual(once);
+    }
+  });
+
   it("offers the next page while there is one", async () => {
     const loadMore = vi.fn();
     chats.mockReturnValue({

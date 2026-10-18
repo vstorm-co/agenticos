@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { MessageSquare, Plus } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -14,6 +13,7 @@ import { Button, DataTable, ListCard, ListCardEmpty, type Column } from "@/compo
 import { useProjectChats } from "@/hooks/use-projects";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
+import { useRouter } from "@/lib/locale-navigation";
 import { cn, timeAgo } from "@/lib/utils";
 import type { ProjectChat } from "@/types";
 import type { Project } from "@/types/projects";
