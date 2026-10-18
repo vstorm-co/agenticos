@@ -1293,6 +1293,25 @@ async def test_an_archived_agent_is_never_ready_to_dictate_to() -> None:
     assert (status.ready, status.server_available) == (False, True)
 
 
+async def test_a_recording_for_an_archived_agent_is_refused_before_the_provider() -> None:
+    """What readiness says before the press, the dictation says after it: an
+    archived agent takes no message, so nothing is paid for (review of #2138)."""
+    agent, _get_version = _published(None)
+    agent.status = "archived"
+    with (
+        patch(
+            "app.services.ml.facade.organization_repo.get_by_id", new=AsyncMock()
+        ) as organization,
+        patch.object(MLService, "transcribe_dictation", new=AsyncMock()) as transcribe,
+        pytest.raises(ConfigurationError) as refused,
+    ):
+        await MLService(_db()).dictate(_ctx(), agent=agent, content=b"RIFF", mime_type="audio/wav")
+
+    assert refused.value.details == {"reason": "not_configured"}
+    organization.assert_not_awaited()
+    transcribe.assert_not_awaited()
+
+
 async def test_dictation_readiness_with_no_organization_is_not_found() -> None:
     with (
         patch(

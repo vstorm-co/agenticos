@@ -323,10 +323,19 @@ class MLService:
 
         Raises:
             ConfigurationError: `reason="not_configured"` - the engine is not
-                `server`, no pair resolves, or no usable key is named beside it.
+                `server`, the agent is archived, no pair resolves, or no usable
+                key is named beside it.
             BadRequestError: `reason` `empty`, `unsupported_type` or `too_large`.
             ExternalServiceError: `reason` `provider_error` or `timeout`.
         """
+        # What `dictation_status` says before the press, said again here: an
+        # archived agent takes no message, so a paid transcription for one is
+        # money spent on text with nowhere to go.
+        if agent.status == AgentStatus.ARCHIVED.value:
+            raise ConfigurationError(
+                message="Dictation is off for an archived agent.",
+                details={"reason": "not_configured"},
+            )
         org = await organization_repo.get_by_id(self.db, ctx.organization_id)
         return await self.transcribe_dictation(
             TranscriptionCall(
