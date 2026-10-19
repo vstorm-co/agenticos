@@ -50,8 +50,20 @@ vi.mock("@/hooks/use-eval-runs", () => ({
   },
   useEvalRun: () => ({ run: oneRun.run }),
 }));
-const datasets = vi.hoisted(() => ({ items: [] as unknown[] }));
-vi.mock("@/hooks/use-datasets", () => ({ useDatasets: () => ({ datasets: datasets.items }) }));
+const datasets = vi.hoisted(() => ({
+  items: [] as unknown[],
+  isLoading: false,
+  error: null as Error | null,
+  refetch: (() => undefined) as () => unknown,
+}));
+vi.mock("@/hooks/use-datasets", () => ({
+  useDatasets: () => ({
+    datasets: datasets.items,
+    isLoading: datasets.isLoading,
+    error: datasets.error,
+    refetch: datasets.refetch,
+  }),
+}));
 vi.mock("./start-eval-dialog", () => ({
   StartEvalDialog: ({ onOpenChange }: { onOpenChange: (open: boolean) => void }) => (
     <button onClick={() => onOpenChange(false)}>start-dialog</button>
@@ -60,6 +72,8 @@ vi.mock("./start-eval-dialog", () => ({
 
 beforeEach(() => {
   datasets.items = [];
+  datasets.isLoading = false;
+  datasets.error = null;
   evalRuns.value = { runs: [], isLoading: false, error: null, refetch: vi.fn() };
 });
 
@@ -314,6 +328,20 @@ describe("EvalsPanel", () => {
       "href",
       "/datasets",
     );
+  });
+
+  it("decides between the empty states only once the datasets are read", async () => {
+    datasets.isLoading = true;
+    const { rerender } = render(<EvalsPanel agentId="agent-1" canStart />);
+    expect(screen.queryByText("Create a dataset first")).toBeNull();
+
+    datasets.isLoading = false;
+    datasets.error = new Error("boom");
+    datasets.refetch = vi.fn();
+    rerender(<EvalsPanel agentId="agent-1" canStart />);
+    expect(screen.queryByText("Create a dataset first")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(datasets.refetch).toHaveBeenCalled();
   });
 
   it("offers the first run once a dataset exists, and only to who may start one", async () => {

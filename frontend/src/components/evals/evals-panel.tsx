@@ -58,9 +58,13 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
     skip: page * TREND_RUNS,
     limit: TREND_RUNS,
   });
-  const { datasets } = useDatasets({ sort: "updated", limit: 1 });
+  const anyDataset = useDatasets({ sort: "updated", limit: 1 });
   const start = canStart ? { label: t("start"), onClick: () => setStarting(true) } : undefined;
   const groups = byDataset(runs);
+  // With no runs, which empty state is right depends on whether a dataset exists,
+  // so the datasets' read decides as much as the runs'.
+  const waiting = isLoading || (runs.length === 0 && anyDataset.isLoading);
+  const failed = error ?? (runs.length === 0 ? anyDataset.error : null);
 
   return (
     <Card data-tour="agent-evals">
@@ -77,15 +81,18 @@ export function EvalsPanel({ agentId, canStart }: { agentId: string; canStart: b
         )}
       </CardHeader>
       <CardContent className="space-y-6">
-        {isLoading ? (
+        {waiting ? (
           <LoadingState variant="skeleton-list" rows={3} />
-        ) : error ? (
+        ) : failed ? (
           <ErrorState
-            description={getErrorMessage(error, tErrors)}
-            cta={{ label: tc("retry"), onClick: () => void refetch() }}
+            description={getErrorMessage(failed, tErrors)}
+            cta={{
+              label: tc("retry"),
+              onClick: () => void (error ? refetch() : anyDataset.refetch()),
+            }}
           />
         ) : runs.length === 0 ? (
-          datasets.length === 0 ? (
+          anyDataset.datasets.length === 0 ? (
             <EmptyState
               icon={FlaskConical}
               title={t("empty.noDatasetTitle")}
