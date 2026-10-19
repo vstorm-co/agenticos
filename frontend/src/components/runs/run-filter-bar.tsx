@@ -102,6 +102,7 @@ export function RunFilterBar({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">{t("anySurface")}</SelectItem>
+          <SelectItem value="every">{t("everySurface")}</SelectItem>
           {SURFACES.map((entry) => (
             <SelectItem key={entry} value={entry}>
               <span className="flex items-center gap-1.5">

@@ -11,10 +11,10 @@ import { DatasetHeader } from "@/components/datasets/dataset-header";
 import { DatasetShareDialog } from "@/components/datasets/dataset-share-dialog";
 import { EditDatasetDialog } from "@/components/datasets/edit-dataset-dialog";
 import { EmptyCases } from "@/components/datasets/empty-cases";
-import { EvalsTab } from "@/components/datasets/evals-tab";
 import { ReviewPanel } from "@/components/datasets/review-panel";
 import { GradingPanel } from "@/components/datasets/grading-panel";
 import { VersionSelect } from "@/components/datasets/version-select";
+import { DatasetEvalsPanel, DatasetRunEvalsButton } from "@/components/evals/dataset-evals-panel";
 import { ErrorState, LoadingState } from "@/components/states";
 import {
   ConfirmDialog,
@@ -32,9 +32,11 @@ import {
   useDatasetCases,
   useDatasetVersions,
 } from "@/hooks/use-datasets";
+import { usePermissions } from "@/hooks/use-permissions";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import type { DatasetCase, DatasetCaseContent } from "@/types/datasets";
+import { Perm } from "@/types/permissions";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -70,6 +72,8 @@ export default function DatasetPage({ params }: PageProps) {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [gradingUnsaved, setGradingUnsaved] = useState(false);
   const { dataset, error: datasetError, update, remove } = useDataset(id);
+  // Every read behind the Evals tab and the run it starts takes runs:view.
+  const canViewRuns = usePermissions().can(Perm.runsView);
   const { versions } = useDatasetVersions(id);
   const linkedCase = useDatasetCase(id, linked);
   // A link to one case opens it once it arrives, as reading it from the list would;
@@ -108,10 +112,19 @@ export default function DatasetPage({ params }: PageProps) {
         onEditDetails={() => setDialog("details")}
         onShare={() => setDialog("share")}
         onDelete={() => setDialog("delete")}
+        actions={
+          canViewRuns && dataset.case_count > 0 ? (
+            <DatasetRunEvalsButton datasetId={id} />
+          ) : undefined
+        }
       />
 
       <Tabs
-        defaultValue={asked !== null && TABS.includes(asked) ? asked : "cases"}
+        defaultValue={
+          asked !== null && TABS.includes(asked) && (asked !== "evals" || canViewRuns)
+            ? asked
+            : "cases"
+        }
         className="space-y-4"
       >
         <TabsList>
@@ -126,9 +139,11 @@ export default function DatasetPage({ params }: PageProps) {
               />
             )}
           </TabsTrigger>
-          <TabsTrigger value="evals" data-tour="datasets-evals-tab">
-            {t("evals")}
-          </TabsTrigger>
+          {canViewRuns && (
+            <TabsTrigger value="evals" data-tour="datasets-evals-tab">
+              {t("evals")}
+            </TabsTrigger>
+          )}
           <TabsTrigger value="review" data-tour="datasets-review-tab">
             {t("scoring.scores")}
           </TabsTrigger>
@@ -200,9 +215,11 @@ export default function DatasetPage({ params }: PageProps) {
         <TabsContent value="grading" forceMount className="data-[state=inactive]:hidden">
           <GradingPanel dataset={dataset} onDirtyChange={setGradingUnsaved} />
         </TabsContent>
-        <TabsContent value="evals">
-          <EvalsTab />
-        </TabsContent>
+        {canViewRuns && (
+          <TabsContent value="evals">
+            <DatasetEvalsPanel datasetId={id} title={t("evals")} />
+          </TabsContent>
+        )}
         <TabsContent value="review">
           <ReviewPanel dataset={dataset} />
         </TabsContent>

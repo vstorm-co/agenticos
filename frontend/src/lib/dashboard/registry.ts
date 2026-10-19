@@ -62,7 +62,8 @@ export type WidgetId =
   | "notifications"
   | "artifacts"
   | "datasets"
-  | "review-queue";
+  | "review-queue"
+  | "eval-runs";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -574,6 +575,15 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     defaultRows: "r4",
     category: "workspace",
     seeAll: ROUTES.DATASETS,
+  },
+  // The latest eval runs, gated on what `GET /eval-runs/recent` asks; the list
+  // holds only runs over agents and datasets the reader may see.
+  "eval-runs": {
+    id: "eval-runs",
+    gate: holds(Perm.runsView),
+    defaultSpan: "s6",
+    defaultRows: "r4",
+    category: "workspace",
   },
   "shared-with-you": {
     id: "shared-with-you",

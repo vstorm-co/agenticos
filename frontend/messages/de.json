@@ -788,6 +788,7 @@
     "testSideUnusable": "Hier aus: Die Testverbindung ist deaktiviert oder nicht angemeldet",
     "testConnectionsSaved": "Testverbindungen gespeichert",
     "failedTestConnections": "Die Testverbindungen konnten nicht gespeichert werden",
+    "testDraft": "Entwurf testen",
     "judgesCount": "{count, plural, =1 {Bewerter (1)} other {Bewerter (#)}}",
     "judgesHint": "Bewerter bewerten Eval-Antworten: der Standard-Bewerter und der eigene jedes Datasets. Die Plattform führt sie aus, also lässt sich mit ihnen nicht chatten, sie lassen sich keinem Kanal zuweisen, nicht planen und nicht als Delegate nutzen; öffnen Sie einen, um Anweisungen, Modell oder Budget zu ändern.",
     "defaultJudge": "Standard-Bewerter",
@@ -1983,7 +1984,7 @@
         "title": "Ausgaben",
         "unit": "in diesem Zeitraum",
         "description": "Was der Zeitraum gekostet hat und was dieser Kalendermonat bisher. Die Monatszahl stimmt mit der Rechnung überein und ignoriert den Zeitraumfilter deshalb absichtlich.",
-        "split": "{models} auf Modelle · {ingestion} auf Indexierung",
+        "split": "{models} auf Modelle{evals, select, none {} other { · {evals} auf Evals}}{ingestion, select, none {} other { · {ingestion} auf Indexierung}}",
         "spentLabel": "{amount} ausgegeben"
       },
       "surfaces": {
@@ -2202,6 +2203,20 @@
         "nothingWaiting": "Nichts wartet",
         "spent": "Ausgegeben",
         "spentLabel": "{amount} ausgegeben"
+      },
+      "eval-runs": {
+        "title": "Eval-Runs",
+        "description": "Die neuesten Runs von Agents über ihre Datasets, mit Bestehensquoten.",
+        "empty": {
+          "title": "Noch keine Eval-Runs",
+          "description": "Runs, die im Evals-Tab eines Agents gestartet wurden, erscheinen hier."
+        },
+        "count": {
+          "running": "{count} laufen",
+          "completed": "{count} abgeschlossen",
+          "failed": "{count} fehlgeschlagen",
+          "budget_exceeded": "{count} ohne Budget"
+        }
       }
     },
     "edit": {
@@ -3195,6 +3210,10 @@
       "create-dataset": {
         "title": "Ein Dataset anlegen?",
         "body": "Ein Dataset enthält die Fragen, an denen Ihre Agents getestet werden. Möchten Sie jetzt Ihr erstes anlegen und gemeinsam einen ersten guten Fall schreiben? Wir führen Sie durch."
+      },
+      "test-change": {
+        "title": "Eine Änderung testen, bevor sie live geht?",
+        "body": "Lass den Entwurf auf einem Dataset gegen die Live-Version laufen und lies das Urteil: welche Fälle kaputtgingen, welche behoben wurden und ob sich das Veröffentlichen lohnt. Wir führen dich durch."
       }
     },
     "steps": {
@@ -3730,6 +3749,39 @@
         "title": "Woher die nächsten Fälle kommen",
         "body": "Schreiben Sie sie hier, oder importieren Sie über dieses Menü eine CSV- oder JSONL-Datei. Bewerten Sie im Chat eine Antwort positiv oder negativ und fügen Sie sie hinzu - ein Daumen nach oben behält sie als Referenz, einer nach unten als Gegenbeispiel. In der Aktivität fügen Sie einen beliebigen Agent-Zug eines Runs hinzu."
       },
+      "agent-evals": {
+        "title": "Evals",
+        "body": "Lass den Agent über ein Dataset laufen, um zu sehen, welche Fälle er besteht, was es kostet und ob eine Änderung ihn gegenüber der vorherigen Version verbessert oder verschlechtert hat."
+      },
+      "agent-test-draft": {
+        "title": "Entwurf testen",
+        "body": "Bevor du veröffentlichst, lass den Entwurf auf einem Dataset gegen die Live-Version laufen. Das Urteil sagt, ob die Änderung den Agenten besser oder schlechter gemacht hat."
+      },
+      "eval-verdict": {
+        "title": "Das Urteil",
+        "body": "Welche Seite besser abschnitt, um wie viele bestätigte Fälle, und die Bestehensquote vorher und nachher. Von hier aus siehst du, was sich zwischen den Versionen geändert hat, öffnest die kaputten Fälle oder veröffentlichst."
+      },
+      "flow-test-draft": {
+        "title": "Den Entwurf testen",
+        "body": "Dieser Entwurf unterscheidet sich von der Live-Version. Teste ihn auf einem Dataset, bevor du veröffentlichst.",
+        "absent": "Der Entwurf gleicht der Live-Version, es gibt also noch nichts zu testen. Ändere etwas unter Build und teste ihn dann - oder beende hier."
+      },
+      "flow-test-target": {
+        "title": "Was du testest",
+        "body": "Der Entwurf gegen die Live-Version ist schon gewählt: Beide beantworten jetzt dieselben Fälle, also geht jede Änderung auf den Entwurf zurück."
+      },
+      "flow-test-run": {
+        "title": "Für den gezeigten Preis starten",
+        "body": "Die Kosten werden beim Auswählen berechnet und sagen, was den Budgets danach bleibt. Nichts läuft, bevor du hier klickst."
+      },
+      "flow-test-verdict": {
+        "title": "Das Urteil lesen",
+        "body": "Sobald beide Seiten fertig sind, steht hier, ob der Entwurf besser oder schlechter abschnitt und um wie viele bestätigte Fälle. Von hier öffnest du die kaputten Fälle, siehst, was sich geändert hat, oder veröffentlichst."
+      },
+      "flow-dataset-next": {
+        "title": "Als Nächstes: Bewertung, dann ein Eval",
+        "body": "Lege hier fest, wie Antworten auf diese Fälle bewertet werden. Dann lass einen Agenten sie beantworten - im Evals-Tab des Agenten oder von diesem Dataset aus - und lies, wie er abschnitt."
+      },
       "dataset-grading": {
         "title": "Wie Fälle bewertet werden",
         "body": "Wann ein Fall besteht: die Regeln, gegen die jede Antwort geprüft wird, und die Tools, die ein Fall erwartet. Markieren Sie, welche ein Fall bestehen muss. Jede Karte speichert für sich."
@@ -4167,6 +4219,7 @@
       "avatarColour": "Ersatzfarbe",
       "knowledge": "Wissen",
       "skills": "Skills",
+      "evals": "Evals",
       "agentsCount": "{count, plural, =1 {Agents (1)} other {Agents (#)}}",
       "judgeDatasets": "Datasets",
       "categoriesHint": "Grobe Gruppen - Support, Finanzen, intern. Der Katalog filtert danach.",
@@ -4185,7 +4238,8 @@
       "agentNameLabel": "Name",
       "agentNameRequired": "Ein Agent braucht einen Namen.",
       "identity": "Name und Beschreibung",
-      "identityHelp": "Wird mit dem Entwurf gespeichert. Eine Umbenennung behält das Handle @{slug}, Delegationen und Erwähnungen, die darauf zeigen, funktionieren also weiter."
+      "identityHelp": "Wird mit dem Entwurf gespeichert. Eine Umbenennung behält das Handle @{slug}, Delegationen und Erwähnungen, die darauf zeigen, funktionieren also weiter.",
+      "draftAsTested": "Entwurf, wie der Run ihn getestet hat"
     },
     "auth": {
       "backSign": "Zurück zur Anmeldung",
@@ -4567,7 +4621,7 @@
       "anyPerson": "Alle",
       "anyRating": "Beliebige Bewertung",
       "anyStatus": "Beliebiger Status",
-      "anySurface": "Beliebige Oberfläche",
+      "anySurface": "Jede Oberfläche außer Evals",
       "anyVersion": "Beliebige Version",
       "approvalCount": "{count, plural, =1 {1 Anfrage} other {# Anfragen}}",
       "approvals": "Freigaben",
@@ -4735,6 +4789,11 @@
       "whereTheMoneyWent": "Wohin das Geld geflossen ist",
       "whoIsSpendingCouldNotBeRead": "Wer ausgibt, konnte nicht gelesen werden.",
       "widenTheWindowAbove": "Im Zeitraum oben lief nichts. Weiten Sie ihn, oder führen Sie einen Agent aus.",
+      "everySurface": "Jede Oberfläche, Evals eingeschlossen",
+      "evalCase": "Eval-Fall: {dataset} · {input}",
+      "evalCaseTitle": "Ein Fall aus einem Eval-Run",
+      "evalCaseBody": "Dieser Run hat einen Fall eines Eval-Runs beantwortet, der kein Gespräch speichert. Die Antwort und ihre Bewertung stehen im Eval-Run.",
+      "evalCaseOpen": "Eval-Run öffnen",
       "moreRunActions": "Weitere Aktionen für diesen Run",
       "askAnAgent": "Einen Agent fragen",
       "testFilter": "Test-Runs",
@@ -4757,7 +4816,11 @@
       "spendOverTimeHint": "Was jeder Tag des Zeitraums gekostet hat, in UTC-Tagen.",
       "actionInService": "{action} in {service}",
       "approvalDetails": "Details",
-      "approvalNoArguments": "Es nimmt nichts entgegen."
+      "approvalNoArguments": "Es nimmt nichts entgegen.",
+      "evalCaseGraded": "Bewertung eines Eval-Falls: {dataset} · {input}",
+      "evalCaseGradedTitle": "Der Judge bewertet einen Fall eines Eval-Runs",
+      "evalCaseGradedBody": "Dieser Run ist der Judge, der eine Antwort eines Eval-Runs bewertet, der kein Gespräch speichert. Antwort, Bewertung und Begründung des Judges stehen im Eval-Run.",
+      "grading": "Bewertung: {input}"
     },
     "sandboxes": {
       "addConnection": "Verbindung hinzufügen",
@@ -6621,8 +6684,6 @@
     "caseOpened": "Bearbeiten Sie ihn, um ihn zu ändern; Speichern erzeugt eine neue Version.",
     "editCase": "Bearbeiten",
     "evals": "Evals",
-    "noEvals": "Noch kein Eval-Run",
-    "noEvalsBody": "Ein Eval lässt einen Agent - eine Version oder seinen Entwurf - durch die Fälle dieses Datasets laufen und sagt, ob er besser oder schlechter ist als zuvor.",
     "linkedCaseGone": "Der Fall aus diesem Link ist nicht in der neuesten Version des Datasets.",
     "argKey": "Aufruf {number}, Argument {arg}: Name",
     "argValue": "Aufruf {number}, Argument {arg}: Wert",
@@ -7624,5 +7685,295 @@
     "unavailableBody": "Dieses Deployment hat kein Redis für Live-Ansichten. Versuchen Sie es gleich noch einmal.",
     "rememberSignIn": "Anmeldung bei {site} für spätere Browses behalten",
     "signInKept": "Deine Anmeldung bei {site} bleibt für spätere Browses erhalten - verwalten unter Einstellungen → Anmeldungen."
+  },
+  "evals": {
+    "title": "Evals",
+    "description": "Wie sich die Bestehensquote des Agenten Version für Version entwickelt hat, und jeder Run mit seinem Urteil.",
+    "start": "Evals starten",
+    "startTitle": "Evals starten",
+    "startBody": "Wähle, was du testest und auf welchem Dataset. Die Kosten siehst du, bevor etwas läuft.",
+    "cancel": "Abbrechen",
+    "aiSettings": "Einstellungen der Organisation öffnen",
+    "estimate": {
+      "basis": {
+        "fallback": "keine Historie auf diesem Modell, grobe Schätzung",
+        "cached": "aus einem aktuellen Run übernommen",
+        "cachedAt": "Antworten aus dem Run vom {date}, gleiches Modell - ein Fall, der sich ändert, wird beiden Seiten erneut gestellt"
+      },
+      "judge": "Eval judge",
+      "total": "Insgesamt {count, plural, =1 {1 Fall} other {# Fälle}}",
+      "reruns": "Gekippte Fälle werden zur Bestätigung wiederholt, was bis zu {amount} hinzufügen kann.",
+      "after": "Nach diesem Run behält der Agent <b>{agent}</b> und die Organisation <b>{org}</b> vom Budget dieses Monats.",
+      "noCap": "kein Limit",
+      "unaffordable": "Das ist mehr, als einem Budget bleibt. Lass weniger Fälle oder Modelle laufen oder erhöhe das Budget.",
+      "side": "{name} · {model}",
+      "gradedBy": "Bewertet durch: {graders}.",
+      "grader": {
+        "checks": "Checks",
+        "trajectory": "erwartete Tool-Aufrufe",
+        "reference": "die Referenzantwort",
+        "judge": "{name}",
+        "judgeRubric": "{name} nach {criteria}"
+      },
+      "judgeSameModel": "Der Judge bewertet auf {model}, dem getesteten Modell, und bevorzugt womöglich Antworten wie seine eigenen. Gib dem Judge auf seiner Seite ein anderes Modell."
+    },
+    "runFor": "Für {amount} starten",
+    "runTitle": "{dataset} v{version} · {candidate}",
+    "runMeta": "{date} · {cost} von geschätzten {estimate} ausgegeben{ceiling, select, none {} other {, dazu bis zu {ceiling} für bestätigende Wiederholungen}}",
+    "back": "Zurück zu den Evals des Agents",
+    "cancelRun": "Stoppen",
+    "progress": "Beantwortete Fälle",
+    "comparisonFailed": "Das Urteil konnte nicht gelesen werden.",
+    "compareArm": "Dieses Modell vergleichen",
+    "draft": "Draft",
+    "proposed": "Vorgeschlagene Änderungen",
+    "version": "v{version}",
+    "status": {
+      "queued": "In der Warteschlange",
+      "running": "Läuft",
+      "completed": "Abgeschlossen",
+      "cancelled": "Gestoppt",
+      "failed": "Fehlgeschlagen",
+      "budget_exceeded": "Budget erschöpft"
+    },
+    "empty": {
+      "noDatasetTitle": "Lege zuerst ein Dataset an",
+      "noDatasetBody": "Ein Eval lässt den Agent über die Fälle eines Datasets laufen. Füge die Fragen hinzu, die er gut beantworten soll, und komm dann zurück, um sie laufen zu lassen.",
+      "createDataset": "Zu den Datasets",
+      "title": "Noch keine Evals",
+      "body": "Lass den Agent über ein Dataset laufen, um zu sehen, welche Fälle er besteht, was es kostet und wie er im Vergleich zu einer früheren Version abschneidet."
+    },
+    "fields": {
+      "dataset": "Dataset",
+      "datasetPlaceholder": "Dataset wählen",
+      "datasetOption": "{name} · {count, plural, =1 {1 Fall} other {# Fälle}} · v{version}",
+      "environment": "Umgebung",
+      "noEnvironment": "Keine",
+      "environmentHint": "Tools nutzen die Testverbindungen dieser Umgebung. Ein Tool, das ohne sie Daten schreiben würde, wird nicht ausgeführt.",
+      "fromRecordings": "Tool-Ergebnisse aus dem ursprünglichen Gespräch wiederverwenden",
+      "fromRecordingsHint": "Ein Fall aus einem Gespräch bekommt die Tool-Ergebnisse dieses Gesprächs, statt die Tools erneut aufzurufen.",
+      "agent": "Agent",
+      "agentPlaceholder": "Agent wählen",
+      "target": "Was testest du",
+      "targetOption": {
+        "compare": "Der Entwurf gegen v{version}",
+        "version": "Nur v{version}",
+        "draft": "Der Entwurf"
+      },
+      "targetHint": {
+        "compare": "Beide Seiten beantworten dieselben Fälle auf demselben Modell. Heutige Antworten von v{version} können wiederverwendet werden; ein Fall, der sich ändert, wird beiden Seiten erneut gestellt, also geht eine Änderung auf den Entwurf zurück, nicht auf den Provider.",
+        "version": "Wie die Version, mit der die Leute sprechen, auf dem Dataset abschneidet.",
+        "draft": "Noch ist nichts veröffentlicht, also ist das das erste Ergebnis. Spätere Versionen werden damit verglichen."
+      },
+      "noTarget": "Dieser Agent hat keine veröffentlichte Version, und den Entwurf auszuführen erfordert das Recht, ihn zu bearbeiten.",
+      "advanced": "Erweitert",
+      "reruns": "Bestätigende Wiederholungen",
+      "rerunsDefault": "Standard",
+      "rerunsCount": "{count, plural, =0 {Keine} =1 {1 Wiederholung} other {# Wiederholungen}}",
+      "rerunsHint": "Ein Fall, dessen Ergebnis sich ändert, wird so oft erneut beantwortet, und die Änderung gilt nur als bestätigt, wenn sie jedes Mal hält. Mehr Wiederholungen machen eine Änderung schwerer zu bestätigen, nicht leichter: Ein Modell, das jedes Mal anders antwortet, bestätigt selten etwas. „Keine“ überspringt die Prüfung."
+    },
+    "comparison": {
+      "title": "Wie die beiden abschneiden",
+      "candidate": "Getestet",
+      "baselinePaired": "Verglichen mit, im selben Run",
+      "baselinePast": "Verglichen mit, ein früherer Run",
+      "side": "{candidate} · {model} · Dataset v{dataset} · {date}",
+      "unfinished": "nicht abgeschlossen",
+      "verdict": {
+        "better": "Behebt Fälle",
+        "worse": "Macht Fälle kaputt",
+        "no_difference": "Keine reproduzierbare Änderung",
+        "invalid": "Nicht vergleichbar",
+        "mixed": "Gemischt"
+      },
+      "regressionsConfirmed": "Bestätigte Regressionen",
+      "regressionsUnconfirmed": "Unbestätigte Regressionen",
+      "fixedConfirmed": "Bestätigte Behebungen",
+      "fixedUnconfirmed": "Unbestätigte Behebungen",
+      "compared": "{compared, plural, =1 {1 Fall} other {# Fälle}} verglichen, {skipped} nur auf einer Seite beantwortet",
+      "comparedTag": "{compared, plural, =1 {1 Fall} other {# Fälle}} mit #{tag} verglichen. Urteil und Effizienz gelten für alle Fälle.",
+      "metric": {
+        "cost_per_pass": "Kosten pro bestandenem Fall",
+        "avg_tokens": "Tokens",
+        "p50_ms": "Median-Latenz",
+        "p95_ms": "p95-Latenz"
+      },
+      "trend": {
+        "better": "besser",
+        "worse": "schlechter",
+        "unchanged": "unverändert",
+        "unknown": "unbekannt"
+      },
+      "confirmedHint": "Bestätigt: Die Änderung hielt bei jeder Wiederholung.",
+      "unconfirmedHint": "Unbestätigt: Bei der Wiederholung kam es mal so, mal anders heraus.",
+      "glossary": "Bestätigt: Die Änderung hielt bei jeder Wiederholung. Unbestätigt: Bei der Wiederholung kam es mal so, mal anders heraus.",
+      "overall": {
+        "worse": "Insgesamt schlechter",
+        "better": "Insgesamt besser"
+      }
+    },
+    "arms": {
+      "title": "Nebeneinander",
+      "titleTag": "Nebeneinander für #{tag}",
+      "passRate": "Bestehensquote",
+      "undecided": "Unentschieden",
+      "costPerPass": "Kosten pro Bestehen",
+      "tokens": "Tokens pro Fall",
+      "latency": "Latenz p50 / p95",
+      "reused": "wiederverwendet",
+      "p50p95": "{p50} / {p95}",
+      "side": "Seite",
+      "pending": "Ausstehend",
+      "reusedFrom": "Ergebnis aus dem Run vom {date}"
+    },
+    "cases": {
+      "title": "{count, plural, =1 {1 Fall} other {# Fälle}}",
+      "outcomeFilter": "Ergebnis",
+      "tagFilter": "Tag",
+      "allTags": "Alle Tags",
+      "outcome": {
+        "all": "Alle Ergebnisse",
+        "passed": "Bestanden",
+        "failed": "Nicht bestanden",
+        "undecided": "Unentschieden"
+      },
+      "flip": {
+        "regression": "{confirmed, select, true {Bestätigte Regression} other {Regression, unbestätigt}}",
+        "fixed": "{confirmed, select, true {Bestätigte Behebung} other {Behoben, unbestätigt}}",
+        "incomplete": "Auf {side} nicht bewertet"
+      },
+      "dot": "{side}: {state, select, passed {bestanden} failed {nicht bestanden} undecided {unentschieden} incomplete {nicht abgeschlossen} other {ausstehend}}",
+      "brokenFirst": "Die ersten {count} der {total} kaputten Fälle werden gezeigt.",
+      "brokenOnly": "{count, plural, =1 {Der kaputte Fall wird gezeigt.} other {Die # kaputten Fälle werden gezeigt.}}",
+      "showAll": "Alle Fälle zeigen",
+      "corrected": "Von einer Person korrigiert",
+      "askedOnly": "Nur der geöffnete Fall wird gezeigt."
+    },
+    "case": {
+      "firstAnswer": "Antwort",
+      "rerun": "Wiederholung {n}",
+      "outcome": {
+        "true": "bestanden",
+        "false": "nicht bestanden",
+        "null": "unentschieden"
+      },
+      "call": {
+        "executed": "ausgeführt",
+        "replayed": "aus Aufzeichnung",
+        "blocked": "nicht ausgeführt (hätte Daten geschrieben)",
+        "divergent": "nicht in der Aufzeichnung"
+      },
+      "scorer": {
+        "pass": "bestanden",
+        "fail": "nicht bestanden",
+        "skipped": "übersprungen",
+        "error": "Fehler"
+      },
+      "expect": {
+        "title": "Was der Fall erwartet",
+        "reference": "Referenz:",
+        "counterExample": "Nicht so:",
+        "calls": "Erwartete Aufrufe, {order}:",
+        "checks": "Checks:",
+        "openDataset": "Diesen Fall im Dataset öffnen"
+      },
+      "notGraded": "nicht bewertet: {reason}",
+      "whatTheModelSaw": "Sehen, was das Modell sah"
+    },
+    "estimating": "Wird geschätzt…",
+    "runCount": "{count, plural, =1 {1 Run} other {# Runs}}",
+    "sideModel": "{name} · {model}",
+    "headline": {
+      "first": "Das ist das erste Ergebnis von {candidate} auf {dataset}: {rate} der Fälle bestehen. Spätere Versionen werden damit verglichen.",
+      "worse": "{candidate} macht {broke, plural, =1 {1 Fall} other {# Fälle}} kaputt, die auf {baseline} bestanden, bei jeder Frage: „{question}“ ({held} von {tries}){others, plural, =0 {} other { und # weitere}}.",
+      "better": "{candidate} behebt {fixed, plural, =1 {1 Fall} other {# Fälle}}, die auf {baseline} durchfielen, bei jeder Frage: „{question}“ ({held} von {tries}){others, plural, =0 {} other { und # weitere}}.",
+      "no_difference": "Keine Änderung hielt: {changes, plural, =0 {{candidate} schneidet auf {dataset} so gut ab wie {baseline}.} =1 {1 Fall änderte sich einmal und fiel bei erneuter Frage anders aus, daher ist ein Unterschied in der Bestehensquote zwischen {candidate} und {baseline} auf {dataset} keine reproduzierbare Änderung.} other {# Fälle änderten sich einmal und fielen bei erneuter Frage anders aus, daher ist ein Unterschied in der Bestehensquote zwischen {candidate} und {baseline} auf {dataset} keine reproduzierbare Änderung.}}",
+      "invalid": "{candidate} und {baseline} lassen sich nicht vergleichen: Die Seiten wurden von einem anderen Judge oder nach einer anderen Rubrik bewertet.",
+      "mixed": "Gemischt: {candidate} macht gegenüber {baseline} {broke, plural, =1 {1 Fall} other {# Fälle}} kaputt und behebt {fixed}, bei jeder Frage. Kaputt: „{question}“ ({held} von {tries}){others, plural, =0 {} other { und # weitere}}.",
+      "overall": "{overall, select, worse {Insgesamt schlechter: Über alle bestätigten Änderungen schneidet {candidate} schlechter ab als {baseline}.} other {Insgesamt besser: Über alle bestätigten Änderungen schneidet {candidate} besser ab als {baseline}.}}",
+      "passRate": "Bestehensquote {from} → {to}, jeder Fall so, wie die meisten seiner Versuche ausfielen",
+      "firstPassRate": "Nur die ersten Antworten: {from} → {to}",
+      "unsteady": "Starte den Run erneut oder teste auf einem beständigeren Modell: Ein Modell, das jedes Mal anders antwortet, kann keine Änderung bestätigen."
+    },
+    "live": {
+      "answering": "{done} von {total} ersten Antworten da. Fälle, deren Ergebnis sich ändert, werden danach wiederholt, um es zu bestätigen.",
+      "comparisonLater": "Der Vergleich erscheint, wenn beide Seiten fertig sind.",
+      "confirming": "Alle ersten Antworten sind da. Die geänderten Fälle werden bestätigt: {done} von {total} Wiederholungen da."
+    },
+    "answers": "{cases, plural, =1 {1 Fall} other {# Fälle}} · {first, plural, =1 {1 Antwort} other {# Antworten}} + {reruns, plural, =0 {keine bestätigenden Wiederholungen} =1 {1 bestätigende Wiederholung} other {# bestätigende Wiederholungen}}",
+    "actions": {
+      "whatChanged": "Änderungen ansehen",
+      "showBroken": "{count, plural, =1 {Den kaputten Fall zeigen} other {Die # kaputten Fälle zeigen}}",
+      "backToBuild": "Zurück zu Build",
+      "publish": "Veröffentlichen",
+      "testAgain": "Erneut testen",
+      "showBrokenOnce": "{count, plural, =1 {Den Fall zeigen, der mindestens einmal kaputtging} other {Die # Fälle zeigen, die mindestens einmal kaputtgingen}}"
+    },
+    "group": "{name} · {count, plural, =1 {1 Run} other {# Runs}}",
+    "trend": {
+      "label": "Bestehensquote je Run",
+      "single": "Bisher ein Run. Starte einen weiteren, um einen Trend zu sehen.",
+      "legend": "Jeder Punkt ist ein Run, der älteste links; zeige auf einen, um zu sehen, was lief, wogegen und wann, und klicke, um den Run zu öffnen. Ziehe die Griffe unter dem Diagramm, um mehr oder weniger Runs zu zeigen.",
+      "range": "Gezeigte Runs",
+      "draftTick": "E",
+      "comparedWith": "verglichen mit {name}",
+      "rate": "Bestehensquote {rate}",
+      "verdict": "{verdict, select, better {Behebt Fälle} worse {Macht Fälle kaputt} mixed {Macht einige Fälle kaputt, behebt andere} no_difference {Keine reproduzierbare Änderung} invalid {Nicht vergleichbar} other {Erstes Ergebnis}}",
+      "key": {
+        "worse": "Macht Fälle kaputt",
+        "better": "Behebt Fälle",
+        "mixed": "Gemischt",
+        "draft": "Entwurf"
+      }
+    },
+    "chip": {
+      "pending": "Läuft",
+      "first": "Erstes Ergebnis",
+      "better": "Behebt {fixed}",
+      "worse": "Macht {broke} kaputt",
+      "no_difference": "Keine reproduzierbare Änderung",
+      "invalid": "Nicht vergleichbar",
+      "mixed": "Gemischt · {broke} kaputt, {fixed} behoben",
+      "overall": "{overall, select, worse {Insgesamt schlechter} other {Insgesamt besser}} · {broke} kaputt, {fixed} behoben"
+    },
+    "row": {
+      "against": "{candidate} vs. {baseline}",
+      "agent": "{agent} · {title}",
+      "rate": "{model} {rate}",
+      "firstRate": "Nur die ersten Antworten: {rate}"
+    },
+    "dataset": {
+      "counted": "{runs, plural, =0 {Noch keine Runs} =1 {1 Run von 1 Agent} other {# Runs von {agents, plural, =1 {1 Agent} other {# Agents}}}}",
+      "emptyTitle": "Auf diesem Dataset wurde noch kein Agent getestet",
+      "emptyBody": "Lass einen Agenten diese Fälle beantworten, um zu sehen, welche er besteht, wie er im Vergleich zu früheren Versionen abschneidet und was es kostet.",
+      "unnamedAgent": "Ein Agent, den du nicht sehen kannst"
+    },
+    "draftNote": {
+      "untested": "Dieser Entwurf wurde seit seiner letzten Änderung nicht getestet.",
+      "unread": "Der letzte Test dieses Entwurfs konnte nicht gelesen werden.",
+      "test": "Testen",
+      "running": "Dieser Entwurf wird gerade getestet.",
+      "unfinished": "Der letzte Test dieses Entwurfs {status, select, cancelled {wurde gestoppt} budget_exceeded {hat sein Budget aufgebraucht} other {ist fehlgeschlagen}}, bevor er zu einem Urteil kam.",
+      "result": "{verdict, select, worse {Letzter Test des Entwurfs: macht gegenüber {baseline} {broke} kaputt.} better {Letzter Test des Entwurfs: behebt gegenüber {baseline} {fixed}.} mixed {Letzter Test des Entwurfs: gemischt gegenüber {baseline}, {broke} kaputt, {fixed} behoben.} no_difference {Letzter Test des Entwurfs: keine Änderung hielt gegenüber {baseline}.} invalid {Der letzte Test des Entwurfs ließ sich nicht mit {baseline} vergleichen.} other {Letzter Test des Entwurfs: das erste Ergebnis, ohne Vergleich.}}",
+      "ungraded": "{count, plural, =1 {1 Fall dieses Entwurfs wurde nicht bewertet} other {# Fälle dieses Entwurfs wurden nicht bewertet}}: „{question}“{others, plural, =0 {} other { und # weitere}}. Vor dem Veröffentlichen auf dem Run erneut bewerten."
+    },
+    "review": {
+      "send": "{count, plural, =1 {Den nicht bestandenen Fall zur Prüfung senden} other {# nicht bestandene Fälle zur Prüfung senden}}",
+      "sent": "{queued, plural, =0 {Nichts Neues zur Prüfung gesendet} =1 {1 Fall zur Prüfung gesendet} other {# Fälle zur Prüfung gesendet}}{replaced, plural, =0 {} =1 {, ersetzt 1 älteren, der wartete} other {, ersetzt # ältere, die warteten}}{already, plural, =0 {} other {; # nicht gesendet: schon wartend, entschieden oder älter als der wartende}}.",
+      "routed": "Dieser Run hat {count, plural, =1 {1 Antwort} other {# Antworten}} selbst zum Review geschickt: die bestätigten Regressionen und die Antworten, an deren Bewertung der Judge gescheitert ist.{replaced, plural, =0 {} =1 { Das ersetzte 1 ältere Antwort, die beim selben Fall noch wartete.} other { Das ersetzte # ältere Antworten, die bei denselben Fällen noch warteten.}}",
+      "routingFailed": "Dieser Run konnte seine Antworten nicht selbst zum Review schicken, also schick die durchgefallenen von Hand. Grund: {reason}",
+      "sendOther": "{count, plural, =1 {Den anderen durchgefallenen Fall senden} other {Die anderen # durchgefallenen Fälle senden}}"
+    },
+    "draftChanged": "Der Entwurf hat sich nach diesem Run geändert.",
+    "ungraded": {
+      "count": "{count, plural, =1 {1 Antwort wurde nicht bewertet: Der Judge ist gescheitert oder wurde übersprungen, sie zählt weder als bestanden noch als durchgefallen.} other {# Antworten wurden nicht bewertet: Der Judge ist gescheitert oder wurde übersprungen, sie zählen weder als bestanden noch als durchgefallen.}}",
+      "again": "Erneut bewerten",
+      "done": "{count, plural, =0 {Nichts wurde erneut bewertet} =1 {1 Antwort erneut bewertet} other {# Antworten erneut bewertet}}",
+      "side": "{count, plural, =1 {1 Fall von {side} wurde nicht bewertet} other {# Fälle von {side} wurden nicht bewertet}}: „{question}“{others, plural, =0 {} other { und # weitere}}. Vor der Entscheidung erneut bewerten."
+    },
+    "noAccess": {
+      "title": "Diesen Eval-Run kannst du nicht öffnen",
+      "body": "Eval-Runs zu lesen braucht die Berechtigung, Runs anzusehen, und Zugriff auf den Agent und das Dataset. Frag eine Admin-Person der Organisation."
+    }
   }
 }

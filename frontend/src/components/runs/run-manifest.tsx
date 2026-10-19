@@ -57,7 +57,9 @@ export function RunManifest({ runId }: { runId: string }) {
 
       <Section title={t("systemPrompt")} copyText={manifest.instructions ?? undefined}>
         {manifest.instructions === null ? (
-          <p className="text-muted-foreground text-sm">{t("noInstructionsSent")}</p>
+          manifest.system_prompts.length === 0 && (
+            <p className="text-muted-foreground text-sm">{t("noInstructionsSent")}</p>
+          )
         ) : (
           <pre className="bg-muted/40 max-h-80 overflow-auto rounded p-3 text-xs whitespace-pre-wrap">
             {manifest.instructions}

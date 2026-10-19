@@ -66,6 +66,33 @@ describe("the publish-state badge", () => {
     );
   });
 
+  it("offers to test the draft only while it differs, and only when asked to", async () => {
+    const onTest = vi.fn();
+    const { rerender } = render(
+      <PublishState
+        agentId="a-1"
+        currentVersionId="v7-id"
+        draftSpec={spec({ instructions: "Be terse." })}
+        onTest={onTest}
+      />,
+    );
+    screen.getByRole("button", { name: "Test draft" }).click();
+    expect(onTest).toHaveBeenCalled();
+
+    rerender(
+      <PublishState
+        agentId="a-1"
+        currentVersionId="v7-id"
+        draftSpec={spec({ instructions: "Be terse." })}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Test draft" })).toBeNull();
+    rerender(
+      <PublishState agentId="a-1" currentVersionId="v7-id" draftSpec={spec()} onTest={onTest} />,
+    );
+    expect(screen.queryByRole("button", { name: "Test draft" })).toBeNull();
+  });
+
   it("does not read key order as a difference", () => {
     // The comparison is over sorted-keys YAML, the same serialization the diff
     // reads. `JSON.stringify` equality - what the "Unsaved" badge uses for the

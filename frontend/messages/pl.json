@@ -662,6 +662,7 @@
     "testSideUnusable": "Wyłączone tutaj: połączenie testowe jest wyłączone albo niezalogowane",
     "testConnectionsSaved": "Połączenia testowe zapisane",
     "failedTestConnections": "Nie udało się zapisać połączeń testowych",
+    "testDraft": "Przetestuj draft",
     "judgesCount": "{count, plural, one {Sędziowie (#)} few {Sędziowie (#)} many {Sędziowie (#)} other {Sędziowie (#)}}",
     "judgesHint": "Sędziowie oceniają odpowiedzi w ewaluacjach: domyślny i każdy własny sędzia datasetu. Uruchamia ich platforma, więc nie da się z nimi rozmawiać, podpiąć ich do kanału, zaplanować ani zrobić z nich delegata; otwórz sędziego, żeby zmienić jego instrukcje, model albo budżet.",
     "defaultJudge": "Domyślny sędzia",
@@ -1983,7 +1984,7 @@
         "title": "Wydatki",
         "unit": "w tym okresie",
         "description": "Ile kosztował okres i ile miesiąc kalendarzowy do dziś. Kwota miesięczna zgadza się z fakturą, więc celowo nie reaguje na filtr okresu.",
-        "split": "{models} na modele · {ingestion} na indeksowanie",
+        "split": "{models} na modele{evals, select, none {} other { · {evals} na evale}}{ingestion, select, none {} other { · {ingestion} na indeksowanie}}",
         "spentLabel": "wydano {amount}"
       },
       "surfaces": {
@@ -2201,6 +2202,20 @@
         "nothingWaiting": "Nic nie czeka",
         "spent": "Wydane",
         "spentLabel": "wydano {amount}"
+      },
+      "eval-runs": {
+        "title": "Eval runy",
+        "description": "Ostatnie runy agentów na ich datasetach, z odsetkiem zaliczeń.",
+        "empty": {
+          "title": "Brak eval runów",
+          "description": "Tu pojawiają się runy uruchomione z zakładki Evale agenta."
+        },
+        "count": {
+          "running": "{count} w toku",
+          "completed": "{count} zakończonych",
+          "failed": "{count} z błędem",
+          "budget_exceeded": "{count} bez budżetu"
+        }
       }
     },
     "edit": {
@@ -3082,6 +3097,10 @@
       "create-dataset": {
         "title": "Utworzyć dataset?",
         "body": "Dataset trzyma pytania, na których testujesz agentów. Chcesz utworzyć pierwszy i razem napisać pierwszy dobry przypadek? Przeprowadzimy cię przez to."
+      },
+      "test-change": {
+        "title": "Przetestować zmianę przed publikacją?",
+        "body": "Uruchom draft na datasecie razem z wersją produkcyjną i przeczytaj werdykt: które case'y się zepsuły, które naprawiły i czy warto publikować. Przeprowadzimy Cię przez to."
       }
     },
     "steps": {
@@ -3617,6 +3636,39 @@
         "title": "Skąd biorą się kolejne przypadki",
         "body": "Pisz je tutaj albo importuj plik CSV lub JSONL z tego menu. W czacie oceń odpowiedź łapką w górę albo w dół i dodaj ją - łapka w górę zachowuje ją jako wzorcową, łapka w dół jako kontrprzykład. W Aktywności dodaj dowolną turę agenta z runa."
       },
+      "agent-evals": {
+        "title": "Evale",
+        "body": "Uruchom agenta na datasecie, żeby zobaczyć, które przypadki zalicza, ile to kosztuje i czy zmiana poprawiła go, czy pogorszyła względem poprzedniej wersji."
+      },
+      "agent-test-draft": {
+        "title": "Przetestuj draft",
+        "body": "Zanim opublikujesz, uruchom draft na datasecie razem z wersją produkcyjną. Werdykt powie, czy zmiana poprawiła agenta, czy go pogorszyła."
+      },
+      "eval-verdict": {
+        "title": "Werdykt",
+        "body": "Która strona wypadła lepiej, o ile potwierdzonych case'ów i odsetek zaliczonych przed i po. Stąd zobaczysz, co się zmieniło między wersjami, otworzysz zepsute case'y albo opublikujesz."
+      },
+      "flow-test-draft": {
+        "title": "Przetestuj draft",
+        "body": "Ten draft różni się od wersji produkcyjnej. Przetestuj go na datasecie, zanim opublikujesz.",
+        "absent": "Draft jest taki sam jak wersja na żywo, więc na razie nie ma czego testować. Zmień coś w Build, a potem go przetestuj - albo zakończ tutaj."
+      },
+      "flow-test-target": {
+        "title": "Co testujesz",
+        "body": "Draft w porównaniu z wersją produkcyjną jest już wybrany: obie odpowiadają teraz na te same case'y, więc każda zmiana wynika z draftu."
+      },
+      "flow-test-run": {
+        "title": "Uruchom za podaną kwotę",
+        "body": "Koszt liczy się na bieżąco i mówi, ile zostanie w budżetach. Nic się nie uruchomi, zanim tego nie klikniesz."
+      },
+      "flow-test-verdict": {
+        "title": "Przeczytaj werdykt",
+        "body": "Gdy obie strony skończą, tu zobaczysz, czy draft wypadł lepiej, czy gorzej i o ile potwierdzonych case'ów. Stąd otworzysz zepsute case'y, zobaczysz, co się zmieniło, albo opublikujesz."
+      },
+      "flow-dataset-next": {
+        "title": "Dalej: ocenianie, potem eval",
+        "body": "Tu ustalisz, jak oceniane są odpowiedzi na te case'y. Potem uruchom na nich agenta - z zakładki Evals agenta albo z tego datasetu - i przeczytaj, jak mu poszło."
+      },
       "dataset-grading": {
         "title": "Jak oceniane są przypadki",
         "body": "Kiedy przypadek przechodzi: reguły, według których sprawdzana jest każda odpowiedź, i narzędzia, których oczekuje przypadek. Zaznacz, które przypadek musi przejść. Każda karta zapisuje się osobno."
@@ -3936,6 +3988,7 @@
       "perMonth": "${amount} miesięcznie"
     },
     "agents": {
+      "evals": "Evale",
       "agentsCount": "{count, plural, one {Agenci (#)} few {Agenci (#)} many {Agenci (#)} other {Agenci (#)}}",
       "judgeDatasets": "Datasety",
       "agentAposSBehaviour": "Zachowanie agenta mieszka tutaj, a nie w kodzie. Bądź konkretny: co ma robić, czego odmawiać i jak cytować. Markdown, a model czyta strukturę - nagłówki i listy sprawiają, że długi prompt da się śledzić, dlatego podgląd pokazuje je wyrenderowane.",
@@ -4072,7 +4125,8 @@
       "agentNameLabel": "Nazwa",
       "agentNameRequired": "Agent potrzebuje nazwy.",
       "identity": "Nazwa i opis",
-      "identityHelp": "Zapisywane razem ze szkicem. Zmiana nazwy zachowuje handle @{slug}, więc delegacje i wzmianki, które na niego wskazują, działają dalej."
+      "identityHelp": "Zapisywane razem ze szkicem. Zmiana nazwy zachowuje handle @{slug}, więc delegacje i wzmianki, które na niego wskazują, działają dalej.",
+      "draftAsTested": "Draft z chwili testu"
     },
     "auth": {
       "backSign": "Wróć do logowania",
@@ -4454,7 +4508,7 @@
       "anyPerson": "Ktokolwiek",
       "anyRating": "Dowolna ocena",
       "anyStatus": "Dowolny status",
-      "anySurface": "Dowolna powierzchnia",
+      "anySurface": "Każde źródło poza evalami",
       "anyVersion": "Dowolna wersja",
       "approvalCount": "{count, plural, one {1 prośba} few {# prośby} many {# próśb} other {# prośby}}",
       "approvals": "Zatwierdzenia",
@@ -4477,6 +4531,11 @@
       "cost": "Koszt",
       "currentVersion": "Bieżąca",
       "dearestAgent": "Wydaje najwięcej",
+      "everySurface": "Każde źródło, z evalami",
+      "evalCase": "Case evala: {dataset} · {input}",
+      "evalCaseTitle": "Case z eval runu",
+      "evalCaseBody": "Ten run odpowiadał na jeden case eval runu, który nie zapisuje rozmowy. Odpowiedź i jej ocena są w eval runie.",
+      "evalCaseOpen": "Otwórz eval run",
       "decidedByStandingConsent": "pominięte z góry dla konwersacji",
       "moreRunActions": "Więcej akcji dla tego runa",
       "decisionApproved": "Zatwierdzono",
@@ -4643,7 +4702,11 @@
       "spendOverTimeHint": "Ile kosztował każdy dzień okna (dni w UTC).",
       "actionInService": "{action} w {service}",
       "approvalDetails": "Szczegóły",
-      "approvalNoArguments": "Nie przyjmuje nic."
+      "approvalNoArguments": "Nie przyjmuje nic.",
+      "evalCaseGraded": "Ocena case'a evala: {dataset} · {input}",
+      "evalCaseGradedTitle": "Sędzia ocenia case eval runu",
+      "evalCaseGradedBody": "Ten run to sędzia oceniający jedną odpowiedź eval runu, który nie zapisuje rozmowy. Odpowiedź, ocena i uzasadnienie sędziego są w eval runie.",
+      "grading": "Ocena: {input}"
     },
     "sandboxes": {
       "addConnection": "Dodaj połączenie",
@@ -6504,8 +6567,6 @@
     "caseOpened": "Edytuj, żeby go zmienić; zapis tworzy nową wersję.",
     "editCase": "Edytuj",
     "evals": "Ewaluacje",
-    "noEvals": "Nie ma jeszcze runów ewaluacji",
-    "noEvalsBody": "Ewaluacja przepuszcza agenta - wersję albo draft - przez przypadki tego datasetu i mówi, czy jest lepiej, czy gorzej niż poprzednio.",
     "linkedCaseGone": "Przypadku z tego linku nie ma w najnowszej wersji datasetu.",
     "argKey": "Wywołanie {number}, argument {arg}: nazwa",
     "argValue": "Wywołanie {number}, argument {arg}: wartość",
@@ -7006,6 +7067,296 @@
     "typeForPeople": "Wpisz imię lub adres e-mail, aby znaleźć osobę.",
     "chipPrivate": "Prywatne",
     "chipGroupsMore": "{names} +{count}"
+  },
+  "evals": {
+    "title": "Evale",
+    "description": "Jak zmieniał się odsetek zaliczonych case'ów agenta, wersja po wersji, oraz każdy run z werdyktem.",
+    "start": "Uruchom evale",
+    "startTitle": "Uruchom evale",
+    "startBody": "Wybierz, co testujesz i na jakim datasecie. Koszt zobaczysz, zanim cokolwiek się uruchomi.",
+    "cancel": "Anuluj",
+    "aiSettings": "Otwórz ustawienia organizacji",
+    "estimate": {
+      "basis": {
+        "fallback": "brak historii na tym modelu, zgrubny szacunek",
+        "cached": "wzięty z niedawnego runa",
+        "cachedAt": "odpowiedzi z runu z {date}, ten sam model - case, który się zmieni, zadamy ponownie obu stronom"
+      },
+      "judge": "Eval judge",
+      "total": "Razem {count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
+      "reruns": "Przypadki, które się odwrócą, są powtarzane dla potwierdzenia, co może dodać do {amount}.",
+      "after": "Po tym runie agentowi zostanie <b>{agent}</b>, a organizacji <b>{org}</b> z budżetu na ten miesiąc.",
+      "noCap": "bez limitu",
+      "unaffordable": "To więcej, niż zostało w budżecie. Uruchom mniej przypadków lub modeli albo podnieś budżet.",
+      "side": "{name} · {model}",
+      "gradedBy": "Oceniają: {graders}.",
+      "grader": {
+        "checks": "checki",
+        "trajectory": "oczekiwane wywołania narzędzi",
+        "reference": "odpowiedź wzorcowa",
+        "judge": "{name}",
+        "judgeRubric": "{name} według kryteriów: {criteria}"
+      },
+      "judgeSameModel": "Sędzia ocenia na {model}, tym samym modelu, który jest testowany, i może faworyzować odpowiedzi podobne do swoich. Daj sędziemu inny model na jego stronie."
+    },
+    "runFor": "Uruchom za {amount}",
+    "runTitle": "{dataset} v{version} · {candidate}",
+    "runMeta": "{date} · wydano {cost} z szacowanych {estimate}{ceiling, select, none {} other {, plus do {ceiling} na powtórki potwierdzające}}",
+    "back": "Wróć do evali agenta",
+    "cancelRun": "Zatrzymaj",
+    "progress": "Odpowiedziane przypadki",
+    "comparisonFailed": "Nie udało się odczytać werdyktu.",
+    "compareArm": "Porównaj ten model",
+    "draft": "Draft",
+    "proposed": "Proponowane zmiany",
+    "version": "v{version}",
+    "status": {
+      "queued": "W kolejce",
+      "running": "W toku",
+      "completed": "Zakończony",
+      "cancelled": "Zatrzymany",
+      "failed": "Błąd",
+      "budget_exceeded": "Brak budżetu"
+    },
+    "empty": {
+      "noDatasetTitle": "Najpierw utwórz dataset",
+      "noDatasetBody": "Eval uruchamia agenta na przypadkach z datasetu. Dodaj pytania, na które ma dobrze odpowiadać, i wróć tu, żeby je uruchomić.",
+      "createDataset": "Przejdź do datasetów",
+      "title": "Brak evali",
+      "body": "Uruchom agenta na datasecie, żeby zobaczyć, które przypadki zalicza, ile to kosztuje i jak wypada na tle wcześniejszej wersji."
+    },
+    "fields": {
+      "dataset": "Dataset",
+      "datasetPlaceholder": "Wybierz dataset",
+      "datasetOption": "{name} · {count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} · v{version}",
+      "environment": "Środowisko",
+      "noEnvironment": "Brak",
+      "environmentHint": "Narzędzia łączą się z testowymi połączeniami tego środowiska. Narzędzie, które bez nich zapisałoby dane, nie jest wykonywane.",
+      "fromRecordings": "Odtwórz wyniki narzędzi z oryginalnej rozmowy",
+      "fromRecordingsHint": "Case wzięty z rozmowy dostaje te same wyniki narzędzi co tamta rozmowa, zamiast wywoływać narzędzia ponownie.",
+      "agent": "Agent",
+      "agentPlaceholder": "Wybierz agenta",
+      "target": "Co testujesz",
+      "targetOption": {
+        "compare": "Draft w porównaniu z v{version}",
+        "version": "Tylko v{version}",
+        "draft": "Draft"
+      },
+      "targetHint": {
+        "compare": "Obie strony odpowiadają na te same case'y na tym samym modelu. Dzisiejsze odpowiedzi v{version} mogą zostać użyte ponownie; case, który się zmieni, zadamy ponownie obu stronom, więc zmiana wynika z draftu, a nie z dostawcy.",
+        "version": "Jak na datasecie radzi sobie wersja, z którą ludzie teraz rozmawiają.",
+        "draft": "Nic nie jest jeszcze opublikowane, więc to pierwszy wynik. Kolejne wersje będą z nim porównywane."
+      },
+      "noTarget": "Ten agent nie ma opublikowanej wersji, a uruchomienie draftu wymaga prawa do jego edycji.",
+      "advanced": "Zaawansowane",
+      "reruns": "Powtórki potwierdzające",
+      "rerunsDefault": "Domyślnie",
+      "rerunsCount": "{count, plural, =0 {Brak} one {# powtórka} few {# powtórki} many {# powtórek} other {# powtórki}}",
+      "rerunsHint": "Case, którego wynik się zmienił, dostaje tyle powtórek, a zmiana liczy się jako potwierdzona tylko wtedy, gdy powtórzy się za każdym razem. Więcej powtórek utrudnia potwierdzenie zmiany, a nie ułatwia: model, który za każdym razem odpowiada inaczej, rzadko cokolwiek potwierdzi. „Brak” pomija to sprawdzenie."
+    },
+    "comparison": {
+      "title": "Jak wypadają obie strony",
+      "candidate": "Testowane",
+      "baselinePaired": "Odniesienie, w tym samym runie",
+      "baselinePast": "Odniesienie, wcześniejszy run",
+      "side": "{candidate} · {model} · dataset v{dataset} · {date}",
+      "unfinished": "niezakończony",
+      "verdict": {
+        "better": "Naprawia case'y",
+        "worse": "Psuje case'y",
+        "no_difference": "Brak powtarzalnej zmiany",
+        "invalid": "Nieporównywalne",
+        "mixed": "Mieszany"
+      },
+      "regressionsConfirmed": "Potwierdzone regresje",
+      "regressionsUnconfirmed": "Niepotwierdzone regresje",
+      "fixedConfirmed": "Potwierdzone naprawy",
+      "fixedUnconfirmed": "Niepotwierdzone naprawy",
+      "compared": "Porównano {compared, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}, {skipped} z odpowiedzią tylko po jednej stronie",
+      "comparedTag": "Porównano {compared, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}} z tagiem #{tag}. Werdykt i wydajność dotyczą wszystkich przypadków.",
+      "metric": {
+        "cost_per_pass": "Koszt na zaliczony przypadek",
+        "avg_tokens": "Tokeny",
+        "p50_ms": "Mediana latencji",
+        "p95_ms": "Latencja p95"
+      },
+      "trend": {
+        "better": "lepiej",
+        "worse": "gorzej",
+        "unchanged": "bez zmian",
+        "unknown": "nieznane"
+      },
+      "confirmedHint": "Potwierdzona: zmiana powtórzyła się w każdej powtórce.",
+      "unconfirmedHint": "Niepotwierdzona: przy powtórce wyszło raz tak, raz inaczej.",
+      "glossary": "Potwierdzona: zmiana powtórzyła się w każdej powtórce. Niepotwierdzona: przy powtórce wyszło raz tak, raz inaczej.",
+      "overall": {
+        "worse": "Gorszy ogólnie",
+        "better": "Lepszy ogólnie"
+      }
+    },
+    "arms": {
+      "title": "Obok siebie",
+      "titleTag": "Obok siebie dla #{tag}",
+      "passRate": "Zaliczone",
+      "undecided": "Nierozstrzygnięte",
+      "costPerPass": "Koszt na zaliczenie",
+      "tokens": "Tokeny na przypadek",
+      "latency": "Latencja p50 / p95",
+      "reused": "wzięty z wcześniejszego runa",
+      "p50p95": "{p50} / {p95}",
+      "side": "Strona",
+      "pending": "Oczekujące",
+      "reusedFrom": "wynik z runu z {date}"
+    },
+    "cases": {
+      "title": "{count, plural, one {# przypadek} few {# przypadki} many {# przypadków} other {# przypadku}}",
+      "outcomeFilter": "Wynik",
+      "tagFilter": "Tag",
+      "allTags": "Wszystkie tagi",
+      "outcome": {
+        "all": "Wszystkie wyniki",
+        "passed": "Zaliczone",
+        "failed": "Niezaliczone",
+        "undecided": "Nierozstrzygnięte"
+      },
+      "flip": {
+        "regression": "{confirmed, select, true {Potwierdzona regresja} other {Regresja, niepotwierdzona}}",
+        "fixed": "{confirmed, select, true {Potwierdzona naprawa} other {Naprawione, niepotwierdzone}}",
+        "incomplete": "Bez oceny na {side}"
+      },
+      "dot": "{side}: {state, select, passed {zaliczony} failed {niezaliczony} undecided {nierozstrzygnięty} incomplete {nieukończony} other {oczekuje}}",
+      "brokenFirst": "Widzisz pierwsze {count} z {total, plural, one {# case'a} few {# case'ów} many {# case'ów} other {# case'a}}, które się zepsuły.",
+      "brokenOnly": "{count, plural, one {Widzisz case, który się zepsuł.} few {Widzisz # case'y, które się zepsuły.} many {Widzisz # case'ów, które się zepsuły.} other {Widzisz # case'a, które się zepsuły.}}",
+      "showAll": "Pokaż wszystkie case'y",
+      "corrected": "Poprawione przez człowieka",
+      "askedOnly": "Widać tylko otwarty case."
+    },
+    "case": {
+      "firstAnswer": "Odpowiedź",
+      "rerun": "Powtórka {n}",
+      "outcome": {
+        "true": "zaliczone",
+        "false": "niezaliczone",
+        "null": "nierozstrzygnięte"
+      },
+      "call": {
+        "executed": "uruchomione",
+        "replayed": "z nagrania",
+        "blocked": "nie wykonane (zapisałoby dane)",
+        "divergent": "brak w nagraniu"
+      },
+      "scorer": {
+        "pass": "zaliczone",
+        "fail": "niezaliczone",
+        "skipped": "pominięte",
+        "error": "błąd"
+      },
+      "expect": {
+        "title": "Czego oczekuje case",
+        "reference": "Wzorzec:",
+        "counterExample": "Nie tak:",
+        "calls": "Oczekiwane wywołania, {order}:",
+        "checks": "Checki:",
+        "openDataset": "Otwórz ten case w datasecie"
+      },
+      "notGraded": "bez oceny: {reason}",
+      "whatTheModelSaw": "Zobacz, co widział model"
+    },
+    "estimating": "Wyceniam…",
+    "runCount": "{count, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
+    "sideModel": "{name} · {model}",
+    "headline": {
+      "first": "To pierwszy wynik {candidate} na datasecie {dataset}: zalicza {rate} case'ów. Kolejne wersje będą z nim porównywane.",
+      "worse": "{candidate} psuje {broke, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}}, które przechodziły na {baseline}, za każdym razem: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
+      "better": "{candidate} naprawia {fixed, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}}, które nie przechodziły na {baseline}, za każdym razem: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
+      "no_difference": "Brak powtarzalnej zmiany: {changes, plural, =0 {{candidate} radzi sobie tak samo jak {baseline} na datasecie {dataset}.} one {# case zmienił się raz, a przy ponownym pytaniu wypadł inaczej, więc żadna różnica w odsetku zaliczeń między {candidate} a {baseline} na datasecie {dataset} nie jest powtarzalną zmianą.} few {# case'y zmieniły się raz, a przy ponownym pytaniu wypadły inaczej, więc żadna różnica w odsetku zaliczeń między {candidate} a {baseline} na datasecie {dataset} nie jest powtarzalną zmianą.} many {# case'ów zmieniło się raz, a przy ponownym pytaniu wypadło inaczej, więc żadna różnica w odsetku zaliczeń między {candidate} a {baseline} na datasecie {dataset} nie jest powtarzalną zmianą.} other {# case'a zmieniło się raz, a przy ponownym pytaniu wypadło inaczej, więc żadna różnica w odsetku zaliczeń między {candidate} a {baseline} na datasecie {dataset} nie jest powtarzalną zmianą.}}",
+      "invalid": "{candidate} i {baseline} nie da się porównać: strony oceniał inny sędzia albo inna rubryka.",
+      "mixed": "Mieszany: {candidate} psuje {broke, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}} i naprawia {fixed} względem {baseline}, za każdym razem. Psuje: „{question}” ({held} z {tries}){others, plural, =0 {} other { i jeszcze #}}.",
+      "overall": "{overall, select, worse {Gorszy ogólnie: po wszystkich potwierdzonych zmianach {candidate} wypada gorzej niż {baseline}.} other {Lepszy ogólnie: po wszystkich potwierdzonych zmianach {candidate} wypada lepiej niż {baseline}.}}",
+      "passRate": "Zaliczone {from} → {to}, każdy case tak, jak wypadła większość jego prób",
+      "firstPassRate": "Same pierwsze odpowiedzi: {from} → {to}",
+      "unsteady": "Uruchom run ponownie albo przetestuj na stabilniejszym modelu: model, który za każdym razem odpowiada inaczej, nie potwierdzi żadnej zmiany."
+    },
+    "live": {
+      "answering": "Gotowe {done} z {total} pierwszych odpowiedzi. Case'y, których wynik się zmieni, zostaną potem powtórzone, żeby to potwierdzić.",
+      "comparisonLater": "Porównanie pojawi się, gdy obie strony skończą.",
+      "confirming": "Wszystkie pierwsze odpowiedzi są już gotowe. Potwierdzam case'y, które się zmieniły: {done} z {total} powtórek gotowe."
+    },
+    "answers": "{cases, plural, one {# case} few {# case'y} many {# case'ów} other {# case'a}} · {first, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}} + {reruns, plural, =0 {bez powtórek} one {# powtórka potwierdzająca} few {# powtórki potwierdzające} many {# powtórek potwierdzających} other {# powtórki potwierdzającej}}",
+    "actions": {
+      "whatChanged": "Zobacz, co się zmieniło",
+      "showBroken": "{count, plural, one {Pokaż case, który się zepsuł} few {Pokaż # case'y, które się zepsuły} many {Pokaż # case'ów, które się zepsuły} other {Pokaż # case'a, które się zepsuły}}",
+      "backToBuild": "Wróć do Build",
+      "publish": "Publish",
+      "testAgain": "Testuj ponownie",
+      "showBrokenOnce": "{count, plural, one {Pokaż case, który zepsuł się przynajmniej raz} few {Pokaż # case'y, które zepsuły się przynajmniej raz} many {Pokaż # case'ów, które zepsuły się przynajmniej raz} other {Pokaż # case'a, które zepsuły się przynajmniej raz}}"
+    },
+    "group": "{name} · {count, plural, one {# run} few {# runy} many {# runów} other {# runu}}",
+    "trend": {
+      "label": "Odsetek zaliczeń według runów",
+      "single": "Na razie jeden run. Uruchom kolejny, żeby zobaczyć trend.",
+      "legend": "Każdy punkt to run, najstarszy po lewej; najedź na punkt, żeby zobaczyć, co uruchomiono, z czym porównano i kiedy, a kliknij, żeby otworzyć run. Przeciągnij uchwyty pod wykresem, żeby pokazać więcej lub mniej runów.",
+      "range": "Pokazane runy",
+      "draftTick": "D",
+      "comparedWith": "porównany z {name}",
+      "rate": "Odsetek zaliczeń {rate}",
+      "verdict": "{verdict, select, better {Naprawia case'y} worse {Psuje case'y} mixed {Część case'ów psuje, część naprawia} no_difference {Brak powtarzalnej zmiany} invalid {Nieporównywalne} other {Pierwszy wynik}}",
+      "key": {
+        "worse": "Psuje case'y",
+        "better": "Naprawia case'y",
+        "mixed": "Mieszany",
+        "draft": "Draft"
+      }
+    },
+    "chip": {
+      "pending": "W toku",
+      "first": "Pierwszy wynik",
+      "better": "Naprawia: {fixed}",
+      "worse": "Psuje: {broke}",
+      "no_difference": "Brak powtarzalnej zmiany",
+      "invalid": "Nieporównywalne",
+      "mixed": "Mieszany · zepsute: {broke}, naprawione: {fixed}",
+      "overall": "{overall, select, worse {Gorszy ogólnie} other {Lepszy ogólnie}} · zepsute: {broke}, naprawione: {fixed}"
+    },
+    "row": {
+      "against": "{candidate} vs {baseline}",
+      "agent": "{agent} · {title}",
+      "rate": "{model} {rate}",
+      "firstRate": "Same pierwsze odpowiedzi: {rate}"
+    },
+    "dataset": {
+      "counted": "{runs, plural, =0 {Jeszcze żadnego runa} one {# run · 1 agent} few {# runy · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}}} many {# runów · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}}} other {# runu · {agents, plural, one {# agent} few {# agenty} many {# agentów} other {# agenta}}}}",
+      "emptyTitle": "Żaden agent nie był jeszcze testowany na tym datasecie",
+      "emptyBody": "Uruchom agenta na tych case'ach, żeby zobaczyć, które zalicza, jak wypada na tle wcześniejszych wersji i ile to kosztuje.",
+      "unnamedAgent": "Agent, którego nie widzisz"
+    },
+    "draftNote": {
+      "untested": "Ten draft nie był testowany od ostatniej zmiany.",
+      "unread": "Nie udało się odczytać ostatniego testu tego draftu.",
+      "test": "Przetestuj",
+      "running": "Ten draft jest właśnie testowany.",
+      "unfinished": "Ostatni test tego draftu {status, select, cancelled {został zatrzymany} budget_exceeded {wyczerpał budżet} other {nie powiódł się}}, zanim doszedł do werdyktu.",
+      "result": "{verdict, select, worse {Ostatni test draftu: psuje {broke} względem {baseline}.} better {Ostatni test draftu: naprawia {fixed} względem {baseline}.} mixed {Ostatni test draftu: mieszany względem {baseline}, zepsute: {broke}, naprawione: {fixed}.} no_difference {Ostatni test draftu: brak powtarzalnej zmiany względem {baseline}.} invalid {Ostatniego testu draftu nie da się porównać z {baseline}.} other {Ostatni test draftu: pierwszy wynik, bez punktu odniesienia.}}",
+      "ungraded": "{count, plural, one {# case tego draftu nie został oceniony} few {# case'y tego draftu nie zostały ocenione} many {# case'ów tego draftu nie zostało ocenionych} other {# case'a tego draftu nie zostało ocenionych}}: „{question}”{others, plural, =0 {} other { i jeszcze #}}. Oceń ponownie na runie przed publikacją."
+    },
+    "review": {
+      "send": "{count, plural, one {Wyślij niezaliczony case do Review} few {Wyślij # niezaliczone case'y do Review} many {Wyślij # niezaliczonych case'ów do Review} other {Wyślij # niezaliczonego case'a do Review}}",
+      "sent": "{queued, plural, =0 {Nic nowego nie trafiło do Review} one {# case wysłany do Review} few {# case'y wysłane do Review} many {# case'ów wysłanych do Review} other {# case'a wysłanego do Review}}{replaced, plural, =0 {} one {, zastępując # starszy, który czekał} few {, zastępując # starsze, które czekały} many {, zastępując # starszych, które czekały} other {, zastępując # starszego, który czekał}}{already, plural, =0 {} other {; # nie wysłano: już czekały, mają decyzję albo są starsze od czekającego}}.",
+      "routed": "Ten run sam wysłał do review {count, plural, one {# odpowiedź} few {# odpowiedzi} many {# odpowiedzi} other {# odpowiedzi}}: potwierdzone regresje i odpowiedzi, przy których ocenie sędzia zawiódł.{replaced, plural, =0 {} one { Zastąpiło to # starszą odpowiedź, która jeszcze czekała na tym samym case'ie.} few { Zastąpiło to # starsze odpowiedzi, które jeszcze czekały na tych samych case'ach.} many { Zastąpiło to # starszych odpowiedzi, które jeszcze czekały na tych samych case'ach.} other { Zastąpiło to # starszej odpowiedzi, która jeszcze czekała na tych samych case'ach.}}",
+      "routingFailed": "Ten run nie zdołał sam wysłać odpowiedzi do review, więc wyślij oblane ręcznie. Powód: {reason}",
+      "sendOther": "{count, plural, one {Wyślij pozostały oblany case} few {Wyślij pozostałe # oblane case'y} many {Wyślij pozostałe # oblanych case'ów} other {Wyślij pozostałe # oblanego case'a}}"
+    },
+    "draftChanged": "Draft zmienił się po tym runie.",
+    "ungraded": {
+      "count": "{count, plural, one {# odpowiedź nie została oceniona: sędzia zawiódł albo został pominięty, więc nie liczy się ani jako zaliczona, ani jako oblana.} few {# odpowiedzi nie zostały ocenione: sędzia zawiódł albo został pominięty, więc nie liczą się ani jako zaliczone, ani jako oblane.} many {# odpowiedzi nie zostało ocenionych: sędzia zawiódł albo został pominięty, więc nie liczą się ani jako zaliczone, ani jako oblane.} other {# odpowiedzi nie zostało ocenionych: sędzia zawiódł albo został pominięty, więc nie liczą się ani jako zaliczone, ani jako oblane.}}",
+      "again": "Oceń ponownie",
+      "done": "{count, plural, =0 {Nic nie zostało ocenione ponownie} one {# odpowiedź oceniona ponownie} few {# odpowiedzi ocenione ponownie} many {# odpowiedzi ocenionych ponownie} other {# odpowiedzi ocenionych ponownie}}",
+      "side": "{count, plural, one {# case {side} nie został oceniony} few {# case'y {side} nie zostały ocenione} many {# case'ów {side} nie zostało ocenionych} other {# case'a {side} nie zostało ocenionych}}: „{question}”{others, plural, =0 {} other { i jeszcze #}}. Oceń ponownie przed decyzją."
+    },
+    "noAccess": {
+      "title": "Nie możesz otworzyć tego eval runa",
+      "body": "Czytanie eval runów wymaga uprawnienia do podglądu runów oraz dostępu do agenta i datasetu. Poproś administratora organizacji."
+    }
   },
   "steps": {
     "skills-gallery": {

@@ -57,6 +57,8 @@ export const qk = {
   },
   agents: {
     all: () => ["agents"] as const,
+    /** Every agent the caller sees, all pages read - the eval start dialog's picker. */
+    every: () => ["agents", "every"] as const,
     /**
      * `includeArchived` is part of the key: the two lists are different rows.
      * So is the discovery facet - the server applies it, so two category/tag
@@ -187,6 +189,7 @@ export const qk = {
         rated?: string;
         statuses?: string[];
         surface?: string;
+        excludeSurface?: string;
         modelLabel?: string;
         userId?: string;
         conversationId?: string;
@@ -326,6 +329,8 @@ export const qk = {
   },
   datasets: {
     all: () => ["datasets"] as const,
+    /** Every dataset the caller sees, all pages read - the eval start dialog's picker. */
+    every: () => ["datasets", "every"] as const,
     lists: () => ["datasets", "list"] as const,
     list: (query: {
       search: string;
@@ -359,6 +364,30 @@ export const qk = {
     judgeTemplate: (id: string) => ["datasets", id, "judge-template"] as const,
     reviewQueue: (query: { skip: number; limit: number }) =>
       ["datasets", "review-queue", query] as const,
+  },
+  evalRuns: {
+    all: () => ["eval-runs"] as const,
+    forAgent: (agentId: string, query: { skip: number; limit: number }) =>
+      ["eval-runs", "agent", agentId, query] as const,
+    recent: (limit: number) => ["eval-runs", "recent", limit] as const,
+    forDataset: (datasetId: string, query: { skip: number; limit: number }) =>
+      ["eval-runs", "dataset", datasetId, query] as const,
+    forDraft: (agentId: string) => ["eval-runs", "draft", agentId] as const,
+    armSpec: (runId: string, armId: string) => ["eval-runs", runId, "arm", armId, "spec"] as const,
+    detail: (id: string) => ["eval-runs", id] as const,
+    cases: (
+      id: string,
+      query: {
+        arm: string | null;
+        outcome: string | null;
+        tag: string | null;
+        caseIds: string[] | null;
+        skip: number;
+        limit: number;
+      },
+    ) => ["eval-runs", id, "cases", query] as const,
+    comparison: (id: string, query: { arm: string | null; baseline: string | null }) =>
+      ["eval-runs", id, "comparison", query] as const,
   },
   context: {
     all: () => ["context"] as const,

@@ -23,6 +23,9 @@ const grades = vi.hoisted(() => ({
   result: { scores: [] as unknown[], isLoading: false, error: null as Error | null },
   asked: [] as unknown[],
 }));
+vi.mock("@/components/evals/eval-run-verdict", () => ({
+  EvalRunVerdict: ({ runId }: { runId: string }) => <span>verdict of {runId}</span>,
+}));
 vi.mock("@/hooks/use-scoring", () => ({
   useJudgeAgreement: () => ({ agreement: agreement.value, isLoading: false }),
   useScores: (...args: unknown[]) => {
@@ -100,6 +103,7 @@ describe("JudgeDatasetsCard", () => {
     );
     const runs = screen.getByRole("list", { name: "Eval runs it graded" });
     expect(within(runs).getByRole("link")).toHaveAttribute("href", "/agents/a1/evals/e1");
+    expect(within(runs).getByText("verdict of e1")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "See all on the Review tab" })).toHaveAttribute(
       "href",
       "/datasets/d1?tab=review",

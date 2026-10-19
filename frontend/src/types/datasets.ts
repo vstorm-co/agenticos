@@ -97,6 +97,8 @@ export interface Dataset {
   case_count: number;
   /** Whether the caller may change this dataset's cases. */
   can_edit: boolean;
+  /** Whether the caller may run this dataset - start an eval on it, score against it. */
+  can_run: boolean;
   /** How this dataset's cases are scored. */
   scoring: DatasetScoring;
   /** The judge grading it - its own or the default one; null when that judge is gone. */

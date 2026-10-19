@@ -91,6 +91,7 @@ function dataset(scoring: DatasetScoring, overrides: Partial<Dataset> = {}): Dat
     latest_version: 1,
     case_count: 2,
     can_edit: true,
+    can_run: true,
     scoring,
     judge_name: "Eval judge",
     stats: {

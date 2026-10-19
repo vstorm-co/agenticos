@@ -10,6 +10,13 @@ import { Perm, type Permission } from "@/types/permissions";
  */
 export const AGENT_BUILDER = "agent-builder";
 
+/**
+ * One eval run's page, `/agents/<id>/evals/<run>`. Its own identity rather than
+ * the builder's, whose highlights name tabs this page does not have. Not on the
+ * first-run walk, so nothing has to resolve a run to open.
+ */
+export const EVAL_RUN = "eval-run";
+
 /** The knowledge-base detail view, `/rag/<id>`, collapsed to one identity the same way. */
 export const KB_DETAIL = "kb-detail";
 
@@ -292,6 +299,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.agentsView,
     inTour: true,
   },
+  // The Evals tab reads the agent's eval runs, which `runs:view` gates.
+  {
+    id: "agent-evals",
+    page: AGENT_BUILDER,
+    target: "agent-evals",
+    activate: "agent-tab-evals",
+    permission: Perm.runsView,
+  },
   {
     id: "agent-history",
     page: AGENT_BUILDER,
@@ -308,6 +323,15 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "environment-connections",
     activate: "agent-tab-history",
     permission: Perm.agentsPublish,
+    optional: true,
+  },
+  // Beside "Draft differs from vN", which only a changed draft shows. Gated as
+  // the Evals tab is: the run it starts is read there.
+  {
+    id: "agent-test-draft",
+    page: AGENT_BUILDER,
+    target: "agent-test-draft",
+    permission: Perm.runsView,
     optional: true,
   },
   // Trying it beside the Builder before publishing (#2074).
@@ -332,6 +356,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "agent-publish",
     permission: Perm.agentsPublish,
     inTour: true,
+  },
+
+  {
+    id: "eval-verdict",
+    page: EVAL_RUN,
+    target: "eval-verdict",
+    permission: Perm.runsView,
   },
 
   {
@@ -782,6 +813,7 @@ const SECTION_FLOWS: readonly (readonly string[])[] = [
 
 /** The page identity a real pathname belongs to; detail routes collapse onto their pseudo-page. */
 export function pageKey(path: string): string {
+  if (/^\/agents\/[^/]+\/evals\/[^/]+/.test(path)) return EVAL_RUN;
   if (path.startsWith(`${ROUTES.AGENTS}/`)) return AGENT_BUILDER;
   if (path.startsWith(`${ROUTES.RAG}/`)) return KB_DETAIL;
   if (path.startsWith(`${ROUTES.DATASETS}/`)) return DATASET_DETAIL;

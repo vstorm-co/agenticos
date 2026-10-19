@@ -119,6 +119,7 @@ vi.mock("@/hooks", async () => {
   };
 });
 
+vi.mock("@/hooks/use-eval-runs", () => ({ useEvalArmSpec: () => ({ spec: undefined }) }));
 vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0 }),
 }));
