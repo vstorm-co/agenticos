@@ -145,8 +145,9 @@ class TestTheRouteThatTheDocumentsTabUses:
         service that can remove vectors, not with `None`."""
         from app.api.routes.v1 import knowledge_bases
 
-        kb = MagicMock(collection_name="docs")
-        doc = MagicMock(id=uuid.uuid4(), collection_name="docs")
+        org = uuid.uuid4()
+        kb = MagicMock(collection_name="docs", organization_id=org)
+        doc = MagicMock(id=uuid.uuid4(), collection_name="docs", organization_id=org)
         service = MagicMock(get_for_write=AsyncMock(return_value=kb))
         documents = MagicMock(get_document=AsyncMock(return_value=doc), delete_document=AsyncMock())
         ingestion = MagicMock(remove_document=AsyncMock())

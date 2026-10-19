@@ -31,7 +31,7 @@ The backend needs a `VAULT_MASTER_KEY`. Without one it falls back to
 
 ## Running the tests
 
-See [`CLAUDE.md`](CLAUDE.md#testing) for the full picture. The short version:
+See [`AGENTS.md`](AGENTS.md#testing) for the full picture. The short version:
 
 ```bash
 make test               # backend, with the coverage gate

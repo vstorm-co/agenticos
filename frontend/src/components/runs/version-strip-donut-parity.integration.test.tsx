@@ -50,6 +50,7 @@ const USAGE = {
   total_runs: 3,
   previous_total_runs: null,
   by_day: null,
+  timeline: null,
   by_surface: null,
   by_agent: null,
   by_status: BY_STATUS,

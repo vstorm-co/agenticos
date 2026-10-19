@@ -40,6 +40,38 @@ value is isolated to that request and its background children (#943).
 """
 
 
+_api_key: ContextVar[dict[str, str] | None] = ContextVar("audit_api_key", default=None)
+"""The organization API key the current request authenticated with, or None.
+
+Set by the auth dependency for a key-authenticated request and folded into every
+audit entry's `details` as `via_api_key`, for the reason the impersonator is a
+context variable: which credential acted is a property of the request (#1794).
+Only the id and the visible prefix - never anything that could be used as the key.
+"""
+
+
+_acting_trigger: ContextVar[dict[str, str] | None] = ContextVar(
+    "audit_acting_trigger", default=None
+)
+"""The trigger whose fire is running, when it acts as its creator, or None (#2027).
+
+Folded into every audit entry the fire records as `via_trigger`, so the trail says
+"trigger X, acting as member Y" rather than only "member Y" - the actor column
+is the creator, and without this a mailbox the agent read at 7am reads as the
+creator having done it at their desk. Set for the fire's own task only.
+"""
+
+
+def set_acting_trigger(trigger_id: UUID, acting_as: UUID) -> None:
+    """Record that this task is a trigger's fire acting as its creator, for the audit trail."""
+    _acting_trigger.set({"id": str(trigger_id), "acting_as": str(acting_as)})
+
+
+def set_api_key(api_key_id: UUID, prefix: str) -> None:
+    """Record which organization key this request authenticated with, for the audit trail."""
+    _api_key.set({"id": str(api_key_id), "prefix": prefix})
+
+
 def set_impersonator(impersonator_id: UUID | None) -> None:
     """Record who is acting behind this request's subject, for the audit trail."""
     _impersonator_id.set(impersonator_id)
@@ -168,6 +200,12 @@ async def record_audit(
     """
     impersonator_id = _impersonator_id.get()
     impersonator = impersonator_id if impersonator_id != actor_user_id else None
+    api_key = _api_key.get()
+    if api_key is not None:
+        details = {**(details or {}), "via_api_key": api_key}
+    acting_trigger = _acting_trigger.get()
+    if acting_trigger is not None:
+        details = {**(details or {}), "via_trigger": acting_trigger}
     # Before reading the head, not after: a lock taken afterwards serializes
     # nothing, because the head both writers read is already the same stale one.
     await hold_subject(db, LockScope.AUDIT_CHAIN_PER_ORG, organization_id or _DEPLOYMENT_CHAIN)

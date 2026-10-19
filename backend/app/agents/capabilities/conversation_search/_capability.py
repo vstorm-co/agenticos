@@ -71,7 +71,7 @@ class ConversationSearch(AbstractCapability[AgentDepsT]):
     async def _instructions(self, ctx: RunContext[Any]) -> str:
         deps: AgentDeps = ctx.deps
         audience = deps.audience or RunAudience()
-        if audience.user_id is None or not audience.private:
+        if audience.user_id is None or not audience.private or not audience.searches_conversations:
             return ""
         return _HABIT
 

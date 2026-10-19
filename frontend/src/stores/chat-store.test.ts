@@ -117,6 +117,19 @@ describe("streaming text", () => {
     expect(store().messages[0]?.content).toBe("Let me check. Thirty days.");
   });
 
+  it("starts a new text part when a new model response begins", () => {
+    // #2108: a background tool answers as a message, with no tool step between.
+    store().addMessage(message());
+    store().appendTextDelta("m-1", "A haiku while it runs.");
+
+    store().appendTextDelta("m-1", "The heading is Example Domain.", true);
+
+    expect(timeline()).toEqual([
+      "text:A haiku while it runs.",
+      "text:The heading is Example Domain.",
+    ]);
+  });
+
   it("gives every part its own id, so a rendered row is never reused", () => {
     store().addMessage(message());
     store().appendTextDelta("m-1", "a");

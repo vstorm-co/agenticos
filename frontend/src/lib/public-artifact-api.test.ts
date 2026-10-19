@@ -19,7 +19,7 @@ describe("unlockPublicArtifact", () => {
       opened,
     );
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://api.example/api/v1/public/artifacts/k%2F1/unlock");
+    expect(url).toBe("https://api.example/api/v1/public/apps/k%2F1/unlock");
     expect(init.method).toBe("POST");
     expect(init.body).toBe(JSON.stringify({ password: "hunter22" }));
   });

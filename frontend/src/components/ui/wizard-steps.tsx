@@ -50,7 +50,7 @@ export function WizardSteps({ steps, current }: WizardStepsProps) {
             </div>
             <span
               className={cn(
-                "hidden font-mono text-[11px] tracking-wider uppercase transition-colors duration-300 sm:inline",
+                "hidden font-mono text-xs tracking-wider uppercase transition-colors duration-300 sm:inline",
                 active || done ? "text-foreground" : "text-muted-foreground",
               )}
             >

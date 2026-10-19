@@ -22,7 +22,7 @@ from app.commands import command, error, info, success
 from app.db.session import get_db_context
 from app.repositories import mcp_registry_server_repo
 from app.services.mcp_catalog import CATALOG
-from app.services.mcp_registry import seed_entries
+from app.services.mcp_registry import categorise, seed_entries
 
 REGISTRY_URL = "https://registry.modelcontextprotocol.io/v0/servers"
 
@@ -132,12 +132,14 @@ def _row(record: dict[str, Any]) -> dict[str, str] | None:
     host = urlparse(url).hostname or ""
     if not (url and key and name and host):
         return None
+    description = " ".join((server.get("description") or "").split())[:200]
     return {
         "id": key[:255],
         "name": name[:255],
-        "description": " ".join((server.get("description") or "").split())[:200],
+        "description": description,
         "url": url[:1024],
         "host": host[:255],
+        "category": categorise(name, description),
     }
 
 

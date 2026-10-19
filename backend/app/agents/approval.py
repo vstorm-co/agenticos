@@ -73,6 +73,9 @@ class ApprovalRequest:
     tool_name: str
     tool_call_id: str
     tool_args: dict[str, Any]
+    account: str | None = None
+    """Which account of an MCP service the call acts as, where its binding names one -
+    see `app.agents.mcp.ACCOUNT`."""
 
 
 @dataclass(frozen=True)

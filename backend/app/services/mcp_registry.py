@@ -35,6 +35,7 @@ because somebody else's registry is down. Fill or refresh it with
 `uv run agenticos cmd mcp-registry-sync`.
 """
 
+import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -62,6 +63,233 @@ class RegistryEntry:
         return urlparse(self.url).hostname or ""
 
 
+_CATEGORY_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "observability",
+        (
+            "monitoring",
+            "observability",
+            "logs",
+            "logging",
+            "tracing",
+            "metrics",
+            "alerting",
+            "incident",
+            "incidents",
+            "apm",
+            "uptime",
+        ),
+    ),
+    (
+        "finance",
+        (
+            "payment",
+            "payments",
+            "invoice",
+            "invoices",
+            "invoicing",
+            "accounting",
+            "finance",
+            "financial",
+            "banking",
+            "bank",
+            "crypto",
+            "blockchain",
+            "trading",
+            "stocks",
+            "tax",
+            "expenses",
+            "billing",
+            "wallet",
+            "defi",
+        ),
+    ),
+    (
+        "commerce",
+        (
+            "e-commerce",
+            "ecommerce",
+            "shop",
+            "store",
+            "storefront",
+            "checkout",
+            "retail",
+            "orders",
+            "products",
+        ),
+    ),
+    (
+        "marketing",
+        (
+            "marketing",
+            "seo",
+            "ads",
+            "advertising",
+            "campaign",
+            "campaigns",
+            "newsletter",
+            "social media",
+            "keywords",
+            "brand",
+        ),
+    ),
+    (
+        "sales",
+        (
+            "crm",
+            "sales",
+            "leads",
+            "lead",
+            "prospects",
+            "prospecting",
+            "deals",
+            "outreach",
+            "pipeline",
+        ),
+    ),
+    (
+        "support",
+        ("helpdesk", "help desk", "customer support", "support tickets", "customer service"),
+    ),
+    ("analytics", ("analytics", "dashboards", "insights", "reporting", "kpi", "kpis")),
+    (
+        "data",
+        (
+            "database",
+            "databases",
+            "sql",
+            "postgres",
+            "postgresql",
+            "mysql",
+            "warehouse",
+            "dataset",
+            "datasets",
+            "vector",
+            "query",
+            "queries",
+            "bigquery",
+            "snowflake",
+        ),
+    ),
+    (
+        "development",
+        (
+            "github",
+            "gitlab",
+            "code",
+            "coding",
+            "developer",
+            "developers",
+            "deploy",
+            "deployment",
+            "devops",
+            "kubernetes",
+            "docker",
+            "repository",
+            "repositories",
+            "infrastructure",
+            "cloud",
+            "testing",
+            "sdk",
+        ),
+    ),
+    ("design", ("design", "figma", "ui", "ux", "prototype", "diagram", "diagrams")),
+    (
+        "media",
+        (
+            "video",
+            "videos",
+            "audio",
+            "image",
+            "images",
+            "music",
+            "podcast",
+            "speech",
+            "voice",
+            "photo",
+            "photos",
+        ),
+    ),
+    (
+        "communication",
+        (
+            "email",
+            "mail",
+            "inbox",
+            "chat",
+            "messaging",
+            "sms",
+            "whatsapp",
+            "telegram",
+            "discord",
+            "slack",
+            "meetings",
+        ),
+    ),
+    (
+        "project-management",
+        ("project", "projects", "task", "tasks", "issues", "jira", "kanban", "sprint", "tickets"),
+    ),
+    (
+        "knowledge",
+        ("documentation", "docs", "knowledge", "wiki", "notes", "research", "papers"),
+    ),
+    (
+        "productivity",
+        (
+            "calendar",
+            "scheduling",
+            "schedule",
+            "documents",
+            "spreadsheet",
+            "spreadsheets",
+            "forms",
+            "productivity",
+        ),
+    ),
+    ("storage", ("storage", "files", "file", "drive", "s3", "upload", "uploads")),
+    (
+        "automation",
+        (
+            "automation",
+            "automate",
+            "workflow",
+            "workflows",
+            "browser",
+            "scraping",
+            "scrape",
+            "crawl",
+            "crawling",
+            "integrations",
+        ),
+    ),
+)
+_CATEGORY_PATTERNS = tuple(
+    (category, re.compile(r"\b(?:" + "|".join(map(re.escape, words)) + r")\b"))
+    for category, words in _CATEGORY_WORDS
+)
+
+
+def categorise(name: str, description: str) -> str:
+    """The curated catalog's category a listing reads as, or `other`.
+
+    Counted rather than first-matched: "Search the Stripe docs for payment
+    errors" mentions observability, finance and knowledge, and the category it
+    mentions most is the one it is about. A tie goes to the earlier, narrower
+    category in the table, so `incident tickets` reads as observability rather
+    than project management. A listing that names nothing in the table is
+    `other`: a wrong category hides a server under a heading somebody skips,
+    where `other` only fails to help.
+    """
+    text = f"{name} {description}".casefold()
+    best, best_hits = "other", 0
+    for category, pattern in _CATEGORY_PATTERNS:
+        hits = len(pattern.findall(text))
+        if hits > best_hits:
+            best, best_hits = category, hits
+    return best
+
+
 REGISTRY: tuple[RegistryEntry, ...] = catalog.load(
     "mcp_registry.json", TypeAdapter(tuple[RegistryEntry, ...])
 )
@@ -81,6 +309,7 @@ def seed_entries() -> tuple[dict[str, str], ...]:
             "description": entry.description,
             "url": entry.url,
             "host": entry.host,
+            "category": categorise(entry.name, entry.description),
         }
         for entry in REGISTRY
         if entry.host

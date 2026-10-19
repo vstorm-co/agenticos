@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Eye, Link2, Loader2, Pencil, Trash2, UserPlus } from "lucide-react";
+import { Copy, Link2, Loader2, Lock, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { MemberIdentity, displayName } from "@/components/orgs/member-identity";
 import type { IdentifiedMember } from "@/components/orgs/member-identity";
 import { MemberPicker } from "@/components/orgs/member-picker";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import {
   Dialog,
   DialogContent,
@@ -50,7 +50,6 @@ type Permission = "view" | "edit";
  * say. The word is the permission's own catalog key.
  */
 const LEVELS: readonly Permission[] = ["view", "edit"];
-const LEVEL_ICONS: Record<Permission, typeof Eye> = { view: Eye, edit: Pencil };
 
 /** Radix hands back a plain string; a level the catalog does not know is a bug. */
 export function toPermission(value: string): Permission {
@@ -81,17 +80,6 @@ export function sharedPerson(
   return email === undefined ? null : { user_id: share.shared_with ?? share.id, email };
 }
 
-function LevelBadge({ permission }: { permission: Permission }) {
-  const t = useTranslations("chat");
-  const Icon = LEVEL_ICONS[permission];
-  return (
-    <Badge variant="secondary" className="gap-1">
-      <Icon className="h-3 w-3" aria-hidden />
-      {t(permission)}
-    </Badge>
-  );
-}
-
 /**
  * Sharing one conversation: with a person, or by link.
  *
@@ -116,6 +104,7 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
   const t = useTranslations("chat");
+  const tSharing = useTranslations("sharing");
   const { shares, isLoading, shareConversation, fetchShares, revokeShare } =
     useConversationShares();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -206,6 +195,16 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
   // takes them out of `candidates`, and a button enabled on the id alone would
   // then submit a share the server refuses.
   const chosen = candidates.find((member) => member.user_id === picked);
+  // People and the link apart: a share token has no face and no level to read
+  // against a name, so it is the general access below rather than a row here.
+  const people = shares.flatMap((share) => {
+    const person = sharedPerson(share, members);
+    return person ? [{ share, person }] : [];
+  });
+  const linkShare = shares.find((share) => share.share_token);
+  const link =
+    shareLink ??
+    (linkShare?.share_token ? `${window.location.origin}/shared/${linkShare.share_token}` : null);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -215,33 +214,35 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
           <DialogDescription>{t("shareDescription")}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        {/* Drawn as a document's share box, the one permission screen most
+            people already know: add somebody, the people with access, and the
+            general access a link gives - the same three parts the agent's
+            Share panel has. */}
+        <div className="space-y-5">
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <MemberPicker
-                members={candidates}
-                selected={picked === null ? [] : [picked]}
-                onToggle={(userId) => setPicked((current) => (current === userId ? null : userId))}
-                label={() => (chosen ? displayName(chosen) : t("choosePerson"))}
-                scope={t("shareConversationTitle")}
-                disabled={candidates.length === 0}
-              />
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1 [&>button]:w-full [&>button]:justify-start">
+                <MemberPicker
+                  members={candidates}
+                  selected={picked === null ? [] : [picked]}
+                  onToggle={(userId) =>
+                    setPicked((current) => (current === userId ? null : userId))
+                  }
+                  label={() => (chosen ? displayName(chosen) : t("choosePerson"))}
+                  scope={t("shareConversationTitle")}
+                  disabled={candidates.length === 0}
+                />
+              </div>
               <Select value={permission} onValueChange={(v) => setPermission(toPermission(v))}>
-                <SelectTrigger className="w-32" aria-label={t("accessLevel")}>
+                <SelectTrigger className="h-9 w-28 shrink-0" aria-label={t("accessLevel")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {LEVELS.map((level) => {
-                    const Icon = LEVEL_ICONS[level];
-                    return (
-                      <SelectItem key={level} value={level}>
-                        <span className="flex items-center gap-2">
-                          <Icon className="h-3.5 w-3.5" aria-hidden />
-                          {t(level)}
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
+                  {LEVELS.map((level) => (
+                    <SelectItem key={level} value={level}>
+                      {t(level)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Button
@@ -250,14 +251,10 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
                 // branch nothing can reach.
                 onClick={chosen === undefined ? undefined : () => void handleShare(chosen.user_id)}
                 disabled={isLoading || isSharing || chosen === undefined}
-                size="icon"
-                aria-label={t("shareConversationTitle")}
+                className="shrink-0"
               >
-                {isSharing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                ) : (
-                  <UserPlus className="h-4 w-4" aria-hidden />
-                )}
+                {isSharing && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                {tSharing("share")}
               </Button>
             </div>
             {/* What the level actually permits, because "edit" on a thread is not
@@ -278,80 +275,86 @@ export function ShareDialog({ conversationId, open, onOpenChange }: ShareDialogP
             )}
           </div>
 
-          {shares.length > 0 && (
-            <div className="space-y-2 border-t pt-4">
-              <p className="text-sm font-medium">{t("sharedWith")}</p>
-              {shares.map((share) => {
-                const person = sharedPerson(share, members);
-                return (
-                  <div
-                    key={share.id}
-                    className="flex items-center gap-3 rounded-md border p-2 pl-3"
-                  >
-                    {person ? (
-                      <MemberIdentity member={person} className="min-w-0 flex-1" />
-                    ) : (
-                      <span className="flex min-w-0 flex-1 items-center gap-2.5 text-sm">
-                        <Link2 className="h-4 w-4 shrink-0" aria-hidden />
-                        {t("link")}
-                      </span>
-                    )}
-                    <LevelBadge permission={share.permission} />
-                    <Button
-                      variant="ghost"
+          <section className="space-y-2">
+            <h3 className="text-sm font-medium">{tSharing("peopleWithAccess")}</h3>
+            <ul className="divide-border divide-y rounded-xl border">
+              {people.length === 0 ? (
+                <li className="text-muted-foreground px-3 py-2.5 text-sm">
+                  {tSharing("notSharedWithAnyone")}
+                </li>
+              ) : (
+                people.map(({ share, person }) => (
+                  <li key={share.id} className="flex items-center gap-3 px-3 py-2">
+                    <MemberIdentity member={person} className="min-w-0 flex-1" />
+                    <span className="text-muted-foreground shrink-0 text-sm">
+                      {t(share.permission)}
+                    </span>
+                    <IconButton
                       size="icon"
                       onClick={() => handleRevoke(share)}
                       disabled={revokingId === share.id}
-                      className="h-8 w-8 shrink-0"
+                      className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
                       aria-label={t("revokeAccess")}
                     >
-                      {revokingId === share.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                      ) : (
-                        <Trash2 className="h-4 w-4" aria-hidden />
-                      )}
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                      {revokingId === share.id ? <Loader2 className="animate-spin" /> : <X />}
+                    </IconButton>
+                  </li>
+                ))
+              )}
+            </ul>
+          </section>
 
-          <div className="space-y-2 border-t pt-4">
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={handleGenerateLink}
-                disabled={isLoading || isGeneratingLink}
-                className="flex-1"
-              >
-                {isGeneratingLink ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+          <section className="space-y-2">
+            <h3 className="text-sm font-medium">{tSharing("generalAccess")}</h3>
+            <div className="flex items-center gap-3 rounded-xl border px-3 py-2.5">
+              <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
+                {link === null ? (
+                  <Lock className="h-4 w-4" aria-hidden />
                 ) : (
-                  <Link2 className="mr-2 h-4 w-4" aria-hidden />
+                  <Link2 className="h-4 w-4" aria-hidden />
                 )}
-                {t("generateShareLink")}
-              </Button>
-              {shareLink && (
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">
+                  {link === null ? t("restricted") : t("anyoneWithLink")}
+                </p>
+                {/* A link is read-only whatever the level above says. */}
+                <p className="text-muted-foreground truncate text-xs">
+                  {link === null ? t("restrictedHint") : copied ? t("copied") : link}
+                </p>
+              </div>
+              {link === null ? (
                 <Button
-                  variant="secondary"
-                  size="icon"
-                  onClick={handleCopyLink}
-                  aria-label={t("copyShareLink")}
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGenerateLink}
+                  disabled={isLoading || isGeneratingLink}
+                  className="shrink-0"
                 >
-                  <Copy className="h-4 w-4" aria-hidden />
+                  {isGeneratingLink && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+                  {t("generateShareLink")}
                 </Button>
+              ) : (
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button variant="outline" size="sm" onClick={handleCopyLink}>
+                    <Copy className="h-3.5 w-3.5" aria-hidden />
+                    {t("copyShareLink")}
+                  </Button>
+                  {linkShare !== undefined && (
+                    <IconButton
+                      size="icon"
+                      onClick={() => handleRevoke(linkShare)}
+                      disabled={revokingId === linkShare.id}
+                      className="text-muted-foreground hover:text-destructive h-8 w-8"
+                      aria-label={t("revokeAccess")}
+                    >
+                      <X />
+                    </IconButton>
+                  )}
+                </div>
               )}
             </div>
-            {/* Said before the link is minted, not after: the level chosen above
-                is about a person, and a link is read-only whatever it says. */}
-            <p className="text-muted-foreground text-xs">{t("linkIsViewOnly")}</p>
-            {shareLink && (
-              <p className="text-muted-foreground text-xs break-all">
-                {copied ? t("copied") : shareLink}
-              </p>
-            )}
-          </div>
+          </section>
         </div>
       </DialogContent>
     </Dialog>

@@ -78,7 +78,7 @@ A company that wants more than three agents, and wants them governed.
   instructions, switch on capabilities, point at a knowledge collection and set a
   budget.
 - **The person accountable for the bill** gets budgets that stop a run, approvals
-  on anything side-effecting, and an audit trail.
+  on the tools they choose, and an audit trail.
 - **The engineer** gets a spec that exports as YAML into their own git
   repository, an HTTP API, and a platform they can read the source of.
 

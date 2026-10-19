@@ -103,13 +103,44 @@ describe("the queue above the composer", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("numbers what is waiting, in the order it will be sent", () => {
+  it("lists what is waiting, in the order it will be sent", () => {
     render(<PendingMessages messages={queued} onCancel={vi.fn()} />);
 
     const rows = screen.getAllByRole("listitem");
-    expect(within(rows[0]!).getByText("1")).toBeInTheDocument();
     expect(within(rows[0]!).getByText("First question")).toBeInTheDocument();
-    expect(within(rows[1]!).getByText("2")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("Second question")).toBeInTheDocument();
+  });
+
+  it("sends one into the running task on Send now", async () => {
+    const onSendNow = vi.fn();
+    render(<PendingMessages messages={queued} onCancel={vi.fn()} onSendNow={onSendNow} />);
+
+    const rows = screen.getAllByRole("listitem");
+    await userEvent.click(within(rows[0]!).getByRole("button", { name: /Send now/ }));
+
+    expect(onSendNow).toHaveBeenCalledWith("q-1");
+    // A file cannot ride along into a running task, so that one waits.
+    expect(within(rows[1]!).getByRole("button", { name: /Send now/ })).toBeDisabled();
+  });
+
+  it("offers no Send now with no task running to join", () => {
+    render(<PendingMessages messages={queued} onCancel={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: /Send now/ })).toBeNull();
+  });
+
+  it("shows what was sent into the task until the model has read it", () => {
+    const { container } = render(
+      <PendingMessages
+        messages={[]}
+        steers={[{ id: "s-1", text: "use the EU numbers" }]}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(container).not.toBeEmptyDOMElement();
+    expect(screen.getByText("use the EU numbers")).toBeInTheDocument();
+    expect(screen.queryByRole("listitem")).toBeNull();
   });
 
   it("says a queued message carries attachments, and how many", () => {
@@ -147,10 +178,46 @@ describe("the queue above the composer", () => {
     expect(onCancel).toHaveBeenCalledWith("q-2");
   });
 
+  it("reorders with the arrows, which stop at either end", async () => {
+    const onMove = vi.fn();
+    render(<PendingMessages messages={queued} onCancel={vi.fn()} onMove={onMove} />);
+
+    const rows = screen.getAllByRole("listitem");
+    expect(within(rows[0]!).getByRole("button", { name: "Move up" })).toBeDisabled();
+    expect(within(rows[1]!).getByRole("button", { name: "Move down" })).toBeDisabled();
+    await userEvent.click(within(rows[1]!).getByRole("button", { name: "Move up" }));
+    expect(onMove).toHaveBeenCalledWith("q-2", 0);
+    await userEvent.click(within(rows[0]!).getByRole("button", { name: "Move down" }));
+    expect(onMove).toHaveBeenCalledWith("q-1", 1);
+  });
+
+  it("reorders by dragging a row onto another", () => {
+    const onMove = vi.fn();
+    render(<PendingMessages messages={queued} onCancel={vi.fn()} onMove={onMove} />);
+    const [first, second] = screen.getAllByRole("listitem");
+    const dataTransfer = { effectAllowed: "" };
+
+    // A drag that never started moves nothing.
+    fireEvent.dragOver(second!, { dataTransfer });
+    fireEvent.dragStart(second!, { dataTransfer });
+    fireEvent.dragOver(first!, { dataTransfer });
+    fireEvent.drop(first!, { dataTransfer });
+
+    expect(onMove).toHaveBeenCalledWith("q-2", 0);
+    fireEvent.dragEnd(second!);
+  });
+
+  it("folds to one line, and opens again", async () => {
+    render(<PendingMessages messages={queued} onCancel={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: /2 messages queued/ }));
+
+    expect(screen.queryByRole("listitem")).toBeNull();
+  });
+
   it("says when the queue will drain", () => {
     render(<PendingMessages messages={queued} onCancel={vi.fn()} />);
 
-    expect(screen.getByText(/sends after current reply/)).toBeInTheDocument();
+    expect(screen.getByText("Waiting for the answer")).toBeInTheDocument();
   });
 });
 
@@ -303,15 +370,7 @@ describe("the empty chat", () => {
 
     await userEvent.click(screen.getByText("Summarize my docs"));
 
-    expect(onPick).toHaveBeenCalledWith(
-      "Summarize the key points from my latest indexed documents.",
-    );
-  });
-
-  it("names the agent that will answer", () => {
-    render(<ChatEmptyState onPick={vi.fn()} agentLabel="@support" />);
-
-    expect(screen.getByText(/Powered by @support/)).toBeInTheDocument();
+    expect(onPick).toHaveBeenCalledWith("Summarize the key points from my latest documents.");
   });
 });
 

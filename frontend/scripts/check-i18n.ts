@@ -776,7 +776,9 @@ function scopeOf(node: ts.Node): ts.Node {
 }
 
 const TRANSLATOR_FACTORIES = ["useTranslations", "getTranslations"];
-const TRANSLATOR_METHODS = ["rich", "markup", "has"];
+// `raw` reads a message without formatting it - copy that carries a literal
+// `{placeholder}` meant for a prompt, not for ICU.
+const TRANSLATOR_METHODS = ["rich", "markup", "has", "raw"];
 
 function translatorFactory(node: ts.Expression): ts.CallExpression | undefined {
   const call = ts.isAwaitExpression(node) ? node.expression : node;

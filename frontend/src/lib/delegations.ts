@@ -14,7 +14,13 @@
  */
 
 import { ApiError } from "@/lib/api-error";
-import type { Delegation, DelegationStatus, SubagentFrame, SubagentStartFrame } from "@/types";
+import type {
+  Delegation,
+  DelegationStatus,
+  SubagentFrame,
+  SubagentStartFrame,
+  ToolCall,
+} from "@/types";
 import type { RunStatus } from "@/types/runs";
 
 /**
@@ -269,4 +275,88 @@ export function childrenOf(current: Delegation[], taskId: string): Delegation[] 
 /** The delegations the run's own agent called, as opposed to a specialist's. */
 export function rootsOf(current: Delegation[]): Delegation[] {
   return current.filter((delegation) => delegation.parentTaskId === null);
+}
+
+/** What a delegate is known by: enough to draw its face and say its name. */
+export interface DelegateRef {
+  id: string | null;
+  slug: string;
+  name: string;
+  has_avatar?: boolean;
+  avatar_color?: number | null;
+}
+
+/**
+ * The agent a delegation went to, by the slug the model names it with.
+ *
+ * The agents the reader can see answer with their own name and face. A delegate
+ * they cannot see, or a specialist the parent defined inline, still reads as a
+ * name - `finance-analyst` as *Finance analyst* - and gets the face its slug
+ * seeds, which is the face the agent wears when nobody chose one.
+ */
+export function delegateNamed(slug: string, agents: readonly DelegateRef[]): DelegateRef {
+  const known = agents.find((agent) => agent.slug === slug);
+  if (known) return known;
+  const words = slug.replace(/[-_]+/g, " ").trim();
+  return { id: null, slug, name: words.charAt(0).toUpperCase() + words.slice(1) };
+}
+
+/**
+ * The first thing an answer says, as plain text for a one- or two-line preview.
+ *
+ * A delegate answers in markdown; a preview that showed `## What shipped` or
+ * `**No, not yet.**` would be showing the syntax. Headings, emphasis, code
+ * ticks and link targets go, and the first line with words left is the preview.
+ */
+export function answerPreview(markdown: string): string {
+  const line = markdown
+    .split("\n")
+    .map((each) =>
+      each
+        .replace(/^\s*(#{1,6}|[-*+>]|\d+\.)\s+/, "")
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+        .replace(/[*_`]+/g, "")
+        .trim(),
+    )
+    .find((each) => each !== "");
+  return line ?? "";
+}
+
+/** How a `task` call stands once the turn is over, and what it answered. */
+export interface TaskOutcome {
+  status: "completed" | "failed" | "running";
+  answer: string;
+}
+
+const STARTED_IN_BACKGROUND = /^Task started in background\.\s*Task ID: (\S+)/;
+
+/**
+ * What a `task` call came to, reading through a background start.
+ *
+ * A delegation started in the background returns its handle - "Task started in
+ * background. Task ID: …" - not an answer, and the answer arrives later as the
+ * result of a `check_task` for that id. Read as it stands, that call said
+ * "finished" with the handle as the answer, while the delegate was still
+ * working. So a background start is matched to the last check of its task: a
+ * completed one carries the result, a failed one the error, and none at all
+ * leaves it running.
+ */
+export function taskOutcome(call: ToolCall, calls: readonly ToolCall[]): TaskOutcome | null {
+  const result = typeof call.result === "string" ? call.result : "";
+  const started = STARTED_IN_BACKGROUND.exec(result);
+  if (started === null) return null;
+  const taskId = started[1];
+  const checks = calls.filter(
+    (other) =>
+      other.name === "check_task" &&
+      other.args.task_id === taskId &&
+      typeof other.result === "string",
+  );
+  const last = checks.at(-1)?.result as string | undefined;
+  if (last === undefined) return { status: "running", answer: "" };
+  const completed = /\nStatus: completed\n(?:[\s\S]*?\n)?Result: ([\s\S]*)$/.exec(last);
+  if (completed !== null) return { status: "completed", answer: completed[1]! };
+  const failed = /\nStatus: failed\n(?:[\s\S]*?\n)?Error: ([\s\S]*)$/.exec(last);
+  if (failed !== null) return { status: "failed", answer: failed[1]! };
+  return { status: "running", answer: "" };
 }

@@ -394,7 +394,7 @@ export function VersionHistory({
  * serialization, so key order that moves between two dumps cannot show as a
  * change nobody made.
  */
-function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
+export function SpecDiff({ before, after }: { before: AgentSpec; after: AgentSpec }) {
   const t = useTranslations("agents");
   const lines = useMemo(() => diffLines(specText(before), specText(after)), [before, after]);
   const stat = diffStat(lines);

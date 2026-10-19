@@ -49,6 +49,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -159,6 +160,14 @@ class AgentTrigger(Base, TimestampMixin):
     # false when a creator loses access to the agent, so a schedule nobody can run
     # stops rather than retrying against a wall for ever.
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    # Whether a fire acts as its creator - their memory and their own MCP
+    # connections - rather than as an authority nobody is behind (#2027). Only the
+    # creator turns it on, for themselves; an edit by anyone else to what the
+    # trigger does turns it off (`AgentTriggerService`).
+    runs_as_creator: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     # A human label for this trigger, shown where it is listed away from a form.
     # Optional: null falls back to the agent's name, so an existing row and a

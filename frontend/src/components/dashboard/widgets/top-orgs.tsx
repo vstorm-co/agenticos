@@ -22,7 +22,15 @@ export function TopOrgsWidget({ title, hint, seeAll, options }: DashboardWidgetP
       ) : organizations.length === 0 ? (
         <WidgetEmptyBody title={t("empty.title")} description={t("empty.description")} />
       ) : (
-        <table className="w-full text-sm">
+        // Fixed proportions, so the owner - a name and an address - gets the
+        // room the two counts do not need.
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            <col className="w-[34%]" />
+            <col />
+            <col className="w-[4.5rem]" />
+            <col className="w-[4rem]" />
+          </colgroup>
           <thead>
             <tr className="text-muted-foreground text-left text-xs">
               <th className="pb-2 font-normal">{t("organization")}</th>

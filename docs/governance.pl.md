@@ -1,5 +1,5 @@
 ---
-source_sha: "07ffc670b572"
+source_sha: "1188eccc0c95"
 ---
 
 # Governance { #governance }
@@ -49,7 +49,7 @@ które w ogóle nie dociera do runnera.
 
 ## Budżety { #budgets }
 
-!!! abstract "Dwa poziomy, i nie są to warianty jednej liczby"
+!!! abstract "Trzy poziomy, i nie są to warianty jednej liczby"
 
     Limit agenta mierzony względem sumy całej organizacji wyczerpują runy jego
     sąsiadów; limit organizacji mierzony względem jednego agenta nie jest żadnym
@@ -58,6 +58,7 @@ które w ogóle nie dociera do runnera.
 | Poziom | Ustawiany w | Mierzy | Podnosi |
 |---|---|---|---|
 | **Miesięczny agenta** | spec agenta | runy tego agenta | ten, kto może edytować agenta |
+| **Miesięczny działu** | ustawienia działu | runy uruchomione przez jego członków, na dowolnym agencie | ten, kto ma `members:manage` i `budgets:manage` |
 | **Miesięczny organizacji** | ustawienia organizacji | każdy run *oraz* ingestię w organizacji | ten, kto ma `budgets:manage` |
 
 **Nowa organizacja startuje z już ustawionym pułapem organizacji** —
@@ -92,6 +93,20 @@ na liście agentów — liczba z *opublikowanej* wersji, bo to ją egzekwuje run
 nie to, co akurat obiecuje draft. Karta zapasu na dashboardzie zestawia je z
 `GET /spend`, więc zbliżający się limit widać, zanim w historii runów zacznie
 pojawiać się `budget_exceeded`.
+
+### Limit działu { #a-departments-cap }
+
+[Dział](departments.md#a-departments-budget) może mieć własny miesięczny limit.
+Stoi między pozostałymi dwoma: run jest sprawdzany względem limitu agenta,
+potem każdego działu z limitem, w którym jest osoba, która go uruchomiła, a na
+końcu względem limitu organizacji. Każdy dział liczy miesiąc własnych członków,
+więc osobę z Finansów i Sprzedaży zatrzyma ten z dwóch, który wyczerpie się
+pierwszy, a odmowa go nazwie - *Sales department monthly budget exhausted*.
+
+Lider działu i administratorzy dostają jedno powiadomienie, gdy dział przekroczy
+80% miesiąca, i kolejne, gdy limit zatrzyma run. Run, którego nikt nie
+uruchomił - harmonogram, gość na kanale - nie należy do żadnego działu i nie
+jest liczony.
 
 ### Egzekwowanie odbywa się przed żądaniem { #enforcement-is-before-the-request }
 
@@ -151,8 +166,8 @@ zobaczy. Dlatego licznik należy do przygotowanego runa, a nie do powierzchni.
 Otwarcie go nie jest krokiem, o którym nowa powierzchnia musi wiedzieć, bo nie
 ma sposobu, żeby wykonać przygotowanego agenta bez niego.
 
-[Zarządzanie kontekstem](reference/capabilities.md#context-management) to ta
-druga taka rzecz. Jego strategia podsumowująca zapisuje podsumowanie przez
+Capability [Długie rozmowy](reference/capabilities.md#context-management) to ta
+druga taka rzecz. Jej strategia podsumowująca zapisuje podsumowanie przez
 agenta, którego buduje sama, więc to żądanie nie przechodzi przez żadną bramkę
 budżetu; capability księguje to, co kosztowało, na tym samym liczniku. Bycie
 *poza* bramką ma jedną konsekwencję, którą warto znać: wydatek zostaje zapisany,
@@ -196,8 +211,8 @@ komunikatem, z którym da się coś zrobić. Workspace odmawia zapisu. **Okno
 kontekstu** zostaje odrzucone przez providera, w środku odpowiedzi, a run po
 prostu się wywraca.
 
-Dlatego każdy agent nosi wskaźnik — nie tylko ten, który ma podpięte
-[zarządzanie kontekstem](reference/capabilities.md#context-management), bo
+Dlatego każdy agent nosi wskaźnik — nie tylko ten, który ma podpiętą
+capability [Długie rozmowy](reference/capabilities.md#context-management), bo
 ostrzeżenie liczy się najbardziej dla agenta, który *nie* będzie kompaktował.
 Raportuje on, ile tokenów niosło ostatnie żądanie tury, *po* ewentualnym
 kompaktowaniu: odczyt spada, gdy kompaktowanie działa, bo mierzy to, co wyszło, a
@@ -634,6 +649,12 @@ wyłącznie runy najwyższego poziomu, od najbardziej zajętych — więc koszt 
 ląduje raz, wewnątrz runa, który go uruchomił. I obejmuje to okno, które pokazuje
 reszta zakładki, a nie własną kroczącą wartość domyślną.
 
+**Kiedy wydano** to słupek na każdy dzień UTC w tym samym oknie, z `by_day` —
+własny koszt każdego runa, więc dni sumują się do tego samego rachunku, który dzielą
+zestawienia. Dzień bez runów jest rysowany jako zero, a nie pomijany. Każde zestawienie
+pokazuje udział wiersza w swojej sumie, a agent z miesięcznym limitem pokazuje miesiąc
+na tle tego limitu.
+
 Nazywanie ludzi z organizacji to ta sama decyzja, którą podejmuje karta na
 dashboardzie, więc obejmuje ją ta sama bramka: `runs:view`, które mają builder i
 operator, a także obie role zarządcze, i mówi o tym własny tekst tej karty.
@@ -907,13 +928,18 @@ zamiast być zgadywana. UI pokazuje to jako `+` obok liczby.
 
 ## Zatwierdzenia { #approvals }
 
-Narzędzie, które działa na świat zewnętrzny, parkuje run i czeka na człowieka.
+Narzędzie, które autor agenta objął bramką, parkuje run i czeka na człowieka.
+Nic nie jest za bramką, dopóki ktoś o to nie poprosi: bramka, której nikt nie
+wybrał, parkuje runy w kanałach i rutynach, gdzie nikogo nie ma, żeby odpowiedzieć.
 
 Rozstrzyganie idzie od najbardziej szczegółowego:
 
 1. własne nadpisanie narzędzia, jeśli je ma
 2. tryb `approval` capability (`required` | `never` | `default`)
-3. to, co rozstrzyga `side_effecting`, dla `default`
+3. brak zatwierdzania, gdy oba mówią `default`
+
+`side_effecting` niczego już tu nie rozstrzyga. Builder pokazuje go obok wyboru,
+więc narzędzia działające na świat autor widzi jako pierwsze.
 
 Builder podaje wynik słowami, zamiast opisywać regułę, bo reguła, którą czytelnik
 musi wykonać w głowie, to ustawienie, którego nikt nie odważy się dotknąć.
@@ -1074,9 +1100,10 @@ Cztery rzeczy czynią z tego ustawienie sesji, a nie dziurę w modelu:
 **Ask about everything zaostrza politykę sesji.** Wybranie tego surowszego trybu
 nie wymaga specjalnego uprawnienia. Obejmuje on wywołania MCP obsługiwane przez runner, choć
 narzędzia te nie są deklarowane przez capabilities. Listy dozwolonych narzędzi
-na połączeniu i powiązaniu z agentem określają, co jest dostępne; same nie
-wymuszają zatwierdzenia. Domyślny tryb **Follow the agent** stosuje politykę
-capabilities agenta i nie dodaje bramki zatwierdzeń do tych narzędzi MCP.
+na połączeniu i powiązaniu z agentem określają, co jest dostępne; na człowieka
+każe im czekać własna polityka `approval` powiązania - `writes` albo `all` - którą
+domyślny tryb **Follow the agent** stosuje tak jak politykę capability (zobacz
+[które wywołania czekają na człowieka](mcp.md#which-calls-wait-for-a-person)).
 
 ### Decyzja, której nikt nie podejmuje { #a-decision-nobody-makes }
 
@@ -1206,15 +1233,16 @@ agenta. Wydatki są zachowywane nawet wtedy, gdy *miejsca* delegata zachować si
 nie dało — historia wiadomości z biblioteki jest telemetrią w miarę możliwości, a
 delegacja uruchomiona od nowa i tak wydała to, co wydała.
 
-!!! warning "Zatwierdzanie MCP zależy od trybu wykonania"
+!!! warning "Zatwierdzanie MCP ustawia się na powiązaniu"
 
-    Ustawienie zatwierdzeń capability nie obejmuje narzędzi MCP. W czacie
-    internetowym **Ask about everything** (`ask_all`) obejmuje też wywołania MCP
-    obsługiwane przez runner; domyślny **Follow the agent** tego nie robi.
-    Ogranicz narzędzia na połączeniu i jego powiązaniu z agentem oraz przetestuj
-    docelowy tryb wykonania. Nie zakładaj, że surowsze ustawienie sesji czatu
-    obowiązuje też w harmonogramie lub innym punkcie wejścia. Narzędzia wykonywane
-    po stronie dostawcy modelu nie przechodzą przez lokalną bramkę zatwierdzeń.
+    Ustawienie zatwierdzeń capability nie obejmuje narzędzi MCP; obejmuje je
+    polityka `approval` powiązania, na każdej powierzchni, na której działa agent.
+    `writes` zatrzymuje narzędzia, których serwer nie oznacza jako tylko do odczytu
+    - to deklaracja samego serwera, więc dla serwera spoza Twojej kontroli wybierz
+    `all`. W czacie internetowym **Ask about everything** (`ask_all`) obejmuje też
+    resztę; nie zakładaj, że surowsze ustawienie sesji czatu obowiązuje w
+    harmonogramie lub innym punkcie wejścia. Narzędzia wykonywane po stronie
+    dostawcy modelu nie przechodzą przez lokalną bramkę zatwierdzeń.
 
 ## Alerty { #alerts }
 
@@ -1612,7 +1640,7 @@ gdzie ustawia się okresy per tenant.
 | Rozmowy | Wiadomości, wywołania narzędzi i pliki czatu do nich przypięte — bajty **przed** wierszami, więc plik, którego nie udało się odpiąć, zachowuje swój wiersz na kolejny przebieg, zamiast przeżyć go nieodnajdywalny | Ostatniej aktywności wątku, więc ten, do którego ktoś wraca, nie jest stary |
 | Runy | Wiersz runu, jego manifest i jego zatwierdzenia narzędzi | Startu runu |
 | Workspace'y | Zapis platformy o plikach agenta. Dla backendu `state` wiersz *jest* magazynem; pliki backendu sandboxowego sprząta własny TTL sandboxa | Ostatniego użycia |
-| Artefakty | [Opublikowana strona](artifacts.md) z każdą wersją, jej przechowywanymi bajtami (**przed** wierszami, jak przy rozmowach), jej grantami i jej publicznym linkiem | Ostatniej publikacji, więc raport, który harmonogram publikuje ponownie, nie jest stary |
+| Aplikacje | [Opublikowana strona](artifacts.md) z każdą wersją, jej przechowywanymi bajtami (**przed** wierszami, jak przy rozmowach), jej grantami i jej publicznym linkiem | Ostatniej publikacji, więc raport, który harmonogram publikuje ponownie, nie jest stary |
 | Pamięć | Pliki pamięci agenta | Ostatniego zapisu, bo notatka jest pisana raz, a czytana miesiącami |
 | Wgrane dokumenty | Wiersz, jego wektory i wgrany plik | Momentu wgrania |
 | Audyt | Wpisy na ścieżce audytowej tej organizacji | Momentu zapisania wpisu |

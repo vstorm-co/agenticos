@@ -24,7 +24,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { BrandLink } from "@/components/layout/brand-link";
 import { SidebarShell } from "@/components/layout/sidebar-shell";
@@ -32,7 +32,7 @@ import { useMounted } from "@/hooks/use-mounted";
 import { usePermissions } from "@/hooks/use-permissions";
 import { cn, isAppAdmin } from "@/lib/utils";
 import { useAuthStore, useSidebarStore } from "@/stores";
-import { NAV_GROUPS, isActive, type NavItem } from "@/lib/nav-sections";
+import { NAV_GROUPS, isActive, type NavGroup, type NavItem } from "@/lib/nav-sections";
 
 export { NAV_GROUPS, isActive, navSectionFor, type NavDomain } from "@/lib/nav-sections";
 
@@ -62,13 +62,13 @@ function NavLink({
       title={collapsed ? label : undefined}
       aria-label={collapsed ? label : undefined}
       className={cn(
-        "flex items-center rounded-lg text-sm transition-colors",
+        "flex items-center rounded-lg text-sm font-medium transition-colors",
         collapsed ? "h-9 w-9 justify-center" : "gap-2.5 px-2.5 py-1.5",
         // Selected is a neutral raised pill with a dark label. Section hues live
         // on the page's own tile, not here: a column of coloured pills competed
         // with the content it points at.
         active
-          ? "bg-accent text-foreground font-medium"
+          ? "bg-accent text-foreground"
           : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
       )}
     >
@@ -105,28 +105,73 @@ export function SidebarNav({
       className={cn("flex flex-col py-4", collapsed ? "items-center gap-3 px-2" : "gap-5 px-3")}
     >
       {groups.map((group) => (
-        <div
+        <NavGroupBlock
           key={group.labelKey ?? "main"}
-          className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center gap-1")}
-        >
-          {group.labelKey &&
-            // The heading is what tells the four groups apart, and on the rail
-            // there is no room for the word. A rule does the same job: it says
-            // "a different kind of thing starts here" without claiming to say
-            // which, which an abbreviation would do badly.
-            (collapsed ? (
-              <div aria-hidden className="bg-border mb-1 h-px w-5" />
-            ) : (
-              <div className="text-muted-foreground px-2.5 pb-1.5 text-xs font-medium tracking-wide uppercase">
-                {t(group.labelKey)}
-              </div>
-            ))}
-          {group.items.map((item) => (
-            <NavLink key={item.href} item={item} onNavigate={onNavigate} collapsed={collapsed} />
-          ))}
-        </div>
+          group={group}
+          onNavigate={onNavigate}
+          collapsed={collapsed}
+        />
       ))}
     </nav>
+  );
+}
+
+function NavGroupBlock({
+  group,
+  onNavigate,
+  collapsed,
+}: {
+  group: NavGroup;
+  onNavigate?: () => void;
+  collapsed: boolean;
+}) {
+  const t = useTranslations("nav");
+  const pathname = usePathname();
+  const mounted = useMounted();
+  const openGroups = useSidebarStore((state) => state.openGroups);
+  const toggleGroup = useSidebarStore((state) => state.toggleGroup);
+  const key = group.labelKey ?? "main";
+  // The page you are on is never hidden behind a folded heading. The stored
+  // choice is read only after mount, for the same hydration reason as the rail.
+  const holdsActive = group.items.some((item) => isActive(pathname, item.href));
+  const folds = !!group.collapsible && !collapsed;
+  const open = !folds || holdsActive || (mounted && openGroups.includes(key));
+
+  return (
+    <div className={cn("flex flex-col gap-0.5", collapsed && "w-full items-center gap-1")}>
+      {group.labelKey &&
+        // The heading is what tells the groups apart, and on the rail there is
+        // no room for the word. A rule does the same job: it says "a different
+        // kind of thing starts here" without claiming to say which, which an
+        // abbreviation would do badly. The rail never folds - it is already
+        // one icon per row.
+        (collapsed ? (
+          <div aria-hidden className="bg-border mb-1 h-px w-5" />
+        ) : folds ? (
+          <button
+            type="button"
+            onClick={() => toggleGroup(key)}
+            disabled={holdsActive}
+            aria-expanded={open}
+            className="text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground flex items-center gap-1 rounded-md px-2.5 pb-1.5 text-left text-xs font-medium tracking-wide uppercase transition-colors disabled:cursor-default"
+          >
+            <span className="flex-1">{t(group.labelKey)}</span>
+            <ChevronRight
+              className={cn("size-3.5 transition-transform", open && "rotate-90")}
+              aria-hidden
+            />
+          </button>
+        ) : (
+          <div className="text-muted-foreground px-2.5 pb-1.5 text-xs font-medium tracking-wide uppercase">
+            {t(group.labelKey)}
+          </div>
+        ))}
+      {open
+        ? group.items.map((item) => (
+            <NavLink key={item.href} item={item} onNavigate={onNavigate} collapsed={collapsed} />
+          ))
+        : null}
+    </div>
   );
 }
 

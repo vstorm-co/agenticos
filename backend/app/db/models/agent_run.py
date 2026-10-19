@@ -53,6 +53,9 @@ class RunStatus(enum.StrEnum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     AWAITING_APPROVAL = "awaiting_approval"
+    AWAITING_ANSWER = "awaiting_answer"
+    """Parked on an `ask_user` question the person left without answering (#2064).
+    It resumes when they answer and ends, the agent told so, after a day."""
     BUDGET_EXCEEDED = "budget_exceeded"
     GUARDRAIL_BLOCKED = "guardrail_blocked"
 
@@ -194,6 +197,20 @@ class AgentRun(Base, TimestampMixin):
     initiated_by_publisher_fallback: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false"), nullable=False
     )
+    # The scopes of the API key that started the run, null for a session. A run
+    # resumed later - by whoever approved its parked call - is rebuilt on its
+    # owner's current role, and this is the ceiling that keeps it under what the
+    # key could do: without it the continuation acted with the owner's full role.
+    key_scopes: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    # The trigger that fired this run, when one did - "trigger X, acting as member
+    # Y" with `user_id` (#2027). SET NULL: the run is the record of what happened
+    # and outlives the trigger that started it.
+    trigger_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_triggers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("conversations.id", ondelete="SET NULL"),
@@ -234,6 +251,18 @@ class AgentRun(Base, TimestampMixin):
         ForeignKey("agent_environments.id", ondelete="SET NULL"),
         nullable=True,
     )
+
+    # Started from the Builder's test panel (#2074): budgeted and recorded like
+    # any run, and marked so Activity can tell somebody trying an agent from
+    # somebody using it.
+    is_test: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false"), index=True
+    )
+    # The unpublished draft a test ran, frozen as it was when the run started.
+    # Null for every run of a published version, which `agent_version_id` names;
+    # a test of the draft has no version, and a run parked on an approval has to
+    # continue on exactly what it was running.
+    test_spec: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     # The run this one was delegated from, and the delegation's own id inside it.
     # Both null for a run somebody started, which is every run except a
@@ -418,6 +447,10 @@ class ToolApproval(Base, TimestampMixin):
     # SET NULL, not CASCADE: deleting the delegate must not delete the record of
     # what somebody authorised it to do.
     subagent_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Which account of an MCP service the call acts as, where its binding names one:
+    # two Outlook accounts make "Send mail" a question of which mailbox. Copied from
+    # the binding when the call is parked, so it reads the same after a rename.
+    account: Mapped[str | None] = mapped_column(String(64), nullable=True)
     subagent_agent_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("agents.id", ondelete="SET NULL"),

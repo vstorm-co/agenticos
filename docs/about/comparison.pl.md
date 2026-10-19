@@ -1,5 +1,5 @@
 ---
-source_sha: "f73b608eac37"
+source_sha: "d500d9ea435c"
 title: "Porównaj AgenticOS"
 seo_title: "Porównania AgenticOS: suwerenna warstwa agentów AI"
 description: "Porównaj AgenticOS, suwerenną warstwę agentów AI open source, z Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n i agentami do kodowania."
@@ -18,7 +18,10 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Firmowego asystenta czatu albo agentów, których właścicielem jest twoja organizacja | Claude Team i Enterprise, ChatGPT Business i Enterprise | [Claude](claude-apps.md) · [ChatGPT](chatgpt.md) |
 | Builder w pakiecie chmurowym producenta | Microsoft Copilot Studio, Google Gemini Enterprise | [Copilot Studio](copilot-studio.md) · [Gemini Enterprise](gemini-enterprise.md) |
 | Samodzielnie hostowany builder albo narzędzie do automatyzacji | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
-| Usługę wirtualnego współpracownika w Slacku lub Teams | Viktor | [Viktor](viktor.md) |
+| Współpracownika AI działającego bez przerwy, z własnym komputerem | OpenAI dots, Grok Bot, Viktor | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) |
+| Platformę albo płaszczyznę kontroli dostawcy dla agentów firmy | OpenAI Frontier, Microsoft Agent 365 | [Frontier](openai-frontier.md) · [Agent 365](microsoft-agent-365.md) |
+| Hostowany runtime agentów dla deweloperów | Claude Managed Agents | [Managed Agents](claude-managed-agents.md) |
+| Osobistego agenta open source | OpenClaw, NVIDIA NemoClaw | [OpenClaw](openclaw.md) |
 | Dostarczaną platformę enterprise | Wonderful | [Wonderful](wonderful.md) |
 | Agenta do kodowania albo warstwę dla wszystkich pozostałych | Claude Code, OpenAI Codex, OpenCode | [Claude Code](claude-code.md) · [Codex](codex.md) · [OpenCode](opencode.md) |
 
@@ -34,6 +37,12 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 25 września 2026. Wersja baz
 | Dify | Wizualny builder aplikacji LLM i workflow | Hostowany samodzielnie albo Dify Cloud | Zmodyfikowana Apache 2.0 z warunkami | Wiele, w tym Ollama |
 | n8n | Automatyzacja workflow z węzłami agentów AI | Hostowany samodzielnie albo n8n Cloud | Sustainable Use License | Wiele, w tym Ollama |
 | Viktor | Jeden wirtualny współpracownik AI na workspace Slacka lub Teams | Chmura Viktor | Własnościowa | OpenAI, Anthropic, Google, Kimi |
+| OpenAI dots | Agenci działający bez przerwy w ChatGPT, każdy z komputerem w chmurze | Chmura OpenAI | Własnościowa | Tylko OpenAI |
+| Grok Bot | Nazwani współpracownicy na wspólnym komputerze w chmurze | Chmura xAI | Własnościowa | Tylko Grok |
+| OpenAI Frontier | Platforma do zarządzania firmowymi współpracownikami AI | Lokalnie, twoja chmura albo chmura OpenAI | Własnościowa | OpenAI |
+| Microsoft Agent 365 | Płaszczyzna kontroli nad agentami w Microsoft 365 | Chmura Microsoftu | Własnościowa | Przez agentów, którymi zarządza |
+| Claude Managed Agents | Hostowany runtime agentów dla deweloperów | Chmura Anthropic | Własnościowa | Tylko Claude |
+| OpenClaw / NemoClaw | Osobisty agent open source; dystrybucja enterprise NVIDII | Twój komputer albo serwer | Open source | Wiele |
 | Wonderful | Platforma AI enterprise z zespołami wdrożeniowymi | SaaS, single-tenant, twoja chmura albo on-premises | Własnościowa | Niezależna od modelu, routing per zadanie |
 | Claude Code | Agent do kodowania dla programistów | Maszyny programistów, chmura Anthropic | Własnościowa | Tylko Claude |
 | OpenAI Codex | Agent do kodowania dla programistów | Maszyny programistów, chmura OpenAI | CLI Apache-2.0, chmura własnościowa | OpenAI; CLI przyjmuje też innych |
@@ -55,6 +64,12 @@ Suwerenność oznacza tu cztery rzeczy, o których decydujesz: gdzie produkt dzi
 | Dify | Self-hosted albo Dify Cloud | Wiele, w tym Ollama | Apache 2.0 z warunkami: usługa wielodostępna wymaga pisemnej zgody, a logo nie wolno zmieniać | Logowanie: e-mail; SSO w Enterprise · Audyt: Enterprise · Wydatki: rozliczenie u providera albo kredyty wiadomości w Cloud |
 | n8n | Self-hosted albo n8n Cloud we Frankfurcie | Wiele, w tym Ollama | Sustainable Use License: wewnętrzne cele firmy, użytek niekomercyjny lub osobisty; płatne funkcje wymagają klucza licencji, który codziennie łączy się z serwerem licencji n8n | Logowanie: SSO w płatnych planach · Audyt: strumieniowanie logów w Enterprise · Wydatki: limity wykonań per plan |
 | Viktor | Chmura Viktora, na AWS us-east-1 | Presety OpenAI, Anthropic, Google i Kimi albo własny klucz OpenRouter | Własnościowa | Logowanie: SAML SSO w Enterprise · Audyt: logi audytowe w Enterprise · Wydatki: pula kredytów, limity dopasowywane w Enterprise |
+| OpenAI dots | Chmura OpenAI; plan Pro na starcie niedostępny w EOG, Szwajcarii i Wielkiej Brytanii | Tylko OpenAI | Własnościowa | Logowanie: konta ChatGPT · Audyt: nie podano dla dots · Wydatki: w cenie planu |
+| Grok Bot | Chmura xAI | Tylko Grok | Własnościowa | Logowanie: konta xAI albo Cursor · Audyt: zapowiedziany · Wydatki: cena planu, bez podanego limitu |
+| OpenAI Frontier | Lokalnie, twoja chmura albo chmura OpenAI | OpenAI | Własnościowa | Logowanie, audyt i wydatki: nie podano publicznie; zapowiedziane uprawnienia per agent i dashboardy |
+| Microsoft Agent 365 | Chmura Microsoftu | Przez agentów, którymi zarządza | Własnościowa | Logowanie: Entra ID · Audyt: Purview · Wydatki: licencje Microsoft 365 |
+| Claude Managed Agents | Chmura Anthropic | Tylko Claude | Własnościowa | Logowanie: klucze API Anthropic · Audyt: nie podano · Wydatki: tokeny plus opłata za godzinę sesji, limity organizacji |
+| OpenClaw / NemoClaw | Twój komputer albo serwer | Wiele | Open source; NemoClaw to dystrybucja NVIDII | Logowanie, audyt i kontrola dostępu: minimalne w OpenClaw; dodane przez NemoClaw |
 | Wonderful | Wielodostępny SaaS, single-tenant, Twoja chmura albo odizolowane od sieci wdrożenie on-premises | Kierowane per zadanie przez platformę | Własnościowa; agentów i konfigurację można eksportować przez UI lub API | Logowanie: nie podano na jego stronach · Audyt: logi audytowe w AI Gateway · Wydatki: limity budżetu per zespół |
 
 Dify i n8n też działają na Twoich serwerach z modelami lokalnymi, a Wonderful oferuje wdrożenie on-premises odizolowane od sieci. Spośród produktów w tej tabeli tylko w AgenticOS wszystkie cztery odpowiedzi zostają po Twojej stronie.
@@ -83,7 +98,7 @@ Porównanie, które ukrywa własne braki, jest reklamą. Sprawdź te punkty wzgl
 - Nie ma narzędzia do ewaluacji ani dashboardu trace'ów. Istnieją oceny i historia runów. Zobacz [gdzie nie jest skończony](index.md#where-this-one-is-not-finished).
 - Nie ma kanału rozmów przez Microsoft Teams, WhatsApp, głos ani e-mail.
 - Nie ma wizualnego canvasu workflow. Praca wieloetapowa korzysta z delegacji, planowania i wyzwalaczy.
-- Ustawienia zatwierdzeń obejmują narzędzia capabilities. Narzędzia MCP są bramkowane per rozmowa, nie per narzędzie. Zobacz [czego MCP nie daje](../mcp.md#what-mcp-does-not-get-you).
+- Narzędzia serwera MCP czekają na zatwierdzenie według oznaczeń „tylko do odczytu” nadanych przez sam serwer, więc narzędzie błędnie oznaczone jako tylko do odczytu działa bez pytania. Zobacz [czego MCP nie daje](../mcp.md#what-mcp-does-not-get-you).
 - Wdrożenie to Docker Compose na jednym hoście. Nie ma manifestów Kubernetes.
 - Utrzymujesz go sam albo uzgadniasz utrzymanie z Vstorm lub innym partnerem.
 

@@ -2,7 +2,7 @@
 source_sha: "7cb876b5ef26"
 ---
 
-<!-- source_sha: 7cb876b5ef26 -->
+<!-- source_sha: 6ba9e8a85274 -->
 
 # Contribuir a AgenticOS
 
@@ -40,7 +40,7 @@ cual está bien en local y se rechaza en producción.
 
 ## Ejecutar los tests
 
-Mira [`CLAUDE.md`](CLAUDE.md#testing) para el cuadro completo. La versión corta:
+Mira [`AGENTS.md`](AGENTS.md#testing) para el cuadro completo. La versión corta:
 
 ```bash
 make test               # backend, with the coverage gate

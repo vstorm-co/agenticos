@@ -13,6 +13,8 @@ export type { BrandName };
 
 interface BrandIconProps extends SVGProps<SVGSVGElement> {
   name: BrandName;
+  /** In the surrounding text colour rather than the brand's. */
+  mono?: boolean;
 }
 
 export function BrandIcon({ name, "aria-label": ariaLabel, ...props }: BrandIconProps) {

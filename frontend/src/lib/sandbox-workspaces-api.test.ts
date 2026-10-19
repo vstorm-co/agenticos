@@ -11,26 +11,6 @@ beforeEach(() => {
 });
 
 describe("the workspace browser client", () => {
-  it("keeps the envelope, because it says what counting left out", async () => {
-    // It used to unwrap to `items`. The listing now reports how many workspaces it
-    // read, how many hosts stayed silent and whether it stopped short - and a row
-    // reading `-` because its host was down is otherwise indistinguishable from a
-    // workspace holding nothing.
-    const envelope = { items: [{ id: "w-1" }], total: 1, measured: 1, unreadable: 0 };
-    vi.mocked(apiClient.get).mockResolvedValue(envelope);
-
-    await expect(api.listWorkspaces()).resolves.toEqual(envelope);
-    expect(apiClient.get).toHaveBeenCalledWith("/sandbox-workspaces");
-  });
-
-  it("asks the hosts to be counted only when told to", async () => {
-    vi.mocked(apiClient.get).mockResolvedValue({ items: [] });
-
-    await api.listWorkspaces(true);
-
-    expect(apiClient.get).toHaveBeenCalledWith("/sandbox-workspaces?measure=true");
-  });
-
   it("reads one workspace's files by its own id", async () => {
     // Not through a conversation: a run-scoped workspace never had one and an
     // agent-scoped one belongs to all of them.

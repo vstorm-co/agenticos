@@ -38,8 +38,12 @@ function TextBody({ access, kind, name, asSource }: Required<FileContentProps>) 
   if (error !== null)
     return <FileUnavailable reason={error} onDownload={download} error={actionError} />;
   return file === null ? null : (
-    <div className="space-y-2">
-      <FileTextView kind={kind} name={name} text={file.content} asSource={asSource} />
+    // A column the text fills, so a short file's box is the height of the
+    // viewer rather than ending halfway down it.
+    <div className="flex h-full flex-col gap-2">
+      <div className="min-h-0 flex-1">
+        <FileTextView kind={kind} name={name} text={file.content} asSource={asSource} />
+      </div>
       {file.truncated && <p className="text-muted-foreground text-xs">{t("shortened")}</p>}
     </div>
   );

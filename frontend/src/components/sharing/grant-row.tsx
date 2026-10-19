@@ -1,10 +1,12 @@
 "use client";
 
-import { Trash2, Users } from "lucide-react";
+import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { GroupIcon } from "@/components/groups/group-icon";
 import {
-  Button,
+  EntityAvatar,
+  IconButton,
   Label,
   Select,
   SelectContent,
@@ -12,11 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
+import type { GroupIcon as GroupIconName } from "@/types/groups";
 import type { GrantSubject, ResourceGrant, ShareInput } from "@/types/sharing";
 import { LEVEL_OPTIONS, shareInput, subjectLabel, subjectOf, toLevel } from "./grants";
 
 interface GrantRowProps {
   grant: ResourceGrant;
+  /** The group's own icon, when the grant is to a group the organization still has. */
+  groupIcon: GroupIconName | null;
   canManage: boolean;
   revoking: boolean;
   onShare: (input: ShareInput) => void;
@@ -26,10 +31,20 @@ interface GrantRowProps {
 /**
  * One member or group the resource is shared with, at what level.
  *
- * A level change is the same call that created the share - the endpoint is an
- * upsert keyed on the subject - so the row sends the subject back with it.
+ * A face or the group's icon, the name, and the level as a quiet control on
+ * the right - the row reads as a person first and a setting second, the way a
+ * document's share list does. A level change is the same call that created the
+ * share - the endpoint is an upsert keyed on the subject - so the row sends the
+ * subject back with it.
  */
-export function GrantRow({ grant, canManage, revoking, onShare, onRevoke }: GrantRowProps) {
+export function GrantRow({
+  grant,
+  groupIcon,
+  canManage,
+  revoking,
+  onShare,
+  onRevoke,
+}: GrantRowProps) {
   const t = useTranslations("sharing");
   const tc = useTranslations("common");
   const subject = subjectOf(grant);
@@ -37,12 +52,20 @@ export function GrantRow({ grant, canManage, revoking, onShare, onRevoke }: Gran
   const id = `level-${grant.id}`;
 
   return (
-    <div className="flex items-center gap-3 rounded-md border p-3">
-      {subject.kind === "group" && (
+    <li className="flex items-center gap-3 px-3 py-2.5">
+      {subject.kind === "group" ? (
         <>
-          <Users className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />
+          <GroupIcon icon={groupIcon} className="size-8 rounded-full" />
           <span className="sr-only">{t("groupSubject")}</span>
         </>
+      ) : (
+        <EntityAvatar
+          seed={subject.id}
+          name={name}
+          imageSrc={`/api/users/avatar/${subject.id}`}
+          className="size-8 shrink-0"
+          ariaHidden
+        />
       )}
       <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
       <Label htmlFor={id} className="sr-only">
@@ -53,10 +76,13 @@ export function GrantRow({ grant, canManage, revoking, onShare, onRevoke }: Gran
         disabled={!canManage}
         onValueChange={(value) => onShare(shareInput(subject, toLevel(value)))}
       >
-        <SelectTrigger id={id} className="w-36">
+        <SelectTrigger
+          id={id}
+          className="text-muted-foreground hover:text-foreground h-8 w-auto gap-1.5 border-transparent bg-transparent px-2.5 shadow-none"
+        >
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent align="end">
           {LEVEL_OPTIONS.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {t(option.words)}
@@ -65,16 +91,15 @@ export function GrantRow({ grant, canManage, revoking, onShare, onRevoke }: Gran
         </SelectContent>
       </Select>
       {canManage && (
-        <Button
-          variant="ghost"
-          size="sm"
+        <IconButton
           aria-label={tc("removeNamed", { name })}
           disabled={revoking}
           onClick={() => onRevoke(subject)}
+          className="text-muted-foreground hover:text-destructive"
         >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+          <X />
+        </IconButton>
       )}
-    </div>
+    </li>
   );
 }

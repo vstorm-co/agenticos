@@ -1,5 +1,5 @@
 ---
-source_sha: "ebe8092adb19"
+source_sha: "0e00e8d61666"
 ---
 
 # Verzeichnisanmeldung und Gruppen { #directory-sign-in-and-groups }
@@ -31,7 +31,7 @@ womöglich gar nicht. Siehe
 
 Eine Gruppe ist eine benannte Menge von Mitgliedern innerhalb einer Organisation:
 *Finance*, *Support team*, *Platform admins*. Einen Agent, einen Skill, eine
-Collection, eine Context-Datei, ein Vault-Secret oder ein Artefakt teilen Sie mit
+Collection, eine Context-Datei, ein Vault-Secret oder eine App teilen Sie mit
 einer Gruppe auf dieselbe Weise wie mit einer Person, über das Panel **Sharing**
 der Ressource. Ein Grant erreicht dann jeden in der Gruppe.
 

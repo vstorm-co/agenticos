@@ -42,7 +42,7 @@ The Codex CLI can use other providers, but its cloud tasks, code review and Slac
 
 ### Code execution as a governed capability
 
-Codex runs commands in an OS sandbox on the developer's machine or in a cloud container. AgenticOS gives agents [Run Python](../reference/capabilities.md#run-python), a Monty interpreter with no network or filesystem, and a [Files & shell](../reference/capabilities.md#files-shell) workspace in [sibling containers](../sandbox.md#isolation-plainly). Both are switched on per agent, with limits and an approval setting.
+Codex runs commands in an OS sandbox on the developer's machine or in a cloud container. AgenticOS gives agents [Calculations](../reference/capabilities.md#run-python), a Monty interpreter with no network or filesystem, and a [Sandbox](../reference/capabilities.md#files-shell) workspace in [sibling containers](../sandbox.md#isolation-plainly). Both are switched on per agent, with limits and an approval setting.
 
 ## When Codex is the right tool
 
@@ -74,7 +74,7 @@ Yes. An engineer can use Codex to write and review a new capability in typed Pyt
 
 ### Can AgenticOS agents run code?
 
-Yes. Run Python executes code with no network or filesystem, and Files & shell gives an agent a workspace in isolated containers. Both are switched on per agent.
+Yes. Calculations runs Python with no network or filesystem, and the Sandbox gives an agent a workspace in isolated containers. Both are switched on per agent.
 
 ## Related comparisons
 

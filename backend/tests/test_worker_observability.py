@@ -7,7 +7,7 @@ tracing up for itself, and under a name a dashboard can tell apart from the
 API's.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -59,6 +59,9 @@ class TestAFiredRunSetsItselfUp:
             patch(f"{trigger_tasks.__name__}.setup_logging") as logging_setup,
             patch(f"{trigger_tasks.__name__}.get_worker_db_context") as db_context,
             patch("app.services.agent_trigger.AgentTriggerService") as trigger_service,
+            # Patched, not run: it would leave this process's change feed holding
+            # a Redis client for every test after this one.
+            patch("app.services.change_feed.connect_in_worker", new=AsyncMock()) as live_updates,
         ):
             db_context.return_value.__aenter__.return_value = MagicMock()
             trigger_service.return_value.fire = _noop
@@ -68,6 +71,8 @@ class TestAFiredRunSetsItselfUp:
 
         observability.assert_called_once_with()
         logging_setup.assert_called_once_with()
+        # So the run it fires reaches an open Activity page (#2099).
+        live_updates.assert_awaited_once_with()
 
 
 async def _noop(*args: object, **kwargs: object) -> None:

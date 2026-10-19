@@ -1,11 +1,10 @@
 """What a surface hears while an agent is driving a browser.
 
-A `browse_page` call is the longest-running tool this platform has and the one
+A `browse_web` call is the longest-running tool this platform has and the one
 whose progress matters most to watch. It is also the one where "the model chose
-something" is a sentence worth reading: the loop does not generate an action, it
-*picks* one from the elements the page actually offers, and the pick comes back
-with a probability. A transcript that records a tool call and, forty seconds
-later, a paragraph, throws all of that away.
+something" is a sentence worth reading: each step presses one of the elements the
+page actually offers, and says what for. A transcript that records a tool call
+and, forty seconds later, a paragraph, throws all of that away.
 
 So the browse streams, and these are the frames. Three decisions shape them:
 
@@ -34,7 +33,7 @@ a surface that cannot narrate one still runs; it is simply not narrated.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Literal
+from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -59,11 +58,20 @@ class BrowserEvent(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    kind: Literal["browser_opened", "browser_step", "browser_frame", "browser_finished"]
+    kind: Literal[
+        "browser_opened",
+        "browser_step",
+        "browser_frame",
+        "browser_finished",
+        "browser_held",
+        "browser_released",
+        "browser_needs_person",
+        "browser_pointer",
+    ]
 
     call_id: str = Field(
         description=(
-            "Which `browse_page` call this belongs to. One turn can browse twice, "
+            "Which `browse_web` call this belongs to. One turn can browse twice, "
             "and a surface that keyed on the run would draw the second browse's "
             "steps into the first one's panel."
         )
@@ -99,7 +107,10 @@ class BrowserEvent(BaseModel):
 
     operation: str | None = Field(
         default=None,
-        description="What the engine chose on this step: CLICK, TYPE_TEXT, SELECT, SCROLL, WAIT, DONE or BLOCKED.",
+        description=(
+            "What this step did: CLICK, TYPE_TEXT, SELECT, SCROLL, NAVIGATE, BACK, "
+            "WAIT, DONE or BLOCKED."
+        ),
     )
     target: str | None = Field(
         default=None,
@@ -109,18 +120,46 @@ class BrowserEvent(BaseModel):
             "never saw."
         ),
     )
-    confidence: float | None = Field(
+    reason: str | None = Field(
         default=None,
-        ge=0.0,
-        le=1.0,
         description=(
-            "How likely the engine found this pick, when the decision model reports "
-            "one. This is the capability's distinguishing property and the reason a "
-            "step is worth showing at all: a browse that acts on a 0.31 pick is one "
-            "somebody should look at."
+            "What the browsing model said this step is for, in its own sentence. "
+            "Model-written text about a page, so a surface renders it as data."
         ),
     )
-
+    run_id: str | None = Field(
+        default=None,
+        description=(
+            "The run this browse belongs to, on the opening frame. With `call_id` "
+            "it is the address of the browse's live view, `/browse/{run_id}/{call_id}`, "
+            "which a person opens to watch or take over."
+        ),
+    )
+    by: str | None = Field(
+        default=None,
+        description="Who took the browser over, by name, on `browser_held`.",
+    )
+    by_user_id: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "Who took the browser over, by id, on `browser_held` - how a viewer "
+            "tells that they are the one holding it. Names are not unique."
+        ),
+    )
+    x: float | None = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description=(
+            "On `browser_pointer`: where the agent is about to click or type, as a "
+            "fraction of the viewport's width, so a surface draws its cursor on the "
+            "picture whatever size the picture is drawn at."
+        ),
+    )
+    y: float | None = Field(
+        default=None, ge=0, le=1, description="The same, as a fraction of its height."
+    )
     image: str | None = Field(
         default=None,
         repr=False,
@@ -137,8 +176,10 @@ class BrowserEvent(BaseModel):
     detail: str | None = Field(
         default=None,
         description=(
-            "One sentence about the outcome - what was blocking, or what broke. "
-            "Page-derived text, so a surface renders it as data and never as markup."
+            "One sentence about the outcome - what was blocking, or what broke; "
+            "what the browser needs a person for, on `browser_needs_person`; the "
+            "site whose sign-in was kept, on `browser_released`. Page-derived "
+            "text, so a surface renders it as data and never as markup."
         ),
     )
 
@@ -157,3 +198,83 @@ without an answer the loop would go on capturing and base64-encoding a JPEG per
 step for somebody who left. `False` is what lets it stop taking pictures while
 the browse itself continues.
 """
+
+
+BrowserKey = Literal[
+    "Enter",
+    "Tab",
+    "Backspace",
+    "Delete",
+    "Escape",
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+    "Home",
+    "End",
+    "PageUp",
+    "PageDown",
+]
+"""The keys a person may press in a browser they took over, by their DOM names.
+
+Printable text arrives as `type` and is inserted rather than pressed; these are the
+keys with no character, and a closed list because each becomes a CDP key event
+whose fields have to be right for the page to see the key at all.
+"""
+
+
+class BrowserCommand(BaseModel):
+    """What a person watching a browse asks of it (#2128).
+
+    `take_over` pauses the agent between steps and hands the tab to the person;
+    the input commands act on it while they hold it, at the coordinates of the
+    picture they see; `give_back` returns it and the agent carries on from the
+    page as it is. `resize` makes the page as large as the window showing it, so
+    the site lays itself out for that window instead of being a shrunk picture of
+    a laptop screen. What a person types is never written to the transcript or the
+    run's history - the history records only that somebody took over.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    type: Literal["take_over", "give_back", "click", "type", "key", "scroll", "resize"]
+    x: float | None = Field(default=None, ge=0, le=4000)
+    y: float | None = Field(default=None, ge=0, le=4000)
+    text: str | None = Field(default=None, max_length=2000)
+    key: BrowserKey | None = None
+    dy: float | None = Field(default=None, ge=-5000, le=5000)
+    width: int | None = Field(default=None, ge=320, le=1600, description="On `resize`, in CSS px.")
+    height: int | None = Field(default=None, ge=320, le=2000, description="On `resize`, in CSS px.")
+    scale: int | None = Field(
+        default=None,
+        ge=1,
+        le=2,
+        description="On `resize`: device pixels per CSS pixel, 2 for a high-density screen.",
+    )
+    remember: bool = Field(
+        default=False,
+        description=(
+            "On `give_back`: keep the sign-in the person made while they held the "
+            "browser, so later browses acting as them start signed in (#2129)."
+        ),
+    )
+    by: str | None = Field(default=None, max_length=200)
+    by_user_id: str | None = Field(
+        default=None,
+        max_length=64,
+        description=(
+            "Who sent it, stamped by the live view from the socket's session - "
+            "never taken from the client. A sign-in is kept only for the person "
+            "the run acts for, and this is how the browse tells."
+        ),
+    )
+
+
+class BrowserControl(Protocol):
+    """Where a browse hears from the people watching it, between and during steps."""
+
+    async def poll(self) -> BrowserCommand | None:
+        """The next command waiting, or `None` - without waiting for one."""
+
+    async def wait(self, timeout: float) -> BrowserCommand | None:
+        """The next command, waiting up to `timeout` seconds for one to arrive."""

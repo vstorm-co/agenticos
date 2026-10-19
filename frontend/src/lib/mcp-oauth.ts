@@ -39,18 +39,30 @@ const DETAIL_LIMIT = 200;
 export const MCP_OAUTH_PARAMS = [
   "mcp_oauth",
   "mcp_oauth_name",
+  "mcp_oauth_connection",
   "mcp_oauth_failure",
   "mcp_oauth_detail",
 ] as const;
 
 export type McpOAuthOutcome =
-  | { status: "success"; name: string }
+  | {
+      status: "success";
+      name: string;
+      /** The organization's connection the consent completed, or null for a member's own. */
+      connectionId: string | null;
+    }
   | { status: "error"; failure: McpOAuthFailure }
   | { status: "upstream-error"; detail: string };
 
-/** The query for a consent that finished, naming the connection it created. */
-export function mcpOAuthConnected(name: string): string {
-  return `mcp_oauth=success&mcp_oauth_name=${encodeURIComponent(name)}`;
+/**
+ * The query for a consent that finished, naming the connection it created - and,
+ * for one of the organization's, which, so its return can offer it to an agent.
+ */
+export function mcpOAuthConnected(name: string, connectionId: string | null = null): string {
+  const named = `mcp_oauth=success&mcp_oauth_name=${encodeURIComponent(name)}`;
+  return connectionId === null
+    ? named
+    : `${named}&mcp_oauth_connection=${encodeURIComponent(connectionId)}`;
 }
 
 /** The query for one this deployment refused. */
@@ -72,7 +84,13 @@ export function readMcpOAuthOutcome(search: string): McpOAuthOutcome | null {
   const params = new URLSearchParams(search);
   const status = params.get("mcp_oauth");
   if (!status) return null;
-  if (status === "success") return { status: "success", name: params.get("mcp_oauth_name") ?? "" };
+  if (status === "success") {
+    return {
+      status: "success",
+      name: params.get("mcp_oauth_name") ?? "",
+      connectionId: params.get("mcp_oauth_connection"),
+    };
+  }
   const failure = params.get("mcp_oauth_failure");
   if (failure !== null && failure in FAILURE_KEYS) {
     return { status: "error", failure: failure as McpOAuthFailure };

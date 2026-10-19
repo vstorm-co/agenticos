@@ -3,8 +3,18 @@
 import { Pencil, Trash2, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { GroupIcon } from "@/components/groups/group-icon";
 import { ErrorState } from "@/components/states";
-import { Button, DataTable, ListCard, ListCardEmpty, type Column } from "@/components/ui";
+import Link from "next/link";
+import { ROUTES } from "@/lib/constants";
+import {
+  Button,
+  DataTable,
+  IconButton,
+  ListCard,
+  ListCardEmpty,
+  type Column,
+} from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Group } from "@/types/groups";
 
@@ -46,17 +56,28 @@ export function GroupList({
       className: "pl-5",
       header: t("name"),
       cell: (group) => (
-        <div className="min-w-0">
-          <p className="text-foreground truncate text-sm font-medium">{group.name}</p>
-          {group.description && (
-            <p className="text-muted-foreground truncate text-xs">{group.description}</p>
-          )}
+        <div className="flex min-w-0 items-center gap-3">
+          <GroupIcon icon={group.icon} />
+          <div className="min-w-0">
+            <Link
+              href={ROUTES.GROUP_DETAIL(group.id)}
+              className="text-foreground truncate text-sm font-medium hover:underline"
+            >
+              {group.name}
+            </Link>
+            {group.description && (
+              <p className="text-muted-foreground truncate text-xs">{group.description}</p>
+            )}
+          </div>
         </div>
       ),
     },
     {
       key: "members",
       header: t("members"),
+      // Not on a phone, where it pushed the row's actions past the edge; the
+      // group's own page lists who is in it.
+      className: "max-sm:hidden",
       cell: (group) => (
         <Button
           variant="ghost"
@@ -78,23 +99,21 @@ export function GroupList({
       className: "w-0 pr-5",
       cell: (group) => (
         <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
+          <IconButton
+            size="icon"
             onClick={() => onEdit(group)}
             aria-label={t("editNamed", { name: group.name })}
           >
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
+            <Pencil />
+          </IconButton>
+          <IconButton
+            size="icon"
             className="text-muted-foreground hover:text-destructive"
             onClick={() => onDelete(group)}
             aria-label={tc("removeNamed", { name: group.name })}
           >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+            <Trash2 />
+          </IconButton>
         </div>
       ),
     });
@@ -102,8 +121,10 @@ export function GroupList({
 
   return (
     <ListCard
+      namedByPage
       title={t("title")}
       counted={isLoading || error ? null : t("groupCount", { count: groups.length })}
+      empty={!isLoading && !error && groups.length === 0}
       contentClassName="p-0"
     >
       {error ? (

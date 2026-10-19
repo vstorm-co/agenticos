@@ -1,10 +1,12 @@
 "use client";
 
-import { create } from "zustand";
+import { create, createStore, type StateCreator } from "zustand";
+
+import { scopedStore } from "./chat-scope-context";
 import { clientId } from "@/lib/ids";
 import type { ChatMessage, MessagePart, ToolCall } from "@/types";
 
-interface ChatState {
+export interface ChatState {
   messages: ChatMessage[];
   isStreaming: boolean;
 
@@ -17,8 +19,9 @@ interface ChatState {
   addToolCall: (messageId: string, toolCall: ToolCall) => void;
   updateToolCall: (messageId: string, toolCallId: string, update: Partial<ToolCall>) => void;
   /** Append a streamed text delta - extends the trailing text part or
-   *  starts a new one, keeping the flat `content` aggregate in sync. */
-  appendTextDelta: (messageId: string, text: string) => void;
+   *  starts a new one, keeping the flat `content` aggregate in sync. `fresh`
+   *  starts one regardless: the delta opens a new model response. */
+  appendTextDelta: (messageId: string, text: string, fresh?: boolean) => void;
   /** Append a streamed reasoning delta - same logic for "thinking" parts. */
   appendThinkingDelta: (messageId: string, text: string) => void;
   /** Add a tool call as an ordered part (and to the flat `toolCalls`). */
@@ -29,7 +32,7 @@ interface ChatState {
   clearMessages: () => void;
 }
 
-export const useChatStore = create<ChatState>((set) => ({
+const chatState: StateCreator<ChatState> = (set) => ({
   messages: [],
   isStreaming: false,
 
@@ -69,13 +72,13 @@ export const useChatStore = create<ChatState>((set) => ({
       ),
     })),
 
-  appendTextDelta: (messageId, text) =>
+  appendTextDelta: (messageId, text, fresh = false) =>
     set((state) => ({
       messages: state.messages.map((msg) => {
         if (msg.id !== messageId) return msg;
         const parts: MessagePart[] = msg.parts ? [...msg.parts] : [];
         const last = parts[parts.length - 1];
-        if (last && last.type === "text") {
+        if (last && last.type === "text" && !fresh) {
           parts[parts.length - 1] = { ...last, content: (last.content ?? "") + text };
         } else {
           parts.push({ id: clientId(), type: "text", content: text });
@@ -134,4 +137,9 @@ export const useChatStore = create<ChatState>((set) => ({
   setStreaming: (streaming) => set({ isStreaming: streaming }),
 
   clearMessages: () => set({ messages: [] }),
-}));
+});
+
+/** A copy of its own, for a conversation in a scope - see `ChatScope`. */
+export const createChatStore = () => createStore<ChatState>()(chatState);
+
+export const useChatStore = scopedStore(create<ChatState>()(chatState), (scope) => scope.chat);

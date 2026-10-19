@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useAgentSelectionStore } from "./agent-selection-store";
+import { createAgentSelectionStore, useAgentSelectionStore } from "./agent-selection-store";
 
 describe("Agent selection store", () => {
   beforeEach(() => {
@@ -55,5 +55,19 @@ describe("Agent selection store", () => {
     // The whole point of a default is that a fresh browser starts on it.
     useAgentSelectionStore.getState().setDefault("a2");
     expect(localStorage.getItem("agent-selection")).toContain("a2");
+  });
+});
+
+describe("a scoped copy", () => {
+  it("starts on its own agent and keeps its selection out of the console's storage", () => {
+    localStorage.removeItem("agent-selection");
+    const scoped = createAgentSelectionStore("assistant");
+
+    expect(scoped.getState().selectedAgentId).toBe("assistant");
+    scoped.getState().select("other");
+    scoped.getState().setDefault("other");
+
+    expect(localStorage.getItem("agent-selection")).toBeNull();
+    expect(useAgentSelectionStore.getState().selectedAgentId).not.toBe("other");
   });
 });

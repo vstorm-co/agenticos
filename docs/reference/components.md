@@ -15,7 +15,7 @@ that question arrives from a security review rather than from a build system.
     and can only be listed by the deployment that chose it. The last section is
     how to write that half down; this page cannot write it for you.
 
-The machine-readable inventory is attached to every release as four
+The machine-readable inventory is attached to every release as six
 [CycloneDX](https://cyclonedx.org/) documents — one per image **per
 architecture**, because a published tag is a manifest list and the two variants
 do not contain the same packages. Licence evidence for every
@@ -36,8 +36,10 @@ both from the same tag rather than from `main`.
 |---|---|---|
 | `sbom-api-amd64.cdx.json`, `sbom-api-arm64.cdx.json` | the GitHub release assets | the `v*` tag they are attached to |
 | `sbom-frontend-amd64.cdx.json`, `sbom-frontend-arm64.cdx.json` | the GitHub release assets | the same |
+| `sbom-browser-amd64.cdx.json`, `sbom-browser-arm64.cdx.json` | the GitHub release assets | the same |
 | `ghcr.io/vstorm-co/agenticos-backend` | GHCR | `<version>`, `latest`, `edge`, `sha-<short>` |
 | `ghcr.io/vstorm-co/agenticos-frontend` | GHCR | the same |
+| `ghcr.io/vstorm-co/agenticos-browser` | GHCR | the same |
 | `THIRD_PARTY_NOTICES.md` | the repository, at that tag | the lockfiles at that commit |
 
 ## Components this project writes
@@ -80,15 +82,16 @@ Both are in the `Security Scan` job and in `make check`.
 |---|---|---|---|
 | `agenticos-backend` | a Debian-based Python image | the API, the worker, the migrations, the CLI, the backend dependency closure, the licence texts | `backend/Dockerfile` |
 | `agenticos-frontend` | a Debian-based Node image | the console's standalone build, its production dependency closure, the fonts, the per-package notices | `frontend/Dockerfile` |
+| `agenticos-browser` | `debian:bookworm-slim` | Chromium with a window under Xvfb, the desktop fonts, and `socat` to reach its DevTools - what the `browser` compose profile runs for the web browser capability | `docker/browser/Dockerfile` |
 
-Both are built for `amd64` and `arm64`, published to GHCR, and scanned with
+All three are built for `amd64` and `arm64`, published to GHCR, and scanned with
 Trivy after publication. The Debian packages each image installs are recorded in
 `licenses/components.toml` with their licence position, and appear in the
 CycloneDX documents because the generator reads the published image rather than
 the source tree.
 
-Services a deployment runs beside these two — PostgreSQL with pgvector, Redis, a
-reverse proxy, a Prefect server — are pulled by the operator from their own
+Services a deployment runs beside these three — PostgreSQL with pgvector, Redis, a
+reverse proxy, a Prefect server, the browser's Squid egress proxy — are pulled by the operator from their own
 publishers. They are named in the compose files, they are not built here, and
 they are not in this project's SBOM.
 
@@ -123,7 +126,7 @@ inventory.
 
 !!! warning "An image SBOM is not a system inventory"
 
-    The two CycloneDX documents describe two images. A deployment that connects a
+    The CycloneDX documents describe three images. A deployment that connects a
     hosted model, three MCP servers and an object store is running components no
     scan of those images can see. Treating the release SBOM as the whole
     inventory is the gap this section exists to name.
@@ -132,7 +135,7 @@ inventory.
 
 | Artifact | Produced by | When |
 |---|---|---|
-| The four release SBOMs | the `sbom` job in `.github/workflows/images.yml`, one per image per architecture, from the published manifests | every publish; attached to the release on a `v*` tag, kept as a run artifact otherwise |
+| The six release SBOMs | the `sbom` job in `.github/workflows/images.yml`, one per image per architecture, from the published manifests | every publish; attached to the release on a `v*` tag, kept as a run artifact otherwise |
 | `THIRD_PARTY_NOTICES.md` | `make licenses` | whenever a lockfile changes; `make licenses-check` fails the build when it is stale |
 | This page | by hand | whenever a component is added, removed or moved between the sets above |
 
@@ -142,7 +145,7 @@ what the **source tree declares**, not of what an image contains. They carry the
 development and documentation dependency groups if those are installed, and none
 of the layers underneath — no base image, no Debian packages, no built
 artifacts. Useful for reading a dependency set without pulling two images;
-useless as evidence of what a release ships, which is what the four documents
+useless as evidence of what a release ships, which is what the six documents
 above are for. It needs [syft](https://github.com/anchore/syft) installed and is
 deliberately not part of `make check`.
 

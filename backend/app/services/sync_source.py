@@ -400,6 +400,10 @@ class SyncSourceService:
         # A clone copies a config somebody else's row already holds, and rows
         # predating this check exist. Judged again rather than trusted.
         await _refuse_an_invalid_config(raw, existing.connector_type)
+        # And the credential, which is lent to the new collection's readers: the
+        # caller must be one who may bind it, as on create - a member's private
+        # secret behind somebody else's source is not theirs to lend.
+        await self._checked_secret(existing.secret_id, existing.connector_type, ctx)
 
         source = await sync_source_repo.create(
             self.db,

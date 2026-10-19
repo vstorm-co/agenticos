@@ -1,5 +1,5 @@
 ---
-source_sha: "35c351a5e658"
+source_sha: "512bef978a71"
 ---
 
 # Añade una capability { #add-a-capability }
@@ -125,7 +125,12 @@ __all__ = ["Weather"]
 
 
 class WeatherConfig(BaseModel):
-    units: str = Field(default="metric", pattern="^(metric|imperial)$")
+    units: str = Field(
+        default="metric",
+        pattern="^(metric|imperial)$",
+        title="Units",
+        description="metric for °C and km/h, imperial for °F and mph.",
+    )
 
 
 @register(
@@ -159,11 +164,18 @@ def _build(ctx: CapabilityBuildContext) -> Weather | None:
   que se separan.
 - **`config_schema`** genera el formulario del Builder y se valida al publicar,
   así que un valor malo falla mientras alguien mira un formulario y no a mitad de
-  un run.
+  un run. Cada campo lleva un `title` y una `description` escritos para quien lo
+  rellena, y esos mismos dos textos bajo `capabilityConfig.<id>.<campo>` en
+  `frontend/messages/en.json`, `pl.json` y `de.json`. Sin título el formulario
+  muestra el nombre del campo, en inglés, en todos los idiomas;
+  `tests/test_capability_registry.py` falla con un campo sin título o sin entrada
+  en el catálogo, y con una entrada en inglés que difiere del esquema.
 - **`scopes`** se rechazan en el momento de construir cuando la organización no
   los ha concedido.
-- **`side_effecting=True`** encamina las herramientas de la capability por la
-  puerta de aprobación.
+- **`side_effecting=True`** marca las herramientas de la capability como que actúan
+  sobre el mundo, y el Builder lo dice junto a la elección de aprobación. No pone
+  nada tras una puerta: ninguna herramienta espera a una persona hasta que un autor
+  lo pide.
 - **Devolver `None`** significa "no aporta nada a *este* agent" y la capability
   no se adjunta en absoluto. `knowledge` lo hace cuando no hay colecciones
   vinculadas: una herramienta de búsqueda que siempre devuelve vacío es peor que
@@ -217,7 +229,7 @@ modo. Aquí es donde vive el razonamiento, no en el mensaje del commit.
     `test_every_file_in_a_platform_package_is_gated` existe para que siga siendo
     cierto. Editar esas listas es para un *paquete* de plataforma nuevo, fuera de
     los que ya cubren los globs. Ver `## Testing` en
-    `CLAUDE.md`, y `tests/test_capability_registry.py` para el estilo.
+    `AGENTS.md`, y `tests/test_capability_registry.py` para el estilo.
 
 Vale la pena cubrir en concreto:
 

@@ -14,6 +14,7 @@ class ThinkingConfig(BaseModel):
     """How much reasoning to ask the model for."""
 
     effort: ThinkingEffort | None = Field(
+        title="Reasoning effort",
         default=None,
         description=(
             "How hard the model reasons before answering. Leave unset for the "

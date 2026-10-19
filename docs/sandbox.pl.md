@@ -1,5 +1,5 @@
 ---
-source_sha: "28df8e05f4b0"
+source_sha: "904d3115d4e7"
 ---
 
 # Sandbox { #the-sandbox }
@@ -80,6 +80,11 @@ xc-4f2a91c8-7b3e5d10-9c1f…      backend · scope · organization · host · su
 **Zasięg** jest polem speca agenta — `run`, `conversation`, `channel`, `user`
 albo `agent`. Zatem `conversation`, czyli zwykły wybór, oznacza jeden kontener
 i jeden katalog na czat; `agent` oznacza, że każdy run tego agenta dzieli jeden.
+
+`user` należy do zalogowanej osoby, więc run, który kogoś zastępuje, go nie ma:
+gość widgetu i odpalenie triggera dostają odmowę zamiast workspace'u wydawcy albo
+twórcy — chyba że trigger
+[działa jako jego twórca](concepts.md#unless-its-creator-lets-it-run-as-them).
 
 Klucz jest też **nazwą** sesji na hoście — id sesji `sandboxd`, nazwą sandboksa
 Daytona — więc każdy run danego zasięgu otwiera ją po tej nazwie: pierwszy ją
@@ -452,10 +457,10 @@ Co pozostaje, powiedziane wprost, a nie tylko zasugerowane:
 
 ## Co pokazuje przeglądarka plików, a co pomija { #what-the-file-browser-shows-and-what-it-leaves-out }
 
-`/workspaces` wypisuje to, co agent trzyma **dla człowieka**, a nie jest to ten
+**Documents** (`/documents`) wypisuje to, co agent trzyma **dla człowieka**, a nie jest to ten
 sam zbiór co to, co leży na wolumenie. Dwa prefiksy są pomijane w każdym
-zestawieniu, które czyta człowiek — w widoku płaskim, we własnych plikach
-workspace'u, w panelu rozmowy i w liczbach plików:
+zestawieniu, które czyta człowiek — na liście wszystkich plików, w plikach
+jednego folderu, w panelu rozmowy i w liczbach plików:
 
 - `skills/` — treść skilla i jego zasoby, zapisywane na starcie każdego runa,
   który ma i skille, i workspace. Są tam potrzebne: zasób to skrypt, który

@@ -145,6 +145,22 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
       },
+      testIgnore: /\.mobile\.spec\.ts/,
+      dependencies: ["seed"],
+    },
+
+    /*
+     * A phone, for what only a phone does to the console (#2066): a touch
+     * keyboard, a narrow screen, the zoom iOS applies to a small field. Read-only
+     * specs, so it adds no second writer to the one database; a Chromium phone,
+     * because that is the engine the CI job installs.
+     */
+    {
+      name: "mobile",
+      use: {
+        ...devices["Pixel 7"],
+      },
+      testMatch: /\.mobile\.spec\.ts/,
       dependencies: ["seed"],
     },
   ],

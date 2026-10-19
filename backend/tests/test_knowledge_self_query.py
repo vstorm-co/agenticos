@@ -35,7 +35,6 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
 from app.agents.capabilities.budget import (
-    BudgetExceeded,
     BudgetGuard,
     BudgetScope,
     SpendLedger,
@@ -47,6 +46,7 @@ from app.agents.capabilities.knowledge import KnowledgeConfig
 from app.agents.capabilities.knowledge._search import organizational_units_in_scope
 from app.agents.capabilities.knowledge._self_query import (
     describe_filters,
+    has_any_filter,
     infer_filters_from_query,
 )
 from app.agents.capabilities.knowledge._toolset import build_knowledge_toolset
@@ -265,10 +265,13 @@ class TestInferFilters:
         assert seen == [dict(settings)]
 
     @pytest.mark.security
-    async def test_an_exhausted_budget_refuses_before_the_request(self):
+    async def test_an_exhausted_budget_infers_nothing_and_sends_nothing(self):
+        """At a cap the inference is skipped, as query expansion is: unfiltered,
+        not a run ended by a filter nobody asked for (agenticos#1808)."""
         calls: list[int] = []
-        with guarded_by(_exhausted_budget()), pytest.raises(BudgetExceeded):
-            await _infer(_answering({"document_type": ["pdf"]}, calls=calls))
+        with guarded_by(_exhausted_budget()):
+            inferred = await _infer(_answering({"document_type": ["pdf"]}, calls=calls))
+        assert inferred is None
         assert calls == []
 
     @pytest.mark.security
@@ -295,8 +298,8 @@ class TestInferFilters:
                 ]
             )
 
-        with guarded_by(guard), pytest.raises(BudgetExceeded):
-            await _infer(FunctionModel(respond))
+        with guarded_by(guard):
+            assert await _infer(FunctionModel(respond)) is None
         assert calls == [1]
 
 
@@ -477,20 +480,23 @@ class TestSelfQueryWiring:
         backend.assert_not_awaited()
 
     @pytest.mark.security
-    async def test_an_exhausted_budget_stops_the_search_before_any_request(self):
-        """Not swallowed into the tool's "unavailable" steer: the runner surfaces it."""
+    async def test_an_exhausted_budget_skips_the_inference_and_still_searches(self):
+        """The same as query expansion at a cap: no model request, and the plain
+        query searched unfiltered within the enforced scope (agenticos#1808)."""
         calls: list[int] = []
         with (
-            patch(f"{_TOOLSET}.search_knowledge_base", new=AsyncMock()) as backend,
+            patch(
+                f"{_TOOLSET}.search_knowledge_base", new=AsyncMock(return_value="hits")
+            ) as backend,
             patch(f"{_TOOLSET}.organizational_units_in_scope", new=AsyncMock(return_value=[])),
             guarded_by(_exhausted_budget()),
-            pytest.raises(BudgetExceeded),
         ):
-            await self._search()(
+            answer = await self._search()(
                 _sq_ctx(_answering({"document_type": ["pdf"]}, calls=calls)), query="pdfs"
             )
         assert calls == []
-        backend.assert_not_awaited()
+        assert answer == "hits"
+        assert not has_any_filter(backend.await_args.kwargs["filters"])
 
     async def test_a_defect_in_the_inference_reaches_the_runner(self):
         with (

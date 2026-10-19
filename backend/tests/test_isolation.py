@@ -12,6 +12,7 @@ import dataclasses
 import datetime
 import json
 import uuid
+from collections import Counter
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -197,7 +198,8 @@ class TestWhatAnIsolatedRunExecutes:
             ),
         )
 
-        assert world.effects == [("crm_find", "Ada"), ("sandbox_create", "Ada")]
+        # One response's calls run concurrently, so they land in any order.
+        assert Counter(world.effects) == Counter([("crm_find", "Ada"), ("sandbox_create", "Ada")])
         assert [call.tool_name for call in isolation.intercepted] == ["crm_create"]
 
     async def test_a_production_tool_claiming_to_read_is_held_unless_its_connection_trusts_it(
@@ -289,10 +291,12 @@ class TestWhatAnIsolatedRunExecutes:
         )
 
         assert world.effects == ([("crm_find", "Grace")] if live_reads else [])
-        assert [(call.tool_name, call.outcome) for call in isolation.intercepted] == [
-            *([] if live_reads else [("crm_find", InterceptionOutcome.DIVERGENT)]),
-            ("sandbox_create", InterceptionOutcome.DIVERGENT),
-        ]
+        assert Counter((call.tool_name, call.outcome) for call in isolation.intercepted) == Counter(
+            [
+                *([] if live_reads else [("crm_find", InterceptionOutcome.DIVERGENT)]),
+                ("sandbox_create", InterceptionOutcome.DIVERGENT),
+            ]
+        )
 
     async def test_a_delegates_calls_are_attributed_to_it(self):
         delegate_id = uuid.uuid4()

@@ -18,6 +18,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+from pydantic_ai_harness.ask_user import TIMED_OUT
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -60,6 +61,7 @@ class ApprovalService:
         agent_id: UUID,
         tool_id: str,
         tool_args: dict[str, Any],
+        account: str | None = None,
         subagent_name: str | None = None,
         subagent_agent_id: UUID | None = None,
         standing_consent_by: UUID | None = None,
@@ -77,6 +79,8 @@ class ApprovalService:
             approval_id: The row's id, already handed to the surface and stored in
                 the run's `paused_state`, so the write cannot mint a second one.
             agent_id: The agent whose run this is, which is what scopes the row.
+            account: Which account of an MCP service the call acts as, where its
+                binding names one - "Send mail" from which of two mailboxes.
             subagent_name: Which delegate is acting, when the call came from inside
                 a delegation. A delegate's gated tool reaches the run's own approval
                 channel, so without this the queue says `send_email` without saying
@@ -99,6 +103,7 @@ class ApprovalService:
             agent_id=agent_id,
             tool_id=tool_id,
             tool_args=tool_args,
+            account=account,
             subagent_name=subagent_name,
             subagent_agent_id=subagent_agent_id,
             standing_consent_by=standing_consent_by,
@@ -250,6 +255,43 @@ class ApprovalService:
             )
 
         logger.info("Approval sweep: expired %d approval(s), ended %d run(s)", len(stale), settled)
+        return len(stale)
+
+    async def expire_unanswered(self) -> int:
+        """End every run whose `ask_user` question nobody answered in time (#2064).
+
+        The same bargain as :meth:`expire_stale`: the run is ended where it stopped
+        rather than continued, because continuing is a model request nobody asked
+        for. The question's step is closed with the harness's "did not answer in
+        time", so the next turn in the conversation reads that the person never
+        answered rather than a question still open.
+
+        Returns:
+            How many runs were ended.
+        """
+        now = datetime.now(UTC)
+        stale = await agent_run_repo.list_unanswered_runs(
+            self.db, older_than=now - timedelta(hours=settings.QUESTION_EXPIRY_HOURS)
+        )
+        for run in stale:
+            questions: list[str] = (run.paused_state or {}).get("questions", [])
+            await TranscriptService(self.db).record(
+                run, prompt=None, answer="", settled=dict.fromkeys(questions, TIMED_OUT)
+            )
+            await agent_run_repo.finish_run(
+                self.db,
+                run=run,
+                status=RunStatus.CANCELLED.value,
+                input_tokens=run.input_tokens,
+                output_tokens=run.output_tokens,
+                cost_usd=run.cost_usd,
+                cost_is_partial=run.cost_is_partial,
+                ended_at=now,
+                error=f"No answer within {settings.QUESTION_EXPIRY_HOURS}h - the question expired",
+                paused_state=None,
+            )
+        if stale:
+            logger.info("Question sweep: ended %d unanswered run(s)", len(stale))
         return len(stale)
 
     async def _settle_expired_run(

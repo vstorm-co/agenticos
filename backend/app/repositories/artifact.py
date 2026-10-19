@@ -5,19 +5,35 @@ predicate pieces the access layer resolved rather than re-deriving them, the
 shape `context_repo` and `skill_repo` use.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, delete, false, func, or_, select
 from sqlalchemy import update as sql_update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
 from app.db.models.agent_environment import AgentEnvironment
-from app.db.models.artifact import Artifact, ArtifactVersion
+from app.db.models.artifact import Artifact, ArtifactFollower, ArtifactVersion
 from app.db.models.resource_grant import Visibility
 from app.repositories._search import contains_ci
+
+
+async def get_many(
+    db: AsyncSession, artifact_ids: Sequence[UUID], *, organization_id: UUID
+) -> dict[UUID, Artifact]:
+    """Several apps at once, by id, inside one organization."""
+    if not artifact_ids:
+        return {}
+    result = await db.execute(
+        select(Artifact).where(
+            Artifact.id.in_(list(artifact_ids)), Artifact.organization_id == organization_id
+        )
+    )
+    return {artifact.id: artifact for artifact in result.scalars().all()}
 
 
 async def get(db: AsyncSession, artifact_id: UUID, *, organization_id: UUID) -> Artifact | None:
@@ -129,6 +145,7 @@ async def list_visible(
     shared_with_me: bool = False,
     search: str | None = None,
     agent_id: UUID | None = None,
+    only_ids: Sequence[UUID] | None = None,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Artifact], int]:
@@ -139,6 +156,7 @@ async def list_visible(
         shared_ids: Artifact ids explicitly shared with this member.
         shared_with_me: Narrow to rows shared with the caller and not their own.
         agent_id: Narrow to one agent's pages, on top of the visibility rules.
+        only_ids: Narrow to these rows - the pages shared with one group.
     """
     where = _visible(
         organization_id=organization_id,
@@ -151,6 +169,8 @@ async def list_visible(
         where.append(or_(contains_ci(Artifact.title, search), contains_ci(Artifact.name, search)))
     if agent_id is not None:
         where.append(Artifact.agent_id == agent_id)
+    if only_ids is not None:
+        where.append(Artifact.id.in_(only_ids))
     items = await db.execute(
         select(Artifact)
         .where(*where)
@@ -169,7 +189,7 @@ async def publishing_agents(
     user_id: UUID,
     see_all: bool,
     shared_ids: list[UUID],
-) -> list[tuple[UUID, str]]:
+) -> list[Agent]:
     """The agents behind the artifacts one member may see, by name - an agent filter's options.
 
     Named through the artifacts rather than the agents the member may open: a page
@@ -184,13 +204,13 @@ async def publishing_agents(
         shared_with_me=False,
     )
     result = await db.execute(
-        select(Agent.id, Agent.name)
+        select(Agent)
         .join(Artifact, Artifact.agent_id == Agent.id)
         .where(*where)
         .distinct()
         .order_by(Agent.name.asc(), Agent.id.asc())
     )
-    return [(row[0], row[1]) for row in result.all()]
+    return list(result.scalars().all())
 
 
 async def create(
@@ -422,3 +442,40 @@ async def environment_names(db: AsyncSession, environment_ids: list[UUID]) -> di
         )
     )
     return {row[0]: row[1] for row in result.all()}
+
+
+async def follow(db: AsyncSession, *, artifact_id: UUID, user_id: UUID) -> None:
+    """Add a follower; following twice is following once."""
+    await db.execute(
+        pg_insert(ArtifactFollower)
+        .values(artifact_id=artifact_id, user_id=user_id)
+        .on_conflict_do_nothing(constraint="uq_artifact_follower")
+    )
+    await db.flush()
+
+
+async def unfollow(db: AsyncSession, *, artifact_id: UUID, user_id: UUID) -> None:
+    await db.execute(
+        delete(ArtifactFollower).where(
+            ArtifactFollower.artifact_id == artifact_id, ArtifactFollower.user_id == user_id
+        )
+    )
+    await db.flush()
+
+
+async def is_following(db: AsyncSession, *, artifact_id: UUID, user_id: UUID) -> bool:
+    result = await db.execute(
+        select(ArtifactFollower.id).where(
+            ArtifactFollower.artifact_id == artifact_id, ArtifactFollower.user_id == user_id
+        )
+    )
+    return result.first() is not None
+
+
+async def follower_ids(db: AsyncSession, artifact_id: UUID) -> list[UUID]:
+    result = await db.execute(
+        select(ArtifactFollower.user_id)
+        .where(ArtifactFollower.artifact_id == artifact_id)
+        .order_by(ArtifactFollower.created_at)
+    )
+    return list(result.scalars().all())

@@ -98,6 +98,10 @@ _PATTERN_ALLOWED: dict[str, str] = {
         "the listing) has no such field, so it is never re-exposed"
     ),
     "secret_id": "a reference to a stored secret, not the secret",
+    "api_keys": (
+        "the personal-data export's list of keys a person issued: name, prefix, "
+        "scopes and dates, never the key or its hash"
+    ),
     "secret_hint": (
         "the vault's own four characters, so a reader can tell which credential a "
         "sync source uses without being shown it - the same shape as `token_hint`"

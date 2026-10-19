@@ -1,5 +1,5 @@
 ---
-source_sha: "3b3318780aed"
+source_sha: "aec1756f1b79"
 ---
 
 # Ihr erster Agent { #your-first-agent }
@@ -109,7 +109,7 @@ Zwei Dinge lohnen sich hier zu wissen:
 - **Name und Beschreibung eines Tools sind Prompt.** Nach
   `search_refund_policy` wird bei Fragen gegriffen, bei denen
   `search_documents` übergangen wird. Beides ist pro Agent editierbar.
-- Als nebenwirkend deklarierte Werkzeuge verlangen gemäß konfigurierter Richtlinie eine Freigabe. Prüfen Sie Capability- und Werkzeugüberschreibungen vor der Veröffentlichung.
+- Nichts fragt nach einer Freigabe, bis Sie es festlegen. Wählen Sie **Always ask** bei einer Capability oder bei einem einzelnen Tool, das eine Person sehen soll, bevor es läuft.
 
 ## 5. Ihm etwas zu lesen geben { #5-give-it-something-to-read }
 
@@ -210,8 +210,7 @@ Neun Schritte, und ihre Form ist die Form der Plattform:
 2. Ein **Model-Profil** benannt, damit Key und Model sich ändern können, ohne
    dass der Agent sich ändert.
 3. **Instructions** geschrieben.
-4. **Capabilities** eingeschaltet und die mit Nebenwirkung nach Freigabe fragen
-   lassen.
+4. **Capabilities** eingeschaltet und gewählt, welche davon nach Freigabe fragen.
 5. **Knowledge** zum Durchsuchen und **Skills** zum Lesen angehängt.
 6. Ein **Budget** und ein **Schrittlimit** gesetzt und gesagt, wer
    benachrichtigt wird.
@@ -313,6 +312,25 @@ Zwei davon sind mit Absicht anders geformt:
 
     Jede Anordnung gilt pro Person, also verschiebt Ausprobieren niemandes andere
     Seite.
+
+## Was Sie schon tun können { #what-you-can-already-do }
+
+Vier Dinge, nach denen Leute suchen und die sie allein nicht finden:
+
+- **Auf eine Website, eine gehostete Seite, einen WebSocket oder die öffentliche
+  API bringen** - der Tab **Availability** des Agents. Der Builder zeigt nach der
+  ersten Veröffentlichung dorthin.
+- **Ein Werkzeug mit dem eigenen Konto verbinden** - jede Person ihr eigenes
+  GitHub, Gmail oder Notion - über die Karte des Servers unter **MCP servers**.
+  Siehe [MCP](mcp.md#personal-or-organization-wide).
+- **Die Dateien finden, die ein Agent gespeichert hat** - was Leute angehängt
+  und Agents geschrieben haben, liegt unter **Documents**.
+- **Ihn wie ein Dokument teilen** - **Share** im Kopf des Builders fügt eine
+  Person oder Gruppe hinzu und legt fest, wer ihn sonst findet. Siehe
+  [Berechtigungen](permissions.md).
+
+Der **Architect** in der Ecke jeder Seite beantwortet dieselben Fragen und
+verlinkt zum richtigen Bedienelement.
 
 ## Weiter { #next }
 

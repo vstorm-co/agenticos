@@ -43,7 +43,7 @@ async function openBell(page: Page) {
 async function storeThrowawaySecret(page: Page, name: string) {
   await page.getByRole("button", { name: "Add key" }).first().click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("Add a secret")).toBeVisible();
+  await expect(dialog.getByText("Add a key")).toBeVisible();
 
   await dialog.getByRole("button", { name: /^Something else/ }).click();
   await dialog.getByLabel(/^(Which one|Service)$/).click();
@@ -53,7 +53,7 @@ async function storeThrowawaySecret(page: Page, name: string) {
   await dialog.getByRole("textbox", { name: /API key/i }).fill("sk-e2eNOTIFnotarealkeyatallZZ99");
   await submitDialog(page, {
     dialog,
-    submit: dialog.getByRole("button", { name: "Store secret" }),
+    submit: dialog.getByRole("button", { name: "Store key" }),
     path: "/api/secrets",
   });
 }
