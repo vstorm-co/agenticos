@@ -408,6 +408,10 @@ minutes, and every session request answered 409 until the build was done. A
 build that fails is tried three times there and twice at start-up. A runtime
 still not built is built on demand, as before, and the deploy log names it.
 
+While a session waits on such a build, the chat says so above the composer:
+"Preparing the sandbox". Opening waits up to ten minutes for it, not the 30
+seconds of an ordinary request.
+
 What is left to wait for: a runtime the deploy could not prepare, and a host
 whose image cache was cleared. `SANDBOXD_PERSIST_CONTAINERS: true` then removes
 most of the rest — a closed session keeps its container, so the next session on

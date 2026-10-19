@@ -1,5 +1,5 @@
 ---
-source_sha: "7fd0638b3003"
+source_sha: "05107985887a"
 ---
 
 # La sandbox { #the-sandbox }
@@ -435,6 +435,10 @@ tras una versión así esperó minutos, y cada petición de sesión respondió 4
 que terminó la construcción. Una construcción que falla se reintenta tres veces
 ahí y dos al arrancar. Un runtime que siga sin construir se construye bajo
 demanda, como antes, y el log del despliegue lo nombra.
+
+Mientras una sesión espera una construcción así, el chat lo dice encima del campo
+de escritura: «Preparando el sandbox». Abrirla espera hasta diez minutos, no los 30
+segundos de una petición normal.
 
 Lo que queda por esperar: un runtime que el despliegue no pudo preparar, y un
 host cuya caché de imágenes se vació. `SANDBOXD_PERSIST_CONTAINERS: true` quita

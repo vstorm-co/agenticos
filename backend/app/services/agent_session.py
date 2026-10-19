@@ -721,6 +721,7 @@ class AgentSession:
                     subagent_events=self._subagent_event,
                     on_compaction=self._compaction_event,
                     browser_events=self._browser_event,
+                    on_sandbox_wait=self._sandbox_wait_event,
                     on_personal_gaps=self._personal_gaps_event,
                     request_connection=self._request_connection,
                     # The chat may run a published agent on another of the
@@ -1130,6 +1131,15 @@ class AgentSession:
             Whether the frame reached the client.
         """
         return await self._emit(event.kind, event.model_dump(mode="json"))
+
+    async def _sandbox_wait_event(self) -> None:
+        """Say the run's sandbox is still being opened (#2222).
+
+        The first session after an update builds the runtime's image on the host,
+        minutes in which nothing streams. The console shows a notice above the
+        composer until the next tool result or the end of the turn.
+        """
+        await self._emit("sandbox_preparing", {})
 
     async def _personal_gaps_event(self, gaps: list[PersonalServiceGap]) -> None:
         """Say which of the agent's personal services this person cannot reach yet.

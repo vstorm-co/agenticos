@@ -985,6 +985,7 @@
       "summarizePrompt": "Daj mi zwięzłe podsumowanie naszej dotychczasowej rozmowy - główne tematy, decyzje i otwarte pytania."
     },
     "compacting": "Podsumowuję dotychczasową rozmowę, żeby zmieściła się w limicie modelu…",
+    "sandboxPreparing": "Przygotowuję sandbox. Pierwszy run po aktualizacji go buduje, co może potrwać kilka minut…",
     "compactingCount": "{count, plural, one {Podsumowuję 1 wcześniejszą wiadomość} few {Podsumowuję # wcześniejsze wiadomości} many {Podsumowuję # wcześniejszych wiadomości} other {Podsumowuję # wcześniejszej wiadomości}}, żeby rozmowa zmieściła się w limicie modelu…",
     "compactionImpossible": "Zarządzanie kontekstem nie może działać: instrukcje i narzędzia tego agenta zajmują {overhead, number} tokenów z okna {window, number} tokenów, które dostał, czyli już więcej niż próg kompakcji. Zwiększ okno albo próg w Narzędziach.",
     "personalServices": {

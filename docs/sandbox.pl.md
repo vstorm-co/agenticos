@@ -1,5 +1,5 @@
 ---
-source_sha: "7fd0638b3003"
+source_sha: "05107985887a"
 ---
 
 # Sandbox { #the-sandbox }
@@ -422,6 +422,10 @@ runtime, płaci więc za build, gdy stara usługa wciąż obsługuje ruch. Wcze�
 żądanie sesji dostawało 409, dopóki build się nie skończył. Build, który się nie
 uda, jest tam ponawiany trzy razy, a przy starcie dwa. Runtime, który nadal nie
 jest zbudowany, buduje się na żądanie, jak wcześniej, a log deployu go wymienia.
+
+Gdy sesja czeka na taki build, czat mówi o tym nad polem wpisywania:
+„Przygotowuję sandbox”. Otwarcie czeka na niego do dziesięciu minut, a nie 30
+sekund zwykłego żądania.
 
 Co zostaje do czekania: runtime, którego deploy nie zdołał przygotować, oraz
 host, któremu wyczyszczono cache obrazów. `SANDBOXD_PERSIST_CONTAINERS: true` usuwa

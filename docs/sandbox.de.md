@@ -1,5 +1,5 @@
 ---
-source_sha: "7fd0638b3003"
+source_sha: "05107985887a"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -448,6 +448,10 @@ solchen Release minutenlang, und jede Session-Anfrage bekam 409, bis der Build
 fertig war. Ein fehlgeschlagener Build wird dort dreimal versucht und beim Start
 zweimal. Eine Runtime, die danach noch nicht gebaut ist, wird wie bisher bei
 Bedarf gebaut, und das Deploy-Log nennt sie.
+
+Solange eine Session auf einen solchen Build wartet, sagt der Chat das über dem
+Eingabefeld: „Die Sandbox wird vorbereitet“. Das Öffnen wartet bis zu zehn Minuten
+darauf, nicht die 30 Sekunden einer gewöhnlichen Anfrage.
 
 Was zu warten bleibt: eine Runtime, die das Deployment nicht vorbereiten konnte,
 und ein Host, dessen Image-Cache geleert wurde.

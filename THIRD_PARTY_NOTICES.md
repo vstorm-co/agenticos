@@ -240,7 +240,7 @@ names no author is in the evidence column below.
 | pyasn1-modules | 0.4.2 | BSD-2-Clause | https://github.com/pyasn1/pyasn1-modules | licence file text |
 | pycparser | 3.0 | BSD-3-Clause | https://github.com/eliben/pycparser | License-Expression |
 | pydantic | 2.13.5 | MIT | https://github.com/pydantic/pydantic | License-Expression |
-| pydantic-ai-backend | 0.2.33 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
+| pydantic-ai-backend | 0.2.34 | MIT | https://github.com/vstorm-co/pydantic-ai-backend | License-Expression |
 | pydantic-ai-harness | 0.55.0 | MIT | https://github.com/pydantic/pydantic-ai | License-Expression |
 | pydantic-ai-skills | 2.1.0 | MIT | https://github.com/dougtrajano/pydantic-ai-skills | License-Expression |
 | pydantic-ai-slim | 2.55.0 | MIT | https://github.com/pydantic/pydantic-ai/tree/main/pydantic_ai_slim | License-Expression |

@@ -304,6 +304,11 @@ export function useChat(options: UseChatOptions = {}) {
   // it outlives a turn: it describes what is configured, and clearing it when the
   // turn ends would flash the one message that explains why nothing happened.
   const [compactionImpossible, setCompactionImpossible] = useState<Compaction | null>(null);
+  // Whether the run's sandbox is still being opened. The first session after an
+  // update builds the runtime's image on the host, which is minutes during which no
+  // token and no tool step arrives (#2222). Cleared by the next tool result and by
+  // the end of the turn, which is when the session is known to be open or gone.
+  const [sandboxPreparing, setSandboxPreparing] = useState(false);
   // The agent's personal MCP services this person cannot reach, for the turn on
   // screen. Cleared when the next question is sent: the card belongs beside the
   // answer that says the agent could not reach them.
@@ -761,6 +766,7 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "tool_result": {
+          setSandboxPreparing(false);
           if (currentMessageIdRef.current) {
             const { tool_call_id, content } = wsEvent.data as {
               tool_call_id: string;
@@ -847,6 +853,11 @@ export function useChat(options: UseChatOptions = {}) {
           );
           // A summary that ran is the answer to the warning above it.
           setCompactionImpossible(null);
+          break;
+        }
+
+        case "sandbox_preparing": {
+          setSandboxPreparing(true);
           break;
         }
 
@@ -992,6 +1003,7 @@ export function useChat(options: UseChatOptions = {}) {
             }
             // Whatever else this turn did, it is not summarising any more.
             setCompacting(null);
+            setSandboxPreparing(false);
             if (usage) {
               setLiveUsage({
                 // From the store rather than the render closure: a turn that created
@@ -1415,6 +1427,7 @@ export function useChat(options: UseChatOptions = {}) {
     }
     setCompacting(null);
     setCompactionImpossible(null);
+    setSandboxPreparing(false);
     setPersonalGaps([]);
     approvalOfferedForRef.current = new Set();
     // Both, or a question read for this conversation and dropped because the
@@ -2113,6 +2126,8 @@ export function useChat(options: UseChatOptions = {}) {
     isProcessing,
     compacting,
     compactionImpossible,
+    /** Whether the run's sandbox is still being opened - see `SandboxPreparingNotice`. */
+    sandboxPreparing,
     /** A turn whose socket went away. The answer is still being written; see `onTurnInterrupted`. */
     interrupted,
     /**

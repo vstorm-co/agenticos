@@ -4695,3 +4695,44 @@ class TestADestroyThatFailsIsRetried:
         assert next_destroy_attempt(1, now) - now == timedelta(minutes=2)
         assert next_destroy_attempt(3, now) - now == timedelta(minutes=8)
         assert next_destroy_attempt(20, now) - now == RETRY_CAP
+
+
+class TestTheWaitNotice:
+    """#2222: the sandbox client is handed this before the chat that could fill it exists."""
+
+    async def test_with_no_surface_it_says_nothing(self):
+        await sandbox_workspace.WaitNotice()()
+
+    async def test_it_tells_whatever_surface_filled_it(self):
+        heard = AsyncMock()
+        notice = sandbox_workspace.WaitNotice()
+        notice.sink = heard
+
+        await notice()
+
+        heard.assert_awaited_once_with()
+
+    async def test_a_sandboxd_workspace_is_handed_the_runs_notice(
+        self, monkeypatch, mock_db_session, sandboxes
+    ):
+        _serve(monkeypatch, _resolved())
+        _a_row_is_created(monkeypatch)
+
+        opened = await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+
+        assert opened is not None
+        assert sandboxes.made[0]["on_wait"] is opened.wait_notice
+
+
+def test_the_real_client_is_handed_the_notice():
+    """Against the installed library, not the fake: `on_wait` arrived in
+    pydantic-ai-backend 0.2.34, and an older one would refuse the keyword."""
+    from pydantic_ai_backends.workspaces import SandboxdWorkspace as RealSandboxd
+
+    notice = sandbox_workspace.WaitNotice()
+    made = SandboxWorkspaceService._service_capability(_resolved(), "sc-1", on_wait=notice)
+
+    assert isinstance(made, RealSandboxd)
+    assert made.on_wait is notice

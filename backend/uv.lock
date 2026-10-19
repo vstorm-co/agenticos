@@ -149,7 +149,7 @@ requires-dist = [
     { name = "prefect", specifier = ">=3.8.7" },
     { name = "psycopg2-binary", specifier = ">=2.9.13" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.13.5" },
-    { name = "pydantic-ai-backend", extras = ["console", "remote", "workspaces", "daytona"], specifier = ">=0.2.33" },
+    { name = "pydantic-ai-backend", extras = ["console", "remote", "workspaces", "daytona"], specifier = ">=0.2.34" },
     { name = "pydantic-ai-harness", specifier = ">=0.55.0" },
     { name = "pydantic-ai-skills", specifier = ">=2.1.0" },
     { name = "pydantic-ai-slim", extras = ["mcp"], specifier = ">=2.55.0" },
@@ -4602,15 +4602,15 @@ email = [
 
 [[package]]
 name = "pydantic-ai-backend"
-version = "0.2.33"
+version = "0.2.34"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "wcmatch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/45/1e/da7d315d5da8145eb10ee89c376a15953828675b8ece345d57980f16d509/pydantic_ai_backend-0.2.33.tar.gz", hash = "sha256:d2ea447c95478e22f5406a11ef9ff6e96b806617bd13dade4a3e970cb48fda96", size = 2818691, upload-time = "2026-10-05T22:48:23.922Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/01/78/fdc7acc0e4643f3f35f8a6a3ed9abbcefdb02cfd097ea8bc0f8901ef7426/pydantic_ai_backend-0.2.34.tar.gz", hash = "sha256:37574004948671bb0d5727f98a65aabd77193699026bfad1f46ba8a64693ea17", size = 2823776, upload-time = "2026-10-19T08:44:24.452Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9a/15/04fcd887d74a9c075c3d31aa3af5fc85f76c87812919b71d41f55f73ac58/pydantic_ai_backend-0.2.33-py3-none-any.whl", hash = "sha256:8846f4cb7219c70b0c6da7576f4bcef63d7b45b738280bed9cb77b494b3251cf", size = 200155, upload-time = "2026-10-05T22:48:22.295Z" },
+    { url = "https://files.pythonhosted.org/packages/80/13/f709b2d89cc00459e18b3d917987361ed8158848031f91f01f293306068e/pydantic_ai_backend-0.2.34-py3-none-any.whl", hash = "sha256:67adffe7db446ad2fc8b1fcc7731073b42ed0b08c44a06aad71720f1cea0cafa", size = 202949, upload-time = "2026-10-19T08:44:22.579Z" },
 ]
 
 [package.optional-dependencies]

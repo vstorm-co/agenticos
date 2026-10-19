@@ -985,6 +985,7 @@
       "summarizePrompt": "Please give me a concise summary of our conversation so far - key topics, decisions, and any open questions."
     },
     "compacting": "Summarising the conversation so far, to keep it inside the model's limit…",
+    "sandboxPreparing": "Preparing the sandbox. The first run after an update builds it, which can take a few minutes…",
     "compactingCount": "{count, plural, =1 {Summarising 1 earlier message} other {Summarising # earlier messages}} to keep the conversation inside the model's limit…",
     "compactionImpossible": "Context management cannot run: this agent's instructions and tools take {overhead, number} tokens of the {window, number}-token window it was given, which is already past the point it would compact at. Raise the window or the fraction in the Toolbox.",
     "personalServices": {

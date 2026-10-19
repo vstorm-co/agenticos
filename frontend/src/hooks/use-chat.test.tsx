@@ -1146,6 +1146,36 @@ describe("useChat - the conversation a turn belongs to", () => {
   });
 });
 
+describe("useChat - a sandbox still being opened", () => {
+  // The first session after an update builds the runtime's image on the host:
+  // minutes in which nothing streams (#2222).
+  it("says so when the server does", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    receive("sandbox_preparing", {});
+
+    expect(result.current.sandboxPreparing).toBe(true);
+  });
+
+  it("stops saying so at the next tool result", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("sandbox_preparing", {});
+
+    receive("tool_result", { tool_call_id: "t-1", content: "ok" });
+
+    expect(result.current.sandboxPreparing).toBe(false);
+  });
+
+  it("stops saying so when the turn ends", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("sandbox_preparing", {});
+
+    receive("complete", {});
+
+    expect(result.current.sandboxPreparing).toBe(false);
+  });
+});
+
 describe("useChat - the summary of its own history", () => {
   it("reports a summary while it is being written", () => {
     // Compaction runs between two of the turn's model requests, where nothing

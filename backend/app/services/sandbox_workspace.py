@@ -30,7 +30,7 @@ import contextlib
 import contextvars
 import logging
 from binascii import Error as BinasciiError
-from collections.abc import AsyncGenerator, Callable, Coroutine, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
@@ -321,6 +321,28 @@ class FlatFileListing:
     truncated: bool
 
 
+SandboxWaitSink = Callable[[], Awaitable[None]]
+"""Told that a run's sandbox is still being opened - usually its image being built."""
+
+
+@dataclass
+class WaitNotice:
+    """Who to tell that a sandbox is still opening, filled in once a surface exists.
+
+    The workspace is built while the run is prepared, and the chat that could say
+    "preparing the sandbox" attaches its sinks only after that. The session opens
+    on the first tool call, though, by which time the chat is attached - so the
+    sandbox client is handed this object, and it is filled in between the two
+    (#2222). With no surface it says nothing, as `on_compaction` does.
+    """
+
+    sink: SandboxWaitSink | None = None
+
+    async def __call__(self) -> None:
+        if self.sink is not None:
+            await self.sink()
+
+
 @dataclass
 class OpenWorkspace:
     """A workspace a run is using, and what it takes to put it away."""
@@ -339,6 +361,9 @@ class OpenWorkspace:
 
     connection_id: UUID | None = None
     """Which registered connection it runs on, for a workspace that is not `state`."""
+
+    wait_notice: WaitNotice = field(default_factory=WaitNotice)
+    """Where a sandboxd session says it is still opening; see `WaitNotice`."""
 
     briefing: str | None = None
     """What this run should tell its model about the container it works in.
@@ -641,8 +666,13 @@ class SandboxWorkspaceService:
         """
         briefing: str | None = None
         parses_documents = False
+        notice = WaitNotice()
         sandbox = self._service_capability(
-            resolved, key, runtime=config.runtime, tenant=str(identity.organization_id)
+            resolved,
+            key,
+            runtime=config.runtime,
+            tenant=str(identity.organization_id),
+            on_wait=notice,
         )
         if resolved.kind != "daytona":
             alias = config.runtime or resolved.row.default_runtime or None
@@ -678,6 +708,7 @@ class SandboxWorkspaceService:
             connection_id=resolved.row.id,
             briefing=briefing,
             parses_documents=parses_documents,
+            wait_notice=notice,
         )
 
     @staticmethod
@@ -687,6 +718,7 @@ class SandboxWorkspaceService:
         *,
         runtime: str | None = None,
         tenant: str | None = None,
+        on_wait: SandboxWaitSink | None = None,
     ) -> SandboxdWorkspace | DaytonaWorkspace:
         """What supplies the sandbox named `key` on one of the organization's connections.
 
@@ -727,6 +759,9 @@ class SandboxWorkspaceService:
             # organization occupying the pool of the whole installation.
             tenant=tenant,
             session_name=key,
+            # Opening can build the runtime's image first; this is how the chat
+            # learns to say so instead of sitting silent (#2222).
+            on_wait=on_wait,
         )
 
     async def _row(

@@ -70,7 +70,11 @@ Two things are versioned separately from this file and worth knowing about:
   `python -m pydantic_ai_backends.remote.prepare` in a one-off container of the
   new sandboxd image before the old one is replaced. Each build is retried
   (pydantic-ai-backend 0.2.34). A runtime it could not prepare is named in the
-  deploy log and still built on demand (#2222).
+  deploy log and still built on demand.
+  - While a session does wait on a build, the chat says "Preparing the
+    sandbox" above the composer.
+  - Opening waits up to ten minutes instead of giving up after 30 seconds
+    (pydantic-ai-backend 0.2.34, `on_wait` and `opening_timeout`) (#2222).
 - **A remote sandbox outlives a deleted conversation only until the provider
   answers.** Deleting a conversation or a project destroyed its sandboxes once,
   after the commit. A failure - host down, worker restarted in between - left

@@ -240,6 +240,9 @@ export type WSEventType =
   | "compaction_finished"
   | "compaction_impossible"
   | "personal_services_unavailable"
+  // The run's sandbox is still being opened - usually its runtime image being built
+  // after an update (#2222). Cleared by the next tool result or the end of the turn.
+  | "sandbox_preparing"
   // Following a turn another socket is writing - the reader came back to a
   // conversation whose agent was still answering (`app/services/live_turn.py`).
   | "turn_attached"

@@ -52,6 +52,7 @@ from app.services.agent_chat import (
     requested_testing,
 )
 from app.services.agent_runner import AgentRunnerService, PersonalServiceGap, PreparedRun
+from app.services.sandbox_workspace import WaitNotice
 
 pytestmark = pytest.mark.anyio
 
@@ -256,6 +257,7 @@ async def _run(
     on_personal_gaps: Any = None,
     request_connection: Any = None,
     steering: Any = None,
+    on_sandbox_wait: Any = None,
 ):
     return await ChatAgentRunner(db).run(
         user=user or _user(),
@@ -273,6 +275,7 @@ async def _run(
         on_personal_gaps=on_personal_gaps,
         request_connection=request_connection,
         steering=steering,
+        on_sandbox_wait=on_sandbox_wait,
     )
 
 
@@ -1062,7 +1065,10 @@ class TestAttachmentsAreRoutedHereAndNotBySurfaces:
         # `parses_documents` is what says the runtime can read a PDF itself; a
         # stored workspace cannot, and so keeps the extracted text beside the file.
         prepared.workspace = SimpleNamespace(
-            workspace=document_workspace(document), briefing=None, parses_documents=False
+            workspace=document_workspace(document),
+            briefing=None,
+            parses_documents=False,
+            wait_notice=WaitNotice(),
         )
 
         with (
@@ -1210,3 +1216,25 @@ class TestAddingToTheTurnAndAskingAside:
             await _run(_db(), steering=inbox)
 
         assert prepared.deps.steering is inbox
+
+
+class TestSayingTheSandboxIsStillOpening:
+    """#2222: the workspace is built while the run is prepared, before the chat's
+    sinks exist, so the chat fills the notice the sandbox client was handed."""
+
+    async def test_the_chat_sink_is_put_where_the_sandbox_will_call(self):
+        prepared = _prepared()
+        prepared.workspace = MagicMock(wait_notice=WaitNotice())
+        heard = AsyncMock()
+        with _runner(prepared):
+            await _run(_db(), on_sandbox_wait=heard)
+
+        await prepared.workspace.wait_notice()
+        heard.assert_awaited_once_with()
+
+    async def test_a_run_with_no_workspace_has_nothing_to_tell(self):
+        prepared = _prepared()
+        with _runner(prepared):
+            await _run(_db(), on_sandbox_wait=AsyncMock())
+
+        assert prepared.workspace is None
