@@ -109,6 +109,10 @@ Two things are versioned separately from this file and worth knowing about:
   every page. The answer is now kept in Next's data cache and expired by an
   administrator's save under **Admin → Settings**, with a five-minute bound for
   a change made another way.
+- **The chat sidebar polls every 30 s instead of every 4 s while the live-update
+  socket is connected.** A thread's running state already arrives over the
+  socket; the poll is the fallback for when it is down, and goes back to 4 s
+  then. Next.js 16.4.2.
 - **A busy schedule now skips by default.** Before, a schedule whose run was
   still going fired once as soon as it ended; existing schedules take `skip`.
   Set `overlap` to `queue` for the old behaviour.

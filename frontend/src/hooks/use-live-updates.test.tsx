@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useLiveUpdates } from "./use-live-updates";
 import { onRemoteChange } from "@/lib/live-updates";
 import { qk } from "@/lib/query-keys";
-import { useAuthStore, useOrgStore } from "@/stores";
+import { useAuthStore, useLiveFeedStore, useOrgStore } from "@/stores";
 import type { ChangeEvent } from "@/types/change-events";
 
 interface SocketOptions {
@@ -14,6 +14,8 @@ interface SocketOptions {
   identity?: string;
   protocols: () => string[] | undefined;
   onMessage: (message: MessageEvent) => void;
+  onOpen: () => void;
+  onClose: () => void;
 }
 
 const socket = vi.hoisted(() => ({
@@ -103,5 +105,19 @@ describe("useLiveUpdates", () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents.all() });
     expect(heard).toHaveBeenCalledWith(EVENT);
+  });
+});
+
+describe("whether the feed is live", () => {
+  it("follows the socket opening and closing, and is down once the hook goes", () => {
+    const { unmount } = renderHook(() => useLiveUpdates(), { wrapper });
+
+    socket.options?.onOpen();
+    expect(useLiveFeedStore.getState().connected).toBe(true);
+    socket.options?.onClose();
+    expect(useLiveFeedStore.getState().connected).toBe(false);
+    socket.options?.onOpen();
+    unmount();
+    expect(useLiveFeedStore.getState().connected).toBe(false);
   });
 });

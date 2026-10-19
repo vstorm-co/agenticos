@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { announceChange, staleQueries } from "@/lib/live-updates";
-import { useAuthStore, useOrgStore } from "@/stores";
+import { useAuthStore, useLiveFeedStore, useOrgStore } from "@/stores";
 import type { ChangeEvent } from "@/types/change-events";
 
 /**
@@ -48,16 +48,24 @@ export function useLiveUpdates(): void {
     },
     [queryClient],
   );
+  const setConnected = useLiveFeedStore((state) => state.setConnected);
+  const onOpen = useCallback(() => setConnected(true), [setConnected]);
+  const onClose = useCallback(() => setConnected(false), [setConnected]);
   const { connect, disconnect } = useWebSocket({
     url,
     protocols,
     identity: principal,
     onMessage,
+    onOpen,
+    onClose,
   });
 
   useEffect(() => {
     if (!activeOrgId || !accessToken) return;
     connect();
-    return () => disconnect();
-  }, [activeOrgId, accessToken, connect, disconnect]);
+    return () => {
+      disconnect();
+      setConnected(false);
+    };
+  }, [activeOrgId, accessToken, connect, disconnect, setConnected]);
 }
