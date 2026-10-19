@@ -36,3 +36,24 @@ async def test_a_tick_schedules_starts_and_settles_in_three_transactions() -> No
     assert [call.args[0] for call in built.call_args_list] == sessions
     assert len(sessions) == 3
     connect.assert_awaited_once()
+
+
+async def test_a_step_that_fails_is_logged_and_the_next_still_runs() -> None:
+    @asynccontextmanager
+    async def session():
+        yield MagicMock()
+
+    service = MagicMock()
+    service.fire_schedules = AsyncMock(side_effect=RuntimeError("cron"))
+    service.start_due = AsyncMock(return_value=0)
+    service.settle_finished = AsyncMock(return_value=2)
+    with (
+        patch.object(eval_suite_tasks, "get_worker_db_context", session),
+        patch("app.services.change_feed.connect_in_worker", AsyncMock()),
+        patch("app.services.eval_suite.EvalSuiteService", return_value=service),
+        patch.object(eval_suite_tasks.logger, "exception") as logged,
+    ):
+        counts = await eval_suite_tasks.check_eval_suites()
+
+    assert counts == {"fired": 0, "started": 0, "settled": 2}
+    logged.assert_called_once()

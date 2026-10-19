@@ -368,6 +368,9 @@ class AgentEnvironmentService:
                 details={"environment_id": str(environment.id), "eval_runs": evals},
             )
         name = environment.name
+        from app.services.eval_suite import EvalSuiteService
+
+        await EvalSuiteService(self.db).environment_removed(environment)
         await artifact_repo.detach_environment(self.db, environment_id=environment.id)
         await agent_environment_repo.delete(self.db, environment=environment)
         await record_audit(

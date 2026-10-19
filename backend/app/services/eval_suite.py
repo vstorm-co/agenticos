@@ -29,6 +29,7 @@ its owner leaves or loses what running it takes.
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
@@ -46,6 +47,7 @@ from app.core.config import settings
 from app.core.cron import cron_fires, cron_next
 from app.core.exceptions import (
     AlreadyExistsError,
+    AppException,
     AuthorizationError,
     BadRequestError,
     EvalSuiteNotRunnableError,
@@ -225,7 +227,19 @@ class EvalSuiteService:
         rows, total = await eval_suite_repo.list_results(
             self.db, suite.id, organization_id=ctx.organization_id, skip=skip, limit=limit
         )
-        return EvalSuiteResultList(items=[self._result_read(row) for row in rows], total=total)
+        visible = suite.dataset_id in await self._readable_datasets(ctx, [suite.dataset_id])
+        return EvalSuiteResultList(
+            items=[self._result_read(row, cases_visible=visible) for row in rows], total=total
+        )
+
+    async def _readable_datasets(self, ctx: AuthContext, dataset_ids: list[UUID]) -> set[UUID]:
+        """Which of these datasets the reader may open - and so read the cases of."""
+        datasets = await eval_run_repo.datasets(
+            self.db, sorted(set(dataset_ids)), organization_id=ctx.organization_id
+        )
+        return await accessible_ids(
+            self.db, ctx, list(datasets.values()), Perm.DATASETS_VIEW, resource_type=DATASET
+        )
 
     async def _suite(self, ctx: AuthContext, agent_id: UUID, suite_id: UUID) -> EvalSuite:
         agent = await self.registry.get(ctx, agent_id)
@@ -245,9 +259,7 @@ class EvalSuiteService:
         datasets = await eval_run_repo.datasets(
             self.db, sorted({suite.dataset_id for suite in suites}), organization_id=org
         )
-        readable = await accessible_ids(
-            self.db, ctx, list(datasets.values()), Perm.DATASETS_VIEW, resource_type=DATASET
-        )
+        readable = await self._readable_datasets(ctx, list(datasets))
         environments: dict[UUID, AgentEnvironment] = {}
         for agent_id in agents:
             for environment in await agent_environment_repo.list_for_agent(
@@ -290,8 +302,16 @@ class EvalSuiteService:
                     schedule=_schedule(suite),
                     next_fire_at=suite.next_fire_at,
                     max_run_usd=suite.max_run_usd,
-                    last_result=self._result_read(last) if last else None,
-                    open_result=self._result_read(now) if now else None,
+                    last_result=(
+                        self._result_read(last, cases_visible=suite.dataset_id in readable)
+                        if last
+                        else None
+                    ),
+                    open_result=(
+                        self._result_read(now, cases_visible=suite.dataset_id in readable)
+                        if now
+                        else None
+                    ),
                     created_at=suite.created_at,
                     updated_at=suite.updated_at,
                 )
@@ -299,7 +319,14 @@ class EvalSuiteService:
         return reads
 
     @staticmethod
-    def _result_read(result: EvalSuiteResult) -> EvalSuiteResultRead:
+    def _result_read(result: EvalSuiteResult, *, cases_visible: bool) -> EvalSuiteResultRead:
+        """A result as a reader sees it: the failing cases' questions only for one who
+        may open the dataset they come from."""
+        summary = (
+            EvalSuiteSummary.model_validate(result.summary) if result.summary is not None else None
+        )
+        if summary is not None and not cases_visible:
+            summary = summary.model_copy(update={"failing_cases": []})
         return EvalSuiteResultRead(
             id=result.id,
             suite_id=result.suite_id,
@@ -315,11 +342,7 @@ class EvalSuiteService:
             baseline_eval_run_id=result.baseline_eval_run_id,
             run_as_user_id=result.run_as_user_id,
             threshold=EvalSuiteThreshold.model_validate(result.threshold),
-            summary=(
-                EvalSuiteSummary.model_validate(result.summary)
-                if result.summary is not None
-                else None
-            ),
+            summary=summary,
             notified_at=result.notified_at,
             created_at=result.created_at,
             started_at=result.started_at,
@@ -340,7 +363,7 @@ class EvalSuiteService:
         A suite spends as whoever saves it, with nobody watching it start - so
         only a person may save one, not a script holding their key nor an
         administrator acting as them; and only somebody who may edit the agent,
-        start eval runs and read what they find.
+        run it, start eval runs and read what they find.
         """
         if ctx.user_id is None or ctx.api_key_id is not None or current_impersonator() is not None:
             raise AuthorizationError(
@@ -356,6 +379,11 @@ class EvalSuiteService:
         if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT):
             raise AuthorizationError(
                 message="Setting up eval suites needs edit access to the agent",
+                details={"agent_id": agent.id},
+            )
+        if not await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT):
+            raise AuthorizationError(
+                message="An eval suite runs the agent, which needs permission to run it",
                 details={"agent_id": agent.id},
             )
         return agent
@@ -582,7 +610,9 @@ class EvalSuiteService:
             suite, trigger=EvalSuiteTrigger.MANUAL, version=version, due_at=now
         )
         baseline = await self._earlier_run(suite, version.id, now=now)
-        request = self._request(suite, version.version, baseline_version=None)
+        request = self._request(
+            suite, version.version, baseline_version=None, baseline_run=baseline
+        )
         try:
             await self._within_cap(ctx, suite, request)
         except _OverCap as over:
@@ -613,7 +643,7 @@ class EvalSuiteService:
             },
         )
         assert result is not None, "a running result never conflicts with a waiting one"
-        return self._result_read(result)
+        return self._result_read(result, cases_visible=True)
 
     async def _within_cap(
         self, ctx: AuthContext, suite: EvalSuite, request: EvalRunRequest
@@ -689,6 +719,19 @@ class EvalSuiteService:
                 due_at=now,
                 baseline_version=replaced.version if replaced is not None else None,
             )
+
+    async def environment_removed(self, environment: AgentEnvironment) -> None:
+        """Pause the suites checking an environment that is going away.
+
+        Its reference would be set null and the suite would quietly check the
+        agent's current version instead - a different version than its owner
+        chose.
+        """
+        for suite in await eval_suite_repo.list_on_environment(
+            self.db, environment.id, organization_id=environment.organization_id
+        ):
+            if suite.is_active:
+                await self._pause(suite, reason="environment_gone")
 
     async def dependency_changed(
         self, *, organization_id: UUID, kind: DependencyKind, resource_id: UUID
@@ -827,14 +870,57 @@ class EvalSuiteService:
         """Start the results that are due, each as an eval run of its suite's owner."""
         started = 0
         for result in await eval_suite_repo.claim_pending(self.db, now=now, limit=_SWEEP_STARTS):
-            if await self._start(result, now=now):
+            if await self._isolated(
+                result, lambda row=result: self._start(row, now=now), step="start", now=now
+            ):
                 started += 1
         return started
+
+    async def _isolated(
+        self,
+        result: EvalSuiteResult,
+        work: Callable[[], Awaitable[bool | None]],
+        *,
+        step: Literal["start", "settle"],
+        now: datetime,
+    ) -> bool:
+        """One result's step in a savepoint of its own.
+
+        A failure nobody planned for - a provider client misconfigured, a bug -
+        ends that result in error, logged, rather than rolling back every other
+        suite's start or settlement in the tick and failing the same way each
+        minute after.
+        """
+        result_id, organization_id = result.id, result.organization_id
+        try:
+            async with self.db.begin_nested():
+                return bool(await work())
+        except Exception as failure:
+            logger.exception(
+                "eval_suite_step_failed", extra={"result_id": str(result_id), "step": step}
+            )
+            row = await eval_suite_repo.get_result(
+                self.db, result_id, organization_id=organization_id
+            )
+            assert row is not None, "the savepoint rolled back the step, not the result"
+            await self._finish(
+                row,
+                EvalSuiteResultStatus.ERROR,
+                reason=f"{step}_failed",
+                message=failure.message if isinstance(failure, AppException) else None,
+                now=now,
+            )
+            return False
 
     async def _start(self, result: EvalSuiteResult, *, now: datetime) -> bool:
         org = result.organization_id
         suite = await eval_suite_repo.lock(self.db, result.suite_id, organization_id=org)
         assert suite is not None, "a result goes with its suite"
+        if not suite.is_active:
+            # Pausing discards what was waiting, but a trigger that read the suite
+            # as running before the pause committed can still have queued one.
+            await eval_suite_repo.discard_pending(self.db, suite.id, organization_id=org)
+            return False
         owner = await self._person(org, suite.owner_user_id)
         if owner is None:
             await self._finish(
@@ -847,8 +933,16 @@ class EvalSuiteService:
                 result, EvalSuiteResultStatus.SKIPPED, reason="version_gone", now=now
             )
             return False
+        baseline = (
+            None
+            if result.baseline_version_number is not None
+            else await self._earlier_run(suite, result.agent_version_id, now=now)
+        )
         request = self._request(
-            suite, result.version_number, baseline_version=result.baseline_version_number
+            suite,
+            result.version_number,
+            baseline_version=result.baseline_version_number,
+            baseline_run=baseline,
         )
         try:
             async with self.db.begin_nested():
@@ -896,11 +990,6 @@ class EvalSuiteService:
                 now=now,
             )
             return False
-        baseline = (
-            None
-            if result.baseline_version_number is not None
-            else await self._earlier_run(suite, result.agent_version_id, now=now)
-        )
         await eval_suite_repo.update_result(
             self.db,
             result=result,
@@ -916,20 +1005,29 @@ class EvalSuiteService:
         return True
 
     def _request(
-        self, suite: EvalSuite, version: int, *, baseline_version: int | None
+        self,
+        suite: EvalSuite,
+        version: int,
+        *,
+        baseline_version: int | None,
+        baseline_run: UUID | None,
     ) -> EvalRunRequest:
+        """A publish or a promotion runs its baseline beside it; any other run is measured
+        against the suite's last run of the same version, so it shows drift."""
         return EvalRunRequest(
             dataset_id=suite.dataset_id,
             environment_id=suite.environment_id,
             version=version,
             paired_baseline=baseline_version is not None,
             baseline_version=baseline_version,
+            baseline_run_id=baseline_run,
         )
 
     async def _earlier_run(
         self, suite: EvalSuite, version_id: UUID, *, now: datetime
     ) -> UUID | None:
-        """The eval run of this suite's last result on the same version, to measure drift against."""
+        """The eval run of this suite's last result on the same version and dataset, to
+        measure drift against - none once the suite moved to another dataset."""
         previous = await eval_suite_repo.previous_settled(
             self.db,
             suite_id=suite.id,
@@ -938,13 +1036,20 @@ class EvalSuiteService:
             organization_id=suite.organization_id,
             with_run=True,
         )
-        return previous.eval_run_id if previous else None
+        if previous is None or previous.eval_run_id is None:
+            return None
+        run = await eval_run_repo.get(
+            self.db, previous.eval_run_id, organization_id=suite.organization_id
+        )
+        return run.id if run is not None and run.dataset_id == suite.dataset_id else None
 
     async def settle_finished(self, *, now: datetime) -> int:
         """Hold every result whose eval run has ended to its threshold."""
         settled = 0
         for result in await eval_suite_repo.claim_finished(self.db, limit=_SWEEP_SETTLES):
-            await self._settle(result, now=now)
+            await self._isolated(
+                result, lambda row=result: self._settle(row, now=now), step="settle", now=now
+            )
             settled += 1
         return settled
 
@@ -971,7 +1076,7 @@ class EvalSuiteService:
             return
         try:
             read = await self.evals.get(reader, run.id)
-            comparison = await self._comparison(reader, run.id, result.baseline_eval_run_id)
+            comparison = await self.evals.compare(reader, run.id)
         except (NotFoundError, AuthorizationError) as refused:
             await self._finish(
                 result,
@@ -1014,18 +1119,6 @@ class EvalSuiteService:
             failing_cases=await self._failing(reader, read, comparison),
         )
         await self._finish(result, status, summary=summary, now=now)
-
-    async def _comparison(
-        self, reader: AuthContext, run_id: UUID, baseline_run_id: UUID | None
-    ) -> EvalComparisonRead:
-        """The run against the earlier run it was meant to be measured with - or, when that
-        one can no longer be compared, against the baseline the run would pick itself."""
-        if baseline_run_id is not None:
-            try:
-                return await self.evals.compare(reader, run_id, baseline_run_id=baseline_run_id)
-            except (NotFoundError, BadRequestError):
-                logger.info("Eval suite baseline %s no longer compares", baseline_run_id)
-        return await self.evals.compare(reader, run_id)
 
     async def _failing(
         self, reader: AuthContext, read: EvalRunRead, comparison: EvalComparisonRead

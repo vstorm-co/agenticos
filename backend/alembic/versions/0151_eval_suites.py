@@ -9,11 +9,15 @@ the worker as an eval run, and held to the threshold frozen on it once that
 run ends. A partial unique index keeps one waiting result per suite and
 version, so a burst of changes is one run.
 
-Notifications learn one event type, `eval_suite_failed`.
+Notifications learn one event type, `eval_suite_failed`, and an eval run may
+name the earlier run it is measured against (`eval_runs.baseline_run_id`), so
+a suite checking the same version day after day confirms its flips against
+the day before.
 
-Every table is new, so nothing is backfilled. The downgrade drops both tables
-and every suite with them, and deletes the notifications and preferences of the
-new event type before narrowing the two CHECKs back.
+Every table is new and the column nullable, so nothing is backfilled. The
+downgrade drops the column and both tables, every suite with them, and deletes
+the notifications and preferences of the new event type before narrowing the
+two CHECKs back.
 
 Revision ID: 0151_eval_suites
 Revises: 0146_eval_runs
@@ -269,9 +273,20 @@ def upgrade() -> None:
         postgresql_where=sa.text("status = 'pending'"),
     )
     _event_types(_WITH_SUITES)
+    op.add_column("eval_runs", sa.Column("baseline_run_id", sa.UUID(), nullable=True))
+    op.create_foreign_key(
+        op.f("eval_runs_baseline_run_id_fkey"),
+        "eval_runs",
+        "eval_runs",
+        ["baseline_run_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
 
 
 def downgrade() -> None:
+    op.drop_constraint(op.f("eval_runs_baseline_run_id_fkey"), "eval_runs", type_="foreignkey")
+    op.drop_column("eval_runs", "baseline_run_id")
     for table in ("notifications", "notification_preferences"):
         op.execute(f"DELETE FROM {table} WHERE event_type = 'eval_suite_failed'")
     _event_types(_EVENT_TYPE_VALUES)

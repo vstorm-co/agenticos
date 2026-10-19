@@ -116,11 +116,14 @@ def test_a_pass_rate_below_the_minimum_fails() -> None:
     assert [(r.code, r.value, r.limit) for r in reasons] == [("pass_rate_below", 0.5, 0.8)]
 
 
-def test_nothing_graded_against_a_minimum_fails() -> None:
-    _, reasons = judge(
-        EvalSuiteThreshold(min_pass_rate=0.8), _summary(pass_rate=None), _comparison()
+@pytest.mark.parametrize("minimum", [None, 0.8])
+def test_a_run_in_which_nothing_was_graded_is_inconclusive(minimum: float | None) -> None:
+    """The judge erred on every case: a result that checked nothing passes nothing."""
+    status, reasons = judge(
+        EvalSuiteThreshold(min_pass_rate=minimum), _summary(pass_rate=None), _comparison()
     )
-    assert [r.code for r in reasons] == ["nothing_graded"]
+    assert status is EvalSuiteResultStatus.INCONCLUSIVE
+    assert [(r.code, r.limit) for r in reasons] == [("nothing_graded", minimum)]
 
 
 def test_without_a_baseline_only_the_pass_rate_is_held() -> None:

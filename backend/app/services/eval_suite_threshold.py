@@ -10,7 +10,8 @@ regression somebody can reproduce is a regression whatever the test says.
 Efficiency is the second axis and is checked only where the owner set a
 ceiling: a rise in cost per passed case or in p95 latency against the baseline.
 A comparison the two sides of which were graded differently decides nothing,
-so the result is inconclusive rather than passed.
+and neither does a run in which no case could be graded - the judge erred on
+every one - so each is inconclusive rather than passed.
 """
 
 from __future__ import annotations
@@ -41,16 +42,17 @@ def judge(
         return EvalSuiteResultStatus.INCONCLUSIVE, [
             ThresholdReason(code="invalid_comparison", detail=comparison.invalid_reason)
         ]
+    if summary.pass_rate is None:
+        return EvalSuiteResultStatus.INCONCLUSIVE, [
+            ThresholdReason(code="nothing_graded", limit=threshold.min_pass_rate)
+        ]
     reasons: list[ThresholdReason] = []
-    if threshold.min_pass_rate is not None:
-        if summary.pass_rate is None:
-            reasons.append(ThresholdReason(code="nothing_graded", limit=threshold.min_pass_rate))
-        elif summary.pass_rate < threshold.min_pass_rate:
-            reasons.append(
-                ThresholdReason(
-                    code="pass_rate_below", value=summary.pass_rate, limit=threshold.min_pass_rate
-                )
+    if threshold.min_pass_rate is not None and summary.pass_rate < threshold.min_pass_rate:
+        reasons.append(
+            ThresholdReason(
+                code="pass_rate_below", value=summary.pass_rate, limit=threshold.min_pass_rate
             )
+        )
     if (
         comparison.baseline is not None
         and comparison.regressions_confirmed > threshold.max_confirmed_regressions

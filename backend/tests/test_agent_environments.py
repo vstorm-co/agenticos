@@ -55,6 +55,7 @@ def _no_suites(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "app.services.eval_suite.EvalSuiteService.environment_promoted", AsyncMock()
     )
+    monkeypatch.setattr("app.services.eval_suite.EvalSuiteService.environment_removed", AsyncMock())
 
 
 def _ctx(role: str = OrgRoleName.OWNER) -> AuthContext:

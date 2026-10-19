@@ -85,6 +85,19 @@ async def list_for_organization(db: AsyncSession, *, organization_id: UUID) -> l
     return list(result.scalars().all())
 
 
+async def list_on_environment(
+    db: AsyncSession, environment_id: UUID, *, organization_id: UUID
+) -> list[EvalSuite]:
+    """The suites that check this environment's version."""
+    result = await db.execute(
+        select(EvalSuite).where(
+            EvalSuite.environment_id == environment_id,
+            EvalSuite.organization_id == organization_id,
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def list_watching(
     db: AsyncSession, *, organization_id: UUID, flag: EventFlag, agent_id: UUID | None = None
 ) -> list[EvalSuite]:

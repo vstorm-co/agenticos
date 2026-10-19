@@ -34,11 +34,12 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConfigurationError,
     EvalSuiteNotRunnableError,
     NotFoundError,
     SystemAgentRestrictedError,
 )
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.audit_log import AppAdminAuditLog
@@ -51,6 +52,7 @@ from app.db.models.user import User
 from app.repositories import agent_environment_repo
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
+from app.schemas.eval_run import ArmSummaryRead
 from app.schemas.eval_suite import (
     EvalSuiteCreate,
     EvalSuiteEstimateRequest,
@@ -59,10 +61,12 @@ from app.schemas.eval_suite import (
     EvalSuiteUpdate,
 )
 from app.schemas.skill import SkillUpdate
+from app.services.access import resolve_access
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService, PublishedCandidate
 from app.services.agent_runner import AgentRunnerService
 from app.services.dataset import DatasetService
+from app.services.eval_run import EvalRunService
 from app.services.eval_run_worker import EvalRunWorker
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
@@ -1127,27 +1131,6 @@ async def test_a_run_whose_runner_left_or_lost_access_ends_in_error(db) -> None:
     assert (refused.status, refused.reason) == ("error", "owner_lacks_access")
 
 
-async def test_a_run_after_the_dataset_changed_is_compared_with_its_own_baseline(db) -> None:
-    ctx = await _owner(db)
-    agent, _ = await _agent(db, ctx)
-    first = await _dataset(db, ctx)
-    second = await _dataset(db, ctx)
-    service = EvalSuiteService(db)
-    suite = await service.create(ctx, agent.id, _suite_data(first))
-    await service.run_now(ctx, agent.id, suite.id)
-    await _finish_runs(db, Model(db))
-    await service.settle_finished(now=datetime.now(UTC))
-    await service.update(ctx, agent.id, suite.id, EvalSuiteUpdate(dataset_id=second.id))
-
-    await service.run_now(ctx, agent.id, suite.id)
-    await _finish_runs(db, Model(db))
-    await service.settle_finished(now=datetime.now(UTC))
-
-    results = await _results(db, suite.id)
-    assert results[1].baseline_eval_run_id == results[0].eval_run_id
-    assert [r.status for r in results] == ["passed", "passed"]
-
-
 async def test_at_most_twenty_failing_cases_are_named(db) -> None:
     ctx = await _owner(db)
     agent, _ = await _agent(db, ctx)
@@ -1189,3 +1172,234 @@ async def test_a_run_within_the_ceiling_starts(db) -> None:
     assert moved.environment_id is None
     back = await service.update(ctx, agent.id, suite.id, EvalSuiteUpdate(environment_id=staging.id))
     assert back.environment_name == "staging"
+
+
+async def _settle_failed_cases(db: AsyncSession, ctx: AuthContext, agent: Agent, dataset: Dataset):
+    """A suite whose last result named failing cases, read back by the caller."""
+    service = EvalSuiteService(db)
+    suite = await service.create(
+        ctx, agent.id, _suite_data(dataset, threshold=EvalSuiteThreshold(min_pass_rate=0.9))
+    )
+    await service.run_now(ctx, agent.id, suite.id)
+    await _finish_runs(db, Model(db, answer=lambda prompt: _FAIL))
+    await service.settle_finished(now=datetime.now(UTC))
+    return suite
+
+
+@pytest.mark.security
+async def test_a_reader_who_cannot_open_the_dataset_reads_no_case_of_it(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    suite = await _settle_failed_cases(db, ctx, agent, dataset)
+    # A key issued to read runs and agents, and nothing of datasets.
+    narrow = replace(
+        ctx,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.RUNS_VIEW, Perm.AGENTS_VIEW}),
+    )
+    service = EvalSuiteService(db)
+
+    own = await service.get(ctx, agent.id, suite.id)
+    assert own.last_result is not None and own.last_result.summary is not None
+    assert own.last_result.summary.failing_cases
+
+    reads = [
+        (await service.get(narrow, agent.id, suite.id)).last_result,
+        (await service.list_for_agent(narrow, agent.id)).items[0].last_result,
+        (await service.list_visible(narrow)).items[0].last_result,
+        (await service.results(narrow, agent.id, suite.id)).items[0],
+    ]
+    for result in reads:
+        assert result is not None and result.summary is not None
+        assert result.summary.failing_cases == []
+    assert (await service.get(narrow, agent.id, suite.id)).dataset_name is None
+
+
+async def test_a_run_in_which_nothing_could_be_graded_is_inconclusive(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    suite = await service.create(ctx, agent.id, _suite_data(dataset))
+    await service.run_now(ctx, agent.id, suite.id)
+    await _finish_runs(db, Model(db))
+
+    ungraded = ArmSummaryRead(
+        cases=4,
+        passed=0,
+        failed=0,
+        incomplete=4,
+        pass_rate=None,
+        first_pass_rate=None,
+        cost_usd=Decimal("0.04"),
+        cost_per_pass_usd=None,
+        avg_tokens=None,
+        p50_ms=None,
+        p95_ms=None,
+    )
+    real = EvalRunService.get
+
+    async def nothing_graded(self, reader, run_id):
+        read = await real(self, reader, run_id)
+        arms = [arm.model_copy(update={"summary": ungraded}) for arm in read.arms]
+        return read.model_copy(update={"arms": arms})
+
+    with patch.object(EvalRunService, "get", new=nothing_graded):
+        await service.settle_finished(now=datetime.now(UTC))
+
+    [result] = await _results(db, suite.id)
+    assert (result.status, result.reason) == ("inconclusive", None)
+    assert result.summary is not None
+    assert [r["code"] for r in result.summary["reasons"]] == ["nothing_graded"]
+
+
+async def test_a_result_queued_as_its_suite_was_paused_never_starts(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    suite = await EvalSuiteService(db).create(ctx, agent.id, _suite_data(dataset, on_publish=True))
+    await AgentRegistryService(db).publish(ctx, agent.id)
+    # The pause committed after the publish read the suite as running.
+    row = await db.get(EvalSuite, suite.id)
+    assert row is not None
+    row.is_active = False
+    await db.flush()
+
+    started = await EvalSuiteService(db).start_due(now=datetime.now(UTC))
+
+    assert started == 0
+    assert await _results(db, suite.id) == []
+
+
+async def test_a_start_that_fails_unexpectedly_ends_that_result_and_spares_the_rest(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    other, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    broken = await service.create(ctx, agent.id, _suite_data(dataset, on_publish=True))
+    fine = await service.create(ctx, other.id, _suite_data(dataset, on_publish=True))
+    await AgentRegistryService(db).publish(ctx, agent.id)
+    await AgentRegistryService(db).publish(ctx, other.id)
+    real = EvalRunService.start
+
+    async def start(self, owner, agent_id, request, **kwargs):
+        if agent_id == agent.id:
+            raise ConfigurationError(message="The provider is not configured")
+        return await real(self, owner, agent_id, request, **kwargs)
+
+    with patch.object(EvalRunService, "start", new=start):
+        assert await service.start_due(now=datetime.now(UTC)) == 1
+
+    [failed] = await _results(db, broken.id)
+    [running] = await _results(db, fine.id)
+    assert (failed.status, failed.reason) == ("error", "start_failed")
+    assert failed.summary is not None
+    assert failed.summary["message"] == "The provider is not configured"
+    assert running.status == "running"
+
+
+async def test_a_settlement_that_fails_unexpectedly_ends_that_result_in_error(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    suite = await service.create(ctx, agent.id, _suite_data(dataset))
+    await service.run_now(ctx, agent.id, suite.id)
+    await _finish_runs(db, Model(db))
+
+    with patch.object(EvalRunService, "compare", new=AsyncMock(side_effect=RuntimeError("bug"))):
+        await service.settle_finished(now=datetime.now(UTC))
+
+    [result] = await _results(db, suite.id)
+    # An unplanned failure's own text is the server's, so the result keeps none.
+    assert (result.status, result.reason, result.summary) == ("error", "settle_failed", None)
+
+
+async def test_a_case_that_breaks_overnight_on_the_same_version_fails_the_daily_suite(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    created = await service.create(
+        ctx, agent.id, _suite_data(dataset, schedule=EvalSuiteSchedule(cron="0 6 * * *"))
+    )
+    suite = await db.get(EvalSuite, created.id)
+    assert suite is not None and suite.next_fire_at is not None
+    day = suite.next_fire_at
+
+    await _sweep(db, Model(db), now=day)
+    # The provider changed the model overnight: one case now fails every time.
+    drifted = Model(db, answer=lambda prompt: _FAIL if prompt == "Question 2" else _PASS)
+    await _sweep(db, drifted, now=day + timedelta(days=1))
+
+    first, second = await _results(db, suite.id)
+    assert (first.status, second.status) == ("passed", "failed")
+    assert second.summary is not None
+    assert second.summary["regressions_confirmed"] == 1
+    assert second.summary["baseline_run_id"] == str(first.eval_run_id)
+    assert second.summary["failing_cases"][0]["kind"] == "regression"
+
+
+async def test_a_suite_moved_to_another_dataset_is_not_measured_against_the_old_one(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    first = await _dataset(db, ctx)
+    second = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    suite = await service.create(ctx, agent.id, _suite_data(first))
+    await service.run_now(ctx, agent.id, suite.id)
+    await _finish_runs(db, Model(db))
+    await service.settle_finished(now=datetime.now(UTC))
+    await service.update(ctx, agent.id, suite.id, EvalSuiteUpdate(dataset_id=second.id))
+
+    rerun = await service.run_now(ctx, agent.id, suite.id)
+
+    assert rerun.baseline_eval_run_id is None
+
+
+@pytest.mark.security
+async def test_saving_a_suite_needs_permission_to_run_the_agent(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx)
+    real = resolve_access
+
+    async def no_run(db_, ctx_, resource, perm, **kwargs):
+        return False if perm is Perm.AGENTS_RUN else await real(db_, ctx_, resource, perm, **kwargs)
+
+    with (
+        patch("app.services.eval_suite.resolve_access", new=no_run),
+        pytest.raises(AuthorizationError, match="permission to run it"),
+    ):
+        await EvalSuiteService(db).create(ctx, agent.id, _suite_data(dataset))
+
+
+async def test_a_suite_on_an_environment_being_removed_pauses_and_says_why(db) -> None:
+    ctx = await _owner(db)
+    agent, version = await _agent(db, ctx)
+    environments = AgentEnvironmentService(db)
+    staging = await environments.create(
+        ctx, agent.id, EnvironmentCreate(name="staging", version_id=version.id)
+    )
+    dataset = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    suite = await service.create(ctx, agent.id, _suite_data(dataset, environment_id=staging.id))
+    paused_already = await service.create(
+        ctx, agent.id, _suite_data(dataset, environment_id=staging.id)
+    )
+    await service.update(ctx, agent.id, paused_already.id, EvalSuiteUpdate(is_active=False))
+
+    await environments.delete(ctx, agent.id, staging.id)
+
+    row = await db.get(EvalSuite, suite.id)
+    assert row is not None
+    await db.refresh(row)
+    assert (row.is_active, row.paused_reason, row.environment_id) == (
+        False,
+        "environment_gone",
+        None,
+    )
+    kept = await db.get(EvalSuite, paused_already.id)
+    assert kept is not None and kept.paused_reason is None
