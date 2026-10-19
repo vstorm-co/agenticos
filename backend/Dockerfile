@@ -58,6 +58,13 @@ COPY emails /app/emails
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev ${EXTRAS}
 
+# The application's own modules, compiled once here. `UV_COMPILE_BYTECODE`
+# covers the dependencies only, and the runtime sets `PYTHONDONTWRITEBYTECODE`,
+# so every process - each API worker, the worker, every ingest child it
+# respawns, every migration - compiled all of `app/` at start and threw the
+# result away (#2229).
+RUN python -m compileall -q -j 0 app cli alembic
+
 
 # Runtime stage
 FROM python:3.15-slim

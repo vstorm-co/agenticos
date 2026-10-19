@@ -81,6 +81,11 @@ Two things are versioned separately from this file and worth knowing about:
   lazy-import mode of PEP 810 was measured and not adopted: it breaks protobuf
   and SQLAlchemy, which register themselves at import, and limited to the
   application's own modules it saved 0.2 s of a 2.4 s import, at higher memory.
+- **The backend image ships its own code compiled** (#2229). Only the
+  dependencies were; with `PYTHONDONTWRITEBYTECODE` set at run time, every
+  process compiled all of `app/` on start and threw it away. Importing the
+  application in a fresh container goes from about 4.8 s to 3.3 s on a laptop,
+  for each API worker, the worker, each ingest child and every migration.
 - **A busy schedule now skips by default.** Before, a schedule whose run was
   still going fired once as soon as it ended; existing schedules take `skip`.
   Set `overlap` to `queue` for the old behaviour.
