@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-19
+
 ### Added
 
 - **A sync source can be edited from its knowledge base.** The pencil on a
