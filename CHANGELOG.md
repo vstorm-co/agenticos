@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-10-19
+
 ### Fixed
 
 - **A public app link fills the window.** The page behind `/a/…` was framed
