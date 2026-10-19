@@ -578,7 +578,7 @@ async def get_current_session_id(
 
 
 CurrentSessionId = Annotated[UUID | None, Depends(get_current_session_id)]
-from app.db.models.organization import Organization, OrgRole
+from app.db.models.organization import Organization, OrganizationMember, OrgRole
 
 # Module-level alias so tests can patch via `app.api.deps._member_repo`.
 # RequireOrgRole methods reference this alias instead of importing the repo
@@ -620,17 +620,20 @@ async def get_active_organization(
             raise NotFoundError(message="Personal organization not found - please re-register")
         return org
 
-    membership = await member_repo.get(db, organization_id=x_organization_id, user_id=user.id)
-    if not membership:
+    # The membership and the organization in one query, and the membership kept
+    # for `get_auth_context`, which read the same row again on every request
+    # (#2248). A membership names an existing organization - the foreign key
+    # sees to that - so a missing pair is one answer.
+    found = await member_repo.get_with_organization(
+        db, organization_id=x_organization_id, user_id=user.id
+    )
+    if found is None:
         raise NotFoundError(
             message="Organization not found or access denied",
             details={"org_id": str(x_organization_id)},
         )
-    org = await organization_repo.get_by_id(db, x_organization_id)
-    if not org:
-        raise NotFoundError(
-            message="Organization not found", details={"org_id": str(x_organization_id)}
-        )
+    membership, org = found
+    request.state.active_membership = membership
     return org
 
 
@@ -862,7 +865,9 @@ async def get_auth_context(
     caller = _key_caller(request)
     if caller is not None:
         return _attributed(request, user, caller.context, caller.surface)
-    membership = await _member_repo.get(db, organization_id=org.id, user_id=user.id)
+    membership = _membership_read(request, org, user) or await _member_repo.get(
+        db, organization_id=org.id, user_id=user.id
+    )
     if membership is None and not user.is_app_admin:
         raise NotFoundError(
             message="Organization not found or access denied",
@@ -875,6 +880,18 @@ async def get_auth_context(
         is_app_admin=user.is_app_admin,
     )
     return _attributed(request, user, ctx, "console")
+
+
+def _membership_read(request: Request, org: Organization, user: User) -> OrganizationMember | None:
+    """The membership `get_active_organization` already read for this request, if it is this one."""
+    membership = getattr(request.state, "active_membership", None)
+    if (
+        isinstance(membership, OrganizationMember)
+        and membership.organization_id == org.id
+        and membership.user_id == user.id
+    ):
+        return membership
+    return None
 
 
 Auth = Annotated[AuthContext, Depends(get_auth_context)]

@@ -154,6 +154,10 @@ Two things are versioned separately from this file and worth knowing about:
   budget's spend reads take a pooled connection instead of a new one each (two
   or three per run), and presence does not query to name the socket's own
   person.
+- **Every request in an organization reads the caller's membership once.**
+  The membership and the organization come in one query, and the
+  authorization context reuses that membership instead of reading it again:
+  two statements fewer on every console request.
 - **A busy schedule now skips by default.** Before, a schedule whose run was
   still going fired once as soon as it ended; existing schedules take `skip`.
   Set `overlap` to `queue` for the old behaviour.
