@@ -15,6 +15,7 @@ import {
   useEvalRun,
   useEvalRuns,
   useEveryAgent,
+  useEveryDataset,
   useRecentEvalRuns,
   useRescoreRun,
   useSendToReview,
@@ -294,6 +295,20 @@ describe("useEveryAgent", () => {
     await waitFor(() => expect(result.current.agents).toHaveLength(2));
     expect(apiClient.get).toHaveBeenLastCalledWith("/agents", {
       params: { skip: "100", limit: "100" },
+    });
+  });
+});
+
+describe("useEveryDataset", () => {
+  it("reads every page of the datasets by name, not the first alone", async () => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce({ items: [{ id: "d1" }], total: 101 })
+      .mockResolvedValueOnce({ items: [{ id: "d2" }], total: 101 });
+    const { result } = renderHook(() => useEveryDataset(), { wrapper });
+
+    await waitFor(() => expect(result.current.datasets).toHaveLength(2));
+    expect(apiClient.get).toHaveBeenLastCalledWith("/datasets", {
+      params: { sort: "name", skip: "100", limit: "100" },
     });
   });
 });

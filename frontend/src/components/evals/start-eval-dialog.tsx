@@ -20,8 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui";
-import { useDatasets } from "@/hooks/use-datasets";
-import { useDatasetEvalRuns, useEvalRuns, useEveryAgent } from "@/hooks/use-eval-runs";
+import {
+  useDatasetEvalRuns,
+  useEvalRuns,
+  useEveryAgent,
+  useEveryDataset,
+} from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -91,10 +95,10 @@ export function StartEvalDialog({
     null;
   const agentId = givenAgent ?? chosenAgent ?? offeredAgent;
   const { runs, estimate, start } = useEvalRuns(agentId);
-  const { datasets } = useDatasets({ sort: "name", limit: 100 });
+  const { datasets } = useEveryDataset();
   const { currentVersion, targets, preferred } = useEvalTarget(agentId);
 
-  const runnable = datasets.filter((dataset) => dataset.case_count > 0);
+  const runnable = datasets.filter((dataset) => dataset.case_count > 0 && dataset.can_run);
   const offered =
     runs.find((run) => runnable.some((dataset) => dataset.id === run.dataset_id))?.dataset_id ??
     (runnable.length === 1 ? runnable[0]?.id : undefined) ??

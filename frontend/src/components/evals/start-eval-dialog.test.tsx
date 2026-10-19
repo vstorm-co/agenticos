@@ -76,6 +76,7 @@ vi.mock("@/hooks", () => ({
   }),
 }));
 
+const datasets = vi.hoisted(() => ({ items: [] as unknown[] }));
 const hooks = vi.hoisted(() => ({
   estimate: undefined as unknown,
   start: undefined as unknown,
@@ -86,10 +87,7 @@ vi.mock("@/hooks/use-eval-runs", () => ({
   useEvalRuns: () => ({ runs: hooks.runs, estimate: hooks.estimate, start: hooks.start }),
   useDatasetEvalRuns: () => ({ runs: hooks.datasetRuns }),
   useEveryAgent: () => ({ agents: agentList.items }),
-}));
-const datasets = vi.hoisted(() => ({ items: [] as unknown[] }));
-vi.mock("@/hooks/use-datasets", () => ({
-  useDatasets: () => ({ datasets: datasets.items }),
+  useEveryDataset: () => ({ datasets: datasets.items }),
 }));
 vi.mock("@/hooks/use-agent-environments", () => ({
   useAgentEnvironments: () => ({ environments: [{ id: "env-1", name: "staging" }] }),
@@ -114,6 +112,7 @@ const REFUNDS = {
   name: "refunds",
   case_count: 20,
   latest_version: 3,
+  can_run: true,
   scoring: SCORING,
   judge_name: "Policy judge",
 };
@@ -148,7 +147,10 @@ beforeEach(() => {
   agentState.currentVersionId = "v7";
   agentState.canEdit = true;
   agentState.liveSpec = { instructions: "Answer refunds." };
-  datasets.items = [REFUNDS, { id: "ds-2", name: "empty", case_count: 0, latest_version: 0 }];
+  datasets.items = [
+    REFUNDS,
+    { id: "ds-2", name: "empty", case_count: 0, latest_version: 0, can_run: true },
+  ];
   hooks.runs = [];
   hooks.datasetRuns = [];
   agentList.items = [...AGENTS];
@@ -256,6 +258,14 @@ describe("StartEvalDialog", () => {
     hooks.runs = [];
     await choose("Dataset", "refunds · 20 cases · v3");
     await waitFor(() => expect(estimated()).toHaveBeenLastCalledWith(COMPARE));
+  });
+
+  it("offers no dataset the caller may only read", async () => {
+    datasets.items = [REFUNDS, { ...REFUNDS, id: "ds-3", name: "shipping", can_run: false }];
+    open();
+    expect(screen.getByRole("combobox", { name: "Dataset" })).toHaveTextContent("refunds");
+    await userEvent.click(screen.getByRole("combobox", { name: "Dataset" }));
+    expect(screen.queryByRole("option", { name: /shipping/ })).toBeNull();
   });
 
   it("offers nothing to run when there is more than one dataset and no history", () => {

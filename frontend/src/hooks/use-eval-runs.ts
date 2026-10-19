@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
 import type { Agent, AgentList, AgentSpec } from "@/types/agents";
+import type { Dataset, DatasetList } from "@/types/datasets";
 import type {
   CaseOutcomeFilter,
   EvalCaseList,
@@ -173,13 +174,8 @@ const RESCORE_BATCH = 10;
 /** The most cases one page of a run's cases holds. */
 const CASE_PAGE = 100;
 
-/**
- * Sending one side's failed answers to the dataset's review queue from the
- * run's page: every failed first answer of `arm`, read page by page, sent in
- * batches. One newer than a case's answer still waiting takes its place.
- */
-/** As many agents as the API lists in one page. */
-const AGENT_PAGE = 100;
+/** As many rows as the agents and datasets listings return in one page. */
+const LIST_PAGE = 100;
 
 /**
  * Every agent the caller sees, page by page - the start dialog offers any of
@@ -190,9 +186,9 @@ export function useEveryAgent({ enabled = true }: { enabled?: boolean } = {}) {
     queryKey: qk.agents.every(),
     queryFn: async () => {
       const agents: Agent[] = [];
-      for (let skip = 0, total = 1; skip < total; skip += AGENT_PAGE) {
+      for (let skip = 0, total = 1; skip < total; skip += LIST_PAGE) {
         const page = await apiClient.get<AgentList>("/agents", {
-          params: { skip: String(skip), limit: String(AGENT_PAGE) },
+          params: { skip: String(skip), limit: String(LIST_PAGE) },
         });
         total = page.total;
         agents.push(...page.items);
@@ -204,6 +200,33 @@ export function useEveryAgent({ enabled = true }: { enabled?: boolean } = {}) {
   return { agents: query.data ?? [] };
 }
 
+/**
+ * Every dataset the caller sees, by name and page by page - the start dialog
+ * offers any of them, and the listing's first page alone would hide the rest.
+ */
+export function useEveryDataset() {
+  const query = useQuery({
+    queryKey: qk.datasets.every(),
+    queryFn: async () => {
+      const datasets: Dataset[] = [];
+      for (let skip = 0, total = 1; skip < total; skip += LIST_PAGE) {
+        const page = await apiClient.get<DatasetList>("/datasets", {
+          params: { sort: "name", skip: String(skip), limit: String(LIST_PAGE) },
+        });
+        total = page.total;
+        datasets.push(...page.items);
+      }
+      return datasets;
+    },
+  });
+  return { datasets: query.data ?? [] };
+}
+
+/**
+ * Sending one side's failed answers to the dataset's review queue from the
+ * run's page: every failed first answer of `arm`, read page by page, sent in
+ * batches. One newer than a case's answer still waiting takes its place.
+ */
 export function useSendToReview(runId: string, datasetId: string) {
   const queryClient = useQueryClient();
   return useMutation({
