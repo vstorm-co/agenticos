@@ -9,7 +9,7 @@ let alone a member - is refused every verb.
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -27,6 +27,8 @@ from app.schemas.background_job import (
 pytestmark = pytest.mark.anyio
 
 BASE = f"{settings.API_V1_STR}/admin/background-jobs"
+# Fixed, not `uuid4()`: a parametrize id has to be the same in every xdist worker.
+_SOME_JOB = UUID("00000000-0000-4000-8000-000000000001")
 
 
 def _user(*, app_admin: bool) -> MagicMock:
@@ -56,8 +58,8 @@ async def _client(user: MagicMock, service: MagicMock) -> AsyncGenerator[AsyncCl
     [
         ("GET", "", None),
         ("GET", "/jobs", None),
-        ("POST", f"/jobs/{uuid4()}/retry", None),
-        ("POST", f"/jobs/{uuid4()}/cancel", None),
+        ("POST", f"/jobs/{_SOME_JOB}/retry", None),
+        ("POST", f"/jobs/{_SOME_JOB}/cancel", None),
         ("POST", "/kinds/ingest-document/pause", {"reason": "x"}),
         ("POST", "/kinds/ingest-document/resume", None),
     ],
