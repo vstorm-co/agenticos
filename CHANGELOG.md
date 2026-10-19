@@ -51,6 +51,12 @@ Two things are versioned separately from this file and worth knowing about:
   checks for polling bots nobody serves every 10 seconds. That was one query
   per platform, three per pass, and most of an idle prod's transactions. One
   query now covers all three (#2227).
+- **Naming a request's span no longer rebuilds the whole route table.**
+  OpenTelemetry's FastAPI instrumentation flattened `app.routes` on every
+  request, and FastAPI 0.143 rebuilds each included router's dependants to do
+  it: `inspect.signature` on all 524 endpoints. That was the largest single
+  cost of serving a request on prod. The flattened list is now built once per
+  process. Locally it goes from 0.40 ms to 0.18 ms per request (#2226).
 
 ## [1.6.3] - 2026-10-18
 
