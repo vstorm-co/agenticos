@@ -45,6 +45,7 @@ from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.intercepted_tool_call import InterceptionOutcome
+from app.db.models.resource_grant import Visibility
 from app.repositories import (
     agent_repo,
     agent_run_repo,
@@ -276,7 +277,8 @@ class ScoringService:
         """Create a judge of the dataset's own and make it the one grading the dataset.
 
         Needs `datasets:edit` on the dataset and `agents:edit`, since a judge is
-        an agent. Its prompt is the one edited from :meth:`judge_template`, or
+        an agent; it is as widely visible as the dataset, and stays a draft for a
+        caller who may not publish it. Its prompt is the one edited from :meth:`judge_template`, or
         that template when none is sent. The rubric stays the dataset's; only
         which judge grades changes, so scores graded before keep the judge they
         were graded by. What the judge must know is added to its instructions
@@ -304,6 +306,7 @@ class ScoringService:
             name=data.name,
             description=f"Grades the cases of the dataset '{dataset.name}'.",
             instructions=_with_knowledge(instructions, data.knowledge),
+            visibility=Visibility(dataset.visibility),
             model_profile_id=data.model_profile_id,
         )
         scoring = DatasetScoring.model_validate(dataset.scoring)

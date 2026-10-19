@@ -1,5 +1,5 @@
 ---
-source_sha: "91e836989c4b"
+source_sha: "a1ed42dbcce7"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -297,9 +297,13 @@ Bewerter: **Bewerter für dieses Dataset anlegen** auf der Karte Bewerter legt
 einen an, dessen Prompt der des Eval judge mit seinen Bewertungsregeln ist,
 gefolgt von Namen und Beschreibung des Datasets und dem, was der Bewerter laut
 Ihnen zum Bewerten wissen muss - einer Richtlinie, einer Preisliste -, auf dem
-ersten Modell der Organisation oder einem, das Sie wählen. Der Prompt lässt
-sich vor dem Anlegen bearbeiten (`GET /datasets/{id}/judge-template`). Dafür
-braucht es `agents:edit` und `datasets:edit`.
+ersten Modell der Organisation oder einem, das Sie wählen. Der Prompt lässt sich
+vor dem Anlegen bearbeiten (`GET /datasets/{id}/judge-template`). Dafür braucht
+es `agents:edit` und `datasets:edit`.
+
+Der Bewerter ist so weit sichtbar wie das Dataset, da sein Prompt dessen Namen
+und Beschreibung enthält, und bleibt ein Entwurf für jemanden, der ihn
+veröffentlichen darf (`agents:publish`), wenn sein Ersteller es nicht darf.
 
 Das Modell wird im selben Panel wie bei einem Agent gewählt: ein Provider, seine
 vollständige Modellliste und ein Schlüssel für alle, die ein Modell hinzufügen

@@ -43,7 +43,7 @@ from app.db.models.intercepted_tool_call import (
 )
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_secret import OrganizationSecret
-from app.db.models.resource_grant import GrantLevel, ResourceGrant
+from app.db.models.resource_grant import GrantLevel, ResourceGrant, Visibility
 from app.db.models.user import User
 from app.repositories import (
     agent_repo,
@@ -655,6 +655,46 @@ class TestADatasetsOwnJudge:
         assert judged.agent_id == own
         assert score.judge is not None and score.judge.agent_id == own
 
+    @pytest.mark.security
+    async def test_it_is_as_visible_as_the_dataset_it_grades(self, db, judge) -> None:
+        """Its prompt holds the dataset's name, description and what it must know,
+        so a private dataset does not get a judge the whole organization reads."""
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        private, _ = await _dataset(db, tenant, scoring=_rubric())
+        shared, _ = await _dataset(db, tenant, scoring=_rubric(), visibility="org")
+        scoring = ScoringService(db)
+
+        hidden = await scoring.create_judge(
+            tenant.ctx, private.id, JudgeCreate(name="Private judge")
+        )
+        seen = await scoring.create_judge(tenant.ctx, shared.id, JudgeCreate(name="Org judge"))
+
+        visibility = {}
+        for made in (hidden, seen):
+            own = made.scoring.judge.agent_id
+            assert own is not None
+            agent = await agent_repo.get(db, own, organization_id=tenant.organization.id)
+            assert agent is not None
+            visibility[made.id] = agent.visibility
+        assert visibility == {private.id: "private", shared.id: "org"}
+
+    async def test_a_creator_who_may_not_publish_gets_a_draft_judge(self, db, judge) -> None:
+        tenant = await _tenant(db)
+        await _model(db, tenant)
+        member = await _join(db, tenant, OrgRoleName.MEMBER)
+        dataset = await DatasetService(db).create(member, DatasetCreate(name="Mine"))
+
+        made = await ScoringService(db).create_judge(
+            member, dataset.id, JudgeCreate(name="My judge")
+        )
+
+        own = made.scoring.judge.agent_id
+        assert own is not None
+        agent = await agent_repo.get(db, own, organization_id=tenant.organization.id)
+        assert agent is not None
+        assert (agent.kind, agent.current_version_id) == ("judge", None)
+
     async def test_it_grades_by_the_default_judge_s_rules_with_the_dataset_added(
         self, db, judge
     ) -> None:
@@ -807,7 +847,11 @@ class TestADatasetsOwnJudge:
         tenant = await _tenant(db)
         dataset, _ = await _dataset(db, tenant, scoring=DatasetScoring())
         other = await SystemAgentService(db).create_judge(
-            tenant.ctx, name="Tone judge", description="Grades tone.", instructions="Be fair."
+            tenant.ctx,
+            name="Tone judge",
+            description="Grades tone.",
+            visibility=Visibility.ORG,
+            instructions="Be fair.",
         )
 
         saved = await ScoringService(db).set_scoring(

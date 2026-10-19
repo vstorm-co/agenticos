@@ -1,5 +1,5 @@
 ---
-source_sha: "91e836989c4b"
+source_sha: "a1ed42dbcce7"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -283,10 +283,14 @@ que la plataforma añade a cada organización, o con un juez propio: **Create a
 judge for this dataset**, en la tarjeta Judge, crea uno cuyo prompt es el del
 Eval judge, con sus reglas de calificación, seguido del nombre y la descripción
 del dataset y de lo que indiques que el juez debe saber para calificar (una
-política, una lista de precios), sobre el primer modelo de la organización o
-uno que elijas. El prompt se puede editar antes de crearlo (`GET
+política, una lista de precios), sobre el primer modelo de la organización o uno
+que elijas. El prompt se puede editar antes de crearlo (`GET
 /datasets/{id}/judge-template`). Crearlo requiere `agents:edit` además de
 `datasets:edit`.
+
+El juez es tan visible como el dataset, porque su prompt contiene el nombre y la
+descripción del dataset, y queda como borrador para quien pueda publicarlo
+(`agents:publish`) cuando su creador no puede.
 
 El modelo se elige en el mismo panel que el de un agent: un provider, su lista
 completa de modelos y una clave para quien puede añadir un modelo

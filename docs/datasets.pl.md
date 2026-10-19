@@ -1,5 +1,5 @@
 ---
-source_sha: "91e836989c4b"
+source_sha: "a1ed42dbcce7"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -271,16 +271,19 @@ narzędzia oczekuje starej nazwy.
 
 ### Sędzia { #judge }
 
-Sędzia to agent rodzaju `judge` (zobacz
-[Sędziowie](concepts.md#system-agents)). Dataset ocenia za pomocą **Eval
-judge**, którego platforma dodaje do każdej organizacji, albo za pomocą
-własnego sędziego: **Utwórz sędziego dla tego datasetu** na karcie Sędzia
-tworzy sędziego, którego prompt to prompt Eval judge z jego zasadami oceniania,
-a po nim nazwa i opis datasetu oraz to, co według ciebie sędzia musi wiedzieć,
-żeby oceniać - polityka, cennik - na pierwszym modelu organizacji albo na
-wybranym przez ciebie. Prompt można edytować przed utworzeniem (`GET
-/datasets/{id}/judge-template`). Utworzenie go wymaga `agents:edit` oraz
-`datasets:edit`.
+Sędzia to agent rodzaju `judge` (zobacz [Sędziowie](concepts.md#system-agents)).
+Dataset ocenia za pomocą **Eval judge**, którego platforma dodaje do każdej
+organizacji, albo za pomocą własnego sędziego: **Utwórz sędziego dla tego
+datasetu** na karcie Sędzia tworzy sędziego, którego prompt to prompt Eval judge
+z jego zasadami oceniania, a po nim nazwa i opis datasetu oraz to, co według
+ciebie sędzia musi wiedzieć, żeby oceniać - polityka, cennik - na pierwszym
+modelu organizacji albo na wybranym przez ciebie. Prompt można edytować przed
+utworzeniem (`GET /datasets/{id}/judge-template`). Utworzenie go wymaga
+`agents:edit` oraz `datasets:edit`.
+
+Sędzia jest widoczny tak szeroko jak dataset, bo jego prompt zawiera nazwę i
+opis datasetu, a gdy jego twórca nie może go opublikować, zostaje szkicem dla
+kogoś, kto może (`agents:publish`).
 
 Model wybiera się w tym samym panelu co dla agenta: provider, pełna lista jego
 modeli i klucz dla kogoś, kto może dodać model (`connections:manage`), a

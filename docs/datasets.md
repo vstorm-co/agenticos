@@ -271,6 +271,10 @@ list - on the organization's first model or one you pick. The prompt is shown to
 edit before it is created (`GET /datasets/{id}/judge-template`). Creating it
 needs `agents:edit` as well as `datasets:edit`.
 
+The judge is as widely visible as the dataset, since its prompt holds the
+dataset's name and description, and it stays a draft for somebody who may
+publish it (`agents:publish`) when its creator may not.
+
 The model is picked in the same panel as an agent's: a provider, its full list
 of models and a key for whoever may add a model (`connections:manage`), and the
 saved models for anyone else.
