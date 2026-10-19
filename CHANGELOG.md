@@ -17,6 +17,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- **Backend dependencies move up.**
+  - Pydantic AI 2.57.0 and the harness 0.57.0, FastAPI 0.143.2, pydantic-settings 2.16.0, Authlib 1.9.1, LiteParse 2.16.0, google-auth 2.62.0, google-genai 2.31.0, boto3 1.43.114 and aiohttp 3.14.5.
+  - The tools: ruff 0.17.1, ty 0.0.88, pre-commit 4.7.0 and mkdocstrings 1.0.7.
+  - pydantic-ai-backend 0.2.34 for the sandbox changes below.
+  - The floors in `pyproject.toml` follow. ty 0.0.88 flags the narrowed `visibility` on `ProjectCreate`; it is suppressed with the reason beside it.
+  - Replaces Dependabot's #2233 and #2234.
+
 ### Fixed
 
 - **A host short of CPU no longer restarts the API in a loop.** Uvicorn's
