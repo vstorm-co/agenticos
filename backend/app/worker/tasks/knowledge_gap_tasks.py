@@ -12,6 +12,7 @@ from uuid import UUID
 from prefect import flow
 
 from app.db.session import get_db_context
+from app.services import change_feed
 from app.services.knowledge_gaps import KnowledgeGapService
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,8 @@ async def group_knowledge_gaps_flow(
     Returns:
         How many misses were placed in a topic.
     """
+    # So a Knowledge gaps tab left open hears about the questions placed.
+    await change_feed.connect_in_worker()
     async with get_db_context() as db:
         service = KnowledgeGapService(db)
         await service.forget_empty_topics()
@@ -41,13 +44,17 @@ async def group_knowledge_gaps_flow(
     for org_id, kb_id in waiting:
         try:
             async with get_db_context() as db:
-                grouped += await KnowledgeGapService(db).group_pending(
+                placed = await KnowledgeGapService(db).group_pending(
                     organization_id=org_id, knowledge_base_id=kb_id
                 )
         except Exception:
             logger.exception(
                 "knowledge_gaps_grouping_failed", extra={"knowledge_base_id": str(kb_id)}
             )
+            continue
+        grouped += placed
+        if placed:
+            await change_feed.publish_knowledge_gaps_grouped(org_id)
     if grouped:
         logger.info("Knowledge gaps: %d question(s) grouped", grouped)
     return grouped

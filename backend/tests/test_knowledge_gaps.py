@@ -18,6 +18,7 @@ import pytest
 from app.db.models.knowledge_gap import KnowledgeGapMember, KnowledgeGapTopic, KnowledgeSearch
 from app.repositories import knowledge_gap_repo
 from app.repositories.knowledge_gap import DraftingRow
+from app.services import change_feed
 from app.services.knowledge_gaps import (
     TOPIC_SIMILARITY,
     KnowledgeGapService,
@@ -284,6 +285,8 @@ class TestTheFlow:
 
         with (
             patch("app.worker.tasks.knowledge_gap_tasks.get_db_context", new=_Context),
+            patch.object(change_feed, "connect_in_worker", new=AsyncMock()),
+            patch.object(change_feed, "publish_knowledge_gaps_grouped", new=AsyncMock()) as told,
             patch.object(KnowledgeGapService, "forget_empty_topics", new=AsyncMock()) as forget,
             patch.object(
                 KnowledgeGapService,
@@ -298,10 +301,14 @@ class TestTheFlow:
         assert grouped == 4
         assert [c.kwargs["knowledge_base_id"] for c in group.await_args_list] == [KB, other_kb]
         assert "knowledge_gaps_grouping_failed" in caplog.text
+        # Only the pass that placed something, after it committed.
+        told.assert_awaited_once_with(ORG)
 
     async def test_a_pass_with_nothing_waiting_groups_nothing(self, caplog):
         with (
             patch("app.worker.tasks.knowledge_gap_tasks.get_db_context", new=_Context),
+            patch.object(change_feed, "connect_in_worker", new=AsyncMock()),
+            patch.object(change_feed, "publish_knowledge_gaps_grouped", new=AsyncMock()) as told,
             patch.object(KnowledgeGapService, "forget_empty_topics", new=AsyncMock()),
             patch.object(
                 KnowledgeGapService, "waiting_to_be_grouped", new=AsyncMock(return_value=[])
@@ -311,10 +318,13 @@ class TestTheFlow:
 
         assert grouped == 0
         assert "grouped" not in caplog.text
+        told.assert_not_awaited()
 
     async def test_a_named_knowledge_base_is_grouped_without_looking_for_others(self):
         with (
             patch("app.worker.tasks.knowledge_gap_tasks.get_db_context", new=_Context),
+            patch.object(change_feed, "connect_in_worker", new=AsyncMock()),
+            patch.object(change_feed, "publish_knowledge_gaps_grouped", new=AsyncMock()),
             patch.object(KnowledgeGapService, "forget_empty_topics", new=AsyncMock()),
             patch.object(KnowledgeGapService, "waiting_to_be_grouped", new=AsyncMock()) as waiting,
             patch.object(
