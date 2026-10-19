@@ -1,5 +1,5 @@
 ---
-source_sha: "bd5fba4675a0"
+source_sha: "52f9a8331e8f"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -201,8 +201,8 @@ möchten - höchstens 50, gleichmäßig auf die Quellen verteilt:
 
 | Quelle | Was der Generator entwirft | Was er gezeigt bekommt |
 |---|---|---|
-| Vom Agent | Typische Anfragen und Grenzfälle, mit den Tool-Aufrufen, die eine gute Antwort macht | Die Anweisungen des Agents, seine Skills und seine Tools, unter den Namen, die der Agent ihnen gibt |
-| Aus dem Wissen | Fragen, die seine Wissensbasis beantwortet. Jeder Fall verweist auf das Dokument, aus dem sein Abschnitt stammt, behält den Abschnitt als Referenzantwort, erwartet einen Aufruf der Wissenssuche des Agents und trägt eine `judge`-Prüfung, dass die Antwort zum Abschnitt passt | Abschnitte aus höchstens 12 indexierten Dokumenten der Wissensbasen, die der Agent nutzt und die Sie lesen dürfen |
+| Vom Agent | Typische Anfragen und Grenzfälle, mit den Aufrufen von Tools, die etwas ändern, die eine gute Antwort macht - ein Tool, das nur liest, wird nie erwartet, wie bei einem Fall, der aus einer Antwort hinzugefügt wird | Die Anweisungen des Agents, seine Skills und seine Tools, unter den Namen, die der Agent ihnen gibt |
+| Aus dem Wissen | Fragen, die seine Wissensbasis beantwortet. Jeder Fall verweist auf das Dokument, aus dem sein Abschnitt stammt, behält den Abschnitt als Referenzantwort und trägt eine `judge`-Prüfung, dass die Antwort zum Abschnitt passt | Abschnitte aus höchstens 12 indexierten Dokumenten der Wissensbasen, die der Agent nutzt und die Sie lesen dürfen |
 | Aus Gesprächen | Umformulierungen und schwierigere Varianten dessen, was Menschen den Agent gefragt haben, negativ bewertete Antworten zuerst. Jeder Fall verweist auf die Frage, die er abwandelt | Höchstens 60 Fragen, die dem Agent in dieser Organisation gestellt wurden, mit dem Kommentar zu einer negativ bewerteten Antwort. Nur Betriebsverkehr: Eval-Runs und isoliert gelaufene Runs haben auf einen Test geantwortet, nicht auf einen Menschen, und bleiben außen vor |
 | Red Team | Anfragen außerhalb des Zwecks, Prompt-Injections, Versuche, personenbezogene Daten herauszulocken, und Versuche, die Richtlinien des Agents zu umgehen. Jeder Fall hat die Tags `red-team` und `red-team:<Kategorie>` und eine `judge`-Prüfung, dass der Agent ablehnt | Die Anweisungen des Agents, seine Skills und seine Tools |
 
@@ -229,8 +229,9 @@ liest, wird mit Ihren eigenen Zugriffsrechten für ihn gesammelt und im Prompt
 will, höchstens den Text eines Entwurfs ändern kann, den Sie prüfen. Ein
 Entwurf, der die Regel seiner Quelle nicht einhält - ein Wissensfall ohne einen
 Abschnitt, den der Generator bekam, ein Gesprächsfall ohne eine Frage, die er
-bekam, ein Red-Team-Fall ohne Kategorie, ein Fall, der nichts erwartet -,
-wird verworfen, bevor Sie ihn sehen.
+bekam, ein Red-Team-Fall ohne Kategorie, ein Fall, der nichts erwartet, ein
+Fall, dessen Referenzantwort sein Gegenbeispiel wiederholt und damit selbst
+durchfallen würde -, wird verworfen, bevor Sie ihn sehen.
 
 **Jede Quelle hat ihre eigene Schranke**, und eine Quelle, die Sie nicht nutzen
 dürfen, wird mit Namen abgelehnt statt stillschweigend ausgelassen:

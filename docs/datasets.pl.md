@@ -1,5 +1,5 @@
 ---
-source_sha: "bd5fba4675a0"
+source_sha: "52f9a8331e8f"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -187,8 +187,8 @@ przypadków - najwyżej 50, dzielonych po równo między źródła:
 
 | Źródło | Co przygotowuje generator | Co dostaje |
 |---|---|---|
-| Z agenta | Typowe prośby i przypadki brzegowe, z wywołaniami narzędzi, które wykonuje dobra odpowiedź | Instrukcje agenta, jego skille i narzędzia, pod nazwami, które nadaje im agent |
-| Z wiedzy | Pytania, na które odpowiada baza wiedzy. Każdy przypadek wskazuje dokument, z którego pochodzi fragment, trzyma ten fragment jako odpowiedź wzorcową, oczekuje wywołania wyszukiwania w wiedzy agenta i ma sprawdzenie `judge`, że odpowiedź zgadza się z fragmentem | Fragmenty z najwyżej 12 zaindeksowanych dokumentów baz wiedzy, których używa agent i które możesz czytać |
+| Z agenta | Typowe prośby i przypadki brzegowe, z wywołaniami narzędzi, które coś zmieniają, wykonywanymi przez dobrą odpowiedź - narzędzie, które tylko czyta, nigdy nie jest oczekiwane, tak jak w przypadku dodanym z odpowiedzi | Instrukcje agenta, jego skille i narzędzia, pod nazwami, które nadaje im agent |
+| Z wiedzy | Pytania, na które odpowiada baza wiedzy. Każdy przypadek wskazuje dokument, z którego pochodzi fragment, trzyma ten fragment jako odpowiedź wzorcową i ma sprawdzenie `judge`, że odpowiedź zgadza się z fragmentem | Fragmenty z najwyżej 12 zaindeksowanych dokumentów baz wiedzy, których używa agent i które możesz czytać |
 | Z rozmów | Parafrazy i trudniejsze warianty tego, o co ludzie pytali agenta, najpierw odpowiedzi ocenione łapką w dół. Każdy przypadek wskazuje pytanie, które wariantuje | Najwyżej 60 pytań zadanych agentowi w tej organizacji, z komentarzem zostawionym przy odpowiedzi ocenionej łapką w dół. Tylko ruch produkcyjny: runy eval i runy uruchomione w izolacji odpowiadały na test, a nie człowiekowi, i są pomijane |
 | Red team | Prośby spoza zakresu, wstrzykiwanie promptów, próby wydobycia danych osobowych i obejścia zasad agenta. Każdy przypadek ma tagi `red-team` i `red-team:<kategoria>` oraz sprawdzenie `judge`, że agent odmawia | Instrukcje agenta, jego skille i narzędzia |
 
@@ -215,7 +215,9 @@ rozmowa, które próbują wydawać mu polecenia, mogą najwyżej zmienić tekst
 propozycji, którą przeglądasz. Propozycja, która nie spełnia reguły swojego
 źródła - przypadek z wiedzy bez fragmentu, który generator dostał, przypadek z
 rozmów bez pytania, które dostał, przypadek red team bez kategorii, przypadek,
-który niczego nie oczekuje - jest odrzucana, zanim ją zobaczysz.
+który niczego nie oczekuje, przypadek, którego odpowiedź wzorcowa powtarza
+kontrprzykład i przez to sama by nie zaliczyła - jest odrzucana, zanim ją
+zobaczysz.
 
 **Każde źródło ma własną bramkę**, a źródło, którego nie możesz użyć, jest
 odrzucane z nazwy, a nie pomijane po cichu:

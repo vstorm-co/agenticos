@@ -18,7 +18,8 @@ _ORIGIN_RULES: dict[CaseOrigin, str] = {
     CaseOrigin.AGENT: (
         "Typical requests and edge cases this agent is built for, judged from its "
         "instructions, skills and tools. List in `expected_tools` the tools a good "
-        "answer calls."
+        "answer calls, from those marked as changing something; a tool that only reads "
+        "is never expected."
     ),
     CaseOrigin.KNOWLEDGE: (
         "Questions a user could ask that one passage answers. Set `passage` to that "
@@ -48,7 +49,10 @@ def _agent_section(material: Material) -> list[str]:
         for skill in agent.skills:
             lines += [f"#### {skill.name}", skill.description, skill.body]
     lines += ["", "### Its tools"]
-    lines += [f"- `{tool.name}`: {tool.description}" for tool in agent.tools] or ["(none)"]
+    lines += [
+        f"- `{tool.name}`{' (changes something)' if tool.writes else ''}: {tool.description}"
+        for tool in agent.tools
+    ] or ["(none)"]
     return lines
 
 
@@ -81,6 +85,8 @@ def build_prompt(material: Material, quotas: dict[CaseOrigin, int]) -> str:
         "",
         "Every case says what its answer is tested against: a `reference_answer`, a "
         "`counter_example` or `expected_tools`. A case with none of them is discarded.",
+        "A `counter_example` is an answer known to be wrong, and any answer repeating it "
+        "fails: never make it a version of the good answer.",
     ]
     lines += [
         "",

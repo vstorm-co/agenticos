@@ -29,10 +29,12 @@ from app.services.case_generation.sources import (
 _ALL = dict.fromkeys(CaseOrigin, 50)
 
 
-def _material(*, knowledge_tool: str | None = "search_handbook") -> Material:
-    tools = [Tool(name="lookup_order", description="Find an order by its number")]
-    if knowledge_tool:
-        tools.append(Tool(name=knowledge_tool, description="Search the knowledge base"))
+def _material() -> Material:
+    tools = [
+        Tool(name="lookup_order", description="Find an order by its number", writes=False),
+        Tool(name="cancel_order", description="Cancel an order", writes=True),
+        Tool(name="search_handbook", description="Search the knowledge base", writes=False),
+    ]
     return Material(
         agent=AgentMaterial(
             name="Clerk",
@@ -40,7 +42,6 @@ def _material(*, knowledge_tool: str | None = "search_handbook") -> Material:
             instructions="Be brief.",
             skills=[SkillSummary(name="refunds", description="Refund policy", body="30 days")],
             tools=tools,
-            knowledge_tool=knowledge_tool,
         ),
         passages=[
             Passage(
@@ -111,7 +112,12 @@ def test_twenty_knowledge_cases_each_cite_a_document_of_the_agent_s_knowledge_ba
         {"origin": "knowledge", "input": "Made up?", "passage": "P99"},
         {"origin": "knowledge", "input": "No citation?"},
         *(
-            {"origin": "knowledge", "input": f"Q{index}?", "passage": f"P{index % 3 + 1}"}
+            {
+                "origin": "knowledge",
+                "input": f"Q{index}?",
+                "passage": f"P{index % 3 + 1}",
+                "expected_tools": ["search_handbook", "cancel_order"],
+            }
             for index in range(20)
         ),
     )
@@ -129,17 +135,9 @@ def test_twenty_knowledge_cases_each_cite_a_document_of_the_agent_s_knowledge_ba
         assert [c.model_dump() for c in draft.case.content.checks] == [
             {"type": "judge", "criterion": GROUNDED}
         ]
-        assert [call.tool for call in draft.case.content.expected_tool_calls] == ["search_handbook"]
+        # A search only reads, so the passage and the judge test the answer, not a call.
+        assert draft.case.content.expected_tool_calls == []
         assert draft.case.content.tags[0] == "knowledge"
-
-
-def test_a_knowledge_case_expects_no_search_from_an_agent_that_cannot_search() -> None:
-    kept, _ = keep(
-        _drafts({"origin": "knowledge", "input": "Q?", "passage": "P1", "expected_tools": ["x"]}),
-        _material(knowledge_tool=None),
-        quotas=_ALL,
-    )
-    assert kept[0].case.content.expected_tool_calls == []
 
 
 def test_red_team_cases_carry_a_refusal_and_tags_whatever_the_model_wrote() -> None:
@@ -207,22 +205,48 @@ def test_a_conversation_case_must_vary_a_question_it_was_shown() -> None:
     assert case.source_document_id is None
 
 
-def test_an_agent_case_keeps_only_the_tools_the_agent_has() -> None:
-    kept, _ = keep(
+def test_an_agent_case_expects_only_tools_the_agent_has_that_change_something() -> None:
+    kept, dropped = keep(
         _drafts(
             {
                 "origin": "agent",
-                "input": "Status of order 7?",
-                "expected_tools": ["lookup_order", "delete_everything"],
+                "input": "Cancel order 7",
+                "expected_tools": ["lookup_order", "cancel_order", "delete_everything"],
                 "tags": ["orders"],
-            }
+            },
+            {"origin": "agent", "input": "Status of order 7?", "expected_tools": ["lookup_order"]},
         ),
         _material(),
         quotas=_ALL,
     )
     content = kept[0].case.content
-    assert [call.tool for call in content.expected_tool_calls] == ["lookup_order"]
+    assert [call.tool for call in content.expected_tool_calls] == ["cancel_order"]
     assert content.tags == ["agent", "orders"]
+    # Expecting only a read leaves the case testing nothing, so it goes.
+    assert (len(kept), dropped) == (1, 1)
+
+
+def test_a_case_whose_good_answer_repeats_its_counter_example_is_dropped() -> None:
+    kept, dropped = keep(
+        _drafts(
+            {
+                "origin": "agent",
+                "input": "Refund order 7?",
+                "reference_answer": "Order 7 is refunded within 30 days of purchase.",
+                "counter_example": "Order 7 is refunded within 30 days of purchase.",
+            },
+            {
+                "origin": "agent",
+                "input": "Refund order 8?",
+                "reference_answer": "Order 8 is refunded within 30 days of purchase.",
+                "counter_example": "Order 8 cannot be refunded.",
+            },
+        ),
+        _material(),
+        quotas=_ALL,
+    )
+    assert [draft.case.content.input for draft in kept] == ["Refund order 8?"]
+    assert dropped == 1
 
 
 def test_drafts_past_a_quota_an_unasked_origin_or_an_invalid_case_are_dropped() -> None:
@@ -268,6 +292,7 @@ def test_the_prompt_asks_for_each_quota_and_fences_the_material() -> None:
     assert "[C3] rated down\nCancel it" in prompt
     assert "#### refunds" in prompt
     assert "- `lookup_order`: Find an order by its number" in prompt
+    assert "- `cancel_order` (changes something): Cancel an order" in prompt
     assert prompt.endswith("</material>")
 
 
@@ -275,7 +300,7 @@ def test_the_prompt_leaves_out_what_the_generation_does_not_read() -> None:
     material = _material()
     material.passages, material.questions = [], []
     material.agent = AgentMaterial(
-        name="Bare", description=None, instructions="", skills=[], tools=[], knowledge_tool=None
+        name="Bare", description=None, instructions="", skills=[], tools=[]
     )
 
     prompt = build_prompt(material, {CaseOrigin.AGENT: 4})

@@ -94,7 +94,7 @@ async def test_the_agent_is_described_by_its_published_spec_and_its_own_tool_nam
                 },
                 {"id": "no_such_capability_here"},
                 {"id": "charts", "enabled": False},
-                {"id": "context"},
+                {"id": "artifacts"},
             ],
         },
     )
@@ -102,12 +102,11 @@ async def test_the_agent_is_described_by_its_published_spec_and_its_own_tool_nam
     material = await _gatherer(db).gather(owner, agent.id, [CaseOrigin.AGENT])
 
     assert material.agent.instructions == "Answer about orders."
-    assert [tool.name for tool in material.agent.tools] == [
-        "search_handbook",
-        "list_context",
-        "read_context",
+    assert [(tool.name, tool.writes) for tool in material.agent.tools] == [
+        ("search_handbook", False),
+        ("publish_artifact", True),
+        ("read_artifact", False),
     ]
-    assert material.agent.knowledge_tool == "search_handbook"
     (skill,) = material.agent.skills
     assert skill.name == "refunds"
     assert skill.body.endswith("[...]")

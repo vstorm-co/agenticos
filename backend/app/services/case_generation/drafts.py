@@ -25,6 +25,7 @@ from app.db.models.case_generation import CaseOrigin
 from app.schemas.dataset import CaseCheck, DatasetCaseContent, ExpectedToolCall
 from app.services.case_generation.sources import Material, Question
 from app.services.dataset import GeneratedCase
+from app.services.scorers import repeats
 
 RedTeamCategory = Literal["out_of_scope", "prompt_injection", "personal_data", "policy_bypass"]
 
@@ -58,7 +59,10 @@ class DraftedCase(BaseModel):
     counter_example: str | None = Field(default=None, description="An answer known to be wrong")
     expected_tools: list[str] = Field(
         default_factory=list,
-        description="Names of the agent's tools a good answer calls, from the listed tools only",
+        description=(
+            "Names of the agent's tools a good answer calls, from the tools listed as "
+            "changing something only"
+        ),
     )
     tags: list[str] = Field(default_factory=list)
     note: str | None = Field(default=None, description="Why this case is worth testing")
@@ -100,7 +104,7 @@ def _with(tags: list[str], *added: str) -> list[str]:
 
 def _keep(drafted: DraftedCase, material: Material) -> GeneratedCase | None:
     """The case this draft becomes, or `None` when it breaks its origin's rule."""
-    tools = {tool.name for tool in material.agent.tools}
+    tools = {tool.name for tool in material.agent.tools if tool.writes}
     expected = [ExpectedToolCall(tool=name) for name in drafted.expected_tools if name in tools]
     fields: dict[str, object] = {
         "input": drafted.input,
@@ -115,14 +119,13 @@ def _keep(drafted: DraftedCase, material: Material) -> GeneratedCase | None:
         passage = next((p for p in material.passages if p.ref == drafted.passage), None)
         if passage is None:
             return None
-        search = material.agent.knowledge_tool
         fields |= {
             "reference_answer": passage.text,
             "note": f"From {passage.filename}, page {passage.page}.",
             "checks": [CaseCheck(type="judge", criterion=GROUNDED)],
             "tags": _with(drafted.tags, "knowledge"),
         }
-        expected = [ExpectedToolCall(tool=search)] if search else []
+        expected = []
         document_id = passage.document_id
     elif origin is CaseOrigin.CONVERSATION:
         asked = next((q for q in material.questions if q.ref == drafted.question), None)
@@ -141,6 +144,11 @@ def _keep(drafted: DraftedCase, material: Material) -> GeneratedCase | None:
     else:
         fields["tags"] = _with(drafted.tags, "agent")
     fields["expected_tool_calls"] = expected
+    reference, counter = fields["reference_answer"], fields["counter_example"]
+    # A scorer fails any answer that repeats the counter-example, so a case whose
+    # reference does would fail its own good answer.
+    if isinstance(reference, str) and isinstance(counter, str) and repeats(reference, counter):
+        return None
     try:
         content = DatasetCaseContent.model_validate(fields)
     except ValidationError:

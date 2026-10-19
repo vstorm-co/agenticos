@@ -180,8 +180,8 @@ across the sources:
 
 | Source | What the generator drafts | What it is shown |
 |---|---|---|
-| From the agent | Typical requests and edge cases, with the tool calls a good answer makes | The agent's instructions, its skills and its tools, under the names the agent gives them |
-| From knowledge | Questions its knowledge base answers. Each case links to the document its passage came from, keeps the passage as the reference answer, expects a call to the agent's knowledge search, and carries a `judge` check that the answer agrees with the passage | Passages from up to 12 indexed documents of the knowledge bases the agent uses and you can read |
+| From the agent | Typical requests and edge cases, with the calls a good answer makes to tools that change something - a tool that only reads is never expected, as in a case added from an answer | The agent's instructions, its skills and its tools, under the names the agent gives them |
+| From knowledge | Questions its knowledge base answers. Each case links to the document its passage came from, keeps the passage as the reference answer, and carries a `judge` check that the answer agrees with the passage | Passages from up to 12 indexed documents of the knowledge bases the agent uses and you can read |
 | From conversations | Paraphrases and harder variants of what people asked the agent, rated-down answers first. Each case links to the question it varies | Up to 60 questions people asked the agent in this organization, with the comment left on a rated-down answer. Production traffic only: eval runs and runs that ran isolated answered a test, not a person, and are left out |
 | Red team | Out-of-scope requests, prompt injections, attempts to extract personal data and attempts to get around the agent's policies. Each case is tagged `red-team` and `red-team:<category>` and carries a `judge` check that the agent refuses | The agent's instructions, skills and tools |
 
@@ -206,7 +206,8 @@ under your own access and handed over in its prompt, so a document or a
 conversation that tries to instruct it can at most change the text of a draft
 you review. A draft that does not keep its source's rule - a knowledge case
 citing no passage it was shown, a conversation case varying no question it was
-shown, a red-team case with no category, a case that expects nothing - is
+shown, a red-team case with no category, a case that expects nothing, a case
+whose reference answer repeats its counter-example and so would fail itself - is
 dropped before you see it.
 
 **Each source has its own gate**, and a source you may not use is refused by

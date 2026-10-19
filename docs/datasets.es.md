@@ -1,5 +1,5 @@
 ---
-source_sha: "bd5fba4675a0"
+source_sha: "52f9a8331e8f"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -193,8 +193,8 @@ máximo 50, repartidos por igual entre las fuentes.
 
 | Fuente | Qué redacta el generador | Qué se le muestra |
 |---|---|---|
-| Del agent | Peticiones típicas y casos límite, con las llamadas a herramientas que hace una buena respuesta | Las instrucciones del agent, sus skills y sus herramientas, con los nombres que el agent les da |
-| Del conocimiento | Preguntas que responde su base de conocimiento. Cada caso enlaza con el documento del que procede su fragmento, guarda el fragmento como respuesta de referencia, espera una llamada a la búsqueda de conocimiento del agent y lleva una comprobación `judge` de que la respuesta concuerda con el fragmento | Fragmentos de hasta 12 documentos indexados de las bases de conocimiento que usa el agent y que tú puedes leer |
+| Del agent | Peticiones típicas y casos límite, con las llamadas a herramientas que cambian algo que hace una buena respuesta; una herramienta que solo lee nunca se espera, como en un caso añadido desde una respuesta | Las instrucciones del agent, sus skills y sus herramientas, con los nombres que el agent les da |
+| Del conocimiento | Preguntas que responde su base de conocimiento. Cada caso enlaza con el documento del que procede su fragmento, guarda el fragmento como respuesta de referencia y lleva una comprobación `judge` de que la respuesta concuerda con el fragmento | Fragmentos de hasta 12 documentos indexados de las bases de conocimiento que usa el agent y que tú puedes leer |
 | De conversaciones | Paráfrasis y variantes más difíciles de lo que la gente preguntó al agent, primero las respuestas valoradas negativamente. Cada caso enlaza con la pregunta que varía | Hasta 60 preguntas que se hicieron al agent en esta organización, con el comentario dejado en una respuesta valorada negativamente. Solo tráfico de producción: los runs de eval y los runs aislados respondieron a una prueba, no a una persona, y se dejan fuera |
 | Red team | Peticiones fuera de su ámbito, inyecciones de prompt, intentos de obtener datos personales e intentos de saltarse las políticas del agent. Cada caso lleva las etiquetas `red-team` y `red-team:<categoría>` y una comprobación `judge` de que el agent se niega | Las instrucciones del agent, sus skills y sus herramientas |
 
@@ -220,7 +220,9 @@ o una conversación que intente darle instrucciones solo puede cambiar el texto
 de un borrador que tú revisas. Un borrador que no cumple la regla de su fuente
 (un caso de conocimiento sin un fragmento que se le mostró, un caso de
 conversación sin una pregunta que se le mostró, un caso de red team sin
-categoría, un caso que no espera nada) se descarta antes de que lo veas.
+categoría, un caso que no espera nada, un caso cuya respuesta de referencia
+repite su contraejemplo y por tanto fallaría ella misma) se descarta antes de
+que lo veas.
 
 **Cada fuente tiene su propia barrera**, y una fuente que no puedes usar se
 rechaza por su nombre en lugar de omitirse en silencio:

@@ -36,9 +36,6 @@ from app.services.dataset import redact_credentials
 from app.services.rag.vectorstore import BaseVectorStore
 from app.services.skills import SkillService
 
-KNOWLEDGE_CAPABILITY = "knowledge"
-KNOWLEDGE_SEARCH_TOOL = "search_documents"
-
 # How much of each source one generation reads. Fixed, so what a generation
 # costs and what it saw follow from the agent rather than from chance.
 MAX_DOCUMENTS = 12
@@ -55,6 +52,8 @@ MAX_QUESTION = 2_000
 class Tool:
     name: str
     description: str
+    # Whether calling it changes something; only such a call is a case's to expect.
+    writes: bool
 
 
 @dataclass(frozen=True)
@@ -73,8 +72,6 @@ class AgentMaterial:
     instructions: str
     skills: list[SkillSummary]
     tools: list[Tool]
-    # The knowledge search tool as this agent exposes it, when it binds one.
-    knowledge_tool: str | None
 
 
 @dataclass(frozen=True)
@@ -177,7 +174,6 @@ class SourceGatherer:
     async def _agent(self, ctx: AuthContext, agent: Agent, spec: AgentSpec) -> AgentMaterial:
         skills = await SkillService(self.db).resolve_for_agent(ctx, list(spec.skill_ids))
         tools: list[Tool] = []
-        knowledge_tool: str | None = None
         for binding in spec.capabilities:
             if not binding.enabled:
                 continue
@@ -187,9 +183,13 @@ class SourceGatherer:
                 # A capability this deployment no longer ships contributes no tools.
                 continue
             for tool in capability.effective_tools(binding.tool_overrides):
-                tools.append(Tool(name=tool.name, description=tool.description))
-                if binding.id == KNOWLEDGE_CAPABILITY and tool.id == KNOWLEDGE_SEARCH_TOOL:
-                    knowledge_tool = tool.name
+                tools.append(
+                    Tool(
+                        name=tool.name,
+                        description=tool.description,
+                        writes=not capability.tool_is_read_only(tool),
+                    )
+                )
         return AgentMaterial(
             name=agent.name,
             description=agent.description,
@@ -203,7 +203,6 @@ class SourceGatherer:
                 for skill in skills
             ],
             tools=tools,
-            knowledge_tool=knowledge_tool,
         )
 
     async def _readable_collections(
