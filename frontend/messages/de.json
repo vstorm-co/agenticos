@@ -6295,6 +6295,7 @@
       "untested": "Dieser Entwurf wurde seit seiner letzten Änderung nicht getestet.",
       "test": "Testen",
       "running": "Dieser Entwurf wird gerade getestet.",
+      "unfinished": "Der letzte Test dieses Entwurfs {status, select, cancelled {wurde gestoppt} budget_exceeded {hat sein Budget aufgebraucht} other {ist fehlgeschlagen}}, bevor er zu einem Urteil kam.",
       "result": "{verdict, select, worse {Letzter Test des Entwurfs: macht gegenüber {baseline} {broke} kaputt.} better {Letzter Test des Entwurfs: behebt gegenüber {baseline} {fixed}.} mixed {Letzter Test des Entwurfs: gemischt gegenüber {baseline}, {broke} kaputt, {fixed} behoben.} no_difference {Letzter Test des Entwurfs: keine Änderung hielt gegenüber {baseline}.} invalid {Der letzte Test des Entwurfs ließ sich nicht mit {baseline} vergleichen.} other {Letzter Test des Entwurfs: das erste Ergebnis, ohne Vergleich.}}",
       "ungraded": "{count, plural, =1 {1 Fall dieses Entwurfs wurde nicht bewertet} other {# Fälle dieses Entwurfs wurden nicht bewertet}}: „{question}“{others, plural, =0 {} other { und # weitere}}. Vor dem Veröffentlichen auf dem Run erneut bewerten."
     },

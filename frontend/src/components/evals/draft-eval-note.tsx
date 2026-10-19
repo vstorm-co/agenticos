@@ -5,7 +5,7 @@ import { FlaskConical } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui";
-import { useDraftEvalRuns } from "@/hooks/use-eval-runs";
+import { isLive, useDraftEvalRuns } from "@/hooks/use-eval-runs";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { sideName } from "./names";
@@ -53,7 +53,9 @@ export function DraftEvalNote({ agentId, onTest }: { agentId: string; onTest: ()
       )}
     >
       {outcome === null
-        ? t("draftNote.running")
+        ? isLive(run.status)
+          ? t("draftNote.running")
+          : t("draftNote.unfinished", { status: run.status })
         : t("draftNote.result", {
             verdict: outcome.verdict ?? "first",
             baseline: outcome.baseline ? sideName(outcome.baseline, t) : "",

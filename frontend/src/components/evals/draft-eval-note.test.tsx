@@ -7,7 +7,10 @@ import type { EvalOutcome } from "@/types/eval-runs";
 import { DraftEvalNote } from "./draft-eval-note";
 
 const draft = vi.hoisted(() => ({ runs: [] as unknown[], isLoading: false }));
-vi.mock("@/hooks/use-eval-runs", () => ({ useDraftEvalRuns: () => draft }));
+vi.mock("@/hooks/use-eval-runs", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-eval-runs")>()),
+  useDraftEvalRuns: () => draft,
+}));
 
 const OUTCOME: EvalOutcome = {
   candidate_arm_id: "arm-1",
@@ -79,6 +82,21 @@ describe("DraftEvalNote", () => {
     draft.runs = [evalRun({ status: "running", outcome: null })];
     rerender(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
     expect(screen.getByRole("link", { name: "This draft is being tested now." })).toBeVisible();
+
+    // A run that ended with no verdict is not still testing.
+    for (const [status, said] of [
+      ["cancelled", "was stopped"],
+      ["budget_exceeded", "ran out of budget"],
+      ["failed", "failed"],
+    ] as const) {
+      draft.runs = [evalRun({ status, outcome: null })];
+      rerender(<DraftEvalNote agentId="agent-1" onTest={vi.fn()} />);
+      expect(
+        screen.getByRole("link", {
+          name: `The last test of this draft ${said} before it reached a verdict.`,
+        }),
+      ).toBeVisible();
+    }
   });
 
   it("offers to test a draft nobody tested since it changed", async () => {

@@ -4058,6 +4058,7 @@
       "untested": "Ten draft nie był testowany od ostatniej zmiany.",
       "test": "Przetestuj",
       "running": "Ten draft jest właśnie testowany.",
+      "unfinished": "Ostatni test tego draftu {status, select, cancelled {został zatrzymany} budget_exceeded {wyczerpał budżet} other {nie powiódł się}}, zanim doszedł do werdyktu.",
       "result": "{verdict, select, worse {Ostatni test draftu: psuje {broke} względem {baseline}.} better {Ostatni test draftu: naprawia {fixed} względem {baseline}.} mixed {Ostatni test draftu: mieszany względem {baseline}, zepsute: {broke}, naprawione: {fixed}.} no_difference {Ostatni test draftu: brak powtarzalnej zmiany względem {baseline}.} invalid {Ostatniego testu draftu nie da się porównać z {baseline}.} other {Ostatni test draftu: pierwszy wynik, bez punktu odniesienia.}}",
       "ungraded": "{count, plural, one {# case tego draftu nie został oceniony} few {# case'y tego draftu nie zostały ocenione} many {# case'ów tego draftu nie zostało ocenionych} other {# case'a tego draftu nie zostało ocenionych}}: „{question}”{others, plural, =0 {} other { i jeszcze #}}. Oceń ponownie na runie przed publikacją."
     },

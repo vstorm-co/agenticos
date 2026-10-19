@@ -6437,6 +6437,7 @@
       "untested": "This draft was not tested since it last changed.",
       "test": "Test it",
       "running": "This draft is being tested now.",
+      "unfinished": "The last test of this draft {status, select, cancelled {was stopped} budget_exceeded {ran out of budget} other {failed}} before it reached a verdict.",
       "result": "{verdict, select, worse {Last test of this draft: it breaks {broke} against {baseline}.} better {Last test of this draft: it fixes {fixed} against {baseline}.} mixed {Last test of this draft: mixed against {baseline}, {broke} broke and {fixed} fixed.} no_difference {Last test of this draft: no change held against {baseline}.} invalid {The last test of this draft could not be compared with {baseline}.} other {Last test of this draft: the first result, with nothing to compare it with.}}",
       "ungraded": "{count, plural, =1 {1 case of this draft was not graded} other {# cases of this draft were not graded}}: “{question}”{others, plural, =0 {} other { and # more}}. Grade again on the run before publishing."
     },
