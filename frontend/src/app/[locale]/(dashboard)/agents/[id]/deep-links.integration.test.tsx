@@ -160,6 +160,17 @@ describe("the detail page's Evals tab gate", () => {
     await screen.findByRole("tab", { name: "History" });
     expect(screen.queryByRole("tab", { name: "Evals" })).toBeNull();
   });
+
+  it("opens on Build when a link names a tab the caller does not have", async () => {
+    allowed = new Set();
+    page.params = "tab=evals";
+    await mount();
+
+    expect(await screen.findByRole("tab", { name: "Build" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
 });
 
 describe("a publish asked for by a link", () => {

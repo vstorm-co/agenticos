@@ -277,6 +277,15 @@ export default function AgentBuilderPage({ params }: PageProps) {
   // Only the platform runs a judge - nobody chats with it, gives it tools or
   // exposes it - so its page holds what changes how it grades, and nothing else.
   const isJudge = agent?.kind === "judge";
+  // A link may name a tab this caller or this agent has none of; Build is what opens then.
+  const tabs = [
+    "build",
+    ...(isJudge ? ["datasets"] : ["toolbox", "mcp", "availability"]),
+    "limits",
+    ...(canViewRuns && !isJudge ? ["evals"] : []),
+    "history",
+  ];
+  const startTab = tabs.includes(openTab) ? openTab : "build";
   // Testing the draft runs it - the editors' work in progress - on a dataset.
   const canTestDraft =
     !isJudge && canViewRuns && canEdit && !!agent?.can_run && can(Perm.datasetsRun);
@@ -1114,7 +1123,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         disabled={!canEdit}
       />
 
-      <Tabs defaultValue={openTab}>
+      <Tabs defaultValue={startTab}>
         <TabsList>
           <TabsTrigger value="build" data-tour="agent-tab-build">
             {t("build")}
