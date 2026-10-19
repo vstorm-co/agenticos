@@ -553,6 +553,14 @@ are the work, and an agent's user expects them next week.
 Deleting a conversation purges its workspace through the product, so this is about
 what nobody deletes rather than about what they do.
 
+That purge does not depend on the provider answering at that moment. The
+deletion writes a tombstone naming each remote sandbox in the same transaction,
+and a destroy removes the tombstone once the provider confirms it. When the
+sandbox host is down, a Daytona key is rejected, or the worker restarts in
+between, the worker's `sandbox-destroy-retry` sweep tries again. The pause
+doubles each time, from 2 minutes up to 6 hours, until the destroy succeeds. A
+Daytona sandbox has no TTL behind it, so this is the only thing that ends one.
+
 ## Recap
 
 - The API container **holds no Docker socket**. `sandboxd` does, and a sandbox is

@@ -719,6 +719,7 @@ include = [
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
+    "app/repositories/pending_sandbox_destroy.py",
     "app/services/embed_session.py",
     "app/services/embedding_resolution.py",
     "app/services/approvals.py",
@@ -835,6 +836,7 @@ include = [
     "app/api/routes/v1/_artifact_bytes.py",
     "app/api/routes/v1/artifacts.py",
     "app/db/models/visual.py",
+    "app/db/models/pending_sandbox_destroy.py",
     "app/schemas/visual.py",
     "app/repositories/visual.py",
     "app/services/visual.py",
@@ -1150,6 +1152,7 @@ include = [
     "app/repositories/channel_prompt.py",
     "app/services/collection_access.py",
     "app/repositories/collection_teardown.py",
+    "app/repositories/pending_sandbox_destroy.py",
     # One visitor's turn on a public widget: who it runs as, how often they may
     # ask, and what the page is allowed to put in front of the model. An
     # unreachable `except BudgetExceeded` sat here for as long as it was
@@ -1296,6 +1299,7 @@ include = [
     "app/api/routes/v1/_artifact_bytes.py",
     "app/api/routes/v1/artifacts.py",
     "app/db/models/visual.py",
+    "app/db/models/pending_sandbox_destroy.py",
     "app/schemas/visual.py",
     "app/repositories/visual.py",
     "app/services/visual.py",

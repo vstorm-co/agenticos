@@ -1,5 +1,5 @@
 ---
-source_sha: "ebda8228608e"
+source_sha: "7fd0638b3003"
 ---
 
 # Sandbox { #the-sandbox }
@@ -574,6 +574,14 @@ tą pracą, a użytkownik agenta oczekuje ich w przyszłym tygodniu.
 
 Usunięcie rozmowy czyści jej workspace poprzez produkt, więc rzecz dotyczy tego,
 czego nikt nie usuwa, a nie tego, co ludzie robią.
+
+To czyszczenie nie zależy od tego, czy dostawca akurat odpowiada. Usunięcie w tej
+samej transakcji zapisuje nagrobek dla każdego zdalnego sandboxa, a destroy usuwa
+nagrobek, gdy dostawca je potwierdzi. Gdy host sandboxa leży, klucz Daytony
+zostanie odrzucony albo worker zrestartuje się w międzyczasie, sweep workera
+`sandbox-destroy-retry` próbuje ponownie. Przerwa podwaja się za każdym razem, od
+2 minut do 6 godzin, aż destroy się uda. Sandbox Daytony nie ma za sobą TTL, więc
+tylko to go kończy.
 
 ## Podsumowanie { #recap }
 

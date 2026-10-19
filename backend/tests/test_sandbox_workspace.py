@@ -16,7 +16,9 @@ import errno
 import logging
 import os
 import threading
-from collections.abc import Mapping
+from collections.abc import AsyncGenerator, Mapping
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -58,11 +60,15 @@ from app.core import background
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.repositories import agent_workspace as workspace_repo
+from app.services import sandbox_workspace
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 from app.services.sandbox_workspace import (
+    RETRY_CAP,
     SandboxWorkspaceService,
     WorkspaceContents,
     browsable,
+    next_destroy_attempt,
+    retry_pending_destroys,
     sandbox_config,
 )
 from tests.workspaces import document_workspace
@@ -2759,6 +2765,56 @@ async def _committed(session: object) -> None:
     await background.drain()
 
 
+class _Tombstones:
+    """The tombstone repository and the session `_destroy_and_forget` opens, faked.
+
+    Every purge writes a tombstone now (#2209), and a destroy that succeeds opens
+    a session of its own to remove it. Faked for the whole module, so no purge
+    test reaches for a real database from a background task, where a failure is
+    only a log line.
+    """
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.added: list[dict[str, object]] = []
+        self.removed: list[UUID] = []
+        self.postponed: list[tuple[UUID, int, datetime]] = []
+        self.due: list[Any] = []
+
+        async def add(_db: object, **fields: object) -> Any:
+            self.added.append(fields)
+            return MagicMock(id=uuid4(), **fields)
+
+        async def remove(_db: object, pending_id: UUID) -> None:
+            self.removed.append(pending_id)
+
+        async def postpone(
+            _db: object, pending_id: UUID, *, attempts: int, until: datetime
+        ) -> None:
+            self.postponed.append((pending_id, attempts, until))
+
+        async def claim_due(_db: object, *, now: datetime, limit: int) -> list[Any]:
+            return self.due[:limit]
+
+        @asynccontextmanager
+        async def session() -> AsyncGenerator[MagicMock, None]:
+            yield MagicMock()
+
+        repo = sandbox_workspace.pending_destroy_repo
+        for name, fake in (
+            ("add", add),
+            ("remove", remove),
+            ("postpone", postpone),
+            ("claim_due", claim_due),
+        ):
+            monkeypatch.setattr(repo, name, fake)
+        monkeypatch.setattr(sandbox_workspace, "get_db_context", session)
+
+
+@pytest.fixture(autouse=True)
+def tombstones(monkeypatch: pytest.MonkeyPatch) -> _Tombstones:
+    return _Tombstones(monkeypatch)
+
+
 def _conversation_holds(monkeypatch: pytest.MonkeyPatch, *rows: object) -> AsyncMock:
     monkeypatch.setattr(workspace_repo, "list_for_conversation", AsyncMock(return_value=list(rows)))
     deleted = AsyncMock()
@@ -4498,3 +4554,144 @@ class TestAListingCarriesWhatEachTileDraws:
         assert found[1].thumbnails == {"/out/chart.png": "data:image/webp;base64,AA"}
         # A directory is never fetched as an image.
         assert drawn.await_args.args[2] == ["/out/chart.png"]
+
+
+class TestADestroyThatFailsIsRetried:
+    """#2209: the rows naming a remote sandbox go with the conversation or the
+    project, so a destroy that failed after the commit left nothing that knew the
+    sandbox existed - and a Daytona sandbox has no TTL behind it."""
+
+    async def test_the_deletion_writes_a_tombstone_naming_the_sandbox(
+        self, monkeypatch, mock_db_session, sandboxes, tombstones
+    ):
+        _serve(monkeypatch, _resolved())
+        connection_id = uuid4()
+        row = _row(backend="service", session_id="dc-1", connection_id=connection_id)
+        _conversation_holds(monkeypatch, row)
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+
+        assert tombstones.added == [
+            {
+                "organization_id": row.organization_id,
+                "connection_id": connection_id,
+                "ref_id": "dc-1",
+                "scope_key": row.scope_key,
+            }
+        ]
+
+    async def test_a_destroy_that_succeeds_removes_its_tombstone(
+        self, monkeypatch, mock_db_session, sandboxes, tombstones
+    ):
+        _serve(monkeypatch, _resolved())
+        _conversation_holds(
+            monkeypatch, _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        )
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+        await _committed(mock_db_session)
+
+        assert len(sandboxes.destroyed) == 1
+        assert len(tombstones.removed) == 1
+
+    async def test_a_destroy_that_fails_leaves_its_tombstone(
+        self, monkeypatch, mock_db_session, sandboxes, tombstones
+    ):
+        sandboxes.unreachable = RuntimeError("connection refused")
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None))
+        _conversation_holds(
+            monkeypatch, _row(backend="service", session_id="dt-1", connection_id=uuid4())
+        )
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+        await _committed(mock_db_session)
+
+        assert len(tombstones.added) == 1
+        assert tombstones.removed == []
+
+    async def test_a_connection_that_cannot_be_resolved_still_leaves_a_tombstone(
+        self, monkeypatch, mock_db_session, sandboxes, tombstones
+    ):
+        """Resolving reads the vault; a key rotated away must not lose the sandbox."""
+        _serve(monkeypatch, RuntimeError("vault refused"))
+        _conversation_holds(
+            monkeypatch, _row(backend="service", session_id="dc-1", connection_id=uuid4())
+        )
+
+        await SandboxWorkspaceService(mock_db_session).purge_for_conversation(
+            _ctx(), conversation_id=uuid4()
+        )
+        await _committed(mock_db_session)
+
+        assert len(tombstones.added) == 1
+        assert sandboxes.destroyed == []
+
+    async def test_the_sweep_destroys_what_is_due_and_forgets_it(
+        self, monkeypatch, sandboxes, tombstones
+    ):
+        resolved = _resolved()
+        _serve(monkeypatch, resolved)
+        pending = MagicMock(
+            id=uuid4(),
+            organization_id=uuid4(),
+            connection_id=resolved.row.id,
+            ref_id="dc-1",
+            scope_key="sc-1",
+            attempts=2,
+        )
+        tombstones.due = [pending]
+
+        assert await retry_pending_destroys() == 1
+
+        assert sandboxes.destroyed == [
+            WorkspaceRef(provider=f"sandboxd:{resolved.row.id}", id="dc-1")
+        ]
+        assert tombstones.removed == [pending.id]
+        assert tombstones.postponed == []
+
+    async def test_a_sweep_that_fails_postpones_and_moves_on(
+        self, monkeypatch, sandboxes, tombstones, caplog
+    ):
+        """One provider that is down must not hold back the next sandbox."""
+        sandboxes.unreachable = RuntimeError("connection refused")
+        _serve(monkeypatch, _resolved(kind="daytona", base_url=None))
+        first = MagicMock(
+            id=uuid4(),
+            organization_id=uuid4(),
+            connection_id=uuid4(),
+            ref_id="dt-1",
+            scope_key="sc-1",
+            attempts=0,
+        )
+        second = MagicMock(
+            id=uuid4(),
+            organization_id=uuid4(),
+            connection_id=uuid4(),
+            ref_id="dt-2",
+            scope_key="sc-2",
+            attempts=3,
+        )
+        tombstones.due = [first, second]
+
+        with caplog.at_level(logging.WARNING):
+            assert await retry_pending_destroys() == 0
+
+        assert [(pid, attempts) for pid, attempts, _ in tombstones.postponed] == [
+            (first.id, 1),
+            (second.id, 4),
+        ]
+        assert tombstones.removed == []
+        assert [r for r in caplog.records if r.message == "workspace_purge_retry_failed"]
+
+    def test_the_pause_doubles_up_to_six_hours(self):
+        now = datetime(2026, 10, 19, tzinfo=UTC)
+
+        assert next_destroy_attempt(1, now) - now == timedelta(minutes=2)
+        assert next_destroy_attempt(3, now) - now == timedelta(minutes=8)
+        assert next_destroy_attempt(20, now) - now == RETRY_CAP

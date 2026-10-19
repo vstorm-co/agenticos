@@ -34,6 +34,7 @@ from collections.abc import AsyncGenerator, Callable, Coroutine, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from io import BytesIO
 from pathlib import PurePosixPath
@@ -70,10 +71,12 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.project import Project
+from app.db.session import get_db_context
 from app.repositories import agent as agent_repo
 from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
 from app.repositories import member as member_repo
+from app.repositories import pending_sandbox_destroy as pending_destroy_repo
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
 from app.services.sandbox_runtimes import runtime_briefing, runtime_parses_documents
 from app.services.skill_workspace import LEGACY_SKILLS_ROOT, RESERVED_SKILL_PREFIXES
@@ -1088,25 +1091,41 @@ class SandboxWorkspaceService:
         a rollback after the destroy would restore rows naming files that no
         longer exist. Its connection is resolved now, while the transaction can
         still read the vault, and only the call is deferred.
+
+        A tombstone goes into the same transaction (#2209). The rows naming the
+        sandbox are deleted with it, so a destroy that fails - the provider
+        down, the worker restarted between the commit and the call - used to
+        leave nothing that knew the sandbox existed. The destroy removes the
+        tombstone; `retry_pending_destroys` retries whatever is left.
         """
         if row.connection_id is None:
             return
 
+        ref_id = row.session_id or row.scope_key
+        pending = await pending_destroy_repo.add(
+            self.db,
+            organization_id=row.organization_id,
+            connection_id=row.connection_id,
+            ref_id=ref_id,
+            scope_key=row.scope_key,
+        )
         try:
             resolved = await self._connection(ctx, row.connection_id)
             sandbox = self._service_capability(resolved, row.scope_key)
         except Exception:
             # A service that is down must not stop a user deleting their chat.
-            # The workspace TTL is the net under exactly this.
+            # The tombstone is committed with the deletion, and the sweep retries.
             logger.warning(
                 "workspace_purge_failed", extra={"scope_key": row.scope_key}, exc_info=True
             )
             return
         # By the name it was opened under; attach-only, so a session already
         # gone is fine rather than one opened just to delete it.
-        ref = WorkspaceRef(provider=_provider(sandbox), id=row.session_id or row.scope_key)
+        ref = WorkspaceRef(provider=_provider(sandbox), id=ref_id)
         spawn_after_commit(
-            self.db, _destroy_best_effort(sandbox, ref, row.scope_key), name="workspace-purge"
+            self.db,
+            _destroy_and_forget(sandbox, ref, row.scope_key, pending.id),
+            name="workspace-purge",
         )
 
     async def visible_to(self, ctx: AuthContext) -> list[WorkspaceOverview]:
@@ -1860,14 +1879,76 @@ class SandboxWorkspaceService:
             return cached
 
 
-async def _destroy_best_effort(
-    sandbox: SandboxdWorkspace | DaytonaWorkspace, ref: WorkspaceRef, scope_key: str
+RETRY_BATCH = 20
+"""Tombstones one sweep tick takes. Each is a call to a provider, held under a row lock."""
+
+RETRY_CAP = timedelta(hours=6)
+"""The longest pause between two attempts at one sandbox."""
+
+
+def next_destroy_attempt(attempts: int, now: datetime) -> datetime:
+    """When to try a sandbox again after `attempts` failures: 2, 4, 8 minutes, up to six hours."""
+    return now + min(timedelta(minutes=2**attempts), RETRY_CAP)
+
+
+async def retry_pending_destroys() -> int:
+    """Destroy the remote sandboxes a deletion could not, and forget each that goes (#2209).
+
+    A sweep tick, run in the worker's process. Each tombstone is retried as the
+    organization it belongs to, with no person behind it: resolving a
+    connection reads that organization's vault and nothing else. A failure is
+    logged and postponed rather than raised, so one provider that is down does
+    not hold back another's sandboxes. Nothing gives up: a sandbox that still
+    exists is still costing somebody, and a connection that is deleted takes its
+    tombstones with it.
+
+    Returns:
+        How many sandboxes this tick destroyed.
+    """
+    now = datetime.now(UTC)
+    destroyed = 0
+    async with get_db_context() as db:
+        service = SandboxWorkspaceService(db)
+        for pending in await pending_destroy_repo.claim_due(db, now=now, limit=RETRY_BATCH):
+            ctx = AuthContext(user_id=None, organization_id=pending.organization_id, role="")
+            try:
+                resolved = await service._connection(ctx, pending.connection_id)
+                sandbox = service._service_capability(resolved, pending.scope_key)
+                await sandbox.destroy(WorkspaceRef(provider=_provider(sandbox), id=pending.ref_id))
+            except Exception:
+                attempts = pending.attempts + 1
+                logger.warning(
+                    "workspace_purge_retry_failed",
+                    extra={"scope_key": pending.scope_key, "attempts": attempts},
+                    exc_info=True,
+                )
+                await pending_destroy_repo.postpone(
+                    db, pending.id, attempts=attempts, until=next_destroy_attempt(attempts, now)
+                )
+                continue
+            await pending_destroy_repo.remove(db, pending.id)
+            destroyed += 1
+    return destroyed
+
+
+async def _destroy_and_forget(
+    sandbox: SandboxdWorkspace | DaytonaWorkspace,
+    ref: WorkspaceRef,
+    scope_key: str,
+    pending_id: UUID,
 ) -> None:
-    """Destroy a sandbox whose rows are gone; a host that is down is logged, not raised."""
+    """Destroy a sandbox whose rows are gone, and drop its tombstone once it is.
+
+    A host that is down is logged, not raised: the tombstone stays, and the
+    sweep tries again.
+    """
     try:
         await sandbox.destroy(ref)
     except Exception:
         logger.warning("workspace_purge_failed", extra={"scope_key": scope_key}, exc_info=True)
+        return
+    async with get_db_context() as db:
+        await pending_destroy_repo.remove(db, pending_id)
 
 
 def _absent(row: AgentWorkspace, contents: WorkspaceContents, path: str) -> bool:

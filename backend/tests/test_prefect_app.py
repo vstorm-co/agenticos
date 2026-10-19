@@ -208,6 +208,7 @@ async def test_the_minute_sweeps_run_in_this_process_beside_the_runner(
         ("portal-poll", 60),
         ("notification-delivery-sweep", 60),
         ("rag-sync-check", 60),
+        ("sandbox-destroy-retry", 60),
     ]
     assert sweeps["redis"] is sweeps["client"]
     sweeps["client"].connect.assert_awaited_once()

@@ -1,5 +1,5 @@
 ---
-source_sha: "ebda8228608e"
+source_sha: "7fd0638b3003"
 ---
 
 # La sandbox { #the-sandbox }
@@ -590,6 +590,14 @@ viene.
 
 Borrar una conversación purga su workspace a través del producto, así que esto va
 sobre lo que nadie borra y no sobre lo que sí borran.
+
+Esa purga no depende de que el proveedor responda en ese momento. El borrado
+escribe, en la misma transacción, una lápida por cada sandbox remoto, y un destroy
+la quita cuando el proveedor lo confirma. Si el host del sandbox está caído, una
+clave de Daytona se rechaza o el worker se reinicia entre medias, el sweep
+`sandbox-destroy-retry` del worker lo vuelve a intentar. La pausa se duplica cada
+vez, de 2 minutos a 6 horas, hasta que el destroy sale bien. Un sandbox de Daytona
+no tiene TTL detrás, así que solo esto lo termina.
 
 ## Resumen { #recap }
 

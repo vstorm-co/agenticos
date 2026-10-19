@@ -1,5 +1,5 @@
 ---
-source_sha: "ebda8228608e"
+source_sha: "7fd0638b3003"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -607,6 +607,14 @@ Woche.
 
 Eine Unterhaltung zu löschen räumt ihren Workspace über das Produkt ab, hier geht es
 also um das, was niemand löscht, und nicht darum, was sie tun.
+
+Dieses Aufräumen hängt nicht davon ab, ob der Anbieter gerade antwortet. Das
+Löschen schreibt in derselben Transaktion einen Grabstein für jede entfernte
+Sandbox, und ein Destroy entfernt ihn, sobald der Anbieter ihn bestätigt. Ist der
+Sandbox-Host down, wird ein Daytona-Schlüssel abgelehnt oder startet der Worker
+dazwischen neu, versucht es der Sweep `sandbox-destroy-retry` des Workers erneut.
+Die Pause verdoppelt sich jedes Mal, von 2 Minuten bis 6 Stunden, bis der Destroy
+gelingt. Hinter einer Daytona-Sandbox steht keine TTL, also beendet nur das sie.
 
 ## Zusammenfassung { #recap }
 

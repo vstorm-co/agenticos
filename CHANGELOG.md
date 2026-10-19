@@ -71,6 +71,17 @@ Two things are versioned separately from this file and worth knowing about:
   new sandboxd image before the old one is replaced. Each build is retried
   (pydantic-ai-backend 0.2.34). A runtime it could not prepare is named in the
   deploy log and still built on demand (#2222).
+- **A remote sandbox outlives a deleted conversation only until the provider
+  answers.** Deleting a conversation or a project destroyed its sandboxes once,
+  after the commit. A failure - host down, worker restarted in between - left
+  nothing that knew they existed, and a Daytona sandbox kept billing the
+  organization.
+  - The deletion now writes a tombstone in the same transaction
+    (`pending_sandbox_destroys`, migration `0144_pending_sandbox_destroys`), and
+    a successful destroy removes it.
+  - A new worker sweep, `sandbox-destroy-retry`, retries the rest from 2
+    minutes up to 6 hours apart.
+  - The `scheduler` health check counts it with the other sweeps (#2209).
 
 ## [1.6.3] - 2026-10-18
 
