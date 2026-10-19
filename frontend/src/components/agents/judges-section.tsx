@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { useDatasets } from "@/hooks/use-datasets";
-import { useJudges } from "@/hooks/use-agents";
+import { useCaseGenerator, useJudges } from "@/hooks/use-agents";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 import { AgentCard } from "./agent-card";
@@ -45,49 +45,74 @@ interface JudgesSectionProps {
 }
 
 /**
- * The organization's judges, folded away under its agents.
+ * The organization's system agents - its judges and its case generator - folded
+ * away under its agents.
  *
- * Nobody chats with a judge, puts it on a channel or delegates to it, so a card
+ * Nobody chats with one, puts it on a channel or delegates to it, so a card
  * carries no menu to duplicate, archive or delete one: `agents:edit` opens it to
  * change its instructions, model and budget. The band remembers being folded,
- * and opens by itself for `?section=judges` and for a search only judges answer.
+ * and opens by itself for `?section=judges` and for a search only these answer.
  * Absent while the organization has none.
  */
 export function JudgesSection({ query, agentsMatched }: JudgesSectionProps) {
   const t = useTranslations("agents");
   const linked = useSearchParams().get("section") === "judges";
   const { agents, total } = useJudges();
+  const generator = useCaseGenerator();
   const { can } = usePermissions();
-  if (total === 0) return null;
+  const count = total + (generator === null ? 0 : 1);
+  if (count === 0) return null;
   const needle = query.trim().toLowerCase();
-  const shown = agents.filter(
-    (agent) => needle === "" || agent.name.toLowerCase().includes(needle),
-  );
+  const matches = (name: string) => needle === "" || name.toLowerCase().includes(needle);
+  const shown = agents.filter((agent) => matches(agent.name));
+  const generatorShown = generator !== null && matches(generator.name);
 
   return (
     <CatalogSection
-      title={t("judgesCount", { count: total })}
+      title={t("systemAgentsCount", { count })}
       defaultOpen={false}
-      forceOpen={linked || (needle !== "" && !agentsMatched && shown.length > 0)}
+      forceOpen={
+        linked || (needle !== "" && !agentsMatched && (shown.length > 0 || generatorShown))
+      }
       storageKey="agents.catalog.judges"
       tour="agents-judges"
     >
-      <p className="text-muted-foreground text-xs">{t("judgesHint")}</p>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {shown.map((agent) => (
-          <AgentCard
-            key={agent.id}
-            agent={agent}
-            canEdit={can(Perm.agentsEdit)}
-            footer={
-              <>
-                <JudgeModel label={agent.published_model?.label ?? null} />
-                {can(Perm.datasetsView) && <JudgeUsedBy judgeId={agent.id} />}
-              </>
-            }
-          />
-        ))}
-      </div>
+      {total > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">{t("judgesHeading")}</h3>
+          <p className="text-muted-foreground text-xs">{t("judgesHint")}</p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {shown.map((agent) => (
+              <AgentCard
+                key={agent.id}
+                agent={agent}
+                canEdit={can(Perm.agentsEdit)}
+                footer={
+                  <>
+                    <JudgeModel label={agent.published_model?.label ?? null} />
+                    {can(Perm.datasetsView) && <JudgeUsedBy judgeId={agent.id} />}
+                  </>
+                }
+              />
+            ))}
+          </div>
+        </section>
+      )}
+      {generator !== null && (
+        <section className="space-y-3">
+          <h3 className="text-sm font-medium">{t("generatorHeading")}</h3>
+          <p className="text-muted-foreground text-xs">{t("generatorHint")}</p>
+          {generatorShown && (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <AgentCard
+                agent={generator}
+                canEdit={can(Perm.agentsEdit)}
+                footer={<JudgeModel label={generator.published_model?.label ?? null} />}
+              />
+            </div>
+          )}
+        </section>
+      )}
     </CatalogSection>
   );
 }

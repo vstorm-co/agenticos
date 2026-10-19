@@ -1,5 +1,5 @@
 ---
-source_sha: "8d67cd77507c"
+source_sha: "9e514991752e"
 ---
 
 # Koncepcje { #concepts }
@@ -599,7 +599,7 @@ organizacja utworzona wcześniej dostaje go wtedy, gdy coś po raz pierwszy go
 potrzebuje, a dataset może dostać własnego sędziego.
 
 Sędzia należy do platformy, która go uruchamia, a nie jest agentem, którego
-używają ludzie. Agents pokazuje sędziów osobno, w zwiniętym pasie **Sędziowie**
+używają ludzie. Agents pokazuje sędziów osobno, w zwiniętym pasie **Agenci systemowi**
 pod **Agenci**; każda karta mówi, które datasety ocenia dany sędzia, a ten
 utworzony przez platformę jest oznaczony jako **Domyślny sędzia**. Wybory agenta
 ich pomijają. Kto ma `agents:edit`, otwiera sędziego, żeby zmienić jego
@@ -613,6 +613,12 @@ Jego runy są sprawdzane względem budżetu i zapisywane jak każde inne, i nie
 wysyłają powiadomienia o runie. Sędzia startuje z niewielkim własnym
 miesięcznym budżetem, żeby nowa organizacja nie mogła przypadkiem wydać całego
 swojego budżetu na ewaluację.
+
+Agentem systemowym jest też **generator przypadków**, rodzaju `generator`:
+przygotowuje [przypadki do datasetów](datasets.md#generating-cases) i jest
+tworzony tak samo, z własnym budżetem. Jest w tym samym pasie, po sędziach, i
+otwiera się go i edytuje tak jak sędziego; zakładka Generated datasetu prowadzi
+do niego każdego, kto może go edytować.
 
 Uruchamia go tylko platforma. Czat, API, embed albo publiczna strona, kanał,
 harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która

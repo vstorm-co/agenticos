@@ -349,26 +349,33 @@ export default function AgentBuilderPage({ params }: PageProps) {
 
   const canEdit = can(Perm.agentsEdit);
   const canPublish = can(Perm.agentsPublish);
-  // Only the platform runs a judge - nobody chats with it, gives it tools or
-  // exposes it - so its page holds what changes how it grades, and nothing else.
+  // Only the platform runs a system agent - a judge, the case generator - so
+  // nobody chats with it, gives it tools or exposes it, and its page holds what
+  // changes how it works, and nothing else.
   const isJudge = agent?.kind === "judge";
+  const isSystem = agent?.kind !== undefined && agent.kind !== "agent";
   const canViewRuns = can(Perm.runsView);
   // The Builder's tabs, as `?tab=` names them, for this caller and this agent; a
   // link naming one they lack - Evals without runs:view, a judge's Toolbox -
   // opens the first.
   const tabs = [
     "build",
-    ...(isJudge ? ["datasets"] : ["toolbox", "mcp", "availability"]),
+    ...(isJudge ? ["datasets"] : []),
+    ...(isSystem ? [] : ["toolbox", "mcp", "availability"]),
     "limits",
-    ...(canViewRuns && !isJudge ? ["evals"] : []),
+    ...(canViewRuns && !isSystem ? ["evals"] : []),
     "history",
   ];
   const tab = tabParam !== null && tabs.includes(tabParam) ? tabParam : "build";
   // Testing the draft runs it - the editors' work in progress - on a dataset.
   const canTestDraft =
-    !isJudge && canViewRuns && agent?.can_edit === true && !!agent.can_run && can(Perm.datasetsRun);
+    !isSystem &&
+    canViewRuns &&
+    agent?.can_edit === true &&
+    !!agent.can_run &&
+    can(Perm.datasetsRun);
   const [testingDraft, setTestingDraft] = useState(false);
-  useTestShortcut(canEdit && !isJudge, () => toggleTesting(!testing));
+  useTestShortcut(canEdit && !isSystem, () => toggleTesting(!testing));
 
   // The stale-reference check reads a reference as dead when its id is absent
   // from a list, so it must not run until every list it consults has *succeeded*:
@@ -961,7 +968,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                 instead of opening a chat that would answer as somebody else. */}
               {/* Trying it here, beside the Builder, needs nothing published: the
                 draft answers as a test (#2074). */}
-              {canEdit && !isJudge && (
+              {canEdit && !isSystem && (
                 <Button
                   variant={testing ? "secondary" : "outline"}
                   onClick={() => toggleTesting(!testing)}
@@ -974,7 +981,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   {t("testPanelOpen")}
                 </Button>
               )}
-              {!isJudge && (
+              {!isSystem && (
                 <Button
                   variant="outline"
                   onClick={openInChat}
@@ -988,7 +995,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
               {/* Beside the chat button rather than in the overflow menu: the
                 map answers "what is this agent" and that question comes up
                 before publishing, not after somebody goes looking for it. */}
-              {!isJudge && (
+              {!isSystem && (
                 <Button variant="outline" onClick={() => setMapOpen(true)}>
                   <Network className="h-4 w-4" />
                   {t("visualMap")}
@@ -1040,7 +1047,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                         />
                       </a>
                     </DropdownMenuItem>
-                    {!isJudge && (
+                    {!isSystem && (
                       <DropdownMenuItem
                         className={DESCRIBED_ITEM}
                         onSelect={() =>
@@ -1233,7 +1240,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           open={publishOpen}
           onOpenChange={setPublishOpen}
           version={nextVersion}
-          environments={isJudge ? null : environments}
+          environments={isSystem ? null : environments}
           publishing={publish.isPending}
           onConfirm={async () => {
             try {
@@ -1246,7 +1253,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             }
           }}
         >
-          {canViewRuns && !isJudge && (
+          {canViewRuns && !isSystem && (
             <DraftEvalNote
               agentId={id}
               onTest={() => {
@@ -1352,7 +1359,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <TabsTrigger value="build" data-tour="agent-tab-build">
               {t("build")}
             </TabsTrigger>
-            {!isJudge && (
+            {!isSystem && (
               <>
                 <TabsTrigger value="toolbox" data-tour="agent-tab-toolbox">
                   {t("toolbox")}
@@ -1365,12 +1372,12 @@ export default function AgentBuilderPage({ params }: PageProps) {
             <TabsTrigger value="limits" data-tour="agent-tab-limits">
               {t("limits")}
             </TabsTrigger>
-            {!isJudge && (
+            {!isSystem && (
               <TabsTrigger value="availability" data-tour="agent-tab-availability">
                 {t("availability")}
               </TabsTrigger>
             )}
-            {canViewRuns && !isJudge && (
+            {canViewRuns && !isSystem && (
               <TabsTrigger value="evals" data-tour="agent-tab-evals">
                 {t("evals")}
               </TabsTrigger>
@@ -1476,7 +1483,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             {/* Discovery metadata, not the spec: it autosaves at once like the
               avatar, so it hangs off the same role-level `canEdit` every other
               editing control on this page does. */}
-            {canEdit && !isJudge && (
+            {canEdit && !isSystem && (
               <Card>
                 <CardHeader>
                   <CardTitle>{t("discovery")}</CardTitle>
@@ -1535,7 +1542,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          <TabsContent value="toolbox" className="mt-6 space-y-6" hidden={isJudge}>
+          <TabsContent value="toolbox" className="mt-6 space-y-6" hidden={isSystem}>
             <Card data-tour="agent-capabilities">
               <CardHeader data-tour="agent-capabilities-header">
                 <CardTitle>{t("capabilities")}</CardTitle>
@@ -1590,7 +1597,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             outside the deployment for - and the picker embeds the whole server
             catalog, so it pushed the capability workbench off the top of the
             screen on any organization with more than a handful of servers. */}
-          <TabsContent value="mcp" className="mt-6 space-y-6" hidden={isJudge}>
+          <TabsContent value="mcp" className="mt-6 space-y-6" hidden={isSystem}>
             <Card data-tour="agent-mcp">
               {/* The passive tour points here rather than at the card: the picker
                 below embeds the whole server catalog, so the card runs well past
@@ -1780,7 +1787,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             />
           </TabsContent>
 
-          <TabsContent value="availability" className="mt-6 space-y-6" hidden={isJudge}>
+          <TabsContent value="availability" className="mt-6 space-y-6" hidden={isSystem}>
             {/* Where people reach it first - a website, a page, the API - then the
                 chat apps, then what runs it on its own. Two cards here were both
                 called "where", and the one most people came for was last. */}
@@ -1858,7 +1865,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
             </Card>
           </TabsContent>
 
-          {canViewRuns && !isJudge && (
+          {canViewRuns && !isSystem && (
             <TabsContent value="evals" className="mt-6 space-y-6">
               <EvalsPanel agentId={id} canStart={agent.can_run && can(Perm.datasetsRun)} />
             </TabsContent>
@@ -1870,7 +1877,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
           )}
         </Tabs>
       </div>
-      {testing && canEdit && !isJudge && (
+      {testing && canEdit && !isSystem && (
         <TestPanel
           agentId={id}
           currentVersionId={agent.current_version_id}

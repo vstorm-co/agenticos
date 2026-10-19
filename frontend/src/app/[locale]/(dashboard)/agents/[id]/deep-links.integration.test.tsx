@@ -47,6 +47,7 @@ const AGENT: AgentDetail = {
 let allowed: Set<Permission>;
 const page = vi.hoisted(() => ({
   params: "",
+  kind: "agent" as "agent" | "judge" | "generator",
   validate: (() => undefined) as unknown,
 }));
 
@@ -64,7 +65,7 @@ vi.mock("@/hooks", async () => {
   return {
     useUrlState,
     useAgent: () => ({
-      agent: AGENT,
+      agent: { ...AGENT, kind: page.kind },
       isLoading: false,
       saveDraft: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
       validate: page.validate,
@@ -164,6 +165,7 @@ async function mount() {
 beforeEach(() => {
   vi.clearAllMocks();
   page.params = "";
+  page.kind = "agent";
   page.validate = vi.fn().mockResolvedValue({ problems: [], fields: [] });
 });
 
@@ -193,6 +195,25 @@ describe("the detail page's Evals tab gate", () => {
       "true",
     );
   });
+});
+
+describe("a system agent's page", () => {
+  it.each(["judge", "generator"] as const)(
+    "offers a %s neither tools, exposure nor evals",
+    async (kind) => {
+      allowed = new Set([Perm.runsView, Perm.agentsEdit]);
+      page.kind = kind;
+      await mount();
+
+      await screen.findByRole("tab", { name: "History" });
+      const tabs = screen.getAllByRole("tab").map((tab) => tab.getAttribute("data-tour"));
+      expect(tabs).not.toContain("agent-tab-toolbox");
+      expect(tabs).not.toContain("agent-tab-mcp");
+      expect(tabs).not.toContain("agent-tab-availability");
+      expect(tabs).not.toContain("agent-tab-evals");
+      expect(screen.queryByRole("tab", { name: "Datasets" }) !== null).toBe(kind === "judge");
+    },
+  );
 });
 
 describe("a publish asked for by a link", () => {

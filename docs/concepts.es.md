@@ -1,5 +1,5 @@
 ---
-source_sha: "8d67cd77507c"
+source_sha: "9e514991752e"
 ---
 
 # Conceptos { #concepts }
@@ -605,7 +605,7 @@ una organización creada antes lo recibe la primera vez que algo lo necesita, y
 un dataset puede tener un juez propio.
 
 Un juez lo ejecuta la plataforma; no es un agent que usen las personas. Agents
-muestra los jueces aparte, en una banda plegada **Judges** bajo **Agents**; cada
+muestra los jueces aparte, en una banda plegada **System agents** bajo **Agents**; cada
 tarjeta dice qué datasets califica, el sembrado lleva **Default judge**, y los
 selectores de agents los dejan fuera. Quien tiene `agents:edit` abre uno para
 cambiar sus instrucciones, su modelo y su budget: su página contiene eso, sus
@@ -617,6 +617,12 @@ que calificó y ellas decidieron, y nada más.
 Sus runs se comprueban contra el budget y se registran como cualquier otro, sin
 notificación de run. Un juez empieza con un budget mensual pequeño propio, para
 que una organización nueva no gaste por accidente todo su budget en evaluación.
+
+El **generador de casos** también es un agent de sistema, del tipo `generator`:
+redacta [casos de datasets](datasets.md#generating-cases) y se siembra de la
+misma forma, con un budget propio. Aparece en la misma banda, después de los
+jueces, y se abre y edita como uno; la pestaña Generated de un dataset enlaza
+con él para quien puede editarlo.
 
 Solo la plataforma lo ejecuta. El chat, la API, un embed o una página pública,
 un canal, una programación y la delegación desde otro agent lo rechazan, en el

@@ -1,5 +1,5 @@
 ---
-source_sha: "8d67cd77507c"
+source_sha: "9e514991752e"
 ---
 
 # Begriffe { #concepts }
@@ -637,7 +637,7 @@ Dataset kann einen eigenen Bewerter bekommen.
 
 Ein Bewerter wird von der Plattform ausgeführt und ist kein Agent, den Menschen
 benutzen. Agents führt Bewerter getrennt, in einem eingeklappten Band
-**Bewerter** unter **Agents**: Jede Karte sagt, welche Datasets er bewertet, und
+**System-Agents** unter **Agents**: Jede Karte sagt, welche Datasets er bewertet, und
 der von der Plattform angelegte ist als **Standard-Bewerter** markiert;
 Agent-Auswahlen lassen sie weg. Wer `agents:edit` hat, öffnet einen, um
 Instruktionen, Modell und Budget zu ändern - seine Seite enthält diese, seine
@@ -650,6 +650,12 @@ Seine Runs werden wie alle anderen gegen das Budget geprüft und aufgezeichnet
 und senden keine Run-Benachrichtigung. Ein Bewerter startet mit einem eigenen
 kleinen Monatsbudget, damit eine neue Organisation nicht versehentlich ihr
 ganzes Budget für Evaluierung ausgibt.
+
+Auch der **Fallgenerator** ist ein System-Agent, von der Art `generator`: Er
+entwirft [Fälle für Datasets](datasets.md#generating-cases) und wird genauso
+angelegt, mit einem eigenen Budget. Er steht im selben Band, nach den
+Bewertern, und wird wie einer geöffnet und bearbeitet; der Tab Generated eines
+Datasets verlinkt ihn für alle, die ihn bearbeiten dürfen.
 
 Nur die Plattform führt ihn aus. Chat, API, ein Embed oder eine öffentliche
 Seite, ein Kanal, ein Zeitplan und die Delegation durch einen anderen Agent

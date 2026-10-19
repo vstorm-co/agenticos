@@ -9,6 +9,7 @@ import { JudgesSection, JudgeUsedBy } from "./judges-section";
 const state = vi.hoisted(() => ({
   section: null as string | null,
   agents: [] as Partial<Agent>[],
+  generator: null as Partial<Agent> | null,
   datasets: { datasets: [] as { name: string }[], total: 0, isLoading: false },
   perms: new Set<string>(),
   asked: [] as unknown[],
@@ -20,6 +21,7 @@ vi.mock("next/navigation", async (original) => ({
 }));
 vi.mock("@/hooks/use-agents", () => ({
   useJudges: () => ({ agents: state.agents, total: state.agents.length }),
+  useCaseGenerator: () => state.generator,
 }));
 vi.mock("@/hooks/use-datasets", () => ({
   useDatasets: (query: unknown) => {
@@ -51,6 +53,7 @@ beforeEach(() => {
   window.localStorage.clear();
   state.section = null;
   state.agents = [{ id: "j1", name: "Eval judge", system_key: "eval_judge", kind: "judge" }];
+  state.generator = null;
   state.datasets = { datasets: [], total: 0, isLoading: false };
   state.perms = new Set(["agents:edit", "datasets:view"]);
   state.asked = [];
@@ -60,7 +63,7 @@ beforeEach(() => {
 describe("JudgesSection", () => {
   it("starts folded, and opens onto cards an editor can open", async () => {
     render(<JudgesSection query="" agentsMatched />);
-    const toggle = screen.getByRole("button", { name: "Judges (1)" });
+    const toggle = screen.getByRole("button", { name: "System agents (1)" });
 
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByTestId("card")).toBeNull();
@@ -77,7 +80,7 @@ describe("JudgesSection", () => {
   it("names no dataset to somebody who may not read datasets", async () => {
     state.perms = new Set();
     render(<JudgesSection query="" agentsMatched />);
-    await userEvent.click(screen.getByRole("button", { name: "Judges (1)" }));
+    await userEvent.click(screen.getByRole("button", { name: "System agents (1)" }));
 
     expect(screen.getByTestId("card")).toHaveAttribute("data-can-edit", "false");
     expect(state.asked).toEqual([]);
@@ -99,7 +102,7 @@ describe("JudgesSection", () => {
       { id: "j2", name: "Draft judge", kind: "judge", published_model: null },
     ];
     render(<JudgesSection query="" agentsMatched />);
-    await userEvent.click(screen.getByRole("button", { name: "Judges (2)" }));
+    await userEvent.click(screen.getByRole("button", { name: "System agents (2)" }));
 
     expect(screen.getByText("GPT-4.1")).toBeInTheDocument();
     expect(screen.getByText("No model yet")).toBeInTheDocument();
@@ -107,7 +110,7 @@ describe("JudgesSection", () => {
 
   it("remembers being opened, in this browser", async () => {
     const { unmount } = render(<JudgesSection query="" agentsMatched />);
-    await userEvent.click(screen.getByRole("button", { name: "Judges (1)" }));
+    await userEvent.click(screen.getByRole("button", { name: "System agents (1)" }));
     unmount();
 
     const { unmount: again } = render(<JudgesSection query="" agentsMatched />);
@@ -117,7 +120,7 @@ describe("JudgesSection", () => {
 
     window.localStorage.setItem("agents.catalog.judges", "closed");
     render(<JudgesSection query="" agentsMatched />);
-    expect(screen.getByRole("button", { name: "Judges (1)" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "System agents (1)" })).toHaveAttribute(
       "aria-expanded",
       "false",
     );
@@ -126,7 +129,7 @@ describe("JudgesSection", () => {
   it("opens for a link to it, and for a search only judges answer", () => {
     state.section = "judges";
     const { unmount } = render(<JudgesSection query="" agentsMatched />);
-    expect(screen.getByRole("button", { name: "Judges (1)" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "System agents (1)" })).toHaveAttribute(
       "aria-expanded",
       "true",
     );
@@ -149,11 +152,41 @@ describe("JudgesSection", () => {
       throw new Error("denied");
     });
     render(<JudgesSection query="" agentsMatched />);
-    await userEvent.click(screen.getByRole("button", { name: "Judges (1)" }));
+    await userEvent.click(screen.getByRole("button", { name: "System agents (1)" }));
 
     expect(screen.getByTestId("card")).toBeInTheDocument();
     getItem.mockRestore();
     setItem.mockRestore();
+  });
+
+  it("lists the case generator beside the judges, and finds it by name", async () => {
+    state.generator = {
+      id: "g1",
+      name: "Case generator",
+      system_key: "case_generator",
+      kind: "generator",
+      published_model: { label: "Default" } as Agent["published_model"],
+    };
+    const { rerender } = render(<JudgesSection query="" agentsMatched />);
+    await userEvent.click(screen.getByRole("button", { name: "System agents (2)" }));
+
+    expect(screen.getAllByTestId("card").map((card) => card.textContent)).toEqual([
+      expect.stringContaining("Eval judge"),
+      expect.stringContaining("Case generator"),
+    ]);
+    expect(screen.getByText(/Drafts test cases for a dataset/)).toBeInTheDocument();
+
+    rerender(<JudgesSection query="judge" agentsMatched />);
+    expect(screen.getAllByTestId("card")).toHaveLength(1);
+  });
+
+  it("shows the case generator where the organization has no judge", () => {
+    state.agents = [];
+    state.generator = { id: "g1", name: "Case generator", kind: "generator" };
+    render(<JudgesSection query="generator" agentsMatched={false} />);
+
+    expect(screen.getByTestId("card")).toHaveTextContent("Case generator");
+    expect(screen.queryByText("Judges")).toBeNull();
   });
 
   it("is absent while the organization has none", () => {
