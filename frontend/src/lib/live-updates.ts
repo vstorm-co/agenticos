@@ -38,6 +38,8 @@ const STALE: Record<ChangeResource, (orgId: string) => QueryKey[]> = {
   // by the API, a routine or another tab would otherwise leave it stale. The
   // lists only: refetching an open thread's messages under a stream is not this.
   run: () => [qk.runs.all(), qk.conversations.list()],
+  // A suite's result names the eval run behind it, so the runs move with it.
+  eval_suite: () => [qk.evalSuites.all(), qk.evalRuns.all()],
 };
 
 export function staleQueries(event: ChangeEvent): QueryKey[] {

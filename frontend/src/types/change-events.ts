@@ -15,7 +15,8 @@ export type ChangeResource =
   | "notification"
   | "secret"
   | "mcp_connection"
-  | "run";
+  | "run"
+  | "eval_suite";
 
 export type ChangeAction = "created" | "updated" | "deleted";
 
@@ -40,9 +41,10 @@ export interface MadeChange extends ChangeEventBase {
   actor_name: string;
 }
 
-/** A run moving through its states - started, parked, finished - which nobody wrote. */
+/** A run moving through its states - started, parked, finished - or an eval suite's
+ *  result settling, which nobody wrote. */
 export interface RunChange extends ChangeEventBase {
-  resource: "run";
+  resource: "run" | "eval_suite";
   surface: "run";
   /** The member the run acts as, when it acts as one. */
   actor_user_id: string | null;
