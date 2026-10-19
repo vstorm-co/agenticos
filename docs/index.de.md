@@ -1,5 +1,5 @@
 ---
-source_sha: "ef634a1ced73"
+source_sha: "4d356103b6b2"
 ---
 
 <div class="agenticos-hero" markdown>
@@ -250,7 +250,7 @@ Frage kam.
 | **Agents** | In einer UI gebaut, beim Veröffentlichen versioniert, als YAML in Ihr eigenes git-Repository exportierbar |
 | **[Capabilities](reference/capabilities.md)** | Retrieval, Websuche und Abruf, ein echter Browser, Python, eine Sandbox mit Dateien und Shell, Diagramme, Bilder, Delegation, Planung, Guardrails — pro Agent eingeschaltet |
 | **[Integrationen](mcp.md)** | Kompatible MCP-Server, mit 59 gängigen im Picker — GitHub, Linear, Notion, Slack, Stripe, Postgres |
-| **[Modelle](models.md)** | 27 Provider, Schlüssel pro Organisation, Fallbacks und selbst gehostetes Ollama oder ein LiteLLM-Proxy |
+| **[Modelle](models.md)** | 28 Provider, Schlüssel pro Organisation, Fallbacks und selbst gehostetes Ollama oder ein LiteLLM-Proxy |
 | **[Wissen](file-processing.md)** | Retrieval über Ihre Dokumente mit drei PDF-Parsern, Ihrem eigenen Chunking, OCR und Bildbeschreibung — pro Collection, pro Upload überschreibbar. Google-Drive- und S3-Sync |
 | **[Skills](skills.md)** | Aufgeschriebenes Know-how, das der Agent nur lädt, wenn er es für relevant hält |
 | **[Governance](governance.md)** | Monatsbudgets, menschliche Approval, eine Audit-Spur, Alerts pro Agent |

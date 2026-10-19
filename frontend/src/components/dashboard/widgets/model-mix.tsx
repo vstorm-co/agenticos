@@ -21,7 +21,16 @@ export function ModelMixWidget({ title, hint, period, seeAll, options }: Dashboa
       <UsageBody period={period} emptyKey="model-mix" options={options}>
         {(usage) => {
           const rows = (usage.by_model ?? []).map((row) => ({
-            label: row.model_label ?? t("notRecorded"),
+            // How often this model sent broken JSON that had to be repaired - a
+            // signal for picking models, said only where it happened. In the
+            // label, which the bars and the donut's legend both show, rather
+            // than in the bars' narrow value column.
+            label: row.tool_args_repaired
+              ? t("modelRepaired", {
+                  model: row.model_label ?? t("notRecorded"),
+                  repaired: row.tool_args_repaired.toLocaleString(locale),
+                })
+              : (row.model_label ?? t("notRecorded")),
             value: row.runs,
             // The provider's mark beside the model, as Spend draws it, so
             // `claude-sonnet-4-5` and `google/gemini-2.5-flash` read at a glance.

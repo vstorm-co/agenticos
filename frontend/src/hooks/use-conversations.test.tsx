@@ -1270,6 +1270,17 @@ describe("starting a new chat", () => {
     expect(window.location.search).toBe("?id=c-1");
   });
 
+  it("starts outside the last chat's project", async () => {
+    const result = await hook();
+    useConversationStore.getState().setPendingProjectId("p-1");
+
+    await act(async () => {
+      await result.current.startNewChat();
+    });
+
+    expect(useConversationStore.getState().pendingProjectId).toBeNull();
+  });
+
   it("leaves a conversation that has messages, and strips the stale id at once", async () => {
     // A refresh mid-flight has to land on a fresh chat rather than the old thread;
     // the new id arrives over the websocket with the first message.

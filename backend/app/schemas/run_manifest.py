@@ -11,7 +11,7 @@ rather than a gap in one panel.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -57,9 +57,72 @@ class ManifestRequest(BaseSchema):
     input_tokens: int = 0
     output_tokens: int = 0
     cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
     tool_calls: list[str] = Field(default_factory=list)
     finish_reason: str | None = None
     failed: str | None = None
+    cache: Literal["bust", "expired"] | None = Field(
+        default=None,
+        description=(
+            "`bust` when this request's cached prompt prefix collapsed while the provider "
+            "should still have held it - the prefix moved; `expired` when its retention "
+            "window had passed. Null when the cache held, or was not in play"
+        ),
+    )
+    cache_missed_tokens: int = Field(
+        default=0,
+        description=(
+            "Of the prefix earlier requests cached, how many tokens this request did not "
+            "read back. A miss, not a bill: a compaction that shrank the request misses "
+            "tokens it never sent again"
+        ),
+    )
+
+
+class ManifestReview(BaseSchema):
+    """One correction a run reviewer sent while the run went (#2106).
+
+    Attributes:
+        reviewer: The reviewer's name, as the spec gives it - what the run's model
+            was told the correction came from.
+        after_request: The model request the review read up to.
+        steer: The correction, as the run's model received it.
+    """
+
+    reviewer: str
+    after_request: int
+    steer: str
+
+
+class ManifestCodeCall(BaseSchema):
+    """One tool call a `run_code` script made.
+
+    Attributes:
+        tool: The tool it called.
+        args: Its arguments, as JSON, cut to a preview.
+        status: `returned`, or `failed` when the call raised or never finished.
+    """
+
+    tool: str
+    args: str
+    status: Literal["returned", "failed"]
+
+
+class ManifestCodeRun(BaseSchema):
+    """One script code mode ran, and the calls it made (#2107).
+
+    Attributes:
+        tool_call_id: The `run_code` call it was, in the transcript.
+        code: The script, as the model wrote it.
+        calls: The tool calls the script made, in the order they started - the
+            first hundred.
+        omitted_calls: How many more it made beyond those listed.
+    """
+
+    tool_call_id: str
+    code: str
+    calls: list[ManifestCodeCall] = Field(default_factory=list)
+    omitted_calls: int = 0
 
 
 class RunManifestRead(BaseSchema):
@@ -92,4 +155,6 @@ class RunManifestRead(BaseSchema):
     settings: dict[str, Any] = Field(default_factory=dict)
     requests: list[ManifestRequest] = Field(default_factory=list)
     messages: list[dict[str, Any]] = Field(default_factory=list)
+    reviews: list[ManifestReview] = Field(default_factory=list)
+    code_runs: list[ManifestCodeRun] = Field(default_factory=list)
     truncated: bool = False

@@ -80,6 +80,8 @@ from app.db.models.announcement import Announcement
 from app.db.models.api_key import ApiKey
 from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.channel_prompt import ChannelPrompt
+from app.db.models.external_agent import ExternalAgent
+from app.db.models.project import Project
 from app.db.models.oauth import (
     OAuthAuthorizationCode,
     OAuthAuthorizationRequest,
@@ -95,12 +97,15 @@ from app.db.models.artifact import (
 )
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import Dataset, DatasetCase, DatasetVersion, DatasetVersionCase
+from app.db.models.visual import Visual
 
 __all__ = [
+    "Visual",
     "ApiKey",
     "BrowserSignIn",
     "OrganizationAssistant",
     "ChannelPrompt",
+    "ExternalAgent",
     "OAuthAuthorizationCode",
     "OAuthAuthorizationRequest",
     "OAuthClient",
@@ -187,6 +192,7 @@ __all__ = [
     "ApprovalStatus",
     "ModelProfile",
     "OrganizationSecret",
+    "Project",
     "ContextFile",
     "ContextMode",
     "AgentMemoryFile",

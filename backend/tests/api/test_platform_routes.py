@@ -138,6 +138,7 @@ _SERVICE_DEPS = (
     deps.get_sharing_service,
     deps.get_mcp_connection_service,
     deps.get_secret_service,
+    deps.get_openai_codex_service,
     deps.get_knowledge_base_service,
     deps.get_collection_access_service,
     deps.get_sync_source_service,
@@ -251,6 +252,7 @@ CALLS: tuple[Call, ...] = (
     Call("GET", "/agents/capabilities", Perm.AGENTS_VIEW),
     Call("GET", "/agents/prompt-variables", Perm.AGENTS_VIEW),
     Call("GET", "/agents/templates", Perm.AGENTS_VIEW),
+    Call("GET", "/agents/platform-mcp-tools", Perm.AGENTS_VIEW),
     Call(
         "POST",
         "/agents/templates/install",
@@ -478,6 +480,15 @@ CALLS: tuple[Call, ...] = (
         body={
             "name": "Weather API",
             "value": {"kind": "api_key", "api_key": "not-a-real-key"},
+        },
+    ),
+    Call(
+        "POST",
+        "/secrets/openai-codex",
+        Perm.SECRETS_EDIT,
+        body={
+            "name": "ChatGPT",
+            "callback_url": "http://localhost:1455/auth/callback?code=c&state=s",
         },
     ),
     # Where sandboxes run, split across two gates. The reads carry
@@ -914,6 +925,9 @@ RESOURCE_AWARE_SERVICES = (
     # A secret is a shared resource: who may edit or delete one is its grants'
     # answer, resolved inside the service exactly as it is for an agent.
     deps.get_secret_service,
+    # A ChatGPT sign-in is a secret written another way: putting a new one in
+    # place of an old one is the secret service's rotation, grants and all.
+    deps.get_openai_codex_service,
     # Same shape again: a widget is one agent's public face, so who may publish
     # or take one down is `agents:publish` on that agent, resolved against its
     # grants rather than tested as a role.
@@ -1221,6 +1235,8 @@ class TestResumeAnswersWithWhatTheContinuationDid:
             cost_usd=Decimal("0.02"),
             input_tokens=13,
             output_tokens=7,
+            cache_read_tokens=9,
+            cache_write_tokens=2,
         )
 
         class _Resuming:
@@ -1267,6 +1283,11 @@ class TestResumeAnswersWithWhatTheContinuationDid:
         # updates it, rather than putting the same command in the turn twice.
         assert response.json()["settled"] == [{"tool_call_id": "call-0", "result": "read 6 sheets"}]
         assert response.json()["conversation_id"] == str(run.conversation_id)
+        # The cache split, so the resumed turn's cost can be read like any other (#2170).
+        assert (response.json()["cache_read_tokens"], response.json()["cache_write_tokens"]) == (
+            9,
+            2,
+        )
 
 
 # -- the stats routes, whose gate is the scope parameter ----------------------
@@ -1588,10 +1609,15 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # 403 that names nothing, and the link's bucket counts every attempt.
         ("POST", f"{V1}/public/apps/{{public_key}}/unlock"),
         ("POST", f"{V1}/public/artifacts/{{public_key}}/unlock"),
-        # The library set a published page may load (#1971): three static files
-        # this repository ships, named in `ARTIFACT_LIBRARY`, which a page in an
-        # opaque origin fetches with no credentials by construction.
-        ("GET", f"{V1}/artifact-content/lib/{{name}}"),
+        # The library set a published page may load (#1971): static files this
+        # repository ships, named in `ARTIFACT_LIBRARY` - a path, since three.js
+        # keeps its package layout (#2171) - which a page in an opaque origin
+        # fetches with no credentials by construction.
+        ("GET", f"{V1}/artifact-content/lib/{{name:path}}"),
+        # The renderer a visual is drawn in (#2171): one fixed page holding no
+        # drawing - the console posts it in - under the app sandbox policy, framed
+        # only by the console.
+        ("GET", f"{V1}/artifact-content/visual-frame"),
         # The document another site frames for a public link (#1973). The key is
         # the capability, as for the link itself, and its policy lets only the
         # origins the artifact names frame it.
@@ -1639,6 +1665,10 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # deployment's signature over its state - neither has a session.
         ("POST", f"{V1}/mattermost/{{bot_id}}/commands"),
         ("POST", f"{V1}/mattermost/{{bot_id}}/dialogs"),
+        # An A2A agent card (#2092): read before a caller authenticates, because
+        # it is what says how to. Only an agent its organization chose to serve
+        # has one; every other id is a 404.
+        ("GET", f"{V1}/a2a/{{agent_id}}/.well-known/agent-card.json"),
         # An event trigger's inbound webhook. Same arrangement as Slack: GitHub
         # and the email relay sign the body with the trigger's own secret, and the
         # service verifies that HMAC against the trigger named in the path. A

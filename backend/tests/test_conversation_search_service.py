@@ -28,6 +28,7 @@ pytestmark = pytest.mark.anyio
 ORG = uuid4()
 PERSON = uuid4()
 THREAD = uuid4()
+PROJECT = uuid4()
 AT = datetime(2026, 8, 14, 10, 4, tzinfo=UTC)
 
 
@@ -52,6 +53,9 @@ def db(monkeypatch) -> MagicMock:
         "confirmed_participant_threads",
         AsyncMock(return_value={THREAD}),
     )
+    monkeypatch.setattr(
+        service.ConversationService, "visible_project_ids", AsyncMock(return_value=[PROJECT])
+    )
     return session
 
 
@@ -69,7 +73,7 @@ class TestWhatMayBeReached:
 
         await service.search(query="x", organization_id=ORG, user_id=PERSON, limit=5)
 
-        assert by.call_args.args == (PERSON, {THREAD})
+        assert by.call_args.args == (PERSON, {THREAD}, [PROJECT])
         assert search_repo.search.await_args.kwargs["readable"] is readable
 
     async def test_the_read_resolves_access_the_same_way_the_search_does(self, db, monkeypatch):
@@ -196,7 +200,7 @@ class TestReadingOne:
         monkeypatch.setattr(
             search_repo,
             "readable_conversation",
-            AsyncMock(return_value=SimpleNamespace(user_id=PERSON, title="t")),
+            AsyncMock(return_value=SimpleNamespace(user_id=PERSON, project_id=None, title="t")),
         )
         monkeypatch.setattr(
             search_repo,
@@ -236,7 +240,7 @@ class TestReadingOne:
         monkeypatch.setattr(
             search_repo,
             "readable_conversation",
-            AsyncMock(return_value=SimpleNamespace(user_id=PERSON, title="t")),
+            AsyncMock(return_value=SimpleNamespace(user_id=PERSON, project_id=None, title="t")),
         )
         monkeypatch.setattr(search_repo, "turns", AsyncMock(return_value=([], 0)))
         monkeypatch.setattr(service.agent_repo, "get_many", AsyncMock(return_value={}))
@@ -252,6 +256,45 @@ class TestReadingOne:
 
         assert transcript is not None
         assert transcript.turns == []
+
+    async def test_an_unsigned_turn_in_a_projects_chat_is_nobodys(self, db, monkeypatch):
+        """Several people type into a project's chat, so its starter is not who
+        typed a turn the row does not sign - naming them would put a teammate's
+        words in their mouth."""
+        monkeypatch.setattr(search_repo, "readable_by", MagicMock())
+        monkeypatch.setattr(
+            search_repo,
+            "readable_conversation",
+            AsyncMock(return_value=SimpleNamespace(user_id=PERSON, project_id=PROJECT, title="t")),
+        )
+        monkeypatch.setattr(
+            search_repo,
+            "turns",
+            AsyncMock(
+                return_value=(
+                    [
+                        search_repo.Turn(
+                            role="user",
+                            content="hi",
+                            created_at=AT,
+                            agent_id=None,
+                            speaker_name=None,
+                        )
+                    ],
+                    1,
+                )
+            ),
+        )
+        monkeypatch.setattr(service.agent_repo, "get_many", AsyncMock(return_value={}))
+        monkeypatch.setattr(service.user_repo, "get_by_id", AsyncMock())
+
+        transcript = await service.read(
+            conversation_id=THREAD, organization_id=ORG, user_id=PERSON, skip=0
+        )
+
+        assert transcript is not None
+        assert transcript.turns[0].speaker is None
+        assert not service.user_repo.get_by_id.await_count
 
 
 class TestSearching:

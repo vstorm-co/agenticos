@@ -52,6 +52,8 @@ def _agent(*, categories: list[str] | None = None, tags: list[str] | None = None
         draft_spec={},
         categories=categories or [],
         tags=tags or [],
+        # What the column's default gives every stored row.
+        a2a_enabled=False,
     )
 
 

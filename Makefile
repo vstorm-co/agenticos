@@ -719,9 +719,9 @@ docs-slug-check:
 	uv run --directory backend --group docs pytest -q \
 		tests/test_check_docs_i18n.py::test_the_slug_derivation_matches_the_renderer
 
-# Two decks are published pages, and the only copies: the 14-slide open-source
+# Two decks are published pages, and the only copies: the 17-slide open-source
 # introduction at `docs/presentation/index.html` (served at /presentation/) and the
-# 44-slide product tour at `docs/presentation/tour/index.html` (/presentation/tour/),
+# 47-slide product tour at `docs/presentation/tour/index.html` (/presentation/tour/),
 # which shares the introduction's `media/` and `fonts/`. Both are guided decks that
 # show one slide at a time, so printing either page gives one page, not a deck.
 # This checks what the README promises - each deck's slide count - and that every
@@ -731,7 +731,7 @@ docs-slug-check:
 # CONTENT_OS points at the content toolkit behind the `content-deck` skill, which is
 # not in this repository; `scripts/gen` runs its tools with the toolkit's Python.
 CONTENT_OS ?= $(HOME)/PycharmProjects/content-os
-PRESENTATIONS := docs/presentation/index.html:14 docs/presentation/tour/index.html:44
+PRESENTATIONS := docs/presentation/index.html:17 docs/presentation/tour/index.html:47
 presentation:
 	@test -x "$(CONTENT_OS)/scripts/gen" || { echo "content toolkit not found at $(CONTENT_OS); set CONTENT_OS="; exit 1; }
 	@for entry in $(PRESENTATIONS); do \

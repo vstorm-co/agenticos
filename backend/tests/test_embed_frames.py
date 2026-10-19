@@ -89,7 +89,7 @@ async def _stream(session: EmbedSession, *events: Any) -> None:
         for event in events:
             yield event
 
-    await RunFrames(emit=session._emit).request(_events())
+    await RunFrames(emit=session._emit).request(_events(), set())
 
 
 async def _tools(session: EmbedSession, *events: Any) -> None:

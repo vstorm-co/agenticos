@@ -24,7 +24,12 @@ import {
   unboundBinding,
 } from "@/lib/agent-spec";
 import type { FieldProblem } from "@/lib/api-error";
-import type { CapabilityBindingSpec, CapabilityCatalogEntry, SubagentRef } from "@/types/agents";
+import type {
+  CapabilityBindingSpec,
+  CapabilityCatalogEntry,
+  ExternalAgentRef,
+  SubagentRef,
+} from "@/types/agents";
 import { useTranslations } from "next-intl";
 
 /**
@@ -67,6 +72,9 @@ interface CapabilityWorkbenchProps {
    */
   subagents: SubagentRef[];
   onSubagentsChange: (subagents: SubagentRef[]) => void;
+  /** `spec.external_agents`, the remote A2A delegates, for the same reason (#2092). */
+  externalAgents: ExternalAgentRef[];
+  onExternalAgentsChange: (externalAgents: ExternalAgentRef[]) => void;
   /**
    * What the organization owns and this agent may be given - context files,
    * collections, skills.
@@ -123,6 +131,8 @@ export function CapabilityWorkbench({
   onChange,
   subagents,
   onSubagentsChange,
+  externalAgents,
+  onExternalAgentsChange,
   resources,
   modelProfileId,
   disabled,
@@ -216,6 +226,8 @@ export function CapabilityWorkbench({
               subagents={subagents}
               onChange={onChange}
               onSubagentsChange={onSubagentsChange}
+              externalAgents={externalAgents}
+              onExternalAgentsChange={onExternalAgentsChange}
               disabled={disabled || !isOn}
               readOnly={disabled}
             />

@@ -1,5 +1,5 @@
 ---
-source_sha: "6460bba9d44c"
+source_sha: "dcefccd16f75"
 ---
 
 # Poner un agent donde la gente ya está { #putting-an-agent-where-people-already-are }
@@ -386,6 +386,7 @@ estaría mal» o bien «esto todavía no está construido» — nunca silencio.
 | Frames de delegación | sí | **no, deliberadamente**: enganchar un sink hace que la biblioteca abra una petición *en streaming* por cada hijo, así que un delegado cuyo proveedor no sabe hacer streaming se rompe en cuanto alguien mira |
 | Aprobaciones: aparcan la ejecución | sí | sí | sí |
 | Aprobaciones: un camino hasta la decisión | sí (`/runs`) | una frase, deliberadamente: a un desconocido con un enlace no se le enseña una URL a la consola de otra persona | sí — el resultado lleva `parked`, que nombra qué espera y a qué aprobación enviar la decisión |
+| Menciones `@` | sí (`mentions`) | **no, todavía no**: un widget no tiene menú del que elegir, y la mención de un visitante necesitaría la misma comprobación en su nombre | **no, todavía no**: un script nombra qué usar en el propio mensaje |
 
 ### `environment_id` en el socket, y por qué es de quien publica { #environment_id-on-the-socket-and-why-it-is-the-publishers }
 
@@ -748,6 +749,37 @@ decide.
 Limitado por llamante y no por dirección — una oficina detrás de un NAT no es un
 solo llamante — con `RATE_LIMIT_RUN_PER_MINUTE`.
 
+## Otros agents, por A2A { #a2a }
+
+El agent de otro sistema puede enviar tareas a un agent mediante el
+[protocolo Agent2Agent](https://a2a-protocol.org). Está desactivado para cada agent
+hasta que alguien que pueda publicarlo active **Agent2Agent (A2A)** en su pestaña
+**Availability**, que muestra las dos direcciones que hay que dar al otro lado:
+
+- la **agent card**, en `/api/v1/a2a/{agent_id}/.well-known/agent-card.json`,
+  legible sin clave — el nombre del agent, su descripción, su versión, su única
+  habilidad y cómo autenticarse;
+- el **endpoint** de tareas, `POST /api/v1/a2a/{agent_id}`, JSON-RPC 2.0.
+
+Quien llama envía una clave API de la organización, o un token de acceso OAuth que
+emitió este despliegue, como bearer token, y debe tener permiso para ejecutar el
+agent. `message/send` ejecuta la versión publicada como un run normal marcado `a2a`,
+así que se aplican el budget, la aprobación, la auditoría y Activity. El id de la
+tarea es el del run y su `contextId` es la conversación en la que se archiva el run,
+así que volver a enviarlo continúa esa conversación. Un run que se detiene en una
+aprobación responde `input-required`; se decide en la consola, y `tasks/get` lee
+dónde está desde entonces.
+
+Una tarea la lee quien la envió, o quien puede leer todos los runs
+(`runs:view`); para cualquier otro su id es desconocido. Un mensaje con `taskId` se
+rechaza en lugar de ejecutarse junto a la tarea que espera: para preguntar algo
+nuevo, se envía sin él, en el mismo `contextId`.
+
+Se responde de forma síncrona: `message/stream`, las notificaciones push y
+`tasks/cancel` se rechazan por su nombre, y la card dice que no se ofrece streaming.
+Un agent que no se sirve — desactivado, sin publicar, archivado o de otra
+organización — responde `404`, tanto la card como el endpoint.
+
 ---
 
 ## Slack { #slack }
@@ -901,7 +933,8 @@ transmisión, que vuelve a una respuesta editada una vez por segundo. Lo mismo
 ocurre solo si Slack se niega a empezarla.
 
 Una tabla Markdown en la respuesta se dibuja como una tabla de Slack, y un gráfico
-llega como imagen, como siempre. Si la respuesta terminada no es lo transmitido -
+llega como imagen, como siempre. También un [visual](reference/capabilities.md#visuals),
+dibujado por el navegador del despliegue cuando `VISUAL_RENDER_CDP_URL` lo indica. Si la respuesta terminada no es lo transmitido -
 un guardrail de salida redactó algo -, el mensaje se reescribe entero.
 
 ### Scopes y events { #scopes-and-events }
@@ -1530,6 +1563,14 @@ Slack lo muestra.
   inmediato, por la misma razón: el stream se vuelve a abrir para coincidir con lo
   que la fila dice ahora. Se abre *después* de que la transacción confirme, así que
   un registro que falla no deja ninguna conexión detrás.
+- **Una conexión por bot, tenga los workers de API que tenga.** Telegram permite
+  un `getUpdates` por bot y dos sockets de Mattermost recibirían cada evento, así
+  que el worker que tiene la conexión de un bot tiene también un lease sobre ella
+  en el Redis compartido y lo renueva cada 10 segundos. Los demás no tocan ese
+  bot. Un worker que se apaga pasa sus bots a otro en unos 10 segundos, y uno que
+  cae, en unos 40. Una edición que atiende otro worker abre la conexión nueva al
+  momento, y la vieja se cierra en la siguiente renovación de quien la tenía. Con
+  Redis inalcanzable, se conecta cada worker, como antes.
 - **Las instrucciones de una vinculación pueden nombrar lo que solo sabe la
   plataforma.** `{channel_name}`, `{channel_purpose}`, `{channel_topic}`,
   `{member_count}`, `{member_list}` - rellenados cuando arranca un run, con las
@@ -1621,6 +1662,7 @@ que lo que se guarda es lo que su lector vio de verdad.
 | `@mention` en un canal | Lo mismo, con el handle quitado del prompt registrado |
 | Widget embebido | Lo mismo. El visitante es anónimo; el run y los turnos pertenecen al dueño del widget |
 | API HTTP | Lo mismo cuando la llamada lleva un `conversation_id`. Nada sin él — no hay ningún hilo en el que escribir un turno, y la fila del run sigue siendo el registro de que ocurrió |
+| A2A | Lo mismo. Cada tarea se archiva en una conversación, nueva o la que nombra su `contextId` |
 | Un run reanudado tras una aprobación | Su continuación — la respuesta y las llamadas que hizo, y las llamadas incluso cuando no hay respuesta, que es lo que tiene una continuación que vuelve a aparcarse en una segunda llamada con puerta. Ningún turno de usuario: retoma en la llamada en la que se detuvo, e inventar una pregunta sería poner palabras en boca de alguien |
 
 **Lo que se registra es lo que escribió la persona, no el prompt ensamblado a su

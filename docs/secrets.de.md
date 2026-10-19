@@ -1,5 +1,5 @@
 ---
-source_sha: "965ad3ad82f8"
+source_sha: "11255bcc5d61"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -104,6 +104,7 @@ existieren.
 | `github_oauth_app` | Die öffentliche Client-ID einer GitHub OAuth App und deren Secret |
 | `git_token` | Ein Zugriffstoken für git über HTTPS und der eine Host, an den es gesendet werden darf |
 | `entra_app` | Tenant-ID, Client-ID und Client Secret einer App-Registrierung in Microsoft Entra |
+| `openai_codex` | Eine ChatGPT-Anmeldung: ein Access-Token, ein Refresh-Token und die Account-ID |
 | `none` | Kein Secret — die Markierung für einen Endpunkt, der keine Zugangsdaten braucht |
 
 `github_oauth_app` wird von der Plattform ausgegeben und nicht von einer Person
@@ -128,6 +129,13 @@ Sites sie lesen kann, und ein Token sagt nicht, welche das sind. Gewähren Sie i
 OneDrive einrichten](howto/configure-sync-sources.md#sharepoint-and-onedrive-setup).
 Ihr Hinweis sind die letzten vier Zeichen der Client-ID, die öffentlich ist, statt
 die des Secrets.
+
+`openai_codex` ist die eine Art, die niemand eintippt. Sie wird durch [Anmelden mit
+ChatGPT](models.md#running-on-a-chatgpt-subscription) gespeichert, und sie ändert
+sich, während sie verwendet wird: Jede Erneuerung verbraucht das Refresh-Token,
+deshalb wird das neue Paar unter derselben ID wieder versiegelt. Ihr Hinweis sind
+die letzten vier Zeichen der Account-ID. Wenn eine Anmeldung nicht mehr
+funktioniert, meldet **Reconnect** sich an ihrer Stelle erneut an.
 
 `aws_credentials` ist der klarste Fall dafür, dass es Arten überhaupt gibt: die
 Access Key ID ist nicht geheim und der Secret Access Key ist es, und ein einzelnes

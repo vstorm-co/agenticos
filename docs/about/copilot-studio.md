@@ -18,7 +18,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | --- | --- | --- |
 | Where it runs | Microsoft's cloud, in Power Platform environments | Your infrastructure |
 | Source | Proprietary | Apache-2.0 |
-| Models | GPT models by default, Claude models generally available, Azure Foundry models billed separately | 27 providers, including local |
+| Models | GPT models by default, Claude models generally available, Azure Foundry models billed separately | 28 providers, including local |
 | Billing | $200 a month for 25,000 Copilot Credits, or $0.01 per credit pay-as-you-go | No licence fee; model usage at your provider's rates |
 | How usage is counted | Credits per feature: a generative answer is 2, an agent action 5, tenant graph grounding 10 | Model tokens, priced per provider |
 | Spend enforcement | Monthly limits per agent; agents are disabled at 125% of prepaid capacity | A budget per agent and per organization, checked before each model request |
@@ -38,7 +38,7 @@ Copilot Studio runs in Microsoft's cloud. Microsoft notes that Anthropic models 
 
 ### Every model provider, first class
 
-Copilot Studio's standard harness offers GPT and Claude models, with Azure Foundry for bring-your-own-model, billed separately. AgenticOS treats [27 providers](../models.md#providers) the same. They share one [model profile](../models.md#a-model-profile) format, the same [fallbacks](../models.md#fallbacks) and the same cost recording.
+Copilot Studio's standard harness offers GPT and Claude models, with Azure Foundry for bring-your-own-model, billed separately. AgenticOS treats [28 providers](../models.md#providers) the same. They share one [model profile](../models.md#a-model-profile) format, the same [fallbacks](../models.md#fallbacks) and the same cost recording.
 
 ### Open where it matters to an auditor
 

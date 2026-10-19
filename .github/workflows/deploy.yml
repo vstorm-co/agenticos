@@ -131,7 +131,11 @@ jobs:
           SHA: ${{ needs.resolve.outputs.sha }}
         run: |
           set -euo pipefail
-          ssh() { command ssh -i ~/.ssh/deploy_key -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "$@"; }
+          # Keepalives, because the script can sit silent for twenty minutes
+          # waiting for a merge's images: without them the idle connection was
+          # dropped four minutes in (`Broken pipe`, exit 255) and the 1.1.1
+          # deploy failed with nothing on the host changed.
+          ssh() { command ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=6 "$DEPLOY_USER@$DEPLOY_HOST" "$@"; }
           # Named for this run, and removed by a trap in the remote shell so the
           # exit status is the deploy's. A fixed name is a file two callers share:
           # `concurrency` above serializes workflow runs and says nothing about

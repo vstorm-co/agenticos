@@ -67,6 +67,7 @@ _READ_ONLY = frozenset(
         Perm.SKILLS_VIEW,
         Perm.CONTEXT_VIEW,
         Perm.ARTIFACTS_VIEW,
+        Perm.PROJECTS_VIEW,
         Perm.RUNS_VIEW,
         Perm.MEMBERS_VIEW,
     }

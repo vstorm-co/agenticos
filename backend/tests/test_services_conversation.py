@@ -72,6 +72,10 @@ class MockMessage:
         self.run_id = run_id
         self.attachment_context = None
         self.parts: list[dict[str, object]] | None = None
+        # Who typed it and what it answers: nobody named, nothing answered.
+        self.author_user_id = None
+        self.channel_identity_id = None
+        self.reply_to_message_id = None
         # Enough of a row for `MessageRead.model_validate`, which the listing runs
         # when it has a reader to attach ratings for.
         self.created_at = datetime(2026, 8, 16, tzinfo=UTC)
@@ -136,10 +140,21 @@ class TestConversationServiceGetConversation:
         identity_id = uuid4()
         identity = MagicMock(id=identity_id, platform_username="kacper.wlodarczyk")
         conversation = MockConversation()
-        wrote = MagicMock(id=uuid4(), channel_identity_id=identity_id)
+        wrote = MagicMock(
+            id=uuid4(),
+            channel_identity_id=identity_id,
+            author_user_id=None,
+            reply_to_message_id=None,
+        )
         # `author=None` explicitly: a bare mock invents the attribute, and then the
         # assertion below would pass whatever the code did.
-        typed = MagicMock(id=uuid4(), channel_identity_id=None, author=None)
+        typed = MagicMock(
+            id=uuid4(),
+            channel_identity_id=None,
+            author=None,
+            author_user_id=None,
+            reply_to_message_id=None,
+        )
         conversation.messages = [wrote, typed]
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
@@ -160,7 +175,11 @@ class TestConversationServiceGetConversation:
     ):
         """One query per page, and not even that when there is nothing to name."""
         conversation = MockConversation()
-        conversation.messages = [MagicMock(id=uuid4(), channel_identity_id=None)]
+        conversation.messages = [
+            MagicMock(
+                id=uuid4(), channel_identity_id=None, author_user_id=None, reply_to_message_id=None
+            )
+        ]
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
@@ -775,6 +794,18 @@ class TestParticipationDoesNotCarryTheWrite:
             )
 
 
+@pytest.mark.anyio
+async def test_the_sockets_own_thread_is_read_by_id(monkeypatch):
+    """No access check: the socket checked the thread when it opened it."""
+    thread = SimpleNamespace(id=uuid4())
+    read = AsyncMock(return_value=thread)
+    monkeypatch.setattr(conversation_repo, "get_conversation_by_id", read)
+    service = ConversationService(AsyncMock())
+
+    assert await service.find_conversation(thread.id) is thread
+    assert read.await_args.args[1] == thread.id
+
+
 class TestConversationServiceListConversations:
     """Tests for list_conversations."""
 
@@ -953,6 +984,7 @@ class TestConversationServiceListConversations:
         with (
             patch("app.services.conversation.conversation_repo") as mock_repo,
             patch("app.services.conversation.channel_membership") as mock_membership,
+            patch.object(service, "visible_project_ids", AsyncMock(return_value=[])),
         ):
             mock_repo.get_conversations_by_user = AsyncMock(return_value=[])
             mock_repo.count_conversations = AsyncMock(return_value=0)
@@ -1410,6 +1442,7 @@ class TestConversationServiceAddMessage:
         mock_data.content = "Hello"
         mock_data.model_name = None
         mock_data.tokens_used = None
+        mock_data.reply_to_message_id = None
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
@@ -2472,6 +2505,7 @@ class TestAFavouriteBelongsToTheReader:
         monkeypatch.setattr(conversation_repo, "get_conversations_by_user", listed)
         monkeypatch.setattr(conversation_repo, "count_conversations", AsyncMock(return_value=0))
         monkeypatch.setattr(conversation_repo, "favourite_ids", AsyncMock(return_value=set()))
+        monkeypatch.setattr(ConversationService, "visible_project_ids", AsyncMock(return_value=[]))
         service = ConversationService(AsyncMock())
         reader = uuid4()
 

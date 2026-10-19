@@ -32,6 +32,24 @@ describe("the composer's `+` at a desk", () => {
   });
 });
 
+describe("starting a chat in a project", () => {
+  it("is offered while the chat has not started, and only then", async () => {
+    const onProject = vi.fn();
+    const { unmount } = render(
+      <ComposerSheet onAttach={vi.fn()} onVoice={vi.fn()} onProject={onProject} />,
+    );
+    await userEvent.click(deskPlus());
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Work in a project/ }));
+    expect(onProject).toHaveBeenCalledOnce();
+    unmount();
+
+    render(<ComposerSheet onAttach={vi.fn()} onVoice={vi.fn()} />);
+    await userEvent.click(deskPlus());
+    await screen.findByRole("menuitem", { name: /Attach file/ });
+    expect(screen.queryByRole("menuitem", { name: /Work in a project/ })).toBeNull();
+  });
+});
+
 describe("the phone composer's sheet", () => {
   it("opens from its `+` and closes on the action picked", () => {
     const onAttach = vi.fn();

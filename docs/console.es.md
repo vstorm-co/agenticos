@@ -1,5 +1,5 @@
 ---
-source_sha: "5fd44f11df69"
+source_sha: "cb36b7fb6577"
 ---
 
 # La consola { #the-console }
@@ -17,7 +17,7 @@ página cuya cabecera no lleva "?" no tiene recorrido que reproducir.
 La página de inicio es una **cuadrícula de widgets que tú ordenas**, y es la
 respuesta a "qué está pasando" sin abrir cinco páginas.
 
-Existen cuarenta y una tarjetas. No las verás todas: **cada tarjeta está
+Existen cuarenta y cinco tarjetas. No las verás todas: **cada tarjeta está
 protegida por el permiso que necesitan sus datos**, así que un widget que no
 puedes leer nunca se monta y sus consultas nunca se lanzan — excepto tus
 propias notificaciones, más abajo, que solo necesitan que hayas iniciado
@@ -88,6 +88,11 @@ abrirla trae la página completa que estás mirando, no una vista previa de
 cinco tarjetas — **Load more** sigue paginando hacia atrás por la organización
 en la que estás ahora, más lo dirigido al deployment entero, hasta llegar a lo
 que ya ha caducado.
+
+Cada fila empieza por aquello de lo que trata: la cara del agente, con una
+insignia de cómo fue su run, o un icono del tipo de evento — verde para un run
+terminado o un servidor MCP que vuelve a funcionar, rojo para un fallo o un
+budget agotado, ámbar para una aprobación o un aviso de budget.
 
 Cambia de organización y la campana es la de esa: una
 notificación de la organización que dejaste no ha desaparecido, está detrás del
@@ -258,6 +263,22 @@ de serie vienen con el producto; puedes escribir los tuyos en
 **Settings → Slash commands**, y ocultar cualquiera de los de serie que no uses.
 Son tuyos, no de la organización.
 
+**`@` señala al agent qué usar.** Escribe `@` y un menú ofrece lo que el agent
+puede usar, en este orden: sus servidores MCP, los agents a los que pasa trabajo
+(con la capability de delegación activada), sus capabilities - **Sandbox**, **Web
+research** -, sus skills y después sus bases de conocimiento y archivos de
+contexto. Lo elegido se queda en tu texto como `@Nombre`, marcado con su logo, y
+al agent se le indica que lo use - las herramientas de un servidor o de una
+capability, la búsqueda de una base de conocimiento, un skill - sin pegar su
+contenido. Nombrar un agent le pasa el trabajo; nunca cambia quién responde.
+Borra el `@Nombre` y lo elegido desaparece. Un enlace pegado muestra el icono de
+su sitio encima del cuadro y en el mensaje enviado. Una mención nunca amplía lo
+que el agent puede alcanzar: el servidor comprueba cada una de nuevo como tú,
+frente a lo que el agent ya tiene. En el panel de pruebas del Builder el menú lee
+el borrador que estás probando. Mientras una conversación está vacía, el cuadro muestra uno
+tras otro ejemplos hechos con lo que el agent puede usar - su servidor, una
+capability, un delegado, un skill - y `/`; desaparecen en cuanto haces clic en él.
+
 **Mientras el agent trabaja**, lo que envías espera su respuesta, como en
 cualquier chat: queda en una cola encima del cuadro de texto y sale cuando termina
 el run. Arrastra un mensaje de la cola, o usa sus flechas, para cambiar el orden.
@@ -274,12 +295,26 @@ terminan o fallan - te avisa de que está ahí, con un enlace a ella. Un turno q
 sigue en marcha tras una hora sin nadie mirando se detiene, y se te avisa de eso
 ([`CHAT_DETACHED_TURN_MINUTES`](configuration.md#a-chat-turn-left-running)). Uno
 que espera una aprobación o tu respuesta a una pregunta te avisa por esa vía.
+Si vuelves mientras aún responde - a la conversación, desde otra pestaña, tras
+recargar -, el chat retoma la respuesta donde está, con todo lo que el agente ha
+hecho hasta entonces, y la sigue dibujando a medida que llega.
 
 **En el teléfono** el chat se comporta como una app de mensajería: el campo de
 escritura queda sobre el teclado y la conversación en su último mensaje mientras
 se abre, Enter empieza una
 línea nueva, y adjuntar un archivo o dictar están detrás de un único **+**. Los
 campos nunca son tan pequeños como para que iOS haga zoom en ellos.
+
+**Dibujos.** Un agente con [Visuals](reference/capabilities.md#visuals) dibuja bajo
+su mensaje - un diagrama, una explicación con controles deslizantes, una escena 3D - y
+usted lo ve aparecer mientras se escribe; sus scripts arrancan cuando está completo. El
+panel muestra el dibujo entero, ajustado a la conversación, con botones para abrirlo a
+pantalla completa, mostrar su código, descargarlo, copiar un SVG como imagen, ampliarlo
+y guardarlo como [aplicación](artifacts.md#visuals) con un enlace para
+compartir. Cuando un dibujo informa de un error, el agente ya lo sabe; **Corregir**
+vuelve a pedírselo. En un teléfono, un toque lo abre a pantalla completa.
+La tarjeta **Recent visuals** del panel muestra los últimos dibujados para usted, y
+cada uno abre la conversación en la que se dibujó.
 
 **Ver un recorrido.** Cuando un agent con el
 [navegador web](reference/capabilities.md#browser-automation) empieza en una página, su
@@ -324,7 +359,7 @@ navegador de inicio de sesión del despliegue
 La barra lateral los agrupa. **Build** reúne Agents, Routines, Apps y Activity;
 **Knowledge** reúne Knowledge bases, Documents, Skills y Context. Dos grupos se
 pliegan a su título hasta que los abres, porque se configuran una vez y se visitan
-poco: **Connections** (MCP servers, Channels, Vault, Sandboxes) y
+poco: **Connections** (MCP servers, Channels, Remote agents, Vault, Sandboxes) y
 **Organization** (Organizations, Groups). Un grupo plegado se abre solo en
 cualquier página que le pertenezca, y se queda como lo dejaste.
 
@@ -342,6 +377,7 @@ cualquier página que le pertenezca, y se queda como lo dejaste.
 | **Sandboxes** | Dónde ejecutan código los agents: hosts, sesiones en curso, política | [La sandbox](sandbox.md) |
 | **MCP servers** | Conexiones a herramientas externas, personales y de toda la organización | [MCP](mcp.md) |
 | **Channels** | Bots de Slack, Telegram y Mattermost, widgets, páginas alojadas | [Superficies](channels.md) |
+| **Remote agents** | Agents de otros proveedores, registrados por su agent card de A2A, en los que delegan los agents | [Capabilities](reference/capabilities.md#remote-agents) |
 | **Vault** | Credenciales, selladas por organización | [Secretos](secrets.md) |
 | **Organizations** | Miembros, roles, invitaciones | [Permisos](permissions.md) |
 | **Settings** | Providers, valores de ingesta por defecto, notificaciones, tu propio perfil | [Configuración](configuration.md) |
@@ -382,7 +418,7 @@ que un problema real se lea como algo tranquilo.
 
 ## Recapitulación { #recap }
 
-- El dashboard son **cuarenta y un widgets** que ordenas tú, guardados por
+- El dashboard son **cuarenta y cinco widgets** que ordenas tú, guardados por
   persona y por organización — todos menos tus propias notificaciones
   protegidos por el permiso que necesitan sus datos.
 - Una disposición guardada **puede ocultar y reordenar, pero nunca revelar** — la

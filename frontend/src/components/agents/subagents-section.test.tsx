@@ -8,14 +8,17 @@ import type {
   Agent,
   CapabilityBindingSpec,
   CapabilityCatalogEntry,
+  ExternalAgentRef,
   JsonSchema,
   SubagentRef,
 } from "@/types/agents";
+import type { ExternalAgent } from "@/types/external-agents";
 import type { Permission } from "@/types/permissions";
 
 const state = vi.hoisted(() => ({
   agents: [] as Agent[],
   permissions: [] as string[],
+  remote: [] as ExternalAgent[],
 }));
 
 vi.mock("@/hooks", () => ({
@@ -25,6 +28,7 @@ vi.mock("@/hooks", () => ({
     isLoading: false,
     promote: { mutate: vi.fn(), isPending: false },
   }),
+  useExternalAgents: () => ({ agents: state.remote, isLoading: false, error: null }),
   usePermissions: () => ({
     can: (permission: Permission) => state.permissions.includes(permission),
     isLoading: false,
@@ -146,18 +150,22 @@ function mount({
   catalog = [DELEGATION, CHARTS],
   parentCapabilities = [binding()],
   subagents = [] as SubagentRef[],
+  externalAgents = [] as ExternalAgentRef[],
   disabled = false,
   onChange = vi.fn(),
   onSubagentsChange = vi.fn(),
+  onExternalAgentsChange = vi.fn(),
 }: {
   definition?: CapabilityCatalogEntry | null;
   bound?: CapabilityBindingSpec | null;
   catalog?: CapabilityCatalogEntry[];
   parentCapabilities?: CapabilityBindingSpec[];
   subagents?: SubagentRef[];
+  externalAgents?: ExternalAgentRef[];
   disabled?: boolean;
   onChange?: (binding: CapabilityBindingSpec) => void;
   onSubagentsChange?: (subagents: SubagentRef[]) => void;
+  onExternalAgentsChange?: (externalAgents: ExternalAgentRef[]) => void;
 } = {}) {
   const view = render(
     <SubagentsSection
@@ -169,15 +177,93 @@ function mount({
       subagents={subagents}
       onChange={onChange}
       onSubagentsChange={onSubagentsChange}
+      externalAgents={externalAgents}
+      onExternalAgentsChange={onExternalAgentsChange}
       disabled={disabled}
     />,
   );
-  return { ...view, onChange, onSubagentsChange };
+  return { ...view, onChange, onSubagentsChange, onExternalAgentsChange };
 }
 
 beforeEach(() => {
   state.agents = [agent()];
   state.permissions = ["agents:run", "agents:edit"];
+  state.remote = [];
+});
+
+function remote(overrides: Partial<ExternalAgent> = {}): ExternalAgent {
+  return {
+    id: "r1",
+    slug: "contract-reviewer",
+    name: "Contract Reviewer",
+    description: "Reads contracts.",
+    card_url: "https://agents.example.com",
+    endpoint_url: "https://agents.example.com/a2a",
+    secret_id: null,
+    skills: [],
+    can_manage: true,
+    created_at: "2026-10-17T00:00:00Z",
+    updated_at: null,
+    ...overrides,
+  };
+}
+
+/** Other vendors' agents, reached over A2A, beside the organization's own (#2092). */
+describe("remote delegates", () => {
+  it("sends somebody to register one when none is", () => {
+    mount();
+
+    expect(screen.getByRole("link", { name: "Register one" })).toHaveAttribute(
+      "href",
+      "/remote-agents",
+    );
+    expect(screen.getByRole("button", { name: "Add a remote agent" })).toBeDisabled();
+  });
+
+  it("adds a registered agent by its registration", async () => {
+    state.remote = [remote()];
+    const { onExternalAgentsChange } = mount();
+
+    expect(screen.getByText("No remote agents yet.")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Add a remote agent" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /Contract Reviewer/ }));
+
+    expect(onExternalAgentsChange).toHaveBeenCalledWith([{ external_agent_id: "r1" }]);
+  });
+
+  it("sets how one is called, and removes one", async () => {
+    state.remote = [remote()];
+    const { onExternalAgentsChange } = mount({ externalAgents: [{ external_agent_id: "r1" }] });
+
+    await userEvent.click(screen.getByRole("combobox", { name: "When it hands back" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Wait for it" }));
+    expect(onExternalAgentsChange).toHaveBeenLastCalledWith([
+      { external_agent_id: "r1", preferred_mode: "sync" },
+    ]);
+
+    expect(screen.getByRole("button", { name: "Add a remote agent" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Remove Contract Reviewer" }));
+    expect(onExternalAgentsChange).toHaveBeenLastCalledWith([]);
+  });
+
+  it("names a registration that is gone, and a handle another delegate claims", () => {
+    state.remote = [remote({ slug: "researcher" })];
+    mount({
+      subagents: [{ agent_id: "a1", agent_version_id: "v2" }],
+      externalAgents: [{ external_agent_id: "r1" }, { external_agent_id: "gone" }],
+    });
+
+    expect(screen.getByText("A remote agent no longer registered")).toBeVisible();
+    expect(screen.getAllByText(/researcher/).length).toBeGreaterThan(1);
+  });
+
+  it("counts a remote agent as configured delegation when it is switched off", () => {
+    mount({ bound: binding({ enabled: false }), externalAgents: [{ external_agent_id: "r1" }] });
+
+    expect(
+      screen.getByText(/Delegation is switched off, so none of this is reached/),
+    ).toBeVisible();
+  });
 });
 
 describe("SubagentsSection", () => {

@@ -21,7 +21,7 @@ Maintained by the AgenticOS team at Vstorm. Sources checked 25 September 2026. A
 | Where it runs | Multi-tenant SaaS, single-tenant, your cloud, or air-gapped on-premises | Your infrastructure, with Docker Compose |
 | Pricing | Not published; sales-led | No licence fee; models, infrastructure and any agreed services |
 | Channels | Voice, chat, email, WhatsApp and SMS | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
-| Models | Routed per task by the platform | Your choice from 27 providers, set per model profile |
+| Models | Routed per task by the platform | Your choice from 28 providers, set per model profile |
 | Governance | AI Gateway with budget caps per team and audit logs | Budgets per agent and per organization, approvals and a tamper-evident audit log |
 | Compliance claims | SOC 2 Type II, ISO 27001:2022, PCI DSS, GDPR | Your controls on your infrastructure; see [security](../security.md) |
 

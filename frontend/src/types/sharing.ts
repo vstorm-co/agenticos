@@ -29,7 +29,8 @@ export type SharingResourceType =
   | "secret"
   | "artifact"
   | "dataset"
-  | "mcp_connection";
+  | "mcp_connection"
+  | "project";
 
 interface GrantBase {
   id: string;

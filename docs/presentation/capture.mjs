@@ -223,6 +223,72 @@ const SHOTS = [
   },
   { name: "artifacts", path: () => "/apps", areas: async () => ({}) },
   {
+    name: "room",
+    // A project chat several people work in: the plan, a teammate's reply, and the agent applying it.
+    path: (ids) => `/chat?id=${ids.room}`,
+    height: 1000,
+    then: async (page) =>
+      page.getByText("Questions for you", { exact: true }).first().evaluate((element) => {
+        element.scrollIntoView({ block: "start" });
+        let scroller = element.parentElement;
+        while (scroller && scroller.scrollHeight <= scroller.clientHeight) scroller = scroller.parentElement;
+        scroller?.scrollBy(0, -56);
+      }),
+    areas: async (page) => ({
+      questions: union(await box(page.getByText("Questions for you", { exact: true }).first()), await box(page.getByText(/^Dates I assumed/).first().locator("xpath=ancestor::li[1]"))),
+      reply: union(await box(page.getByText(/In reply to/).first()), await box(page.getByText(/^Peter confirmed/).first())),
+      answer: top(await climb(page, "Budget changes", (r) => r.height > 80), 220),
+      composer: await box(page.locator('[contenteditable="true"], textarea').first().locator("xpath=ancestor::*[contains(@class,'rounded')][1]")),
+    }),
+  },
+  {
+    name: "room-coding",
+    // The same room after a teammate handed the launch page to the coding agent.
+    path: (ids) => `/chat?id=${ids.room}`,
+    height: 1000,
+    then: async (page) =>
+      page.getByText(/^Build the launch page from launch-plan/).first().evaluate((element) => {
+        element.scrollIntoView({ block: "start" });
+        let scroller = element.parentElement;
+        while (scroller && scroller.scrollHeight <= scroller.clientHeight) scroller = scroller.parentElement;
+        scroller?.scrollBy(0, -40);
+      }),
+    areas: async (page) => {
+      // The answer's own column: its headings and labels are narrower than the text under them.
+      const column = await box(page.getByText(/^Jordan, the launch page is built/).first());
+      const wide = (b) => ({ ...b, x: column.x, width: column.width });
+      return {
+        request: await box(page.getByText(/^Build the launch page from launch-plan/).first()),
+        page: wide(union(await box(page.getByText("What's on the page", { exact: true }).first()), await box(page.getByText(/^Layout:/).first().locator("xpath=ancestor::li[1]")))),
+        decisions: wide(union(await box(page.getByText("Two decisions for you", { exact: true }).first()), await box(page.getByText(/^Sign-up link:/).first().locator("xpath=ancestor::li[1]")))),
+        codex: await box(page.getByText(/Talked it through with Codex/).first()),
+      };
+    },
+  },
+  {
+    name: "visual",
+    // A drawing an agent made under its answer: an ROI calculator with sliders.
+    path: (ids) => `/chat?id=${ids.visual}`,
+    height: 1240,
+    then: async (page) => {
+      await page.getByText("Ledgerly Autopilot ROI calculator", { exact: true }).first().evaluate((element) => {
+        element.scrollIntoView({ block: "start" });
+        let scroller = element.parentElement;
+        while (scroller && scroller.scrollHeight <= scroller.clientHeight) scroller = scroller.parentElement;
+        scroller?.scrollBy(0, -150);
+      });
+      await page.waitForTimeout(2500);
+    },
+    areas: async (page) => {
+      const frame = await box(page.locator("iframe").first());
+      return {
+        drawing: frame,
+        tools: await box(page.getByText("Ledgerly Autopilot ROI calculator", { exact: true }).first().locator("xpath=ancestor::*[contains(@class,'rounded')][1]")),
+        answer: union(await box(page.getByText(/^The calculator is on screen/).first()), await box(page.getByText(/^Look:/).first())),
+      };
+    },
+  },
+  {
     name: "channels",
     path: (ids) => `/agents/${ids.agent}`,
     then: async (page) => page.getByRole("tab", { name: "Availability", exact: true }).click(),
@@ -421,6 +487,8 @@ async function lookUp(page) {
     conversation: (conversations.find((item) => item.title?.startsWith(process.env.CHAT ?? "Attached is")) ?? conversations[0])?.id,
     collection: (collections.find((item) => item.name === (process.env.COLLECTION ?? "Support handbook")) ?? collections[0])?.id,
     app: apps[0]?.id,
+    room: conversations.find((item) => item.title?.startsWith(process.env.ROOM ?? "Draft the launch plan"))?.id,
+    visual: conversations.find((item) => item.title?.startsWith(process.env.VISUAL ?? "Build an interactive ROI"))?.id,
   };
 }
 

@@ -22,6 +22,16 @@ export interface Notification {
   /** `null` means unread - there is no separate boolean for it. */
   read_at: string | null;
   created_at: string;
+  /** The agent the row is about, for its face; absent for a row about none. */
+  agent?: NotificationAgent | null;
+}
+
+export interface NotificationAgent {
+  id: string;
+  slug: string;
+  name: string;
+  has_avatar: boolean;
+  avatar_color: number | null;
 }
 
 export interface NotificationPage {

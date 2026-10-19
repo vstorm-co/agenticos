@@ -2,7 +2,7 @@
 title: "AgenticOS vs Grok Bot"
 seo_title: "AgenticOS vs Grok Bot: ein selbst gehostetes KI-Teammitglied"
 description: "Grok Bot gibt jedem benannten Teammitglied einen Cloud-Computer mit Grok. Vergleichen Sie AgenticOS: jedes Modell, ein Audit-Log, getrennte Anmeldungen, Ihre Server."
-source_sha: "7bcbfa751f35"
+source_sha: "718df56557d9"
 ---
 
 # AgenticOS vs Grok Bot { #agenticos-vs-grok-bot }
@@ -20,7 +20,7 @@ Gepflegt vom AgenticOS-Team. Quellen geprüft am 14. Oktober 2026. AgenticOS-Bas
 | Was Sie bekommen | Benannte Teammitglieder, jedes mit einem Cloud-Computer | Beliebig viele Agents, jeder ein versionierter Spec |
 | Wo es läuft | Die Cloud von xAI | Ihre Infrastruktur, mit Docker Compose |
 | Quellcode | Proprietär | Apache-2.0 |
-| Modelle | Nur Grok, keine Wahl | 27 Provider, darunter lokale Modelle |
+| Modelle | Nur Grok, keine Wahl | 28 Provider, darunter lokale Modelle |
 | Computer | Eine dauerhafte VM, die alle Bots eines Kontos teilen | Eine Sandbox pro Unterhaltung; ein Browser, dessen Anmeldungen pro Person getrennt bleiben |
 | Eine Aufgabe lernen | Bis zu zehn Minuten Bildschirm aufnehmen; ein Skill-Entwurf kommt zurück | Skills, geschrieben oder aus einer Galerie installiert, an jeden Agent gebunden |
 | Teamarbeit | Gruppenchats von zwei bis sechs Bots, die Arbeit weiterreichen | [Delegation](../reference/capabilities.md#delegation) an andere veröffentlichte Agents, an eine Version gebunden |
@@ -44,7 +44,7 @@ Die Freigaben von Grok Bot sind als Anweisungen geschrieben und können von eine
 
 ### Jedes Modell, auf Ihren Servern { #any-model-on-your-servers }
 
-Grok Bot betreibt Grok in der Cloud von xAI. Ein AgenticOS-Agent wählt aus [27 Providern](../models.md#providers), auch Modelle auf Ihrer eigenen Hardware, und speichert seine Daten in [Ihrem eigenen Postgres](../data-protection.md#where-personal-data-lives).
+Grok Bot betreibt Grok in der Cloud von xAI. Ein AgenticOS-Agent wählt aus [28 Providern](../models.md#providers), auch Modelle auf Ihrer eigenen Hardware, und speichert seine Daten in [Ihrem eigenen Postgres](../data-protection.md#where-personal-data-lives).
 
 ## Wann Grok Bot genügt { #when-grok-bot-is-enough }
 

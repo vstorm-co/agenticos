@@ -175,6 +175,41 @@ class TestListing:
         assert response.status_code == 200
         assert response.json() == {"items": [], "next_cursor": None}
 
+    async def test_a_row_about_an_agent_carries_its_face(self, client: OpenClient):
+        """The bell draws the agent the row is about, so the face it needs is
+        served beside the summary - and a row written before the face was kept,
+        or about no agent at all, says so with null rather than a broken one."""
+        agent_id = uuid.uuid4()
+        rows = [
+            _row(
+                render_context={
+                    "agent_name": "Support",
+                    "agent_id": str(agent_id),
+                    "agent_slug": "support",
+                    "agent_has_avatar": True,
+                    "agent_avatar_color": 4,
+                }
+            ),
+            _row(render_context={"agent_name": "Support"}),
+            _row(render_context={"agent_id": "not-a-uuid"}),
+        ]
+        with patch(
+            f"{NOTIFICATION_PATH}.notification_repo.list_inbox_page",
+            new=AsyncMock(return_value=rows),
+        ):
+            async with client() as http:
+                response = await http.get(_url(), params={"limit": 50})
+        items = response.json()["items"]
+        assert items[0]["agent"] == {
+            "id": str(agent_id),
+            "slug": "support",
+            "name": "Support",
+            "has_avatar": True,
+            "avatar_color": 4,
+        }
+        assert items[1]["agent"] is None
+        assert items[2]["agent"] is None
+
 
 class TestUnreadCount:
     async def test_counts_only_gate_visible_rows(self, client: OpenClient):

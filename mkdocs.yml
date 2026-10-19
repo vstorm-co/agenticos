@@ -318,6 +318,7 @@ nav:
           - first-agent.md
           - concepts.md
           - console.md
+          - projects.md
           - screens.md
       - Build the agent:
           - choosing-models.md

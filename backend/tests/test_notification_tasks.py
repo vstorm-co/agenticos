@@ -20,7 +20,7 @@ import pytest
 
 from app.worker.tasks.notification_tasks import (
     _CONCURRENT_SENDS,
-    notification_delivery_sweep_flow,
+    deliver_due_notifications,
     notification_retention_sweep_flow,
 )
 
@@ -59,7 +59,7 @@ class TestTheFlow:
             patch(f"{MODULE}.get_worker_db_context", side_effect=contexts),
             patch(f"{MODULE}.NotificationDeliveryService", return_value=service),
         ):
-            counts = await notification_delivery_sweep_flow()
+            counts = await deliver_due_notifications()
 
         assert counts == {"sent": 2, "skipped": 0, "failed": 0, "lost_claim": 0, "reaped": 0}
         assert service.send_and_settle.await_count == 2
@@ -78,7 +78,7 @@ class TestTheFlow:
             patch(f"{MODULE}.get_worker_db_context", side_effect=contexts),
             patch(f"{MODULE}.NotificationDeliveryService", return_value=service),
         ):
-            counts = await notification_delivery_sweep_flow()
+            counts = await deliver_due_notifications()
 
         assert counts == {"sent": 1, "skipped": 1, "failed": 1, "lost_claim": 1, "reaped": 1}
 
@@ -114,7 +114,7 @@ class TestTheFlow:
             patch(f"{MODULE}.get_worker_db_context", side_effect=contexts),
             patch(f"{MODULE}.NotificationDeliveryService", return_value=service),
         ):
-            counts = await notification_delivery_sweep_flow()
+            counts = await deliver_due_notifications()
 
         assert counts["sent"] == batch_size
         assert max_in_flight == _CONCURRENT_SENDS
@@ -130,7 +130,7 @@ class TestTheFlow:
             patch(f"{MODULE}.get_worker_db_context", side_effect=contexts),
             patch(f"{MODULE}.NotificationDeliveryService", return_value=service),
         ):
-            counts = await notification_delivery_sweep_flow()
+            counts = await deliver_due_notifications()
 
         assert counts == {"sent": 0, "skipped": 0, "failed": 0, "lost_claim": 0, "reaped": 0}
 

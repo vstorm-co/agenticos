@@ -145,6 +145,8 @@ WIDGET_IDS: frozenset[str] = frozenset(
         "datasets",
         "review-queue",
         "eval-runs",
+        "projects",
+        "recent-visuals",
     }
 )
 

@@ -19,6 +19,14 @@ function usage(overrides: Partial<TurnUsage> = {}): TurnUsage {
 }
 
 describe("MessageCost", () => {
+  it("says how much of the input the cache served or took, where it did (#2170)", () => {
+    render(<MessageCost usage={usage({ cache_read_tokens: 9_000, cache_write_tokens: 1_200 })} />);
+
+    expect(
+      screen.getByTitle(/9,000 read from the cache and 1,200 written to it/),
+    ).toBeInTheDocument();
+  });
+
   it("marks a cost that is only a floor, rather than reporting it as exact", () => {
     // A turn that reached a model with no price entry books that request at
     // zero, so the figure is short. Rendered identically to a measured one it is
@@ -84,5 +92,12 @@ describe("RoundedCost", () => {
       "title",
       "$0.0421 - a floor: some model in this turn had no price",
     );
+  });
+});
+
+describe("RoundedCost and the cache", () => {
+  it("carries the cache split in its title too", () => {
+    render(<RoundedCost usage={usage({ cache_read_tokens: 500, cache_write_tokens: 0 })} />);
+    expect(screen.getByTitle(/500 read from the cache/)).toBeInTheDocument();
   });
 });

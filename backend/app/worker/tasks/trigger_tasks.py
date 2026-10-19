@@ -1,14 +1,13 @@
 """Agent triggers - the heartbeat that fires scheduled runs, and the run itself.
 
-Two flows, mirroring the scheduled-sync pair but diverging from it where a run is
-not a sync (see `docs/design/heartbeat-triggers-plan.md`, sections 3 and 4):
+Two halves (see `docs/design/heartbeat-triggers-plan.md`, sections 3 and 4):
 
-* `check_agent_triggers_flow` is the heartbeat, one `IntervalSchedule(60)`
-  deployment. Each tick claims the triggers due now - `FOR UPDATE SKIP LOCKED`,
-  so a tick that outruns its own 60-second window cannot be double-claimed by the
-  next - and submits one run per claimed trigger through `run_deployment` without
-  awaiting it, so a slow agent run never holds the tick open. `check_scheduled_syncs_flow`
-  gathers-and-awaits its children instead; copying it here would block the tick.
+* `check_agent_triggers` is the heartbeat, one of the worker's in-process sweeps
+  (`app/worker/sweeps.py`), every minute. Each tick claims the triggers due now -
+  `FOR UPDATE SKIP LOCKED`, so a tick that outruns its own minute cannot be
+  double-claimed by the next - and submits one run per claimed trigger through
+  `run_deployment` without awaiting it, so a slow agent run never holds the tick
+  open.
 * `run_scheduled_trigger_flow` is one fired run, as its own flow run so it is
   capped by `PREFECT_RUNNER_LIMIT` and isolated from the tick that scheduled it.
   The work is `AgentTriggerService.fire`, which runs the agent as the trigger's
@@ -84,9 +83,14 @@ async def dispatch_trigger_fire(
     )
 
 
-@flow(name="agent-triggers-check", log_prints=True)
-async def check_agent_triggers_flow() -> None:
-    """Heartbeat: claim the triggers due now and submit a run for each."""
+async def check_agent_triggers() -> None:
+    """Heartbeat: claim the triggers due now and submit a run for each.
+
+    A sweep in the worker's own process rather than a Prefect deployment: a
+    deployment is a new Python process per tick that imports the whole
+    application, which on the production host took longer than the minute
+    between ticks (#2213).
+    """
     from app.services.agent_trigger import AgentTriggerService
 
     # The one clock for the whole tick: `claim_and_advance` stamps every claimed
@@ -170,11 +174,11 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
     return dispatched
 
 
-@flow(name="portal-poll", log_prints=True)
-async def poll_portal_grants_flow() -> None:
+async def poll_portal_grants() -> None:
     """Heartbeat: read the connected accounts nobody pushes to, and fire what arrived.
 
-    The third flow, and the one that makes a polled portal a delivery mechanism
+    A sweep in the worker's own process, beside `check_agent_triggers`, and the one
+    that makes a polled portal a delivery mechanism
     rather than a second kind of trigger. Gmail pushes nothing without a Cloud
     Pub/Sub topic and a registration that expires weekly, so this asks - once a
     minute, one request per connected mailbox - and hands whatever it finds to the
@@ -238,7 +242,7 @@ async def _ensure_trigger_dedupe() -> None:
     Flow runs execute outside the API process, so the lifespan's `configure`
     never reached them and every claim failed open - a rolled-back poll or a
     worker death after dispatch then re-fired the same message on the next tick.
-    The client lives for the process; a flow-run subprocess exits with it.
+    The client lives for the worker process.
     """
     from app.clients.redis import RedisClient
     from app.services import trigger_dedupe

@@ -58,6 +58,67 @@ function renderManifest() {
 beforeEach(() => useRunManifestMock.mockReset());
 
 describe("what the model was told", () => {
+  it("lists each reviewer's correction, and who sent it, after which request (#2106)", () => {
+    serve({
+      manifest: record({
+        reviews: [{ reviewer: "sources", after_request: 6, steer: "Cite a source for 40%." }],
+      }),
+    });
+    renderManifest();
+
+    expect(screen.getByText("1 reviewer correction")).toBeInTheDocument();
+    expect(screen.getByText("sources, after request 6")).toBeInTheDocument();
+    expect(screen.getByText("Cite a source for 40%.")).toBeInTheDocument();
+  });
+
+  it("shows no reviewer section for a run nobody reviewed", () => {
+    serve({ manifest: record() });
+    renderManifest();
+    expect(screen.queryByText(/reviewer correction/)).toBeNull();
+  });
+
+  it("shows each script code mode ran, and every call it made (#2107)", () => {
+    serve({
+      manifest: record({
+        code_runs: [
+          {
+            tool_call_id: "c1",
+            code: "await update_record(n=1)",
+            calls: [
+              { tool: "update_record", args: '{"n": 1}', status: "returned" },
+              { tool: "update_record", args: '{"n": 2}', status: "failed" },
+            ],
+          },
+        ],
+      }),
+    });
+    renderManifest();
+
+    expect(screen.getByText("1 script")).toBeInTheDocument();
+    expect(screen.getByText("await update_record(n=1)")).toBeInTheDocument();
+    expect(screen.getByText("It made 2 tool calls")).toBeInTheDocument();
+    expect(screen.getByText('{"n": 2}')).toBeInTheDocument();
+  });
+
+  it("counts the calls a long script made past the listed ones", () => {
+    serve({
+      manifest: record({
+        code_runs: [
+          {
+            tool_call_id: "c1",
+            code: "loop()",
+            calls: [{ tool: "update_record", args: '{"n": 1}', status: "returned" }],
+            omitted_calls: 250,
+          },
+        ],
+      }),
+    });
+    renderManifest();
+
+    expect(screen.getByText("It made 251 tool calls")).toBeInTheDocument();
+    expect(screen.getByText("and 250 more calls, not listed")).toBeInTheDocument();
+  });
+
   it("shows the prompt as it was sent, and the system parts beside it", () => {
     serve({
       manifest: record({

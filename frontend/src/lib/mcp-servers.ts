@@ -418,17 +418,17 @@ export function mcpToolCount(
   refs: McpServerRef[],
   connections: OrgMcpConnectionRecord[],
   personal: McpConnectionRecord[],
+  platformTools = 0,
 ): number {
   return refs.reduce((total, ref) => {
     if (ref.allowed_tools) return total + ref.allowed_tools.length;
+    // The platform's own server, every tool of it: no list on the binding means all.
+    if (ref.account === "platform") return total + platformTools;
     if (ref.account === "organization") {
       return total + (connections.find((c) => c.id === ref.connection_id)?.last_tools?.length ?? 0);
     }
-    if (ref.account === "personal") {
-      return (
-        total + (personal.find((c) => c.catalog_key === ref.catalog_key)?.last_tools?.length ?? 0)
-      );
-    }
-    return total;
+    return (
+      total + (personal.find((c) => c.catalog_key === ref.catalog_key)?.last_tools?.length ?? 0)
+    );
   }, 0);
 }

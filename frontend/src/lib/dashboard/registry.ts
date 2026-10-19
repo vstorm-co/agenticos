@@ -63,7 +63,9 @@ export type WidgetId =
   | "artifacts"
   | "datasets"
   | "review-queue"
-  | "eval-runs";
+  | "eval-runs"
+  | "projects"
+  | "recent-visuals";
 
 /** The closed set of card widths the grid supports (12 columns). */
 export type Span = "s3" | "s4" | "s5" | "s6" | "s7" | "s8" | "s12";
@@ -583,6 +585,25 @@ export const WIDGETS: Record<WidgetId, WidgetDef> = {
     gate: holds(Perm.runsView),
     defaultSpan: "s6",
     defaultRows: "r4",
+    category: "workspace",
+  },
+  // The reader's projects, most recently changed first - what `GET /projects`
+  // itself asks, and nothing more.
+  projects: {
+    id: "projects",
+    gate: holds(Perm.projectsView),
+    defaultSpan: "s12",
+    defaultRows: "r2",
+    category: "workspace",
+    seeAll: ROUTES.PROJECTS,
+  },
+  // The drawings agents made for the caller (#2171). Gated on running agents, the
+  // one thing that makes a drawing: `GET /visuals` lists only the caller's own.
+  "recent-visuals": {
+    id: "recent-visuals",
+    gate: holds(Perm.agentsRun),
+    defaultSpan: "s12",
+    defaultRows: "r3",
     category: "workspace",
   },
   "shared-with-you": {

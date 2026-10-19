@@ -1,5 +1,5 @@
 ---
-source_sha: "c73cac16d216"
+source_sha: "1a100cff937c"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team und Enterprise: eigene Agents"
 description: "Claude Team und Enterprise vs. AgenticOS: selbst gehostete Agents auf Claude oder jedem Modell, Budgets je Agent, Freigaben, Audit-Logs, ohne Gebühr pro Nutzer."
@@ -20,7 +20,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 25. September 2026. Agen
 | Kaufeinheit | Eine Nutzerlizenz pro Mitarbeiter | Eine Bereitstellung; keine Gebühr pro Nutzer |
 | Wo es läuft | Die Cloud von Anthropic | Ihre Infrastruktur |
 | Quellcode | Proprietär | Apache-2.0 |
-| Modelle | Nur Claude | 27 Provider, Claude eingeschlossen, und lokale Modelle |
+| Modelle | Nur Claude | 28 Provider, Claude eingeschlossen, und lokale Modelle |
 | Was Sie bauen | Projects, Skills und Plugins für Menschen, die chatten | Veröffentlichte Agents, jeder ein versionierter Spec |
 | Wer es nutzt | Mitarbeiter mit einer Nutzerlizenz | Mitarbeiter, Kunden und Systeme, auf acht Oberflächen |
 | Oberflächen | Web, Desktop, Mobil, Chrome, Office-Add-ins, Slack in der Beta | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
@@ -37,7 +37,7 @@ Claude Projects enthalten Instruktionen und Wissen für die Menschen, die darin 
 
 ### Jedes Modell und die Option, lokal zu bleiben { #any-model-and-the-option-to-keep-it-local }
 
-Claude-Tarife nutzen nur Claude-Modelle. AgenticOS erreicht [27 Provider](../models.md#providers), darunter Anthropic und Bedrock für Claude, dazu OpenAI, Google, Mistral sowie Ollama oder LiteLLM auf Ihrer eigenen Hardware. Ein [Modellprofil](../models.md#a-model-profile) mit [Fallbacks](../models.md#fallbacks) lässt einen Agent ohne erneute Veröffentlichung zu einem anderen Modell oder Provider wechseln.
+Claude-Tarife nutzen nur Claude-Modelle. AgenticOS erreicht [28 Provider](../models.md#providers), darunter Anthropic und Bedrock für Claude, dazu OpenAI, Google, Mistral sowie Ollama oder LiteLLM auf Ihrer eigenen Hardware. Ein [Modellprofil](../models.md#a-model-profile) mit [Fallbacks](../models.md#fallbacks) lässt einen Agent ohne erneute Veröffentlichung zu einem anderen Modell oder Provider wechseln.
 
 ### Freigabe durch jemand anderen als den Anfragenden { #approval-by-someone-other-than-the-requester }
 

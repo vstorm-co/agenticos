@@ -2,7 +2,7 @@
 title: "AgenticOS vs OpenAI dots"
 seo_title: "AgenticOS vs OpenAI dots: alternatywa, którą hostujesz sam"
 description: "OpenAI dots to agenci w ChatGPT, każdy z komputerem w chmurze. Porównaj z AgenticOS: twoje serwery, dowolny model i reguły egzekwowane w kodzie."
-source_sha: "8673b6e5689a"
+source_sha: "34248b446a49"
 ---
 
 # AgenticOS vs OpenAI dots { #agenticos-vs-openai-dots }
@@ -20,7 +20,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 14 października 2026. Wersja
 | Co dostajesz | Agentów działających bez przerwy w ChatGPT, każdego z komputerem w chmurze | Dowolną liczbę agentów, każdy jako wersjonowany spec |
 | Gdzie działa | Chmura OpenAI | Twoja infrastruktura, z Docker Compose |
 | Kod źródłowy | Zamknięty | Apache-2.0 |
-| Modele | Tylko OpenAI | 27 providerów, w tym modele lokalne |
+| Modele | Tylko OpenAI | 28 providerów, w tym modele lokalne |
 | Narzędzia | Ponad 4000 podłączonych aplikacji, przeglądarka i komputer dla każdego dota | Ponad 4700 serwerów MCP w galerii, przeglądarka, sandbox do kodu, twoje własne capabilities |
 | Kanały | ChatGPT, Slack, Microsoft Teams; SMS zapowiedziany | Czat w przeglądarce, widget, strona hostowana, HTTP API, WebSocket, Slack, Telegram, Mattermost |
 | Reguły | Własne reguły: zezwól, zablokuj albo wymagaj zgody; ryzykowne akcje ocenia model | Zgody sprawdzane przez platformę, zanim narzędzie się uruchomi; listy dozwolonych narzędzi |
@@ -39,7 +39,7 @@ Dots działają w chmurze OpenAI, a na starcie plan Pro nie był dostępny w EOG
 
 ### Dowolny model, nie jednego dostawcy { #any-model-not-one-vendors }
 
-Dot myśli modelami OpenAI. Agent AgenticOS korzysta z [profilu modelu](../models.md#a-model-profile) opartego na 27 providerach, z fallbackami, więc jeden agent może działać na Claude, inny na modelu lokalnym, a zmiana providera to jedno ustawienie.
+Dot myśli modelami OpenAI. Agent AgenticOS korzysta z [profilu modelu](../models.md#a-model-profile) opartego na 28 providerach, z fallbackami, więc jeden agent może działać na Claude, inny na modelu lokalnym, a zmiana providera to jedno ustawienie.
 
 ### Zapis, który możesz audytować { #a-record-you-can-audit }
 

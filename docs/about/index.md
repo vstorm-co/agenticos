@@ -46,7 +46,7 @@ comparing it against.
 | Processes | Runs are first-class: history, cost, status, and tenant isolation enforced by database constraints rather than by service code |
 | Resource limits | [Monthly budgets](../governance.md) per agent, checked before each model request. A run that fails still records what it spent, because a budget that ignores failures is not a budget |
 | Access control | A [permission catalog](../permissions.md) in code, roles composed from it, per-resource grants that widen and never narrow. `approval: required` is the `sudo` — the run parks and waits for a person |
-| Drivers | [27 model providers](../models.md) behind a model profile, and [any MCP server by URL](../mcp.md). Change the profile and every agent using it moves, without one being republished |
+| Drivers | [28 model providers](../models.md) behind a model profile, and [any MCP server by URL](../mcp.md). Change the profile and every agent using it moves, without one being republished |
 | Filesystem | [Collections, skills and context](../file-processing.md) in your own Postgres, embeddings keyed per organization |
 | Shell | One runner behind [web chat, the API, Slack, Telegram, a widget, a hosted page and a schedule](../channels.md) |
 | Audit log | Every run, every approval decision, every secret rotation — with values, never rows, and never a plaintext key |

@@ -18,7 +18,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | --- | --- | --- |
 | Where it runs | OpenAI's cloud; storage residency in ten regions on Enterprise | Your infrastructure |
 | Source | Proprietary | Apache-2.0 |
-| Models | OpenAI only | 27 providers, OpenAI included, and local models |
+| Models | OpenAI only | 28 providers, OpenAI included, and local models |
 | Building agents | Workspace agents, in research preview, with versions and sharing | Published agents with versions, environments and YAML export |
 | Surfaces for an agent | ChatGPT, Slack, schedules, an API trigger | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost, schedules and event triggers |
 | API | The trigger returns `202 Accepted`, with no run ID and no answer | `POST /agents/{id}/run` returns the run and its answer |
@@ -37,7 +37,7 @@ An AgenticOS agent answers through the [HTTP API](../channels.md#the-public-api)
 
 ### The model is your decision
 
-ChatGPT runs OpenAI models. AgenticOS reaches [27 providers](../models.md#providers), OpenAI and Azure OpenAI among them, plus Anthropic, Google, Mistral, Bedrock and self-hosted models. When a better or cheaper model ships anywhere, you change one [model profile](../models.md#a-model-profile). Nothing is republished.
+ChatGPT runs OpenAI models. AgenticOS reaches [28 providers](../models.md#providers), OpenAI and Azure OpenAI among them, plus Anthropic, Google, Mistral, Bedrock and self-hosted models. When a better or cheaper model ships anywhere, you change one [model profile](../models.md#a-model-profile). Nothing is republished.
 
 ### A budget per agent
 

@@ -175,7 +175,13 @@ def context_window(provider: str, model_id: str) -> int | None:
 
 
 # Where the price snapshot spells a provider differently from the platform.
-_PRICE_PROVIDER_ALIASES = {"xai": "x-ai", "bedrock": "aws", "google_cloud": "google"}
+# A ChatGPT subscription runs OpenAI's own models, so they are priced as OpenAI's.
+_PRICE_PROVIDER_ALIASES = {
+    "xai": "x-ai",
+    "bedrock": "aws",
+    "google_cloud": "google",
+    "openai_codex": "openai",
+}
 
 
 def curated_models(provider: str) -> tuple[CatalogModel, ...]:

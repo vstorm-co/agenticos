@@ -263,6 +263,31 @@ describe("what the sidebar says about the list", () => {
     expect(within(list()).queryByText("214 conversations")).toBeNull();
   });
 
+  it("files the threads started in a project under it, above the days", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.includes("/messages")) return { items: [], total: 0 };
+      if (path === "/agents") return { items: [], total: 0 };
+      if (path.startsWith("/projects"))
+        return { items: [{ id: "p-1", name: "Q3 launch" }], total: 1 };
+      return {
+        items: [
+          { ...conversation("c-1", "Press release"), project_id: "p-1" },
+          { ...conversation("c-2", "Old brief"), project_id: "p-gone" },
+          { ...conversation("c-3", "Lunch ideas"), updated_at: new Date().toISOString() },
+        ],
+        total: 3,
+      };
+    });
+    mount();
+    await screen.findAllByText("Press release");
+
+    const headings = within(list())
+      .getAllByRole("button", { expanded: true })
+      .map((heading) => heading.textContent);
+    // Each project heading carries its initial's tile before the name.
+    expect(headings.slice(0, 3)).toEqual(["QQ3 launch", "AA project", "Today"]);
+  });
+
   it("keeps one run, without days, in an order that is not by date", async () => {
     urlParams = new URLSearchParams("sort=title:asc");
     serve([
@@ -508,6 +533,23 @@ describe("the favourites band", () => {
     await waitFor(() =>
       expect(apiClient.post).toHaveBeenCalledWith("/conversations/c-1/favourite", {}),
     );
+  });
+
+  it("offers no share on a project's chat - the project decides who reads it", async () => {
+    serve([
+      { ...conversation("c-1", "Launch plan"), project_id: "p-1" },
+      conversation("c-2", "My notes"),
+    ] as ReturnType<typeof conversation>[]);
+    mount();
+    await within(list()).findByText("Launch plan");
+
+    const [inProject, ownChat] = within(list()).getAllByRole("button", {
+      name: "Conversation actions",
+    });
+    await userEvent.click(inProject!);
+    expect(within(list()).queryByRole("button", { name: "Share" })).toBeNull();
+    await userEvent.click(ownChat!);
+    expect(within(list()).getByRole("button", { name: "Share" })).toBeInTheDocument();
   });
 
   it("draws no star on a starred row, since the band it sits in says so", async () => {

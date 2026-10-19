@@ -28,11 +28,14 @@ import * as context from "./context/[[...path]]/route";
 import * as conversations from "./conversations/[[...path]]/route";
 import * as datasets from "./datasets/[[...path]]/route";
 import * as evalRuns from "./eval-runs/[[...path]]/route";
+import * as externalAgents from "./external-agents/[[...path]]/route";
+import * as visuals from "./visuals/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
 import * as localServices from "./local-services/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as mcpOauth from "./mcp-oauth/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
+import * as projects from "./projects/[[...path]]/route";
 import * as browserSignIns from "./browser-sign-ins/[[...path]]/route";
 import * as channelLink from "./me/channel-link/[[...path]]/route";
 import * as notifications from "./notifications/[[...path]]/route";
@@ -115,6 +118,8 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["conversations", conversations],
   ["datasets", datasets],
   ["eval-runs", evalRuns],
+  ["external-agents", externalAgents],
+  ["visuals", visuals],
   ["kb", kb],
   ["local-services", localServices],
   ["mcp-connections", mcpConnections],
@@ -127,6 +132,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["me/mcp-connections/oauth/start", mcpOauthStart],
   ["me/slash-commands", slashCommands],
   ["notifications", notifications],
+  ["projects", projects],
   ["orgs", orgs],
   ["orgs/[id]", org],
   ["orgs/[id]/invitations", orgInvitations],

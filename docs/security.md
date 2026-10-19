@@ -101,7 +101,7 @@ colleague's account must not delete the agent the team depends on.
 | Table | On deletion | In the export | Why |
 |---|---|---|---|
 | `users` | Deleted | Profile, without the password hash | The account itself |
-| `conversations`, `messages`, `tool_calls` | Cascade | Threads they started, every turn in them | Theirs, and a transcript with every second turn removed answers nothing |
+| `conversations`, `messages`, `tool_calls` | Cascade, except a project's chats, which stay with the team | Threads they started, every turn in them; in a project's chat, wherever they typed, only their turns and the answers to them | Theirs, and a transcript with every second turn removed answers nothing. A project's chat is several people's, and the other members' turns are theirs |
 | `chat_files` | Cascade; the bytes are unlinked after the commit | Not listed | The row cascades from the message and the file on disk does not, so the paths are collected before the delete and unlinked after it commits - otherwise the bytes outlive the request that asked for them to go, reachable by nothing and deleted by nobody. The transcript in the export names the attachment; the bytes are downloadable while the account exists, not packaged into it |
 | `message_ratings` | Cascade | Yes | An opinion they expressed |
 | `sessions` | Cascade | Device, address and times — never the credential, which is a hash | Where they signed in |

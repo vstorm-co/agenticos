@@ -391,6 +391,69 @@ describe("CapabilitySettings tools", () => {
     );
   });
 
+  it("offers no Tools tab for a capability whose one tool is the capability itself", () => {
+    const coding: CapabilityCatalogEntry = {
+      ...EMAIL,
+      id: "coding_agent",
+      name: "Coding agent",
+      tools: [{ id: "run_coding_agent", name: "run_coding_agent", description: "Hand it over." }],
+      tool_settings: false,
+    };
+    render(
+      <CapabilitySettings
+        catalog={[coding]}
+        selected={[binding("coding_agent")]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("tab", { name: "Tools" })).toBeNull();
+    expect(screen.getByRole("tab", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.queryByText(/Every tool follows this/)).toBeNull();
+  });
+
+  it("moves a gate left on a tool that is gone up to the capability", () => {
+    const coding: CapabilityCatalogEntry = {
+      ...EMAIL,
+      id: "coding_agent",
+      tools: [{ id: "run_coding_agent", name: "run_coding_agent", description: "Hand it over." }],
+      tool_settings: false,
+    };
+    const onChange = vi.fn();
+    render(
+      <CapabilitySettings
+        catalog={[coding]}
+        selected={[
+          {
+            ...binding("coding_agent"),
+            tool_approval: { apply_code_change: "required" },
+            tool_overrides: { plan_code_change: { name: "plan" } },
+          },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Move to the capability" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ approval: "required", tool_approval: {}, tool_overrides: {} }),
+    );
+  });
+
+  it("keeps the capability's own approval when no gate is carried over", () => {
+    const coding: CapabilityCatalogEntry = { ...EMAIL, id: "coding_agent", tool_settings: false };
+    const onChange = vi.fn();
+    render(
+      <CapabilitySettings
+        catalog={[coding]}
+        selected={[{ ...binding("coding_agent"), tool_overrides: { gone: { name: "x" } } }]}
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Move to the capability" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ approval: "default", tool_overrides: {} }),
+    );
+  });
+
   it("shows no tool list for a capability that is not tools", () => {
     // A clock puts the time in the instructions. An empty "Tools" heading over
     // an empty box would imply something is missing.

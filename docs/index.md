@@ -234,7 +234,7 @@ came from.
 | **Agents** | Built in a UI, versioned on publish, exportable as YAML into your own git repository |
 | **[Capabilities](reference/capabilities.md)** | Retrieval, web search and fetch, a real browser, Python, a sandbox with files and a shell, charts, images, delegation, planning, guardrails — switched on per agent |
 | **[Integrations](mcp.md)** | Compatible MCP servers, with 59 common ones in the picker — GitHub, Linear, Notion, Slack, Stripe, Postgres |
-| **[Models](models.md)** | 27 providers, per-organization keys, fallbacks, and self-hosted Ollama or a LiteLLM proxy |
+| **[Models](models.md)** | 28 providers, per-organization keys, fallbacks, and self-hosted Ollama or a LiteLLM proxy |
 | **[Knowledge](file-processing.md)** | Retrieval over your documents with three PDF parsers, your own chunking, OCR and image description — per collection, overridable per upload. Google Drive and S3 sync |
 | **[Skills](skills.md)** | Written know-how the agent loads only when it decides it is relevant |
 | **[Governance](governance.md)** | Monthly budgets, human approval, an audit trail, per-agent alerts |

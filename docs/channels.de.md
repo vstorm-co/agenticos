@@ -1,5 +1,5 @@
 ---
-source_sha: "6460bba9d44c"
+source_sha: "dcefccd16f75"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -407,6 +407,7 @@ wäre hier falsch“ oder „das ist noch nicht gebaut“ — niemals Schweigen.
 | Delegations-Frames | ja | **nein, bewusst**: ein angehängter Sink lässt die Bibliothek pro Kind einen *gestreamten* Request öffnen, also bricht ein Delegierter, dessen Anbieter nicht streamen kann, in dem Moment, in dem jemand zusieht |
 | Freigaben: parken den Lauf | ja | ja | ja |
 | Freigaben: ein Weg zur Entscheidung | ja (`/runs`) | ein Satz, bewusst: einem Fremden mit einem Link zeigt man keine URL in die Konsole eines anderen | ja — das Ergebnis trägt `parked` und nennt, worauf gewartet wird und an welche Freigabe zu senden ist |
+| `@`-Erwähnungen | ja (`mentions`) | **nein, noch nicht**: ein Widget hat kein Menü zur Auswahl, und die Erwähnung eines Besuchers bräuchte dieselbe Prüfung in seinem Namen | **nein, noch nicht**: ein Skript nennt in der Nachricht selbst, was zu nutzen ist |
 
 ### `environment_id` am Socket, und warum es dem Veröffentlichenden gehört { #environment_id-on-the-socket-and-why-it-is-the-publishers }
 
@@ -790,6 +791,38 @@ jemand entscheidet.
 Begrenzt pro Aufrufer statt pro Adresse — ein Büro hinter einem NAT ist nicht ein
 Aufrufer — auf `RATE_LIMIT_RUN_PER_MINUTE`.
 
+## Andere Agents, über A2A { #a2a }
+
+Der Agent eines anderen Systems kann einem Agent über das
+[Agent2Agent-Protokoll](https://a2a-protocol.org) Aufgaben senden. Das ist für jeden
+Agent aus, bis jemand, der ihn veröffentlichen darf, auf seinem Tab
+**Availability** **Agent2Agent (A2A)** einschaltet; dort stehen die beiden Adressen
+für die andere Seite:
+
+- die **Agent Card** unter `/api/v1/a2a/{agent_id}/.well-known/agent-card.json`,
+  ohne Key lesbar — Name, Beschreibung, Version des Agent, seine eine Fähigkeit und
+  wie man sich anmeldet;
+- der **Endpunkt** für Aufgaben, `POST /api/v1/a2a/{agent_id}`, JSON-RPC 2.0.
+
+Der Aufrufer sendet einen API-Key der Organisation oder ein von diesem Deployment
+ausgestelltes OAuth-Zugriffstoken als Bearer-Token, das den Agent ausführen darf.
+`message/send` führt die veröffentlichte Version als gewöhnlichen Run aus, mit `a2a`
+gestempelt, sodass Budget, Freigabe, Audit-Trail und Activity gelten. Die ID der
+Aufgabe ist die des Runs, und ihre `contextId` ist das Gespräch, unter dem der Run
+abgelegt wird; sie erneut zu senden, setzt dieses Gespräch fort. Ein Run, der für
+eine Freigabe anhält, antwortet `input-required`; entschieden wird in der Konsole,
+und `tasks/get` liest, wo er seitdem steht.
+
+Eine Aufgabe liest, wer sie gesendet hat, oder wer jeden Run lesen darf
+(`runs:view`); für alle anderen ist ihre ID unbekannt. Eine Nachricht mit `taskId`
+wird abgelehnt, statt neben der wartenden Aufgabe zu laufen: Für etwas Neues sendet
+man sie ohne, im selben `contextId`.
+
+Synchron beantwortet: `message/stream`, Push-Benachrichtigungen und `tasks/cancel`
+werden namentlich abgelehnt, und die Karte sagt, dass Streaming nicht angeboten wird.
+Ein Agent, der nicht angeboten wird — aus, unveröffentlicht, archiviert oder einer
+anderen Organisation —, antwortet mit `404`, Karte wie Endpunkt.
+
 ---
 
 ## Slack { #slack }
@@ -950,7 +983,8 @@ schalten das Streaming ab, womit die Antwort wieder einmal pro Sekunde bearbeite
 wird. Dasselbe geschieht von selbst, wenn Slack das Streaming verweigert.
 
 Eine Markdown-Tabelle in der Antwort wird als Slack-Tabelle gezeichnet, ein
-Diagramm kommt wie immer als Bild. Ist die fertige Antwort nicht das, was gestreamt
+Diagramm kommt wie immer als Bild. Ebenso ein [Visual](reference/capabilities.md#visuals),
+gezeichnet vom Browser des Deployments, wenn `VISUAL_RENDER_CDP_URL` ihn nennt. Ist die fertige Antwort nicht das, was gestreamt
 wurde - ein Output-Guardrail hat etwas geschwärzt -, wird die Nachricht ganz neu
 geschrieben.
 
@@ -1618,6 +1652,16 @@ schlecht abschneidet, zeigt es.
   Grund: der Stream wird neu geöffnet, passend zu dem, was die Zeile jetzt sagt.
   Er wird geöffnet, *nachdem* die Transaktion committet, sodass eine
   fehlgeschlagene Registrierung keine Verbindung zurücklässt.
+- **Eine Verbindung pro Bot, egal wie viele API-Worker.** Telegram erlaubt ein
+  `getUpdates` pro Bot, und zwei Mattermost-Sockets bekämen jedes Ereignis
+  doppelt. Darum hält der Worker, der die Verbindung eines Bots hält, im
+  gemeinsamen Redis einen Lease darauf und erneuert ihn alle 10 Sekunden; die
+  anderen lassen diesen Bot in Ruhe. Ein Worker, der herunterfährt, übergibt
+  seine Bots innerhalb von etwa 10 Sekunden an einen anderen, einer, der
+  abstürzt, innerhalb von etwa 40. Eine Änderung, die ein anderer Worker
+  bedient, öffnet die neue Verbindung sofort, und die alte schließt sich bei der
+  nächsten Erneuerung ihres Halters. Ist Redis nicht erreichbar, verbindet sich
+  wie bisher jeder Worker.
 - **Die Instruktionen einer Bindung dürfen benennen, was nur die Plattform weiß.**
   `{channel_name}`, `{channel_purpose}`, `{channel_topic}`, `{member_count}`,
   `{member_list}` - eingesetzt, wenn ein Run startet, aus denselben Aufrufen, die
@@ -1715,6 +1759,7 @@ gesehen hat.
 | `@mention` in einem Channel | Dasselbe, mit dem Handle aus dem aufgezeichneten Prompt entfernt |
 | Eingebettetes Widget | Dasselbe. Der Besucher ist anonym; der Run und die Runden gehören dem Eigentümer des Widgets |
 | HTTP-API | Dasselbe, wenn der Aufruf eine `conversation_id` trägt. Nichts ohne eine — es gibt keinen Thread, in den eine Runde geschrieben werden könnte, und die Run-Zeile ist weiterhin der Beleg, dass es passiert ist |
+| A2A | Dasselbe. Jede Aufgabe wird unter einem Gespräch abgelegt, einem neuen oder dem, das ihre `contextId` nennt |
 | Ein nach einer Freigabe wieder aufgenommener Run | Seine Fortsetzung — die Antwort und die Aufrufe, die er gemacht hat, und die Aufrufe auch dann, wenn es keine Antwort gibt, was eine Fortsetzung hat, die bei einem zweiten freigabepflichtigen Aufruf erneut parkt. Keine Nutzerrunde: er setzt bei dem Aufruf an, bei dem er stehen blieb, und eine Frage zu erfinden hieße, jemandem Worte in den Mund zu legen |
 
 **Aufgezeichnet wird, was die Person geschrieben hat, und nicht der Prompt, der

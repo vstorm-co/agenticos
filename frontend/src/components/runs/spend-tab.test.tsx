@@ -50,6 +50,7 @@ function serve(spend: Partial<CostSummary>) {
     by_provider: [],
     by_key: [],
     by_day: [],
+    cache_by_agent_model: [],
     ...spend,
   });
 }
@@ -123,6 +124,28 @@ describe("the vendor and key facets", () => {
 
     expect(await screen.findByText("OpenAI · production")).toBeVisible();
     expect(row("OpenAI · production")).toHaveTextContent("$2.0000");
+  });
+
+  it("shows where the prompt cache did not hold, under the breakdown", async () => {
+    serve({
+      cache_by_agent_model: [
+        {
+          agent_id: "a-1",
+          agent_slug: "clerk",
+          agent_name: "Billing clerk",
+          model_label: "gpt-4.1",
+          busts: 3,
+          expiries: 0,
+          missed_tokens: 12000,
+          run_count: 2,
+        },
+      ],
+    });
+
+    render(<SpendTab period={PERIOD} />, { wrapper });
+
+    expect(await screen.findByText("Prompt cache")).toBeVisible();
+    expect(screen.getByText("gpt-4.1")).toBeVisible();
   });
 
   it("still accounts for a key that has since been deleted", async () => {

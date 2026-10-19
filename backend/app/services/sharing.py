@@ -41,6 +41,7 @@ _CONSOLE_PATHS = {
     "artifact": "/apps/{id}",
     "dataset": "/datasets/{id}",
     "mcp_connection": "/mcp-servers",
+    "project": "/projects/{id}",
 }
 """Where the console opens a shared resource of each kind."""
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "0b5ae075ae8b"
+source_sha: "caab0d1d874d"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -66,12 +66,17 @@ Pro Profile, und pro Agent über die `model_settings` des Specs überschreibbar:
 `temperature`, `top_p`, `max_tokens`, `parallel_tool_calls`, `timeout`. Siehe
 [die Spec-Referenz](reference/spec.md#model-settings).
 
-**Prompt-Caching ist standardmäßig an** für Anthropic- und OpenRouter-Profile.
-Jeder Request eines Runs schickt die Anweisungen, die Tool-Schemas und den ganzen
-Verlauf erneut, also markiert jeder Request die Anweisungen, die Tools und seine
-letzte Nachricht als Cache-Breakpoints und liest den vorigen Request aus dem Cache.
-Ein Profile schaltet jeden davon ab, indem es ihn auf `false` setzt -
-`anthropic_cache_messages`, `openrouter_cache_instructions` und so weiter.
+**Prompt-Caching ist standardmäßig an**, über die anbieterneutrale
+`cache`-Einstellung von Pydantic AI. Jeder Request eines Runs schickt die
+Anweisungen, die Tool-Schemas und den ganzen Verlauf erneut, also werden der
+stabile Präfix und das Gespräch als Cache-Breakpoints markiert, und jeder Request
+liest den vorigen aus dem Cache. Das greift überall, wo ein Anbieter explizites
+Caching annimmt - Anthropic, die Anthropic- und Nova-Modelle bei Bedrock, die
+Anthropic- und Gemini-Modelle bei OpenRouter, OpenAI ab GPT-5.6 - und ändert
+nichts bei einem, der selbst cacht, wie Google. Ein Profile schaltet es mit
+`cache: false` ab oder cacht mit `cache: {"messages": false}` nur Anweisungen und
+Tools. Ein anbieterspezifisches Flag, das ein Profile schon setzt, etwa
+`anthropic_cache_messages`, hat für dieses Profile weiter Vorrang.
 
 Der Reasoning-Aufwand steht **nicht** hier. Er ist die
 [`thinking`-Capability](reference/capabilities.md#thinking), denn "denk
@@ -112,7 +117,7 @@ also braucht nichts die gespeicherte Kopie. Ein Profile, das sie will, setzt
 
 ## Provider { #providers }
 
-Siebenundzwanzig, also alles, was Pydantic AI ausliefert und worauf ein
+Achtundzwanzig, also alles, was Pydantic AI ausliefert und worauf ein
 Chat-Profile zeigen kann.
 
 Es gibt hier keinen Builder pro Provider. Pydantic AI leitet die Provider-Klasse
@@ -199,8 +204,9 @@ zurückfallen könnte, und nichts, womit man authentifizieren könnte.
 | Azure OpenAI | `azure` | Key **+** Endpunkt **+** gepinnte API-Version |
 | AWS Bedrock | `bedrock` | Access Key Id, Secret Key, Region, optionales Session-Token |
 | Google Vertex AI | `google_cloud` | Service-Account-JSON |
+| ChatGPT (Codex-Abonnement) | `openai_codex` | eine ChatGPT-Anmeldung, gespeichert durch Anmelden statt durch Eintippen |
 
-Diese drei sind der Grund, warum ein Secret überhaupt eine *Art* hat. Ein
+Die ersten drei sind der Grund, warum ein Secret überhaupt eine *Art* hat. Ein
 Formular, das für Azure ein einzelnes undurchsichtiges Token einsammelte, würde
 etwas einsammeln, das sich korrekt ausfüllen lässt und beim ersten Run trotzdem
 scheitert. Siehe [Secret-Arten](secrets.md#kinds).
@@ -215,6 +221,55 @@ scheitert. Siehe [Secret-Arten](secrets.md#kinds).
 
     `google_cloud` wird als `google-cloud` gebaut. Keines von beidem ändert, was Sie
     speichern.
+
+### Mit einem ChatGPT-Abonnement betreiben { #running-on-a-chatgpt-subscription }
+
+`openai_codex` betreibt OpenAI-Modelle über das Codex-Backend mit einem
+ChatGPT-Abonnement statt mit einem nach Verbrauch abgerechneten API-Key. Es ist
+für den **persönlichen Gebrauch** gedacht: Die Anmeldung ist das Abonnement einer
+Person, und jeder Run auf einem Profile, das sie verwendet, zählt gegen die
+ChatGPT-Limits dieser Person.
+
+Niemand kann die Zugangsdaten eintippen. Stattdessen melden Sie sich mit ChatGPT
+an:
+
+1. Wählen Sie unter **Vault → add a secret** (oder unter **Agents → add a model**,
+   mit ausgewähltem **ChatGPT (Codex subscription)**) **Sign in with ChatGPT**.
+   Eine ChatGPT-Anmeldung öffnet sich in einem neuen Tab.
+2. Bestätigen Sie sie. ChatGPT schickt den Browser danach an
+   `http://localhost:1455/...`, und diese Adresse lädt nicht. Das ist so
+   vorgesehen: OpenAI legt diese Adresse für jeden Client außer dem eigenen fest.
+3. Kopieren Sie die vollständige Adresse aus der Adressleiste und fügen Sie sie
+   wieder in das Formular ein.
+
+Der Code in dieser Adresse funktioniert einmal, nur für die Person, die die
+Anmeldung gestartet hat, und nur innerhalb von 15 Minuten.
+
+Das Access-Token läuft ab und wird erneuert, während Modelle laufen. Jede
+Erneuerung verbraucht das Refresh-Token, deshalb wird das neue Paar sofort wieder
+im selben Vault-Secret versiegelt. Zwei Runs, die im selben Moment erneuern,
+können trotzdem in eine Race Condition geraten. Der unterlegene wird abgelehnt,
+und die Abhilfe ist **Reconnect** am Secret: Damit melden Sie sich erneut an,
+ohne seine Id zu ändern.
+
+!!! warning "Was eine ChatGPT-Anmeldung nicht ist"
+
+    - **Sie ist nicht die `auth.json` der Codex CLI.** Diese Datei hält die eigene
+      Berechtigung der CLI. Refresh-Tokens sind nur einmal verwendbar, also würde
+      die Seite, die zuerst erneuert, die andere abmelden.
+    - **Sie ist kein Zugang für die ganze Organisation.** Ein Secret wird
+      standardmäßig privat angelegt, und ein Modell darauf läuft nur für jemanden,
+      der die Anmeldung im Vault sehen darf und selbst fragt. Für alle anderen -
+      Besucher einer öffentlichen Seite oder eines Embeds, Aufrufer mit API-Key -
+      und für Arbeit im Hintergrund, etwa das Beschreiben der Bilder eines
+      Dokuments, wird das Modell abgelehnt, und ein Fallback darauf wird
+      übersprungen.
+    - **Die angezeigten Ausgaben sind nicht Ihre Rechnung.** Ein Run wird zu den
+      OpenAI-API-Preisen für dasselbe Modell bepreist, und damit kann ein
+      [Budget](governance.md#budgets) rechnen. Das Abonnement selbst rechnet
+      OpenAI zu einem Pauschalpreis ab.
+    - **Manche Einstellungen werden ignoriert.** Das Codex-Backend verwirft
+      `max_tokens`, `temperature` und `top_p`.
 
 ### Bewusst nicht vorhanden { #deliberately-absent }
 
@@ -254,15 +309,15 @@ das, von dem alle abgeleitet sind, ist das erste:
 
 Jeder Schlüssel in einer der beiden Katalogdateien muss einen Provider benennen,
 den `PROVIDERS` hat. Das gilt auch für jeden Eintrag im Bildkatalog. Und jeder
-Provider muss auf dieser Seite auftauchen. Den achtundzwanzigsten hinzuzufügen
+Provider muss auf dieser Seite auftauchen. Den neunundzwanzigsten hinzuzufügen
 ist eine Änderung plus alles, worum dieser Test dann bittet.
 
 Zwei Überkreuzungen sind wissenswert, weil es Nachschläge sind, die ins Leere
 gehen können:
 
-- Der Preis-Snapshot schreibt drei Provider anders — `xai` ist `x-ai`, `bedrock`
-  ist `aws`, `google_cloud` ist `google` — und `_PRICE_PROVIDER_ALIASES`
-  überbrückt das.
+- Der Preis-Snapshot schreibt vier Provider anders — `xai` ist `x-ai`, `bedrock`
+  ist `aws`, `google_cloud` ist `google`, und `openai_codex` wird als `openai`
+  bepreist — und `_PRICE_PROVIDER_ALIASES` überbrückt das.
 - Der Bildkatalog trägt sein eigenes Paar aus `provider` und `prefix`, was
   wiederum ein drittes Vokabular ist.
 
@@ -347,6 +402,7 @@ das unten beschriebene Null.
 |---|---|
 | `anthropic` | `claude-opus-5`, `claude-sonnet-5`, `claude-fable-5`, `claude-haiku-4-5` |
 | `openai` | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.3-codex` |
+| `openai_codex` | dieselben vier wie `openai` |
 | `google` | `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-pro-preview` |
 | `deepseek` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | `xai` | `grok-4.5`, `grok-4.3` |
@@ -459,7 +515,7 @@ dem Modell, das tatsächlich lief, statt unter dem des Elternteils.
 - Ein **Profile** ist ein benanntes Modell plus ein benannter Key, und Agents
   zeigen auf Profiles, damit das Rotieren des einen oder anderen eine Zeile
   berührt.
-- **27 Provider**, und das Einzige, was diese Plattform über jeden weiß, ist die
+- **28 Provider**, und das Einzige, was diese Plattform über jeden weiß, ist die
   Form der Zugangsdaten — die Konstruktion ist Sache von Pydantic AI.
 - Die Model-Id ist **Freitext**, weil keine Liste maßgeblich ist.
 - Die **Kontextlänge** wird einmal gelesen und gespeichert, weil der

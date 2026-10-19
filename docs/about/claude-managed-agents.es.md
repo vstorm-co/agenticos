@@ -2,7 +2,7 @@
 title: "AgenticOS vs Claude Managed Agents"
 seo_title: "AgenticOS vs Claude Managed Agents: entorno de agents autoalojado"
 description: "Claude Managed Agents es el entorno alojado de agents de Anthropic para desarrolladores. Compáralo con AgenticOS: un entorno con consola, en tus servidores."
-source_sha: "b649b66a1946"
+source_sha: "ef4c85c46963"
 ---
 
 # AgenticOS vs Claude Managed Agents { #agenticos-vs-claude-managed-agents }
@@ -21,7 +21,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 14 de octubre de 2026
 | Quién los crea | Desarrolladores, mediante la API | Cualquiera con el rol adecuado, en el navegador; los ingenieros lo amplían en Python |
 | Dónde se ejecuta | La nube de Anthropic | Tu infraestructura, con Docker Compose |
 | Código | Propietario | Apache-2.0 |
-| Modelos | Solo Claude | 27 providers, entre ellos Claude y modelos locales |
+| Modelos | Solo Claude | 28 providers, entre ellos Claude y modelos locales |
 | Sandbox | Gestionada, por sesión | Una sandbox por conversación, en tu propio host de Docker |
 | Precio | Tokens más 0,08 $ por hora de sesión | Sin coste de licencia; pagas a los providers de modelos y la infraestructura |
 
@@ -53,7 +53,7 @@ Sí, si quieres ejecutar los agents tú mismo. AgenticOS ejecuta agents con sand
 
 ### ¿Puede AgenticOS usar Claude? { #can-agenticos-use-claude }
 
-Sí. Anthropic es uno de los 27 providers; añades una clave una vez y eliges Claude en un perfil de modelo.
+Sí. Anthropic es uno de los 28 providers; añades una clave una vez y eliges Claude en un perfil de modelo.
 
 ## Comparativas relacionadas { #related-comparisons }
 

@@ -28,7 +28,8 @@ test.describe("Chat on a phone", () => {
     await input.pressSequentially("one");
     await input.press("Enter");
     await input.pressSequentially("two");
-    await expect(input).toHaveValue("one\ntwo");
+    // A rich editor: the newline is a <br>, which only innerText reads.
+    await expect(input).toHaveText(/^one\ntwo\n?$/, { useInnerText: true });
 
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

@@ -56,6 +56,15 @@ class Conversation(Base, TimestampMixin):
     )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    """The project this chat was started in: its runs work in the project's
+    container and read its instructions. A deleted project leaves its chats as
+    ordinary ones, without the files they were working on."""
     origin: Mapped[str | None] = mapped_column(String(16), nullable=True)
     """Where a conversation was opened from, when it was not the console: `api`
     for one an organization key's run opened (#2122). Shown in its owner's chat
@@ -215,6 +224,28 @@ class Message(Base, TimestampMixin):
         nullable=True,
         index=True,
     )
+    # Who typed this turn, when they were signed in. A project's chat is
+    # continued by whoever works in the project, so the conversation's owner no
+    # longer says whose words a user turn is. Null on assistant turns, on
+    # channel turns (`channel_identity_id` says who) and on turns written before
+    # this was kept.
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        # Deleting an account finds every message it wrote through this column.
+        index=True,
+    )
+    # The earlier message this turn answers, when somebody replied to one - in a
+    # chat several people talk in at once, "yes, do that" has to say to what.
+    # `SET NULL`: a deleted message leaves the reply standing, unanchored.
+    reply_to_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("messages.id", ondelete="SET NULL"),
+        nullable=True,
+        # Every message deletion looks its replies up through this column.
+        index=True,
+    )
     # Which frozen spec answered, not just which agent. An agent is rewritten;
     # what it said last Tuesday was said by one version of it, and "why did it
     # answer that" is a question about the version. Runs have recorded this
@@ -279,6 +310,11 @@ class Message(Base, TimestampMixin):
     Beside `tokens_used` rather than replacing it - that column is written by the
     template's own path and read by nothing here, and dropping a column to tidy a
     model is a migration somebody else's fork has to run."""
+
+    cache_read_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """Of `input_tokens`, those served from the provider's cache (#2170)."""
+    cache_write_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """Of `input_tokens`, those written to the provider's cache (#2170)."""
 
     cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     """Money, at the same scale as `agent_runs.cost_usd` and the organization's cap.

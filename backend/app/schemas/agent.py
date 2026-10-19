@@ -139,6 +139,13 @@ class AgentRead(BaseSchema):
             "the console lists it apart, without chat, channels or delegation."
         ),
     )
+    a2a_enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether other systems may reach this agent over A2A: its card at "
+            "/a2a/{id}/.well-known/agent-card.json, its tasks at /a2a/{id} (#2092)."
+        ),
+    )
     has_avatar: bool = Field(
         default=False,
         description=(
@@ -532,6 +539,14 @@ class CapabilityCatalogEntry(BaseSchema):
             "and description the model sees via tool_overrides, both keyed by the id here."
         )
     )
+    tool_settings: bool = Field(
+        default=True,
+        description=(
+            "Whether the Builder offers per-tool approval and tool text for this "
+            "capability. False where its one tool is the capability itself, so its "
+            "approval is the capability's own."
+        ),
+    )
     scopes: list[str]
     contracts: list[CapabilityToolContract] = Field(
         default_factory=list,
@@ -635,6 +650,19 @@ class McpCatalog(BaseSchema):
             "there `total` is the result count and this would be the same number twice."
         ),
     )
+
+
+class PlatformMcpTool(BaseSchema):
+    name: str = Field(description="The tool's name on the platform's MCP server")
+    description: str = Field(description="The first line of what the model reads")
+    writes: bool = Field(
+        description="Whether it changes something - held for approval under `approval: writes`"
+    )
+
+
+class PlatformMcpToolList(BaseSchema):
+    items: list[PlatformMcpTool]
+    total: int
 
 
 class CapabilityCatalog(BaseSchema):
@@ -769,6 +797,12 @@ class AgentRunResult(BaseSchema):
     )
     input_tokens: int
     output_tokens: int
+    cache_read_tokens: int = Field(
+        default=0, description="Of `input_tokens`, those read from the provider's cache"
+    )
+    cache_write_tokens: int = Field(
+        default=0, description="Of `input_tokens`, those written to the provider's cache"
+    )
     steps: list[RunStep] = Field(
         default_factory=list,
         description=(
@@ -901,3 +935,9 @@ class AgentKnowledgeReach(BaseSchema):
     whole_organization: bool
     groups: list[str] = Field(default_factory=list)
     sources: list[KnowledgeSource] = Field(default_factory=list)
+
+
+class AgentA2ARequest(BaseSchema):
+    """Serve this agent over A2A, or stop (#2092)."""
+
+    enabled: bool

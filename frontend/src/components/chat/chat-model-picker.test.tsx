@@ -37,6 +37,12 @@ vi.mock("@/hooks", () => ({
   useSecrets: () => ({ secrets: listedSecrets(), create: { mutate: vi.fn(), isPending: false } }),
 }));
 
+// The real one signs in with ChatGPT through the vault. What is asserted here is
+// only that the picker renders it in place of a key field.
+vi.mock("@/components/vault/chatgpt-sign-in", () => ({
+  InlineChatGPTSignIn: () => <p>ChatGPT sign-in form</p>,
+}));
+
 const purpose = (
   id: string,
   label: string,
@@ -181,6 +187,24 @@ describe("the chat's two-step model picker", () => {
 
     expect(screen.getByRole("button", { name: "Add a key: OpenAI" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Open the Vault/ })).toBeInTheDocument();
+  });
+
+  it("offers a ChatGPT sign-in, not a key field, for a subscription", async () => {
+    // There is no key to paste: the credential is an OAuth grant.
+    PURPOSES.push({
+      ...purpose("openai_codex", "ChatGPT (Codex subscription)", "model_provider"),
+      kind: "openai_codex",
+    });
+    try {
+      render(<ChatModelPicker value={null} agentModel={null} onChange={vi.fn()} />);
+
+      await pickProvider("ChatGPT");
+
+      expect(screen.getByText("ChatGPT sign-in form")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Add a key/ })).toBeNull();
+    } finally {
+      PURPOSES.pop();
+    }
   });
 
   it("offers nothing once the provider has a key", async () => {

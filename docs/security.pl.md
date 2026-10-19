@@ -1,5 +1,5 @@
 ---
-source_sha: "dff8f802d288"
+source_sha: "1e0ade0e3ea7"
 ---
 
 # Bezpieczeństwo { #security }
@@ -108,7 +108,7 @@ dalej, bo usunięcie konta kolegi nie może usunąć agenta, od którego zależy
 | Tabela | Przy usunięciu | W eksporcie | Dlaczego |
 |---|---|---|---|
 | `users` | Usuwany | Profil, bez hasha hasła | Samo konto |
-| `conversations`, `messages`, `tool_calls` | Kaskada | Wątki, które zaczęli, z każdą turą | Ich własne, a transkrypt bez co drugiej tury nie odpowiada na nic |
+| `conversations`, `messages`, `tool_calls` | Kaskada, poza czatami projektu, które zostają z zespołem | Wątki, które zaczęli, z każdą turą; w czacie projektu, gdziekolwiek pisali, tylko ich tury i odpowiedzi na nie | Ich własne, a transkrypt bez co drugiej tury nie odpowiada na nic. Czat projektu należy do kilku osób, a tury pozostałych członków są ich |
 | `chat_files` | Kaskada; bajty odpinane po commicie | Nie wypisywane | Wiersz kaskaduje od wiadomości, a plik na dysku nie, więc ścieżki są zbierane przed usunięciem i odpinane po jego commicie — inaczej bajty przeżywają żądanie, które kazało im zniknąć: nieosiągalne dla niczego i nieusuwane przez nikogo. Transkrypt w eksporcie nazywa załącznik; bajty są do pobrania dopóki konto istnieje, a nie pakowane do środka |
 | `message_ratings` | Kaskada | Tak | Wyrażona opinia |
 | `sessions` | Kaskada | Urządzenie, adres i czasy — nigdy poświadczenie, bo jest hashem | Gdzie się logowali |

@@ -77,6 +77,13 @@ class TestTheCatalog:
         assert entry is not None
         assert entry.kind is SecretKind.API_KEY
 
+    def test_a_remote_agents_key_can_be_stored_where_it_is_registered(self):
+        """The register-remote-agent dialog stores its key under this id; a
+        purpose missing here refused every key typed into it."""
+        entry = secret_purposes.get("a2a")
+        assert entry is not None
+        assert entry.kind is SecretKind.API_KEY
+
     def test_custom_is_last_and_is_not_a_model_provider(self):
         purposes = secret_purposes.all_purposes()
         assert purposes[-1].id == "custom"

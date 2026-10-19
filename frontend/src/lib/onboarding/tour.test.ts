@@ -18,6 +18,7 @@ import {
   TOUR_STEPS,
   visibleTourSteps,
   WORKSPACE_DETAIL,
+  PROJECT_DETAIL,
 } from "./tour";
 import { ROUTES } from "@/lib/constants";
 import { Perm, type Permission } from "@/types/permissions";
@@ -95,6 +96,7 @@ describe("pageKey", () => {
     expect(pageKey(ROUTES.SETTINGS_PROFILE)).toBe(SETTINGS_DETAIL);
     expect(pageKey(ROUTES.SETTINGS_SLASH_COMMANDS)).toBe(SETTINGS_DETAIL);
     expect(pageKey("/documents/abc-123")).toBe(WORKSPACE_DETAIL);
+    expect(pageKey("/projects/abc-123")).toBe(PROJECT_DETAIL);
   });
 });
 
@@ -193,6 +195,7 @@ describe("stepsForPage", () => {
       "chat-agent-picker",
       "chat-composer",
       "chat-plan",
+      "chat-visual",
       "chat-model-picker",
       "chat-approval-mode",
       "chat-your-connections",

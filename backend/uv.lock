@@ -13,7 +13,7 @@ constraints = [{ name = "beartype", marker = "python_full_version >= '3.15'", sp
 
 [[package]]
 name = "agenticos"
-version = "1.1.1"
+version = "1.6.3"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },

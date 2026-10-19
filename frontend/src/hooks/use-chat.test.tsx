@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 
 import { useChat } from "./use-chat";
+import { useVisualImagesStore, useVisualStreamStore } from "@/stores/visual-stream-store";
 import { ApiError } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import {
@@ -195,6 +196,23 @@ describe("useChat - which agent a turn is addressed to", () => {
       agent_id: "agent-1",
       model_profile_id: "profile-1",
     });
+  });
+});
+
+describe("useChat - replying to a message", () => {
+  it("sends what the turn answers once, and quotes it on the question", () => {
+    const reply = { messageId: "m-2", role: "assistant" as const, excerpt: "Plan: A" };
+    act(() => useChatStore.getState().setReplyTo(reply));
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.sendMessage("make it bigger"));
+
+    expect(lastFrame()).toMatchObject({ message: "make it bigger", reply_to: "m-2" });
+    const asked = useChatStore.getState().messages.at(-1);
+    expect(asked?.replyTo).toEqual(reply);
+    expect(asked?.isTemporaryId).toBe(true);
+    // Spent: the next turn answers nothing in particular.
+    expect(useChatStore.getState().replyTo).toBeNull();
   });
 });
 
@@ -416,6 +434,59 @@ describe("useChat - the streamed answer", () => {
       },
     ]);
     expect(streaming()?.parts?.filter((part) => part.type === "tool")).toHaveLength(1);
+  });
+
+  it("gathers a drawing's arguments for its panel, and drops them once the call is whole", () => {
+    vi.useFakeTimers();
+    try {
+      useVisualStreamStore.setState({ args: {} });
+      renderHook(() => useChat(), { wrapper });
+      receive("model_request_start", {});
+      receive("part_start", {
+        index: 1,
+        part_type: "ToolCallPart",
+        tool_name: "draw",
+        tool_call_id: "tc-draw",
+      });
+      const before = streaming()?.toolCalls;
+
+      receive("tool_call_delta", { index: 1, args_delta: '{"title": "Flow"' });
+      act(() => vi.advanceTimersByTime(100));
+
+      expect(useVisualStreamStore.getState().args).toEqual({ "tc-draw": '{"title": "Flow"' });
+      expect(streaming()?.toolCalls).toBe(before);
+
+      receive("tool_call", { tool_call_id: "tc-draw", tool_name: "draw", args: { title: "Flow" } });
+      expect(useVisualStreamStore.getState().args).toEqual({});
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a drawing's pictures when the socket sends them", () => {
+    useVisualImagesStore.setState({ images: {} });
+    renderHook(() => useChat(), { wrapper });
+
+    receive("visual_images", {
+      tool_call_id: "tc-draw",
+      images: { logo: "data:image/png;base64,AA" },
+    });
+
+    expect(useVisualImagesStore.getState().images).toEqual({
+      "tc-draw": { logo: "data:image/png;base64,AA" },
+    });
+  });
+
+  it("tells the running turn how a drawing rendered", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+
+    act(() => result.current.reportVisual("tc-draw", ["boom"]));
+
+    expect(lastFrame()).toEqual({
+      type: "visual_report",
+      tool_call_id: "tc-draw",
+      errors: ["boom"],
+    });
   });
 
   it("ignores a delta for a part that is not a tool call it drew", () => {
@@ -2140,6 +2211,22 @@ describe("useChat - what goes out with a turn", () => {
     expect(frame(0)).not.toHaveProperty("file_ids");
   });
 
+  it("files a new thread into the project picked for it, and only the first turn", () => {
+    useConversationStore.getState().setPendingProjectId("p-1");
+    const { result, rerender } = renderHook(({ id }) => useChat({ conversationId: id }), {
+      wrapper,
+      initialProps: { id: null as string | null },
+    });
+
+    act(() => result.current.sendMessage("hello"));
+    expect(frame(0)).toMatchObject({ conversation_id: null, project_id: "p-1" });
+
+    rerender({ id: "c-1" });
+    receive("complete", {});
+    act(() => result.current.sendMessage("again"));
+    expect(frame(1)).not.toHaveProperty("project_id");
+  });
+
   it("carries the per-turn model override, and only when it is set", () => {
     const { result } = renderHook(() => useChat(), { wrapper });
 
@@ -2465,7 +2552,11 @@ describe("useChat - a socket that went away mid-answer", () => {
     });
 
     expect(result.current.queuedMessages).toHaveLength(1);
-    expect(sent).toHaveBeenCalledTimes(1);
+    // The reconnect asks to follow the interrupted turn; nothing queued went out.
+    const sentNotFollowing = sent.mock.calls.filter(
+      ([sentFrame]) => (sentFrame as { type?: string }).type !== "attach",
+    );
+    expect(sentNotFollowing).toHaveLength(1);
     vi.useRealTimers();
   });
 
@@ -2581,6 +2672,23 @@ describe("useChat - the outbound queue", () => {
     rerender();
 
     expect(result.current.queuedMessages).toEqual([]);
+  });
+
+  it("sends what the person pointed at, and keeps it with a message that waited", async () => {
+    vi.useFakeTimers();
+    const drive = { kind: "mcp" as const, id: "gdrive", name: "Google Drive" };
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("first", undefined, undefined, [drive]));
+    expect(frame(0)).toMatchObject({ mentions: [{ kind: "mcp", id: "gdrive" }] });
+    expect(useChatStore.getState().messages[0]).toMatchObject({ mentions: [drive] });
+
+    act(() => result.current.sendMessage("second", undefined, undefined, [drive]));
+    receive("complete", {});
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(frame(1)).toMatchObject({ message: "second", mentions: [{ id: "gdrive" }] });
+    vi.useRealTimers();
   });
 
   it("queues what is typed while the socket is offline", () => {
@@ -3274,5 +3382,272 @@ describe("useChat - adding to a running turn (#2087)", () => {
 
     expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["this one"]);
     expect(result.current.steers).toEqual([]);
+  });
+
+  it("holds a message that points at something - a correction carries no mention", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+
+    act(() =>
+      result.current.sendMessage("@Contracts this one", undefined, undefined, [
+        { kind: "collection", id: "kb-1", name: "Contracts" },
+      ]),
+    );
+    act(() => result.current.sendQueuedNow(result.current.queuedMessages[0]!.id));
+
+    expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual([
+      "@Contracts this one",
+    ]);
+    expect(result.current.steers).toEqual([]);
+  });
+});
+
+describe("useChat - coming back to a turn still being written", () => {
+  function storedQuestion(conversationId = "c-1") {
+    act(() =>
+      useChatStore.getState().addMessage({
+        id: "u-1",
+        role: "user",
+        content: "build a landing page",
+        timestamp: new Date(),
+        conversationId,
+      }),
+    );
+  }
+
+  it("asks to follow the conversation's turn once its transcript is here", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    expect(sent).not.toHaveBeenCalled();
+
+    storedQuestion();
+
+    expect(sent).toHaveBeenCalledWith({ type: "attach", conversation_id: "c-1" });
+  });
+
+  it("leaves the room it was in when a new chat opens, and not before one was joined", () => {
+    const { rerender } = renderHook(
+      ({ conversationId }: { conversationId: string | null }) => useChat({ conversationId }),
+      { wrapper, initialProps: { conversationId: null as string | null } },
+    );
+    expect(sent).not.toHaveBeenCalled();
+
+    rerender({ conversationId: "c-1" });
+    storedQuestion();
+    rerender({ conversationId: null });
+
+    expect(sent).toHaveBeenLastCalledWith({ type: "attach", conversation_id: null });
+  });
+
+  it("draws nothing of a turn announced for a chat no longer on screen", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+
+    receive("turn_attached", { conversation_id: "c-other" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Somebody else's answer" });
+    expect(streaming()).toBeUndefined();
+
+    // Its end lets the next turn's frames through again.
+    receive("turn_followed_to_end", { conversation_id: "c-other" });
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "This chat's answer" });
+    expect(streaming()?.content).toContain("This chat's answer");
+  });
+
+  it("draws the followed turn as it would have been drawn live, and re-reads it at the end", () => {
+    const onTurnInterrupted = vi.fn();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1", onTurnInterrupted }), {
+      wrapper,
+    });
+    storedQuestion();
+
+    receive("turn_attached", { conversation_id: "c-1" });
+    expect(result.current.isProcessing).toBe(true);
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Writing index.html" });
+    expect(streaming()?.content).toContain("Writing index.html");
+
+    receive("turn_followed_to_end", { conversation_id: "c-1" });
+    expect(result.current.isProcessing).toBe(false);
+    expect(streaming()?.isStreaming).toBe(false);
+    expect(onTurnInterrupted).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a turn of another conversation, and an end it was not following", () => {
+    const onTurnInterrupted = vi.fn();
+    const { result } = renderHook(() => useChat({ conversationId: "c-1", onTurnInterrupted }), {
+      wrapper,
+    });
+
+    receive("turn_attached", { conversation_id: "c-other" });
+    receive("turn_followed_to_end", { conversation_id: "c-other" });
+
+    expect(result.current.isProcessing).toBe(false);
+    expect(onTurnInterrupted).not.toHaveBeenCalled();
+  });
+
+  it("draws the followed answer as the agent's that answers it, from its first word", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-9",
+      content: "and the budget?",
+      sender: anna,
+      agent_id: "a-9",
+    });
+    receive("model_request_start", {});
+    receive("text_delta", { index: 0, content: "Up 4%." });
+
+    expect(useChatStore.getState().messages.at(-1)?.agentId).toBe("a-9");
+  });
+
+  it("draws a teammate's question before the answer it is following", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    // Not followed yet: nothing to draw it under.
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-9",
+      content: "x",
+      sender: anna,
+    });
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-9",
+      content: "and the budget?",
+      sender: anna,
+      agent_id: "a-9",
+    });
+    // Already in the transcript - a person who came back mid-turn read it there.
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "u-1",
+      content: "x",
+      sender: anna,
+    });
+    receive("turn_prompt", { conversation_id: "c-1", message_id: null, content: "", sender: anna });
+
+    const asked = useChatStore.getState().messages.filter((message) => message.role === "user");
+    expect(asked.map((message) => message.content)).toEqual([
+      "build a landing page",
+      "and the budget?",
+      "",
+    ]);
+    expect(asked[1]?.sender).toEqual(anna);
+  });
+
+  it("draws a teammate's reply with the quote it answers", () => {
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+
+    receive("turn_attached", { conversation_id: "c-1" });
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-9",
+      content: "yes, do that",
+      sender: anna,
+      reply_to: { message_id: "m-1", role: "assistant", excerpt: "Plan: A, B", agent_id: "a-9" },
+    });
+
+    expect(useChatStore.getState().messages.at(-1)?.replyTo).toEqual({
+      messageId: "m-1",
+      role: "assistant",
+      excerpt: "Plan: A, B",
+      sender: undefined,
+      agentId: "a-9",
+    });
+  });
+
+  it("says who has the open conversation, and nobody for another one", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+    expect(result.current.present).toEqual([]);
+
+    receive("presence", { conversation_id: "c-1", people: [anna] });
+    expect(result.current.present).toEqual([anna]);
+
+    receive("presence", { conversation_id: "c-other", people: [anna] });
+    expect(result.current.present).toEqual([]);
+  });
+
+  it("says who else is typing here, until a while after their last keystroke", () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+      const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+      const ola = { user_id: "u-3", name: "Ola", has_avatar: false, avatar_color: null };
+
+      receive("typing", { conversation_id: "c-1", person: anna });
+      receive("typing", { conversation_id: "c-other", person: ola });
+      expect(result.current.typing).toEqual([anna]);
+
+      // Renewed by the next keystroke, not doubled.
+      act(() => vi.advanceTimersByTime(4000));
+      receive("typing", { conversation_id: "c-1", person: anna });
+      act(() => vi.advanceTimersByTime(4000));
+      expect(result.current.typing).toEqual([anna]);
+
+      act(() => vi.advanceTimersByTime(3000));
+      expect(result.current.typing).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops saying somebody types once their message lands, or they leave", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+    const ola = { user_id: "u-3", name: "Ola", has_avatar: false, avatar_color: null };
+    receive("typing", { conversation_id: "c-1", person: anna });
+    receive("typing", { conversation_id: "c-1", person: ola });
+
+    receive("turn_prompt", {
+      conversation_id: "c-1",
+      message_id: "m-1",
+      content: "hi",
+      sender: anna,
+    });
+    expect(result.current.typing).toEqual([ola]);
+
+    receive("presence", { conversation_id: "c-1", people: [anna] });
+    expect(result.current.typing).toEqual([]);
+  });
+
+  it("tells the room it types only when somebody else is in it, and not every keystroke", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const me = { user_id: "u-1", name: "Kacper", has_avatar: false, avatar_color: null };
+    const anna = { user_id: "u-2", name: "Anna", has_avatar: false, avatar_color: null };
+    const typed = () => sent.mock.calls.filter(([frame]) => frame.type === "typing").length;
+
+    receive("presence", { conversation_id: "c-1", people: [me] });
+    act(() => result.current.notifyTyping());
+    expect(typed()).toBe(0);
+
+    receive("presence", { conversation_id: "c-1", people: [me, anna] });
+    act(() => result.current.notifyTyping());
+    act(() => result.current.notifyTyping());
+    expect(typed()).toBe(1);
+  });
+
+  it("stops following rather than stopping a turn this socket does not own", () => {
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    storedQuestion();
+    receive("turn_attached", { conversation_id: "c-1" });
+    sent.mockClear();
+
+    act(() => result.current.stopGeneration());
+
+    expect(sent).toHaveBeenCalledWith({ type: "unfollow" });
+    expect(sent).not.toHaveBeenCalledWith({ type: "stop" });
+    expect(result.current.isProcessing).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 ---
-source_sha: "1b7f3c282f31"
+source_sha: "0698462cb81b"
 ---
 
 # Einen Hintergrund-Task hinzufügen { #add-a-background-task }
@@ -108,4 +108,11 @@ uv run --directory backend python -m app.worker.prefect_app
     Frage noch beantwortet.
 
 Das Intervall entscheidet auch darüber, wie viel Arbeit sich nach einer Ausfallzeit
-angesammelt hat.
+angesammelt hat. Übergeben Sie `concurrency_limit=_ONE_AT_A_TIME`, wenn der
+Flow den aktuellen Zustand durchsucht, wie die Sweeps in `prefect_app.py`: Der
+Server weist dann einen Tick ab, der eintrifft, während der vorige noch läuft,
+bevor der Runner einen Prozess dafür startet, sodass ein Host, der nicht
+nachkommt, Ticks verwirft, statt jeden auszuführen. Lassen Sie es bei einem
+Deployment auf Abruf weg, bei dem jeder Run eigene Arbeit ist, und bei einem
+Flow, dessen Run einen eigenen Zeitraum abdeckt, wie die Nutzungsberichte oder
+der Digest oben.

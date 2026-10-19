@@ -99,4 +99,11 @@ uv run --directory backend python -m app.worker.prefect_app
     queue. Every run is a process that imports the whole application, so prefer
     the longest interval that still answers the question.
 
-The interval also decides how much work is waiting after downtime.
+The interval also decides how much work is waiting after downtime. Pass
+`concurrency_limit=_ONE_AT_A_TIME` when the flow sweeps current state, as the
+sweeps in `prefect_app.py` do: the server then refuses a tick that arrives while
+the previous one is still running, before the runner starts a process for it,
+so a host that falls behind sheds ticks instead of running every one. Leave it
+off an on-demand deployment, where every run is its own piece of work, and off a
+flow whose run covers a period of its own, like the usage reports or the digest
+above.

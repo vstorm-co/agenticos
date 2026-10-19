@@ -29,6 +29,8 @@ export interface ArtifactQuery {
   limit?: number;
   /** Only what is shared with this group (#2124); null for every group. */
   groupId?: string | null;
+  /** Only the pages made in this project's chats; null for every project. */
+  projectId?: string | null;
 }
 
 /**
@@ -44,9 +46,17 @@ export function useArtifacts({
   skip = 0,
   limit = PAGE_SIZE,
   groupId = null,
+  projectId = null,
 }: ArtifactQuery = {}) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: qk.artifacts.list({ search, agentId, skip, limit, groupId: groupId ?? "" }),
+    queryKey: qk.artifacts.list({
+      search,
+      agentId,
+      skip,
+      limit,
+      groupId: groupId ?? "",
+      ...(projectId ? { projectId } : {}),
+    }),
     queryFn: () => {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
@@ -54,6 +64,7 @@ export function useArtifacts({
       params.set("skip", String(skip));
       params.set("limit", String(limit));
       if (groupId) params.set("group_id", groupId);
+      if (projectId) params.set("project_id", projectId);
       return apiClient.get<ArtifactList>(`/apps?${params}`);
     },
     placeholderData: (previous) => previous,

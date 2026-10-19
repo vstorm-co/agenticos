@@ -15,6 +15,7 @@ from app.db.models.agent import Agent
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
+from app.repositories import agent_repo, organization_assistant_repo
 from app.schemas.assistant import AssistantUpdate
 from app.services.agent_registry import AgentRegistryService
 from app.services.assistant import AssistantService
@@ -177,6 +178,29 @@ async def test_an_administrator_sets_its_greeting_and_can_switch_it_off(db: Asyn
     assert off.agent_id is not None
     with pytest.raises(BadRequestError, match="switched off"):
         await AgentRegistryService(db).get_runnable_spec(member, off.agent_id)
+
+
+async def test_a_switched_off_assistant_is_no_longer_served_over_a2a(db: AsyncSession) -> None:
+    """Its card stayed public after it was switched off, with every task refused."""
+    organization, owner = await _organization(db)
+    await _model(db, organization)
+    admin = AuthContext(user_id=owner.id, organization_id=organization.id, role="owner")
+    service = AssistantService(db)
+    installed = await service.state(admin)
+    assert installed.agent_id is not None
+    agent = (await db.execute(select(Agent).where(Agent.id == installed.agent_id))).scalar_one()
+    agent.a2a_enabled = True
+    await db.flush()
+    assert await agent_repo.get_served_over_a2a(db, agent.id) is not None
+
+    await service.update(admin, AssistantUpdate(enabled=False))
+
+    assert await agent_repo.get_served_over_a2a(db, agent.id) is None
+    # And it is what a project's default agent is checked against.
+    assert await organization_assistant_repo.switched_off(db, [agent.id, uuid.uuid4()]) == {
+        agent.id
+    }
+    assert await organization_assistant_repo.switched_off(db, []) == set()
 
 
 async def test_an_organization_at_its_agent_ceiling_hears_it_is_unavailable(

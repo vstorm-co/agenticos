@@ -51,7 +51,7 @@ independent — take the ones your agent needs.
 
 - :material-brain:{ .lg .middle } **[Models and providers](../models.md)**
 
-    27 providers, model profiles, fallbacks, and what a token actually costs.
+    28 providers, model profiles, fallbacks, and what a token actually costs.
 
 - :material-school:{ .lg .middle } **[Skills](../skills.md)**
 

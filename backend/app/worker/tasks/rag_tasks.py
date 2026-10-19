@@ -340,9 +340,37 @@ async def sync_single_source_flow(source_id: str, sync_log_id: str | None = None
     return await _run_source_sync(source_id, sync_log_id=sync_log_id)
 
 
+_SYNC_CHECK_DEPLOYMENT = "rag-sync-check/rag-sync-check"
+"""`check_scheduled_syncs_flow`'s on-demand deployment, as `prefect_app` registers it."""
+
+
+async def dispatch_due_syncs() -> bool:
+    """Start the sync check when a source is due, and only then. Answers whether it did.
+
+    One of the worker's in-process sweeps (`app/worker/sweeps.py`), every minute.
+    The question is one query; the syncs themselves stay a Prefect flow run, in a
+    process of their own, because they parse and embed. Asking from a deployment
+    instead cost a process importing the whole application every minute to learn,
+    nearly always, that nothing was due (#2213).
+
+    Not awaited: the deployment runs one check at a time and cancels a submission
+    that finds one running, so a tick that comes round while the last batch still
+    syncs adds nothing.
+    """
+    from prefect.deployments import run_deployment
+
+    async with get_worker_db_context() as db:
+        due = await sync_source_repo.any_due_for_sync(db)
+    if not due:
+        return False
+    # `run_deployment` is sync-compatible: see `dispatch_trigger_fire`.
+    await run_deployment(name=_SYNC_CHECK_DEPLOYMENT, timeout=0)  # ty: ignore[invalid-await]
+    return True
+
+
 @flow(name="rag-sync-check", log_prints=True)
 async def check_scheduled_syncs_flow() -> None:
-    """Scheduled flow: find sources due for sync and dispatch individual flows."""
+    """Find sources due for sync and run each one's flow; started by `dispatch_due_syncs`."""
     async with get_worker_db_context() as db:
         sources = await sync_source_repo.get_due_for_sync(db)
         tasks = [asyncio.create_task(sync_single_source_flow(str(source.id))) for source in sources]

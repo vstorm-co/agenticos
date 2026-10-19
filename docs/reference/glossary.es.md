@@ -1,5 +1,5 @@
 ---
-source_sha: "911fcf1c1d12"
+source_sha: "c1a088854770"
 ---
 
 # Glosario { #glossary }
@@ -39,6 +39,8 @@ tal como se ven en pantalla.
 | Run | Una vez que un agent respondió, con su coste y sus pasos | `agent_run` |
 | Environment | Una etapa con nombre, como producción, que apunta a una versión | `environment` |
 | MCP server | Un servidor de herramientas externo al que llaman los agents, conectado una vez | `mcp_connection` |
+| Remote agent | El agent de otro proveedor, al que se llega por A2A y en el que delegan los agents | `external_agent` |
+| Agent2Agent (A2A) | El protocolo con el que los agents de otros sistemas envían tareas a un agent | `a2a_enabled` |
 | Sandbox | Un ordenador aislado donde un agent escribe archivos y ejecuta código | `sandbox` |
 | Documents | Los archivos que los agents guardan para una persona, adjuntos o escritos, en sus sandboxes | `workspace` |
 
@@ -68,6 +70,7 @@ se describe en [Capabilities](capabilities.md).
 | Charts | `charts` |
 | Date and time | `clock` |
 | Calculations | `code_execution` |
+| Coding agent | `coding_agent` |
 | Long conversations | `compaction` |
 | Context | `context` |
 | Past conversations | `conversation_search` |
@@ -86,5 +89,6 @@ se describe en [Capabilities](capabilities.md).
 | Thinking | `thinking` |
 | Tool output limits | `tool_output_limits` |
 | Tool search | `tool_search` |
+| Visuals | `visuals` |
 | Read web pages | `web_fetch` |
 | Web search | `web_research` |

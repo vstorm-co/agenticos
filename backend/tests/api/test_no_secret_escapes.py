@@ -130,6 +130,8 @@ _PATTERN_ALLOWED: dict[str, str] = {
     "context_used_tokens": "the same word again: how much of a context window a turn filled",
     "context_window_tokens": "how many tokens a model accepts, which is a capacity not a key",
     "avg_tokens": "the same usage count, averaged over an eval arm's cases",
+    "cache_read_tokens": "the prompt tokens a turn read from the provider's prompt cache",
+    "cache_write_tokens": "the prompt tokens a turn wrote to that cache",
 }
 
 # A property whose type is one of these cannot be carrying a credential

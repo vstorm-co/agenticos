@@ -302,6 +302,8 @@ def _no_answer(run: AgentRun) -> str:
         return "That needs somebody to approve it before it can run."
     if run.status == RunStatus.BUDGET_EXCEEDED.value:
         return "This assistant has reached its usage limit."
+    if run.status == RunStatus.LOOP_STOPPED.value:
+        return "I kept repeating the same steps without getting anywhere, so I stopped. Try asking in a different way."
     return "Sorry, I could not produce an answer to that. Please try again."
 
 

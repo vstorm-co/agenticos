@@ -20,7 +20,7 @@ Maintained by the AgenticOS team. Sources checked 25 September 2026. AgenticOS b
 | What it works on | A code repository and a shell | Company documents, tools and systems |
 | Where it runs | Developer machines; cloud tasks in OpenAI-managed containers | Your infrastructure, as a shared service |
 | Source | CLI Apache-2.0; cloud, review and ChatGPT app proprietary | Apache-2.0 |
-| Models | OpenAI with a ChatGPT sign-in; the CLI also takes Ollama, LM Studio, Bedrock and custom providers | 27 providers, set per model profile |
+| Models | OpenAI with a ChatGPT sign-in; the CLI also takes Ollama, LM Studio, Bedrock and custom providers | 28 providers, set per model profile |
 | End users | The developer | Employees, customers and systems, on eight surfaces |
 | Approvals | Sandbox modes and approval policies at the developer's desk | A person with `approvals:decide`, from a shared queue |
 | Spend control | Plan limits per five-hour window and credits shared with ChatGPT Work | A monthly budget per agent and per organization |
@@ -38,7 +38,7 @@ Codex enforces sandbox and approval policies on each developer's machine, with a
 
 ### Any model with every feature
 
-The Codex CLI can use other providers, but its cloud tasks, code review and Slack need a ChatGPT sign-in and OpenAI models. In AgenticOS every provider reaches the same platform: [27 providers](../models.md#providers), [fallbacks](../models.md#fallbacks), and cost recorded for every run of every agent.
+The Codex CLI can use other providers, but its cloud tasks, code review and Slack need a ChatGPT sign-in and OpenAI models. In AgenticOS every provider reaches the same platform: [28 providers](../models.md#providers), [fallbacks](../models.md#fallbacks), and cost recorded for every run of every agent.
 
 ### Code execution as a governed capability
 
