@@ -1,5 +1,5 @@
 ---
-source_sha: "66a783c397fe"
+source_sha: "ebda8228608e"
 ---
 
 # Sandbox { #the-sandbox }
@@ -414,8 +414,17 @@ nieudane” są żądaniami, więc pager nad trzystoma operacjami ma po czym str
 **w czasie startu usługi**, a nie w środku czyjegoś pierwszego żądania —
 budowanie to dziesięć sekund i więcej. Obrazy są cache'owane, więc host płaci raz.
 
-Co zostaje do czekania: pierwsza sesja otwarta *w trakcie* prewarmu oraz host,
-któremu wyczyszczono cache obrazów. `SANDBOXD_PERSIST_CONTAINERS: true` usuwa
+Deploy buduje je jeszcze wcześniej. `scripts/deploy.sh` uruchamia biblioteczne
+`python -m pydantic_ai_backends.remote.prepare` w jednorazowym kontenerze nowego
+obrazu sandboxd, zanim stara usługa zostanie zastąpiona. Wydanie, które zmienia
+runtime, płaci więc za build, gdy stara usługa wciąż obsługuje ruch. Wcześniej,
+18.10.2026, pierwszy czat z sandboxem po takim wydaniu czekał minuty, a każde
+żądanie sesji dostawało 409, dopóki build się nie skończył. Build, który się nie
+uda, jest tam ponawiany trzy razy, a przy starcie dwa. Runtime, który nadal nie
+jest zbudowany, buduje się na żądanie, jak wcześniej, a log deployu go wymienia.
+
+Co zostaje do czekania: runtime, którego deploy nie zdołał przygotować, oraz
+host, któremu wyczyszczono cache obrazów. `SANDBOXD_PERSIST_CONTAINERS: true` usuwa
 wtedy większość reszty — zamknięta sesja zachowuje swój kontener, więc następna
 sesja na tym workspasie startuje bez budowania i z tym, co agent zainstalował
 ostatnim razem, nadal zainstalowanym.

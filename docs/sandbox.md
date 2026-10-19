@@ -399,7 +399,16 @@ requests, so a pager over three hundred operations has something to page to.
 service starts** rather than inside somebody's first request — a build is ten
 seconds and upwards. Images are cached, so a host pays once.
 
-What is left to wait for: the first session opened *during* a prewarm, and a host
+A deploy builds them even earlier. `scripts/deploy.sh` runs the library's
+`python -m pydantic_ai_backends.remote.prepare` in a one-off container of the new
+sandboxd image, before the old service is replaced. A release that changes a
+runtime therefore pays for the build while the old service is still serving.
+Before this, on 2026-10-18 the first sandboxed chat after such a release waited
+minutes, and every session request answered 409 until the build was done. A
+build that fails is tried three times there and twice at start-up. A runtime
+still not built is built on demand, as before, and the deploy log names it.
+
+What is left to wait for: a runtime the deploy could not prepare, and a host
 whose image cache was cleared. `SANDBOXD_PERSIST_CONTAINERS: true` then removes
 most of the rest — a closed session keeps its container, so the next session on
 that workspace starts without a build and with whatever the agent installed last

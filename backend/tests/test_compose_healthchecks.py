@@ -242,3 +242,59 @@ def test_every_production_service_caps_its_log(file_name: str) -> None:
         assert options.get("max-size") and options.get("max-file"), (
             f"{file_name}: {name} logs without a cap"
         )
+
+
+_PREPARE_HARNESS = """
+set -euo pipefail
+say() {{ echo "say: $*"; }}
+{function}
+compose() {{
+  echo "compose $*"
+  [ "{mode}" = ok ]
+}}
+prepare_sandbox_runtimes {args} 2>&1 && echo "status=0" || echo "status=$?"
+"""
+
+
+class TestTheSandboxRuntimesArePreparedBeforeTheSwitch:
+    """#2222: a release that changed a runtime made the first sandboxed chat wait
+    minutes on a build. The deploy builds the images in a one-off container of
+    the new sandboxd image before the old service is replaced."""
+
+    def _run(self, *, args: str, mode: str = "ok") -> str:
+        return _run(
+            _PREPARE_HARNESS.format(
+                function=_function("prepare_sandbox_runtimes"), args=args, mode=mode
+            )
+        ).stdout
+
+    def test_it_runs_the_librarys_prepare_in_a_one_off_container(self) -> None:
+        out = self._run(args="-f docker-compose-prod.yml --profile sandbox")
+
+        assert (
+            "compose -f docker-compose-prod.yml --profile sandbox run --rm --no-deps -T "
+            "sandboxd python -m pydantic_ai_backends.remote.prepare"
+        ) in out
+        assert out.strip().endswith("status=0")
+
+    def test_a_runtime_it_cannot_prepare_does_not_fail_the_deploy(self) -> None:
+        """The service still builds it when a session asks - the old behaviour,
+        said out loud instead of silently."""
+        out = self._run(args="-f docker-compose-prod.yml --profile sandbox", mode="fail")
+
+        assert "Not every sandbox runtime is prepared" in out
+        assert out.strip().endswith("status=0")
+
+    def test_a_host_without_the_sandbox_has_nothing_to_prepare(self) -> None:
+        out = self._run(args="-f docker-compose-prod.yml")
+
+        assert "compose" not in out
+        assert out.strip() == "status=0"
+
+    def test_the_deploy_prepares_after_pulling_and_before_starting(self) -> None:
+        script = DEPLOY_SCRIPT.read_text()
+        pull = script.index("pull --quiet\n")
+        prepare = script.index('prepare_sandbox_runtimes "${BACKEND[@]}"')
+        start = script.index('compose_up "${BACKEND[@]}"')
+
+        assert pull < prepare < start

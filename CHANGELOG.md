@@ -63,6 +63,14 @@ Two things are versioned separately from this file and worth knowing about:
   Google API client. Measured on a laptop, `import app.main` goes from 4.19 s to
   3.62 s and from 382 MB to 298 MB. A test keeps them out of the startup import
   (#2225).
+- **The first sandboxed chat after a release no longer waits on an image
+  build.** A release that changed a sandbox runtime made sandboxd build it on
+  the production host inside the first session that asked, and every session
+  request answered 409 for minutes. `scripts/deploy.sh` now runs
+  `python -m pydantic_ai_backends.remote.prepare` in a one-off container of the
+  new sandboxd image before the old one is replaced. Each build is retried
+  (pydantic-ai-backend 0.2.34). A runtime it could not prepare is named in the
+  deploy log and still built on demand (#2222).
 
 ## [1.6.3] - 2026-10-18
 

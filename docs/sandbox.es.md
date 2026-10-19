@@ -1,5 +1,5 @@
 ---
-source_sha: "66a783c397fe"
+source_sha: "ebda8228608e"
 ---
 
 # La sandbox { #the-sandbox }
@@ -426,7 +426,17 @@ en segundo plano **mientras el servicio arranca** en lugar de dentro de la prime
 petición de alguien: una build son diez segundos para arriba. Las imágenes se
 cachean, así que un host paga una vez.
 
-Lo que queda por esperar: la primera sesión abierta *durante* un prewarm, y un
+Un despliegue las construye aún antes. `scripts/deploy.sh` ejecuta el
+`python -m pydantic_ai_backends.remote.prepare` de la biblioteca en un contenedor
+de un solo uso de la nueva imagen de sandboxd, antes de reemplazar el servicio
+viejo. Así, una versión que cambia un runtime paga la construcción mientras el
+servicio viejo sigue atendiendo. Antes, el 18.10.2026, el primer chat con sandbox
+tras una versión así esperó minutos, y cada petición de sesión respondió 409 hasta
+que terminó la construcción. Una construcción que falla se reintenta tres veces
+ahí y dos al arrancar. Un runtime que siga sin construir se construye bajo
+demanda, como antes, y el log del despliegue lo nombra.
+
+Lo que queda por esperar: un runtime que el despliegue no pudo preparar, y un
 host cuya caché de imágenes se vació. `SANDBOXD_PERSIST_CONTAINERS: true` quita
 entonces casi todo lo demás: una sesión cerrada conserva su contenedor, así que la
 siguiente sesión sobre ese workspace arranca sin build y con lo que el agent

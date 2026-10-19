@@ -1,5 +1,5 @@
 ---
-source_sha: "66a783c397fe"
+source_sha: "ebda8228608e"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -439,7 +439,17 @@ also etwas, wohin er blättern kann.
 geholt und gebaut, statt in der ersten Anfrage von jemandem — ein Build sind zehn
 Sekunden und mehr. Images werden zwischengespeichert, ein Host zahlt also einmal.
 
-Was zu warten bleibt: die erste Session, die *während* eines Prewarms geöffnet wird,
+Ein Deployment baut sie noch früher. `scripts/deploy.sh` führt das
+`python -m pydantic_ai_backends.remote.prepare` der Bibliothek in einem einmaligen
+Container des neuen sandboxd-Images aus, bevor der alte Dienst ersetzt wird. Ein
+Release, das eine Runtime ändert, bezahlt den Build also, während der alte Dienst
+noch bedient. Vorher wartete am 18.10.2026 der erste Chat mit Sandbox nach einem
+solchen Release minutenlang, und jede Session-Anfrage bekam 409, bis der Build
+fertig war. Ein fehlgeschlagener Build wird dort dreimal versucht und beim Start
+zweimal. Eine Runtime, die danach noch nicht gebaut ist, wird wie bisher bei
+Bedarf gebaut, und das Deploy-Log nennt sie.
+
+Was zu warten bleibt: eine Runtime, die das Deployment nicht vorbereiten konnte,
 und ein Host, dessen Image-Cache geleert wurde.
 `SANDBOXD_PERSIST_CONTAINERS: true` beseitigt dann den größten Teil des Rests — eine
 geschlossene Session behält ihren Container, die nächste Session auf diesem Workspace
