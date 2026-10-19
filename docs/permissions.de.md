@@ -1,5 +1,5 @@
 ---
-source_sha: "cf1f7216bba3"
+source_sha: "6cb5b2cda7af"
 ---
 
 # Berechtigungen { #permissions }
@@ -387,11 +387,15 @@ bereits geladener Zeilen gibt es die Teilmenge zurück, auf der der Aufrufer ein
 Berechtigung ausüben darf, wendet dieselbe Regel `max(role scope, grant)` je
 Zeile an, liest aber jeden Grant in einem Nachschlagen statt einem je Zeile (und
 gar keinen, wenn die Rolle alles erreicht). Es ist das, was die
-Capability-Kennzeichen je Zeile einer Auflistung füllt - `AgentRead.can_run`, die
-Untergrenze dafür, auf einer Karte "new trigger" anzubieten - sodass ein Viewer,
-dem run auf einem Agent gewährt wurde, die Bedienung dort und sonst nirgends
-sieht. Ein Kontext ohne Subjekt und eine leere Eingabe lösen beide vor jeder
-Abfrage zur leeren Menge auf.
+Capability-Kennzeichen je Zeile einer Auflistung füllt - `AgentRead.can_run`,
+die Untergrenze dafür, auf einer Karte "new trigger" anzubieten, und
+`AgentRead.can_edit`, aus dem die Konsole liest, ob sie das Testen eines Drafts
+sowie Stoppen und Veröffentlichen aus einem Eval-Run anbietet - sodass ein
+Viewer, dem run auf einem Agent gewährt wurde, die Bedienung dort und sonst
+nirgends sieht.
+
+Ein Kontext ohne Subjekt und eine leere Eingabe lösen beide vor jeder Abfrage
+zur leeren Menge auf.
 
 Die Auflistungen für Agents, Skills und die kb nehmen außerdem
 `?shared_with_me=true` entgegen: nur Zeilen, die bewusst mit dem Aufrufer geteilt

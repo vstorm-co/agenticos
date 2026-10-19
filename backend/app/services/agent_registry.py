@@ -822,6 +822,10 @@ class AgentRegistryService:
         """
         return await resolve_access(self.db, ctx, agent, Perm.AGENTS_RUN, resource_type=AGENT)
 
+    async def may_edit(self, ctx: AuthContext, agent: Agent) -> bool:
+        """Whether this caller may edit this agent - `may_run`'s counterpart for edit."""
+        return await resolve_access(self.db, ctx, agent, Perm.AGENTS_EDIT, resource_type=AGENT)
+
     async def _visible_scope(
         self, ctx: AuthContext, *, shared_with_me: bool
     ) -> tuple[bool, list[UUID]]:
@@ -950,6 +954,7 @@ class AgentRegistryService:
         # floor for offering "new trigger" on a card. A grant widens it per row, so
         # a Viewer shared run on one agent sees the control there and nowhere else.
         runnable = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_RUN, resource_type=AGENT)
+        editable = await accessible_ids(self.db, ctx, agents, Perm.AGENTS_EDIT, resource_type=AGENT)
         groups = await groups_sharing(
             self.db, ctx, resource_type=AGENT, resource_ids=[agent.id for agent in agents]
         )
@@ -970,6 +975,7 @@ class AgentRegistryService:
                 categories=agent.categories,
                 tags=agent.tags,
                 can_run=agent.id in runnable,
+                can_edit=agent.id in editable,
                 shared_user_count=shared_counts.get(agent.id, 0),
                 shared_groups=groups[agent.id],
                 channels=surfaces.get(agent.id, []),

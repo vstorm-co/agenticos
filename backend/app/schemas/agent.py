@@ -222,6 +222,16 @@ class AgentRead(BaseSchema):
             "not a security boundary, since every create endpoint re-checks server-side."
         ),
     )
+    can_edit: bool = Field(
+        default=False,
+        description=(
+            "Whether THIS caller may edit the agent - change its draft, test it on a "
+            "dataset, stop a run of it somebody else started. Resolved per caller like "
+            "can_run: an explicit edit grant reads true where the role-level check "
+            "would say false, and a role that may edit agents reads false on one it "
+            "cannot reach. Hides controls; every edit endpoint re-checks server-side."
+        ),
+    )
     published_model: PublishedModel | None = Field(
         default=None,
         description=(
