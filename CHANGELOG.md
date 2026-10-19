@@ -17,6 +17,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-19
+
 ### Changed
 
 - **Backend dependencies move up.**
