@@ -390,8 +390,8 @@ async def test_an_abandoned_run_is_failed_and_frees_its_slots(db) -> None:
 async def test_a_queued_run_waits_its_own_window_before_it_is_given_up(db) -> None:
     ctx, *_, run, _arm = await _setup(db)
     run.created_at = _NOW - timedelta(hours=3)
+    run.status = EvalRunStatus.QUEUED.value
     await db.flush()
-    assert run.status == EvalRunStatus.QUEUED.value
 
     waiting = await eval_run_repo.fail_abandoned(
         db, idle_since=_NOW, queued_since=_NOW - timedelta(hours=4), now=_NOW
