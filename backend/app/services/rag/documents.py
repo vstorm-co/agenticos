@@ -144,7 +144,7 @@ class DocxDocumentParser(BaseDocumentParser):
         Returns:
             Document object with the file content.
         """
-        # Imported where a .docx is parsed: every API worker and flow run loads
+        # Imported where a .docx is parsed: every API worker and background worker loads
         # this module, and most never parse a document (#2225).
         from docx import Document as DOCXDocument
 

@@ -622,9 +622,9 @@ class RAGDocumentService:
 
         A single document's cleanup stays in-process, where the bulk teardown paths
         (`delete_by_collection`, `_retire_superseded`, `KnowledgeBaseService.delete`)
-        hand theirs to a durable Prefect run (#1349): the leak a lost single-document
-        task would strand is one file and one document's vectors, and a durable run
-        per document delete is disproportionate to that.
+        queue theirs as a durable job (#1349): the leak a lost single-document task
+        would strand is one file and one document's vectors, and a durable job per
+        document delete is disproportionate to that.
 
         **`ingestion_service` has no default, and that is the whole of it.** It
         was `Any = None`, and the vector cleanup ran only when a caller happened

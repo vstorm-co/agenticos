@@ -1029,7 +1029,7 @@ class TestFiring:
         """The pre-check is grants-aware (`resolve_access`), not a role check. A
         creator who kept a role with `agents:run` but lost the grant on *this*
         agent is refused here, before a run, and the refusal is caught rather than
-        raised into a Prefect retry."""
+        raised into a job retry."""
         service = _service()
         service.agents.get = AsyncMock(side_effect=NotFoundError(message="nope"))
         trigger = _trigger()
@@ -1132,7 +1132,7 @@ class TestFiring:
     @pytest.mark.security
     async def test_a_fired_run_over_budget_is_recorded_and_not_retried(self):
         """The issue's own line: the run ends BUDGET_EXCEEDED and fire returns
-        normally, so Prefect does not retry it into spending more."""
+        normally, so the queue does not retry it into spending more."""
         agent = _agent()
         service = _service(agent)
         trigger = _trigger(agent_id=agent.id, conversation_id=uuid.uuid4())
@@ -1173,7 +1173,7 @@ class TestFiring:
     async def test_a_fired_run_that_errors_on_the_model_is_recorded_and_stamped_not_retried(self):
         """A provider error is not a refusal. `_run` commits the row as `failed`
         and re-raises; fire recovers it from the trigger's conversation, stamps
-        `last_run_id`, and returns - so Prefect neither fails the flow nor retries
+        `last_run_id`, and returns - so the queue neither fails the job nor retries
         the same outage, and the trigger stays active for its next interval."""
         agent = _agent()
         service = _service(agent)

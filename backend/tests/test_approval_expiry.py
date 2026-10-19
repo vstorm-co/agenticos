@@ -316,7 +316,7 @@ class TestASweptRowIsDecided:
 
 class TestTheScheduledSweep:
     """The flow around the service. Thin on purpose - what it must not do is
-    swallow the count, since that is all a Prefect run reports."""
+    swallow the count, since that is all a sweep reports."""
 
     @pytest.mark.parametrize("unanswered", [0, 2])
     async def test_the_flow_answers_with_what_it_expired(self, unanswered: int):

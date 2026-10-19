@@ -125,7 +125,7 @@ class S3Connector(ObjectStoreConnector):
         if endpoint:
             client_kwargs["endpoint_url"] = endpoint
         # Imported where a client is built: boto3 is the S3 sources' alone, and
-        # every API worker and flow run imports this module (#2225).
+        # every API worker and background worker imports this module (#2225).
         import boto3
         from botocore.config import Config
 

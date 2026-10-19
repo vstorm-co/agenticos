@@ -8,7 +8,7 @@ across all of them - the reason the claim's own guarantee survives a crash
 mid-send - and that its outcome counts add up. Modelled on
 `tests/test_run_reaper.py`'s `TestTheFlow`: the `@flow`-decorated function is
 awaited directly, with `get_worker_db_context` and the service it opens
-patched, never through Prefect's own machinery.
+patched.
 """
 
 import asyncio

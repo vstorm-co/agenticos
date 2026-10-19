@@ -2951,9 +2951,9 @@ class AgentRunnerService:
         # the very connection the opening commit in `_run` exists to hand back:
         # measured under 18 concurrent runs, the three past the pool waited 26
         # seconds at this read (#12). The worker context and not the pooled one,
-        # because a trigger fires runs inside Prefect flows: a pooled connection
-        # made on one flow's event loop breaks whoever checks it out on the
-        # next, and this read happens on whatever loop the run is on. One
+        # because a trigger fires runs inside the worker: a pooled connection
+        # made on one event loop breaks whoever checks it out on another, and
+        # this read happens on whatever loop the run is on. One
         # connect per run, next to a model call.
         # Both leave this run's own row out. A baseline is what *other* runs have
         # already spent; what this one spends is the ledger's, and on a resume

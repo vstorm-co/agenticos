@@ -328,7 +328,7 @@ class TestSayingWhichKeyPaid:
     """A degradation nobody can see is a degradation nobody can fix.
 
     Until #306 the three degradations were a `logger.warning` in this module
-    and nothing else: not in the Prefect flow log, not in the error on the
+    and nothing else: not in the worker's log, not in the error on the
     document row, not in the product.
     """
 

@@ -10,14 +10,14 @@ Both problems have the same fix, applied once here rather than remembered at
 every call site: hold a strong reference until the task finishes, and attach a
 done-callback that surfaces whatever went wrong.
 
-This is not a job queue. Work that must survive a restart belongs in Prefect;
-this is for the in-process handoff between "the request is answered" and "the
+This is not a job queue. Work that must survive a restart is a job
+(`app.services.background_jobs.enqueue`); this is for the in-process handoff between "the request is answered" and "the
 slow part finishes".
 
 **Work that reads a row the caller has just written takes
 `spawn_after_commit`, not `spawn`.** The task starts at the first suspension
 point after it is created, and inside a request that is well before the
-transaction commits - so the flow opens its own session, looks for the row by
+transaction commits - so the task opens its own session, looks for the row by
 id, and under `READ COMMITTED` does not find it (#417).
 """
 

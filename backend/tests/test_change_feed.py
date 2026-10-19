@@ -235,7 +235,7 @@ class TestRuns:
     async def test_a_worker_connects_once_and_keeps_its_client(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A routine's run publishes from a Prefect flow, which the API lifespan
+        """A routine's run publishes from the worker, which the API lifespan
         never configured."""
         made: list[MagicMock] = []
 

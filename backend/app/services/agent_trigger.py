@@ -1588,7 +1588,7 @@ class AgentTriggerService:
         to disable. `_run` has already committed the row as `failed`, so the fire
         is in Activity; `fire` recovers that row from the trigger's conversation to
         stamp `last_run_id` and returns, rather than letting the error fail the
-        Prefect flow and retry the same outage against the same money. The recovered
+        job and retry the same outage against the same money. The recovered
         row is identified by *this* fire having advanced the conversation's tail past
         the previous fire's run - an error before the run existed leaves the tail
         where it was, and stamping it would name the wrong fire.
@@ -1704,7 +1704,7 @@ class AgentTriggerService:
             # `resolve_access`. A creator who kept a role with `agents:run` but
             # lost the grant on *this* agent is refused here, before a run is
             # opened - not inside execute(), where the refusal would raise and
-            # Prefect would retry it.
+            # the queue would retry it.
             await self._disable(trigger, reason="creator_cannot_run_agent")
             return
 
@@ -1758,8 +1758,8 @@ class AgentTriggerService:
             # The run failed on something the runner re-raises instead of recording
             # as a terminal status - a provider 5xx, a revoked key, a timeout. `_run`
             # commits the row as `failed` before re-raising, so the failure is in
-            # Activity; letting it propagate would only fail the Prefect flow for a
-            # run already accounted for and retry the same outage. Recover the row
+            # Activity; letting it propagate would only fail the job for a run
+            # already accounted for and retry the same outage. Recover the row
             # from the trigger's own conversation, stamp it, and return.
             logger.exception("trigger_fire_run_errored", extra={"trigger_id": str(trigger.id)})
             # This fire's own uncommitted writes go back before anything is

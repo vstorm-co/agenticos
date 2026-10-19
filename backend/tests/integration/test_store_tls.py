@@ -50,7 +50,7 @@ async def test_the_pool_and_the_worker_engine_both_connect_with_tls(database_url
     try:
         assert await _connection_is_encrypted_or_skip(pool) is True
 
-        # The Prefect worker opens its own engine on the same URL (see
+        # The background worker opens its own engine on the same URL (see
         # `app/db/session.py`), so the setting has to carry through there too.
         worker = create_async_engine(_tls_url(database_url), poolclass=NullPool)
         try:

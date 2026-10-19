@@ -12,10 +12,8 @@ The claim is one atomic `SET NX` against the deployment's shared Redis, keyed on
 the provider's own delivery id - the id a provider reuses when it re-sends, so the
 retry lands on the same key. It is the same mechanism the channel webhooks use
 (:mod:`app.services.channels.dedupe`); a trigger keys on the delivery id rather
-than a channel message id, and deliberately has no release-on-failure: a hand-off
-that raises is ambiguous - `run_deployment` can enqueue the flow and then lose the
-response - so giving the claim back would let the provider's retry start a second
-run on top of an accepted one. A claim on a hand-off that truly failed simply
+than a channel message id, and deliberately has no release-on-failure: the claim
+is taken before the fire is queued, and one whose request then failed simply
 lapses with `SEEN_TTL_SECONDS`, after which a provider retry fires normally.
 """
 
@@ -42,8 +40,8 @@ _redis: RedisClient | None = None
 def configure(redis: RedisClient | None) -> None:
     """Hand over the shared Redis client, or withdraw it with `None`.
 
-    Called by the lifespan next to the channel dedupe's own `configure`. The
-    fire runs outside any request - a dispatched Prefect flow - so the claim
+    Called by the lifespan next to the channel dedupe's own `configure`. A polled
+    portal's fire is decided outside any request - in a worker job - so the claim
     cannot reach Redis through `request.state` and is handed the shared client
     here instead.
     """

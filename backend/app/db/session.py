@@ -47,9 +47,9 @@ vector_engine = create_async_engine(
 # The knowledge capability's store, and pool-less on purpose. A pooled asyncpg
 # connection belongs to the event loop that opened it, and the capability is the
 # one vector caller that runs on a loop nobody here chose: an agent runs inside
-# a Prefect worker as well as inside the API, so a second flow run in one worker
-# process reaches this from a *different* loop and a pooled connection made on
-# the first breaks it (`InterfaceError: attached to a different loop`) (#1079).
+# the worker as well as inside the API, and a caller on a *different* loop from
+# the one that opened a pooled connection breaks on it (`InterfaceError:
+# attached to a different loop`) (#1079).
 # `NullPool` caches nothing, so there is no connection to hand to the wrong
 # loop, no second `DB_POOL_SIZE + DB_MAX_OVERFLOW` pool of the kind #948
 # removed, and no circular wait against a request that already holds a
@@ -170,14 +170,14 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 
     Pooled on the loop that owns the pools, and a `NullPool` engine of its own
     anywhere else. The distinction is not decoration: this is reached from
-    Prefect flows (the report, MCP refresh, invitation and approval tasks, the
+    background jobs (the report, MCP refresh, invitation and approval tasks, the
     channel loops) and from an agent's embedding resolver, each on a loop of its
     own, and a pooled connection made on one loop breaks whoever checks it out
     on the next - `InterfaceError: attached to a different loop`, intermittent,
     and invisible to any test with one loop in it (#1079). Off the owning loop
     it therefore does exactly what `get_worker_db_context` does, at one connect
     per call, which is the price the worker already pays deliberately for its
-    ingestion flows (#948).
+    ingestion jobs (#948).
     """
     if not on_the_pooled_loop():
         async with get_worker_db_context() as session:

@@ -1,6 +1,6 @@
 """A flow dispatched from a request finds the row that dispatched it.
 
-#417: three services hand a Prefect flow to `spawn` from inside an endpoint,
+#417: three services used to hand work to `spawn` from inside an endpoint,
 and the flow's first act is to read by id the row the endpoint has just
 written. The task is created immediately and the loop starts it at the next
 suspension point - which is well before the request's transaction commits, and

@@ -189,10 +189,11 @@ _redis: RedisClient | None = None
 async def connect_in_worker() -> None:
     """Give a worker process a Redis to publish on, once.
 
-    A routine's run executes in a Prefect flow, in a process that ran none of the
-    API's startup, so the lifespan's `configure` never reached it and every event
-    it published went nowhere - the run an open Activity page most wants to see
-    arrive. The client lives for the process; a flow-run subprocess exits with it.
+    A routine's run executes in the worker, a process that ran none of the API's
+    startup, so the lifespan's `configure` never reaches it and every event it
+    published went nowhere - the run an open Activity page most wants to see
+    arrive. `python -m app.worker` calls this on start; the client lives for the
+    process.
     """
     global _redis
     if _redis is not None:

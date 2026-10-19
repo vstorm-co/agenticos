@@ -123,7 +123,7 @@ class GoogleDriveConnector(BaseSyncConnector):
                     "the one it names is not one."
                 )
             )
-        # The Google SDK is imported where it is used: every API worker and flow run
+        # The Google SDK is imported where it is used: every API worker and background worker
         # imports this module, and only Drive sources need the SDK (#2225).
         from google.oauth2.service_account import Credentials
         from googleapiclient.discovery import build

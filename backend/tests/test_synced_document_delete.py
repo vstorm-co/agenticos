@@ -54,7 +54,7 @@ async def _run_deferred(db: MagicMock) -> None:
 
 def _patch_dispatch(monkeypatch) -> AsyncMock:
     """Stand in for the durable cleanup dispatch, so a test can assert what a
-    committed delete hands to Prefect without a runner behind it."""
+    committed delete queues as a cleanup job."""
     dispatch = AsyncMock()
     monkeypatch.setattr("app.worker.tasks.teardown_tasks.queue_external_state_cleanup", dispatch)
     return dispatch

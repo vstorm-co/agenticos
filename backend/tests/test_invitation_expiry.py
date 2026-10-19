@@ -57,7 +57,7 @@ class TestAClickPastExpiry:
 
 class TestTheScheduledSweep:
     """The flow around the service. Thin on purpose - what it must not do is
-    swallow the count, since that is all a Prefect run reports."""
+    swallow the count, since that is all a sweep reports."""
 
     async def test_the_flow_answers_with_what_it_expired(self):
         with (

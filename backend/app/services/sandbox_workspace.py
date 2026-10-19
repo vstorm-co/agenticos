@@ -144,7 +144,7 @@ def _sandboxd_http() -> httpx.AsyncClient:
 
     Rebuilt when the event loop changes, as `model_catalog`'s client is: its
     connections belong to the loop that opened them, and one process runs
-    requests and Prefect flows on different loops. Unbounded, because a
+    requests, tests and jobs on different loops. Unbounded, because a
     command holds its connection for as long as it runs, and a pool cap would
     queue the next run's commands behind the last one's. The timeouts ride each
     request.

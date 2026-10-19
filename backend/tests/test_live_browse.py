@@ -192,7 +192,7 @@ class TestConnecting:
     async def test_a_worker_connects_once_and_keeps_its_client(
         self, monkeypatch: pytest.MonkeyPatch, no_redis: None
     ) -> None:
-        """A routine's browse runs in a Prefect flow, which the API lifespan never
+        """A routine's browse runs in the worker, which the API lifespan never
         configured."""
         made: list[MagicMock] = []
 

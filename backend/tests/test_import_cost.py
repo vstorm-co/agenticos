@@ -1,6 +1,6 @@
 """What importing the application must not load (#2225).
 
-Every API worker, every restart and every Prefect flow run imports `app.main`
+Every API worker, every restart and every background worker imports `app.main`
 before doing anything: 4.3 s on a laptop, 14 s on the production host, and over a
 minute when that host was short of CPU. Some of that was SDKs only one optional
 capability or connector ever calls. They are imported where they are used now,
