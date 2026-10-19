@@ -5,9 +5,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { KnowledgeGapDraft } from "@/types/knowledge-gaps";
 import { KnowledgeGapDraftCard } from "./knowledge-gap-draft-card";
 
-const state = vi.hoisted(() => ({ saved: [] as { blob: Blob; name: string }[] }));
+const state = vi.hoisted(() => ({
+  saved: [] as { blob: Blob; name: string }[],
+  perms: new Set<string>(),
+  drafters: [] as { id: string; system_key: string | null; can_edit: boolean }[],
+  enabled: [] as boolean[],
+}));
 vi.mock("@/lib/file-access", () => ({
   saveBlob: (blob: Blob, name: string) => state.saved.push({ blob, name }),
+}));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({ can: (perm: string) => state.perms.has(perm) }),
+}));
+vi.mock("@/hooks/use-agents", () => ({
+  useAgentsOfKind: (_kind: string, { enabled }: { enabled: boolean }) => {
+    state.enabled.push(enabled);
+    return { agents: enabled ? state.drafters : [] };
+  },
 }));
 
 const DRAFT: KnowledgeGapDraft = {
@@ -25,6 +39,34 @@ const DRAFT: KnowledgeGapDraft = {
 describe("KnowledgeGapDraftCard", () => {
   beforeEach(() => {
     state.saved = [];
+    state.perms = new Set(["agents:view"]);
+    state.drafters = [];
+    state.enabled = [];
+  });
+
+  it("points somebody who may edit the drafter at its instructions", () => {
+    state.drafters = [
+      { id: "own", system_key: null, can_edit: true },
+      { id: "d1", system_key: "knowledge_gap_drafter", can_edit: true },
+    ];
+    render(<KnowledgeGapDraftCard draft={DRAFT} />);
+    expect(screen.getByRole("link", { name: "Edit the drafter's instructions" })).toHaveAttribute(
+      "href",
+      "/agents/d1",
+    );
+  });
+
+  it("does not offer the drafter to somebody who may not edit it", () => {
+    state.drafters = [{ id: "d1", system_key: "knowledge_gap_drafter", can_edit: false }];
+    const { unmount } = render(<KnowledgeGapDraftCard draft={DRAFT} />);
+    expect(screen.queryByRole("link", { name: "Edit the drafter's instructions" })).toBeNull();
+    unmount();
+
+    state.perms = new Set();
+    state.drafters = [{ id: "d1", system_key: "knowledge_gap_drafter", can_edit: true }];
+    render(<KnowledgeGapDraftCard draft={DRAFT} />);
+    expect(state.enabled.at(-1)).toBe(false);
+    expect(screen.queryByRole("link", { name: "Edit the drafter's instructions" })).toBeNull();
   });
 
   it("labels it a draft and names what it was checked against", () => {

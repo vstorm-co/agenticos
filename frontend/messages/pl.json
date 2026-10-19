@@ -677,8 +677,12 @@
     "testConnectionsSaved": "Połączenia testowe zapisane",
     "failedTestConnections": "Nie udało się zapisać połączeń testowych",
     "testDraft": "Przetestuj draft",
-    "judgesCount": "{count, plural, one {Sędziowie (#)} few {Sędziowie (#)} many {Sędziowie (#)} other {Sędziowie (#)}}",
-    "judgesHint": "Sędziowie oceniają odpowiedzi w ewaluacjach: domyślny i każdy własny sędzia datasetu. Uruchamia ich platforma, więc nie da się z nimi rozmawiać, podpiąć ich do kanału, zaplanować ani zrobić z nich delegata; otwórz sędziego, żeby zmienić jego instrukcje, model albo budżet.",
+    "systemAgentsCount": "{count, plural, one {Agenci systemowi (#)} few {Agenci systemowi (#)} many {Agenci systemowi (#)} other {Agenci systemowi (#)}}",
+    "systemAgentsHint": "Tych agentów uruchamia sama platforma, więc nie da się z nimi rozmawiać, podpiąć ich do kanału, zaplanować ani zrobić z nich delegata. Otwórz agenta, żeby zmienić jego instrukcje, model albo budżet.",
+    "judgeKind": "{count, plural, one {Sędziowie (#)} few {Sędziowie (#)} many {Sędziowie (#)} other {Sędziowie (#)}}",
+    "judgeKindHint": "Oceniają odpowiedzi w ewaluacjach: domyślny sędzia i każdy własny sędzia datasetu.",
+    "drafterKind": "{count, plural, one {Autor szkiców luk (#)} few {Autorzy szkiców luk (#)} many {Autorzy szkiców luk (#)} other {Autorzy szkiców luk (#)}}",
+    "drafterKindHint": "Pisze szkic treści, której brakuje przy luce w wiedzy, gdy ktoś o niego poprosi.",
     "defaultJudge": "Domyślny sędzia",
     "defaultJudgeHint": "Ocenia każdy dataset, który nie ma własnego sędziego.",
     "judgeUsedBy": "{more, plural, =0 {Używają go: {names}} one {Używają go: {names} i # inny} few {Używają go: {names} i # inne} many {Używają go: {names} i # innych} other {Używają go: {names} i # innych}}",
@@ -3894,9 +3898,9 @@
         "title": "Przegląd",
         "body": "Ocenione odpowiedzi, które czekają na decyzję człowieka. Rozstrzygnij te, których sędzia nie był pewien; jego opinia zostaje zapisana."
       },
-      "agents-judges": {
-        "title": "Sędziowie",
-        "body": "Agenci, którzy oceniają odpowiedzi w ewaluacjach: domyślny sędzia i każdy, którego dataset utworzył dla siebie. Otwórz sędziego, żeby zmienić, jak surowo ocenia, jego model albo budżet; dataset wybiera sędziego w zakładce Ocenianie."
+      "agents-system": {
+        "title": "Agenci systemowi",
+        "body": "Agenci, których uruchamia sama platforma, pogrupowani według tego, co robią: sędziowie oceniający odpowiedzi w ewaluacjach i autor szkiców, który pisze, czego brakuje przy luce w wiedzy. Otwórz agenta, żeby zmienić jego instrukcje, model albo budżet; dataset wybiera sędziego w zakładce Ocenianie."
       },
       "dataset-judge": {
         "title": "Sędzia",
@@ -6920,6 +6924,7 @@
     "draftNotice": "Napisany przez model na podstawie pytań powyżej. Sprawdź każdy fakt i uzupełnij miejsca do wypełnienia, zanim dodasz go do kolekcji - nic nie zostanie dodane za ciebie.",
     "draftSources": "Na czym się opiera",
     "openDraftRun": "Otwórz run",
+    "editDrafter": "Edytuj instrukcje draftera",
     "downloadDraft": "Pobierz .md",
     "hasDraft": "Szkic",
     "draftLabel": "Szkic — sprawdź przed dodaniem",

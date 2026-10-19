@@ -15,6 +15,7 @@ import {
   useDelegationTree,
   useJudges,
   usePromptVariables,
+  useSystemAgents,
 } from "./use-agents";
 import { useAgentEnvironments } from "./use-agent-environments";
 import { apiClient } from "@/lib/api-client";
@@ -68,6 +69,29 @@ describe("useJudges", () => {
     expect(result.current.agents[0]?.name).toBe("Eval judge");
     expect(apiClient.get).toHaveBeenCalledWith("/agents", {
       params: { kind: "judge", limit: "100" },
+    });
+  });
+});
+
+describe("useSystemAgents", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("asks for each system kind on its own and groups the answers in order", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (_path, options) => {
+      const kind = (options as { params: { kind: string } }).params.kind;
+      return kind === "judge"
+        ? { items: [{ id: "j1", name: "Eval judge", kind: "judge" }], total: 1 }
+        : { items: [], total: 0 };
+    });
+
+    const { result } = renderHook(() => useSystemAgents(), { wrapper });
+
+    await waitFor(() => expect(result.current.total).toBe(1));
+    expect(result.current.groups.map((group) => group.kind)).toEqual(["judge", "drafter"]);
+    expect(result.current.groups[0]?.agents[0]?.name).toBe("Eval judge");
+    expect(result.current.groups[1]?.agents).toEqual([]);
+    expect(apiClient.get).toHaveBeenCalledWith("/agents", {
+      params: { kind: "drafter", limit: "100" },
     });
   });
 });

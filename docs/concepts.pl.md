@@ -1,5 +1,5 @@
 ---
-source_sha: "e93184aec4c0"
+source_sha: "8a6ce582650b"
 ---
 
 # Koncepcje { #concepts }
@@ -589,47 +589,51 @@ dowiedzieć się, kto komu może delegować.
 
 ---
 
-## Sędziowie { #system-agents }
+## Agenci systemowi { #system-agents }
 
 Niektórych agentów uruchamia platforma, a nie człowiek: **sędziów**, którzy
 oceniają odpowiedzi na potrzeby [oceniania datasetów](datasets.md#judge), oraz
 **Knowledge gap drafter**, który pisze szkic fragmentu, którego brakuje przy
-[luce w wiedzy](knowledge-gaps.md#drafting-the-missing-content). Rodzaj agenta
-mówi, którym jest - `agent` dla tych, których używają ludzie, `judge` i
-`drafter` dla tych. Każda organizacja dostaje domyślnego **Eval judge** i
-draftera przy utworzeniu, organizacja utworzona wcześniej dostaje każdego z nich
-wtedy, gdy coś po raz pierwszy go potrzebuje, a dataset może dostać własnego
-sędziego.
+[luce w wiedzy](knowledge-gaps.md#drafting-the-missing-content). To są
+**agenci systemowi**. Rodzaj agenta mówi, którym jest - `agent` dla tych,
+których używają ludzie, `judge` i `drafter` dla tych. Każda organizacja dostaje
+domyślnego **Eval judge** i draftera przy utworzeniu, organizacja utworzona
+wcześniej dostaje każdego z nich wtedy, gdy coś po raz pierwszy go potrzebuje,
+a dataset może dostać własnego sędziego.
 
-Sędzia należy do platformy, która go uruchamia, a nie jest agentem, którego
-używają ludzie. Agents pokazuje sędziów osobno, w zwiniętym pasie **Sędziowie**
-pod **Agenci**; każda karta mówi, które datasety ocenia dany sędzia, a ten
-utworzony przez platformę jest oznaczony jako **Domyślny sędzia**. Wybory agenta
-ich pomijają. Kto ma `agents:edit`, otwiera sędziego, żeby zmienić jego
-instrukcje, model i budżet - jego strona zawiera je, jego limity, historię i
+Agent systemowy należy do platformy, która go uruchamia, a nie jest agentem,
+którego używają ludzie. Agents pokazuje ich osobno, w zwiniętym pasie **Agenci
+systemowi** pod **Agenci**, pogrupowanych według rodzaju: najpierw **Sędziowie**
+- każda karta mówi, które datasety ocenia dany sędzia, a ten utworzony przez
+platformę jest oznaczony jako **Domyślny sędzia** - potem **Autor szkiców luk**.
+Wybory agenta ich pomijają.
+
+Kto ma `agents:edit`, otwiera takiego agenta, żeby zmienić jego instrukcje,
+model i budżet, z pasa albo, w przypadku draftera, przez **Edytuj instrukcje
+draftera** przy szkicu. Strona sędziego zawiera je, jego limity, historię i
 datasety, które go wybrały, z włączonym ocenianiem albo bez - każdy rozwija się
 na jego ostatnie oceny i runy ewaluacji, z których pochodzą - wraz z tym, jak
 często ludzie zgodzili się z nim w wynikach, które ocenił, a oni rozstrzygnęli,
-i nic więcej.
+i nic więcej. Strona draftera zawiera to samo bez datasetów.
 
 Jego runy są sprawdzane względem budżetu i zapisywane jak każde inne, i nie
-wysyłają powiadomienia o runie. Sędzia startuje z niewielkim własnym
+wysyłają powiadomienia o runie. Agent systemowy startuje z niewielkim własnym
 miesięcznym budżetem, żeby nowa organizacja nie mogła przypadkiem wydać całego
-swojego budżetu na ewaluację.
+swojego budżetu na ewaluację albo szkice.
 
 Uruchamia go tylko platforma. Czat, API, embed albo publiczna strona, kanał,
 harmonogram i delegowanie z innego agenta odmawiają go w usłudze, która
 uruchomiłaby run, a nie tylko w konsoli.
 
-Gdy organizacja ma już profil modelu, sędzia jest publikowany na najstarszym z
-nich albo na tym, który wybrano przy jego tworzeniu. Bez profilu jest tworzony
-jako draft. Seedowany Eval judge jest publikowany na pierwszym modelu
-organizacji, gdy tylko zostanie on dodany; własny sędzia datasetu czeka, aż
-człowiek wybierze mu model i go opublikuje, a do tego czasu mówią o tym
-funkcje, które z niego korzystają.
+Gdy organizacja ma już profil modelu, agent systemowy jest publikowany na
+najstarszym z nich albo na tym, który wybrano przy jego tworzeniu. Bez profilu
+jest tworzony jako draft. Seedowani Eval judge i drafter są publikowani na
+pierwszym modelu organizacji, gdy tylko zostanie on dodany; własny sędzia
+datasetu czeka, aż człowiek wybierze mu model i go opublikuje, a do tego czasu
+mówią o tym funkcje, które z niego korzystają.
 
 [Przełącznik wsparcia AI](governance.md#ai-assistance) organizacji decyduje, czy
-sędziowie w ogóle działają.
+agenci systemowi w ogóle działają.
 
 ## Profile modeli { #model-profiles }
 

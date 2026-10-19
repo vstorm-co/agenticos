@@ -686,8 +686,12 @@
     "testConnectionsSaved": "Test connections saved",
     "failedTestConnections": "The test connections could not be saved",
     "testDraft": "Test draft",
-    "judgesCount": "{count, plural, =1 {Judges (1)} other {Judges (#)}}",
-    "judgesHint": "Judges grade eval answers: the default one, and each dataset's own. The platform runs them, so nobody chats with one, puts it on a channel, schedules it or delegates to it; open one to change its instructions, model or budget.",
+    "systemAgentsCount": "{count, plural, =1 {System agents (1)} other {System agents (#)}}",
+    "systemAgentsHint": "The platform runs these agents itself, so nobody chats with one, puts it on a channel, schedules it or delegates to it. Open one to change its instructions, model or budget.",
+    "judgeKind": "{count, plural, =1 {Judges (1)} other {Judges (#)}}",
+    "judgeKindHint": "They grade eval answers: the default one, and each dataset's own.",
+    "drafterKind": "{count, plural, =1 {Gap drafter (1)} other {Gap drafters (#)}}",
+    "drafterKindHint": "It drafts the content a knowledge gap is missing, when somebody asks for a draft.",
     "defaultJudge": "Default judge",
     "defaultJudgeHint": "Grades every dataset that has no judge of its own.",
     "judgeUsedBy": "{more, plural, =0 {Used by {names}} other {Used by {names} and # more}}",
@@ -4125,9 +4129,9 @@
         "title": "Review",
         "body": "The graded answers waiting for a person's decision. Decide the ones the judge was not sure of; its opinion stays on record."
       },
-      "agents-judges": {
-        "title": "Judges",
-        "body": "The agents that grade eval answers: the default judge, and each one a dataset made for itself. Open one to change how strictly it grades, its model or its budget; a dataset picks its judge on its Grading tab."
+      "agents-system": {
+        "title": "System agents",
+        "body": "The agents the platform runs itself, grouped by what they do: the judges that grade eval answers and the drafter that writes what a knowledge gap is missing. Open one to change its instructions, model or budget; a dataset picks its judge on its Grading tab."
       },
       "dataset-judge": {
         "title": "The judge",
@@ -7154,6 +7158,7 @@
     "draftNotice": "Written by a model from the questions above. Check every fact and fill in the placeholders before you add it to the collection - nothing is added for you.",
     "draftSources": "What it rests on",
     "openDraftRun": "Open the run",
+    "editDrafter": "Edit the drafter's instructions",
     "downloadDraft": "Download .md",
     "hasDraft": "Draft",
     "draftLabel": "Draft — verify before adding",

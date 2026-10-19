@@ -5,11 +5,17 @@ import { Download, FileText, MessageSquare } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { CopyButton } from "@/components/chat/copy-button";
+import { useAgentsOfKind } from "@/hooks/use-agents";
+import { usePermissions } from "@/hooks/use-permissions";
 import { Alert, AlertDescription, AlertTitle, Badge, Button } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { saveBlob } from "@/lib/file-access";
 import { timeAgo } from "@/lib/utils";
 import type { KnowledgeGapDraft } from "@/types/knowledge-gaps";
+import { Perm } from "@/types/permissions";
+
+/** The `system_key` of the drafter the platform seeds. */
+const DRAFTER_KEY = "knowledge_gap_drafter";
 
 function asMarkdown(title: string, content: string): string {
   return `# ${title}\n\n${content}\n`;
@@ -18,14 +24,18 @@ function asMarkdown(title: string, content: string): string {
 /**
  * A drafted passage, labelled as one, with the sources it was checked against.
  *
- * Offered only to copy or download: nothing here adds it to the collection,
- * because a person checks the facts and adds the document.
+ * Offered only to copy or download: nothing here adds it to the knowledge base,
+ * because a person checks the facts and adds the document. Somebody who may edit
+ * the drafter is pointed at its instructions, which decide how the next draft reads.
  */
 export function KnowledgeGapDraftCard({ draft }: { draft: KnowledgeGapDraft }) {
   const t = useTranslations("knowledgeGaps");
   const tTime = useTranslations("time");
   const locale = useLocale();
   const markdown = asMarkdown(draft.title, draft.content);
+  const { can } = usePermissions();
+  const { agents } = useAgentsOfKind("drafter", { enabled: can(Perm.agentsView) });
+  const drafter = agents.find((agent) => agent.system_key === DRAFTER_KEY);
 
   return (
     <Alert>
@@ -60,6 +70,11 @@ export function KnowledgeGapDraftCard({ draft }: { draft: KnowledgeGapDraft }) {
           {draft.run_id && (
             <Link href={`${ROUTES.RUNS}?run=${draft.run_id}`} className="underline">
               {t("openDraftRun")}
+            </Link>
+          )}
+          {drafter?.can_edit && (
+            <Link href={ROUTES.AGENT_DETAIL(drafter.id)} className="underline">
+              {t("editDrafter")}
             </Link>
           )}
           <CopyButton text={markdown} className="opacity-100" />

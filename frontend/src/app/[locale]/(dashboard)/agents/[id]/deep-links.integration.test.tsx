@@ -46,6 +46,7 @@ const AGENT: AgentDetail = {
 
 let allowed: Set<Permission>;
 const page = vi.hoisted(() => ({
+  kind: "agent" as AgentDetail["kind"],
   params: "",
   validate: (() => undefined) as unknown,
 }));
@@ -64,7 +65,7 @@ vi.mock("@/hooks", async () => {
   return {
     useUrlState,
     useAgent: () => ({
-      agent: AGENT,
+      agent: { ...AGENT, kind: page.kind },
       isLoading: false,
       saveDraft: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
       validate: page.validate,
@@ -167,6 +168,7 @@ async function mount() {
 beforeEach(() => {
   vi.clearAllMocks();
   page.params = "";
+  page.kind = "agent";
   page.validate = vi.fn().mockResolvedValue({ problems: [], fields: [] });
 });
 
@@ -208,6 +210,23 @@ describe("the detail page's Knowledge gaps tab", () => {
       "aria-selected",
       "true",
     );
+  });
+});
+
+describe("a system agent's page", () => {
+  it("holds what changes how it works, and nothing else", async () => {
+    allowed = new Set([Perm.runsView, Perm.agentsEdit]);
+    page.kind = "drafter";
+    page.params = "tab=gaps";
+    await mount();
+
+    expect(await screen.findByRole("tab", { name: "Build" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    for (const name of ["Toolbox", "Availability", "Evals", "Knowledge gaps"]) {
+      expect(screen.queryByRole("tab", { name })).toBeNull();
+    }
   });
 });
 
