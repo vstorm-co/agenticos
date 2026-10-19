@@ -2216,8 +2216,7 @@
           "completed": "{count} completed",
           "failed": "{count} failed",
           "budget_exceeded": "{count} out of budget"
-        },
-        "seeAll": "See the eval traffic in Activity"
+        }
       }
     },
     "edit": {

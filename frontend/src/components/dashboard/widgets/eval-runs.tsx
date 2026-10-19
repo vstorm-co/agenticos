@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { FlaskConical } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -8,7 +7,6 @@ import { EvalRunRow } from "@/components/evals/run-row";
 import { useAgents } from "@/hooks";
 import { useRecentEvalRuns } from "@/hooks/use-eval-runs";
 import { usePermissions } from "@/hooks/use-permissions";
-import { ROUTES } from "@/lib/constants";
 import type { EvalRunStatus } from "@/types/eval-runs";
 import { Perm } from "@/types/permissions";
 import { WidgetFrame } from "../widget-frame";
@@ -62,12 +60,6 @@ export function EvalRunsWidget({ title, hint, options }: DashboardWidgetProps) {
               <EvalRunRow key={run.id} run={run} agentName={names.get(run.agent_id)} />
             ))}
           </ul>
-          <Link
-            href={`${ROUTES.RUNS}?surface=eval`}
-            className="text-muted-foreground hover:text-foreground inline-block text-xs underline-offset-4 hover:underline"
-          >
-            {t("seeAll")}
-          </Link>
         </div>
       )}
     </WidgetFrame>

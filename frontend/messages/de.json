@@ -2216,8 +2216,7 @@
           "completed": "{count} abgeschlossen",
           "failed": "{count} fehlgeschlagen",
           "budget_exceeded": "{count} ohne Budget"
-        },
-        "seeAll": "Eval-Verkehr in Activity ansehen"
+        }
       }
     },
     "edit": {

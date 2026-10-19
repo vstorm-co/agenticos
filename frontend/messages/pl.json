@@ -3113,8 +3113,7 @@
           "completed": "{count} zakończonych",
           "failed": "{count} z błędem",
           "budget_exceeded": "{count} bez budżetu"
-        },
-        "seeAll": "Zobacz ruch evali w Activity"
+        }
       }
     },
     "activeSessions": "Aktywne sesje",

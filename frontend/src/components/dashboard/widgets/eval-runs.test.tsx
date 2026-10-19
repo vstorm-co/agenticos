@@ -65,10 +65,8 @@ describe("EvalRunsWidget", () => {
     expect(screen.getByText("Breaks 2")).toBeInTheDocument();
     expect(screen.getByText("gpt-4.1 75%")).toBeInTheDocument();
     expect(screen.getByText("Pending")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "See the eval traffic in Activity" })).toHaveAttribute(
-      "href",
-      "/runs?surface=eval",
-    );
+    // Activity lists each case's runs, not these: the card links only the runs themselves.
+    expect(screen.queryByRole("link", { name: /Activity/ })).toBeNull();
   });
 
   it("starts a row at what was tested for who may not see agents", () => {
